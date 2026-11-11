@@ -1,0 +1,19 @@
+# The Odoo Instance Manager panel. Instances and Cloudflare connectors are separate containers that the panel manages.
+name: oim-panel
+
+services:
+  manager:
+    build: .
+    container_name: oim-panel
+    restart: unless-stopped
+    # a small init process as PID 1: collects processes started with `docker exec`, so gunicorn does not
+    # mistake them for its own workers, and passes stop signals on
+    init: true
+    env_file: .env
+    # host networking: the panel, the gateway ports and the connectors share the server's network
+    network_mode: host
+    volumes:
+      # the panel runs docker and docker compose against the host's Docker
+      - /var/run/docker.sock:/var/run/docker.sock
+      # same path as on the host, so paths in the instances' compose files mean the same inside and outside
+      - /opt/odoo:/opt/odoo

@@ -23,10 +23,12 @@ each part was chosen.
 | Part | What it is | Where |
 | :--- | :--- | :--- |
 | **Panel** | Web pages and a JSON API (Flask, served by Gunicorn) on `127.0.0.1:9000`. | `instance_manager/web/` |
-| **Gateway** | One small web server per instance (aiohttp) on `127.0.0.1:<gateway port>`. Forwards every request to that instance's Odoo. | `instance_manager/gateway.py` |
-| **Background work** | Threads in the panel's process: resource monitor (every 15 s), automatic pause (every 2 min), GitHub polling (every `POLL_MINUTES`). | `instance_manager/background.py`, `monitor.py` |
-| **Jobs** | Every action (create, update, restart...) runs as a job in its own thread, with steps, notes and a log. One job at a time per instance; others wait. | `instance_manager/jobs.py`, `operations.py` |
-| **Connectors** | One `cloudflared` container for the panel and one per instance. Each opens an outgoing connection to Cloudflare and receives a public https address. | `instance_manager/tunnels.py` |
+| **Gateway** | One small web server per instance (aiohttp) on `127.0.0.1:<gateway port>`. Forwards every request to that instance's Odoo. | `instance_manager/instances/gateway.py` |
+| **Background work** | Threads in the panel's process: resource monitor (every 15 s), automatic pause (every 2 min), GitHub polling (every `POLL_MINUTES`). | `instance_manager/background.py`, `instances/monitor.py` |
+| **Jobs** | Every action (create, update, restart...) runs as a job in its own thread, with steps, notes and a log. One job at a time per instance; others wait. | `instance_manager/core/jobs.py`, `instances/operations.py` |
+| **Exposure plugin** | Makes the panel and each gateway reachable from outside. Default `cloudflare-quick`: one `cloudflared` container per target, opening an outgoing connection to Cloudflare. Alternative `host-ports`: the ports are opened on the server. | `instance_manager/exposure/` |
+| **Add-on source plugin** | Provides the Enterprise add-ons of a version: an existing folder (`folder`) or a branch of a git repository (`git`). | `instance_manager/addons/` |
+| **Settings** | Every setting, typed and checked at start-up (pydantic-settings). | `instance_manager/config.py` |
 | **Instances** | One Docker Compose project per instance: an `odoo` container (official image) and a `db` container (PostgreSQL 16), two volumes. | `/opt/odoo/instances/<name>/` |
 
 All of the panel (pages, gateway, background work, jobs) runs in **one container** and **one process**
@@ -211,6 +213,25 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
 - **Why:** reviewing input rules is easy when there is one file to read, and nothing is "cleaned up" silently. See
   [Web attacks](concepts/WEB_ATTACKS.md).
 
+### Plugins for everything that differs between servers
+- **Chosen:** how instances are reached (`EXPOSURE`) and where Enterprise add-ons come from (`ENTERPRISE_SOURCE`)
+  are plugins, found through Python entry points and created once with the settings. See [Plugins](PLUGINS.md).
+- **Why:** servers differ: one accepts no incoming connection, another has a public address; one team keeps
+  Enterprise in folders, another in git. Building one way in would force it on everyone. Entry points are the
+  standard Python mechanism (pytest, Flask, Sphinx), so a plugin can live in its own package without changing the
+  panel.
+- **Cost:** two small interfaces to keep stable.
+- **Considered:** if/else on a setting inside the core (every new option touches the core); a framework for
+  dependency injection (more machinery than two interfaces need).
+
+### Typed settings, locked dependencies, enforced checks
+- **Chosen:** settings in one typed class (pydantic-settings); dependencies locked with uv (`uv.lock`); black, ruff,
+  mypy and the tests run on every commit (pre-commit) and on every pull request (CI).
+- **Why:** a wrong setting stops the panel at start-up with its name instead of failing later; every installation
+  gets the same library versions; style and type mistakes are caught before review.
+- **Considered:** the operating system's Python packages (versions differ between servers); pip with requirements
+  files (no lock of indirect dependencies).
+
 ### Small, dependency-light software
 - **Chosen:** Python with Flask (panel) and aiohttp (gateway, needed for streaming and WebSockets); plain JavaScript
   modules without a build step; panel data in small JSON files (accounts, state) instead of a database.
@@ -233,7 +254,8 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
   `ODOO_ADMIN_PASSWORD` to use another password for new instances.
 
 ### Enterprise add-ons shared read-only
-- **Chosen:** the add-ons of each version are stored once in `/opt/odoo/enterprise/<version>` and mounted read-only.
+- **Chosen:** the add-ons of each version are stored once on the server (where, is decided by the add-on source plugin)
+  and mounted read-only.
 - **Why:** one copy per version on disk, no instance can change them, updating them updates every instance.
 
 ---
@@ -243,6 +265,7 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
 | Convention | Example |
 | :--- | :--- |
 | Every module starts with a docstring saying what it owns. | `vault.py`: "Encryption of the secrets the panel must be able to read back." |
+| Type hints everywhere; formatting by black; lint by ruff; mypy in strict-enough mode (`disallow_untyped_defs`). | `def address(self, target: Target) -> str \| None:` |
 | Commands are lists of arguments, never shell strings. | `["git", "clone", "-b", branch, "--", url, path]` |
 | One way to do each thing; no silent fallbacks. | A repository with a key is fetched over SSH, every other one over HTTPS, nothing else. |
 | Errors shown to people are sentences that say what to do. | "This branch name is not valid." rather than a stack trace; the technical log is one click away. |

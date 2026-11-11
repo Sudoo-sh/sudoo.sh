@@ -8,7 +8,6 @@ set -euo pipefail
 
 ROOT=/opt/odoo
 KIT="$(cd "$(dirname "$0")" && pwd)"
-SRC="$KIT/manager"
 DEST="$ROOT/manager"
 
 [ "$(id -u)" -eq 0 ] || { echo "Run as root: sudo ./install.sh"; exit 1; }
@@ -18,15 +17,16 @@ umask 077
 mkdir -p "$ROOT/instances" "$ROOT/enterprise" "$DEST/keys/deploy"
 chmod 700 "$DEST" "$DEST/keys" "$DEST/keys/deploy"
 
-# the panel's code: replace it completely
-rm -rf "$DEST/instance_manager" "$DEST"/*.py "$DEST/documentation"
-cp -r "$SRC/instance_manager" "$SRC/wsgi.py" "$SRC/manage.py" "$SRC/Dockerfile" "$SRC/docker-compose.yml" "$SRC/.env.example" "$DEST/"
+# the panel's code and build files: replace them completely (older layouts included)
+rm -rf "$DEST/src" "$DEST/instance_manager" "$DEST"/*.py "$DEST/docker-compose.yml" "$DEST/documentation"
+cp -r "$KIT/src" "$KIT/pyproject.toml" "$KIT/uv.lock" "$KIT/README.md" "$KIT/LICENSE.md" \
+      "$KIT/Dockerfile" "$KIT/compose.yaml" "$KIT/.env.example" "$DEST/"
 # the documentation shown under Documentation in the panel
 mkdir -p "$DEST/documentation"
 cp -r "$KIT/README.md" "$KIT/docs" "$DEST/documentation/"
 
 # settings: the template's keys, with the values already set on this server
-python3 - "$SRC/.env.example" "$DEST/.env" <<'PY'
+python3 - "$KIT/.env.example" "$DEST/.env" <<'PY'
 import sys
 from pathlib import Path
 template, target = Path(sys.argv[1]), Path(sys.argv[2])
@@ -49,18 +49,18 @@ docker compose up -d --build --remove-orphans
 
 echo "Waiting for the panel and its public address..."
 for _ in $(seq 1 60); do
-  docker exec oim-panel python3 manage.py urls 2>/dev/null | grep -q "^Panel: https://" && break
+  docker exec oim-panel instance-manager urls 2>/dev/null | grep -q "^Panel: http" && break
   sleep 2
 done
 
 echo
 echo "Odoo Instance Manager, created by Yousef M. Y. Al Sabbah"
-docker exec oim-panel python3 manage.py urls
+docker exec oim-panel instance-manager urls
 echo
 if [ -f "$DEST/users.json" ]; then
   echo "Accounts already exist and were not changed."
-  echo "Forgotten password:  docker exec oim-panel python3 manage.py reset-password admin"
+  echo "Forgotten password:  docker exec oim-panel instance-manager reset-password admin"
 else
   echo "Accounts (shown only once, store them in a password manager):"
-  docker exec oim-panel python3 manage.py init-accounts
+  docker exec oim-panel instance-manager init-accounts
 fi

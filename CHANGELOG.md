@@ -6,6 +6,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Plugins for what differs between servers, loaded through Python entry points and chosen in `.env`
+  ([docs/PLUGINS.md](docs/PLUGINS.md)):
+  - exposure: `cloudflare-quick` (as before) or `host-ports` (open ports, fixed addresses), set by `EXPOSURE`;
+  - Enterprise add-on source: `folder` with any naming (`ENTERPRISE_PATH=/data/ent-{major}`), `git` with one branch
+    per version, or `none`, set by `ENTERPRISE_SOURCE`.
+- Any Odoo version: `ODOO_VERSIONS=auto` offers every published version from `ODOO_MIN_VERSION`.
+- New settings for the Odoo and PostgreSQL images and all ports; full reference in
+  [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+- `instance-manager` command (replaces `manage.py`), with `config` to show the effective settings and plugins.
+- Test suite (pytest), pre-commit hooks (black, ruff, mypy, shellcheck, uv.lock) and CI running them on every pull
+  request.
+
+### Changed
+
+- Dependencies are installed with uv from `uv.lock` instead of Alpine packages; the image is based on
+  `python:3.12-alpine`.
+- Settings are typed and checked at start-up (pydantic-settings): a wrong value stops the panel with a clear message.
+- Code moved to a `src/` layout with subpackages (`core`, `instances`, `repos`, `exposure`, `addons`, `web`), type
+  hints on every function, formatted with black.
+- `ADMIN_CONTACT_NAME` defaults to "the administrator".
+
+### Upgrading
+
+Run `install.sh` as usual. It replaces the old `manager/` files, adds the new settings to `.env` with their
+defaults and keeps your values. `ODOO_VERSIONS` keeps its current value; set it to `auto` to offer every version.
+Use `instance-manager` instead of `python3 manage.py` in commands.
+
 ## [0.1.0] - 2026-11-11
 
 ### Added

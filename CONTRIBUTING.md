@@ -23,30 +23,45 @@ Large changes that were not discussed in an issue first may be declined, even wh
 
 ## Development setup
 
-The panel runs on a Linux server with Docker and the Docker Compose plugin. A disposable virtual machine or a spare server is the safest place to work: the panel manages Docker containers on the host.
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/) (it also installs the right Python) and, to
+run the panel itself, a Linux machine with Docker. A disposable virtual machine or a spare server is the safest
+place to run it: the panel manages Docker containers on the host.
 
 ```bash
 git clone https://github.com/Yosef-AlSabbah/odoo-instance-manager.git
 cd odoo-instance-manager
-sudo ./check-server.sh   # read-only check of Docker, memory, disk and internet access
-sudo ./install.sh        # installs, or updates, the panel from your working copy
+uv sync                        # creates .venv with the project, its dependencies and the development tools
+uv run pre-commit install      # runs the checks below on every commit
+uv run pytest                  # the tests
 ```
 
-Running `install.sh` again after a change updates the panel and keeps instances, accounts, keys and settings. Settings are described in [manager/.env.example](manager/.env.example) and the [Administrator guide](docs/ADMIN_GUIDE.md).
+To try a change on a server: `sudo ./check-server.sh`, then `sudo ./install.sh` from your working copy. Running
+`install.sh` again updates the panel and keeps instances, accounts, keys and settings. Settings are described in
+[docs/CONFIGURATION.md](docs/CONFIGURATION.md) and the template [.env.example](.env.example).
 
 ### Checks to run before you push
 
-The same checks run automatically on every pull request (see [.github/workflows/ci.yml](.github/workflows/ci.yml)).
+Every commit runs them through pre-commit, and every pull request runs them again in
+[CI](.github/workflows/ci.yml), together with a Docker image build. A pull request cannot be merged while they fail.
 
 ```bash
-pip install ruff
-ruff check .                                          # Python lint
-python -m compileall -q manager                       # every Python file compiles
-shellcheck --severity=error install.sh check-server.sh # shell scripts
-cp -r docs manager/documentation && docker build -t oim-test manager && rm -rf manager/documentation
+uv run pre-commit run --all-files   # black, ruff, mypy, shellcheck, uv.lock, whitespace, private keys
+uv run pytest                       # tests
 ```
 
-Then test the behaviour you changed on a real server through the public links, the way users reach the panel. The [Testing](README.md#testing) section lists what is normally checked.
+| Tool | What it checks | Settings |
+| :--- | :--- | :--- |
+| [black](https://black.readthedocs.io/) | Formatting (line length 120) | `pyproject.toml` |
+| [ruff](https://docs.astral.sh/ruff/) | Lint and import order | `pyproject.toml` |
+| [mypy](https://mypy.readthedocs.io/) | Type hints: every function is annotated | `pyproject.toml` |
+| [pytest](https://docs.pytest.org/) | Behaviour | `tests/` |
+| [pre-commit](https://pre-commit.com/) | Runs all of the above on every commit | `.pre-commit-config.yaml` |
+
+Dependencies are managed with uv: `uv add <package>` (or `uv add --dev <package>`) updates `pyproject.toml` and
+`uv.lock` together. Commit both.
+
+Then test the behaviour you changed on a real server through the public links, the way users reach the panel. The
+[Testing](README.md#testing) section lists what is normally checked.
 
 ## Rules of the code
 
@@ -54,16 +69,16 @@ These rules keep the panel small, safe and easy to review. Pull requests that br
 
 1. **One module per responsibility.** Each module starts with a docstring that says what it owns. Put new behaviour in the module that owns it, or in a new module with a clear name.
 2. **`web/` only receives requests, checks them and calls other modules.** The real work (operations, git, Docker) lives outside `web/`.
-3. **No shell.** Every external command is a list of arguments run through `shell.py` or `jobs.py`. Never use `shell=True`, `os.system` or string-built commands.
+3. **No shell.** Every external command is a list of arguments run through `core/shell.py` or `core/jobs.py`. Never use `shell=True`, `os.system` or string-built commands.
 4. **Every value from outside goes through `web/validation.py`.** Add an allow-list rule there for any new input.
 5. **One way to do each thing, no fallbacks.** When something fails there must be one path to look at.
 6. **No inline styles or scripts** in the browser code, so the strict Content-Security-Policy keeps working.
-7. **No new dependencies without discussion.** The browser side uses plain JavaScript modules with no npm packages; the Python side uses the Alpine packages listed in [manager/Dockerfile](manager/Dockerfile).
-8. **Secrets stay encrypted.** Anything the panel must read back goes through `vault.py`; passwords are only ever hashed.
-9. **Explain failures in plain language.** When you add an error, add a hint for it in `hints.py`.
+7. **Nothing forced on every server.** Behaviour that can differ between servers is a setting in `config.py` or a plugin (see [docs/PLUGINS.md](docs/PLUGINS.md)), never a fixed choice. New dependencies are discussed in an issue first and added with `uv add`; the browser side stays plain JavaScript modules with no npm packages.
+8. **Secrets stay encrypted.** Anything the panel must read back goes through `core/vault.py`; passwords are only ever hashed.
+9. **Explain failures in plain language.** When you add an error, add a hint for it in `core/hints.py`.
 10. **Document what you change.** Update the relevant file under `docs/` in the same pull request, since the same documents are shown inside the panel.
 
-Style: follow the existing code. Use 4 spaces in Python, clear names, and comments that explain *why*, not *what*.
+Style: black formats the code and ruff checks it; add type hints to every function (mypy checks them). Use clear names, and comments that explain *why*, not *what*.
 
 ## Commits and pull requests
 

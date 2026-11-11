@@ -80,17 +80,22 @@ File: `/opt/odoo/manager/.env` (mode 600). Apply a change with:
 cd /opt/odoo/manager && docker compose up -d
 ```
 
-| Setting | Default | Meaning |
-| :--- | :--- | :--- |
-| `ADMIN_CONTACT_NAME` | Yousef M. Y. Al Sabbah | Shown to sync operators and visitors when they must contact the administrator |
-| `ADMIN_CONTACT_PHONE`, `ADMIN_CONTACT_EMAIL` | empty | Added to that message when set |
-| `ODOO_VERSIONS` | `18.0,19.0,20.0` | Versions offered when creating an instance |
-| `ODOO_ADMIN_PASSWORD` | `admin` | Odoo password of the user `admin` in new instances |
-| `IDLE_HOURS` | `6` | Pause an instance after this many hours without visits (`0` turns automatic pause off) |
-| `DELETE_AFTER_DAYS` | `30` | Lifetime offered for new instances: deleted, after a backup, this many days after creation (`0` offers "keep") |
-| `POLL_MINUTES` | `2` | How often GitHub is checked for new commits |
-| `SESSION_IDLE_MINUTES` | `60` | Panel sign-out after this long without activity |
-| `SESSION_MAX_HOURS` | `12` | Longest panel session |
+Every setting, with its type, default and meaning, is in [Configuration](CONFIGURATION.md); the template with
+comments is `.env.example`. To see what the panel is actually using, and which plugins are installed:
+
+```bash
+docker exec oim-panel instance-manager config
+```
+
+A wrong value (for example `IDLE_HOURS=soon`) or an unknown plugin name stops the panel at start-up, and
+`docker logs oim-panel` names the setting.
+
+The two choices that shape a server are plugins ([Plugins](PLUGINS.md)):
+
+| Setting | Options |
+| :--- | :--- |
+| `EXPOSURE` | `cloudflare-quick` (free tunnel per instance, no open port; default) or `host-ports` (open ports, fixed addresses) |
+| `ENTERPRISE_SOURCE` | `folder` (default), `git` (a branch per version) or `none` |
 
 Per instance, administrators change **Automation** on the instance's page (stored as `AUTO_UPDATE`,
 `AUTO_UPGRADE`, `AUTO_PAUSE` in the instance's `.env`).
@@ -108,7 +113,7 @@ follow). Links you shared earlier, and webhook addresses registered at other ser
 To see the current links on the server:
 
 ```bash
-docker exec oim-panel python3 manage.py urls
+docker exec oim-panel instance-manager urls
 ```
 
 Administrators can also reach the panel without Cloudflare, through SSH:
@@ -138,8 +143,9 @@ then open `http://localhost:9000`. Why the server needs tunnels at all is explai
 │   ├── keys/deploy/<owner>__<repo>.pub      its public part (what is added on GitHub)
 │   ├── keys/deploy/<owner>__<repo>.name     the repository name as written on GitHub
 │   ├── documentation/                       README.md and docs/, shown in the panel
-│   └── instance_manager/, wsgi.py, manage.py, Dockerfile, docker-compose.yml, .env.example
-├── enterprise/<version>/                    Odoo Enterprise add-ons, one folder per version
+│   └── src/, pyproject.toml, uv.lock, Dockerfile, compose.yaml, .env.example   (the panel's code, from the kit)
+├── enterprise/<version>/                    Enterprise add-ons (folder source, default ENTERPRISE_PATH)
+├── enterprise-git/<version>/                Enterprise add-ons downloaded by the git source
 ├── backups/                                 Odoo-format backup zips (mode 600)
 └── instances/<name>/
     ├── .env                                 version, edition, ports, database, automation (mode 600);
@@ -174,32 +180,41 @@ connector and state in step.
 
 ## 6. Odoo Enterprise add-ons
 
-The **Edition** field offers Enterprise for each version whose add-ons are in `/opt/odoo/enterprise/<version>`.
-They are mounted read-only into every Enterprise instance of that version, after the instance's own modules
-(so a custom module can replace an Enterprise one). `web_enterprise` is installed with the database.
-
 **The Enterprise add-ons are not part of this project** and never go into its repository: they are Odoo's
-proprietary code, available to Odoo partners and subscribers. Each server needs its own copy, in this layout:
+proprietary code, available to Odoo partners and subscribers. Each server needs its own copy. Where the panel finds
+it is chosen by the add-on source plugin (`ENTERPRISE_SOURCE`, see [Plugins](PLUGINS.md#4-add-on-sources-where-enterprise-comes-from)).
+
+The **Edition** field offers Enterprise for each version the source can provide. The add-ons are mounted read-only
+into every Enterprise instance of that version, after the instance's own modules (so a custom module can replace an
+Enterprise one), and `web_enterprise` is installed with the database.
+
+**Folder source** (default): a folder per version, wherever you keep them. `ENTERPRISE_PATH` names it, with
+`{version}` (19.0) and `{major}` (19) replaced:
+
+| `ENTERPRISE_PATH` | Folder for Odoo 19 |
+| :--- | :--- |
+| `/opt/odoo/enterprise/{version}` (default) | `/opt/odoo/enterprise/19.0` |
+| `/data/odoo-enterprise-{major}` | `/data/odoo-enterprise-19` |
+
+Each folder holds the modules directly:
 
 ```
-/opt/odoo/enterprise/
-├── 18.0/                       one folder per Odoo version, named exactly like the version tag
-│   ├── web_enterprise/         required: the panel offers Enterprise only when
-│   │   └── __manifest__.py     <version>/web_enterprise/__manifest__.py exists
-│   ├── account_accountant/
-│   ├── ...                     every Enterprise module directly inside the version folder
-├── 19.0/
-└── 20.0/
+/opt/odoo/enterprise/19.0/
+├── web_enterprise/         required: Enterprise is offered only when this module (ENTERPRISE_MARKER) is there
+├── account_accountant/
+└── ...                     every Enterprise module directly inside, not in a sub-folder
 ```
-
-Rules:
 
 | Rule | Right | Wrong |
 | :--- | :--- | :--- |
-| The folder is named like the Odoo version in `ODOO_VERSIONS` | `19.0` | `19`, `v19`, `odoo-19`, `enterprise-19.0` |
-| Modules sit directly inside the version folder | `19.0/web_enterprise/` | `19.0/enterprise/web_enterprise/` |
-| The add-ons match the version of the folder | Odoo 19 add-ons in `19.0/` | Odoo 18 add-ons in `19.0/` |
-| Readable by the Odoo containers | `chmod -R a+rX /opt/odoo/enterprise/19.0` | files readable by root only |
+| Modules sit directly inside the version's folder | `19.0/web_enterprise/` | `19.0/enterprise/web_enterprise/` |
+| The add-ons match the version | Odoo 19 add-ons for 19.0 | Odoo 18 add-ons for 19.0 |
+| Readable by the Odoo containers | `chmod -R a+rX <folder>` | files readable by root only |
+
+**Git source**: set `ENTERPRISE_SOURCE=git`, `ENTERPRISE_GIT_URL` (a private repository you control, with one branch
+per version) and `ENTERPRISE_GIT_BRANCH` (for example `{version}`). Give the server a deploy key for that repository
+under **GitHub access**. The branch is downloaded when an Enterprise instance of that version is created, and
+refreshed the next time.
 
 Adding or updating a version, from a computer that has the add-ons folder (the folder that directly contains
 `web_enterprise`, `account_accountant` and so on):
@@ -209,8 +224,9 @@ tar czf - -C "<folder with the add-ons>" . | ssh <user>@<server> \
   'mkdir -p /opt/odoo/enterprise/21.0 && tar xzf - -C /opt/odoo/enterprise/21.0 && chmod -R a+rX /opt/odoo/enterprise/21.0'
 ```
 
-The option appears in the panel at once. After updating a version, restart its Enterprise instances and upgrade
-modules where needed. Enterprise databases must be registered with an Odoo subscription or partner code, otherwise
+(for the default `ENTERPRISE_PATH`; use your own path otherwise.) The new version is offered as soon as the Odoo
+image of that version is published (`ODOO_VERSIONS=auto`) or listed in `ODOO_VERSIONS`. After updating a version, restart its Enterprise instances and
+upgrade modules where needed. Enterprise databases must be registered with an Odoo subscription or partner code, otherwise
 Odoo shows its expiry notice after the trial period.
 
 ---
@@ -261,9 +277,9 @@ See [Security](SECURITY.md) for why it works this way.
 For when nobody can sign in, for example after losing the admin password:
 
 ```bash
-docker exec oim-panel python3 manage.py list-users
-docker exec oim-panel python3 manage.py create-user <name> admin|operator
-docker exec oim-panel python3 manage.py reset-password <name>
+docker exec oim-panel instance-manager list-users
+docker exec oim-panel instance-manager create-user <name> admin|operator
+docker exec oim-panel instance-manager reset-password <name>
 ```
 
 New and reset passwords are printed once. Every other account task is done in the panel ([User manual](USER_MANUAL.md#8-accounts-and-passwords)).
@@ -276,7 +292,7 @@ After installing or updating:
 
 1. `docker ps` shows `oim-panel`, `oim-connector-panel`, and for each instance its connector, Odoo and
    database (paused instances show only their connector).
-2. `docker exec oim-panel python3 manage.py urls` prints the panel's link and every instance's link.
+2. `docker exec oim-panel instance-manager urls` prints the panel's link and every instance's link.
 3. Open the panel's link and sign in.
 4. **Documentation** in the top bar opens these pages.
 5. Create a small test instance (no repository, name `check`, Odoo 20, Community). It should be ready in about 2
@@ -292,7 +308,7 @@ After installing or updating:
 
 | Symptom | Likely cause | What to do |
 | :--- | :--- | :--- |
-| The panel's link does not open | The link changed after a restart | `docker exec oim-panel python3 manage.py urls` |
+| The panel's link does not open | The link changed after a restart | `docker exec oim-panel instance-manager urls` |
 | No link at all | `oim-panel` or the connector is not running | `docker ps -a`, `docker logs oim-panel`, then `cd /opt/odoo/manager && docker compose up -d` |
 | "Starting up" for several minutes | Odoo fails to start | **View logs** on the instance's page |
 | "No access" under Repository access | No deploy key, or not added on GitHub | Create the key, add it on GitHub, **Check again** ([User manual](USER_MANUAL.md#7-github-access-private-repositories)) |
@@ -310,12 +326,13 @@ After installing or updating:
 
 ## 11. Moving to permanent links
 
-Quick tunnels are free and need no account, but their addresses change. For addresses that never change, such as
-`sales.<your-domain>`:
+Quick tunnels are free and need no account, but their addresses change. For addresses that never change:
 
-1. Buy a domain (about 10 USD a year) and add it to a free Cloudflare account.
-2. Create one **named tunnel** in Cloudflare and give the server its token.
-3. Route one host name per instance to that instance's gateway port.
+| Option | How |
+| :--- | :--- |
+| The server accepts incoming connections | `EXPOSURE=host-ports`, `PUBLIC_HOST=<name or address>`, open the ports. Built in. |
+| A domain behind Cloudflare | Buy a domain (about 10 USD a year), create a Cloudflare named tunnel, and write a small exposure plugin that routes `<instance>.<domain>` to each gateway port ([Plugins](PLUGINS.md#5-writing-a-plugin)). |
+| A reverse proxy you already run | An exposure plugin like the example in [Plugins](PLUGINS.md#5-writing-a-plugin). |
 
-Only the way connectors are started (`tunnels.py`) changes; the gateway, the instances and the panel stay as they
-are. The comparison with Tailscale and other options is in [Tunneling](concepts/TUNNELING.md#7-other-ways-and-why-we-chose-this-one).
+The gateway, the instances and the panel stay as they are; only the exposure plugin changes. The comparison with
+Tailscale and other options is in [Tunneling](concepts/TUNNELING.md#7-other-ways-and-why-we-chose-this-one).

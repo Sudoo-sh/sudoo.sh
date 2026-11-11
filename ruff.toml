@@ -1,8 +1,0 @@
-# Python lint settings used by CI (`ruff check .`).
-target-version = "py312"
-line-length = 120
-
-[lint]
-# Start with the rules that catch real bugs: syntax errors, undefined names,
-# invalid comparisons. Widen the set (for example "E", "F", "B", "S") step by step.
-select = ["E9", "F63", "F7", "F82"]

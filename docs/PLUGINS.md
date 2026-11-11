@@ -1,0 +1,198 @@
+# Plugins
+
+**Audience:** administrators choosing how the panel works on their server, and developers extending it.
+**Covers:** the two plugin types, the built-in plugins and their settings, and how to write and install your own.
+
+---
+
+## Contents
+
+1. [Why plugins](#1-why-plugins)
+2. [How it works](#2-how-it-works)
+3. [Exposure: how instances are reached](#3-exposure-how-instances-are-reached)
+4. [Add-on sources: where Enterprise comes from](#4-add-on-sources-where-enterprise-comes-from)
+5. [Writing a plugin](#5-writing-a-plugin)
+6. [Rules for plugins](#6-rules-for-plugins)
+
+---
+
+## 1. Why plugins
+
+Servers differ. One server accepts no incoming connection and needs a tunnel; another has a public address and can
+simply open ports; a third sits behind the company's reverse proxy. Some teams keep Odoo Enterprise in a folder,
+others in a git repository with one branch per version, others do not use Enterprise at all.
+
+Instead of building one of these into the panel, each is a **plugin** chosen by a setting. The panel's core does
+not know which one runs: it calls a small, typed interface, and the plugin does the work. Changing how instances are
+reached is a change of one line in `.env`, and new ways can be added without touching the panel's code.
+
+---
+
+## 2. How it works
+
+Plugins use **Python entry points**, the standard mechanism also used by pytest, Flask and Sphinx extensions. A
+package declares in its `pyproject.toml` which classes it provides, under a group name:
+
+```toml
+[project.entry-points."instance_manager.exposure"]
+cloudflare-quick = "instance_manager.exposure.cloudflare:CloudflareQuickTunnel"
+host-ports = "instance_manager.exposure.ports:HostPorts"
+```
+
+A setting names the plugin (`EXPOSURE=host-ports`). When the panel starts, `plugins.py` finds the class registered
+under that name, creates it **once** with the panel's settings (dependency injection: plugins never read the
+environment themselves), and every part of the panel uses that object.
+
+| Plugin type | Entry-point group | Setting | Interface | Built-in plugins |
+| :--- | :--- | :--- | :--- | :--- |
+| Exposure | `instance_manager.exposure` | `EXPOSURE` | `exposure/base.py`: `Exposure` | `cloudflare-quick`, `host-ports` |
+| Add-on source | `instance_manager.addon_sources` | `ENTERPRISE_SOURCE` | `addons/base.py`: `AddonSource` | `folder`, `git` (and `none`) |
+
+See which plugins are installed and which are in use:
+
+```bash
+docker exec oim-panel instance-manager config
+```
+
+A setting that names a plugin that is not installed stops the panel at start-up with the list of installed ones.
+
+---
+
+## 3. Exposure: how instances are reached
+
+The panel and each instance's gateway listen on a local port. The exposure plugin makes those ports reachable and
+says what the public address is.
+
+### `cloudflare-quick` (default)
+
+A free Cloudflare quick tunnel per instance and one for the panel. No open port, no account, no domain; https
+included. Addresses look like `https://<words>.trycloudflare.com` and change when the server restarts. See
+[Tunneling](concepts/TUNNELING.md).
+
+| Setting | Default | Meaning |
+| :--- | :--- | :--- |
+| `CLOUDFLARED_IMAGE` | `cloudflare/cloudflared:latest` | The connector image |
+| `CONNECTOR_PREFIX` | `oim-connector-` | Container name prefix of the connectors |
+| `CONNECTOR_STATUS_PORT_START` | `20300` | First status port; each instance gets one (`CONNECTOR_METRICS_PORT` in its `.env`) |
+| `PANEL_CONNECTOR_STATUS_PORT` | `20242` | Status port of the panel's connector |
+
+### `host-ports`
+
+Visitors connect straight to the server: the panel on `PANEL_PORT`, each instance on its `GATEWAY_PORT`, on every
+network interface. Addresses never change. For servers with a public address, or on an office network.
+
+| Setting | Default | Meaning |
+| :--- | :--- | :--- |
+| `PUBLIC_HOST` | (required) | The server's public name or address, for example `demo.example.com` |
+| `PUBLIC_SCHEME` | `http` | `https` only when a TLS proxy in front of the server handles https on those ports |
+
+```
+EXPOSURE=host-ports
+PUBLIC_HOST=demo.example.com
+```
+
+Then open the ports in the firewall: `PANEL_PORT` (9000) and the gateway range from `GATEWAY_PORT_START` (8069). With
+`PUBLIC_SCHEME=http` passwords travel unencrypted: use it only on networks you trust.
+
+---
+
+## 4. Add-on sources: where Enterprise comes from
+
+The add-on source provides the Odoo Enterprise add-ons of a version. The **Edition** field in the panel offers
+Enterprise for exactly the versions the source can provide. `ENTERPRISE_SOURCE=none` turns Enterprise off.
+
+### `folder` (default)
+
+The add-ons are already on the server, in a folder per version. `ENTERPRISE_PATH` gives the place, with `{version}`
+(for example `19.0`) and `{major}` (`19`) replaced, so any existing naming works:
+
+| `ENTERPRISE_PATH` | Folder for Odoo 19 |
+| :--- | :--- |
+| `/opt/odoo/enterprise/{version}` (default) | `/opt/odoo/enterprise/19.0` |
+| `/data/odoo-enterprise-{major}` | `/data/odoo-enterprise-19` |
+| `/srv/ent/v{major}/addons` | `/srv/ent/v19/addons` |
+
+A version counts as available when its folder contains the module named by `ENTERPRISE_MARKER` (`web_enterprise`).
+The folder must be readable by the Odoo containers (`chmod -R a+rX <folder>`).
+
+### `git`
+
+The add-ons come from a git repository with one branch per Odoo version; the panel downloads the branch when an
+Enterprise instance of that version is created (latest commit only) and refreshes it the next time.
+
+| Setting | Example | Meaning |
+| :--- | :--- | :--- |
+| `ENTERPRISE_GIT_URL` | `git@github.com:my-company/odoo-enterprise.git` | The repository |
+| `ENTERPRISE_GIT_BRANCH` | `{version}` or `enterprise-{major}` | Branch name of a version |
+
+Use a private repository you control, and give the server read-only access with a deploy key (**GitHub access** in
+the panel). Downloads are kept in `<ODOO_ROOT>/enterprise-git/<version>`.
+
+---
+
+## 5. Writing a plugin
+
+A plugin is a class that implements one of the interfaces and is registered under the group's entry point. Here is
+a complete exposure plugin that gives every instance an address on a wildcard domain served by a reverse proxy you
+already run (Traefik, Caddy, nginx):
+
+```python
+# my_exposure/wildcard.py
+from instance_manager.config import Settings
+from instance_manager.exposure.base import Target
+
+
+class WildcardDomain:
+    """https://<instance>.<domain>; the reverse proxy forwards each name to the instance's gateway port."""
+
+    listen_host = "127.0.0.1"   # the proxy runs on the same server
+    https = True
+
+    def __init__(self, settings: Settings) -> None:
+        self.domain = "odoo.example.com"   # or read your own environment variable here
+
+    def instance_ports(self) -> dict[str, int]:
+        return {}
+
+    def panel_env(self) -> dict[str, str]:
+        return {}
+
+    def ensure(self, target: Target) -> None:
+        pass   # e.g. write a route file for the proxy: <target.name>.<domain> -> 127.0.0.1:<target.port>
+
+    def remove(self, target: Target) -> None:
+        pass   # delete that route
+
+    def address(self, target: Target) -> str | None:
+        name = "panel" if target.name == "panel" else target.name
+        return f"https://{name}.{self.domain}"
+```
+
+```toml
+# pyproject.toml of your package
+[project]
+name = "my-exposure"
+version = "0.1.0"
+dependencies = ["instance-manager"]
+
+[project.entry-points."instance_manager.exposure"]
+wildcard-domain = "my_exposure.wildcard:WildcardDomain"
+```
+
+Install it into the panel's environment, for example by adding it to `pyproject.toml` of the panel and running
+`uv lock`, then set `EXPOSURE=wildcard-domain` and run `install.sh`. An add-on source works the same way: implement
+`available(version)` and `prepare(version, log)` from `addons/base.py` and register it under
+`instance_manager.addon_sources`.
+
+---
+
+## 6. Rules for plugins
+
+| Rule | Why |
+| :--- | :--- |
+| Take everything from the `Settings` object passed to the constructor. | One place for configuration; tests can create a plugin with any settings. |
+| Refuse bad configuration in the constructor, with a sentence naming the setting (`raise ValueError(...)`). | The panel stops at start-up with a clear message instead of failing later. |
+| `ensure()` must be safe to call again and again. | It runs when the panel starts, and after every restart of an instance. |
+| Never restart something that would change an existing address without being asked. | People have shared those links. |
+| Run commands as argument lists, never through a shell (`core/shell.py`). | Nothing typed by a user can become a command. |
+| Add type hints; the project's mypy and tests must pass. | The interfaces are the contract between the panel and the plugin. |

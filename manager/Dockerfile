@@ -1,6 +1,6 @@
 # The panel image: Alpine with the Docker CLI and Compose plugin (to manage instances on the host's Docker),
 # Python, Flask, gunicorn, aiohttp (gateway), cryptography (vault), Markdown (documentation pages) and git.
-FROM docker:27-cli
+FROM docker:29-cli
 
 LABEL org.opencontainers.image.title="Odoo Instance Manager" \
       org.opencontainers.image.authors="Yousef M. Y. Al Sabbah" \

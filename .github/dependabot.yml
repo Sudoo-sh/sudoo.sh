@@ -1,0 +1,15 @@
+# Keeps the CI actions and the panel's base image up to date.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+  - package-ecosystem: docker
+    directory: /manager
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: docker

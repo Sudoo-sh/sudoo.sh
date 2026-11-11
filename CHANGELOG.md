@@ -2,9 +2,11 @@
 
 All notable changes to this project are recorded in this file.
 
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once releases are tagged.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-11-11
 
 ### Added
 
@@ -19,3 +21,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Server and per-instance resource monitoring.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
+
+[Unreleased]: https://github.com/Yosef-AlSabbah/odoo-instance-manager/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Yosef-AlSabbah/odoo-instance-manager/releases/tag/v0.1.0

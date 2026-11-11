@@ -22,17 +22,17 @@ each part was chosen.
 
 | Part | What it is | Where |
 | :--- | :--- | :--- |
-| **Panel** | Web pages and a JSON API (Flask, served by Gunicorn) on `127.0.0.1:9000`. | `instance_manager/web/` |
-| **Gateway** | One small web server per instance (aiohttp) on `127.0.0.1:<gateway port>`. Forwards every request to that instance's Odoo. | `instance_manager/instances/gateway.py` |
-| **Background work** | Threads in the panel's process: resource monitor (every 15 s), automatic pause (every 2 min), GitHub polling (every `POLL_MINUTES`). | `instance_manager/background.py`, `instances/monitor.py` |
-| **Jobs** | Every action (create, update, restart...) runs as a job in its own thread, with steps, notes and a log. One job at a time per instance; others wait. | `instance_manager/core/jobs.py`, `instances/operations.py` |
-| **Exposure plugin** | Makes the panel and each gateway reachable from outside. Default `cloudflare-quick`: one `cloudflared` container per target, opening an outgoing connection to Cloudflare. Alternative `host-ports`: the ports are opened on the server. | `instance_manager/exposure/` |
-| **Add-on source plugin** | Provides the Enterprise add-ons of a version: an existing folder (`folder`) or a branch of a git repository (`git`). | `instance_manager/addons/` |
-| **Settings** | Every setting, typed and checked at start-up (pydantic-settings). | `instance_manager/config.py` |
+| **Panel** | Web pages and a JSON API (Flask, served by Gunicorn) on `127.0.0.1:9000`. | `sudoo/web/` |
+| **Gateway** | One small web server per instance (aiohttp) on `127.0.0.1:<gateway port>`. Forwards every request to that instance's Odoo. | `sudoo/instances/gateway.py` |
+| **Background work** | Threads in the panel's process: resource monitor (every 15 s), automatic pause (every 2 min), GitHub polling (every `POLL_MINUTES`). | `sudoo/background.py`, `instances/monitor.py` |
+| **Jobs** | Every action (create, update, restart...) runs as a job in its own thread, with steps, notes and a log. One job at a time per instance; others wait. | `sudoo/core/jobs.py`, `instances/operations.py` |
+| **Exposure plugin** | Makes the panel and each gateway reachable from outside. Default `cloudflare-quick`: one `cloudflared` container per target, opening an outgoing connection to Cloudflare. Alternative `host-ports`: the ports are opened on the server. | `sudoo/exposure/` |
+| **Add-on source plugin** | Provides the Enterprise add-ons of a version: an existing folder (`folder`) or a branch of a git repository (`git`). | `sudoo/addons/` |
+| **Settings** | Every setting, typed and checked at start-up (pydantic-settings). | `sudoo/config.py` |
 | **Instances** | One Docker Compose project per instance: an `odoo` container (official image) and a `db` container (PostgreSQL 16), two volumes. | `/opt/odoo/instances/<name>/` |
 
 All of the panel (pages, gateway, background work, jobs) runs in **one container** and **one process**
-(`oim-panel`), so they share their state in memory without a database or a message queue. The container uses
+(`sudoo-panel`), so they share their state in memory without a database or a message queue. The container uses
 the server's network (`network_mode: host`), so `127.0.0.1` means the same inside and outside it, and the server's
 Docker through `/var/run/docker.sock`.
 

@@ -158,7 +158,7 @@ class Canvas:
 
 
 def architecture():
-    c = Canvas(800, 640, "How the parts of Odoo Instance Manager fit together")
+    c = Canvas(800, 640, "How the parts of Sudoo fit together")
     x, w = 150, 470
     mid = x + w / 2
     c.box(x, 20, w, 58, "People and systems on the internet", ["browsers, API clients, webhook senders"], "outside")
@@ -169,7 +169,13 @@ def architecture():
         (mid, 252), (mid, 182), label="connections opened outwards by the server", at=(mid + 12, 200), anchor="start"
     )
     c.box(
-        x, 252, w, 58, "Connectors (cloudflared)", ["oim-connector-panel  •  oim-connector-<name>, one each"], "cloud"
+        x,
+        252,
+        w,
+        58,
+        "Connectors (cloudflared)",
+        ["sudoo-connector-panel  •  sudoo-connector-<name>, one each"],
+        "cloud",
     )
     c.arrow((mid, 310), (mid, 344))
     c.box(
@@ -177,7 +183,7 @@ def architecture():
         344,
         w,
         116,
-        "oim-panel  (the panel container)",
+        "sudoo-panel  (the panel container)",
         [
             "Panel and JSON API on 127.0.0.1:9000",
             "Gateway: one port per instance, wakes paused instances",
@@ -438,14 +444,14 @@ def deploy_key_flow():
 def docker_server():
     c = Canvas(820, 430, "Containers on the server")
     c.group(20, 20, 780, 390, "Server (Docker)")
-    c.box(40, 50, 230, 52, "oim-panel", ["the panel, gateway, background"], "panel")
-    c.box(290, 50, 230, 52, "oim-connector-panel", ["the panel's public link"], "cloud")
+    c.box(40, 50, 230, 52, "sudoo-panel", ["the panel, gateway, background"], "panel")
+    c.box(290, 50, 230, 52, "sudoo-connector-panel", ["the panel's public link"], "cloud")
     for i, (name, version) in enumerate([("sales-main", "odoo:20.0"), ("crm-19", "odoo:19.0")]):
         y = 130 + i * 140
         c.group(40, y, 740, 120, f"instance {name}: Compose project odoo-{name}")
         c.box(60, y + 34, 200, 70, f"odoo-{name}-odoo-1", [version], "instance")
         c.box(290, y + 34, 200, 70, f"odoo-{name}-db-1", ["postgres:16"], "instance")
-        c.box(520, y + 34, 240, 70, f"oim-connector-{name}", ["its public link"], "cloud")
+        c.box(520, y + 34, 240, 70, f"sudoo-connector-{name}", ["its public link"], "cloud")
         c.arrow((260, y + 69), (290, y + 69))
     c.text(410, 422, "Each instance has its own containers and volumes: none can see another's files or database.", "m")
     c.save("docker-server")

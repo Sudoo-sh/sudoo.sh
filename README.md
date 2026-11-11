@@ -1,10 +1,13 @@
 <div align="center">
 
-# Odoo Instance Manager
+# Sudoo
 
-**Turn any GitHub repository into a running Odoo instance, with its own HTTPS link, in about two minutes.**
+**The self-hosted way to run Odoo branches, the way Odoo.sh does: every branch of your repository becomes a running
+Odoo with its own HTTPS link, in about two minutes, on your own server.**
 
-[![CI](https://github.com/Yosef-AlSabbah/odoo-instance-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/Yosef-AlSabbah/odoo-instance-manager/actions/workflows/ci.yml)
+`sudo` + `Odoo`: full control of your Odoo instances, on a server you own.
+
+[![CI](https://github.com/Yosef-AlSabbah/sudoo.sh/actions/workflows/ci.yml/badge.svg)](https://github.com/Yosef-AlSabbah/sudoo.sh/actions/workflows/ci.yml)
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)](LICENSE.md)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
 <br>
@@ -39,8 +42,8 @@ Community and Enterprise · Any Odoo version · GitHub sync · Plugins for acces
 ## Quick start
 
 ```bash
-git clone https://github.com/Yosef-AlSabbah/odoo-instance-manager.git
-cd odoo-instance-manager
+git clone https://github.com/Yosef-AlSabbah/sudoo.sh.git
+cd odoo-sudoo
 sudo ./check-server.sh   # read-only check: Docker, memory, disk, internet access
 sudo ./install.sh        # installs the panel and prints its link and first passwords
 ```
@@ -48,9 +51,27 @@ sudo ./install.sh        # installs the panel and prints its link and first pass
 Open the printed link, sign in, and create your first instance. Requirements and settings are in
 [Installation & Configuration](#installation--configuration).
 
+## Sudoo and Odoo.sh
+
+Sudoo is to your own server what [Odoo.sh](https://www.odoo.sh) is to Odoo's cloud: branches become running
+instances. It is an independent project, not affiliated with Odoo S.A.
+
+| | Odoo.sh | Sudoo |
+| :--- | :--- | :--- |
+| Where it runs | Odoo's cloud | your server (one Docker host) |
+| Cost | per worker and per user | free for noncommercial use ([licence](#licensing--terms)) |
+| A running Odoo per branch | yes | yes, Community or Enterprise, any version |
+| Updates on push | yes | yes: GitHub webhook, or polling ([plugins](docs/PLUGINS.md)) |
+| Instances that pause and expire | staging builds expire | pause when unused, wake on the next visit; lifetime with a backup |
+| How instances are reached | `*.odoo.com` | free Cloudflare tunnels, open ports, or your own exposure plugin |
+| API for automation | | signed REST API ([Panel API](docs/PANEL_API.md)) |
+| Production hosting | yes | no: Sudoo is for development, demos, tests and training |
+
+---
+
 ## What This Panel Does
 
-Odoo Instance Manager runs on the server and is used from a browser. Nobody has to install anything or run any
+Sudoo runs on the server and is used from a browser. Nobody has to install anything or run any
 command to use it: people receive a link.
 
 1. **Create an instance in a few clicks**: choose a GitHub repository, a branch, the Odoo version (any published version) and the
@@ -85,7 +106,7 @@ command to use it: people receive a link.
 
 ## Architectural Position
 
-![How the parts of Odoo Instance Manager fit together](docs/images/architecture.svg)
+![How the parts of Sudoo fit together](docs/images/architecture.svg)
 
 Everything on the server listens on `127.0.0.1` only. The only ways in are the Cloudflare connectors (which the
 server itself opened) and SSH for administrators. The full picture is in [Architecture](docs/ARCHITECTURE.md).
@@ -158,7 +179,7 @@ Details, and what is deliberately *not* protected, are in [Security](docs/SECURI
 ## Components
 
 ```
-odoo-instance-manager/
+odoo-sudoo/
 ├── README.md, LICENSE.md, CHANGELOG.md, CONTRIBUTING.md, SECURITY.md
 ├── install.sh                     # installs or updates the panel on the server (run as root)
 ├── check-server.sh                # read-only check of the server: Docker, memory, disk, internet access
@@ -169,10 +190,10 @@ odoo-instance-manager/
 ├── docs/                          # documentation, also shown in the panel; images/ and diagrams/build.py
 ├── tests/                         # pytest
 ├── examples/                      # panel_api_client.py: a dependency-free client for the panel's API
-└── src/instance_manager/
+└── src/sudoo/
     ├── config.py                  # every setting, typed (pydantic-settings)
     ├── plugins.py                 # finds and loads plugins (entry points)
-    ├── cli.py                     # the instance-manager command: accounts, links, config, serve
+    ├── cli.py                     # the sudoo command: accounts, links, config, serve
     ├── accounts.py                # accounts, password hashing, sign-in throttling
     ├── background.py              # monitor, auto-pause, auto-delete, GitHub polling, gateway, exposure
     ├── core/                      # infrastructure, no Odoo knowledge
@@ -223,8 +244,8 @@ per running instance) and outgoing internet access to GitHub, Docker Hub and Clo
 plugin no incoming port is needed.
 
 ```bash
-git clone https://github.com/Yosef-AlSabbah/odoo-instance-manager.git
-cd odoo-instance-manager
+git clone https://github.com/Yosef-AlSabbah/sudoo.sh.git
+cd odoo-sudoo
 sudo ./check-server.sh      # checks Docker, memory, disk and internet access; changes nothing
 sudo ./install.sh           # installs or updates the panel
 ```
@@ -334,7 +355,7 @@ and share, for any **noncommercial** purpose.
 | Use by charities, schools, public bodies | Using it to make money for a company without permission |
 | Changing it and sharing your changes under the same licence | Removing the licence or the copyright notice |
 
-For commercial use, ask the author for a separate licence. Odoo is a trademark of Odoo S.A.; this project is not
+For commercial use, ask the author for a separate licence. Odoo and Odoo.sh are trademarks of Odoo S.A.; this project is not
 affiliated with or endorsed by Odoo S.A.
 
 ---

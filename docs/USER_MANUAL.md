@@ -1,6 +1,6 @@
 # User Manual
 
-**Audience:** administrators and sync operators of Odoo Instance Manager.
+**Audience:** administrators and sync operators of Sudoo.
 **Covers:** every page and button of the panel, step by step.
 **You need:** the panel's link and an account. Nothing has to be installed on your computer.
 
@@ -248,7 +248,7 @@ someone who does.
 2. The panel shows the key and a link. Click **Copy key**, then open the link (the repository's **Settings,
    Deploy keys, Add deploy key** page on GitHub).
 3. On GitHub:
-   * **Title**: `Odoo Instance Manager`
+   * **Title**: `Sudoo`
    * **Key**: paste.
    * **Allow write access**: leave unticked, unless submodules of this repository will be added or removed from
      the panel.

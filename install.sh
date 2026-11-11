@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Odoo Instance Manager - install or update. Run on the server as root: sudo ./install.sh
+# Sudoo - install or update. Run on the server as root: sudo ./install.sh
 # Created by Yousef M. Y. Al Sabbah.
 #
 # Copies the panel to /opt/odoo/manager, writes its settings (keeping existing values), builds and starts it,
@@ -18,7 +18,7 @@ mkdir -p "$ROOT/instances" "$ROOT/enterprise" "$DEST/keys/deploy"
 chmod 700 "$DEST" "$DEST/keys" "$DEST/keys/deploy"
 
 # the panel's code and build files: replace them completely (older layouts included)
-rm -rf "$DEST/src" "$DEST/instance_manager" "$DEST"/*.py "$DEST/docker-compose.yml" "$DEST/documentation"
+rm -rf "$DEST/src" "$DEST/sudoo" "$DEST"/*.py "$DEST/docker-compose.yml" "$DEST/documentation"
 cp -r "$KIT/src" "$KIT/pyproject.toml" "$KIT/uv.lock" "$KIT/README.md" "$KIT/LICENSE.md" \
       "$KIT/Dockerfile" "$KIT/compose.yaml" "$KIT/.env.example" "$DEST/"
 # the documentation shown under Documentation in the panel
@@ -49,18 +49,18 @@ docker compose up -d --build --remove-orphans
 
 echo "Waiting for the panel and its public address..."
 for _ in $(seq 1 60); do
-  docker exec oim-panel instance-manager urls 2>/dev/null | grep -q "^Panel: http" && break
+  docker exec sudoo-panel sudoo urls 2>/dev/null | grep -q "^Panel: http" && break
   sleep 2
 done
 
 echo
-echo "Odoo Instance Manager, created by Yousef M. Y. Al Sabbah"
-docker exec oim-panel instance-manager urls
+echo "Sudoo, created by Yousef M. Y. Al Sabbah"
+docker exec sudoo-panel sudoo urls
 echo
 if [ -f "$DEST/users.json" ]; then
   echo "Accounts already exist and were not changed."
-  echo "Forgotten password:  docker exec oim-panel instance-manager reset-password admin"
+  echo "Forgotten password:  docker exec sudoo-panel sudoo reset-password admin"
 else
   echo "Accounts (shown only once, store them in a password manager):"
-  docker exec oim-panel instance-manager init-accounts
+  docker exec sudoo-panel sudoo init-accounts
 fi

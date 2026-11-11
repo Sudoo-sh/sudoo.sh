@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from instance_manager.config import Settings
+from sudoo.config import Settings
 
 
 def test_defaults_are_usable(monkeypatch: pytest.MonkeyPatch) -> None:

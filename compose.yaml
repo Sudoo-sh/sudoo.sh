@@ -1,10 +1,10 @@
-# The Odoo Instance Manager panel. Instances and Cloudflare connectors are separate containers that the panel manages.
-name: oim-panel
+# The Sudoo panel. Instances and Cloudflare connectors are separate containers that the panel manages.
+name: sudoo-panel
 
 services:
   manager:
     build: .
-    container_name: oim-panel
+    container_name: sudoo-panel
     restart: unless-stopped
     # a small init process as PID 1: collects processes started with `docker exec`, so gunicorn does not
     # mistake them for its own workers, and passes stop signals on

@@ -35,9 +35,9 @@ Plugins use **Python entry points**, the standard mechanism also used by pytest,
 package declares in its `pyproject.toml` which classes it provides, under a group name:
 
 ```toml
-[project.entry-points."instance_manager.exposure"]
-cloudflare-quick = "instance_manager.exposure.cloudflare:CloudflareQuickTunnel"
-host-ports = "instance_manager.exposure.ports:HostPorts"
+[project.entry-points."sudoo.exposure"]
+cloudflare-quick = "sudoo.exposure.cloudflare:CloudflareQuickTunnel"
+host-ports = "sudoo.exposure.ports:HostPorts"
 ```
 
 A setting names the plugin (`EXPOSURE=host-ports`). When the panel starts, `plugins.py` finds the class registered
@@ -46,14 +46,14 @@ environment themselves), and every part of the panel uses that object.
 
 | Plugin type | Entry-point group | Setting | Interface | Built-in plugins |
 | :--- | :--- | :--- | :--- | :--- |
-| Exposure | `instance_manager.exposure` | `EXPOSURE` | `exposure/base.py`: `Exposure` | `cloudflare-quick`, `host-ports` |
-| Add-on source | `instance_manager.addon_sources` | `ENTERPRISE_SOURCE` | `addons/base.py`: `AddonSource` | `folder`, `git` (and `none`) |
-| Update trigger | `instance_manager.update_triggers` | `UPDATE_TRIGGERS` (a list) | `triggers/base.py`: `UpdateTrigger` | `polling`, `github-webhook` |
+| Exposure | `sudoo.exposure` | `EXPOSURE` | `exposure/base.py`: `Exposure` | `cloudflare-quick`, `host-ports` |
+| Add-on source | `sudoo.addon_sources` | `ENTERPRISE_SOURCE` | `addons/base.py`: `AddonSource` | `folder`, `git` (and `none`) |
+| Update trigger | `sudoo.update_triggers` | `UPDATE_TRIGGERS` (a list) | `triggers/base.py`: `UpdateTrigger` | `polling`, `github-webhook` |
 
 See which plugins are installed and which are in use:
 
 ```bash
-docker exec oim-panel instance-manager config
+docker exec sudoo-panel sudoo config
 ```
 
 A setting that names a plugin that is not installed stops the panel at start-up with the list of installed ones.
@@ -74,7 +74,7 @@ included. Addresses look like `https://<words>.trycloudflare.com` and change whe
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
 | `CLOUDFLARED_IMAGE` | `cloudflare/cloudflared:latest` | The connector image |
-| `CONNECTOR_PREFIX` | `oim-connector-` | Container name prefix of the connectors |
+| `CONNECTOR_PREFIX` | `sudoo-connector-` | Container name prefix of the connectors |
 | `CONNECTOR_STATUS_PORT_START` | `20300` | First status port; each instance gets one (`CONNECTOR_METRICS_PORT` in its `.env`) |
 | `PANEL_CONNECTOR_STATUS_PORT` | `20242` | Status port of the panel's connector |
 
@@ -180,8 +180,8 @@ already run (Traefik, Caddy, nginx):
 
 ```python
 # my_exposure/wildcard.py
-from instance_manager.config import Settings
-from instance_manager.exposure.base import Target
+from sudoo.config import Settings
+from sudoo.exposure.base import Target
 
 
 class WildcardDomain:
@@ -215,17 +215,17 @@ class WildcardDomain:
 [project]
 name = "my-exposure"
 version = "0.1.0"
-dependencies = ["instance-manager"]
+dependencies = ["sudoo"]
 
-[project.entry-points."instance_manager.exposure"]
+[project.entry-points."sudoo.exposure"]
 wildcard-domain = "my_exposure.wildcard:WildcardDomain"
 ```
 
 Install it into the panel's environment, for example by adding it to `pyproject.toml` of the panel and running
 `uv lock`, then set `EXPOSURE=wildcard-domain` and run `install.sh`. An add-on source works the same way: implement
 `available(version)` and `prepare(version, log)` from `addons/base.py` and register it under
-`instance_manager.addon_sources`. An update trigger implements `start(request_update)` and `blueprint()` from
-`triggers/base.py` and is registered under `instance_manager.update_triggers`; a webhook's endpoints are served under
+`sudoo.addon_sources`. An update trigger implements `start(request_update)` and `blueprint()` from
+`triggers/base.py` and is registered under `sudoo.update_triggers`; a webhook's endpoints are served under
 `/hooks/` and must check their sender's signature themselves.
 
 ---

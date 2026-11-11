@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from instance_manager import accounts
-from instance_manager.core import vault
-from instance_manager.instances import odoo
+from sudoo import accounts
+from sudoo.core import vault
+from sudoo.instances import odoo
 
 
 def test_vault_round_trip_and_labels() -> None:

@@ -1,37 +1,49 @@
+<div align="center">
+
 # Odoo Instance Manager
 
-<p align="center">
-  <strong>A web panel that runs many independent Odoo instances (instances, tests, training, reviews) on one Docker server: create one from a GitHub repository in a few clicks, give it its own https link, keep it in sync with GitHub, pause it when nobody uses it, and delete it after a set lifetime with a backup.</strong><br/>
-  Odoo 18, 19, 20 • Community and Enterprise • GitHub Sync • Public Links Without Open Ports • Auto-Pause • Lifetime and Backups • Roles and Audit
-</p>
+**Turn any GitHub repository into a running Odoo instance, with its own HTTPS link, in about two minutes.**
 
-<p align="center">
-  <strong>Created by:</strong> Yousef M. Y. Al Sabbah
-</p>
+[![CI](https://github.com/Yosef-AlSabbah/odoo-instance-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/Yosef-AlSabbah/odoo-instance-manager/actions/workflows/ci.yml)
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)](LICENSE.md)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
+<br>
+![Odoo 18 | 19 | 20](https://img.shields.io/badge/Odoo-18%20%7C%2019%20%7C%2020-714B67?logo=odoo&logoColor=white)
+![Python 3](https://img.shields.io/badge/Python-3-3776AB?logo=python&logoColor=white)
+![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+![Cloudflare Tunnel](https://img.shields.io/badge/Cloudflare-Tunnel-F38020?logo=cloudflare&logoColor=white)
 
-<p align="center">
-  <a href="#what-this-panel-does">What It Does</a> •
-  <a href="#architectural-position">Architecture</a> •
-  <a href="#technologies-and-what-we-gain-from-them">Technologies</a> •
-  <a href="#documentation">Documentation</a> •
-  <a href="#security-at-a-glance">Security</a> •
-  <a href="#components">Components</a> •
-  <a href="#installation--configuration">Installation</a> •
-  <a href="#testing">Testing</a> •
-  <a href="#known-limitations">Limitations</a> •
-  <a href="#support">Support</a>
-</p>
+Community and Enterprise · GitHub sync · No open ports · Auto-pause · Lifetime and backups · Roles and audit
 
----
+[What it does](#what-this-panel-does) ·
+[Quick start](#quick-start) ·
+[Architecture](#architectural-position) ·
+[Documentation](#documentation) ·
+[Security](#security-at-a-glance) ·
+[Installation](#installation--configuration) ·
+[Limitations](#known-limitations) ·
+[Contributing](#contributing)
 
-> **IMPORTANT NOTICE FOR EVERY USER**
->
-> Instances are for showing Odoo, not for real data. Every instance opens with the Odoo login `admin` / `admin`, and
+</div>
+
+> [!IMPORTANT]
+> **Instances are for showing Odoo, not for real data.**
+> Every instance opens with the Odoo login `admin` / `admin`, and
 > anyone who has an instance's link can sign in with it. The public links are free Cloudflare links: they **change when
 > the server restarts**, and the panel always shows the current ones. Panel accounts are different: they have
 > strong generated passwords, stored only as hashes.
 
----
+## Quick start
+
+```bash
+git clone https://github.com/Yosef-AlSabbah/odoo-instance-manager.git
+cd odoo-instance-manager
+sudo ./check-server.sh   # read-only check: Docker, memory, disk, internet access
+sudo ./install.sh        # installs the panel and prints its link and first passwords
+```
+
+Open the printed link, sign in, and create your first instance. Requirements and settings are in
+[Installation & Configuration](#installation--configuration).
 
 ## What This Panel Does
 
@@ -57,7 +69,7 @@ command to use it: people receive a link.
    automatic or by hand, the database and files are saved as a standard Odoo backup, listed under **Backups**.
 8. **Two roles**: administrators can do everything; sync operators can update code, update and add submodules,
    restart and start instances. When a sync operator cannot do something, the panel tells them to contact the
-   administrator, Yousef M. Y. Al Sabbah.
+   administrator named in the settings (`ADMIN_CONTACT_NAME`).
 9. **Watches the server**: CPU, memory and disk of the server and of every instance, with the last 30 minutes as small
    graphs.
 10. **Explains itself**: plain-language messages when something fails, the technical log next to it, and this
@@ -309,8 +321,21 @@ affiliated with or endorsed by Odoo S.A.
 
 ---
 
+## Contributing
+
+Contributions are welcome: bug reports, documentation fixes and code.
+
+* Read [CONTRIBUTING.md](CONTRIBUTING.md) for the setup, the rules of the code and the pull request flow.
+* Use the [issue forms](../../issues/new/choose) for bugs and feature ideas.
+* Report security problems privately, as described in [SECURITY.md](SECURITY.md).
+* Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Support
 
-For help, access or questions:
-* **Creator and maintainer**: Yousef M. Y. Al Sabbah
-* **Inside the panel**: **Documentation** in the top menu
+* **Documentation**: the [documentation index](docs/README.md), also inside the panel under **Documentation**.
+* **Questions and help**: see [SUPPORT.md](SUPPORT.md).
+
+## Maintainer
+
+Built and maintained by [Yousef Al Sabbah](https://github.com/Yosef-AlSabbah), with help from
+[every contributor](../../graphs/contributors).

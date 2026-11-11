@@ -47,4 +47,4 @@ jobs:
         # The image serves README.md and docs/ inside the panel; install.sh places them in documentation/.
         run: mkdir documentation && cp -r README.md docs documentation/
       - name: Build
-        run: docker build --tag instance-manager:ci .
+        run: docker build --tag sudoo:ci .

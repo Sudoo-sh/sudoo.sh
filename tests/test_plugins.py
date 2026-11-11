@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from instance_manager import plugins
-from instance_manager.addons.folder import FolderSource, expand
-from instance_manager.addons.git import GitSource
-from instance_manager.config import Settings
-from instance_manager.exposure.base import Exposure, Target
-from instance_manager.exposure.cloudflare import CloudflareQuickTunnel
-from instance_manager.exposure.ports import HostPorts
-from instance_manager.instances import odoo
+from sudoo import plugins
+from sudoo.addons.folder import FolderSource, expand
+from sudoo.addons.git import GitSource
+from sudoo.config import Settings
+from sudoo.exposure.base import Exposure, Target
+from sudoo.exposure.cloudflare import CloudflareQuickTunnel
+from sudoo.exposure.ports import HostPorts
+from sudoo.instances import odoo
 
 
 def test_built_in_plugins_are_registered() -> None:
@@ -43,9 +43,9 @@ def test_host_ports() -> None:
 
 
 def test_cloudflare_quick_tunnel() -> None:
-    plugin = CloudflareQuickTunnel(Settings(connector_prefix="oim-connector-"))
+    plugin = CloudflareQuickTunnel(Settings(connector_prefix="sudoo-connector-"))
     assert plugin.listen_host == "127.0.0.1" and plugin.https
-    assert plugin.container(Target("shop", 8071)) == "oim-connector-shop"
+    assert plugin.container(Target("shop", 8071)) == "sudoo-connector-shop"
     assert plugin.instance_ports() == {"CONNECTOR_METRICS_PORT": 20300}
     # no connector is listening on this status port, so there is no address yet
     assert plugin.address(Target("shop", 8071, {"CONNECTOR_METRICS_PORT": "1"})) is None

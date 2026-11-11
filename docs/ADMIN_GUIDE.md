@@ -36,7 +36,7 @@ troubleshooting.
 `check-server.sh` checks all of this and changes nothing:
 
 ```bash
-cd ~/odoo-instance-manager
+cd ~/odoo-sudoo
 sudo ./check-server.sh
 ```
 
@@ -50,9 +50,9 @@ the `docker.io` package, install `docker-compose-v2`.
 Copy the kit to the server and run the installer:
 
 ```bash
-scp -r odoo-instance-manager <user>@<server>:~
+scp -r odoo-sudoo <user>@<server>:~
 ssh <user>@<server>
-cd ~/odoo-instance-manager
+cd ~/odoo-sudoo
 sudo ./install.sh
 ```
 
@@ -61,7 +61,7 @@ What `install.sh` does, in order:
 1. Creates `/opt/odoo/{manager,instances,enterprise}` (mode 700, root only).
 2. Replaces the panel's code in `/opt/odoo/manager` and copies the documentation next to it.
 3. Writes `/opt/odoo/manager/.env` from `.env.example`, **keeping every value already set** on this server.
-4. Builds the panel image and starts the container `oim-panel`, which starts the panel's connector.
+4. Builds the panel image and starts the container `sudoo-panel`, which starts the panel's connector.
 5. Waits for the panel's public link and prints it.
 6. The first time only: creates the `admin` and `sync` accounts and prints their passwords **once**. Store them in a
    password manager.
@@ -84,11 +84,11 @@ Every setting, with its type, default and meaning, is in [Configuration](CONFIGU
 comments is `.env.example`. To see what the panel is actually using, and which plugins are installed:
 
 ```bash
-docker exec oim-panel instance-manager config
+docker exec sudoo-panel sudoo config
 ```
 
 A wrong value (for example `IDLE_HOURS=soon`) or an unknown plugin name stops the panel at start-up, and
-`docker logs oim-panel` names the setting.
+`docker logs sudoo-panel` names the setting.
 
 The two choices that shape a server are plugins ([Plugins](PLUGINS.md)):
 
@@ -113,7 +113,7 @@ follow). Links you shared earlier, and webhook addresses registered at other ser
 To see the current links on the server:
 
 ```bash
-docker exec oim-panel instance-manager urls
+docker exec sudoo-panel sudoo urls
 ```
 
 Administrators can also reach the panel without Cloudflare, through SSH:
@@ -157,9 +157,9 @@ then open `http://localhost:9000`. Why the server needs tunnels at all is explai
 
 | Docker object | What it is |
 | :--- | :--- |
-| `oim-panel` | The panel, the gateway and the background work |
-| `oim-connector-panel` | The panel's Cloudflare connector |
-| `oim-connector-<name>` | One connector per instance |
+| `sudoo-panel` | The panel, the gateway and the background work |
+| `sudoo-connector-panel` | The panel's Cloudflare connector |
+| `sudoo-connector-<name>` | One connector per instance |
 | `odoo-<name>-odoo-1`, `odoo-<name>-db-1` | The instance's Odoo and PostgreSQL |
 | volumes `odoo-<name>_db-data`, `odoo-<name>_odoo-data` | The instance's database and its attachments |
 
@@ -168,7 +168,7 @@ Useful commands:
 | Task | Command |
 | :--- | :--- |
 | Everything running | `docker ps` |
-| Panel log | `docker logs -f oim-panel` |
+| Panel log | `docker logs -f sudoo-panel` |
 | Odoo log of an instance | `cd /opt/odoo/instances/<name> && docker compose logs -f odoo` |
 | Memory | `free -m` |
 | Disk per container and volume | `docker system df -v` |
@@ -259,7 +259,7 @@ docker exec odoo-$NAME-db-1 pg_dump -U odoo -Fc $DB > $NAME.dump
 docker run --rm -v odoo-${NAME}_odoo-data:/data -v "$PWD":/backup alpine tar czf /backup/$NAME-files.tgz -C /data .
 ```
 
-**The panel**: copy `/opt/odoo/manager` except `instance_manager/` and `documentation/` (they come with the kit).
+**The panel**: copy `/opt/odoo/manager` except `sudoo/` and `documentation/` (they come with the kit).
 
 **The vault key** (`/opt/odoo/manager/vault.key`) deserves its own place:
 
@@ -277,9 +277,9 @@ See [Security](SECURITY.md) for why it works this way.
 For when nobody can sign in, for example after losing the admin password:
 
 ```bash
-docker exec oim-panel instance-manager list-users
-docker exec oim-panel instance-manager create-user <name> admin|operator
-docker exec oim-panel instance-manager reset-password <name>
+docker exec sudoo-panel sudoo list-users
+docker exec sudoo-panel sudoo create-user <name> admin|operator
+docker exec sudoo-panel sudoo reset-password <name>
 ```
 
 New and reset passwords are printed once. Every other account task is done in the panel ([User manual](USER_MANUAL.md#8-accounts-and-passwords)).
@@ -290,9 +290,9 @@ New and reset passwords are printed once. Every other account task is done in th
 
 After installing or updating:
 
-1. `docker ps` shows `oim-panel`, `oim-connector-panel`, and for each instance its connector, Odoo and
+1. `docker ps` shows `sudoo-panel`, `sudoo-connector-panel`, and for each instance its connector, Odoo and
    database (paused instances show only their connector).
-2. `docker exec oim-panel instance-manager urls` prints the panel's link and every instance's link.
+2. `docker exec sudoo-panel sudoo urls` prints the panel's link and every instance's link.
 3. Open the panel's link and sign in.
 4. **Documentation** in the top bar opens these pages.
 5. Create a small test instance (no repository, name `check`, Odoo 20, Community). It should be ready in about 2
@@ -300,7 +300,7 @@ After installing or updating:
 6. On its page: **Restart**, then **Pause** (Actions tab), then open its link: "Starting up" appears and Odoo opens
    by itself.
 7. Delete it (Actions menu, **Delete instance**). `docker ps` no longer lists it.
-8. The panel log shows no errors: `docker logs oim-panel 2>&1 | grep -i error`.
+8. The panel log shows no errors: `docker logs sudoo-panel 2>&1 | grep -i error`.
 
 ---
 
@@ -308,8 +308,8 @@ After installing or updating:
 
 | Symptom | Likely cause | What to do |
 | :--- | :--- | :--- |
-| The panel's link does not open | The link changed after a restart | `docker exec oim-panel instance-manager urls` |
-| No link at all | `oim-panel` or the connector is not running | `docker ps -a`, `docker logs oim-panel`, then `cd /opt/odoo/manager && docker compose up -d` |
+| The panel's link does not open | The link changed after a restart | `docker exec sudoo-panel sudoo urls` |
+| No link at all | `sudoo-panel` or the connector is not running | `docker ps -a`, `docker logs sudoo-panel`, then `cd /opt/odoo/manager && docker compose up -d` |
 | "Starting up" for several minutes | Odoo fails to start | **View logs** on the instance's page |
 | "No access" under Repository access | No deploy key, or not added on GitHub | Create the key, add it on GitHub, **Check again** ([User manual](USER_MANUAL.md#7-github-access-private-repositories)) |
 | Update fails: "branch ... no longer exists on GitHub" (or "no such ref was fetched"); the instance page warns about it | The branch was deleted on GitHub, usually after its pull request was merged | Actions, **Switch branch**, choose the branch to follow now (for example `main`) |

@@ -1,6 +1,6 @@
 # Documentation
 
-Everything about Odoo Instance Manager, in one place. The same pages are on GitHub and inside the panel (top menu,
+Everything about Sudoo, in one place. The same pages are on GitHub and inside the panel (top menu,
 **Documentation**).
 
 ---

@@ -113,7 +113,7 @@ by administrators, and only by their file name from the listing, never by a path
 
 | Measure | Effect |
 | :--- | :--- |
-| Signed session cookie `oim_session` | `HttpOnly` (scripts cannot read it), `Secure` (https only), `SameSite=Strict` (never sent with requests started by another site). |
+| Signed session cookie `sudoo_session` | `HttpOnly` (scripts cannot read it), `Secure` (https only), `SameSite=Strict` (never sent with requests started by another site). |
 | Session limits | Ends after 60 minutes without activity and after 12 hours in any case. |
 | Session version | Each account has a version number in its record; a password change, reset or deletion raises it, and every older session stops working at once. |
 | CSRF token | Every change must carry the session's secret token in a header, which another site cannot know. |
@@ -127,7 +127,7 @@ by administrators, and only by their file name from the listing, never by a path
 
 ## 6. Checking every input
 
-Every value received from a browser or API client goes through `instance_manager/web/validation.py` before it is used:
+Every value received from a browser or API client goes through `sudoo/web/validation.py` before it is used:
 
 | Rule | Example of what is refused |
 | :--- | :--- |

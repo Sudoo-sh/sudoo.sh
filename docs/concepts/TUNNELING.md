@@ -66,14 +66,14 @@ Every destination has its own connector, so every destination has its own link:
 
 | Connector (container) | Points to | Link |
 | :--- | :--- | :--- |
-| `oim-connector-panel` | the panel, `127.0.0.1:9000` | the panel's link |
-| `oim-connector-sales-main` | the gateway of instance `sales-main`, `127.0.0.1:8070` | that instance's link |
-| `oim-connector-<name>` | the gateway of each instance | one link per instance |
+| `sudoo-connector-panel` | the panel, `127.0.0.1:9000` | the panel's link |
+| `sudoo-connector-sales-main` | the gateway of instance `sales-main`, `127.0.0.1:8070` | that instance's link |
+| `sudoo-connector-<name>` | the gateway of each instance | one link per instance |
 
 A connector is started like this (the panel does it, nobody has to):
 
 ```bash
-docker run -d --name oim-connector-sales-main --restart unless-stopped --network host \
+docker run -d --name sudoo-connector-sales-main --restart unless-stopped --network host \
   cloudflare/cloudflared:latest tunnel --no-autoupdate \
   --metrics 127.0.0.1:20301 --url http://127.0.0.1:8070
 ```

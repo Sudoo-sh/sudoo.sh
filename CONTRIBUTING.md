@@ -1,4 +1,4 @@
-# Contributing to Odoo Instance Manager
+# Contributing to Sudoo
 
 Thank you for taking the time to help. This guide explains how to report problems, suggest changes and send code so that your work can be reviewed and merged quickly.
 
@@ -28,8 +28,8 @@ run the panel itself, a Linux machine with Docker. A disposable virtual machine 
 place to run it: the panel manages Docker containers on the host.
 
 ```bash
-git clone https://github.com/Yosef-AlSabbah/odoo-instance-manager.git
-cd odoo-instance-manager
+git clone https://github.com/Yosef-AlSabbah/sudoo.sh.git
+cd odoo-sudoo
 uv sync                        # creates .venv with the project, its dependencies and the development tools
 uv run pre-commit install      # runs the checks below on every commit
 uv run pytest                  # the tests

@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     public_host: str = Field("", description="host-ports: the server's public name or address.")
     public_scheme: Literal["http", "https"] = Field("http", description="host-ports: scheme of the public addresses.")
 
+    # ------------------------------------------------------------------ update triggers (plugins)
+    update_triggers: str = Field(
+        "polling", description='What starts code updates, comma-separated: "polling", "github-webhook" or both.'
+    )
+    github_webhook_secret: str = Field(
+        "", description="github-webhook: the secret entered on GitHub (20 or more random characters)."
+    )
+
     # ------------------------------------------------------------------ ports
     panel_port: int = Field(9000, description="Port of the panel.")
     gateway_port_start: int = Field(8069, description="First gateway port (one per instance).")
@@ -73,7 +81,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ behaviour
     idle_hours: float = Field(6, ge=0, description="Pause an instance after this many hours without visits; 0: never.")
     delete_after_days: int = Field(30, ge=0, description="Lifetime offered for new instances, in days; 0: keep.")
-    poll_minutes: float = Field(2, gt=0, description="Check GitHub for new commits this often.")
+    poll_minutes: float = Field(2, gt=0, description="polling: check GitHub for new commits this often.")
     session_idle_minutes: float = Field(60, gt=0, description="Panel sign-out after this long without activity.")
     session_max_hours: float = Field(12, gt=0, description="Longest panel session.")
     admin_contact_name: str = Field("the administrator", description="Who users are told to contact.")

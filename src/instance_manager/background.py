@@ -3,18 +3,15 @@ gateway, connectors."""
 
 from __future__ import annotations
 
-import subprocess
 import threading
 import time
 
-from instance_manager import exposure
+from instance_manager import exposure, triggers
 from instance_manager.config import settings
 from instance_manager.core import jobs
-from instance_manager.core.shell import capture
 from instance_manager.core.state import STATE
 from instance_manager.instances import gateway, monitor, operations, store
 from instance_manager.repos import github
-from instance_manager.repos.gitrepo import branch_on_github, git
 
 
 def start() -> None:
@@ -25,11 +22,11 @@ def start() -> None:
         STATE.save_visits_forever,
         _pause_idle_instances,
         _delete_expired_instances,
-        _poll_github,
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     gateway.start(wake=start_wake_job)
     threading.Thread(target=exposure.ensure_all, daemon=True, name="connectors").start()
+    triggers.start_all()
 
 
 def start_wake_job(name: str) -> jobs.Job:
@@ -74,29 +71,3 @@ def _delete_expired_instances() -> None:
                     operations.delete,
                     name,
                 )
-
-
-def _poll_github() -> None:
-    """Every POLL_MINUTES: update instances whose GitHub branch has new commits."""
-    while True:
-        time.sleep(settings.poll_minutes * 60)
-        for name in store.names():
-            env, addons = store.read_env(name), store.addons_dir(name)
-            if (
-                env["AUTO_UPDATE"] != "true"
-                or jobs.busy(name)
-                or not capture(git(addons, "remote", "get-url", "origin"))
-            ):
-                continue
-            exists = branch_on_github(addons, env["GIT_BRANCH"])
-            if exists is not None and STATE.get(name).get("branch_missing") != (not exists):
-                STATE.update(name, branch_missing=not exists)  # shown as a warning on the instance's page
-            if not exists:
-                continue
-            fetched = subprocess.run(
-                git(addons, "fetch", "-q", "origin", env["GIT_BRANCH"]), capture_output=True, timeout=120
-            )
-            if fetched.returncode == 0 and (
-                capture(git(addons, "rev-parse", "HEAD")) != capture(git(addons, "rev-parse", "FETCH_HEAD"))
-            ):
-                jobs.start(name, "Automatic update: new code on GitHub", "update", operations.update_code, name)

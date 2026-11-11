@@ -170,6 +170,8 @@ data = s.get(f"{url}/web/content/{attachment_id}?download=true").content
 
 ## 8. The panel's own API
 
-The panel's JSON API (`/api/...`) is built for the panel's pages: it requires a signed-in browser session, a CSRF
-token and the panel's own origin, so it cannot be called from scripts or other sites. That is on purpose: the
-panel controls the server. Automations should talk to the instances' Odoo, as above, not to the panel.
+To create, change, restart or delete instances from another system (a CI pipeline, a bot, a script), use the
+panel's API at `/api/v1`, with an API token and a signature on every request: see [Panel API](PANEL_API.md).
+
+The panel's other endpoints (`/api/...` without `v1`) serve the panel's own pages: they need a signed-in browser
+session, a CSRF token and the panel's own origin, so they cannot be called from scripts or other sites.

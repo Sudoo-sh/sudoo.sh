@@ -8,8 +8,9 @@ import { renderDashboard } from "./dashboard.js";
 import { openJob } from "./dialogs.js";
 import { actions as githubActions } from "./github.js";
 import { actions as instanceActions, renderInstance } from "./instance.js";
+import { actions as tokenActions } from "./tokens.js";
 
-const ACTIONS = { ...accountActions, ...backupActions, ...createActions, ...githubActions, ...instanceActions };
+const ACTIONS = { ...accountActions, ...backupActions, ...createActions, ...githubActions, ...instanceActions, ...tokenActions };
 
 function parseRoute() {
   const match = location.pathname.match(/^\/i\/([a-z0-9-]+)$/);

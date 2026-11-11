@@ -37,6 +37,10 @@ host-ports = "instance_manager.exposure.ports:HostPorts"
 folder = "instance_manager.addons.folder:FolderSource"
 git = "instance_manager.addons.git:GitSource"
 
+[project.entry-points."instance_manager.update_triggers"]
+polling = "instance_manager.triggers.polling:Polling"
+github-webhook = "instance_manager.triggers.github_webhook:GitHubWebhook"
+
 [dependency-groups]
 dev = [
     "black>=24.10",

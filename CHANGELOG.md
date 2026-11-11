@@ -17,6 +17,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - New settings for the Odoo and PostgreSQL images and all ports; full reference in
   [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 - `instance-manager` command (replaces `manage.py`), with `config` to show the effective settings and plugins.
+- Update triggers as plugins (`UPDATE_TRIGGERS`, several at once): `polling` (as before) and `github-webhook`
+  (updates within seconds of a push, verified with GitHub's signature).
+- API for other systems at `/api/v1`: list, read, create, change, run actions on and delete instances, follow jobs.
+  Each request needs an API token and an HMAC-SHA256 signature (timestamp, nonce, method, path, body); read and
+  write scopes; tokens managed under **API tokens** or with `instance-manager create-token`
+  ([docs/PANEL_API.md](docs/PANEL_API.md)). A reference client is in `examples/`.
 - Test suite (pytest), pre-commit hooks (black, ruff, mypy, shellcheck, uv.lock) and CI running them on every pull
   request.
 

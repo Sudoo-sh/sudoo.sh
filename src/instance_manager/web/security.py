@@ -21,7 +21,7 @@ from urllib.parse import urlsplit
 from flask import Flask, Response, abort, g, jsonify, redirect, request, session
 from flask.typing import ResponseReturnValue
 
-from instance_manager import accounts, exposure
+from instance_manager import accounts, api_tokens, exposure
 from instance_manager.config import settings
 from instance_manager.core import audit
 
@@ -91,7 +91,16 @@ def _same_origin() -> bool:
     return origin is None or urlsplit(origin).netloc == request.host
 
 
+API_PREFIX = "/api/v1/"  # other systems: API token and signature (api_tokens.py), no session
+HOOKS_PREFIX = "/hooks/"  # webhooks of update triggers: each checks its sender's own signature
+
+
 def _check_request() -> ResponseReturnValue | None:
+    if request.path.startswith(HOOKS_PREFIX):
+        return None
+    if request.path.startswith(API_PREFIX):
+        _authenticate_api_call()
+        return None
     if request.method not in SAFE_METHODS:
         if not _same_origin():
             abort(403, "Request blocked: it did not come from this panel.")
@@ -109,6 +118,38 @@ def _check_request() -> ResponseReturnValue | None:
     ):
         abort(403, "Your session has expired. Please reload the page.")
     return None
+
+
+def _path_with_query() -> str:
+    query = request.query_string.decode()
+    return f"{request.path}?{query}" if query else request.path
+
+
+def _authenticate_api_call() -> None:
+    """Accept an /api/v1 call only with a valid API token and signature; act as "api:<token name>" from then on."""
+    ip = client_ip()
+    if accounts.THROTTLE.seconds_to_wait(ip, "api-token"):
+        abort(429, "Too many refused API calls from this address. Try again in 15 minutes.")
+    if request.content_length and request.mimetype != "application/json":
+        abort(415, "Requests must be sent as JSON.")
+    try:
+        token = api_tokens.verify(
+            request.headers.get("Authorization", ""),
+            request.headers.get("X-OIM-Timestamp", ""),
+            request.headers.get("X-OIM-Nonce", ""),
+            request.headers.get("X-OIM-Signature", ""),
+            request.method,
+            _path_with_query(),
+            request.get_data(),
+        )
+    except PermissionError as error:
+        accounts.THROTTLE.failed(ip, "api-token")
+        audit.record("api", ip, "API call refused", ok=False, detail=str(error))
+        abort(401, str(error))
+    if token["scope"] != "write" and request.method not in SAFE_METHODS:
+        audit.record(f"api:{token['name']}", ip, "API change refused (read-only token)", ok=False)
+        abort(403, "This API token can only read. Create a token with the write scope to make changes.")
+    g.user = {"name": f"api:{token['name']}", "role": "admin" if token["scope"] == "write" else "operator"}
 
 
 def _add_headers(response: Response) -> Response:

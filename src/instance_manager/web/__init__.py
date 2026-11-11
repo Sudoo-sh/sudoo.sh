@@ -20,10 +20,21 @@ from flask import Flask, jsonify
 from flask.typing import ResponseReturnValue
 from werkzeug.exceptions import HTTPException
 
-from instance_manager import accounts, background, exposure
+from instance_manager import accounts, background, exposure, triggers
 from instance_manager.config import settings
 
-from . import api_accounts, api_backups, api_github, api_instances, api_session, docs, security, views
+from . import (
+    api_accounts,
+    api_backups,
+    api_github,
+    api_instances,
+    api_session,
+    api_token_admin,
+    api_v1,
+    docs,
+    security,
+    views,
+)
 
 
 def create_app() -> Flask:
@@ -40,8 +51,20 @@ def create_app() -> Flask:
         SEND_FILE_MAX_AGE_DEFAULT=0,
     )
     security.install(app)
-    for module in (views, docs, api_session, api_accounts, api_instances, api_github, api_backups):
+    for module in (
+        views,
+        docs,
+        api_session,
+        api_accounts,
+        api_instances,
+        api_github,
+        api_backups,
+        api_token_admin,
+        api_v1,
+    ):
         app.register_blueprint(module.blueprint)
+    for webhook in triggers.blueprints():  # endpoints of the enabled update triggers, under /hooks/
+        app.register_blueprint(webhook)
 
     @app.errorhandler(HTTPException)
     def http_error(error: HTTPException) -> ResponseReturnValue:

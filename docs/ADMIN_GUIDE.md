@@ -331,8 +331,8 @@ Quick tunnels are free and need no account, but their addresses change. For addr
 | Option | How |
 | :--- | :--- |
 | The server accepts incoming connections | `EXPOSURE=host-ports`, `PUBLIC_HOST=<name or address>`, open the ports. Built in. |
-| A domain behind Cloudflare | Buy a domain (about 10 USD a year), create a Cloudflare named tunnel, and write a small exposure plugin that routes `<instance>.<domain>` to each gateway port ([Plugins](PLUGINS.md#5-writing-a-plugin)). |
-| A reverse proxy you already run | An exposure plugin like the example in [Plugins](PLUGINS.md#5-writing-a-plugin). |
+| A domain behind Cloudflare | Buy a domain (about 10 USD a year), create a Cloudflare named tunnel, and write a small exposure plugin that routes `<instance>.<domain>` to each gateway port ([Plugins](PLUGINS.md#6-writing-a-plugin)). |
+| A reverse proxy you already run | An exposure plugin like the example in [Plugins](PLUGINS.md#6-writing-a-plugin). |
 
 The gateway, the instances and the panel stay as they are; only the exposure plugin changes. The comparison with
 Tailscale and other options is in [Tunneling](concepts/TUNNELING.md#7-other-ways-and-why-we-chose-this-one).

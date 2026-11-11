@@ -168,11 +168,21 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
 - **Considered:** a personal access token (gives access to everything that person can see, expires, belongs to a
   person); a GitHub App (more setup than a server needs). Only one way is kept, so there is one path to debug.
 
-### Polling GitHub instead of webhooks
-- **Chosen:** every 2 minutes the panel checks each instance's branch for new commits.
-- **Why:** a GitHub webhook needs a fixed address of the panel, and the panel's link changes with each restart.
-  Polling needs nothing from GitHub and nothing reachable from outside.
-- **Cost:** an update starts up to 2 minutes after a push.
+### Update triggers as plugins: polling by default, webhooks where possible
+- **Chosen:** what starts a code update is a list of trigger plugins (`UPDATE_TRIGGERS`). `polling` checks each
+  branch every 2 minutes; `github-webhook` receives GitHub's push events, checked with GitHub's HMAC signature.
+- **Why:** a webhook is immediate but needs a panel address that never changes; polling needs nothing from GitHub
+  and nothing reachable from outside, so it works behind quick tunnels. Each server enables what fits it, or both.
+- **Cost:** with polling only, an update starts up to 2 minutes after a push.
+
+### An API for other systems: token and signature
+- **Chosen:** `/api/v1`, authenticated by an API token (who calls; stored as a hash) and an HMAC-SHA256 signature
+  over timestamp, nonce, method, path and body (the request is genuine, unchanged and new; the signing secret is
+  stored encrypted). Read and write scopes. The endpoints reuse the panel's own views.
+- **Why:** a token alone can leak through logs and proxies; the signature means a leaked token is not enough, and
+  the timestamp and nonce stop replays. Reusing the panel's views keeps one set of input checks, roles and audit.
+- **Considered:** the panel's session cookie (made for browsers, protected against exactly this kind of use);
+  OAuth (an authorization server is more than a self-hosted panel needs); mutual TLS (hard to set up behind tunnels).
 
 ### A lifetime per instance, and a backup before every deletion
 - **Chosen:** each instance is deleted a set number of days after its creation (30 by default) unless it is set to

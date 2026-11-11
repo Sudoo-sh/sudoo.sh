@@ -35,7 +35,10 @@ Everything about Odoo Instance Manager, in one place. The same pages are on GitH
 | Add a new Enterprise version | [Administrator guide: Enterprise add-ons](ADMIN_GUIDE.md#6-odoo-enterprise-add-ons) |
 | Fix a problem | [Administrator guide: Troubleshooting](ADMIN_GUIDE.md#10-troubleshooting) |
 | Call an instance from Python or Postman | [API and webhooks](API.md) |
-| Use open ports instead of Cloudflare, or keep Enterprise in git | [Plugins](PLUGINS.md) |
+| Create or restart instances from a CI pipeline or a script | [Panel API](PANEL_API.md) |
+| Update instances the moment code is pushed | [Plugins: update triggers](PLUGINS.md#5-update-triggers-what-starts-a-code-update) |
+| Use open ports instead of Cloudflare, or keep Enterprise in git | [Panel API](PANEL_API.md) | API tokens, signing requests, every endpoint, a ready-to-use client |
+| [Plugins](PLUGINS.md) |
 | Look up a setting | [Configuration](CONFIGURATION.md) |
 | Know why something was built this way | [Architecture: Why we chose this](ARCHITECTURE.md#6-why-we-chose-this) |
 

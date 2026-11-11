@@ -59,7 +59,8 @@ command to use it: people receive a link.
 2. **One https link per instance**: every instance is reachable from anywhere through its own link, even though the server
    accepts no incoming connections. Browsers, API clients and webhook senders use it like any Odoo address. See
    [Tunneling](docs/concepts/TUNNELING.md).
-3. **Stays in sync with GitHub**: the panel checks GitHub every 2 minutes; when a developer pushes, the instance pulls
+3. **Stays in sync with GitHub**: by polling GitHub every 2 minutes, or instantly through a GitHub webhook (both are
+   plugins, use either or both); when a developer pushes, the instance pulls
    the code, upgrades only the modules whose files changed and restarts. Submodules (for example OCA repositories)
    can be updated, added and removed from the panel.
 4. **Private repositories without personal tokens**: each private repository gets its own read-only deploy key,
@@ -75,7 +76,9 @@ command to use it: people receive a link.
    administrator named in the settings (`ADMIN_CONTACT_NAME`).
 9. **Watches the server**: CPU, memory and disk of the server and of every instance, with the last 30 minutes as small
    graphs.
-10. **Explains itself**: plain-language messages when something fails, the technical log next to it, and this
+10. **An API for other systems**: CI pipelines and scripts can create, update, restart and delete instances
+   with an API token and a signature on every request. See [Panel API](docs/PANEL_API.md).
+11. **Explains itself**: plain-language messages when something fails, the technical log next to it, and this
    documentation inside the panel under **Documentation**.
 
 ---
@@ -101,7 +104,7 @@ server itself opened) and SSH for administrators. The full picture is in [Archit
 | **Python 3.12+** with type hints | The panel's language. | Same language as Odoo, so every Odoo developer can read and fix it; type hints checked by mypy catch mistakes before they run. |
 | **uv** | Installs the dependencies, from a lock file. | Fast, and every installation (servers, CI, developers) gets exactly the same versions. |
 | **pydantic-settings** | Reads and checks the settings. | Every setting typed and documented in one class; a wrong value stops the panel at start-up with a clear message. |
-| **Entry-point plugins** | How instances are reached, where Enterprise comes from. | Nothing is forced: each server chooses, and new options are added as plugins without changing the panel. See [Plugins](docs/PLUGINS.md). |
+| **Entry-point plugins** | How instances are reached, where Enterprise comes from, what starts updates. | Nothing is forced: each server chooses, and new options are added as plugins without changing the panel. See [Plugins](docs/PLUGINS.md). |
 | **Flask** | The panel's pages and JSON API. | Small, well known, signed session cookies built in. |
 | **Gunicorn** | Serves the Flask app. | Production web server; threads let long actions run without blocking the page. |
 | **aiohttp** | The gateway in front of every instance. | Streams large files and keeps thousands of WebSocket connections (Odoo's live updates) open with little memory. See [Gateway](docs/concepts/GATEWAY.md). |
@@ -127,7 +130,8 @@ All documents are in [`docs/`](docs/README.md) and are also shown inside the pan
 | [User manual](docs/USER_MANUAL.md) | administrators and sync operators | Every page and button of the panel, step by step |
 | [Administrator guide](docs/ADMIN_GUIDE.md) | the server's administrator | Installing, files, backups, Enterprise add-ons, troubleshooting |
 | [Configuration](docs/CONFIGURATION.md) | the server's administrator | Every setting, with its type and default |
-| [Plugins](docs/PLUGINS.md) | administrators, developers | Choosing how instances are reached and where Enterprise comes from; writing your own |
+| [Plugins](docs/PLUGINS.md) | administrators, developers | Choosing how instances are reached, where Enterprise comes from and what starts updates; writing your own |
+| [Panel API](docs/PANEL_API.md) | developers | Managing instances from other systems with signed API calls |
 | [API and webhooks](docs/API.md) | developers | Calling an instance's Odoo from other systems |
 | [Architecture](docs/ARCHITECTURE.md) | developers | How the parts work together, and why we chose each of them |
 | [Security](docs/SECURITY.md) | administrators, reviewers | Passwords, encryption, sessions, input checks, what is and is not protected |
@@ -164,6 +168,7 @@ odoo-instance-manager/
 ├── .pre-commit-config.yaml        # black, ruff, mypy, shellcheck, ... on every commit and in CI
 ├── docs/                          # documentation, also shown in the panel; images/ and diagrams/build.py
 ├── tests/                         # pytest
+├── examples/                      # panel_api_client.py: a dependency-free client for the panel's API
 └── src/instance_manager/
     ├── config.py                  # every setting, typed (pydantic-settings)
     ├── plugins.py                 # finds and loads plugins (entry points)
@@ -185,6 +190,11 @@ odoo-instance-manager/
     │   ├── base.py                #   the interface
     │   ├── cloudflare.py          #   cloudflare-quick
     │   └── ports.py               #   host-ports
+    ├── triggers/                  # PLUGIN TYPE: what starts a code update
+    │   ├── base.py                #   the interface
+    │   ├── polling.py             #   polling
+    │   └── github_webhook.py      #   github-webhook
+    ├── api_tokens.py              # API tokens: hashed tokens, encrypted signing secrets, signature checks
     ├── addons/                    # PLUGIN TYPE: where Enterprise add-ons come from
     │   ├── base.py                #   the interface
     │   ├── folder.py              #   folder
@@ -264,7 +274,7 @@ How to repeat these checks is described in the [Administrator guide](docs/ADMIN_
 
 * **With `cloudflare-quick`, links change after a restart** of the server or of a connector. For links that never
   change, use `EXPOSURE=host-ports` on a server that can accept connections, or write an exposure plugin for a
-  Cloudflare named tunnel with your own domain ([Plugins](docs/PLUGINS.md#5-writing-a-plugin)).
+  Cloudflare named tunnel with your own domain ([Plugins](docs/PLUGINS.md#6-writing-a-plugin)).
 * **Cloudflare quick tunnels** carry at most 100 MB per request, end requests that take longer than about 100
   seconds, and have no uptime guarantee.
 * **Memory**: about 1 to 1.5 GB per running instance. On a 3 GB server, keep one or two instances running; the

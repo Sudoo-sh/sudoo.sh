@@ -16,7 +16,7 @@ import os
 import sys
 from datetime import datetime
 
-from instance_manager import accounts, exposure, plugins
+from instance_manager import accounts, api_tokens, exposure, plugins
 from instance_manager.config import settings
 from instance_manager.core import audit
 from instance_manager.instances import store
@@ -59,13 +59,20 @@ def urls(_: argparse.Namespace) -> None:
         print(f"{name}: {exposure.address(name) or 'not ready yet'}")
 
 
+def create_token(args: argparse.Namespace) -> None:
+    token, signing_secret = api_tokens.create(args.name, args.scope, "command line")
+    audit.record("command line", None, "API token created", detail=f"{args.name} ({args.scope})")
+    print(f"Token (shown once):          {token}\nSigning secret (shown once): {signing_secret}")
+
+
 def show_config(_: argparse.Namespace) -> None:
     """Every setting with its effective value (secrets hidden), then the installed plugins."""
-    hidden = {"odoo_admin_password"}
+    hidden = {"odoo_admin_password", "github_webhook_secret"}
     for key, value in settings.model_dump().items():
         print(f"{key.upper():<32} {'(set)' if key in hidden and value else value}")
     print(f"\nExposure plugins:   {', '.join(plugins.available(plugins.EXPOSURE_GROUP))}")
     print(f"Add-on sources:     {', '.join(plugins.available(plugins.ADDON_SOURCE_GROUP))}, none")
+    print(f"Update triggers:    {', '.join(plugins.available(plugins.UPDATE_TRIGGER_GROUP))}")
 
 
 def serve(_: argparse.Namespace) -> None:
@@ -91,6 +98,10 @@ def main(argv: list[str] | None = None) -> None:
     commands.add_parser("list-users", help="list accounts").set_defaults(run=list_users)
     commands.add_parser("urls", help="print the current public addresses").set_defaults(run=urls)
     commands.add_parser("config", help="print the effective settings and plugins").set_defaults(run=show_config)
+    token = commands.add_parser("create-token", help="create an API token and print its secrets")
+    token.add_argument("name")
+    token.add_argument("scope", choices=sorted(api_tokens.SCOPES))
+    token.set_defaults(run=create_token)
     commands.add_parser("serve", help="start the web panel").set_defaults(run=serve)
     args = parser.parse_args(argv)
     try:

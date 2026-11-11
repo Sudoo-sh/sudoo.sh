@@ -1,7 +1,7 @@
 # Plugins
 
 **Audience:** administrators choosing how the panel works on their server, and developers extending it.
-**Covers:** the two plugin types, the built-in plugins and their settings, and how to write and install your own.
+**Covers:** the three plugin types, the built-in plugins and their settings, and how to write and install your own.
 
 ---
 
@@ -11,8 +11,9 @@
 2. [How it works](#2-how-it-works)
 3. [Exposure: how instances are reached](#3-exposure-how-instances-are-reached)
 4. [Add-on sources: where Enterprise comes from](#4-add-on-sources-where-enterprise-comes-from)
-5. [Writing a plugin](#5-writing-a-plugin)
-6. [Rules for plugins](#6-rules-for-plugins)
+5. [Update triggers: what starts a code update](#5-update-triggers-what-starts-a-code-update)
+6. [Writing a plugin](#6-writing-a-plugin)
+7. [Rules for plugins](#7-rules-for-plugins)
 
 ---
 
@@ -47,6 +48,7 @@ environment themselves), and every part of the panel uses that object.
 | :--- | :--- | :--- | :--- | :--- |
 | Exposure | `instance_manager.exposure` | `EXPOSURE` | `exposure/base.py`: `Exposure` | `cloudflare-quick`, `host-ports` |
 | Add-on source | `instance_manager.addon_sources` | `ENTERPRISE_SOURCE` | `addons/base.py`: `AddonSource` | `folder`, `git` (and `none`) |
+| Update trigger | `instance_manager.update_triggers` | `UPDATE_TRIGGERS` (a list) | `triggers/base.py`: `UpdateTrigger` | `polling`, `github-webhook` |
 
 See which plugins are installed and which are in use:
 
@@ -130,7 +132,47 @@ the panel). Downloads are kept in `<ODOO_ROOT>/enterprise-git/<version>`.
 
 ---
 
-## 5. Writing a plugin
+## 5. Update triggers: what starts a code update
+
+An update trigger notices new code and asks the panel to update the instances concerned. The panel itself still
+decides: an instance is only updated when its **Update automatically** switch is on and it is not busy. Several
+triggers can work together, for example `UPDATE_TRIGGERS=github-webhook,polling` (the webhook for speed, polling as
+a safety net).
+
+| Trigger | How it notices | Delay after a push | Needs |
+| :--- | :--- | :--- | :--- |
+| `polling` (default) | Asks GitHub every `POLL_MINUTES` whether each instance's branch has new commits | up to `POLL_MINUTES` (2) | nothing; works behind changing tunnel addresses |
+| `github-webhook` | GitHub calls `<panel address>/hooks/github` on every push | seconds | a panel address that does not change, and `GITHUB_WEBHOOK_SECRET` |
+
+### `github-webhook`
+
+1. Generate a secret, for example `openssl rand -hex 32`, and set it on the server:
+
+   ```
+   UPDATE_TRIGGERS=github-webhook,polling
+   GITHUB_WEBHOOK_SECRET=<the secret>
+   ```
+
+2. On GitHub, in each repository: **Settings, Webhooks, Add webhook**:
+
+   | Field | Value |
+   | :--- | :--- |
+   | Payload URL | `<panel address>/hooks/github` |
+   | Content type | `application/json` |
+   | Secret | the same secret |
+   | Events | Just the push event |
+
+GitHub then sends a test call (a "ping"), and the panel answers it. Every call is checked with GitHub's signature
+(`X-Hub-Signature-256`, an HMAC-SHA256 of the body made with the secret): a call without the right signature is
+refused, so only GitHub can trigger updates. A push updates every instance that follows the pushed repository and
+branch.
+
+With `EXPOSURE=cloudflare-quick` the panel's address changes when the server restarts, so the webhook address would
+have to be edited on GitHub each time: use it with `host-ports` or with your own domain.
+
+---
+
+## 6. Writing a plugin
 
 A plugin is a class that implements one of the interfaces and is registered under the group's entry point. Here is
 a complete exposure plugin that gives every instance an address on a wildcard domain served by a reverse proxy you
@@ -182,11 +224,13 @@ wildcard-domain = "my_exposure.wildcard:WildcardDomain"
 Install it into the panel's environment, for example by adding it to `pyproject.toml` of the panel and running
 `uv lock`, then set `EXPOSURE=wildcard-domain` and run `install.sh`. An add-on source works the same way: implement
 `available(version)` and `prepare(version, log)` from `addons/base.py` and register it under
-`instance_manager.addon_sources`.
+`instance_manager.addon_sources`. An update trigger implements `start(request_update)` and `blueprint()` from
+`triggers/base.py` and is registered under `instance_manager.update_triggers`; a webhook's endpoints are served under
+`/hooks/` and must check their sender's signature themselves.
 
 ---
 
-## 6. Rules for plugins
+## 7. Rules for plugins
 
 | Rule | Why |
 | :--- | :--- |

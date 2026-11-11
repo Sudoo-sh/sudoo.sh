@@ -59,6 +59,15 @@ Every setting of the panel, with its type, default and meaning. Settings are env
 
 ---
 
+## Code updates (plugins)
+
+| Setting | Type | Default | Meaning |
+| :--- | :--- | :--- | :--- |
+| `UPDATE_TRIGGERS` | str | `polling` | What starts code updates, comma-separated: "polling", "github-webhook" or both. See [Plugins](PLUGINS.md#5-update-triggers-what-starts-a-code-update). |
+| `GITHUB_WEBHOOK_SECRET` | str | empty | github-webhook: the secret entered on GitHub (20 or more random characters). |
+
+---
+
 ## Ports
 
 | Setting | Type | Default | Meaning |
@@ -75,7 +84,7 @@ Every setting of the panel, with its type, default and meaning. Settings are env
 | :--- | :--- | :--- | :--- |
 | `IDLE_HOURS` | float | `6` | Pause an instance after this many hours without visits; 0: never. |
 | `DELETE_AFTER_DAYS` | int | `30` | Lifetime offered for new instances, in days; 0: keep. |
-| `POLL_MINUTES` | float | `2` | Check GitHub for new commits this often. |
+| `POLL_MINUTES` | float | `2` | polling: check GitHub for new commits this often. |
 | `SESSION_IDLE_MINUTES` | float | `60` | Panel sign-out after this long without activity. |
 | `SESSION_MAX_HOURS` | float | `12` | Longest panel session. |
 

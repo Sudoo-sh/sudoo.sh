@@ -38,13 +38,14 @@ ACTIONS = {
 }
 
 
-def _existing(name: str) -> str:
+def existing(name: str) -> str:
+    """`name` when that instance exists; 404 otherwise."""
     if not store.exists(check.instance_name(name)):
         abort(404, "This instance does not exist.")
     return name
 
 
-def _summary(name: str) -> dict[str, Any]:
+def summary(name: str) -> dict[str, Any]:
     """What the instance list shows about an instance."""
     env, measured, state = store.read_env(name), monitor.STATUS.get(name, {}), STATE.get(name)
     status = monitor.status(name)
@@ -82,7 +83,7 @@ def overview() -> Response:
     host["history"] = list(monitor.HOST["history"])[-60:]
     return jsonify(
         host=host,
-        instances=[_summary(n) for n in store.names()],
+        instances=[summary(n) for n in store.names()],
         jobs=jobs.recent(limit=15),
         delete_after_days=settings.delete_after_days,
         panel_url=exposure.address(exposure.PANEL),
@@ -92,9 +93,9 @@ def overview() -> Response:
 
 @blueprint.get("/instances/<name>")
 def details(name: str) -> Response:
-    _existing(name)
+    existing(name)
     env, addons = store.read_env(name), store.addons_dir(name)
-    data = _summary(name)
+    data = summary(name)
     data.update(
         db_name=env["DB_NAME"],
         auto_update=env["AUTO_UPDATE"] == "true",
@@ -120,7 +121,7 @@ def details(name: str) -> Response:
 
 @blueprint.get("/instances/<name>/logs")
 def logs(name: str) -> Response:
-    return jsonify(log=odoo.recent_log(_existing(name)) or "No log output yet.")
+    return jsonify(log=odoo.recent_log(existing(name)) or "No log output yet.")
 
 
 @blueprint.get("/jobs/<job_id>")
@@ -220,7 +221,7 @@ def create() -> Response:
 
 @blueprint.post("/instances/<name>/<action>")
 def run_action(name: str, action: str) -> Response:
-    _existing(name)
+    existing(name)
     if action not in ACTIONS:
         abort(404, "Unknown action.")
     title, kind, operator_allowed = ACTIONS[action]
@@ -269,7 +270,7 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
 @admin_only
 def save_settings(name: str) -> Response:
     """Automation switches of an instance. Switching branch is a separate action (it restarts the instance)."""
-    _existing(name)
+    existing(name)
     data = check.body()
     store.update_env(
         name,

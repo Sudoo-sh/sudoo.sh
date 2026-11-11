@@ -20,6 +20,7 @@ from instance_manager.config import Settings
 
 EXPOSURE_GROUP = "instance_manager.exposure"
 ADDON_SOURCE_GROUP = "instance_manager.addon_sources"
+UPDATE_TRIGGER_GROUP = "instance_manager.update_triggers"
 
 
 class PluginError(RuntimeError):

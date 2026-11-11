@@ -2,12 +2,16 @@
 .idea/
 .vscode/
 
-# Python caches
+# Python: virtual environment and caches
+.venv/
 __pycache__/
 *.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
 
 # copied from README.md and docs/ by install.sh
-manager/documentation/
+documentation/
 
 # real settings and secrets exist only on the server, never in this repository
 .env

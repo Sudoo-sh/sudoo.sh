@@ -1,4 +1,4 @@
-# Keeps the CI actions and the panel's base image up to date.
+# Keeps the CI actions, the panel's base images and the Python dependencies (uv.lock) up to date.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -8,8 +8,14 @@ updates:
     commit-message:
       prefix: ci
   - package-ecosystem: docker
-    directory: /manager
+    directory: /
     schedule:
       interval: weekly
     commit-message:
       prefix: docker
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: deps

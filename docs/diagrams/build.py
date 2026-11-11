@@ -6,6 +6,7 @@ Each diagram is a short function below that places boxes and arrows on a canvas.
 Markdown pages show, on GitHub and inside the panel (no JavaScript needed). Colours follow the reader's light or
 dark setting.
 """
+
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -71,7 +72,7 @@ text {{ font-family: {FONT}; fill: #1f2937; }}
 """
 
 
-PROBLEMS = []   # labels that do not fit their box; the build fails until they are fixed
+PROBLEMS = []  # labels that do not fit their box; the build fails until they are fixed
 
 
 def width_of(text, size):
@@ -133,8 +134,10 @@ class Canvas:
         size = 11 if "bold" in style else 9
         bx, by = x2 - ux * size, y2 - uy * size
         px, py = -uy * size * 0.5, ux * size * 0.5
-        self.parts.append(f'<path class="head {style}" d="M{x2},{y2} L{bx + px:.1f},{by + py:.1f} '
-                          f'L{bx - px:.1f},{by - py:.1f} Z"/>')
+        self.parts.append(
+            f'<path class="head {style}" d="M{x2},{y2} L{bx + px:.1f},{by + py:.1f} '
+            f'L{bx - px:.1f},{by - py:.1f} Z"/>'
+        )
 
     def raw(self, svg):
         self.parts.append(svg)
@@ -142,14 +145,17 @@ class Canvas:
     # ---------------------------------------------------------------- output
 
     def save(self, name):
-        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {self.width} {self.height}" '
-               f'width="{self.width}" height="{self.height}" role="img" aria-label="{escape(self.title)}">'
-               f'<title>{escape(self.title)}</title><style>{STYLE}</style>'
-               f'<rect class="bg" width="{self.width}" height="{self.height}" rx="12"/>' + "".join(self.parts) + "</svg>")
+        svg = (
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {self.width} {self.height}" '
+            f'width="{self.width}" height="{self.height}" role="img" aria-label="{escape(self.title)}">'
+            f"<title>{escape(self.title)}</title><style>{STYLE}</style>"
+            f'<rect class="bg" width="{self.width}" height="{self.height}" rx="12"/>' + "".join(self.parts) + "</svg>"
+        )
         (OUT / f"{name}.svg").write_text(svg + "\n")
 
 
 # ==================================================================== diagrams
+
 
 def architecture():
     c = Canvas(800, 640, "How the parts of Odoo Instance Manager fit together")
@@ -159,28 +165,51 @@ def architecture():
     c.arrow((mid, 78), (mid, 124), label="https://<words>.trycloudflare.com, one link per instance", at=(mid, 104))
     c.box(x, 124, w, 58, "Cloudflare", ["one public https address per connector"], "cloud")
     c.group(100, 212, 570, 410, "Server: only SSH reaches it from outside")
-    c.arrow((mid, 252), (mid, 182), label="connections opened outwards by the server", at=(mid + 12, 200), anchor="start")
-    c.box(x, 252, w, 58, "Connectors (cloudflared)", ["oim-connector-panel  •  oim-connector-<name>, one each"],
-          "cloud")
+    c.arrow(
+        (mid, 252), (mid, 182), label="connections opened outwards by the server", at=(mid + 12, 200), anchor="start"
+    )
+    c.box(
+        x, 252, w, 58, "Connectors (cloudflared)", ["oim-connector-panel  •  oim-connector-<name>, one each"], "cloud"
+    )
     c.arrow((mid, 310), (mid, 344))
-    c.box(x, 344, w, 116, "oim-panel  (the panel container)", [
-        "Panel and JSON API on 127.0.0.1:9000",
-        "Gateway: one port per instance, wakes paused instances",
-        "Background: monitor, auto-pause, auto-delete, GitHub sync"], "panel")
+    c.box(
+        x,
+        344,
+        w,
+        116,
+        "oim-panel  (the panel container)",
+        [
+            "Panel and JSON API on 127.0.0.1:9000",
+            "Gateway: one port per instance, wakes paused instances",
+            "Background: monitor, auto-pause, auto-delete, GitHub sync",
+        ],
+        "panel",
+    )
     c.box(676, 366, 112, 70, "GitHub", ["code and", "submodules"], "outside")
     c.arrow((620, 401), (676, 401), label="fetch", at=(648, 392))
     c.arrow((mid, 460), (mid, 508), label="docker, docker compose", at=(mid, 488))
-    c.box(x, 508, w, 96, "Instances  (one Docker Compose project each)", [
-        "odoo (official image)  →  PostgreSQL 16",
-        "+ Odoo Enterprise add-ons, shared read-only"], "instance")
+    c.box(
+        x,
+        508,
+        w,
+        96,
+        "Instances  (one Docker Compose project each)",
+        ["odoo (official image)  →  PostgreSQL 16", "+ Odoo Enterprise add-ons, shared read-only"],
+        "instance",
+    )
     c.save("architecture")
 
 
 def visit_flow():
     c = Canvas(900, 250, "How a visit reaches Odoo")
-    names = [("Browser or", "API client", "outside"), ("Cloudflare", "edge", "cloud"),
-             ("Connector", "per instance", "cloud"), ("Gateway", "port 8070", "panel"),
-             ("Odoo", "port 28070", "instance"), ("PostgreSQL", "database", "instance")]
+    names = [
+        ("Browser or", "API client", "outside"),
+        ("Cloudflare", "edge", "cloud"),
+        ("Connector", "per instance", "cloud"),
+        ("Gateway", "port 8070", "panel"),
+        ("Odoo", "port 28070", "instance"),
+        ("PostgreSQL", "database", "instance"),
+    ]
     labels = ["https", "tunnel", "127.0.0.1:8070", "127.0.0.1:28070", "SQL"]
     w, gap, y = 118, 34, 30
     for i, (title, line, kind) in enumerate(names):
@@ -192,11 +221,21 @@ def visit_flow():
             c.label(x + w + gap / 2, y - 6, labels[i])
     gx = 20 + 3 * (w + gap)
     c.arrow((gx + w / 2, 90), (gx + w / 2, 120), head=False)
-    c.box(gx - 90, 120, w + 180, 96, None, [
-        "records the visit (for automatic pause)",
-        "removes the panel's cookie",
-        "passes on X-Forwarded-For and https",
-        "starts a paused instance"], "panel", align="start")
+    c.box(
+        gx - 90,
+        120,
+        w + 180,
+        96,
+        None,
+        [
+            "records the visit (for automatic pause)",
+            "removes the panel's cookie",
+            "passes on X-Forwarded-For and https",
+            "starts a paused instance",
+        ],
+        "panel",
+        align="start",
+    )
     c.text(20, 236, "Solid arrows: the request. Dashed arrows: the answer, streamed back the same way.", "m", "start")
     c.save("visit-flow")
 
@@ -205,20 +244,30 @@ def wake_sequence():
     c = Canvas(760, 540, "A visit to a paused instance")
     cols = {"Browser or API client": 110, "Gateway": 380, "Odoo": 650}
     for name, x in cols.items():
-        c.box(x - 95, 20, 190, 40, name, [], "panel" if name == "Gateway" else
-              "instance" if name == "Odoo" else "outside")
+        c.box(
+            x - 95, 20, 190, 40, name, [], "panel" if name == "Gateway" else "instance" if name == "Odoo" else "outside"
+        )
         c.raw(f'<line class="life" x1="{x}" y1="60" x2="{x}" y2="525"/>')
     b, g, o = cols.values()
-    steps = [(b, g, "GET /odoo", ""), (g, o, "forward", ""), (o, g, "connection refused: not running", "dash bad"),
-             (g, o, "start the instance (once)", "bold"), (g, b, "503 Starting up, Retry-After: 4", "dash")]
+    steps = [
+        (b, g, "GET /odoo", ""),
+        (g, o, "forward", ""),
+        (o, g, "connection refused: not running", "dash bad"),
+        (g, o, "start the instance (once)", "bold"),
+        (g, b, "503 Starting up, Retry-After: 4", "dash"),
+    ]
     y = 95
     for x1, x2, text, style in steps:
         c.arrow((x1, y), (x2, y), label=text, at=((x1 + x2) / 2, y - 7), style=style)
         y += 46
     c.box(b - 95, y - 18, 270, 44, None, ["the page reloads itself every 4 s;", "API clients retry"], "decision")
     y += 58
-    for x1, x2, text, style in [(b, g, "GET /odoo", ""), (g, o, "forward", ""), (o, g, "200", "dash"),
-                                (g, b, "200: Odoo opens", "dash")]:
+    for x1, x2, text, style in [
+        (b, g, "GET /odoo", ""),
+        (g, o, "forward", ""),
+        (o, g, "200", "dash"),
+        (g, b, "200: Odoo opens", "dash"),
+    ]:
         c.arrow((x1, y), (x2, y), label=text, at=((x1 + x2) / 2, y - 7), style=style)
         y += 40
     c.save("wake-sequence")
@@ -241,24 +290,27 @@ def lifecycle():
     c.arrow((390, 320), (390, 220), label="Switch on", at=(405, 274), anchor="start")
     c.arrow((655, 220), (655, 350), (450, 350), label="Switch off", at=(600, 342))
     c.arrow((300, 350), (220, 350), label="Delete", at=(260, 342))
-    c.text(390, 408, "Delete, or the end of the instance's lifetime, works from every state; a backup is taken first.",
-           "m")
+    c.text(
+        390, 408, "Delete, or the end of the instance's lifetime, works from every state; a backup is taken first.", "m"
+    )
     c.save("lifecycle")
 
 
 def create_flow():
     c = Canvas(780, 700, "Creating an instance")
-    steps = ["Repository, branch, version, edition, lifetime",
-             "Access check: the repository and every submodule",
-             "Name, database name and three ports reserved",
-             "git clone --recurse-submodules",
-             ".env, odoo.conf (master password hashed), docker-compose.yml",
-             "Download the Odoo image (once per version)",
-             "Start PostgreSQL, create the database (+ web_enterprise)",
-             "Install the repository's own modules (if chosen)",
-             "Gateway and connector, wait for the public address",
-             "Start Odoo, wait until it answers",
-             "Show the link and the login"]
+    steps = [
+        "Repository, branch, version, edition, lifetime",
+        "Access check: the repository and every submodule",
+        "Name, database name and three ports reserved",
+        "git clone --recurse-submodules",
+        ".env, odoo.conf (master password hashed), docker-compose.yml",
+        "Download the Odoo image (once per version)",
+        "Start PostgreSQL, create the database (+ web_enterprise)",
+        "Install the repository's own modules (if chosen)",
+        "Gateway and connector, wait for the public address",
+        "Start Odoo, wait until it answers",
+        "Show the link and the login",
+    ]
     x, w, h, gap = 40, 470, 40, 22
     for i, text in enumerate(steps):
         y = 20 + i * (h + gap)
@@ -269,8 +321,15 @@ def create_flow():
     y = 20 + h + gap
     c.box(570, y - 6, 190, 52, None, ["Create a deploy key,", "add it on GitHub"], "decision")
     c.arrow((x + w, y + 14), (570, y + 14), label="no access", at=(540, y + 6))
-    c.arrow((665, y + 46), (665, y + 70), (x + w + 40, y + 70), (x + w + 40, y + 30), (x + w, y + 30),
-            label="check again", at=(620, y + 86))
+    c.arrow(
+        (665, y + 46),
+        (665, y + 70),
+        (x + w + 40, y + 70),
+        (x + w + 40, y + 30),
+        (x + w, y + 30),
+        label="check again",
+        at=(620, y + 86),
+    )
     c.box(570, 330, 190, 72, None, ["Any step fails:", "everything created", "so far is removed"], "danger")
     c.save("create-flow")
 
@@ -278,12 +337,12 @@ def create_flow():
 def code_update():
     c = Canvas(820, 590, "Code from GitHub")
     c.box(30, 20, 230, 50, "Developer pushes", ["the panel checks every 2 min"], "outside")
-    c.box(290, 20, 210, 50, "\"Get latest code\"", ["clicked in the panel"], "outside")
+    c.box(290, 20, 210, 50, '"Get latest code"', ["clicked in the panel"], "outside")
     c.arrow((145, 70), (145, 96), (395, 96), (395, 116))
     c.arrow((395, 70), (395, 116))
     col, w = 270, 250
     c.box(col - 20, 116, w + 40, 46, None, ["Does the branch still exist on GitHub?"], "decision")
-    c.box(580, 116, 210, 46, None, ["Stop: \"Switch branch\""], "danger")
+    c.box(580, 116, 210, 46, None, ['Stop: "Switch branch"'], "danger")
     c.arrow((col + w + 20, 139), (580, 139), label="no", at=(555, 131))
     c.arrow((395, 162), (395, 196), label="yes", at=(412, 184), anchor="start")
     c.box(col, 196, w, 46, None, ["git pull, git submodule update"], "default")
@@ -294,7 +353,7 @@ def code_update():
     c.arrow((395, 322), (395, 356), label="yes", at=(412, 344), anchor="start")
     c.box(col - 30, 356, w + 60, 46, None, ["Which modules have changed files?"], "default")
     c.arrow((395, 402), (395, 436))
-    c.box(col - 50, 436, w + 100, 46, None, ["\"Upgrade changed modules\" on, and any changed?"], "decision")
+    c.box(col - 50, 436, w + 100, 46, None, ['"Upgrade changed modules" on, and any changed?'], "decision")
     c.box(40, 526, 300, 46, None, ["Stop Odoo, odoo -u <changed>, start"], "ok")
     c.box(470, 526, 300, 46, None, ["Restart Odoo"], "ok")
     c.arrow((320, 482), (320, 504), (190, 504), (190, 526), label="yes", at=(255, 500))
@@ -311,8 +370,13 @@ def tunnel_problem():
     c.arrow((170, 200), (380, 200), label="https on port 9000", at=(255, 190), style="bad")
     c.text(398, 206, "✗", "bad-text")
     c.text(470, 206, "dropped", "lab")
-    c.text(430, 284, "Only the SSH port is forwarded. The provider will not forward more, so a web panel "
-           "on the server cannot be opened directly.", "m")
+    c.text(
+        430,
+        284,
+        "Only the SSH port is forwarded. The provider will not forward more, so a web panel "
+        "on the server cannot be opened directly.",
+        "m",
+    )
     c.save("tunnel-problem")
 
 
@@ -333,15 +397,20 @@ def tunnel_how():
     c.arrow((700, 232), (640, 232), style="dash")
     c.arrow((490, 232), (410, 232), style="dash bold")
     c.arrow((240, 232), (160, 232), style="dash")
-    c.text(430, 300, "The visit travels inside a connection the server started, so nothing has to be opened "
-           "on the server or the provider.", "m")
+    c.text(
+        430,
+        300,
+        "The visit travels inside a connection the server started, so nothing has to be opened "
+        "on the server or the provider.",
+        "m",
+    )
     c.save("tunnel-how")
 
 
 def deploy_key_flow():
     c = Canvas(820, 420, "What happens when a deploy key is created and used")
     x, w = 40, 380
-    c.box(x, 20, w, 46, None, ["1. Administrator: \"Create deploy key\""], "outside")
+    c.box(x, 20, w, 46, None, ['1. Administrator: "Create deploy key"'], "outside")
     c.arrow((x + w / 2, 66), (x + w / 2, 96))
     c.box(x, 96, w, 46, None, ["2. ssh-keygen makes a new key pair, in memory"], "default")
     c.box(480, 70, 310, 46, None, ["private key: encrypted with the vault key"], "panel")
@@ -351,8 +420,15 @@ def deploy_key_flow():
     c.arrow((x + w / 2, 142), (x + w / 2, 196))
     c.box(x, 196, w, 46, None, ["3. Pasted on GitHub by a repository admin"], "outside")
     c.arrow((x + w / 2, 242), (x + w / 2, 276))
-    c.box(x, 276, w, 64, None, ["4. Each git fetch: the key is decrypted into", "memory, used for one connection, deleted"],
-          "ok")
+    c.box(
+        x,
+        276,
+        w,
+        64,
+        None,
+        ["4. Each git fetch: the key is decrypted into", "memory, used for one connection, deleted"],
+        "ok",
+    )
     c.box(480, 276, 310, 64, "GitHub", ["checks the key; read-only access", "to this one repository"], "cloud")
     c.arrow((x + w, 308), (480, 308), label="SSH", at=(450, 300), both=True)
     c.text(410, 396, "The private key is never stored readable and never leaves the server.", "m")
@@ -371,8 +447,7 @@ def docker_server():
         c.box(290, y + 34, 200, 70, f"odoo-{name}-db-1", ["postgres:16"], "instance")
         c.box(520, y + 34, 240, 70, f"oim-connector-{name}", ["its public link"], "cloud")
         c.arrow((260, y + 69), (290, y + 69))
-    c.text(410, 422, "Each instance has its own containers and volumes: none can see another's files or database.",
-           "m")
+    c.text(410, 422, "Each instance has its own containers and volumes: none can see another's files or database.", "m")
     c.save("docker-server")
 
 
@@ -390,8 +465,12 @@ def reverse_proxy():
 
 def password_hash():
     c = Canvas(860, 190, "How a panel password is stored")
-    boxes = [("Password", ["typed at sign-in"], "outside"), ("HMAC with the pepper", ["key from vault.key"], "panel"),
-             ("scrypt with a salt", ["slow and memory-hungry"], "panel"), ("Stored hash", ["in users.json"], "ok")]
+    boxes = [
+        ("Password", ["typed at sign-in"], "outside"),
+        ("HMAC with the pepper", ["key from vault.key"], "panel"),
+        ("scrypt with a salt", ["slow and memory-hungry"], "panel"),
+        ("Stored hash", ["in users.json"], "ok"),
+    ]
     w, gap = 180, 40
     for i, (title, lines, kind) in enumerate(boxes):
         x = 20 + i * (w + gap)
@@ -411,8 +490,12 @@ def instance_page():
     c.box(708, 22, 84, 28, None, ["Actions ▾"], "button", radius=4)
     c.raw('<line class="life" x1="10" y1="60" x2="810" y2="60"/>')
     x = 28
-    for text, kind in (("Open Odoo", "primary"), ("Restart", "button"), ("Get latest code", "button"),
-                       ("View logs", "button")):
+    for text, kind in (
+        ("Open Odoo", "primary"),
+        ("Restart", "button"),
+        ("Get latest code", "button"),
+        ("View logs", "button"),
+    ):
         w = width_of(text, 12.5) + 26
         c.box(x, 72, w, 28, None, [], kind, radius=4)
         c.text(x + w / 2, 90.5, text, "s white" if kind == "primary" else "s")
@@ -423,11 +506,19 @@ def instance_page():
     c.text(40, 150, "sales-main", "t", "start")
     c.box(140, 136, 70, 20, None, ["Running"], "ok", radius=10)
     c.text(40, 176, "https://river-stone-apple.trycloudflare.com", "mono", "start")
-    fields = [("Status", "Running and ready"), ("Odoo", "20.0 Enterprise"), ("Branch", "main"),
-              ("Database", "sales_main")]
-    more = [("Odoo login", "admin / hidden"), ("Last visit", "5 min ago"), ("Automatic pause", "in 5.9 h"),
-            ("Lifetime", "deleted on 11/12, after a backup")]
-    for i, ((k1, v1), (k2, v2)) in enumerate(zip(fields, more)):
+    fields = [
+        ("Status", "Running and ready"),
+        ("Odoo", "20.0 Enterprise"),
+        ("Branch", "main"),
+        ("Database", "sales_main"),
+    ]
+    more = [
+        ("Odoo login", "admin / hidden"),
+        ("Last visit", "5 min ago"),
+        ("Automatic pause", "in 5.9 h"),
+        ("Lifetime", "deleted on 11/12, after a backup"),
+    ]
+    for i, ((k1, v1), (k2, v2)) in enumerate(zip(fields, more, strict=True)):
         y = 214 + i * 26
         c.text(40, y, k1, "t", "start"), c.text(150, y, v1, "s", "start")
         c.text(420, y, k2, "t", "start"), c.text(550, y, v2, "s", "start")
@@ -444,8 +535,21 @@ def instance_page():
 
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
-    for build in (architecture, visit_flow, wake_sequence, lifecycle, create_flow, code_update, tunnel_problem,
-                  tunnel_how, deploy_key_flow, docker_server, reverse_proxy, password_hash, instance_page):
+    for build in (
+        architecture,
+        visit_flow,
+        wake_sequence,
+        lifecycle,
+        create_flow,
+        code_update,
+        tunnel_problem,
+        tunnel_how,
+        deploy_key_flow,
+        docker_server,
+        reverse_proxy,
+        password_hash,
+        instance_page,
+    ):
         build()
     if PROBLEMS:
         raise SystemExit("Labels too wide:\n  " + "\n  ".join(PROBLEMS))

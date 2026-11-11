@@ -35,6 +35,8 @@ Everything about Odoo Instance Manager, in one place. The same pages are on GitH
 | Add a new Enterprise version | [Administrator guide: Enterprise add-ons](ADMIN_GUIDE.md#6-odoo-enterprise-add-ons) |
 | Fix a problem | [Administrator guide: Troubleshooting](ADMIN_GUIDE.md#10-troubleshooting) |
 | Call an instance from Python or Postman | [API and webhooks](API.md) |
+| Use open ports instead of Cloudflare, or keep Enterprise in git | [Plugins](PLUGINS.md) |
+| Look up a setting | [Configuration](CONFIGURATION.md) |
 | Know why something was built this way | [Architecture: Why we chose this](ARCHITECTURE.md#6-why-we-chose-this) |
 
 ---
@@ -66,3 +68,5 @@ starts with an everyday comparison, then shows what it looks like on our server.
 | [API and webhooks](API.md) | Odoo's APIs through an instance's link, with examples |
 | [Architecture](ARCHITECTURE.md) | Components, request flow, life of an instance, decisions and their reasons |
 | [Security](SECURITY.md) | What is protected, how, and what is not |
+| [Configuration](CONFIGURATION.md) | Every setting, with its type and default |
+| [Plugins](PLUGINS.md) | Choosing how instances are reached and where Enterprise comes from; writing your own |

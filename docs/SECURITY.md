@@ -42,8 +42,12 @@ Examples of each attempt, and how the panel stops it, are in [Web attacks](conce
 
 ## 2. Reachability
 
-* The panel (`127.0.0.1:9000`), every gateway and every Odoo listen on `127.0.0.1` only. Nothing is reachable from
-  the internet except through the Cloudflare connectors that the server opened itself, and SSH for administrators.
+* With the default exposure plugin (`cloudflare-quick`), the panel (`127.0.0.1:9000`), every gateway and every Odoo
+  listen on `127.0.0.1` only. Nothing is reachable from the internet except through the Cloudflare connectors that
+  the server opened itself, and SSH for administrators.
+* With `host-ports`, the panel and the gateways listen on every interface, on purpose; Odoo itself and the
+  databases still listen on `127.0.0.1` only. Use a firewall to limit who can reach the ports, and https in front of
+  them on any network you do not fully trust (see [Plugins](PLUGINS.md#host-ports)).
 * Cloudflare carries the traffic over https and decrypts it at its edge (that is how quick tunnels work); between
   Cloudflare and the server it travels inside the connector's own encrypted connection. See
   [Tunneling](concepts/TUNNELING.md#6-is-it-safe).
@@ -135,7 +139,7 @@ Every value received from a browser or API client goes through `instance_manager
 | Instance and user names in addresses are checked before any file is touched | `/api/instances/..%2F..%2Fetc` |
 
 After checking, values are only passed to commands as **separate arguments, never through a shell**
-(`shell.py`, `jobs.py`), and git commands put `--` before addresses, so nothing typed can become a command or an
+(`core/shell.py`, `core/jobs.py`), and git commands put `--` before addresses, so nothing typed can become a command or an
 option. Refused input gets HTTP 400 with a sentence saying what to enter instead.
 
 ---
@@ -149,6 +153,7 @@ Being clear about limits is part of security.
 | **Instance contents** | Every instance opens with `admin` / `admin` and anyone with its link can sign in. Instances must not hold real customer data. |
 | **Someone with root on the server** | Root can read `vault.key` as well as the encrypted values, and controls Docker. The vault protects copies and backups, not a compromised server. Keep SSH access to the server limited. |
 | **An administrator account** | The panel controls Docker, so an administrator can do anything on the server. Give the administrator role only to people who would be trusted with the server. |
+| **Plain http with `host-ports`** | With `PUBLIC_SCHEME=http`, passwords and session cookies travel unencrypted (the cookie is then not marked Secure). Put a TLS proxy in front, or keep it to trusted networks. |
 | **Traffic inside Cloudflare** | Quick tunnels end https at Cloudflare's edge. For a server this is acceptable; Tailscale Funnel is the end-to-end alternative ([Tunneling](concepts/TUNNELING.md#7-other-ways-and-why-we-chose-this-one)). |
 | **Each instance's database password** | Stored readable in the instance's `.env` and `odoo.conf` (folder mode 700, root only). The database is reachable only from that instance's Odoo container, on a private Docker network, so the password is of no use to anyone who could not already read the whole server. |
 | **Sign-in lockout after a restart** | Failed attempts are counted in memory; a panel restart resets the counters. The slow hash still limits guessing. |

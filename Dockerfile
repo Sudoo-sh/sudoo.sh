@@ -1,6 +1,6 @@
 # The panel image: Python with the dependencies locked in uv.lock, plus the Docker CLI and Compose plugin (to manage
 # instances on the host's Docker), git and SSH (to fetch code with deploy keys).
-FROM python:3.12-alpine
+FROM python:3.15-alpine
 
 LABEL org.opencontainers.image.title="Sudoo" \
       org.opencontainers.image.authors="Yousef M. Y. Al Sabbah" \

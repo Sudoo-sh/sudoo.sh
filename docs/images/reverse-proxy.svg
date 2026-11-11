@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 130" width="700" height="130" role="img" aria-label="A reverse proxy"><title>A reverse proxy</title><style>
+.bg { fill: #ffffff; }
+text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, 'Noto Sans', Arial, sans-serif; fill: #1f2937; }
+.t { font-size: 14px; font-weight: 600; }
+.s { font-size: 12.5px; }
+.m { font-size: 12px; fill: #6b7280; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+.lab { font-size: 12px; fill: #4b5563; }
+.labbg { fill: #ffffff; }
+.arrow { stroke: #6b7280; stroke-width: 1.6; fill: none; }
+.arrow.dash { stroke-dasharray: 5 4; }
+.arrow.bold { stroke: #017e84; stroke-width: 3; }
+.arrow.bad { stroke: #d23f3a; }
+.head { fill: #6b7280; }
+.head.bold { fill: #017e84; }
+.head.bad { fill: #d23f3a; }
+.life { stroke: #c4c9d0; stroke-width: 1.2; stroke-dasharray: 4 4; }
+.k-default { fill: #ffffff; stroke: #d0d7de; }
+.k-outside { fill: #fff8e6; stroke: #d9a521; }
+.k-cloud { fill: #e6f2f3; stroke: #017e84; }
+.k-panel { fill: #f3edf2; stroke: #714b67; }
+.k-instance { fill: #eef2f7; stroke: #8792a2; }
+.k-danger { fill: #fdecec; stroke: #d23f3a; }
+.k-decision { fill: #fff3cd; stroke: #e99d00; }
+.k-ok { fill: #e8f5ec; stroke: #28a745; }
+.k-group { fill: none; stroke: #9ca3af; stroke-dasharray: 6 5; }
+.k-ui { fill: #f9fafb; stroke: #d0d7de; }
+.k-button { fill: #e7e9ed; stroke: #e7e9ed; }
+.k-primary { fill: #714b67; stroke: #714b67; }
+.k-current { fill: #e6f2f3; stroke: #d0d7de; }
+.white { fill: #ffffff; }
+.teal { fill: #017e84; }
+.bad-text { fill: #d23f3a; font-size: 16px; font-weight: 700; }
+@media (prefers-color-scheme: dark) {
+  .bg, .labbg { fill: #1b1f27; }
+  text { fill: #e5e7eb; }
+  .m { fill: #9ca3af; }
+  .lab { fill: #c4c9d0; }
+  .arrow { stroke: #9ca3af; } .head { fill: #9ca3af; }
+  .arrow.bold { stroke: #3fb6bc; } .head.bold { fill: #3fb6bc; }
+  .life { stroke: #4a5060; }
+  .k-default { fill: #232834; stroke: #3a3f4d; }
+  .k-outside { fill: #3a2f12; stroke: #d9a521; }
+  .k-cloud { fill: #12302f; stroke: #3fb6bc; }
+  .k-panel { fill: #33222f; stroke: #b58aa8; }
+  .k-instance { fill: #222833; stroke: #6b7280; }
+  .k-danger { fill: #3b1c1c; stroke: #ef5350; }
+  .k-decision { fill: #3a3015; stroke: #f0b429; }
+  .k-ok { fill: #17301f; stroke: #4caf50; }
+  .k-ui { fill: #232834; stroke: #3a3f4d; }
+  .k-button { fill: #3a3f4d; stroke: #3a3f4d; }
+  .k-primary { fill: #875a7b; stroke: #875a7b; }
+  .k-current { fill: #12302f; stroke: #3a3f4d; }
+  .teal { fill: #3fb6bc; }
+}
+</style><rect class="bg" width="700" height="130" rx="12"/><rect class="k-outside" x="20" y="30" width="170" height="60" rx="8"/><text class="t" x="105.0" y="64.5" text-anchor="middle">Visitor</text><rect class="k-panel" x="265" y="30" width="170" height="60" rx="8"/><text class="t" x="350.0" y="55.0" text-anchor="middle">Reverse proxy</text><text class="s" x="350.0" y="74.0" text-anchor="middle">(our gateway)</text><rect class="k-instance" x="510" y="30" width="170" height="60" rx="8"/><text class="t" x="595.0" y="64.5" text-anchor="middle">Odoo</text><path class="arrow " d="M190,52 L265,52"/><path class="head " d="M265,52 L256.0,56.5 L256.0,47.5 Z"/><path class="arrow dash" d="M265,70 L190,70"/><path class="head dash" d="M190,70 L199.0,65.5 L199.0,74.5 Z"/><path class="arrow " d="M435,52 L510,52"/><path class="head " d="M510,52 L501.0,56.5 L501.0,47.5 Z"/><path class="arrow dash" d="M510,70 L435,70"/><path class="head dash" d="M435,70 L444.0,65.5 L444.0,74.5 Z"/><text class="m" x="350.0" y="118.0" text-anchor="middle">The visitor only ever talks to the proxy; the proxy passes requests on and answers back.</text></svg>

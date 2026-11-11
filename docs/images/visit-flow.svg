@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 250" width="900" height="250" role="img" aria-label="How a visit reaches Odoo"><title>How a visit reaches Odoo</title><style>
+.bg { fill: #ffffff; }
+text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, 'Noto Sans', Arial, sans-serif; fill: #1f2937; }
+.t { font-size: 14px; font-weight: 600; }
+.s { font-size: 12.5px; }
+.m { font-size: 12px; fill: #6b7280; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+.lab { font-size: 12px; fill: #4b5563; }
+.labbg { fill: #ffffff; }
+.arrow { stroke: #6b7280; stroke-width: 1.6; fill: none; }
+.arrow.dash { stroke-dasharray: 5 4; }
+.arrow.bold { stroke: #017e84; stroke-width: 3; }
+.arrow.bad { stroke: #d23f3a; }
+.head { fill: #6b7280; }
+.head.bold { fill: #017e84; }
+.head.bad { fill: #d23f3a; }
+.life { stroke: #c4c9d0; stroke-width: 1.2; stroke-dasharray: 4 4; }
+.k-default { fill: #ffffff; stroke: #d0d7de; }
+.k-outside { fill: #fff8e6; stroke: #d9a521; }
+.k-cloud { fill: #e6f2f3; stroke: #017e84; }
+.k-panel { fill: #f3edf2; stroke: #714b67; }
+.k-instance { fill: #eef2f7; stroke: #8792a2; }
+.k-danger { fill: #fdecec; stroke: #d23f3a; }
+.k-decision { fill: #fff3cd; stroke: #e99d00; }
+.k-ok { fill: #e8f5ec; stroke: #28a745; }
+.k-group { fill: none; stroke: #9ca3af; stroke-dasharray: 6 5; }
+.k-ui { fill: #f9fafb; stroke: #d0d7de; }
+.k-button { fill: #e7e9ed; stroke: #e7e9ed; }
+.k-primary { fill: #714b67; stroke: #714b67; }
+.k-current { fill: #e6f2f3; stroke: #d0d7de; }
+.white { fill: #ffffff; }
+.teal { fill: #017e84; }
+.bad-text { fill: #d23f3a; font-size: 16px; font-weight: 700; }
+@media (prefers-color-scheme: dark) {
+  .bg, .labbg { fill: #1b1f27; }
+  text { fill: #e5e7eb; }
+  .m { fill: #9ca3af; }
+  .lab { fill: #c4c9d0; }
+  .arrow { stroke: #9ca3af; } .head { fill: #9ca3af; }
+  .arrow.bold { stroke: #3fb6bc; } .head.bold { fill: #3fb6bc; }
+  .life { stroke: #4a5060; }
+  .k-default { fill: #232834; stroke: #3a3f4d; }
+  .k-outside { fill: #3a2f12; stroke: #d9a521; }
+  .k-cloud { fill: #12302f; stroke: #3fb6bc; }
+  .k-panel { fill: #33222f; stroke: #b58aa8; }
+  .k-instance { fill: #222833; stroke: #6b7280; }
+  .k-danger { fill: #3b1c1c; stroke: #ef5350; }
+  .k-decision { fill: #3a3015; stroke: #f0b429; }
+  .k-ok { fill: #17301f; stroke: #4caf50; }
+  .k-ui { fill: #232834; stroke: #3a3f4d; }
+  .k-button { fill: #3a3f4d; stroke: #3a3f4d; }
+  .k-primary { fill: #875a7b; stroke: #875a7b; }
+  .k-current { fill: #12302f; stroke: #3a3f4d; }
+  .teal { fill: #3fb6bc; }
+}
+</style><rect class="bg" width="900" height="250" rx="12"/><rect class="k-outside" x="20" y="30" width="118" height="60" rx="8"/><text class="t" x="79.0" y="55.0" text-anchor="middle">Browser or</text><text class="s" x="79.0" y="74.0" text-anchor="middle">API client</text><path class="arrow " d="M138,54 L172,54"/><path class="head " d="M172,54 L163.0,58.5 L163.0,49.5 Z"/><path class="arrow dash" d="M172,70 L138,70"/><path class="head dash" d="M138,70 L147.0,65.5 L147.0,74.5 Z"/><rect class="labbg" x="133.2" y="11" width="43.6" height="18" rx="3"/><text class="lab" x="155.0" y="24.0" text-anchor="middle">https</text><rect class="k-cloud" x="172" y="30" width="118" height="60" rx="8"/><text class="t" x="231.0" y="55.0" text-anchor="middle">Cloudflare</text><text class="s" x="231.0" y="74.0" text-anchor="middle">edge</text><path class="arrow " d="M290,54 L324,54"/><path class="head " d="M324,54 L315.0,58.5 L315.0,49.5 Z"/><path class="arrow dash" d="M324,70 L290,70"/><path class="head dash" d="M290,70 L299.0,65.5 L299.0,74.5 Z"/><rect class="labbg" x="281.8" y="11" width="50.3" height="18" rx="3"/><text class="lab" x="307.0" y="24.0" text-anchor="middle">tunnel</text><rect class="k-cloud" x="324" y="30" width="118" height="60" rx="8"/><text class="t" x="383.0" y="55.0" text-anchor="middle">Connector</text><text class="s" x="383.0" y="74.0" text-anchor="middle">per instance</text><path class="arrow " d="M442,54 L476,54"/><path class="head " d="M476,54 L467.0,58.5 L467.0,49.5 Z"/><path class="arrow dash" d="M476,70 L442,70"/><path class="head dash" d="M442,70 L451.0,65.5 L451.0,74.5 Z"/><rect class="labbg" x="407.0" y="11" width="104.1" height="18" rx="3"/><text class="lab" x="459.0" y="24.0" text-anchor="middle">127.0.0.1:8070</text><rect class="k-panel" x="476" y="30" width="118" height="60" rx="8"/><text class="t" x="535.0" y="55.0" text-anchor="middle">Gateway</text><text class="s" x="535.0" y="74.0" text-anchor="middle">port 8070</text><path class="arrow " d="M594,54 L628,54"/><path class="head " d="M628,54 L619.0,58.5 L619.0,49.5 Z"/><path class="arrow dash" d="M628,70 L594,70"/><path class="head dash" d="M594,70 L603.0,65.5 L603.0,74.5 Z"/><rect class="labbg" x="555.6" y="11" width="110.8" height="18" rx="3"/><text class="lab" x="611.0" y="24.0" text-anchor="middle">127.0.0.1:28070</text><rect class="k-instance" x="628" y="30" width="118" height="60" rx="8"/><text class="t" x="687.0" y="55.0" text-anchor="middle">Odoo</text><text class="s" x="687.0" y="74.0" text-anchor="middle">port 28070</text><path class="arrow " d="M746,54 L780,54"/><path class="head " d="M780,54 L771.0,58.5 L771.0,49.5 Z"/><path class="arrow dash" d="M780,70 L746,70"/><path class="head dash" d="M746,70 L755.0,65.5 L755.0,74.5 Z"/><rect class="labbg" x="747.9" y="11" width="30.2" height="18" rx="3"/><text class="lab" x="763.0" y="24.0" text-anchor="middle">SQL</text><rect class="k-instance" x="780" y="30" width="118" height="60" rx="8"/><text class="t" x="839.0" y="55.0" text-anchor="middle">PostgreSQL</text><text class="s" x="839.0" y="74.0" text-anchor="middle">database</text><path class="arrow " d="M535.0,90 L535.0,120"/><rect class="k-panel" x="386" y="120" width="298" height="96" rx="8"/><text class="s" x="400.0" y="144.0" text-anchor="start">records the visit (for automatic pause)</text><text class="s" x="400.0" y="163.0" text-anchor="start">removes the panel's cookie</text><text class="s" x="400.0" y="182.0" text-anchor="start">passes on X-Forwarded-For and https</text><text class="s" x="400.0" y="201.0" text-anchor="start">starts a paused instance</text><text class="m" x="20.0" y="236.0" text-anchor="start">Solid arrows: the request. Dashed arrows: the answer, streamed back the same way.</text></svg>

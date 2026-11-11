@@ -23,16 +23,7 @@ having the server call out first and keep that line open.
 Our server is not a machine of its own. It is a **container inside the hosting provider's machine** (addresses
 and ports below are examples):
 
-```
- Internet                     Provider's machine                    Our server (container)
-                              public address 203.0.113.10           private address 10.x.x.x
-                              ┌──────────────────────────┐          ┌──────────────────────┐
- ssh -p 2222 ───────────────▶ │ port 2222  ──forward───────────────▶│ SSH (port 22)        │
-                              │                          │          │                      │
- https://203.0.113.10:9000 ─▶ │ port 9000: nothing here  │    ✗     │ panel on port 9000   │
-                              │ (request dropped)        │          │ (never sees it)      │
-                              └──────────────────────────┘          └──────────────────────┘
-```
+![Why the server cannot be reached directly](../images/tunnel-problem.svg)
 
 * The internet only sees the provider's **public address**. Our server has a **private address** (`10.x.x.x`) that
   cannot be reached from outside, the same way a laptop at home cannot be reached directly from the internet.
@@ -62,18 +53,7 @@ receive calls, and the reception never had to change anything.
 
 ## 3. How a tunnel works
 
-```
- 1. The connector on our server dials OUT to Cloudflare and keeps the connection open.
-
-    Our server ── connector ════════════════════════▶ Cloudflare
-                               (outgoing: allowed)     "here is https://river-stone-apple.trycloudflare.com"
-
- 2. A visitor opens the link. Cloudflare sends the request down the open connection.
-
-    Visitor ──▶ Cloudflare ════════════════════════▶ connector ──▶ our program on 127.0.0.1
-                                                                         │
-    Visitor ◀── Cloudflare ◀════════════════════════ connector ◀────────┘  the answer, same way back
-```
+![How a tunnel works](../images/tunnel-how.svg)
 
 The visitor's request never knocks on our server's door. It travels inside a conversation our server started, so
 the provider's machine has nothing to forward.

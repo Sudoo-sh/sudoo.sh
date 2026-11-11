@@ -35,9 +35,7 @@ So: if a value only has to be compared, it is **hashed**. If it has to be used a
 A plain hash is not enough. Attackers keep huge lists of common passwords already hashed, and modern graphics cards
 try billions of guesses per second against fast hashes. Three measures stop that:
 
-```
- password ──▶ HMAC with the PEPPER ──▶ scrypt with a random SALT, slow and memory-hungry ──▶ stored hash
-```
+![How a panel password is stored](../images/password-hash.svg)
 
 | Measure | What it is | What it stops |
 | :--- | :--- | :--- |

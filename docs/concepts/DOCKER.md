@@ -86,21 +86,7 @@ With this file, one command does a whole job:
 
 ## 4. What it looks like on our server
 
-```
- Server
- ├── oim-panel            the panel (also a container)
- ├── oim-connector-panel         the panel's tunnel connector
- │
- ├── instance sales-main            Compose project "odoo-sales-main"
- │   ├── odoo-sales-main-odoo-1     odoo:20.0      ──▶ volume odoo-sales-main_odoo-data
- │   ├── odoo-sales-main-db-1       postgres:16    ──▶ volume odoo-sales-main_db-data
- │   └── oim-connector-sales-main    tunnel connector
- │
- └── instance crm-19                Compose project "odoo-crm-19"
-     ├── odoo-crm-19-odoo-1         odoo:19.0
-     ├── odoo-crm-19-db-1           postgres:16
-     └── oim-connector-crm-19
-```
+![Containers on the server](../images/docker-server.svg)
 
 Both instances use different Odoo versions with different Python libraries, at the same time, and neither can see the
 other's files or database.

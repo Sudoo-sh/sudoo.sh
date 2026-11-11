@@ -27,6 +27,9 @@ CONTENT_SECURITY_POLICY = (
     "font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
 
 
+SVG_POLICY = "default-src 'none'; style-src 'unsafe-inline'"
+
+
 def install(app):
     app.before_request(_check_request)
     app.after_request(_add_headers)
@@ -86,7 +89,9 @@ def _check_request():
 
 
 def _add_headers(response):
-    response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
+    # the documentation's diagrams are SVG files with their own colours (an inline <style>) and no scripts
+    response.headers["Content-Security-Policy"] = (SVG_POLICY if response.mimetype == "image/svg+xml"
+                                                   else CONTENT_SECURITY_POLICY)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"

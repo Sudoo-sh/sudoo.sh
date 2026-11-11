@@ -31,10 +31,7 @@ The gateway is that receptionist; each instance's Odoo is a room.
 A **reverse proxy** receives requests meant for another program and forwards them to it, then passes the answer
 back. The visitor only ever talks to the proxy.
 
-```
- Visitor ──▶ reverse proxy ──▶ Odoo
- Visitor ◀── reverse proxy ◀── Odoo
-```
+![A reverse proxy](../images/reverse-proxy.svg)
 
 Well-known reverse proxies are nginx, Apache and Caddy. Ours is about 200 lines of Python (`gateway.py`, built on
 aiohttp), because it needs to do things those do not do on their own.

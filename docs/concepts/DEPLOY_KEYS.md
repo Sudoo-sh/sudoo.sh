@@ -59,23 +59,7 @@ A server needs to read a few repositories. A deploy key gives exactly that, and 
 
 ## 4. What happens on our server
 
-```
- 1. Administrator clicks "Create deploy key" for acme-co/sales
-        │
-        ▼
- 2. ssh-keygen makes a new pair in memory (/dev/shm)
-        │
-        ├──▶ private key: encrypted with the vault key → keys/deploy/acme-co__sales.key
-        └──▶ public key: shown in the panel             → keys/deploy/acme-co__sales.pub
-        │
-        ▼
- 3. Someone with admin rights on the repository pastes the public key on GitHub
-        │
-        ▼
- 4. git fetch for acme-co/sales:
-        git_ssh.py decrypts the private key into memory, ssh uses it for this one connection,
-        the decrypted copy is deleted
-```
+![What happens when a deploy key is created and used](../images/deploy-key-flow.svg)
 
 Rules the panel follows for every git command:
 

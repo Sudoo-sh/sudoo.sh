@@ -46,23 +46,7 @@ Each instance uses three ports on `127.0.0.1`, chosen when it is created and sto
 
 ## 2. How a visit reaches Odoo
 
-```
- Browser or API client
-        │  https://river-stone-apple.trycloudflare.com/odoo
-        ▼
- Cloudflare ──────────────▶ oim-connector-sales-main      (connection the server opened, outwards)
-                                   │  http://127.0.0.1:8070/odoo
-                                   ▼
-                            Gateway (port 8070)
-                              • records the visit (for automatic pause)
-                              • removes the panel's cookie, if the browser sent it
-                              • passes on X-Forwarded-For and X-Forwarded-Proto (https)
-                                   │  http://127.0.0.1:28070/odoo
-                                   ▼
-                            Odoo (proxy_mode = True)  ──▶  PostgreSQL
-                                   │
-        ◀──────────────────────────┘  the answer goes back the same way, streamed
-```
+![How a visit reaches Odoo](images/visit-flow.svg)
 
 Odoo runs with `proxy_mode = True`, so it trusts the forwarded headers: it sees the visitor's real address and
 knows the visit came over https. WebSocket connections (Odoo's live updates, `/websocket`) take the same path.
@@ -70,16 +54,7 @@ knows the visit came over https. WebSocket connections (Odoo's live updates, `/w
 When the instance is **paused**, the gateway notices that Odoo does not answer, starts the instance once, and
 answers in the meantime:
 
-```
- Browser                    Gateway                         Odoo
-    │── GET /odoo ─────────────▶│── forward ──────────────────▶│ (not running)
-    │                           │◀─ connection refused ────────│
-    │                           │── start the instance (once) ─▶│
-    │◀─ 503 "Starting up" ──────│   Retry-After: 4
-    │   (the page reloads itself every 4 s; API clients retry)
-    │── GET /odoo ─────────────▶│── forward ──────────────────▶│ (running)
-    │◀──────────────────────────│◀─ 200 ───────────────────────│
-```
+![A visit to a paused instance](images/wake-sequence.svg)
 
 Browsers get a small page that reloads itself; API clients get plain text. Both get HTTP `503` with
 `Retry-After`, which API clients and webhook senders understand as "try again shortly".
@@ -99,28 +74,7 @@ When a link changes (after a restart), the monitor sees it within 15 seconds and
 
 ## 3. Life of an instance
 
-```
-                 New
-                  │
-                  ▼
-             ┌──────────┐   failed: everything created so far is removed
-             │ Creating │─────────────────────────────────────────────────▶ (gone)
-             └────┬─────┘
-                  │ ready
-                  ▼
-   Restart,  ┌──────────┐   no visit for 6 hours, or Pause    ┌─────────┐
-   updates ─▶│ Running  │────────────────────────────────────▶│ Paused  │
-             │          │◀────────────────────────────────────│         │
-             └────┬─────┘   first visit, Start, or an update  └────┬────┘
-                  │ ▲                                              │
-       Switch off │ │ Switch on                         Switch off │
-                  ▼ │                                              │
-             ┌────┴─┴───────┐                                      │
-             │ Switched off │◀─────────────────────────────────────┘
-             └──────────────┘
-
-   Delete is possible from every state; it removes containers, volumes, connector and folder.
-```
+![Life of an instance](images/lifecycle.svg)
 
 | State | What runs |
 | :--- | :--- |
@@ -132,33 +86,7 @@ When a link changes (after a restart), the monitor sees it within 15 seconds and
 
 ## 4. Creating an instance
 
-```
- Repository, branch, version, edition
-        │
-        ▼
- Access check: the repository and every submodule ──── no access ──▶ create deploy key,
-        │ all readable                                               add it on GitHub, check again
-        ▼
- Name, database name and three ports reserved
-        ▼
- git clone --recurse-submodules
-        ▼
- .env, odoo.conf (master password hashed), docker-compose.yml, addons_path
-        ▼
- Download the Odoo image (once per version)
-        ▼
- Start PostgreSQL
-        ▼
- Create the database: base (+ web_enterprise for Enterprise), demo data if chosen
-        ▼
- Install the repository's own modules (if chosen)
-        ▼
- Start the gateway and the connector, wait for the public address, write web.base.url
-        ▼
- Start Odoo, wait until it answers
-        ▼
- Show the link and the login
-```
+![Creating an instance](images/create-flow.svg)
 
 If any step fails, everything created so far (containers, volumes, connector, folder) is removed, so the same name
 can be used again. `addons_path` lists every folder of the repository that contains modules (including submodules
@@ -168,26 +96,7 @@ such as `oca/web`), then the Enterprise add-ons; it is recalculated on every sta
 
 ## 5. Code from GitHub
 
-```
- Developer pushes          "Get latest code"
-        │                          │
-        ▼                          │
- Panel checks the branch           │
- every 2 minutes ── new commit ───▶│
-                                   ▼
-                     git pull, git submodule update
-                                   │
-                         anything new? ── no ──▶ nothing to do
-                                   │ yes
-                                   ▼
-                 compare old and new commits (repository and submodules):
-                 which modules have changed files?
-                                   │
-              "Upgrade changed modules" on and modules changed?
-                    │ yes                              │ no
-                    ▼                                  ▼
-     stop Odoo, odoo -u <changed modules>, start   restart Odoo
-```
+![Code from GitHub](images/code-update.svg)
 
 How git reaches GitHub is configured once for every git command the panel runs (`github.configure_git`):
 

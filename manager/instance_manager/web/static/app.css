@@ -347,6 +347,7 @@ pre.log {
 .doc th { background: var(--surface-muted); }
 .doc pre { padding: 12px 14px; overflow-x: auto; background: var(--surface-muted); border: 1px solid var(--border); border-radius: var(--radius); line-height: 1.4; }
 .doc pre code { background: none; border: 0; padding: 0; word-break: normal; white-space: pre; }
+.doc img { display: block; max-width: 100%; height: auto; margin: 12px 0 16px; border-radius: 12px; }
 .doc blockquote { margin: 0 0 12px; padding: 8px 14px; border-left: 4px solid var(--o-teal); background: var(--o-teal-soft); }
 .doc blockquote p:last-child { margin: 0; }
 

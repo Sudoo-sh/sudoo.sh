@@ -7,15 +7,16 @@ documentation of the version that is running. Pages are addressed by their path 
     /docs/README.md                    the project overview
     /docs/docs/concepts/TUNNELING.md   a concept explained with examples
 
-Links between Markdown files are rewritten to these addresses, so the same files read correctly on GitHub and in
-the panel. Only files found at start-up can be shown: a path is looked up in that list, never opened directly.
+Links between Markdown files, and the diagrams (docs/images/*.svg, built by docs/diagrams/build.py), are rewritten
+to these addresses, so the same files read correctly on GitHub and in the panel. Only files found at start-up can be
+shown: a path is looked up in that list, never opened directly.
 """
 import html
 import posixpath
 import re
 
 import markdown
-from flask import Blueprint, abort, redirect
+from flask import Blueprint, abort, redirect, send_file
 
 from .. import settings
 
@@ -28,7 +29,7 @@ SECTIONS = (    # sidebar: (title, path prefixes or exact paths)
     ("Reference", ("docs/ARCHITECTURE.md", "docs/SECURITY.md")),
     ("Concepts", ("docs/concepts/",)),
 )
-_LINK = re.compile(r'href="(?![a-z]+:|/|#)([^"#]+\.md)(#[^"]*)?"')
+_LINK = re.compile(r'(href|src)="(?![a-z]+:|/|#)([^"#]+\.(?:md|svg))(#[^"]*)?"')
 
 
 def _title(text, path):
@@ -51,6 +52,8 @@ def _load():
 
 
 PAGES = _load()
+IMAGES = ({file.relative_to(settings.DOCS_DIR).as_posix() for file in settings.DOCS_DIR.rglob("*.svg")}
+          if settings.DOCS_DIR.exists() else set())
 
 
 def github_slug(value, separator="-"):
@@ -63,8 +66,11 @@ def _render(path, text):
                              extension_configs={"toc": {"slugify": github_slug}})
 
     def rewrite(match):
-        target = posixpath.normpath(posixpath.join(posixpath.dirname(path), html.unescape(match.group(1))))
-        return f'href="/docs/{target}{match.group(2) or ""}"' if target in PAGES else match.group(0)
+        attribute, relative, anchor = match.groups()
+        target = posixpath.normpath(posixpath.join(posixpath.dirname(path), html.unescape(relative)))
+        if target in PAGES or target in IMAGES:
+            return f'{attribute}="/docs/{target}{anchor or ""}"'
+        return match.group(0)
     return _LINK.sub(rewrite, body)
 
 
@@ -114,6 +120,8 @@ def index():
 
 @blueprint.get("/docs/<path:path>")
 def page(path):
+    if path in IMAGES:
+        return send_file(settings.DOCS_DIR / path, mimetype="image/svg+xml", max_age=3600)
     if path not in PAGES:
         abort(404, "This page of the documentation does not exist.")
     title, text = PAGES[path]

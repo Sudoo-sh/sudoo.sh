@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 420" width="820" height="420" role="img" aria-label="What happens when a deploy key is created and used"><title>What happens when a deploy key is created and used</title><style>
+.bg { fill: #ffffff; }
+text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, 'Noto Sans', Arial, sans-serif; fill: #1f2937; }
+.t { font-size: 14px; font-weight: 600; }
+.s { font-size: 12.5px; }
+.m { font-size: 12px; fill: #6b7280; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+.lab { font-size: 12px; fill: #4b5563; }
+.labbg { fill: #ffffff; }
+.arrow { stroke: #6b7280; stroke-width: 1.6; fill: none; }
+.arrow.dash { stroke-dasharray: 5 4; }
+.arrow.bold { stroke: #017e84; stroke-width: 3; }
+.arrow.bad { stroke: #d23f3a; }
+.head { fill: #6b7280; }
+.head.bold { fill: #017e84; }
+.head.bad { fill: #d23f3a; }
+.life { stroke: #c4c9d0; stroke-width: 1.2; stroke-dasharray: 4 4; }
+.k-default { fill: #ffffff; stroke: #d0d7de; }
+.k-outside { fill: #fff8e6; stroke: #d9a521; }
+.k-cloud { fill: #e6f2f3; stroke: #017e84; }
+.k-panel { fill: #f3edf2; stroke: #714b67; }
+.k-instance { fill: #eef2f7; stroke: #8792a2; }
+.k-danger { fill: #fdecec; stroke: #d23f3a; }
+.k-decision { fill: #fff3cd; stroke: #e99d00; }
+.k-ok { fill: #e8f5ec; stroke: #28a745; }
+.k-group { fill: none; stroke: #9ca3af; stroke-dasharray: 6 5; }
+.k-ui { fill: #f9fafb; stroke: #d0d7de; }
+.k-button { fill: #e7e9ed; stroke: #e7e9ed; }
+.k-primary { fill: #714b67; stroke: #714b67; }
+.k-current { fill: #e6f2f3; stroke: #d0d7de; }
+.white { fill: #ffffff; }
+.teal { fill: #017e84; }
+.bad-text { fill: #d23f3a; font-size: 16px; font-weight: 700; }
+@media (prefers-color-scheme: dark) {
+  .bg, .labbg { fill: #1b1f27; }
+  text { fill: #e5e7eb; }
+  .m { fill: #9ca3af; }
+  .lab { fill: #c4c9d0; }
+  .arrow { stroke: #9ca3af; } .head { fill: #9ca3af; }
+  .arrow.bold { stroke: #3fb6bc; } .head.bold { fill: #3fb6bc; }
+  .life { stroke: #4a5060; }
+  .k-default { fill: #232834; stroke: #3a3f4d; }
+  .k-outside { fill: #3a2f12; stroke: #d9a521; }
+  .k-cloud { fill: #12302f; stroke: #3fb6bc; }
+  .k-panel { fill: #33222f; stroke: #b58aa8; }
+  .k-instance { fill: #222833; stroke: #6b7280; }
+  .k-danger { fill: #3b1c1c; stroke: #ef5350; }
+  .k-decision { fill: #3a3015; stroke: #f0b429; }
+  .k-ok { fill: #17301f; stroke: #4caf50; }
+  .k-ui { fill: #232834; stroke: #3a3f4d; }
+  .k-button { fill: #3a3f4d; stroke: #3a3f4d; }
+  .k-primary { fill: #875a7b; stroke: #875a7b; }
+  .k-current { fill: #12302f; stroke: #3a3f4d; }
+  .teal { fill: #3fb6bc; }
+}
+</style><rect class="bg" width="820" height="420" rx="12"/><rect class="k-outside" x="40" y="20" width="380" height="46" rx="8"/><text class="s" x="230.0" y="47.5" text-anchor="middle">1. Administrator: "Create deploy key"</text><path class="arrow " d="M230.0,66 L230.0,96"/><path class="head " d="M230.0,96 L225.5,87.0 L234.5,87.0 Z"/><rect class="k-default" x="40" y="96" width="380" height="46" rx="8"/><text class="s" x="230.0" y="123.5" text-anchor="middle">2. ssh-keygen makes a new key pair, in memory</text><rect class="k-panel" x="480" y="70" width="310" height="46" rx="8"/><text class="s" x="635.0" y="97.5" text-anchor="middle">private key: encrypted with the vault key</text><rect class="k-default" x="480" y="126" width="310" height="46" rx="8"/><text class="s" x="635.0" y="153.5" text-anchor="middle">public key: shown in the panel</text><path class="arrow " d="M420,112 L480,93"/><path class="head " d="M480,93 L472.8,100.0 L470.1,91.4 Z"/><path class="arrow " d="M420,126 L480,149"/><path class="head " d="M480,149 L470.0,150.0 L473.2,141.6 Z"/><path class="arrow " d="M230.0,142 L230.0,196"/><path class="head " d="M230.0,196 L225.5,187.0 L234.5,187.0 Z"/><rect class="k-outside" x="40" y="196" width="380" height="46" rx="8"/><text class="s" x="230.0" y="223.5" text-anchor="middle">3. Pasted on GitHub by a repository admin</text><path class="arrow " d="M230.0,242 L230.0,276"/><path class="head " d="M230.0,276 L225.5,267.0 L234.5,267.0 Z"/><rect class="k-ok" x="40" y="276" width="380" height="64" rx="8"/><text class="s" x="230.0" y="303.0" text-anchor="middle">4. Each git fetch: the key is decrypted into</text><text class="s" x="230.0" y="322.0" text-anchor="middle">memory, used for one connection, deleted</text><rect class="k-cloud" x="480" y="276" width="310" height="64" rx="8"/><text class="t" x="635.0" y="293.5" text-anchor="middle">GitHub</text><text class="s" x="635.0" y="312.5" text-anchor="middle">checks the key; read-only access</text><text class="s" x="635.0" y="331.5" text-anchor="middle">to this one repository</text><path class="arrow " d="M420,308 L480,308"/><path class="head " d="M480,308 L471.0,312.5 L471.0,303.5 Z"/><path class="head " d="M420,308 L429.0,303.5 L429.0,312.5 Z"/><rect class="labbg" x="434.9" y="287" width="30.2" height="18" rx="3"/><text class="lab" x="450.0" y="300.0" text-anchor="middle">SSH</text><text class="m" x="410.0" y="396.0" text-anchor="middle">The private key is never stored readable and never leaves the server.</text></svg>

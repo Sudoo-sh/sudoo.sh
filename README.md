@@ -67,40 +67,7 @@ command to use it: people receive a link.
 
 ## Architectural Position
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│              PEOPLE AND SYSTEMS ON THE INTERNET             │
-│            browsers, API clients, webhook senders           │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ https://<words>.trycloudflare.com, one link per instance
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                          CLOUDFLARE                         │
-│            one public https address per connector           │
-└──────────────────────────────▲──────────────────────────────┘
-                               │ connections opened from the server, outwards;
-                               │ nothing on the server accepts incoming ones
-┌──────────────────────────────┴──────────────────────────────┐
-│             CONNECTORS (cloudflared containers)             │
-│     oim-connector-panel • oim-connector-<name>, one each    │
-└──────────────────────────────┬──────────────────────────────┘
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│               oim-panel (the panel container)               │
-│   • Panel and JSON API               127.0.0.1:9000         │
-│   • Gateway: one port per instance; records visits,         │
-│     wakes paused instances, shows "Starting up"             │
-│   • Background: monitor, auto-pause, auto-delete with       │ ───▶ GitHub (git fetch, every 2 min)
-│     backup, GitHub polling                                  │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ docker, docker compose
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│         INSTANCES (one Docker Compose project each)         │
-│        odoo (official image)  ──▶  db (PostgreSQL 16)       │
-│         + Odoo Enterprise add-ons, shared read-only         │
-└─────────────────────────────────────────────────────────────┘
-```
+![How the parts of Odoo Instance Manager fit together](docs/images/architecture.svg)
 
 Everything on the server listens on `127.0.0.1` only. The only ways in are the Cloudflare connectors (which the
 server itself opened) and SSH for administrators. The full picture is in [Architecture](docs/ARCHITECTURE.md).

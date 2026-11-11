@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 640" width="800" height="640" role="img" aria-label="How the parts of Odoo Instance Manager fit together"><title>How the parts of Odoo Instance Manager fit together</title><style>
+.bg { fill: #ffffff; }
+text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, 'Noto Sans', Arial, sans-serif; fill: #1f2937; }
+.t { font-size: 14px; font-weight: 600; }
+.s { font-size: 12.5px; }
+.m { font-size: 12px; fill: #6b7280; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+.lab { font-size: 12px; fill: #4b5563; }
+.labbg { fill: #ffffff; }
+.arrow { stroke: #6b7280; stroke-width: 1.6; fill: none; }
+.arrow.dash { stroke-dasharray: 5 4; }
+.arrow.bold { stroke: #017e84; stroke-width: 3; }
+.arrow.bad { stroke: #d23f3a; }
+.head { fill: #6b7280; }
+.head.bold { fill: #017e84; }
+.head.bad { fill: #d23f3a; }
+.life { stroke: #c4c9d0; stroke-width: 1.2; stroke-dasharray: 4 4; }
+.k-default { fill: #ffffff; stroke: #d0d7de; }
+.k-outside { fill: #fff8e6; stroke: #d9a521; }
+.k-cloud { fill: #e6f2f3; stroke: #017e84; }
+.k-panel { fill: #f3edf2; stroke: #714b67; }
+.k-instance { fill: #eef2f7; stroke: #8792a2; }
+.k-danger { fill: #fdecec; stroke: #d23f3a; }
+.k-decision { fill: #fff3cd; stroke: #e99d00; }
+.k-ok { fill: #e8f5ec; stroke: #28a745; }
+.k-group { fill: none; stroke: #9ca3af; stroke-dasharray: 6 5; }
+.k-ui { fill: #f9fafb; stroke: #d0d7de; }
+.k-button { fill: #e7e9ed; stroke: #e7e9ed; }
+.k-primary { fill: #714b67; stroke: #714b67; }
+.k-current { fill: #e6f2f3; stroke: #d0d7de; }
+.white { fill: #ffffff; }
+.teal { fill: #017e84; }
+.bad-text { fill: #d23f3a; font-size: 16px; font-weight: 700; }
+@media (prefers-color-scheme: dark) {
+  .bg, .labbg { fill: #1b1f27; }
+  text { fill: #e5e7eb; }
+  .m { fill: #9ca3af; }
+  .lab { fill: #c4c9d0; }
+  .arrow { stroke: #9ca3af; } .head { fill: #9ca3af; }
+  .arrow.bold { stroke: #3fb6bc; } .head.bold { fill: #3fb6bc; }
+  .life { stroke: #4a5060; }
+  .k-default { fill: #232834; stroke: #3a3f4d; }
+  .k-outside { fill: #3a2f12; stroke: #d9a521; }
+  .k-cloud { fill: #12302f; stroke: #3fb6bc; }
+  .k-panel { fill: #33222f; stroke: #b58aa8; }
+  .k-instance { fill: #222833; stroke: #6b7280; }
+  .k-danger { fill: #3b1c1c; stroke: #ef5350; }
+  .k-decision { fill: #3a3015; stroke: #f0b429; }
+  .k-ok { fill: #17301f; stroke: #4caf50; }
+  .k-ui { fill: #232834; stroke: #3a3f4d; }
+  .k-button { fill: #3a3f4d; stroke: #3a3f4d; }
+  .k-primary { fill: #875a7b; stroke: #875a7b; }
+  .k-current { fill: #12302f; stroke: #3a3f4d; }
+  .teal { fill: #3fb6bc; }
+}
+</style><rect class="bg" width="800" height="640" rx="12"/><rect class="k-outside" x="150" y="20" width="470" height="58" rx="8"/><text class="t" x="385.0" y="44.0" text-anchor="middle">People and systems on the internet</text><text class="s" x="385.0" y="63.0" text-anchor="middle">browsers, API clients, webhook senders</text><path class="arrow " d="M385.0,78 L385.0,124"/><path class="head " d="M385.0,124 L380.5,115.0 L389.5,115.0 Z"/><rect class="labbg" x="191.8" y="91" width="386.3" height="18" rx="3"/><text class="lab" x="385.0" y="104.0" text-anchor="middle">https://&lt;words&gt;.trycloudflare.com, one link per instance</text><rect class="k-cloud" x="150" y="124" width="470" height="58" rx="8"/><text class="t" x="385.0" y="148.0" text-anchor="middle">Cloudflare</text><text class="s" x="385.0" y="167.0" text-anchor="middle">one public https address per connector</text><rect class="k-group" x="100" y="212" width="570" height="410" rx="12"/><text class="m" x="114.0" y="232.0" text-anchor="start">Server: only SSH reaches it from outside</text><path class="arrow " d="M385.0,252 L385.0,182"/><path class="head " d="M385.0,182 L389.5,191.0 L380.5,191.0 Z"/><rect class="labbg" x="392.0" y="187" width="285.5" height="18" rx="3"/><text class="lab" x="397.0" y="200.0" text-anchor="start">connections opened outwards by the server</text><rect class="k-cloud" x="150" y="252" width="470" height="58" rx="8"/><text class="t" x="385.0" y="276.0" text-anchor="middle">Connectors (cloudflared)</text><text class="s" x="385.0" y="295.0" text-anchor="middle">oim-connector-panel  •  oim-connector-&lt;name&gt;, one each</text><path class="arrow " d="M385.0,310 L385.0,344"/><path class="head " d="M385.0,344 L380.5,335.0 L389.5,335.0 Z"/><rect class="k-panel" x="150" y="344" width="470" height="116" rx="8"/><text class="t" x="385.0" y="378.0" text-anchor="middle">oim-panel  (the panel container)</text><text class="s" x="385.0" y="397.0" text-anchor="middle">Panel and JSON API on 127.0.0.1:9000</text><text class="s" x="385.0" y="416.0" text-anchor="middle">Gateway: one port per instance, wakes paused instances</text><text class="s" x="385.0" y="435.0" text-anchor="middle">Background: monitor, auto-pause, auto-delete, GitHub sync</text><rect class="k-outside" x="676" y="366" width="112" height="70" rx="8"/><text class="t" x="732.0" y="386.5" text-anchor="middle">GitHub</text><text class="s" x="732.0" y="405.5" text-anchor="middle">code and</text><text class="s" x="732.0" y="424.5" text-anchor="middle">submodules</text><path class="arrow " d="M620,401 L676,401"/><path class="head " d="M676,401 L667.0,405.5 L667.0,396.5 Z"/><rect class="labbg" x="626.2" y="379" width="43.6" height="18" rx="3"/><text class="lab" x="648.0" y="392.0" text-anchor="middle">fetch</text><path class="arrow " d="M385.0,460 L385.0,508"/><path class="head " d="M385.0,508 L380.5,499.0 L389.5,499.0 Z"/><rect class="labbg" x="306.1" y="475" width="157.8" height="18" rx="3"/><text class="lab" x="385.0" y="488.0" text-anchor="middle">docker, docker compose</text><rect class="k-instance" x="150" y="508" width="470" height="96" rx="8"/><text class="t" x="385.0" y="541.5" text-anchor="middle">Instances  (one Docker Compose project each)</text><text class="s" x="385.0" y="560.5" text-anchor="middle">odoo (official image)  →  PostgreSQL 16</text><text class="s" x="385.0" y="579.5" text-anchor="middle">+ Odoo Enterprise add-ons, shared read-only</text></svg>

@@ -89,23 +89,7 @@ Administrators also see **New** (create an instance, [section 4](#4-creating-an-
 
 The page is laid out like an Odoo form:
 
-```
-┌───────────────────────────────────────────────────────────────────────┐
-│ Instances / sales-main                                     [Actions ▾]│  breadcrumb, menu
-├───────────────────────────────────────────────────────────────────────┤
-│ [Open Odoo] [Restart] [Get latest code] [View logs] Running›Paused›Off│  buttons, status bar
-├───────────────────────────────────────────────────────────────────────┤
-│  sales-main  (Running)                                                │
-│  https://river-stone-apple.trycloudflare.com   [Copy link]            │
-│                                                                       │
-│  Status    Running and ready      Odoo login   admin / hidden [Show]  │
-│  Odoo      20.0 Enterprise        Running for  2 hours                │
-│  Branch    main                   Last visit   5 min ago              │
-│  Database  sales_main             Automatic pause  Pauses in 5.9 h    │
-│                                                                       │
-│  Resource usage | Actions | Code | Activity | Automation | Technical  │  tabs
-└───────────────────────────────────────────────────────────────────────┘
-```
+![An instance's page in the panel](images/instance-page.svg)
 
 ### Buttons at the top
 

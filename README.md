@@ -1,6 +1,11 @@
 <div align="center">
 
-# Sudoo
+<h1>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/brand/logo-dark.svg">
+  <img src="docs/images/brand/logo-light.svg" alt="sudoo.sh" height="72">
+</picture>
+</h1>
 
 **The self-hosted way to run Odoo branches, the way Odoo.sh does: every branch of your repository becomes a running
 Odoo with its own HTTPS link, in about two minutes, on your own server.**
@@ -43,7 +48,7 @@ Community and Enterprise · Any Odoo version · GitHub sync · Plugins for acces
 
 ```bash
 git clone https://github.com/Yosef-AlSabbah/sudoo.sh.git
-cd odoo-sudoo
+cd sudoo.sh
 sudo ./check-server.sh   # read-only check: Docker, memory, disk, internet access
 sudo ./install.sh        # installs the panel and prints its link and first passwords
 ```
@@ -134,7 +139,7 @@ server itself opened) and SSH for administrators. The full picture is in [Archit
 | **Git and SSH deploy keys** | Fetch code; read-only access to one repository per key. | No personal account or token whose owner might leave; each key can be revoked on its own. See [Git submodules](docs/concepts/GIT_SUBMODULES.md). |
 | **Plain JavaScript modules** | The panel in the browser. | No build step and no npm packages: nothing to update, no third-party code in the browser. |
 | **Python-Markdown** | Shows this documentation inside the panel. | One set of Markdown files, read on GitHub and in the panel. |
-| **Alpine Linux** (`python:3.12-alpine`) | The panel's container. | Small image; the Docker command line is copied in from the official Docker image. |
+| **Alpine Linux** (`python:3.15-alpine`) | The panel's container. | Small image; the Docker command line is copied in from the official Docker image. |
 | **black, ruff, mypy, pre-commit** | Formatting, lint, type checks on every commit and in CI. | One style, mistakes caught before review, enforced for everyone. |
 
 Why each of these was chosen over the alternatives is explained in [Architecture: why we chose this](docs/ARCHITECTURE.md#6-why-we-chose-this).
@@ -179,7 +184,7 @@ Details, and what is deliberately *not* protected, are in [Security](docs/SECURI
 ## Components
 
 ```
-odoo-sudoo/
+sudoo.sh/
 ├── README.md, LICENSE.md, CHANGELOG.md, CONTRIBUTING.md, SECURITY.md
 ├── install.sh                     # installs or updates the panel on the server (run as root)
 ├── check-server.sh                # read-only check of the server: Docker, memory, disk, internet access
@@ -245,7 +250,7 @@ plugin no incoming port is needed.
 
 ```bash
 git clone https://github.com/Yosef-AlSabbah/sudoo.sh.git
-cd odoo-sudoo
+cd sudoo.sh
 sudo ./check-server.sh      # checks Docker, memory, disk and internet access; changes nothing
 sudo ./install.sh           # installs or updates the panel
 ```

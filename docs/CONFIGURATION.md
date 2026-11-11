@@ -95,5 +95,5 @@ Every setting of the panel, with its type, default and meaning. Settings are env
 | Setting | Type | Default | Meaning |
 | :--- | :--- | :--- | :--- |
 | `ODOO_ROOT` | Path | `/opt/odoo` | Folder that holds instances, backups and panel data. |
-| `DOCS_DIR` | Path | `/home/yousef-al-sabbah/odoo-sudoo/documentation` | README.md and docs/ shown in the panel. |
+| `DOCS_DIR` | Path | `/app/documentation` | README.md and docs/ shown in the panel. |
 | `MEMORY_DIR` | Path | `/dev/shm` | Memory-backed folder for secrets needed briefly as files. |

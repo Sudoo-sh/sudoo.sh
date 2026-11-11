@@ -34,7 +34,7 @@ SECTIONS = (  # sidebar: (title, path prefixes or exact paths)
     ("Reference", ("docs/CONFIGURATION.md", "docs/ARCHITECTURE.md", "docs/SECURITY.md")),
     ("Concepts", ("docs/concepts/",)),
 )
-_LINK = re.compile(r'(href|src)="(?![a-z]+:|/|#)([^"#]+\.(?:md|svg))(#[^"]*)?"')
+_LINK = re.compile(r'(href|src|srcset)="(?![a-z]+:|/|#)([^"#]+\.(?:md|svg))(#[^"]*)?"')
 
 
 def _title(text: str, path: str) -> str:

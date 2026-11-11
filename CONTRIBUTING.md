@@ -29,7 +29,7 @@ place to run it: the panel manages Docker containers on the host.
 
 ```bash
 git clone https://github.com/Yosef-AlSabbah/sudoo.sh.git
-cd odoo-sudoo
+cd sudoo.sh
 uv sync                        # creates .venv with the project, its dependencies and the development tools
 uv run pre-commit install      # runs the checks below on every commit
 uv run pytest                  # the tests

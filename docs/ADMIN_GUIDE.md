@@ -36,7 +36,7 @@ troubleshooting.
 `check-server.sh` checks all of this and changes nothing:
 
 ```bash
-cd ~/odoo-sudoo
+cd ~/sudoo.sh
 sudo ./check-server.sh
 ```
 
@@ -50,9 +50,9 @@ the `docker.io` package, install `docker-compose-v2`.
 Copy the kit to the server and run the installer:
 
 ```bash
-scp -r odoo-sudoo <user>@<server>:~
+scp -r sudoo.sh <user>@<server>:~
 ssh <user>@<server>
-cd ~/odoo-sudoo
+cd ~/sudoo.sh
 sudo ./install.sh
 ```
 

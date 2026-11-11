@@ -73,7 +73,7 @@ def test_documentation_requires_sign_in(app: Flask) -> None:
 
 
 def test_every_documentation_link_and_image_works(admin: Client) -> None:
-    from instance_manager.web import docs
+    from sudoo.web import docs
 
     client, _ = admin
     broken = []

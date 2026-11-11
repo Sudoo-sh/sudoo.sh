@@ -38,7 +38,7 @@ When the server connects, GitHub sends a challenge that only the matching privat
 itself never travels. A public key looks like this:
 
 ```
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ8n0m3... oim-panel acme-co/sales
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ8n0m3... sudoo-panel acme-co/sales
 ```
 
 ---

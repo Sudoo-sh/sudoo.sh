@@ -2,9 +2,9 @@
 # instances on the host's Docker), git and SSH (to fetch code with deploy keys).
 FROM python:3.12-alpine
 
-LABEL org.opencontainers.image.title="Odoo Instance Manager" \
+LABEL org.opencontainers.image.title="Sudoo" \
       org.opencontainers.image.authors="Yousef M. Y. Al Sabbah" \
-      org.opencontainers.image.source="https://github.com/Yosef-AlSabbah/odoo-instance-manager" \
+      org.opencontainers.image.source="https://github.com/Yosef-AlSabbah/sudoo.sh" \
       org.opencontainers.image.licenses="PolyForm-Noncommercial-1.0.0"
 
 COPY --from=docker:29-cli /usr/local/bin/docker /usr/local/bin/docker
@@ -27,6 +27,6 @@ COPY src ./src
 COPY documentation ./documentation
 RUN uv sync --frozen --no-dev
 
-# `instance-manager serve` starts gunicorn with one process (jobs, monitor and gateway share its memory), listening
+# `sudoo serve` starts gunicorn with one process (jobs, monitor and gateway share its memory), listening
 # where the exposure plugin needs it: 127.0.0.1 behind a tunnel, every interface when visitors connect directly.
-CMD ["instance-manager", "serve"]
+CMD ["sudoo", "serve"]

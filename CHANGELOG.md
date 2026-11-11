@@ -6,7 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Renamed
+
+- The project is now **Sudoo** (`sudo` + `Odoo`), the self-hosted counterpart of Odoo.sh: repository
+  `sudoo.sh`, Python package and command `sudoo`, containers `sudoo-panel` and `sudoo-connector-<name>`,
+  API tokens `sudoo_...`, signature headers `X-Sudoo-*`.
+
 ### Added
+
+- API answers follow common conventions: `{"data", "meta"}` envelopes, RFC 9457 problem details for errors
+  (`application/problem+json`), `202 Accepted` with `Location` for background jobs, ISO 8601 times, pagination
+  (`limit`, `offset`), `X-Request-ID` on every answer, and `links` on every resource.
 
 - Plugins for what differs between servers, loaded through Python entry points and chosen in `.env`
   ([docs/PLUGINS.md](docs/PLUGINS.md)):
@@ -16,7 +26,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Any Odoo version: `ODOO_VERSIONS=auto` offers every published version from `ODOO_MIN_VERSION`.
 - New settings for the Odoo and PostgreSQL images and all ports; full reference in
   [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
-- `instance-manager` command (replaces `manage.py`), with `config` to show the effective settings and plugins.
+- `sudoo` command (replaces `manage.py`), with `config` to show the effective settings and plugins.
+- Update triggers as plugins (`UPDATE_TRIGGERS`, several at once): `polling` (as before) and `github-webhook`
+  (updates within seconds of a push, verified with GitHub's signature).
+- API for other systems at `/api/v1`: list, read, create, change, run actions on and delete instances, follow jobs.
+  Each request needs an API token and an HMAC-SHA256 signature (timestamp, nonce, method, path, body); read and
+  write scopes; tokens managed under **API tokens** or with `sudoo create-token`
+  ([docs/PANEL_API.md](docs/PANEL_API.md)). A reference client is in `examples/`.
 - Test suite (pytest), pre-commit hooks (black, ruff, mypy, shellcheck, uv.lock) and CI running them on every pull
   request.
 
@@ -33,7 +49,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 Run `install.sh` as usual. It replaces the old `manager/` files, adds the new settings to `.env` with their
 defaults and keeps your values. `ODOO_VERSIONS` keeps its current value; set it to `auto` to offer every version.
-Use `instance-manager` instead of `python3 manage.py` in commands.
+Use `sudoo` instead of `python3 manage.py` in commands.
 
 ## [0.1.0] - 2026-11-11
 
@@ -51,5 +67,5 @@ Use `instance-manager` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Yosef-AlSabbah/odoo-instance-manager/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/Yosef-AlSabbah/odoo-instance-manager/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Yosef-AlSabbah/sudoo.sh/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Yosef-AlSabbah/sudoo.sh/releases/tag/v0.1.0

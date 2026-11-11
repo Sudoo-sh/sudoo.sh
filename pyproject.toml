@@ -1,5 +1,5 @@
 [project]
-name = "instance-manager"
+name = "sudoo"
 version = "0.2.0"
 description = "Web panel that runs many independent Odoo instances on one Docker server, from any Git branch."
 readme = "README.md"
@@ -22,20 +22,24 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/Yosef-AlSabbah/odoo-instance-manager"
-Documentation = "https://github.com/Yosef-AlSabbah/odoo-instance-manager/tree/main/docs"
+Repository = "https://github.com/Yosef-AlSabbah/sudoo.sh"
+Documentation = "https://github.com/Yosef-AlSabbah/sudoo.sh/tree/main/docs"
 
 [project.scripts]
-instance-manager = "instance_manager.cli:main"
+sudoo = "sudoo.cli:main"
 
 # ---------------------------------------------------------------- plugins (see docs/PLUGINS.md)
-[project.entry-points."instance_manager.exposure"]
-cloudflare-quick = "instance_manager.exposure.cloudflare:CloudflareQuickTunnel"
-host-ports = "instance_manager.exposure.ports:HostPorts"
+[project.entry-points."sudoo.exposure"]
+cloudflare-quick = "sudoo.exposure.cloudflare:CloudflareQuickTunnel"
+host-ports = "sudoo.exposure.ports:HostPorts"
 
-[project.entry-points."instance_manager.addon_sources"]
-folder = "instance_manager.addons.folder:FolderSource"
-git = "instance_manager.addons.git:GitSource"
+[project.entry-points."sudoo.addon_sources"]
+folder = "sudoo.addons.folder:FolderSource"
+git = "sudoo.addons.git:GitSource"
+
+[project.entry-points."sudoo.update_triggers"]
+polling = "sudoo.triggers.polling:Polling"
+github-webhook = "sudoo.triggers.github_webhook:GitHubWebhook"
 
 [dependency-groups]
 dev = [
@@ -52,7 +56,7 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/instance_manager"]
+packages = ["src/sudoo"]
 
 # ---------------------------------------------------------------- code style and checks
 [tool.black]
@@ -70,7 +74,7 @@ select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4"]
 ignore = ["E501"]  # black decides line length
 
 [tool.ruff.lint.isort]
-known-first-party = ["instance_manager"]
+known-first-party = ["sudoo"]
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]

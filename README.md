@@ -1,10 +1,13 @@
 <div align="center">
 
-# Odoo Instance Manager
+# Sudoo
 
-**Turn any GitHub repository into a running Odoo instance, with its own HTTPS link, in about two minutes.**
+**The self-hosted way to run Odoo branches, the way Odoo.sh does: every branch of your repository becomes a running
+Odoo with its own HTTPS link, in about two minutes, on your own server.**
 
-[![CI](https://github.com/Yosef-AlSabbah/odoo-instance-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/Yosef-AlSabbah/odoo-instance-manager/actions/workflows/ci.yml)
+`sudo` + `Odoo`: full control of your Odoo instances, on a server you own.
+
+[![CI](https://github.com/Yosef-AlSabbah/sudoo.sh/actions/workflows/ci.yml/badge.svg)](https://github.com/Yosef-AlSabbah/sudoo.sh/actions/workflows/ci.yml)
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)](LICENSE.md)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
 <br>
@@ -39,8 +42,8 @@ Community and Enterprise · Any Odoo version · GitHub sync · Plugins for acces
 ## Quick start
 
 ```bash
-git clone https://github.com/Yosef-AlSabbah/odoo-instance-manager.git
-cd odoo-instance-manager
+git clone https://github.com/Yosef-AlSabbah/sudoo.sh.git
+cd odoo-sudoo
 sudo ./check-server.sh   # read-only check: Docker, memory, disk, internet access
 sudo ./install.sh        # installs the panel and prints its link and first passwords
 ```
@@ -48,9 +51,27 @@ sudo ./install.sh        # installs the panel and prints its link and first pass
 Open the printed link, sign in, and create your first instance. Requirements and settings are in
 [Installation & Configuration](#installation--configuration).
 
+## Sudoo and Odoo.sh
+
+Sudoo is to your own server what [Odoo.sh](https://www.odoo.sh) is to Odoo's cloud: branches become running
+instances. It is an independent project, not affiliated with Odoo S.A.
+
+| | Odoo.sh | Sudoo |
+| :--- | :--- | :--- |
+| Where it runs | Odoo's cloud | your server (one Docker host) |
+| Cost | per worker and per user | free for noncommercial use ([licence](#licensing--terms)) |
+| A running Odoo per branch | yes | yes, Community or Enterprise, any version |
+| Updates on push | yes | yes: GitHub webhook, or polling ([plugins](docs/PLUGINS.md)) |
+| Instances that pause and expire | staging builds expire | pause when unused, wake on the next visit; lifetime with a backup |
+| How instances are reached | `*.odoo.com` | free Cloudflare tunnels, open ports, or your own exposure plugin |
+| API for automation | | signed REST API ([Panel API](docs/PANEL_API.md)) |
+| Production hosting | yes | no: Sudoo is for development, demos, tests and training |
+
+---
+
 ## What This Panel Does
 
-Odoo Instance Manager runs on the server and is used from a browser. Nobody has to install anything or run any
+Sudoo runs on the server and is used from a browser. Nobody has to install anything or run any
 command to use it: people receive a link.
 
 1. **Create an instance in a few clicks**: choose a GitHub repository, a branch, the Odoo version (any published version) and the
@@ -59,7 +80,8 @@ command to use it: people receive a link.
 2. **One https link per instance**: every instance is reachable from anywhere through its own link, even though the server
    accepts no incoming connections. Browsers, API clients and webhook senders use it like any Odoo address. See
    [Tunneling](docs/concepts/TUNNELING.md).
-3. **Stays in sync with GitHub**: the panel checks GitHub every 2 minutes; when a developer pushes, the instance pulls
+3. **Stays in sync with GitHub**: by polling GitHub every 2 minutes, or instantly through a GitHub webhook (both are
+   plugins, use either or both); when a developer pushes, the instance pulls
    the code, upgrades only the modules whose files changed and restarts. Submodules (for example OCA repositories)
    can be updated, added and removed from the panel.
 4. **Private repositories without personal tokens**: each private repository gets its own read-only deploy key,
@@ -75,14 +97,16 @@ command to use it: people receive a link.
    administrator named in the settings (`ADMIN_CONTACT_NAME`).
 9. **Watches the server**: CPU, memory and disk of the server and of every instance, with the last 30 minutes as small
    graphs.
-10. **Explains itself**: plain-language messages when something fails, the technical log next to it, and this
+10. **An API for other systems**: CI pipelines and scripts can create, update, restart and delete instances
+   with an API token and a signature on every request. See [Panel API](docs/PANEL_API.md).
+11. **Explains itself**: plain-language messages when something fails, the technical log next to it, and this
    documentation inside the panel under **Documentation**.
 
 ---
 
 ## Architectural Position
 
-![How the parts of Odoo Instance Manager fit together](docs/images/architecture.svg)
+![How the parts of Sudoo fit together](docs/images/architecture.svg)
 
 Everything on the server listens on `127.0.0.1` only. The only ways in are the Cloudflare connectors (which the
 server itself opened) and SSH for administrators. The full picture is in [Architecture](docs/ARCHITECTURE.md).
@@ -101,7 +125,7 @@ server itself opened) and SSH for administrators. The full picture is in [Archit
 | **Python 3.12+** with type hints | The panel's language. | Same language as Odoo, so every Odoo developer can read and fix it; type hints checked by mypy catch mistakes before they run. |
 | **uv** | Installs the dependencies, from a lock file. | Fast, and every installation (servers, CI, developers) gets exactly the same versions. |
 | **pydantic-settings** | Reads and checks the settings. | Every setting typed and documented in one class; a wrong value stops the panel at start-up with a clear message. |
-| **Entry-point plugins** | How instances are reached, where Enterprise comes from. | Nothing is forced: each server chooses, and new options are added as plugins without changing the panel. See [Plugins](docs/PLUGINS.md). |
+| **Entry-point plugins** | How instances are reached, where Enterprise comes from, what starts updates. | Nothing is forced: each server chooses, and new options are added as plugins without changing the panel. See [Plugins](docs/PLUGINS.md). |
 | **Flask** | The panel's pages and JSON API. | Small, well known, signed session cookies built in. |
 | **Gunicorn** | Serves the Flask app. | Production web server; threads let long actions run without blocking the page. |
 | **aiohttp** | The gateway in front of every instance. | Streams large files and keeps thousands of WebSocket connections (Odoo's live updates) open with little memory. See [Gateway](docs/concepts/GATEWAY.md). |
@@ -127,7 +151,8 @@ All documents are in [`docs/`](docs/README.md) and are also shown inside the pan
 | [User manual](docs/USER_MANUAL.md) | administrators and sync operators | Every page and button of the panel, step by step |
 | [Administrator guide](docs/ADMIN_GUIDE.md) | the server's administrator | Installing, files, backups, Enterprise add-ons, troubleshooting |
 | [Configuration](docs/CONFIGURATION.md) | the server's administrator | Every setting, with its type and default |
-| [Plugins](docs/PLUGINS.md) | administrators, developers | Choosing how instances are reached and where Enterprise comes from; writing your own |
+| [Plugins](docs/PLUGINS.md) | administrators, developers | Choosing how instances are reached, where Enterprise comes from and what starts updates; writing your own |
+| [Panel API](docs/PANEL_API.md) | developers | Managing instances from other systems with signed API calls |
 | [API and webhooks](docs/API.md) | developers | Calling an instance's Odoo from other systems |
 | [Architecture](docs/ARCHITECTURE.md) | developers | How the parts work together, and why we chose each of them |
 | [Security](docs/SECURITY.md) | administrators, reviewers | Passwords, encryption, sessions, input checks, what is and is not protected |
@@ -154,7 +179,7 @@ Details, and what is deliberately *not* protected, are in [Security](docs/SECURI
 ## Components
 
 ```
-odoo-instance-manager/
+odoo-sudoo/
 ├── README.md, LICENSE.md, CHANGELOG.md, CONTRIBUTING.md, SECURITY.md
 ├── install.sh                     # installs or updates the panel on the server (run as root)
 ├── check-server.sh                # read-only check of the server: Docker, memory, disk, internet access
@@ -164,10 +189,11 @@ odoo-instance-manager/
 ├── .pre-commit-config.yaml        # black, ruff, mypy, shellcheck, ... on every commit and in CI
 ├── docs/                          # documentation, also shown in the panel; images/ and diagrams/build.py
 ├── tests/                         # pytest
-└── src/instance_manager/
+├── examples/                      # panel_api_client.py: a dependency-free client for the panel's API
+└── src/sudoo/
     ├── config.py                  # every setting, typed (pydantic-settings)
     ├── plugins.py                 # finds and loads plugins (entry points)
-    ├── cli.py                     # the instance-manager command: accounts, links, config, serve
+    ├── cli.py                     # the sudoo command: accounts, links, config, serve
     ├── accounts.py                # accounts, password hashing, sign-in throttling
     ├── background.py              # monitor, auto-pause, auto-delete, GitHub polling, gateway, exposure
     ├── core/                      # infrastructure, no Odoo knowledge
@@ -185,6 +211,11 @@ odoo-instance-manager/
     │   ├── base.py                #   the interface
     │   ├── cloudflare.py          #   cloudflare-quick
     │   └── ports.py               #   host-ports
+    ├── triggers/                  # PLUGIN TYPE: what starts a code update
+    │   ├── base.py                #   the interface
+    │   ├── polling.py             #   polling
+    │   └── github_webhook.py      #   github-webhook
+    ├── api_tokens.py              # API tokens: hashed tokens, encrypted signing secrets, signature checks
     ├── addons/                    # PLUGIN TYPE: where Enterprise add-ons come from
     │   ├── base.py                #   the interface
     │   ├── folder.py              #   folder
@@ -213,8 +244,8 @@ per running instance) and outgoing internet access to GitHub, Docker Hub and Clo
 plugin no incoming port is needed.
 
 ```bash
-git clone https://github.com/Yosef-AlSabbah/odoo-instance-manager.git
-cd odoo-instance-manager
+git clone https://github.com/Yosef-AlSabbah/sudoo.sh.git
+cd odoo-sudoo
 sudo ./check-server.sh      # checks Docker, memory, disk and internet access; changes nothing
 sudo ./install.sh           # installs or updates the panel
 ```
@@ -264,7 +295,7 @@ How to repeat these checks is described in the [Administrator guide](docs/ADMIN_
 
 * **With `cloudflare-quick`, links change after a restart** of the server or of a connector. For links that never
   change, use `EXPOSURE=host-ports` on a server that can accept connections, or write an exposure plugin for a
-  Cloudflare named tunnel with your own domain ([Plugins](docs/PLUGINS.md#5-writing-a-plugin)).
+  Cloudflare named tunnel with your own domain ([Plugins](docs/PLUGINS.md#6-writing-a-plugin)).
 * **Cloudflare quick tunnels** carry at most 100 MB per request, end requests that take longer than about 100
   seconds, and have no uptime guarantee.
 * **Memory**: about 1 to 1.5 GB per running instance. On a 3 GB server, keep one or two instances running; the
@@ -324,7 +355,7 @@ and share, for any **noncommercial** purpose.
 | Use by charities, schools, public bodies | Using it to make money for a company without permission |
 | Changing it and sharing your changes under the same licence | Removing the licence or the copyright notice |
 
-For commercial use, ask the author for a separate licence. Odoo is a trademark of Odoo S.A.; this project is not
+For commercial use, ask the author for a separate licence. Odoo and Odoo.sh are trademarks of Odoo S.A.; this project is not
 affiliated with or endorsed by Odoo S.A.
 
 ---

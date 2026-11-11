@@ -14,8 +14,9 @@
 5. [Sessions and the browser](#5-sessions-and-the-browser)
 6. [Checking every input](#6-checking-every-input)
 7. [What is not protected](#7-what-is-not-protected)
-8. [Roles and the audit log](#8-roles-and-the-audit-log)
-9. [Checklist for the administrator](#9-checklist-for-the-administrator)
+8. [API tokens and webhooks](#8-api-tokens-and-webhooks)
+9. [Roles and the audit log](#9-roles-and-the-audit-log)
+10. [Checklist for the administrator](#10-checklist-for-the-administrator)
 
 ---
 
@@ -112,7 +113,7 @@ by administrators, and only by their file name from the listing, never by a path
 
 | Measure | Effect |
 | :--- | :--- |
-| Signed session cookie `oim_session` | `HttpOnly` (scripts cannot read it), `Secure` (https only), `SameSite=Strict` (never sent with requests started by another site). |
+| Signed session cookie `sudoo_session` | `HttpOnly` (scripts cannot read it), `Secure` (https only), `SameSite=Strict` (never sent with requests started by another site). |
 | Session limits | Ends after 60 minutes without activity and after 12 hours in any case. |
 | Session version | Each account has a version number in its record; a password change, reset or deletion raises it, and every older session stops working at once. |
 | CSRF token | Every change must carry the session's secret token in a header, which another site cannot know. |
@@ -126,7 +127,7 @@ by administrators, and only by their file name from the listing, never by a path
 
 ## 6. Checking every input
 
-Every value received from a browser or API client goes through `instance_manager/web/validation.py` before it is used:
+Every value received from a browser or API client goes through `sudoo/web/validation.py` before it is used:
 
 | Rule | Example of what is refused |
 | :--- | :--- |
@@ -161,7 +162,19 @@ Being clear about limits is part of security.
 
 ---
 
-## 8. Roles and the audit log
+## 8. API tokens and webhooks
+
+| Entry point | Who can use it | How it is checked |
+| :--- | :--- | :--- |
+| `/api/v1` (other systems) | holders of an API token **and** its signing secret | token (SHA-256 hash), HMAC-SHA256 signature over timestamp, nonce, method, path and body; timestamp within 5 minutes; each nonce accepted once; scope `read` or `write`; 5 refused calls from an address block it for 15 minutes |
+| `/hooks/github` (when enabled) | GitHub | `X-Hub-Signature-256`: HMAC-SHA256 of the body with `GITHUB_WEBHOOK_SECRET` |
+
+The signing secret is stored encrypted (vault), the token only as a hash; both are shown once. The panel's session
+cookie does not open the API and API tokens do not open the panel's pages. Details: [Panel API](PANEL_API.md#6-security-notes).
+
+---
+
+## 9. Roles and the audit log
 
 * Roles are checked **on the server** for every request; hiding a button in the browser is only a convenience.
 * Sync operators never receive passwords, master passwords or ports, even in API answers.
@@ -171,7 +184,7 @@ Being clear about limits is part of security.
 
 ---
 
-## 9. Checklist for the administrator
+## 10. Checklist for the administrator
 
 - [ ] Store the `admin` and `sync` passwords from the installer in a password manager.
 - [ ] Back up `vault.key` separately from other backups.
@@ -180,3 +193,4 @@ Being clear about limits is part of security.
 - [ ] Look at the audit log from time to time for refused actions and failed sign-ins.
 - [ ] Keep real customer data out of instances.
 - [ ] Remove deploy keys of repositories that are no longer used, in the panel and on GitHub.
+- [ ] Give each system its own API token, `read` where reading is enough; revoke tokens no longer used.

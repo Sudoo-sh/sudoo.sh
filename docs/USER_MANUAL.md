@@ -1,6 +1,6 @@
 # User Manual
 
-**Audience:** administrators and sync operators of Odoo Instance Manager.
+**Audience:** administrators and sync operators of Sudoo.
 **Covers:** every page and button of the panel, step by step.
 **You need:** the panel's link and an account. Nothing has to be installed on your computer.
 
@@ -248,7 +248,7 @@ someone who does.
 2. The panel shows the key and a link. Click **Copy key**, then open the link (the repository's **Settings,
    Deploy keys, Add deploy key** page on GitHub).
 3. On GitHub:
-   * **Title**: `Odoo Instance Manager`
+   * **Title**: `Sudoo`
    * **Key**: paste.
    * **Allow write access**: leave unticked, unless submodules of this repository will be added or removed from
      the panel.
@@ -296,6 +296,10 @@ Passwords are never stored by the panel, only checked: see [Passwords and encryp
   database manager (`/web/database/manager`), choose **Restore Database** and select the file.
 * **Delete** removes a backup you no longer need. Backups are kept until someone deletes them, so look at the list
   from time to time; the disk usage is on the Instances page.
+
+**API tokens** (administrators, top bar) let other systems, such as a CI pipeline, create and manage instances
+through the panel's API. Create a token with a name and a scope (read only, or read and write); copy the token and
+the signing secret shown once into the other system. **Revoke** stops a token at once. See [Panel API](PANEL_API.md).
 
 **Audit log** (administrators, top bar). The last 200 events, newest first: sign-ins (also failed ones), refused actions, every
 action on an instance, account and key changes. Each line shows the time, the account, the event, the instance,

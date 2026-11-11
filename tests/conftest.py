@@ -12,20 +12,20 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parent.parent
-ROOT = Path(tempfile.mkdtemp(prefix="oim-test-"))
+ROOT = Path(tempfile.mkdtemp(prefix="sudoo-test-"))
 (ROOT / "manager").mkdir()
 DOCS = ROOT / "documentation"
 DOCS.mkdir()
 shutil.copy(REPO / "README.md", DOCS)
 shutil.copytree(REPO / "docs", DOCS / "docs")
 
-# settings are read when instance_manager.config is first imported, so the environment is set before that
+# settings are read when sudoo.config is first imported, so the environment is set before that
 os.environ.update(ODOO_ROOT=str(ROOT), DOCS_DIR=str(DOCS), ODOO_VERSIONS="18.0,19.0,20.0", ENTERPRISE_SOURCE="none")
 
 from flask import Flask  # noqa: E402
 from flask.testing import FlaskClient  # noqa: E402
 
-from instance_manager import accounts, background  # noqa: E402
+from sudoo import accounts, background  # noqa: E402
 
 ORIGIN = {"Origin": "http://localhost"}
 
@@ -33,7 +33,7 @@ ORIGIN = {"Origin": "http://localhost"}
 @pytest.fixture(scope="session")
 def app() -> Flask:
     background.start = lambda: None  # no Docker, monitor or connectors in tests
-    from instance_manager.web import create_app
+    from sudoo.web import create_app
 
     application = create_app()
     application.config.update(TESTING=True, SESSION_COOKIE_SECURE=False)

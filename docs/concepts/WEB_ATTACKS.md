@@ -172,4 +172,4 @@ place.
 | Malformed input | Size limit, type, length and character checks |
 | Role abuse | Server-side role checks, audit log |
 
-The rules are in one file, `instance_manager/web/validation.py`, and described in [Security](../SECURITY.md#6-checking-every-input).
+The rules are in one file, `sudoo/web/validation.py`, and described in [Security](../SECURITY.md#6-checking-every-input).

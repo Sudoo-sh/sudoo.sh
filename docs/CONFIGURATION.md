@@ -6,8 +6,8 @@ Every setting of the panel, with its type, default and meaning. Settings are env
 
 * Names are not case sensitive. A wrong value (for example `IDLE_HOURS=soon`) stops the panel at start-up with a
   message naming the setting.
-* See what the panel actually uses: `docker exec oim-panel instance-manager config`.
-* The settings are defined in `src/instance_manager/config.py`; a test fails when one of them is missing here.
+* See what the panel actually uses: `docker exec sudoo-panel sudoo config`.
+* The settings are defined in `src/sudoo/config.py`; a test fails when one of them is missing here.
 
 ---
 
@@ -53,9 +53,18 @@ Every setting of the panel, with its type, default and meaning. Settings are env
 | `PUBLIC_HOST` | str | empty | host-ports: the server's public name or address. |
 | `PUBLIC_SCHEME` | `http` or `https` | `http` | host-ports: scheme of the public addresses. |
 | `CLOUDFLARED_IMAGE` | str | `cloudflare/cloudflared:latest` | cloudflare-quick: connector image. |
-| `CONNECTOR_PREFIX` | str | `oim-connector-` | cloudflare-quick: container name prefix. |
+| `CONNECTOR_PREFIX` | str | `sudoo-connector-` | cloudflare-quick: container name prefix. |
 | `CONNECTOR_STATUS_PORT_START` | int | `20300` | cloudflare-quick: first status port of a connector. |
 | `PANEL_CONNECTOR_STATUS_PORT` | int | `20242` | cloudflare-quick: status port of the panel connector. |
+
+---
+
+## Code updates (plugins)
+
+| Setting | Type | Default | Meaning |
+| :--- | :--- | :--- | :--- |
+| `UPDATE_TRIGGERS` | str | `polling` | What starts code updates, comma-separated: "polling", "github-webhook" or both. See [Plugins](PLUGINS.md#5-update-triggers-what-starts-a-code-update). |
+| `GITHUB_WEBHOOK_SECRET` | str | empty | github-webhook: the secret entered on GitHub (20 or more random characters). |
 
 ---
 
@@ -75,7 +84,7 @@ Every setting of the panel, with its type, default and meaning. Settings are env
 | :--- | :--- | :--- | :--- |
 | `IDLE_HOURS` | float | `6` | Pause an instance after this many hours without visits; 0: never. |
 | `DELETE_AFTER_DAYS` | int | `30` | Lifetime offered for new instances, in days; 0: keep. |
-| `POLL_MINUTES` | float | `2` | Check GitHub for new commits this often. |
+| `POLL_MINUTES` | float | `2` | polling: check GitHub for new commits this often. |
 | `SESSION_IDLE_MINUTES` | float | `60` | Panel sign-out after this long without activity. |
 | `SESSION_MAX_HOURS` | float | `12` | Longest panel session. |
 
@@ -86,5 +95,5 @@ Every setting of the panel, with its type, default and meaning. Settings are env
 | Setting | Type | Default | Meaning |
 | :--- | :--- | :--- | :--- |
 | `ODOO_ROOT` | Path | `/opt/odoo` | Folder that holds instances, backups and panel data. |
-| `DOCS_DIR` | Path | `/home/yousef-al-sabbah/odoo-instance-manager/documentation` | README.md and docs/ shown in the panel. |
+| `DOCS_DIR` | Path | `/home/yousef-al-sabbah/odoo-sudoo/documentation` | README.md and docs/ shown in the panel. |
 | `MEMORY_DIR` | Path | `/dev/shm` | Memory-backed folder for secrets needed briefly as files. |

@@ -7,7 +7,7 @@
   <rect width="1280" height="640" fill="url(#bg)"/>
   <rect y="626" width="794" height="14" fill="#714B67"/>
   <rect x="794" y="626" width="486" height="14" fill="#017E84"/>
-  
+
   <rect x="239.5" y="175.0" width="150.0" height="150.0" rx="36.0" fill="#714B67"/>
   <path d="M290.5,214.0 L290.5,286.0" stroke="#fff" stroke-width="10.5" stroke-linecap="round" fill="none"/>
   <path d="M290.5,229.0 C290.5,253.0 341.5,241.0 341.5,265.0" stroke="#fff" stroke-width="10.5" stroke-linecap="round" fill="none"/>

@@ -11,6 +11,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - The project is now **Sudoo** (`sudo` + `Odoo`), the self-hosted counterpart of Odoo.sh: repository
   `sudoo.sh`, Python package and command `sudoo`, containers `sudoo-panel` and `sudoo-connector-<name>`,
   API tokens `sudoo_...`, signature headers `X-Sudoo-*`.
+- New sudoo.sh logo (light and dark) and social preview in `docs/images/brand/`, shown at the top of the
+  README; the remaining `odoo-sudoo` folder names in the README, CONTRIBUTING and the Administrator guide now say
+  `sudoo.sh`.
 
 ### Added
 

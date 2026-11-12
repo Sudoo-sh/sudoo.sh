@@ -148,7 +148,8 @@ Answers over a request limit are `429 Too Many Requests` with `Retry-After`; eve
 
 | Setting | Type | Default | Meaning |
 | :--- | :--- | :--- | :--- |
-| `PANEL_PORT` | int | `9000` | Port of the panel. |
+| `PANEL_PORT` | int | `9000` | Port of the panel: the web app (container `sudoo-web`) listens here. |
+| `API_PORT` | int | `9002` | Port of the backend (container `sudoo-panel`), on 127.0.0.1 only; the web app forwards `/api`, `/hooks` and `/docs` to it. |
 | `EVENTS_PORT` | int | `9001` | Port of the live event stream (`/api/v1/events`), on 127.0.0.1 only. |
 | `GATEWAY_PORT_START` | int | `8069` | First gateway port (one per instance). |
 | `ODOO_PORT_START` | int | `28069` | First Odoo port (one per instance, 127.0.0.1 only). |

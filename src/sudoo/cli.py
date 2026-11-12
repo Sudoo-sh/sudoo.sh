@@ -96,9 +96,9 @@ def test_email(args: argparse.Namespace) -> None:
 
 
 def serve(_: argparse.Namespace) -> None:
-    """Start gunicorn: one process (jobs, monitor and gateway share its memory), listening where the exposure
-    plugin needs the panel (127.0.0.1 behind a tunnel, every interface when visitors connect directly)."""
-    bind = f"{exposure.provider().listen_host}:{settings.panel_port}"
+    """Start gunicorn: one process (jobs, monitor and gateway share its memory), on 127.0.0.1:API_PORT. Visitors
+    reach it through the web service (web/, container sudoo-web), which listens on PANEL_PORT."""
+    bind = f"127.0.0.1:{settings.api_port}"
     os.execvp("gunicorn", ["gunicorn", "--workers", "1", "--threads", "32", "--timeout", "120",
                            "--bind", bind, "sudoo.wsgi:app"])  # fmt: skip
 

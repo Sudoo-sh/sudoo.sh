@@ -1,0 +1,46 @@
+# The web service of Sudoo.sh: serves the web app, and forwards everything else to the backend.
+# Values come from the environment (compose.yaml); WEB_BIND is set by entrypoint.sh from EXPOSURE.
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+http://:{$PANEL_PORT} {
+	bind {$WEB_BIND}
+	encode zstd gzip
+
+	header -Server
+
+	# live events: long-lived, every event passed on at once
+	handle /api/v1/events {
+		reverse_proxy 127.0.0.1:{$EVENTS_PORT} {
+			flush_interval -1
+		}
+	}
+
+	# the backend: API, webhooks, documentation pages and their files, health check
+	@backend path /api/* /hooks/* /docs /docs/* /static/* /healthz
+	handle @backend {
+		reverse_proxy 127.0.0.1:{$API_PORT}
+	}
+
+	# the web app
+	handle {
+		root * /srv
+		header {
+			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+			X-Content-Type-Options nosniff
+			X-Frame-Options DENY
+			Referrer-Policy no-referrer
+			Cross-Origin-Opener-Policy same-origin
+			Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		}
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@pages not path /assets/*
+		header @pages Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}

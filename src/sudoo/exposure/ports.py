@@ -17,6 +17,7 @@ from sudoo.exposure.base import Target
 class HostPorts:
     """Publishes the panel and the gateways on the server's own ports."""
 
+    client_ip_header = None  # visitors connect directly: no header can be trusted
     listen_host = "0.0.0.0"  # noqa: S104 - reachable from outside on purpose; that is what this plugin is for
 
     def __init__(self, settings: Settings) -> None:

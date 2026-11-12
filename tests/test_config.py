@@ -50,3 +50,7 @@ def test_every_setting_is_documented() -> None:
     documented = (Path(__file__).resolve().parent.parent / "docs" / "CONFIGURATION.md").read_text()
     missing = [name for name in Settings.model_fields if name not in fixed and f"`{name.upper()}`" not in documented]
     assert not missing
+
+
+def test_contact_sentence_without_a_name() -> None:
+    assert Settings().contact_sentence() == "Please contact the administrator."

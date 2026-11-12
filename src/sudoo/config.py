@@ -117,7 +117,8 @@ class Settings(BaseSettings):
     )
 
     # ------------------------------------------------------------------ ports
-    panel_port: int = Field(9000, description="Port of the panel.")
+    panel_port: int = Field(9000, description="Port of the panel: the web service (sudoo-web) listens here.")
+    api_port: int = Field(9002, description="Port of the backend (127.0.0.1 only); the web service forwards to it.")
     events_port: int = Field(9001, description="Port of the live event stream (127.0.0.1 only).")
     gateway_port_start: int = Field(8069, description="First gateway port (one per instance).")
     odoo_port_start: int = Field(28069, description="First Odoo port (one per instance, 127.0.0.1 only).")
@@ -180,7 +181,10 @@ class Settings(BaseSettings):
     def contact_sentence(self) -> str:
         """'Please contact the administrator, <name> (<phone>, <email>).' for messages shown to sync operators."""
         details = ", ".join(value for value in (self.admin_contact_phone, self.admin_contact_email) if value)
-        return f"Please contact the administrator, {self.admin_contact_name}" + (f" ({details})." if details else ".")
+        who = "the administrator"
+        if self.admin_contact_name and self.admin_contact_name.lower() != who:
+            who += f", {self.admin_contact_name}"
+        return f"Please contact {who}" + (f" ({details})." if details else ".")
 
 
 # ---------------------------------------------------------------------- changes made in the panel

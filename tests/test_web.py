@@ -86,3 +86,16 @@ def test_every_documentation_link_and_image_works(admin: Client) -> None:
                 broken.append(f"{path} -> {href}")
     assert not broken
     assert client.get("/docs/../README.md").status_code == 404
+
+
+def test_visitor_address_behind_the_web_service(monkeypatch: pytest.MonkeyPatch) -> None:
+    """X-Forwarded-For is trusted only from the web service on 127.0.0.1; CF-Connecting-IP only with Cloudflare."""
+    from sudoo.exposure.ports import HostPorts
+    from sudoo.web.security import client_ip_of
+
+    forwarded = {"X-Forwarded-For": "203.0.113.7", "CF-Connecting-IP": "198.51.100.1"}
+    assert client_ip_of(forwarded, "127.0.0.1") == "198.51.100.1"  # default exposure: Cloudflare
+    assert client_ip_of({"X-Forwarded-For": "203.0.113.7"}, "127.0.0.1") == "203.0.113.7"
+    assert client_ip_of({"X-Forwarded-For": "203.0.113.7"}, "192.0.2.50") == "192.0.2.50"  # not from the web service
+    monkeypatch.setattr("sudoo.exposure.provider", lambda: HostPorts.__new__(HostPorts))
+    assert client_ip_of(forwarded, "127.0.0.1") == "203.0.113.7"  # a visitor cannot pretend to be Cloudflare

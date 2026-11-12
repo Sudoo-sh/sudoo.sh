@@ -22,7 +22,8 @@ each part was chosen.
 
 | Part | What it is | Where |
 | :--- | :--- | :--- |
-| **Panel** | Web pages and the API, `/api/v1` (Flask, served by Gunicorn) on `127.0.0.1:9000`. | `sudoo/web/` |
+| **Web app** | The panel in the browser: React, TypeScript and SCSS, built by Vite and served by Caddy (container `sudoo-web`) on `PANEL_PORT` (9000). Caddy forwards `/api`, `/hooks` and `/docs` to the backend and `/api/v1/events` to the live events. | `web/` |
+| **Backend** | The API, `/api/v1` (Flask, served by Gunicorn, container `sudoo-panel`) on `127.0.0.1:API_PORT` (9002). | `sudoo/web/` |
 | **Live events** | `/api/v1/events`: every change (jobs, instances, resource figures, settings) pushed to connected clients as Server-Sent Events, on the gateway's asyncio loop, `127.0.0.1:9001`. | `sudoo/core/events.py`, `web/v1/events.py` |
 | **Gateway** | One small web server per instance (aiohttp) on `127.0.0.1:<gateway port>`. Forwards every request to that instance's Odoo. | `sudoo/instances/gateway.py` |
 | **Metrics** | Figures of the server and every instance (CPU, memory, requests, errors, response times, uptime, disk) with one hour of history, from the monitor and the gateway. | `sudoo/instances/metrics.py` |
@@ -185,6 +186,17 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
   the timestamp and nonce stop replays. Reusing the panel's views keeps one set of input checks, roles and audit.
 - **Considered:** OAuth (an authorization server is more than a self-hosted panel needs); mutual TLS (hard to set up
   behind tunnels).
+
+### A separate web app on top of the API
+- **Chosen:** the browser part is its own service (`web/`, container `sudoo-web`): React with TypeScript, data
+  through TanStack Query kept current by the live events, styles as SCSS design tokens, served by Caddy on the
+  panel's port. The backend only answers `/api/v1`.
+- **Why:** the front end can change, be restyled or be replaced without touching the backend; every page uses the
+  same API as other systems; a modern, animated interface without giving up the strict Content-Security-Policy.
+  Taking over the panel's port keeps the panel's public link: the connector in front of it is not touched.
+- **Considered:** the previous plain JavaScript pages served by Flask (no build step, but every page hand-built
+  and hard to extend); server-rendered pages (every update a full round trip); Next.js (a Node server to run for
+  pages that need none).
 
 ### One API for the web app and for other systems
 - **Chosen:** the panel's web app calls the same `/api/v1` as other systems, with its session cookie and a CSRF

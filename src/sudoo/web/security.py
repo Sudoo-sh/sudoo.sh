@@ -69,11 +69,22 @@ def _limit_rate() -> None:
         abort(429, f"Too many requests. Try again in {decision.reset_seconds} seconds.")
 
 
+def client_ip_of(headers: Headers, remote: str) -> str:
+    """The visitor's address. The backend listens on 127.0.0.1 behind the web service, which sets X-Forwarded-For
+    to the address it received the request from (replacing any sent by the visitor); in front of that, the
+    exposure may name a header it sets itself (Cloudflare's CF-Connecting-IP)."""
+    trusted = getattr(exposure.provider(), "client_ip_header", None)
+    if trusted and headers.get(trusted, ""):
+        return headers.get(trusted, "")
+    forwarded = headers.get("X-Forwarded-For", "")
+    if forwarded and remote in ("127.0.0.1", "::1"):
+        return forwarded.split(",")[-1].strip()
+    return remote
+
+
 def client_ip() -> str:
-    """The visitor's address. The panel listens on 127.0.0.1 only, so requests come from its Cloudflare connector
-    (which sets CF-Connecting-IP) or from an SSH tunnel."""
     # remote_addr is always set for a request received over TCP
-    return request.headers.get("CF-Connecting-IP", cast(str, request.remote_addr))
+    return client_ip_of(request.headers, cast(str, request.remote_addr))
 
 
 def user_of_session(data: Mapping[str, Any], check_idle: bool = True) -> dict[str, str] | None:

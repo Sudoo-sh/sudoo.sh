@@ -30,6 +30,7 @@ class CloudflareQuickTunnel:
 
     listen_host = "127.0.0.1"  # connectors reach the panel and the gateways locally
     https = True
+    client_ip_header = "CF-Connecting-IP"  # set by Cloudflare: the visitor's real address
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings

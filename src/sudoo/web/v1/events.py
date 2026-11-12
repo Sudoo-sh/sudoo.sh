@@ -34,7 +34,7 @@ from sudoo.config import settings
 from sudoo.core.events import BUS, Event
 from sudoo.instances import gateway
 
-from ..security import api_caller, user_of_session
+from ..security import api_caller, client_ip_of, user_of_session
 
 PATH = "/api/v1/events"
 FLASK_APP = web.AppKey("flask", Flask)
@@ -86,7 +86,7 @@ def _session_of(request: web.Request) -> dict[str, Any] | None:
 
 def _caller(request: web.Request) -> tuple[dict[str, str] | None, dict[str, Any] | None, web.Response | None]:
     """(user, session, refusal). Exactly one of user and refusal is set."""
-    ip = request.headers.get("CF-Connecting-IP", request.remote or "")
+    ip = client_ip_of(request.headers, request.remote or "")
     if "Authorization" in request.headers:
         try:
             return api_caller(request.headers, "GET", request.path_qs, b"", ip), None, None

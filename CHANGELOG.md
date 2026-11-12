@@ -17,6 +17,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **A new web app** (`web/`): React, TypeScript and SCSS, built with Vite and served by Caddy as its own container
+  (`sudoo-web`) on the panel's port, using only `/api/v1`. Every page is new:
+  - sign-in with the second step (six-box code entry, e-mail resend);
+  - instances with live status, resource figures, sparklines and job progress;
+  - each instance with live charts for the last hour, activity with a live log, code, Odoo log, settings and
+    credentials;
+  - a guided **New instance** with repository checks, branch list, name preview and quota warnings;
+  - **Settings** with save and reset, accounts, API tokens, backups, GitHub access, audit log, and **My account**
+    with authenticator-app setup by QR code.
+
+  It has light and dark themes, page transitions, and an accent colour from `BRAND_COLOR`. The backend moves to
+  `127.0.0.1:API_PORT` (9002); the panel's link does not change.
 - E-mails in HTML, in the style of Odoo's own (white card, title and product name, code box, button, footer), with
   a plain-text version. Sign-in codes say when, from which address and browser they were asked for. Templates can
   be replaced with `MAIL_TEMPLATES_DIR`; `BRAND_COLOR` sets the accent colour (also on the Settings page).

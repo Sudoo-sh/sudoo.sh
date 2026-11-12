@@ -89,13 +89,38 @@ stored = scrypt( HMAC-SHA256(pepper, password), salt )      salt: 16 random byte
 | **Salt** | Two people with the same password have different hashes; precomputed tables are useless. |
 | **Pepper** | A secret mixed in before hashing, taken from `vault.key`, which is not in the database (`sudoo.db`). A stolen database alone cannot even be attacked. |
 | **Constant-time comparison** | Checking a password takes the same time whether it is almost right or completely wrong, and for unknown accounts too: timing reveals nothing. |
-| **Generated passwords** | New accounts and resets get 24 random characters (144 bits), shown once. They must be replaced at the first sign-in (see below). |
-| **Rules for chosen passwords** | 12 to 128 characters, at least 6 different characters, not containing the user name or a common word (`password`, `admin`, `odoo`, `123456`...), no control characters. |
-| **Sign-in lockout** | 5 failures for an account from one address, or 20 from one address, block sign-in for 15 minutes. |
+| **Generated passwords** | When an administrator chooses **Generate** for a new account or a new password, the panel makes 24 random characters (144 bits), shown once. They must be replaced at the first sign-in (see below). |
+| **Passwords typed by an administrator** | Checked against the same rules as any chosen password. By default they must also be replaced at the first sign-in; the administrator can turn that off. |
+| **Rules for chosen passwords** | Follow NIST SP 800-63B: length and a blocklist, no composition rules ([below](#password-rules)). Checked on the server and, as you type, in the browser. |
+| **Sign-in by e-mail address** | People sign in with their e-mail address (or their user name). Each e-mail address belongs to one account at most. A wrong address and a wrong password give the same answer, "Wrong e-mail address or password.", and take as long: an unknown address still runs a full password check. |
+| **Sign-in lockout** | 5 failures for an account from one address, or 20 from one address, block sign-in for 15 minutes. An e-mail address counts as its account, so switching between the address and the user name does not give more tries. |
 | **Changing or resetting a password** | Ends every other session of that account. |
 | **Upgrade on sign-in** | Hashes made before the pepper existed are replaced with the current kind the next time their owner signs in. |
 
 Why a hash and not encryption is explained in [Passwords and encryption](concepts/PASSWORDS_AND_ENCRYPTION.md).
+
+### Password rules
+
+The rules follow NIST SP 800-63B (Digital Identity Guidelines, memorized secrets): a long password that is not on a
+list of known ones protects better than forced mixes of characters, which lead to predictable patterns such as
+`Password1!`. The same rules apply on the setup page, for new accounts, for passwords set by an administrator and
+in **My account**, on the server and in the browser.
+
+| Rule | Detail |
+| :--- | :--- |
+| Length | 12 to 128 characters. |
+| Characters | Any printable character, spaces included. No control characters. |
+| No composition rules | Capitals, digits and symbols are never required. Passwords never expire. |
+| Blocklist | Refused when it contains a common password or word: `password`, `qwerty`, `admin`, `odoo`, `sudoo`, `welcome` and others. |
+| Sequences | Refused when it contains five characters in a row of the alphabet, the digits or a keyboard row, in either direction (`abcde`, `12345`, `54321`, `qwerty`, `asdfg`, `zxcvb`). |
+| Repeats | Refused when one character appears four times in a row. |
+| Variety | At least 6 different characters. |
+| Personal details | Refused when it contains the person's first name, last name, user name or the part of the e-mail address before `@`, each counted from 3 characters. |
+| Paste and password managers | Allowed. |
+
+The browser shows a strength meter of four bars (**Acceptable**, **Good**, **Strong**, **Very strong**); it only
+guides, the server decides. The full list of rules for people is in the
+[User manual](USER_MANUAL.md#password-rules).
 
 ### First-run setup
 
@@ -105,7 +130,8 @@ There are **no default accounts**: a new server has no account at all, so there 
   example `K7QH-3MXP-9TAD`) and keeps it in `/opt/odoo/manager/setup_code`, mode 600 (root only). The installer
   prints it; `docker exec sudoo-panel sudoo.sh setup-code` shows it again.
 * The **Set up Sudoo.sh** page (`POST /api/v1/setup`) creates the first account, a **Super admin**, only with that
-  code, and signs in. The code is compared in constant time and deleted once the account exists; after that the
+  code, and signs in. It asks for an e-mail address (the user name is made from it) and a password that follows
+  the [password rules](#password-rules). The code is compared in constant time and deleted once the account exists; after that the
   setup page refuses every request.
 * Wrong codes are throttled: 5 from one address in 15 minutes block that address for 15 minutes, and each one is
   written to the audit log.
@@ -114,8 +140,9 @@ There are **no default accounts**: a new server has no account at all, so there 
 
 ### Generated passwords must be replaced
 
-A password chosen by someone else (a new account, or a reset by an administrator) is known to two people. The
-account is therefore marked: after signing in with it, the session is **restricted**. It opens only the session
+A password chosen by someone else (a new account, or a new password set by an administrator) is known to two
+people. The account is therefore marked (always for a generated password; for a typed one unless the administrator
+turned off **Ask them to choose their own password when they first sign in**): after signing in with it, the session is **restricted**. It opens only the session
 and **My account** endpoints (`/api/v1/session`, `/api/v1/account`, `/api/v1/contact`); everything else answers
 403 "Choose your own password first." until the person has chosen a new password. The same restriction, with "Set
 up a second factor first.", applies when `REQUIRE_SECOND_FACTOR` requires a factor the account does not have yet.
@@ -152,7 +179,13 @@ Some secrets must be **read back** by the panel, so they cannot be hashed. They 
 
 Backups (`/opt/odoo/backups`) contain whole databases, so they are mode 600 (root only), listed and downloaded only
 with the permission `backups.manage` (super admins and administrators), and only by their file name from the
-listing, never by a path.
+listing, never by a path. An instance's page lists its own backups to everyone who may see the instance, without
+the download link.
+
+Restoring a backup replaces an instance's database and files, so it has its own permission, `instances.restore`
+(super admins, administrators and maintainers). A restore only takes a backup of that same instance, chosen by
+file name from its own list, and first saves the current state as a `before-restore` backup: a restore by mistake
+can be undone by restoring that one ([Administrator guide: Backups](ADMIN_GUIDE.md#10-backups)).
 
 * **AES-256-GCM** is authenticated encryption: besides hiding the value, it detects any change to it. A modified
   value is refused, never decrypted into garbage.
@@ -262,6 +295,7 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `instances.update` | Get new code, update submodules, restart, start, add submodules | yes | yes | yes | yes | |
 | `instances.operate` | Pause, switch off, upgrade modules, switch branch, back up, remove submodules, change automation and lifetime | yes | yes | yes | | |
 | `instances.create` | Create instances | yes | yes | yes | | |
+| `instances.restore` | Restore an instance from a backup (replaces its database and files) | yes | yes | yes | | |
 | `instances.delete` | Delete instances | yes | yes | | | |
 | `instances.credentials` | See Odoo passwords and ports | yes | yes | yes | | |
 | `backups.manage` | Download and delete backups | yes | yes | | | |
@@ -272,8 +306,11 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `settings.manage` | Change the panel's settings and restart it | yes | | | | |
 
 * Only a **super admin** creates, changes, resets or deletes super admin accounts. The last super admin cannot be
-  deleted or given another role, and nobody can change their own role.
-* Changing an account's role ends its sessions; the new permissions apply from the next sign-in.
+  deleted or given another role, so there is always at least one.
+* An administrator may edit their own account on the Accounts page, role included, but cannot delete it or set its
+  password there (that needs the current password, in **My account**).
+* Changing an account's role ends its sessions, your own included; the new permissions apply from the next sign-in.
+* No two accounts share an e-mail address, so an address always signs in as exactly one account.
 * **API tokens** have no account: a `write` token acts as an **Administrator**, a `read` token as a **Viewer**.
 * Roles without `instances.credentials` never receive passwords, master passwords or ports, even in API answers.
 * Accounts of earlier versions were renamed once, when the panel started: `admin` became Super admin, the sync

@@ -1,7 +1,8 @@
 """Signing in, used by the session endpoints (v1/session.py).
 
 Signing in takes one or two steps:
-    1. user name and password, checked by the authenticator plugin (auth/). Without a second factor this signs in.
+    1. e-mail address (or user name) and password, checked by the authenticator plugin (auth/). Without a second
+       factor this signs in.
     2. when the account has a second factor: a code (e-mail, authenticator app). Between the two steps the
        session only holds "pending": who passed step 1 and when (5 minutes at most); it opens nothing.
 
@@ -58,15 +59,18 @@ def _signed_in(name: str, account: dict[str, Any], ip: str) -> None:
 
 def password_step(data: dict[str, Any]) -> dict[str, Any]:
     """Step 1. Returns {"signed_in": True}, or {"second_factor": {"methods": [...], ...}} when a code is needed."""
-    name = check.text(data, "username", max_length=32).lower()
+    login = check.text(data, "username", max_length=254).strip().lower()
     password = check.secret(data, "password")
     ip = client_ip()
+    name = accounts.find(login) or login  # an e-mail address signs in as its account
     _refuse_if_throttled(ip, name)
     identity = auth.authenticator().authenticate(name, password) if accounts.USERNAME_RE.match(name) else None
     if identity is None:
+        if not accounts.USERNAME_RE.match(name):
+            accounts.check_password("", password)  # as slow as a real check, so unknown addresses do not show
         accounts.THROTTLE.failed(ip, name)
-        audit.record(name, ip, "sign-in failed", ok=False)
-        abort(401, "Wrong user name or password.")
+        audit.record(name[:64], ip, "sign-in failed", ok=False)
+        abort(401, "Wrong e-mail address or password.")
     account = auth.account_for(identity)
     methods = auth.enrolled(account)
     if not methods:

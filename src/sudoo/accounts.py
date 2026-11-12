@@ -13,7 +13,14 @@ changing or resetting its password, or deleting it, invalidates all of its sessi
 
 Roles and their permissions: roles.py. There are no default accounts: the first account, a super admin, is
 created on the panel's first-run page with the setup code that the installer prints (complete_setup).
-Accounts created by someone else get a generated password and must choose their own at their first sign-in.
+
+People sign in with their e-mail address (or the user name, which is derived from the address when an account is
+created and stays the account's key). An account created by someone else gets a password typed by that person or a
+generated one; either way its owner must choose their own at the first sign-in, unless the creator unticks that.
+
+Password rules (password_problem) follow NIST SP 800-63B: length rather than forced character classes (12 to 128
+characters, any characters, spaces and pasting allowed), and refusal of what is guessed first: common passwords,
+keyboard and alphabet sequences, repeated characters, and the person's own name or address.
 """
 
 from __future__ import annotations
@@ -63,7 +70,35 @@ COMMON_PASSWORDS = {  # lower case; a password containing one of these is refuse
     "secret",
     "master",
     "login",
+    "sudoo",
+    "starwars",
+    "whatever",
+    "superman",
+    "batman",
+    "shadow",
+    "michael",
+    "jordan",
+    "hello",
+    "freedom",
+    "summer",
+    "winter",
+    "spring",
+    "autumn",
+    "computer",
+    "internet",
+    "default",
+    "temp",
+    "test",
 }
+SEQUENCES = (  # a password containing five characters in a row of one of these (either way) is refused
+    "abcdefghijklmnopqrstuvwxyz",
+    "0123456789",
+    "qwertyuiop",
+    "asdfghjkl",
+    "zxcvbnm",
+    "1qaz2wsx3edc",
+    "qazwsxedc",
+)
 
 _SCRYPT = {"n": 2**15, "r": 8, "p": 1}  # 32 MB of memory and about 0.1 s per hash
 _MAXMEM = 64 * 1024 * 1024
@@ -117,8 +152,16 @@ def generate_password() -> str:
     return secrets.token_urlsafe(18)
 
 
-def password_problem(password: str, username: str) -> str | None:
-    """Why `password` is not acceptable for `username`, or None."""
+def _has_sequence(lowered: str) -> bool:
+    for sequence in SEQUENCES:
+        for text in (sequence, sequence[::-1]):
+            if any(text[i : i + 5] in lowered for i in range(len(text) - 4)):
+                return True
+    return False
+
+
+def password_problem(password: str, username: str, email: str | None = None, names: tuple[str, ...] = ()) -> str | None:
+    """Why `password` is not acceptable for this person, or None."""
     lowered = password.lower()
     if len(password) < MIN_PASSWORD_LENGTH:
         return f"The password must be at least {MIN_PASSWORD_LENGTH} characters long."
@@ -126,10 +169,15 @@ def password_problem(password: str, username: str) -> str | None:
         return f"The password must be at most {MAX_PASSWORD_LENGTH} characters long."
     if any(ord(c) < 32 or ord(c) == 127 for c in password):
         return "The password must not contain control characters."
-    if username.lower() in lowered:
-        return "The password must not contain the user name."
+    personal = [username, (email or "").split("@")[0], *names]
+    if any(len(part) >= 3 and part.lower() in lowered for part in personal):
+        return "The password must not contain your name, user name or e-mail address."
     if any(word in lowered for word in COMMON_PASSWORDS):
-        return "The password contains a common word or sequence that is guessed first. Choose another one."
+        return "The password contains a common word that is guessed first. Choose another one."
+    if _has_sequence(lowered):
+        return "The password contains a sequence such as 12345 or qwerty. Choose another one."
+    if re.search(r"(.)\1\1\1", password):
+        return "The password repeats a character four times in a row. Choose another one."
     if len(set(password)) < 6:
         return "The password is too simple: use at least 6 different characters."
     return None
@@ -200,15 +248,49 @@ def profile_problem(values: dict[str, Any]) -> str | None:
     return None
 
 
+def find(login: str) -> str | None:
+    """The user name of the account that signs in as `login`: its e-mail address or its user name."""
+    login = login.strip().lower()
+    if "@" in login:
+        return next((name for name, user in all_users().items() if str(user.get("email") or "").lower() == login), None)
+    return login if USERNAME_RE.match(login) and get(login) else None
+
+
+def email_taken(email: str | None, other_than: str | None = None) -> bool:
+    """Whether another account already uses this e-mail address."""
+    if not email:
+        return False
+    wanted = email.strip().lower()
+    return any(
+        str(user.get("email") or "").lower() == wanted for name, user in all_users().items() if name != other_than
+    )
+
+
+def username_for(email: str) -> str:
+    """A free user name made from an e-mail address: yousef.sabbah@example.com -> yousef.sabbah (-2, -3, ...)."""
+    local = re.sub(r"[^a-z0-9._-]", "", email.split("@")[0].lower()).strip("._-")
+    if not local or not local[0].isalpha():
+        local = "user" + (f"-{local}" if local else "")
+    base = (local + "xx")[: max(3, len(local))][:28]
+    users = all_users()
+    candidate, number = base, 1
+    while candidate in users:
+        number += 1
+        candidate = f"{base}-{number}"
+    return candidate
+
+
 def display_name(username: str, account: dict[str, Any]) -> str:
     full = " ".join(part for part in (account.get("first_name"), account.get("last_name")) if part)
     return full or username
 
 
-def create(username: str, role: str, password: str | None = None, **fields: Any) -> str:
-    """Create an account and return its password: the one given, or a generated one (shown to the user once, who
-    must replace it at the first sign-in). Accounts of an external sign-in (auth plugin) are created with
-    password="" and have no password here."""
+def create(
+    username: str, role: str, password: str | None = None, must_change: bool | None = None, **fields: Any
+) -> str:
+    """Create an account and return its password: the one given, or a generated one (shown to the user once).
+    With must_change (the default for a generated password) its owner must replace it at the first sign-in.
+    Accounts of an external sign-in (auth plugin) are created with password="" and have no password here."""
     if not USERNAME_RE.match(username):
         raise ValueError(
             "User names are 3 to 32 characters: lower-case letters, digits, dots, dashes and "
@@ -219,8 +301,12 @@ def create(username: str, role: str, password: str | None = None, **fields: Any)
     problem = profile_problem(fields)
     if problem:
         raise ValueError(problem)
+    if email_taken(fields.get("email")):
+        raise ValueError("Another account already uses this e-mail address.")
     generated = password is None
     password = generate_password() if password is None else password
+    if must_change is None:
+        must_change = generated
 
     def add(existing: Document | None) -> Document:
         if existing is not None:
@@ -232,7 +318,7 @@ def create(username: str, role: str, password: str | None = None, **fields: Any)
             "password_changed": time.time(),
             **{key: value for key, value in fields.items() if value not in (None, "")},
         }
-        if generated:
+        if must_change and password:
             account["must_change_password"] = True
         if password:
             account["hash"] = hash_password(password)
@@ -274,10 +360,11 @@ def complete_setup(code: str, username: str, password: str, profile: dict[str, A
             raise ValueError("The panel is already set up. Sign in instead.")
         if not hmac.compare_digest(code.strip().upper().replace(" ", ""), expected.replace(" ", "")):
             raise PermissionError("The setup code is not correct. Show it again with: sudoo.sh setup-code")
-        problem = password_problem(password, username)
+        names = tuple(str(profile.get(key) or "") for key in ("first_name", "last_name"))
+        problem = password_problem(password, username, profile.get("email"), names)
         if problem:
             raise ValueError(problem)
-        create(username, "super_admin", password, **profile)
+        create(username, "super_admin", password, must_change=False, **profile)
         _setup_file().unlink(missing_ok=True)
 
 

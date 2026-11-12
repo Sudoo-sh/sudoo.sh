@@ -5,7 +5,8 @@ only a named set of permissions:
 
     super_admin   Super admin     everything, including the panel's settings and the other super admins
     admin         Administrator   everything except the panel's settings
-    maintainer    Maintainer      creates instances and does everything on them except deleting; GitHub access
+    maintainer    Maintainer      creates instances and does everything on them except deleting (restoring backups
+                                  too); GitHub access
     developer     Developer       follows instances: gets new code, restarts, starts, adds submodules
     viewer        Viewer          sees instances, their activity and logs
 
@@ -24,6 +25,7 @@ PERMISSIONS: dict[str, str] = {
     "instances.update": "Get new code, restart, start, add submodules",
     "instances.operate": "Pause, switch off, upgrade, switch branch, back up, change automation",
     "instances.create": "Create instances",
+    "instances.restore": "Restore an instance from a backup (replaces its database and files)",
     "instances.delete": "Delete instances",
     "instances.credentials": "See Odoo passwords and ports",
     "backups.manage": "Download and delete backups",
@@ -44,7 +46,13 @@ class Role:
 
 _VIEW = frozenset({"instances.view", "instances.logs"})
 _DEVELOP = _VIEW | {"instances.update"}
-_MAINTAIN = _DEVELOP | {"instances.operate", "instances.create", "instances.credentials", "github.manage"}
+_MAINTAIN = _DEVELOP | {
+    "instances.operate",
+    "instances.restore",
+    "instances.create",
+    "instances.credentials",
+    "github.manage",
+}
 _ADMIN = frozenset(PERMISSIONS) - {"settings.manage"}
 
 ROLES: dict[str, Role] = {

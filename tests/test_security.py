@@ -26,7 +26,8 @@ def test_password_hashes_are_peppered_scrypt() -> None:
 
 @pytest.mark.parametrize(
     ("password", "problem"),
-    [("short", "at least 12"), ("MyPassword2024!!", "common word"), ("aaaaaaaaaaaaaaaa", "too simple"),
+    [("short", "at least 12"), ("MyPassword2024!!", "common word"), ("aaaaaaaaaaaaaaaa", "repeats"),
+     ("ab-ab-ab-ab-ab-ab", "too simple"), ("river-12345-lantern", "sequence"), ("tide-ytrewq-lantern", "sequence"),
      ("bob-likes-tea-a-lot", "user name"), ("x" * 129, "at most 128")],  # fmt: skip
 )
 def test_password_rules(password: str, problem: str) -> None:
@@ -35,6 +36,11 @@ def test_password_rules(password: str, problem: str) -> None:
 
 def test_good_password_is_accepted() -> None:
     assert accounts.password_problem("blue-Tiger-71-river", "bob") is None
+
+
+def test_password_must_not_contain_the_persons_details() -> None:
+    assert "name" in (accounts.password_problem("noor-likes-violet-tea", "nk", "x@y.com", ("Noor", "")) or "")
+    assert "e-mail" in (accounts.password_problem("hello-yousef.s-9183", "ys", "yousef.s@x.com") or "")
 
 
 def test_master_password_hash_is_odoo_compatible_format() -> None:

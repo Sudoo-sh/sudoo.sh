@@ -2,16 +2,19 @@
 
     GET    /api/v1/roles                         the roles, what each may do, and every permission
     GET    /api/v1/users                         accounts
-    POST   /api/v1/users                         create: {"name", "role", "first_name", "last_name", "email",
-                                                 "phone"}; the generated password is in this answer only -> 201
-    PATCH  /api/v1/users/<name>                  change the role or the profile
-    POST   /api/v1/users/<name>/password         set a new generated password and return it once
+    POST   /api/v1/users                         create: {"email", "role", "first_name", "last_name", "phone",
+                                                 "name" (optional: made from the e-mail address), "password"
+                                                 (optional: generated), "must_change_password" (default true)};
+                                                 the password is in this answer only -> 201
+    PATCH  /api/v1/users/<name>                  change the role or the profile (also your own)
+    POST   /api/v1/users/<name>/password         set a new password: {"password"} (optional: generated),
+                                                 {"must_change_password"} (default true); returns it once
     DELETE /api/v1/users/<name>/second-factors   remove all second factors (a lost phone) -> 204
     DELETE /api/v1/users/<name>                  delete -> 204
     GET    /api/v1/audit?limit=&user=&instance=  the latest audit-log entries, newest first
 
-Only a super admin creates, changes or deletes super admins. Accounts created or reset here must choose their own
-password at their next sign-in.
+Only a super admin creates, changes or deletes super admins; there is always at least one. Accounts created or reset
+here choose their own password at their next sign-in, unless must_change_password is false.
 """
 
 from __future__ import annotations
@@ -86,15 +89,38 @@ def list_users() -> Response:
     return ok([user_resource(name, user) for name, user in sorted(accounts.all_users().items())])
 
 
+def _password(data: dict[str, Any], name: str, profile: dict[str, Any]) -> tuple[str | None, bool]:
+    """The typed password (checked against the rules) or None for a generated one, and whether it must change."""
+    must_change = data.get("must_change_password", True)
+    if not isinstance(must_change, bool):
+        abort(400, "must_change_password must be true or false.")
+    if not data.get("password"):
+        return None, True
+    password = check.secret(data, "password")
+    names = (str(profile.get("first_name") or ""), str(profile.get("last_name") or ""))
+    problem = accounts.password_problem(password, name, profile.get("email"), names)
+    if problem:
+        abort(400, problem)
+    return password, must_change
+
+
 @blueprint.post("/users")
 @require("accounts.manage")
 def create_user() -> Response:
     data = check.body()
-    name = check.username(check.text(data, "name", max_length=32).lower())
     role = check.one_of(check.text(data, "role"), roles.ROLES, "Choose a role from the list.")
     _guard(role)
+    profile = _profile(data)
+    if not profile.get("email"):
+        abort(400, "Enter the person's e-mail address: they sign in with it.")
+    problem = accounts.profile_problem(profile)
+    if problem:
+        abort(400, problem)
+    chosen = check.text(data, "name", max_length=32).lower()
+    name = check.username(chosen) if chosen else accounts.username_for(profile["email"])
+    typed, must_change = _password(data, name, profile)
     try:
-        password = accounts.create(name, role, **_profile(data))
+        password = accounts.create(name, role, typed, must_change=must_change, **profile)
     except ValueError as error:
         abort(400, str(error))
     log("account created", detail=f"{name} ({accounts.ROLES[role]})")
@@ -111,11 +137,11 @@ def change_user(name: str) -> Response:
     problem = accounts.profile_problem(values)
     if problem:
         abort(400, problem)
+    if "email" in values and accounts.email_taken(values["email"], other_than=name):
+        abort(400, "Another account already uses this e-mail address.")
     if "role" in data:
         role = check.one_of(check.text(data, "role"), roles.ROLES, "Choose a role from the list.")
         _guard(role)
-        if name == g.user["name"] and role != account["role"]:
-            abort(400, "You cannot change your own role.")
         if account["role"] == "super_admin" and role != "super_admin":
             others = [n for n, u in accounts.all_users().items() if u["role"] == "super_admin" and n != name]
             if not others:
@@ -135,8 +161,10 @@ def reset_password(name: str) -> Response:
     if name == g.user["name"]:
         abort(400, "Use Change password for your own account.")
     _guard(roles.normalize(account["role"]))
-    password = accounts.generate_password()
-    accounts.set_password(name, password, must_change=True)
+    data = check.body()
+    typed, must_change = _password(data, name, account)
+    password = typed or accounts.generate_password()
+    accounts.set_password(name, password, must_change=must_change)
     log("password reset", detail=name)
     return ok({"password": password})
 

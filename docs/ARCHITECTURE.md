@@ -29,7 +29,8 @@ each part was chosen.
 | **Metrics** | Figures of the server and every instance (CPU, memory, requests, errors, response times, uptime, disk) with one hour of history, from the monitor and the gateway. | `sudoo/instances/metrics.py` |
 | **Roles** | Five roles, each a set of named permissions; every endpoint and action checks a permission, never a role. | `sudoo/roles.py` |
 | **Storage** | The panel's own data (accounts, tokens, audit log, instance state) in SQLite, behind a storage plugin. | `sudoo/storage/` |
-| **Background work** | Threads in the panel's process: resource monitor (every `METRICS_INTERVAL_SECONDS`, 5 s, reading a continuous `docker stats` stream), automatic pause (every 2 min), GitHub polling (every `POLL_MINUTES`). | `sudoo/background.py`, `instances/monitor.py` |
+| **Background work** | Threads in the panel's process: resource monitor (every `METRICS_INTERVAL_SECONDS`, 5 s, reading a continuous `docker stats` stream), automatic pause (every 2 min), automatic deletion (every 10 min), daily backups (checked every minute, run once `DAILY_BACKUP_TIME` has passed in `TIMEZONE`), GitHub polling (every `POLL_MINUTES`). | `sudoo/background.py`, `instances/monitor.py` |
+| **Backups** | Odoo-format zips (`dump.sql`, `filestore/`, `manifest.json`) in `BACKUPS_DIR`, named `<instance>__<database>__<YYYYMMDD-HHMMSS>__<kind>.zip`. Four kinds: `manual`, `daily`, `deletion`, `before-restore`; each instance keeps only its latest `daily` and `before-restore`. Restoring replaces an instance's database and filestore in place. | `sudoo/instances/backups.py`, `instances/operations.py` |
 | **Jobs** | Every action (create, update, restart...) runs as a job in its own thread, with steps, notes and a log. One job at a time per instance; others wait. | `sudoo/core/jobs.py`, `instances/operations.py` |
 | **Exposure plugin** | Makes the panel and each gateway reachable from outside. Default `cloudflare-quick`: one `cloudflared` container per target, opening an outgoing connection to Cloudflare. Alternative `host-ports`: the ports are opened on the server. | `sudoo/exposure/` |
 | **Add-on source plugin** | Provides the Enterprise add-ons of a version: an existing folder (`folder`) or a branch of a git repository (`git`). | `sudoo/addons/` |
@@ -89,6 +90,24 @@ When a link changes (after a restart), the monitor sees it within 15 seconds and
 | Running | Odoo, PostgreSQL, connector |
 | Paused | connector only (so a visit still reaches the gateway, which starts the rest) |
 | Switched off | connector only; the gateway answers "Switched off" and does not start anything |
+
+Besides its files, each instance has a small record in the panel's storage (`core/state.py`, collection
+`instance_state`):
+
+| Field | Meaning |
+| :--- | :--- |
+| `last_visit` | The latest request through the gateway, or start; the automatic pause counts from it. |
+| `used_since` | The first visit or start after the instance's last daily backup. Set by the gateway and by every start or restart, cleared when the daily backup starts. The daily backup loop backs up an instance only when `used_since` is earlier than the latest backup time. |
+| `paused`, `switched_off` | Why the instance is stopped. |
+| `branch_missing` | The branch no longer exists on GitHub. |
+
+Visits are kept in memory and written at most every 30 seconds; the other fields are written at once.
+
+**Backups and restores.** Jobs of kind `backup` take a `manual` backup (**Back up now**), a `daily` one (the daily
+loop) or a `deletion` one (first step of a deletion). A backup starts only the database container of a paused
+instance and stops it again afterwards. The `restore` job (permission `instances.restore`) saves a `before-restore`
+backup, stops Odoo, drops and creates the database, loads `dump.sql` through `psql`, replaces the filestore through
+a one-off container of the instance's Odoo image, sets `web.base.url` to the current link and starts Odoo.
 
 ---
 
@@ -274,7 +293,7 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
   person with access to the server, not whoever finds the new public link first, owns the panel.
 
 ### Roles as sets of permissions
-- **Chosen:** five roles (super admin, administrator, maintainer, developer, viewer), each a set of thirteen named
+- **Chosen:** five roles (super admin, administrator, maintainer, developer, viewer), each a set of fourteen named
   permissions; every endpoint and action checks a permission. The web app shows only what the role allows, and the
   backend checks again on every request.
 - **Why:** teams differ: some let developers create instances, others only let them follow branches. A new role is
@@ -296,6 +315,20 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
 - **Cost:** backups are kept until someone deletes them, so they use disk space.
 - **Considered:** deleting after a period without visits (an instance used once a month would disappear
   unexpectedly); pg_dump's custom format (smaller, but cannot be restored from Odoo's database manager).
+
+### Daily backups of used instances, restored in place
+- **Chosen:** once a day, at `DAILY_BACKUP_TIME` in `TIMEZONE`, each instance used since its last daily backup is
+  backed up, and the new daily backup replaces the previous one. A restore puts a backup back into the same
+  instance, after saving the current state as a `before-restore` backup.
+- **Why:** people change data in an instance and want yesterday's state back with one click, without Odoo's database
+  manager or the master password. Backing up only used instances keeps the nightly work and the disk use to what
+  changed: an instance nobody opened still has its last daily backup. Keeping one daily and one before-restore
+  backup per instance bounds the disk use; the before-restore backup makes a wrong restore undoable.
+- **Cost:** only one day back: an older state is only available from a backup taken by hand. The backup runs while
+  Odoo runs, so a change made during those seconds may or may not be in it.
+- **Considered:** backing up every instance every night (much more disk and work for idle instances); keeping
+  several days of daily backups (more disk on small servers; can be added as a setting later); restoring into a new
+  instance next to the old one (two links and twice the memory for what is usually an undo).
 
 ### Upgrading only the modules that changed
 - **Chosen:** after new code arrives, the panel compares the old and new commits (repository and submodules) and runs

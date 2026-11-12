@@ -86,3 +86,31 @@ def test_docker_stats_lines_with_terminal_codes():
     assert _stats_line("\x1b[J\n") is None
     assert _stats_line('{"Name": "x"}\n') is None
     assert _stats_line("{broken\n") is None
+
+
+def test_daily_backup_slot_and_due_instances(monkeypatch):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from sudoo.config import live
+    from sudoo.instances import backups
+
+    monkeypatch.setattr(live, "_current", live._current.model_copy(update={"timezone": "Africa/Cairo"}), raising=False)
+    zone = ZoneInfo("Africa/Cairo")
+    at = datetime(2026, 11, 12, 15, 30, tzinfo=zone).timestamp()
+    slot = backups.daily_slot(at)
+    assert datetime.fromtimestamp(slot, zone) == datetime(2026, 11, 12, 0, 0, tzinfo=zone)
+    before_midnight = datetime(2026, 11, 11, 23, 0, tzinfo=zone).timestamp()
+    assert backups.needs_daily(before_midnight, slot)  # used yesterday: due
+    assert not backups.needs_daily(slot + 60, slot)  # first used after midnight: tomorrow's
+    assert not backups.needs_daily(None, slot)  # not used since the last one
+
+
+def test_backup_names_carry_their_kind():
+    from sudoo.instances.backups import FILE_RE
+
+    old = FILE_RE.match("shop__shop_db__20261112-000000.zip")
+    assert old and old["kind"] is None
+    daily = FILE_RE.match("shop__shop_db__20261112-000000__daily.zip")
+    assert daily and daily["kind"] == "daily"
+    assert not FILE_RE.match("shop__shop_db__20261112-000000__other.zip")

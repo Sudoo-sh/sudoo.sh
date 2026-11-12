@@ -11,7 +11,7 @@ COPY --from=docker:29-cli /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=docker:29-cli /usr/local/libexec/docker/cli-plugins/docker-compose /usr/local/libexec/docker/cli-plugins/docker-compose
 COPY --from=ghcr.io/astral-sh/uv:0.12 /uv /usr/local/bin/uv
 
-RUN apk add --no-cache git openssh-client openssh-keygen \
+RUN apk add --no-cache git openssh-client openssh-keygen tzdata \
  && git config --system --add safe.directory '*'
 
 ENV UV_COMPILE_BYTECODE=1 \

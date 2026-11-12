@@ -30,7 +30,7 @@ your own product.
 | **Character** | Exact, calm, a little warm. |
 | **World** | A server room on a night shift: terminals, status lights. Odoo's plum is the brand. |
 | **Moments** | The live charts and the terminal log: the only places with rich colour. |
-| **Signature** | The `>o` prompt mark, and a status dot that moves only while something is really running. |
+| **Signature** | The mark, Odoo's round "o" followed by a text cursor, and a status dot that moves only while something is really running. |
 
 The chrome (sidebar, buttons, borders, labels) stays quiet and graphite, so the content reads first. The accent
 marks the primary action, the selection and the one figure that matters. Nothing glows, nothing is decorated for
@@ -116,7 +116,7 @@ animation. The first-run and sign-in screens, seen rarely, bring their blocks in
 | Thing | Motion | Curve and duration |
 | :--- | :--- | :--- |
 | Any press (buttons, cards, rows, choices, segments) | Scales to 0.97 (0.985 for large surfaces) on press, before the click | `--ease`, 160 ms |
-| Menus | Grow from the button that opened them (`transform-origin` at the trigger), shrink back into it | `--ease`, 180 ms in, 120 ms out |
+| Menus | Grow from the button that opened them (`transform-origin` at the trigger), shrink back into it; drawn above the page (a portal), below the button or above it when there is no room | `--ease`, 180 ms in, 120 ms out |
 | Dialogs | Not anchored to a trigger: materialize in the centre (scale 0.96, opacity, 4 px blur) | `--ease`, 240 ms |
 | Drawer | In from the right edge and out the same way (spatial consistency) | `--ease-drawer` (the iOS sheet curve), 400 ms in, 280 ms out |
 | Toasts | Rise from the bottom edge, sink back when they go | `--ease`, 320 ms |
@@ -145,16 +145,19 @@ Implementation rules:
 
 ## 7. Charts
 
-[Chart.js](https://www.chartjs.org/) draws the charts (`components/charts/LiveChart.tsx`).
+[Chart.js](https://www.chartjs.org/) draws every chart (`components/charts/`): `LiveChart` (lines over time),
+`Sparkline` (the line inside a figure card), `Bars` (one bar per instance) and `Ring` (parts of a whole).
 
-- **One main chart per screen,** clearly the largest thing on it: the server's processor and memory on the
-  Instances page, one chosen figure (with a switch) on an instance's page. Other data is a list or plain figures.
-- **One accent per chart:** the first series is the accent with a soft gradient under it; a second series is quiet.
+- **Each chart answers its own question;** no figure is drawn twice on a page. On the Instances page: the figure
+  cards (processor, memory, disk, instances running), then requests and errors of all instances, instances by state,
+  response time, and which instances use the most (processor, memory or disk, with a switch).
+- **Figure cards carry a line** of the last hour under the figure: no axes, no labels, no tooltip. The figure says
+  the value; the line says the direction.
+- **One accent per chart:** the first series is the accent with a soft gradient under it; a second series is quiet
+  (`--series-2`, or `--negative` for errors). In bars only the largest is the accent. Rings use the status colours.
 - **Muted grid and monospace labels;** the time axis shows seconds while the chart covers only a few minutes.
 - **Live without redrawing:** each sample from the event stream is written into the chart, and the points glide to
-  their new places (300 ms). Colours are read from the tokens and follow the theme.
-- **Figures are numbers:** the stat cards have a label, a figure and a comparison ("6% average, last hour"), never
-  a mini chart.
+  their new places (300 ms). Colours are read from the tokens (`charts/theme.ts`) and follow the theme.
 
 ---
 
@@ -176,7 +179,7 @@ Implementation rules:
 | Fonts | `--font` and `--mono` in `_tokens.scss`; add the font files with `npm install @fontsource/<name>` and import them in `web/src/main.tsx` |
 | One component | Its block in `_components.scss` or `_pages.scss`, named after the component |
 | The e-mails | Templates in `src/sudoo/mail/templates/`, or your own folder with `MAIL_TEMPLATES_DIR` ([Configuration](CONFIGURATION.md)) |
-| The logo mark | `web/src/components/ui/Brand.tsx` and `web/public/favicon.svg` |
+| The logo mark | `web/public/favicon.svg` is the drawing; `web/src/components/ui/Brand.tsx`, `src/sudoo/instances/mark.svg` (status pages), `docs/images/brand/` and the e-mail header (`src/sudoo/mail/templates/layout.html`, drawn in HTML because Gmail removes SVG) repeat it. A test checks the copies match |
 
 Working on the web app: `cd web && npm install && npm run dev` serves it with live reload on port 5173, using a
 backend on `127.0.0.1:9002` (see `web/vite.config.ts`; set `SUDOO_API` to use another one, for example through an

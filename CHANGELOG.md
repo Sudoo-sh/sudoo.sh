@@ -6,8 +6,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Daily backups:** once a day (`DAILY_BACKUP_TIME`, default 00:00, in `TIMEZONE`), every instance that was used
+  since its last daily backup is backed up. Each instance keeps only its latest daily backup; they go when the
+  instance is deleted. Settings: `DAILY_BACKUPS`, `DAILY_BACKUP_TIME`, `TIMEZONE` (Settings, Backups).
+- **Restore from the instance's page:** a Backups card with "Back up now", "Restore the latest" (with its date) and
+  every backup of the instance. A restore saves the current state first ("before a restore"), then replaces the
+  database and the filestore and starts Odoo. New permission `instances.restore` (maintainers and up) and action
+  `POST /api/v1/instances/<name>/actions/restore`.
+- **Dashboard charts:** a one-hour line inside every figure card, and charts for what the cards do not show:
+  requests and errors of all instances, instances by state, response time, and the instances using the most
+  processor, memory or disk.
+- **Passwords typed by an administrator:** new accounts and password resets can generate a password or take one typed
+  by the administrator, checked live with a strength meter; optionally without asking the person to change it.
+- **A new logo,** the same everywhere: Odoo's round "o" followed by a text cursor.
+
 ### Changed
 
+- **Sign in with the e-mail address.** Every account has a unique e-mail address; the user name is made from it and
+  still works. First-run setup no longer asks for a user name.
+- **Super admins can be edited,** including your own account; the last super admin stays one.
+- **Stronger password rules** (NIST SP 800-63B): sequences such as 12345 or qwerty, repeated characters and the
+  person's own name or address are refused, in the browser and on the server.
+- **Menus open above the page,** so a list never cuts them off, and upwards near the bottom of the window.
+- **The unsaved-changes bar on the Settings page follows the theme.**
 - **The web app builds with Node.js 26, the current LTS release** (image, CI and `engines`). Dependabot proposes
   only LTS (even-numbered) Node majors.
 - **The interface follows Apple's design and motion principles** ([docs/DESIGN.md](docs/DESIGN.md)):
@@ -19,9 +42,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
     between pages;
   - themes that fade instead of flashing;
   - support for reduced motion, reduced transparency and higher contrast.
-- **The live charts use Chart.js:**
-  - one main chart per page: the server on Instances, a chosen figure on each instance;
-  - updated in place as each sample arrives.
+- **The live charts use Chart.js,** updated in place as each sample arrives.
 - **Faster measurements:** every 5 seconds (`METRICS_INTERVAL_SECONDS`), from a continuous `docker stats` stream.
   Git details are read at most once a minute and right after a job.
 - **No status badge:** a small "Reconnecting" notice appears only when the connection is lost.

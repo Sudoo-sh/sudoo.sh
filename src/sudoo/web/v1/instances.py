@@ -7,6 +7,7 @@
     POST   /api/v1/instances                         create                         -> 202, Location: job
     PATCH  /api/v1/instances/<name>                  change automation settings and lifetime
     POST   /api/v1/instances/<name>/actions/<action> restart, update, pause, ...    -> 202, Location: job
+                                                     restore: {"file"} optional, the latest backup otherwise
     DELETE /api/v1/instances/<name>                  delete after a backup; body {"confirm": "<name>"} -> 202
     GET    /api/v1/instance-plan?repo=&branch=&name= the name and database a new instance would get
     GET    /api/v1/instance-quota                    how many instances the caller may still create, and when
@@ -53,6 +54,7 @@ ACTIONS = {
     "remove-submodule": ("Remove submodule", "submodule", "instances.operate"),
     "switch-branch": ("Switch branch", "update", "instances.operate"),
     "backup": ("Back up", "backup", "instances.operate"),
+    "restore": ("Restore a backup", "restore", "instances.restore"),
     "delete": ("Delete instance", "delete", "instances.delete"),
 }
 
@@ -238,6 +240,9 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
         if check.text(data, "confirm", max_length=40) != name:
             abort(400, "Type the instance name exactly to confirm.")
         return operations.delete, (name,)
+    if action == "restore":
+        file_name = check.text(data, "file", max_length=200) or None
+        return operations.restore, (name, file_name)
     if action == "upgrade":
         return operations.upgrade_modules, (name, check.module_list(check.text(data, "modules", max_length=4000)))
     if action == "switch-branch":

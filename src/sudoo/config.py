@@ -21,8 +21,9 @@ import threading
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, Literal, cast
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PACKAGE_DIR = Path(__file__).resolve().parent
@@ -140,6 +141,28 @@ class Settings(BaseSettings):
     metrics_interval_seconds: float = Field(
         5, ge=2, le=60, description="Seconds between two measurements of the server and the instances."
     )
+    daily_backups: bool = Field(
+        True,
+        description="Back up every instance that was used since its last daily backup, once a day; each keeps only "
+        "its latest daily backup.",
+    )
+    daily_backup_time: str = Field(
+        "00:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$", description="When the daily backups run (HH:MM, 24 hours)."
+    )
+    timezone: str = Field("UTC", description="Time zone of the daily backup time, for example Africa/Cairo.")
+
+    @field_validator("timezone")
+    @classmethod
+    def _known_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as error:
+            raise ValueError("unknown time zone; use a name such as UTC or Africa/Cairo") from error
+        return value
+
+    @property
+    def zone(self) -> ZoneInfo:
+        return ZoneInfo(self.timezone)
 
     # ------------------------------------------------------------------ fixed intervals (not settings)
     pause_check_interval_seconds: int = 120
@@ -211,6 +234,9 @@ EDITABLE = (
     "delete_after_days",
     "poll_minutes",
     "metrics_interval_seconds",
+    "daily_backups",
+    "daily_backup_time",
+    "timezone",
     "odoo_versions",
     "odoo_min_version",
     "odoo_image",

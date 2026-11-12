@@ -1,5 +1,5 @@
-"""Work that runs on its own inside the panel process: monitor, automatic pause, automatic deletion, GitHub polling,
-gateway, connectors."""
+"""Work that runs on its own inside the panel process: monitor, automatic pause, automatic deletion, daily backups,
+GitHub polling, gateway, connectors."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from sudoo import exposure, triggers
 from sudoo.config import settings
 from sudoo.core import jobs
 from sudoo.core.state import STATE
-from sudoo.instances import gateway, monitor, operations, store
+from sudoo.instances import backups, gateway, monitor, operations, store
 from sudoo.repos import github
 
 
@@ -22,6 +22,7 @@ def start() -> None:
         STATE.save_visits_forever,
         _pause_idle_instances,
         _delete_expired_instances,
+        _daily_backups,
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     gateway.start(wake=start_wake_job)
@@ -71,3 +72,21 @@ def _delete_expired_instances() -> None:
                     operations.delete,
                     name,
                 )
+
+
+def _daily_backups() -> None:
+    """Every minute: once DAILY_BACKUP_TIME has passed, back up each instance that was used since its last daily
+    backup (STATE "used_since" earlier than that time). An instance that is busy is tried again a minute later; one
+    whose backup failed waits for the next day."""
+    tried: dict[str, float] = {}
+    while True:
+        time.sleep(60)
+        if not settings.daily_backups:
+            continue
+        slot = backups.daily_slot()
+        for name in store.names():
+            if tried.get(name) == slot or jobs.busy(name):
+                continue
+            if backups.needs_daily(STATE.get(name).get("used_since"), slot):
+                tried[name] = slot
+                jobs.start(name, "Daily backup", "backup", operations.daily_backup, name)

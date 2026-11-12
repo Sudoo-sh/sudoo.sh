@@ -2,7 +2,8 @@
 
 **Audience:** everyone who uses the Sudoo.sh panel in a browser: super admins, administrators, maintainers,
 developers and viewers.
-**Covers:** the first run, signing in, every page and button of the panel, roles, backups, settings, step by step.
+**Covers:** the first run, signing in, every page and button of the panel, roles, passwords, backups and restores,
+settings, step by step.
 **You need:** the panel's link and an account (or, on a new server, the setup code). Nothing has to be installed on
 your computer.
 
@@ -55,12 +56,16 @@ creates the first account, which is a **Super admin**.
    | Field | What to enter |
    | :--- | :--- |
    | **Setup code** | The code from the installer. |
-   | **First name**, **Last name**, **E-mail** | Your details. The e-mail address can later receive sign-in codes. |
+   | **First name**, **Last name** | Your name. |
+   | **E-mail** | Required. You sign in with it, and it can later receive sign-in codes. |
    | **Phone** | Optional. |
-   | **User name** | What you sign in with, in lower case. |
-   | **Password**, **Password again** | At least 12 characters. A few unrelated words make a strong one. |
+   | **Password**, **Password again** | 12 to 128 characters that follow the [password rules](#password-rules). A few unrelated words make a strong one. |
 
 3. Click the button at the bottom. The account is created and you are signed in.
+
+You do not choose a user name. The panel makes one from your e-mail address (`yousef.sabbah@example.com` becomes
+`yousef.sabbah`; when it is taken, `yousef.sabbah-2`, `-3` and so on). It is the account's internal key: it appears
+in small monospace letters under your name, in the audit log and in the API. You can also sign in with it.
 
 The setup code works once: after the first account exists, the page no longer appears. After 5 wrong codes within
 15 minutes, the address you use is blocked for 15 minutes.
@@ -68,14 +73,15 @@ The setup code works once: after the first account exists, the page no longer ap
 ### Signing in
 
 1. Open the panel's link.
-2. Enter your **user name** and **password**, then click **Sign in**.
+2. Enter your **e-mail address** in the **E-mail** field and your **password**, then click **Sign in**. Your user
+   name also works in this field, for example for an older account that has no e-mail address.
 3. If your account has a second factor, the **Enter your code** step follows:
    * **E-mail code**: a 6-digit code is sent to your e-mail address at once. **Send a new code** becomes available
      after 60 seconds.
    * **Authenticator app**: open the app and type the 6-digit code shown for Sudoo.sh.
    * When your account has both, switch between them with the buttons above the code.
    * Type the code (it is checked as soon as the sixth digit is in) or click **Verify and sign in**. **Back**
-     returns to the user name and password.
+     returns to the e-mail address and password.
 
 ### Before anything else opens
 
@@ -83,7 +89,7 @@ Two things can be asked of you right after signing in. Until they are done, no o
 
 | Situation | What you do |
 | :--- | :--- |
-| Your account is new, or your password was reset | **Choose your password**: enter the password you were given, then your own new password twice. |
+| Your account is new, or an administrator set a new password for you | **Choose your password**: enter the password you were given, then your own new password twice. An administrator who typed your password can leave this step out. |
 | The server requires a second factor for your role, and you have none | **Set up a second factor**: an authenticator app or an e-mail code ([section 9](#9-my-account)). |
 
 By default super admins and administrators must use a second factor. A super admin can change this
@@ -91,8 +97,10 @@ By default super admins and administrators must use a second factor. A super adm
 
 ### Good to know
 
+* A wrong e-mail address and a wrong password give the same message: "Wrong e-mail address or password." The panel
+  does not tell which of the two was wrong.
 * After **5 wrong passwords** for the same account from the same place, or 20 from the same place, signing in is
-  blocked for **15 minutes**. Wait, or ask an administrator to reset your password.
+  blocked for **15 minutes**. Wait, or ask an administrator to set a new password for you.
 * You are signed out after **60 minutes without activity**, and after **12 hours** in any case. A super admin can
   change both times on the Settings page.
 * **Sign out** (your name at the bottom of the sidebar, or **My account**) ends the session at once. Use it on
@@ -115,17 +123,24 @@ This is the first page after signing in. The sidebar on the left leads to the ot
 
 On a small screen the sidebar opens with the menu button at the top left.
 
-**Server figures** (the four tiles at the top):
+**Server figures** (the four cards at the top). Each card shows the figure now and, inside it, a small line of the
+last hour:
 
-| Tile | What it shows |
+| Card | What it shows |
 | :--- | :--- |
 | Processor | How busy the server's processor is. |
 | Memory | Memory in use on the server. |
 | Disk | Disk space in use on the server. |
 | Running | How many instances are running now. |
 
-Below the tiles, a **live chart** shows the server's processor and memory over the last hour, and **Busiest now**
-lists the instances that use the most right now.
+**Charts.** Below the cards, four charts show what the cards do not:
+
+| Chart | What it shows |
+| :--- | :--- |
+| **Requests** | Requests per minute of all instances together over the last hour, with the errors (answers 500 to 599) as a second line. |
+| **Instances** | A ring of the instances by state (**Online**, **Working**, **Paused**, **Switched off**), with the total in the middle. |
+| **Response time** | How long Odoo takes to start answering, over the last hour: the slowest instance's 95th percentile (95% of its requests were faster) and the average. |
+| **By instance** | Bars of the instances that use the most now. Switch between **CPU**, **Memory** and **Disk**. Click a bar to open that instance. |
 
 **The list of instances.** Use **Search** to find an instance by name, and the filters **All**, **Online**,
 **Paused** and **Working** (each with its count). Each instance has a card with:
@@ -169,10 +184,12 @@ The menu:
 | **Update submodules** | Moves every submodule to the newest commit of its branch and restarts ([section 6](#6-submodules)). |
 | **Upgrade modules** | Like **Upgrade** in Odoo's Apps menu. Enter technical names separated by commas, or `all`. |
 | **Switch branch** | Moves the instance to another branch of the same repository, upgrades its modules and restarts. The database stays. |
-| **Back up now** | Saves the database and the files as an Odoo backup, listed under **Backups**. A paused instance stays paused. |
 | **Pause** | Stops it to free memory now. It starts again on the next visit. |
 | **Switch off** | Stops it completely. Visitors see that it is switched off, and it does not start until someone clicks **Start**. |
 | **Delete** | Removes Odoo, its database and its files, after a backup. Type the instance's name to confirm. |
+
+**Back up now** and **Restore the latest** are on the **Backups** card of the **Overview** tab
+([The Backups card](#the-backups-card)).
 
 Each button and menu item is shown only to roles that may use it. While a job runs on the instance, the buttons
 wait: one job per instance at a time.
@@ -193,12 +210,38 @@ wait: one job per instance at a time.
 
 | Tab | Contents |
 | :--- | :--- |
-| **Overview** | Processor, memory, requests per minute and response time of this instance; one live chart with a **CPU / Memory / Requests / Response** switch; details such as the database, its size and how long it has been running. |
+| **Overview** | Four cards with the processor, memory, requests per minute and response time of this instance, each with a small line of the last hour; one live chart with a **CPU / Memory / Requests / Response** switch; the **Backups** card; details such as the database, its size and how long it has been running. |
 | **Activity** | Every job on this instance, newest first. Click one to open a panel with its steps, notes, the reason it failed (if it did) and the technical log, which follows live while the job runs. |
 | **Code** | The repository and branch, the recent commits, and the submodules, with **Add submodule** and **Remove** ([section 6](#6-submodules)). |
 | **Odoo log** | The latest lines Odoo wrote (100 to 3000), with **Refresh**. Lines with `ERROR` or `Traceback` usually explain a problem. |
 | **Settings** | The automation switches and the lifetime ([section 5](#5-keeping-the-code-up-to-date)). Changes are saved at once. |
 | **Access** | The Odoo sign-in: address, login, password, and the master password (for Odoo's database manager). Click **Show the passwords**; each viewing is recorded in the audit log. |
+
+### The Backups card
+
+The **Backups** card on the **Overview** tab holds the instance's backups.
+
+| Part | What it does |
+| :--- | :--- |
+| **Back up now** | Saves the database and the files as an Odoo backup now. A running instance keeps running; a paused one stays paused. |
+| **Restore the latest** | Puts back the newest backup taken by hand, daily or before a deletion. Greyed out when the instance has none. |
+| **Latest backup** | The date and time of that backup, its kind, its size and how long ago it was taken. |
+| The list | Every backup of the instance, newest first, with when it was taken, its kind and its size. **Restore** puts back that backup; **Download** (the arrow) saves the zip, for roles that may manage backups. |
+
+The kinds of backup are explained in [section 10](#10-backups-and-audit-log).
+
+**Restoring.** Click **Restore the latest**, or **Restore** on a line of the list. The dialog shows the backup's date,
+kind and size, and says that the database and its files go back to how they were then: changes made since are
+replaced. Click **Restore** to confirm. The job:
+
+1. saves the current state as a **Before a restore** backup, so the restore can be undone,
+2. stops Odoo,
+3. replaces the database and the files with those of the backup, and sets the instance's current link in the
+   database again,
+4. starts Odoo.
+
+It takes about a minute or two. The instance is running afterwards, even if it was paused before. To undo a
+restore, restore the **Before a restore** backup.
 
 ---
 
@@ -348,11 +391,12 @@ Every account has one role. The role decides which pages, buttons and menu items
 | Restart, start | yes | yes | yes | yes | no |
 | Create instances | yes | yes | yes | no | no |
 | Pause, switch off, upgrade modules, switch branch, back up now, remove a submodule | yes | yes | yes | no | no |
+| Restore a backup of an instance (replaces its database and files) | yes | yes | yes | no | no |
 | Change an instance's settings tab (automation, lifetime) | yes | yes | yes | no | no |
 | See the Odoo passwords (Access tab) | yes | yes | yes | no | no |
 | GitHub access (deploy keys) | yes | yes | yes | no | no |
 | Delete instances | yes | yes | no | no | no |
-| Backups (download, delete) | yes | yes | no | no | no |
+| Backups page (download, delete) | yes | yes | no | no | no |
 | Accounts, API tokens, audit log | yes | yes | no | no | no |
 | Create, change and delete super admins | yes | no | no | no | no |
 | Settings, restart the panel | yes | no | no | no | no |
@@ -366,19 +410,36 @@ and "sync operator" became **Developer**.
 
 ### The Accounts page
 
-**Accounts** (sidebar, Administration) lists every account with its role, whether it has a second factor and its
-last sign-in.
+**Accounts** (sidebar, Administration) lists every account with its name, e-mail address (or user name, when it
+has none), role, whether it has a second factor and its last sign-in. Your own account is marked **(you)**, and
+**new password pending** shows on accounts that must still choose their own password.
 
 | Action | What happens |
 | :--- | :--- |
-| **New account** | Enter first name, last name, e-mail and phone (optional), a **user name** (3 to 32 lower-case letters, digits, dots and dashes, starting with a letter) and a **role**. A password is generated and shown **once**: copy it and give it to the person through a safe channel. At the first sign-in they must choose their own. |
-| **Edit** (row menu) | Change the profile and the role. |
-| **Reset password** | A new password is generated and shown once. The account is signed out everywhere and must choose a new password at the next sign-in. |
-| **Remove second factors** | For a person who lost their phone or mailbox. They sign in with the password only, and set up a new second factor if one is required. |
-| **Delete** | The account is removed and signed out at once. |
+| **New account** | Enter first name, last name, **e-mail** (required: the person signs in with it, and no other account may use it), phone (optional) and a **role**, then choose the password (below). The user name is made from the e-mail address. |
+| **Edit** (row menu) | Change the first and last name, the e-mail address, the phone and the role. |
+| **Set a new password** (row menu) | Choose a new password the same way as for a new account. The account's current sessions end. |
+| **Remove second factors** (row menu) | For a person who lost their phone or mailbox. They sign in with the password only, and set up a new second factor if one is required. |
+| **Delete** (row menu) | The account is removed and signed out at once. |
 
-Rules: you cannot change or delete your own account here (use **My account**), only a super admin can create,
-change or delete a super admin, and the last super admin cannot be deleted or given another role.
+**The password of a new account**, and **Set a new password**, offer two choices:
+
+| Choice | What happens |
+| :--- | :--- |
+| **Generate** | The panel makes a random password and shows it **once**. Copy it and give it to the person through a safe channel. At the first sign-in they must choose their own. |
+| **Type a password** | Type it twice. It is checked as you type against the [password rules](#password-rules), and a meter of four bars shows its strength: **Acceptable**, **Good**, **Strong**, **Very strong**. **Suggest a strong one** fills in a random password with a copy button. The switch **Ask them to choose their own password when they first sign in** is on by default; turn it off only when the person keeps the password you typed. |
+
+In both cases the password is shown once after you click **Create** or **Set password**.
+
+Rules:
+
+* Only a super admin can create, change or delete a super admin. A super admin can edit other super admins.
+* You can edit your own account here: name, e-mail, phone and role. Its menu holds only **Edit**; to change your
+  password or second factors use **My account**, and you cannot delete your own account.
+* Changing your own role asks for confirmation and signs you out; you sign in again with the new role. When the role
+  of another account changes, that account is signed out too.
+* There is always at least one super admin: the last one cannot be given another role or be deleted.
+* Two accounts cannot share an e-mail address.
 
 Passwords are never stored by the panel, only checked: see
 [Passwords and encryption](concepts/PASSWORDS_AND_ENCRYPTION.md).
@@ -400,15 +461,8 @@ Click your name at the bottom of the sidebar.
 sign-in codes it is locked here; to change it, remove the e-mail code and set it up again with the new address.
 
 **Password.** Enter your current password and the new one twice, then click **Change password**. The new password
-must:
-
-* be 12 to 128 characters long,
-* use at least 6 different characters,
-* not contain your user name,
-* not contain a common word or sequence such as `password`, `admin`, `odoo` or `123456`.
-
-A short sentence is the easiest kind of password to remember and the hardest to guess, for example
-`green tea at 7 on the balcony`. Changing your password signs out your other sessions.
+is checked as you type against the [password rules](#password-rules), and a meter of four bars shows its strength
+(**Acceptable**, **Good**, **Strong**, **Very strong**). Changing your password signs out your other sessions.
 
 **Second factor.** A second factor asks for a 6-digit code after the password, so a stolen password alone is not
 enough.
@@ -421,19 +475,51 @@ enough.
 **Remove** turns a factor off; type your password to confirm. Your other sessions end. If your role requires a
 second factor, keep at least one.
 
+### Password rules
+
+The same rules apply everywhere a password is chosen: the first run, a new account, **Set a new password** and
+**My account**. They follow the NIST guidelines for passwords (SP 800-63B): length counts, forced mixes of
+characters do not.
+
+| Rule | Details |
+| :--- | :--- |
+| Length | 12 to 128 characters. |
+| Characters | Any, including spaces. You do not need capitals, digits or symbols. |
+| Common passwords | Refused when it contains a common password or word, such as `password`, `qwerty`, `admin`, `odoo`, `sudoo` or `welcome`. |
+| Sequences | Refused when it contains five characters in a row of the alphabet, the digits or a keyboard row, in either direction, such as `abcde`, `12345`, `54321`, `qwerty`, `asdfg` or `zxcvb`. |
+| Repeats | Refused when one character appears four times in a row, such as `aaaa`. |
+| Variety | At least 6 different characters. |
+| Personal details | Refused when it contains your first name, last name, user name or the part of your e-mail address before the `@` (each counted when 3 characters or longer). |
+
+Pasting a password and using a password manager both work. A short sentence is the easiest kind of password to
+remember and the hardest to guess, for example `green tea at 7 on the balcony`.
+
 ---
 
 ## 10. Backups and audit log
 
 ### Backups
 
-**Backups** (sidebar, Operations) lists every backup: instance, database, when it was taken and its size.
+**Backups** (sidebar, Operations) lists every backup: instance, database, **Kind**, when it was taken and its
+size. An instance's own backups are also on the **Backups** card of its **Overview** tab
+([The Backups card](#the-backups-card)).
 
-* A backup is taken **before every deletion**, automatic or by hand. If the backup fails, the instance is not
-  deleted.
-* **Back up now** (menu on an instance's page) takes one at any time.
-* Backups are kept until someone deletes them, so look at the list from time to time; the disk usage is on the
-  Instances page.
+| Kind | When it is taken | How long it is kept |
+| :--- | :--- | :--- |
+| **By hand** | **Back up now** on an instance's page. | Until someone deletes it. |
+| **Daily** | Once a day, for each instance that was used since its last daily backup (below). | Only the latest per instance: a new daily backup replaces the previous one. Removed when the instance is deleted. |
+| **Before deletion** | Before every deletion, automatic or by hand. If the backup fails, the instance is not deleted. | Until someone deletes it. |
+| **Before a restore** | At the start of every restore: the state just before it, so the restore can be undone. | Only the latest per instance. Removed when the instance is deleted. |
+
+**Daily backups.** Every day at the time set under **Settings, Backups** (00:00 UTC by default), the panel backs up
+each instance that was used since its last daily backup. An instance counts as used when someone opened it through
+its link, or when it was started or restarted. An instance nobody used gets no new daily backup, so its last one
+stays. A running instance keeps running during the backup, and a paused one stays paused. If the panel was not
+running at that time, the backups start as soon as it is back. When an instance is deleted, its daily backup goes
+with it: the backup taken before the deletion is newer and is kept.
+
+Backups taken by hand and before deletions are kept until someone deletes them, so look at the list from time to
+time; the disk usage is on the Instances page.
 
 What a backup contains: one zip file in Odoo's own backup format, with
 
@@ -445,7 +531,11 @@ What a backup contains: one zip file in Odoo's own backup format, with
 
 **Download** saves the zip. **Delete** removes a backup you no longer need.
 
-To restore a backup:
+**Restoring an instance.** To put an instance back to an earlier state, use **Restore the latest** or **Restore**
+on its **Backups** card ([Restoring](#the-backups-card)). The current state is saved first as a **Before a
+restore** backup.
+
+**Restoring into another Odoo.** The zip also works in any Odoo of the same version, for example to make a copy:
 
 1. Open an Odoo of the **same version** (an instance's link, or any other Odoo) at `/web/database/manager`.
 2. Click **Restore Database**.
@@ -475,6 +565,7 @@ the browser, in groups:
 | **E-mail** | The mailbox that sends sign-in codes, with **Send a test**. |
 | **Limits** | Requests per minute, how many instances in total and per person, and how often a new one can be created. 0 turns a limit off. |
 | **New instances** | What a new instance starts with: pause when idle and after how many hours, automatic updates, upgrades, lifetime, Odoo login. |
+| **Backups** | Whether daily backups are taken, at what time (`HH:MM`, 24-hour clock) and in which time zone (for example `Africa/Cairo`; UTC by default). Changes apply at once. |
 | **Odoo versions and images** | Which versions are offered and where Odoo and PostgreSQL come from. |
 | **Enterprise add-ons** | Where the Enterprise add-ons of each version are. |
 | **Code updates and monitoring** | How often GitHub is checked, the webhook secret, how often figures are measured. |
@@ -551,11 +642,33 @@ Ask an administrator to use **Remove second factors** on your account. Then sign
 new one.
 
 **I forgot my password.**
-Ask an administrator to use **Reset password**. You get a new password once and choose your own at the next sign-in.
+Ask an administrator to use **Set a new password** on your account. You get a new password once and usually choose
+your own at the next sign-in.
+
+**What do I type in the E-mail field when I sign in?**
+Your e-mail address. Your user name works too, for example on an older account without an e-mail address.
+
+**Why is my password refused?**
+The message says which [password rule](#password-rules) it breaks. Most often it contains a common word, a sequence
+such as `12345`, or your name. A short sentence of unrelated words is accepted and easy to remember.
 
 **Does a backup include the attachments?**
 Yes. The zip holds the database (`dump.sql`), the filestore with the attachments, and a manifest
 ([section 10](#10-backups-and-audit-log)).
+
+**When are backups taken?**
+Once a day for every instance that was used since its last daily backup (at 00:00 UTC unless a super admin changed
+it), before every deletion, at the start of every restore, and whenever someone clicks **Back up now**
+([section 10](#10-backups-and-audit-log)).
+
+**How do I restore an instance?**
+Open the instance, **Overview** tab, **Backups** card. Click **Restore the latest**, or **Restore** next to an older
+backup, and confirm. The current state is saved first as a **Before a restore** backup, so you can go back. It takes
+a minute or two ([The Backups card](#the-backups-card)).
+
+**I restored the wrong backup. Can I undo it?**
+Yes. Restore the **Before a restore** backup in the instance's list: it holds the state just before the last
+restore.
 
 **Can another system send webhooks to an instance, or call its API?**
 Yes, through the instance's link. See [API and webhooks](API.md). Remember the link can change after a server

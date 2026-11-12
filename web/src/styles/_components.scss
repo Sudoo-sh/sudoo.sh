@@ -597,3 +597,21 @@
   font-size: 11px;
   color: var(--text-3);
 }
+
+// password strength: four short bars under the field, filled with the level's colour
+.strength {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s1);
+  margin-top: var(--s2);
+  i {
+    height: 3px;
+    border-radius: 2px;
+    background: var(--hairline);
+    transition: background-color var(--quick) var(--ease);
+  }
+  &[data-level="1"] i:nth-child(-n + 1) { background: var(--caution); }
+  &[data-level="2"] i:nth-child(-n + 2) { background: var(--working); }
+  &[data-level="3"] i:nth-child(-n + 3) { background: var(--positive); }
+  &[data-level="4"] i { background: var(--positive); }
+}

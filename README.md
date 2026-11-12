@@ -24,7 +24,7 @@ Odoo with its own HTTPS link, in about two minutes, on your own server.**
 ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 ![Cloudflare Tunnel](https://img.shields.io/badge/Cloudflare-Tunnel-F38020?logo=cloudflare&logoColor=white)
 
-Community and Enterprise · Any Odoo version · GitHub sync · Live metrics · Five roles · Second factors · Auto-pause · Lifetime and backups · One-command install
+Community and Enterprise · Any Odoo version · GitHub sync · Live metrics · Five roles · Second factors · Auto-pause · Daily backups and one-click restore · One-command install
 
 [What it does](#what-this-panel-does) ·
 [Quick start](#quick-start) ·
@@ -53,7 +53,7 @@ curl -fsSL https://raw.githubusercontent.com/Yosef-AlSabbah/sudoo.sh/main/get.sh
 ```
 
 It prints the panel's link and a **setup code**. Open the link, enter the code, and create your own account with
-your name, e-mail and password. Everything else, including the e-mail account that sends sign-in codes, is set up
+your name, e-mail and password; you sign in with your e-mail address. Everything else, including the e-mail account that sends sign-in codes, is set up
 in the website. Details in [Installation & Configuration](#installation--configuration).
 
 ## Sudoo.sh and Odoo.sh
@@ -97,16 +97,22 @@ command to use it: people receive a link.
 7. **Lifetime and backups**: each instance can be deleted automatically a set number of days after its creation
    (30 by default), or kept. The choice is made when creating it and can be changed later. Before any deletion,
    automatic or by hand, the database and files are saved as a standard Odoo backup, listed under **Backups**.
-8. **Five roles**: super admin, administrator, maintainer, developer and viewer, each a clear set of permissions.
-   Sign-in can require a second factor: an authenticator app or a code by e-mail. See
-   [Accounts and roles](docs/USER_MANUAL.md).
-9. **Live figures**: processor, memory, requests, errors and response times of the server and every instance, every
-   few seconds, with an hour of history as live charts. Pages update by themselves as things change.
-10. **An API for other systems**: CI pipelines and scripts can create, update, restart and delete instances
+8. **Daily backups with one-click restore**: every instance that was used during the day is backed up once a day,
+   at a time you choose, keeping its latest daily backup. **Restore the latest** on the instance's page puts a
+   backup back in a minute or two, after saving the current state so the restore can be undone. See
+   [Backups](docs/USER_MANUAL.md#10-backups-and-audit-log).
+9. **Five roles**: super admin, administrator, maintainer, developer and viewer, each a clear set of permissions.
+   People sign in with their e-mail address; passwords follow the NIST rules (length and a blocklist, no forced
+   symbols). Sign-in can require a second factor: an authenticator app or a code by e-mail. See
+   [Accounts and roles](docs/USER_MANUAL.md#8-accounts-and-roles).
+10. **Live figures**: processor, memory, requests, errors and response times of the server and every instance, every
+   few seconds, with an hour of history. The Instances page charts requests and errors, instances by state, response
+   times and the busiest instances. Pages update by themselves as things change.
+11. **An API for other systems**: CI pipelines and scripts can create, update, restart and delete instances
    with an API token and a signature on every request. See [Panel API](docs/PANEL_API.md).
-11. **Explains itself**: plain-language messages when something fails, the technical log next to it, and this
+12. **Explains itself**: plain-language messages when something fails, the technical log next to it, and this
    documentation inside the panel under **Help**.
-12. **Set up from the website**: every setting, from second factors and limits to the e-mail account, on the
+13. **Set up from the website**: every setting, from second factors and limits to the e-mail account, on the
    **Settings** page, with `.env` as the base. Light and dark themes, and your own accent colour.
 
 ---
@@ -179,7 +185,7 @@ All documents are in [`docs/`](docs/README.md) and are also shown inside the pan
 | :--- | :--- |
 | Reachability | Nothing listens on a public address. The web app, the backend, the gateway and Odoo listen on `127.0.0.1`; the way in is the Cloudflare connectors. |
 | First run | No default accounts: the first account is created with a one-time setup code printed on the server. |
-| Panel passwords | Never stored. Only a salted, peppered **scrypt hash** is kept; the pepper comes from a key outside the accounts file. Sign-in is locked after repeated failures. |
+| Panel passwords | Never stored. Only a salted, peppered **scrypt hash** is kept; the pepper comes from a key outside the accounts file. Rules follow NIST SP 800-63B: 12 to 128 characters, common passwords and sequences refused. Sign-in is locked after repeated failures. |
 | Stored secrets | GitHub deploy keys and Odoo master passwords are **encrypted with AES-256-GCM**. Odoo itself only receives a hash of its master password. |
 | Input | Every value from a browser or API client is checked against an allow-list (type, length, characters, pattern) before use, and never passed through a shell. |
 | Sessions | Signed, `HttpOnly`, `Secure`, `SameSite=Strict` cookie; signed out after 60 minutes without activity and after 12 hours. |
@@ -223,7 +229,7 @@ sudoo.sh/
     ├── auth/                      # PLUGIN TYPES: authenticators (local) and second factors (totp, email)
     ├── mail/                      # PLUGIN TYPE: mailers (smtp, none); HTML e-mail templates
     ├── limits/                    # PLUGIN TYPE: rate limiters (memory); instance quotas
-    ├── background.py              # monitor, auto-pause, auto-delete, GitHub polling, gateway, exposure
+    ├── background.py              # monitor, auto-pause, auto-delete, daily backups, GitHub polling, gateway, exposure
     ├── core/                      # infrastructure, no Odoo knowledge
     │   ├── shell.py, jobs.py      #   commands without a shell; background actions, one per instance at a time
     │   ├── state.py, audit.py     #   last visit / paused / switched off; audit log
@@ -231,8 +237,8 @@ sudoo.sh/
     ├── instances/                 # the life of an instance
     │   ├── store.py               #   folders, .env files, names, ports
     │   ├── odoo.py                #   compose file, odoo.conf, database parameters, versions
-    │   ├── operations.py          #   create, delete, back up, restart, pause, updates, submodules
-    │   ├── backups.py             #   Odoo-format backups
+    │   ├── operations.py          #   create, delete, back up, restore, restart, pause, updates, submodules
+    │   ├── backups.py             #   Odoo-format backups, kinds, daily schedule, restore
     │   ├── gateway.py, status_pages.py, monitor.py
     ├── repos/                     # git and GitHub: deploy keys, access checks, git_ssh.py
     ├── exposure/                  # PLUGIN TYPE: how instances are reached

@@ -82,6 +82,62 @@
   .chart-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-3); font-size: var(--text-13); }
 }
 
+// the line inside a figure card: full bleed to the card's sides, under the figure
+.sparkline {
+  position: relative;
+  height: 36px;
+  margin: 0 calc(-1 * var(--s5));
+  canvas { position: absolute; inset: 0; }
+}
+
+// the dashboard's charts: three columns, the time series two wide
+.dash-grid {
+  display: grid;
+  gap: var(--s4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  .span-2 { grid-column: span 2; }
+  .chart-head {
+    h2 { margin: 0; }
+    .sub { margin: 2px 0 0; color: var(--text-3); font-size: var(--text-12); }
+  }
+  @media (max-width: 1100px) {
+    grid-template-columns: minmax(0, 1fr);
+    .span-2 { grid-column: auto; }
+  }
+}
+
+.ring {
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  min-height: 220px;
+  padding: 0 var(--s1);
+  .ring-chart { position: relative; flex: none; width: 148px; height: 148px; }
+  .ring-total {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    text-align: center;
+    pointer-events: none;
+    b { font-size: var(--text-28, 28px); font-weight: 500; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; line-height: 1; }
+    span { color: var(--text-3); font-size: var(--text-12); margin-top: var(--s1); }
+  }
+  .ring-legend {
+    flex: 1;
+    min-width: 0;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--s2);
+    font-size: var(--text-13);
+    li { display: flex; align-items: center; gap: var(--s2); color: var(--text-2); }
+    i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+    b { font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
+  }
+}
+
 .overview {
   display: grid;
   gap: var(--s4);
@@ -117,8 +173,13 @@
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 }
 .instance-card {
+  position: relative;
   display: flex;
   flex-direction: column;
+  .ic-open { display: block; color: inherit !important; text-decoration: none !important;
+    &::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+    &:focus-visible { outline: none; &::after { box-shadow: 0 0 0 3px var(--accent-ring); } } }
+  .ic-external { position: relative; z-index: 1; }
   color: inherit !important;
   text-decoration: none !important;
   .ic-head { display: flex; align-items: flex-start; gap: var(--s3); padding: var(--s5) var(--s5) 0; }
@@ -224,11 +285,16 @@
   gap: var(--s3);
   padding: var(--s2) var(--s2) var(--s2) var(--s5);
   border-radius: var(--radius-card);
-  background: var(--text);
-  color: var(--bg);
+  // the same translucent material as the top bar, so it follows the theme
+  background: var(--material);
+  backdrop-filter: var(--material-blur);
+  -webkit-backdrop-filter: var(--material-blur);
+  border: 1px solid var(--hairline);
+  color: var(--text);
   box-shadow: var(--shadow-float);
-  animation: menu-in var(--menu) var(--ease);
-  .btn.ghost { color: color-mix(in oklab, var(--bg) 70%, transparent); &:hover { background: color-mix(in oklab, var(--bg) 12%, transparent); color: var(--bg); } }
+  transition: opacity var(--enter) var(--ease), transform var(--enter) var(--ease);
+  @starting-style { opacity: 0; transform: translateY(8px); }
+  .count { color: var(--text-2); }
 }
 
 .qr {
@@ -315,4 +381,13 @@
   table { width: 100%; border-collapse: collapse; font-size: var(--text-14); display: block; overflow-x: auto;
     th { text-align: left; font-weight: 500; color: var(--text-3); font-size: var(--text-13); padding: var(--s2) var(--s3); border-bottom: 1px solid var(--hairline-strong); white-space: nowrap; }
     td { padding: var(--s2) var(--s3); border-bottom: 1px solid var(--hairline); vertical-align: top; color: var(--text-2); } }
+}
+
+// an instance's latest backup, above the list of its backups
+.backup-latest {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s2) var(--s5) var(--s4);
+  .when { font-size: var(--text-20, 1.25rem); font-weight: 500; letter-spacing: -0.015em; margin: 2px 0; }
 }

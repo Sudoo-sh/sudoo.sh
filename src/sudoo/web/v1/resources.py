@@ -12,7 +12,7 @@ from sudoo import exposure
 from sudoo.config import settings
 from sudoo.core import jobs
 from sudoo.core.state import STATE
-from sudoo.instances import gateway, metrics, monitor, operations, store
+from sudoo.instances import backups, gateway, metrics, monitor, operations, store
 from sudoo.repos.gitrepo import commits, submodules
 
 from .responses import PREFIX, iso
@@ -98,10 +98,22 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
     if full:
         addons_dir = store.addons_dir(name)
         disk = monitor.disk_usage(name)
+        latest = backups.latest(name)
         resource |= {
             "disk": {"database_bytes": disk.get("db"), "files_bytes": disk.get("files")},
             "recent_commits": commits(addons_dir),
             "submodules": submodules(addons_dir),
+            "backups": [
+                {
+                    "file": b["file"],
+                    "kind": b["kind"],
+                    "database": b["db"],
+                    "size_bytes": b["size"],
+                    "created_at": iso(b["created"]),
+                }
+                for b in backups.of_instance(name)
+            ],
+            "restorable_backup": (latest or {}).get("file"),
             "recent_jobs": [
                 job_reference(job)
                 for job in reversed(jobs.JOBS.values())

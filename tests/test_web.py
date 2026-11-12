@@ -81,7 +81,9 @@ def test_only_a_super_admin_manages_super_admins(app: Flask, admin: Client) -> N
 def test_generated_passwords_must_be_replaced(app: Flask, admin: Client) -> None:
     client, headers = admin
     made = client.post(
-        "/api/v1/users", json={"name": "newbie", "role": "viewer", "first_name": "Noor"}, headers=headers
+        "/api/v1/users",
+        json={"name": "newbie", "role": "viewer", "first_name": "Noor", "email": "noor@example.com"},
+        headers=headers,
     )
     assert made.status_code == 201
     password = made.get_json()["data"]["password"]
@@ -94,6 +96,35 @@ def test_generated_passwords_must_be_replaced(app: Flask, admin: Client) -> None
     assert changed.status_code == 204
     after = newbie.get("/api/v1/instances")
     assert after.status_code == 200, after.get_json()
+
+
+def test_accounts_sign_in_with_their_e_mail_address(app: Flask, admin: Client) -> None:
+    client, headers = admin
+    body = {"email": "Huda.Ali@Example.com", "role": "developer", "password": "copper-meadow-lantern-62"}
+    made = client.post("/api/v1/users", json=body | {"must_change_password": False}, headers=headers)
+    assert made.status_code == 201, made.get_json()
+    assert made.get_json()["data"]["name"] == "huda.ali"
+    again = client.post("/api/v1/users", json=body | {"email": "huda.ali@example.com"}, headers=headers)
+    assert again.status_code == 400 and "already uses" in again.get_json()["detail"]
+    weak = client.post(
+        "/api/v1/users", json={**body, "email": "x@example.com", "password": "abcdefgh-1234"}, headers=headers
+    )
+    assert weak.status_code == 400
+    huda, _ = sign_in(app, "huda.ali@example.com", "copper-meadow-lantern-62")
+    me = huda.get("/api/v1/session").get_json()["data"]
+    assert me["user"] == "huda.ali" and me["restricted"] is None
+    wrong = app.test_client().post(
+        "/api/v1/session", json={"username": "nobody@example.com", "password": "x" * 12}, headers=ORIGIN
+    )
+    assert wrong.status_code == 401
+
+
+def test_a_super_admin_can_edit_their_own_account(admin: Client) -> None:
+    client, headers = admin
+    changed = client.patch("/api/v1/users/admin1", json={"first_name": "Yousef", "role": "admin"}, headers=headers)
+    assert changed.status_code == 400  # the last super admin stays one
+    changed = client.patch("/api/v1/users/admin1", json={"first_name": "Yousef"}, headers=headers)
+    assert changed.status_code == 200 and changed.get_json()["data"]["display_name"].startswith("Yousef")
 
 
 def test_security_headers(admin: Client) -> None:
@@ -168,3 +199,12 @@ def test_visitor_address_behind_the_web_service(monkeypatch: pytest.MonkeyPatch)
     assert client_ip_of({"X-Forwarded-For": "203.0.113.7"}, "192.0.2.50") == "192.0.2.50"  # not from the web service
     monkeypatch.setattr("sudoo.exposure.provider", lambda: HostPorts.__new__(HostPorts))
     assert client_ip_of(forwarded, "127.0.0.1") == "203.0.113.7"  # a visitor cannot pretend to be Cloudflare
+
+
+def test_the_mark_is_the_same_everywhere() -> None:
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    favicon = (root / "web" / "public" / "favicon.svg").read_text()
+    assert (root / "src" / "sudoo" / "instances" / "mark.svg").read_text() == favicon
+    assert (root / "docs" / "images" / "brand" / "icon.svg").read_text().split(">", 1)[1] == favicon.split(">", 1)[1]

@@ -7,11 +7,13 @@ import { api, errorText } from "@/api/client";
 import { keys, useAccount } from "@/api/queries";
 import type { Factor } from "@/api/types";
 import { Page, PageHead, useMe } from "@/components/Shell";
+import { PasswordFields, passwordReady } from "@/components/PasswordFields";
 import { Brand } from "@/components/ui/Brand";
 import { Tag, Button, Callout, CopyField, Field, Skeleton } from "@/components/ui/basics";
 import { OtpInput } from "@/components/ui/OtpInput";
 import { Modal, useToast } from "@/components/ui/overlay";
 import { ago } from "@/lib/format";
+import type { Person } from "@/lib/password";
 
 const ICON: Record<string, React.ReactNode> = { totp: <Smartphone />, email: <Mail /> };
 const TEXT: Record<string, string> = {
@@ -155,18 +157,19 @@ function Factors({ onChange }: { onChange?: () => void }) {
 
 function PasswordCard() {
   const toast = useToast();
+  const me = useMe();
+  const person: Person = { username: me.user, email: me.email ?? undefined, names: [me.first_name ?? "", me.last_name ?? ""] };
   const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [again, setAgain] = useState("");
+  const [password, setPassword] = useState<[string, string]>(["", ""]);
   const [busy, setBusy] = useState(false);
-  const mismatch = again.length > 0 && next !== again;
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true);
     try {
-      await api.put("/session/password", { current, new: next });
+      await api.put("/session/password", { current, new: password[0] });
       toast("success", "Password changed", "Your other sessions were signed out");
-      setCurrent(""); setNext(""); setAgain("");
+      setCurrent("");
+      setPassword(["", ""]);
     } catch (e) {
       toast("error", "Not changed", errorText(e));
     } finally {
@@ -178,16 +181,11 @@ function PasswordCard() {
       <div className="card-head"><KeyRound size={18} /><h2>Password</h2></div>
       <div className="card-body stack">
         <Field label="Current password"><input className="input" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} /></Field>
-        <Field label="New password" hint="At least 12 characters; a few words make a good one.">
-          <input className="input" type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
-        </Field>
-        <Field label="New password again" error={mismatch && "The two new passwords are not the same."}>
-          <input className="input" type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} aria-invalid={mismatch} />
-        </Field>
+        <PasswordFields label="New password" value={password} onChange={setPassword} person={person} />
       </div>
       <div className="card-foot row">
         <span className="spacer" />
-        <Button type="submit" variant="primary" loading={busy} disabled={!current || next.length < 12 || next !== again}>Change password</Button>
+        <Button type="submit" variant="primary" loading={busy} disabled={!current || !passwordReady(password, person)}>Change password</Button>
       </div>
     </form>
   );

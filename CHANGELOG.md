@@ -150,6 +150,12 @@ Run `install.sh` as usual. It replaces the old `manager/` files, adds the new se
 defaults and keeps your values. `ODOO_VERSIONS` keeps its current value; set it to `auto` to offer every version.
 Use `sudoo` instead of `python3 manage.py` in commands.
 
+### Fixed
+
+- **Live container figures work with Docker 29:** the `docker stats` stream ends its lines with a terminal code
+  that stopped the reader, so per-instance processor and memory figures were missing. A line it cannot read is now
+  skipped instead of restarting the stream.
+
 ## [0.1.0] - 2026-11-11
 
 ### Added

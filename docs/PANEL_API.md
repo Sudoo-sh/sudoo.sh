@@ -26,6 +26,7 @@ roles and checks:
 6. [Security notes](#6-security-notes)
 7. [Settings](#7-settings)
 8. [Live events](#8-live-events)
+9. [Metrics](#9-metrics)
 
 ---
 
@@ -124,6 +125,9 @@ All paths start with `/api/v1`, and every answer follows the same conventions:
 | `GET /jobs?instance=&limit=30&offset=0` | read | | 200, recent jobs, newest first |
 | `GET /jobs/<id>/log?offset=0` | read | | 200, `{"text"}` from that line on; `meta.next_offset` is where to continue |
 | `GET /server` | read | | 200, the server's CPU, memory and disk, the panel's address, version and plugins |
+| `GET /metrics` | read | | 200, the latest figures of the server and every instance ([Metrics](#9-metrics)) |
+| `GET /metrics/history?minutes=60` | read | | 200, up to one hour of figures, in columns |
+| `GET /instances/<name>/metrics?minutes=60` | read | | 200, one instance's latest figures and history |
 | `GET /settings` | read | | 200, every setting ([Settings](#7-settings)) |
 | `PATCH /settings` | write | `{"idle_hours": 4}` | 200, the settings; administrators only |
 | `DELETE /settings/<key>` | write | | **204**, back to the `.env` value |
@@ -176,7 +180,11 @@ An instance:
       "commit": {"sha": "4f2a9c1", "subject": "Add delivery report", "author": "Sam", "age": "2 hours ago"}
     },
     "settings": {"auto_update": true, "auto_upgrade": true, "auto_pause": true, "delete_after_days": 30},
-    "usage": {"cpu_percent": 3.2, "memory_bytes": 905969664},
+    "usage": {
+      "cpu_percent": 3.2, "memory_bytes": 905969664, "memory_limit_bytes": 3011510272, "memory_percent": 30.1,
+      "requests_per_minute": 42.0, "error_rate_percent": 0.0, "response_ms_avg": 38.5, "response_ms_p95": 120.4,
+      "uptime_seconds": 7260, "disk_bytes": 412090368
+    },
     "created_at": "2026-11-11T10:16:47Z",
     "last_visit_at": "2026-11-12T08:01:10Z",
     "pauses_at": "2026-11-12T14:01:10Z",
@@ -198,6 +206,7 @@ A job (the answer to every 202, and to `GET /jobs/<id>`):
     "instance": "sales-main",
     "action": "Restart",
     "status": "running",
+    "progress_percent": 50,
     "requested_by": "api:CI pipeline",
     "started_at": "2026-11-12T08:31:02Z",
     "finished_at": null,
@@ -210,6 +219,8 @@ A job (the answer to every 202, and to `GET /jobs/<id>`):
 ```
 
 `status` goes from `queued` to `running` to `success` or `failed`; when it failed, `error` explains why in plain words.
+`progress_percent` is the share of steps done (below 100 until the job has finished), or `null` for jobs whose
+number of steps is not known in advance.
 
 Creating an instance takes the same fields as the **New instance** form:
 
@@ -382,7 +393,7 @@ data: {"key": "", "data": {"server": {"cpu": 12.5, ...}, "instances": {"sales-ma
 | `instance.deleted` | An instance was deleted | `{"name"}` |
 | `job` | A job started, moved to another step, added a note or ended | The job, as `GET /jobs/<id>` |
 | `job.output` | New log text of a running job (at most twice a second) | `{"job", "offset", "text"}` |
-| `metrics` | Every 15 seconds | CPU, memory and disk of the server and every instance |
+| `metrics` | Every 15 seconds | The new figures, as `GET /metrics` ([Metrics](#9-metrics)) |
 | `settings` | A setting was changed | `{"changed": ["idle_hours", ...]}` |
 | `reset` | After a reconnection, when more was missed than the panel keeps | `{}`: reload everything |
 
@@ -409,3 +420,49 @@ opening the stream, which then stays open. With the [Python client](../examples/
 for event in api.events(topics=["job"]):
     print(event["event"], event["data"]["status"])
 ```
+
+---
+
+## 9. Metrics
+
+The panel measures the server and every instance every 15 seconds and keeps one hour of figures in memory (they
+start again empty when the panel restarts).
+
+| Figure | Meaning |
+| :--- | :--- |
+| `cpu_percent` | Share of the whole server's processor (all cores); for an instance, Odoo and its database together |
+| `memory_percent`, `memory_bytes`, `memory_limit_bytes` | Memory in use, of the containers' limit (the server's memory when they have none) |
+| `requests_per_minute` | Requests the gateway forwarded to Odoo: pages, RPC and API calls (the background traffic of open tabs is left out) |
+| `error_rate_percent` | Share of those requests answered with a 5xx error; `null` without requests |
+| `response_ms_avg`, `response_ms_p95` | Time until Odoo started answering: average, and the time 95 % of requests stayed under |
+| `uptime_seconds` | Since Odoo's container started; `null` when it is not running |
+| `disk_bytes` | Database and files, measured every 5 minutes while running |
+| Server only: `memory_*_bytes`, `disk_percent`, `disk_*_bytes`, `load_1m`, `cores`, `uptime_seconds`, `instances_running`, `instances_total` | |
+
+`GET /api/v1/metrics` returns the latest sample:
+
+```json
+{
+  "data": {
+    "at": 1794430123,
+    "interval_seconds": 15,
+    "server": {"cpu_percent": 12.5, "memory_percent": 61.2, "disk_percent": 48.0, "load_1m": 0.42, ...},
+    "instances": {"sales-main": {"running": true, "cpu_percent": 3.2, "memory_percent": 30.1, ...}}
+  }
+}
+```
+
+`GET /api/v1/metrics/history?minutes=60` returns the history in **columns**, one list per figure, the shape chart
+libraries draw from directly; `t` holds the times (Unix seconds):
+
+```json
+{
+  "data": {
+    "server": {"t": [1794426523, ...], "cpu_percent": [11.0, ...], "memory_percent": [...], "disk_percent": [...], "load_1m": [...]},
+    "instances": {"sales-main": {"t": [...], "cpu_percent": [...], "memory_percent": [...], "requests_per_minute": [...], ...}}
+  },
+  "meta": {"minutes": 60, "interval_seconds": 15}
+}
+```
+
+A dashboard loads the history once, then appends the sample of every `metrics` [live event](#8-live-events).

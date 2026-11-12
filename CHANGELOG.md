@@ -17,6 +17,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Metrics for the server and every instance, with one hour of history: CPU and memory (as a share of the limit),
+  requests per minute, error rate and response times (average and 95th percentile) measured by the gateway,
+  uptime and disk use; `GET /api/v1/metrics`, `/metrics/history` and `/instances/<name>/metrics`, and in every
+  `metrics` live event. Instances show them under `usage`.
+- Jobs show their progress as a percentage (`progress_percent`) when the number of steps is known (creating,
+  deleting, restarting and starting instances).
 - One API for everything: every function of the panel is now in `/api/v1` (sessions, accounts, API tokens, backups,
   deploy keys, repository checks, job logs, instance credentials, server figures). The panel's web app can use it
   with its session cookie and CSRF token; other systems keep using tokens and signatures.

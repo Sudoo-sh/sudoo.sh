@@ -10,7 +10,7 @@ from typing import Any
 
 from sudoo.core import jobs
 from sudoo.core.state import STATE
-from sudoo.instances import monitor, operations, store
+from sudoo.instances import metrics, monitor, operations, store
 from sudoo.repos.gitrepo import commits, submodules
 
 from .. import api_instances
@@ -18,7 +18,13 @@ from .responses import PREFIX, iso
 
 
 def job_reference(job: jobs.Job) -> dict[str, Any]:
-    return {"id": job.id, "action": job.action, "status": job.status, "links": {"self": f"{PREFIX}/jobs/{job.id}"}}
+    return {
+        "id": job.id,
+        "action": job.action,
+        "status": job.status,
+        "progress_percent": job.progress_percent(),
+        "links": {"self": f"{PREFIX}/jobs/{job.id}"},
+    }
 
 
 def job_resource(job: jobs.Job, include_log: bool = False) -> dict[str, Any]:
@@ -28,6 +34,7 @@ def job_resource(job: jobs.Job, include_log: bool = False) -> dict[str, Any]:
         "action": job.action,
         "kind": job.kind,
         "status": job.status,  # queued, running, success, failed
+        "progress_percent": job.progress_percent(),  # None when the number of steps is not known in advance
         "requested_by": job.user,
         "started_at": iso(job.started),
         "finished_at": iso(job.finished),
@@ -39,6 +46,14 @@ def job_resource(job: jobs.Job, include_log: bool = False) -> dict[str, Any]:
     if include_log:
         resource["log"] = "".join(job.log)
     return resource
+
+
+def _usage(name: str, summary: dict[str, Any]) -> dict[str, Any]:
+    """The latest figures (metrics.py); the monitor's last reading until the first sample."""
+    figures = metrics.INSTANCES.get(name)
+    if not figures:
+        return {"cpu_percent": summary["cpu"], "memory_bytes": summary["memory"]}
+    return {key: value for key, value in figures.items() if key != "running"}
 
 
 def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
@@ -67,7 +82,7 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
             "auto_pause": env["AUTO_PAUSE"] == "true",
             "delete_after_days": int(env["DELETE_AFTER_DAYS"]),
         },
-        "usage": {"cpu_percent": summary["cpu"], "memory_bytes": summary["memory"]},
+        "usage": _usage(name, summary),
         "uptime": summary["uptime"] or None,
         "gateway_error": summary["gateway_error"],
         "created_at": iso(env["CREATED_AT"]),

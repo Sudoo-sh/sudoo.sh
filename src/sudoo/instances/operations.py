@@ -116,6 +116,13 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     enterprise = plan["edition"] == "enterprise"
     addons = store.addons_dir(name)
 
+    job.expect(
+        6  # preparing, Odoo image, database container, Odoo database, public link, starting Odoo
+        + bool(plan["repo"])
+        + enterprise
+        + bool(plan["install_modules"] and plan["repo"])
+        + (settings.odoo_admin_password != "admin")
+    )
     job.step("Preparing the instance")
     (store.folder(name) / "config").mkdir()
     _remove_leftovers(job, name)
@@ -206,6 +213,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
 
 def delete(job: Job, name: str) -> None:
     """Back up every database, then remove the instance completely. No backup, no deletion."""
+    job.expect(3)
     job.step("Backing up the database and files")
     saved = backups.create(job, name)
     job.note(f"Backup kept: {', '.join(path.name for path in saved)}")
@@ -236,11 +244,13 @@ def expires_at(env: dict[str, str]) -> int | None:
 
 
 def restart(job: Job, name: str) -> None:
+    job.expect(2)
     job.step("Restarting Odoo")
     _start_odoo(job, name, restart=True)
 
 
 def wake(job: Job, name: str) -> None:
+    job.expect(2)
     job.step("Starting Odoo")
     _start_odoo(job, name)
 

@@ -15,6 +15,7 @@ import re
 import shutil
 import time
 from collections import defaultdict, deque
+from datetime import datetime
 from typing import Any
 
 from sudoo import exposure
@@ -22,7 +23,7 @@ from sudoo.config import settings
 from sudoo.core import events, jobs
 from sudoo.core.shell import capture, succeeds
 from sudoo.core.state import STATE
-from sudoo.instances import odoo, store
+from sudoo.instances import metrics, odoo, store
 from sudoo.repos.gitrepo import git
 
 STATUS: dict[str, dict[str, Any]] = {}  # instance name -> latest measurements
@@ -81,21 +82,26 @@ def collect() -> None:
     for line in capture(["docker", "ps", "-a", "--format", "{{json .}}"]).splitlines():
         entry = json.loads(line)
         containers[entry["Names"]] = entry
-    usage: dict[str, tuple[float, int]] = {}
+    usage: dict[str, tuple[float, int, int]] = {}  # container -> (cpu % of one core, memory, memory limit)
     for line in capture(["docker", "stats", "--no-stream", "--format", "{{json .}}"], timeout=60).splitlines():
         entry = json.loads(line)
-        usage[entry["Name"]] = (float(entry["CPUPerc"].rstrip("%") or 0), _bytes(entry["MemUsage"].split("/")[0]))
+        used, _, limit = entry["MemUsage"].partition("/")
+        usage[entry["Name"]] = (float(entry["CPUPerc"].rstrip("%") or 0), _bytes(used), _bytes(limit))
 
     cores = os.cpu_count() or 1  # None only when the count cannot be determined
+    memory_total, memory_used = _host_memory()
     now = time.time()
+    started = _started_at([c for c, entry in containers.items() if entry["State"] == "running"])
+    measured_instances: dict[str, metrics.Usage] = {}
     for name in store.names():
         env = store.read_env(name)
         odoo_container = containers.get(store.container(name, "odoo"))
         db_container = containers.get(store.container(name, "db"))
         running = bool(odoo_container and odoo_container["State"] == "running")
         own = (store.container(name, "odoo"), store.container(name, "db"))
-        cpu = sum(usage.get(c, (0, 0))[0] for c in own) / cores
-        memory = sum(usage.get(c, (0, 0))[1] for c in own)
+        cpu = sum(usage.get(c, (0, 0, 0))[0] for c in own) / cores
+        memory = sum(usage.get(c, (0, 0, 0))[1] for c in own)
+        limit = min(sum(usage.get(c, (0, 0, 0))[2] for c in own) or memory_total, memory_total)
         addons = store.addons_dir(name)
         STATUS[name] = {
             "running": running,
@@ -108,8 +114,14 @@ def collect() -> None:
             "repo": capture(git(addons, "remote", "get-url", "origin")),
         }
         HISTORY[name].append((int(now), round(cpu, 2), memory))
+        disk_bytes = None
+        if running:
+            stored = disk_usage(name)  # measured every 5 minutes at most
+            disk_bytes = (stored.get("db") or 0) + (stored.get("files") or 0) or None
+        measured_instances[name] = metrics.Usage(
+            running, cpu, memory, limit, started.get(store.container(name, "odoo")), disk_bytes
+        )
 
-    memory_total, memory_used = _host_memory()
     disk = shutil.disk_usage(settings.odoo_root)
     cpu = _host_cpu_percent()
     HOST.update(
@@ -121,6 +133,42 @@ def collect() -> None:
         disk_used=disk.used,
     )
     HOST["history"].append((int(now), round(cpu, 1), memory_used))
+    metrics.sample(
+        {
+            "cpu_percent": round(cpu, 1),
+            "cores": cores,
+            "load_1m": round(os.getloadavg()[0], 2),
+            "memory_used_bytes": memory_used,
+            "memory_total_bytes": memory_total,
+            "memory_percent": round(100 * memory_used / memory_total, 1),
+            "disk_used_bytes": disk.used,
+            "disk_total_bytes": disk.total,
+            "disk_percent": round(100 * disk.used / disk.total, 1),
+            "uptime_seconds": _host_uptime(),
+            "instances_running": sum(1 for u in measured_instances.values() if u.running),
+            "instances_total": len(measured_instances),
+        },
+        measured_instances,
+    )
+
+
+def _started_at(names: list[str]) -> dict[str, float]:
+    """When each running container started, as Unix time."""
+    if not names:
+        return {}
+    found: dict[str, float] = {}
+    for line in capture(["docker", "inspect", "-f", "{{.Name}} {{.State.StartedAt}}", *names]).splitlines():
+        name, _, when = line.strip().lstrip("/").partition(" ")
+        try:
+            found[name] = datetime.fromisoformat(when[:26].rstrip("Z") + "+00:00").timestamp()
+        except ValueError:
+            continue
+    return found
+
+
+def _host_uptime() -> int:
+    with open("/proc/uptime") as fh:
+        return int(float(fh.read().split()[0]))
 
 
 def follow_public_addresses() -> None:
@@ -143,20 +191,9 @@ def mark_stopped(name: str) -> None:
     STATUS.setdefault(name, {})["running"] = False
 
 
-def metrics() -> dict[str, Any]:
-    """The latest numbers of the server and every instance, as the "metrics" event carries them."""
-    return {
-        "server": {key: value for key, value in HOST.items() if key != "history"},
-        "instances": {
-            name: {"cpu_percent": measured.get("cpu", 0), "memory_bytes": measured.get("memory", 0)}
-            for name, measured in STATUS.items()
-        },
-    }
-
-
 def publish_changes() -> None:
     """Publish "metrics", and "instance" for every instance that looks different to a client than last time."""
-    events.publish("metrics", "", metrics())
+    events.publish("metrics", "", metrics.snapshot())
     for name in store.names():
         state = STATE.get(name)
         seen = (

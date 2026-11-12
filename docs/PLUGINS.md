@@ -59,7 +59,7 @@ environment themselves), and every part of the panel uses that object.
 See which plugins are installed and which are in use:
 
 ```bash
-docker exec sudoo-panel sudoo config
+docker exec sudoo-panel sudoo.sh config
 ```
 
 A setting that names a plugin that is not installed stops the panel at start-up with the list of installed ones.

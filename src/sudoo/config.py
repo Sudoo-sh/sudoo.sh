@@ -97,6 +97,10 @@ class Settings(BaseSettings):
     smtp_security: Literal["starttls", "ssl", "none"] = Field("starttls", description="smtp: encryption.")
     smtp_username: str = Field("", description="smtp: user name, usually the full e-mail address.")
     smtp_password: str = Field("", description="smtp: password or app password.")
+    mail_templates_dir: str = Field("", description="Folder with e-mail templates that replace the built-in ones.")
+    brand_color: str = Field(
+        "#714B67", pattern=r"^#[0-9A-Fa-f]{6}$", description="Accent colour of e-mails, as #RRGGBB."
+    )
 
     # ------------------------------------------------------------------ limits
     rate_limiter: str = Field("memory", description='Where request counts are kept: "memory".')
@@ -182,6 +186,7 @@ class Settings(BaseSettings):
 # ---------------------------------------------------------------------- changes made in the panel
 
 EDITABLE = (
+    "brand_color",
     "require_second_factor",
     "rate_limit_reads_per_minute",
     "rate_limit_changes_per_minute",

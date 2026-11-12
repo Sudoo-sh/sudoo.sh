@@ -22,7 +22,7 @@ from sudoo.config import Settings
 from sudoo.core import vault
 from sudoo.storage import Document, storage
 
-from .base import Account
+from .base import Account, RequestInfo
 
 STEP_SECONDS = 30
 DIGITS = 6
@@ -62,7 +62,7 @@ class AuthenticatorApp:
     def enrolled(self, account: Account) -> bool:
         return "secret" in account.get("second_factors", {}).get("totp", {})
 
-    def challenge(self, username: str, account: Account) -> dict[str, Any]:
+    def challenge(self, username: str, account: Account, origin: RequestInfo) -> dict[str, Any]:
         return {}  # nothing to send: the code is in the app
 
     def verify(self, username: str, account: Account, code: str) -> bool:
@@ -84,7 +84,9 @@ class AuthenticatorApp:
             return False
         return True
 
-    def begin_setup(self, username: str, account: Account, details: dict[str, Any]) -> dict[str, Any]:
+    def begin_setup(
+        self, username: str, account: Account, details: dict[str, Any], origin: RequestInfo
+    ) -> dict[str, Any]:
         secret = base64.b32encode(secrets.token_bytes(20)).decode().rstrip("=")
         accounts.update(username, totp_pending=vault.encrypt(secret, _label(username)))
         query = urlencode({"secret": secret, "issuer": ISSUER, "digits": DIGITS, "period": STEP_SECONDS})

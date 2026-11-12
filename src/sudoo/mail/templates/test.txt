@@ -1,0 +1,6 @@
+Hello,
+
+This is a test message from your Sudoo.sh panel. If you are reading it, e-mail works.
+
+Sent through {{ server }}.
+{% if panel_url %}Open Sudoo.sh: {{ panel_url }}{% endif %}

@@ -105,13 +105,13 @@ PAGE = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<title>{title} - Sudoo</title>
+<title>{title} - Sudoo.sh</title>
 <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
 <header class="navbar">
-  <a class="brand" href="/"><img class="brand-mark" src="/static/odoo-icon.svg" alt=""><span>Sudoo</span></a>
+  <a class="brand" href="/"><img class="brand-mark" src="/static/odoo-icon.svg" alt=""><span>Sudoo.sh</span></a>
   <nav class="nav"><a href="/">Instances</a><a class="active" href="/docs">Documentation</a></nav>
 </header>
 <div class="control-panel"><div class="crumbs"><a href="/docs">Documentation</a><span>/</span>{title}</div></div>
@@ -119,7 +119,7 @@ PAGE = """<!doctype html>
   <nav class="doc-nav">{sidebar}</nav>
   <article class="sheet doc">{body}</article>
 </main>
-<footer class="footer">Sudoo. Created by Yousef M. Y. Al Sabbah.</footer>
+<footer class="footer">Sudoo.sh. Created by Yousef M. Y. Al Sabbah.</footer>
 </body>
 </html>
 """

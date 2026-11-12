@@ -248,7 +248,7 @@ someone who does.
 2. The panel shows the key and a link. Click **Copy key**, then open the link (the repository's **Settings,
    Deploy keys, Add deploy key** page on GitHub).
 3. On GitHub:
-   * **Title**: `Sudoo`
+   * **Title**: `Sudoo.sh`
    * **Key**: paste.
    * **Allow write access**: leave unticked, unless submodules of this repository will be added or removed from
      the panel.

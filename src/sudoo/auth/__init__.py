@@ -10,12 +10,13 @@ from functools import cache
 from sudoo import accounts, plugins
 from sudoo.config import settings
 
-from .base import Account, Authenticator, Identity, SecondFactor
+from .base import Account, Authenticator, Identity, RequestInfo, SecondFactor
 
 __all__ = [
     "Account",
     "Authenticator",
     "Identity",
+    "RequestInfo",
     "SecondFactor",
     "account_for",
     "authenticator",

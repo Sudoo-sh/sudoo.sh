@@ -38,7 +38,7 @@ function showDeployKey(key) {
     <a href="/docs/docs/concepts/DEPLOY_KEYS.md" target="_blank" rel="noopener">How deploy keys work</a></p>
     <ol>
       <li>Open <a href="${esc(key.github_url)}" target="_blank" rel="noopener noreferrer">the deploy key page of ${esc(key.repo)}</a> (needs admin rights on the repository).</li>
-      <li>Title: <code>Sudoo</code></li>
+      <li>Title: <code>Sudoo.sh</code></li>
       <li>Key: paste the key below.</li>
       <li>Leave "Allow write access" unticked. Tick it only if submodules should be added to this repository from the panel.</li>
       <li>Click "Add key", then come back and click "Check again".</li>

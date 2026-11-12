@@ -1,6 +1,6 @@
 # Documentation
 
-Everything about Sudoo, in one place. The same pages are on GitHub and inside the panel (top menu,
+Everything about Sudoo.sh, in one place. The same pages are on GitHub and inside the panel (top menu,
 **Documentation**).
 
 ---

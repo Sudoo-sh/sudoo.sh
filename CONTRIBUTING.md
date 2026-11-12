@@ -1,4 +1,4 @@
-# Contributing to Sudoo
+# Contributing to Sudoo.sh
 
 Thank you for taking the time to help. This guide explains how to report problems, suggest changes and send code so that your work can be reviewed and merged quickly.
 

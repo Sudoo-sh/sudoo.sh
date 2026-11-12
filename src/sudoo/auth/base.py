@@ -22,6 +22,31 @@ Account = dict[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
+class RequestInfo:
+    """Where a sign-in or setup came from, shown in e-mails so people recognise attempts that were not theirs."""
+
+    ip: str = ""
+    user_agent: str = ""
+    at: float = 0.0
+
+    @property
+    def browser(self) -> str:
+        """'Chrome on Windows': enough to recognise one's own device."""
+        agent = self.user_agent
+        name = next(
+            (label for key, label in (("Edg/", "Edge"), ("OPR/", "Opera"), ("Firefox/", "Firefox"),
+                                      ("Chrome/", "Chrome"), ("Safari/", "Safari")) if key in agent),
+            "",
+        )  # fmt: skip
+        system = next(
+            (label for key, label in (("Android", "Android"), ("iPhone", "iPhone"), ("iPad", "iPad"),
+                                      ("Windows", "Windows"), ("Mac OS X", "macOS"), ("Linux", "Linux")) if key in agent),
+            "",
+        )  # fmt: skip
+        return " on ".join(part for part in (name, system) if part)
+
+
+@dataclass(frozen=True, slots=True)
 class Identity:
     """Who signed in, as an authenticator reports it."""
 
@@ -52,7 +77,7 @@ class SecondFactor(Protocol):
         """True when the account has set this factor up."""
         ...
 
-    def challenge(self, username: str, account: Account) -> dict[str, Any]:
+    def challenge(self, username: str, account: Account, origin: RequestInfo) -> dict[str, Any]:
         """Prepare a sign-in check (send the code); returns what to tell the person, e.g. {"sent_to": "y***@site.com"}."""
         ...
 
@@ -60,7 +85,9 @@ class SecondFactor(Protocol):
         """True when the code is right (each code works once)."""
         ...
 
-    def begin_setup(self, username: str, account: Account, details: dict[str, Any]) -> dict[str, Any]:
+    def begin_setup(
+        self, username: str, account: Account, details: dict[str, Any], origin: RequestInfo
+    ) -> dict[str, Any]:
         """Start setting the factor up (send a code to the new e-mail address, create an app secret); returns what
         the person needs (e.g. {"otpauth_uri", "secret"}). Raises ValueError for bad details."""
         ...

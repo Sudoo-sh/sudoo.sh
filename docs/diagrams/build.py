@@ -158,7 +158,7 @@ class Canvas:
 
 
 def architecture():
-    c = Canvas(800, 640, "How the parts of Sudoo fit together")
+    c = Canvas(800, 640, "How the parts of Sudoo.sh fit together")
     x, w = 150, 470
     mid = x + w / 2
     c.box(x, 20, w, 58, "People and systems on the internet", ["browsers, API clients, webhook senders"], "outside")

@@ -25,6 +25,7 @@ each part was chosen.
 | **Panel** | Web pages and the API, `/api/v1` (Flask, served by Gunicorn) on `127.0.0.1:9000`. | `sudoo/web/` |
 | **Live events** | `/api/v1/events`: every change (jobs, instances, resource figures, settings) pushed to connected clients as Server-Sent Events, on the gateway's asyncio loop, `127.0.0.1:9001`. | `sudoo/core/events.py`, `web/v1/events.py` |
 | **Gateway** | One small web server per instance (aiohttp) on `127.0.0.1:<gateway port>`. Forwards every request to that instance's Odoo. | `sudoo/instances/gateway.py` |
+| **Metrics** | Figures of the server and every instance (CPU, memory, requests, errors, response times, uptime, disk) with one hour of history, from the monitor and the gateway. | `sudoo/instances/metrics.py` |
 | **Background work** | Threads in the panel's process: resource monitor (every 15 s), automatic pause (every 2 min), GitHub polling (every `POLL_MINUTES`). | `sudoo/background.py`, `instances/monitor.py` |
 | **Jobs** | Every action (create, update, restart...) runs as a job in its own thread, with steps, notes and a log. One job at a time per instance; others wait. | `sudoo/core/jobs.py`, `instances/operations.py` |
 | **Exposure plugin** | Makes the panel and each gateway reachable from outside. Default `cloudflare-quick`: one `cloudflared` container per target, opening an outgoing connection to Cloudflare. Alternative `host-ports`: the ports are opened on the server. | `sudoo/exposure/` |
@@ -202,6 +203,16 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
   nothing.
 - **Considered:** polling (slow to show changes, constant load); WebSockets (two-way, which the panel does not
   need, and more to proxy and secure); webhooks to the browser (a browser cannot receive them).
+
+### Metrics in memory, measured where the traffic passes
+- **Chosen:** the monitor samples Docker every 15 seconds; the gateway, which every visit already passes, counts
+  requests, 5xx answers and the time to Odoo's first byte. One hour of samples is kept in fixed-size rings and
+  served in columns; each new sample is a live event.
+- **Why:** no extra service, agent or database, and no work in Odoo; the figures that matter for a demo server (is it
+  slow, is it failing, is it full) come from the two places that already see everything.
+- **Considered:** Prometheus and Grafana (two more services and their memory on a small server; the panel's API
+  can still be scraped); keeping history on disk (an hour is what the dashboard shows; a restart losing it is
+  acceptable).
 
 ### Settings changed while the panel runs
 - **Chosen:** `.env` gives the defaults; administrators change behaviour settings (pause, lifetime, polling,

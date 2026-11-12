@@ -8,6 +8,7 @@ request, it can:
     - start a paused instance on the first request and show a "Starting up" page meanwhile
     - show "Update in progress" / "Switched off" pages
     - keep the panel's cookies away from Odoo
+    - count requests, errors and response times for the metrics (metrics.py)
 
 It runs on its own asyncio event loop in a background thread of the panel process.
 """
@@ -28,7 +29,7 @@ from yarl import URL
 from sudoo import exposure
 from sudoo.core import jobs
 from sudoo.core.state import STATE
-from sudoo.instances import status_pages, store
+from sudoo.instances import metrics, status_pages, store
 from sudoo.instances.monitor import STATUS
 
 _LOOP = asyncio.new_event_loop()
@@ -170,6 +171,7 @@ def _forward_headers(request: web.Request) -> dict[str, str]:
 async def _forward_http(request: web.Request, odoo_url: str) -> web.StreamResponse:
     assert _SESSION is not None  # created when the event loop starts
     body = await request.read() if request.body_exists else None
+    began = time.perf_counter()
     try:
         upstream = await _SESSION.request(
             request.method,
@@ -180,6 +182,8 @@ async def _forward_http(request: web.Request, odoo_url: str) -> web.StreamRespon
         )
     except _UPSTREAM_DOWN as exc:
         raise _OdooDown from exc
+    if not request.path.startswith(_NOT_A_VISIT):  # long-polling would distort the response times
+        metrics.record_request(request.app["instance"], upstream.status, (time.perf_counter() - began) * 1000)
     async with upstream:
         response = web.StreamResponse(status=upstream.status, reason=upstream.reason)
         for key, value in upstream.headers.items():

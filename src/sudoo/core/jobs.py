@@ -49,6 +49,22 @@ class Job:
         self.started = time.time()
         self.finished: float | None = None
         self._published_lines = 0  # log lines already sent as "job.output" events
+        self.expected_steps: int | None = None  # set by operations that know how many steps they take
+
+    def expect(self, steps: int) -> None:
+        """Announce how many steps this job will take, so its progress can be shown as a percentage."""
+        self.expected_steps = steps
+
+    def progress_percent(self) -> int | None:
+        """Finished steps out of the expected ones (a running job stays below 100); None when unknown."""
+        if self.status == "success":
+            return 100
+        if self.status == "queued":
+            return 0
+        if not self.expected_steps:
+            return None
+        done = sum(1 for step in self.steps if step["status"] == "done")
+        return min(99, round(100 * done / max(self.expected_steps, len(self.steps))))
 
     def changed(self) -> None:
         """Tell connected clients that this job changed."""

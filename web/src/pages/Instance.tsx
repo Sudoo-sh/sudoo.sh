@@ -537,4 +537,3 @@ function DeleteDialog({ name, onClose }: { name: string; onClose: () => void }) 
     </Modal>
   );
 }
-

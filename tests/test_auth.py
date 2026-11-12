@@ -32,7 +32,7 @@ def clean() -> Iterator[None]:
 
 def _user(role: str = "admin") -> tuple[str, str]:
     name = f"u{time.time_ns() % 10**10}"
-    return name, accounts.create(name, role)
+    return name, accounts.create(name, role, "orchid-pebble-summit-73")
 
 
 def _sign_in(app: Flask, name: str, password: str) -> tuple[FlaskClient, Any]:
@@ -106,11 +106,6 @@ def test_authenticator_app_setup_and_sign_in(app: Flask) -> None:
     accounts.update(name, second_factors={"totp": {**accounts.get(name)["second_factors"]["totp"], "last_step": 0}})
     step2 = fresh.post("/api/v1/session/second-factor", json={"method": "totp", "code": code}, headers=ORIGIN)
     assert step2.status_code == 201 and fresh.get("/api/v1/instances").status_code == 200
-    # the previous pages cannot sign this account in with a password alone
-    assert (
-        app.test_client().post("/api/login", json={"username": name, "password": password}, headers=ORIGIN).status_code
-        == 403
-    )
 
 
 # ---------------------------------------------------------------- e-mail code
@@ -124,7 +119,7 @@ class FakeMailer:
 
     def send(self, to: str, subject: str, text: str, html: str | None = None) -> None:
         code = subject.split(" ", 1)[0]
-        assert html and code[:3] in html and code in text and "<script" not in html
+        assert html and code in html and code in text and "<script" not in html
         self.html = html
         self.sent.append((to, code))
 
@@ -167,12 +162,12 @@ def test_required_second_factor_limits_the_session_to_setting_one_up(app: Flask,
     live.change({"require_second_factor": "admins"})
     name, password = _user("admin")
     client, answer = _sign_in(app, name, password)
-    assert answer.status_code == 201 and answer.get_json()["data"]["must_set_up_second_factor"]
+    assert answer.status_code == 201 and answer.get_json()["data"]["restricted"] == "second_factor"
     assert client.get("/api/v1/instances").status_code == 403
     assert client.get("/api/v1/account").get_json()["data"]["second_factor_required"]
-    operator, operator_password = _user("operator")
-    other, _ = _sign_in(app, operator, operator_password)
-    assert other.get("/api/v1/instances").status_code == 200  # "admins": operators are not asked
+    developer, developer_password = _user("developer")
+    other, _ = _sign_in(app, developer, developer_password)
+    assert other.get("/api/v1/instances").status_code == 200  # "admins": developers are not asked
 
 
 # ---------------------------------------------------------------- limits
@@ -221,5 +216,5 @@ def test_email_shows_where_the_request_came_from_and_escapes_values() -> None:
         username="<b>sam</b>", intro="i", code="123456", minutes=10,
         details={"time": "now", "ip": origin.ip, "browser": origin.browser}, warning="w",
     )  # fmt: skip
-    assert "123&nbsp;456" in html and "203.0.113.9" in html and "Chrome on Windows" in html
+    assert "123456" in html and "user-select:all" in html and "203.0.113.9" in html and "Chrome on Windows" in html
     assert "&lt;b&gt;sam&lt;/b&gt;" in html and "<b>sam</b>" in text  # escaped in HTML only

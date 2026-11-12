@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, KeyRound, LogOut, Mail, ShieldCheck, Smartphone, Trash2 } from "lucide-react";
+import { CircleCheck, KeyRound, LogOut, Mail, ShieldCheck, Smartphone, Trash2, UserRound } from "lucide-react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
@@ -8,7 +8,7 @@ import { keys, useAccount } from "@/api/queries";
 import type { Factor } from "@/api/types";
 import { Page, PageHead, useMe } from "@/components/Shell";
 import { Brand } from "@/components/ui/Brand";
-import { Badge, Button, Callout, CopyField, Field, Skeleton } from "@/components/ui/basics";
+import { Tag, Button, Callout, CopyField, Field, Skeleton } from "@/components/ui/basics";
 import { OtpInput } from "@/components/ui/OtpInput";
 import { Modal, useToast } from "@/components/ui/overlay";
 import { ago } from "@/lib/format";
@@ -120,9 +120,9 @@ function Factors({ onChange }: { onChange?: () => void }) {
           <div key={f.name} className="card pad"><Setup factor={f} onDone={done} onCancel={() => setSetting(null)} /></div>
         ) : (
           <div key={f.name} className="choice" style={{ cursor: "default" }}>
-            <span className="icon">{ICON[f.name] ?? <KeyRound />}</span>
+            {ICON[f.name] ?? <KeyRound />}
             <span style={{ flex: 1 }}>
-              <span className="t row">{f.label} {f.enrolled && <Badge tone="success" icon={<CircleCheck />}>on since {ago(f.added_at)}</Badge>}</span>
+              <span className="t row">{f.label} {f.enrolled && <Tag tone="positive" icon={<CircleCheck />}>on since {ago(f.added_at)}</Tag>}</span>
               <span className="d">{f.name === "email" && account.email && f.enrolled ? `Codes go to ${account.email}.` : TEXT[f.name]}</span>
             </span>
             {f.enrolled ? (
@@ -165,7 +165,7 @@ function PasswordCard() {
     setBusy(true);
     try {
       await api.put("/session/password", { current, new: next });
-      toast("success", "Password changed", "Your other sessions were signed out.");
+      toast("success", "Password changed", "Your other sessions were signed out");
       setCurrent(""); setNext(""); setAgain("");
     } catch (e) {
       toast("error", "Not changed", errorText(e));
@@ -193,25 +193,66 @@ function PasswordCard() {
   );
 }
 
+function ProfileCard() {
+  const { data: account, refetch } = useAccount();
+  const client = useQueryClient();
+  const toast = useToast();
+  const [form, setForm] = useState<Record<string, string> | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!account) return <Skeleton height={200} />;
+  const values = form ?? { first_name: account.first_name ?? "", last_name: account.last_name ?? "", email: account.email ?? "", phone: account.phone ?? "" };
+  const emailLocked = account.second_factors.some((f) => f.name === "email" && f.enrolled);
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...values, [key]: e.target.value });
+  const save = async () => {
+    setBusy(true);
+    try {
+      const changes = emailLocked ? { ...values, email: undefined } : values;
+      await api.patch("/account", changes);
+      await refetch();
+      await client.invalidateQueries({ queryKey: keys.session });
+      setForm(null);
+      toast("success", "Profile saved");
+    } catch (e) {
+      toast("error", "Not saved", errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card">
+      <div className="card-head"><UserRound /><h2>Profile</h2></div>
+      <div className="card-body form-grid">
+        <Field label="First name"><input className="input" value={values.first_name} onChange={set("first_name")} /></Field>
+        <Field label="Last name"><input className="input" value={values.last_name} onChange={set("last_name")} /></Field>
+        <Field label="E-mail" hint={emailLocked ? "Receives your sign-in codes. Set up the e-mail code again to change it" : undefined}>
+          <input className="input" type="email" value={values.email} disabled={emailLocked} onChange={set("email")} />
+        </Field>
+        <Field label="Phone"><input className="input" type="tel" value={values.phone} onChange={set("phone")} /></Field>
+      </div>
+      <div className="card-foot">
+        <span className="xsmall faint mono">{account.name} · {account.role_label}</span>
+        <span className="spacer" />
+        <Button variant="primary" loading={busy} disabled={!form} onClick={save}>Save</Button>
+      </div>
+    </section>
+  );
+}
+
 export function AccountPage() {
   const me = useMe();
-  const { data: account } = useAccount();
   return (
     <Page>
-      <PageHead eyebrow="My account" title={me.user}>
-        {me.role_label}
-        {account?.email ? ` · ${account.email}` : ""}
-      </PageHead>
+      <PageHead title={me.display_name}>{me.role_label}</PageHead>
+      <ProfileCard />
       <div className="grid-2 stagger" style={{ alignItems: "start" }}>
         <section className="card">
           <div className="card-head">
             <ShieldCheck size={18} />
             <h2>Second factor</h2>
-            {account?.second_factor_required && <Badge tone="primary">required</Badge>}
           </div>
           <div className="card-body"><Factors /></div>
         </section>
-        {account?.password_managed_here !== false && <PasswordCard />}
+        <PasswordCard />
       </div>
     </Page>
   );
@@ -231,9 +272,8 @@ export function SetupSecondFactorPage() {
       <div className="auth-card" style={{ width: "min(560px, 100%)" }}>
         <Brand />
         <header>
-          <span className="badge primary" style={{ alignSelf: "flex-start" }}><ShieldCheck /> One more step</span>
-          <h1>Protect your account</h1>
-          <p>This panel asks for a second factor: a password alone will not be enough to sign in. Set one up now; it takes a minute.</p>
+          <h1>Set up a second factor</h1>
+          <p>This panel asks for a code after the password, so a leaked password is not enough to sign in. Setting it up takes a minute.</p>
         </header>
         <Factors onChange={async () => {
           const session = await api.get<{ must_set_up_second_factor: boolean }>("/session");

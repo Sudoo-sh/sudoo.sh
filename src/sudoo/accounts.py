@@ -11,9 +11,9 @@ attacked. Hashes made before the pepper existed are replaced the next time their
 Accounts are stored in the panel's storage (storage/, collection "users"). Each account has a session_version:
 changing or resetting its password, or deleting it, invalidates all of its sessions.
 
-Roles:
-    admin     everything
-    operator  the sync operator: code updates, submodules, restart and start instances
+Roles and their permissions: roles.py. There are no default accounts: the first account, a super admin, is
+created on the panel's first-run page with the setup code that the installer prints (complete_setup).
+Accounts created by someone else get a generated password and must choose their own at their first sign-in.
 """
 
 from __future__ import annotations
@@ -29,10 +29,13 @@ from typing import Any
 
 from sudoo.config import settings
 from sudoo.core import vault
+from sudoo.roles import LABELS
 from sudoo.storage import Document, storage
 
-ROLES = {"admin": "Administrator", "operator": "Sync operator"}
-DEFAULT_ACCOUNTS = (("admin", "admin"), ("sync", "operator"))
+ROLES = LABELS
+PROFILE_FIELDS = ("first_name", "last_name", "email", "phone")
+EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}$")
+PHONE_RE = re.compile(r"^\+?[0-9 ().-]{6,24}$")
 USERNAME_RE = re.compile(r"^[a-z][a-z0-9._-]{2,31}$")
 MIN_PASSWORD_LENGTH = 12
 MAX_PASSWORD_LENGTH = 128
@@ -182,9 +185,30 @@ def check_password(username: str, password: str) -> dict[str, Any] | None:
     return user
 
 
+def profile_problem(values: dict[str, Any]) -> str | None:
+    """What is wrong with profile fields (first and last name, e-mail, phone), or None."""
+    for key in ("first_name", "last_name"):
+        value = values.get(key)
+        if value is not None and (not isinstance(value, str) or len(value) > 60 or re.search(r"[\x00-\x1f<>]", value)):
+            return f"The {key.replace('_', ' ')} must be text of at most 60 characters."
+    email = values.get("email")
+    if email and not EMAIL_RE.match(str(email)):
+        return "Enter a valid e-mail address."
+    phone = values.get("phone")
+    if phone and not PHONE_RE.match(str(phone)):
+        return "Enter a phone number with digits, spaces and an optional leading +."
+    return None
+
+
+def display_name(username: str, account: dict[str, Any]) -> str:
+    full = " ".join(part for part in (account.get("first_name"), account.get("last_name")) if part)
+    return full or username
+
+
 def create(username: str, role: str, password: str | None = None, **fields: Any) -> str:
-    """Create an account and return its password: the one given, or a generated one (shown to the user once).
-    Accounts of an external sign-in (auth plugin) are created with password="" and have no password here."""
+    """Create an account and return its password: the one given, or a generated one (shown to the user once, who
+    must replace it at the first sign-in). Accounts of an external sign-in (auth plugin) are created with
+    password="" and have no password here."""
     if not USERNAME_RE.match(username):
         raise ValueError(
             "User names are 3 to 32 characters: lower-case letters, digits, dots, dashes and "
@@ -192,6 +216,10 @@ def create(username: str, role: str, password: str | None = None, **fields: Any)
         )
     if role not in ROLES:
         raise ValueError("Unknown role.")
+    problem = profile_problem(fields)
+    if problem:
+        raise ValueError(problem)
+    generated = password is None
     password = generate_password() if password is None else password
 
     def add(existing: Document | None) -> Document:
@@ -202,8 +230,10 @@ def create(username: str, role: str, password: str | None = None, **fields: Any)
             "session_version": 1,
             "created": time.time(),
             "password_changed": time.time(),
-            **fields,
+            **{key: value for key, value in fields.items() if value not in (None, "")},
         }
+        if generated:
+            account["must_change_password"] = True
         if password:
             account["hash"] = hash_password(password)
         return account
@@ -212,13 +242,43 @@ def create(username: str, role: str, password: str | None = None, **fields: Any)
     return password
 
 
-def create_defaults() -> dict[str, str]:
-    """Create the admin and sync accounts if they do not exist; return {name: password} of those created."""
-    created: dict[str, str] = {}
-    for username, role in DEFAULT_ACCOUNTS:
-        if not get(username):
-            created[username] = create(username, role)
-    return created
+# --------------------------------------------------------------------------- first run
+
+
+def _setup_file() -> Any:
+    return settings.manager_dir / "setup_code"
+
+
+def setup_needed() -> bool:
+    return not storage().all(USERS)
+
+
+def setup_code() -> str | None:
+    """The one-time code that allows creating the first account; made when there is no account yet. The installer
+    prints it, and `sudoo.sh setup-code` shows it again. None once an account exists."""
+    if not setup_needed():
+        _setup_file().unlink(missing_ok=True)
+        return None
+    if not _setup_file().exists():
+        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O or 1/I to mistype
+        code = "-".join("".join(secrets.choice(alphabet) for _ in range(4)) for _ in range(3))
+        vault.write_private(_setup_file(), code)
+    return _setup_file().read_text().strip()
+
+
+def complete_setup(code: str, username: str, password: str, profile: dict[str, Any]) -> None:
+    """Create the first account, a super admin, when `code` is the setup code. Raises ValueError saying why not."""
+    with _LOCK:
+        expected = setup_code()
+        if expected is None:
+            raise ValueError("The panel is already set up. Sign in instead.")
+        if not hmac.compare_digest(code.strip().upper().replace(" ", ""), expected.replace(" ", "")):
+            raise PermissionError("The setup code is not correct. Show it again with: sudoo.sh setup-code")
+        problem = password_problem(password, username)
+        if problem:
+            raise ValueError(problem)
+        create(username, "super_admin", password, **profile)
+        _setup_file().unlink(missing_ok=True)
 
 
 def delete(username: str) -> None:
@@ -227,25 +287,26 @@ def delete(username: str) -> None:
         users = all_users()
         if username not in users:
             raise ValueError("No such account.")
-        admins = [name for name, user in users.items() if user["role"] == "admin"]
-        if users[username]["role"] == "admin" and len(admins) == 1:
-            raise ValueError("The last administrator account cannot be deleted.")
+        supers = [name for name, user in users.items() if user["role"] == "super_admin"]
+        if users[username]["role"] == "super_admin" and len(supers) == 1:
+            raise ValueError("The last super admin cannot be deleted.")
         storage().delete(USERS, username)
 
 
-def set_password(username: str, password: str) -> int:
-    """Store a new password and return the new session version (ending all other sessions)."""
+def set_password(username: str, password: str, must_change: bool = False) -> int:
+    """Store a new password and return the new session version (ending all other sessions). With must_change
+    (a password generated for someone else), its owner must replace it at the next sign-in."""
     new_hash = hash_password(password)  # slow on purpose: outside the transaction
 
     def apply(user: Document | None) -> Document:
         if user is None:
             raise ValueError("No such account.")
-        return {
-            **user,
-            "hash": new_hash,
-            "session_version": user["session_version"] + 1,
-            "password_changed": time.time(),
-        }
+        changed = {**user, "hash": new_hash, "session_version": user["session_version"] + 1}
+        changed["password_changed"] = time.time()
+        changed.pop("must_change_password", None)
+        if must_change:
+            changed["must_change_password"] = True
+        return changed
 
     return int((storage().change(USERS, username, apply) or {})["session_version"])
 

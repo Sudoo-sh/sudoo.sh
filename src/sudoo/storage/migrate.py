@@ -14,6 +14,22 @@ from .base import Storage
 _COLLECTIONS = {"users.json": "users", "api_tokens.json": "api_tokens", "state.json": "instance_state"}
 
 
+SCHEMA = 2  # 2: the five roles of roles.py
+
+
+def migrate(storage: Storage, folder: Path) -> None:
+    """Bring the stored data up to date: JSON files of earlier versions, then the data's own schema."""
+    migrate_json_files(storage, folder)
+    meta = storage.get("meta", "schema") or {"version": 1}
+    if meta["version"] < 2:
+        renamed = {"admin": "super_admin", "operator": "developer"}
+        for name, user in storage.all("users").items():
+            if user.get("role") in renamed:
+                storage.put("users", name, {**user, "role": renamed[user["role"]]})
+    if meta["version"] != SCHEMA:
+        storage.put("meta", "schema", {"version": SCHEMA})
+
+
 def migrate_json_files(storage: Storage, folder: Path) -> None:
     for file_name, collection in _COLLECTIONS.items():
         path = folder / file_name

@@ -1,11 +1,11 @@
-import { Building2, CircleCheck, CircleX, FlaskConical, FolderGit2, GitBranch, Package, Rocket, Sparkles } from "lucide-react";
+import { Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Package, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, usePlan, useQuota, useSettings, useVersions } from "@/api/queries";
 import type { Job, RepoAccess } from "@/api/types";
 import { Page, PageHead } from "@/components/Shell";
-import { Badge, Button, Callout, Field, Switch } from "@/components/ui/basics";
+import { Tag, Button, Callout, Field, Switch } from "@/components/ui/basics";
 import { useToast } from "@/components/ui/overlay";
 import { ago } from "@/lib/format";
 
@@ -129,8 +129,8 @@ export function NewInstancePage() {
 
   return (
     <Page>
-      <PageHead eyebrow="Create" title="New instance">
-        Pick a branch: Sudoo.sh downloads it, starts Odoo with its own database, installs your modules and gives it a link.
+      <PageHead title="New instance">
+        Pick a branch. Sudoo.sh downloads it, starts Odoo with its own database, installs your modules and gives it a link.
       </PageHead>
 
       {(waiting || full) && (
@@ -145,7 +145,7 @@ export function NewInstancePage() {
         <div className="stack">
           <section className="card">
             <div className="card-head">
-              <FolderGit2 size={18} />
+              <FolderGit2 />
               <h2>Code</h2>
               <span className="sub">optional: leave empty for an Odoo without custom modules</span>
             </div>
@@ -177,10 +177,10 @@ export function NewInstancePage() {
                 <div className="full stack-sm">
                   {access.repositories.map((r) => (
                     <div key={r.url} className="row small">
-                      {r.ok ? <CircleCheck size={16} color="var(--success)" /> : <CircleX size={16} color="var(--danger)" />}
+                      {r.ok ? <CircleCheck size={16} color="var(--positive)" /> : <CircleX size={16} color="var(--negative)" />}
                       <span className="truncate">{r.url}</span>
-                      <Badge>{r.role}</Badge>
-                      {!r.ok && <span style={{ color: "var(--danger)" }}>{r.problem}</span>}
+                      <Tag>{r.role}</Tag>
+                      {!r.ok && <span style={{ color: "var(--negative)" }}>{r.problem}</span>}
                     </div>
                   ))}
                   {!access.all_ok && (
@@ -195,29 +195,31 @@ export function NewInstancePage() {
 
           <section className="card">
             <div className="card-head">
-              <Package size={18} />
+              <Package />
               <h2>Odoo</h2>
             </div>
             <div className="card-body stack">
               <Field label="Version">
-                <div className="row-wrap">
-                  {versions?.map((v) => (
-                    <button key={v.version} type="button" className="btn" aria-pressed={v.version === version}
-                      style={v.version === version ? { borderColor: "var(--primary)", boxShadow: "0 0 0 3px var(--primary-ring)", background: "var(--primary-softer)" } : undefined}
-                      onClick={() => setVersion(v.version)}>
-                      {v.version}
-                      {v.enterprise && <Sparkles size={13} color="var(--accent)" />}
-                    </button>
-                  )) ?? <span className="faint">Loading versions…</span>}
-                </div>
+                {versions ? (
+                  <div className="segmented" style={{ alignSelf: "flex-start", flexWrap: "wrap" }}>
+                    {versions.map((v) => (
+                      <button key={v.version} type="button" aria-pressed={v.version === version} onClick={() => setVersion(v.version)}
+                        title={v.enterprise ? "Community and Enterprise" : "Community"}>
+                        <span className="mono">{v.version}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="faint">Loading versions</span>
+                )}
               </Field>
               <div className="grid-2">
                 <button type="button" className="choice" aria-pressed={edition === "community"} onClick={() => setEdition("community")}>
-                  <span className="icon"><Package /></span>
+                  <Package />
                   <span><span className="t">Community</span><br /><span className="d">Odoo's free edition.</span></span>
                 </button>
                 <button type="button" className="choice" aria-pressed={edition === "enterprise"} disabled={!enterpriseAvailable} onClick={() => setEdition("enterprise")}>
-                  <span className="icon" style={{ background: "color-mix(in oklab, var(--accent) 12%, var(--surface))", color: "var(--accent)" }}><Building2 /></span>
+                  <Building2 />
                   <span><span className="t">Enterprise</span><br /><span className="d">{enterpriseAvailable ? "With the Enterprise apps and interface." : `Not available for ${version || "this version"} on this server.`}</span></span>
                 </button>
               </div>
@@ -227,7 +229,7 @@ export function NewInstancePage() {
 
         <aside className="stack" style={{ position: "sticky", top: 84 }}>
           <section className="card">
-            <div className="card-head"><FlaskConical size={18} /><h2>Options</h2></div>
+            <div className="card-head"><SlidersHorizontal /><h2>Options</h2></div>
             <div className="card-body stack">
               <Switch checked={installModules} onChange={setInstallModules} label="Install the repository's modules" />
               <Switch checked={demo} onChange={setDemo} label="Load demo data" />
@@ -241,7 +243,7 @@ export function NewInstancePage() {
               </Field>
             </div>
             <div className="card-foot">
-              <Button variant="primary" size="lg" block icon={<Rocket />} loading={create.isPending} disabled={!canCreate} onClick={submit}>
+              <Button variant="primary" size="lg" block loading={create.isPending} disabled={!canCreate} onClick={submit}>
                 Create instance
               </Button>
             </div>

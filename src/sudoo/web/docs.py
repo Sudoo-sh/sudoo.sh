@@ -1,15 +1,16 @@
-"""The documentation inside the panel: the repository's README.md and docs/**/*.md, rendered as pages.
+"""The documentation inside the panel: the repository's README.md and docs/**/*.md, the same files as on GitHub.
 
 The installer copies the Markdown files into the image (settings.docs_dir), so the panel always shows the
-documentation of the version that is running. Pages are addressed by their path in the repository:
+documentation of the version that is running. The web app shows them on its Help pages (/help/<path>), with the
+HTML rendered here (GET /api/v1/docs/<path>, web/v1/docs.py). Pages are addressed by their path in the repository:
 
-    /docs                              the documentation index (docs/README.md)
-    /docs/README.md                    the project overview
-    /docs/docs/concepts/TUNNELING.md   a concept explained with examples
+    /help/docs/README.md               the documentation index
+    /help/README.md                    the project overview
+    /help/docs/concepts/TUNNELING.md   a concept explained with examples
 
-Links between Markdown files, and the diagrams (docs/images/*.svg, built by docs/diagrams/build.py), are rewritten
-to these addresses, so the same files read correctly on GitHub and in the panel. Only files found at start-up can be
-shown: a path is looked up in that list, never opened directly.
+Links between Markdown files are rewritten to /help/ addresses, and the diagrams (docs/images/*.svg, built by
+docs/diagrams/build.py) to /docs/ addresses served by the backend, so the same files read correctly on GitHub and in
+the panel. Only files found at start-up can be shown: a path is looked up in that list, never opened directly.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from __future__ import annotations
 import html
 import posixpath
 import re
+from typing import Any
 
 import markdown
 from flask import Blueprint, abort, redirect, send_file
@@ -31,7 +33,7 @@ INDEX = "docs/README.md"
 SECTIONS = (  # sidebar: (title, path prefixes or exact paths)
     ("Start here", ("README.md", "docs/README.md", "docs/USER_MANUAL.md")),
     ("Guides", ("docs/ADMIN_GUIDE.md", "docs/PLUGINS.md", "docs/PANEL_API.md", "docs/API.md")),
-    ("Reference", ("docs/CONFIGURATION.md", "docs/ARCHITECTURE.md", "docs/SECURITY.md")),
+    ("Reference", ("docs/CONFIGURATION.md", "docs/ARCHITECTURE.md", "docs/SECURITY.md", "docs/DESIGN.md")),
     ("Concepts", ("docs/concepts/",)),
 )
 _LINK = re.compile(r'(href|src|srcset)="(?![a-z]+:|/|#)([^"#]+\.(?:md|svg))(#[^"]*)?"')
@@ -79,62 +81,55 @@ def _render(path: str, text: str) -> str:
     def rewrite(match: re.Match[str]) -> str:
         attribute, relative, anchor = match.groups()
         target = posixpath.normpath(posixpath.join(posixpath.dirname(path), html.unescape(relative)))
-        if target in PAGES or target in IMAGES:
+        if target in PAGES:
+            return f'{attribute}="/help/{target}{anchor or ""}"'
+        if target in IMAGES:
             return f'{attribute}="/docs/{target}{anchor or ""}"'
         return match.group(0)
 
     return _LINK.sub(rewrite, body)
 
 
-def _sidebar(current: str) -> str:
-    parts: list[str] = []
+def sections() -> list[dict[str, Any]]:
+    """The documentation's table of contents: [{"title", "pages": [{"path", "title"}]}]."""
+    found: list[dict[str, Any]] = []
     for title, members in SECTIONS:
-        links: list[str] = []
-        for p, (t, _) in PAGES.items():
-            if any(p == m or (m.endswith("/") and p.startswith(m)) for m in members):
-                active = ' class="active"' if p == current else ""
-                links.append(f'<a href="/docs/{p}"{active}>{html.escape(t)}</a>')
-        if links:
-            parts.append(f'<div class="doc-nav-title">{title}</div>{"".join(links)}')
-    return "".join(parts)
+        pages = [
+            {"path": p, "title": t}
+            for p, (t, _) in PAGES.items()
+            if any(p == m or (m.endswith("/") and p.startswith(m)) for m in members)
+        ]
+        if pages:
+            found.append({"title": title, "pages": pages})
+    return found
 
 
-PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="referrer" content="no-referrer">
-<title>{title} - Sudoo.sh</title>
-<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-<link rel="stylesheet" href="/static/app.css">
-</head>
-<body>
-<header class="navbar">
-  <a class="brand" href="/"><img class="brand-mark" src="/static/odoo-icon.svg" alt=""><span>Sudoo.sh</span></a>
-  <nav class="nav"><a href="/">Instances</a><a class="active" href="/docs">Documentation</a></nav>
-</header>
-<div class="control-panel"><div class="crumbs"><a href="/docs">Documentation</a><span>/</span>{title}</div></div>
-<main class="docs">
-  <nav class="doc-nav">{sidebar}</nav>
-  <article class="sheet doc">{body}</article>
-</main>
-<footer class="footer">Sudoo.sh. Created by Yousef M. Y. Al Sabbah.</footer>
-</body>
-</html>
-"""
+_HEADING = re.compile(r'<h([23]) id="([^"]+)">(.*?)</h\1>')
+
+
+def page_resource(path: str) -> dict[str, Any] | None:
+    """A page as the web app shows it: title, HTML, and its headings for the "On this page" list."""
+    if path not in PAGES:
+        return None
+    title, text = PAGES[path]
+    body = _render(path, text)
+    headings = [
+        {"level": int(level), "id": anchor, "text": html.unescape(re.sub(r"<[^>]+>", "", inner))}
+        for level, anchor, inner in _HEADING.findall(body)
+    ]
+    return {"path": path, "title": title, "html": body, "headings": headings}
 
 
 @blueprint.get("/docs")
 def index() -> WerkzeugResponse:
-    return redirect(f"/docs/{INDEX}")
+    return redirect(f"/help/{INDEX}")
 
 
 @blueprint.get("/docs/<path:path>")
 def page(path: str) -> ResponseReturnValue:
+    """The diagrams; links to pages from earlier versions go to the Help pages."""
     if path in IMAGES:
         return send_file(settings.docs_dir / path, mimetype="image/svg+xml", max_age=3600)
-    if path not in PAGES:
-        abort(404, "This page of the documentation does not exist.")
-    title, text = PAGES[path]
-    return PAGE.format(title=html.escape(title), sidebar=_sidebar(path), body=_render(path, text))
+    if path in PAGES:
+        return redirect(f"/help/{path}")
+    abort(404, "This page of the documentation does not exist.")

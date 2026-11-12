@@ -51,15 +51,23 @@ def app() -> Flask:
 
 @pytest.fixture(scope="session")
 def passwords() -> dict[str, str]:
-    """One administrator and one sync operator, created once."""
-    return {"admin": accounts.create("admin1", "admin"), "operator": accounts.create("sync1", "operator")}
+    """One super admin and one developer, created once with passwords they chose (so no change is asked for)."""
+    chosen = {"admin": "plum-river-lantern-42", "operator": "copper-meadow-violin-17"}
+    accounts.create("admin1", "super_admin", chosen["admin"], first_name="Ada", email="ada@example.com")
+    accounts.create("sync1", "developer", chosen["operator"])
+    return chosen
+
+
+def sign_in(app: Flask, name: str, password: str) -> tuple[FlaskClient, dict[str, str]]:
+    """A client signed in through the API, and the headers a change needs (Origin, CSRF token)."""
+    client = app.test_client()
+    answer = client.post("/api/v1/session", json={"username": name, "password": password}, headers=ORIGIN)
+    assert answer.status_code == 201, answer.get_json()
+    return client, {**ORIGIN, "X-CSRF-Token": answer.get_json()["data"]["csrf_token"]}
 
 
 def _signed_in(app: Flask, name: str, password: str) -> Iterator[tuple[FlaskClient, dict[str, str]]]:
-    client = app.test_client()
-    assert client.post("/api/login", json={"username": name, "password": password}, headers=ORIGIN).status_code == 200
-    headers = {**ORIGIN, "X-CSRF-Token": client.get("/api/me").get_json()["csrf"]}
-    yield client, headers
+    yield sign_in(app, name, password)
 
 
 @pytest.fixture

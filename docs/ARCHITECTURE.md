@@ -22,20 +22,23 @@ each part was chosen.
 
 | Part | What it is | Where |
 | :--- | :--- | :--- |
-| **Web app** | The panel in the browser: React, TypeScript and SCSS, built by Vite and served by Caddy (container `sudoo-web`) on `PANEL_PORT` (9000). Caddy forwards `/api`, `/hooks` and `/docs` to the backend and `/api/v1/events` to the live events. | `web/` |
+| **Web app** | The panel in the browser: React, TypeScript and SCSS design tokens, Chart.js for the live charts, built by Vite and served by Caddy (container `sudoo-web`) on `PANEL_PORT` (9000). Caddy forwards `/api`, `/hooks` and `/docs` to the backend and `/api/v1/events` to the live events. The design system is described in [Design](DESIGN.md). | `web/` |
 | **Backend** | The API, `/api/v1` (Flask, served by Gunicorn, container `sudoo-panel`) on `127.0.0.1:API_PORT` (9002). | `sudoo/web/` |
 | **Live events** | `/api/v1/events`: every change (jobs, instances, resource figures, settings) pushed to connected clients as Server-Sent Events, on the gateway's asyncio loop, `127.0.0.1:9001`. | `sudoo/core/events.py`, `web/v1/events.py` |
 | **Gateway** | One small web server per instance (aiohttp) on `127.0.0.1:<gateway port>`. Forwards every request to that instance's Odoo. | `sudoo/instances/gateway.py` |
 | **Metrics** | Figures of the server and every instance (CPU, memory, requests, errors, response times, uptime, disk) with one hour of history, from the monitor and the gateway. | `sudoo/instances/metrics.py` |
-| **Background work** | Threads in the panel's process: resource monitor (every 15 s), automatic pause (every 2 min), GitHub polling (every `POLL_MINUTES`). | `sudoo/background.py`, `instances/monitor.py` |
+| **Roles** | Five roles, each a set of named permissions; every endpoint and action checks a permission, never a role. | `sudoo/roles.py` |
+| **Storage** | The panel's own data (accounts, tokens, audit log, instance state) in SQLite, behind a storage plugin. | `sudoo/storage/` |
+| **Background work** | Threads in the panel's process: resource monitor (every `METRICS_INTERVAL_SECONDS`, 5 s, reading a continuous `docker stats` stream), automatic pause (every 2 min), GitHub polling (every `POLL_MINUTES`). | `sudoo/background.py`, `instances/monitor.py` |
 | **Jobs** | Every action (create, update, restart...) runs as a job in its own thread, with steps, notes and a log. One job at a time per instance; others wait. | `sudoo/core/jobs.py`, `instances/operations.py` |
 | **Exposure plugin** | Makes the panel and each gateway reachable from outside. Default `cloudflare-quick`: one `cloudflared` container per target, opening an outgoing connection to Cloudflare. Alternative `host-ports`: the ports are opened on the server. | `sudoo/exposure/` |
 | **Add-on source plugin** | Provides the Enterprise add-ons of a version: an existing folder (`folder`) or a branch of a git repository (`git`). | `sudoo/addons/` |
-| **Settings** | Every setting, typed and checked at start-up (pydantic-settings). Behaviour settings can be changed in the panel while it runs, kept on top of `.env`. | `sudoo/config.py` |
+| **Settings** | Every setting, typed and checked (pydantic-settings). Almost all can be changed on the Settings page while the panel runs, kept on top of `.env` with secrets encrypted. | `sudoo/config.py` |
 | **Instances** | One Docker Compose project per instance: an `odoo` container (official image) and a `db` container (PostgreSQL 16), two volumes. | `/opt/odoo/instances/<name>/` |
 
-All of the panel (pages, gateway, background work, jobs) runs in **one container** and **one process**
-(`sudoo-panel`), so they share their state in memory without a database or a message queue. The container uses
+The backend (API, live events, gateway, background work, jobs) runs in **one container** and **one process**
+(`sudoo-panel`), so they share their state in memory without a message queue; the web app is a second, separate
+container (`sudoo-web`) that holds no state. The container uses
 the server's network (`network_mode: host`), so `127.0.0.1` means the same inside and outside it, and the server's
 Docker through `/var/run/docker.sock`.
 
@@ -217,7 +220,8 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
   need, and more to proxy and secure); webhooks to the browser (a browser cannot receive them).
 
 ### Metrics in memory, measured where the traffic passes
-- **Chosen:** the monitor samples Docker every 15 seconds; the gateway, which every visit already passes, counts
+- **Chosen:** the monitor reads a continuous `docker stats` stream and samples every `METRICS_INTERVAL_SECONDS`
+  (5 seconds); the gateway, which every visit already passes, counts
   requests, 5xx answers and the time to Odoo's first byte. One hour of samples is kept in fixed-size rings and
   served in columns; each new sample is a live event.
 - **Why:** no extra service, agent or database, and no work in Odoo; the figures that matter for a demo server (is it
@@ -254,12 +258,33 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
 - **Why:** a script in a loop, a stolen token or a careless user must not be able to fill the server's memory with
   instances or keep the panel busy.
 
-### Settings changed while the panel runs
-- **Chosen:** `.env` gives the defaults; administrators change behaviour settings (pause, lifetime, polling,
-  sessions, contact, versions) on the **Settings** page; the changes are validated by the same model and kept in
-  `settings.json` on top of `.env`. Start-up settings (ports, plugins, images) stay in `.env`.
-- **Why:** day-to-day choices should not need a shell on the server and a restart; `.env` stays the single place
-  for how the server is set up, and a reset always brings back its value.
+### Every setting in the website, `.env` as the base
+- **Chosen:** `.env` gives the defaults; super admins change almost every setting on the **Settings** page,
+  including the e-mail account; the changes are validated by the same model and kept in `settings.json` on top of
+  `.env`, secrets encrypted with the vault key. Settings that choose a plugin apply after **Restart the panel**, which
+  stops only the backend for a few seconds. Folders, ports, the exposure and the storage stay in `.env`, because the
+  web container and Docker read them too.
+- **Why:** running the panel should not need a shell on the server; `.env` stays the single description of how the
+  server is set up, and **Use .env** always brings back its value.
+
+### No default accounts: a first-run page with a setup code
+- **Chosen:** the installer creates no account. It prints a one-time setup code; whoever opens the panel with it
+  creates the first account (a super admin) with their own name, e-mail, phone and password.
+- **Why:** default accounts with printed passwords are copied into chats and never changed. The code makes sure the
+  person with access to the server, not whoever finds the new public link first, owns the panel.
+
+### Roles as sets of permissions
+- **Chosen:** five roles (super admin, administrator, maintainer, developer, viewer), each a set of thirteen named
+  permissions; every endpoint and action checks a permission. The web app shows only what the role allows, and the
+  backend checks again on every request.
+- **Why:** teams differ: some let developers create instances, others only let them follow branches. A new role is
+  a new set, without touching the checks.
+
+### One command to install
+- **Chosen:** `get.sh` installs Docker with Docker's own installer if needed, downloads the latest release and runs
+  `install.sh`, which prints the address and the setup code.
+- **Why:** the person installing a demo server is often not a system administrator. Everything else, including
+  e-mail, happens in the website.
 
 ### A lifetime per instance, and a backup before every deletion
 - **Chosen:** each instance is deleted a set number of days after its creation (30 by default) unless it is set to
@@ -321,20 +346,23 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
 - **Considered:** the operating system's Python packages (versions differ between servers); pip with requirements
   files (no lock of indirect dependencies).
 
-### Small, dependency-light software
-- **Chosen:** Python with Flask (panel) and aiohttp (gateway, needed for streaming and WebSockets); plain JavaScript
-  modules without a build step; panel data in small JSON files (accounts, state) instead of a database.
-- **Why:** few moving parts, everything readable and fixable on the server, nothing extra to run or upgrade, no
-  third-party JavaScript in the browser.
+### Small, current dependencies
+- **Chosen:** Python with Flask (API) and aiohttp (gateway and live events, for streaming); SQLite from Python's
+  standard library; in the browser React, TanStack Query, Chart.js and lucide icons, all on their latest versions,
+  pages loaded only when opened; Caddy as the only web server. Dependabot keeps them current.
+- **Why:** few moving parts, nothing extra to run, and a first page that downloads about 130 KB of compressed code.
 
-### An Odoo-like look
-- **Chosen:** the panel uses Odoo's colours and patterns: control panel with breadcrumbs, list views, form sheets
-  with a status bar and tabs, underlined fields, buttons on the left of dialogs.
-- **Why:** the people who use the panel use Odoo every day; familiar patterns need no explanation.
+### A calm interface in Apple's manner
+- **Chosen:** graphite neutrals with Odoo's plum as the single accent; the platform's system font; translucent
+  sidebar and top bar; motion only where it explains something, following Apple's *Designing Fluid Interfaces* and
+  Emil Kowalski's animation standards (press feedback, origin-aware menus, sheets that leave the way they came,
+  quick cross-fades between pages); status shown only when it matters. Details in [Design](DESIGN.md).
+- **Why:** people keep the panel open for hours; quiet chrome lets the instances and their figures read first, and
+  motion that is fast and consistent makes the panel feel responsive rather than busy.
 
 ### Documentation inside the panel
-- **Chosen:** the Markdown files of this repository are shown under **Documentation**, and help links in the panel
-  open the relevant page.
+- **Chosen:** the Markdown files of this repository are shown on the web app's **Help** pages, rendered by the
+  backend with the same links and anchors as on GitHub.
 - **Why:** one set of documents, always the version that is running, readable without access to GitHub.
 
 ### Odoo login admin / admin
@@ -359,6 +387,7 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
 | One way to do each thing; no silent fallbacks. | A repository with a key is fetched over SSH, every other one over HTTPS, nothing else. |
 | Errors shown to people are sentences that say what to do. | "This branch name is not valid." rather than a stack trace; the technical log is one click away. |
 | Long actions are jobs with named steps. | "Downloading the code from GitHub", "Starting Odoo" |
-| No inline styles or scripts in the browser code. | Every look is a class in `app.css`; every click goes through `data-act` in `main.js`. |
+| The web app takes its look from tokens and talks to the backend only through `/api/v1`. | Colours, sizes and motion in `web/src/styles/_tokens.scss`; data through `web/src/api/queries.ts`. |
+| Every permission check names a permission. | `@require("instances.create")`, `refuse_unless("instances.delete", ...)` |
 
 The full file list is in the [project overview](../README.md#components).

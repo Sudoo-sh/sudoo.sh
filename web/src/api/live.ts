@@ -97,16 +97,24 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
 
 const TOPICS = ["instance", "instance.deleted", "job", "job.output", "metrics", "settings", "reset"];
 
-export function useLiveEvents(enabled: boolean): LiveState {
+export interface Sync {
+  state: LiveState;
+  /** when the last event arrived (ms); the server sends figures every METRICS_INTERVAL_SECONDS */
+  lastAt: number | null;
+}
+
+export function useLiveEvents(enabled: boolean): Sync {
   const client = useQueryClient();
-  const [state, setState] = useState<LiveState>("connecting");
+  const [sync, setSync] = useState<Sync>({ state: "connecting", lastAt: null });
   useEffect(() => {
     if (!enabled) return;
     const source = new EventSource("/api/v1/events");
-    source.onopen = () => setState("open");
-    source.onerror = () => setState(source.readyState === EventSource.CLOSED ? "closed" : "connecting");
+    source.onopen = () => setSync((s) => ({ state: "open", lastAt: s.lastAt ?? Date.now() }));
+    source.onerror = () =>
+      setSync((s) => ({ ...s, state: source.readyState === EventSource.CLOSED ? "closed" : "connecting" }));
     for (const topic of TOPICS) {
       source.addEventListener(topic, (message) => {
+        setSync({ state: "open", lastAt: Date.now() });
         try {
           const { key, data } = JSON.parse((message as MessageEvent<string>).data);
           handle(client, topic, key, data);
@@ -117,5 +125,5 @@ export function useLiveEvents(enabled: boolean): LiveState {
     }
     return () => source.close();
   }, [client, enabled]);
-  return state;
+  return sync;
 }

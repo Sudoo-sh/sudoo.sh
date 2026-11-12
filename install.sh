@@ -2,8 +2,9 @@
 # Sudoo.sh - install or update. Run on the server as root: sudo ./install.sh
 # Created by Yousef M. Y. Al Sabbah.
 #
-# Copies the panel to /opt/odoo/manager, writes its settings (keeping existing values), builds and starts it,
-# creates the admin and sync accounts on the first run and prints the panel's public address.
+# Copies the panel to /opt/odoo/manager, writes its settings (keeping existing values), builds and starts the backend
+# (sudoo-panel) and the web app (sudoo-web), and prints the panel's public address and, on a new server, the setup
+# code for the first account. One-command install on a fresh server: get.sh.
 set -euo pipefail
 
 ROOT=/opt/odoo
@@ -61,10 +62,14 @@ echo
 echo "Sudoo.sh, created by Yousef M. Y. Al Sabbah"
 docker exec sudoo-panel sudoo.sh urls
 echo
-if [ -f "$DEST/sudoo.db" ] || [ -f "$DEST/users.json" ]; then
-  echo "Accounts already exist and were not changed."
-  echo "Forgotten password:  docker exec sudoo-panel sudoo.sh reset-password admin"
+code=$(docker exec sudoo-panel sudoo.sh setup-code 2>/dev/null | sed -n 's/^Setup code: //p')
+if [ -n "$code" ]; then
+  echo "Open the panel's address above and create your account with this setup code:"
+  echo
+  echo "    $code"
+  echo
+  echo "Show it again later with:  docker exec sudoo-panel sudoo.sh setup-code"
 else
-  echo "Accounts (shown only once, store them in a password manager):"
-  docker exec sudoo-panel sudoo.sh init-accounts
+  echo "Accounts already exist and were not changed."
+  echo "Lost password:  docker exec sudoo-panel sudoo.sh reset-password <user name>"
 fi

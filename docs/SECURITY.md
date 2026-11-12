@@ -24,17 +24,17 @@
 
 | What | Why it matters |
 | :--- | :--- |
-| The panel | It controls Docker on the server: an administrator account can do anything on the server. |
+| The panel | It controls Docker on the server: a super admin or administrator account can do anything on the server. |
 | Panel passwords | People reuse passwords; a leaked one could open other doors. |
 | GitHub deploy keys | They read the customers' private code. |
 | The server | It runs every instance. |
 
 | From whom | Typical attempt | Main defence |
 | :--- | :--- | :--- |
-| Anyone on the internet | Guessing passwords on the sign-in page | Slow hashes, sign-in lockout, strong generated passwords |
+| Anyone on the internet | Guessing passwords on the sign-in page, or taking over a new server before its owner | Slow hashes, sign-in lockout, strong generated passwords, no default accounts, a one-time setup code |
 | A website the user visits | Making the user's browser send requests to the panel | Same-origin check, CSRF token, JSON-only, `SameSite=Strict` cookie |
 | Somebody typing into a form | Text that becomes a command, a path or a script | Allow-list checks, no shell, escaping, Content-Security-Policy |
-| A sync operator | Doing administrator actions | Roles checked on the server for every request |
+| A person with a smaller role | Doing what their role does not allow | A permission checked on the server for every request |
 | Someone with a copy of the files (a backup, a copied folder) | Reading passwords and keys | Hashes and encryption with a key kept apart |
 
 Examples of each attempt, and how the panel stops it, are in [Web attacks](concepts/WEB_ATTACKS.md).
@@ -43,10 +43,14 @@ Examples of each attempt, and how the panel stops it, are in [Web attacks](conce
 
 ## 2. Reachability
 
-* With the default exposure plugin (`cloudflare-quick`), the panel (`127.0.0.1:9000`), every gateway and every Odoo
+* The panel is two containers. The web service (`sudoo-web`, Caddy) serves the web app on `PANEL_PORT` and forwards
+  `/api`, `/hooks` and `/docs` to the backend (`sudoo-panel`). The backend's API (`API_PORT`) and its live event
+  stream (`EVENTS_PORT`) listen on `127.0.0.1` only, with every exposure: nothing reaches them except through the
+  web service.
+* With the default exposure plugin (`cloudflare-quick`), the web service, every gateway and every Odoo
   listen on `127.0.0.1` only. Nothing is reachable from the internet except through the Cloudflare connectors that
   the server opened itself, and SSH for administrators.
-* With `host-ports`, the panel and the gateways listen on every interface, on purpose; Odoo itself and the
+* With `host-ports`, the web service and the gateways listen on every interface, on purpose; Odoo itself and the
   databases still listen on `127.0.0.1` only. Use a firewall to limit who can reach the ports, and https in front of
   them on any network you do not fully trust (see [Plugins](PLUGINS.md#host-ports)).
 * Cloudflare carries the traffic over https and decrypts it at its edge (that is how quick tunnels work); between
@@ -55,6 +59,17 @@ Examples of each attempt, and how the panel stops it, are in [Web attacks](conce
 * The panel and every instance have different addresses (different browser origins), so an instance's pages can never read
   the panel's cookie. The gateway also removes the panel's cookie from requests to Odoo and stops Odoo from setting
   one with the same name.
+
+### The visitor's address
+
+Sign-in lockout, rate limits and the audit log count by the visitor's address, so it must not be something a
+visitor can make up:
+
+| Source | Trusted when |
+| :--- | :--- |
+| `CF-Connecting-IP` | Only with the `cloudflare-quick` exposure, where Cloudflare sets it (the exposure plugin's `client_ip_header`). With `host-ports` it is ignored. |
+| `X-Forwarded-For` | Only when the request reaches the backend from `127.0.0.1`, that is from the web service, which replaces any value sent by the visitor with the address it received the request from. |
+| The connection's own address | In every other case. |
 
 ---
 
@@ -74,13 +89,36 @@ stored = scrypt( HMAC-SHA256(pepper, password), salt )      salt: 16 random byte
 | **Salt** | Two people with the same password have different hashes; precomputed tables are useless. |
 | **Pepper** | A secret mixed in before hashing, taken from `vault.key`, which is not in the database (`sudoo.db`). A stolen database alone cannot even be attacked. |
 | **Constant-time comparison** | Checking a password takes the same time whether it is almost right or completely wrong, and for unknown accounts too: timing reveals nothing. |
-| **Generated passwords** | New accounts and resets get 24 random characters (144 bits), shown once. |
+| **Generated passwords** | New accounts and resets get 24 random characters (144 bits), shown once. They must be replaced at the first sign-in (see below). |
 | **Rules for chosen passwords** | 12 to 128 characters, at least 6 different characters, not containing the user name or a common word (`password`, `admin`, `odoo`, `123456`...), no control characters. |
 | **Sign-in lockout** | 5 failures for an account from one address, or 20 from one address, block sign-in for 15 minutes. |
 | **Changing or resetting a password** | Ends every other session of that account. |
 | **Upgrade on sign-in** | Hashes made before the pepper existed are replaced with the current kind the next time their owner signs in. |
 
 Why a hash and not encryption is explained in [Passwords and encryption](concepts/PASSWORDS_AND_ENCRYPTION.md).
+
+### First-run setup
+
+There are **no default accounts**: a new server has no account at all, so there is no known password to try.
+
+* While no account exists, the panel makes a one-time **setup code** (three groups of four letters and digits, for
+  example `K7QH-3MXP-9TAD`) and keeps it in `/opt/odoo/manager/setup_code`, mode 600 (root only). The installer
+  prints it; `docker exec sudoo-panel sudoo.sh setup-code` shows it again.
+* The **Set up Sudoo.sh** page (`POST /api/v1/setup`) creates the first account, a **Super admin**, only with that
+  code, and signs in. The code is compared in constant time and deleted once the account exists; after that the
+  setup page refuses every request.
+* Wrong codes are throttled: 5 from one address in 15 minutes block that address for 15 minutes, and each one is
+  written to the audit log.
+* Someone who reaches the address before you still needs the code, which only a person with root on the server can
+  read.
+
+### Generated passwords must be replaced
+
+A password chosen by someone else (a new account, or a reset by an administrator) is known to two people. The
+account is therefore marked: after signing in with it, the session is **restricted**. It opens only the session
+and **My account** endpoints (`/api/v1/session`, `/api/v1/account`, `/api/v1/contact`); everything else answers
+403 "Choose your own password first." until the person has chosen a new password. The same restriction, with "Set
+up a second factor first.", applies when `REQUIRE_SECOND_FACTOR` requires a factor the account does not have yet.
 
 ### Second factors
 
@@ -108,10 +146,13 @@ Some secrets must be **read back** by the panel, so they cannot be hashed. They 
 | Secret | Stored as | Read when |
 | :--- | :--- | :--- |
 | GitHub deploy keys (`keys/deploy/*.key`) | AES-256-GCM, label `deploy-key:<owner>/<repo>` | For the length of one git connection, decrypted into a memory-only file readable by root, then deleted |
-| Odoo master password of each instance (`MASTER_PASSWORD` in its `.env`) | AES-256-GCM, label `master-password:<name>` | When an administrator opens Technical details |
+| Odoo master password of each instance (`MASTER_PASSWORD` in its `.env`) | AES-256-GCM, label `master-password:<name>` | When someone with the permission `instances.credentials` opens an instance's **Access** tab (and the audit log records it) |
+| Secret settings changed in the panel (`smtp_password`, `odoo_admin_password`, `github_webhook_secret`) | AES-256-GCM in `/opt/odoo/manager/settings.json`, label `setting:<key>` | When the panel starts, and when a setting is changed |
+| API tokens' signing secrets | AES-256-GCM | On every signed API call |
 
 Backups (`/opt/odoo/backups`) contain whole databases, so they are mode 600 (root only), listed and downloaded only
-by administrators, and only by their file name from the listing, never by a path.
+with the permission `backups.manage` (super admins and administrators), and only by their file name from the
+listing, never by a path.
 
 * **AES-256-GCM** is authenticated encryption: besides hiding the value, it detects any change to it. A modified
   value is refused, never decrypted into garbage.
@@ -119,10 +160,21 @@ by administrators, and only by their file name from the listing, never by a path
   example one repository's key renamed as another's) fails to decrypt.
 * The key is `/opt/odoo/manager/vault.key`: 32 random bytes, created on first use, mode 600. It is kept apart from
   the data: a copy of the instance folders or of the deploy keys alone is useless. Back it up **separately**
-  ([Administrator guide: Backups](ADMIN_GUIDE.md#7-backups)).
+  ([Administrator guide: Backups](ADMIN_GUIDE.md#10-backups)).
 * Odoo itself receives only a **hash** of its master password in `odoo.conf` (Odoo's own `pbkdf2-sha512` format).
   Odoo can check it but nobody can read it from that file.
 * The cookie-signing key (`secret_key`) and the vault key are generated on the server and never leave it.
+
+### Settings changed in the panel
+
+Super admins change almost every setting on the **Settings** page (`PATCH /api/v1/settings`, permission
+`settings.manage`). The changes are kept in `/opt/odoo/manager/settings.json` (mode 600) on top of `.env`.
+
+* The three secret settings (`SMTP_PASSWORD`, `ODOO_ADMIN_PASSWORD`, `GITHUB_WEBHOOK_SECRET`) are **write-only**: the
+  page and the API only say whether they are set, never their value. In `settings.json` they are encrypted with the
+  vault key; without `vault.key` they cannot be read back.
+* Folders, ports, the exposure and the storage can only be set in `.env`, which only root on the server can edit.
+* Every change is in the audit log with the names of the settings (secret values are not written there).
 
 ---
 
@@ -136,9 +188,10 @@ by administrators, and only by their file name from the listing, never by a path
 | CSRF token | Every change must carry the session's secret token in a header, which another site cannot know. |
 | Same-origin check | Every change must come from the panel's own address (`Origin` header). |
 | JSON only | Every change must be sent as `application/json`; a form posted from another site cannot do that. |
-| Content-Security-Policy | Only the panel's own scripts and styles run: no inline scripts or styles, no outside resources, no framing. An injected `<script>` would not run. |
-| Other headers | `Strict-Transport-Security`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy: same-origin`, `Cache-Control: no-store` on pages and API answers. |
-| Escaping | Everything shown in the browser is built from escaped text (`esc()` in `static/js/core.js`). |
+| Content-Security-Policy | Set by the web service (`web/Caddyfile`) on the web app, and by the backend on its own answers: only the panel's own scripts and styles run; no inline scripts or styles, no outside resources, no framing. An injected `<script>` would not run. |
+| Other headers | `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cross-Origin-Opener-Policy: same-origin`, `Permissions-Policy` (no camera, microphone, location or payment); on API answers also `Cross-Origin-Resource-Policy: same-origin`, `Cache-Control: no-store`, and `Strict-Transport-Security` when the exposure uses https. |
+| Escaping | The web app is built with React, which inserts every value as text, never as HTML. The only HTML it shows is the documentation, rendered on the server from the project's own Markdown files. |
+| One API | The web app uses only `/api/v1`, the same API as other systems, with the same checks. The pages and internal API of earlier versions are removed. |
 
 ---
 
@@ -154,7 +207,7 @@ Every value received from a browser or API client goes through `sudoo/web/valida
 | Names, addresses and branches match an allow-list pattern | `https://evil.example/x` as a GitHub address; `../../etc` as a folder |
 | Branch names cannot look like command options or path tricks | `--upload-pack=...`, `-rf`, `a..b`, `x.lock` |
 | Choices must be one of the offered values | Odoo version `99.0`; role `superuser` |
-| Instance and user names in addresses are checked before any file is touched | `/api/instances/..%2F..%2Fetc` |
+| Instance and user names in addresses are checked before any file is touched | `/api/v1/instances/..%2F..%2Fetc` |
 
 After checking, values are only passed to commands as **separate arguments, never through a shell**
 (`core/shell.py`, `core/jobs.py`), and git commands put `--` before addresses, so nothing typed can become a command or an
@@ -170,7 +223,7 @@ Being clear about limits is part of security.
 | :--- | :--- |
 | **Instance contents** | Every instance opens with `admin` / `admin` and anyone with its link can sign in. Instances must not hold real customer data. |
 | **Someone with root on the server** | Root can read `vault.key` as well as the encrypted values, and controls Docker. The vault protects copies and backups, not a compromised server. Keep SSH access to the server limited. |
-| **An administrator account** | The panel controls Docker, so an administrator can do anything on the server. Give the administrator role only to people who would be trusted with the server. |
+| **A super admin or administrator account** | The panel controls Docker, so these roles can do anything on the server. Give them only to people who would be trusted with the server. |
 | **Plain http with `host-ports`** | With `PUBLIC_SCHEME=http`, passwords and session cookies travel unencrypted (the cookie is then not marked Secure). Put a TLS proxy in front, or keep it to trusted networks. |
 | **Traffic inside Cloudflare** | Quick tunnels end https at Cloudflare's edge. For a server this is acceptable; Tailscale Funnel is the end-to-end alternative ([Tunneling](concepts/TUNNELING.md#7-other-ways-and-why-we-chose-this-one)). |
 | **Each instance's database password** | Stored readable in the instance's `.env` and `odoo.conf` (folder mode 700, root only). The database is reachable only from that instance's Odoo container, on a private Docker network, so the password is of no use to anyone who could not already read the whole server. |
@@ -183,7 +236,7 @@ Being clear about limits is part of security.
 
 | Entry point | Who can use it | How it is checked |
 | :--- | :--- | :--- |
-| `/api/v1` (other systems) | holders of an API token **and** its signing secret | token (SHA-256 hash), HMAC-SHA256 signature over timestamp, nonce, method, path and body; timestamp within 5 minutes; each nonce accepted once; scope `read` or `write`; 5 refused calls from an address block it for 15 minutes |
+| `/api/v1` (other systems) | holders of an API token **and** its signing secret | token (SHA-256 hash), HMAC-SHA256 signature over timestamp, nonce, method, path and body; timestamp within 5 minutes; each nonce accepted once; scope `write` acts as an Administrator, `read` as a Viewer; 5 refused calls from an address block it for 15 minutes |
 | `/hooks/github` (when enabled) | GitHub | `X-Hub-Signature-256`: HMAC-SHA256 of the body with `GITHUB_WEBHOOK_SECRET` |
 
 Every caller is also limited in requests per minute (`RATE_LIMIT_READS_PER_MINUTE`, `RATE_LIMIT_CHANGES_PER_MINUTE`,
@@ -197,21 +250,50 @@ panel's pages; the panel's session opens the API only from the panel's own addre
 
 ## 9. Roles and the audit log
 
-* Roles are checked **on the server** for every request; hiding a button in the browser is only a convenience.
-* Sync operators never receive passwords, master passwords or ports, even in API answers.
+Every account has one of five roles. A role is only a named set of **permissions**, and every check on the server
+asks for a permission, never for a role: each endpoint, and each action on an instance, names the permission it
+needs ([Panel API](PANEL_API.md#3-endpoints)). Hiding a button in the web app is only a convenience; the server
+refuses the call anyway, with 403 naming the missing permission, and the refusal is in the audit log.
+
+| Permission | Allows | Super admin | Administrator | Maintainer | Developer | Viewer |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| `instances.view` | See instances, their figures and activity | yes | yes | yes | yes | yes |
+| `instances.logs` | Read Odoo's log and jobs' technical logs | yes | yes | yes | yes | yes |
+| `instances.update` | Get new code, update submodules, restart, start, add submodules | yes | yes | yes | yes | |
+| `instances.operate` | Pause, switch off, upgrade modules, switch branch, back up, remove submodules, change automation and lifetime | yes | yes | yes | | |
+| `instances.create` | Create instances | yes | yes | yes | | |
+| `instances.delete` | Delete instances | yes | yes | | | |
+| `instances.credentials` | See Odoo passwords and ports | yes | yes | yes | | |
+| `backups.manage` | Download and delete backups | yes | yes | | | |
+| `github.manage` | Manage deploy keys | yes | yes | yes | | |
+| `accounts.manage` | Create, change and delete accounts | yes | yes | | | |
+| `tokens.manage` | Create and revoke API tokens | yes | yes | | | |
+| `audit.view` | Read the audit log | yes | yes | | | |
+| `settings.manage` | Change the panel's settings and restart it | yes | | | | |
+
+* Only a **super admin** creates, changes, resets or deletes super admin accounts. The last super admin cannot be
+  deleted or given another role, and nobody can change their own role.
+* Changing an account's role ends its sessions; the new permissions apply from the next sign-in.
+* **API tokens** have no account: a `write` token acts as an **Administrator**, a `read` token as a **Viewer**.
+* Roles without `instances.credentials` never receive passwords, master passwords or ports, even in API answers.
+* Accounts of earlier versions were renamed once, when the panel started: `admin` became Super admin, the sync
+  operator became Developer.
 * The audit log (in `/opt/odoo/manager/sudoo.db`, shown under **Audit log**) records sign-ins, failed sign-ins,
-  lockouts, refused actions, every action on an instance, and account and key changes, with time, account,
-  address and result. Passwords are never written to it.
+  lockouts, wrong setup codes, refused actions, every action on an instance, viewed credentials, settings changes,
+  and account and key changes, with time, account, address and result. Passwords are never written to it.
 
 ---
 
 ## 10. Checklist for the administrator
 
-- [ ] Store the `admin` and `sync` passwords from the installer in a password manager.
-- [ ] Back up `vault.key` separately from other backups.
-- [ ] Give the administrator role only to people trusted with the server.
+- [ ] Create the first account with the setup code right after installing, so nobody else can.
+- [ ] Turn on a second factor for your own account; keep `REQUIRE_SECOND_FACTOR` at `admins` or `everyone`.
+- [ ] Back up `vault.key` separately from other backups (without it, encrypted settings and keys cannot be read).
+- [ ] Give the Super admin and Administrator roles only to people trusted with the server; give everyone else the
+      smallest role that is enough (Viewer, Developer, Maintainer).
 - [ ] Delete accounts of people who no longer need them; reset a password when in doubt.
 - [ ] Look at the audit log from time to time for refused actions and failed sign-ins.
 - [ ] Keep real customer data out of instances.
 - [ ] Remove deploy keys of repositories that are no longer used, in the panel and on GitHub.
 - [ ] Give each system its own API token, `read` where reading is enough; revoke tokens no longer used.
+- [ ] With `host-ports`, put https in front of the panel and limit who can reach its port.

@@ -1,16 +1,18 @@
-// Page transitions (View Transitions API, used by the router), entrances, and the small moving details.
+// Motion that explains something, and only as much as the action is rare (Emil Kowalski's frequency rule):
+// moving between pages happens all day, so it is a short cross-fade; menus grow from their trigger; sheets and
+// toasts leave the way they came; presses answer at once. Nothing loops except the dot of something running.
 
 ::view-transition-old(page) {
-  animation: page-out var(--dur-2) var(--ease-in-out) both;
+  animation: page-out 120ms var(--ease) both;
 }
 ::view-transition-new(page) {
-  animation: page-in var(--dur-3) var(--ease-out) both;
+  animation: page-in 180ms var(--ease) both;
 }
 @keyframes page-out {
-  to { opacity: 0; transform: translateY(-6px) scale(0.995); filter: blur(2px); }
+  to { opacity: 0; }
 }
 @keyframes page-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.995); filter: blur(3px); }
+  from { opacity: 0; }
 }
 
 @keyframes rise {
@@ -19,39 +21,41 @@
 @keyframes fade {
   from { opacity: 0; }
 }
-@keyframes pop {
-  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(4px); }
 }
-@keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 55%, transparent); }
-  80%, 100% { box-shadow: 0 0 0 7px transparent; }
-}
-@keyframes shimmer {
-  to { background-position: -200% 0; }
+@keyframes running {
+  50% { opacity: 0.35; }
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-@keyframes stripes {
-  to { background-position: 28px 0; }
+@keyframes sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
 }
 @keyframes blink {
   50% { opacity: 0; }
 }
+@keyframes shimmer {
+  to { background-position: -200% 0; }
+}
 
-// children of .stagger come in one after the other
-.stagger > * {
-  animation: rise var(--dur-4) var(--ease-out) both;
-  @for $i from 1 through 16 {
-    &:nth-child(#{$i}) { animation-delay: #{($i - 1) * 35}ms; }
+// only rare screens (sign-in, first run) bring their blocks in one after the other
+.auth .stagger > * {
+  animation: rise 320ms var(--ease) both;
+  @for $i from 1 through 6 {
+    &:nth-child(#{$i}) { animation-delay: #{($i - 1) * 40}ms; }
   }
 }
-.rise { animation: rise var(--dur-4) var(--ease-out) both; }
+.rise { animation: rise 320ms var(--ease) both; }
 
+// reduced motion: no movement, but changes still fade so they can be followed
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after, ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
-    animation-duration: 1ms !important;
+  *, *::before, *::after {
     animation-delay: 0ms !important;
-    transition-duration: 1ms !important;
+    transition-property: opacity, color, background-color, border-color !important;
+    transition-duration: 150ms !important;
   }
+  .rise, .auth .stagger > *, .modal, .drawer, .menu, .toast { animation: fade 150ms ease both !important; transform: none !important; }
 }

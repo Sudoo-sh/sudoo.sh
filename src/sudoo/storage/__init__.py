@@ -26,9 +26,9 @@ def storage() -> Storage:
     if _STORAGE is None:
         with _LOCK:
             if _STORAGE is None:
-                from .migrate import migrate_json_files
+                from .migrate import migrate
 
                 created: Storage = plugins.load(plugins.STORAGE_GROUP, settings.storage, settings)
-                migrate_json_files(created, settings.manager_dir)
+                migrate(created, settings.manager_dir)
                 _STORAGE = created
     return _STORAGE

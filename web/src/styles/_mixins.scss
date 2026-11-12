@@ -1,0 +1,16 @@
+// Shared helpers for the stylesheets.
+
+// hover only where a real pointer hovers; touch screens fire false hovers on tap
+@mixin hover {
+  @media (hover: hover) and (pointer: fine) {
+    &:hover { @content; }
+  }
+}
+
+// pressable things answer on press, before the click (Apple: respond on pointer-down)
+@mixin press($scale: 0.97) {
+  transition-property: transform, background-color, border-color, color, box-shadow;
+  transition-duration: var(--press);
+  transition-timing-function: var(--ease);
+  &:active:not(:disabled) { transform: scale($scale); }
+}

@@ -42,7 +42,6 @@ def test_contact_sentence() -> None:
 def test_every_setting_is_documented() -> None:
     """docs/CONFIGURATION.md lists every setting an administrator can change."""
     fixed = {
-        "monitor_interval_seconds",
         "pause_check_interval_seconds",
         "expiry_check_interval_seconds",
         "history_samples",

@@ -24,7 +24,7 @@ Odoo with its own HTTPS link, in about two minutes, on your own server.**
 ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 ![Cloudflare Tunnel](https://img.shields.io/badge/Cloudflare-Tunnel-F38020?logo=cloudflare&logoColor=white)
 
-Community and Enterprise · Any Odoo version · GitHub sync · Plugins for access and Enterprise · Auto-pause · Lifetime and backups · Roles and audit
+Community and Enterprise · Any Odoo version · GitHub sync · Live metrics · Five roles · Second factors · Auto-pause · Lifetime and backups · One-command install
 
 [What it does](#what-this-panel-does) ·
 [Quick start](#quick-start) ·
@@ -41,20 +41,20 @@ Community and Enterprise · Any Odoo version · GitHub sync · Plugins for acces
 > **Instances are for showing Odoo, not for real data.**
 > Every instance opens with the Odoo login `admin` / `admin`, and
 > anyone who has an instance's link can sign in with it. With the default exposure plugin the public links are free
-> Cloudflare links: they **change when the server restarts**, and the panel always shows the current ones. Panel accounts are different: they have
-> strong generated passwords, stored only as hashes.
+> Cloudflare links: they **change when the server restarts**, and the panel always shows the current ones. Panel accounts are different: their
+> passwords are stored only as hashes, and a second factor can be required.
 
 ## Quick start
 
+On a Linux server (Ubuntu or Debian), one command installs Docker if needed and then Sudoo.sh:
+
 ```bash
-git clone https://github.com/Yosef-AlSabbah/sudoo.sh.git
-cd sudoo.sh
-sudo ./check-server.sh   # read-only check: Docker, memory, disk, internet access
-sudo ./install.sh        # installs the panel and prints its link and first passwords
+curl -fsSL https://raw.githubusercontent.com/Yosef-AlSabbah/sudoo.sh/main/get.sh | sudo bash
 ```
 
-Open the printed link, sign in, and create your first instance. Requirements and settings are in
-[Installation & Configuration](#installation--configuration).
+It prints the panel's link and a **setup code**. Open the link, enter the code, and create your own account with
+your name, e-mail and password. Everything else, including the e-mail account that sends sign-in codes, is set up
+in the website. Details in [Installation & Configuration](#installation--configuration).
 
 ## Sudoo.sh and Odoo.sh
 
@@ -97,15 +97,17 @@ command to use it: people receive a link.
 7. **Lifetime and backups**: each instance can be deleted automatically a set number of days after its creation
    (30 by default), or kept. The choice is made when creating it and can be changed later. Before any deletion,
    automatic or by hand, the database and files are saved as a standard Odoo backup, listed under **Backups**.
-8. **Two roles**: administrators can do everything; sync operators can update code, update and add submodules,
-   restart and start instances. When a sync operator cannot do something, the panel tells them to contact the
-   administrator named in the settings (`ADMIN_CONTACT_NAME`).
-9. **Watches the server**: CPU, memory and disk of the server and of every instance, with the last 30 minutes as small
-   graphs.
+8. **Five roles**: super admin, administrator, maintainer, developer and viewer, each a clear set of permissions.
+   Sign-in can require a second factor: an authenticator app or a code by e-mail. See
+   [Accounts and roles](docs/USER_MANUAL.md).
+9. **Live figures**: processor, memory, requests, errors and response times of the server and every instance, every
+   few seconds, with an hour of history as live charts. Pages update by themselves as things change.
 10. **An API for other systems**: CI pipelines and scripts can create, update, restart and delete instances
    with an API token and a signature on every request. See [Panel API](docs/PANEL_API.md).
 11. **Explains itself**: plain-language messages when something fails, the technical log next to it, and this
-   documentation inside the panel under **Documentation**.
+   documentation inside the panel under **Help**.
+12. **Set up from the website**: every setting, from second factors and limits to the e-mail account, on the
+   **Settings** page, with `.env` as the base. Light and dark themes, and your own accent colour.
 
 ---
 
@@ -139,7 +141,8 @@ server itself opened) and SSH for administrators. The full picture is in [Archit
 | **Git and SSH deploy keys** | Fetch code; read-only access to one repository per key. | No personal account or token whose owner might leave; each key can be revoked on its own. See [Git submodules](docs/concepts/GIT_SUBMODULES.md). |
 | **React 19 + TypeScript + Vite** | The web app (`web/`), a separate service on top of the API. | Typed end to end; pages load only when opened; fast rebuilds; any front-end developer can work on it. |
 | **TanStack Query + Server-Sent Events** | Data in the web app, kept current by the live event stream. | Pages update the moment something happens, with no polling; data is cached between pages. |
-| **SCSS design tokens** | Every colour, size and motion defined once (`web/src/styles/_tokens.scss`), light and dark themes, page transitions with the View Transitions API. | Restyling Sudoo.sh is one file; the accent colour follows `BRAND_COLOR`. |
+| **SCSS design tokens** | Every colour, size, material and motion defined once (`web/src/styles/_tokens.scss`), light and dark themes; the system font, translucent chrome and motion in Apple's manner ([Design](docs/DESIGN.md)). | Restyling Sudoo.sh is one file; the accent colour follows `BRAND_COLOR`. |
+| **Chart.js** | The live charts: an hour of figures, updated in place as each sample arrives. | Smooth, accessible canvas charts in a small, tree-shaken bundle. |
 | **Caddy** | Serves the web app and forwards `/api` to the backend (container `sudoo-web`). | One small binary, compression, strict security headers, no configuration beyond one file. |
 | **SQLite** | The panel's own data (accounts, tokens, audit log). | Transactions and queries without a database server. |
 | **Python-Markdown** | Shows this documentation inside the panel. | One set of Markdown files, read on GitHub and in the panel. |
@@ -152,18 +155,19 @@ Why each of these was chosen over the alternatives is explained in [Architecture
 
 ## Documentation
 
-All documents are in [`docs/`](docs/README.md) and are also shown inside the panel under **Documentation**.
+All documents are in [`docs/`](docs/README.md) and are also shown inside the panel under **Help**.
 
 | Document | For | What it covers |
 | :--- | :--- | :--- |
 | [Documentation index](docs/README.md) | everyone | Where to find what, by question ("how do I...?") |
-| [User manual](docs/USER_MANUAL.md) | administrators and sync operators | Every page and button of the panel, step by step |
+| [User manual](docs/USER_MANUAL.md) | everyone who uses the panel | Every page and button of the panel, step by step |
 | [Administrator guide](docs/ADMIN_GUIDE.md) | the server's administrator | Installing, files, backups, Enterprise add-ons, troubleshooting |
 | [Configuration](docs/CONFIGURATION.md) | the server's administrator | Every setting, with its type and default |
 | [Plugins](docs/PLUGINS.md) | administrators, developers | Choosing how instances are reached, where Enterprise comes from and what starts updates; writing your own |
 | [Panel API](docs/PANEL_API.md) | developers | Managing instances from other systems with signed API calls |
 | [API and webhooks](docs/API.md) | developers | Calling an instance's Odoo from other systems |
 | [Architecture](docs/ARCHITECTURE.md) | developers | How the parts work together, and why we chose each of them |
+| [Design](docs/DESIGN.md) | developers, designers | The design system: tokens, type, materials, motion, charts; restyling Sudoo.sh |
 | [Security](docs/SECURITY.md) | administrators, reviewers | Passwords, encryption, sessions, input checks, what is and is not protected |
 | [Concepts](docs/README.md#concepts-explained-with-examples) | anyone curious | Tunneling, Docker, the gateway, deploy keys, submodules, passwords and encryption, web attacks; each with examples |
 
@@ -173,13 +177,16 @@ All documents are in [`docs/`](docs/README.md) and are also shown inside the pan
 
 | Topic | How it is handled |
 | :--- | :--- |
-| Reachability | Nothing listens on a public address. The panel, the gateway and Odoo listen on `127.0.0.1`; the way in is the Cloudflare connectors. |
+| Reachability | Nothing listens on a public address. The web app, the backend, the gateway and Odoo listen on `127.0.0.1`; the way in is the Cloudflare connectors. |
+| First run | No default accounts: the first account is created with a one-time setup code printed on the server. |
 | Panel passwords | Never stored. Only a salted, peppered **scrypt hash** is kept; the pepper comes from a key outside the accounts file. Sign-in is locked after repeated failures. |
 | Stored secrets | GitHub deploy keys and Odoo master passwords are **encrypted with AES-256-GCM**. Odoo itself only receives a hash of its master password. |
 | Input | Every value from a browser or API client is checked against an allow-list (type, length, characters, pattern) before use, and never passed through a shell. |
 | Sessions | Signed, `HttpOnly`, `Secure`, `SameSite=Strict` cookie; signed out after 60 minutes without activity and after 12 hours. |
-| Browser | CSRF token and same-origin check on every change; strict Content-Security-Policy; no inline scripts or styles; HSTS. |
-| Roles and audit | Administrator and sync operator roles checked on the server; every sign-in, refusal and action is in the audit log. |
+| Browser | CSRF token and same-origin check on every change; strict Content-Security-Policy; no inline scripts; HSTS. |
+| Second factors | Authenticator app or e-mail code; can be required for administrators or everyone. |
+| Roles and audit | Five roles made of named permissions, checked on the server for every request; every sign-in, refusal and action is in the audit log. |
+| Limits | Requests per minute per user or address; how many instances, and how often. |
 
 Details, and what is deliberately *not* protected, are in [Security](docs/SECURITY.md).
 
@@ -190,6 +197,7 @@ Details, and what is deliberately *not* protected, are in [Security](docs/SECURI
 ```
 sudoo.sh/
 ├── README.md, LICENSE.md, CHANGELOG.md, CONTRIBUTING.md, SECURITY.md
+├── get.sh                         # one-command install: Docker if needed, the latest release, install.sh
 ├── install.sh                     # installs or updates the panel on the server (run as root)
 ├── check-server.sh                # read-only check of the server: Docker, memory, disk, internet access
 ├── pyproject.toml, uv.lock        # dependencies (locked with uv), plugins, tool settings
@@ -202,14 +210,19 @@ sudoo.sh/
 │   └── Caddyfile, Dockerfile      #   serves the app; forwards /api, /hooks, /docs and the live events
 ├── .env.example                   # every setting, documented (full list: docs/CONFIGURATION.md)
 ├── .pre-commit-config.yaml        # black, ruff, mypy, shellcheck, ... on every commit and in CI
-├── docs/                          # documentation, also shown in the panel; images/ and diagrams/build.py
+├── docs/                          # documentation, also shown in the panel (Help); images/ and diagrams/build.py
 ├── tests/                         # pytest
 ├── examples/                      # panel_api_client.py: a dependency-free client for the panel's API
 └── src/sudoo/
     ├── config.py                  # every setting, typed (pydantic-settings)
     ├── plugins.py                 # finds and loads plugins (entry points)
     ├── cli.py                     # the sudoo command: accounts, links, config, serve
-    ├── accounts.py                # accounts, password hashing, sign-in throttling
+    ├── accounts.py                # accounts, profiles, password hashing, first-run setup, sign-in throttling
+    ├── roles.py                   # the five roles and their permissions
+    ├── storage/                   # PLUGIN TYPE: where the panel keeps its data (sqlite), migrations
+    ├── auth/                      # PLUGIN TYPES: authenticators (local) and second factors (totp, email)
+    ├── mail/                      # PLUGIN TYPE: mailers (smtp, none); HTML e-mail templates
+    ├── limits/                    # PLUGIN TYPE: rate limiters (memory); instance quotas
     ├── background.py              # monitor, auto-pause, auto-delete, GitHub polling, gateway, exposure
     ├── core/                      # infrastructure, no Odoo knowledge
     │   ├── shell.py, jobs.py      #   commands without a shell; background actions, one per instance at a time
@@ -235,7 +248,7 @@ sudoo.sh/
     │   ├── base.py                #   the interface
     │   ├── folder.py              #   folder
     │   └── git.py                 #   git
-    └── web/                       # Flask app: security, validation, the API (v1/), documentation pages
+    └── web/                       # Flask app: security, sign-in, validation, the API (v1/), documentation
 ```
 
 ### Rules of the layout
@@ -254,21 +267,23 @@ sudoo.sh/
 
 ## Installation & Configuration
 
-Requirements: a Linux server with Docker and the Docker Compose plugin, at least 2 GB of memory (about 1 to 1.5 GB
-per running instance) and outgoing internet access to GitHub, Docker Hub and Cloudflare. With the default exposure
-plugin no incoming port is needed.
+Requirements: a Linux server (Ubuntu or Debian recommended), at least 2 GB of memory (about 1 to 1.5 GB per running
+instance), 20 GB of free disk, and outgoing internet access to GitHub, Docker Hub and Cloudflare. With the default
+exposure plugin no incoming port is needed. Docker is installed for you if it is missing.
 
 ```bash
-git clone https://github.com/Yosef-AlSabbah/sudoo.sh.git
-cd sudoo.sh
-sudo ./check-server.sh      # checks Docker, memory, disk and internet access; changes nothing
-sudo ./install.sh           # installs or updates the panel
+curl -fsSL https://raw.githubusercontent.com/Yosef-AlSabbah/sudoo.sh/main/get.sh | sudo bash
 ```
 
-The installer prints the panel's link and, the first time, the passwords of the `admin` and `sync` accounts (shown
-only once). Running `install.sh` again updates the panel; instances, accounts, keys and settings are kept.
+The same command updates an installed panel to the latest release; instances, accounts, keys and settings are kept,
+and the public links do not change. A specific version: `SUDOO_VERSION=v1.0.0`. From a copy of the repository,
+`sudo ./check-server.sh` (a read-only check) and `sudo ./install.sh` do the same.
 
-Settings are in `/opt/odoo/manager/.env`. The ones most people change:
+The installer prints the panel's link and, on a new server, a **setup code**: open the link, enter the code and create
+the first account (a super admin). Show the code again with `docker exec sudoo-panel sudoo.sh setup-code`.
+
+Almost every setting can be changed in the website (**Settings**). The base values are in `/opt/odoo/manager/.env`;
+the ones most people change:
 
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
@@ -279,6 +294,8 @@ Settings are in `/opt/odoo/manager/.env`. The ones most people change:
 | `IDLE_HOURS` | `6` | Pause after this many hours without visits |
 | `DELETE_AFTER_DAYS` | `30` | Lifetime offered for new instances (each instance can be set to "keep") |
 | `ADMIN_CONTACT_NAME` | `the administrator` | Who users are told to contact |
+| `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD` | empty | The mailbox that sends sign-in codes, for example Gmail with an app password |
+| `REQUIRE_SECOND_FACTOR` | `admins` | Who must use a second factor: `none`, `admins` or `everyone` |
 
 Every setting, with its type and default: [Configuration](docs/CONFIGURATION.md). Choosing and writing plugins:
 [Plugins](docs/PLUGINS.md). Running the server (files, backups, troubleshooting): [Administrator guide](docs/ADMIN_GUIDE.md).
@@ -291,6 +308,7 @@ Every setting, with its type and default: [Configuration](docs/CONFIGURATION.md)
 uv sync                          # installs the project and the development tools
 uv run pytest                    # tests
 uv run pre-commit run --all-files   # black, ruff, mypy, shellcheck, uv.lock and file checks
+cd web && npm ci && npm run build   # the web app: type check and build
 ```
 
 The same checks, plus a Docker image build, run on every pull request ([CI](.github/workflows/ci.yml)). The
@@ -302,7 +320,7 @@ panel is also tested end to end on a real server, through the public links, the 
 | Odoo through its link | Sign-in `admin` / `admin`, JSON-RPC, XML-RPC, JSON-2 API with an API key, incoming webhook, 5 MB upload and download, 30 parallel calls, WebSocket, two instances signed in at the same time. |
 | Security | Sign-in throttling, roles, CSRF and same-origin checks, session expiry, refused input (wrong types, too long, control characters, option-like branch names), encrypted deploy keys, Odoo accepting its hashed master password. |
 
-How to repeat these checks is described in the [Administrator guide](docs/ADMIN_GUIDE.md#9-checking-that-everything-works).
+How to repeat these checks is described in the [Administrator guide](docs/ADMIN_GUIDE.md#12-checking-that-everything-works).
 
 ---
 
@@ -393,7 +411,7 @@ Contributions are welcome: bug reports, documentation fixes and code.
 
 ## Support
 
-* **Documentation**: the [documentation index](docs/README.md), also inside the panel under **Documentation**.
+* **Documentation**: the [documentation index](docs/README.md), also inside the panel under **Help**.
 * **Questions and help**: see [SUPPORT.md](SUPPORT.md).
 
 ## Maintainer

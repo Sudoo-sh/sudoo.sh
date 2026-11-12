@@ -1,39 +1,43 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, KeyRound, Lock, Mail, Smartphone, User } from "lucide-react";
+import { ArrowLeft, Lock, Mail, Smartphone, User } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, errorText, setCsrfToken } from "@/api/client";
-import { keys, useSession } from "@/api/queries";
+import { keys, useSession, useSetup } from "@/api/queries";
 import type { SecondFactorChallenge, Session } from "@/api/types";
-import { Brand, Mark } from "@/components/ui/Brand";
+import { Brand } from "@/components/ui/Brand";
 import { Button, Callout, Field } from "@/components/ui/basics";
 import { OtpInput } from "@/components/ui/OtpInput";
 
-const CONSOLE = [
-  ["p", "$ sudoo.sh create --branch feature/invoices"],
-  ["dim", "  cloning, preparing Odoo 19.0 Enterprise…"],
-  ["ok", "  ✓ sales-feature-invoices is online"],
-  ["p", "$ git push origin main"],
-  ["ok", "  ✓ updated in 9 s, modules upgraded"],
+const PREVIEW = [
+  { name: "sales-main", branch: "main", version: "19.0", status: "var(--positive)", when: "now" },
+  { name: "crm-lead-scoring", branch: "feature/lead-scoring", version: "19.0", status: "var(--working)", when: "updating" },
+  { name: "pos-restaurant", branch: "17.0-restaurant", version: "17.0", status: "var(--positive)", when: "2 min ago" },
+  { name: "invoicing-demo", branch: "demo/customer-a", version: "18.0", status: "var(--caution)", when: "paused" },
 ];
 
-function Art() {
+/** The sign-in page's one rich moment: the product itself, branches running as Odoo instances. */
+export function Preview() {
   return (
-    <section className="auth-art">
-      <div className="grid" />
-      <Brand to="/login" />
+    <section className="auth-preview" aria-hidden="true">
       <div className="pitch">
-        <h1>Every branch, a running Odoo.</h1>
-        <p>Create, update and share Odoo instances on your own server, the way Odoo.sh does it in the cloud.</p>
-        <div className="console">
-          {CONSOLE.map(([tone, text], i) => (
-            <div key={i} className={`line ${tone}`} style={{ animationDelay: `${300 + i * 420}ms` }}>
-              {text}
-            </div>
-          ))}
-        </div>
+        <h1>Every Odoo branch, running on your own server</h1>
+        <p>Create an instance from any GitHub branch, share its link, and let it follow every push.</p>
       </div>
-      <div className="foot">Sudoo.sh · Created by Yousef M. Y. Al Sabbah</div>
+      <div className="window">
+        <div className="bar">sudoo.sh · 4 instances</div>
+        {PREVIEW.map((item, i) => (
+          <div className="item" key={item.name} style={{ animationDelay: `${150 + i * 60}ms` }}>
+            <span className="dot" style={{ background: item.status }} />
+            <span className="truncate">
+              <span className="name">{item.name}</span> <span className="branch">{item.branch}</span>
+            </span>
+            <span className="ver">{item.version}</span>
+            <span className="when">{item.when}</span>
+          </div>
+        ))}
+      </div>
+      <div className="foot">Sudoo.sh by Yousef M. Y. Al Sabbah</div>
     </section>
   );
 }
@@ -42,6 +46,7 @@ const FACTOR_ICON: Record<string, React.ReactNode> = { totp: <Smartphone size={1
 
 export function LoginPage() {
   const { data: session } = useSession();
+  const { data: setup } = useSetup();
   const client = useQueryClient();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -54,29 +59,26 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [shake, setShake] = useState(false);
-  const [contact, setContact] = useState("");
   const [resendIn, setResendIn] = useState(0);
 
-  useEffect(() => {
-    api.get<{ sentence: string }>("/contact").then((c) => setContact(c.sentence)).catch(() => undefined);
-  }, []);
   useEffect(() => {
     if (resendIn <= 0) return;
     const timer = setTimeout(() => setResendIn(resendIn - 1), 1000);
     return () => clearTimeout(timer);
   }, [resendIn]);
 
+  if (setup?.needed) return <Navigate to="/setup" replace />;
   if (session) return <Navigate to={next} replace />;
 
   const signedIn = (me: Session) => {
     setCsrfToken(me.csrf_token);
     client.setQueryData(keys.session, me);
-    navigate(me.must_set_up_second_factor ? "/setup-second-factor" : next, { replace: true, viewTransition: true });
+    navigate(next, { replace: true, viewTransition: true });
   };
   const fail = (err: unknown) => {
     setError(errorText(err));
     setShake(true);
-    setTimeout(() => setShake(false), 450);
+    setTimeout(() => setShake(false), 350);
   };
 
   const submitPassword = async (event: FormEvent) => {
@@ -125,17 +127,14 @@ export function LoginPage() {
 
   return (
     <div className="auth">
-      <Art />
       <section className="auth-panel">
         <div className="auth-card" key={challenge ? "code" : "password"}>
-          <div className="mobile-brand">
-            <Brand to="/login" />
-          </div>
+          <Brand to="/login" />
           {!challenge ? (
             <>
               <header>
-                <h1>Welcome back</h1>
-                <p>Sign in to manage your Odoo instances.</p>
+                <h1>Sign in</h1>
+                <p>Manage the Odoo instances on this server</p>
               </header>
               <form className="stack" onSubmit={submitPassword}>
                 <Field label="User name" htmlFor="username">
@@ -152,24 +151,21 @@ export function LoginPage() {
                 </Field>
                 {error && <Callout tone="danger">{error}</Callout>}
                 <Button type="submit" variant="primary" size="lg" block loading={busy} className={shake ? "shake" : ""}>
-                  Sign in <ArrowRight />
+                  Sign in
                 </Button>
               </form>
-              {contact && <p className="faint small">Forgot your password? {contact}</p>}
+              {setup?.contact && <p className="faint small">Forgot your password? {setup.contact}</p>}
             </>
           ) : (
             <>
               <header>
-                <span className="badge primary" style={{ alignSelf: "flex-start" }}>
-                  <KeyRound /> Second step
-                </span>
                 <h1>Enter your code</h1>
                 <p>
                   {method === "email"
                     ? challenge.sent_to
-                      ? `We sent a 6-digit code to ${challenge.sent_to}.`
-                      : "We can send a 6-digit code to your e-mail address."
-                    : "Open your authenticator app and type the 6-digit code for Sudoo.sh."}
+                      ? `We sent a 6-digit code to ${challenge.sent_to}`
+                      : "We can send a 6-digit code to your e-mail address"
+                    : "Open your authenticator app and type the code for Sudoo.sh"}
                 </p>
               </header>
               {challenge.methods.length > 1 && (
@@ -199,11 +195,9 @@ export function LoginPage() {
               </div>
             </>
           )}
-          <p className="faint xsmall row" style={{ justifyContent: "center" }}>
-            <Mark size={14} /> Sudoo.sh
-          </p>
         </div>
       </section>
+      <Preview />
     </div>
   );
 }

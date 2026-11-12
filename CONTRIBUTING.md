@@ -23,8 +23,9 @@ Large changes that were not discussed in an issue first may be declined, even wh
 
 ## Development setup
 
-You need [uv](https://docs.astral.sh/uv/getting-started/installation/) (it also installs the right Python) and, to
-run the panel itself, a Linux machine with Docker. A disposable virtual machine or a spare server is the safest
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/) (it also installs the right Python),
+[Node.js](https://nodejs.org/) 22.22 or later for the web app and, to run the panel itself, a Linux machine with
+Docker. A disposable virtual machine or a spare server is the safest
 place to run it: the panel manages Docker containers on the host.
 
 ```bash
@@ -33,7 +34,13 @@ cd sudoo.sh
 uv sync                        # creates .venv with the project, its dependencies and the development tools
 uv run pre-commit install      # runs the checks below on every commit
 uv run pytest                  # the tests
+cd web && npm ci               # the web app's packages
+npm run dev                    # the web app with live reload on :5173, using a backend on 127.0.0.1:9002
 ```
+
+The web app needs a running backend: on a server through an SSH tunnel
+(`ssh -L 9002:127.0.0.1:9002 -L 9001:127.0.0.1:9001 <server>`), or locally with `uv run sudoo.sh serve` and the
+settings of your choice. How the interface is built and how to change its look: [docs/DESIGN.md](docs/DESIGN.md).
 
 To try a change on a server: `sudo ./check-server.sh`, then `sudo ./install.sh` from your working copy. Running
 `install.sh` again updates the panel and keeps instances, accounts, keys and settings. Settings are described in
@@ -47,6 +54,7 @@ Every commit runs them through pre-commit, and every pull request runs them agai
 ```bash
 uv run pre-commit run --all-files   # black, ruff, mypy, shellcheck, uv.lock, whitespace, private keys
 uv run pytest                       # tests
+cd web && npm run build             # web app: TypeScript check and production build
 ```
 
 | Tool | What it checks | Settings |
@@ -55,6 +63,7 @@ uv run pytest                       # tests
 | [ruff](https://docs.astral.sh/ruff/) | Lint and import order | `pyproject.toml` |
 | [mypy](https://mypy.readthedocs.io/) | Type hints: every function is annotated | `pyproject.toml` |
 | [pytest](https://docs.pytest.org/) | Behaviour | `tests/` |
+| [TypeScript](https://www.typescriptlang.org/) (strict) and [Vite](https://vite.dev/) | The web app's types and build | `web/tsconfig.json`, `web/vite.config.ts` |
 | [pre-commit](https://pre-commit.com/) | Runs all of the above on every commit | `.pre-commit-config.yaml` |
 
 Dependencies are managed with uv: `uv add <package>` (or `uv add --dev <package>`) updates `pyproject.toml` and
@@ -72,11 +81,12 @@ These rules keep the panel small, safe and easy to review. Pull requests that br
 3. **No shell.** Every external command is a list of arguments run through `core/shell.py` or `core/jobs.py`. Never use `shell=True`, `os.system` or string-built commands.
 4. **Every value from outside goes through `web/validation.py`.** Add an allow-list rule there for any new input.
 5. **One way to do each thing, no fallbacks.** When something fails there must be one path to look at.
-6. **No inline styles or scripts** in the browser code, so the strict Content-Security-Policy keeps working.
-7. **Nothing forced on every server.** Behaviour that can differ between servers is a setting in `config.py` or a plugin (see [docs/PLUGINS.md](docs/PLUGINS.md)), never a fixed choice. New dependencies are discussed in an issue first and added with `uv add`; the browser side stays plain JavaScript modules with no npm packages.
+6. **The web app only uses `/api/v1`**, takes its look only from the design tokens, and follows the motion rules in [docs/DESIGN.md](docs/DESIGN.md); no inline scripts, so the strict Content-Security-Policy keeps working.
+7. **Nothing forced on every server.** Behaviour that can differ between servers is a setting in `config.py` or a plugin (see [docs/PLUGINS.md](docs/PLUGINS.md)), never a fixed choice. New dependencies are discussed in an issue first and added with `uv add` or `npm install` (commit the lock file).
 8. **Secrets stay encrypted.** Anything the panel must read back goes through `core/vault.py`; passwords are only ever hashed.
 9. **Explain failures in plain language.** When you add an error, add a hint for it in `core/hints.py`.
-10. **Document what you change.** Update the relevant file under `docs/` in the same pull request, since the same documents are shown inside the panel.
+10. **Check a permission, never a role.** New endpoints and actions name the permission they need (`roles.py`, `@require(...)`).
+11. **Document what you change.** Update the relevant file under `docs/` in the same pull request, since the same documents are shown inside the panel.
 
 Style: black formats the code and ruff checks it; add type hints to every function (mypy checks them). Use clear names, and comments that explain *why*, not *what*.
 

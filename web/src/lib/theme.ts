@@ -13,6 +13,9 @@ export function storedTheme(): ThemeChoice {
 
 export function applyTheme(choice: ThemeChoice) {
   const root = document.documentElement;
+  // fade between light and dark instead of a sudden flash (styles/_base.scss, .theme-changing)
+  root.classList.add("theme-changing");
+  setTimeout(() => root.classList.remove("theme-changing"), 350);
   if (choice === "system") root.removeAttribute("data-theme");
   else root.setAttribute("data-theme", choice);
   try {

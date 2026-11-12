@@ -56,12 +56,12 @@ def test_changes_are_validated_and_limited_to_editable_settings(admin: Client) -
 def test_secrets_are_never_shown(admin: Client) -> None:
     client, _ = admin
     secret = _setting(client, "odoo_admin_password")
-    assert secret["value"] is True and secret["secret"] and not secret["editable"]
+    assert secret["value"] is True and secret["secret"] and secret["editable"]  # write-only
 
 
-def test_only_administrators_change_settings(operator: Client) -> None:
+def test_only_super_admins_change_settings(operator: Client) -> None:
     client, headers = operator
-    assert client.get("/api/v1/settings").status_code == 200
+    assert client.get("/api/v1/settings").status_code == 403
     assert client.patch("/api/v1/settings", json={"idle_hours": 1}, headers=headers).status_code == 403
 
 
@@ -148,3 +148,26 @@ def test_stream_refuses_callers_without_session_or_token(app: Flask) -> None:
 
     status, content_type, forged = asyncio.run(scenario())
     assert status == 401 and content_type.startswith("application/problem+json") and forged == 401
+
+
+def test_secrets_set_in_the_panel_are_stored_encrypted(admin: Client) -> None:
+    import json
+
+    client, headers = admin
+    assert (
+        client.patch("/api/v1/settings", json={"smtp_password": "app-password-xyz"}, headers=headers).status_code == 200
+    )
+    stored = (live.env.manager_dir / "settings.json").read_text()
+    assert "app-password-xyz" not in stored and "encrypted" in json.loads(stored)["smtp_password"]
+    assert settings.smtp_password == "app-password-xyz"
+    from sudoo.config import LiveSettings
+
+    assert LiveSettings().smtp_password == "app-password-xyz"  # read back after a restart
+
+
+def test_plugin_settings_apply_after_a_restart(admin: Client) -> None:
+    client, headers = admin
+    client.patch("/api/v1/settings", json={"update_triggers": "polling,github-webhook"}, headers=headers)
+    shown = _setting(client, "update_triggers")
+    assert shown["applies"] == "restart" and shown["pending_restart"]
+    assert _setting(client, "panel_port")["applies"] == "env"

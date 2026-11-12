@@ -1,4 +1,4 @@
-"""GitHub: deploy keys (administrators) and repository checks.
+"""GitHub: deploy keys and repository checks.
 
 GET    /api/v1/deploy-keys                      deploy keys
 POST   /api/v1/deploy-keys                      create for {"repo"}; the public key to add on GitHub -> 201
@@ -9,31 +9,35 @@ GET    /api/v1/repositories/access?url=&branch= can the server read the reposito
 
 from __future__ import annotations
 
-from flask import Blueprint, Response, abort
+from flask import Blueprint, Response, abort, request
 
 from sudoo.repos import github as gh
 
-from .. import api_github
-from ..security import admin_only, is_admin, log
+from .. import validation as check
+from ..security import can, log, require
 from .responses import PREFIX, created, no_content, ok
 
 blueprint = Blueprint("github", __name__)
 
 
 @blueprint.get("/deploy-keys")
-@admin_only
+@require("github.manage")
 def list_keys() -> Response:
-    return ok(api_github.list_keys().get_json())
+    return ok(gh.keys())
 
 
 @blueprint.post("/deploy-keys")
+@require("github.manage")
 def create_key() -> Response:
-    made = api_github.create_key().get_json()
-    return created(made, f"{PREFIX}/deploy-keys/{made['repo']}")
+    rid, public_key = gh.create_key(check.repo_reference(check.text(check.body(), "repo")))
+    log("deploy key created", detail=rid)
+    return created(
+        {"repo": rid, "public_key": public_key, "github_url": gh.add_key_url(rid)}, f"{PREFIX}/deploy-keys/{rid}"
+    )
 
 
 @blueprint.delete("/deploy-keys/<owner>/<repo>")
-@admin_only
+@require("github.manage")
 def delete_key(owner: str, repo: str) -> Response:
     rid = gh.repo_id(f"https://github.com/{owner}/{repo}")
     if rid is None or not gh.has_key(rid):
@@ -44,14 +48,20 @@ def delete_key(owner: str, repo: str) -> Response:
 
 
 @blueprint.get("/repositories/branches")
+@require("instances.view")
 def branches() -> Response:
-    found = api_github.repo_branches().get_json()
-    if not found["ok"]:
-        abort(400, found["error"])
-    return ok({"branches": found["branches"], "default": found["default"]})
+    names, default, error = gh.branches(check.repo_address(check.text(request.args, "url")))
+    if error:
+        abort(400, error)
+    return ok({"branches": names, "default": default})
 
 
 @blueprint.get("/repositories/access")
+@require("instances.view")
 def access() -> Response:
-    found = api_github.repo_access().get_json()
-    return ok({"repositories": found["repos"], "all_ok": found["all_ok"]}, meta={"can_manage_keys": is_admin()})
+    branch = check.branch(check.text(request.args, "branch"), required=False)
+    report = gh.access_report(check.repo_address(check.text(request.args, "url")), branch)
+    return ok(
+        {"repositories": report, "all_ok": all(entry["ok"] for entry in report)},
+        meta={"can_manage_keys": can("github.manage")},
+    )

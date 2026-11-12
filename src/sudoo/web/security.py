@@ -1,6 +1,11 @@
-"""Sign-in sessions, CSRF protection, security headers and roles for the panel.
+"""Who is calling, what they may do, and the headers of every answer.
 
-Every request except the public paths must belong to a valid session:
+The backend answers:
+    /api/v1/*   the API: an API token and signature (other systems), or the web app's session (the browser)
+    /hooks/*    webhooks of update triggers, each checking its sender's own signature
+    /docs/*     the documentation's images, for signed-in people
+    /healthz    a health check
+A browser session must be valid:
     - a signed session cookie (HttpOnly, SameSite=Strict, Secure)
     - its account still exists and its session_version matches (password changes end other sessions)
     - not idle for more than SESSION_IDLE_MINUTES and not older than SESSION_MAX_HOURS
@@ -18,24 +23,14 @@ from functools import wraps
 from typing import Any, Protocol, cast
 from urllib.parse import urlsplit
 
-from flask import Flask, Response, abort, g, jsonify, redirect, request, session
+from flask import Flask, Response, abort, g, redirect, request, session
 from flask.typing import ResponseReturnValue
 
-from sudoo import accounts, api_tokens, exposure, limits
+from sudoo import accounts, api_tokens, exposure, limits, roles
 from sudoo.config import settings
 from sudoo.core import audit
 
-PUBLIC_PATHS = {
-    "/login",
-    "/api/login",
-    "/api/contact",
-    "/healthz",
-    "/favicon.ico",
-    "/static/app.css",
-    "/static/js/login.js",
-    "/static/favicon.ico",
-    "/static/odoo-icon.svg",
-}
+PUBLIC_PATHS = {"/healthz"}
 
 SAFE_METHODS = ("GET", "HEAD")
 
@@ -102,7 +97,7 @@ def user_of_session(data: Mapping[str, Any], check_idle: bool = True) -> dict[st
         and (not check_idle or now - data.get("seen", 0) <= settings.session_idle_minutes * 60)
         and now - data.get("started", 0) <= settings.session_max_hours * 3600
     )
-    return {"name": str(name), "role": account["role"]} if valid and account is not None else None
+    return {"name": str(name), "role": roles.normalize(account["role"])} if valid and account is not None else None
 
 
 def current_user() -> dict[str, str] | None:
@@ -118,15 +113,14 @@ def current_user() -> dict[str, str] | None:
     return user
 
 
-def start_session(name: str, version: int, enroll_only: bool = False) -> None:
-    """A new session (a new cookie, so nothing from before signing in carries over). With enroll_only it can only
-    set up a second factor (REQUIRE_SECOND_FACTOR applies and the account has none)."""
+def start_session(name: str, version: int, restricted: str | None = None) -> None:
+    """A new session (a new cookie, so nothing from before signing in carries over). A restricted session opens
+    only what its task needs (signin.restriction: choose a password, set up a second factor)."""
     now = time.time()
     session.clear()
     session.permanent = True
     session.update(user=name, version=version, csrf=secrets.token_urlsafe(32), started=now, seen=now)
-    if enroll_only:
-        session["enroll_only"] = True
+    session["restricted"] = restricted
 
 
 def _same_origin() -> bool:
@@ -136,13 +130,19 @@ def _same_origin() -> bool:
 
 API_PREFIX = "/api/v1/"  # the API: an API token and signature (other systems) or a session (the browser)
 HOOKS_PREFIX = "/hooks/"  # webhooks of update triggers: each checks its sender's own signature
-PUBLIC_API = {("POST", "/api/v1/session"), ("GET", "/api/v1/contact"), ("POST", "/api/v1/session/second-factor")}
+PUBLIC_API = {
+    ("GET", "/api/v1/setup"),
+    ("POST", "/api/v1/setup"),
+    ("GET", "/api/v1/contact"),
+    ("POST", "/api/v1/session"),
+    ("POST", "/api/v1/session/second-factor"),
+}
 PUBLIC_API_PREFIXES = ("/api/v1/session/second-factor/",)  # sending a code, between the two sign-in steps
-ENROLL_ONLY_PREFIXES = ("/api/v1/session", "/api/v1/account", "/api/v1/contact")
+RESTRICTED_PREFIXES = ("/api/v1/session", "/api/v1/account", "/api/v1/contact")  # all a restricted session opens
 
 
 def _check_request() -> ResponseReturnValue | None:
-    if request.path.startswith(HOOKS_PREFIX):
+    if request.path.startswith(HOOKS_PREFIX) or request.path in PUBLIC_PATHS:
         return None
     if request.path.startswith(API_PREFIX):
         if "Authorization" in request.headers:
@@ -150,24 +150,12 @@ def _check_request() -> ResponseReturnValue | None:
         else:
             _authenticate_browser_call()
         return None
+    # the documentation's images: read only, for a signed-in session
     if request.method not in SAFE_METHODS:
-        if not _same_origin():
-            abort(403, "Request blocked: it did not come from this panel.")
-        if request.content_length and request.mimetype != "application/json":
-            abort(415, "Requests must be sent as JSON.")
-    if request.path in PUBLIC_PATHS:
-        return None
+        abort(405)
     g.user = current_user()
     if not g.user:
-        if request.path.startswith("/api/"):
-            return jsonify(error="Your session has ended. Please sign in again.", login=True), 401
         return redirect("/login")
-    if session.get("enroll_only"):  # the previous pages cannot set up a second factor
-        abort(403, "Set up a second factor for your account first, in the new panel.")
-    if request.method not in SAFE_METHODS and not hmac.compare_digest(
-        request.headers.get("X-CSRF-Token", ""), session.get("csrf", "")
-    ):
-        abort(403, "Your session has expired. Please reload the page.")
     return None
 
 
@@ -185,8 +173,9 @@ def _authenticate_browser_call() -> None:
     g.user = current_user()
     if not g.user:
         abort(401, "Your session has ended. Please sign in again.")
-    if session.get("enroll_only") and not request.path.startswith(ENROLL_ONLY_PREFIXES):
-        abort(403, "Set up a second factor for your account first (Account, Second factor).")
+    task = session.get("restricted")
+    if task and not request.path.startswith(RESTRICTED_PREFIXES):
+        abort(403, "Choose your own password first." if task == "password" else "Set up a second factor first.")
     if request.method not in SAFE_METHODS and not hmac.compare_digest(
         request.headers.get("X-CSRF-Token", ""), session.get("csrf", "")
     ):
@@ -221,7 +210,7 @@ def api_caller(headers: Headers, method: str, path_with_query: str, body: bytes,
     if token["scope"] != "write" and method not in SAFE_METHODS:
         audit.record(f"api:{token['name']}", ip, "API change refused (read-only token)", ok=False)
         raise PermissionError("This API token can only read. Create a token with the write scope to make changes.", 403)
-    return {"name": f"api:{token['name']}", "role": "admin" if token["scope"] == "write" else "operator"}
+    return {"name": f"api:{token['name']}", "role": "admin" if token["scope"] == "write" else "viewer"}
 
 
 def _path_with_query() -> str:
@@ -264,32 +253,37 @@ def _add_headers(response: Response) -> Response:
     return response
 
 
-def is_admin() -> bool:
-    return g.user["role"] == "admin"
+def can(permission: str) -> bool:
+    """Whether the caller's role includes `permission` (roles.py)."""
+    return permission in roles.permissions(g.user["role"])
 
 
 def message_for_user(text: str | None) -> str | None:
-    """`text`, followed by who to contact when the signed-in user is not an administrator."""
-    if getattr(g, "user", None) and not is_admin():
+    """`text`, followed by who to contact when the caller cannot fix things themselves."""
+    if getattr(g, "user", None) and not can("accounts.manage"):
         return f"{text} {settings.contact_sentence()}"
     return text
 
 
-def refuse_unless_admin(what: str) -> None:
-    if not is_admin():
+def refuse_unless(permission: str, what: str) -> None:
+    if not can(permission):
         audit.record(g.user["name"], client_ip(), f"refused: {what}", ok=False)
-        abort(403, f"Only the administrator can do this. {settings.contact_sentence()}")
+        needed = roles.PERMISSIONS[permission].lower()
+        abort(403, f"Your role cannot do this ({needed}). {settings.contact_sentence()}")
 
 
-def admin_only[**P, R](view: Callable[P, R]) -> Callable[P, R]:
-    """Decorator: the endpoint is for administrators only."""
+def require[**P, R](permission: str) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    """Decorator: the endpoint needs `permission`."""
 
-    @wraps(view)
-    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-        refuse_unless_admin(request.path)
-        return view(*args, **kwargs)
+    def decorate(view: Callable[P, R]) -> Callable[P, R]:
+        @wraps(view)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            refuse_unless(permission, request.path)
+            return view(*args, **kwargs)
 
-    return wrapper
+        return wrapper
+
+    return decorate
 
 
 def log(event: str, instance: str | None = None, detail: str | None = None, ok: bool = True) -> None:

@@ -1,18 +1,18 @@
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  Activity,
   BookOpen,
   ChevronRight,
-  Cpu,
+  ChevronsUpDown,
   DatabaseBackup,
   FolderGit2,
   KeyRound,
   LayoutGrid,
   LogOut,
   Menu as MenuIcon,
-  MemoryStick,
   Monitor,
   Moon,
   Plus,
+  ScrollText,
   Settings2,
   Sun,
   UserRound,
@@ -20,11 +20,10 @@ import {
 } from "lucide-react";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import { api, setCsrfToken } from "@/api/client";
-import { useLiveEvents, type LiveState } from "@/api/live";
-import { keys, useInstances, useMetrics, useSession, useSettings } from "@/api/queries";
-import type { Session } from "@/api/types";
+import { useLiveEvents, type Sync } from "@/api/live";
+import { keys, useInstances, useMetrics, useSession } from "@/api/queries";
+import type { Permission, Session } from "@/api/types";
 import { percent } from "@/lib/format";
 import { applyBrandColor, applyTheme, storedTheme, type ThemeChoice } from "@/lib/theme";
 import { Brand } from "./ui/Brand";
@@ -33,12 +32,19 @@ import { Menu, useToast } from "./ui/overlay";
 
 const SessionContext = createContext<Session | null>(null);
 export const useMe = () => useContext(SessionContext)!;
-export const useIsAdmin = () => useMe().role === "admin";
+/** Whether the signed-in role includes a permission (the backend checks it again on every request). */
+export const useCan = () => {
+  const me = useMe();
+  return (permission: Permission) => me.permissions.includes(permission);
+};
+
+const RESTRICTED_PAGE = { password: "/change-password", second_factor: "/setup-second-factor" } as const;
 
 /** Pages that need a signed-in session; sends everyone else to the sign-in page. */
 export function RequireSession() {
   const { data: session, isPending } = useSession();
   const location = useLocation();
+  useEffect(() => applyBrandColor(session?.brand_color), [session?.brand_color]);
   if (isPending)
     return (
       <div style={{ display: "grid", placeItems: "center", height: "100vh" }}>
@@ -47,8 +53,8 @@ export function RequireSession() {
     );
   if (!session) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   setCsrfToken(session.csrf_token);
-  if (session.must_set_up_second_factor && location.pathname !== "/setup-second-factor")
-    return <Navigate to="/setup-second-factor" replace />;
+  const task = session.restricted ? RESTRICTED_PAGE[session.restricted] : null;
+  if (task && location.pathname !== task) return <Navigate to={task} replace />;
   return (
     <SessionContext.Provider value={session}>
       <Outlet />
@@ -56,12 +62,29 @@ export function RequireSession() {
   );
 }
 
+export function RequirePermission({ permission, children }: { permission: Permission; children: ReactNode }) {
+  return useCan()(permission) ? <>{children}</> : <Navigate to="/" replace />;
+}
+
+export function useSignOut() {
+  const client = useQueryClient();
+  const navigate = useNavigate();
+  const toast = useToast();
+  return async () => {
+    await api.del("/session").catch(() => undefined);
+    client.setQueryData(keys.session, null);
+    client.clear();
+    navigate("/login");
+    toast("info", "Signed out");
+  };
+}
+
 function NavItem({ to, icon, children, end, count }: { to: string; icon: ReactNode; children: ReactNode; end?: boolean; count?: number }) {
   return (
     <NavLink to={to} end={end} viewTransition className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
       {icon}
       <span>{children}</span>
-      {count != null && <span className="badge count">{count}</span>}
+      {count != null && <span className="count">{count}</span>}
     </NavLink>
   );
 }
@@ -70,97 +93,102 @@ function ThemeButton() {
   const [theme, setTheme] = useState<ThemeChoice>(storedTheme);
   const next: Record<ThemeChoice, ThemeChoice> = { system: "light", light: "dark", dark: "system" };
   const icon = { system: <Monitor />, light: <Sun />, dark: <Moon /> }[theme];
+  const label = { system: "System theme", light: "Light theme", dark: "Dark theme" }[theme];
   return (
     <Button
       variant="ghost"
       size="sm"
       icon={icon}
-      title={`Theme: ${theme}`}
+      title={label}
+      aria-label={label}
       onClick={() => {
         applyTheme(next[theme]);
         setTheme(next[theme]);
       }}
-    >
-      {theme === "system" ? "System" : theme === "light" ? "Light" : "Dark"}
-    </Button>
+    />
   );
 }
 
-function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }) {
+function Sidebar({ open }: { open: boolean }) {
   const me = useMe();
-  const admin = me.role === "admin";
+  const can = useCan();
   const { data: instances } = useInstances();
-  const client = useQueryClient();
-  const navigate = useNavigate();
-  const toast = useToast();
-  const signOut = async () => {
-    await api.del("/session").catch(() => undefined);
-    client.setQueryData(keys.session, null);
-    client.clear();
-    navigate("/login");
-    toast("info", "Signed out");
-  };
+  const signOut = useSignOut();
+  const operations = can("backups.manage") || can("audit.view") || can("github.manage");
+  const administration = can("settings.manage") || can("accounts.manage") || can("tokens.manage");
   return (
-    <aside className={`sidebar ${open ? "open" : ""}`} onClick={(e) => (e.target as HTMLElement).closest("a") && onNavigate()}>
+    <aside className={`sidebar ${open ? "open" : ""}`}>
       <Brand />
       <div className="nav-group">Workspace</div>
       <nav>
         <NavItem to="/" end icon={<LayoutGrid />} count={instances?.length}>
           Instances
         </NavItem>
-        {admin && (
+        {can("instances.create") && (
           <NavItem to="/new" icon={<Plus />}>
             New instance
           </NavItem>
         )}
+        <NavItem to="/help" icon={<BookOpen />}>
+          Help
+        </NavItem>
       </nav>
-      {admin && (
+      {operations && (
         <>
           <div className="nav-group">Operations</div>
           <nav>
-            <NavItem to="/backups" icon={<DatabaseBackup />}>
-              Backups
-            </NavItem>
-            <NavItem to="/activity" icon={<Activity />}>
-              Audit log
-            </NavItem>
-            <NavItem to="/github" icon={<FolderGit2 />}>
-              GitHub access
-            </NavItem>
+            {can("backups.manage") && (
+              <NavItem to="/backups" icon={<DatabaseBackup />}>
+                Backups
+              </NavItem>
+            )}
+            {can("github.manage") && (
+              <NavItem to="/github" icon={<FolderGit2 />}>
+                GitHub access
+              </NavItem>
+            )}
+            {can("audit.view") && (
+              <NavItem to="/activity" icon={<ScrollText />}>
+                Audit log
+              </NavItem>
+            )}
           </nav>
+        </>
+      )}
+      {administration && (
+        <>
           <div className="nav-group">Administration</div>
           <nav>
-            <NavItem to="/settings" icon={<Settings2 />}>
-              Settings
-            </NavItem>
-            <NavItem to="/accounts" icon={<Users />}>
-              Accounts
-            </NavItem>
-            <NavItem to="/tokens" icon={<KeyRound />}>
-              API tokens
-            </NavItem>
+            {can("settings.manage") && (
+              <NavItem to="/settings" icon={<Settings2 />}>
+                Settings
+              </NavItem>
+            )}
+            {can("accounts.manage") && (
+              <NavItem to="/accounts" icon={<Users />}>
+                Accounts
+              </NavItem>
+            )}
+            {can("tokens.manage") && (
+              <NavItem to="/tokens" icon={<KeyRound />}>
+                API tokens
+              </NavItem>
+            )}
           </nav>
         </>
       )}
       <div className="sidebar-foot">
-        <div className="row">
-          <a className="btn ghost sm" href="/docs" target="_blank" rel="noreferrer">
-            <BookOpen /> Docs
-          </a>
-          <span className="spacer" />
-          <ThemeButton />
-        </div>
         <Menu
           align="left"
           trigger={(toggle) => (
             <button className="user-card" onClick={toggle}>
-              <span className="avatar">{me.user.slice(0, 2)}</span>
+              <span className="avatar">{(me.first_name?.[0] ?? me.user[0]) + (me.last_name?.[0] ?? "")}</span>
               <span className="who">
-                <span className="name truncate">{me.user}</span>
+                <span className="name truncate">{me.display_name}</span>
                 <br />
                 <span className="role">{me.role_label}</span>
               </span>
-              <ChevronRight size={16} className="faint" />
+              <ChevronsUpDown />
             </button>
           )}
         >
@@ -176,12 +204,35 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
             </>
           )}
         </Menu>
+        <div className="row" style={{ padding: "0 8px" }}>
+          <span className="xsmall faint">Sudoo.sh</span>
+          <span className="spacer" />
+          <ThemeButton />
+        </div>
       </div>
     </aside>
   );
 }
 
-const LIVE_LABEL: Record<LiveState, string> = { open: "Live", connecting: "Connecting", closed: "Offline" };
+/** Nothing while connected; a small notice only while the connection to the server is lost. */
+function Reconnecting({ sync }: { sync: Sync }) {
+  const [lost, setLost] = useState(false);
+  useEffect(() => {
+    if (sync.state === "open") {
+      setLost(false);
+      return;
+    }
+    const timer = setTimeout(() => setLost(true), 3000); // short drops pass unnoticed
+    return () => clearTimeout(timer);
+  }, [sync.state]);
+  if (!lost) return null;
+  return (
+    <div className="reconnecting" role="status">
+      <span className="spinner" />
+      {sync.state === "closed" ? "Signed out. Reload to sign in again" : "Reconnecting"}
+    </div>
+  );
+}
 
 const CRUMBS: Record<string, string> = {
   "": "Instances",
@@ -193,14 +244,13 @@ const CRUMBS: Record<string, string> = {
   activity: "Audit log",
   github: "GitHub access",
   account: "My account",
-  i: "Instances",
+  help: "Help",
 };
 
-function Topbar({ live, onMenu }: { live: LiveState; onMenu: () => void }) {
+function Topbar({ onMenu }: { onMenu: () => void }) {
   const location = useLocation();
   const { data: metrics } = useMetrics();
   const parts = location.pathname.split("/").filter(Boolean);
-  const section = CRUMBS[parts[0] ?? ""] ?? "Sudoo.sh";
   const server = metrics?.server;
   return (
     <header className="topbar">
@@ -215,67 +265,54 @@ function Topbar({ live, onMenu }: { live: LiveState; onMenu: () => void }) {
             <span className="current truncate">{parts[1]}</span>
           </>
         ) : (
-          <span className="current">{section}</span>
+          <span className="current">{CRUMBS[parts[0] ?? ""] ?? "Sudoo.sh"}</span>
         )}
       </div>
       <span className="spacer" />
       {server?.cpu_percent != null && (
-        <>
-          <span className="chip-metric hide-sm" title="Server processor">
-            <Cpu /> CPU <b>{percent(server.cpu_percent)}</b>
-          </span>
-          <span className="chip-metric hide-sm" title="Server memory">
-            <MemoryStick /> RAM <b>{percent(server.memory_percent)}</b>
-          </span>
-        </>
+        <span className="meter hide-sm" title="The server's processor and memory, now">
+          CPU <b>{percent(server.cpu_percent)}</b> &nbsp; Memory <b>{percent(server.memory_percent)}</b>
+        </span>
       )}
-      <span className={`live ${live}`} title="Changes appear as they happen">
-        <span className="dot" />
-        {LIVE_LABEL[live]}
-      </span>
     </header>
   );
 }
 
-/** The frame of every signed-in page: sidebar, top bar, live updates, brand colour. */
+/** The frame of every signed-in page: sidebar, top bar, live updates. */
 export function Shell() {
-  const live = useLiveEvents(true);
+  const sync = useLiveEvents(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const { pathname } = useLocation();
   useEffect(() => setMenuOpen(false), [pathname]);
-  const { data: settings } = useSettings();
-  useEffect(() => {
-    applyBrandColor(settings?.find((s) => s.key === "brand_color")?.value as string | undefined);
-  }, [settings]);
   return (
     <div className="shell">
-      <Sidebar open={menuOpen} onNavigate={() => setMenuOpen(false)} />
+      <Sidebar open={menuOpen} />
       {menuOpen && <div className="sidebar-scrim" onClick={() => setMenuOpen(false)} />}
       <div className="main">
-        <Topbar live={live} onMenu={() => setMenuOpen(true)} />
+        <Topbar onMenu={() => setMenuOpen(true)} />
+        <Reconnecting sync={sync} />
         <Outlet />
       </div>
     </div>
   );
 }
 
-export function Page({ children }: { children: ReactNode }) {
-  return <main className="page">{children}</main>;
+export function Page({ children, wide }: { children: ReactNode; wide?: boolean }) {
+  return (
+    <main className="page" style={wide ? { maxWidth: 1600 } : undefined}>
+      {children}
+    </main>
+  );
 }
 
-export function PageHead({ eyebrow, title, children, actions }: { eyebrow?: string; title: ReactNode; children?: ReactNode; actions?: ReactNode }) {
+export function PageHead({ title, children, actions }: { title: ReactNode; children?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="page-head rise">
+    <div className="page-head">
       <div className="titles">
-        {eyebrow && <span className="eyebrow">{eyebrow}</span>}
         <h1>{title}</h1>
         {children && <p>{children}</p>}
       </div>
       {actions && <div className="actions">{actions}</div>}
     </div>
   );
-}
-
-export function AdminOnly({ children }: { children: ReactNode }) {
-  return useIsAdmin() ? <>{children}</> : <Navigate to="/" replace />;
 }

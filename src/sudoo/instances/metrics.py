@@ -80,7 +80,7 @@ def percentile(values: list[float], share: float) -> float | None:
 
 # ---------------------------------------------------------------- samples (from the monitor's thread)
 
-_HISTORY_SAMPLES = 240  # one hour at one sample every 15 seconds
+_HISTORY_SAMPLES = 1800  # one hour at the shortest interval (2 seconds); older samples are left out by time
 SERVER: dict[str, Any] = {}
 INSTANCES: dict[str, dict[str, Any]] = {}
 _SERVER_HISTORY: deque[dict[str, Any]] = deque(maxlen=_HISTORY_SAMPLES)
@@ -104,7 +104,7 @@ def sample(server: dict[str, Any], usage: dict[str, Usage]) -> dict[str, Any]:
     """Record one sample of the server and every instance; return the snapshot (the "metrics" event)."""
     global _LAST_SAMPLE
     now = time.time()
-    seconds = max(1.0, now - _LAST_SAMPLE) if _LAST_SAMPLE else float(settings.monitor_interval_seconds)
+    seconds = max(1.0, now - _LAST_SAMPLE) if _LAST_SAMPLE else float(settings.metrics_interval_seconds)
     _LAST_SAMPLE = now
     requests = _take_requests()
 
@@ -152,7 +152,7 @@ def snapshot() -> dict[str, Any]:
     """The latest figures: {"at", "interval_seconds", "server": {...}, "instances": {name: {...}}}."""
     return {
         "at": int(_LAST_SAMPLE) or None,
-        "interval_seconds": settings.monitor_interval_seconds,
+        "interval_seconds": settings.metrics_interval_seconds,
         "server": dict(SERVER),
         "instances": {name: dict(figures) for name, figures in INSTANCES.items()},
     }

@@ -1,4 +1,8 @@
-"""Resource usage and status of the server and of every instance, collected every 15 seconds.
+"""Resource usage and status of the server and of every instance, collected every METRICS_INTERVAL_SECONDS.
+
+Container figures come from one long-running `docker stats` stream (Docker sends new figures about every second),
+so a measurement only reads the latest ones instead of starting Docker's slow one-off sampling each time. The git
+details of an instance (commit, repository) are read at most once a minute, and right after a job on it ends.
 
 Also keeps each Odoo's public address (web.base.url) in step with its connector, whose address changes when the
 connector restarts.
@@ -13,6 +17,8 @@ import json
 import os
 import re
 import shutil
+import subprocess
+import threading
 import time
 from collections import defaultdict, deque
 from datetime import datetime
@@ -34,6 +40,86 @@ HISTORY: defaultdict[str, deque[tuple[int, float, int]]] = defaultdict(
 _DISK_CACHE: dict[str, dict[str, Any]] = {}
 _KNOWN_ADDRESSES: dict[str, str] = {}
 _LAST_SEEN: dict[str, tuple[Any, ...]] = {}  # name -> what clients last heard about it
+_STARTED: dict[str, float] = {}  # container id -> Unix time it started
+_GIT: dict[str, tuple[float, str, str]] = {}  # instance -> (read at, commit line, repository)
+_WAS_BUSY: set[str] = set()
+_GIT_SECONDS = 60
+
+
+class _DockerStats:
+    """The latest figures of every running container, from a `docker stats` stream that runs in the background."""
+
+    def __init__(self) -> None:
+        self.latest: dict[str, tuple[float, int, int]] = {}  # container -> (cpu % of one core, memory, limit)
+        self.updated = 0.0
+        self._lock = threading.Lock()
+        self._started = False
+
+    def start(self) -> None:
+        if not self._started:
+            self._started = True
+            threading.Thread(target=self._run_forever, daemon=True, name="docker-stats").start()
+
+    def _run_forever(self) -> None:
+        while True:
+            try:
+                with subprocess.Popen(
+                    ["docker", "stats", "--format", "{{json .}}"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                ) as proc:
+                    assert proc.stdout is not None
+                    for line in proc.stdout:
+                        start = line.find("{")  # each refresh starts with terminal control characters
+                        if start == -1:
+                            continue
+                        entry = json.loads(line[start:])
+                        used, _, limit = entry["MemUsage"].partition("/")
+                        figures = (float(entry["CPUPerc"].rstrip("%") or 0), _bytes(used), _bytes(limit))
+                        with self._lock:
+                            self.latest[entry["Name"]] = figures
+                            self.updated = time.time()
+            except (OSError, ValueError, KeyError) as exc:
+                print("docker stats stream:", repr(exc), flush=True)
+            time.sleep(5)  # Docker restarted or is not reachable yet
+
+    def figures(self) -> dict[str, tuple[float, int, int]] | None:
+        """The latest figures, or None when the stream has not delivered for a while."""
+        with self._lock:
+            return dict(self.latest) if time.time() - self.updated < 15 else None
+
+
+STATS = _DockerStats()
+
+
+def _container_figures() -> dict[str, tuple[float, int, int]]:
+    STATS.start()
+    figures = STATS.figures()
+    if figures is not None:
+        return figures
+    usage: dict[str, tuple[float, int, int]] = {}  # until the stream delivers: one sampling
+    for line in capture(["docker", "stats", "--no-stream", "--format", "{{json .}}"], timeout=60).splitlines():
+        entry = json.loads(line)
+        used, _, limit = entry["MemUsage"].partition("/")
+        usage[entry["Name"]] = (float(entry["CPUPerc"].rstrip("%") or 0), _bytes(used), _bytes(limit))
+    return usage
+
+
+def _git_details(name: str, refresh: bool) -> tuple[str, str]:
+    """(last commit "sha|subject|age|author", repository) of an instance, read at most once a minute."""
+    cached = _GIT.get(name)
+    if cached and not refresh and time.time() - cached[0] < _GIT_SECONDS:
+        return cached[1], cached[2]
+    addons = store.addons_dir(name)
+    found = (
+        capture(git(addons, "log", "-1", "--format=%h|%s|%cr|%an")),
+        capture(git(addons, "remote", "get-url", "origin")),
+    )
+    _GIT[name] = (time.time(), *found)
+    return found
+
+
 _previous_cpu: tuple[int, int] | None = None
 
 _UNITS = {
@@ -82,16 +168,16 @@ def collect() -> None:
     for line in capture(["docker", "ps", "-a", "--format", "{{json .}}"]).splitlines():
         entry = json.loads(line)
         containers[entry["Names"]] = entry
-    usage: dict[str, tuple[float, int, int]] = {}  # container -> (cpu % of one core, memory, memory limit)
-    for line in capture(["docker", "stats", "--no-stream", "--format", "{{json .}}"], timeout=60).splitlines():
-        entry = json.loads(line)
-        used, _, limit = entry["MemUsage"].partition("/")
-        usage[entry["Name"]] = (float(entry["CPUPerc"].rstrip("%") or 0), _bytes(used), _bytes(limit))
+    usage = _container_figures()  # container -> (cpu % of one core, memory, memory limit)
 
     cores = os.cpu_count() or 1  # None only when the count cannot be determined
     memory_total, memory_used = _host_memory()
     now = time.time()
-    started = _started_at([c for c, entry in containers.items() if entry["State"] == "running"])
+    running_now = {entry["ID"]: c for c, entry in containers.items() if entry["State"] == "running"}
+    unknown = [c for cid, c in running_now.items() if cid not in _STARTED]
+    for container, when in _started_at(unknown).items():
+        _STARTED[containers[container]["ID"]] = when
+    started = {c: _STARTED[cid] for cid, c in running_now.items() if cid in _STARTED}
     measured_instances: dict[str, metrics.Usage] = {}
     for name in store.names():
         env = store.read_env(name)
@@ -102,7 +188,11 @@ def collect() -> None:
         cpu = sum(usage.get(c, (0, 0, 0))[0] for c in own) / cores
         memory = sum(usage.get(c, (0, 0, 0))[1] for c in own)
         limit = min(sum(usage.get(c, (0, 0, 0))[2] for c in own) or memory_total, memory_total)
-        addons = store.addons_dir(name)
+        busy = jobs.busy(name)
+        commit, repo = _git_details(name, refresh=name in _WAS_BUSY and not busy)  # re-read after a job
+        _WAS_BUSY.discard(name)
+        if busy:
+            _WAS_BUSY.add(name)
         STATUS[name] = {
             "running": running,
             "db_running": bool(db_container and db_container["State"] == "running"),
@@ -110,8 +200,8 @@ def collect() -> None:
             "uptime": odoo_container["Status"] if odoo_container else "",
             "cpu": round(cpu, 2),
             "memory": memory,
-            "commit": capture(git(addons, "log", "-1", "--format=%h|%s|%cr|%an")),
-            "repo": capture(git(addons, "remote", "get-url", "origin")),
+            "commit": commit,
+            "repo": repo,
         }
         HISTORY[name].append((int(now), round(cpu, 2), memory))
         disk_bytes = None
@@ -217,7 +307,7 @@ def run_forever() -> None:
             follow_public_addresses()
         except Exception as exc:  # noqa: BLE001 - the monitor must keep running; the error is logged
             print("monitor error:", repr(exc), flush=True)
-        time.sleep(settings.monitor_interval_seconds)
+        time.sleep(settings.metrics_interval_seconds)
 
 
 def status(name: str) -> str:

@@ -1,15 +1,10 @@
-"""The web panel: a Flask app serving the panel's pages and its JSON API.
+"""The backend's web side: the API that the web app (web/, a separate service) and other systems use.
 
-security.py        sign-in sessions, CSRF protection, security headers, roles
-views.py           pages and static files
-docs.py            the documentation (README.md, docs/) rendered inside the panel
-validation.py      checks every value received from a browser or API client
-api_session.py     sign-in, sign-out, own account
-api_accounts.py    accounts and audit log (administrators)
-api_instances.py   instances, jobs, logs
-api_github.py      deploy keys and repository checks
-api_backups.py     backups: list, download, delete (administrators)
-v1/                the API (/api/v1) for the web app and other systems, and the live event stream
+security.py     who is calling (session or API token), permissions, rate limits, headers
+signin.py       signing in: password, second factor, restricted sessions
+validation.py   checks every value received from a browser or API client
+docs.py         the documentation (README.md, docs/): rendered for the web app's Help pages, and its images
+v1/             the API (/api/v1) and the live event stream
 """
 
 from __future__ import annotations
@@ -24,23 +19,12 @@ from werkzeug.exceptions import HTTPException
 
 from sudoo import accounts, background, exposure, triggers
 
-from . import (
-    api_accounts,
-    api_backups,
-    api_github,
-    api_instances,
-    api_session,
-    api_token_admin,
-    docs,
-    security,
-    v1,
-    views,
-)
+from . import docs, security, v1
 
 
 def create_app() -> Flask:
     """Build the panel and start the background work (monitor, gateway, connectors, scheduled jobs)."""
-    app = Flask(__name__, static_folder="static", static_url_path="/static")
+    app = Flask(__name__, static_folder=None)
     app.config.update(
         SECRET_KEY=accounts.session_secret(),
         SESSION_COOKIE_NAME="sudoo_session",
@@ -53,18 +37,9 @@ def create_app() -> Flask:
         SEND_FILE_MAX_AGE_DEFAULT=0,
     )
     security.install(app)
-    for module in (
-        views,
-        docs,
-        api_session,
-        api_accounts,
-        api_instances,
-        api_github,
-        api_backups,
-        api_token_admin,
-    ):
-        app.register_blueprint(module.blueprint)
+    app.register_blueprint(docs.blueprint)
     v1.register(app)
+    app.add_url_rule("/healthz", "health", lambda: "ok")
     for webhook in triggers.blueprints():  # endpoints of the enabled update triggers, under /hooks/
         app.register_blueprint(webhook)
 
@@ -74,14 +49,14 @@ def create_app() -> Flask:
         code = cast(int, error.code)
         if request.path.startswith(security.API_PREFIX):
             return v1.problem(code, error.description or HTTPStatus(code).phrase)
-        return jsonify(error=error.description), code
+        return jsonify(error=error.description), code  # the documentation's images, /healthz
 
     @app.errorhandler(Exception)
     def unexpected_error(error: Exception) -> ResponseReturnValue:
         app.logger.exception("unexpected error")
         if request.path.startswith(security.API_PREFIX):
             return v1.problem(500, "Something unexpected went wrong on the server. Quote the request_id.")
-        return jsonify(error=security.message_for_user("Something unexpected went wrong on the server.")), 500
+        return jsonify(error="Something unexpected went wrong on the server."), 500
 
     @app.after_request
     def api_request_id(response: Response) -> Response:

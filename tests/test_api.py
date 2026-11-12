@@ -54,9 +54,8 @@ class Caller:
 
 def _token(admin: Client, name: str, scope: str) -> tuple[str, str, str]:
     client, headers = admin
-    created = client.post("/api/tokens", json={"name": name, "scope": scope}, headers=headers).get_json()
-    token_id = next(t["id"] for t in client.get("/api/tokens").get_json() if t["name"] == name)
-    return created["token"], created["signing_secret"], token_id
+    created = client.post("/api/v1/tokens", json={"name": name, "scope": scope}, headers=headers).get_json()["data"]
+    return created["token"], created["signing_secret"], created["id"]
 
 
 @pytest.fixture
@@ -74,7 +73,7 @@ def writer(app: Flask, admin: Client) -> Caller:
 def test_token_secrets_are_shown_once(admin: Client) -> None:
     client, _ = admin
     _token(admin, "shown once", "read")
-    listed = next(t for t in client.get("/api/tokens").get_json() if t["name"] == "shown once")
+    listed = next(t for t in client.get("/api/v1/tokens").get_json()["data"] if t["name"] == "shown once")
     assert "token" not in listed and "hash" not in listed and "signing_secret" not in listed
 
 
@@ -127,7 +126,7 @@ def test_revoked_token_stops_working(app: Flask, admin: Client) -> None:
     caller = Caller(app.test_client(), token, secret)
     assert caller.call("GET", "/api/v1/instances").status_code == 200
     client, headers = admin
-    assert client.post(f"/api/tokens/{token_id}/revoke", json={}, headers=headers).status_code == 200
+    assert client.delete(f"/api/v1/tokens/{token_id}", headers=headers).status_code == 204
     assert caller.call("GET", "/api/v1/instances").status_code == 401
 
 
@@ -175,7 +174,7 @@ def test_the_web_app_uses_the_api_with_its_session(app: Flask, admin: Client) ->
     client, headers = admin
     assert client.get("/api/v1/instances").status_code == 200
     me = client.get("/api/v1/session").get_json()["data"]
-    assert me["user"] == "admin1" and me["role"] == "admin" and me["csrf_token"]
+    assert me["user"] == "admin1" and me["role"] == "super_admin" and me["csrf_token"]
     # a change needs the CSRF token and the panel's own origin
     assert (
         client.patch("/api/v1/settings", json={"idle_hours": 5}, headers={"Origin": "http://localhost"}).status_code

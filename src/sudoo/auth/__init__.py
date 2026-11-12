@@ -9,6 +9,7 @@ from functools import cache
 
 from sudoo import accounts, plugins
 from sudoo.config import settings
+from sudoo.roles import ADMINISTRATORS
 
 from .base import Account, Authenticator, Identity, RequestInfo, SecondFactor
 
@@ -56,7 +57,7 @@ def enrolled(account: Account) -> list[str]:
 def must_use_second_factor(account: Account) -> bool:
     """REQUIRE_SECOND_FACTOR applies to this account (and at least one factor can be used on this server)."""
     rule = settings.require_second_factor
-    applies = rule == "everyone" or (rule == "admins" and account.get("role") == "admin")
+    applies = rule == "everyone" or (rule == "admins" and account.get("role") in ADMINISTRATORS)
     return applies and bool(factors())
 
 

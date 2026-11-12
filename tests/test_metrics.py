@@ -52,7 +52,7 @@ def test_metrics_endpoints(admin: Client) -> None:
     metrics.sample(SERVER, {})
     client, _ = admin
     current = client.get("/api/v1/metrics").get_json()["data"]
-    assert current["server"]["cpu_percent"] == 12.5 and current["interval_seconds"] == 15
+    assert current["server"]["cpu_percent"] == 12.5 and current["interval_seconds"] == 5
     history = client.get("/api/v1/metrics/history?minutes=5").get_json()
     assert history["meta"]["minutes"] == 5 and history["data"]["server"]["cpu_percent"][-1] == 12.5
     assert client.get("/api/v1/metrics/history?minutes=999").status_code == 400

@@ -2,7 +2,6 @@ import {
   Activity,
   ArrowUpRight,
   Code2,
-  Cpu,
   Database,
   DownloadCloud,
   GitBranch,
@@ -10,7 +9,6 @@ import {
   Globe,
   KeyRound,
   Layers,
-  MemoryStick,
   MoreHorizontal,
   Pause,
   Play,
@@ -20,7 +18,6 @@ import {
   RotateCw,
   ScrollText,
   Settings2,
-  Timer,
   Trash2,
   Zap,
 } from "lucide-react";
@@ -28,12 +25,12 @@ import { useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useCredentials, useHistory, useInstance, useJobs, useOdooLog } from "@/api/queries";
-import type { Instance, Job } from "@/api/types";
-import { AreaChart } from "@/components/charts/charts";
+import type { Instance, Job, Permission } from "@/api/types";
+import { LiveChart } from "@/components/charts/LiveChart";
 import { JobLine, Monogram } from "@/components/InstanceCard";
 import { JobDrawer, Terminal } from "@/components/JobDrawer";
-import { Page, useIsAdmin } from "@/components/Shell";
-import { Badge, Button, Callout, CopyField, Empty, Field, Progress, Skeleton, StatusPill, Switch } from "@/components/ui/basics";
+import { Page, useCan } from "@/components/Shell";
+import { Button, Callout, CopyField, Empty, Field, Progress, Segmented, Skeleton, Status, Switch, Tag } from "@/components/ui/basics";
 import { Menu, Modal, useToast } from "@/components/ui/overlay";
 import { ago, bytes, dateTime, duration, elapsed, ms, percent } from "@/lib/format";
 import { NotFoundPage } from "./NotFound";
@@ -58,18 +55,18 @@ function useRun(name: string, openJob: (id: string) => void) {
   );
 }
 
-const TABS = [
+const TABS: { id: string; label: string; icon: React.ReactNode; permission?: Permission }[] = [
   { id: "", label: "Overview", icon: <Activity /> },
   { id: "activity", label: "Activity", icon: <Layers /> },
   { id: "code", label: "Code", icon: <Code2 /> },
-  { id: "logs", label: "Odoo log", icon: <ScrollText /> },
-  { id: "settings", label: "Settings", icon: <Settings2 />, admin: true },
-  { id: "access", label: "Access", icon: <KeyRound />, admin: true },
+  { id: "logs", label: "Odoo log", icon: <ScrollText />, permission: "instances.logs" },
+  { id: "settings", label: "Settings", icon: <Settings2 />, permission: "instances.operate" },
+  { id: "access", label: "Access", icon: <KeyRound />, permission: "instances.credentials" },
 ];
 
 export function InstancePage() {
   const { name = "", tab = "" } = useParams();
-  const admin = useIsAdmin();
+  const can = useCan();
   const { data: instance, isPending, error } = useInstance(name);
   const [jobId, setJobId] = useState<string | null>(null);
   const run = useRun(name, setJobId);
@@ -90,25 +87,23 @@ export function InstancePage() {
 
   return (
     <Page>
-      <div className="page-head rise">
-        <div className="hero spacer" style={{ minWidth: 0 }}>
-          <Monogram name={instance.name} size={56} />
+      <div className="page-head">
+        <div className="hero spacer">
+          <Monogram name={instance.name} large />
           <div className="titles" style={{ minWidth: 0 }}>
-            <div className="row-wrap">
+            <div className="row-wrap" style={{ gap: 12 }}>
               <h1 className="truncate">{instance.name}</h1>
-              <StatusPill status={instance.status} />
+              <Status status={instance.status} />
             </div>
             <div className="row-wrap small muted">
-              <Badge tone="primary">Odoo {instance.odoo.version}</Badge>
-              <Badge tone={instance.odoo.edition === "enterprise" ? "accent" : undefined}>
-                {instance.odoo.edition === "enterprise" ? "Enterprise" : "Community"}
-              </Badge>
-              <span className="row" style={{ gap: 4 }}>
-                <GitBranch size={14} /> {instance.git.branch}
+              <Tag mono>{instance.odoo.version}</Tag>
+              <Tag>{instance.odoo.edition === "enterprise" ? "Enterprise" : "Community"}</Tag>
+              <span className="row mono xsmall" style={{ gap: 4 }}>
+                <GitBranch size={14} strokeWidth={1.5} /> {instance.git.branch}
               </span>
               {instance.url && (
-                <a href={instance.url} target="_blank" rel="noreferrer" className="row truncate" style={{ gap: 4 }}>
-                  <Globe size={14} /> {instance.url.replace(/^https?:\/\//, "")}
+                <a href={instance.url} target="_blank" rel="noreferrer" className="row truncate mono xsmall" style={{ gap: 4 }}>
+                  <Globe size={14} strokeWidth={1.5} /> {instance.url.replace(/^https?:\/\//, "")}
                 </a>
               )}
             </div>
@@ -120,18 +115,22 @@ export function InstancePage() {
               Open Odoo <ArrowUpRight />
             </a>
           )}
-          {asleep ? (
-            <Button variant="primary" icon={<Play />} disabled={busy} onClick={() => act("start", "Start")}>
-              Start
-            </Button>
-          ) : (
-            <Button icon={<RotateCw />} disabled={busy} onClick={() => act("restart", "Restart")}>
-              Restart
+          {can("instances.update") &&
+            (asleep ? (
+              <Button variant="primary" icon={<Play />} disabled={busy} onClick={() => act("start", "Start")}>
+                Start
+              </Button>
+            ) : (
+              <Button icon={<RotateCw />} disabled={busy} onClick={() => act("restart", "Restart")}>
+                Restart
+              </Button>
+            ))}
+          {can("instances.update") && (
+            <Button icon={<DownloadCloud />} disabled={busy || !instance.git.repository} onClick={() => act("update", "Get latest code")}>
+              Get latest code
             </Button>
           )}
-          <Button icon={<DownloadCloud />} disabled={busy || !instance.git.repository} onClick={() => act("update", "Get latest code")}>
-            Get latest code
-          </Button>
+          {(can("instances.update") || can("instances.operate")) && (
           <Menu trigger={(toggle) => <Button icon={<MoreHorizontal />} onClick={toggle} aria-label="More actions" />}>
             {(close) => {
               const item = (fn: () => void) => () => {
@@ -143,7 +142,7 @@ export function InstancePage() {
                   <button disabled={busy || !instance.git.repository} onClick={item(() => act("update-submodules", "Update submodules"))}>
                     <RefreshCw /> Update submodules
                   </button>
-                  {admin && (
+                  {can("instances.operate") && (
                     <>
                       <button disabled={busy} onClick={item(() => setDialog("upgrade"))}>
                         <Zap /> Upgrade modules…
@@ -165,20 +164,23 @@ export function InstancePage() {
                           <Power /> Switch off
                         </button>
                       )}
-                      <button className="danger" disabled={busy} onClick={item(() => setDialog("delete"))}>
-                        <Trash2 /> Delete…
-                      </button>
                     </>
+                  )}
+                  {can("instances.delete") && (
+                    <button className="danger" disabled={busy} onClick={item(() => setDialog("delete"))}>
+                      <Trash2 /> Delete…
+                    </button>
                   )}
                 </>
               );
             }}
           </Menu>
+          )}
         </div>
       </div>
 
       {instance.current_job && (
-        <button className="card pad rise" style={{ textAlign: "left", cursor: "pointer", border: "1px solid var(--primary-ring)" }} onClick={() => setJobId(instance.current_job!.id)}>
+        <button className="card pad" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => setJobId(instance.current_job!.id)}>
           <JobLine job={{ ...instance.current_job, steps: [] }} />
         </button>
       )}
@@ -189,8 +191,8 @@ export function InstancePage() {
       )}
       {instance.gateway_error && <Callout tone="danger">{instance.gateway_error}</Callout>}
 
-      <nav className="tabs rise">
-        {TABS.filter((t) => !t.admin || admin).map((t) => (
+      <nav className="tabs">
+        {TABS.filter((t) => !t.permission || can(t.permission)).map((t) => (
           <NavLink key={t.id} to={`/i/${name}${t.id ? `/${t.id}` : ""}`} end viewTransition className={({ isActive }) => (isActive ? "active" : "")}>
             {t.icon} {t.label}
           </NavLink>
@@ -200,10 +202,10 @@ export function InstancePage() {
       <div className="rise" key={tab}>
         {tab === "" && <Overview instance={instance} />}
         {tab === "activity" && <ActivityTab name={name} onOpen={setJobId} />}
-        {tab === "code" && <CodeTab instance={instance} admin={admin} busy={busy} onAdd={() => setDialog("submodule")} act={act} />}
-        {tab === "logs" && <LogsTab name={name} />}
-        {tab === "settings" && admin && <SettingsTab instance={instance} />}
-        {tab === "access" && admin && <AccessTab instance={instance} />}
+        {tab === "code" && <CodeTab instance={instance} canAdd={can("instances.update")} canRemove={can("instances.operate")} busy={busy} onAdd={() => setDialog("submodule")} act={act} />}
+        {tab === "logs" && can("instances.logs") && <LogsTab name={name} />}
+        {tab === "settings" && can("instances.operate") && <SettingsTab instance={instance} />}
+        {tab === "access" && can("instances.credentials") && <AccessTab instance={instance} />}
       </div>
 
       {jobId && <JobDrawer id={jobId} onClose={() => setJobId(null)} />}
@@ -217,80 +219,93 @@ export function InstancePage() {
 
 // ---------------------------------------------------------------- overview
 
+const METRICS = {
+  cpu_percent: { label: "Processor", format: (v: number) => `${v.toFixed(1)}%` },
+  memory_percent: { label: "Memory", format: (v: number) => `${Math.round(v)}%`, max: 100 },
+  requests_per_minute: { label: "Requests per minute", format: (v: number) => v.toFixed(0) },
+  response_ms_p95: { label: "Response time, 95th percentile", format: (v: number) => `${Math.round(v)} ms` },
+} as const;
+type Metric = keyof typeof METRICS;
+
 function Overview({ instance }: { instance: Instance }) {
   const { data: history } = useHistory();
+  const [metric, setMetric] = useState<Metric>("cpu_percent");
   const series = history?.instances[instance.name];
   const u = instance.usage;
-  const t = series?.t ?? [];
-  const chart = (key: string) => series?.[key] ?? [];
+  const chosen = METRICS[metric];
   return (
     <div className="stack">
       <div className="grid-4 stagger">
-        <div className="card kpi" style={{ ["--tone" as string]: "var(--primary)" }}>
-          <div className="top"><span className="icon"><Cpu /></span><span className="label">CPU</span></div>
-          <div className="value">{u.cpu_percent?.toFixed(1) ?? "—"}<small>%</small></div>
-          <div className="detail">of the whole server</div>
+        <div className="card stat">
+          <span className="label">Processor</span>
+          <span className="figure">{u.cpu_percent?.toFixed(1) ?? "—"}<small>%</small></span>
+          <span className="detail">of the whole server</span>
         </div>
-        <div className="card kpi" style={{ ["--tone" as string]: "var(--accent)" }}>
-          <div className="top"><span className="icon"><MemoryStick /></span><span className="label">Memory</span></div>
-          <div className="value">{u.memory_percent != null ? Math.round(u.memory_percent) : "—"}<small>%</small></div>
-          <div className="detail">{bytes(u.memory_bytes)} of {bytes(u.memory_limit_bytes)}</div>
+        <div className="card stat">
+          <span className="label">Memory</span>
+          <span className="figure">{u.memory_percent != null ? Math.round(u.memory_percent) : "—"}<small>%</small></span>
+          <span className="detail">{bytes(u.memory_bytes)} of {bytes(u.memory_limit_bytes)}</span>
         </div>
-        <div className="card kpi" style={{ ["--tone" as string]: "var(--info)" }}>
-          <div className="top"><span className="icon"><Zap /></span><span className="label">Requests</span></div>
-          <div className="value">{u.requests_per_minute != null ? Math.round(u.requests_per_minute) : "—"}<small>/min</small></div>
-          <div className="detail">{u.error_rate_percent ? `${percent(u.error_rate_percent, 1)} errors` : "no errors"}</div>
+        <div className="card stat">
+          <span className="label">Requests</span>
+          <span className="figure">{u.requests_per_minute != null ? Math.round(u.requests_per_minute) : "—"}<small>/min</small></span>
+          <span className="detail">{u.error_rate_percent ? `${percent(u.error_rate_percent, 1)} answered with an error` : "no errors"}</span>
         </div>
-        <div className="card kpi" style={{ ["--tone" as string]: "var(--success)" }}>
-          <div className="top"><span className="icon"><Timer /></span><span className="label">Response</span></div>
-          <div className="value">{u.response_ms_p95 != null ? Math.round(u.response_ms_p95) : "—"}<small>ms</small></div>
-          <div className="detail">95% of requests faster · avg {ms(u.response_ms_avg)}</div>
+        <div className="card stat">
+          <span className="label">Response time</span>
+          <span className="figure">{u.response_ms_p95 != null ? Math.round(u.response_ms_p95) : "—"}<small>ms</small></span>
+          <span className="detail">95% of requests faster · average {ms(u.response_ms_avg)}</span>
         </div>
       </div>
 
-      <div className="grid-2">
-        {[
-          { title: "CPU", key: "cpu_percent", color: "var(--primary)", format: (v: number) => `${v.toFixed(1)}%` },
-          { title: "Memory", key: "memory_percent", color: "var(--accent)", format: (v: number) => `${v.toFixed(0)}%`, max: 100 },
-          { title: "Requests per minute", key: "requests_per_minute", color: "var(--info)", format: (v: number) => v.toFixed(0) },
-          { title: "Response time (p95)", key: "response_ms_p95", color: "var(--success)", format: (v: number) => `${v.toFixed(0)} ms` },
-        ].map((c) => (
-          <div key={c.key} className="card">
-            <div className="card-head">
-              <h2>{c.title}</h2>
-              <span className="sub">last hour</span>
-            </div>
-            <div className="card-body">
-              <AreaChart t={t} values={chart(c.key)} color={c.color} format={c.format} max={c.max} />
-            </div>
+      <div className="overview">
+        <section className="card chart-card">
+          <div className="chart-head">
+            <h2>{chosen.label}</h2>
+            <span className="spacer" />
+            <Segmented<Metric>
+              value={metric}
+              onChange={setMetric}
+              options={[
+                { value: "cpu_percent", label: "CPU" },
+                { value: "memory_percent", label: "Memory" },
+                { value: "requests_per_minute", label: "Requests" },
+                { value: "response_ms_p95", label: "Response" },
+              ]}
+            />
           </div>
-        ))}
-      </div>
-
-      <div className="card">
-        <div className="card-head"><h2>Details</h2></div>
-        <div className="card-body">
-          <dl className="dl">
-            <dt>Address</dt>
-            <dd>{instance.url ? <CopyField value={instance.url} /> : <span className="faint">Not ready yet</span>}</dd>
-            <dt>Database</dt>
-            <dd className="mono">{instance.odoo.database}</dd>
-            <dt>Repository</dt>
-            <dd className="truncate">{instance.git.repository ? <a href={instance.git.repository} target="_blank" rel="noreferrer">{instance.git.repository}</a> : <span className="faint">None (empty add-ons folder)</span>}</dd>
-            <dt>Running for</dt>
-            <dd>{duration(u.uptime_seconds)}</dd>
-            <dt>Disk</dt>
-            <dd>{instance.disk ? `${bytes(instance.disk.database_bytes)} database · ${bytes(instance.disk.files_bytes)} files` : bytes(u.disk_bytes)}</dd>
-            <dt>Last visit</dt>
-            <dd>{ago(instance.last_visit_at)}</dd>
-            <dt>Pauses</dt>
-            <dd>{instance.pauses_at ? `${ago(instance.pauses_at)} if nobody visits` : instance.settings.auto_pause ? "when idle" : "never (automatic pause is off)"}</dd>
-            <dt>Created</dt>
-            <dd>{dateTime(instance.created_at)}</dd>
-            <dt>Deleted</dt>
-            <dd>{instance.expires_at ? <>{dateTime(instance.expires_at)} <span className="faint">({ago(instance.expires_at)}, after a backup)</span></> : "Kept until deleted by hand"}</dd>
-          </dl>
-        </div>
+          <div className="chart-body">
+            <LiveChart
+              t={series?.t ?? []}
+              max={"max" in chosen ? chosen.max : undefined}
+              format={chosen.format}
+              series={[{ label: chosen.label, values: series?.[metric] ?? [], color: "--accent", fill: true }]}
+            />
+          </div>
+        </section>
+        <section className="card">
+          <div className="card-head"><h2>Details</h2></div>
+          <div className="card-body">
+            <dl className="dl small">
+              <dt>Database</dt>
+              <dd className="mono">{instance.odoo.database}</dd>
+              <dt>Repository</dt>
+              <dd className="truncate">{instance.git.repository ? <a href={instance.git.repository} target="_blank" rel="noreferrer">{instance.git.repository.replace(/^https:\/\/github\.com\//, "")}</a> : <span className="faint">None</span>}</dd>
+              <dt>Running for</dt>
+              <dd>{duration(u.uptime_seconds)}</dd>
+              <dt>Disk</dt>
+              <dd>{instance.disk ? `${bytes(instance.disk.database_bytes)} database, ${bytes(instance.disk.files_bytes)} files` : bytes(u.disk_bytes)}</dd>
+              <dt>Last visit</dt>
+              <dd>{ago(instance.last_visit_at)}</dd>
+              <dt>Pauses</dt>
+              <dd>{instance.pauses_at ? `${ago(instance.pauses_at)} if nobody visits` : instance.settings.auto_pause ? "When idle" : "Never"}</dd>
+              <dt>Created</dt>
+              <dd>{dateTime(instance.created_at)}{instance.created_by ? ` by ${instance.created_by}` : ""}</dd>
+              <dt>Deleted</dt>
+              <dd>{instance.expires_at ? `${dateTime(instance.expires_at)}, after a backup` : "Kept until deleted by hand"}</dd>
+            </dl>
+          </div>
+        </section>
       </div>
     </div>
   );
@@ -301,14 +316,14 @@ function Overview({ instance }: { instance: Instance }) {
 function JobRow({ job, onOpen }: { job: Job; onOpen: (id: string) => void }) {
   return (
     <button className="job-row" onClick={() => onOpen(job.id)}>
-      <StatusPill status={job.status} />
-      <div className="what">
-        <div style={{ fontWeight: 600 }} className="truncate">{job.action}</div>
+      <Status status={job.status} />
+      <div style={{ minWidth: 0 }}>
+        <div className="truncate">{job.action}</div>
         <div className="xsmall faint">
           {job.instance} · {job.requested_by} · {ago(job.started_at)}
           {job.finished_at && ` · took ${elapsed(job.started_at, job.finished_at)}`}
         </div>
-        {job.error && <div className="xsmall" style={{ color: "var(--danger)" }}>{job.error}</div>}
+        {job.error && <div className="xsmall" style={{ color: "var(--negative)" }}>{job.error}</div>}
       </div>
       <Progress value={job.progress_percent} status={job.status} />
     </button>
@@ -332,7 +347,7 @@ function ActivityTab({ name, onOpen }: { name: string; onOpen: (id: string) => v
 
 // ---------------------------------------------------------------- code
 
-function CodeTab({ instance, admin, busy, onAdd, act }: { instance: Instance; admin: boolean; busy: boolean; onAdd: () => void; act: (action: string, title: string, body?: Record<string, unknown>) => void }) {
+function CodeTab({ instance, canAdd, canRemove, busy, onAdd, act }: { instance: Instance; canAdd: boolean; canRemove: boolean; busy: boolean; onAdd: () => void; act: (action: string, title: string, body?: Record<string, unknown>) => void }) {
   return (
     <div className="grid-2" style={{ alignItems: "start" }}>
       <div className="card">
@@ -346,8 +361,8 @@ function CodeTab({ instance, admin, busy, onAdd, act }: { instance: Instance; ad
               <li key={c.sha}>
                 <span className={`node ${i === 0 ? "done" : ""}`}><GitCommitHorizontal /></span>
                 <div style={{ minWidth: 0 }}>
-                  <div className="truncate" style={{ fontWeight: i === 0 ? 600 : 450 }}>{c.subject}</div>
-                  <div className="xsmall faint"><span className="mono" style={{ color: "var(--primary)" }}>{c.sha}</span> · {c.author} · {c.when}</div>
+                  <div className="truncate">{c.subject}</div>
+                  <div className="xsmall faint"><span className="mono">{c.sha}</span> · {c.author} · {c.when}</div>
                 </div>
               </li>
             ))}
@@ -360,7 +375,7 @@ function CodeTab({ instance, admin, busy, onAdd, act }: { instance: Instance; ad
         <div className="card-head">
           <h2>Submodules</h2>
           <span className="spacer" />
-          <Button size="sm" icon={<Plus />} disabled={busy || !instance.git.repository} onClick={onAdd}>Add</Button>
+          {canAdd && <Button size="sm" icon={<Plus />} disabled={busy || !instance.git.repository} onClick={onAdd}>Add</Button>}
         </div>
         {instance.submodules?.length ? (
           <table className="table">
@@ -368,12 +383,12 @@ function CodeTab({ instance, admin, busy, onAdd, act }: { instance: Instance; ad
               {instance.submodules.map((s) => (
                 <tr key={s.path}>
                   <td>
-                    <div style={{ fontWeight: 600 }}>{s.path}</div>
+                    <div>{s.path}</div>
                     <div className="xsmall faint truncate">{s.url}</div>
                   </td>
                   <td className="mono xsmall">{s.sha}</td>
                   <td className="actions">
-                    {admin && (
+                    {canRemove && (
                       <Button size="sm" variant="ghost" icon={<Trash2 />} disabled={busy} aria-label="Remove" onClick={() => confirm(`Remove submodule ${s.path}? The change is pushed to GitHub.`) && act("remove-submodule", "Remove submodule", { path: s.path })} />
                     )}
                   </td>
@@ -446,7 +461,7 @@ function AccessTab({ instance }: { instance: Instance }) {
   const { data, isFetching } = useCredentials(instance.name, shown);
   return (
     <div className="card">
-      <div className="card-head"><h2>Odoo sign-in</h2><span className="sub">administrators only; viewing is recorded in the audit log</span></div>
+      <div className="card-head"><h2>Odoo sign-in</h2><span className="spacer" /><span className="sub">viewing is recorded in the audit log</span></div>
       <div className="card-body">
         {!shown ? (
           <Button icon={<KeyRound />} onClick={() => setShown(true)}>Show the passwords</Button>
@@ -527,7 +542,7 @@ function DeleteDialog({ name, onClose }: { name: string; onClose: () => void }) 
   return (
     <Modal title={`Delete ${name}?`} onClose={onClose}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" icon={<Trash2 />} loading={remove.isPending} disabled={typed !== name}
-        onClick={() => remove.mutate(undefined, { onSuccess: () => { toast("success", "Deletion started", "A backup is taken first."); navigate("/", { viewTransition: true }); }, onError: (e) => toast("error", "Not deleted", errorText(e)) })}>Delete</Button></>}>
+        onClick={() => remove.mutate(undefined, { onSuccess: () => { toast("success", "Deletion started", "A backup is taken first"); navigate("/", { viewTransition: true }); }, onError: (e) => toast("error", "Not deleted", errorText(e)) })}>Delete</Button></>}>
       <div className="stack">
         <Callout tone="danger"><b>Odoo, its database and its files are removed.</b> A backup is taken first and kept under Backups.</Callout>
         <Field label={<>Type <code>{name}</code> to confirm</>}>

@@ -7,10 +7,11 @@ the panel at start-up with a message naming the setting, instead of failing late
 The settings that choose plugins (`exposure`, `enterprise_source`) name an entry point; see plugins.py and
 docs/PLUGINS.md.
 
-Settings in EDITABLE can also be changed in the panel (Settings page, or PATCH /api/v1/settings). Those changes are
-kept in <ODOO_ROOT>/manager/settings.json, on top of `.env`, and take effect at once: `settings` always gives the
-current values. Removing a change brings back the `.env` value. Everything else (ports, plugins, images) is needed
-when the panel starts and is set in `.env` only.
+Almost every setting can also be changed in the panel (Settings page, or PATCH /api/v1/settings): those in
+EDITABLE take effect at once, those in RESTART (they choose plugins) when the panel restarts. The changes are kept in
+<ODOO_ROOT>/manager/settings.json on top of `.env`, secrets encrypted; removing a change brings back the `.env`
+value. Where things are and how they are reached (folders, ports, exposure, storage) is set in `.env` only, because
+the web service and the containers read it too.
 """
 
 from __future__ import annotations
@@ -136,11 +137,14 @@ class Settings(BaseSettings):
     admin_contact_phone: str = ""
     admin_contact_email: str = ""
 
+    metrics_interval_seconds: float = Field(
+        5, ge=2, le=60, description="Seconds between two measurements of the server and the instances."
+    )
+
     # ------------------------------------------------------------------ fixed intervals (not settings)
-    monitor_interval_seconds: int = 15
     pause_check_interval_seconds: int = 120
     expiry_check_interval_seconds: int = 600
-    history_samples: int = 120  # 30 minutes at one sample every 15 seconds
+    history_samples: int = 120  # the previous pages' short history (instances/monitor.py)
 
     # ------------------------------------------------------------------ derived locations
     @property
@@ -190,8 +194,11 @@ class Settings(BaseSettings):
 # ---------------------------------------------------------------------- changes made in the panel
 
 EDITABLE = (
+    # take effect at once
     "brand_color",
     "require_second_factor",
+    "session_idle_minutes",
+    "session_max_hours",
     "rate_limit_reads_per_minute",
     "rate_limit_changes_per_minute",
     "max_instances",
@@ -203,42 +210,83 @@ EDITABLE = (
     "auto_upgrade",
     "delete_after_days",
     "poll_minutes",
-    "session_idle_minutes",
-    "session_max_hours",
+    "metrics_interval_seconds",
     "odoo_versions",
     "odoo_min_version",
+    "odoo_image",
+    "postgres_image",
+    "odoo_admin_password",
+    "enterprise_path",
+    "enterprise_git_url",
+    "enterprise_git_branch",
+    "enterprise_marker",
+    "github_webhook_secret",
+    "mail_from",
+    "smtp_host",
+    "smtp_port",
+    "smtp_security",
+    "smtp_username",
+    "smtp_password",
+    "mail_templates_dir",
+    "cloudflared_image",
     "admin_contact_name",
     "admin_contact_phone",
     "admin_contact_email",
 )
-"""Settings that can be changed in the panel while it runs."""
+"""Settings that can be changed in the panel, taking effect at once."""
+
+RESTART = ("mailer", "second_factors", "update_triggers", "enterprise_source", "auth", "rate_limiter")
+"""Settings that can be changed in the panel and take effect when the panel restarts (they choose plugins)."""
 
 SECRET = ("odoo_admin_password", "github_webhook_secret", "smtp_password")
-"""Settings whose value is never shown, only whether they are set."""
+"""Settings whose value is never shown, only whether they are set; kept encrypted in settings.json."""
+
+_CHANGEABLE = frozenset(EDITABLE + RESTART)
 
 
 class LiveSettings:
     """The current settings: `.env`, with the changes made in the panel on top.
 
     Reading an attribute gives the current value, so code that keeps a reference (plugins get it in their
-    constructor) sees changes at once. Each change builds a new, validated, frozen Settings object.
+    constructor) sees changes at once. Each change builds a new, validated, frozen Settings object. Secrets are
+    stored encrypted with the vault key and decrypted when first read (the vault itself needs these settings to
+    find its key, so it cannot be used while they load).
     """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._env = Settings()
         self._overrides: dict[str, Any] = {}
+        self._encrypted: dict[str, str] = {}
         self._current = self._env
         self._listeners: list[Callable[[dict[str, Any]], None]] = []
         try:
             saved = json.loads(self._file.read_text())
-            self._current = Settings(**{k: v for k, v in saved.items() if k in EDITABLE})
-            self._overrides = {k: getattr(self._current, k) for k in saved if k in EDITABLE}
+            self._encrypted = {
+                k: v["encrypted"] for k, v in saved.items() if k in SECRET and isinstance(v, dict) and "encrypted" in v
+            }
+            plain = {k: v for k, v in saved.items() if k in _CHANGEABLE and k not in self._encrypted}
+            self._current = Settings(**plain)
+            self._overrides = {k: getattr(self._current, k) for k in plain}
         except (OSError, ValueError):
             pass  # no changes yet, or an unreadable file: .env alone
+        self._started = self._current  # what the plugins were created with
 
     def __getattr__(self, name: str) -> Any:
+        if name in SECRET and self._encrypted:
+            self._decrypt_secrets()
         return getattr(self._current, name)
+
+    def _decrypt_secrets(self) -> None:
+        from sudoo.core import vault
+
+        with self._lock:
+            if not self._encrypted:
+                return
+            plain = {k: vault.decrypt(v, f"setting:{k}") for k, v in self._encrypted.items()}
+            self._encrypted = {}
+            self._overrides.update(plain)
+            self._current = Settings(**self._overrides)
 
     @property
     def _file(self) -> Path:
@@ -251,23 +299,33 @@ class LiveSettings:
 
     def overrides(self) -> dict[str, Any]:
         """The settings changed in the panel, with their values."""
+        self._decrypt_secrets()
         return dict(self._overrides)
 
+    def pending_restart(self, name: str) -> bool:
+        """True when a setting that applies at restart was changed since the panel started."""
+        return name in RESTART and getattr(self._current, name) != getattr(self._started, name)
+
     def change(self, values: Mapping[str, Any]) -> None:
-        """Change editable settings (None removes a change). Raises ValueError, naming the setting, when a value
-        is not valid or the setting cannot be changed while the panel runs."""
-        refused = sorted(set(values) - set(EDITABLE))
+        """Change settings (None removes a change). Raises ValueError, naming the setting, when a value is not
+        valid or the setting can only be set in .env."""
+        refused = sorted(set(values) - _CHANGEABLE)
         if refused:
             raise ValueError(f"These settings can only be changed in .env: {', '.join(refused)}.")
+        self._decrypt_secrets()
+        from sudoo.core import vault
+
         with self._lock:
             overrides = {**self._overrides, **values}
             overrides = {k: v for k, v in overrides.items() if v is not None}
             current = Settings(**overrides)  # pydantic.ValidationError is a ValueError
             self._overrides = {k: getattr(current, k) for k in overrides}
             self._current = current
-            tmp = self._file.with_suffix(".tmp")
-            tmp.write_text(json.dumps(self._overrides, indent=1))
-            tmp.replace(self._file)
+            stored = {
+                k: {"encrypted": vault.encrypt(str(v), f"setting:{k}")} if k in SECRET else v
+                for k, v in self._overrides.items()
+            }
+            vault.write_private(self._file, json.dumps(stored, indent=1))
         for listener in self._listeners:
             listener(dict(values))
 

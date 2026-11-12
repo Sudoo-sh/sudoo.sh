@@ -1,48 +1,95 @@
-"""The browser's session: sign in, sign out, who is signed in, own password.
+"""The browser's session: first-run setup, sign in, sign out, who is signed in, own password.
 
-    GET    /api/v1/contact            who to contact (public: shown on the sign-in page)
-    POST   /api/v1/session            sign in: {"username", "password"} -> 201 signed in, or 200 with
-                                      "second_factor" when a code is needed (public)
+    GET    /api/v1/setup                           whether the panel still needs its first account (public)
+    POST   /api/v1/setup                           create the first account, a super admin, with the setup code
+                                                   printed by the installer, and sign in -> 201 (public)
+    GET    /api/v1/contact                         who to contact (public: shown on the sign-in page)
+    POST   /api/v1/session                         sign in: {"username", "password"} -> 201 signed in, or 200
+                                                   with "second_factor" when a code is needed (public)
     POST   /api/v1/session/second-factor           the code: {"method", "code"} -> 201 signed in (public)
     POST   /api/v1/session/second-factor/<method>  send a new code (e-mail) (public, between the two steps)
-    GET    /api/v1/session            the signed-in account and the CSRF token for changes
-    DELETE /api/v1/session            sign out
-    PUT    /api/v1/session/password   change own password: {"current", "new"}
+    GET    /api/v1/session                         the signed-in account, its permissions and the CSRF token
+    DELETE /api/v1/session                         sign out -> 204
+    PUT    /api/v1/session/password                change own password: {"current", "new"} -> 204
 
-Sign-in, throttling and audit are the panel's own (api_session.py). A browser then sends the session cookie with
-every call, and X-CSRF-Token with every change.
+A browser then sends the session cookie with every call, and X-CSRF-Token with every change.
 """
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
-from flask import Blueprint, Response, g, session
+from flask import Blueprint, Response, abort, g, session
 
-from sudoo import accounts
+from sudoo import accounts, auth, roles
 from sudoo.config import settings
+from sudoo.core import audit
 
-from .. import api_session
+from .. import signin
 from .. import validation as check
+from ..security import client_ip, log, start_session
 from .responses import no_content, ok
 
 blueprint = Blueprint("session", __name__)
 
 
-def _me() -> dict[str, object]:
+def me() -> dict[str, Any]:
+    account = accounts.get(g.user["name"]) or {}
     return {
         "user": g.user["name"],
+        "display_name": accounts.display_name(g.user["name"], account),
+        **{key: account.get(key) for key in accounts.PROFILE_FIELDS},
         "role": g.user["role"],
         "role_label": accounts.ROLES[g.user["role"]],
+        "permissions": sorted(roles.permissions(g.user["role"])),
         "csrf_token": session.get("csrf"),
-        "must_set_up_second_factor": bool(session.get("enroll_only")),
+        "restricted": session.get("restricted"),
+        "must_set_up_second_factor": session.get("restricted") == "second_factor",
+        "brand_color": settings.brand_color,
     }
 
 
 def _signed_in_answer() -> Response:
-    account = cast(dict[str, Any], accounts.get(session["user"]))
-    g.user = {"name": session["user"], "role": account["role"]}
-    return ok(_me(), status=201)
+    account = accounts.get(session["user"]) or abort(401, "Your session has ended. Please sign in again.")
+    g.user = {"name": session["user"], "role": roles.normalize(account["role"])}
+    return ok(me(), status=201)
+
+
+# ---------------------------------------------------------------- first run
+
+
+@blueprint.get("/setup")
+def setup_state() -> Response:
+    return ok({"needed": accounts.setup_needed(), "contact": settings.contact_sentence()})
+
+
+@blueprint.post("/setup")
+def setup() -> Response:
+    data = check.body()
+    ip = client_ip()
+    if accounts.THROTTLE.seconds_to_wait(ip, "setup"):
+        abort(429, "Too many wrong setup codes from this address. Try again in 15 minutes.")
+    username = check.username(check.text(data, "username", max_length=32).lower())
+    profile = {key: check.text(data, key, max_length=120) for key in accounts.PROFILE_FIELDS}
+    if not profile["first_name"] or not profile["email"]:
+        abort(400, "Enter at least your first name and your e-mail address.")
+    try:
+        accounts.complete_setup(
+            check.text(data, "setup_code", max_length=20), username, check.secret(data, "password"), profile
+        )
+    except PermissionError as error:
+        accounts.THROTTLE.failed(ip, "setup")
+        audit.record(username, ip, "first-run setup refused (wrong setup code)", ok=False)
+        abort(403, str(error))
+    except ValueError as error:
+        abort(400, str(error))
+    account = accounts.get(username) or {}
+    start_session(username, account["session_version"], restricted=signin.restriction(account))
+    audit.record(username, ip, "first-run setup: super admin account created")
+    return _signed_in_answer()
+
+
+# ---------------------------------------------------------------- signing in and out
 
 
 @blueprint.get("/contact")
@@ -52,7 +99,7 @@ def contact() -> Response:
 
 @blueprint.post("/session")
 def sign_in() -> Response:
-    result = api_session.password_step(check.body())
+    result = signin.password_step(check.body())
     if result.get("signed_in"):
         return _signed_in_answer()
     return ok({"second_factor": result["second_factor"]})
@@ -60,27 +107,43 @@ def sign_in() -> Response:
 
 @blueprint.post("/session/second-factor")
 def second_factor() -> Response:
-    api_session.second_factor_step(check.body())
+    signin.second_factor_step(check.body())
     return _signed_in_answer()
 
 
 @blueprint.post("/session/second-factor/<method>")
 def send_code(method: str) -> Response:
-    return ok(api_session.send_code(method))
+    return ok(signin.send_code(method))
 
 
 @blueprint.get("/session")
-def me() -> Response:
-    return ok(_me())
+def read() -> Response:
+    return ok(me())
 
 
 @blueprint.delete("/session")
 def sign_out() -> Response:
-    api_session.logout()
+    log("signed out")
+    session.clear()
     return no_content()
 
 
 @blueprint.put("/session/password")
 def change_password() -> Response:
-    api_session.change_password()
+    data = check.body()
+    current, new = check.secret(data, "current"), check.secret(data, "new")
+    name = g.user["name"]
+    if not auth.authenticator().manages_passwords:
+        abort(400, "Passwords of this panel are managed elsewhere (AUTH setting).")
+    if not accounts.check_password(name, current):
+        log("password change refused (wrong current password)", ok=False)
+        abort(400, "The current password is not correct.")
+    if new == current:
+        abort(400, "Choose a password different from the current one.")
+    problem = accounts.password_problem(new, name)
+    if problem:
+        abort(400, problem)
+    session["version"] = accounts.set_password(name, new)  # other sessions of this account end
+    session["restricted"] = signin.restriction(accounts.get(name) or {})
+    log("changed own password")
     return no_content()

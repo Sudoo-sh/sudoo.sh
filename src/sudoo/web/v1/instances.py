@@ -2,7 +2,7 @@
 
     GET    /api/v1/instances?limit=&offset=          list
     GET    /api/v1/instances/<name>                  one instance, with commits, submodules and recent jobs
-    GET    /api/v1/instances/<name>/credentials      Odoo admin and master passwords, ports (administrators)
+    GET    /api/v1/instances/<name>/credentials      Odoo admin and master passwords, ports
     GET    /api/v1/instances/<name>/logs?lines=      the end of Odoo's log
     POST   /api/v1/instances                         create                         -> 202, Location: job
     PATCH  /api/v1/instances/<name>                  change automation settings and lifetime
@@ -15,35 +15,59 @@
     GET    /api/v1/jobs/<id>/log?offset=             its technical log from a line on
     GET    /api/v1/versions                          Odoo versions and Enterprise availability
 
-Creating instances and running actions reuse the panel's views (api_instances.py), so every input check, role
-check and audit-log entry is the same whoever calls.
+Every endpoint names the permission it needs (roles.py); each action has its own (ACTIONS).
 """
 
 from __future__ import annotations
 
-from typing import Any
+import re
+from collections.abc import Callable, Mapping
+from typing import Any, cast
 
 from flask import Blueprint, Response, abort, g, request
 
-from sudoo import addons
+from sudoo import addons, exposure
 from sudoo.config import settings
 from sudoo.core import events, jobs, vault
-from sudoo.instances import odoo, store
+from sudoo.instances import odoo, operations, store
 from sudoo.limits import quotas
+from sudoo.repos import github
 
-from .. import api_instances
 from .. import validation as check
-from ..security import admin_only, log, message_for_user
+from ..security import can, log, message_for_user, refuse_unless, require
 from .resources import instance_resource, job_resource
 from .responses import PREFIX, ok, page
 
 blueprint = Blueprint("instances", __name__)
 
+# action -> (title shown in the activity list, job kind, permission needed)
+ACTIONS = {
+    "update": ("Get latest code", "update", "instances.update"),
+    "update-submodules": ("Update submodules", "update", "instances.update"),
+    "restart": ("Restart", "restart", "instances.update"),
+    "start": ("Start", "wake", "instances.update"),
+    "add-submodule": ("Add submodule", "submodule", "instances.update"),
+    "pause": ("Pause", "pause", "instances.operate"),
+    "switch-off": ("Switch off", "stop", "instances.operate"),
+    "upgrade": ("Upgrade modules", "upgrade", "instances.operate"),
+    "remove-submodule": ("Remove submodule", "submodule", "instances.operate"),
+    "switch-branch": ("Switch branch", "update", "instances.operate"),
+    "backup": ("Back up", "backup", "instances.operate"),
+    "delete": ("Delete instance", "delete", "instances.delete"),
+}
 
-def _accepted(job_id: str) -> Response:
+
+def existing(name: str) -> str:
+    """`name` when that instance exists; 404 otherwise."""
+    if not store.exists(check.instance_name(name)):
+        abort(404, "This instance does not exist.")
+    return name
+
+
+def _accepted(job: jobs.Job) -> Response:
     """202 Accepted for work that continues in the background; Location points to the job."""
-    response = ok(job_resource(jobs.JOBS[job_id]), status=202)
-    response.headers["Location"] = f"{PREFIX}/jobs/{job_id}"
+    response = ok(job_resource(job), status=202)
+    response.headers["Location"] = f"{PREFIX}/jobs/{job.id}"
     return response
 
 
@@ -52,24 +76,26 @@ def _limits(default: int = 100) -> tuple[int, int]:
     return limit, check.whole_number(request.args.get("offset", "0"), "offset")
 
 
-# ---------------------------------------------------------------- instances
+# ---------------------------------------------------------------- reading
 
 
 @blueprint.get("/instances")
+@require("instances.view")
 def list_instances() -> Response:
     limit, offset = _limits()
     return page(store.names(), limit, offset, instance_resource)
 
 
 @blueprint.get("/instances/<name>")
+@require("instances.view")
 def instance(name: str) -> Response:
-    return ok(instance_resource(api_instances.existing(name), full=True))
+    return ok(instance_resource(existing(name), full=True))
 
 
 @blueprint.get("/instances/<name>/credentials")
-@admin_only
+@require("instances.credentials")
 def credentials(name: str) -> Response:
-    env = store.read_env(api_instances.existing(name))
+    env = store.read_env(existing(name))
     log("instance credentials viewed", instance=name)
     return ok(
         {
@@ -82,24 +108,104 @@ def credentials(name: str) -> Response:
 
 
 @blueprint.get("/instances/<name>/logs")
+@require("instances.logs")
 def odoo_log(name: str) -> Response:
     lines = check.whole_number(request.args.get("lines", "300"), "lines", minimum=1, maximum=5000)
-    return ok({"text": odoo.recent_log(api_instances.existing(name), lines) or ""})
+    return ok({"text": odoo.recent_log(existing(name), lines) or ""})
+
+
+# ---------------------------------------------------------------- creating
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+def _plan_name(repo: str, branch: str, custom_name: str) -> tuple[str, str]:
+    """Instance name (from the custom name, or repository + branch), made unique, and its database name."""
+    if custom_name:
+        base = _slug(custom_name)
+    else:
+        repository = (github.repo_name(repo) or "").split("/")[-1]
+        base = "-".join(part for part in (_slug(repository), _slug(branch)) if part)
+    base = base[:28].strip("-") or "odoo"
+    name, counter = base, 2
+    while store.folder(name).exists():
+        name, counter = f"{base[:26].strip('-')}-{counter}", counter + 1
+    return name, name.replace("-", "_")
+
+
+@blueprint.get("/instance-plan")
+@require("instances.create")
+def plan() -> Response:
+    """What a new instance would be called, before it is created."""
+    name, database = _plan_name(
+        check.text(request.args, "repo"),
+        check.text(request.args, "branch"),
+        check.custom_name(check.text(request.args, "name", max_length=40)),
+    )
+    defaults = {
+        key: getattr(settings, key) for key in ("delete_after_days", "auto_update", "auto_upgrade", "auto_pause")
+    }
+    return ok({"name": name, "database": database, "login": "admin", "defaults": defaults})
+
+
+@blueprint.get("/instance-quota")
+@require("instances.view")
+def quota() -> Response:
+    return ok(quotas.usage(g.user["name"]))
 
 
 @blueprint.post("/instances")
+@require("instances.create")
 def create() -> Response:
-    started: dict[str, Any] = api_instances.create().get_json()
-    response = _accepted(started["job"])
-    response.headers["Content-Location"] = f"{PREFIX}/instances/{started['name']}"
+    data = check.body()
+    repo = check.repo_address(check.text(data, "repo"), required=False)
+    branch = check.branch(check.text(data, "branch", default="main"))
+    version = check.one_of(check.text(data, "version"), odoo.versions(), "Choose an Odoo version from the list.")
+    edition = check.one_of(check.text(data, "edition"), ("community", "enterprise"), "Choose Community or Enterprise.")
+    custom_name = check.custom_name(check.text(data, "name", max_length=40))
+    if not repo and not custom_name:
+        abort(400, "Enter a GitHub repository or a name for the instance.")
+    if edition == "enterprise" and not addons.available(version):
+        abort(400, f"Odoo {version} Enterprise is not available on this server.")
+    try:
+        quotas.claim(g.user["name"])
+    except quotas.QuotaError as error:
+        g.retry_after = error.retry_after
+        log("instance creation refused (limit)", ok=False, detail=error.message)
+        abort(error.status, error.message)
+    name, db_name = _plan_name(repo, branch, custom_name)
+    plan_data = {
+        "name": name,
+        "db_name": db_name,
+        "repo": repo,
+        "branch": branch,
+        "version": version,
+        "edition": edition,
+        "demo": check.flag(data, "demo"),
+        "install_modules": check.flag(data, "install_modules"),
+        "delete_after_days": check.days(data, "delete_after_days"),
+        # automation switches: the panel's defaults (AUTO_PAUSE, AUTO_UPDATE, AUTO_UPGRADE) unless sent
+        **{key: check.flag(data, key, getattr(settings, key)) for key in ("auto_update", "auto_upgrade", "auto_pause")},
+        "ports": store.reserve_ports(exposure.provider().instance_ports()),
+        "created_by": g.user["name"],
+    }
+    job = jobs.start(name, "Create instance", "create", operations.create, plan_data, user=g.user["name"])
+    log("Create instance", instance=name, detail=f"Odoo {version} {edition}")
+    response = _accepted(job)
+    response.headers["Content-Location"] = f"{PREFIX}/instances/{name}"
     return response
 
 
+# ---------------------------------------------------------------- changing
+
+
 @blueprint.patch("/instances/<name>")
-@admin_only
+@require("instances.operate")
 def change(name: str) -> Response:
     """Change only the settings that are sent; the others keep their value."""
-    api_instances.existing(name)
+    existing(name)
     data = check.body()
     switches = {"auto_update": "AUTO_UPDATE", "auto_upgrade": "AUTO_UPGRADE", "auto_pause": "AUTO_PAUSE"}
     values: dict[str, object] = {
@@ -115,45 +221,63 @@ def change(name: str) -> Response:
     return ok(instance_resource(name, full=True))
 
 
+def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[..., Any], tuple[Any, ...]]:
+    """(function, arguments) of the job for `action`, after validating the request data."""
+    simple: dict[str, tuple[Callable[..., Any], tuple[Any, ...]]] = {
+        "update": (operations.update_code, (name,)),
+        "update-submodules": (operations.update_code, (name, True)),
+        "restart": (operations.restart, (name,)),
+        "start": (operations.wake, (name,)),
+        "pause": (operations.pause, (name,)),
+        "backup": (operations.backup, (name,)),
+        "switch-off": (operations.switch_off, (name,)),
+    }
+    if action in simple:
+        return simple[action]
+    if action == "delete":
+        if check.text(data, "confirm", max_length=40) != name:
+            abort(400, "Type the instance name exactly to confirm.")
+        return operations.delete, (name,)
+    if action == "upgrade":
+        return operations.upgrade_modules, (name, check.module_list(check.text(data, "modules", max_length=4000)))
+    if action == "switch-branch":
+        return operations.switch_branch, (name, check.branch(check.text(data, "branch")))
+    path = check.text(data, "path")
+    if action == "add-submodule":
+        url = check.repo_address(check.text(data, "url"))
+        branch = check.branch(check.text(data, "branch"), required=False)
+        path = check.submodule_path(path or cast(str, github.repo_name(url)).split("/")[-1])
+        return operations.add_submodule, (name, url, path, branch)
+    return operations.remove_submodule, (name, check.submodule_path(path))
+
+
+def run(name: str, action: str) -> Response:
+    existing(name)
+    if action not in ACTIONS:
+        abort(404, "Unknown action.")
+    title, kind, permission = ACTIONS[action]
+    refuse_unless(permission, f"{action} on {name}")
+    fn, args = _job_for(action, name, check.body())
+    job = jobs.start(name, title, kind, fn, *args, user=g.user["name"])
+    log(title, instance=name)
+    return _accepted(job)
+
+
 @blueprint.post("/instances/<name>/actions/<action>")
 def action(name: str, action: str) -> Response:
-    return _accepted(api_instances.run_action(name, action).get_json()["job"])
+    return run(name, action)
 
 
 @blueprint.delete("/instances/<name>")
 def delete(name: str) -> Response:
-    return _accepted(api_instances.run_action(name, "delete").get_json()["job"])
-
-
-@blueprint.get("/instance-plan")
-@admin_only
-def plan() -> Response:
-    """What a new instance would be called, before it is created."""
-    planned = api_instances.plan().get_json()
-    return ok(
-        {
-            "name": planned["name"],
-            "database": planned["db_name"],
-            "login": "admin",
-            "defaults": {
-                "delete_after_days": settings.delete_after_days,
-                "auto_update": settings.auto_update,
-                "auto_upgrade": settings.auto_upgrade,
-                "auto_pause": settings.auto_pause,
-            },
-        }
-    )
-
-
-@blueprint.get("/instance-quota")
-def quota() -> Response:
-    return ok(quotas.usage(g.user["name"]))
+    return run(name, "delete")
 
 
 # ---------------------------------------------------------------- jobs
 
 
 @blueprint.get("/jobs")
+@require("instances.view")
 def list_jobs() -> Response:
     limit, offset = _limits(default=30)
     instance_name = request.args.get("instance")
@@ -168,14 +292,17 @@ def _job(job_id: str) -> jobs.Job:
 
 
 @blueprint.get("/jobs/<job_id>")
+@require("instances.view")
 def job(job_id: str) -> Response:
-    found = job_resource(_job(job_id), include_log=request.args.get("include") == "log")
+    include_log = request.args.get("include") == "log" and can("instances.logs")
+    found = job_resource(_job(job_id), include_log=include_log)
     if found["error"]:
         found["error"] = message_for_user(found["error"])
     return ok(found)
 
 
 @blueprint.get("/jobs/<job_id>/log")
+@require("instances.logs")
 def job_log(job_id: str) -> Response:
     """The job's log from line `offset` on; `meta.next_offset` is where to continue."""
     found = _job(job_id)
@@ -188,5 +315,6 @@ def job_log(job_id: str) -> Response:
 
 
 @blueprint.get("/versions")
+@require("instances.view")
 def versions() -> Response:
     return ok([{"version": v, "enterprise": addons.available(v)} for v in odoo.versions()])

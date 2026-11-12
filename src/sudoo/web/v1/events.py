@@ -7,7 +7,7 @@ A client opens one long-lived request and receives every change as it happens:
     data: {"key": "a12fff66a05d", "data": {<the job, as GET /api/v1/jobs/<id> shows it>}}
 
 Topics: "instance" (an instance changed; data is the instance), "instance.deleted", "job" (a job started, moved to
-another step or ended), "job.output" (new log text of a job), "metrics" (resource use, every 15 seconds) and
+another step or ended), "job.output" (new log text of a job), "metrics" (resource use, every METRICS_INTERVAL_SECONDS) and
 "settings". `?topics=job,instance` limits the stream to some topics. A comment line is sent every 20 seconds so
 proxies keep the connection open.
 

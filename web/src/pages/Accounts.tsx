@@ -1,19 +1,86 @@
-import { KeyRound, MoreHorizontal, ShieldCheck, ShieldOff, Trash2, UserPlus, Users } from "lucide-react";
+import { KeyRound, MoreHorizontal, Pencil, ShieldOff, Trash2, UserPlus, Users } from "lucide-react";
 import { useState } from "react";
 import { api, errorText } from "@/api/client";
-import { useCall, useUsers } from "@/api/queries";
-import type { User } from "@/api/types";
+import { useCall, useRoles, useUsers } from "@/api/queries";
+import type { Role, User } from "@/api/types";
 import { Page, PageHead, useMe } from "@/components/Shell";
-import { Badge, Button, Callout, CopyField, Empty, Field, Segmented, Skeleton } from "@/components/ui/basics";
+import { Button, Callout, CopyField, Empty, Field, Skeleton, Tag } from "@/components/ui/basics";
 import { Menu, Modal, useToast } from "@/components/ui/overlay";
 import { ago } from "@/lib/format";
 
-function Secret({ title, text, value, onClose }: { title: string; text: string; value: string; onClose: () => void }) {
+function Secret({ title, value, onClose }: { title: string; value: string; onClose: () => void }) {
   return (
-    <Modal title={title} description={text} onClose={onClose} footer={<Button variant="primary" onClick={onClose}>Done</Button>}>
+    <Modal title={title} description="They choose their own password the first time they sign in with it" onClose={onClose}
+      footer={<Button variant="primary" onClick={onClose}>Done</Button>}>
       <div className="stack">
         <CopyField value={value} block />
-        <Callout tone="warning">Shown once. Give it to the person through a safe channel; they can change it under My account.</Callout>
+        <Callout tone="warning">Shown once. Give it to the person through a safe channel.</Callout>
+      </div>
+    </Modal>
+  );
+}
+
+type Form = { name: string; role: Role; first_name: string; last_name: string; email: string; phone: string };
+const EMPTY: Form = { name: "", role: "developer", first_name: "", last_name: "", email: "", phone: "" };
+
+function AccountForm({ user, onClose, onDone }: { user?: User; onClose: () => void; onDone: (made?: { name: string; password: string }) => void }) {
+  const me = useMe();
+  const toast = useToast();
+  const { data } = useRoles();
+  const [form, setForm] = useState<Form>(
+    user ? { name: user.name, role: user.role, first_name: user.first_name ?? "", last_name: user.last_name ?? "", email: user.email ?? "", phone: user.phone ?? "" } : EMPTY,
+  );
+  const [busy, setBusy] = useState(false);
+  const set = (key: keyof Form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: e.target.value });
+  const roles = (data?.roles ?? []).filter((r) => r.name !== "super_admin" || me.role === "super_admin");
+  const save = async () => {
+    setBusy(true);
+    try {
+      if (user) {
+        const { name: _, ...changes } = form;
+        await api.patch(`/users/${user.name}`, changes);
+        toast("success", `${user.name} saved`);
+        onDone();
+      } else {
+        const made = await api.post<User & { password: string }>("/users", { ...form, name: form.name.trim().toLowerCase() });
+        onDone({ name: made.name, password: made.password });
+      }
+    } catch (error) {
+      toast("error", "Not saved", errorText(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal wide title={user ? `Edit ${user.name}` : "New account"} description={user ? undefined : "A password is generated and shown once"} onClose={onClose}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} disabled={form.name.trim().length < 3} onClick={save}>{user ? "Save" : "Create"}</Button></>}>
+      <div className="stack">
+        <div className="form-grid">
+          <Field label="First name"><input className="input" autoFocus value={form.first_name} onChange={set("first_name")} /></Field>
+          <Field label="Last name"><input className="input" value={form.last_name} onChange={set("last_name")} /></Field>
+          <Field label="E-mail"><input className="input" type="email" value={form.email} onChange={set("email")} /></Field>
+          <Field label="Phone"><input className="input" type="tel" value={form.phone} onChange={set("phone")} /></Field>
+          {!user && (
+            <Field label="User name" className="full" hint="3 to 32 lower-case letters, digits, dots and dashes, starting with a letter">
+              <input className="input" value={form.name} onChange={set("name")} />
+            </Field>
+          )}
+        </div>
+        <div className="field">
+          <span className="label">Role</span>
+          <div className="grid-2">
+            {roles.map((role) => (
+              <button key={role.name} type="button" className="choice" aria-pressed={form.role === role.name}
+                disabled={user?.name === me.user} onClick={() => setForm({ ...form, role: role.name })}>
+                <span>
+                  <span className="t">{role.label}</span>
+                  <br />
+                  <span className="d">{role.description}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </Modal>
   );
@@ -21,25 +88,23 @@ function Secret({ title, text, value, onClose }: { title: string; text: string; 
 
 export function AccountsPage() {
   const me = useMe();
-  const { data: users, isPending } = useUsers();
+  const { data: users, isPending, refetch } = useUsers();
   const toast = useToast();
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const [role, setRole] = useState<"admin" | "operator">("operator");
+  const [editing, setEditing] = useState<User | "new" | null>(null);
   const [secret, setSecret] = useState<{ title: string; value: string } | null>(null);
   const refresh = [["users"]] as const;
-  const create = useCall(() => api.post<User & { password: string }>("/users", { name: name.trim().toLowerCase(), role }), refresh);
   const reset = useCall((user: string) => api.post<{ password: string }>(`/users/${user}/password`), refresh);
   const resetFactors = useCall((user: string) => api.del(`/users/${user}/second-factors`), refresh);
   const remove = useCall((user: string) => api.del(`/users/${user}`), refresh);
   const fail = (title: string) => (error: unknown) => toast("error", title, errorText(error));
+  const manageable = (u: User) => u.name !== me.user && (u.role !== "super_admin" || me.role === "super_admin");
 
   return (
     <Page>
-      <PageHead eyebrow="Administration" title="Accounts" actions={<Button variant="primary" icon={<UserPlus />} onClick={() => setCreating(true)}>New account</Button>}>
-        Administrators can do everything. Sync operators can update code, add submodules and restart instances.
+      <PageHead title="Accounts" actions={<Button variant="primary" icon={<UserPlus />} onClick={() => setEditing("new")}>New account</Button>}>
+        Each account has a role that decides what it can do. Super admins can do everything, viewers can only look.
       </PageHead>
-      <div className="card rise">
+      <div className="card">
         {isPending ? (
           <div className="card-body"><Skeleton height={160} /></div>
         ) : !users?.length ? (
@@ -52,22 +117,26 @@ export function AccountsPage() {
                 {users.map((u) => (
                   <tr key={u.name}>
                     <td>
-                      <div className="row">
-                        <span className="avatar">{u.name.slice(0, 2)}</span>
-                        <div>
-                          <div style={{ fontWeight: 600 }}>{u.name}{u.name === me.user && <span className="faint small"> (you)</span>}</div>
-                          <div className="xsmall faint">{u.email ?? "no e-mail"}</div>
+                      <div className="row" style={{ gap: 12 }}>
+                        <span className="avatar">{(u.first_name?.[0] ?? u.name[0]) + (u.last_name?.[0] ?? "")}</span>
+                        <div style={{ minWidth: 0 }}>
+                          <div className="truncate">{u.display_name}{u.name === me.user && <span className="faint"> (you)</span>}</div>
+                          <div className="xsmall faint mono truncate">{u.name}{u.email ? ` · ${u.email}` : ""}</div>
                         </div>
                       </div>
                     </td>
-                    <td><Badge tone={u.role === "admin" ? "primary" : undefined}>{u.role_label}</Badge></td>
-                    <td>{u.second_factors.length ? <Badge tone="success" icon={<ShieldCheck />}>{u.second_factors.join(", ")}</Badge> : <span className="faint small">none</span>}</td>
+                    <td>
+                      <Tag tone={u.role === "super_admin" ? "accent" : undefined}>{u.role_label}</Tag>
+                      {u.must_change_password && <span className="xsmall faint"> · new password pending</span>}
+                    </td>
+                    <td className="small">{u.second_factors.length ? u.second_factors.map((f) => (f === "totp" ? "App" : "E-mail")).join(", ") : <span className="faint">None</span>}</td>
                     <td className="small muted">{ago(u.last_sign_in_at)}</td>
                     <td className="actions">
-                      {u.name !== me.user && (
-                        <Menu trigger={(toggle) => <Button size="sm" variant="ghost" icon={<MoreHorizontal />} onClick={toggle} aria-label="Actions" />}>
+                      {manageable(u) && (
+                        <Menu trigger={(toggle) => <Button size="sm" variant="ghost" icon={<MoreHorizontal />} onClick={toggle} aria-label={`Actions for ${u.name}`} />}>
                           {(close) => (
                             <>
+                              <button onClick={() => { close(); setEditing(u); }}><Pencil /> Edit</button>
                               <button onClick={() => { close(); reset.mutate(u.name, { onSuccess: (r) => setSecret({ title: `New password for ${u.name}`, value: r.password }), onError: fail("Not reset") }); }}>
                                 <KeyRound /> Reset password
                               </button>
@@ -90,22 +159,18 @@ export function AccountsPage() {
           </div>
         )}
       </div>
-
-      {creating && (
-        <Modal title="New account" description="A strong password is generated and shown once." onClose={() => setCreating(false)}
-          footer={<><Button onClick={() => setCreating(false)}>Cancel</Button><Button variant="primary" loading={create.isPending} disabled={name.trim().length < 3}
-            onClick={() => create.mutate(undefined, { onSuccess: (made) => { setCreating(false); setName(""); setSecret({ title: `Password for ${made.name}`, value: made.password }); }, onError: fail("Not created") })}>Create</Button></>}>
-          <div className="stack">
-            <Field label="User name" hint="3 to 32 lower-case letters, digits, dots, dashes; starting with a letter.">
-              <input className="input" autoFocus value={name} onChange={(e) => setName(e.target.value)} />
-            </Field>
-            <Field label="Role">
-              <Segmented value={role} onChange={setRole} options={[{ value: "operator", label: "Sync operator" }, { value: "admin", label: "Administrator" }]} />
-            </Field>
-          </div>
-        </Modal>
+      {editing && (
+        <AccountForm
+          user={editing === "new" ? undefined : editing}
+          onClose={() => setEditing(null)}
+          onDone={(made) => {
+            setEditing(null);
+            refetch();
+            if (made) setSecret({ title: `Password for ${made.name}`, value: made.password });
+          }}
+        />
       )}
-      {secret && <Secret title={secret.title} text="The account can sign in with it now." value={secret.value} onClose={() => setSecret(null)} />}
+      {secret && <Secret title={secret.title} value={secret.value} onClose={() => setSecret(null)} />}
     </Page>
   );
 }

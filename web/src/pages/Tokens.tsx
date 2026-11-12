@@ -3,7 +3,7 @@ import { useState } from "react";
 import { api, errorText } from "@/api/client";
 import { useCall, useTokens } from "@/api/queries";
 import { Page, PageHead } from "@/components/Shell";
-import { Badge, Button, Callout, CopyField, Empty, Field, Segmented, Skeleton } from "@/components/ui/basics";
+import { Tag, Button, Callout, CopyField, Empty, Field, Segmented, Skeleton } from "@/components/ui/basics";
 import { Modal, useToast } from "@/components/ui/overlay";
 import { ago } from "@/lib/format";
 
@@ -18,7 +18,7 @@ export function TokensPage() {
   const revoke = useCall((id: string) => api.del(`/tokens/${id}`), [["tokens"]]);
   return (
     <Page>
-      <PageHead eyebrow="Administration" title="API tokens" actions={<Button variant="primary" icon={<Plus />} onClick={() => setCreating(true)}>New token</Button>}>
+      <PageHead title="API tokens" actions={<Button variant="primary" icon={<Plus />} onClick={() => setCreating(true)}>New token</Button>}>
         For other systems (CI pipelines, bots, scripts) that call the API. Every request is signed; see <a href="/docs/docs/PANEL_API.md" target="_blank" rel="noreferrer">Panel API</a>.
       </PageHead>
       <div className="card rise">
@@ -31,8 +31,8 @@ export function TokensPage() {
               <tbody>
                 {tokens.map((t) => (
                   <tr key={t.id}>
-                    <td><div style={{ fontWeight: 600 }}>{t.name}</div><div className="xsmall faint mono">sudoo_{t.id}_…</div></td>
-                    <td><Badge tone={t.scope === "write" ? "warning" : "accent"}>{t.scope === "write" ? "Read and write" : "Read only"}</Badge></td>
+                    <td><div>{t.name}</div><div className="xsmall faint mono">sudoo_{t.id}_…</div></td>
+                    <td><Tag>{t.scope === "write" ? "Read and write" : "Read only"}</Tag></td>
                     <td className="small muted">{ago(t.created)} · {t.created_by}</td>
                     <td className="small muted">{ago(t.last_used)}</td>
                     <td className="actions">

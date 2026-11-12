@@ -64,6 +64,17 @@ docker exec sudoo-panel sudoo.sh config
 
 A setting that names a plugin that is not installed stops the panel at start-up with the list of installed ones.
 
+**Changing a plugin.** Plugins are created when the panel starts, so a new choice takes effect after a restart of the
+panel:
+
+| Setting | Where to change it |
+| :--- | :--- |
+| `ENTERPRISE_SOURCE`, `UPDATE_TRIGGERS`, `AUTH`, `SECOND_FACTORS`, `MAILER`, `RATE_LIMITER` | On the **Settings** page (super admins), section **Plugins**, then **Restart the panel**; or in `.env`. The page marks a changed setting until the restart. The restart stops only the backend for a few seconds (the web app, the connectors and the instances keep running) and is refused while jobs run. |
+| `EXPOSURE`, `STORAGE` | In `.env` only, then `cd /opt/odoo/manager && docker compose up -d`: the web service and the containers depend on them too. |
+
+The settings of a plugin (for example `ENTERPRISE_PATH`, `POLL_MINUTES`, `SMTP_HOST`) mostly apply at once when
+changed on the Settings page; [Configuration](CONFIGURATION.md) says which.
+
 ---
 
 ## 3. Exposure: how instances are reached
@@ -159,6 +170,8 @@ a safety net).
    GITHUB_WEBHOOK_SECRET=<the secret>
    ```
 
+   Both can also be set on the panel's **Settings** page; the new trigger starts after **Restart the panel**.
+
 2. On GitHub, in each repository: **Settings, Webhooks, Add webhook**:
 
    | Field | Value |
@@ -195,6 +208,7 @@ class WildcardDomain:
 
     listen_host = "127.0.0.1"   # the proxy runs on the same server
     https = True
+    client_ip_header = None     # or the header your proxy sets with the visitor's address, e.g. "X-Real-IP"
 
     def __init__(self, settings: Settings) -> None:
         self.domain = "odoo.example.com"   # or read your own environment variable here
@@ -228,7 +242,12 @@ wildcard-domain = "my_exposure.wildcard:WildcardDomain"
 ```
 
 Install it into the panel's environment, for example by adding it to `pyproject.toml` of the panel and running
-`uv lock`, then set `EXPOSURE=wildcard-domain` and run `install.sh`. An add-on source works the same way: implement
+`uv lock`, then set `EXPOSURE=wildcard-domain` and run `install.sh`.
+
+`client_ip_header` names a request header that carries the visitor's real address and that only the service in
+front can set (the built-in `cloudflare-quick` uses Cloudflare's `CF-Connecting-IP`; `host-ports` uses `None`). The
+panel trusts it for sign-in lockout, rate limits and the audit log, so name a header only when visitors cannot
+reach the panel without passing through that service, which replaces any value they send. An add-on source works the same way: implement
 `available(version)` and `prepare(version, log)` from `addons/base.py` and register it under
 `sudoo.addon_sources`. An update trigger implements `start(request_update)` and `blueprint()` from
 `triggers/base.py` and is registered under `sudoo.update_triggers`; a webhook's endpoints are served under
@@ -276,10 +295,11 @@ class Ldap:
     def authenticate(self, username: str, password: str) -> Identity | None:
         if not ldap_bind(self.server, f"uid={username},ou=people,dc=example,dc=com", password):
             return None
-        return Identity(username, role="admin" if username in ADMINS else "operator", email=f"{username}@example.com")
+        return Identity(username, role="admin" if username in ADMINS else "developer", email=f"{username}@example.com")
 ```
 
-The first time someone signs in this way, the panel creates the account with that role; second factors, sessions
+The first time someone signs in this way, the panel creates the account with that role (one of `super_admin`,
+`admin`, `maintainer`, `developer`, `viewer`; `viewer` when none is given); second factors, sessions
 and the audit log work as for local accounts.
 
 ### Second factors: proving it is really that person

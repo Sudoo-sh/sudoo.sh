@@ -1,19 +1,20 @@
 """The resources of /api/v1 as JSON documents: the same shapes in answers and in live events.
 
 No resource contains a password, a key or a port; the instance's credentials are a separate resource that only
-administrators can read (GET /api/v1/instances/<name>/credentials).
+roles with "instances.credentials" can read (GET /api/v1/instances/<name>/credentials).
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from sudoo import exposure
+from sudoo.config import settings
 from sudoo.core import jobs
 from sudoo.core.state import STATE
-from sudoo.instances import metrics, monitor, operations, store
+from sudoo.instances import gateway, metrics, monitor, operations, store
 from sudoo.repos.gitrepo import commits, submodules
 
-from .. import api_instances
 from .responses import PREFIX, iso
 
 
@@ -48,32 +49,33 @@ def job_resource(job: jobs.Job, include_log: bool = False) -> dict[str, Any]:
     return resource
 
 
-def _usage(name: str, summary: dict[str, Any]) -> dict[str, Any]:
-    """The latest figures (metrics.py); the monitor's last reading until the first sample."""
+def _usage(name: str) -> dict[str, Any]:
     figures = metrics.INSTANCES.get(name)
-    if not figures:
-        return {"cpu_percent": summary["cpu"], "memory_bytes": summary["memory"]}
-    return {key: value for key, value in figures.items() if key != "running"}
+    if figures:
+        return {key: value for key, value in figures.items() if key != "running"}
+    measured = monitor.STATUS.get(name, {})
+    return {"cpu_percent": measured.get("cpu", 0), "memory_bytes": measured.get("memory", 0)}
 
 
 def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
     """An instance as the API shows it: grouped, ISO times, no passwords or ports."""
-    summary, env = api_instances.summary(name), store.read_env(name)
-    commit = summary["commit"]
+    env, measured, state = store.read_env(name), monitor.STATUS.get(name, {}), STATE.get(name)
+    status = monitor.status(name)
+    commit = (measured.get("commit") or "").split("|")
+    last_visit = state.get("last_visit")
+    pausing = env["AUTO_PAUSE"] == "true" and settings.idle_hours > 0 and status == "online" and last_visit
     current = jobs.ACTIVE_JOB.get(name)
     resource: dict[str, Any] = {
         "name": name,
-        "status": summary["status"],  # online, starting, busy, paused, switched_off, stopped, unknown
-        "url": summary["url"],
+        "status": status,  # online, starting, busy, paused, switched_off, stopped, unknown
+        "url": exposure.address(name),
         "odoo": {"version": env["ODOO_VERSION"], "edition": env["EDITION"], "database": env["DB_NAME"]},
         "git": {
-            "repository": summary["repo"] or None,
+            "repository": measured.get("repo") or None,
             "branch": env["GIT_BRANCH"],
-            "branch_deleted_on_github": summary["branch_missing"],
+            "branch_deleted_on_github": bool(state.get("branch_missing")),
             "commit": (
-                {"sha": commit["sha"], "subject": commit["subject"], "author": commit["author"], "age": commit["when"]}
-                if commit
-                else None
+                dict(zip(("sha", "subject", "age", "author"), commit, strict=True)) if len(commit) == 4 else None
             ),
         },
         "settings": {
@@ -82,12 +84,13 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
             "auto_pause": env["AUTO_PAUSE"] == "true",
             "delete_after_days": int(env["DELETE_AFTER_DAYS"]),
         },
-        "usage": _usage(name, summary),
-        "uptime": summary["uptime"] or None,
-        "gateway_error": summary["gateway_error"],
+        "usage": _usage(name),
+        "uptime": measured.get("uptime") or None,
+        "gateway_error": gateway.LISTENER_ERRORS.get(name),
         "created_at": iso(env["CREATED_AT"]),
-        "last_visit_at": iso(STATE.get(name).get("last_visit")),
-        "pauses_at": iso(summary["pauses_at"]),
+        "created_by": env.get("CREATED_BY") or None,
+        "last_visit_at": iso(last_visit),
+        "pauses_at": iso(float(last_visit or 0) + settings.idle_hours * 3600) if pausing else None,
         "expires_at": iso(operations.expires_at(env)),
         "current_job": job_reference(current) if current else None,
         "links": {"self": f"{PREFIX}/instances/{name}"},

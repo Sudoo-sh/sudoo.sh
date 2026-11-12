@@ -9,12 +9,15 @@ import type {
   Backup,
   Credentials,
   DeployKey,
+  DocPage,
+  DocsContents,
   Instance,
   Job,
   Metrics,
   MetricsHistory,
   Plan,
   Quota,
+  RoleInfo,
   Server,
   Session,
   Setting,
@@ -94,6 +97,14 @@ export const useVersions = () =>
   useQuery({ queryKey: ["versions"], queryFn: () => api.get<Version[]>("/versions"), staleTime: 600_000 });
 export const useQuota = () => useQuery({ queryKey: ["quota"], queryFn: () => api.get<Quota>("/instance-quota") });
 export const useAccount = () => useQuery({ queryKey: ["account"], queryFn: () => api.get<Account>("/account") });
+export const useRoles = () =>
+  useQuery({ queryKey: ["roles"], queryFn: () => api.get<{ roles: RoleInfo[] }>("/roles"), staleTime: Infinity });
+export const useSetup = () =>
+  useQuery({ queryKey: ["setup"], queryFn: () => api.get<{ needed: boolean; contact: string }>("/setup"), retry: false });
+export const useDocs = () =>
+  useQuery({ queryKey: ["docs"], queryFn: () => api.get<DocsContents>("/docs"), staleTime: Infinity });
+export const useDocPage = (path: string) =>
+  useQuery({ queryKey: ["docs", path], queryFn: () => api.get<DocPage>(`/docs/${path}`), staleTime: Infinity, enabled: !!path });
 export const useUsers = () => useQuery({ queryKey: ["users"], queryFn: () => api.get<User[]>("/users") });
 export const useTokens = () => useQuery({ queryKey: ["tokens"], queryFn: () => api.get<Token[]>("/tokens") });
 export const useBackups = () => useQuery({ queryKey: ["backups"], queryFn: () => api.get<Backup[]>("/backups") });

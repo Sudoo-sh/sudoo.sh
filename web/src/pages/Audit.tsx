@@ -2,7 +2,7 @@ import { CircleCheck, CircleX, ScrollText, Search } from "lucide-react";
 import { useState } from "react";
 import { useAudit } from "@/api/queries";
 import { Page, PageHead } from "@/components/Shell";
-import { Badge, Button, Empty, Skeleton } from "@/components/ui/basics";
+import { Tag, Button, Empty, Skeleton } from "@/components/ui/basics";
 import { ago, dateTime } from "@/lib/format";
 
 export function AuditPage() {
@@ -15,7 +15,7 @@ export function AuditPage() {
   );
   return (
     <Page>
-      <PageHead eyebrow="Operations" title="Audit log">
+      <PageHead title="Audit log">
         Who did what, from where, and whether it was allowed: sign-ins, refusals, every action on an instance, account and key changes.
       </PageHead>
       <div className="toolbar rise">
@@ -36,15 +36,15 @@ export function AuditPage() {
                 {shown.map((e, i) => (
                   <tr key={`${e.ts}-${i}`}>
                     <td className="small nowrap" title={dateTime(e.ts)}>{ago(e.ts)}</td>
-                    <td className="small"><b>{e.user}</b></td>
+                    <td className="small">{e.user}</td>
                     <td>
                       <div className="row">
-                        {e.ok ? <CircleCheck size={15} color="var(--success)" /> : <CircleX size={15} color="var(--danger)" />}
+                        {e.ok ? <CircleCheck size={15} color="var(--positive)" /> : <CircleX size={15} color="var(--negative)" />}
                         <span>{e.event}</span>
                       </div>
                       {e.detail && <div className="xsmall faint" style={{ marginLeft: 23 }}>{e.detail}</div>}
                     </td>
-                    <td>{e.instance && <Badge>{e.instance}</Badge>}</td>
+                    <td>{e.instance && <Tag>{e.instance}</Tag>}</td>
                     <td className="mono xsmall faint">{e.ip}</td>
                   </tr>
                 ))}

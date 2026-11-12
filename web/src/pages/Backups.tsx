@@ -13,7 +13,7 @@ export function BackupsPage() {
   const total = backups?.reduce((sum, b) => sum + b.size, 0) ?? 0;
   return (
     <Page>
-      <PageHead eyebrow="Operations" title="Backups">
+      <PageHead title="Backups">
         Odoo-format zips (database and files), taken before every deletion and on request. Restore one with Odoo's database manager. {backups?.length ? `${backups.length} backups · ${bytes(total)}` : ""}
       </PageHead>
       <div className="card rise">
@@ -26,7 +26,7 @@ export function BackupsPage() {
               <tbody>
                 {backups.map((b) => (
                   <tr key={b.file}>
-                    <td style={{ fontWeight: 600 }}>{b.instance}</td>
+                    <td>{b.instance}</td>
                     <td className="mono small">{b.db}</td>
                     <td className="small"><span title={dateTime(b.created)}>{ago(b.created)}</span></td>
                     <td className="small tabular">{bytes(b.size)}</td>

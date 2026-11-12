@@ -6,6 +6,50 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **The interface follows Apple's design and motion principles** ([docs/DESIGN.md](docs/DESIGN.md)):
+  - the system font with size-specific tracking;
+  - graphite neutrals with Odoo's plum as the single accent;
+  - a translucent sidebar and top bar;
+  - presses that answer at once; menus that grow from their trigger; dialogs that materialize in the centre;
+  - a job drawer and toasts that leave the way they came; a sliding segmented control; quick cross-fades
+    between pages;
+  - themes that fade instead of flashing;
+  - support for reduced motion, reduced transparency and higher contrast.
+- **The live charts use Chart.js:**
+  - one main chart per page: the server on Instances, a chosen figure on each instance;
+  - updated in place as each sample arrives.
+- **Faster measurements:** every 5 seconds (`METRICS_INTERVAL_SECONDS`), from a continuous `docker stats` stream.
+  Git details are read at most once a minute and right after a job.
+- **No status badge:** a small "Reconnecting" notice appears only when the connection is lost.
+- **Five roles** replace administrator and sync operator: super admin, administrator, maintainer, developer and
+  viewer, each a set of named permissions checked on every request. Existing accounts are renamed automatically
+  (administrator to super admin, sync operator to developer).
+- **No default accounts:** the installer prints a one-time setup code, and the first visit creates your own
+  account (name, e-mail, phone, password).
+- **Generated passwords** (new accounts, resets) must be replaced at the first sign-in.
+- **Almost every setting can be changed on the Settings page,** including the e-mail account:
+  - secrets are stored encrypted;
+  - settings that choose plugins apply after **Restart the panel**;
+  - folders, ports, the exposure and the storage stay in `.env`.
+- **The documentation is shown on the web app's Help pages,** from the same files as on GitHub.
+- **The previous pages and the internal `/api/*` are removed;** everything uses `/api/v1`.
+
+### Added
+
+- **One-command install:** `curl -fsSL https://raw.githubusercontent.com/Yosef-AlSabbah/sudoo.sh/main/get.sh | sudo bash`
+  installs Docker if needed, downloads the latest release and runs the installer.
+- **Account profiles** (first and last name, e-mail, phone), editable on My account and by administrators.
+- **New endpoints:**
+  - `GET/POST /api/v1/setup`, `GET /api/v1/roles`, `PATCH /api/v1/users/<name>`, `PATCH /api/v1/account`;
+  - `GET /api/v1/docs` and `GET /api/v1/docs/<path>`;
+  - `POST /api/v1/server/restart` and `POST /api/v1/settings/test-email`;
+  - `sudoo.sh setup-code`.
+- **Sign-in codes in e-mails** can be selected with one tap.
+- **A design guide** (`docs/DESIGN.md`) explaining the tokens, type, materials and motion, and how to restyle
+  Sudoo.sh.
+
 ### Renamed
 
 - The project is now **Sudoo** (`sudo` + `Odoo`), the self-hosted counterpart of Odoo.sh: repository

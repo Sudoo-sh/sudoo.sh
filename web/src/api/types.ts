@@ -1,6 +1,27 @@
 // The documents of /api/v1, as docs/PANEL_API.md describes them. Times are ISO 8601 strings in UTC.
 
-export type Role = "admin" | "operator";
+export type Role = "super_admin" | "admin" | "maintainer" | "developer" | "viewer";
+export type Permission =
+  | "instances.view"
+  | "instances.logs"
+  | "instances.update"
+  | "instances.operate"
+  | "instances.create"
+  | "instances.delete"
+  | "instances.credentials"
+  | "backups.manage"
+  | "github.manage"
+  | "accounts.manage"
+  | "tokens.manage"
+  | "audit.view"
+  | "settings.manage";
+
+export interface Profile {
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+}
 export type InstanceStatus = "online" | "starting" | "busy" | "paused" | "switched_off" | "stopped" | "unknown";
 export type JobStatus = "queued" | "running" | "success" | "failed";
 
@@ -9,12 +30,23 @@ export interface Envelope<T> {
   meta?: { total?: number; count?: number; limit?: number; offset?: number; [key: string]: unknown };
 }
 
-export interface Session {
+export interface Session extends Profile {
   user: string;
+  display_name: string;
   role: Role;
   role_label: string;
+  permissions: Permission[];
   csrf_token: string;
+  restricted: "password" | "second_factor" | null;
   must_set_up_second_factor: boolean;
+  brand_color: string;
+}
+
+export interface RoleInfo {
+  name: Role;
+  label: string;
+  description: string;
+  permissions: Permission[];
 }
 
 export interface SecondFactorChallenge {
@@ -73,6 +105,7 @@ export interface Instance {
   pauses_at: string | null;
   expires_at: string | null;
   current_job: JobRef | null;
+  created_by: string | null;
   // only on GET /instances/<name>
   disk?: { database_bytes: number | null; files_bytes: number | null };
   recent_commits?: { sha: string; subject: string; when: string; author: string }[];
@@ -131,6 +164,8 @@ export interface Setting {
   env_value: string | number | boolean;
   changed_in_panel: boolean;
   editable: boolean;
+  applies: "now" | "restart" | "env";
+  pending_restart: boolean;
   secret: boolean;
   type: "boolean" | "integer" | "number" | "string";
   minimum: number | null;
@@ -165,8 +200,9 @@ export interface Factor {
   added_at: string | null;
 }
 
-export interface Account {
+export interface Account extends Profile {
   name: string;
+  display_name: string;
   role: Role;
   role_label: string;
   email: string | null;
@@ -176,14 +212,27 @@ export interface Account {
   require_second_factor: "none" | "admins" | "everyone";
 }
 
-export interface User {
+export interface User extends Profile {
   name: string;
+  display_name: string;
   role: Role;
   role_label: string;
   last_sign_in_at: string | null;
   password_changed_at: string | null;
-  email: string | null;
+  must_change_password: boolean;
   second_factors: string[];
+}
+
+export interface DocsContents {
+  index: string;
+  sections: { title: string; pages: { path: string; title: string }[] }[];
+}
+
+export interface DocPage {
+  path: string;
+  title: string;
+  html: string;
+  headings: { level: number; id: string; text: string }[];
 }
 
 export interface Token {

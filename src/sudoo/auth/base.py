@@ -51,7 +51,7 @@ class Identity:
     """Who signed in, as an authenticator reports it."""
 
     username: str
-    role: str = "operator"  # used only when the account is created in the panel on first sign-in
+    role: str = "viewer"  # used only when the account is created in the panel on first sign-in (roles.py)
     email: str | None = None
 
 

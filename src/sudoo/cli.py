@@ -1,7 +1,7 @@
 """The `sudoo.sh` command (also available as `sudoo`), run inside the panel container by the server administrator:
 
-docker exec sudoo-panel sudoo.sh init-accounts           create admin and sync, print their passwords
-docker exec sudoo-panel sudoo.sh create-user NAME ROLE   ROLE is admin or operator
+docker exec sudoo-panel sudoo.sh setup-code              the one-time code for the first-run page
+docker exec sudoo-panel sudoo.sh create-user NAME ROLE   ROLE: super_admin, admin, maintainer, developer, viewer
 docker exec sudoo-panel sudoo.sh reset-password NAME     print a new password
 docker exec sudoo-panel sudoo.sh list-users
 docker exec sudoo-panel sudoo.sh urls                    current public addresses
@@ -24,13 +24,12 @@ from sudoo.core import audit
 from sudoo.instances import store
 
 
-def init_accounts(_: argparse.Namespace) -> None:
-    created = accounts.create_defaults()
-    for name, password in created.items():
-        print(f"{name:<6} ({accounts.ROLES[dict(accounts.DEFAULT_ACCOUNTS)[name]]}): {password}")
-    if not created:
-        print("Accounts already exist. Use reset-password to set a new password.")
-    audit.record("command line", None, "default accounts created", detail=",".join(created) or "none")
+def setup_code(_: argparse.Namespace) -> None:
+    code = accounts.setup_code()
+    if code is None:
+        print("The panel is already set up: accounts exist. Use reset-password if a password is lost.")
+    else:
+        print(f"Setup code: {code}\nOpen the panel's address and create the first account with it.")
 
 
 def create_user(args: argparse.Namespace) -> None:
@@ -43,7 +42,7 @@ def reset_password(args: argparse.Namespace) -> None:
     if not accounts.get(args.name):
         sys.exit(f"No account called {args.name!r}.")
     password = accounts.generate_password()
-    accounts.set_password(args.name, password)
+    accounts.set_password(args.name, password, must_change=True)
     audit.record("command line", None, "password reset", detail=args.name)
     print(f"New password for {args.name}: {password}\nAll existing sessions of this account were signed out.")
 
@@ -107,7 +106,7 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="sudoo.sh", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)  # fmt: skip
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("init-accounts", help="create the admin and sync accounts").set_defaults(run=init_accounts)
+    commands.add_parser("setup-code", help="show the code that creates the first account").set_defaults(run=setup_code)
     create = commands.add_parser("create-user", help="create an account and print its password")
     create.add_argument("name")
     create.add_argument("role", choices=sorted(accounts.ROLES))

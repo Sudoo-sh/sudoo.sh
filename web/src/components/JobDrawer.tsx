@@ -2,7 +2,7 @@ import { Check, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useJob, useJobLog } from "@/api/queries";
 import { ago, elapsed } from "@/lib/format";
-import { Callout, Progress, Spinner, StatusPill } from "./ui/basics";
+import { Callout, Progress, Spinner, Status } from "./ui/basics";
 import { Drawer } from "./ui/overlay";
 
 function colour(line: string, index: number) {
@@ -47,7 +47,7 @@ export function JobDrawer({ id, onClose }: { id: string; onClose: () => void }) 
         <div className="stack-sm" style={{ gap: 4 }}>
           <div className="row">
             <h2>{job?.action ?? "Activity"}</h2>
-            {job && <StatusPill status={job.status} />}
+            {job && <Status status={job.status} />}
           </div>
           {job && (
             <span className="small muted">
@@ -75,17 +75,14 @@ export function JobDrawer({ id, onClose }: { id: string; onClose: () => void }) 
                 <span className={`node ${step.status}`}>
                   {step.status === "done" ? <Check /> : step.status === "failed" ? <X /> : <span className="spinner" />}
                 </span>
-                <span className={step.status === "running" ? "" : "muted"} style={{ fontWeight: step.status === "running" ? 600 : 450 }}>
+                <span className={step.status === "running" ? "" : "muted"}>
                   {step.title}
                 </span>
               </li>
             ))}
             {!job.steps.length && <li className="faint">Waiting to start…</li>}
           </ol>
-          <div className="section-title">
-            <h2>Technical log</h2>
-            <span className="sub">for developers</span>
-          </div>
+          <h2 className="small muted">Technical log</h2>
           <Terminal text={log?.text ?? ""} live={running} />
         </div>
       )}

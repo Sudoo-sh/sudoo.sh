@@ -17,7 +17,7 @@ export function GitHubPage() {
   const remove = useCall((rid: string) => api.del(`/deploy-keys/${rid}`), [["deploy-keys"]]);
   return (
     <Page>
-      <PageHead eyebrow="Operations" title="GitHub access" actions={<Button variant="primary" icon={<Plus />} onClick={() => setAdding(true)}>Add a repository</Button>}>
+      <PageHead title="GitHub access" actions={<Button variant="primary" icon={<Plus />} onClick={() => setAdding(true)}>Add a repository</Button>}>
         Private repositories need a deploy key: a read-only key for one repository, created here and added on GitHub. Public repositories need nothing.
       </PageHead>
       <div className="card rise">
@@ -30,7 +30,7 @@ export function GitHubPage() {
               <tbody>
                 {keysList.map((k) => (
                   <tr key={k.repo}>
-                    <td style={{ fontWeight: 600 }}>{k.spelling || k.repo}</td>
+                    <td>{k.spelling || k.repo}</td>
                     <td style={{ maxWidth: 320 }}><CopyField value={k.public_key} /></td>
                     <td className="small muted">{ago(k.created)}</td>
                     <td className="actions">

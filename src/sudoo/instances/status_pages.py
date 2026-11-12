@@ -6,21 +6,20 @@ which API clients and webhook senders understand as "try again shortly".
 
 from __future__ import annotations
 
-import base64
 import html
 import time
-from pathlib import Path
+from urllib.parse import quote
 
 from aiohttp import web
 
 from sudoo.config import settings
 
-_ICON = (
-    "data:image/x-icon;base64,"
-    + base64.b64encode(
-        (Path(__file__).resolve().parent.parent / "web" / "static" / "favicon.ico").read_bytes()
-    ).decode()
-)  # Odoo's own icon
+_MARK = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#714b67"/>'
+    '<path d="M16 21l11 11-11 11" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" '
+    'stroke-linejoin="round"/><circle cx="44" cy="41" r="6.5" fill="none" stroke="#fff" stroke-width="5.5"/></svg>'
+)
+_ICON = "data:image/svg+xml," + quote(_MARK)  # the Sudoo.sh mark
 
 _PAGES = {
     "waking": (
@@ -40,19 +39,20 @@ _PAGES = {
 _CSS = """
 body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
 font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ubuntu,"Noto Sans",Arial,sans-serif;
-background:#f9fafb;color:#374151}
-main{max-width:480px;margin:24px 16px;background:#fff;border:1px solid #e7e9ed;border-radius:4px;padding:28px;
-box-shadow:0 1px 2px rgba(17,24,39,.06)}
+background:#fafafa;color:#525252}
+main{max-width:480px;margin:24px 16px;background:#fff;border:1px solid rgba(23,23,23,.08);border-radius:16px;padding:32px;
+box-shadow:0 1px 2px rgba(0,0,0,.05)}
 .name{font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#6b7280}
-h1{font-size:20px;margin:6px 0 10px;font-weight:600;color:#111827}
+h1{font-size:20px;margin:8px 0 12px;font-weight:500;color:#171717}
 p{margin:0 0 10px}
 .contact{border-top:1px solid #e7e9ed;margin-top:18px;padding-top:14px;font-size:14px}
 .spin{width:22px;height:22px;border:3px solid #e7e9ed;border-top-color:#714b67;border-radius:50%;
 animation:r 1s linear infinite;margin-bottom:14px}
 .time{font:13px ui-monospace,monospace;color:#6b7280}
 @keyframes r{to{transform:rotate(360deg)}}
-@media (prefers-color-scheme:dark){body{background:#1f222b;color:#d1d5db}main{background:#262a36;border-color:#3a3f4d}
-h1{color:#f3f4f6}.contact{border-color:#3a3f4d}.spin{border-color:#3a3f4d;border-top-color:#a47e9d}}
+@media (prefers-color-scheme:dark){body{background:#141415;color:#a1a1a6}main{background:#19191b;
+border-color:rgba(237,237,237,.08);box-shadow:none}h1{color:#ededed}.contact{border-color:rgba(237,237,237,.08)}
+.spin{border-color:#232325;border-top-color:#c79bbd}}
 """
 
 

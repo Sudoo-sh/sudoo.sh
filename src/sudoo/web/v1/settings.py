@@ -1,12 +1,13 @@
-"""The panel's settings: read by everyone signed in, changed by administrators.
+"""The panel's settings (permission settings.manage).
 
-    GET    /api/v1/settings          every setting: value, .env value, whether it was changed here, editable or not
-    PATCH  /api/v1/settings          change editable settings: {"idle_hours": 4, "auto_pause": false}; null resets
-    DELETE /api/v1/settings/<key>    bring back the .env value -> 204
+    GET    /api/v1/settings              every setting: value, .env value, changed here or not, when it applies
+    PATCH  /api/v1/settings              change settings: {"idle_hours": 4, "smtp_password": "..."}; null resets
+    DELETE /api/v1/settings/<key>        bring back the .env value -> 204
+    POST   /api/v1/settings/test-email   send the test e-mail to {"to"} with the current mail settings
 
-Changes take effect at once and are kept on top of .env (config.py, LiveSettings). Settings needed when the panel
-starts (ports, plugins, images) are shown with "editable": false. Secrets are never shown, only whether they are
-set.
+"applies" says when a change takes effect: "now", "restart" (it chooses a plugin; restart the panel with
+POST /api/v1/server/restart) or "env" (only in .env: folders, ports, exposure, storage). Changes are kept on top of
+.env (config.py, LiveSettings); secrets are stored encrypted and never shown, only whether they are set.
 """
 
 from __future__ import annotations
@@ -16,22 +17,17 @@ from typing import Any
 from flask import Blueprint, Response, abort
 from pydantic import ValidationError
 
-from sudoo import config
+from sudoo import accounts, config
 from sudoo.config import Settings, live, settings
 from sudoo.core import events
 
 from .. import validation as check
-from ..security import admin_only, log
+from ..security import log, require
 from .responses import no_content, ok
 
 blueprint = Blueprint("settings", __name__)
 
-_FIXED = {
-    "monitor_interval_seconds",
-    "pause_check_interval_seconds",
-    "expiry_check_interval_seconds",
-    "history_samples",
-}
+_FIXED = {"pause_check_interval_seconds", "expiry_check_interval_seconds", "history_samples"}
 _HIDDEN = {"docs_dir", "memory_dir"}
 
 
@@ -59,7 +55,9 @@ def resource() -> list[dict[str, Any]]:
                 "value": _shown(key, getattr(settings, key)),
                 "env_value": _shown(key, getattr(live.env, key)),
                 "changed_in_panel": key in overrides,
-                "editable": key in config.EDITABLE,
+                "editable": key in config.EDITABLE or key in config.RESTART,
+                "applies": "now" if key in config.EDITABLE else "restart" if key in config.RESTART else "env",
+                "pending_restart": live.pending_restart(key),
                 "secret": key in config.SECRET,
                 "type": _type(field.annotation),
                 "minimum": minimum,
@@ -70,6 +68,7 @@ def resource() -> list[dict[str, Any]]:
 
 
 @blueprint.get("/settings")
+@require("settings.manage")
 def read() -> Response:
     return ok(resource())
 
@@ -86,7 +85,7 @@ def _change(values: dict[str, Any]) -> None:
 
 
 @blueprint.patch("/settings")
-@admin_only
+@require("settings.manage")
 def change() -> Response:
     values = check.body()
     if not values:
@@ -96,12 +95,32 @@ def change() -> Response:
 
 
 @blueprint.delete("/settings/<key>")
-@admin_only
+@require("settings.manage")
 def reset(key: str) -> Response:
-    if key not in config.EDITABLE:
+    if key not in config.EDITABLE and key not in config.RESTART:
         abort(404, "No setting with this name can be changed in the panel.")
     _change({key: None})
     return no_content()
+
+
+@blueprint.post("/settings/test-email")
+@require("settings.manage")
+def test_email() -> Response:
+    from sudoo.mail import MailError, mailer, send_template
+
+    to = check.text(check.body(), "to", max_length=254)
+    if not accounts.EMAIL_RE.match(to):
+        abort(400, "Enter the e-mail address to send the test to.")
+    if not mailer().ready:
+        abort(400, "E-mail is not set up yet: fill in the mail server (SMTP) settings first.")
+    server = f"{settings.smtp_host}:{settings.smtp_port} ({settings.smtp_security})"
+    try:
+        send_template(to, "test", "Sudoo.sh e-mail works", preheader="Your mail settings work.",
+                      kicker="E-mail settings", title="It works", server=server)  # fmt: skip
+    except MailError as error:
+        abort(502, f"{error} For Gmail, the password must be an app password.")
+    log("test e-mail sent", detail=to)
+    return ok({"sent_to": to})
 
 
 def publish_changes(changed: dict[str, Any]) -> None:

@@ -1,7 +1,6 @@
 # Documentation
 
-Everything about Sudoo.sh, in one place. The same pages are on GitHub and inside the panel (top menu,
-**Documentation**).
+Everything about Sudoo.sh, in one place. The same pages are on GitHub and inside the panel (sidebar, **Help**).
 
 ---
 
@@ -10,10 +9,11 @@ Everything about Sudoo.sh, in one place. The same pages are on GitHub and inside
 | If you are... | Read |
 | :--- | :--- |
 | New to the panel | [Project overview](../README.md), then the [User manual](USER_MANUAL.md) |
-| A sync operator (you keep instances up to date) | [User manual](USER_MANUAL.md): sections 1, 2, 3, 5 and 6 |
-| The administrator of the panel | [User manual](USER_MANUAL.md), then the [Administrator guide](ADMIN_GUIDE.md) |
+| A developer or maintainer (you keep instances up to date) | [User manual](USER_MANUAL.md): sections 1 to 6 |
+| Installing Sudoo.sh, or running the server | [Administrator guide](ADMIN_GUIDE.md): one command installs everything |
+| A super admin or administrator of the panel | [User manual](USER_MANUAL.md), then the [Administrator guide](ADMIN_GUIDE.md) |
 | A developer connecting another system to an instance | [API and webhooks](API.md) |
-| A developer changing the panel | [Architecture](ARCHITECTURE.md) and [Security](SECURITY.md) |
+| A developer changing the panel | [Architecture](ARCHITECTURE.md), [Design](DESIGN.md) and [Security](SECURITY.md) |
 | Reviewing security | [Security](SECURITY.md) |
 
 ---
@@ -27,19 +27,20 @@ Everything about Sudoo.sh, in one place. The same pages are on GitHub and inside
 | Get a developer's latest push into an instance | [User manual: Keeping the code up to date](USER_MANUAL.md#5-keeping-the-code-up-to-date) |
 | Add an OCA repository | [User manual: Submodules](USER_MANUAL.md#6-submodules) |
 | Understand a status (Paused, Switched off...) | [User manual: Statuses](USER_MANUAL.md#3-an-instances-page) |
-| Create an account or reset a password | [User manual: Accounts and passwords](USER_MANUAL.md#8-accounts-and-passwords) |
-| Find the current links after a restart | [Administrator guide: Links](ADMIN_GUIDE.md#4-public-links) |
-| Choose how long an instance lives | [User manual: Creating an instance](USER_MANUAL.md#4-creating-an-instance), step 6 |
-| Find, download or restore a backup | [User manual: Backups and audit log](USER_MANUAL.md#9-backups-and-audit-log) |
-| Back up an instance or the panel | [Administrator guide: Backups](ADMIN_GUIDE.md#7-backups) |
-| Add a new Enterprise version | [Administrator guide: Enterprise add-ons](ADMIN_GUIDE.md#6-odoo-enterprise-add-ons) |
-| Fix a problem | [Administrator guide: Troubleshooting](ADMIN_GUIDE.md#10-troubleshooting) |
+| Create an account or reset a password | [User manual: Accounts and roles](USER_MANUAL.md#8-accounts-and-roles) |
+| Find the current links after a restart | [Administrator guide: Links](ADMIN_GUIDE.md#7-public-links) |
+| Choose how long an instance lives | [User manual: Creating an instance](USER_MANUAL.md#4-creating-an-instance), step 8 |
+| Find, download or restore a backup | [User manual: Backups and audit log](USER_MANUAL.md#10-backups-and-audit-log) |
+| Back up an instance or the panel | [Administrator guide: Backups](ADMIN_GUIDE.md#10-backups) |
+| Add a new Enterprise version | [Administrator guide: Enterprise add-ons](ADMIN_GUIDE.md#9-odoo-enterprise-add-ons) |
+| Fix a problem | [Administrator guide: Troubleshooting](ADMIN_GUIDE.md#13-troubleshooting) |
 | Call an instance from Python or Postman | [API and webhooks](API.md) |
 | Create or restart instances from a CI pipeline or a script | [Panel API](PANEL_API.md) |
 | Update instances the moment code is pushed | [Plugins: update triggers](PLUGINS.md#5-update-triggers-what-starts-a-code-update) |
-| Use open ports instead of Cloudflare, or keep Enterprise in git | [Panel API](PANEL_API.md) | API tokens, signing requests, every endpoint, a ready-to-use client |
-| [Plugins](PLUGINS.md) |
+| Use open ports instead of Cloudflare, or keep Enterprise in git | [Plugins](PLUGINS.md) |
 | Look up a setting | [Configuration](CONFIGURATION.md) |
+| Send sign-in codes from Gmail | [Administrator guide: E-mail](ADMIN_GUIDE.md#6-e-mail) |
+| Change the look (colours, fonts, motion) | [Design](DESIGN.md#9-restyling-sudoosh) |
 | Know why something was built this way | [Architecture: Why we chose this](ARCHITECTURE.md#6-why-we-chose-this) |
 
 ---

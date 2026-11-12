@@ -31,8 +31,8 @@ body:
       label: Who benefits
       multiple: true
       options:
-        - Administrators
-        - Sync operators
+        - Super admins and administrators
+        - Maintainers and developers
         - Developers pushing code
         - People using the instances
   - type: checkboxes

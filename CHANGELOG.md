@@ -17,6 +17,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- The panel's own data (accounts, API tokens, audit log, instance state) is kept in SQLite
+  (`/opt/odoo/manager/sudoo.db`) through a storage plugin (`STORAGE`); the JSON files of earlier versions are moved
+  in on the first start and kept as `*.migrated`.
+- Second factors at sign-in: authenticator apps (`totp`) and e-mail codes sent from your own mailbox over SMTP
+  (`email`, `SMTP_*`, `MAIL_FROM`). `REQUIRE_SECOND_FACTOR` (`none`, `admins` by default, `everyone`, also on the
+  Settings page) makes one compulsory. New API: two-step `POST /api/v1/session`, `/api/v1/account` and its second
+  factors, and `DELETE /api/v1/users/<name>/second-factors` for a lost phone.
+- Plugin interfaces for sign-in (`sudoo.auth`, e.g. LDAP), second factors (`sudoo.second_factors`, e.g. SMS),
+  e-mail (`sudoo.mailers`), storage (`sudoo.storage`) and rate limiting (`sudoo.rate_limiters`).
+- Request limits per user, token or address (`RATE_LIMIT_READS_PER_MINUTE`, `RATE_LIMIT_CHANGES_PER_MINUTE`) with
+  IETF `RateLimit-*` headers and `Retry-After`.
+- Instance limits: `MAX_INSTANCES`, `MAX_INSTANCES_PER_USER` and `CREATE_COOLDOWN_MINUTES`, also on the Settings
+  page; `GET /api/v1/instance-quota`; instances record who created them (`CREATED_BY`).
+- `LICENSE.md` carries the copyright holder's Required Notice; the README explains commercial licences.
 - Metrics for the server and every instance, with one hour of history: CPU and memory (as a share of the limit),
   requests per minute, error rate and response times (average and 95th percentile) measured by the gateway,
   uptime and disk use; `GET /api/v1/metrics`, `/metrics/history` and `/instances/<name>/metrics`, and in every

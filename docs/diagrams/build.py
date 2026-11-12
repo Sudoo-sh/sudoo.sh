@@ -475,7 +475,7 @@ def password_hash():
         ("Password", ["typed at sign-in"], "outside"),
         ("HMAC with the pepper", ["key from vault.key"], "panel"),
         ("scrypt with a salt", ["slow and memory-hungry"], "panel"),
-        ("Stored hash", ["in users.json"], "ok"),
+        ("Stored hash", ["in sudoo.db"], "ok"),
     ]
     w, gap = 180, 40
     for i, (title, lines, kind) in enumerate(boxes):
@@ -484,7 +484,7 @@ def password_hash():
         if i < len(boxes) - 1:
             c.arrow((x + w, 72), (x + w + gap, 72))
     c.text(430, 150, "One-way: the password cannot be calculated back from the stored hash.", "m")
-    c.text(430, 172, "Without vault.key, a copy of users.json cannot even be attacked.", "m")
+    c.text(430, 172, "Without vault.key, a copy of the database cannot even be attacked.", "m")
     c.save("password-hash")
 
 

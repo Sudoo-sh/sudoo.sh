@@ -116,7 +116,7 @@ run something else:
 
 ```
 POST /api/instances/sales-main/remove-submodule {"path": "../../manager"}
-GET  /docs/../../manager/users.json
+GET  /docs/../../manager/sudoo.db
 ```
 
 **What happens.**

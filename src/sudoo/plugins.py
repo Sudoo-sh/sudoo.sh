@@ -21,6 +21,11 @@ from sudoo.config import Settings
 EXPOSURE_GROUP = "sudoo.exposure"
 ADDON_SOURCE_GROUP = "sudoo.addon_sources"
 UPDATE_TRIGGER_GROUP = "sudoo.update_triggers"
+STORAGE_GROUP = "sudoo.storage"
+AUTH_GROUP = "sudoo.auth"
+SECOND_FACTOR_GROUP = "sudoo.second_factors"
+MAILER_GROUP = "sudoo.mailers"
+RATE_LIMITER_GROUP = "sudoo.rate_limiters"
 
 
 class PluginError(RuntimeError):

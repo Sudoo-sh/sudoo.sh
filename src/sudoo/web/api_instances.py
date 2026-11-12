@@ -13,6 +13,7 @@ from sudoo.config import settings
 from sudoo.core import jobs, vault
 from sudoo.core.state import STATE
 from sudoo.instances import gateway, monitor, odoo, operations, store
+from sudoo.limits import quotas
 from sudoo.repos import github
 from sudoo.repos.gitrepo import commits, submodules
 
@@ -198,6 +199,12 @@ def create() -> Response:
         abort(400, "Enter a GitHub repository or a name for the instance.")
     if edition == "enterprise" and not addons.available(version):
         abort(400, f"Odoo {version} Enterprise is not available on this server.")
+    try:
+        quotas.claim(g.user["name"])
+    except quotas.QuotaError as error:
+        g.retry_after = error.retry_after
+        log("instance creation refused (limit)", ok=False, detail=error.message)
+        abort(error.status, error.message)
     name, db_name = _plan_name(repo, branch, custom_name)
     plan_data = {
         "name": name,
@@ -212,6 +219,7 @@ def create() -> Response:
         # automation switches: the panel's defaults (AUTO_PAUSE, AUTO_UPDATE, AUTO_UPGRADE) unless sent
         **{key: check.flag(data, key, getattr(settings, key)) for key in ("auto_update", "auto_upgrade", "auto_pause")},
         "ports": store.reserve_ports(exposure.provider().instance_ports()),
+        "created_by": g.user["name"],
     }
     job = jobs.start(name, "Create instance", "create", operations.create, plan_data, user=g.user["name"])
     log("Create instance", instance=name, detail=f"Odoo {version} {edition}")

@@ -9,14 +9,15 @@ GET    /api/v1/audit?limit=             the latest audit-log entries, newest fir
 
 from __future__ import annotations
 
-from flask import Blueprint, Response, request
+from flask import Blueprint, Response, abort, request
 
 from sudoo import accounts
 from sudoo.core import audit
 
 from .. import api_accounts
 from .. import validation as check
-from ..security import admin_only
+from ..security import admin_only, log
+from .account import factors_of
 from .responses import PREFIX, created, iso, no_content, ok
 
 blueprint = Blueprint("users", __name__)
@@ -29,6 +30,8 @@ def _user(name: str, user: dict[str, object]) -> dict[str, object]:
         "role_label": accounts.ROLES[str(user["role"])],
         "last_sign_in_at": iso(user.get("last_login")),  # type: ignore[arg-type]
         "password_changed_at": iso(user.get("password_changed")),  # type: ignore[arg-type]
+        "email": user.get("email"),
+        "second_factors": [f["name"] for f in factors_of(user) if f["enrolled"]],
         "links": {"self": f"{PREFIX}/users/{name}"},
     }
 
@@ -49,6 +52,18 @@ def create_user() -> Response:
 @blueprint.post("/users/<name>/password")
 def reset_password(name: str) -> Response:
     return ok({"password": api_accounts.reset_password(name).get_json()["password"]})
+
+
+@blueprint.delete("/users/<name>/second-factors")
+@admin_only
+def reset_second_factors(name: str) -> Response:
+    check.username(name)
+    if not accounts.get(name):
+        abort(404, "No such account.")
+    accounts.update(name, second_factors=None, totp_pending=None)
+    accounts.end_sessions(name)
+    log("second factors removed", detail=name)
+    return no_content()
 
 
 @blueprint.delete("/users/<name>")

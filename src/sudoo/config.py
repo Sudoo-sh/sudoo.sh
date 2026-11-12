@@ -81,6 +81,37 @@ class Settings(BaseSettings):
         "", description="github-webhook: the secret entered on GitHub (20 or more random characters)."
     )
 
+    # ------------------------------------------------------------------ storage, sign-in, mail (plugins)
+    storage: str = Field("sqlite", description='Where the panel keeps its own data: "sqlite".')
+    auth: str = Field("local", description='How user names and passwords are checked: "local" (the panel\'s accounts).')
+    second_factors: str = Field(
+        "email,totp", description='Second factors offered at sign-in, comma-separated: "email", "totp" or both.'
+    )
+    require_second_factor: Literal["none", "admins", "everyone"] = Field(
+        "admins", description='Who must use a second factor: "none", "admins" or "everyone".'
+    )
+    mailer: str = Field("smtp", description='How the panel sends e-mail: "smtp" or "none".')
+    mail_from: str = Field("", description="Sender of the panel's e-mails, e.g. Sudoo.sh <no-reply@example.com>.")
+    smtp_host: str = Field("", description="smtp: the mail server; empty: no e-mail (and no e-mail codes).")
+    smtp_port: int = Field(587, description="smtp: port (587 for STARTTLS, 465 for SSL).")
+    smtp_security: Literal["starttls", "ssl", "none"] = Field("starttls", description="smtp: encryption.")
+    smtp_username: str = Field("", description="smtp: user name, usually the full e-mail address.")
+    smtp_password: str = Field("", description="smtp: password or app password.")
+
+    # ------------------------------------------------------------------ limits
+    rate_limiter: str = Field("memory", description='Where request counts are kept: "memory".')
+    rate_limit_reads_per_minute: int = Field(
+        600, ge=0, description="Requests that read, per minute, per signed-in user or address; 0: no limit."
+    )
+    rate_limit_changes_per_minute: int = Field(
+        60, ge=0, description="Requests that change something, per minute, per user or address; 0: no limit."
+    )
+    max_instances: int = Field(0, ge=0, description="Instances on this server at most; 0: no limit.")
+    max_instances_per_user: int = Field(0, ge=0, description="Instances one user (or API token) may own; 0: no limit.")
+    create_cooldown_minutes: float = Field(
+        0, ge=0, description="Minutes a user must wait between two creations; 0: no wait."
+    )
+
     # ------------------------------------------------------------------ ports
     panel_port: int = Field(9000, description="Port of the panel.")
     events_port: int = Field(9001, description="Port of the live event stream (127.0.0.1 only).")
@@ -129,18 +160,6 @@ class Settings(BaseSettings):
         return self.keys_dir / "deploy"
 
     @property
-    def state_file(self) -> Path:
-        return self.manager_dir / "state.json"
-
-    @property
-    def users_file(self) -> Path:
-        return self.manager_dir / "users.json"
-
-    @property
-    def audit_file(self) -> Path:
-        return self.manager_dir / "audit.log"
-
-    @property
     def secret_file(self) -> Path:
         """Signs session cookies."""
         return self.manager_dir / "secret_key"
@@ -163,6 +182,12 @@ class Settings(BaseSettings):
 # ---------------------------------------------------------------------- changes made in the panel
 
 EDITABLE = (
+    "require_second_factor",
+    "rate_limit_reads_per_minute",
+    "rate_limit_changes_per_minute",
+    "max_instances",
+    "max_instances_per_user",
+    "create_cooldown_minutes",
     "idle_hours",
     "auto_pause",
     "auto_update",
@@ -179,7 +204,7 @@ EDITABLE = (
 )
 """Settings that can be changed in the panel while it runs."""
 
-SECRET = ("odoo_admin_password", "github_webhook_secret")
+SECRET = ("odoo_admin_password", "github_webhook_secret", "smtp_password")
 """Settings whose value is never shown, only whether they are set."""
 
 

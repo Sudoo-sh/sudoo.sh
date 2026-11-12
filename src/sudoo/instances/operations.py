@@ -157,6 +157,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
             "AUTO_PAUSE": str(plan["auto_pause"]).lower(),
             "DELETE_AFTER_DAYS": plan["delete_after_days"],  # 0: keep until deleted by hand
             "CREATED_AT": int(time.time()),
+            "CREATED_BY": plan.get("created_by", ""),
         },
     )
     odoo.write_config(name, db, db_password, master_password)

@@ -68,7 +68,7 @@ def problem(status: int, detail: str) -> Response:
     response.status_code = status
     response.mimetype = "application/problem+json"
     if status == 429:
-        response.headers["Retry-After"] = "900"
+        response.headers["Retry-After"] = str(g.get("retry_after") or 900)
     return response
 
 

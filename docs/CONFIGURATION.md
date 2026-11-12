@@ -72,6 +72,45 @@ Every setting of the panel, with its type, default and meaning. Settings are env
 
 ---
 
+## Storage, sign-in and e-mail (plugins)
+
+| Setting | Type | Default | Meaning |
+| :--- | :--- | :--- | :--- |
+| `STORAGE` | str | `sqlite` | Where the panel keeps its own data (accounts, tokens, audit log, instance state): `sqlite`, the file `/opt/odoo/manager/sudoo.db`. |
+| `AUTH` | str | `local` | How user names and passwords are checked: `local`, the panel's own accounts. |
+| `SECOND_FACTORS` | str | `email,totp` | Second factors offered, comma-separated: `email` (a code by e-mail; only when e-mail is set up) and `totp` (an authenticator app). |
+| `REQUIRE_SECOND_FACTOR` | str | `admins` | **live** Who must use a second factor: `none`, `admins` or `everyone`. Such accounts without one can only set one up after signing in. |
+| `MAILER` | str | `smtp` | How the panel sends e-mail: `smtp` or `none`. |
+| `MAIL_FROM` | str | empty | Sender, for example `Sudoo.sh <no-reply@your-site.com>`; empty: `SMTP_USERNAME`. |
+| `SMTP_HOST` | str | empty | The mail server, for example `mail.your-site.com`. Empty: no e-mail, and no e-mail codes. |
+| `SMTP_PORT` | int | `587` | `587` with `starttls`, `465` with `ssl`. |
+| `SMTP_SECURITY` | str | `starttls` | `starttls`, `ssl` or `none` (only for a mail server on the same machine). |
+| `SMTP_USERNAME` | str | empty | Usually the full address of the mailbox. |
+| `SMTP_PASSWORD` | str | empty | Its password (often an "app password"). Never shown in the panel. |
+
+Sending sign-in codes from your website's mailbox:
+
+```
+MAIL_FROM=Sudoo.sh <no-reply@your-site.com>
+SMTP_HOST=mail.your-site.com
+SMTP_USERNAME=no-reply@your-site.com
+SMTP_PASSWORD=...
+```
+
+## Limits
+
+| Setting | Type | Default | Meaning |
+| :--- | :--- | :--- | :--- |
+| `RATE_LIMITER` | str | `memory` | Where request counts are kept: `memory`. |
+| `RATE_LIMIT_READS_PER_MINUTE` | int | `600` | **live** Requests that read, per minute, per signed-in user or API token (per address before signing in); 0: no limit. |
+| `RATE_LIMIT_CHANGES_PER_MINUTE` | int | `60` | **live** Requests that change something, per minute, counted the same way; 0: no limit. |
+| `MAX_INSTANCES` | int | `0` | **live** Instances on this server at most; 0: no limit. |
+| `MAX_INSTANCES_PER_USER` | int | `0` | **live** Instances one person or API token may have created and not yet deleted; 0: no limit. |
+| `CREATE_COOLDOWN_MINUTES` | float | `0` | **live** Minutes one person or token must wait between two creations, for example `60`; 0: no wait. |
+
+Answers over a request limit are `429 Too Many Requests` with `Retry-After`; every limited answer carries
+`RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`.
+
 ## Ports
 
 | Setting | Type | Default | Meaning |

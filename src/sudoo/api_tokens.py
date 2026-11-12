@@ -13,7 +13,7 @@ A request needs both: the token says who is calling, the signature proves the re
 signing secret, was not changed on the way, and is new (timestamp within 5 minutes, nonce never seen before). A
 token alone, copied from a log or a proxy, is not enough.
 
-Tokens are stored in api_tokens.json (mode 600). The token secret has 256 bits of randomness, so a fast hash
+Tokens are stored in the panel's storage (collection "api_tokens"). The token secret has 256 bits of randomness, so a fast hash
 (SHA-256) is enough; slow password hashing is for secrets people choose.
 """
 
@@ -21,16 +21,14 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import json
 import re
 import secrets
 import threading
 import time
-from pathlib import Path
 from typing import Any
 
-from sudoo.config import settings
 from sudoo.core import vault
+from sudoo.storage import storage
 
 SCOPES = {"read": "Read only", "write": "Read and write"}
 TOKEN_RE = re.compile(r"^sudoo_([0-9a-f]{12})_([A-Za-z0-9_-]{43})$")
@@ -40,20 +38,7 @@ _LOCK = threading.Lock()
 _NONCES: dict[str, float] = {}  # nonce -> time it may be forgotten
 
 
-def _file() -> Path:
-    return settings.manager_dir / "api_tokens.json"
-
-
-def _load() -> dict[str, dict[str, Any]]:
-    try:
-        data: dict[str, dict[str, Any]] = json.loads(_file().read_text())
-        return data
-    except FileNotFoundError:
-        return {}
-
-
-def _save(tokens: dict[str, dict[str, Any]]) -> None:
-    vault.write_private(_file(), json.dumps(tokens, indent=1))
+TOKENS = "api_tokens"
 
 
 def _digest(secret: str) -> str:
@@ -72,26 +57,27 @@ def create(name: str, scope: str, created_by: str) -> tuple[str, str]:
         raise ValueError("Choose the scope read or write.")
     token_id, secret, signing_secret = secrets.token_hex(6), secrets.token_urlsafe(32), secrets.token_urlsafe(32)
     with _LOCK:
-        tokens = _load()
-        if any(record["name"] == name for record in tokens.values()):
+        if any(record["name"] == name for record in storage().all(TOKENS).values()):
             raise ValueError("A token with this name already exists.")
-        tokens[token_id] = {
-            "name": name,
-            "scope": scope,
-            "hash": _digest(secret),
-            "signing_secret": vault.encrypt(signing_secret, _label(token_id)),
-            "created": time.time(),
-            "created_by": created_by,
-            "last_used": None,
-        }
-        _save(tokens)
+        storage().put(
+            TOKENS,
+            token_id,
+            {
+                "name": name,
+                "scope": scope,
+                "hash": _digest(secret),
+                "signing_secret": vault.encrypt(signing_secret, _label(token_id)),
+                "created": time.time(),
+                "created_by": created_by,
+                "last_used": None,
+            },
+        )
     return f"sudoo_{token_id}_{secret}", signing_secret
 
 
 def all_tokens() -> list[dict[str, Any]]:
     """Every token without its secrets, newest first."""
-    with _LOCK:
-        tokens = _load()
+    tokens = storage().all(TOKENS)
     public = [
         {"id": token_id, **{key: value for key, value in record.items() if key not in ("hash", "signing_secret")}}
         for token_id, record in tokens.items()
@@ -101,13 +87,10 @@ def all_tokens() -> list[dict[str, Any]]:
 
 def revoke(token_id: str) -> str:
     """Delete a token at once; return its name."""
-    with _LOCK:
-        tokens = _load()
-        if token_id not in tokens:
-            raise KeyError(token_id)
-        name = str(tokens.pop(token_id)["name"])
-        _save(tokens)
-    return name
+    record = storage().get(TOKENS, token_id)
+    if record is None or not storage().delete(TOKENS, token_id):
+        raise KeyError(token_id)
+    return str(record["name"])
 
 
 def string_to_sign(timestamp: str, nonce: str, method: str, path: str, body: bytes) -> bytes:
@@ -128,7 +111,7 @@ def verify(
         raise PermissionError("Send the API token as: Authorization: Bearer sudoo_...")
     token_id, secret = match.groups()
     with _LOCK:
-        record = _load().get(token_id)
+        record = storage().get(TOKENS, token_id)
     if record is None or not hmac.compare_digest(record["hash"], _digest(secret)):
         raise PermissionError("Unknown or revoked API token.")
     if not timestamp.isdigit() or abs(time.time() - int(timestamp)) > MAX_CLOCK_SKEW_SECONDS:
@@ -159,8 +142,4 @@ def _remember_nonce(nonce: str) -> None:
 
 
 def _mark_used(token_id: str) -> None:
-    with _LOCK:
-        tokens = _load()
-        if token_id in tokens:
-            tokens[token_id]["last_used"] = time.time()
-            _save(tokens)
+    storage().change(TOKENS, token_id, lambda record: record and {**record, "last_used": time.time()})

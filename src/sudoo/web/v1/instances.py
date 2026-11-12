@@ -9,6 +9,7 @@
     POST   /api/v1/instances/<name>/actions/<action> restart, update, pause, ...    -> 202, Location: job
     DELETE /api/v1/instances/<name>                  delete after a backup; body {"confirm": "<name>"} -> 202
     GET    /api/v1/instance-plan?repo=&branch=&name= the name and database a new instance would get
+    GET    /api/v1/instance-quota                    how many instances the caller may still create, and when
     GET    /api/v1/jobs?instance=&limit=&offset=     recent jobs, newest first
     GET    /api/v1/jobs/<id>?include=log             a job
     GET    /api/v1/jobs/<id>/log?offset=             its technical log from a line on
@@ -22,12 +23,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from flask import Blueprint, Response, abort, request
+from flask import Blueprint, Response, abort, g, request
 
 from sudoo import addons
 from sudoo.config import settings
 from sudoo.core import events, jobs, vault
 from sudoo.instances import odoo, store
+from sudoo.limits import quotas
 
 from .. import api_instances
 from .. import validation as check
@@ -141,6 +143,11 @@ def plan() -> Response:
             },
         }
     )
+
+
+@blueprint.get("/instance-quota")
+def quota() -> Response:
+    return ok(quotas.usage(g.user["name"]))
 
 
 # ---------------------------------------------------------------- jobs

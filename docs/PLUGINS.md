@@ -1,7 +1,7 @@
 # Plugins
 
 **Audience:** administrators choosing how the panel works on their server, and developers extending it.
-**Covers:** the three plugin types, the built-in plugins and their settings, and how to write and install your own.
+**Covers:** the plugin types, the built-in plugins and their settings, and how to write and install your own.
 
 ---
 
@@ -14,6 +14,7 @@
 5. [Update triggers: what starts a code update](#5-update-triggers-what-starts-a-code-update)
 6. [Writing a plugin](#6-writing-a-plugin)
 7. [Rules for plugins](#7-rules-for-plugins)
+8. [More plugin types](#8-more-plugin-types)
 
 ---
 
@@ -49,6 +50,11 @@ environment themselves), and every part of the panel uses that object.
 | Exposure | `sudoo.exposure` | `EXPOSURE` | `exposure/base.py`: `Exposure` | `cloudflare-quick`, `host-ports` |
 | Add-on source | `sudoo.addon_sources` | `ENTERPRISE_SOURCE` | `addons/base.py`: `AddonSource` | `folder`, `git` (and `none`) |
 | Update trigger | `sudoo.update_triggers` | `UPDATE_TRIGGERS` (a list) | `triggers/base.py`: `UpdateTrigger` | `polling`, `github-webhook` |
+| Storage | `sudoo.storage` | `STORAGE` | `storage/base.py`: `Storage` | `sqlite` |
+| Authenticator | `sudoo.auth` | `AUTH` | `auth/base.py`: `Authenticator` | `local` |
+| Second factor | `sudoo.second_factors` | `SECOND_FACTORS` (a list) | `auth/base.py`: `SecondFactor` | `email`, `totp` |
+| Mailer | `sudoo.mailers` | `MAILER` | `mail/base.py`: `Mailer` | `smtp`, `none` |
+| Rate limiter | `sudoo.rate_limiters` | `RATE_LIMITER` | `limits/base.py`: `RateLimiter` | `memory` |
 
 See which plugins are installed and which are in use:
 
@@ -240,3 +246,72 @@ Install it into the panel's environment, for example by adding it to `pyproject.
 | Never restart something that would change an existing address without being asked. | People have shared those links. |
 | Run commands as argument lists, never through a shell (`core/shell.py`). | Nothing typed by a user can become a command. |
 | Add type hints; the project's mypy and tests must pass. | The interfaces are the contract between the panel and the plugin. |
+
+---
+
+## 8. More plugin types
+
+Everything that one server may want differently is a plugin, written the same way as in
+[Writing a plugin](#6-writing-a-plugin). The interfaces are short typed `Protocol` classes; read them for the
+details.
+
+### Storage: where the panel keeps its data
+
+`storage/base.py`. Documents in named collections (`get`, `all`, `put`, `delete`, an atomic `change`) and the audit
+log (`log`, `logs`). The built-in `sqlite` keeps everything in one file and needs no server. A `postgres` plugin
+would implement the same methods, for example to keep the panel's data in a database that is already backed up.
+
+### Authenticator: who may sign in
+
+`auth/base.py`. `authenticate(username, password)` returns an `Identity` or `None`. Built in: `local`. A company
+directory plugin, for example LDAP:
+
+```python
+class Ldap:
+    manages_passwords = False   # passwords are changed in the directory, not in the panel
+
+    def __init__(self, settings: Settings) -> None:
+        self.server = "ldaps://ldap.example.com"
+
+    def authenticate(self, username: str, password: str) -> Identity | None:
+        if not ldap_bind(self.server, f"uid={username},ou=people,dc=example,dc=com", password):
+            return None
+        return Identity(username, role="admin" if username in ADMINS else "operator", email=f"{username}@example.com")
+```
+
+The first time someone signs in this way, the panel creates the account with that role; second factors, sessions
+and the audit log work as for local accounts.
+
+### Second factors: proving it is really that person
+
+`auth/base.py`, `SecondFactor`: `challenge` (send a code), `verify`, and `begin_setup` / `finish_setup` / `remove`
+for the account page. Built in: `email` and `totp`. An SMS plugin works like `email` with a phone number; the
+one-time codes helper (`auth/codes.py`: `new`, `check`, with expiry, tries and resend delay) does the hard part:
+
+```python
+class Sms:
+    name, label, available = "sms", "Text message", True
+
+    def challenge(self, username, account):
+        code = codes.new((username, "sign-in"))
+        sms_provider.send(account["phone"], f"Your Sudoo.sh code: {code}")
+        return {"sent_to": account["phone"][-4:].rjust(10, "*")}
+
+    def verify(self, username, account, code):
+        return codes.check((username, "sign-in"), code)[0]
+    ...
+```
+
+Register it under `sudoo.second_factors` and add it to `SECOND_FACTORS=email,totp,sms`.
+
+### Mailer: how e-mail is sent
+
+`mail/base.py`: `ready` and `send(to, subject, text, html)`. Built in: `smtp` (any mailbox, such as your website's
+`no-reply@` address) and `none`. An e-mail service's HTTP API (SendGrid, Amazon SES, Postmark) fits the same
+interface.
+
+### Rate limiter: where request counts are kept
+
+`limits/base.py`: `hit(key, limit, window_seconds)` returns a `Decision`. The built-in `memory` counts in the
+panel's process, which is exact for one panel. Several panels behind one address would share counts through a
+Redis plugin: the same method, with Redis's `INCR` and `EXPIRE`.

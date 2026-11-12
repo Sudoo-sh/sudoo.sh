@@ -43,7 +43,7 @@ try billions of guesses per second against fast hashes. Three measures stop that
 | **Pepper** | A secret mixed into every password, derived from `vault.key`, which is *not* stored with the hashes. | Someone with only the accounts file cannot test a single guess. |
 | **Slowness (scrypt)** | Each check takes about 0.1 s and 32 MB of memory. | A user waits 0.1 s once. An attacker trying millions of guesses waits for weeks per password, and cannot use cheap parallel hardware because of the memory. |
 
-What `users.json` holds for an account (shortened):
+What the database (`sudoo.db`) holds for an account (shortened):
 
 ```json
 "admin": {
@@ -60,7 +60,7 @@ there in any form.
 
 ## 3. Example: what a stolen accounts file reveals
 
-Suppose a copy of `users.json` leaks, for example from a careless backup.
+Suppose a copy of the database leaks, for example from a careless backup.
 
 | Stored as | What the attacker can do |
 | :--- | :--- |
@@ -98,7 +98,7 @@ that one connection, and deleted.
 
 | Secret | Protection | File |
 | :--- | :--- | :--- |
-| Panel account password | salted, peppered scrypt **hash** | `manager/users.json` |
+| Panel account password | salted, peppered scrypt **hash** | `manager/sudoo.db` |
 | Deploy key (private part) | AES-256-GCM **encrypted** | `manager/keys/deploy/<owner>__<repo>.key` |
 | Odoo master password | pbkdf2-sha512 **hash** for Odoo; AES-256-GCM **encrypted** copy for administrators | `instances/<name>/config/odoo.conf`; `instances/<name>/.env` |
 | Session-signing key | random, root only | `manager/secret_key` |

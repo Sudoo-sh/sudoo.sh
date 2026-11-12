@@ -31,6 +31,10 @@ class Exposure(Protocol):
     https: bool
     """True when visitors use https, so cookies can be marked Secure."""
 
+    client_ip_header: str | None
+    """A request header that carries the visitor's real address and can be trusted with this exposure (set by the
+    service in front, like Cloudflare's CF-Connecting-IP), or None."""
+
     def instance_ports(self) -> dict[str, int]:
         """Extra ports this plugin needs per instance, as {.env key: first port}; reserved when an instance is created."""
         ...

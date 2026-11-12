@@ -1,4 +1,5 @@
-# The Sudoo panel. Instances and Cloudflare connectors are separate containers that the panel manages.
+# Sudoo.sh: the backend (sudoo-panel) and the web app (sudoo-web). Instances and Cloudflare connectors are separate
+# containers that the backend manages.
 name: sudoo-panel
 
 services:
@@ -17,3 +18,19 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # same path as on the host, so paths in the instances' compose files mean the same inside and outside
       - /opt/odoo:/opt/odoo
+
+  web:
+    # the web app (web/): the React front end, served by Caddy, which forwards /api, /hooks and /docs to the
+    # backend on 127.0.0.1:API_PORT and the live events to 127.0.0.1:EVENTS_PORT
+    build: ./web
+    container_name: sudoo-web
+    restart: unless-stopped
+    network_mode: host
+    # only what the web service needs, never the secrets in .env (values come from .env when Compose starts it)
+    environment:
+      EXPOSURE: ${EXPOSURE:-cloudflare-quick}
+      PANEL_PORT: ${PANEL_PORT:-9000}
+      API_PORT: ${API_PORT:-9002}
+      EVENTS_PORT: ${EVENTS_PORT:-9001}
+    depends_on:
+      - manager

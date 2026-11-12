@@ -21,6 +21,9 @@ chmod 700 "$DEST" "$DEST/keys" "$DEST/keys/deploy"
 rm -rf "$DEST/src" "$DEST/sudoo" "$DEST"/*.py "$DEST/docker-compose.yml" "$DEST/documentation"
 cp -r "$KIT/src" "$KIT/pyproject.toml" "$KIT/uv.lock" "$KIT/README.md" "$KIT/LICENSE.md" \
       "$KIT/Dockerfile" "$KIT/compose.yaml" "$KIT/.env.example" "$DEST/"
+# the web app (built inside its image; local build output and packages are not copied)
+rm -rf "$DEST/web" && mkdir -p "$DEST/web"
+tar -C "$KIT/web" --exclude=node_modules --exclude=dist -cf - . | tar -C "$DEST/web" -xf -
 # the documentation shown under Documentation in the panel
 mkdir -p "$DEST/documentation"
 cp -r "$KIT/README.md" "$KIT/docs" "$DEST/documentation/"
@@ -48,6 +51,7 @@ cd "$DEST"
 docker compose up -d --build --remove-orphans
 
 echo "Waiting for the panel and its public address..."
+docker image prune -f >/dev/null 2>&1 || true  # earlier builds of the images
 for _ in $(seq 1 60); do
   docker exec sudoo-panel sudoo.sh urls 2>/dev/null | grep -q "^Panel: http" && break
   sleep 2
@@ -57,7 +61,7 @@ echo
 echo "Sudoo.sh, created by Yousef M. Y. Al Sabbah"
 docker exec sudoo-panel sudoo.sh urls
 echo
-if [ -f "$DEST/users.json" ]; then
+if [ -f "$DEST/sudoo.db" ] || [ -f "$DEST/users.json" ]; then
   echo "Accounts already exist and were not changed."
   echo "Forgotten password:  docker exec sudoo-panel sudoo.sh reset-password admin"
 else

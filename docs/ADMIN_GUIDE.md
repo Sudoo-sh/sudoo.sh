@@ -61,7 +61,8 @@ What `install.sh` does, in order:
 1. Creates `/opt/odoo/{manager,instances,enterprise}` (mode 700, root only).
 2. Replaces the panel's code in `/opt/odoo/manager` and copies the documentation next to it.
 3. Writes `/opt/odoo/manager/.env` from `.env.example`, **keeping every value already set** on this server.
-4. Builds the panel image and starts the container `sudoo-panel`, which starts the panel's connector.
+4. Builds the two images and starts the containers `sudoo-panel` (the backend, which starts the panel's connector) and
+   `sudoo-web` (the web app, on the panel's port).
 5. Waits for the panel's public link and prints it.
 6. The first time only: creates the `admin` and `sync` accounts and prints their passwords **once**. Store them in a
    password manager.
@@ -157,7 +158,8 @@ then open `http://localhost:9000`. Why the server needs tunnels at all is explai
 
 | Docker object | What it is |
 | :--- | :--- |
-| `sudoo-panel` | The panel, the gateway and the background work |
+| `sudoo-panel` | The backend: API, gateway, live events and the background work |
+| `sudoo-web` | The web app, served by Caddy on the panel's port; forwards `/api` to the backend |
 | `sudoo-connector-panel` | The panel's Cloudflare connector |
 | `sudoo-connector-<name>` | One connector per instance |
 | `odoo-<name>-odoo-1`, `odoo-<name>-db-1` | The instance's Odoo and PostgreSQL |
@@ -168,7 +170,7 @@ Useful commands:
 | Task | Command |
 | :--- | :--- |
 | Everything running | `docker ps` |
-| Panel log | `docker logs -f sudoo-panel` |
+| Panel log | `docker logs -f sudoo-panel` (backend), `docker logs -f sudoo-web` (web app) |
 | Odoo log of an instance | `cd /opt/odoo/instances/<name> && docker compose logs -f odoo` |
 | Memory | `free -m` |
 | Disk per container and volume | `docker system df -v` |

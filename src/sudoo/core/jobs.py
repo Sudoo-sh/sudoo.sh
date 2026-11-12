@@ -75,7 +75,11 @@ class Job:
         end = len(self.log)
         if end > self._published_lines:
             text = "".join(self.log[self._published_lines : end])
-            events.publish("job.output", self.id, {"job": self.id, "offset": self._published_lines, "text": text})
+            events.publish(
+                "job.output",
+                self.id,
+                {"job": self.id, "offset": self._published_lines, "next_offset": end, "text": text},
+            )
             self._published_lines = end
 
     def write(self, text: str) -> None:

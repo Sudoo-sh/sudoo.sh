@@ -137,7 +137,11 @@ server itself opened) and SSH for administrators. The full picture is in [Archit
 | **cryptography** (AES-256-GCM) | Encrypts the secrets the panel must read back (deploy keys, Odoo master passwords). | Audited library; encryption that also detects any change to the stored value. See [Passwords and encryption](docs/concepts/PASSWORDS_AND_ENCRYPTION.md). |
 | **scrypt** (Python standard library) | Hashes panel passwords. | Slow and memory-hungry on purpose, so stolen hashes are very expensive to guess. |
 | **Git and SSH deploy keys** | Fetch code; read-only access to one repository per key. | No personal account or token whose owner might leave; each key can be revoked on its own. See [Git submodules](docs/concepts/GIT_SUBMODULES.md). |
-| **Plain JavaScript modules** | The panel in the browser. | No build step and no npm packages: nothing to update, no third-party code in the browser. |
+| **React 19 + TypeScript + Vite** | The web app (`web/`), a separate service on top of the API. | Typed end to end; pages load only when opened; fast rebuilds; any front-end developer can work on it. |
+| **TanStack Query + Server-Sent Events** | Data in the web app, kept current by the live event stream. | Pages update the moment something happens, with no polling; data is cached between pages. |
+| **SCSS design tokens** | Every colour, size and motion defined once (`web/src/styles/_tokens.scss`), light and dark themes, page transitions with the View Transitions API. | Restyling Sudoo.sh is one file; the accent colour follows `BRAND_COLOR`. |
+| **Caddy** | Serves the web app and forwards `/api` to the backend (container `sudoo-web`). | One small binary, compression, strict security headers, no configuration beyond one file. |
+| **SQLite** | The panel's own data (accounts, tokens, audit log). | Transactions and queries without a database server. |
 | **Python-Markdown** | Shows this documentation inside the panel. | One set of Markdown files, read on GitHub and in the panel. |
 | **Alpine Linux** (`python:3.15-alpine`) | The panel's container. | Small image; the Docker command line is copied in from the official Docker image. |
 | **black, ruff, mypy, pre-commit** | Formatting, lint, type checks on every commit and in CI. | One style, mistakes caught before review, enforced for everyone. |
@@ -189,7 +193,13 @@ sudoo.sh/
 ├── install.sh                     # installs or updates the panel on the server (run as root)
 ├── check-server.sh                # read-only check of the server: Docker, memory, disk, internet access
 ├── pyproject.toml, uv.lock        # dependencies (locked with uv), plugins, tool settings
-├── Dockerfile, compose.yaml       # the panel container
+├── Dockerfile, compose.yaml       # the backend container (sudoo-panel) and the web app (sudoo-web)
+├── web/                           # the web app: React + TypeScript + Vite, served by Caddy
+│   ├── src/api/                   #   typed calls to /api/v1, query hooks, the live event stream
+│   ├── src/styles/                #   SCSS: _tokens.scss (colours, sizes, motion), components, layout, pages
+│   ├── src/components/            #   frame (Shell), UI pieces, charts
+│   ├── src/pages/                 #   one file per page, loaded when first opened
+│   └── Caddyfile, Dockerfile      #   serves the app; forwards /api, /hooks, /docs and the live events
 ├── .env.example                   # every setting, documented (full list: docs/CONFIGURATION.md)
 ├── .pre-commit-config.yaml        # black, ruff, mypy, shellcheck, ... on every commit and in CI
 ├── docs/                          # documentation, also shown in the panel; images/ and diagrams/build.py
@@ -225,7 +235,7 @@ sudoo.sh/
     │   ├── base.py                #   the interface
     │   ├── folder.py              #   folder
     │   └── git.py                 #   git
-    └── web/                       # Flask app: security, validation, API, documentation pages, static/
+    └── web/                       # Flask app: security, validation, the API (v1/), documentation pages
 ```
 
 ### Rules of the layout
@@ -238,7 +248,7 @@ sudoo.sh/
 | Every external command is a list of arguments, run without a shell (`core/shell.py`, `core/jobs.py`). | User input can never be interpreted as a command. |
 | Every value from outside goes through `web/validation.py`. | One place to read and review all input rules. |
 | Type hints everywhere, checked by mypy; formatting by black; lint by ruff. | Mistakes are caught before review, and the code reads the same everywhere. |
-| No inline styles or scripts in the browser code. | Allows the strict Content-Security-Policy. |
+| No inline scripts in the browser code, and the web app talks to the backend only through `/api/v1`. | Allows the strict Content-Security-Policy; the front end can be replaced without touching the backend. |
 
 ---
 

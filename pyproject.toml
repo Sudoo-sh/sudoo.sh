@@ -26,7 +26,8 @@ Repository = "https://github.com/Yosef-AlSabbah/sudoo.sh"
 Documentation = "https://github.com/Yosef-AlSabbah/sudoo.sh/tree/main/docs"
 
 [project.scripts]
-sudoo = "sudoo.cli:main"
+"sudoo.sh" = "sudoo.cli:main"
+sudoo = "sudoo.cli:main"  # the earlier name, kept so existing scripts keep working
 
 # ---------------------------------------------------------------- plugins (see docs/PLUGINS.md)
 [project.entry-points."sudoo.exposure"]

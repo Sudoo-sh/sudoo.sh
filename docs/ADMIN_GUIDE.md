@@ -84,7 +84,7 @@ Every setting, with its type, default and meaning, is in [Configuration](CONFIGU
 comments is `.env.example`. To see what the panel is actually using, and which plugins are installed:
 
 ```bash
-docker exec sudoo-panel sudoo config
+docker exec sudoo-panel sudoo.sh config
 ```
 
 A wrong value (for example `IDLE_HOURS=soon`) or an unknown plugin name stops the panel at start-up, and
@@ -113,7 +113,7 @@ follow). Links you shared earlier, and webhook addresses registered at other ser
 To see the current links on the server:
 
 ```bash
-docker exec sudoo-panel sudoo urls
+docker exec sudoo-panel sudoo.sh urls
 ```
 
 Administrators can also reach the panel without Cloudflare, through SSH:
@@ -277,9 +277,9 @@ See [Security](SECURITY.md) for why it works this way.
 For when nobody can sign in, for example after losing the admin password:
 
 ```bash
-docker exec sudoo-panel sudoo list-users
-docker exec sudoo-panel sudoo create-user <name> admin|operator
-docker exec sudoo-panel sudoo reset-password <name>
+docker exec sudoo-panel sudoo.sh list-users
+docker exec sudoo-panel sudoo.sh create-user <name> admin|operator
+docker exec sudoo-panel sudoo.sh reset-password <name>
 ```
 
 New and reset passwords are printed once. Every other account task is done in the panel ([User manual](USER_MANUAL.md#8-accounts-and-passwords)).
@@ -292,7 +292,7 @@ After installing or updating:
 
 1. `docker ps` shows `sudoo-panel`, `sudoo-connector-panel`, and for each instance its connector, Odoo and
    database (paused instances show only their connector).
-2. `docker exec sudoo-panel sudoo urls` prints the panel's link and every instance's link.
+2. `docker exec sudoo-panel sudoo.sh urls` prints the panel's link and every instance's link.
 3. Open the panel's link and sign in.
 4. **Documentation** in the top bar opens these pages.
 5. Create a small test instance (no repository, name `check`, Odoo 20, Community). It should be ready in about 2
@@ -308,7 +308,7 @@ After installing or updating:
 
 | Symptom | Likely cause | What to do |
 | :--- | :--- | :--- |
-| The panel's link does not open | The link changed after a restart | `docker exec sudoo-panel sudoo urls` |
+| The panel's link does not open | The link changed after a restart | `docker exec sudoo-panel sudoo.sh urls` |
 | No link at all | `sudoo-panel` or the connector is not running | `docker ps -a`, `docker logs sudoo-panel`, then `cd /opt/odoo/manager && docker compose up -d` |
 | "Starting up" for several minutes | Odoo fails to start | **View logs** on the instance's page |
 | "No access" under Repository access | No deploy key, or not added on GitHub | Create the key, add it on GitHub, **Check again** ([User manual](USER_MANUAL.md#7-github-access-private-repositories)) |

@@ -48,7 +48,7 @@ system keeps secrets. A token can be revoked at any time on the same page; it st
 On the server, a token can also be created from the command line:
 
 ```bash
-docker exec sudoo-panel sudoo create-token "CI pipeline" write
+docker exec sudoo-panel sudoo.sh create-token "CI pipeline" write
 ```
 
 ---

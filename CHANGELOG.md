@@ -17,6 +17,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- E-mails in HTML, in the style of Odoo's own (white card, title and product name, code box, button, footer), with
+  a plain-text version. Sign-in codes say when, from which address and browser they were asked for. Templates can
+  be replaced with `MAIL_TEMPLATES_DIR`; `BRAND_COLOR` sets the accent colour (also on the Settings page).
+- `sudoo.sh test-email ADDRESS` checks the mail settings; Gmail setup in docs/CONFIGURATION.md.
+- The pages, documentation and installer say **Sudoo.sh**; the command is `sudoo.sh` (`sudoo` still works).
 - The panel's own data (accounts, API tokens, audit log, instance state) is kept in SQLite
   (`/opt/odoo/manager/sudoo.db`) through a storage plugin (`STORAGE`); the JSON files of earlier versions are moved
   in on the first start and kept as `*.migrated`.

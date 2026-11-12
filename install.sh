@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sudoo - install or update. Run on the server as root: sudo ./install.sh
+# Sudoo.sh - install or update. Run on the server as root: sudo ./install.sh
 # Created by Yousef M. Y. Al Sabbah.
 #
 # Copies the panel to /opt/odoo/manager, writes its settings (keeping existing values), builds and starts it,
@@ -49,18 +49,18 @@ docker compose up -d --build --remove-orphans
 
 echo "Waiting for the panel and its public address..."
 for _ in $(seq 1 60); do
-  docker exec sudoo-panel sudoo urls 2>/dev/null | grep -q "^Panel: http" && break
+  docker exec sudoo-panel sudoo.sh urls 2>/dev/null | grep -q "^Panel: http" && break
   sleep 2
 done
 
 echo
-echo "Sudoo, created by Yousef M. Y. Al Sabbah"
-docker exec sudoo-panel sudoo urls
+echo "Sudoo.sh, created by Yousef M. Y. Al Sabbah"
+docker exec sudoo-panel sudoo.sh urls
 echo
 if [ -f "$DEST/users.json" ]; then
   echo "Accounts already exist and were not changed."
-  echo "Forgotten password:  docker exec sudoo-panel sudoo reset-password admin"
+  echo "Forgotten password:  docker exec sudoo-panel sudoo.sh reset-password admin"
 else
   echo "Accounts (shown only once, store them in a password manager):"
-  docker exec sudoo-panel sudoo init-accounts
+  docker exec sudoo-panel sudoo.sh init-accounts
 fi

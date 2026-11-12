@@ -6,7 +6,7 @@ Every setting of the panel, with its type, default and meaning. Settings are env
 
 * Names are not case sensitive. A wrong value (for example `IDLE_HOURS=soon`) stops the panel at start-up with a
   message naming the setting.
-* See what the panel actually uses: `docker exec sudoo-panel sudoo config`.
+* See what the panel actually uses: `docker exec sudoo-panel sudoo.sh config`.
 * The settings are defined in `src/sudoo/config.py`; a test fails when one of them is missing here.
 * Settings marked **live** can also be changed by an administrator on the panel's **Settings** page (or with
   `PATCH /api/v1/settings`, see [Panel API](PANEL_API.md#7-settings)). The change takes effect at once, without a
@@ -87,8 +87,41 @@ Every setting of the panel, with its type, default and meaning. Settings are env
 | `SMTP_SECURITY` | str | `starttls` | `starttls`, `ssl` or `none` (only for a mail server on the same machine). |
 | `SMTP_USERNAME` | str | empty | Usually the full address of the mailbox. |
 | `SMTP_PASSWORD` | str | empty | Its password (often an "app password"). Never shown in the panel. |
+| `MAIL_TEMPLATES_DIR` | str | empty | A folder with e-mail templates (`layout.html`, `code.html`, `code.txt`, ...) that replace the built-in ones of the same name (`src/sudoo/mail/templates/`). |
+| `BRAND_COLOR` | str | `#714B67` | **live** Accent colour of e-mails (title mark, buttons), as `#RRGGBB`. |
 
-Sending sign-in codes from your website's mailbox:
+E-mails are HTML in the style of Odoo's own (a white card, the title on the left, the product name on the right,
+a button and a footer), with a plain-text version for mail programs that show text only. Sign-in codes also say
+when, from which address and which browser they were asked for.
+
+### Gmail
+
+1. On the Google account that will send the e-mails, turn on **2-Step Verification**
+   (myaccount.google.com, Security).
+2. Create an **app password**: myaccount.google.com/apppasswords, name it `Sudoo.sh`. Google shows 16 letters once.
+3. In `/opt/odoo/manager/.env`:
+
+   ```
+   MAILER=smtp
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_SECURITY=starttls
+   SMTP_USERNAME=your.address@gmail.com
+   SMTP_PASSWORD=the16letterapppassword
+   MAIL_FROM=Sudoo.sh <your.address@gmail.com>
+   ```
+
+4. Apply and test:
+
+   ```
+   cd /opt/odoo/manager && docker compose up -d
+   docker exec sudoo-panel sudoo.sh test-email you@example.com
+   ```
+
+Gmail sends from the signed-in address (or an alias added under Gmail's **Send mail as**), at most about 500
+messages a day for a personal account. With Google Workspace on your own domain, use the domain's address.
+
+### Your website's mailbox
 
 ```
 MAIL_FROM=Sudoo.sh <no-reply@your-site.com>

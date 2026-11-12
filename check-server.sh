@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sudoo - server readiness check. Changes nothing on the server.
+# Sudoo.sh - server readiness check. Changes nothing on the server.
 # Created by Yousef M. Y. Al Sabbah.
 #
 # Usage:  sudo ./check-server.sh
@@ -13,7 +13,7 @@ section() { printf '\n%s\n' "$1"; }
 
 MANAGER_PORT="${MANAGER_PORT:-9000}"
 
-echo "Sudoo - server check ($(hostname), $(date '+%Y-%m-%d %H:%M'))"
+echo "Sudoo.sh - server check ($(hostname), $(date '+%Y-%m-%d %H:%M'))"
 
 # ---------------------------------------------------------------- system
 section "System"
@@ -83,7 +83,7 @@ fi
 # through outgoing Cloudflare connections. Only the panel's own port must be free.
 section "Ports"
 if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx sudoo-panel; then
-  ok "Sudoo is already running (port $MANAGER_PORT)"
+  ok "Sudoo.sh is already running (port $MANAGER_PORT)"
 elif ss -ltnH "( sport = :$MANAGER_PORT )" 2>/dev/null | grep -q .; then
   fail "Port $MANAGER_PORT (panel) is used by another program" "stop that program"
 else
@@ -108,7 +108,7 @@ else
 fi
 
 # ---------------------------------------------------------------- existing installation
-section "Sudoo"
+section "Sudoo.sh"
 if [ -d /opt/odoo/manager ]; then
   ok "Installed in /opt/odoo ($(ls /opt/odoo/instances 2>/dev/null | wc -l) instances)"
 else

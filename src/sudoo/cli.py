@@ -1,12 +1,14 @@
-"""The `sudoo` command, run inside the panel container by the server administrator:
+"""The `sudoo.sh` command (also available as `sudoo`), run inside the panel container by the server administrator:
 
-docker exec sudoo-panel sudoo init-accounts           create admin and sync, print their passwords
-docker exec sudoo-panel sudoo create-user NAME ROLE   ROLE is admin or operator
-docker exec sudoo-panel sudoo reset-password NAME     print a new password
-docker exec sudoo-panel sudoo list-users
-docker exec sudoo-panel sudoo urls                    current public addresses
-docker exec sudoo-panel sudoo config                  effective settings and installed plugins
-sudoo serve                                         start the web panel (the container does this)
+docker exec sudoo-panel sudoo.sh init-accounts           create admin and sync, print their passwords
+docker exec sudoo-panel sudoo.sh create-user NAME ROLE   ROLE is admin or operator
+docker exec sudoo-panel sudoo.sh reset-password NAME     print a new password
+docker exec sudoo-panel sudoo.sh list-users
+docker exec sudoo-panel sudoo.sh urls                    current public addresses
+docker exec sudoo-panel sudoo.sh config                  effective settings and installed plugins
+docker exec sudoo-panel sudoo.sh create-token NAME SCOPE  SCOPE is read or write; prints the secrets once
+docker exec sudoo-panel sudoo.sh test-email ADDRESS       send a test e-mail, to check the SMTP settings
+sudoo.sh serve                                       start the web panel (the container does this)
 """
 
 from __future__ import annotations
@@ -75,6 +77,24 @@ def show_config(_: argparse.Namespace) -> None:
     print(f"Update triggers:    {', '.join(plugins.available(plugins.UPDATE_TRIGGER_GROUP))}")
 
 
+def test_email(args: argparse.Namespace) -> None:
+    """Send the test e-mail; says what went wrong when it cannot."""
+    from sudoo.mail import MailError, mailer, send_template
+
+    if not mailer().ready:
+        sys.exit(
+            "E-mail is not set up: fill in SMTP_HOST, SMTP_USERNAME and SMTP_PASSWORD in .env (docs/CONFIGURATION.md)."
+        )
+    server = f"{settings.smtp_host}:{settings.smtp_port} ({settings.smtp_security}) as {settings.smtp_username or '-'}"
+    try:
+        send_template(args.address, "test", "Sudoo.sh e-mail works", preheader="Your mail settings work.",
+                      kicker="E-mail settings", title="It works", server=server)  # fmt: skip
+    except MailError as error:
+        sys.exit(f"{error}\nCheck SMTP_* in .env; for Gmail, SMTP_PASSWORD must be an app password.")
+    audit.record("command line", None, "test e-mail sent", detail=args.address)
+    print(f"Sent to {args.address} through {server}. Check the inbox (and the spam folder).")
+
+
 def serve(_: argparse.Namespace) -> None:
     """Start gunicorn: one process (jobs, monitor and gateway share its memory), listening where the exposure
     plugin needs the panel (127.0.0.1 behind a tunnel, every interface when visitors connect directly)."""
@@ -84,7 +104,7 @@ def serve(_: argparse.Namespace) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(prog="sudoo", description=__doc__,
+    parser = argparse.ArgumentParser(prog="sudoo.sh", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)  # fmt: skip
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init-accounts", help="create the admin and sync accounts").set_defaults(run=init_accounts)
@@ -102,6 +122,9 @@ def main(argv: list[str] | None = None) -> None:
     token.add_argument("name")
     token.add_argument("scope", choices=sorted(api_tokens.SCOPES))
     token.set_defaults(run=create_token)
+    mail = commands.add_parser("test-email", help="send a test e-mail to check the SMTP settings")
+    mail.add_argument("address")
+    mail.set_defaults(run=test_email)
     commands.add_parser("serve", help="start the web panel").set_defaults(run=serve)
     args = parser.parse_args(argv)
     try:

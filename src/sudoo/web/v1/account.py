@@ -16,6 +16,7 @@ from sudoo import accounts, auth
 from sudoo.config import settings
 from sudoo.mail import MailError
 
+from .. import api_session
 from .. import validation as check
 from ..security import log
 from .responses import iso, no_content, ok
@@ -65,7 +66,7 @@ def _plugin(name: str) -> auth.SecondFactor:
 def begin(name: str) -> Response:
     plugin, account = _plugin(name), _account()
     try:
-        started = plugin.begin_setup(g.user["name"], account, check.body())
+        started = plugin.begin_setup(g.user["name"], account, check.body(), api_session.request_info())
     except ValueError as error:
         abort(400, str(error))
     except MailError as error:

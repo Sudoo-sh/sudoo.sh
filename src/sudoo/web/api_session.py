@@ -12,7 +12,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from flask import Blueprint, Response, abort, g, jsonify, session
+from flask import Blueprint, Response, abort, g, jsonify, request, session
 
 from sudoo import accounts, auth
 from sudoo.config import settings
@@ -87,12 +87,17 @@ def _pending() -> tuple[str, dict[str, Any]]:
     return pending["user"], account
 
 
+def request_info() -> auth.RequestInfo:
+    """Where this request comes from, for e-mails that tell people about sign-ins."""
+    return auth.RequestInfo(client_ip(), request.headers.get("User-Agent", "")[:300], time.time())
+
+
 def _challenge(name: str, account: dict[str, Any], method: str) -> dict[str, Any]:
     plugin = auth.factor(method)
     if plugin is None or not plugin.enrolled(account):
         abort(400, "This account does not use this kind of code.")
     try:
-        return plugin.challenge(name, account)
+        return plugin.challenge(name, account, request_info())
     except ValueError as error:  # asked again too soon
         abort(429, str(error))
     except MailError as error:

@@ -123,13 +123,19 @@ class FakeMailer:
         self.sent: list[tuple[str, str]] = []
 
     def send(self, to: str, subject: str, text: str, html: str | None = None) -> None:
-        self.sent.append((to, subject.rsplit(" ", 1)[-1]))
+        code = subject.split(" ", 1)[0]
+        assert html and code[:3] in html and code in text and "<script" not in html
+        self.html = html
+        self.sent.append((to, code))
 
 
 @pytest.fixture
 def mailbox(monkeypatch: pytest.MonkeyPatch) -> FakeMailer:
+    import sudoo.mail
+
     fake = FakeMailer()
     monkeypatch.setattr(email_code, "mailer", lambda: fake)
+    monkeypatch.setattr(sudoo.mail, "mailer", lambda: fake)
     return fake
 
 
@@ -144,6 +150,7 @@ def test_email_code_setup_and_sign_in(app: Flask, mailbox: FakeMailer, monkeypat
     started = client.post("/api/v1/account/second-factors/email", json={"email": "sam@example.com"}, headers=headers)
     assert started.get_json()["data"]["sent_to"] == "s***@example.com"
     code = mailbox.sent[-1][1]
+    assert "Your confirmation code" in mailbox.html and "#714B67" in mailbox.html
     assert client.put("/api/v1/account/second-factors/email", json={"code": code}, headers=headers).status_code == 200
     assert accounts.get(name)["email"] == "sam@example.com"
 
@@ -201,3 +208,18 @@ def test_creation_limits(monkeypatch: pytest.MonkeyPatch) -> None:
         quotas.claim("kim")
     assert waiting.value.status == 429 and 3500 < (waiting.value.retry_after or 0) <= 3601
     assert quotas.usage("kim")["next_creation_at"] is not None
+
+
+def test_email_shows_where_the_request_came_from_and_escapes_values() -> None:
+    from sudoo.auth.base import RequestInfo
+    from sudoo.mail.render import render
+
+    origin = RequestInfo("203.0.113.9", "Mozilla/5.0 (Windows NT 10.0) Chrome/140.0 Safari/537.36", 0)
+    assert origin.browser == "Chrome on Windows"
+    text, html = render(
+        "code", "123456 is your code", preheader="p", kicker="Sign in", title="Your sign-in code",
+        username="<b>sam</b>", intro="i", code="123456", minutes=10,
+        details={"time": "now", "ip": origin.ip, "browser": origin.browser}, warning="w",
+    )  # fmt: skip
+    assert "123&nbsp;456" in html and "203.0.113.9" in html and "Chrome on Windows" in html
+    assert "&lt;b&gt;sam&lt;/b&gt;" in html and "<b>sam</b>" in text  # escaped in HTML only

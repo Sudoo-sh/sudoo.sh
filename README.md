@@ -56,12 +56,12 @@ sudo ./install.sh        # installs the panel and prints its link and first pass
 Open the printed link, sign in, and create your first instance. Requirements and settings are in
 [Installation & Configuration](#installation--configuration).
 
-## Sudoo and Odoo.sh
+## Sudoo.sh and Odoo.sh
 
-Sudoo is to your own server what [Odoo.sh](https://www.odoo.sh) is to Odoo's cloud: branches become running
+Sudoo.sh is to your own server what [Odoo.sh](https://www.odoo.sh) is to Odoo's cloud: branches become running
 instances. It is an independent project, not affiliated with Odoo S.A.
 
-| | Odoo.sh | Sudoo |
+| | Odoo.sh | Sudoo.sh |
 | :--- | :--- | :--- |
 | Where it runs | Odoo's cloud | your server (one Docker host) |
 | Cost | per worker and per user | free for noncommercial use ([licence](#licensing--terms)) |
@@ -70,13 +70,13 @@ instances. It is an independent project, not affiliated with Odoo S.A.
 | Instances that pause and expire | staging builds expire | pause when unused, wake on the next visit; lifetime with a backup |
 | How instances are reached | `*.odoo.com` | free Cloudflare tunnels, open ports, or your own exposure plugin |
 | API for automation | | signed REST API ([Panel API](docs/PANEL_API.md)) |
-| Production hosting | yes | no: Sudoo is for development, demos, tests and training |
+| Production hosting | yes | no: Sudoo.sh is for development, demos, tests and training |
 
 ---
 
 ## What This Panel Does
 
-Sudoo runs on the server and is used from a browser. Nobody has to install anything or run any
+Sudoo.sh runs on the server and is used from a browser. Nobody has to install anything or run any
 command to use it: people receive a link.
 
 1. **Create an instance in a few clicks**: choose a GitHub repository, a branch, the Odoo version (any published version) and the
@@ -111,7 +111,7 @@ command to use it: people receive a link.
 
 ## Architectural Position
 
-![How the parts of Sudoo fit together](docs/images/architecture.svg)
+![How the parts of Sudoo.sh fit together](docs/images/architecture.svg)
 
 Everything on the server listens on `127.0.0.1` only. The only ways in are the Cloudflare connectors (which the
 server itself opened) and SSH for administrators. The full picture is in [Architecture](docs/ARCHITECTURE.md).

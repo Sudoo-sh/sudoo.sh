@@ -1,0 +1,15 @@
+Hello {{ username }},
+
+{{ intro }}
+
+    {{ code }}
+
+Valid for {{ minutes }} minutes, works once.
+{% if panel_url %}Open Sudoo.sh: {{ panel_url }}
+{% endif %}
+Requested {{ details.time }}{% if details.ip %} from {{ details.ip }}{% if details.browser %} ({{ details.browser }}){% endif %}{% endif %}.
+
+{{ warning }}
+
+--
+Sudoo.sh - Your Odoo instances, on your own server.

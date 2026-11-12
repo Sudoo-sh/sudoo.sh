@@ -72,7 +72,7 @@ stored = scrypt( HMAC-SHA256(pepper, password), salt )      salt: 16 random byte
 | :--- | :--- |
 | **scrypt** | Slow and memory-hungry on purpose: a stolen hash costs an attacker about 0.1 s and 32 MB per guess, so millions of guesses become impractical. |
 | **Salt** | Two people with the same password have different hashes; precomputed tables are useless. |
-| **Pepper** | A secret mixed in before hashing, taken from `vault.key`, which is not in `users.json`. A stolen `users.json` alone cannot even be attacked. |
+| **Pepper** | A secret mixed in before hashing, taken from `vault.key`, which is not in the database (`sudoo.db`). A stolen database alone cannot even be attacked. |
 | **Constant-time comparison** | Checking a password takes the same time whether it is almost right or completely wrong, and for unknown accounts too: timing reveals nothing. |
 | **Generated passwords** | New accounts and resets get 24 random characters (144 bits), shown once. |
 | **Rules for chosen passwords** | 12 to 128 characters, at least 6 different characters, not containing the user name or a common word (`password`, `admin`, `odoo`, `123456`...), no control characters. |
@@ -81,6 +81,23 @@ stored = scrypt( HMAC-SHA256(pepper, password), salt )      salt: 16 random byte
 | **Upgrade on sign-in** | Hashes made before the pepper existed are replaced with the current kind the next time their owner signs in. |
 
 Why a hash and not encryption is explained in [Passwords and encryption](concepts/PASSWORDS_AND_ENCRYPTION.md).
+
+### Second factors
+
+A password can leak; a second factor means a leaked password alone does not open the panel.
+
+| Factor | How it works |
+| :--- | :--- |
+| **Authenticator app** (`totp`) | The app and the panel share a secret (stored encrypted with the vault key) and both compute a 6-digit code every 30 seconds (RFC 6238). Each code works once; codes of the step before and after are accepted for clocks that are slightly off. |
+| **E-mail code** (`email`) | A 6-digit code sent from the panel's mailbox (`SMTP_*`), valid 10 minutes, used once, kept only as a hash; 5 wrong tries use it up; a new one can be asked for once a minute. Setting it up confirms the address with a code. |
+
+* After the password, the session only remembers who passed the first step, for 5 minutes; it opens nothing.
+* Wrong codes count like wrong passwords (5 per account and address in 15 minutes, then blocked).
+* `REQUIRE_SECOND_FACTOR` (`admins` by default) makes it compulsory: such an account without a factor can only set
+  one up after signing in. Removing a factor needs the password and ends the account's other sessions.
+* A lost phone: an administrator removes the account's factors (**Accounts**, or
+  `DELETE /api/v1/users/<name>/second-factors`), which signs it out everywhere.
+* More factors (SMS, hardware keys) can be added as plugins ([Plugins](PLUGINS.md#8-more-plugin-types)).
 
 ---
 
@@ -169,8 +186,12 @@ Being clear about limits is part of security.
 | `/api/v1` (other systems) | holders of an API token **and** its signing secret | token (SHA-256 hash), HMAC-SHA256 signature over timestamp, nonce, method, path and body; timestamp within 5 minutes; each nonce accepted once; scope `read` or `write`; 5 refused calls from an address block it for 15 minutes |
 | `/hooks/github` (when enabled) | GitHub | `X-Hub-Signature-256`: HMAC-SHA256 of the body with `GITHUB_WEBHOOK_SECRET` |
 
-The signing secret is stored encrypted (vault), the token only as a hash; both are shown once. The panel's session
-cookie does not open the API and API tokens do not open the panel's pages. Details: [Panel API](PANEL_API.md#6-security-notes).
+Every caller is also limited in requests per minute (`RATE_LIMIT_READS_PER_MINUTE`, `RATE_LIMIT_CHANGES_PER_MINUTE`,
+per user, token or address), and instance creation can be limited in number and frequency (`MAX_INSTANCES`,
+`MAX_INSTANCES_PER_USER`, `CREATE_COOLDOWN_MINUTES`); see [Configuration](CONFIGURATION.md#limits).
+
+The signing secret is stored encrypted (vault), the token only as a hash; both are shown once. API tokens do not open the
+panel's pages; the panel's session opens the API only from the panel's own address, with its CSRF token. Details: [Panel API](PANEL_API.md#6-security-notes).
 
 ---
 
@@ -178,7 +199,7 @@ cookie does not open the API and API tokens do not open the panel's pages. Detai
 
 * Roles are checked **on the server** for every request; hiding a button in the browser is only a convenience.
 * Sync operators never receive passwords, master passwords or ports, even in API answers.
-* The audit log (`/opt/odoo/manager/audit.log`, shown under **Audit log**) records sign-ins, failed sign-ins,
+* The audit log (in `/opt/odoo/manager/sudoo.db`, shown under **Audit log**) records sign-ins, failed sign-ins,
   lockouts, refused actions, every action on an instance, and account and key changes, with time, account,
   address and result. Passwords are never written to it.
 

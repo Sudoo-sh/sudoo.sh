@@ -20,7 +20,13 @@ shutil.copy(REPO / "README.md", DOCS)
 shutil.copytree(REPO / "docs", DOCS / "docs")
 
 # settings are read when sudoo.config is first imported, so the environment is set before that
-os.environ.update(ODOO_ROOT=str(ROOT), DOCS_DIR=str(DOCS), ODOO_VERSIONS="18.0,19.0,20.0", ENTERPRISE_SOURCE="none")
+os.environ.update(
+    ODOO_ROOT=str(ROOT),
+    DOCS_DIR=str(DOCS),
+    ODOO_VERSIONS="18.0,19.0,20.0",
+    ENTERPRISE_SOURCE="none",
+    REQUIRE_SECOND_FACTOR="none",  # test_auth.py turns it on where it is tested
+)
 
 from flask import Flask  # noqa: E402
 from flask.testing import FlaskClient  # noqa: E402

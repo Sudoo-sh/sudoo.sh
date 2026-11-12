@@ -8,8 +8,8 @@ scrypt is slow and memory-hard on purpose, so guessing passwords from a stolen u
 is derived from the vault key (vault.py), which is kept outside users.json: without it, the hashes cannot even be
 attacked. Hashes made before the pepper existed are replaced the next time their owner signs in.
 
-Accounts are stored in users.json (mode 600). Each account has a session_version: changing or resetting its
-password, or deleting it, invalidates all of its sessions.
+Accounts are stored in the panel's storage (storage/, collection "users"). Each account has a session_version:
+changing or resetting its password, or deleting it, invalidates all of its sessions.
 
 Roles:
     admin     everything
@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import json
 import re
 import secrets
 import threading
@@ -30,6 +29,7 @@ from typing import Any
 
 from sudoo.config import settings
 from sudoo.core import vault
+from sudoo.storage import Document, storage
 
 ROLES = {"admin": "Administrator", "operator": "Sync operator"}
 DEFAULT_ACCOUNTS = (("admin", "admin"), ("sync", "operator"))
@@ -135,48 +135,56 @@ def password_problem(password: str, username: str) -> str | None:
 # --------------------------------------------------------------------------- accounts
 
 
-def _load() -> dict[str, dict[str, Any]]:
-    try:
-        return json.loads(settings.users_file.read_text())
-    except FileNotFoundError:
-        return {}
-
-
-def _save(users: dict[str, dict[str, Any]]) -> None:
-    vault.write_private(settings.users_file, json.dumps(users, indent=1))
+USERS = "users"
 
 
 def all_users() -> dict[str, dict[str, Any]]:
-    with _LOCK:
-        return _load()
+    return storage().all(USERS)
 
 
 def get(username: str) -> dict[str, Any] | None:
-    return all_users().get(username)
+    return storage().get(USERS, username)
 
 
-def authenticate(username: str, password: str) -> dict[str, Any] | None:
-    """The account if the password is right, else None."""
+def _change(username: str, **values: Any) -> Document:
+    """Change fields of an existing account atomically; returns the account."""
+
+    def apply(user: Document | None) -> Document:
+        if user is None:
+            raise ValueError("No such account.")
+        return {**user, **values}
+
+    return storage().change(USERS, username, apply) or {}
+
+
+def update(username: str, **values: Any) -> Document:
+    """Change fields of an account (email, second factors, ...); None removes a field."""
+
+    def apply(user: Document | None) -> Document:
+        if user is None:
+            raise ValueError("No such account.")
+        merged = {**user, **values}
+        return {key: value for key, value in merged.items() if value is not None}
+
+    return storage().change(USERS, username, apply) or {}
+
+
+def check_password(username: str, password: str) -> dict[str, Any] | None:
+    """The account if the password is right, else None (the "local" auth plugin uses this)."""
     user = get(username)
-    if not user:
+    if not user or "hash" not in user:
         verify_password(password, _DUMMY_HASH)
         return None
     if not verify_password(password, user["hash"]):
         return None
     if _needs_rehash(user["hash"]):
-        _store_hash(username, hash_password(password))
+        _change(username, hash=hash_password(password))
     return user
 
 
-def _store_hash(username: str, new_hash: str) -> None:
-    with _LOCK:
-        users = _load()
-        users[username]["hash"] = new_hash
-        _save(users)
-
-
-def create(username: str, role: str) -> str:
-    """Create an account with a generated password and return the password (shown to the user once)."""
+def create(username: str, role: str, password: str | None = None, **fields: Any) -> str:
+    """Create an account and return its password: the one given, or a generated one (shown to the user once).
+    Accounts of an external sign-in (auth plugin) are created with password="" and have no password here."""
     if not USERNAME_RE.match(username):
         raise ValueError(
             "User names are 3 to 32 characters: lower-case letters, digits, dots, dashes and "
@@ -184,19 +192,23 @@ def create(username: str, role: str) -> str:
         )
     if role not in ROLES:
         raise ValueError("Unknown role.")
-    password = generate_password()
-    with _LOCK:
-        users = _load()
-        if username in users:
+    password = generate_password() if password is None else password
+
+    def add(existing: Document | None) -> Document:
+        if existing is not None:
             raise ValueError("An account with this name already exists.")
-        users[username] = {
+        account: Document = {
             "role": role,
-            "hash": hash_password(password),
             "session_version": 1,
             "created": time.time(),
             "password_changed": time.time(),
+            **fields,
         }
-        _save(users)
+        if password:
+            account["hash"] = hash_password(password)
+        return account
+
+    storage().change(USERS, username, add)
     return password
 
 
@@ -212,33 +224,45 @@ def create_defaults() -> dict[str, str]:
 def delete(username: str) -> None:
     """Delete an account; the last administrator cannot be deleted."""
     with _LOCK:
-        users = _load()
+        users = all_users()
         if username not in users:
             raise ValueError("No such account.")
         admins = [name for name, user in users.items() if user["role"] == "admin"]
         if users[username]["role"] == "admin" and len(admins) == 1:
             raise ValueError("The last administrator account cannot be deleted.")
-        del users[username]
-        _save(users)
+        storage().delete(USERS, username)
 
 
 def set_password(username: str, password: str) -> int:
     """Store a new password and return the new session version (ending all other sessions)."""
-    with _LOCK:
-        users = _load()
-        user = users[username]
-        user["hash"] = hash_password(password)
-        user["session_version"] += 1
-        user["password_changed"] = time.time()
-        _save(users)
-        return user["session_version"]
+    new_hash = hash_password(password)  # slow on purpose: outside the transaction
+
+    def apply(user: Document | None) -> Document:
+        if user is None:
+            raise ValueError("No such account.")
+        return {
+            **user,
+            "hash": new_hash,
+            "session_version": user["session_version"] + 1,
+            "password_changed": time.time(),
+        }
+
+    return int((storage().change(USERS, username, apply) or {})["session_version"])
+
+
+def end_sessions(username: str) -> int:
+    """End every session of the account (e.g. after its second factors changed); returns the new version."""
+
+    def bump(user: Document | None) -> Document:
+        if user is None:
+            raise ValueError("No such account.")
+        return {**user, "session_version": user["session_version"] + 1}
+
+    return int((storage().change(USERS, username, bump) or {})["session_version"])
 
 
 def record_sign_in(username: str) -> None:
-    with _LOCK:
-        users = _load()
-        users[username]["last_login"] = time.time()
-        _save(users)
+    _change(username, last_login=time.time())
 
 
 # --------------------------------------------------------------------------- sign-in throttling

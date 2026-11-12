@@ -133,11 +133,11 @@ then open `http://localhost:9000`. Why the server needs tunnels at all is explai
 /opt/odoo/                                   mode 700, root only
 ├── manager/
 │   ├── .env                                 settings (mode 600)
-│   ├── users.json                           accounts: user name, role, password HASH (mode 600)
+│   ├── sudoo.db                             SQLite: accounts (password HASHES), API tokens, audit log,
+│   │                                        instance state, creation times (mode 600)
+│   ├── settings.json                        settings changed on the Settings page, on top of .env
 │   ├── secret_key                           signs session cookies (mode 600)
 │   ├── vault.key                            encrypts stored secrets, peppers password hashes (mode 600)
-│   ├── audit.log                            audit log, one JSON line per event
-│   ├── state.json                           last visit, paused, switched off, per instance
 │   ├── keys/known_hosts                     GitHub's SSH host key, recorded on first use
 │   ├── keys/deploy/<owner>__<repo>.key      deploy key, ENCRYPTED (mode 600)
 │   ├── keys/deploy/<owner>__<repo>.pub      its public part (what is added on GitHub)

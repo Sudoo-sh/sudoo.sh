@@ -214,6 +214,34 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
   can still be scraped); keeping history on disk (an hour is what the dashboard shows; a restart losing it is
   acceptable).
 
+### SQLite for the panel's own data, behind a storage plugin
+- **Chosen:** accounts, API tokens, the audit log, instance state and creation times in one SQLite file
+  (`sudoo.db`), through the `sudoo.storage` plugin interface; JSON files of earlier versions are moved in once.
+- **Why:** transactions (two changes to one account cannot overwrite each other), queries over the audit log, and
+  still nothing to install or run: SQLite is part of Python and the data is a few megabytes.
+- **Considered:** JSON files (no transactions, the whole file rewritten for every change); PostgreSQL for the
+  panel (a server to run and back up for little data; possible later as a plugin).
+
+### No Redis
+- **Chosen:** caches, rate-limit counters and live events stay in the panel's memory.
+- **Why:** the panel is one process on one server; memory is faster than any network cache and costs nothing to
+  run. Redis earns its place only when several panel processes must share counters and events; the rate limiter
+  and event bus are small interfaces, so a Redis plugin can be added then.
+
+### Second factors as plugins, required for administrators
+- **Chosen:** authenticator apps (TOTP) and e-mail codes from the operator's own mailbox, behind
+  `sudoo.second_factors`; `REQUIRE_SECOND_FACTOR=admins` by default; the authenticator (`sudoo.auth`) is a plugin
+  too, so a company directory can replace local passwords.
+- **Why:** an administrator can delete every instance; a leaked password must not be enough. TOTP costs nothing and
+  works offline; e-mail needs nothing on the phone. SMS costs money per message and is the weakest of the three,
+  so it is left to a plugin.
+
+### Limits on requests and creations
+- **Chosen:** requests per minute per user, token or address (sliding window, IETF `RateLimit` headers); instance
+  limits per server and per user and a waiting time between creations, all changeable on the Settings page.
+- **Why:** a script in a loop, a stolen token or a careless user must not be able to fill the server's memory with
+  instances or keep the panel busy.
+
 ### Settings changed while the panel runs
 - **Chosen:** `.env` gives the defaults; administrators change behaviour settings (pause, lifetime, polling,
   sessions, contact, versions) on the **Settings** page; the changes are validated by the same model and kept in

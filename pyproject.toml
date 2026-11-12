@@ -37,6 +37,23 @@ host-ports = "sudoo.exposure.ports:HostPorts"
 folder = "sudoo.addons.folder:FolderSource"
 git = "sudoo.addons.git:GitSource"
 
+[project.entry-points."sudoo.storage"]
+sqlite = "sudoo.storage.sqlite:SqliteStorage"
+
+[project.entry-points."sudoo.auth"]
+local = "sudoo.auth.local:LocalAccounts"
+
+[project.entry-points."sudoo.second_factors"]
+email = "sudoo.auth.email_code:EmailCode"
+totp = "sudoo.auth.totp:AuthenticatorApp"
+
+[project.entry-points."sudoo.mailers"]
+smtp = "sudoo.mail.smtp:Smtp"
+none = "sudoo.mail.none:NoMail"
+
+[project.entry-points."sudoo.rate_limiters"]
+memory = "sudoo.limits.memory:MemoryRateLimiter"
+
 [project.entry-points."sudoo.update_triggers"]
 polling = "sudoo.triggers.polling:Polling"
 github-webhook = "sudoo.triggers.github_webhook:GitHubWebhook"

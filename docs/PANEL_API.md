@@ -27,6 +27,8 @@ roles and checks:
 7. [Settings](#7-settings)
 8. [Live events](#8-live-events)
 9. [Metrics](#9-metrics)
+10. [Signing in from a web app](#10-signing-in-from-a-web-app)
+11. [Limits](#11-limits)
 
 ---
 
@@ -122,6 +124,7 @@ All paths start with `/api/v1`, and every answer follows the same conventions:
 | `GET /instances/<name>/credentials` | write | | 200, Odoo login, admin and master passwords, ports (administrators only) |
 | `GET /instances/<name>/logs?lines=300` | read | | 200, `{"text"}`: the end of Odoo's log |
 | `GET /instance-plan?repo=&branch=&name=` | write | | 200, the name and database a new instance would get, and the defaults |
+| `GET /instance-quota` | read | | 200, how many instances the caller may still create, and when ([Limits](#11-limits)) |
 | `GET /jobs?instance=&limit=30&offset=0` | read | | 200, recent jobs, newest first |
 | `GET /jobs/<id>/log?offset=0` | read | | 200, `{"text"}` from that line on; `meta.next_offset` is where to continue |
 | `GET /server` | read | | 200, the server's CPU, memory and disk, the panel's address, version and plugins |
@@ -141,6 +144,7 @@ Accounts, tokens, backups and GitHub (administrators only, except the repository
 | `POST /users` | `{"name", "role"}` (`admin` or `operator`) | **201**, the account with its `password`, shown once |
 | `POST /users/<name>/password` | `{}` | 200, `{"password"}`: a new password, shown once |
 | `DELETE /users/<name>` | | **204** |
+| `DELETE /users/<name>/second-factors` | | **204**: removes the account's second factors (a lost phone) and signs it out |
 | `GET /audit?limit=200` | | 200, the latest audit-log entries |
 | `GET /tokens` | | 200, API tokens (never their secrets) |
 | `POST /tokens` | `{"name", "scope"}` | **201**, with `token` and `signing_secret`, shown once |
@@ -159,7 +163,13 @@ The web app's session (no token):
 | Method and path | Body | Answer |
 | :--- | :--- | :--- |
 | `GET /contact` | | 200, who to contact (no sign-in needed) |
-| `POST /session` | `{"username", "password"}` | **201**, the account and its `csrf_token`; sets the session cookie |
+| `POST /session` | `{"username", "password"}` | **201**, the account and its `csrf_token`; sets the session cookie. Or **200** with `second_factor` when a code is needed ([10](#10-signing-in-from-a-web-app)) |
+| `POST /session/second-factor` | `{"method", "code"}` | **201**, signed in |
+| `POST /session/second-factor/<method>` | `{}` | 200, a new code was sent (`email`) |
+| `GET /account` | | 200, own account: e-mail, second factors, whether one is required |
+| `POST /account/second-factors/<name>` | `email`: `{"email"}`; `totp`: `{}` | 200: a code was sent, or `{"secret", "otpauth_uri"}` for the app |
+| `PUT /account/second-factors/<name>` | `{"code"}` | 200, it is set up |
+| `DELETE /account/second-factors/<name>` | `{"password"}` | **204**; the account's other sessions end |
 | `GET /session` | | 200, the signed-in account and its `csrf_token` |
 | `DELETE /session` | | **204**, signed out |
 | `PUT /session/password` | `{"current", "new"}` | **204**; other sessions of the account end |
@@ -317,7 +327,8 @@ Errors follow [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) ("problem detai
 | 404 | No such instance, job or action |
 | 405 | The method is not allowed on this path |
 | 415 | The body is not sent as JSON |
-| 429 | Too many refused calls from this address (5 in 15 minutes); `Retry-After` says how many seconds to wait |
+| 403 | Also: an instance limit is reached (`MAX_INSTANCES`, `MAX_INSTANCES_PER_USER`); `detail` says which |
+| 429 | Too many requests per minute, too many refused calls from this address (5 in 15 minutes), or a creation within `CREATE_COOLDOWN_MINUTES`; `Retry-After` says how many seconds to wait |
 | 500 | Something unexpected on the server; quote the `request_id` |
 
 ---
@@ -466,3 +477,61 @@ libraries draw from directly; `t` holds the times (Unix seconds):
 ```
 
 A dashboard loads the history once, then appends the sample of every `metrics` [live event](#8-live-events).
+
+---
+
+## 10. Signing in from a web app
+
+The panel's own web app signs in with a session cookie. Without a second factor it is one call; with one, two:
+
+```
+POST /api/v1/session            {"username": "sam", "password": "..."}
+  -> 201 {"data": {"user": "sam", "csrf_token": "...", ...}}                 signed in
+  -> 200 {"data": {"second_factor": {
+            "methods": [{"name": "totp", "label": "Authenticator app"}, {"name": "email", "label": "E-mail code"}],
+            "sent_to": "s***@example.com"}}}                                   a code is needed
+
+POST /api/v1/session/second-factor/email          (only to send a new e-mail code)
+POST /api/v1/session/second-factor  {"method": "totp", "code": "123456"}
+  -> 201 {"data": {"user": "sam", "csrf_token": "...", ...}}
+```
+
+Between the two calls the session opens nothing, for 5 minutes at most. When `REQUIRE_SECOND_FACTOR` applies to an
+account that has none, the answer has `"must_set_up_second_factor": true` and only `/api/v1/session`,
+`/api/v1/account` and `/api/v1/contact` answer until one is set up:
+
+```
+POST /api/v1/account/second-factors/totp   {}      -> {"secret": "JBSW...", "otpauth_uri": "otpauth://totp/..."}
+                                                       (show the URI as a QR code)
+PUT  /api/v1/account/second-factors/totp   {"code": "123456"}
+```
+
+API tokens are not affected: a token already is something only its system has.
+
+---
+
+## 11. Limits
+
+**Requests per minute.** Every caller (signed-in user, API token, or address before signing in) may send
+`RATE_LIMIT_READS_PER_MINUTE` reading requests (600) and `RATE_LIMIT_CHANGES_PER_MINUTE` changing ones (60). Answers
+carry the standard fields:
+
+```
+RateLimit-Limit: 60
+RateLimit-Remaining: 57
+RateLimit-Reset: 41          seconds until the window has moved on
+```
+
+Over the limit: `429 Too Many Requests` and `Retry-After`. Well-behaved clients wait that long.
+
+**Instances.** `MAX_INSTANCES` (server), `MAX_INSTANCES_PER_USER` and `CREATE_COOLDOWN_MINUTES` limit creation; all
+are off (0) unless set, and can be changed on the Settings page. Before offering **New instance**, ask:
+
+```json
+GET /api/v1/instance-quota
+{"data": {"instances": 4, "max_instances": 10, "own_instances": 2, "max_instances_per_user": 3,
+          "cooldown_minutes": 60, "next_creation_at": 1794433723}}
+```
+
+`next_creation_at` (Unix time) is set while the caller has to wait. A creation that breaks a limit is refused with
+403 (a number is reached) or 429 with `Retry-After` (wait).

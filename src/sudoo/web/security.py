@@ -21,7 +21,7 @@ from urllib.parse import urlsplit
 from flask import Flask, Response, abort, g, jsonify, redirect, request, session
 from flask.typing import ResponseReturnValue
 
-from sudoo import accounts, api_tokens, exposure
+from sudoo import accounts, api_tokens, exposure, limits
 from sudoo.config import settings
 from sudoo.core import audit
 
@@ -50,7 +50,23 @@ SVG_POLICY = "default-src 'none'; style-src 'unsafe-inline'"
 
 def install(app: Flask) -> None:
     app.before_request(_check_request)
+    app.before_request(_limit_rate)
     app.after_request(_add_headers)
+
+
+def _limit_rate() -> None:
+    """Requests per minute, per signed-in user or token, else per address (limits/); 429 beyond."""
+    if not request.path.startswith(("/api/", "/hooks/")):
+        return
+    user = g.get("user")
+    caller = f"user:{user['name']}" if user else f"ip:{client_ip()}"
+    decision = limits.check_request(caller, changes=request.method not in SAFE_METHODS)
+    if decision is None:
+        return
+    g.rate_limit = decision
+    if not decision.allowed:
+        g.retry_after = decision.reset_seconds
+        abort(429, f"Too many requests. Try again in {decision.reset_seconds} seconds.")
 
 
 def client_ip() -> str:
@@ -82,7 +98,8 @@ def current_user() -> dict[str, str] | None:
     """{"name", "role"} of the signed-in account, or None (and the session is cleared)."""
     user = user_of_session(session)
     if user is None:
-        session.clear()
+        if "user" in session:  # an ended session; a sign-in waiting for its second step is kept
+            session.clear()
         return None
     now = time.time()
     if now - session["seen"] > 30:
@@ -90,11 +107,15 @@ def current_user() -> dict[str, str] | None:
     return user
 
 
-def start_session(name: str, version: int) -> None:
+def start_session(name: str, version: int, enroll_only: bool = False) -> None:
+    """A new session (a new cookie, so nothing from before signing in carries over). With enroll_only it can only
+    set up a second factor (REQUIRE_SECOND_FACTOR applies and the account has none)."""
     now = time.time()
     session.clear()
     session.permanent = True
     session.update(user=name, version=version, csrf=secrets.token_urlsafe(32), started=now, seen=now)
+    if enroll_only:
+        session["enroll_only"] = True
 
 
 def _same_origin() -> bool:
@@ -104,7 +125,9 @@ def _same_origin() -> bool:
 
 API_PREFIX = "/api/v1/"  # the API: an API token and signature (other systems) or a session (the browser)
 HOOKS_PREFIX = "/hooks/"  # webhooks of update triggers: each checks its sender's own signature
-PUBLIC_API = {("POST", "/api/v1/session"), ("GET", "/api/v1/contact")}
+PUBLIC_API = {("POST", "/api/v1/session"), ("GET", "/api/v1/contact"), ("POST", "/api/v1/session/second-factor")}
+PUBLIC_API_PREFIXES = ("/api/v1/session/second-factor/",)  # sending a code, between the two sign-in steps
+ENROLL_ONLY_PREFIXES = ("/api/v1/session", "/api/v1/account", "/api/v1/contact")
 
 
 def _check_request() -> ResponseReturnValue | None:
@@ -128,6 +151,8 @@ def _check_request() -> ResponseReturnValue | None:
         if request.path.startswith("/api/"):
             return jsonify(error="Your session has ended. Please sign in again.", login=True), 401
         return redirect("/login")
+    if session.get("enroll_only"):  # the previous pages cannot set up a second factor
+        abort(403, "Set up a second factor for your account first, in the new panel.")
     if request.method not in SAFE_METHODS and not hmac.compare_digest(
         request.headers.get("X-CSRF-Token", ""), session.get("csrf", "")
     ):
@@ -142,11 +167,15 @@ def _authenticate_browser_call() -> None:
             abort(403, "Request blocked: it did not come from this panel.")
         if request.content_length and request.mimetype != "application/json":
             abort(415, "Requests must be sent as JSON.")
-    if (request.method, request.path) in PUBLIC_API:
+    if (request.method, request.path) in PUBLIC_API or (
+        request.method == "POST" and request.path.startswith(PUBLIC_API_PREFIXES)
+    ):
         return
     g.user = current_user()
     if not g.user:
         abort(401, "Your session has ended. Please sign in again.")
+    if session.get("enroll_only") and not request.path.startswith(ENROLL_ONLY_PREFIXES):
+        abort(403, "Set up a second factor for your account first (Account, Second factor).")
     if request.method not in SAFE_METHODS and not hmac.compare_digest(
         request.headers.get("X-CSRF-Token", ""), session.get("csrf", "")
     ):
@@ -214,6 +243,13 @@ def _add_headers(response: Response) -> Response:
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
     if request.path.startswith("/api/") or response.mimetype == "text/html":
         response.headers["Cache-Control"] = "no-store"
+    decision = g.get("rate_limit")
+    if decision is not None:  # IETF RateLimit header fields
+        response.headers["RateLimit-Limit"] = str(decision.limit)
+        response.headers["RateLimit-Remaining"] = str(decision.remaining)
+        response.headers["RateLimit-Reset"] = str(decision.reset_seconds)
+    if response.status_code == 429:
+        response.headers["Retry-After"] = str(g.get("retry_after") or 900)
     return response
 
 

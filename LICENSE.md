@@ -1,5 +1,8 @@
 # PolyForm Noncommercial License 1.0.0
 
+Required Notice: Copyright (c) 2026 Yousef M. Y. Al Sabbah (https://github.com/Yosef-AlSabbah). All rights not
+granted by this license are reserved. Commercial licenses are available from the copyright holder.
+
 <https://polyformproject.org/licenses/noncommercial/1.0.0>
 
 ## Acceptance

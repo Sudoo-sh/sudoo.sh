@@ -2,9 +2,11 @@ import { Archive, Download, Trash2 } from "lucide-react";
 import { api } from "@/api/client";
 import { useBackups, useCall } from "@/api/queries";
 import { Page, PageHead } from "@/components/Shell";
-import { Button, Empty, Skeleton } from "@/components/ui/basics";
+import { Button, Empty, Skeleton, Tag } from "@/components/ui/basics";
 import { useToast } from "@/components/ui/overlay";
 import { ago, bytes, dateTime } from "@/lib/format";
+
+const KIND: Record<string, string> = { manual: "By hand", daily: "Daily", deletion: "Before deletion", "before-restore": "Before a restore" };
 
 export function BackupsPage() {
   const { data: backups, isPending } = useBackups();
@@ -14,7 +16,7 @@ export function BackupsPage() {
   return (
     <Page>
       <PageHead title="Backups">
-        Odoo-format zips (database and files), taken before every deletion and on request. Restore one with Odoo's database manager. {backups?.length ? `${backups.length} backups · ${bytes(total)}` : ""}
+        Odoo-format zips (database and files): daily ones for each instance used that day, ones taken by hand, and one before every deletion. Restore one from its instance's page. {backups?.length ? `${backups.length} backups · ${bytes(total)}` : ""}
       </PageHead>
       <div className="card rise">
         {isPending ? <div className="card-body"><Skeleton height={140} /></div> : !backups?.length ? (
@@ -22,13 +24,14 @@ export function BackupsPage() {
         ) : (
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>Instance</th><th>Database</th><th>Taken</th><th>Size</th><th /></tr></thead>
+              <thead><tr><th>Instance</th><th>Database</th><th>Kind</th><th>Taken</th><th>Size</th><th /></tr></thead>
               <tbody>
                 {backups.map((b) => (
                   <tr key={b.file}>
                     <td>{b.instance}</td>
                     <td className="mono small">{b.db}</td>
-                    <td className="small"><span title={dateTime(b.created)}>{ago(b.created)}</span></td>
+                    <td><Tag tone={b.kind === "daily" ? "accent" : undefined}>{KIND[b.kind] ?? b.kind}</Tag></td>
+                    <td className="small">{dateTime(b.created)} <span className="faint">· {ago(b.created)}</span></td>
                     <td className="small tabular">{bytes(b.size)}</td>
                     <td className="actions">
                       <a className="btn sm soft" href={`/api/v1/backups/${encodeURIComponent(b.file)}`} download><Download /> Download</a>{" "}

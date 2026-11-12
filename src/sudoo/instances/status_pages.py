@@ -8,17 +8,14 @@ from __future__ import annotations
 
 import html
 import time
+from pathlib import Path
 from urllib.parse import quote
 
 from aiohttp import web
 
 from sudoo.config import settings
 
-_MARK = (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#714b67"/>'
-    '<path d="M16 21l11 11-11 11" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" '
-    'stroke-linejoin="round"/><circle cx="44" cy="41" r="6.5" fill="none" stroke="#fff" stroke-width="5.5"/></svg>'
-)
+_MARK = (Path(__file__).resolve().parent / "mark.svg").read_text().strip()  # the same as web/public/favicon.svg
 _ICON = "data:image/svg+xml," + quote(_MARK)  # the Sudoo.sh mark
 
 _PAGES = {

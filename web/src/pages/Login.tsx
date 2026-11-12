@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Lock, Mail, Smartphone, User } from "lucide-react";
+import { ArrowLeft, Lock, Mail, Smartphone } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, errorText, setCsrfToken } from "@/api/client";
@@ -137,10 +137,10 @@ export function LoginPage() {
                 <p>Manage the Odoo instances on this server</p>
               </header>
               <form className="stack" onSubmit={submitPassword}>
-                <Field label="User name" htmlFor="username">
+                <Field label="E-mail" htmlFor="username">
                   <div className="input-group">
-                    <User />
-                    <input id="username" className="input" autoComplete="username" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} required />
+                    <Mail />
+                    <input id="username" className="input" type="text" inputMode="email" autoCapitalize="none" spellCheck={false} placeholder="you@example.com" autoComplete="username" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} required />
                   </div>
                 </Field>
                 <Field label="Password" htmlFor="password">

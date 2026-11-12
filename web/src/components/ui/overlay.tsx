@@ -4,8 +4,10 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -92,11 +94,15 @@ export function Drawer({ title, onClose, children, actions }: { title: ReactNode
   );
 }
 
-/** A button that opens a small menu next to it; the menu grows from the button and shrinks back into it. */
+/** A button that opens a small menu next to it; the menu grows from the button and shrinks back into it.
+ * It is drawn above the page (a portal with fixed position), so a scrolling list or a card never cuts it off, and
+ * it opens upwards when there is no room below. */
 export function Menu({ trigger, children, align = "right" }: { trigger: (open: () => void) => ReactNode; children: (close: () => void) => ReactNode; align?: "left" | "right" }) {
   const [open, setOpenState] = useState(false);
   const [closing, setClosing] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [place, setPlace] = useState<CSSProperties>({});
+  const anchor = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   const setOpen = useCallback((value: boolean | ((current: boolean) => boolean)) => {
     setOpenState((current) => {
       const next = typeof value === "function" ? value(current) : value;
@@ -107,29 +113,50 @@ export function Menu({ trigger, children, align = "right" }: { trigger: (open: (
       return next;
     });
   }, []);
+
+  // where the menu goes: next to the button, below it when it fits, above it otherwise
+  useLayoutEffect(() => {
+    if (!open || !anchor.current) return;
+    const button = anchor.current.getBoundingClientRect();
+    const height = menu.current?.offsetHeight ?? 0;
+    const gap = 6;
+    const below = align === "right" && button.bottom + gap + height <= window.innerHeight - 8;
+    const horizontal = align === "right" ? { right: Math.max(8, window.innerWidth - button.right) } : { left: Math.max(8, button.left) };
+    const vertical = below ? { top: button.bottom + gap } : { bottom: window.innerHeight - button.top + gap };
+    const origin = `${below ? "top" : "bottom"} ${align === "right" ? "right" : "left"}`;
+    setPlace({ position: "fixed", ...horizontal, ...vertical, ["--origin" as string]: origin });
+  }, [open, align]);
+
   useEffect(() => {
     if (!open) return;
-    const close = (event: MouseEvent) => !ref.current?.contains(event.target as Node) && setOpen(false);
+    const outside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!anchor.current?.contains(target) && !menu.current?.contains(target)) setOpen(false);
+    };
     const escape = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", close);
+    const away = () => setOpen(false); // the button moved: close rather than float in the wrong place
+    document.addEventListener("mousedown", outside);
     document.addEventListener("keydown", escape);
+    window.addEventListener("resize", away);
+    window.addEventListener("scroll", away, true);
     return () => {
-      document.removeEventListener("mousedown", close);
+      document.removeEventListener("mousedown", outside);
       document.removeEventListener("keydown", escape);
+      window.removeEventListener("resize", away);
+      window.removeEventListener("scroll", away, true);
     };
   }, [open, setOpen]);
-  const place =
-    align === "right"
-      ? { right: 0, top: "calc(100% + 6px)", ["--origin" as string]: "top right" }
-      : { left: 0, bottom: "calc(100% + 6px)", ["--origin" as string]: "bottom left" };
+
   return (
-    <div ref={ref} style={{ position: "relative", display: "inline-flex" }}>
+    <div ref={anchor} style={{ display: "inline-flex" }}>
       {trigger(() => setOpen((value) => !value))}
-      {(open || closing) && (
-        <div className="menu" data-closing={(!open && closing) || undefined} style={place}>
-          {children(() => setOpen(false))}
-        </div>
-      )}
+      {(open || closing) &&
+        createPortal(
+          <div ref={menu} className="menu" role="menu" data-closing={(!open && closing) || undefined} style={place}>
+            {children(() => setOpen(false))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

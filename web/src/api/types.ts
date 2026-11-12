@@ -7,6 +7,7 @@ export type Permission =
   | "instances.update"
   | "instances.operate"
   | "instances.create"
+  | "instances.restore"
   | "instances.delete"
   | "instances.credentials"
   | "backups.manage"
@@ -111,6 +112,9 @@ export interface Instance {
   recent_commits?: { sha: string; subject: string; when: string; author: string }[];
   submodules?: { path: string; sha: string; url: string }[];
   recent_jobs?: JobRef[];
+  backups?: InstanceBackup[];
+  /** the backup "Restore the latest backup" puts back */
+  restorable_backup?: string | null;
 }
 
 export interface Credentials {
@@ -244,12 +248,23 @@ export interface Token {
   last_used: number | null;
 }
 
+export type BackupKind = "manual" | "daily" | "deletion" | "before-restore";
 export interface Backup {
   file: string;
   instance: string;
   db: string;
+  kind: BackupKind;
   size: number;
   created: number;
+}
+
+/** A backup as an instance lists it. */
+export interface InstanceBackup {
+  file: string;
+  kind: BackupKind;
+  database: string;
+  size_bytes: number;
+  created_at: string;
 }
 
 export interface DeployKey {

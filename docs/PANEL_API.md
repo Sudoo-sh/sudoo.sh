@@ -124,7 +124,7 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | Method and path | Permission | Body | Answer |
 | :--- | :--- | :--- | :--- |
 | `GET /instances?limit=100&offset=0` | `instances.view` | | 200, a list of instances; `meta`: `total`, `count`, `limit` (1 to 500), `offset` |
-| `GET /instances/<name>` | `instances.view` | | 200, the instance with `disk`, `recent_commits`, `submodules` and `recent_jobs` |
+| `GET /instances/<name>` | `instances.view` | | 200, the instance with `disk`, `recent_commits`, `submodules`, `backups`, `restorable_backup` and `recent_jobs` ([below](#instances-jobs-and-actions-in-detail)) |
 | `GET /instances/<name>/credentials` | `instances.credentials` | | 200, Odoo `login`, `admin_password`, `master_password`, `ports`; written to the audit log |
 | `GET /instances/<name>/logs?lines=300` | `instances.logs` | | 200, `{"text"}`: the end of Odoo's log (1 to 5000 lines) |
 | `POST /instances` | `instances.create` | as below | **202**, the job; `Content-Location` names the new instance |
@@ -159,17 +159,41 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | :--- | :--- | :--- | :--- |
 | `GET /roles` | signed in | | 200, `{"roles": [{"name", "label", "description", "permissions"}], "permissions": {"<name>": "<what it allows>"}}` |
 | `GET /users` | `accounts.manage` | | 200, accounts (below) |
-| `POST /users` | `accounts.manage` | `{"name", "role", "first_name", "last_name", "email", "phone"}` | **201**, the account with its generated `password`, shown once |
-| `PATCH /users/<name>` | `accounts.manage` | any of `role`, `first_name`, `last_name`, `email`, `phone` (`""` clears one) | 200, the account; a new role ends its sessions |
-| `POST /users/<name>/password` | `accounts.manage` | `{}` | 200, `{"password"}`: a new generated password, shown once |
+| `POST /users` | `accounts.manage` | `{"email", "role"}` required; optional `first_name`, `last_name`, `phone`, `name` (made from the e-mail address when absent), `password` (generated when absent), `must_change_password` (default `true`) | **201**, the account with its `password`, shown once |
+| `PATCH /users/<name>` | `accounts.manage` | any of `role`, `first_name`, `last_name`, `email`, `phone` (`""` clears one); also for your own account | 200, the account; a new role ends its sessions |
+| `POST /users/<name>/password` | `accounts.manage` | `{}` to generate one, or `{"password", "must_change_password"}` | 200, `{"password"}`, shown once; the account's sessions end |
 | `DELETE /users/<name>/second-factors` | `accounts.manage` | | **204**: removes the account's second factors (a lost phone) and signs it out |
 | `DELETE /users/<name>` | `accounts.manage` | | **204** |
 | `GET /audit?limit=200&user=&instance=` | `audit.view` | | 200, the latest audit-log entries, newest first (`limit` 1 to 2000) |
 
 `role` is one of `super_admin`, `admin`, `maintainer`, `developer`, `viewer`. Only a super admin creates, changes,
-resets or deletes super admins (403 otherwise). Nobody changes their own role or deletes their own account, and
-the last super admin stays a super admin. An account created or reset here has `must_change_password: true` until
-its owner has chosen their own password at the next sign-in.
+resets or deletes super admins (403 otherwise).
+
+| Rule | Answer when broken |
+| :--- | :--- |
+| `email` is required for a new account | 400 "Enter the person's e-mail address: they sign in with it." |
+| No two accounts share an e-mail address (compared without case) | 400 "Another account already uses this e-mail address." |
+| A typed `password` follows the [password rules](USER_MANUAL.md#password-rules) | 400, `detail` names the rule, for example "The password contains a sequence such as 12345 or qwerty. Choose another one." |
+| The last super admin stays a super admin and cannot be deleted | 400 "The last super admin must stay a super admin." or "The last super admin cannot be deleted." |
+| Nobody deletes their own account or sets their own password here | 400; use `PUT /session/password` for your own password |
+
+`PATCH /users/<name>` works on your own account too, including your role; a new role ends your sessions as well,
+so you sign in again. `name` is the account's user name: 3 to 32 lower-case letters, digits, dots, dashes and
+underscores, starting with a letter. When it is left out, it is made from the e-mail address
+(`yousef.sabbah@example.com` gives `yousef.sabbah`, then `yousef.sabbah-2` when that is taken).
+
+The password: without `password` one is generated and `must_change_password` is always `true`. With a typed
+`password`, `must_change_password: false` lets the owner keep it. While `must_change_password` is `true` the
+owner's session is restricted until they choose their own ([10](#10-signing-in-from-a-web-app)).
+
+```
+POST /api/v1/users  {"email": "sam@example.com", "role": "maintainer", "first_name": "Sam", "last_name": "Lee"}
+  -> 201 {"data": {"name": "sam", "email": "sam@example.com", "must_change_password": true, ...,
+                   "password": "generated-and-shown-once"}}
+
+POST /api/v1/users/sam/password  {"password": "green tea at 7 on the balcony", "must_change_password": false}
+  -> 200 {"data": {"password": "green tea at 7 on the balcony"}}
+```
 
 An account:
 
@@ -191,7 +215,7 @@ An account:
 | `GET /tokens` | `tokens.manage` | | 200, API tokens (never their secrets) |
 | `POST /tokens` | `tokens.manage` | `{"name", "scope"}` (`read` or `write`) | **201**, with `token` and `signing_secret`, shown once |
 | `DELETE /tokens/<id>` | `tokens.manage` | | **204**, revoked |
-| `GET /backups` | `backups.manage` | | 200, backups, newest first |
+| `GET /backups` | `backups.manage` | | 200, backups, newest first (below) |
 | `GET /backups/<file>` | `backups.manage` | | the zip (`dump.sql`, the filestore, `manifest.json`) |
 | `DELETE /backups/<file>` | `backups.manage` | | **204** |
 | `GET /deploy-keys` | `github.manage` | | 200, deploy keys |
@@ -199,6 +223,24 @@ An account:
 | `DELETE /deploy-keys/<owner>/<repo>` | `github.manage` | | **204** |
 | `GET /repositories/branches?url=` | `instances.view` | | 200, `{"branches", "default"}` |
 | `GET /repositories/access?url=&branch=` | `instances.view` | | 200, whether the server can read the repository and each submodule; `meta.can_manage_keys` |
+
+A backup in `GET /backups` (`created` in Unix seconds, `size` in bytes):
+
+```json
+{"file": "sales-main__sales_main__20261112-000012__daily.zip", "instance": "sales-main", "db": "sales_main",
+ "kind": "daily", "size": 48213504, "created": 1794441612.4}
+```
+
+`kind` is one of:
+
+| `kind` | Taken | Kept |
+| :--- | :--- | :--- |
+| `manual` | The `backup` action (**Back up now**); also every file of earlier versions, which have no kind in their name | Until deleted |
+| `daily` | Once a day for each instance used since its last daily backup | Only the latest per instance; removed with the instance |
+| `deletion` | Before an instance is deleted | Until deleted |
+| `before-restore` | At the start of a `restore` action | Only the latest per instance; removed with the instance |
+
+To restore a backup into its instance, use the `restore` action ([below](#instances-jobs-and-actions-in-detail)).
 
 ### Documentation
 
@@ -215,9 +257,9 @@ to `/help/<path>`, the web app's Help pages.
 | Method and path | Permission | Body | Answer |
 | :--- | :--- | :--- | :--- |
 | `GET /setup` | public | | 200, `{"needed", "contact"}`: whether the panel still has no account |
-| `POST /setup` | public | `{"setup_code", "username", "password", "first_name", "last_name", "email", "phone"}` | **201**, signed in as the first account, a super admin ([10](#10-signing-in-from-a-web-app)) |
+| `POST /setup` | public | `{"setup_code", "password", "first_name", "email"}` required; `last_name`, `phone`, `username` optional (made from `email` when absent) | **201**, signed in as the first account, a super admin ([10](#10-signing-in-from-a-web-app)) |
 | `GET /contact` | public | | 200, who to contact |
-| `POST /session` | public | `{"username", "password"}` | **201**, the session (as `GET /session`); sets the session cookie. Or **200** with `second_factor` when a code is needed |
+| `POST /session` | public | `{"username", "password"}`; `username` is the e-mail address (up to 254 characters) or the user name | **201**, the session (as `GET /session`); sets the session cookie. Or **200** with `second_factor` when a code is needed. **401** "Wrong e-mail address or password." |
 | `POST /session/second-factor` | public | `{"method", "code"}` | **201**, signed in |
 | `POST /session/second-factor/<method>` | public | `{}` | 200, a new code was sent (`email`) |
 | `GET /session` | signed in | | 200, the signed-in account (below) |
@@ -283,6 +325,19 @@ An instance:
 }
 ```
 
+`GET /instances/<name>` adds, among others, the instance's backups, newest first, and the one the `restore` action
+would use without a `file` (`null` when there is none):
+
+```json
+"backups": [
+  {"file": "sales-main__sales_main__20261112-000012__daily.zip", "kind": "daily", "database": "sales_main",
+   "size_bytes": 48213504, "created_at": "2026-11-12T00:00:12Z"},
+  {"file": "sales-main__sales_main__20261110-153001__manual.zip", "kind": "manual", "database": "sales_main",
+   "size_bytes": 47120384, "created_at": "2026-11-10T15:30:01Z"}
+],
+"restorable_backup": "sales-main__sales_main__20261112-000012__daily.zip"
+```
+
 `status` is one of `online`, `starting`, `busy` (a job is running), `paused`, `switched_off`, `stopped`, `unknown`.
 
 A job (the answer to every 202, and to `GET /jobs/<id>`):
@@ -340,10 +395,22 @@ Actions (`POST /instances/<name>/actions/<action>`); each needs its own permissi
 | `remove-submodule` | Remove a submodule | `instances.operate` | `{"path": "oca/web"}` |
 | `switch-branch` | Switch branch | `instances.operate` | `{"branch": "main"}` |
 | `backup` | Back up now | `instances.operate` | `{}` |
+| `restore` | Restore a backup: replaces the database and the filestore | `instances.restore` | `{}` for the latest, or `{"file": "<backup file name>"}` |
 | `delete` | Delete, after a backup (same as `DELETE /instances/<name>`) | `instances.delete` | `{"confirm": "<name>"}` |
 
 By role: a Developer may run the `instances.update` actions, a Maintainer every action except `delete`, a Super
 admin or Administrator all of them.
+
+`restore` without `file` puts back the newest `manual`, `daily` or `deletion` backup of a database the instance has
+(`restorable_backup` in `GET /instances/<name>`). With `file`, it must be one of the instance's own `backups`. The
+job (`"action": "Restore a backup"`) saves the current state as a `before-restore` backup, stops Odoo, replaces the
+database and the filestore, sets the instance's public address again and starts Odoo. When there is no backup to
+restore, or the backup is of a database the instance does not have, the job fails and `error` says so.
+
+```
+POST /api/v1/instances/sales-main/actions/restore  {"file": "sales-main__sales_main__20261110-153001__manual.zip"}
+  -> 202 {"data": {"id": "c3d41e0b7a92", "action": "Restore a backup", "status": "queued", ...}}
+```
 
 ---
 
@@ -410,7 +477,7 @@ Errors follow [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) ("problem detai
 | Status | Meaning |
 | :--- | :--- |
 | 400 | A field is missing or not valid; `detail` says which and what to send |
-| 401 | Token, timestamp, nonce or signature not accepted, or the session has ended; `detail` says which |
+| 401 | Token, timestamp, nonce or signature not accepted, the session has ended, or a wrong e-mail address or password at `POST /session`; `detail` says which |
 | 403 | The caller's role lacks the permission; `detail` names what is missing, for example "Your role cannot do this (delete instances)." A `read` token sending a change, a restricted session, a wrong setup code, and a reached instance limit (`MAX_INSTANCES`, `MAX_INSTANCES_PER_USER`) are also 403, each with its own `detail` |
 | 404 | No such instance, job, account, action or documentation page |
 | 405 | The method is not allowed on this path |
@@ -448,7 +515,7 @@ while the panel runs, on the **Settings** page or through the API; the change is
 
 | `applies` | When | Which |
 | :--- | :--- | :--- |
-| `now` | At once, without a restart | Almost every setting: limits, sessions, e-mail, Odoo images and versions, Enterprise paths, contact, accent colour (marked **live** in [Configuration](CONFIGURATION.md)) |
+| `now` | At once, without a restart | Almost every setting: limits, sessions, e-mail, daily backups (`daily_backups`, `daily_backup_time`, `timezone`), Odoo images and versions, Enterprise paths, contact, accent colour (marked **live** in [Configuration](CONFIGURATION.md)) |
 | `restart` | After the panel restarts (`POST /api/v1/server/restart`, or **Restart the panel** on the Settings page) | The settings that choose plugins: `mailer`, `second_factors`, `update_triggers`, `enterprise_source`, `auth`, `rate_limiter` |
 | `env` | Only in `.env`; the API refuses a change with 400 | Folders, ports, exposure, storage |
 
@@ -554,7 +621,7 @@ restarts). Container figures come from a continuous `docker stats` stream.
 | `response_ms_avg`, `response_ms_p95` | Time until Odoo started answering: average, and the time 95 % of requests stayed under |
 | `uptime_seconds` | Since Odoo's container started; `null` when it is not running |
 | `disk_bytes` | Database and files, measured every 5 minutes while running |
-| Server only: `memory_*_bytes`, `disk_percent`, `disk_*_bytes`, `load_1m`, `cores`, `uptime_seconds`, `instances_running`, `instances_total` | |
+| Server only: `memory_*_bytes`, `disk_percent`, `disk_*_bytes`, `load_1m`, `cores`, `uptime_seconds`, `instances_running`, `instances_total` | `instances_running`: how many instances run now |
 
 `GET /api/v1/metrics` returns the latest sample:
 
@@ -575,7 +642,8 @@ libraries draw from directly; `t` holds the times (Unix seconds):
 ```json
 {
   "data": {
-    "server": {"t": [1794426523, ...], "cpu_percent": [11.0, ...], "memory_percent": [...], "disk_percent": [...], "load_1m": [...]},
+    "server": {"t": [1794426523, ...], "cpu_percent": [11.0, ...], "memory_percent": [...], "disk_percent": [...], "load_1m": [...],
+               "instances_running": [3, ...]},
     "instances": {"sales-main": {"t": [...], "cpu_percent": [...], "memory_percent": [...], "requests_per_minute": [...], ...}}
   },
   "meta": {"minutes": 60, "interval_seconds": 5}
@@ -592,18 +660,20 @@ On a new server there is no account yet. `GET /api/v1/setup` answers `{"needed":
 created with the setup code the installer printed (`docker exec sudoo-panel sudoo.sh setup-code` shows it again):
 
 ```
-POST /api/v1/setup  {"setup_code": "K7QH-3MXP-9TAD", "username": "sam", "password": "...",
+POST /api/v1/setup  {"setup_code": "K7QH-3MXP-9TAD", "password": "...",
                      "first_name": "Sam", "last_name": "Lee", "email": "sam@example.com", "phone": ""}
   -> 201 {"data": {"user": "sam", "role": "super_admin", "csrf_token": "...", ...}}    signed in
 ```
 
-The code works once. A wrong one is 403; 5 wrong ones from an address in 15 minutes block it (429). Once an account
+`email` and `first_name` are required. Without `username`, the user name is made from the e-mail address (here
+`sam`); it is the account's key in `user` and in `/users/<name>`. The password follows the
+[password rules](USER_MANUAL.md#password-rules). The code works once. A wrong one is 403; 5 wrong ones from an address in 15 minutes block it (429). Once an account
 exists, `POST /api/v1/setup` is refused with 400.
 
 The panel's own web app then signs in with a session cookie. Without a second factor it is one call; with one, two:
 
 ```
-POST /api/v1/session            {"username": "sam", "password": "..."}
+POST /api/v1/session            {"username": "sam@example.com", "password": "..."}
   -> 201 {"data": {"user": "sam", "csrf_token": "...", ...}}                 signed in
   -> 200 {"data": {"second_factor": {
             "methods": [{"name": "totp", "label": "Authenticator app"}, {"name": "email", "label": "E-mail code"}],
@@ -614,6 +684,9 @@ POST /api/v1/session/second-factor  {"method": "totp", "code": "123456"}
   -> 201 {"data": {"user": "sam", "csrf_token": "...", ...}}
 ```
 
+`username` takes the e-mail address or the user name. A wrong e-mail address and a wrong password give the same
+**401** "Wrong e-mail address or password.", in the same time.
+
 Between the two calls the session opens nothing, for 5 minutes at most.
 
 A signed-in session can be **restricted** (`"restricted"` in the answer). Only `/api/v1/session`,
@@ -621,7 +694,7 @@ A signed-in session can be **restricted** (`"restricted"` in the answer). Only `
 
 | `restricted` | Why | Done with |
 | :--- | :--- | :--- |
-| `"password"` | The password was generated by someone else (a new account, or a reset) | `PUT /api/v1/session/password` `{"current", "new"}` |
+| `"password"` | The password was set by someone else (a new account, or `POST /users/<name>/password`) with `must_change_password` | `PUT /api/v1/session/password` `{"current", "new"}` |
 | `"second_factor"` | `REQUIRE_SECOND_FACTOR` applies and the account has no second factor (`"must_set_up_second_factor": true`) | setting one up, as below |
 
 Setting up an authenticator app:

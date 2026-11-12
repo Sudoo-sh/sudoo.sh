@@ -2,7 +2,7 @@
 
 **Audience:** the person responsible for the server and the panel.
 **Covers:** installing and updating, the first account, settings, e-mail, links, files and containers, Enterprise
-add-ons, backups, the command line, checks and troubleshooting.
+add-ons, backups, daily backups and restores, the command line, checks and troubleshooting.
 **You need:** SSH access to the server as root (or with `sudo`).
 
 ---
@@ -107,8 +107,11 @@ Open the panel's address above and create your account with this setup code:
 ```
 
 Open the panel's address in a browser. The **Set up Sudoo.sh** page asks for the setup code, first name, last name,
-e-mail, phone (optional), a user name and a password of at least 12 characters. It creates the first account, a
-**Super admin**, and signs it in. The other accounts are then created on the **Accounts** page
+e-mail (required), phone (optional) and a password twice (12 to 128 characters, following the
+[password rules](USER_MANUAL.md#password-rules)). There is no user name field: the user name is made from the
+e-mail address (`yousef.sabbah@example.com` becomes `yousef.sabbah`, then `-2`, `-3` when taken) and stays the
+account's internal key. It creates the first account, a **Super admin**, and signs it in. Everyone signs in with
+their e-mail address; the user name works too. The other accounts are then created on the **Accounts** page
 ([User manual](USER_MANUAL.md#8-accounts-and-roles)).
 
 | Good to know | |
@@ -161,7 +164,7 @@ Every setting belongs to one of three classes:
 
 | Class | Settings | How a change applies |
 | :--- | :--- | :--- |
-| **Now** | Almost everything: second factor requirement, session times, e-mail (including the mail password), limits, defaults for new instances, Odoo versions and images, Enterprise paths, update checks, webhook secret, contact, accent colour, `METRICS_INTERVAL_SECONDS`. | At once, when saved on the Settings page. |
+| **Now** | Almost everything: second factor requirement, session times, e-mail (including the mail password), limits, defaults for new instances, daily backups (`DAILY_BACKUPS`, `DAILY_BACKUP_TIME`, `TIMEZONE`), Odoo versions and images, Enterprise paths, update checks, webhook secret, contact, accent colour, `METRICS_INTERVAL_SECONDS`. | At once, when saved on the Settings page. |
 | **Restart** | The settings that choose plugins: `MAILER`, `SECOND_FACTORS`, `UPDATE_TRIGGERS`, `ENTERPRISE_SOURCE`, `AUTH`, `RATE_LIMITER`. | After **Restart the panel** (Settings, Plugins). The restart stops only the backend for a few seconds and is refused while jobs run. |
 | **.env only** | `ODOO_ROOT`, `DOCS_DIR`, `MEMORY_DIR`, `EXPOSURE`, `STORAGE`, `PUBLIC_HOST`, `PUBLIC_SCHEME`, all ports (`PANEL_PORT`, `API_PORT`, `EVENTS_PORT`, `GATEWAY_PORT_START`, `ODOO_PORT_START`, connector ports), `CONNECTOR_PREFIX`. | Edit `.env`, then `cd /opt/odoo/manager && docker compose up -d`. The Settings page lists them under **Server**, read only. |
 
@@ -395,20 +398,63 @@ Odoo subscription or partner code, otherwise Odoo shows its expiry notice after 
 
 ### Instances
 
-**Instances are backed up by the panel.** Before every deletion (automatic or by hand), and when someone clicks
-**Back up now**, the panel writes one zip per database to `/opt/odoo/backups/`:
+**Instances are backed up by the panel.** Every backup writes one zip per database to `/opt/odoo/backups/`
+(`BACKUPS_DIR`):
 
 ```
-/opt/odoo/backups/<instance>__<database>__<YYYYMMDD-HHMMSS>.zip      mode 600
+/opt/odoo/backups/<instance>__<database>__<YYYYMMDD-HHMMSS>__<kind>.zip      mode 600
 ├── dump.sql          the database (pg_dump --no-owner)
 ├── filestore/        attachments and images
 └── manifest.json     database name, Odoo version
 ```
 
+The time in the name is when the backup started. Files from earlier versions have no `__<kind>`
+part and count as `manual`.
+
+| Kind | Taken | Kept |
+| :--- | :--- | :--- |
+| `manual` | **Back up now** on an instance's page. | Until someone deletes it. |
+| `daily` | Once a day, for each instance used since its last daily backup (below). | Only the latest per instance; the new one replaces the previous. Removed when the instance is deleted. |
+| `deletion` | Before every deletion, automatic or by hand. If it fails, the instance is not deleted. | Until someone deletes it. |
+| `before-restore` | At the start of every restore: the state just before it. | Only the latest per instance. Removed when the instance is deleted. |
+
 This is Odoo's own backup format, with both the database and the filestore: restore it with **Restore Database**
 in any Odoo's database manager of the same version, or by hand (`createdb`, `psql -f dump.sql`, copy `filestore/`
-into the new Odoo's `filestore/<database>`). The files are listed, downloaded and deleted under **Backups** in the
-panel. They are kept until someone deletes them; copy the ones you want to keep off the server.
+into the new Odoo's `filestore/<database>`). The files are listed (with their kind), downloaded and deleted under
+**Backups** in the panel; an instance's own backups are also on its **Overview** tab. Copy the ones you want to keep
+off the server.
+
+**Daily backups.** Every minute the panel checks whether today's backup time has passed (`DAILY_BACKUP_TIME`,
+default `00:00`, in `TIMEZONE`, default `UTC`). When it has, it backs up each instance that was **used** since its
+last daily backup: opened through its link, or started or restarted. The panel records the first use after each
+daily backup (`used_since` in the instance state) and clears it when the daily backup starts.
+
+* An instance nobody used gets no new daily backup, so its last one stays.
+* A running instance keeps running during the backup; a paused one stays paused (only its database container is
+  started for the backup, then stopped again).
+* An instance with a job running is tried again a minute later. A daily backup that fails waits for the next day.
+* If the panel was down at the backup time, the backups run as soon as it is back.
+* `DAILY_BACKUPS=false` turns them off. All three settings are on the Settings page under **Backups** and apply at
+  once. `TIMEZONE` takes a name of the time zone database, such as `UTC` or `Africa/Cairo` (the panel image includes
+  the time zone data).
+
+**Restoring.** Roles with the `instances.restore` permission (maintainer, administrator, super admin) restore an
+instance from its **Overview** tab: **Restore the latest** (the newest `manual`, `daily` or `deletion` backup of a
+database the instance has) or **Restore** on any backup in the list. The job "Restore a backup":
+
+1. saves the current state as a `before-restore` backup, so the restore can be undone,
+2. stops Odoo,
+3. drops the database, creates it again and loads `dump.sql`, replaces the filestore with the backup's
+   `filestore/`, and sets the instance's current public address in the database again,
+4. starts Odoo and waits until it answers.
+
+It takes about a minute or two, depending on the size. The instance is running afterwards. A backup can only be
+restored into the instance it was taken from, and only when that instance still has the database.
+
+**Disk use.** Backups by hand and before deletions add up until someone deletes them. Daily and before-restore
+backups stay bounded: at most one of each per instance. Plan for about two zips per instance in use on top of the
+ones kept by hand, and check `du -sh /opt/odoo/backups` from time to time; the server's disk use is also on the
+Instances page.
 
 **Lifetime.** Each instance has `DELETE_AFTER_DAYS` in its `.env` (0: kept). Every 10 minutes the panel deletes the
 instances whose lifetime is over, backup first; if the backup fails, the instance is not deleted. New instances get
@@ -456,7 +502,7 @@ For the first account, and for when nobody can sign in. Every command runs insid
 | Command | What it does |
 | :--- | :--- |
 | `docker exec sudoo-panel sudoo.sh setup-code` | Shows the setup code for the first account, or says the panel is already set up. |
-| `docker exec sudoo-panel sudoo.sh create-user NAME ROLE` | Creates an account and prints its password once. `ROLE` is `super_admin`, `admin`, `maintainer`, `developer` or `viewer`. |
+| `docker exec sudoo-panel sudoo.sh create-user NAME ROLE` | Creates an account and prints its password once. `ROLE` is `super_admin`, `admin`, `maintainer`, `developer` or `viewer`. The account has no e-mail address, so it signs in with the user name `NAME`; add an e-mail address on the Accounts page (or in **My account**) to sign in with it. |
 | `docker exec sudoo-panel sudoo.sh reset-password NAME` | Sets a new password, prints it once and signs the account out everywhere. The person chooses their own at the next sign-in. |
 | `docker exec sudoo-panel sudoo.sh list-users` | Lists the accounts with their role and last sign-in. |
 | `docker exec sudoo-panel sudoo.sh create-token NAME SCOPE` | Creates an API token (`SCOPE` is `read` or `write`) and prints the token and signing secret once. |
@@ -466,7 +512,10 @@ For the first account, and for when nobody can sign in. Every command runs insid
 
 `sudoo` works as a shorter name for `sudoo.sh`. Commands that change something are recorded in the audit log as
 "command line".
-Every other account task is done in the panel ([User manual](USER_MANUAL.md#8-accounts-and-roles)).
+Every other account task is done in the panel ([User manual](USER_MANUAL.md#8-accounts-and-roles)): new accounts
+need an e-mail address that no other account uses; the password is generated or typed by the administrator
+(checked against the [password rules](USER_MANUAL.md#password-rules)); super admins, including your own account,
+can be edited; and the last super admin cannot be demoted or deleted.
 
 A person who is locked out by a lost second factor does not need the command line: an administrator uses **Remove
 second factors** on the Accounts page. If no administrator can sign in, create a new super admin with
@@ -506,6 +555,10 @@ After installing or updating:
 | Nobody can sign in (password lost, last super admin locked out) | | `sudoo.sh reset-password NAME`, or `sudoo.sh create-user NAME super_admin` ([section 11](#11-accounts-from-the-command-line)) |
 | Lost phone or mailbox with the second factor | | An administrator uses **Remove second factors** on the Accounts page |
 | "Too many failed attempts" at sign-in | Sign-in lockout (15 minutes) | Wait, or reset the password |
+| "Wrong e-mail address or password" for an account created with `create-user` | The account has no e-mail address | Sign in with the user name, then add the e-mail address in **My account** |
+| No daily backup of an instance | Nobody used it since its last daily backup, `DAILY_BACKUPS` is off, or the backup time has not come yet in `TIMEZONE` | Check **Settings, Backups**; the instance's **Activity** tab shows "Daily backup" jobs and why one failed |
+| **Restore the latest** is greyed out | The instance has no `manual`, `daily` or `deletion` backup of a database it has | Click **Back up now** to take one; older backups of another instance cannot be restored here |
+| A restore failed | The backup file is damaged, or the database did not start | The **Activity** tab shows the step and the reason. The state before the restore is kept as a `before-restore` backup: restore it to go back |
 | E-mail codes or the test e-mail do not arrive | Wrong mail settings, or Gmail refuses the normal password | **Send a test** (or `sudoo.sh test-email ADDRESS`) shows the reason. For Gmail, `SMTP_PASSWORD` must be an app password and 2-Step Verification must be on ([section 6](#6-e-mail)). Look in the spam folder. |
 | "E-mail code" is not offered | No mail server set, or `email` not in `SECOND_FACTORS` | Set up e-mail ([section 6](#6-e-mail)); after changing `SECOND_FACTORS`, **Restart the panel** |
 | A plugin setting changed in the browser has no effect | Plugin settings apply after a restart | Settings, Plugins, **Restart the panel** (refused while jobs run: wait for them) |

@@ -34,7 +34,7 @@ INSTANCE_SERIES = (
     "response_ms_avg",
     "response_ms_p95",
 )
-SERVER_SERIES = ("cpu_percent", "memory_percent", "disk_percent", "load_1m")
+SERVER_SERIES = ("cpu_percent", "memory_percent", "disk_percent", "load_1m", "instances_running")
 
 
 # ---------------------------------------------------------------- requests (from the gateway's thread)

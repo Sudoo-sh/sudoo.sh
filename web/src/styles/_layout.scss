@@ -62,16 +62,7 @@
   text-decoration: none !important;
   font-size: 17px;
   font-weight: 600;
-  .mark {
-    display: grid;
-    place-items: center;
-    width: 26px;
-    height: 26px;
-    border-radius: 7px;
-    background: var(--accent);
-    color: var(--on-accent);
-    svg { width: 17px; height: 17px; }
-  }
+  .mark { display: grid; width: 26px; height: 26px; svg { width: 100%; height: 100%; } }
   .tld { color: var(--text-3); font-weight: 500; }
 }
 

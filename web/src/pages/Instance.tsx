@@ -3,10 +3,12 @@ import {
   ArrowUpRight,
   Code2,
   Database,
+  Download,
   DownloadCloud,
   GitBranch,
   GitCommitHorizontal,
   Globe,
+  History,
   KeyRound,
   Layers,
   MoreHorizontal,
@@ -25,11 +27,12 @@ import { useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useCredentials, useHistory, useInstance, useJobs, useOdooLog } from "@/api/queries";
-import type { Instance, Job, Permission } from "@/api/types";
+import type { BackupKind, Instance, InstanceBackup, Job, Permission } from "@/api/types";
 import { LiveChart } from "@/components/charts/LiveChart";
 import { JobLine, Monogram } from "@/components/InstanceCard";
 import { JobDrawer, Terminal } from "@/components/JobDrawer";
 import { Page, useCan } from "@/components/Shell";
+import { StatCard } from "@/components/StatCard";
 import { Button, Callout, CopyField, Empty, Field, Progress, Segmented, Skeleton, Status, Switch, Tag } from "@/components/ui/basics";
 import { Menu, Modal, useToast } from "@/components/ui/overlay";
 import { ago, bytes, dateTime, duration, elapsed, ms, percent } from "@/lib/format";
@@ -150,9 +153,6 @@ export function InstancePage() {
                       <button disabled={busy || !instance.git.repository} onClick={item(() => setDialog("branch"))}>
                         <GitBranch /> Switch branch…
                       </button>
-                      <button disabled={busy} onClick={item(() => act("backup", "Back up"))}>
-                        <Database /> Back up now
-                      </button>
                       <hr />
                       {!asleep && (
                         <button disabled={busy} onClick={item(() => act("pause", "Pause"))}>
@@ -200,7 +200,7 @@ export function InstancePage() {
       </nav>
 
       <div className="rise" key={tab}>
-        {tab === "" && <Overview instance={instance} />}
+        {tab === "" && <Overview instance={instance} busy={busy} act={act} />}
         {tab === "activity" && <ActivityTab name={name} onOpen={setJobId} />}
         {tab === "code" && <CodeTab instance={instance} canAdd={can("instances.update")} canRemove={can("instances.operate")} busy={busy} onAdd={() => setDialog("submodule")} act={act} />}
         {tab === "logs" && can("instances.logs") && <LogsTab name={name} />}
@@ -227,7 +227,7 @@ const METRICS = {
 } as const;
 type Metric = keyof typeof METRICS;
 
-function Overview({ instance }: { instance: Instance }) {
+function Overview({ instance, busy, act }: { instance: Instance; busy: boolean; act: (action: string, title: string, body?: Record<string, unknown>) => void }) {
   const { data: history } = useHistory();
   const [metric, setMetric] = useState<Metric>("cpu_percent");
   const series = history?.instances[instance.name];
@@ -236,26 +236,17 @@ function Overview({ instance }: { instance: Instance }) {
   return (
     <div className="stack">
       <div className="grid-4 stagger">
-        <div className="card stat">
-          <span className="label">Processor</span>
-          <span className="figure">{u.cpu_percent?.toFixed(1) ?? "—"}<small>%</small></span>
-          <span className="detail">of the whole server</span>
-        </div>
-        <div className="card stat">
-          <span className="label">Memory</span>
-          <span className="figure">{u.memory_percent != null ? Math.round(u.memory_percent) : "—"}<small>%</small></span>
-          <span className="detail">{bytes(u.memory_bytes)} of {bytes(u.memory_limit_bytes)}</span>
-        </div>
-        <div className="card stat">
-          <span className="label">Requests</span>
-          <span className="figure">{u.requests_per_minute != null ? Math.round(u.requests_per_minute) : "—"}<small>/min</small></span>
-          <span className="detail">{u.error_rate_percent ? `${percent(u.error_rate_percent, 1)} answered with an error` : "no errors"}</span>
-        </div>
-        <div className="card stat">
-          <span className="label">Response time</span>
-          <span className="figure">{u.response_ms_p95 != null ? Math.round(u.response_ms_p95) : "—"}<small>ms</small></span>
-          <span className="detail">95% of requests faster · average {ms(u.response_ms_avg)}</span>
-        </div>
+        <StatCard label="Processor" value={u.cpu_percent ?? null} unit="%" decimals={1} detail="of the whole server"
+          trend={{ t: series?.t ?? [], values: series?.cpu_percent ?? [] }} />
+        <StatCard label="Memory" value={u.memory_percent != null ? Math.round(u.memory_percent) : null} unit="%"
+          detail={`${bytes(u.memory_bytes)} of ${bytes(u.memory_limit_bytes)}`}
+          trend={{ t: series?.t ?? [], values: series?.memory_percent ?? [], max: 100 }} />
+        <StatCard label="Requests" value={u.requests_per_minute != null ? Math.round(u.requests_per_minute) : null} unit="/min"
+          detail={u.error_rate_percent ? `${percent(u.error_rate_percent, 1)} answered with an error` : "no errors"}
+          trend={{ t: series?.t ?? [], values: series?.requests_per_minute ?? [] }} />
+        <StatCard label="Response time" value={u.response_ms_p95 != null ? Math.round(u.response_ms_p95) : null} unit="ms"
+          detail={`95% of requests faster · average ${ms(u.response_ms_avg)}`}
+          trend={{ t: series?.t ?? [], values: series?.response_ms_p95 ?? [] }} />
       </div>
 
       <div className="overview">
@@ -307,7 +298,98 @@ function Overview({ instance }: { instance: Instance }) {
           </div>
         </section>
       </div>
+      <BackupsCard instance={instance} busy={busy} act={act} />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------- backups
+
+const KIND_LABEL: Record<BackupKind, string> = {
+  manual: "By hand",
+  daily: "Daily",
+  deletion: "Before deletion",
+  "before-restore": "Before a restore",
+};
+
+function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolean; act: (action: string, title: string, body?: Record<string, unknown>) => void }) {
+  const can = useCan();
+  const [restoring, setRestoring] = useState<InstanceBackup | null>(null);
+  const list = instance.backups ?? [];
+  const latest = list.find((b) => b.file === instance.restorable_backup);
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Backups</h2>
+        <span className="sub">{list.length ? `${list.length} kept` : "None yet"}</span>
+        <span className="spacer" />
+        {can("instances.operate") && (
+          <Button size="sm" icon={<Database />} disabled={busy} onClick={() => act("backup", "Back up")}>Back up now</Button>
+        )}
+        {can("instances.restore") && (
+          <Button size="sm" icon={<History />} disabled={busy || !latest} onClick={() => latest && setRestoring(latest)}>
+            Restore the latest
+          </Button>
+        )}
+      </div>
+      {latest ? (
+        <div className="backup-latest">
+          <div>
+            <div className="small muted">Latest backup</div>
+            <div className="when">{dateTime(latest.created_at)}</div>
+            <div className="xsmall faint">{KIND_LABEL[latest.kind]} · {bytes(latest.size_bytes)} · {ago(latest.created_at)}</div>
+          </div>
+        </div>
+      ) : (
+        <p className="card-body small muted">
+          A daily backup is taken each night after a day the instance was used. Back up now to have one right away.
+        </p>
+      )}
+      {list.length > 0 && (
+        <div className="table-wrap">
+          <table className="table">
+            <thead><tr><th>Taken</th><th>Kind</th><th>Size</th><th /></tr></thead>
+            <tbody>
+              {list.map((b) => (
+                <tr key={b.file}>
+                  <td>{dateTime(b.created_at)} <span className="faint xsmall">· {ago(b.created_at)}</span></td>
+                  <td><Tag tone={b.kind === "daily" ? "accent" : undefined}>{KIND_LABEL[b.kind]}</Tag></td>
+                  <td className="mono small">{bytes(b.size_bytes)}</td>
+                  <td className="actions">
+                    {can("backups.manage") && (
+                      <a className="btn sm ghost" href={`/api/v1/backups/${b.file}`} download aria-label={`Download ${b.file}`}><Download /></a>
+                    )}
+                    {can("instances.restore") && (
+                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => setRestoring(b)}>Restore</Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {restoring && (
+        <RestoreDialog instance={instance} backup={restoring} onClose={() => setRestoring(null)}
+          onRun={() => act("restore", "Restore", { file: restoring.file })} />
+      )}
+    </section>
+  );
+}
+
+function RestoreDialog({ instance, backup, onClose, onRun }: { instance: Instance; backup: InstanceBackup; onClose: () => void; onRun: () => void }) {
+  return (
+    <Modal title={`Restore the backup of ${dateTime(backup.created_at)}?`} description={`${KIND_LABEL[backup.kind]} · ${bytes(backup.size_bytes)}`} onClose={onClose}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" onClick={() => { onRun(); onClose(); }}>Restore</Button></>}>
+      <div className="stack">
+        <Callout tone="warning">
+          The database <b className="mono">{backup.database}</b> and its files go back to how they were on {dateTime(backup.created_at)}. Changes made since then are replaced.
+        </Callout>
+        <p className="small muted">
+          The current state is backed up first and kept as "Before a restore", so this can be undone. {instance.name} restarts and is back in a minute or two.
+        </p>
+      </div>
+    </Modal>
   );
 }
 

@@ -9,6 +9,7 @@ import secrets
 import shutil
 import time
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -216,7 +217,7 @@ def delete(job: Job, name: str) -> None:
     """Back up every database, then remove the instance completely. No backup, no deletion."""
     job.expect(3)
     job.step("Backing up the database and files")
-    saved = backups.create(job, name)
+    saved = backups.create(job, name, "deletion")
     job.note(f"Backup kept: {', '.join(path.name for path in saved)}")
     job.step("Removing Odoo, its database and its files")
     job.run(compose(name, "down", "-v", "--remove-orphans"), timeout=600)
@@ -225,14 +226,53 @@ def delete(job: Job, name: str) -> None:
     job.step("Removing the instance folder")
     shutil.rmtree(store.folder(name))
     STATE.remove(name)
+    backups.remove_daily(name)  # the backup above is newer
 
 
-def backup(job: Job, name: str) -> None:
+def backup(job: Job, name: str, kind: str = "manual") -> None:
     job.step("Backing up the database and files")
-    saved = backups.create(job, name)
-    if _paused(name):
+    paused = _paused(name)
+    if kind == "daily":
+        STATE.update(name, used_since=None)  # visits from now on count for the next one
+    saved = backups.create(job, name, kind)
+    if paused:
         job.run(compose(name, "stop"), timeout=300)  # leave a paused instance paused
     job.note(f"Backup saved: {', '.join(path.name for path in saved)}")
+
+
+def daily_backup(job: Job, name: str) -> None:
+    """The daily backup of an instance used since its last one; replaces the previous daily backup."""
+    backup(job, name, "daily")
+
+
+def restore(job: Job, name: str, file_name: str | None = None) -> None:
+    """Put a backup back (the latest, or `file_name`): the current state is backed up first, then the database
+    and the filestore are replaced and Odoo starts."""
+    chosen = (
+        next((b for b in backups.of_instance(name) if b["file"] == file_name), None)
+        if file_name
+        else backups.latest(name)
+    )
+    if chosen is None:
+        raise JobError("There is no backup of this instance to restore.")
+    if chosen["db"] not in odoo.databases(name):
+        raise JobError(f"The backup is of database {chosen['db']}, which this instance does not have.")
+    taken = datetime.fromtimestamp(chosen["created"], settings.zone).strftime("%Y-%m-%d %H:%M")
+    job.expect(4)
+    job.step("Saving the current state first")
+    saved = backups.create(job, name, "before-restore")
+    job.note(f"The state before the restore is kept as {', '.join(path.name for path in saved)}")
+    job.step("Stopping Odoo")
+    job.run(compose(name, "stop", "odoo"), timeout=300)
+    job.step(f"Restoring the backup of {taken}")
+    backups.restore(job, name, chosen)
+    url = exposure.address(name)
+    if url:
+        for cmd in odoo.public_address_cmds(name, url):
+            job.run(cmd, timeout=60)
+    job.step("Starting Odoo")
+    _start_odoo(job, name)
+    job.note(f"Restored {chosen['file']}")
 
 
 def expires_at(env: dict[str, str]) -> int | None:

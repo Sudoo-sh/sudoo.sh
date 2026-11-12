@@ -22,21 +22,24 @@ Each section shows what an attack would look like against this panel, and what h
 
 ## 1. Guessing passwords
 
-**The attack.** A program tries thousands of passwords for the user `admin`.
+**The attack.** A program tries thousands of passwords for the address `admin@example.com`.
 
 ```
-POST /api/v1/session {"username": "admin", "password": "123456"}      → 401 Wrong user name or password
-POST /api/v1/session {"username": "admin", "password": "password"}    → 401
+POST /api/v1/session {"username": "admin@example.com", "password": "123456"}      → 401 Wrong e-mail address or password.
+POST /api/v1/session {"username": "admin@example.com", "password": "password"}    → 401
 ... 3 more ...
-POST /api/v1/session {"username": "admin", "password": "admin2024"}   → 429 Too many failed attempts. Try again in 15 minutes.
+POST /api/v1/session {"username": "admin@example.com", "password": "admin2024"}   → 429 Too many failed attempts. Try again in 15 minutes.
 ```
 
 **Defences.**
 
 * After 5 failures for one account from one address (or 20 from one address), sign-in is refused for 15 minutes.
-* Every check takes about 0.1 s on purpose (scrypt), and takes the same time for unknown user names, so timing
-  does not reveal which accounts exist.
-* Generated passwords are 24 random characters; chosen ones must be 12 characters or more and not common.
+* An e-mail address counts as its account: trying the user name of the same account does not give 5 more tries.
+* Every check takes about 0.1 s on purpose (scrypt), and takes the same time for unknown e-mail addresses and user
+  names, so neither the message nor the timing reveals which accounts exist.
+* Generated passwords are 24 random characters; chosen ones must be 12 to 128 characters and cannot contain a
+  common password, a sequence such as `12345` or the person's own name
+  ([Security: password rules](../SECURITY.md#password-rules)).
 * Every failure is in the audit log with its address.
 
 ---

@@ -1,4 +1,5 @@
-"""Persistent per-instance state that is not part of the instance's files: last visit, paused, switched off.
+"""Persistent per-instance state that is not part of the instance's files: last visit, paused, switched off, and
+"used_since": the first visit after the instance's last daily backup (instances/backups.py), cleared by that backup.
 
 Kept by the storage plugin (collection "instance_state"). Visits are recorded on every request, so they are kept in
 memory and written at most every 30 seconds; all other changes are written immediately.
@@ -27,7 +28,7 @@ class StateStore:
         return self._data
 
     def get(self, name: str) -> dict[str, Any]:
-        """A copy of the instance's state: {"last_visit", "paused", "switched_off", "branch_missing"}."""
+        """A copy of the instance's state: {"last_visit", "used_since", "paused", "switched_off", "branch_missing"}."""
         with self._lock:
             return dict(self._all().get(name, {}))
 
@@ -40,8 +41,12 @@ class StateStore:
         storage().put(COLLECTION, name, snapshot)
 
     def record_visit(self, name: str) -> None:
+        now = time.time()
         with self._lock:
-            self._all().setdefault(name, {})["last_visit"] = time.time()
+            state = self._all().setdefault(name, {})
+            state["last_visit"] = now
+            if not state.get("used_since"):
+                state["used_since"] = now
             self._dirty.add(name)
 
     def remove(self, name: str) -> None:

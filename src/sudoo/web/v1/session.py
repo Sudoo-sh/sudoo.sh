@@ -4,7 +4,8 @@
     POST   /api/v1/setup                           create the first account, a super admin, with the setup code
                                                    printed by the installer, and sign in -> 201 (public)
     GET    /api/v1/contact                         who to contact (public: shown on the sign-in page)
-    POST   /api/v1/session                         sign in: {"username", "password"} -> 201 signed in, or 200
+    POST   /api/v1/session                         sign in: {"username", "password"}, where "username" may be the
+                                                   e-mail address -> 201 signed in, or 200
                                                    with "second_factor" when a code is needed (public)
     POST   /api/v1/session/second-factor           the code: {"method", "code"} -> 201 signed in (public)
     POST   /api/v1/session/second-factor/<method>  send a new code (e-mail) (public, between the two steps)
@@ -69,10 +70,14 @@ def setup() -> Response:
     ip = client_ip()
     if accounts.THROTTLE.seconds_to_wait(ip, "setup"):
         abort(429, "Too many wrong setup codes from this address. Try again in 15 minutes.")
-    username = check.username(check.text(data, "username", max_length=32).lower())
     profile = {key: check.text(data, key, max_length=120) for key in accounts.PROFILE_FIELDS}
     if not profile["first_name"] or not profile["email"]:
         abort(400, "Enter at least your first name and your e-mail address.")
+    problem = accounts.profile_problem(profile)
+    if problem:
+        abort(400, problem)
+    chosen = check.text(data, "username", max_length=32).lower()
+    username = check.username(chosen) if chosen else accounts.username_for(profile["email"])
     try:
         accounts.complete_setup(
             check.text(data, "setup_code", max_length=20), username, check.secret(data, "password"), profile
@@ -140,7 +145,9 @@ def change_password() -> Response:
         abort(400, "The current password is not correct.")
     if new == current:
         abort(400, "Choose a password different from the current one.")
-    problem = accounts.password_problem(new, name)
+    account = accounts.get(name) or {}
+    names = (str(account.get("first_name") or ""), str(account.get("last_name") or ""))
+    problem = accounts.password_problem(new, name, account.get("email"), names)
     if problem:
         abort(400, problem)
     session["version"] = accounts.set_password(name, new)  # other sessions of this account end

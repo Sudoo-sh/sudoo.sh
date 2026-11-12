@@ -32,11 +32,12 @@ export function JobLine({ job }: { job: Pick<Job, "action" | "status" | "progres
 export function InstanceCard({ instance }: { instance: Instance }) {
   const usage = instance.usage;
   return (
-    <Link to={`/i/${instance.name}`} viewTransition className="card link instance-card">
+    <article className="card link instance-card">
       <div className="ic-head">
         <Monogram name={instance.name} />
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div className="ic-name truncate">{instance.name}</div>
+          {/* the whole card opens the instance: this link covers it (.ic-open::after), the Open button sits above */}
+          <Link to={`/i/${instance.name}`} viewTransition className="ic-name ic-open truncate">{instance.name}</Link>
           <div className="ic-sub">
             <GitBranch />
             <span className="truncate">{instance.git.branch}</span>
@@ -81,11 +82,11 @@ export function InstanceCard({ instance }: { instance: Instance }) {
         </span>
         <span className="spacer" />
         {instance.url && instance.status !== "switched_off" && (
-          <a className="btn sm ghost" href={instance.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+          <a className="btn sm ghost ic-external" href={instance.url} target="_blank" rel="noreferrer">
             Open <ArrowUpRight />
           </a>
         )}
       </div>
-    </Link>
+    </article>
   );
 }

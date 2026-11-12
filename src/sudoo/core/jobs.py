@@ -3,6 +3,9 @@
 Every action runs in its own thread. Actions on the same instance run one after another (a lock per instance);
 actions on different instances run in parallel. A job records user-facing steps, notes and the full technical
 log, which the panel shows while it runs and afterwards (the last 300 jobs are kept in memory).
+
+Every change of a job is published as a live event (core/events.py): "job" when it starts, moves to another step,
+adds a note or ends, and "job.output" with new log text at most twice a second.
 """
 
 from __future__ import annotations
@@ -15,6 +18,7 @@ from collections import OrderedDict, defaultdict
 from collections.abc import Callable
 from typing import Any
 
+from sudoo.core import events
 from sudoo.core.hints import friendly_hint
 
 JOBS: OrderedDict[str, Job] = OrderedDict()
@@ -22,6 +26,7 @@ _JOBS_LOCK = threading.Lock()
 INSTANCE_LOCKS: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)
 ACTIVE_JOB: dict[str, Job] = {}  # instance name -> the job currently running on it
 _KEEP = 300
+_OUTPUT_EVERY_SECONDS = 0.5
 
 
 class JobError(Exception):
@@ -43,6 +48,19 @@ class Job:
         self.hint: str | None = None
         self.started = time.time()
         self.finished: float | None = None
+        self._published_lines = 0  # log lines already sent as "job.output" events
+
+    def changed(self) -> None:
+        """Tell connected clients that this job changed."""
+        events.publish("job", self.id)
+
+    def publish_output(self) -> None:
+        """Send the log lines written since the last call as one "job.output" event."""
+        end = len(self.log)
+        if end > self._published_lines:
+            text = "".join(self.log[self._published_lines : end])
+            events.publish("job.output", self.id, {"job": self.id, "offset": self._published_lines, "text": text})
+            self._published_lines = end
 
     def write(self, text: str) -> None:
         self.log.append(text)
@@ -54,11 +72,13 @@ class Job:
                 step["status"] = "done"
         self.steps.append({"title": title, "status": "running"})
         self.write(f"\n== {title}\n")
+        self.changed()
 
     def note(self, text: str, level: str = "info") -> None:
         """A message for the user that does not stop the job ("info" or "warning")."""
         self.notes.append({"text": text, "level": level})
         self.write(f"[{level}] {text}\n")
+        self.changed()
 
     def run(self, cmd: list[str], timeout: float | None = None, input: str | None = None) -> None:
         """Run a command, stream its output into the log, raise JobError when it fails."""
@@ -110,6 +130,8 @@ def start(instance: str, action: str, kind: str, fn: Callable[..., object], *arg
         JOBS[job.id] = job
         while len(JOBS) > _KEEP:
             JOBS.popitem(last=False)
+    _start_output_publisher()
+    job.changed()
     threading.Thread(target=_run, args=(job, fn, args), daemon=True).start()
     return job
 
@@ -118,6 +140,8 @@ def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
     with INSTANCE_LOCKS[job.instance]:
         ACTIVE_JOB[job.instance] = job
         job.status = "running"
+        job.changed()
+        events.publish("instance", job.instance)
         try:
             fn(job, *args)
             for step in job.steps:
@@ -133,6 +157,30 @@ def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
         finally:
             job.finished = time.time()
             ACTIVE_JOB.pop(job.instance, None)
+            job.publish_output()
+            job.changed()
+            if job.kind == "delete" and job.status == "success":
+                events.publish("instance.deleted", job.instance, {"name": job.instance})
+            else:
+                events.publish("instance", job.instance)
+
+
+_publisher_started = threading.Event()
+
+
+def _start_output_publisher() -> None:
+    """Once: a thread that sends the new log text of running jobs as live events."""
+    if _publisher_started.is_set():
+        return
+    _publisher_started.set()
+
+    def publish_forever() -> None:
+        while True:
+            time.sleep(_OUTPUT_EVERY_SECONDS)
+            for job in list(ACTIVE_JOB.values()):
+                job.publish_output()
+
+    threading.Thread(target=publish_forever, daemon=True, name="job-output").start()
 
 
 def busy(instance: str) -> bool:

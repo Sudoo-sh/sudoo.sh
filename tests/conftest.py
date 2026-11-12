@@ -34,6 +34,9 @@ ORIGIN = {"Origin": "http://localhost"}
 def app() -> Flask:
     background.start = lambda: None  # no Docker, monitor or connectors in tests
     from sudoo.web import create_app
+    from sudoo.web.v1 import stream
+
+    stream.start = lambda app: None  # the live event stream is tested on its own (test_events.py)
 
     application = create_app()
     application.config.update(TESTING=True, SESSION_COOKIE_SECURE=False)

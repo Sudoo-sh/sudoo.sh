@@ -145,9 +145,9 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
             "GIT_BRANCH": plan["branch"],
             "ODOO_ADMIN_PASSWORD": settings.odoo_admin_password,
             "MASTER_PASSWORD": vault.encrypt(master_password, store.master_password_label(name)),
-            "AUTO_UPDATE": "true",
-            "AUTO_UPGRADE": "true",
-            "AUTO_PAUSE": "true",
+            "AUTO_UPDATE": str(plan["auto_update"]).lower(),
+            "AUTO_UPGRADE": str(plan["auto_upgrade"]).lower(),
+            "AUTO_PAUSE": str(plan["auto_pause"]).lower(),
             "DELETE_AFTER_DAYS": plan["delete_after_days"],  # 0: keep until deleted by hand
             "CREATED_AT": int(time.time()),
         },

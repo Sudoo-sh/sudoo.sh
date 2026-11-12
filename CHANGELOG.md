@@ -17,6 +17,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- One API for everything: every function of the panel is now in `/api/v1` (sessions, accounts, API tokens, backups,
+  deploy keys, repository checks, job logs, instance credentials, server figures). The panel's web app can use it
+  with its session cookie and CSRF token; other systems keep using tokens and signatures.
+- Live events: `GET /api/v1/events` pushes every change (job progress and log, instance status, resource figures,
+  settings) as Server-Sent Events, and resumes after a lost connection with what was missed.
+- Settings page support: administrators change behaviour settings (pause, lifetime, polling, sessions, contact,
+  versions) while the panel runs, through `GET/PATCH /api/v1/settings`; changes take effect at once and are kept on
+  top of `.env`, and a reset brings back the `.env` value.
+- `AUTO_PAUSE`, `AUTO_UPDATE` and `AUTO_UPGRADE` set the automation switches of new instances (all on, as before);
+  the create request can set each one.
+- `EVENTS_PORT` (9001): local port of the live event stream.
+- The example client follows live events (`api.events()`).
+
 - API answers follow common conventions: `{"data", "meta"}` envelopes, RFC 9457 problem details for errors
   (`application/problem+json`), `202 Accepted` with `Location` for background jobs, ISO 8601 times, pagination
   (`limit`, `offset`), `X-Request-ID` on every answer, and `links` on every resource.

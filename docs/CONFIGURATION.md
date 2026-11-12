@@ -8,6 +8,10 @@ Every setting of the panel, with its type, default and meaning. Settings are env
   message naming the setting.
 * See what the panel actually uses: `docker exec sudoo-panel sudoo config`.
 * The settings are defined in `src/sudoo/config.py`; a test fails when one of them is missing here.
+* Settings marked **live** can also be changed by an administrator on the panel's **Settings** page (or with
+  `PATCH /api/v1/settings`, see [Panel API](PANEL_API.md#7-settings)). The change takes effect at once, without a
+  restart, and is kept in `/opt/odoo/manager/settings.json` on top of `.env`; **Reset** brings back the `.env` value.
+  All other settings are read when the panel starts.
 
 ---
 
@@ -15,9 +19,9 @@ Every setting of the panel, with its type, default and meaning. Settings are env
 
 | Setting | Type | Default | Meaning |
 | :--- | :--- | :--- | :--- |
-| `ADMIN_CONTACT_NAME` | str | `the administrator` | Who users are told to contact. |
-| `ADMIN_CONTACT_PHONE` | str | empty | Phone number added to that message. |
-| `ADMIN_CONTACT_EMAIL` | str | empty | E-mail address added to that message. |
+| `ADMIN_CONTACT_NAME` | str | `the administrator` | **live** Who users are told to contact. |
+| `ADMIN_CONTACT_PHONE` | str | empty | **live** Phone number added to that message. |
+| `ADMIN_CONTACT_EMAIL` | str | empty | **live** E-mail address added to that message. |
 
 ---
 
@@ -25,8 +29,8 @@ Every setting of the panel, with its type, default and meaning. Settings are env
 
 | Setting | Type | Default | Meaning |
 | :--- | :--- | :--- | :--- |
-| `ODOO_VERSIONS` | str | `auto` | Versions offered: "auto" (every published version of the official image from odoo_min_version) or a comma-separated list such as 17.0,18.0,saas-18.2. |
-| `ODOO_MIN_VERSION` | str | `16.0` | Oldest version offered when odoo_versions is "auto". |
+| `ODOO_VERSIONS` | str | `auto` | **live** Versions offered: "auto" (every published version of the official image from odoo_min_version) or a comma-separated list such as 17.0,18.0,saas-18.2. |
+| `ODOO_MIN_VERSION` | str | `16.0` | **live** Oldest version offered when odoo_versions is "auto". |
 | `ODOO_IMAGE` | str | `odoo` | Docker image of Odoo; the tag is the Odoo version. |
 | `POSTGRES_IMAGE` | str | `postgres:16` | Docker image of each instance's database. |
 | `ODOO_ADMIN_PASSWORD` | str | `admin` | Password of the Odoo user "admin" in new instances. |
@@ -73,6 +77,7 @@ Every setting of the panel, with its type, default and meaning. Settings are env
 | Setting | Type | Default | Meaning |
 | :--- | :--- | :--- | :--- |
 | `PANEL_PORT` | int | `9000` | Port of the panel. |
+| `EVENTS_PORT` | int | `9001` | Port of the live event stream (`/api/v1/events`), on 127.0.0.1 only. |
 | `GATEWAY_PORT_START` | int | `8069` | First gateway port (one per instance). |
 | `ODOO_PORT_START` | int | `28069` | First Odoo port (one per instance, 127.0.0.1 only). |
 
@@ -82,11 +87,14 @@ Every setting of the panel, with its type, default and meaning. Settings are env
 
 | Setting | Type | Default | Meaning |
 | :--- | :--- | :--- | :--- |
-| `IDLE_HOURS` | float | `6` | Pause an instance after this many hours without visits; 0: never. |
-| `DELETE_AFTER_DAYS` | int | `30` | Lifetime offered for new instances, in days; 0: keep. |
-| `POLL_MINUTES` | float | `2` | polling: check GitHub for new commits this often. |
-| `SESSION_IDLE_MINUTES` | float | `60` | Panel sign-out after this long without activity. |
-| `SESSION_MAX_HOURS` | float | `12` | Longest panel session. |
+| `IDLE_HOURS` | float | `6` | **live** Pause an instance after this many hours without visits; 0: never. |
+| `AUTO_PAUSE` | bool | `true` | **live** New instances pause when idle (each instance can change it). |
+| `AUTO_UPDATE` | bool | `true` | **live** New instances get new code from their branch automatically. |
+| `AUTO_UPGRADE` | bool | `true` | **live** New instances upgrade changed modules after an update. |
+| `DELETE_AFTER_DAYS` | int | `30` | **live** Lifetime offered for new instances, in days; 0: keep. |
+| `POLL_MINUTES` | float | `2` | **live** polling: check GitHub for new commits this often. |
+| `SESSION_IDLE_MINUTES` | float | `60` | **live** Panel sign-out after this long without activity. |
+| `SESSION_MAX_HOURS` | float | `12` | **live** Longest panel session. |
 
 ---
 

@@ -1,10 +1,18 @@
 # Panel API
 
 **Audience:** developers connecting other systems to the panel: CI pipelines, chat bots, scripts, dashboards.
-**Covers:** API tokens, how to sign a request, every endpoint, and a ready-to-use client.
+**Covers:** API tokens, how to sign a request, every endpoint, settings, live events, and a ready-to-use client.
 
 This is the API of the **panel** (create, change, restart, delete instances). To talk to the **Odoo** inside an
 instance, see [API and webhooks](API.md).
+
+It is the panel's only API: the panel's own web app uses it too. Two kinds of callers are accepted, with the same
+roles and checks:
+
+| Caller | Authentication |
+| :--- | :--- |
+| Another system (CI, bot, script) | An API token and a signature on every request ([1](#1-getting-a-token), [2](#2-signing-a-request)) |
+| The panel's web app in a browser | The session cookie set by `POST /api/v1/session`, plus `X-CSRF-Token` on every change |
 
 ---
 
@@ -16,6 +24,8 @@ instance, see [API and webhooks](API.md).
 4. [Examples](#4-examples)
 5. [Errors](#5-errors)
 6. [Security notes](#6-security-notes)
+7. [Settings](#7-settings)
+8. [Live events](#8-live-events)
 
 ---
 
@@ -108,6 +118,47 @@ All paths start with `/api/v1`, and every answer follows the same conventions:
 | `PATCH /instances/<name>` | write | any of `auto_update`, `auto_upgrade`, `auto_pause` (true or false), `delete_after_days` (0 keeps it) | 200, the instance |
 | `POST /instances/<name>/actions/<action>` | write | `{}`, or the action's fields | **202**, the job |
 | `DELETE /instances/<name>` | write | `{"confirm": "<name>"}` | **202**, the job; a backup is taken first |
+| `GET /instances/<name>/credentials` | write | | 200, Odoo login, admin and master passwords, ports (administrators only) |
+| `GET /instances/<name>/logs?lines=300` | read | | 200, `{"text"}`: the end of Odoo's log |
+| `GET /instance-plan?repo=&branch=&name=` | write | | 200, the name and database a new instance would get, and the defaults |
+| `GET /jobs?instance=&limit=30&offset=0` | read | | 200, recent jobs, newest first |
+| `GET /jobs/<id>/log?offset=0` | read | | 200, `{"text"}` from that line on; `meta.next_offset` is where to continue |
+| `GET /server` | read | | 200, the server's CPU, memory and disk, the panel's address, version and plugins |
+| `GET /settings` | read | | 200, every setting ([Settings](#7-settings)) |
+| `PATCH /settings` | write | `{"idle_hours": 4}` | 200, the settings; administrators only |
+| `DELETE /settings/<key>` | write | | **204**, back to the `.env` value |
+| `GET /events` | read | | the live event stream ([Live events](#8-live-events)) |
+
+Accounts, tokens, backups and GitHub (administrators only, except the repository checks):
+
+| Method and path | Body | Answer |
+| :--- | :--- | :--- |
+| `GET /users` | | 200, accounts |
+| `POST /users` | `{"name", "role"}` (`admin` or `operator`) | **201**, the account with its `password`, shown once |
+| `POST /users/<name>/password` | `{}` | 200, `{"password"}`: a new password, shown once |
+| `DELETE /users/<name>` | | **204** |
+| `GET /audit?limit=200` | | 200, the latest audit-log entries |
+| `GET /tokens` | | 200, API tokens (never their secrets) |
+| `POST /tokens` | `{"name", "scope"}` | **201**, with `token` and `signing_secret`, shown once |
+| `DELETE /tokens/<id>` | | **204**, revoked |
+| `GET /backups` | | 200, backups, newest first |
+| `GET /backups/<file>` | | the zip |
+| `DELETE /backups/<file>` | | **204** |
+| `GET /deploy-keys` | | 200, deploy keys |
+| `POST /deploy-keys` | `{"repo"}` | **201**, the public key to add on GitHub |
+| `DELETE /deploy-keys/<owner>/<repo>` | | **204** |
+| `GET /repositories/branches?url=` | | 200, `{"branches", "default"}` |
+| `GET /repositories/access?url=&branch=` | | 200, whether the server can read the repository and each submodule |
+
+The web app's session (no token):
+
+| Method and path | Body | Answer |
+| :--- | :--- | :--- |
+| `GET /contact` | | 200, who to contact (no sign-in needed) |
+| `POST /session` | `{"username", "password"}` | **201**, the account and its `csrf_token`; sets the session cookie |
+| `GET /session` | | 200, the signed-in account and its `csrf_token` |
+| `DELETE /session` | | **204**, signed out |
+| `PUT /session/password` | `{"current", "new"}` | **204**; other sessions of the account end |
 
 An instance:
 
@@ -268,4 +319,93 @@ Errors follow [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) ("problem detai
   its own token, with the `read` scope where reading is enough, and revoke tokens that are no longer used.
 * Every call is in the audit log as `api:<token name>`, and every refused call with its reason and address.
 * The API never returns passwords (Odoo admin, master password) or the server's ports.
-* The panel's browser session does not open the API, and API tokens do not open the panel's pages.
+* API tokens do not open the panel's pages. The browser's session opens the API only from the panel's own
+  address, and every change also needs the session's CSRF token, so another website cannot use a visitor's session.
+
+---
+
+## 7. Settings
+
+The settings in `.env` are the defaults. An administrator can change some of them while the panel runs, on the
+**Settings** page or through the API; the change takes effect at once, without a restart, and is kept on top of
+`.env`. Which ones: those marked **live** in [Configuration](CONFIGURATION.md), such as `idle_hours`,
+`auto_pause` (the default for new instances), `delete_after_days` and the session limits. Ports, plugins and
+images are read when the panel starts and stay in `.env`.
+
+```json
+GET /api/v1/settings
+{
+  "data": [
+    {
+      "key": "idle_hours", "env": "IDLE_HOURS",
+      "value": 4, "env_value": 6, "changed_in_panel": true,
+      "editable": true, "secret": false, "type": "number", "minimum": 0,
+      "description": "Pause an instance after this many hours without visits; 0: never."
+    },
+    ...
+  ]
+}
+```
+
+| Request | Effect |
+| :--- | :--- |
+| `PATCH /api/v1/settings` `{"idle_hours": 4, "auto_pause": false}` | Change several at once; all are checked before any is kept |
+| `PATCH /api/v1/settings` `{"idle_hours": null}` | Back to the `.env` value |
+| `DELETE /api/v1/settings/idle_hours` | The same |
+
+A wrong value is refused with 400 and the setting's name (`IDLE_HOURS: Input should be greater than or equal to
+0.`); a setting that is not live is refused with 400. Secrets (`odoo_admin_password`, `github_webhook_secret`)
+are never shown: `value` only says whether they are set.
+
+---
+
+## 8. Live events
+
+`GET /api/v1/events` keeps the connection open and sends every change the moment it happens, as
+[Server-Sent Events](https://html.spec.whatwg.org/multipage/server-sent-events.html), a standard every browser
+reads with `EventSource`. Nothing needs to ask "anything new?" again and again: a job's progress, an instance going
+online, new resource figures arrive by themselves.
+
+```
+id: 4182
+event: job
+data: {"key": "a12fff66a05d", "data": {"id": "a12fff66a05d", "status": "running", "steps": [...], ...}}
+
+id: 4183
+event: metrics
+data: {"key": "", "data": {"server": {"cpu": 12.5, ...}, "instances": {"sales-main": {"cpu_percent": 3.1, ...}}}}
+```
+
+| Event | When | `data` |
+| :--- | :--- | :--- |
+| `instance` | An instance changed: status, code, address, settings, a job started or ended | The instance, as `GET /instances/<name>` |
+| `instance.deleted` | An instance was deleted | `{"name"}` |
+| `job` | A job started, moved to another step, added a note or ended | The job, as `GET /jobs/<id>` |
+| `job.output` | New log text of a running job (at most twice a second) | `{"job", "offset", "text"}` |
+| `metrics` | Every 15 seconds | CPU, memory and disk of the server and every instance |
+| `settings` | A setting was changed | `{"changed": ["idle_hours", ...]}` |
+| `reset` | After a reconnection, when more was missed than the panel keeps | `{}`: reload everything |
+
+* `?topics=job,instance` sends only those events.
+* A line starting with `:` is sent every 20 seconds to keep the connection open through proxies; ignore it.
+* When the connection drops, `EventSource` reconnects by itself and sends the last `id` it received
+  (`Last-Event-ID`); the stream starts with what was missed, only the latest state of each instance and job.
+  Other clients can send `?last_event_id=` instead.
+
+In a browser (the session cookie is sent by itself):
+
+```js
+const events = new EventSource("/api/v1/events?topics=job,instance");
+events.addEventListener("job", (message) => {
+  const { data: job } = JSON.parse(message.data);
+  console.log(job.action, job.status);
+});
+```
+
+From another system, sign `GET /api/v1/events` like any other request; the signature's 5-minute window applies to
+opening the stream, which then stays open. With the [Python client](../examples/panel_api_client.py):
+
+```python
+for event in api.events(topics=["job"]):
+    print(event["event"], event["data"]["status"])
+```

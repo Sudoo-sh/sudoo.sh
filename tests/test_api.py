@@ -166,14 +166,44 @@ def test_too_many_refusals_answer_retry_after(reader: Caller) -> None:
 
 
 def test_iso_times() -> None:
-    from sudoo.web.api_v1 import iso
+    from sudoo.web.v1.responses import iso
 
     assert iso(0) == "1970-01-01T00:00:00Z" and iso(None) is None
 
 
-def test_session_cookie_does_not_open_the_api(admin: Client) -> None:
-    client, _ = admin
-    assert client.get("/api/v1/instances").status_code == 401
+def test_the_web_app_uses_the_api_with_its_session(app: Flask, admin: Client) -> None:
+    client, headers = admin
+    assert client.get("/api/v1/instances").status_code == 200
+    me = client.get("/api/v1/session").get_json()["data"]
+    assert me["user"] == "admin1" and me["role"] == "admin" and me["csrf_token"]
+    # a change needs the CSRF token and the panel's own origin
+    assert (
+        client.patch("/api/v1/settings", json={"idle_hours": 5}, headers={"Origin": "http://localhost"}).status_code
+        == 403
+    )
+    assert (
+        client.patch(
+            "/api/v1/settings", json={"idle_hours": 5}, headers={**headers, "Origin": "https://evil.example"}
+        ).status_code
+        == 403
+    )
+    # without a session: problem details
+    anonymous = app.test_client().get("/api/v1/instances")
+    assert anonymous.status_code == 401 and anonymous.mimetype == "application/problem+json"
+
+
+def test_sign_in_and_out_through_the_api(app: Flask, passwords: dict[str, str]) -> None:
+    client = app.test_client()
+    origin = {"Origin": "http://localhost"}
+    wrong = client.post("/api/v1/session", json={"username": "admin1", "password": "nope"}, headers=origin)
+    assert wrong.status_code == 401
+    signed_in = client.post(
+        "/api/v1/session", json={"username": "admin1", "password": passwords["admin"]}, headers=origin
+    )
+    assert signed_in.status_code == 201
+    csrf = signed_in.get_json()["data"]["csrf_token"]
+    assert client.delete("/api/v1/session", headers={**origin, "X-CSRF-Token": csrf}).status_code == 204
+    assert client.get("/api/v1/session").status_code == 401
 
 
 # ---------------------------------------------------------------- GitHub webhook trigger

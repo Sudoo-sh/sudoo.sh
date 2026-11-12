@@ -22,13 +22,14 @@ each part was chosen.
 
 | Part | What it is | Where |
 | :--- | :--- | :--- |
-| **Panel** | Web pages and a JSON API (Flask, served by Gunicorn) on `127.0.0.1:9000`. | `sudoo/web/` |
+| **Panel** | Web pages and the API, `/api/v1` (Flask, served by Gunicorn) on `127.0.0.1:9000`. | `sudoo/web/` |
+| **Live events** | `/api/v1/events`: every change (jobs, instances, resource figures, settings) pushed to connected clients as Server-Sent Events, on the gateway's asyncio loop, `127.0.0.1:9001`. | `sudoo/core/events.py`, `web/v1/events.py` |
 | **Gateway** | One small web server per instance (aiohttp) on `127.0.0.1:<gateway port>`. Forwards every request to that instance's Odoo. | `sudoo/instances/gateway.py` |
 | **Background work** | Threads in the panel's process: resource monitor (every 15 s), automatic pause (every 2 min), GitHub polling (every `POLL_MINUTES`). | `sudoo/background.py`, `instances/monitor.py` |
 | **Jobs** | Every action (create, update, restart...) runs as a job in its own thread, with steps, notes and a log. One job at a time per instance; others wait. | `sudoo/core/jobs.py`, `instances/operations.py` |
 | **Exposure plugin** | Makes the panel and each gateway reachable from outside. Default `cloudflare-quick`: one `cloudflared` container per target, opening an outgoing connection to Cloudflare. Alternative `host-ports`: the ports are opened on the server. | `sudoo/exposure/` |
 | **Add-on source plugin** | Provides the Enterprise add-ons of a version: an existing folder (`folder`) or a branch of a git repository (`git`). | `sudoo/addons/` |
-| **Settings** | Every setting, typed and checked at start-up (pydantic-settings). | `sudoo/config.py` |
+| **Settings** | Every setting, typed and checked at start-up (pydantic-settings). Behaviour settings can be changed in the panel while it runs, kept on top of `.env`. | `sudoo/config.py` |
 | **Instances** | One Docker Compose project per instance: an `odoo` container (official image) and a `db` container (PostgreSQL 16), two volumes. | `/opt/odoo/instances/<name>/` |
 
 All of the panel (pages, gateway, background work, jobs) runs in **one container** and **one process**
@@ -181,8 +182,33 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
   stored encrypted). Read and write scopes. The endpoints reuse the panel's own views.
 - **Why:** a token alone can leak through logs and proxies; the signature means a leaked token is not enough, and
   the timestamp and nonce stop replays. Reusing the panel's views keeps one set of input checks, roles and audit.
-- **Considered:** the panel's session cookie (made for browsers, protected against exactly this kind of use);
-  OAuth (an authorization server is more than a self-hosted panel needs); mutual TLS (hard to set up behind tunnels).
+- **Considered:** OAuth (an authorization server is more than a self-hosted panel needs); mutual TLS (hard to set up
+  behind tunnels).
+
+### One API for the web app and for other systems
+- **Chosen:** the panel's web app calls the same `/api/v1` as other systems, with its session cookie and a CSRF
+  token instead of a token and signature.
+- **Why:** one set of endpoints, shapes and checks; whatever the web app can do, a script can do the same way, and
+  a separate front end can be built on it without a private API.
+- **Considered:** a private API for the web app (two APIs drift apart); API tokens in the browser (a token stored
+  in a page can be stolen by any script on it; the HttpOnly session cookie cannot be read by scripts).
+
+### Live events with Server-Sent Events
+- **Chosen:** `GET /api/v1/events` streams every change as Server-Sent Events; the data of each event is the same
+  document a `GET` returns. Recent events are kept so a reconnecting client receives only what it missed.
+- **Why:** pages update the moment something happens, without asking every few seconds; one connection per tab
+  instead of many requests. SSE is plain HTTP: it passes through Cloudflare tunnels and proxies, browsers
+  reconnect by themselves, and it needs no library. The stream runs on the asyncio loop, so open tabs cost almost
+  nothing.
+- **Considered:** polling (slow to show changes, constant load); WebSockets (two-way, which the panel does not
+  need, and more to proxy and secure); webhooks to the browser (a browser cannot receive them).
+
+### Settings changed while the panel runs
+- **Chosen:** `.env` gives the defaults; administrators change behaviour settings (pause, lifetime, polling,
+  sessions, contact, versions) on the **Settings** page; the changes are validated by the same model and kept in
+  `settings.json` on top of `.env`. Start-up settings (ports, plugins, images) stay in `.env`.
+- **Why:** day-to-day choices should not need a shell on the server and a restart; `.env` stays the single place
+  for how the server is set up, and a reset always brings back its value.
 
 ### A lifetime per instance, and a backup before every deletion
 - **Chosen:** each instance is deleted a set number of days after its creation (30 by default) unless it is set to
@@ -201,6 +227,8 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
 - **Why:** much faster and less risky than upgrading every module.
 
 ### Pausing after 6 hours without visits
+- **Chosen:** on by default for new instances (`AUTO_PAUSE`), after `IDLE_HOURS`; both can be changed on the
+  Settings page, and each instance has its own switch.
 - **Why:** the server has 3 GB of memory, enough for about two running instances. Paused instances use none and start
   again on the next visit in a few seconds.
 

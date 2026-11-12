@@ -66,9 +66,9 @@ def secret(data: Mapping[str, Any], key: str) -> str:
     return value
 
 
-def flag(data: Mapping[str, Any], key: str) -> bool:
-    """A switch: true or false; missing means false."""
-    value = data.get(key, False)
+def flag(data: Mapping[str, Any], key: str, default: bool = False) -> bool:
+    """A switch: true or false; missing means `default`."""
+    value = data.get(key, default)
     if not isinstance(value, bool):
         abort(400, f"The field '{key}' must be true or false.")
     return value

@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **The web app builds with Node.js 26, the current LTS release** (image, CI and `engines`). Dependabot proposes
+  only LTS (even-numbered) Node majors.
 - **The interface follows Apple's design and motion principles** ([docs/DESIGN.md](docs/DESIGN.md)):
   - the system font with size-specific tracking;
   - graphite neutrals with Odoo's plum as the single accent;

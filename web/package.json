@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
   "description": "Sudoo.sh web app: the panel's front end, a separate service on top of /api/v1.",
   "license": "SEE LICENSE IN ../LICENSE.md",
   "scripts": {

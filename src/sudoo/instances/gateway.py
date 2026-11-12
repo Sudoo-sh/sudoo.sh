@@ -15,9 +15,11 @@ It runs on its own asyncio event loop in a background thread of the panel proces
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 import aiohttp
 from aiohttp import web
@@ -86,6 +88,11 @@ async def _create_session() -> None:
         timeout=aiohttp.ClientTimeout(total=None, sock_connect=5),
         connector=aiohttp.TCPConnector(limit=0),
     )
+
+
+def submit[T](coroutine: Coroutine[Any, Any, T]) -> concurrent.futures.Future[T]:
+    """Run a coroutine on the gateway's event loop (shared with the live event stream, web/v1/events.py)."""
+    return asyncio.run_coroutine_threadsafe(coroutine, _LOOP)
 
 
 def add(name: str) -> None:

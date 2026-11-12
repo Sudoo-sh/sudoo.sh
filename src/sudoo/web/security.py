@@ -13,9 +13,9 @@ from __future__ import annotations
 import hmac
 import secrets
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from functools import wraps
-from typing import cast
+from typing import Any, Protocol, cast
 from urllib.parse import urlsplit
 
 from flask import Flask, Response, abort, g, jsonify, redirect, request, session
@@ -60,23 +60,34 @@ def client_ip() -> str:
     return request.headers.get("CF-Connecting-IP", cast(str, request.remote_addr))
 
 
-def current_user() -> dict[str, str] | None:
-    """{"name", "role"} of the signed-in account, or None (and the session is cleared)."""
-    name = session.get("user")
-    account = accounts.get(name) if name else None
+def user_of_session(data: Mapping[str, Any], check_idle: bool = True) -> dict[str, str] | None:
+    """{"name", "role"} of a session's account while the session is valid, else None.
+
+    Valid: the account exists, its password was not changed since (session_version), and the session is not older
+    than SESSION_MAX_HOURS nor (with check_idle) unused for SESSION_IDLE_MINUTES.
+    """
+    name = data.get("user")
+    account = accounts.get(name) if isinstance(name, str) else None
     now = time.time()
     valid = (
         account is not None
-        and session.get("version") == account["session_version"]
-        and now - session.get("seen", 0) <= settings.session_idle_minutes * 60
-        and now - session.get("started", 0) <= settings.session_max_hours * 3600
+        and data.get("version") == account["session_version"]
+        and (not check_idle or now - data.get("seen", 0) <= settings.session_idle_minutes * 60)
+        and now - data.get("started", 0) <= settings.session_max_hours * 3600
     )
-    if not valid or account is None:
+    return {"name": str(name), "role": account["role"]} if valid and account is not None else None
+
+
+def current_user() -> dict[str, str] | None:
+    """{"name", "role"} of the signed-in account, or None (and the session is cleared)."""
+    user = user_of_session(session)
+    if user is None:
         session.clear()
         return None
+    now = time.time()
     if now - session["seen"] > 30:
         session["seen"] = now
-    return {"name": name, "role": account["role"]}
+    return user
 
 
 def start_session(name: str, version: int) -> None:
@@ -91,15 +102,19 @@ def _same_origin() -> bool:
     return origin is None or urlsplit(origin).netloc == request.host
 
 
-API_PREFIX = "/api/v1/"  # other systems: API token and signature (api_tokens.py), no session
+API_PREFIX = "/api/v1/"  # the API: an API token and signature (other systems) or a session (the browser)
 HOOKS_PREFIX = "/hooks/"  # webhooks of update triggers: each checks its sender's own signature
+PUBLIC_API = {("POST", "/api/v1/session"), ("GET", "/api/v1/contact")}
 
 
 def _check_request() -> ResponseReturnValue | None:
     if request.path.startswith(HOOKS_PREFIX):
         return None
     if request.path.startswith(API_PREFIX):
-        _authenticate_api_call()
+        if "Authorization" in request.headers:
+            _authenticate_api_call()
+        else:
+            _authenticate_browser_call()
         return None
     if request.method not in SAFE_METHODS:
         if not _same_origin():
@@ -120,36 +135,68 @@ def _check_request() -> ResponseReturnValue | None:
     return None
 
 
+def _authenticate_browser_call() -> None:
+    """An /api/v1 call from the panel's web app: same origin, JSON, a valid session and its CSRF token."""
+    if request.method not in SAFE_METHODS:
+        if not _same_origin():
+            abort(403, "Request blocked: it did not come from this panel.")
+        if request.content_length and request.mimetype != "application/json":
+            abort(415, "Requests must be sent as JSON.")
+    if (request.method, request.path) in PUBLIC_API:
+        return
+    g.user = current_user()
+    if not g.user:
+        abort(401, "Your session has ended. Please sign in again.")
+    if request.method not in SAFE_METHODS and not hmac.compare_digest(
+        request.headers.get("X-CSRF-Token", ""), session.get("csrf", "")
+    ):
+        abort(403, "Your session has expired. Please reload the page.")
+
+
+class Headers(Protocol):
+    """Request headers, looked up without regard to case (Flask's and aiohttp's both are)."""
+
+    def get(self, key: str, default: str, /) -> str: ...
+
+
+def api_caller(headers: Headers, method: str, path_with_query: str, body: bytes, ip: str) -> dict[str, str]:
+    """The user an API-token call acts as: {"name": "api:<token name>", "role"}. Raises PermissionError with the
+    HTTP status as its second argument when the call is refused; refusals are counted and audit-logged."""
+    if accounts.THROTTLE.seconds_to_wait(ip, "api-token"):
+        raise PermissionError("Too many refused API calls from this address. Try again in 15 minutes.", 429)
+    try:
+        token = api_tokens.verify(
+            headers.get("Authorization", ""),
+            headers.get("X-Sudoo-Timestamp", ""),
+            headers.get("X-Sudoo-Nonce", ""),
+            headers.get("X-Sudoo-Signature", ""),
+            method,
+            path_with_query,
+            body,
+        )
+    except PermissionError as error:
+        accounts.THROTTLE.failed(ip, "api-token")
+        audit.record("api", ip, "API call refused", ok=False, detail=str(error))
+        raise PermissionError(str(error), 401) from error
+    if token["scope"] != "write" and method not in SAFE_METHODS:
+        audit.record(f"api:{token['name']}", ip, "API change refused (read-only token)", ok=False)
+        raise PermissionError("This API token can only read. Create a token with the write scope to make changes.", 403)
+    return {"name": f"api:{token['name']}", "role": "admin" if token["scope"] == "write" else "operator"}
+
+
 def _path_with_query() -> str:
     query = request.query_string.decode()
     return f"{request.path}?{query}" if query else request.path
 
 
 def _authenticate_api_call() -> None:
-    """Accept an /api/v1 call only with a valid API token and signature; act as "api:<token name>" from then on."""
-    ip = client_ip()
-    if accounts.THROTTLE.seconds_to_wait(ip, "api-token"):
-        abort(429, "Too many refused API calls from this address. Try again in 15 minutes.")
+    """Accept an /api/v1 call with an API token only when its signature is valid; act as "api:<token name>"."""
     if request.content_length and request.mimetype != "application/json":
         abort(415, "Requests must be sent as JSON.")
     try:
-        token = api_tokens.verify(
-            request.headers.get("Authorization", ""),
-            request.headers.get("X-Sudoo-Timestamp", ""),
-            request.headers.get("X-Sudoo-Nonce", ""),
-            request.headers.get("X-Sudoo-Signature", ""),
-            request.method,
-            _path_with_query(),
-            request.get_data(),
-        )
+        g.user = api_caller(request.headers, request.method, _path_with_query(), request.get_data(), client_ip())
     except PermissionError as error:
-        accounts.THROTTLE.failed(ip, "api-token")
-        audit.record("api", ip, "API call refused", ok=False, detail=str(error))
-        abort(401, str(error))
-    if token["scope"] != "write" and request.method not in SAFE_METHODS:
-        audit.record(f"api:{token['name']}", ip, "API change refused (read-only token)", ok=False)
-        abort(403, "This API token can only read. Create a token with the write scope to make changes.")
-    g.user = {"name": f"api:{token['name']}", "role": "admin" if token["scope"] == "write" else "operator"}
+        abort(error.args[1], error.args[0])
 
 
 def _add_headers(response: Response) -> Response:

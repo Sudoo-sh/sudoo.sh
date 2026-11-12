@@ -209,6 +209,8 @@ def create() -> Response:
         "demo": check.flag(data, "demo"),
         "install_modules": check.flag(data, "install_modules"),
         "delete_after_days": check.days(data, "delete_after_days"),
+        # automation switches: the panel's defaults (AUTO_PAUSE, AUTO_UPDATE, AUTO_UPGRADE) unless sent
+        **{key: check.flag(data, key, getattr(settings, key)) for key in ("auto_update", "auto_upgrade", "auto_pause")},
         "ports": store.reserve_ports(exposure.provider().instance_ports()),
     }
     job = jobs.start(name, "Create instance", "create", operations.create, plan_data, user=g.user["name"])

@@ -6,12 +6,20 @@ the panel at start-up with a message naming the setting, instead of failing late
 
 The settings that choose plugins (`exposure`, `enterprise_source`) name an entry point; see plugins.py and
 docs/PLUGINS.md.
+
+Settings in EDITABLE can also be changed in the panel (Settings page, or PATCH /api/v1/settings). Those changes are
+kept in <ODOO_ROOT>/manager/settings.json, on top of `.env`, and take effect at once: `settings` always gives the
+current values. Removing a change brings back the `.env` value. Everything else (ports, plugins, images) is needed
+when the panel starts and is set in `.env` only.
 """
 
 from __future__ import annotations
 
+import json
+import threading
+from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, cast
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -75,11 +83,15 @@ class Settings(BaseSettings):
 
     # ------------------------------------------------------------------ ports
     panel_port: int = Field(9000, description="Port of the panel.")
+    events_port: int = Field(9001, description="Port of the live event stream (127.0.0.1 only).")
     gateway_port_start: int = Field(8069, description="First gateway port (one per instance).")
     odoo_port_start: int = Field(28069, description="First Odoo port (one per instance, 127.0.0.1 only).")
 
     # ------------------------------------------------------------------ behaviour
     idle_hours: float = Field(6, ge=0, description="Pause an instance after this many hours without visits; 0: never.")
+    auto_pause: bool = Field(True, description="New instances pause when idle (each instance can change it).")
+    auto_update: bool = Field(True, description="New instances get new code automatically.")
+    auto_upgrade: bool = Field(True, description="New instances upgrade changed modules after an update.")
     delete_after_days: int = Field(30, ge=0, description="Lifetime offered for new instances, in days; 0: keep.")
     poll_minutes: float = Field(2, gt=0, description="polling: check GitHub for new commits this often.")
     session_idle_minutes: float = Field(60, gt=0, description="Panel sign-out after this long without activity.")
@@ -148,4 +160,88 @@ class Settings(BaseSettings):
         return f"Please contact the administrator, {self.admin_contact_name}" + (f" ({details})." if details else ".")
 
 
-settings = Settings()
+# ---------------------------------------------------------------------- changes made in the panel
+
+EDITABLE = (
+    "idle_hours",
+    "auto_pause",
+    "auto_update",
+    "auto_upgrade",
+    "delete_after_days",
+    "poll_minutes",
+    "session_idle_minutes",
+    "session_max_hours",
+    "odoo_versions",
+    "odoo_min_version",
+    "admin_contact_name",
+    "admin_contact_phone",
+    "admin_contact_email",
+)
+"""Settings that can be changed in the panel while it runs."""
+
+SECRET = ("odoo_admin_password", "github_webhook_secret")
+"""Settings whose value is never shown, only whether they are set."""
+
+
+class LiveSettings:
+    """The current settings: `.env`, with the changes made in the panel on top.
+
+    Reading an attribute gives the current value, so code that keeps a reference (plugins get it in their
+    constructor) sees changes at once. Each change builds a new, validated, frozen Settings object.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._env = Settings()
+        self._overrides: dict[str, Any] = {}
+        self._current = self._env
+        self._listeners: list[Callable[[dict[str, Any]], None]] = []
+        try:
+            saved = json.loads(self._file.read_text())
+            self._current = Settings(**{k: v for k, v in saved.items() if k in EDITABLE})
+            self._overrides = {k: getattr(self._current, k) for k in saved if k in EDITABLE}
+        except (OSError, ValueError):
+            pass  # no changes yet, or an unreadable file: .env alone
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._current, name)
+
+    @property
+    def _file(self) -> Path:
+        return self._env.manager_dir / "settings.json"
+
+    @property
+    def env(self) -> Settings:
+        """The values from `.env` alone."""
+        return self._env
+
+    def overrides(self) -> dict[str, Any]:
+        """The settings changed in the panel, with their values."""
+        return dict(self._overrides)
+
+    def change(self, values: Mapping[str, Any]) -> None:
+        """Change editable settings (None removes a change). Raises ValueError, naming the setting, when a value
+        is not valid or the setting cannot be changed while the panel runs."""
+        refused = sorted(set(values) - set(EDITABLE))
+        if refused:
+            raise ValueError(f"These settings can only be changed in .env: {', '.join(refused)}.")
+        with self._lock:
+            overrides = {**self._overrides, **values}
+            overrides = {k: v for k, v in overrides.items() if v is not None}
+            current = Settings(**overrides)  # pydantic.ValidationError is a ValueError
+            self._overrides = {k: getattr(current, k) for k in overrides}
+            self._current = current
+            tmp = self._file.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self._overrides, indent=1))
+            tmp.replace(self._file)
+        for listener in self._listeners:
+            listener(dict(values))
+
+    def on_change(self, listener: Callable[[dict[str, Any]], None]) -> None:
+        """Call `listener(changed values)` after every change."""
+        self._listeners.append(listener)
+
+
+live = LiveSettings()
+settings = cast(Settings, live)
+"""The current settings. Typed as Settings: everything else in the panel reads it like a Settings object."""

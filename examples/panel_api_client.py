@@ -6,6 +6,7 @@ the path and the body's SHA-256 (see docs/PANEL_API.md). Copy this file into any
     export SUDOO_URL=https://panel.example.com SUDOO_TOKEN=sudoo_... SUDOO_SIGNING_SECRET=...
     python panel_api_client.py                       # list instances
     python panel_api_client.py restart sales-main    # run an action and wait for it
+    python panel_api_client.py events                # print live events as they happen
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Iterator
 from typing import Any
 
 
@@ -28,16 +30,19 @@ class PanelAPI:
     def __init__(self, url: str, token: str, signing_secret: str) -> None:
         self.url, self.token, self.signing_secret = url.rstrip("/"), token, signing_secret.encode()
 
-    def request(self, method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
-        data = json.dumps(body).encode() if body is not None else b""
+    def signed_headers(self, method: str, path: str, data: bytes) -> dict[str, str]:
         timestamp, nonce = str(int(time.time())), secrets.token_urlsafe(24)
         message = "\n".join([timestamp, nonce, method, path, hashlib.sha256(data).hexdigest()]).encode()
-        headers = {
+        return {
             "Authorization": f"Bearer {self.token}",
             "X-Sudoo-Timestamp": timestamp,
             "X-Sudoo-Nonce": nonce,
             "X-Sudoo-Signature": "sha256=" + hmac.new(self.signing_secret, message, hashlib.sha256).hexdigest(),
         }
+
+    def request(self, method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+        data = json.dumps(body).encode() if body is not None else b""
+        headers = self.signed_headers(method, path, data)
         if body is not None:
             headers["Content-Type"] = "application/json"
         call = urllib.request.Request(self.url + path, data=data or None, headers=headers, method=method)
@@ -79,10 +84,40 @@ class PanelAPI:
                 return job
             time.sleep(every)
 
+    def events(self, topics: list[str] | None = None) -> Iterator[dict[str, Any]]:
+        """Live events as they happen: {"id", "event", "data"}. Reconnects after a lost connection and resumes
+        where it stopped; an event "reset" means more was missed than the panel keeps."""
+        last_id = ""
+        while True:
+            path = "/api/v1/events" + (f"?topics={','.join(topics)}" if topics else "")
+            headers = self.signed_headers("GET", path, b"") | ({"Last-Event-ID": last_id} if last_id else {})
+            try:
+                with urllib.request.urlopen(urllib.request.Request(self.url + path, headers=headers), timeout=60) as r:
+                    event: dict[str, str] = {}
+                    for raw in r:
+                        line = raw.decode().rstrip("\n")
+                        if not line:  # a blank line ends an event
+                            if "event" in event:
+                                last_id = event.get("id", last_id)
+                                yield {
+                                    "id": last_id,
+                                    "event": event["event"],
+                                    "data": json.loads(event["data"])["data"],
+                                }
+                            event = {}
+                        elif not line.startswith(":") and ": " in line:
+                            field, value = line.split(": ", 1)
+                            event[field] = value
+            except (urllib.error.URLError, TimeoutError, ConnectionError):
+                time.sleep(3)
+
 
 if __name__ == "__main__":
     api = PanelAPI(os.environ["SUDOO_URL"], os.environ["SUDOO_TOKEN"], os.environ["SUDOO_SIGNING_SECRET"])
-    if len(sys.argv) == 3:
+    if sys.argv[1:] == ["events"]:
+        for live in api.events():
+            print(live["id"], live["event"], json.dumps(live["data"])[:120])
+    elif len(sys.argv) == 3:
         result = api.action(sys.argv[2], sys.argv[1])
         print(f"{sys.argv[1]} {sys.argv[2]}: {result['status']}")
     else:

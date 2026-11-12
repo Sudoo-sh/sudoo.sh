@@ -2,6 +2,9 @@
 
 Also keeps each Odoo's public address (web.base.url) in step with its connector, whose address changes when the
 connector restarts.
+
+After every measurement it publishes live events (core/events.py): "metrics" with the new numbers, and "instance"
+for each instance whose status, code or address changed since the last one.
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ from typing import Any
 
 from sudoo import exposure
 from sudoo.config import settings
-from sudoo.core import jobs
+from sudoo.core import events, jobs
 from sudoo.core.shell import capture, succeeds
 from sudoo.core.state import STATE
 from sudoo.instances import odoo, store
@@ -29,6 +32,7 @@ HISTORY: defaultdict[str, deque[tuple[int, float, int]]] = defaultdict(
 )  # name -> [(time, cpu %, memory bytes)]
 _DISK_CACHE: dict[str, dict[str, Any]] = {}
 _KNOWN_ADDRESSES: dict[str, str] = {}
+_LAST_SEEN: dict[str, tuple[Any, ...]] = {}  # name -> what clients last heard about it
 _previous_cpu: tuple[int, int] | None = None
 
 _UNITS = {
@@ -139,11 +143,40 @@ def mark_stopped(name: str) -> None:
     STATUS.setdefault(name, {})["running"] = False
 
 
+def metrics() -> dict[str, Any]:
+    """The latest numbers of the server and every instance, as the "metrics" event carries them."""
+    return {
+        "server": {key: value for key, value in HOST.items() if key != "history"},
+        "instances": {
+            name: {"cpu_percent": measured.get("cpu", 0), "memory_bytes": measured.get("memory", 0)}
+            for name, measured in STATUS.items()
+        },
+    }
+
+
+def publish_changes() -> None:
+    """Publish "metrics", and "instance" for every instance that looks different to a client than last time."""
+    events.publish("metrics", "", metrics())
+    for name in store.names():
+        state = STATE.get(name)
+        seen = (
+            status(name),
+            STATUS.get(name, {}).get("commit"),
+            exposure.address(name),
+            state.get("branch_missing"),
+            int(state.get("last_visit") or 0) // 60,
+        )
+        if _LAST_SEEN.get(name) != seen:
+            _LAST_SEEN[name] = seen
+            events.publish("instance", name)
+
+
 def run_forever() -> None:
     """Background loop: measure every MONITOR_INTERVAL_SECONDS."""
     while True:
         try:
             collect()
+            publish_changes()
             follow_public_addresses()
         except Exception as exc:  # noqa: BLE001 - the monitor must keep running; the error is logged
             print("monitor error:", repr(exc), flush=True)

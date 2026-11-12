@@ -214,17 +214,14 @@ def versions() -> list[str]:
     if settings.odoo_versions.strip().lower() != "auto":
         return [version.strip() for version in settings.odoo_versions.split(",") if version.strip()]
     global _VERSIONS_CACHE
-    found, fetched = _VERSIONS_CACHE
-    if found and time.time() - fetched < _VERSIONS_CACHE_SECONDS:
-        return found
-    found = sorted(
-        (tag for tag in _docker_hub_tags(settings.odoo_image) if re.fullmatch(r"\d+\.0", tag)
-         and version_key(tag) >= version_key(settings.odoo_min_version)),
-        key=version_key,
-    )  # fmt: skip
-    if found:
-        _VERSIONS_CACHE = (found, time.time())
-    return found
+    published, fetched = _VERSIONS_CACHE
+    if not published or time.time() - fetched >= _VERSIONS_CACHE_SECONDS:
+        published = sorted((tag for tag in _docker_hub_tags(settings.odoo_image) if re.fullmatch(r"\d+\.0", tag)),
+                           key=version_key)  # fmt: skip
+        if published:
+            _VERSIONS_CACHE = (published, time.time())
+    # filtered on every call: ODOO_MIN_VERSION can be changed in the panel
+    return [tag for tag in published if version_key(tag) >= version_key(settings.odoo_min_version)]
 
 
 def _docker_hub_tags(image: str) -> list[str]:

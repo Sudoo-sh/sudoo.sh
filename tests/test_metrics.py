@@ -74,3 +74,15 @@ def test_job_progress() -> None:
     assert job.progress_percent() == 83  # never 100 while running
     job.status = "success"
     assert job.progress_percent() == 100
+
+
+def test_docker_stats_lines_with_terminal_codes():
+    from sudoo.instances.monitor import _stats_line
+
+    body = '{"CPUPerc":"12.50%","MemUsage":"29.55MiB / 3GiB","Name":"sudoo-web"}'
+    for line in (body + "\n", "\x1b[H" + body + "\n", body + " \x1b[K\n", "\x1b[2J\x1b[H" + body + " \x1b[K\n"):
+        name, (cpu, used, limit) = _stats_line(line)
+        assert name == "sudoo-web" and cpu == 12.5 and limit == 3 * 1024**3 and used > 29 * 1024**2
+    assert _stats_line("\x1b[J\n") is None
+    assert _stats_line('{"Name": "x"}\n') is None
+    assert _stats_line("{broken\n") is None

@@ -46,6 +46,25 @@ _WAS_BUSY: set[str] = set()
 _GIT_SECONDS = 60
 
 
+_JSON = json.JSONDecoder()
+
+
+def _stats_line(line: str) -> tuple[str, tuple[float, int, int]] | None:
+    """One line of `docker stats --format '{{json .}}'`: the container's name and figures, or None.
+
+    The lines carry terminal control codes around the JSON (`ESC[H` before it, ` ESC[K` after it), so only the
+    object itself is read."""
+    start = line.find("{")
+    if start == -1:
+        return None
+    try:
+        entry, _ = _JSON.raw_decode(line, start)
+        used, _, limit = entry["MemUsage"].partition("/")
+        return entry["Name"], (float(entry["CPUPerc"].rstrip("%") or 0), _bytes(used), _bytes(limit))
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
 class _DockerStats:
     """The latest figures of every running container, from a `docker stats` stream that runs in the background."""
 
@@ -71,16 +90,12 @@ class _DockerStats:
                 ) as proc:
                     assert proc.stdout is not None
                     for line in proc.stdout:
-                        start = line.find("{")  # each refresh starts with terminal control characters
-                        if start == -1:
-                            continue
-                        entry = json.loads(line[start:])
-                        used, _, limit = entry["MemUsage"].partition("/")
-                        figures = (float(entry["CPUPerc"].rstrip("%") or 0), _bytes(used), _bytes(limit))
-                        with self._lock:
-                            self.latest[entry["Name"]] = figures
-                            self.updated = time.time()
-            except (OSError, ValueError, KeyError) as exc:
+                        parsed = _stats_line(line)
+                        if parsed:
+                            with self._lock:
+                                self.latest[parsed[0]] = parsed[1]
+                                self.updated = time.time()
+            except OSError as exc:
                 print("docker stats stream:", repr(exc), flush=True)
             time.sleep(5)  # Docker restarted or is not reachable yet
 

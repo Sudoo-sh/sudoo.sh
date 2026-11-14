@@ -524,7 +524,9 @@ def findings(name: str, containers: dict[str, dict[str, Any]] | None = None) -> 
         for relative in (COMPOSE, CONF, ENV):
             if _sha(folder / relative) != kept["files"].get(relative):
                 # .env shapes no container (the record does) and only a person can tell which values are right
-                found.append(Finding("env" if relative == ENV else "files", f"{relative} was changed outside the panel"))
+                found.append(
+                    Finding("env" if relative == ENV else "files", f"{relative} was changed outside the panel")
+                )
         loose = _modes(name, kept["inputs"].get("ODOO_USER", ""))
         if loose:
             found.append(Finding("files", f"protection loosened on {', '.join(loose)}"))

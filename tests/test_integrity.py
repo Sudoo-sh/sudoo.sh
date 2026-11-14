@@ -169,7 +169,9 @@ def test_compose_commands_of_a_hardened_instance_ignore_its_env() -> None:
     assert "--env-file" not in store.compose(NAME, "ps")  # not hardened yet: the .env still fills in values
     _apply()
     command = store.compose(NAME, "ps")
-    assert command[command.index("-p") + 1] == f"odoo-{NAME}" and command[command.index("--env-file") + 1] == "/dev/null"
+    assert (
+        command[command.index("-p") + 1] == f"odoo-{NAME}" and command[command.index("--env-file") + 1] == "/dev/null"
+    )
 
 
 # ---------------------------------------------------------------- files

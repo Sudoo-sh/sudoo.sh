@@ -384,6 +384,42 @@
 }
 
 // an instance's latest backup, above the list of its backups
+.backup-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.backup-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  max-height: min(52vh, 440px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 4px 2px 2px; // room for the selected ring
+}
+.backup-picker-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  h3 { margin: 0; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+  .choice { align-items: center; }
+}
+
+.rollback-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s3) var(--s4);
+  padding: var(--s4) var(--s5);
+  border-radius: var(--radius-card, 14px);
+  border: 1px solid color-mix(in srgb, var(--caution) 40%, transparent);
+  background: color-mix(in srgb, var(--caution) 10%, var(--surface));
+  > svg { width: 20px; height: 20px; color: var(--caution); flex: none; stroke-width: 1.75; }
+  .text { flex: 1 1 260px; min-width: 0; }
+  .text b { font-weight: 600; }
+}
+
 .backup-latest {
   display: flex;
   align-items: center;

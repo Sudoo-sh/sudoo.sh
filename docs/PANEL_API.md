@@ -228,8 +228,14 @@ A backup in `GET /backups` (`created` in Unix seconds, `size` in bytes):
 
 ```json
 {"file": "sales-main__sales_main__20261112-000012__daily.zip", "instance": "sales-main", "db": "sales_main",
- "kind": "daily", "size": 48213504, "created": 1794441612.4}
+ "stamp": "20261112-000012", "kind": "daily", "size": 48213504, "created": 1794441612.4,
+ "version": "19.0", "series": "19.0", "edition": "community"}
 ```
+
+`version` and `edition` come from the backup's `manifest.json` (`null` when it does not say; backups of earlier
+versions of Sudoo.sh have no `edition`). `series` is the Odoo release the database belongs to (`"17.1"` for
+`saas~17.1`): a backup only goes into an instance of the same series, and an Enterprise backup only into an
+Enterprise instance.
 
 `kind` is one of:
 
@@ -238,9 +244,11 @@ A backup in `GET /backups` (`created` in Unix seconds, `size` in bytes):
 | `manual` | The `backup` action (**Back up now**); also every file of earlier versions, which have no kind in their name | Until deleted |
 | `daily` | Once a day for each instance used since its last daily backup | Only the latest per instance; removed with the instance |
 | `deletion` | Before an instance is deleted | Until deleted |
-| `before-restore` | At the start of a `restore` action | Only the latest per instance; removed with the instance |
+| `before-restore` | At the start of a `restore` action | Only the latest per instance, for `ROLLBACK_HOURS`; removed with the instance |
+| `before-rollback` | At the start of a `rollback` action | Only the latest per instance, for `ROLLBACK_HOURS`; removed with the instance |
 
-To restore a backup into its instance, use the `restore` action ([below](#instances-jobs-and-actions-in-detail)).
+To restore a backup into an instance (its own, or another instance's), use the `restore` action; to start a new
+instance from one, `from_backup` of `POST /instances` ([below](#instances-jobs-and-actions-in-detail)).
 
 ### Documentation
 
@@ -335,8 +343,13 @@ would use without a `file` (`null` when there is none):
   {"file": "sales-main__sales_main__20261110-153001__manual.zip", "kind": "manual", "database": "sales_main",
    "size_bytes": 47120384, "created_at": "2026-11-10T15:30:01Z"}
 ],
-"restorable_backup": "sales-main__sales_main__20261112-000012__daily.zip"
+"restorable_backup": "sales-main__sales_main__20261112-000012__daily.zip",
+"rollback": {"backups": ["sales-main__sales_main__20261112-101500__before-restore.zip"],
+             "taken_at": "2026-11-12T10:15:00Z", "until": "2026-11-13T10:15:00Z"}
 ```
+
+`rollback` is `null` unless the instance was restored in the last `ROLLBACK_HOURS` (and not rolled back since):
+then it names the `before-restore` backup(s) the `rollback` action puts back, and until when it is offered.
 
 `status` is one of `online`, `starting`, `busy` (a job is running), `paused`, `switched_off`, `stopped`, `unknown`.
 
@@ -376,9 +389,17 @@ Creating an instance takes the same fields as the **New instance** form:
   "name": "",
   "install_modules": true,
   "demo": false,
-  "delete_after_days": 30
+  "delete_after_days": 30,
+  "from_backup": "sales-main__sales_main__20261112-000012__daily.zip"
 }
 ```
+
+`from_backup` is optional: the new instance starts with that backup's database and files (loaded under the new
+database name) instead of an empty database. It needs `instances.restore` and `backups.manage` besides
+`instances.create`; an unknown file answers 404, a backup of another Odoo series (or an Enterprise backup for a
+Community instance) 400. `demo` is ignored then, and `install_modules` installs only the repository's modules the
+backup does not have. A backup of another instance is neutralised (no e-mail, no scheduled actions; the job's notes
+say so).
 
 Actions (`POST /instances/<name>/actions/<action>`); each needs its own permission:
 
@@ -395,17 +416,29 @@ Actions (`POST /instances/<name>/actions/<action>`); each needs its own permissi
 | `remove-submodule` | Remove a submodule | `instances.operate` | `{"path": "oca/web"}` |
 | `switch-branch` | Switch branch | `instances.operate` | `{"branch": "main"}` |
 | `backup` | Back up now | `instances.operate` | `{}` |
-| `restore` | Restore a backup: replaces the database and the filestore | `instances.restore` | `{}` for the latest, or `{"file": "<backup file name>"}` |
+| `restore` | Restore a backup: replaces the database and the filestore | `instances.restore` (and `backups.manage` for another instance's backup) | `{}` for the latest, or `{"file": "<backup file name>"}` |
+| `rollback` | Go back to the state before the last restore, while it is kept (`ROLLBACK_HOURS`) | `instances.restore` | `{}` |
 | `delete` | Delete, after a backup (same as `DELETE /instances/<name>`) | `instances.delete` | `{"confirm": "<name>"}` |
 
 By role: a Developer may run the `instances.update` actions, a Maintainer every action except `delete`, a Super
 admin or Administrator all of them.
 
 `restore` without `file` puts back the newest `manual`, `daily` or `deletion` backup of a database the instance has
-(`restorable_backup` in `GET /instances/<name>`). With `file`, it must be one of the instance's own `backups`. The
-job (`"action": "Restore a backup"`) saves the current state as a `before-restore` backup, stops Odoo, replaces the
-database and the filestore, sets the instance's public address again and starts Odoo. When there is no backup to
-restore, or the backup is of a database the instance does not have, the job fails and `error` says so.
+(`restorable_backup` in `GET /instances/<name>`); 409 when there is none. With `file`, it may be any backup of the
+same Odoo series (`series` in `GET /backups`): one of the instance's own `backups`, or, with `backups.manage` too,
+another instance's (403 without it). An unknown file answers 404, a backup of another series or an Enterprise backup
+for a Community instance 400. The job (`"action": "Restore a backup"`) saves the current state as a `before-restore`
+backup, stops Odoo, replaces the database and the filestore, sets the instance's public address again and starts
+Odoo. Another instance's backup is loaded under this instance's database name and neutralised first (Odoo's
+`neutralize` on Odoo 16 and later: mail servers, scheduled actions and integrations off; a new database identity);
+the job's notes say so; its administrator (user 2) then gets this instance's admin password, and
+`GET /instances/<name>/credentials` shows that administrator's `login`. When the backup is of a database the
+instance does not have, the job fails and `error` says so.
+
+`rollback` puts back the `before-restore` backup named in `rollback` of `GET /instances/<name>`; 409 when there is
+none (also once the instance was rolled back to it; restoring that file with `restore` still puts it back). It
+saves the current state as `before-rollback` first (never as `before-restore`, so it cannot replace what it
+restores). Restoring the instance's own `before-restore` file with `restore` does the same.
 
 ```
 POST /api/v1/instances/sales-main/actions/restore  {"file": "sales-main__sales_main__20261110-153001__manual.zip"}

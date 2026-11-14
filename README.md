@@ -99,7 +99,9 @@ command to use it: people receive a link.
    automatic or by hand, the database and files are saved as a standard Odoo backup, listed under **Backups**.
 8. **Daily backups with one-click restore**: every instance that was used during the day is backed up once a day,
    at a time you choose, keeping its latest daily backup. **Restore the latest** on the instance's page puts a
-   backup back in a minute or two, after saving the current state so the restore can be undone. See
+   backup back in a minute or two, after saving the current state, and **Rollback** undoes it for 24 hours. Any
+   backup can also go into another instance of the same Odoo version, or start a new instance, neutralised so the
+   copy sends no e-mail. See
    [Backups](docs/USER_MANUAL.md#10-backups-and-audit-log).
 9. **Five roles**: super admin, administrator, maintainer, developer and viewer, each a clear set of permissions.
    People sign in with their e-mail address; passwords follow the NIST rules (length and a blocklist, no forced

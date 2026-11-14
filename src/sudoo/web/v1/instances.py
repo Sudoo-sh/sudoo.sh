@@ -4,10 +4,12 @@
     GET    /api/v1/instances/<name>                  one instance, with commits, submodules and recent jobs
     GET    /api/v1/instances/<name>/credentials      Odoo admin and master passwords, ports
     GET    /api/v1/instances/<name>/logs?lines=      the end of Odoo's log
-    POST   /api/v1/instances                         create                         -> 202, Location: job
+    POST   /api/v1/instances                         create; {"from_backup"} optional -> 202, Location: job
     PATCH  /api/v1/instances/<name>                  change automation settings and lifetime
     POST   /api/v1/instances/<name>/actions/<action> restart, update, pause, ...    -> 202, Location: job
-                                                     restore: {"file"} optional, the latest backup otherwise
+                                                     restore: {"file"} optional (any instance's backup of the
+                                                     same Odoo series), the latest backup otherwise
+                                                     rollback: back to before the last restore (ROLLBACK_HOURS)
     DELETE /api/v1/instances/<name>                  delete after a backup; body {"confirm": "<name>"} -> 202
     GET    /api/v1/instance-plan?repo=&branch=&name= the name and database a new instance would get
     GET    /api/v1/instance-quota                    how many instances the caller may still create, and when
@@ -16,7 +18,9 @@
     GET    /api/v1/jobs/<id>/log?offset=             its technical log from a line on
     GET    /api/v1/versions                          Odoo versions and Enterprise availability
 
-Every endpoint names the permission it needs (roles.py); each action has its own (ACTIONS).
+Every endpoint names the permission it needs (roles.py); each action has its own (ACTIONS). Putting another
+instance's backup into an instance, or starting a new instance from a backup, also needs backups.manage, the
+permission that shows every backup (_usable_backup).
 """
 
 from __future__ import annotations
@@ -30,7 +34,7 @@ from flask import Blueprint, Response, abort, g, request
 from sudoo import addons, exposure
 from sudoo.config import settings
 from sudoo.core import events, jobs, vault
-from sudoo.instances import odoo, operations, store
+from sudoo.instances import backups, odoo, operations, store
 from sudoo.limits import quotas
 from sudoo.repos import github
 
@@ -55,6 +59,7 @@ ACTIONS = {
     "switch-branch": ("Switch branch", "update", "instances.operate"),
     "backup": ("Back up", "backup", "instances.operate"),
     "restore": ("Restore a backup", "restore", "instances.restore"),
+    "rollback": ("Roll back the restore", "restore", "instances.restore"),
     "delete": ("Delete instance", "delete", "instances.delete"),
 }
 
@@ -101,7 +106,7 @@ def credentials(name: str) -> Response:
     log("instance credentials viewed", instance=name)
     return ok(
         {
-            "login": "admin",
+            "login": env.get("ODOO_ADMIN_LOGIN") or "admin",  # another login when started from a backup
             "admin_password": env["ODOO_ADMIN_PASSWORD"],
             "master_password": vault.decrypt(env["MASTER_PASSWORD"], store.master_password_label(name)),
             "ports": {key.lower(): int(env[key]) for key in env if key.endswith("_PORT") and env[key].isdigit()},
@@ -135,6 +140,22 @@ def _plan_name(repo: str, branch: str, custom_name: str) -> tuple[str, str]:
     while store.folder(name).exists():
         name, counter = f"{base[:26].strip('-')}-{counter}", counter + 1
     return name, name.replace("-", "_")
+
+
+def _usable_backup(file_name: str, version: str, edition: str, instance: str | None = None) -> str:
+    """`file_name` when that backup exists, the caller may use it and it fits Odoo `version` and `edition`.
+
+    A backup of `instance` itself needs nothing more than the action's permission; any other backup (another
+    instance's, or one to start a new instance from) also needs backups.manage, which shows every backup."""
+    # the permission first: without backups.manage, other instances' backups must not even be found (404 or not)
+    match = backups.FILE_RE.match(file_name)
+    if instance is None or match is None or match["instance"] != instance:
+        refuse_unless("backups.manage", f"use backup {file_name[:80]}" + (f" for {instance}" if instance else ""))
+    path = check.backup_file(file_name)  # 404 for an unknown file or anything that is not a backup name
+    problem = backups.problem(path.name, version, edition)
+    if problem:
+        abort(400, problem)
+    return path.name
 
 
 @blueprint.get("/instance-plan")
@@ -171,6 +192,10 @@ def create() -> Response:
         abort(400, "Enter a GitHub repository or a name for the instance.")
     if edition == "enterprise" and not addons.available(version):
         abort(400, f"Odoo {version} Enterprise is not available on this server.")
+    from_backup = check.text(data, "from_backup", max_length=200) or None
+    if from_backup:
+        refuse_unless("instances.restore", "create an instance from a backup")
+        from_backup = _usable_backup(from_backup, version, edition)
     try:
         quotas.claim(g.user["name"])
     except quotas.QuotaError as error:
@@ -192,9 +217,14 @@ def create() -> Response:
         **{key: check.flag(data, key, getattr(settings, key)) for key in ("auto_update", "auto_upgrade", "auto_pause")},
         "ports": store.reserve_ports(exposure.provider().instance_ports()),
         "created_by": g.user["name"],
+        "from_backup": from_backup,
     }
     job = jobs.start(name, "Create instance", "create", operations.create, plan_data, user=g.user["name"])
-    log("Create instance", instance=name, detail=f"Odoo {version} {edition}")
+    log(
+        "Create instance",
+        instance=name,
+        detail=f"Odoo {version} {edition}" + (f" from {from_backup}" if from_backup else ""),
+    )
     response = _accepted(job)
     response.headers["Content-Location"] = f"{PREFIX}/instances/{name}"
     return response
@@ -242,7 +272,20 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
         return operations.delete, (name,)
     if action == "restore":
         file_name = check.text(data, "file", max_length=200) or None
+        if file_name:
+            env = store.read_env(name)
+            file_name = _usable_backup(file_name, env["ODOO_VERSION"], env.get("EDITION", "community"), name)
+        elif backups.latest(name) is None:
+            abort(409, "This instance has no backup to restore.")
         return operations.restore, (name, file_name)
+    if action == "rollback":
+        if not backups.rollback_snapshot(name):
+            abort(
+                409,
+                "There is nothing to roll back to: no restore in the last "
+                f"{settings.rollback_hours:g} hours, or the instance was rolled back already.",
+            )
+        return operations.rollback, (name,)
     if action == "upgrade":
         return operations.upgrade_modules, (name, check.module_list(check.text(data, "modules", max_length=4000)))
     if action == "switch-branch":

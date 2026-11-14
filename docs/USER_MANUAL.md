@@ -225,6 +225,7 @@ The **Backups** card on the **Overview** tab holds the instance's backups.
 | :--- | :--- |
 | **Back up now** | Saves the database and the files as an Odoo backup now. A running instance keeps running; a paused one stays paused. |
 | **Restore the latest** | Puts back the newest backup taken by hand, daily or before a deletion. Greyed out when the instance has none. |
+| **Restore another backup…** | Opens a list of every backup on the server, grouped by instance, with its Odoo version and date. Pick one and confirm to put it into this instance, even a backup of another instance. Backups of another Odoo version, or Enterprise backups on a Community instance, are greyed out with the reason. Shown to roles that may both restore and manage backups (administrators and super admins). |
 | **Latest backup** | The date and time of that backup, its kind, its size and how long ago it was taken. |
 | The list | Every backup of the instance, newest first, with when it was taken, its kind and its size. **Restore** puts back that backup; **Download** (the arrow) saves the zip, for roles that may manage backups. |
 
@@ -240,8 +241,27 @@ replaced. Click **Restore** to confirm. The job:
    database again,
 4. starts Odoo.
 
-It takes about a minute or two. The instance is running afterwards, even if it was paused before. To undo a
-restore, restore the **Before a restore** backup.
+It takes about a minute or two. The instance is running afterwards, even if it was paused before.
+
+**A backup of another instance.** With **Restore another backup…** you can put any instance's backup of the same Odoo
+version into this one, for example to give a test instance a copy of the live data. The backup's database is loaded
+under this instance's database name, and its files go with it. Because the data comes from another instance, the
+job then neutralises it, the way Odoo.sh does for copies: outgoing mail servers and scheduled actions are switched
+off (Odoo 16 and later use Odoo's own `neutralize` command, which also covers payment providers and other
+integrations of installed apps), and the copy gets its own database identity. The job's notes say so. Switch mail
+servers and scheduled actions back on in Odoo when you want them. The copied administrator (the first user, usually
+`admin`) gets this instance's admin password, so the **Access** tab still works. The other instance's modules come
+with its data: if this instance's repository does not have them, Odoo skips them (their screens are missing) until
+you add them. A backup of the same instance is put back as it
+was, without neutralising.
+
+**Rollback.** After a restore, a banner at the top of the instance's page says when the instance was restored and
+offers **Rollback to before the restore** until a given time (24 hours after the restore unless a super admin changed
+`ROLLBACK_HOURS`). Click it and confirm to go back to the state just before the restore. The rollback saves the
+current state first as a **Before a rollback** backup, kept as long, and never replaces the state it goes back to.
+Once you have rolled back, the banner goes; to go back to that state again, restore the **Before a restore**
+backup from the Backups card. After that time the **Before a restore** backup is removed and the banner goes. A second restore within that time
+replaces it: Rollback always goes back to just before the last restore.
 
 ---
 
@@ -275,7 +295,14 @@ Click **New instance** in the sidebar (roles that may create instances).
    | **Pause when nobody uses it** | The instance pauses after some hours without visits, to free memory. |
    | **Lifetime** | Deleted that many days after creation (30 by default), with a backup first; or **Keep until deleted by hand**. |
 
-9. Click **Create instance**.
+9. **Start from a backup** (optional; administrators and super admins): switch it on and pick a backup from the
+   list, grouped by instance. Only backups of the chosen Odoo version (and, for Enterprise backups, an Enterprise
+   instance) are listed. The new instance starts with that backup's data and files instead of an empty database,
+   loaded under its own database name. A backup of another instance is neutralised: no e-mail goes out and no
+   scheduled actions run until you switch them back on in Odoo. **Install the repository's modules** then installs
+   only the modules the backup does not have yet; **Load demo data** does not apply. The backup's administrator
+   (the first user, usually `admin`) gets the instance's admin password, so the **Access** tab works for it.
+10. Click **Create instance**.
 
 If the server has a limit on the number of instances, or a waiting time between two new instances, a warning above
 the form says so before you start, and the numbers under the button show how many exist.
@@ -509,7 +536,8 @@ size. An instance's own backups are also on the **Backups** card of its **Overvi
 | **By hand** | **Back up now** on an instance's page. | Until someone deletes it. |
 | **Daily** | Once a day, for each instance that was used since its last daily backup (below). | Only the latest per instance: a new daily backup replaces the previous one. Removed when the instance is deleted. |
 | **Before deletion** | Before every deletion, automatic or by hand. If the backup fails, the instance is not deleted. | Until someone deletes it. |
-| **Before a restore** | At the start of every restore: the state just before it, so the restore can be undone. | Only the latest per instance. Removed when the instance is deleted. |
+| **Before a restore** | At the start of every restore: the state just before it, offered as **Rollback**. | Only the latest per instance, for 24 hours (`ROLLBACK_HOURS`). Removed when the instance is deleted. |
+| **Before a rollback** | At the start of every rollback: the state just before it, so a rollback can be undone by hand. | Only the latest per instance, for 24 hours (`ROLLBACK_HOURS`). Removed when the instance is deleted. |
 
 **Daily backups.** Every day at the time set under **Settings, Backups** (00:00 UTC by default), the panel backs up
 each instance that was used since its last daily backup. An instance counts as used when someone opened it through
@@ -527,13 +555,18 @@ What a backup contains: one zip file in Odoo's own backup format, with
 | :--- | :--- |
 | `dump.sql` | The whole database. |
 | `filestore/` | The attachments and images that Odoo keeps outside the database. |
-| `manifest.json` | The database name and the Odoo version. |
+| `manifest.json` | The database name, the Odoo version and (backups of this version of Sudoo.sh on) the edition. |
 
 **Download** saves the zip. **Delete** removes a backup you no longer need.
 
 **Restoring an instance.** To put an instance back to an earlier state, use **Restore the latest** or **Restore**
 on its **Backups** card ([Restoring](#the-backups-card)). The current state is saved first as a **Before a
-restore** backup.
+restore** backup, and the instance offers **Rollback** for a while. **Restore another backup…** puts a backup of
+another instance of the same Odoo version into it.
+
+**A new instance from a backup.** On the **New instance** page, switch on **Start from a backup** and pick one of
+the backups of the chosen Odoo version: the instance starts with that data instead of an empty database
+([section 4](#4-creating-an-instance)).
 
 **Restoring into another Odoo.** The zip also works in any Odoo of the same version, for example to make a copy:
 
@@ -667,8 +700,13 @@ backup, and confirm. The current state is saved first as a **Before a restore** 
 a minute or two ([The Backups card](#the-backups-card)).
 
 **I restored the wrong backup. Can I undo it?**
-Yes. Restore the **Before a restore** backup in the instance's list: it holds the state just before the last
-restore.
+Yes, for 24 hours (unless your administrator changed it): click **Rollback to before the restore** in the banner at
+the top of the instance's page. It puts back the state just before the last restore.
+
+**Can I copy one instance's data into another?**
+Yes, if both run the same Odoo version: on the target instance's **Backups** card click **Restore another
+backup…**, or start a new instance from the backup on the **New instance** page. The copy is neutralised: it sends
+no e-mail and runs no scheduled actions until you switch them back on. Administrators and super admins can do this.
 
 **Can another system send webhooks to an instance, or call its API?**
 Yes, through the instance's link. See [API and webhooks](API.md). Remember the link can change after a server

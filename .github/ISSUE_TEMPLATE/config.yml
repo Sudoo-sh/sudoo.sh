@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/Yosef-AlSabbah/sudoo.sh/security/advisories/new
+    url: https://github.com/Sudoo-sh/sudoo.sh/security/advisories/new
     about: Report security problems privately, never in a public issue.
   - name: Documentation
-    url: https://github.com/Yosef-AlSabbah/sudoo.sh/blob/main/docs/README.md
+    url: https://github.com/Sudoo-sh/sudoo.sh/blob/main/docs/README.md
     about: Most "how do I...?" questions are answered here.

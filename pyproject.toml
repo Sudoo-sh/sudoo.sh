@@ -22,8 +22,8 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/Yosef-AlSabbah/sudoo.sh"
-Documentation = "https://github.com/Yosef-AlSabbah/sudoo.sh/tree/main/docs"
+Repository = "https://github.com/Sudoo-sh/sudoo.sh"
+Documentation = "https://github.com/Sudoo-sh/sudoo.sh/tree/main/docs"
 
 [project.scripts]
 "sudoo.sh" = "sudoo.cli:main"

@@ -115,6 +115,8 @@ export interface Instance {
   backups?: InstanceBackup[];
   /** the backup "Restore the latest backup" puts back */
   restorable_backup?: string | null;
+  /** while the state before the last restore is kept (ROLLBACK_HOURS): what Rollback puts back, and until when */
+  rollback?: { backups: string[]; taken_at: string; until: string } | null;
 }
 
 export interface Credentials {
@@ -248,14 +250,20 @@ export interface Token {
   last_used: number | null;
 }
 
-export type BackupKind = "manual" | "daily" | "deletion" | "before-restore";
+export type BackupKind = "manual" | "daily" | "deletion" | "before-restore" | "before-rollback";
 export interface Backup {
   file: string;
   instance: string;
   db: string;
+  stamp: string;
   kind: BackupKind;
   size: number;
   created: number;
+  /** from the backup's manifest.json; null when it does not say */
+  version: string | null;
+  /** the Odoo series the database belongs to ("17.0"): it only goes into an instance of the same series */
+  series: string | null;
+  edition: "community" | "enterprise" | null;
 }
 
 /** A backup as an instance lists it. */

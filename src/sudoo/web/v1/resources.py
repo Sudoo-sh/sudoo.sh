@@ -57,6 +57,24 @@ def _usage(name: str) -> dict[str, Any]:
     return {"cpu_percent": measured.get("cpu", 0), "memory_bytes": measured.get("memory", 0)}
 
 
+def rollback(name: str) -> dict[str, Any] | None:
+    """The instance's Rollback offer after a restore: {"backups", "taken_at", "until"}, or None (no restore in the
+    last ROLLBACK_HOURS, or it was rolled back already)."""
+    snapshot = backups.rollback_snapshot(name)
+    if not snapshot or STATE.get(name).get("rolled_back") == snapshot[0]["file"]:
+        return None
+    return {
+        "backups": [b["file"] for b in snapshot],
+        "taken_at": iso(snapshot[0]["created"]),
+        "until": iso(snapshot[0]["created"] + settings.rollback_hours * 3600),
+    }
+
+
+def backup_resource(backup: dict[str, Any]) -> dict[str, Any]:
+    """A backup as GET /api/v1/backups lists it: the file's facts and what its manifest says."""
+    return backup | backups.details(backup["file"])
+
+
 def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
     """An instance as the API shows it: grouped, ISO times, no passwords or ports."""
     env, measured, state = store.read_env(name), monitor.STATUS.get(name, {}), STATE.get(name)
@@ -114,6 +132,7 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
                 for b in backups.of_instance(name)
             ],
             "restorable_backup": (latest or {}).get("file"),
+            "rollback": rollback(name),
             "recent_jobs": [
                 job_reference(job)
                 for job in reversed(jobs.JOBS.values())

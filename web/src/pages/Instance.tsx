@@ -10,6 +10,7 @@ import {
   Globe,
   History,
   KeyRound,
+  Undo2,
   Layers,
   MoreHorizontal,
   Pause,
@@ -27,7 +28,8 @@ import { useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useCredentials, useHistory, useInstance, useJobs, useOdooLog } from "@/api/queries";
-import type { BackupKind, Instance, InstanceBackup, Job, Permission } from "@/api/types";
+import type { Instance, InstanceBackup, Job, Permission } from "@/api/types";
+import { BACKUP_KIND as KIND_LABEL, BackupPicker } from "@/components/BackupPicker";
 import { LiveChart } from "@/components/charts/LiveChart";
 import { JobLine, Monogram } from "@/components/InstanceCard";
 import { JobDrawer, Terminal } from "@/components/JobDrawer";
@@ -73,7 +75,7 @@ export function InstancePage() {
   const { data: instance, isPending, error } = useInstance(name);
   const [jobId, setJobId] = useState<string | null>(null);
   const run = useRun(name, setJobId);
-  const [dialog, setDialog] = useState<null | "upgrade" | "branch" | "delete" | "submodule">(null);
+  const [dialog, setDialog] = useState<null | "upgrade" | "branch" | "delete" | "submodule" | "rollback">(null);
 
   if (error && !instance) return <NotFoundPage />;
   if (isPending || !instance)
@@ -184,6 +186,17 @@ export function InstancePage() {
           <JobLine job={{ ...instance.current_job, steps: [] }} />
         </button>
       )}
+      {instance.rollback && can("instances.restore") && (
+        <div className="rollback-banner" role="status">
+          <Undo2 />
+          <div className="text small">
+            <b>Restored {ago(instance.rollback.taken_at)}.</b> The state before the restore is kept until {dateTime(instance.rollback.until)}; you can go back to it until then.
+          </div>
+          <Button variant="primary" icon={<Undo2 />} disabled={busy} onClick={() => setDialog("rollback")}>
+            Rollback to before the restore
+          </Button>
+        </div>
+      )}
       {instance.git.branch_deleted_on_github && (
         <Callout tone="warning">
           The branch <b>{instance.git.branch}</b> no longer exists on GitHub, so this instance gets no updates. Switch it to another branch, or delete it.
@@ -213,6 +226,9 @@ export function InstancePage() {
       {dialog === "branch" && <BranchDialog instance={instance} onClose={() => setDialog(null)} onRun={(branch) => act("switch-branch", "Switch branch", { branch })} />}
       {dialog === "submodule" && <SubmoduleDialog version={instance.odoo.version} onClose={() => setDialog(null)} onRun={(body) => act("add-submodule", "Add submodule", body)} />}
       {dialog === "delete" && <DeleteDialog name={name} onClose={() => setDialog(null)} />}
+      {dialog === "rollback" && instance.rollback && (
+        <RollbackDialog instance={instance} onClose={() => setDialog(null)} onRun={() => act("rollback", "Rollback")} />
+      )}
     </Page>
   );
 }
@@ -305,16 +321,10 @@ function Overview({ instance, busy, act }: { instance: Instance; busy: boolean; 
 
 // ---------------------------------------------------------------- backups
 
-const KIND_LABEL: Record<BackupKind, string> = {
-  manual: "By hand",
-  daily: "Daily",
-  deletion: "Before deletion",
-  "before-restore": "Before a restore",
-};
-
 function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolean; act: (action: string, title: string, body?: Record<string, unknown>) => void }) {
   const can = useCan();
   const [restoring, setRestoring] = useState<InstanceBackup | null>(null);
+  const [picking, setPicking] = useState(false);
   const list = instance.backups ?? [];
   const latest = list.find((b) => b.file === instance.restorable_backup);
   return (
@@ -329,6 +339,11 @@ function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolea
         {can("instances.restore") && (
           <Button size="sm" icon={<History />} disabled={busy || !latest} onClick={() => latest && setRestoring(latest)}>
             Restore the latest
+          </Button>
+        )}
+        {can("instances.restore") && can("backups.manage") && (
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => setPicking(true)}>
+            Restore another backup…
           </Button>
         )}
       </div>
@@ -373,6 +388,10 @@ function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolea
         <RestoreDialog instance={instance} backup={restoring} onClose={() => setRestoring(null)}
           onRun={() => act("restore", "Restore", { file: restoring.file })} />
       )}
+      {picking && (
+        <AnotherBackupDialog instance={instance} onClose={() => setPicking(false)}
+          onRun={(file) => act("restore", "Restore", { file })} />
+      )}
     </section>
   );
 }
@@ -386,7 +405,43 @@ function RestoreDialog({ instance, backup, onClose, onRun }: { instance: Instanc
           The database <b className="mono">{backup.database}</b> and its files go back to how they were on {dateTime(backup.created_at)}. Changes made since then are replaced.
         </Callout>
         <p className="small muted">
-          The current state is backed up first and kept as "Before a restore", so this can be undone. {instance.name} restarts and is back in a minute or two.
+          The current state is backed up first and kept as "Before a restore": the instance offers <b>Rollback</b> for a while afterwards. {instance.name} restarts and is back in a minute or two.
+        </p>
+      </div>
+    </Modal>
+  );
+}
+
+function AnotherBackupDialog({ instance, onClose, onRun }: { instance: Instance; onClose: () => void; onRun: (file: string) => void }) {
+  const [file, setFile] = useState<string | null>(null);
+  const foreign = !!file && !file.startsWith(`${instance.name}__`);
+  return (
+    <Modal wide title="Restore another backup" description={`Any backup of Odoo ${instance.odoo.version} can go into ${instance.name}, also one of another instance.`} onClose={onClose}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" disabled={!file} onClick={() => { if (file) { onRun(file); onClose(); } }}>Restore</Button></>}>
+      <div className="stack">
+        <BackupPicker version={instance.odoo.version} edition={instance.odoo.edition} value={file} onChange={setFile} />
+        {file && (
+          <Callout tone="warning">
+            The database <b className="mono">{instance.odoo.database}</b> and its files are replaced by the backup's. The current state is backed up first and offered as <b>Rollback</b> for a while.
+            {foreign && <> The data comes from another instance, so it is neutralised: it sends no e-mail and runs no scheduled actions until you switch them back on in Odoo.</>}
+          </Callout>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function RollbackDialog({ instance, onClose, onRun }: { instance: Instance; onClose: () => void; onRun: () => void }) {
+  const rollback = instance.rollback!;
+  return (
+    <Modal title="Rollback to before the restore?" description={`To the state of ${dateTime(rollback.taken_at)}`} onClose={onClose}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" icon={<Undo2 />} onClick={() => { onRun(); onClose(); }}>Rollback</Button></>}>
+      <div className="stack">
+        <Callout tone="warning">
+          The database and its files go back to how they were just before the restore of {dateTime(rollback.taken_at)}. Changes made since the restore are replaced.
+        </Callout>
+        <p className="small muted">
+          The current state is backed up first and kept as "Before a rollback" until {dateTime(rollback.until)}. {instance.name} restarts and is back in a minute or two.
         </p>
       </div>
     </Modal>

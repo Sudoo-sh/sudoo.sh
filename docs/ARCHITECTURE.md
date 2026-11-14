@@ -30,7 +30,7 @@ each part was chosen.
 | **Roles** | Five roles, each a set of named permissions; every endpoint and action checks a permission, never a role. | `sudoo/roles.py` |
 | **Storage** | The panel's own data (accounts, tokens, audit log, instance state) in SQLite, behind a storage plugin. | `sudoo/storage/` |
 | **Background work** | Threads in the panel's process: resource monitor (every `METRICS_INTERVAL_SECONDS`, 5 s, reading a continuous `docker stats` stream), automatic pause (every 2 min), automatic deletion (every 10 min), daily backups (checked every minute, run once `DAILY_BACKUP_TIME` has passed in `TIMEZONE`), GitHub polling (every `POLL_MINUTES`). | `sudoo/background.py`, `instances/monitor.py` |
-| **Backups** | Odoo-format zips (`dump.sql`, `filestore/`, `manifest.json`) in `BACKUPS_DIR`, named `<instance>__<database>__<YYYYMMDD-HHMMSS>__<kind>.zip`. Four kinds: `manual`, `daily`, `deletion`, `before-restore`; each instance keeps only its latest `daily` and `before-restore`. Restoring replaces an instance's database and filestore in place. | `sudoo/instances/backups.py`, `instances/operations.py` |
+| **Backups** | Odoo-format zips (`dump.sql`, `filestore/`, `manifest.json`) in `BACKUPS_DIR`, named `<instance>__<database>__<YYYYMMDD-HHMMSS>__<kind>.zip`. Five kinds: `manual`, `daily`, `deletion`, `before-restore`, `before-rollback`; each instance keeps only its latest `daily`, `before-restore` and `before-rollback`, the last two for `ROLLBACK_HOURS`. Restoring replaces an instance's database and filestore in place; a backup of another instance of the same Odoo series is loaded under the target's database name and neutralised. | `sudoo/instances/backups.py`, `instances/operations.py` |
 | **Jobs** | Every action (create, update, restart...) runs as a job in its own thread, with steps, notes and a log. One job at a time per instance; others wait. | `sudoo/core/jobs.py`, `instances/operations.py` |
 | **Exposure plugin** | Makes the panel and each gateway reachable from outside. Default `cloudflare-quick`: one `cloudflared` container per target, opening an outgoing connection to Cloudflare. Alternative `host-ports`: the ports are opened on the server. | `sudoo/exposure/` |
 | **Add-on source plugin** | Provides the Enterprise add-ons of a version: an existing folder (`folder`) or a branch of a git repository (`git`). | `sudoo/addons/` |
@@ -107,7 +107,12 @@ Visits are kept in memory and written at most every 30 seconds; the other fields
 loop) or a `deletion` one (first step of a deletion). A backup starts only the database container of a paused
 instance and stops it again afterwards. The `restore` job (permission `instances.restore`) saves a `before-restore`
 backup, stops Odoo, drops and creates the database, loads `dump.sql` through `psql`, replaces the filestore through
-a one-off container of the instance's Odoo image, sets `web.base.url` to the current link and starts Odoo.
+a one-off container of the instance's Odoo image, sets `web.base.url` to the current link and starts Odoo. A
+backup of another instance (checked against the Odoo series in its `manifest.json`) goes into the target's database
+name and is neutralised (`odoo neutralize` in a one-off container on Odoo 16+, SQL otherwise) before Odoo starts; a
+new instance can be created from one the same way instead of an empty database. The `rollback` job restores the
+newest `before-restore` backup while it is younger than `ROLLBACK_HOURS`, after saving a `before-rollback` one (so it
+never replaces its own snapshot); a background loop removes expired snapshots every five minutes when no job runs.
 
 ---
 
@@ -319,7 +324,8 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
 ### Daily backups of used instances, restored in place
 - **Chosen:** once a day, at `DAILY_BACKUP_TIME` in `TIMEZONE`, each instance used since its last daily backup is
   backed up, and the new daily backup replaces the previous one. A restore puts a backup back into the same
-  instance, after saving the current state as a `before-restore` backup.
+  instance (or another instance of the same Odoo series, neutralised), after saving the current state as a
+  `before-restore` backup that is offered as Rollback for `ROLLBACK_HOURS`.
 - **Why:** people change data in an instance and want yesterday's state back with one click, without Odoo's database
   manager or the master password. Backing up only used instances keeps the nightly work and the disk use to what
   changed: an instance nobody opened still has its last daily backup. Keeping one daily and one before-restore

@@ -29,7 +29,7 @@ Docker. A disposable virtual machine or a spare server is the safest
 place to run it: the panel manages Docker containers on the host.
 
 ```bash
-git clone https://github.com/Yosef-AlSabbah/sudoo.sh.git
+git clone https://github.com/Sudoo-sh/sudoo.sh.git
 cd sudoo.sh
 uv sync                        # creates .venv with the project, its dependencies and the development tools
 uv run pre-commit install      # runs the checks below on every commit

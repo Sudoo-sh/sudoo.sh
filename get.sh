@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sudoo.sh - install on a fresh server with one command:
 #
-#     curl -fsSL https://raw.githubusercontent.com/Yosef-AlSabbah/sudoo.sh/main/get.sh | sudo bash
+#     curl -fsSL https://raw.githubusercontent.com/Sudoo-sh/sudoo.sh/main/get.sh | sudo bash
 #
 # Installs Docker if it is missing (Docker's own installer), downloads the latest release of Sudoo.sh, and runs its
 # install.sh, which prints the panel's address and the setup code for the first account.
@@ -9,7 +9,7 @@
 # Created by Yousef M. Y. Al Sabbah.
 set -euo pipefail
 
-REPO="Yosef-AlSabbah/sudoo.sh"
+REPO="Sudoo-sh/sudoo.sh"
 VERSION="${SUDOO_VERSION:-latest}"
 KIT="/opt/sudoo.sh-kit"
 

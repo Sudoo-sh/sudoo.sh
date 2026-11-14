@@ -1,18 +1,18 @@
 <div align="center">
 
-<h1>
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/brand/logo-dark.svg">
-  <img src="docs/images/brand/logo-light.svg" alt="sudoo.sh" height="72">
-</picture>
-</h1>
+<a href="https://sudoo.sh"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/brand/mark-animated-dark.svg"><img src="docs/images/brand/mark-animated.svg" alt="Sudoo.sh" width="96" height="96"></picture></a>
 
-**The self-hosted way to run Odoo branches, the way Odoo.sh does: every branch of your repository becomes a running
-Odoo with its own HTTPS link, in about two minutes, on your own server.**
+<h1>Sudoo.sh</h1>
+
+**A self-hosted Odoo.sh alternative: every branch of your repository becomes a running Odoo, any version, Community
+or Enterprise, with its own HTTPS link, in about two minutes, on a server you own.**
+
+For teams that build, demo and teach Odoo and want a live preview of every branch without a hosted subscription or
+handing their code to someone else's cloud.
 
 `sudo` + `Odoo`: full control of your Odoo instances, on a server you own.
 
-[![CI](https://github.com/Yosef-AlSabbah/sudoo.sh/actions/workflows/ci.yml/badge.svg)](https://github.com/Yosef-AlSabbah/sudoo.sh/actions/workflows/ci.yml)
+[![CI](https://github.com/Sudoo-sh/sudoo.sh/actions/workflows/ci.yml/badge.svg)](https://github.com/Sudoo-sh/sudoo.sh/actions/workflows/ci.yml)
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)](LICENSE.md)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
 <br>
@@ -49,7 +49,7 @@ Community and Enterprise · Any Odoo version · GitHub sync · Live metrics · F
 On a Linux server (Ubuntu or Debian), one command installs Docker if needed and then Sudoo.sh:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Yosef-AlSabbah/sudoo.sh/main/get.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/Sudoo-sh/sudoo.sh/main/get.sh | sudo bash
 ```
 
 It prints the panel's link and a **setup code**. Open the link, enter the code, and create your own account with
@@ -278,7 +278,7 @@ instance), 20 GB of free disk, and outgoing internet access to GitHub, Docker Hu
 exposure plugin no incoming port is needed. Docker is installed for you if it is missing.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Yosef-AlSabbah/sudoo.sh/main/get.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/Sudoo-sh/sudoo.sh/main/get.sh | sudo bash
 ```
 
 The same command updates an installed panel to the latest release; instances, accounts, keys and settings are kept,
@@ -393,6 +393,12 @@ and share, for any **noncommercial** purpose.
 | Personal use, study, research, testing | Selling it, or selling a service built on it |
 | Use by charities, schools, public bodies | Using it to make money for a company without permission |
 | Changing it and sharing your changes under the same licence | Removing the licence or the copyright notice |
+
+### Name and logo
+
+"Sudoo" and "Sudoo.sh", the logo and the marketplace's "Official" and "Verified" badges are trademarks of the
+author, and the licence does not cover them: a changed copy may not use the name or logo, and only plugins
+published on marketplace.sudoo.sh may show the badges. See [TRADEMARKS.md](TRADEMARKS.md).
 
 ### Commercial licences
 

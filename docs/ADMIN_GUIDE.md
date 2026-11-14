@@ -52,7 +52,7 @@ Compose is missing on Ubuntu with the `docker.io` package, install `docker-compo
 On a fresh server, one command installs everything:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Yosef-AlSabbah/sudoo.sh/main/get.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/Sudoo-sh/sudoo.sh/main/get.sh | sudo bash
 ```
 
 What `get.sh` does, in order:
@@ -64,8 +64,8 @@ What `get.sh` does, in order:
    Choose another version with `SUDOO_VERSION`:
 
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/Yosef-AlSabbah/sudoo.sh/main/get.sh | sudo SUDOO_VERSION=v1.0.0 bash
-   curl -fsSL https://raw.githubusercontent.com/Yosef-AlSabbah/sudoo.sh/main/get.sh | sudo SUDOO_VERSION=main bash
+   curl -fsSL https://raw.githubusercontent.com/Sudoo-sh/sudoo.sh/main/get.sh | sudo SUDOO_VERSION=v1.0.0 bash
+   curl -fsSL https://raw.githubusercontent.com/Sudoo-sh/sudoo.sh/main/get.sh | sudo SUDOO_VERSION=main bash
    ```
 
 4. **Installing.** Runs `install.sh` from the downloaded kit.
@@ -130,7 +130,7 @@ Keep the setup code private until the first account exists: whoever uses it firs
 Run the same command again:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Yosef-AlSabbah/sudoo.sh/main/get.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/Sudoo-sh/sudoo.sh/main/get.sh | sudo bash
 ```
 
 or copy a new kit to the server and run `sudo ./install.sh` in it.

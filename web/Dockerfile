@@ -8,7 +8,7 @@ RUN npm run build
 
 FROM caddy:2-alpine
 LABEL org.opencontainers.image.title="Sudoo.sh web" \
-      org.opencontainers.image.source="https://github.com/Yosef-AlSabbah/sudoo.sh" \
+      org.opencontainers.image.source="https://github.com/Sudoo-sh/sudoo.sh" \
       org.opencontainers.image.authors="Yousef M. Y. Al Sabbah"
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY --chmod=755 entrypoint.sh /entrypoint.sh

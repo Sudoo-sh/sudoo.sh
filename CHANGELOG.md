@@ -24,6 +24,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **The logo follows the theme:** the favicon and the status pages' icon switch to the graphite tile in dark
+  mode, and the README shows the dark animated mark there.
+- **TRADEMARKS.md:** what you may do with the name, logo and badges; the licence covers the code only.
 - **The logo is redrawn:** a plum ring with a dot and a text cursor on a white tile (light plum on graphite in dark
   mode), in the app, favicon, status pages, e-mails and README; the README shows it with a blinking cursor. The
   repository moved to the Sudoo-sh organization and every link points there.

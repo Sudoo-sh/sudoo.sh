@@ -4,7 +4,7 @@ FROM python:3.15-alpine
 
 LABEL org.opencontainers.image.title="Sudoo" \
       org.opencontainers.image.authors="Yousef M. Y. Al Sabbah" \
-      org.opencontainers.image.source="https://github.com/Yosef-AlSabbah/sudoo.sh" \
+      org.opencontainers.image.source="https://github.com/Sudoo-sh/sudoo.sh" \
       org.opencontainers.image.licenses="PolyForm-Noncommercial-1.0.0"
 
 COPY --from=docker:29-cli /usr/local/bin/docker /usr/local/bin/docker

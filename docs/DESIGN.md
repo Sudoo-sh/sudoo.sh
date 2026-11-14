@@ -30,7 +30,7 @@ your own product.
 | **Character** | Exact, calm, a little warm. |
 | **World** | A server room on a night shift: terminals, status lights. Odoo's plum is the brand. |
 | **Moments** | The live charts and the terminal log: the only places with rich colour. |
-| **Signature** | The mark, Odoo's round "o" followed by a text cursor, and a status dot that moves only while something is really running. |
+| **Signature** | The mark: a plum ring with a dot and a blinking text cursor on a white tile (light plum on graphite in dark mode), and a status dot that moves only while something is really running. |
 
 The chrome (sidebar, buttons, borders, labels) stays quiet and graphite, so the content reads first. The accent
 marks the primary action, the selection and the one figure that matters. Nothing glows, nothing is decorated for

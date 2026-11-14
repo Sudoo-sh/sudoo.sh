@@ -24,6 +24,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **The logo is redrawn:** a plum ring with a dot and a text cursor on a white tile (light plum on graphite in dark
+  mode), in the app, favicon, status pages, e-mails and README; the README shows it with a blinking cursor. The
+  repository moved to the Sudoo-sh organization and every link points there.
 - **Sign in with the e-mail address.** Every account has a unique e-mail address; the user name is made from it and
   still works. First-run setup no longer asks for a user name.
 - **Super admins can be edited,** including your own account; the last super admin stays one.
@@ -61,7 +64,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- **One-command install:** `curl -fsSL https://raw.githubusercontent.com/Yosef-AlSabbah/sudoo.sh/main/get.sh | sudo bash`
+- **One-command install:** `curl -fsSL https://raw.githubusercontent.com/Sudoo-sh/sudoo.sh/main/get.sh | sudo bash`
   installs Docker if needed, downloads the latest release and runs the installer.
 - **Account profiles** (first and last name, e-mail, phone), editable on My account and by administrators.
 - **New endpoints:**
@@ -193,5 +196,5 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Yosef-AlSabbah/sudoo.sh/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/Yosef-AlSabbah/sudoo.sh/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Sudoo-sh/sudoo.sh/releases/tag/v0.1.0

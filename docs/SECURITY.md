@@ -26,7 +26,7 @@
 | :--- | :--- |
 | The panel | It controls Docker on the server: a super admin or administrator account can do anything on the server. |
 | Panel passwords | People reuse passwords; a leaked one could open other doors. |
-| GitHub deploy keys | They read the customers' private code. |
+| The GitHub App's private key, its installation tokens, and deploy keys | They read the customers' private code. |
 | The server | It runs every instance. |
 
 | From whom | Typical attempt | Main defence |
@@ -173,6 +173,8 @@ Some secrets must be **read back** by the panel, so they cannot be hashed. They 
 | Secret | Stored as | Read when |
 | :--- | :--- | :--- |
 | GitHub deploy keys (`keys/deploy/*.key`) | AES-256-GCM, label `deploy-key:<owner>/<repo>` | For the length of one git connection, decrypted into a memory-only file readable by root, then deleted |
+| The GitHub App's private key, webhook secret and client secret (`keys/github-app.json`, mode 600) | AES-256-GCM, labels `github-app:pem`, `github-app:webhook_secret`, `github-app:client_secret` | The private key to sign a short JWT when a new installation token is needed; the webhook secret to check each delivery; the client secret is kept but not used |
+| GitHub App installation tokens (read-only, one hour) | AES-256-GCM in a file in `MEMORY_DIR` (memory only, mode 600), label `github-app-token:<installation>` | When git needs one (through the panel's credential helper) and for API calls; reused until five minutes before they expire |
 | Odoo master password of each instance (`MASTER_PASSWORD` in its `.env`) | AES-256-GCM, label `master-password:<name>` | When someone with the permission `instances.credentials` opens an instance's **Access** tab (and the audit log records it) |
 | Secret settings changed in the panel (`smtp_password`, `odoo_admin_password`, `github_webhook_secret`) | AES-256-GCM in `/opt/odoo/manager/settings.json`, label `setting:<key>` | When the panel starts, and when a setting is changed |
 | API tokens' signing secrets | AES-256-GCM | On every signed API call |
@@ -277,6 +279,34 @@ Being clear about limits is part of security.
 | :--- | :--- | :--- |
 | `/api/v1` (other systems) | holders of an API token **and** its signing secret | token (SHA-256 hash), HMAC-SHA256 signature over timestamp, nonce, method, path and body; timestamp within 5 minutes; each nonce accepted once; scope `write` acts as an Administrator, `read` as a Viewer; 5 refused calls from an address block it for 15 minutes |
 | `/hooks/github` (when enabled) | GitHub | `X-Hub-Signature-256`: HMAC-SHA256 of the body with `GITHUB_WEBHOOK_SECRET` |
+| `/hooks/github-app` (when enabled) | GitHub, for the panel's GitHub App | `X-Hub-Signature-256`: HMAC-SHA256 of the body with the app's webhook secret (created by GitHub, stored encrypted); 404 while no app is connected |
+
+### The GitHub App
+
+The panel's GitHub App ([Administrator guide](ADMIN_GUIDE.md#15-the-github-app)) is built for least privilege:
+
+* **Read-only.** The manifest asks for `contents: read` and `metadata: read` only, and every installation token is
+  requested with exactly those permissions. The app is private (`public: false`). Installations can be limited to
+  selected repositories on GitHub.
+* **Only super admins** (`settings.manage`) connect, install, refresh and disconnect it; roles with `github.manage`
+  only see its state. Every step is in the audit log.
+* **The manifest round trip is bound to the session.** Starting a connection stores a random 256-bit `state` in the
+  super admin's signed session, valid one hour; GitHub sends it back with the one-time code, and the panel exchanges
+  the code only when the state matches, once. The code itself is useless after one hour or one use. An
+  installation id sent back by GitHub is recorded only after GitHub confirms, with the app's JWT, that it belongs to
+  this app.
+* **Short-lived credentials.** The JWT (RS256) is valid nine minutes and issued 60 seconds in the past; installation
+  tokens are valid one hour.
+* **Tokens never touch disk in clear, addresses, `.git/config` or logs.** git asks the panel's credential helper
+  (`credential.https://github.com.helper`, set through git's environment, with other helpers switched off so no
+  helper can store a token) and receives the token on a pipe. Repository addresses stay `https://github.com/...`.
+  Errors shown to people carry GitHub's message, never a token.
+* **Webhook address.** The panel changes only the URL of the app's webhook (`PATCH /app/hook/config`) when its own
+  public address changes; the secret never leaves the server.
+* **Disconnecting** deletes the stored credentials, installations and cached tokens; the panel then links to
+  GitHub's pages to uninstall and delete the app, which only the account's owner can do.
+* The web app's Content-Security-Policy allows forms to be posted to `https://github.com` (`form-action`), needed
+  to send the manifest; nothing else from GitHub is loaded or allowed.
 
 Every caller is also limited in requests per minute (`RATE_LIMIT_READS_PER_MINUTE`, `RATE_LIMIT_CHANGES_PER_MINUTE`,
 per user, token or address), and instance creation can be limited in number and frequency (`MAX_INSTANCES`,
@@ -305,7 +335,7 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `instances.delete` | Delete instances | yes | yes | | | |
 | `instances.credentials` | See Odoo passwords and ports | yes | yes | yes | | |
 | `backups.manage` | Download and delete backups | yes | yes | | | |
-| `github.manage` | Manage deploy keys | yes | yes | yes | | |
+| `github.manage` | Manage deploy keys; see the GitHub App's state | yes | yes | yes | | |
 | `accounts.manage` | Create, change and delete accounts | yes | yes | | | |
 | `tokens.manage` | Create and revoke API tokens | yes | yes | | | |
 | `audit.view` | Read the audit log | yes | yes | | | |
@@ -337,6 +367,7 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 - [ ] Delete accounts of people who no longer need them; reset a password when in doubt.
 - [ ] Look at the audit log from time to time for refused actions and failed sign-ins.
 - [ ] Keep real customer data out of instances.
+- [ ] Prefer the GitHub App to deploy keys; install it on **selected repositories** where all are not needed.
 - [ ] Remove deploy keys of repositories that are no longer used, in the panel and on GitHub.
 - [ ] Give each system its own API token, `read` where reading is enough; revoke tokens no longer used.
 - [ ] With `host-ports`, put https in front of the panel and limit who can reach its port.

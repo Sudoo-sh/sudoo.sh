@@ -3,6 +3,11 @@
 **In one sentence:** a deploy key is a key pair that lets the server read one private GitHub repository and nothing
 else, without using anyone's password or personal token.
 
+Since the panel can connect its own **GitHub App**, which reads every repository you allow on an account or an
+organisation (submodules included), deploy keys are the fallback: for servers without the app, or for a repository
+whose submodules are added and removed from the panel (that needs write access, which the app does not have). See
+[The GitHub App](../ADMIN_GUIDE.md#15-the-github-app).
+
 ---
 
 ## Contents
@@ -66,7 +71,7 @@ Rules the panel follows for every git command:
 | Repository | How it is reached |
 | :--- | :--- |
 | has a deploy key on the server | over SSH, with that repository's key |
-| any other | over anonymous HTTPS: works for public repositories only |
+| any other | over HTTPS: with a read-only token of the GitHub App when it is installed on the repository's owner, otherwise anonymously (public repositories only) |
 
 This applies however the address is written (`https://github.com/acme-co/sales` or `git@github.com:acme-co/sales`),
 including addresses inside `.gitmodules`.

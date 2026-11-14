@@ -293,7 +293,55 @@ export interface AuditEntry {
   detail?: string;
 }
 
+export interface GitHubInstallation {
+  id: number;
+  account: string;
+  account_type: "User" | "Organization" | string;
+  repository_selection: "all" | "selected" | string;
+  settings_url: string;
+  suspended: boolean;
+  added: number;
+}
+
+export interface GitHubApp {
+  id: number;
+  slug: string;
+  name: string;
+  client_id: string;
+  html_url: string;
+  owner: { login: string; type: string };
+  created: number;
+  hook_url: string | null;
+  settings_url: string;
+  install_url: string;
+  installations: GitHubInstallation[];
+}
+
+export interface GitHubAppState {
+  connected: boolean;
+  app: GitHubApp | null;
+  trigger_running: boolean;
+  expected_hook_url: string | null;
+  deploy_keys: number;
+}
+
+export interface GitHubRepository {
+  full_name: string;
+  url: string;
+  private: boolean;
+  default_branch: string;
+  description: string;
+  pushed_at: string | null;
+  account: string;
+}
+
 export interface RepoAccess {
-  repositories: { url: string; role: "main" | "submodule"; ok: boolean; problem: string | null }[];
+  repositories: {
+    url: string;
+    role: "main" | "submodule";
+    ok: boolean;
+    problem: string | null;
+    via?: "deploy-key" | "github-app" | "public";
+  }[];
   all_ok: boolean;
 }

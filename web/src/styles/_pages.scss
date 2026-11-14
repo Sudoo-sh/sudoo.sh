@@ -427,3 +427,39 @@
   padding: var(--s2) var(--s5) var(--s4);
   .when { font-size: var(--text-20, 1.25rem); font-weight: 500; letter-spacing: -0.015em; margin: 2px 0; }
 }
+
+// New instance: repositories of the GitHub App, searched by the repository field
+.repo-picker {
+  list-style: none;
+  margin: 0;
+  padding: var(--s1);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-float);
+  transform-origin: top center;
+  transition: opacity var(--menu) var(--ease), transform var(--menu) var(--ease);
+  @starting-style { opacity: 0; transform: scale(0.97); }
+  button {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    width: 100%;
+    min-width: 0;
+    padding: var(--s2) var(--s3);
+    border: 0;
+    border-radius: calc(var(--radius-control) - 2px);
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-14);
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--quick) var(--ease), transform var(--press) var(--ease);
+    &:hover, &:focus-visible { background: var(--raised); }
+    &:active { transform: scale(0.97); }
+    svg { flex: none; width: 16px; height: 16px; color: var(--text-3); }
+    .name { flex: 0 1 auto; }
+    .desc { flex: 1 1 0; color: var(--text-3); font-size: var(--text-13); }
+  }
+}

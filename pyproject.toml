@@ -58,6 +58,7 @@ memory = "sudoo.limits.memory:MemoryRateLimiter"
 [project.entry-points."sudoo.update_triggers"]
 polling = "sudoo.triggers.polling:Polling"
 github-webhook = "sudoo.triggers.github_webhook:GitHubWebhook"
+github-app = "sudoo.triggers.github_app:GitHubAppWebhook"
 
 [dependency-groups]
 dev = [

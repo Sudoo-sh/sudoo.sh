@@ -1,12 +1,16 @@
-"""GitHub access: one read-only deploy key per private repository, and one way to fetch each repository.
+"""GitHub access: the panel's GitHub App (github_app.py), read-only deploy keys, and one way to fetch each repository.
 
 How git reaches a GitHub repository (configured once for every git command the panel runs):
-    repository with a deploy key   over SSH, with that repository's key   (git_ssh.py picks the key)
-    any other repository           over anonymous HTTPS                   (public repositories)
+    repository with a deploy key   over SSH, with that repository's key        (git_ssh.py picks the key)
+    any other repository           over HTTPS; when GitHub asks for credentials, an installation token of the
+                                   GitHub App installed on the repository's owner (git_credential.py); public
+                                   repositories need none
 
-A deploy key works for exactly one repository, so the server keeps one key per repository, shared by all
-instances that use it. Repository addresses may be written as https://github.com/... or git@github.com:...;
-both are mapped to the one way above.
+The GitHub App is the normal way: one app per panel, installed on a personal account or an organisation, reads every
+repository it was given, submodules included. Deploy keys are the fallback when no app is connected: a deploy key
+works for exactly one repository, so the server keeps one key per repository, shared by all instances that use it.
+Repository addresses may be written as https://github.com/... or git@github.com:...; both are mapped to the one way
+above.
 """
 
 from __future__ import annotations
@@ -24,6 +28,7 @@ from sudoo.config import settings
 from sudoo.core import vault
 from sudoo.core.hints import friendly_hint
 from sudoo.core.shell import capture
+from sudoo.repos import github_app
 from sudoo.repos.gitrepo import git
 
 REPO_ID_RE = re.compile(r"^[a-z0-9_.-]+/[a-z0-9_.-]+$")
@@ -149,7 +154,13 @@ def configure_git() -> None:
     for var in ("GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"):
         os.environ[var] = "sudoo@localhost"
 
-    rules = [("url.https://github.com/.insteadOf", "git@github.com:")]
+    rules = [
+        ("url.https://github.com/.insteadOf", "git@github.com:"),
+        # GitHub App tokens, handed to git by the credential helper only (never in addresses or .git/config)
+        ("credential.helper", ""),  # an empty value drops helpers configured elsewhere, which could store tokens
+        ("credential.https://github.com.helper", f"!{sys.executable} -m sudoo.repos.git_credential"),
+        ("credential.https://github.com.useHttpPath", "true"),
+    ]
     key: Any  # a key record in the first loop, a config key name in the last one
     for key in keys():
         for name in {key["repo"], key["spelling"]}:
@@ -166,8 +177,26 @@ def configure_git() -> None:
 # --------------------------------------------------------------------------- repository checks
 
 
+def access_via(rid: str | None) -> str:
+    """How the server reads a repository: "deploy-key", "github-app" (an installation covers its owner) or "public"."""
+    if has_key(rid):
+        return "deploy-key"
+    if rid and github_app.installation_for(rid.split("/")[0]) is not None:
+        return "github-app"
+    return "public"
+
+
 def branches(address: str) -> tuple[list[str], str | None, str | None]:
-    """(branches, default branch, error) of a repository."""
+    """(branches, default branch, error) of a repository: through the GitHub App's API when it covers the
+    repository, else with git (deploy key or anonymous)."""
+    name = repo_name(address)
+    if name and access_via(name.lower()) == "github-app":
+        try:
+            found = github_app.branches(name)
+        except github_app.GitHubError:
+            found = None  # not among the installation's repositories, or GitHub not reachable: ask git
+        if found:
+            return found[0], found[1], None
     result = subprocess.run(["git", "ls-remote", "--symref", "--", address], capture_output=True, text=True, timeout=40)
     if result.returncode != 0:
         return [], None, friendly_hint(result.stderr)
@@ -199,7 +228,7 @@ def _absolute(parent: str, address: str) -> str:
 def access_report(address: str, branch: str = "") -> list[dict[str, Any]]:
     """Can the server read the repository and every submodule of `branch` (default branch when empty)?
 
-    One entry per repository: {"url", "role", "ok", "problem", "repo", "has_key", "github_url"}.
+    One entry per repository: {"url", "role", "ok", "problem", "repo", "has_key", "via", "github_url"}.
     """
     readable, problem = _readable(address)
     report: list[dict[str, Any]] = [{"url": address, "role": "main", "ok": readable, "problem": problem}]
@@ -229,5 +258,5 @@ def access_report(address: str, branch: str = "") -> list[dict[str, Any]]:
             report.append({"url": sub_address, "role": "submodule", "ok": ok, "problem": sub_problem})
     for entry in report:
         rid = repo_id(entry["url"])
-        entry.update(repo=rid, has_key=has_key(rid), github_url=add_key_url(rid) if rid else None)
+        entry.update(repo=rid, has_key=has_key(rid), via=access_via(rid), github_url=add_key_url(rid) if rid else None)
     return report

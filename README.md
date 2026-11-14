@@ -89,8 +89,10 @@ command to use it: people receive a link.
    plugins, use either or both); when a developer pushes, the instance pulls
    the code, upgrades only the modules whose files changed and restarts. Submodules (for example OCA repositories)
    can be updated, added and removed from the panel.
-4. **Private repositories without personal tokens**: each private repository gets its own read-only deploy key,
-   created by the panel and stored encrypted. See [Deploy keys](docs/concepts/DEPLOY_KEYS.md).
+4. **Private repositories without personal tokens**: connect GitHub once and the panel's own read-only GitHub App
+   reads every repository you allow on your account or organisation, submodules included; pushes reach the panel at
+   once. Servers without it use one read-only deploy key per repository, created by the panel and stored encrypted.
+   See [The GitHub App](docs/ADMIN_GUIDE.md#15-the-github-app) and [Deploy keys](docs/concepts/DEPLOY_KEYS.md).
 5. **Saves memory by itself**: an instance nobody opened for 6 hours is paused, and starts again by itself on the next
    visit (a "Starting up" page is shown for a few seconds).
 6. **Restart, pause, switch off, delete**: from the list (Restart) or from the instance's page.
@@ -188,7 +190,7 @@ All documents are in [`docs/`](docs/README.md) and are also shown inside the pan
 | Reachability | Nothing listens on a public address. The web app, the backend, the gateway and Odoo listen on `127.0.0.1`; the way in is the Cloudflare connectors. |
 | First run | No default accounts: the first account is created with a one-time setup code printed on the server. |
 | Panel passwords | Never stored. Only a salted, peppered **scrypt hash** is kept; the pepper comes from a key outside the accounts file. Rules follow NIST SP 800-63B: 12 to 128 characters, common passwords and sequences refused. Sign-in is locked after repeated failures. |
-| Stored secrets | GitHub deploy keys and Odoo master passwords are **encrypted with AES-256-GCM**. Odoo itself only receives a hash of its master password. |
+| Stored secrets | The GitHub App's private key, GitHub deploy keys and Odoo master passwords are **encrypted with AES-256-GCM**. Odoo itself only receives a hash of its master password. |
 | Input | Every value from a browser or API client is checked against an allow-list (type, length, characters, pattern) before use, and never passed through a shell. |
 | Sessions | Signed, `HttpOnly`, `Secure`, `SameSite=Strict` cookie; signed out after 60 minutes without activity and after 12 hours. |
 | Browser | CSRF token and same-origin check on every change; strict Content-Security-Policy; no inline scripts; HSTS. |
@@ -242,7 +244,7 @@ sudoo.sh/
     │   ├── operations.py          #   create, delete, back up, restore, restart, pause, updates, submodules
     │   ├── backups.py             #   Odoo-format backups, kinds, daily schedule, restore
     │   ├── gateway.py, status_pages.py, monitor.py
-    ├── repos/                     # git and GitHub: deploy keys, access checks, git_ssh.py
+    ├── repos/                     # git and GitHub: the GitHub App, deploy keys, access checks, git helpers
     ├── exposure/                  # PLUGIN TYPE: how instances are reached
     │   ├── base.py                #   the interface
     │   ├── cloudflare.py          #   cloudflare-quick
@@ -250,6 +252,7 @@ sudoo.sh/
     ├── triggers/                  # PLUGIN TYPE: what starts a code update
     │   ├── base.py                #   the interface
     │   ├── polling.py             #   polling
+    │   ├── github_app.py          #   github-app
     │   └── github_webhook.py      #   github-webhook
     ├── api_tokens.py              # API tokens: hashed tokens, encrypted signing secrets, signature checks
     ├── addons/                    # PLUGIN TYPE: where Enterprise add-ons come from

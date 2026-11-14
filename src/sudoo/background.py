@@ -1,5 +1,5 @@
 """Work that runs on its own inside the panel process: monitor, automatic pause, automatic deletion, daily backups,
-removal of expired rollback snapshots, GitHub polling, gateway, connectors."""
+removal of expired rollback snapshots, GitHub polling, the GitHub App's webhook address, gateway, connectors."""
 
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ import time
 
 from sudoo import exposure, triggers
 from sudoo.config import settings
-from sudoo.core import jobs
+from sudoo.core import audit, jobs
 from sudoo.core.state import STATE
 from sudoo.instances import backups, gateway, monitor, operations, store
-from sudoo.repos import github
+from sudoo.repos import github, github_app
 
 
 def start() -> None:
@@ -24,6 +24,7 @@ def start() -> None:
         _delete_expired_instances,
         _daily_backups,
         _remove_expired_snapshots,
+        _keep_github_webhook_current,
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     gateway.start(wake=start_wake_job)
@@ -114,3 +115,37 @@ def remove_expired_snapshots(now: float | None = None) -> list[str]:
         (settings.backups_dir / backup["file"]).unlink(missing_ok=True)
         removed.append(backup["file"])
     return removed
+
+
+WEBHOOK_CHECK_SECONDS = 120
+_webhook_problem: list[str] = [""]  # the last failure, audit-logged once rather than every two minutes
+
+
+def _keep_github_webhook_current() -> None:
+    """Every two minutes: when the panel's public address changed (a Cloudflare quick tunnel gets a new one when its
+    connector restarts), point the GitHub App's webhook at the new address."""
+    while True:
+        time.sleep(WEBHOOK_CHECK_SECONDS)
+        keep_github_webhook_current()
+
+
+def keep_github_webhook_current() -> str | None:
+    """Update the GitHub App's webhook address if needed; the new address, or None when nothing changed."""
+    if not github_app.connected():
+        return None
+    address = exposure.address(exposure.PANEL)
+    if not address:
+        return None
+    try:
+        changed = github_app.update_hook_url(address)
+    except github_app.GitHubError as error:
+        if str(error) != _webhook_problem[0]:
+            _webhook_problem[0] = str(error)
+            audit.record("panel", None, "GitHub App webhook address not updated", ok=False, detail=str(error))
+        return None
+    _webhook_problem[0] = ""
+    if not changed:
+        return None
+    url = address.rstrip("/") + github_app.HOOK_PATH
+    audit.record("panel", None, "GitHub App webhook address updated", detail=url)
+    return url

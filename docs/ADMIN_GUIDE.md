@@ -2,7 +2,7 @@
 
 **Audience:** the person responsible for the server and the panel.
 **Covers:** installing and updating, the first account, settings, e-mail, links, files and containers, Enterprise
-add-ons, backups, daily backups and restores, the command line, checks and troubleshooting.
+add-ons, backups, daily backups and restores, the command line, checks and troubleshooting, the GitHub App.
 **You need:** SSH access to the server as root (or with `sudo`).
 
 ---
@@ -23,6 +23,7 @@ add-ons, backups, daily backups and restores, the command line, checks and troub
 12. [Checking that everything works](#12-checking-that-everything-works)
 13. [Troubleshooting](#13-troubleshooting)
 14. [Moving to permanent links](#14-moving-to-permanent-links)
+15. [The GitHub App](#15-the-github-app)
 
 ---
 
@@ -252,8 +253,9 @@ The panel and every instance have their own link, `https://<words>.trycloudflare
 
 **These Cloudflare quick tunnel links change when the server restarts, or when a connector container restarts.**
 The panel always shows the current ones, and tells every Odoo its new address within about 15 seconds (so links
-inside Odoo, such as those in e-mails, follow). Links you shared earlier, and webhook addresses registered at other
-services, must be updated by hand.
+inside Odoo, such as those in e-mails, follow). The GitHub App's webhook address follows too, within two minutes
+([section 15](#15-the-github-app)). Links you shared earlier, and webhook addresses registered at other services
+(such as a per-repository `github-webhook`), must be updated by hand.
 
 Updating Sudoo.sh does not touch the connector containers, so the links stay the same through an update.
 
@@ -303,6 +305,8 @@ Do not restart or recreate the connector containers by hand: their links would c
 │   ├── vault.key                            encrypts stored secrets, peppers password hashes (mode 600)
 │   ├── secret_key                           signs session cookies (mode 600)
 │   ├── keys/known_hosts                     GitHub's SSH host key, recorded on first use
+│   ├── keys/github-app.json                 the GitHub App: id, slug, installations; its private key,
+│   │                                        webhook secret and client secret ENCRYPTED (mode 600)
 │   ├── keys/deploy/<owner>__<repo>.key      deploy key, ENCRYPTED (mode 600)
 │   ├── keys/deploy/<owner>__<repo>.pub      its public part (what is added on GitHub)
 │   ├── keys/deploy/<owner>__<repo>.name     the repository name as written on GitHub
@@ -604,7 +608,9 @@ After installing or updating:
 | A plugin setting changed in the browser has no effect | Plugin settings apply after a restart | Settings, Plugins, **Restart the panel** (refused while jobs run: wait for them) |
 | A value changed in `.env` has no effect | The same setting was changed on the Settings page, which wins | Click **Use .env** next to it on the Settings page |
 | "Starting up" for several minutes | Odoo fails to start | The instance's **Odoo log** tab |
-| An access report line is red on New instance | No deploy key, or not added on GitHub | Create the key, add it on GitHub ([User manual](USER_MANUAL.md#7-github-access-private-repositories)) |
+| An access report line is red on New instance | The GitHub App is not installed on the repository's owner, or the repository is not among its selected ones; or no deploy key | Install the app, or add the repository under **Choose repositories** ([section 15](#15-the-github-app)); or create a deploy key ([User manual](USER_MANUAL.md#7-github-access-private-repositories)) |
+| GitHub's page after **Create GitHub App** or **Install** does not open | The panel's quick-tunnel address changed since the app was created (GitHub still has the old one) | Open the panel at its current address, **GitHub access**, **Refresh**. A new app: connect again |
+| Pushes do not start updates at once | `github-app` is not in `UPDATE_TRIGGERS`, or GitHub cannot reach the panel | Settings, Plugins; on GitHub, the app's **Advanced** page lists recent deliveries and their answers |
 | Update fails: "branch ... no longer exists on GitHub" (or "no such ref was fetched"); the instance page warns about it | The branch was deleted on GitHub, usually after its pull request was merged | Menu, **Switch branch**, choose the branch to follow now (for example `main`) |
 | Update fails: "went in different directions" | Something was changed directly in the instance's `addons` folder | A developer resets that folder to the GitHub branch |
 | Module changes not visible | The module was not upgraded | **Upgrade modules**, or turn on **Upgrade changed modules** |
@@ -630,3 +636,75 @@ Quick tunnels are free and need no account, but their addresses change. For addr
 `cd /opt/odoo/manager && docker compose up -d`. The gateway, the instances and the panel stay as they are; only the
 exposure plugin changes. The comparison with Tailscale and other options is in
 [Tunneling](concepts/TUNNELING.md#7-other-ways-and-why-we-chose-this-one).
+
+---
+
+## 15. The GitHub App
+
+The panel reads private repositories through **one GitHub App of its own**, created by GitHub from a description
+the panel sends (GitHub's "App Manifest" flow). Nothing is copied by hand: no keys, no secrets, no webhook per
+repository. Only super admins connect, install and disconnect it.
+
+What the app may do, and nothing more:
+
+| | |
+| :--- | :--- |
+| Repository permissions | **Contents: read**, **Metadata: read** (no write, no issues, no pull requests) |
+| Events | **Push**, **Create**, **Delete** (branches), plus the installation events GitHub always sends |
+| Visibility | Private: only the account that owns it can install it |
+| Webhook | `<panel address>/hooks/github-app`, signed with a secret GitHub creates |
+
+### Connecting
+
+1. Sign in as a super admin, open **GitHub access** and click **Connect GitHub**.
+2. Choose **My account** or **An organisation**. For an organisation, type its name as in `github.com/<name>`;
+   you must be an owner of the organisation (GitHub refuses otherwise). Click **Continue on GitHub**.
+3. GitHub shows **Create GitHub App for &lt;account&gt;** with the name filled in, for example
+   `Sudoo.sh panel-3f9a`. The name must be unique on all of GitHub; change it if GitHub says it is taken (34
+   characters at most). Click **Create GitHub App for &lt;account&gt;**.
+4. GitHub sends you back to the panel, which exchanges GitHub's one-time code for the app's credentials (within
+   an hour, and only for the connection this browser session started) and shows "GitHub App created".
+
+The private key, the webhook secret and the client secret are stored encrypted with the vault key in
+`/opt/odoo/manager/keys/github-app.json`. They are never shown again, not even to super admins.
+
+### Installing
+
+1. Click **Install on GitHub**. GitHub asks **Where do you want to install &lt;app&gt;?**: pick your account or an
+   organisation (installing on an organisation other than the app's owner works only when the app was created under
+   that account; create the app under the organisation in step 2 above for company repositories).
+2. Choose **All repositories** or **Only select repositories** (then pick them), and click **Install**.
+3. GitHub sends you back; the panel checks the installation with GitHub and lists it under **Installed on**. In an
+   organisation where you are not an owner, GitHub sends a request to the owners instead; once they approve it,
+   click **Refresh**.
+
+Several installations work side by side (for example your own account and two organisations). The panel uses, for
+each repository, the installation of the repository's owner.
+
+### How the panel uses it
+
+* For each installation the panel asks GitHub for an **installation access token**: read-only, valid one hour. The
+  request is signed with a short JSON Web Token (RS256, valid nine minutes) made from the app's private key. Tokens
+  are reused until five minutes before they expire, kept encrypted in memory (`MEMORY_DIR`).
+* git receives a token only from the panel's credential helper, when GitHub asks for credentials. Tokens are never
+  written into repository addresses, `.git/config` or job logs. Submodules on GitHub whose owner has an installation
+  are read the same way.
+* The **New instance** page lists the repositories of all installations, and branches come from GitHub's API.
+* With `github-app` in `UPDATE_TRIGGERS` (the default for new servers), a push updates the instances that follow
+  the branch within seconds; keep `polling` next to it as a safety net. On a server installed earlier, add
+  `github-app` on the Settings page (Plugins) and restart the panel.
+* Every two minutes the panel compares its public address with the app's webhook address and, when a Cloudflare
+  quick tunnel got a new address, updates the webhook on GitHub (an audit-log entry says so).
+
+A repository that still has a deploy key keeps using it. Delete the key to switch that repository to the app.
+
+### Disconnecting
+
+**Disconnect** deletes the app's credentials, installations and tokens from the server, and shows two links: one to
+uninstall the app from each account, one to the app's settings on GitHub, where **Advanced, Delete GitHub App**
+removes it for good. Do both: until then the app still exists on GitHub (without its private key it can do
+nothing). Instances of private repositories cannot get new code until an app is connected again or deploy keys are
+added.
+
+Every step (connection started, refused, connected, installed, refreshed, forgotten, disconnected, webhook address
+changed) is recorded in the audit log.

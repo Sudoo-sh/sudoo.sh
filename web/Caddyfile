@@ -28,8 +28,9 @@ http://:{$PANEL_PORT} {
 	# the web app
 	handle {
 		root * /srv
+		# form-action allows github.com: Connect GitHub posts the GitHub App manifest there (App Manifest flow)
 		header {
-			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self' https://github.com; frame-ancestors 'none'"
 			X-Content-Type-Options nosniff
 			X-Frame-Options DENY
 			Referrer-Policy no-referrer

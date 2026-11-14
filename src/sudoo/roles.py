@@ -29,7 +29,7 @@ PERMISSIONS: dict[str, str] = {
     "instances.delete": "Delete instances",
     "instances.credentials": "See Odoo passwords and ports",
     "backups.manage": "Download and delete backups",
-    "github.manage": "Manage deploy keys",
+    "github.manage": "Manage deploy keys; see the GitHub App's state",
     "accounts.manage": "Create, change and delete accounts",
     "tokens.manage": "Create and revoke API tokens",
     "audit.view": "Read the audit log",

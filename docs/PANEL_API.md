@@ -221,8 +221,39 @@ An account:
 | `GET /deploy-keys` | `github.manage` | | 200, deploy keys |
 | `POST /deploy-keys` | `github.manage` | `{"repo"}` | **201**, the public key and the GitHub page to add it on |
 | `DELETE /deploy-keys/<owner>/<repo>` | `github.manage` | | **204** |
-| `GET /repositories/branches?url=` | `instances.view` | | 200, `{"branches", "default"}` |
-| `GET /repositories/access?url=&branch=` | `instances.view` | | 200, whether the server can read the repository and each submodule; `meta.can_manage_keys` |
+| `GET /repositories/branches?url=` | `instances.view` | | 200, `{"branches", "default"}`; through the GitHub App's API when it covers the repository |
+| `GET /repositories/access?url=&branch=` | `instances.view` | | 200, whether the server can read the repository and each submodule, and how (`via`: `deploy-key`, `github-app` or `public`); `meta.can_manage_keys`, `meta.github_app` |
+| `GET /github/app` | `github.manage` | | 200, `{"connected", "app", "trigger_running", "expected_hook_url", "deploy_keys"}`; `meta.can_manage` (below) |
+| `POST /github/app/manifest` | `settings.manage` | `{"organization"}` (empty: the personal account) | 200, `{"action", "manifest", "state"}`: post `manifest` as a form field to `action` from the browser; the state is kept in the session for one hour |
+| `POST /github/app` | `settings.manage` | `{"code", "state"}` from GitHub's redirect to `/github/app/created` | **201**, the app; 400 when the state does not match the session's or the code expired |
+| `DELETE /github/app` | `settings.manage` | | 200, `{"settings_url", "installations"}`: GitHub pages to uninstall and delete the app; the panel forgets its credentials |
+| `POST /github/app/installations` | `settings.manage` | `{"installation_id"}` from GitHub's redirect to `/github/app/installed` | **201**, the installation, after GitHub confirms it belongs to the app |
+| `POST /github/app/installations/sync` | `settings.manage` | | 200, the installations as GitHub lists them now |
+| `DELETE /github/app/installations/<id>` | `settings.manage` | | **204**, forgotten by the panel (uninstall it on GitHub too) |
+| `GET /github/repositories?q=` | `instances.create` | | 200, repositories readable through the app, newest push first, filtered by words of `q` (at most 200); `meta.connected` |
+
+The GitHub App in `GET /github/app` (`app` is `null` while none is connected; secrets are never returned):
+
+```json
+{"id": 123456, "slug": "sudoo-sh-panel-3f9a", "name": "Sudoo.sh panel-3f9a", "client_id": "Iv23li...",
+ "owner": {"login": "acme", "type": "Organization"}, "created": 1794441612,
+ "hook_url": "https://panel.example.com/hooks/github-app",
+ "settings_url": "https://github.com/organizations/acme/settings/apps/sudoo-sh-panel-3f9a",
+ "install_url": "https://github.com/apps/sudoo-sh-panel-3f9a/installations/new",
+ "installations": [{"id": 777, "account": "acme", "account_type": "Organization", "repository_selection": "all",
+                    "settings_url": "https://github.com/organizations/acme/settings/installations/777",
+                    "suspended": false, "added": 1794441700}]}
+```
+
+A repository in `GET /github/repositories`:
+
+```json
+{"full_name": "acme/sales", "url": "https://github.com/acme/sales", "private": true, "default_branch": "main",
+ "description": "Sales customisations", "pushed_at": "2026-11-12T08:30:00Z", "account": "acme"}
+```
+
+When GitHub refuses or cannot be reached, these endpoints answer 502 with GitHub's message (never 401, which would
+mean the caller's own session ended).
 
 A backup in `GET /backups` (`created` in Unix seconds, `size` in bytes):
 

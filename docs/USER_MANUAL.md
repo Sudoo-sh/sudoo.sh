@@ -269,9 +269,10 @@ replaces it: Rollback always goes back to just before the last restore.
 
 Click **New instance** in the sidebar (roles that may create instances).
 
-1. **GitHub repository**: paste the repository's address. On GitHub, open the repository, click the green **Code**
-   button and copy the address, for example `https://github.com/acme-co/sales`. Leave it empty for a plain Odoo
-   without custom modules.
+1. **GitHub repository**: when the GitHub App is connected, type part of the repository's name and pick it from the
+   list. Otherwise paste the repository's address: on GitHub, open the repository, click the green **Code** button
+   and copy the address, for example `https://github.com/acme-co/sales`. Leave it empty for a plain Odoo without
+   custom modules.
 2. The panel checks the repository while you type. The hint under the field says how many branches it found, or
    what is wrong.
 3. **Branch**: pick the branch. The instance only ever takes code from this branch. When the branch is named like a
@@ -279,9 +280,9 @@ Click **New instance** in the sidebar (roles that may create instances).
 4. **Name**: leave it empty to use repository and branch. The hint shows the final name and the database name, for
    example "Will be **sales-main** · database `sales_main`".
 5. Below the name, the **access report** shows one line for the repository and one for every submodule, each with
-   a mark: green when the server can read it, red with the reason when it cannot. For a private repository, add a
-   deploy key under **GitHub access** ([section 7](#7-github-access-private-repositories)); the report is checked
-   again when you come back.
+   a mark: green when the server can read it, red with the reason when it cannot. For a private repository, install
+   the GitHub App on its owner or add a deploy key under **GitHub access**
+   ([section 7](#7-github-access-private-repositories)); the report is checked again when you come back.
 6. **Version**: the Odoo versions offered on this server.
 7. **Edition**: **Community** (Odoo's free edition) or **Enterprise** (Enterprise apps and interface). Enterprise
    can be chosen only for the versions whose Enterprise add-ons are on the server.
@@ -322,7 +323,8 @@ so far is removed, so you can simply try again.
 ## 5. Keeping the code up to date
 
 **Automatically.** When **Get new code automatically** is on, the panel checks GitHub for new commits on the
-instance's branch (every 2 minutes by default, or at once when the server receives GitHub's webhooks). When there
+instance's branch (every 2 minutes by default, or at once when GitHub tells the panel about a push through the
+GitHub App or a webhook). When there
 are new commits, it downloads them, upgrades the modules whose files changed and restarts Odoo. The job appears in
 **Activity** as "Get latest code", started automatically.
 
@@ -369,22 +371,52 @@ Adding a submodule:
    use the branch that matches the Odoo version, for example `19.0`.
 4. Confirm. The panel first checks that it can read the repository.
 
-Adding and removing change the repository on GitHub, so the server's key for the main repository must be allowed
-to write ("Allow write access" ticked on GitHub). If it is not, GitHub refuses, the panel undoes the change on the
+Adding and removing change the repository on GitHub, so the server needs a deploy key with write access for the
+main repository ("Allow write access" ticked on GitHub); the GitHub App only reads. If it is not, GitHub refuses, the panel undoes the change on the
 server and tells you so: the server and GitHub never disagree.
 
 ---
 
 ## 7. GitHub access (private repositories)
 
-Public repositories need nothing. Every **private** repository, including every private submodule, needs a
-**deploy key**: a key that lets the server read that one repository and nothing else. See
-[Deploy keys](concepts/DEPLOY_KEYS.md) for how they work.
+Public repositories need nothing. For **private** repositories, including private submodules, the server needs
+read access, which it gets in one of two ways:
+
+| Way | What it covers | Who sets it up |
+| :--- | :--- | :--- |
+| **GitHub App** (recommended) | Every repository of a GitHub account or organisation that you allow (all, or selected ones), submodules included. Read-only. | A super admin, once, in a few clicks. |
+| **Deploy key** (fallback) | Exactly one repository. Read-only unless you allow writing. | Anyone who manages GitHub access, once per repository. |
+
+### Connecting the GitHub App
+
+A super admin connects GitHub once; the administrator's guide has the screens in detail
+([The GitHub App](ADMIN_GUIDE.md#15-the-github-app)).
+
+1. Open **GitHub access** (sidebar, Operations) and click **Connect GitHub**.
+2. Choose **My account** or **An organisation** (type its name, as in `github.com/acme`: `acme`; you must be an owner
+   of the organisation), then **Continue on GitHub**.
+3. GitHub shows the new app already filled in. Press **Create GitHub App**. GitHub brings you back to the panel,
+   which says "GitHub App created".
+4. Click **Install on GitHub**, choose the account or organisation, then **All repositories** or **Only select
+   repositories**, and press **Install**. GitHub brings you back again and the account appears under **Installed
+   on**.
+
+Repeat step 4 for every account or organisation whose repositories the instances use. **Choose repositories** next
+to an installation opens GitHub's page where you change its repositories later. If you installed the app on GitHub
+directly, or GitHub's page did not bring you back, click **Refresh**.
+
+From then on, the **New instance** page offers your repositories as you type in the repository field, and pushes
+reach the panel at once through the app (no webhook per repository).
+
+### Deploy keys
+
+When no GitHub App is connected, every private repository needs a **deploy key**: a key that lets the server read
+that one repository and nothing else. See [Deploy keys](concepts/DEPLOY_KEYS.md) for how they work.
 
 You need **admin rights on the repository on GitHub** to add a key. If you do not have them, send the key to
 someone who does.
 
-1. In the panel, open **GitHub access** (sidebar, Operations) and click **Add a repository**.
+1. Under **Deploy keys** on the **GitHub access** page, click **Add**.
 2. Enter the repository (`https://github.com/owner/repository` or `owner/repository`) and click **Create key**.
 3. The panel shows the public key. Copy it, then click **Open GitHub** (the repository's **Settings, Deploy keys,
    Add deploy key** page).
@@ -398,9 +430,18 @@ someone who does.
 
 Only the public part of the key leaves the server; the private key is stored encrypted.
 
-The **GitHub access** page lists all keys with their repository and creation date. **Delete** removes the server's
-key; also remove it on GitHub (repository Settings, Deploy keys). One key per repository is shared by every
-instance that uses that repository.
+The list shows all keys with their repository and creation date. **Delete** removes the server's key; also remove
+it on GitHub (repository Settings, Deploy keys). One key per repository is shared by every instance that uses that
+repository.
+
+### Switching from deploy keys to the GitHub App
+
+Existing deploy keys keep working: a repository with a deploy key goes on using it. To switch, connect and install
+the GitHub App on the repository's owner, then delete the repository's deploy key in the panel and on GitHub. The
+instances keep running and take their next update through the app.
+
+The GitHub App only reads. Adding or removing a submodule from the panel writes to the repository, so it still
+needs a deploy key with write access for that repository.
 
 ---
 
@@ -421,7 +462,8 @@ Every account has one role. The role decides which pages, buttons and menu items
 | Restore a backup of an instance (replaces its database and files) | yes | yes | yes | no | no |
 | Change an instance's settings tab (automation, lifetime) | yes | yes | yes | no | no |
 | See the Odoo passwords (Access tab) | yes | yes | yes | no | no |
-| GitHub access (deploy keys) | yes | yes | yes | no | no |
+| GitHub access (deploy keys; see the GitHub App's state) | yes | yes | yes | no | no |
+| Connect, install and disconnect the GitHub App | yes | no | no | no | no |
 | Delete instances | yes | yes | no | no | no |
 | Backups page (download, delete) | yes | yes | no | no | no |
 | Accounts, API tokens, audit log | yes | yes | no | no | no |

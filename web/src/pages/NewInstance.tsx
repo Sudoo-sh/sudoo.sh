@@ -1,9 +1,10 @@
-import { Archive, Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Package, SlidersHorizontal } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Archive, Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Lock, Package, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, usePlan, useQuota, useSettings, useVersions } from "@/api/queries";
-import type { Job, RepoAccess } from "@/api/types";
+import type { GitHubRepository, Job, RepoAccess } from "@/api/types";
 import { BackupPicker } from "@/components/BackupPicker";
 import { Page, PageHead, useCan } from "@/components/Shell";
 import { Tag, Button, Callout, Field, Switch } from "@/components/ui/basics";
@@ -20,6 +21,39 @@ function useDebounced<T>(value: T, delay = 450): T {
 }
 
 const LIFETIMES = [7, 14, 30, 60, 90];
+const ADDRESS = /^(https:\/\/|git@)/;
+
+/** Repositories the GitHub App can read, searched by what is typed in the repository field. */
+function useRepositoryPicker(typed: string) {
+  const search = useDebounced(ADDRESS.test(typed) ? "" : typed, 250);
+  const { data } = useQuery({
+    queryKey: ["github-repositories", search],
+    queryFn: () => api.page<GitHubRepository[]>(`/github/repositories?q=${encodeURIComponent(search)}`),
+    staleTime: 60_000,
+    retry: false,
+  });
+  return { connected: data?.meta?.connected === true, repositories: data?.data ?? [] };
+}
+
+function RepositoryPicker({ typed, onPick }: { typed: string; onPick: (repository: GitHubRepository) => void }) {
+  const { connected, repositories } = useRepositoryPicker(typed);
+  if (!connected || ADDRESS.test(typed)) return null;
+  if (!repositories.length) return typed ? <p className="xsmall faint">No repository of the GitHub App matches "{typed}".</p> : null;
+  return (
+    <ul className="repo-picker" role="listbox" aria-label="Repositories on GitHub">
+      {repositories.slice(0, 8).map((r) => (
+        <li key={r.full_name} role="option" aria-selected={false}>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(r)}>
+            <FolderGit2 />
+            <span className="name truncate">{r.full_name}</span>
+            {r.private && <Lock size={12} aria-label="private" />}
+            {r.description && <span className="desc truncate">{r.description}</span>}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export function NewInstancePage() {
   const navigate = useNavigate();
@@ -48,6 +82,7 @@ export function NewInstancePage() {
   const [access, setAccess] = useState<RepoAccess | null>(null);
   const [repoError, setRepoError] = useState("");
   const [checking, setChecking] = useState(false);
+  const [picking, setPicking] = useState(false);
   const debouncedRepo = useDebounced(repo.trim());
 
   useEffect(() => {
@@ -162,9 +197,15 @@ export function NewInstancePage() {
                 className="full"
                 label="GitHub repository"
                 error={repoError}
-                hint={checking ? "Checking the repository…" : branches ? `${branches.length} branches found` : "https://github.com/owner/repository"}
+                hint={checking ? "Checking the repository…" : branches ? `${branches.length} branches found` : "Search your repositories, or paste https://github.com/owner/repository"}
               >
-                <input className="input" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repo} onChange={(e) => setRepo(e.target.value)} aria-invalid={!!repoError} />
+                <div className="stack-sm">
+                  <input className="input" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repo} aria-invalid={!!repoError}
+                    onChange={(e) => setRepo(e.target.value)} onFocus={() => setPicking(true)} onBlur={() => setPicking(false)} />
+                  {picking && (
+                    <RepositoryPicker typed={repo.trim()} onPick={(r) => { setRepo(r.url); setBranch(r.default_branch); setPicking(false); }} />
+                  )}
+                </div>
               </Field>
               <Field label="Branch">
                 {branches ? (
@@ -193,7 +234,7 @@ export function NewInstancePage() {
                   ))}
                   {!access.all_ok && (
                     <Callout tone="warning">
-                      The server cannot read every repository. For private ones, add a deploy key under <Link to="/github">GitHub access</Link>.
+                      The server cannot read every repository. For private ones, connect the GitHub App (or add a deploy key) under <Link to="/github">GitHub access</Link>.
                     </Callout>
                   )}
                 </div>

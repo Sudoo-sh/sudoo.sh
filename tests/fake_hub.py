@@ -265,8 +265,8 @@ class FakeHub:
                     listing = hub.listings.get(parts[3])
                     if listing is None:
                         return self._problem(404, "No such plugin.")
-                    detail = {**self._plugin_out(listing), "plans": listing.plans, "permissions": [],
-                              "latest_version": {"version": listing.latest}}  # fmt: skip
+                    detail = {**self._plugin_out(listing), "plans": listing.plans, "permissions": [], "requires": [],
+                              "latest_version": {"version": listing.latest, "min_sudoo_version": "0.1.0", "changelog": None}}  # fmt: skip
                     return self._send(200, {"data": detail})
                 if parts[:3] == ["api", "v1", "catalog"] and len(parts) == 6 and parts[4] == "download":
                     return self._download(parts[3], parts[5])

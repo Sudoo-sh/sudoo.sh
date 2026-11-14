@@ -15,6 +15,7 @@ export type Permission =
   | "accounts.manage"
   | "tokens.manage"
   | "audit.view"
+  | "plugins.view"
   | "settings.manage";
 
 export interface Profile {
@@ -288,4 +289,114 @@ export interface AuditEntry {
 export interface RepoAccess {
   repositories: { url: string; role: "main" | "submodule"; ok: boolean; problem: string | null }[];
   all_ok: boolean;
+}
+
+// ---------------------------------------------------------------- plugins and the marketplace (docs/MARKETPLACE.md)
+
+export interface Publisher {
+  name: string;
+  slug: string;
+  verified: boolean;
+  official: boolean;
+}
+
+export interface CatalogPlugin {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  tier: "free" | "paid";
+  tags: string[];
+  icon_url?: string | null;
+  price_cents: number | null;
+  currency: string;
+  avg_rating: number;
+  rating_count: number;
+  install_count: number;
+  publisher: Publisher | null;
+  installed_version: string | null;
+}
+
+export interface PricePlan {
+  id: string;
+  kind: "monthly" | "yearly" | "fixed_term";
+  price_cents: number;
+  currency: string;
+  period_days: number | null;
+}
+
+export interface CatalogPluginDetail extends CatalogPlugin {
+  homepage?: string | null;
+  permissions: string[];
+  plans: PricePlan[];
+  requires: { id: string; version: string | null }[];
+  latest_version: { version: string; min_sudoo_version: string; changelog: string | null } | null;
+}
+
+export type LicencePhase = "active" | "expiring" | "grace" | "ended" | "no_lease" | "unlicensed";
+
+export interface InstalledPlugin {
+  id: string;
+  name: string;
+  version: string;
+  type: string | null;
+  tier: "free" | "paid";
+  description: string;
+  publisher: Publisher | null;
+  permissions: string[];
+  enabled: boolean;
+  status: "active" | "disabled" | "modified" | "blocked" | "switched_off" | "unlicensed";
+  loaded: boolean;
+  restart_pending: boolean;
+  licence: {
+    state: string | null;
+    standing: string | null;
+    expires_at: string | null;
+    grace_until: string | null;
+    phase: LicencePhase | null;
+  } | null;
+  latest_version: string | null;
+  update_available: boolean;
+  installed_at: string | null;
+  installed_by: string | null;
+}
+
+export interface PluginNotice {
+  plugin: string | null;
+  kind: string;
+  level: "info" | "warning" | "danger";
+  text: string;
+  date: string | null;
+}
+
+export interface MarketplaceStatus {
+  enabled: boolean;
+  hub_url: string;
+  installation_id: string | null;
+  registered: boolean;
+  reachable: boolean | null;
+  error: string | null;
+  error_code: string | null;
+  hub_status: string | null;
+  linked: { account_name: string | null; linked_at: string | null } | null;
+  last_heartbeat_at: string | null;
+  next_heartbeat_at: string | null;
+  lease_expires_at: string | null;
+  lease_valid: boolean;
+  lease_ending_soon: boolean;
+}
+
+export interface Purchase {
+  id: string;
+  plugin_id: string | null;
+  plugin_name: string | null;
+  plan: string | null;
+  amount_cents: number | null;
+  currency: string | null;
+  status: string | null;
+  kind: string | null;
+  created_at: string | null;
+  paid_at: string | null;
+  receipt_url: string | null;
+  checkout_url: string | null;
 }

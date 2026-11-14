@@ -431,11 +431,13 @@ for a Community instance 400. The job (`"action": "Restore a backup"`) saves the
 backup, stops Odoo, replaces the database and the filestore, sets the instance's public address again and starts
 Odoo. Another instance's backup is loaded under this instance's database name and neutralised first (Odoo's
 `neutralize` on Odoo 16 and later: mail servers, scheduled actions and integrations off; a new database identity);
-the job's notes say so. When the backup is of a database the instance does not have, the job fails and `error` says
-so.
+the job's notes say so; its administrator (user 2) then gets this instance's admin password, and
+`GET /instances/<name>/credentials` shows that administrator's `login`. When the backup is of a database the
+instance does not have, the job fails and `error` says so.
 
 `rollback` puts back the `before-restore` backup named in `rollback` of `GET /instances/<name>`; 409 when there is
-none. It saves the current state as `before-rollback` first (never as `before-restore`, so it cannot replace what it
+none (also once the instance was rolled back to it; restoring that file with `restore` still puts it back). It
+saves the current state as `before-rollback` first (never as `before-restore`, so it cannot replace what it
 restores). Restoring the instance's own `before-restore` file with `restore` does the same.
 
 ```

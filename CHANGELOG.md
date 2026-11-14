@@ -19,8 +19,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   same Odoo version into it (picker grouped by instance, other versions greyed out with the reason), loaded under the
   instance's database name and neutralised (Odoo's `neutralize` on 16+, otherwise mail servers and scheduled actions
   off). "Start from a backup" on the New instance page (`from_backup` in `POST /api/v1/instances`) starts a new
-  instance with a backup's data, installing only the repository's modules it lacks. Both need `instances.restore`
-  and `backups.manage`. `GET /api/v1/backups` now shows each backup's Odoo version and edition.
+  instance with a backup's data, installing only the repository's modules it lacks. In both, the copied
+  administrator gets the instance's admin password and the Access tab shows its login. Both need
+  `instances.restore` and `backups.manage`. `GET /api/v1/backups` now shows each backup's Odoo version and edition.
 - **Rollback after a restore:** the state before a restore is kept for `ROLLBACK_HOURS` (default 24, Settings,
   Backups), with a "Rollback to before the restore" banner on the instance's page and action
   `POST /api/v1/instances/<name>/actions/rollback`. A rollback saves the current state as a new kind,

@@ -249,14 +249,18 @@ under this instance's database name, and its files go with it. Because the data 
 job then neutralises it, the way Odoo.sh does for copies: outgoing mail servers and scheduled actions are switched
 off (Odoo 16 and later use Odoo's own `neutralize` command, which also covers payment providers and other
 integrations of installed apps), and the copy gets its own database identity. The job's notes say so. Switch mail
-servers and scheduled actions back on in Odoo when you want them. A backup of the same instance is put back as it
+servers and scheduled actions back on in Odoo when you want them. The copied administrator (the first user, usually
+`admin`) gets this instance's admin password, so the **Access** tab still works. The other instance's modules come
+with its data: if this instance's repository does not have them, Odoo skips them (their screens are missing) until
+you add them. A backup of the same instance is put back as it
 was, without neutralising.
 
 **Rollback.** After a restore, a banner at the top of the instance's page says when the instance was restored and
 offers **Rollback to before the restore** until a given time (24 hours after the restore unless a super admin changed
 `ROLLBACK_HOURS`). Click it and confirm to go back to the state just before the restore. The rollback saves the
 current state first as a **Before a rollback** backup, kept as long, and never replaces the state it goes back to.
-After that time the **Before a restore** backup is removed and the banner goes. A second restore within that time
+Once you have rolled back, the banner goes; to go back to that state again, restore the **Before a restore**
+backup from the Backups card. After that time the **Before a restore** backup is removed and the banner goes. A second restore within that time
 replaces it: Rollback always goes back to just before the last restore.
 
 ---

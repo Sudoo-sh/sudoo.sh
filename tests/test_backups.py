@@ -16,13 +16,12 @@ import pytest
 from flask import Flask
 from flask.testing import FlaskClient
 
+from conftest import sign_in
 from sudoo import accounts
 from sudoo.config import live, settings
 from sudoo.core import jobs
 from sudoo.core.state import STATE
 from sudoo.instances import backups, operations, store
-
-from conftest import sign_in
 
 Client = tuple[FlaskClient, dict[str, str]]
 
@@ -155,6 +154,10 @@ def test_restore_of_another_instance_checks_version_and_permission(
     m_client, m_headers = maintainer
     answer = m_client.post("/api/v1/instances/shop/actions/restore", json={"file": foreign}, headers=m_headers)
     assert answer.status_code == 403
+    # refused before looking: whether another instance's backup exists is not revealed either
+    unknown = "lab__lab__20201112-000000__manual.zip"
+    answer = m_client.post("/api/v1/instances/shop/actions/restore", json={"file": unknown}, headers=m_headers)
+    assert answer.status_code == 403
     answer = m_client.post("/api/v1/instances/shop/actions/restore", json={"file": own}, headers=m_headers)
     assert answer.status_code == 202
 
@@ -171,14 +174,21 @@ def test_cross_instance_restore_uses_the_target_database_and_neutralises(monkeyp
     monkeypatch.setattr(backups, "create", lambda job, name, kind="manual": done.append(("backup", kind)) or [])
     monkeypatch.setattr(backups, "restore", lambda job, name, b, db=None: done.append(("restore", (b["file"], db))))
     monkeypatch.setattr(backups, "neutralize", lambda job, name, db: done.append(("neutralize", db)) or "neutral")
+    monkeypatch.setattr(operations, "_adopt_admin", lambda job, name, db: done.append(("admin", db)) or "boss")
     monkeypatch.setattr(operations, "_finish_restore", lambda job, name: None)
     job = jobs.Job("shop", "Restore", "restore", "test")
     monkeypatch.setattr(job, "run", lambda *args, **kwargs: None)
 
     assert operations.target_database("shop", backups.all_backups()[0]) == "shop"
     operations.restore(job, "shop", foreign)
-    assert done == [("backup", "before-restore"), ("restore", (foreign, "shop")), ("neutralize", "shop")]
+    assert done == [
+        ("backup", "before-restore"),
+        ("restore", (foreign, "shop")),
+        ("neutralize", "shop"),
+        ("admin", "shop"),  # the copied administrator gets this instance's password, so its credentials work
+    ]
     assert "neutral" in [note["text"] for note in job.notes]
+    assert any("(boss)" in note["text"] for note in job.notes)
 
     done.clear()
     operations.restore(job, "shop", own)
@@ -253,12 +263,41 @@ def test_rollback_goes_on_when_the_current_state_cannot_be_saved(monkeypatch: py
 
 
 def test_rollback_action(admin: Client, started: list[Any]) -> None:
+    from sudoo.web.v1.resources import rollback
+
     _instance("shop")
     client, headers = admin
     assert client.post("/api/v1/instances/shop/actions/rollback", json={}, headers=headers).status_code == 409
-    _backup("shop", "before-restore")
+    snapshot = _backup("shop", "before-restore")
     assert client.post("/api/v1/instances/shop/actions/rollback", json={}, headers=headers).status_code == 202
     assert started[-1] == (operations.rollback, ("shop",))
+    # once rolled back to it, the snapshot is not offered (GET shows "rollback": null) and the action is refused
+    STATE.update("shop", rolled_back=snapshot)
+    assert rollback("shop") is None
+    answer = client.post("/api/v1/instances/shop/actions/rollback", json={}, headers=headers)
+    assert answer.status_code == 409 and "rolled back already" in answer.get_json()["detail"]
+    _backup("shop", "before-restore", age_hours=0.5, stamp="20261112-010000")  # a new restore: offered again
+    assert client.post("/api/v1/instances/shop/actions/rollback", json={}, headers=headers).status_code == 202
+
+
+def test_credentials_show_the_administrator_login_of_a_backup(admin: Client, monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo.core import vault
+
+    _instance("shop")
+    store.update_env(
+        "shop", ODOO_ADMIN_PASSWORD="admin", MASTER_PASSWORD=vault.encrypt("m", store.master_password_label("shop"))
+    )
+    client, headers = admin
+    assert client.get("/api/v1/instances/shop/credentials", headers=headers).get_json()["data"]["login"] == "admin"
+
+    monkeypatch.setattr(operations, "capture", lambda cmd, timeout=30: "boss@example.com")
+    assert operations._record_admin_login("shop", "shop") == "boss@example.com"
+    assert store.read_env("shop")["ODOO_ADMIN_LOGIN"] == "boss@example.com"
+    data = client.get("/api/v1/instances/shop/credentials", headers=headers).get_json()["data"]
+    assert data["login"] == "boss@example.com"
+
+    monkeypatch.setattr(operations, "capture", lambda cmd, timeout=30: "")  # unreadable: the kept login stays
+    assert operations._record_admin_login("shop", "shop") == "boss@example.com"
 
 
 def test_rollback_hours_is_a_documented_live_setting() -> None:

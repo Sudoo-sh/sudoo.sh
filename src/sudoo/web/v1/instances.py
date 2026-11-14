@@ -106,7 +106,7 @@ def credentials(name: str) -> Response:
     log("instance credentials viewed", instance=name)
     return ok(
         {
-            "login": "admin",
+            "login": env.get("ODOO_ADMIN_LOGIN") or "admin",  # another login when started from a backup
             "admin_password": env["ODOO_ADMIN_PASSWORD"],
             "master_password": vault.decrypt(env["MASTER_PASSWORD"], store.master_password_label(name)),
             "ports": {key.lower(): int(env[key]) for key in env if key.endswith("_PORT") and env[key].isdigit()},
@@ -147,10 +147,11 @@ def _usable_backup(file_name: str, version: str, edition: str, instance: str | N
 
     A backup of `instance` itself needs nothing more than the action's permission; any other backup (another
     instance's, or one to start a new instance from) also needs backups.manage, which shows every backup."""
-    path = check.backup_file(file_name)  # 404 for an unknown file or anything that is not a backup name
-    match = backups.FILE_RE.match(path.name)
+    # the permission first: without backups.manage, other instances' backups must not even be found (404 or not)
+    match = backups.FILE_RE.match(file_name)
     if instance is None or match is None or match["instance"] != instance:
-        refuse_unless("backups.manage", f"use backup {path.name}" + (f" for {instance}" if instance else ""))
+        refuse_unless("backups.manage", f"use backup {file_name[:80]}" + (f" for {instance}" if instance else ""))
+    path = check.backup_file(file_name)  # 404 for an unknown file or anything that is not a backup name
     problem = backups.problem(path.name, version, edition)
     if problem:
         abort(400, problem)
@@ -279,7 +280,11 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
         return operations.restore, (name, file_name)
     if action == "rollback":
         if not backups.rollback_snapshot(name):
-            abort(409, f"There is nothing to roll back to: no restore in the last {settings.rollback_hours:g} hours.")
+            abort(
+                409,
+                "There is nothing to roll back to: no restore in the last "
+                f"{settings.rollback_hours:g} hours, or the instance was rolled back already.",
+            )
         return operations.rollback, (name,)
     if action == "upgrade":
         return operations.upgrade_modules, (name, check.module_list(check.text(data, "modules", max_length=4000)))

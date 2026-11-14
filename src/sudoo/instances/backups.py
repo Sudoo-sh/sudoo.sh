@@ -44,6 +44,7 @@ from typing import IO, Any, cast
 from sudoo.config import settings
 from sudoo.core.jobs import Job, JobError
 from sudoo.core.shell import capture
+from sudoo.core.state import STATE
 from sudoo.instances import odoo, store
 
 FILE_RE = re.compile(
@@ -229,9 +230,12 @@ def problem(file_name: str, version: str, edition: str) -> str | None:
 
 def rollback_snapshot(name: str, now: float | None = None) -> list[dict[str, Any]]:
     """The before-restore backup(s) a rollback puts back: the newest of the instance (one file per database, all
-    with the same stamp), if taken less than ROLLBACK_HOURS ago; [] otherwise."""
+    with the same stamp), if taken less than ROLLBACK_HOURS ago and the instance was not rolled back to it already
+    (STATE "rolled_back"); [] otherwise. Going back to it once more is still possible by restoring the file."""
     found = of_instance(name, ("before-restore",))
     if not found or found[0]["created"] < (time.time() if now is None else now) - settings.rollback_hours * 3600:
+        return []
+    if STATE.get(name).get("rolled_back") == found[0]["file"]:
         return []
     return [b for b in found if b["stamp"] == found[0]["stamp"]]
 
@@ -300,6 +304,7 @@ def restore(job: Job, name: str, backup: dict[str, Any], db: str | None = None) 
                 for entry in _filestore_entries(archive):
                     info = tarfile.TarInfo(entry.filename.removeprefix("filestore/"))
                     info.size = entry.file_size
+                    info.mtime = int(time.mktime((*entry.date_time, 0, 0, -1)))  # not 1970
                     with archive.open(entry) as data:
                         tar.addfile(info, data)
             tar_file.seek(0)

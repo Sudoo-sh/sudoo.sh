@@ -212,13 +212,13 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
 
     # a new database already has the login admin / admin; a backup's administrator (user 2) gets the panel's
     # password too, so the instance's credentials in the panel work for it
+    login = "admin"
     if settings.odoo_admin_password != "admin" or source:
         job.step("Setting the admin password")
-        script = (
-            f"env['res.users'].browse(2).write({{'password': {settings.odoo_admin_password!r}}})\n" "env.cr.commit()\n"
-        )
-        job.run(odoo.run_cmd(name, "shell", "-d", db), timeout=600, input=script)
-    login = _admin_login(name, db) if source else "admin"
+        if source:
+            login = _adopt_admin(job, name, db)
+        else:
+            _set_admin_password(job, name, db)
 
     job.step("Creating the public link")
     gateway.add(name)
@@ -250,12 +250,31 @@ def _backup_to_start_from(plan: dict[str, Any]) -> dict[str, Any] | None:
     return source
 
 
-def _admin_login(name: str, db: str) -> str:
-    """The login of the administrator (user 2) of database `db`; "admin" if it cannot be read."""
+def _set_admin_password(job: Job, name: str, db: str) -> None:
+    """Give the administrator (user 2) of database `db` the instance's admin password (ODOO_ADMIN_PASSWORD)."""
+    password = store.read_env(name).get("ODOO_ADMIN_PASSWORD") or settings.odoo_admin_password
+    script = f"env['res.users'].browse(2).write({{'password': {password!r}}})\nenv.cr.commit()\n"
+    job.run(odoo.run_cmd(name, "shell", "-d", db), timeout=600, input=script)
+
+
+def _adopt_admin(job: Job, name: str, db: str) -> str:
+    """After another instance's data was loaded into database `db`: its administrator (user 2) gets this instance's
+    admin password, and its login is recorded (ODOO_ADMIN_LOGIN), so the credentials the panel shows work. Returns
+    the login."""
+    _set_admin_password(job, name, db)
+    return _record_admin_login(name, db)
+
+
+def _record_admin_login(name: str, db: str) -> str:
+    """Read the login of the administrator (user 2) of database `db` and keep it as ODOO_ADMIN_LOGIN (shown with the
+    instance's credentials). When it cannot be read, the login kept so far is left as it is and returned."""
     sql = "SELECT login FROM res_users WHERE id = 2"
-    return (
-        capture(["docker", "exec", store.container(name, "db"), "psql", "-U", "odoo", "-d", db, "-tAc", sql]) or "admin"
-    )
+    container = store.container(name, "db")
+    kept = store.read_env(name).get("ODOO_ADMIN_LOGIN") or "admin"
+    login = capture(["docker", "exec", container, "psql", "-U", "odoo", "-d", db, "-tAc", sql]).strip()
+    if login and login != kept:
+        store.update_env(name, ODOO_ADMIN_LOGIN=login)
+    return login or kept
 
 
 def delete(job: Job, name: str) -> None:
@@ -329,7 +348,7 @@ def restore(job: Job, name: str, file_name: str | None = None) -> None:
     taken = datetime.fromtimestamp(chosen["created"], settings.zone).strftime("%Y-%m-%d %H:%M")
     foreign = chosen["instance"] != name
     db = target_database(name, chosen)
-    job.expect(5 + foreign)  # the last step, waiting for Odoo, is _start_odoo's
+    job.expect(5 + 2 * foreign)  # the last step, waiting for Odoo, is _start_odoo's
     job.step("Saving the current state first")
     saved = backups.create(job, name, "before-restore")
     hours = f"{settings.rollback_hours:g}"
@@ -341,6 +360,9 @@ def restore(job: Job, name: str, file_name: str | None = None) -> None:
     if foreign:
         job.step("Neutralising the copied data")
         job.note(backups.neutralize(job, name, db))
+        job.step("Setting the admin password")
+        login = _adopt_admin(job, name, db)
+        job.note(f"The administrator ({login}) now has this instance's admin password, shown on its Access tab.")
     _finish_restore(job, name)
     job.note(f"Restored {chosen['file']}" + (f" into database {db}" if db != chosen["db"] else ""))
 
@@ -349,10 +371,14 @@ def rollback(job: Job, name: str) -> None:
     """Put back the state the instance had before its last restore (the before-restore backup, while it is kept).
 
     The current state is saved as before-rollback first, never as before-restore: that would replace the snapshot
-    being restored. The snapshot itself stays until it expires, so the rollback can be repeated."""
+    being restored. The snapshot itself stays until it expires: the action is offered once per restore, but the
+    snapshot can still be put back by restoring its file."""
     snapshot = backups.rollback_snapshot(name)
     if not snapshot:
-        raise JobError(f"There is nothing to roll back to: no restore in the last {settings.rollback_hours:g} hours.")
+        raise JobError(
+            "There is nothing to roll back to: no restore in the last "
+            f"{settings.rollback_hours:g} hours, or the instance was rolled back already."
+        )
     _rollback(job, name, snapshot)
 
 
@@ -382,7 +408,9 @@ def _rollback(job: Job, name: str, snapshot: list[dict[str, Any]]) -> None:
 
 
 def _finish_restore(job: Job, name: str) -> None:
-    """After a restore: the database gets this instance's public address again, and Odoo starts."""
+    """After a restore: the database gets this instance's public address again, the administrator's login is read
+    again (a rollback may bring back another one), and Odoo starts."""
+    _record_admin_login(name, odoo.databases(name)[0])
     url = exposure.address(name)
     if url:
         for cmd in odoo.public_address_cmds(name, url):

@@ -61,7 +61,7 @@ def rollback(name: str) -> dict[str, Any] | None:
     """The instance's Rollback offer after a restore: {"backups", "taken_at", "until"}, or None (no restore in the
     last ROLLBACK_HOURS, or it was rolled back already)."""
     snapshot = backups.rollback_snapshot(name)
-    if not snapshot or STATE.get(name).get("rolled_back") == snapshot[0]["file"]:
+    if not snapshot:
         return None
     return {
         "backups": [b["file"] for b in snapshot],

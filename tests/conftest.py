@@ -26,6 +26,8 @@ os.environ.update(
     ODOO_VERSIONS="18.0,19.0,20.0",
     ENTERPRISE_SOURCE="none",
     REQUIRE_SECOND_FACTOR="none",  # test_auth.py turns it on where it is tested
+    # the whole suite makes many changes from one address within a minute; test_auth.py tests the limits itself
+    RATE_LIMIT_CHANGES_PER_MINUTE="100000",
 )
 
 from flask import Flask  # noqa: E402

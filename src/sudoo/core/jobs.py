@@ -143,6 +143,11 @@ class Job:
         }
 
 
+def is_panel_job(instance: str) -> bool:
+    """Jobs of the panel itself (plugins) use an "instance" with a colon, which no instance name can have."""
+    return ":" in instance
+
+
 def start(instance: str, action: str, kind: str, fn: Callable[..., object], *args: Any, user: str = "system") -> Job:
     """Run fn(job, *args) in the background for `instance` and return the Job."""
     job = Job(instance, action, kind, user)
@@ -161,7 +166,8 @@ def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
         ACTIVE_JOB[job.instance] = job
         job.status = "running"
         job.changed()
-        events.publish("instance", job.instance)
+        if not is_panel_job(job.instance):
+            events.publish("instance", job.instance)
         try:
             fn(job, *args)
             for step in job.steps:
@@ -173,7 +179,9 @@ def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
                     step["status"] = "failed"
             job.status = "failed"
             job.write(f"\nERROR: {exc}\n")
-            job.hint = friendly_hint("".join(job.log))
+            # a panel job (plugins) refuses in plain words already: show them rather than a general hint
+            plain = isinstance(exc, JobError) and is_panel_job(job.instance) and str(exc)
+            job.hint = plain or friendly_hint("".join(job.log))
         finally:
             job.finished = time.time()
             ACTIVE_JOB.pop(job.instance, None)
@@ -181,7 +189,7 @@ def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
             job.changed()
             if job.kind == "delete" and job.status == "success":
                 events.publish("instance.deleted", job.instance, {"name": job.instance})
-            else:
+            elif not is_panel_job(job.instance):
                 events.publish("instance", job.instance)
 
 

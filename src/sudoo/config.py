@@ -157,6 +157,30 @@ class Settings(BaseSettings):
         description="How long the state before a restore is kept, and Rollback offered, after a restore (hours).",
     )
 
+    # ------------------------------------------------------------------ marketplace (docs/MARKETPLACE.md)
+    marketplace: bool = Field(
+        False,
+        description="Use the Sudoo.sh marketplace: register with the hub, send a signed heartbeat every 6 hours, "
+        "install plugins. Off: the panel never contacts the hub; installed free plugins keep working.",
+    )
+    hub_url: str = Field(
+        "https://hub.sudoo.sh",
+        description="Address of the Sudoo.sh hub (https; http only for localhost while testing).",
+    )
+
+    @field_validator("hub_url")
+    @classmethod
+    def _hub_url(cls, value: str) -> str:
+        from urllib.parse import urlsplit
+
+        parts = urlsplit(value.strip())
+        local = parts.hostname in ("localhost", "127.0.0.1", "::1")
+        if parts.scheme not in ("https", "http") or not parts.hostname or (parts.scheme == "http" and not local):
+            raise ValueError("must be an https:// address (http:// only for localhost)")
+        if parts.query or parts.fragment or parts.username or parts.password:
+            raise ValueError("must be a plain address such as https://hub.sudoo.sh")
+        return value.strip().rstrip("/")
+
     @field_validator("timezone")
     @classmethod
     def _known_timezone(cls, value: str) -> str:
@@ -265,6 +289,7 @@ EDITABLE = (
     "admin_contact_name",
     "admin_contact_phone",
     "admin_contact_email",
+    "marketplace",
 )
 """Settings that can be changed in the panel, taking effect at once."""
 

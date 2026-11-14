@@ -19,6 +19,7 @@ dependencies = [
     "gunicorn>=23.0",
     "markdown>=3.7",
     "pydantic-settings>=2.6",
+    "sudoo-plugin-sdk",
 ]
 
 [project.urls]
@@ -106,3 +107,6 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.uv.sources]
+sudoo-plugin-sdk = { git = "https://github.com/Sudoo-sh/sudoo-plugin-sdk", rev = "1dd89da15b8f4c5551a8c60fda63b8bef52b59ee" }

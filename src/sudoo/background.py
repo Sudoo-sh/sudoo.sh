@@ -1,15 +1,17 @@
 """Work that runs on its own inside the panel process: monitor, automatic pause, automatic deletion, daily backups,
-removal of expired rollback snapshots, GitHub polling, gateway, connectors."""
+removal of expired rollback snapshots, GitHub polling, gateway, connectors, the marketplace heartbeat and the plugin
+watchdog (files, licences)."""
 
 from __future__ import annotations
 
 import threading
 import time
 
-from sudoo import exposure, triggers
+from sudoo import exposure, plugin_manager, triggers
 from sudoo.config import settings
 from sudoo.core import jobs
 from sudoo.core.state import STATE
+from sudoo.hub import marketplace
 from sudoo.instances import backups, gateway, monitor, operations, store
 from sudoo.repos import github
 
@@ -24,6 +26,8 @@ def start() -> None:
         _delete_expired_instances,
         _daily_backups,
         _remove_expired_snapshots,
+        marketplace.heartbeat_forever,
+        plugin_manager.watch_forever,
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     gateway.start(wake=start_wake_job)

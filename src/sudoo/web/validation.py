@@ -167,3 +167,38 @@ def username(value: str) -> str:
             "starting with a letter.",
         )
     return value
+
+
+PLUGIN_ID_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*){2,6}$")
+PLUGIN_VERSION_RE = re.compile(
+    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]{1,40})?(?:\+[0-9A-Za-z.-]{1,40})?$"
+)
+HUB_REFERENCE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+LINK_CODE_RE = re.compile(r"^[A-Za-z0-9-]{8,16}$")
+
+
+def plugin_id(value: str) -> str:
+    """A marketplace plugin id such as com.sudoo.smtp."""
+    if len(value) > 128 or not PLUGIN_ID_RE.match(value):
+        abort(400, "Give a plugin id such as com.sudoo.smtp.")
+    return value
+
+
+def plugin_version(value: str) -> str:
+    if len(value) > 64 or not PLUGIN_VERSION_RE.match(value):
+        abort(400, "Give a version such as 1.2.0.")
+    return value
+
+
+def hub_reference(value: str, what: str) -> str:
+    """An id the hub gave (plan, purchase): letters, digits, - and _ only."""
+    if not HUB_REFERENCE_RE.match(value):
+        abort(400, f"The {what} is not valid.")
+    return value
+
+
+def link_code(value: str) -> str:
+    """The one-time code from app.sudoo.sh (Servers, Link a server)."""
+    if not LINK_CODE_RE.match(value):
+        abort(400, "Enter the code shown on app.sudoo.sh (letters and digits).")
+    return value

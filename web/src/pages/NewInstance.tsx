@@ -1,10 +1,11 @@
-import { Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Package, SlidersHorizontal } from "lucide-react";
+import { Archive, Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Package, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, usePlan, useQuota, useSettings, useVersions } from "@/api/queries";
 import type { Job, RepoAccess } from "@/api/types";
-import { Page, PageHead } from "@/components/Shell";
+import { BackupPicker } from "@/components/BackupPicker";
+import { Page, PageHead, useCan } from "@/components/Shell";
 import { Tag, Button, Callout, Field, Switch } from "@/components/ui/basics";
 import { useToast } from "@/components/ui/overlay";
 import { ago } from "@/lib/format";
@@ -23,6 +24,8 @@ const LIFETIMES = [7, 14, 30, 60, 90];
 export function NewInstancePage() {
   const navigate = useNavigate();
   const toast = useToast();
+  const can = useCan();
+  const mayUseBackups = can("instances.restore") && can("backups.manage");
   const { data: versions } = useVersions();
   const { data: quota } = useQuota();
   const { data: settings } = useSettings();
@@ -38,6 +41,8 @@ export function NewInstancePage() {
   const [autoUpdate, setAutoUpdate] = useState(true);
   const [autoPause, setAutoPause] = useState(true);
   const [lifetime, setLifetime] = useState<number | null>(null);
+  const [fromBackup, setFromBackup] = useState<string | null>(null);
+  const [useBackup, setUseBackup] = useState(false);
 
   const [branches, setBranches] = useState<string[] | null>(null);
   const [access, setAccess] = useState<RepoAccess | null>(null);
@@ -94,6 +99,7 @@ export function NewInstancePage() {
   useEffect(() => {
     if (!enterpriseAvailable) setEdition("community");
   }, [enterpriseAvailable]);
+  useEffect(() => setFromBackup(null), [version, edition]); // the picker only shows backups that fit both
 
   const create = useCall(
     () =>
@@ -104,10 +110,11 @@ export function NewInstancePage() {
         edition,
         name: name.trim(),
         install_modules: installModules,
-        demo,
+        demo: demo && !useBackup,
         delete_after_days: lifetime ?? 30,
         auto_update: autoUpdate,
         auto_pause: autoPause,
+        ...(useBackup && fromBackup ? { from_backup: fromBackup } : {}),
       }),
     [keys.instances, ["quota"]],
   );
@@ -116,7 +123,8 @@ export function NewInstancePage() {
   const full =
     (quota?.max_instances != null && quota.instances >= quota.max_instances) ||
     (quota?.max_instances_per_user != null && quota.own_instances >= quota.max_instances_per_user);
-  const canCreate = !!version && (!!repo.trim() ? !!branches && !repoError : !!name.trim()) && !waiting && !full;
+  const canCreate =
+    !!version && (!!repo.trim() ? !!branches && !repoError : !!name.trim()) && !waiting && !full && (!useBackup || !!fromBackup);
 
   const submit = () =>
     create.mutate(undefined, {
@@ -225,14 +233,34 @@ export function NewInstancePage() {
               </div>
             </div>
           </section>
+
+          {mayUseBackups && (
+            <section className="card">
+              <div className="card-head">
+                <Archive />
+                <h2>Start from a backup</h2>
+                <span className="sub">optional</span>
+                <span className="spacer" />
+                <Switch checked={useBackup} onChange={setUseBackup} label="Use a backup" />
+              </div>
+              {useBackup && (
+                <div className="card-body stack">
+                  <p className="small muted">
+                    The new instance starts with this backup's data instead of an empty database. Only backups of Odoo {version} fit. A backup of another instance is neutralised: no e-mail goes out and no scheduled actions run until you switch them back on in Odoo.
+                  </p>
+                  <BackupPicker version={version} edition={edition} value={fromBackup} onChange={setFromBackup} onlyCompatible />
+                </div>
+              )}
+            </section>
+          )}
         </div>
 
         <aside className="stack" style={{ position: "sticky", top: 84 }}>
           <section className="card">
             <div className="card-head"><SlidersHorizontal /><h2>Options</h2></div>
             <div className="card-body stack">
-              <Switch checked={installModules} onChange={setInstallModules} label="Install the repository's modules" />
-              <Switch checked={demo} onChange={setDemo} label="Load demo data" />
+              <Switch checked={installModules} onChange={setInstallModules} label={useBackup ? "Install the repository's modules the backup lacks" : "Install the repository's modules"} />
+              {!useBackup && <Switch checked={demo} onChange={setDemo} label="Load demo data" />}
               <Switch checked={autoUpdate} onChange={setAutoUpdate} label="Get new code automatically" />
               <Switch checked={autoPause} onChange={setAutoPause} label="Pause when nobody uses it" />
               <Field label="Lifetime" hint="Deleted after this, with a backup first.">

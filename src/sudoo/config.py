@@ -150,10 +150,16 @@ class Settings(BaseSettings):
         "00:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$", description="When the daily backups run (HH:MM, 24 hours)."
     )
     timezone: str = Field("UTC", description="Time zone of the daily backup time, for example Africa/Cairo.")
+    rollback_hours: float = Field(
+        24,
+        gt=0,
+        le=720,
+        description="How long the state before a restore is kept, and Rollback offered, after a restore (hours).",
+    )
 
     # ------------------------------------------------------------------ marketplace (docs/MARKETPLACE.md)
     marketplace: bool = Field(
-        True,
+        False,
         description="Use the Sudoo.sh marketplace: register with the hub, send a signed heartbeat every 6 hours, "
         "install plugins. Off: the panel never contacts the hub; installed free plugins keep working.",
     )
@@ -261,6 +267,7 @@ EDITABLE = (
     "daily_backups",
     "daily_backup_time",
     "timezone",
+    "rollback_hours",
     "odoo_versions",
     "odoo_min_version",
     "odoo_image",

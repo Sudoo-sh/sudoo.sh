@@ -116,13 +116,16 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     name, db, version = plan["name"], plan["db_name"], plan["version"]
     enterprise = plan["edition"] == "enterprise"
     addons = store.addons_dir(name)
+    source = _backup_to_start_from(plan)
+    foreign = source is not None and source["instance"] != name
 
     job.expect(
-        6  # preparing, Odoo image, database container, Odoo database, public link, starting Odoo
+        7  # preparing, Odoo image, database container, Odoo database, public link, starting Odoo, waiting
         + bool(plan["repo"])
         + enterprise
         + bool(plan["install_modules"] and plan["repo"])
-        + (settings.odoo_admin_password != "admin")
+        + (settings.odoo_admin_password != "admin" or bool(source))
+        + foreign
     )
     job.step("Preparing the instance")
     (store.folder(name) / "config").mkdir()
@@ -172,14 +175,30 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     job.step("Starting the database")
     job.run(compose(name, "up", "-d", "db"), timeout=300)
 
-    job.step(f"Creating the Odoo {'Enterprise' if enterprise else 'Community'} database (about 1-2 minutes)")
-    # web_enterprise turns the database into Enterprise: Enterprise interface and apps
-    init = ["-d", db, "-i", "base,web_enterprise" if enterprise else "base", "--stop-after-init", "--no-http"]
-    if plan["demo"]:
-        init.append("--with-demo")
-    job.run(odoo.run_cmd(name, *init), timeout=1800)
+    if source:
+        taken = datetime.fromtimestamp(source["created"], settings.zone).strftime("%Y-%m-%d %H:%M")
+        job.step(f"Loading the backup of {source['instance']} of {taken} into database {db}")
+        backups.restore(job, name, source, db)
+        if foreign:
+            job.step("Neutralising the copied data")
+            job.note(backups.neutralize(job, name, db))
+    else:
+        job.step(f"Creating the Odoo {'Enterprise' if enterprise else 'Community'} database (about 1-2 minutes)")
+        # web_enterprise turns the database into Enterprise: Enterprise interface and apps
+        init = ["-d", db, "-i", "base,web_enterprise" if enterprise else "base", "--stop-after-init", "--no-http"]
+        if plan["demo"]:
+            init.append("--with-demo")
+        job.run(odoo.run_cmd(name, *init), timeout=1800)
 
     modules = own_modules(addons) if plan["install_modules"] else []
+    if modules and source:  # the backup's database may have them already: those are kept as they are
+        installed = backups.installed_modules(name, db)
+        already = [module for module in modules if module in installed]
+        modules = [module for module in modules if module not in installed]
+        if already:
+            job.note(f"Already installed in the backup, so not installed again: {', '.join(already)}")
+        if not modules:
+            job.step("The repository's modules are all installed already")
     if modules:
         job.step(f"Installing the repository's modules ({len(modules)})")
         if job.run_unchecked(
@@ -191,12 +210,15 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
                 "warning",
             )
 
-    if settings.odoo_admin_password != "admin":  # a new database already has the login admin / admin
+    # a new database already has the login admin / admin; a backup's administrator (user 2) gets the panel's
+    # password too, so the instance's credentials in the panel work for it
+    login = "admin"
+    if settings.odoo_admin_password != "admin" or source:
         job.step("Setting the admin password")
-        script = (
-            f"env['res.users'].browse(2).write({{'password': {settings.odoo_admin_password!r}}})\n" "env.cr.commit()\n"
-        )
-        job.run(odoo.run_cmd(name, "shell", "-d", db), timeout=600, input=script)
+        if source:
+            login = _adopt_admin(job, name, db)
+        else:
+            _set_admin_password(job, name, db)
 
     job.step("Creating the public link")
     gateway.add(name)
@@ -210,7 +232,49 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     job.step("Starting Odoo")
     job.run(compose(name, "up", "-d"), timeout=600)
     _wait_until_ready(job, name)
-    job.result = {"name": name, "url": url, "login": "admin", "password": settings.odoo_admin_password, "db": db}
+    job.result = {"name": name, "url": url, "login": login, "password": settings.odoo_admin_password, "db": db}
+    if source:
+        job.note(f"Started from the backup {source['file']}")
+
+
+def _backup_to_start_from(plan: dict[str, Any]) -> dict[str, Any] | None:
+    """The backup a new instance starts from (plan["from_backup"]), checked again; None for an empty database."""
+    if not plan.get("from_backup"):
+        return None
+    source = next((b for b in backups.all_backups() if b["file"] == plan["from_backup"]), None)
+    if source is None:
+        raise JobError("The backup to start from no longer exists.")
+    problem = backups.problem(source["file"], plan["version"], plan["edition"])
+    if problem:
+        raise JobError(problem)
+    return source
+
+
+def _set_admin_password(job: Job, name: str, db: str) -> None:
+    """Give the administrator (user 2) of database `db` the instance's admin password (ODOO_ADMIN_PASSWORD)."""
+    password = store.read_env(name).get("ODOO_ADMIN_PASSWORD") or settings.odoo_admin_password
+    script = f"env['res.users'].browse(2).write({{'password': {password!r}}})\nenv.cr.commit()\n"
+    job.run(odoo.run_cmd(name, "shell", "-d", db), timeout=600, input=script)
+
+
+def _adopt_admin(job: Job, name: str, db: str) -> str:
+    """After another instance's data was loaded into database `db`: its administrator (user 2) gets this instance's
+    admin password, and its login is recorded (ODOO_ADMIN_LOGIN), so the credentials the panel shows work. Returns
+    the login."""
+    _set_admin_password(job, name, db)
+    return _record_admin_login(name, db)
+
+
+def _record_admin_login(name: str, db: str) -> str:
+    """Read the login of the administrator (user 2) of database `db` and keep it as ODOO_ADMIN_LOGIN (shown with the
+    instance's credentials). When it cannot be read, the login kept so far is left as it is and returned."""
+    sql = "SELECT login FROM res_users WHERE id = 2"
+    container = store.container(name, "db")
+    kept = store.read_env(name).get("ODOO_ADMIN_LOGIN") or "admin"
+    login = capture(["docker", "exec", container, "psql", "-U", "odoo", "-d", db, "-tAc", sql]).strip()
+    if login and login != kept:
+        store.update_env(name, ODOO_ADMIN_LOGIN=login)
+    return login or kept
 
 
 def delete(job: Job, name: str) -> None:
@@ -245,34 +309,114 @@ def daily_backup(job: Job, name: str) -> None:
     backup(job, name, "daily")
 
 
-def restore(job: Job, name: str, file_name: str | None = None) -> None:
-    """Put a backup back (the latest, or `file_name`): the current state is backed up first, then the database
-    and the filestore are replaced and Odoo starts."""
-    chosen = (
-        next((b for b in backups.of_instance(name) if b["file"] == file_name), None)
-        if file_name
-        else backups.latest(name)
-    )
+def chosen_backup(name: str, file_name: str | None) -> dict[str, Any]:
+    """The backup a restore of instance `name` puts back: `file_name` (a backup of any instance), or the latest
+    restorable backup of the instance. Raises JobError when it cannot go into this instance."""
+    if file_name:
+        chosen = next((b for b in backups.all_backups() if b["file"] == file_name), None)
+    else:
+        chosen = backups.latest(name)
     if chosen is None:
-        raise JobError("There is no backup of this instance to restore.")
-    if chosen["db"] not in odoo.databases(name):
+        raise JobError("There is no such backup to restore." if file_name else "There is no backup of this instance.")
+    env = store.read_env(name)
+    problem = backups.problem(chosen["file"], env["ODOO_VERSION"], env.get("EDITION", "community"))
+    if problem:
+        raise JobError(problem)
+    if chosen["instance"] == name and chosen["db"] not in odoo.databases(name):
         raise JobError(f"The backup is of database {chosen['db']}, which this instance does not have.")
+    return chosen
+
+
+def target_database(name: str, backup: dict[str, Any]) -> str:
+    """The database of instance `name` a backup goes into: its own database for a backup of this instance, the
+    instance's (first) database for a backup of another one."""
+    return backup["db"] if backup["instance"] == name else odoo.databases(name)[0]
+
+
+def restore(job: Job, name: str, file_name: str | None = None) -> None:
+    """Put a backup back (the latest of this instance, or `file_name`, which may be another instance's): the
+    current state is backed up first (before-restore, offered as Rollback for ROLLBACK_HOURS), then the database
+    and the filestore are replaced and Odoo starts. Another instance's data is loaded under this instance's
+    database name and neutralised.
+
+    Restoring the instance's own before-restore backup is a rollback (see rollback): taking a new before-restore
+    first would replace the very file being restored."""
+    chosen = chosen_backup(name, file_name)
+    if chosen["instance"] == name and chosen["kind"] == "before-restore":
+        _rollback(job, name, [chosen])
+        return
     taken = datetime.fromtimestamp(chosen["created"], settings.zone).strftime("%Y-%m-%d %H:%M")
-    job.expect(4)
+    foreign = chosen["instance"] != name
+    db = target_database(name, chosen)
+    job.expect(5 + 2 * foreign)  # the last step, waiting for Odoo, is _start_odoo's
     job.step("Saving the current state first")
     saved = backups.create(job, name, "before-restore")
-    job.note(f"The state before the restore is kept as {', '.join(path.name for path in saved)}")
+    hours = f"{settings.rollback_hours:g}"
+    job.note(f"The state before the restore is kept for {hours} hours as {', '.join(p.name for p in saved)}")
     job.step("Stopping Odoo")
     job.run(compose(name, "stop", "odoo"), timeout=300)
-    job.step(f"Restoring the backup of {taken}")
-    backups.restore(job, name, chosen)
+    job.step(f"Restoring the backup of {taken}" + (f" from {chosen['instance']}" if foreign else ""))
+    backups.restore(job, name, chosen, db)
+    if foreign:
+        job.step("Neutralising the copied data")
+        job.note(backups.neutralize(job, name, db))
+        job.step("Setting the admin password")
+        login = _adopt_admin(job, name, db)
+        job.note(f"The administrator ({login}) now has this instance's admin password, shown on its Access tab.")
+    _finish_restore(job, name)
+    job.note(f"Restored {chosen['file']}" + (f" into database {db}" if db != chosen["db"] else ""))
+
+
+def rollback(job: Job, name: str) -> None:
+    """Put back the state the instance had before its last restore (the before-restore backup, while it is kept).
+
+    The current state is saved as before-rollback first, never as before-restore: that would replace the snapshot
+    being restored. The snapshot itself stays until it expires: the action is offered once per restore, but the
+    snapshot can still be put back by restoring its file."""
+    snapshot = backups.rollback_snapshot(name)
+    if not snapshot:
+        raise JobError(
+            "There is nothing to roll back to: no restore in the last "
+            f"{settings.rollback_hours:g} hours, or the instance was rolled back already."
+        )
+    _rollback(job, name, snapshot)
+
+
+def _rollback(job: Job, name: str, snapshot: list[dict[str, Any]]) -> None:
+    taken = datetime.fromtimestamp(snapshot[0]["created"], settings.zone).strftime("%Y-%m-%d %H:%M")
+    databases = odoo.databases(name)
+    snapshot = [b for b in snapshot if b["db"] in databases]
+    if not snapshot:
+        raise JobError("The state before the restore is of a database this instance no longer has.")
+    job.expect(5)
+    job.step("Saving the current state first")
+    try:
+        saved = backups.create(job, name, "before-rollback")
+        job.note(f"The state before the rollback is kept as {', '.join(p.name for p in saved)}")
+    except JobError as error:
+        # a rollback is also the way back from a restore that failed halfway, when the database may be gone and
+        # cannot be backed up: that must not block it
+        job.note(f"The current state could not be saved first ({error}); rolling back anyway.", "warning")
+    job.step("Stopping Odoo")
+    job.run(compose(name, "stop", "odoo"), timeout=300)
+    job.step(f"Rolling back to {taken}, before the restore")
+    for chosen in snapshot:
+        backups.restore(job, name, chosen)
+    _finish_restore(job, name)
+    STATE.update(name, rolled_back=snapshot[0]["file"])
+    job.note(f"Rolled back to {', '.join(b['file'] for b in snapshot)}")
+
+
+def _finish_restore(job: Job, name: str) -> None:
+    """After a restore: the database gets this instance's public address again, the administrator's login is read
+    again (a rollback may bring back another one), and Odoo starts."""
+    _record_admin_login(name, odoo.databases(name)[0])
     url = exposure.address(name)
     if url:
         for cmd in odoo.public_address_cmds(name, url):
             job.run(cmd, timeout=60)
     job.step("Starting Odoo")
     _start_odoo(job, name)
-    job.note(f"Restored {chosen['file']}")
 
 
 def expires_at(env: dict[str, str]) -> int | None:

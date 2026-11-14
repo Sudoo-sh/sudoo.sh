@@ -1,5 +1,6 @@
 """Work that runs on its own inside the panel process: monitor, automatic pause, automatic deletion, daily backups,
-GitHub polling, gateway, connectors, the marketplace heartbeat and the plugin watchdog (files, licences)."""
+removal of expired rollback snapshots, GitHub polling, gateway, connectors, the marketplace heartbeat and the plugin
+watchdog (files, licences)."""
 
 from __future__ import annotations
 
@@ -24,6 +25,7 @@ def start() -> None:
         _pause_idle_instances,
         _delete_expired_instances,
         _daily_backups,
+        _remove_expired_snapshots,
         marketplace.heartbeat_forever,
         plugin_manager.watch_forever,
     ):
@@ -93,3 +95,26 @@ def _daily_backups() -> None:
             if backups.needs_daily(STATE.get(name).get("used_since"), slot):
                 tried[name] = slot
                 jobs.start(name, "Daily backup", "backup", operations.daily_backup, name)
+
+
+SNAPSHOT_CHECK_SECONDS = 300
+
+
+def _remove_expired_snapshots() -> None:
+    """Every five minutes: remove the before-restore and before-rollback backups older than ROLLBACK_HOURS, which
+    ends the instance's Rollback offer. Nothing is removed while any job runs: a restore, rollback or creation may be
+    about to read a snapshot (of its own instance or of another one); they are removed in a later round."""
+    while True:
+        time.sleep(SNAPSHOT_CHECK_SECONDS)
+        remove_expired_snapshots()
+
+
+def remove_expired_snapshots(now: float | None = None) -> list[str]:
+    """Remove expired safety backups, unless a job is running; return the removed file names."""
+    removed: list[str] = []
+    for backup in backups.expired_snapshots(now):
+        if jobs.ACTIVE_JOB or any(jobs.busy(name) for name in store.names()):
+            break
+        (settings.backups_dir / backup["file"]).unlink(missing_ok=True)
+        removed.append(backup["file"])
+    return removed

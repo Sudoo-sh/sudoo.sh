@@ -231,7 +231,7 @@ What it does **not** protect, said plainly:
 
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
-| `MARKETPLACE` | `on` | `off`: the panel never contacts the hub. Installed free plugins keep working; paid ones stop when the last lease ends. Also on the Settings page. |
+| `MARKETPLACE` | `off` (until the marketplace opens) | `off`: the panel never contacts the hub. Installed free plugins keep working; paid ones stop when the last lease ends. Also on the Settings page. |
 | `HUB_URL` | `https://hub.sudoo.sh` | The hub's address (`.env` only). A new address registers the panel with that hub and pins its keys. |
 
 See [Configuration](CONFIGURATION.md#marketplace). On the server:

@@ -15,7 +15,7 @@ const GROUPS: { title: string; text: string; keys: string[] }[] = [
   { title: "E-mail", text: "The mailbox that sends sign-in codes, for example a Gmail account with an app password", keys: ["mail_from", "smtp_host", "smtp_port", "smtp_security", "smtp_username", "smtp_password", "mail_templates_dir"] },
   { title: "Limits", text: "Requests per minute, and how many instances, how often. 0 turns a limit off", keys: ["rate_limit_reads_per_minute", "rate_limit_changes_per_minute", "max_instances", "max_instances_per_user", "create_cooldown_minutes"] },
   { title: "New instances", text: "What a new instance starts with; each instance can change its own", keys: ["auto_pause", "idle_hours", "auto_update", "auto_upgrade", "delete_after_days", "odoo_admin_password"] },
-  { title: "Backups", text: "Each instance used during the day is backed up once, at this time; it keeps only its latest daily backup", keys: ["daily_backups", "daily_backup_time", "timezone"] },
+  { title: "Backups", text: "Each instance used during the day is backed up once, at this time; it keeps only its latest daily backup", keys: ["daily_backups", "daily_backup_time", "timezone", "rollback_hours"] },
   { title: "Odoo versions and images", text: "Which versions are offered and where Odoo and PostgreSQL come from", keys: ["odoo_versions", "odoo_min_version", "odoo_image", "postgres_image"] },
   { title: "Enterprise add-ons", text: "Where the Enterprise add-ons of each version are", keys: ["enterprise_path", "enterprise_git_url", "enterprise_git_branch", "enterprise_marker"] },
   { title: "Code updates and monitoring", text: "How often GitHub is checked and figures are measured", keys: ["poll_minutes", "github_webhook_secret", "metrics_interval_seconds", "cloudflared_image"] },

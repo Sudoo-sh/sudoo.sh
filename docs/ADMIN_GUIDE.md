@@ -405,7 +405,7 @@ Odoo subscription or partner code, otherwise Odoo shows its expiry notice after 
 /opt/odoo/backups/<instance>__<database>__<YYYYMMDD-HHMMSS>__<kind>.zip      mode 600
 ├── dump.sql          the database (pg_dump --no-owner)
 ├── filestore/        attachments and images
-└── manifest.json     database name, Odoo version
+└── manifest.json     database name, Odoo version, edition (backups of this version of Sudoo.sh on), instance
 ```
 
 The time in the name is when the backup started. Files from earlier versions have no `__<kind>`
@@ -416,7 +416,8 @@ part and count as `manual`.
 | `manual` | **Back up now** on an instance's page. | Until someone deletes it. |
 | `daily` | Once a day, for each instance used since its last daily backup (below). | Only the latest per instance; the new one replaces the previous. Removed when the instance is deleted. |
 | `deletion` | Before every deletion, automatic or by hand. If it fails, the instance is not deleted. | Until someone deletes it. |
-| `before-restore` | At the start of every restore: the state just before it. | Only the latest per instance. Removed when the instance is deleted. |
+| `before-restore` | At the start of every restore: the state just before it, offered as **Rollback**. | Only the latest per instance, for `ROLLBACK_HOURS` (24 by default). Removed when the instance is deleted. |
+| `before-rollback` | At the start of every rollback: the state just before it. | Only the latest per instance, for `ROLLBACK_HOURS`. Removed when the instance is deleted. |
 
 This is Odoo's own backup format, with both the database and the filestore: restore it with **Restore Database**
 in any Odoo's database manager of the same version, or by hand (`createdb`, `psql -f dump.sql`, copy `filestore/`
@@ -448,11 +449,48 @@ database the instance has) or **Restore** on any backup in the list. The job "Re
    `filestore/`, and sets the instance's current public address in the database again,
 4. starts Odoo and waits until it answers.
 
-It takes about a minute or two, depending on the size. The instance is running afterwards. A backup can only be
-restored into the instance it was taken from, and only when that instance still has the database.
+It takes about a minute or two, depending on the size. The instance is running afterwards. A backup of the
+instance itself goes back into the database it was taken from (the instance must still have it).
 
-**Disk use.** Backups by hand and before deletions add up until someone deletes them. Daily and before-restore
-backups stay bounded: at most one of each per instance. Plan for about two zips per instance in use on top of the
+**Backups of other instances.** **Restore another backup…** on the Backups card (and `{"file"}` of the `restore`
+action) takes a backup of any instance, and **Start from a backup** on the New instance page (`from_backup`) starts a
+new instance from one. Both need `instances.restore` and `backups.manage` (administrators and super admins; a
+maintainer only restores an instance's own backups), and creating also needs `instances.create`. The panel checks:
+
+* the backup exists (only names from the backup folder are accepted, never a path);
+* its Odoo series, read from `version` in its `manifest.json`, is the instance's (`17.0` goes only into `17.0`; a
+  backup without a readable version is refused);
+* an Enterprise backup goes only into an Enterprise instance (backups taken before this version of Sudoo.sh do not
+  record the edition and are not checked for it).
+
+The backup's database is loaded under the target instance's database name (the dump has no database name or owner
+in it), and its filestore goes to the target's `filestore/<database>`. Then, because the data comes from another
+instance, the job neutralises it: on Odoo 16 and later it runs `odoo neutralize -d <database>` in a temporary
+container of the instance, which switches off mail servers, scheduled actions, payment providers and the other
+integrations each installed app declares; on older versions, or if that command fails, it switches off
+`ir_mail_server`, incoming mail servers and every scheduled action except Odoo's database cleanup directly in SQL.
+In both cases the copy gets a new `database.uuid` and `database.secret`, so it is not taken for the original and
+sessions of the original do not work in it. The job's notes say it was neutralised. Finally web.base.url is set to
+the instance's own address, as for every restore. A backup whose instance has the same name as the target (its own,
+or one of an earlier instance of that name) is not neutralised.
+
+A new instance started from a backup skips creating an empty database (and demo data). If **Install the
+repository's modules** is on, only the repository's modules the backup does not have installed are installed;
+modules it has are left at their version (upgrade them with **Upgrade modules** if the code is newer). The backup's
+user 2 (the first administrator) gets `ODOO_ADMIN_PASSWORD`, so the instance's **Access** tab is right, and the job's
+result shows that user's login.
+
+**Rollback.** For `ROLLBACK_HOURS` (default 24, on the Settings page under **Backups**) after a restore, the
+instance's page shows **Rollback to before the restore (until …)**, and the `rollback` action puts back the newest
+`before-restore` backup of the instance. A rollback first saves the current state as `before-rollback`, never as
+`before-restore`, so it cannot replace the snapshot it restores; if that backup fails (for example after a restore
+that failed halfway and left no database), the rollback goes on with a warning. Restoring an instance's own
+`before-restore` backup from the list is a rollback too. Every five minutes the panel removes `before-restore` and
+`before-rollback` backups older than `ROLLBACK_HOURS`, but never while a job runs (a restore or a creation may be
+about to read one); the Rollback offer ends with the file. After a rollback the banner goes away.
+
+**Disk use.** Backups by hand and before deletions add up until someone deletes them. Daily, before-restore and
+before-rollback backups stay bounded: at most one of each per instance, the last two only for `ROLLBACK_HOURS`. Plan for about two zips per instance in use on top of the
 ones kept by hand, and check `du -sh /opt/odoo/backups` from time to time; the server's disk use is also on the
 Instances page.
 
@@ -557,8 +595,10 @@ After installing or updating:
 | "Too many failed attempts" at sign-in | Sign-in lockout (15 minutes) | Wait, or reset the password |
 | "Wrong e-mail address or password" for an account created with `create-user` | The account has no e-mail address | Sign in with the user name, then add the e-mail address in **My account** |
 | No daily backup of an instance | Nobody used it since its last daily backup, `DAILY_BACKUPS` is off, or the backup time has not come yet in `TIMEZONE` | Check **Settings, Backups**; the instance's **Activity** tab shows "Daily backup" jobs and why one failed |
-| **Restore the latest** is greyed out | The instance has no `manual`, `daily` or `deletion` backup of a database it has | Click **Back up now** to take one; older backups of another instance cannot be restored here |
-| A restore failed | The backup file is damaged, or the database did not start | The **Activity** tab shows the step and the reason. The state before the restore is kept as a `before-restore` backup: restore it to go back |
+| **Restore the latest** is greyed out | The instance has no `manual`, `daily` or `deletion` backup of a database it has | Click **Back up now** to take one, or use **Restore another backup…** for a backup of another instance |
+| A backup is greyed out in the backup list | It is of another Odoo version, its version is unknown (no `manifest.json`), or it is an Enterprise backup and the instance is Community | The reason is shown next to it; use an instance of that version and edition |
+| A restore failed | The backup file is damaged, or the database did not start | The **Activity** tab shows the step and the reason. Click **Rollback to before the restore** on the instance's page to go back |
+| A copy of another instance sends no e-mail | It was neutralised on purpose | In Odoo, switch the outgoing mail servers and the scheduled actions you need back on |
 | E-mail codes or the test e-mail do not arrive | Wrong mail settings, or Gmail refuses the normal password | **Send a test** (or `sudoo.sh test-email ADDRESS`) shows the reason. For Gmail, `SMTP_PASSWORD` must be an app password and 2-Step Verification must be on ([section 6](#6-e-mail)). Look in the spam folder. |
 | "E-mail code" is not offered | No mail server set, or `email` not in `SECOND_FACTORS` | Set up e-mail ([section 6](#6-e-mail)); after changing `SECOND_FACTORS`, **Restart the panel** |
 | A plugin setting changed in the browser has no effect | Plugin settings apply after a restart | Settings, Plugins, **Restart the panel** (refused while jobs run: wait for them) |

@@ -184,9 +184,15 @@ listing, never by a path. An instance's page lists its own backups to everyone w
 the download link.
 
 Restoring a backup replaces an instance's database and files, so it has its own permission, `instances.restore`
-(super admins, administrators and maintainers). A restore only takes a backup of that same instance, chosen by
-file name from its own list, and first saves the current state as a `before-restore` backup: a restore by mistake
-can be undone by restoring that one ([Administrator guide: Backups](ADMIN_GUIDE.md#10-backups)).
+(super admins, administrators and maintainers). With it alone, a restore only takes a backup of that same instance.
+Putting another instance's backup into an instance, or starting a new instance from a backup, copies one instance's
+data into another, so it also needs `backups.manage`, the permission that already lets a role see and download every
+backup (super admins and administrators): a maintainer cannot use it to read an instance's data through another one.
+The backup is always chosen by file name from the backup folder, never as a path, and must be of the target's Odoo
+series. Copied data is neutralised (no outgoing e-mail, no scheduled actions, Odoo's integrations off, a new
+`database.secret` so sessions and signed links of the original do not work in the copy). Every restore first saves
+the current state as a `before-restore` backup, offered as **Rollback** for `ROLLBACK_HOURS`: a restore by mistake
+can be undone ([Administrator guide: Backups](ADMIN_GUIDE.md#10-backups)).
 
 * **AES-256-GCM** is authenticated encryption: besides hiding the value, it detects any change to it. A modified
   value is refused, never decrypted into garbage.

@@ -23,7 +23,7 @@ from flask.testing import FlaskClient
 from conftest import RESTARTS, sign_in
 from fake_hub import FakeHub, Listing, make_package
 from sudoo import accounts, plugin_manager, plugins
-from sudoo.config import settings
+from sudoo.config import live, settings
 from sudoo.core import jobs
 from sudoo.hub import HubRefused, HubUnavailable, client, crypto, marketplace
 from sudoo.storage import storage
@@ -48,7 +48,9 @@ def hub(monkeypatch: pytest.MonkeyPatch) -> Iterator[FakeHub]:
 
     api._LATEST.clear()
     RESTARTS.clear()
+    live.change({"marketplace": True})  # off by default until the marketplace opens
     yield fake
+    live.change({"marketplace": None})
     fake.stop()
     plugin_manager._RESTART_PENDING.clear()
 
@@ -214,7 +216,6 @@ def test_hub_unreachable_degrades(hub: FakeHub, admin: Client, monkeypatch: pyte
 
 
 def test_marketplace_off(hub: FakeHub, admin: Client, monkeypatch: pytest.MonkeyPatch) -> None:
-    from sudoo.config import live
 
     live.change({"marketplace": False})
     try:

@@ -300,23 +300,6 @@ export interface Publisher {
   official: boolean;
 }
 
-export interface CatalogPlugin {
-  id: string;
-  name: string;
-  description: string;
-  type: string;
-  tier: "free" | "paid";
-  tags: string[];
-  icon_url?: string | null;
-  price_cents: number | null;
-  currency: string;
-  avg_rating: number;
-  rating_count: number;
-  install_count: number;
-  publisher: Publisher | null;
-  installed_version: string | null;
-}
-
 export interface PricePlan {
   id: string;
   kind: "monthly" | "yearly" | "fixed_term";
@@ -325,12 +308,55 @@ export interface PricePlan {
   period_days: number | null;
 }
 
-export interface CatalogPluginDetail extends CatalogPlugin {
+export interface PluginVersionInfo {
+  version: string;
+  min_sudoo_version?: string;
+  max_sudoo_version?: string | null;
+  published_at?: string | null;
+}
+
+export type CatalogAction = "install" | "update" | "installed" | "buy" | "renew" | "incompatible";
+
+/** One plugin of GET /marketplace/catalog: the hub's catalogue for this panel. */
+export interface CatalogPlugin {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  tier: "free" | "paid";
+  tags: string[];
+  icon_url?: string | null;
+  avg_rating: number;
+  rating_count?: number;
+  install_count: number;
+  publisher: Publisher | null;
+  requires: { id: string; version: string | null }[];
+  plans: PricePlan[];
+  latest_version: PluginVersionInfo | null;
+  compatible_version: PluginVersionInfo | null;
+  installed_version: string | null;
+  license: { state: string; expires_at: string | null; grace_until: string | null } | null;
+  action: CatalogAction;
+}
+
+/** GET /marketplace/catalog/<id>: the plugin's public page. */
+export interface CatalogPluginDetail {
+  id: string;
   homepage?: string | null;
   permissions: string[];
-  plans: PricePlan[];
-  requires: { id: string; version: string | null }[];
-  latest_version: { version: string; min_sudoo_version: string; changelog: string | null } | null;
+}
+
+export interface Billing {
+  payments_enabled: boolean;
+  linked: boolean;
+  account_name: string | null;
+  purchases_allowed: boolean;
+  monthly_limit_cents: number | null;
+  spent_this_month_cents: number | null;
+  remaining_cents: number | null;
+  currency: string;
+  card: { brand: string; last4: string; exp_month: number; exp_year: number; expired: boolean } | null;
+  manage_url: string | null;
 }
 
 export type LicencePhase = "active" | "expiring" | "grace" | "ended" | "no_lease" | "unlicensed";
@@ -390,13 +416,30 @@ export interface Purchase {
   id: string;
   plugin_id: string | null;
   plugin_name: string | null;
-  plan: string | null;
+  plan_id: string | null;
+  plan_kind: string | null;
   amount_cents: number | null;
   currency: string | null;
-  status: string | null;
-  kind: string | null;
-  created_at: string | null;
-  paid_at: string | null;
-  receipt_url: string | null;
+  status: "succeeded" | "processing" | "checkout_required" | "failed" | "expired" | null;
+  method: "saved_card" | "checkout" | null;
+  reason: string | null;
   checkout_url: string | null;
+  receipt_number: string | null;
+  requested_by: { name: string | null; email: string | null };
+  created_at: string | null;
+  completed_at: string | null;
+}
+
+export interface Receipt {
+  id: string;
+  kind: "receipt" | "credit_note";
+  number: string;
+  issued_at: string | null;
+  plugin_id: string | null;
+  plugin_name: string | null;
+  plan_kind: string | null;
+  payment_kind: "purchase" | "renewal" | null;
+  total_cents: number;
+  currency: string;
+  requested_by_name: string | null;
 }

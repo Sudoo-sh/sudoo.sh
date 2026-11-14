@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
 import { api, ApiError, errorText } from "@/api/client";
 import {
+  useBilling,
   useCatalog,
   useCatalogPlugin,
   useCategories,
@@ -15,6 +16,7 @@ import {
   useMarketplace,
   usePlugins,
   usePurchases,
+  useReceipts,
 } from "@/api/queries";
 import type { CatalogPlugin, InstalledPlugin, Job, PricePlan, Purchase } from "@/api/types";
 import { JobLine, Monogram } from "@/components/InstanceCard";
@@ -54,9 +56,30 @@ function planPrice(plan: PricePlan) {
   return `${money(plan.price_cents, plan.currency)} / ${per}`;
 }
 
+/** Free, or the cheapest plan (the hub lists plans cheapest first). */
 function priceOf(plugin: CatalogPlugin) {
-  return plugin.tier === "free" ? "Free" : plugin.price_cents != null ? `${money(plugin.price_cents, plugin.currency)} / month` : "Paid";
+  if (plugin.tier === "free") return "Free";
+  return plugin.plans?.[0] ? planPrice(plugin.plans[0]) : "Paid";
 }
+
+/** A new key for each press of Buy; the same key is sent again if that one request is retried. */
+function newIdempotencyKey() {
+  const bytes = crypto.getRandomValues(new Uint8Array(18));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+const REASON: Record<string, string> = {
+  no_card: "No saved card: pay on Stripe's page",
+  card_expired: "The saved card has expired",
+  authentication_required: "The bank asks to confirm the payment",
+  card_declined: "The card was declined",
+  insufficient_funds: "The card was declined (insufficient funds)",
+  payment_service_unreachable: "The payment service could not be reached",
+  checkout_expired: "The payment page expired",
+  checkout_failed: "The payment did not go through",
+  amount_mismatch: "The amount did not match",
+};
+const reasonText = (reason: string | null) => (reason ? REASON[reason] ?? reason.replace(/_/g, " ") : "");
 
 // ---------------------------------------------------------------- the running plugin job, then the restart
 
@@ -122,7 +145,17 @@ function WorkCard({ work, onFinished, onClear }: { work: Work; onFinished: (job:
 
 // ---------------------------------------------------------------- catalogue
 
+const ACTION_TAG: Record<CatalogPlugin["action"], [string, "positive" | "accent" | "caution" | undefined]> = {
+  install: ["", undefined],
+  update: ["Update available", "accent"],
+  installed: ["Installed", "positive"],
+  buy: ["", undefined],
+  renew: ["Licence ended", "caution"],
+  incompatible: ["Needs a newer Sudoo.sh", "caution"],
+};
+
 function PluginCard({ plugin, onOpen }: { plugin: CatalogPlugin; onOpen: () => void }) {
+  const [label, tone] = ACTION_TAG[plugin.action] ?? ["", undefined];
   return (
     <button type="button" className="card link plugin-card" onClick={onOpen}>
       <div className="pc-head">
@@ -140,82 +173,92 @@ function PluginCard({ plugin, onOpen }: { plugin: CatalogPlugin; onOpen: () => v
         </span>
         <span className="xsmall faint">{number(plugin.install_count)} installs</span>
         <span className="spacer" />
-        {plugin.installed_version && <Tag mono>v{plugin.installed_version}</Tag>}
+        {label && <Tag tone={tone}>{label}</Tag>}
       </div>
     </button>
   );
 }
 
 function PluginSheet({
-  id,
+  plugin,
   installed,
   busy,
   onClose,
   onStarted,
 }: {
-  id: string;
+  plugin: CatalogPlugin;
   installed?: InstalledPlugin;
   busy: boolean;
   onClose: () => void;
-  onStarted: (job: Job, name: string) => void;
+  onStarted: (job: Job, name: string, verb?: string) => void;
 }) {
-  const { data: plugin, error, isPending } = useCatalogPlugin(id);
-  const { data: status } = useMarketplace();
+  const { data: detail } = useCatalogPlugin(plugin.id);
   const can = useCan();
+  const manage = can("settings.manage");
+  const paid = plugin.tier === "paid" && (plugin.action === "buy" || plugin.action === "renew");
+  const { data: billing, error: billingError } = useBilling(manage && paid);
   const toast = useToast();
   const [plan, setPlan] = useState<string>("");
   const [step, setStep] = useState<"idle" | "working" | "paying">("idle");
   const [purchase, setPurchase] = useState<Purchase | null>(null);
-  const chosen = plugin?.plans?.find((p) => p.id === plan) ?? plugin?.plans?.[0];
-  const manage = can("settings.manage");
-  const linked = !!status?.linked?.account_name;
+  const chosen = plugin.plans?.find((p) => p.id === plan) ?? plugin.plans?.[0];
+  const repair = installed?.status === "modified";
+  const action = repair ? "install" : plugin.action;
 
-  const install = async (name: string) => {
-    const job = await api.post<Job>("/plugins", { id });
-    onStarted(job, name);
+  const install = async (verb = "installed") => {
+    const job = await api.post<Job>("/plugins", { id: plugin.id });
+    onStarted(job, plugin.name, verb);
     onClose();
   };
 
-  // a Checkout opened in another tab: follow the purchase until it is paid, then install
+  // a purchase under way (Checkout in another tab, or Stripe still working): follow it every 3 seconds and when
+  // this tab gets the focus back, until it succeeds (install) or fails
   useEffect(() => {
-    if (step !== "paying" || !purchase || !plugin) return;
+    if (step !== "paying" || !purchase) return;
     let stop = false;
+    let checking = false;
     const started = Date.now();
-    const poll = async () => {
-      while (!stop && Date.now() - started < 30 * 60_000) {
-        await new Promise((r) => setTimeout(r, 3000));
+    const check = async () => {
+      if (stop || checking) return;
+      checking = true;
+      try {
+        const current = await api.get<Purchase>(`/marketplace/purchases/${purchase.id}`);
         if (stop) return;
-        try {
-          const current = await api.get<Purchase>(`/marketplace/purchases/${purchase.id}`);
-          if (current.status === "paid") {
-            toast("success", "Payment received", `Installing ${plugin.name}`);
-            await install(plugin.name);
-            return;
-          }
-          if (current.status && ["failed", "expired", "cancelled"].includes(current.status)) {
-            toast("error", "The payment did not go through", "Nothing was charged. Try again when you are ready.");
-            setStep("idle");
-            return;
-          }
-        } catch (err) {
-          if (err instanceof ApiError && err.status === 503) continue; // the marketplace is briefly away
+        if (current.status === "succeeded") {
+          stop = true;
+          toast("success", "Payment received", `Installing ${plugin.name}`);
+          await install();
+        } else if (current.status === "failed" || current.status === "expired") {
+          stop = true;
+          toast("error", "The payment did not go through", reasonText(current.reason) || "Nothing was charged. Try again when you are ready.");
+          setStep("idle");
+        }
+      } catch (err) {
+        if (!(err instanceof ApiError && err.status === 503)) {
+          stop = true;
           toast("error", "Lost track of the payment", errorText(err));
           setStep("idle");
-          return;
         }
+      } finally {
+        checking = false;
       }
     };
-    void poll();
+    const timer = setInterval(() => (Date.now() - started > 24 * 3600_000 ? setStep("idle") : void check()), 3000);
+    const focus = () => document.visibilityState === "visible" && void check();
+    document.addEventListener("visibilitychange", focus);
+    window.addEventListener("focus", focus);
     return () => {
       stop = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", focus);
+      window.removeEventListener("focus", focus);
     };
-  }, [step, purchase, plugin]);
+  }, [step, purchase]);
 
-  const installFree = async () => {
-    if (!plugin) return;
+  const installNow = async () => {
     setStep("working");
     try {
-      await install(plugin.name);
+      await install(action === "update" ? "updated" : "installed");
     } catch (err) {
       toast("error", `${plugin.name} was not installed`, errorText(err));
       setStep("idle");
@@ -223,27 +266,37 @@ function PluginSheet({
   };
 
   const buy = async () => {
-    if (!plugin || !chosen) return;
+    if (!chosen) return;
     setStep("working");
     // opened now, while the click still counts, so the browser does not block it; filled in once the hub answers
-    const tab = window.open("about:blank", "_blank");
+    const tab = billing?.card && !billing.card.expired ? null : window.open("about:blank", "_blank");
     try {
-      const answer = await api.post<{ purchase: Purchase; job: Job | null }>("/marketplace/purchases", { plugin_id: plugin.id, plan_id: chosen.id });
+      const body = { plugin_id: plugin.id, plan_id: chosen.id, idempotency_key: newIdempotencyKey() };
+      const answer = await api.post<{ purchase: Purchase; job: Job | null }>("/marketplace/purchases", body);
+      const bought = answer.purchase;
       if (answer.job) {
         tab?.close();
-        toast("success", "Paid with your saved card", `Installing ${plugin.name}`);
+        toast("success", `Paid with the saved card${billing?.card ? ` •••• ${billing.card.last4}` : ""}`, `Installing ${plugin.name}`);
         onStarted(answer.job, plugin.name);
         onClose();
         return;
       }
-      if (!answer.purchase.checkout_url) throw new Error("The marketplace did not send a payment page.");
-      if (tab) {
-        tab.opener = null;
-        tab.location.href = answer.purchase.checkout_url;
+      if (bought.status === "checkout_required" && bought.checkout_url) {
+        if (tab) {
+          tab.opener = null;
+          tab.location.href = bought.checkout_url;
+        } else {
+          window.open(bought.checkout_url, "_blank", "noopener");
+        }
       } else {
-        window.open(answer.purchase.checkout_url, "_blank", "noopener");
+        tab?.close();
       }
-      setPurchase(answer.purchase);
+      if (bought.status === "failed" || bought.status === "expired") {
+        toast("error", "Not bought", reasonText(bought.reason) || "The payment did not go through.");
+        setStep("idle");
+        return;
+      }
+      setPurchase(bought);
       setStep("paying");
     } catch (err) {
       tab?.close();
@@ -252,98 +305,120 @@ function PluginSheet({
     }
   };
 
-  const action = () => {
-    if (!plugin || !manage) return null;
-    if (installed && !installed.update_available) return <Tag tone="positive">Installed · v{installed.version}</Tag>;
-    if (plugin.tier === "free" || installed)
+  const button = () => {
+    if (!manage) return null;
+    if (action === "installed") return <Tag tone="positive">Installed · v{installed?.version ?? plugin.installed_version}</Tag>;
+    if (action === "incompatible") return <Button disabled>Needs a newer Sudoo.sh</Button>;
+    if (action === "install" || action === "update")
       return (
-        <Button variant="primary" icon={<Download />} loading={step === "working"} disabled={busy} onClick={installFree}>
-          {installed ? `Update to v${plugin.latest_version?.version}` : "Install"}
+        <Button variant="primary" icon={<Download />} loading={step === "working"} disabled={busy} onClick={installNow}>
+          {repair ? "Install again" : action === "update" ? `Update to v${plugin.compatible_version?.version ?? ""}` : "Install"}
         </Button>
       );
+    const blocked = !billing?.linked || !billing.purchases_allowed || !billing.payments_enabled;
     return (
-      <Button variant="primary" icon={<ShoppingBag />} loading={step === "working"} disabled={busy || !linked || !chosen || step === "paying"} onClick={buy}>
-        Buy &amp; install
+      <Button variant="primary" icon={<ShoppingBag />} loading={step === "working"} disabled={busy || blocked || !chosen || step === "paying"} onClick={buy}>
+        {action === "renew" ? "Renew & install" : "Buy & install"}
       </Button>
     );
   };
 
+  const version = plugin.compatible_version ?? plugin.latest_version;
   return (
     <Modal
       wide
-      title={plugin ? <span className="row"><Monogram name={plugin.name} /> {plugin.name}</span> : "Plugin"}
-      description={plugin ? <PublisherBadge publisher={plugin.publisher} /> : undefined}
+      title={<span className="row"><Monogram name={plugin.name} /> {plugin.name}</span>}
+      description={<PublisherBadge publisher={plugin.publisher} />}
       onClose={onClose}
       footer={
         <>
           <Button onClick={onClose}>Close</Button>
-          {action()}
+          {button()}
         </>
       }
     >
-      {isPending ? (
-        <Skeleton height={160} />
-      ) : error || !plugin ? (
-        <Callout tone="warning">{errorText(error)}</Callout>
-      ) : (
-        <div className="stack">
-          <p>{plugin.description}</p>
-          <div className="row-wrap">
-            <Tag>{TYPE_LABEL[plugin.type] ?? plugin.type}</Tag>
-            {plugin.latest_version && <Tag mono>v{plugin.latest_version.version}</Tag>}
-            {plugin.latest_version && <Tag mono>Sudoo.sh {plugin.latest_version.min_sudoo_version}+</Tag>}
-            <Tag tone={plugin.tier === "free" ? "positive" : undefined}>{priceOf(plugin)}</Tag>
-          </div>
-          {(plugin.permissions?.length ?? 0) > 0 && (
-            <Field label="It asks to">
-              <div className="row-wrap">{plugin.permissions.map((p) => <Tag key={p} mono>{p}</Tag>)}</div>
-            </Field>
-          )}
-          {(plugin.requires?.length ?? 0) > 0 && (
-            <Field label="It needs">
-              <div className="row-wrap">{plugin.requires.map((r) => <Tag key={r.id} mono>{r.id} {r.version ?? ""}</Tag>)}</div>
-            </Field>
-          )}
-          {plugin.tier === "paid" && !installed && manage && (
-            <>
-              {(plugin.plans?.length ?? 0) > 1 && (
-                <Field label="Plan">
-                  <Segmented value={chosen?.id ?? ""} onChange={setPlan} options={plugin.plans.map((p) => ({ value: p.id, label: planPrice(p) }))} />
-                </Field>
-              )}
-              {plugin.plans?.length === 1 && chosen && <p className="small muted">{planPrice(chosen)}, renewed until you cancel it on app.sudoo.sh.</p>}
-              {!linked && (
-                <Callout tone="info">
-                  <div className="stack-sm">
-                    <span>Paid plugins belong to an account on app.sudoo.sh. Link this panel to yours first.</span>
-                    <LinkForm />
-                  </div>
-                </Callout>
-              )}
-              {step === "paying" && (
-                <Callout tone="info">
-                  <div className="row"><span className="spinner" /> Finish the payment in the other tab. The plugin installs as soon as it is paid.</div>
-                </Callout>
-              )}
-            </>
-          )}
-          {!manage && <p className="small muted">Only a super admin can install or buy plugins.</p>}
-          <p className="xsmall faint">Every package is signed by the marketplace and checked by this panel before it is installed. The plugin's code stays on the server and is never shown.</p>
+      <div className="stack">
+        <p>{plugin.description}</p>
+        <div className="row-wrap">
+          <Tag>{TYPE_LABEL[plugin.type] ?? plugin.type}</Tag>
+          {version && <Tag mono>v{version.version}</Tag>}
+          {version?.min_sudoo_version && <Tag mono>Sudoo.sh {version.min_sudoo_version}+</Tag>}
+          <Tag tone={plugin.tier === "free" ? "positive" : undefined}>{priceOf(plugin)}</Tag>
         </div>
-      )}
+        {(detail?.permissions?.length ?? 0) > 0 && (
+          <Field label="It asks to">
+            <div className="row-wrap">{detail!.permissions.map((p) => <Tag key={p} mono>{p}</Tag>)}</div>
+          </Field>
+        )}
+        {(plugin.requires?.length ?? 0) > 0 && (
+          <Field label="It needs">
+            <div className="row-wrap">{plugin.requires.map((r) => <Tag key={r.id} mono>{r.id} {r.version ?? ""}</Tag>)}</div>
+          </Field>
+        )}
+        {plugin.license?.expires_at && (
+          <p className="small muted">Licence {plugin.license.state}, ends {day(plugin.license.expires_at)}.</p>
+        )}
+        {paid && manage && (
+          <>
+            {(plugin.plans?.length ?? 0) > 1 && (
+              <Field label="Plan">
+                <Segmented value={chosen?.id ?? ""} onChange={setPlan} options={plugin.plans.map((p) => ({ value: p.id, label: planPrice(p) }))} />
+              </Field>
+            )}
+            {chosen && (
+              <p className="small muted">
+                {planPrice(chosen)}
+                {chosen.kind === "fixed_term" ? ", paid once." : ", renewed until it is cancelled on app.sudoo.sh."}{" "}
+                {billing?.card && !billing.card.expired
+                  ? `It is charged to the saved ${billing.card.brand} card ending ${billing.card.last4}.`
+                  : "You pay on Stripe's page, in a new tab."}
+                {billing?.remaining_cents != null && ` ${money(billing.remaining_cents, billing.currency)} left of this server's monthly limit.`}
+              </p>
+            )}
+            {billingError && <Callout tone="warning">{errorText(billingError)}</Callout>}
+            {billing && !billing.linked && (
+              <Callout tone="info">
+                <div className="stack-sm">
+                  <span>Paid plugins belong to an account on app.sudoo.sh. Link this panel to yours first.</span>
+                  <LinkForm />
+                </div>
+              </Callout>
+            )}
+            {billing?.linked && !billing.purchases_allowed && (
+              <Callout tone="info">
+                The account owner has not allowed purchases from this server yet.{" "}
+                {billing.manage_url && <a href={billing.manage_url} target="_blank" rel="noreferrer noopener">Allow them on app.sudoo.sh <ExternalLink /></a>}
+              </Callout>
+            )}
+            {billing && !billing.payments_enabled && <Callout tone="warning">Payments are switched off on the marketplace right now.</Callout>}
+            {step === "paying" && (
+              <Callout tone="info">
+                <div className="stack-sm">
+                  <div className="row"><span className="spinner" /> {purchase?.status === "processing" ? "The payment is being processed." : "Finish the payment in the other tab."} The plugin installs as soon as it is paid.</div>
+                  {purchase?.checkout_url && (
+                    <a href={purchase.checkout_url} target="_blank" rel="noreferrer noopener">Open the payment page again <ExternalLink /></a>
+                  )}
+                </div>
+              </Callout>
+            )}
+          </>
+        )}
+        {!manage && <p className="small muted">Only a super admin can install or buy plugins.</p>}
+        <p className="xsmall faint">Every package is signed by the marketplace and checked by this panel before it is installed. The plugin's code stays on the server and is never shown.</p>
+      </div>
     </Modal>
   );
 }
 
-function Catalogue({ installed, busy, onStarted }: { installed: InstalledPlugin[]; busy: boolean; onStarted: (job: Job, name: string) => void }) {
+function Catalogue({ installed, busy, onStarted }: { installed: InstalledPlugin[]; busy: boolean; onStarted: (job: Job, name: string, verb?: string) => void }) {
   const { data: status } = useMarketplace();
   const usable = !!status?.enabled;
-  const [q, setQ] = useState("");
   const [typed, setTyped] = useState("");
+  const [q, setQ] = useState("");
   const [type, setType] = useState("");
   const [tier, setTier] = useState<"" | "free" | "paid">("");
   const [sort, setSort] = useState("trusted");
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<CatalogPlugin | null>(null);
   useEffect(() => {
     const timer = setTimeout(() => setQ(typed.trim()), 250);
     return () => clearTimeout(timer);
@@ -392,11 +467,11 @@ function Catalogue({ installed, busy, onStarted }: { installed: InstalledPlugin[
       ) : (
         <div className="plugin-grid rise">
           {plugins.map((plugin) => (
-            <PluginCard key={plugin.id} plugin={plugin} onOpen={() => setOpen(plugin.id)} />
+            <PluginCard key={plugin.id} plugin={plugin} onOpen={() => setOpen(plugin)} />
           ))}
         </div>
       )}
-      {open && <PluginSheet id={open} installed={byId[open]} busy={busy} onClose={() => setOpen(null)} onStarted={onStarted} />}
+      {open && <PluginSheet plugin={open} installed={byId[open.id]} busy={busy} onClose={() => setOpen(null)} onStarted={onStarted} />}
     </div>
   );
 }
@@ -552,57 +627,119 @@ function Installed({ plugins, busy, onStarted }: { plugins: InstalledPlugin[]; b
 
 // ---------------------------------------------------------------- purchases
 
+const PURCHASE_STATUS: Record<string, [string, "positive" | "caution" | "negative" | undefined]> = {
+  succeeded: ["Paid", "positive"],
+  processing: ["Processing", "caution"],
+  checkout_required: ["Waiting for payment", "caution"],
+  failed: ["Failed", "negative"],
+  expired: ["Expired", undefined],
+};
+
 function Purchases() {
   const { data: status } = useMarketplace();
-  const { data: purchases, error, isPending } = usePurchases(!!status?.enabled);
-  const PAID: Record<string, "positive" | "caution" | "negative" | undefined> = { paid: "positive", pending: "caution", failed: "negative", refunded: undefined };
+  const usable = !!status?.enabled;
+  const { data: receipts, error: receiptsError, isPending: receiptsPending } = useReceipts(usable);
+  const { data: purchases, error, isPending } = usePurchases(usable);
+  const { data: billing } = useBilling(usable);
+  if (!usable) return null;
   return (
-    <div className="card rise">
-      <div className="card-head">
-        <Receipt />
-        <div className="spacer">
-          <h2>Purchases of this server</h2>
-          <div className="sub">Bought and renewed plugins, as the marketplace records them</div>
+    <div className="stack">
+      <div className="card rise">
+        <div className="card-head">
+          <Receipt />
+          <div className="spacer">
+            <h2>Receipts</h2>
+            <div className="sub">Payments and renewals of this server's plugins, and credit notes for refunds</div>
+          </div>
+          {billing?.manage_url && (
+            <a className="btn sm ghost" href={billing.manage_url} target="_blank" rel="noreferrer noopener">
+              app.sudoo.sh <ExternalLink />
+            </a>
+          )}
+          {!!receipts?.length && (
+            <a className="btn sm" href="/api/v1/marketplace/receipts?format=csv" download>
+              <FileDown /> Export CSV
+            </a>
+          )}
         </div>
-        {!!purchases?.length && (
-          <a className="btn sm" href="/api/v1/marketplace/purchases?format=csv" download>
-            <FileDown /> Export CSV
-          </a>
+        {receiptsPending ? (
+          <div className="card-body"><Skeleton height={100} /></div>
+        ) : receiptsError ? (
+          <div className="card-body"><Callout tone="warning">{errorText(receiptsError)}</Callout></div>
+        ) : !receipts?.length ? (
+          <Empty icon={<Receipt />} title="No receipts yet">Paid plugins bought for this server appear here.</Empty>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr><th>Number</th><th>Date</th><th>Plugin</th><th>Plan</th><th>Asked by</th><th className="num">Total</th></tr>
+              </thead>
+              <tbody>
+                {receipts.map((r) => (
+                  <tr key={r.id}>
+                    <td className="mono small nowrap">{r.number}{r.kind === "credit_note" && <span className="faint"> · credit note</span>}</td>
+                    <td className="small nowrap">{day(r.issued_at)}</td>
+                    <td>{r.plugin_name ?? r.plugin_id}{r.payment_kind === "renewal" && <span className="faint small"> · renewal</span>}</td>
+                    <td className="small">{r.plan_kind ? PLAN_NAME[r.plan_kind] ?? r.plan_kind : "—"}</td>
+                    <td className="small muted">{r.requested_by_name ?? "—"}</td>
+                    <td className="num">{money(r.kind === "credit_note" ? -Math.abs(r.total_cents) : r.total_cents, r.currency)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
-      {isPending ? (
-        <div className="card-body"><Skeleton height={120} /></div>
-      ) : error ? (
-        <div className="card-body"><Callout tone="warning">{errorText(error)}</Callout></div>
-      ) : !purchases?.length ? (
-        <Empty icon={<Receipt />} title="No purchases yet">Paid plugins bought for this server appear here, with their receipts.</Empty>
-      ) : (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr><th>Date</th><th>Plugin</th><th>Plan</th><th className="num">Amount</th><th>Status</th><th /></tr>
-            </thead>
-            <tbody>
-              {purchases.map((p) => (
-                <tr key={p.id}>
-                  <td className="small nowrap">{day(p.created_at)} <span className="faint">· {ago(p.created_at)}</span></td>
-                  <td>{p.plugin_name}{p.kind === "renewal" && <span className="faint small"> · renewal</span>}</td>
-                  <td className="small">{p.plan ? PLAN_NAME[p.plan] ?? p.plan : "—"}</td>
-                  <td className="num">{money(p.amount_cents, p.currency)}</td>
-                  <td><Tag tone={PAID[p.status ?? ""]}>{p.status ?? "—"}</Tag></td>
-                  <td className="actions">
-                    {p.receipt_url && (
-                      <a className="btn sm ghost" href={p.receipt_url} target="_blank" rel="noreferrer noopener">
-                        Receipt <ExternalLink />
-                      </a>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="card rise">
+        <div className="card-head">
+          <ShoppingBag />
+          <div className="spacer">
+            <h2>Purchases</h2>
+            <div className="sub">Every purchase asked for from this server, and how it ended</div>
+          </div>
+          {!!purchases?.length && (
+            <a className="btn sm" href="/api/v1/marketplace/purchases?format=csv" download>
+              <FileDown /> Export CSV
+            </a>
+          )}
         </div>
-      )}
+        {isPending ? (
+          <div className="card-body"><Skeleton height={100} /></div>
+        ) : error ? (
+          <div className="card-body"><Callout tone="warning">{errorText(error)}</Callout></div>
+        ) : !purchases?.length ? (
+          <Empty icon={<ShoppingBag />} title="No purchases yet">Buy a paid plugin from the Marketplace tab.</Empty>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr><th>Date</th><th>Plugin</th><th>Plan</th><th>Asked by</th><th>Status</th><th className="num">Amount</th></tr>
+              </thead>
+              <tbody>
+                {purchases.map((p) => {
+                  const [label, tone] = PURCHASE_STATUS[p.status ?? ""] ?? [p.status ?? "—", undefined];
+                  return (
+                    <tr key={p.id}>
+                      <td className="small nowrap">{day(p.created_at)} <span className="faint">· {ago(p.created_at)}</span></td>
+                      <td>{p.plugin_name}</td>
+                      <td className="small">{p.plan_kind ? PLAN_NAME[p.plan_kind] ?? p.plan_kind : "—"}</td>
+                      <td className="small muted">{p.requested_by?.name ?? "—"}</td>
+                      <td>
+                        <div className="stack-sm" style={{ gap: 2, alignItems: "flex-start" }}>
+                          <Tag tone={tone}>{label}</Tag>
+                          {p.reason && p.status !== "succeeded" && <span className="xsmall faint">{reasonText(p.reason)}</span>}
+                          {p.receipt_number && <span className="xsmall faint mono">{p.receipt_number}</span>}
+                        </div>
+                      </td>
+                      <td className="num">{money(p.amount_cents, p.currency)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -512,44 +512,54 @@ def _extract(archive: zipfile.ZipFile, target: Path) -> None:
 
 
 def _hub_message(error: HubRefused) -> str:
+    """The hub's refusal in the person's words (codes from the hub's panel contract)."""
     return {
         "link_required": "Link this panel to your Sudoo.sh account first (Settings, Marketplace).",
         "license_required": "This panel has no licence for this plugin yet. Buy it first.",
         "lease_expired": "The marketplace has not heard from this panel recently. Try again in a minute.",
         "integrity_violation": "The marketplace refuses this panel: its core files differ from the released ones.",
         "installation_suspended": "This panel is suspended on the marketplace. Contact Sudoo.sh support.",
+        "incompatible": "No version of this plugin runs on this panel's version of Sudoo.sh yet.",
+        "purchases_not_allowed": "The account owner has not allowed purchases from this server (app.sudoo.sh, Servers).",
+        "spending_limit": f"This server's monthly spending limit is reached. {error.detail}",
+        "already_licensed": "This server already has a licence for this plugin: install it.",
+        "not_for_sale": "This plugin is free: install it.",
+        "developer_not_payable": "This plugin cannot be bought right now (its publisher cannot receive payments).",
+        "purchase_in_progress": "A purchase of this plugin with another plan is under way. Finish or cancel it first.",
+        "payments_disabled": "Payments are switched off on the marketplace right now. Try again later.",
     }.get(error.code or "", error.detail)
 
 
 def install(job: Job, plugin_id: str, version: str | None, user: str) -> None:
-    """Download, verify, check and unpack a plugin, then restart the backend (run through jobs.start)."""
+    """Ask the hub for the package, download, verify, check and unpack it, then restart the backend (a job)."""
     job.expect(6)
     job.step("Asking the marketplace about the plugin")
     try:
-        detail = marketplace.plugin(plugin_id)
-        latest = (detail.get("latest_version") or {}).get("version")
-        version = version or latest
-        if not version:
-            raise JobError("The marketplace has no published version of this plugin.")
+        info = marketplace.install_info(plugin_id, version)
+        version = str(info.get("version") or "")
+        path = str(info.get("download_path") or "")
+        if info.get("plugin_id", plugin_id) != plugin_id or not SEMVER_RE.match(version):
+            raise PluginRefused("The marketplace answered about another plugin, or without a version.")
+        if not path.startswith("/api/v1/") or "://" in path or ".." in path:
+            raise PluginRefused("The marketplace gave a download address the panel does not accept.")
         try:
-            marketplace.heartbeat()  # a current lease: the hub serves packages only to panels it heard from
-        except HubRefused as error:
-            if error.code in ("integrity_violation", "installation_suspended"):
-                raise
+            detail = marketplace.plugin(plugin_id)  # name, publisher (the public page)
+        except (HubRefused, HubUnavailable):
+            detail = {}
         downloads = plugins_dir() / ".downloads"
         downloads.mkdir(parents=True, exist_ok=True, mode=0o700)
         package = downloads / f"{plugin_id}-{version}.sudoo"
         try:
             job.step(f"Downloading {plugin_id} {version}")
-            headers = client.download(f"/api/v1/catalog/{plugin_id}/download/{version}", package, MAX_PACKAGE_BYTES)
+            headers = client.download(path, package, MAX_PACKAGE_BYTES)
             job.write(f"Downloaded {package.stat().st_size} bytes\n")
             job.step("Checking the signature")
-            _verify_download(job, package, plugin_id, version, headers)
+            _verify_download(job, package, plugin_id, version, info, headers)
             job.step("Checking that it suits this panel")
             with zipfile.ZipFile(package) as archive:
                 manifest = check_package(archive, plugin_id, version)
                 job.step("Installing")
-                _unpack(job, archive, manifest, detail, user)
+                _unpack(job, archive, manifest, {**detail, "tier": info.get("tier") or detail.get("tier")}, user)
         finally:
             package.unlink(missing_ok=True)  # the package itself is never kept
     except PluginRefused as error:
@@ -571,24 +581,32 @@ def install(job: Job, plugin_id: str, version: str | None, user: str) -> None:
     schedule_restart(f"plugin {plugin_id} {version} installed")
 
 
-def _verify_download(job: Job, package: Path, plugin_id: str, version: str, headers: dict[str, str]) -> None:
+def _verify_download(
+    job: Job, package: Path, plugin_id: str, version: str, info: dict[str, Any], headers: dict[str, str]
+) -> None:
+    """The package must have the SHA-256 the hub stated and carry the hub's signature for this plugin and version,
+    made with a pinned key. The install answer is authoritative; the download's headers, when present, must agree."""
     if (
         headers.get("x-sudoo-plugin-id", plugin_id) != plugin_id
         or headers.get("x-sudoo-plugin-version", version) != version
     ):
         raise PluginRefused("The marketplace sent another plugin or version than the one asked for.")
-    stated = headers.get("x-sudoo-package-sha256", "").lower()
+    stated = str(info.get("package_sha256") or headers.get("x-sudoo-package-sha256") or "").lower()
+    signature = str(info.get("signature") or headers.get("x-sudoo-signature") or "")
+    key_id = str(info.get("signing_key_id") or headers.get("x-sudoo-signing-key") or "")
+    for header, value in (("x-sudoo-package-sha256", stated), ("x-sudoo-signature", signature)):
+        if headers.get(header) and headers[header].lower() != value.lower():
+            raise PluginRefused("The download does not match what the marketplace stated; not installed.")
     with package.open("rb") as fh:
         actual = hashlib.file_digest(fh, "sha256").hexdigest()
     if not stated or actual != stated:
         raise PluginRefused("The package's SHA-256 does not match the one the marketplace states; not installed.")
-    keys = client.identity().pinned()
-    key = keys.get(headers.get("x-sudoo-signing-key", ""))
+    key = client.identity().pinned().get(key_id)
     if key is None:
         raise PluginRefused("The package is signed with a key this panel does not trust; not installed.")
-    if not crypto.verify_package(key, plugin_id, version, actual, headers.get("x-sudoo-signature", "")):
+    if not crypto.verify_package(key, plugin_id, version, actual, signature):
         raise PluginRefused("The package's signature is not valid (it was changed or is not from the marketplace).")
-    job.write(f"SHA-256 {actual}\nSignature verified with hub key {headers.get('x-sudoo-signing-key')}\n")
+    job.write(f"SHA-256 {actual}\nSignature verified with hub key {key_id}\n")
 
 
 def _unpack(job: Job, archive: zipfile.ZipFile, manifest: dict[str, Any], detail: dict[str, Any], user: str) -> None:

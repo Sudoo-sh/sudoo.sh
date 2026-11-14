@@ -9,12 +9,14 @@
     GET    /api/v1/marketplace                     the connection to the hub: registered, linked, lease, errors
     POST   /api/v1/marketplace/link                {"code"}: link this panel to an app.sudoo.sh account
     POST   /api/v1/marketplace/heartbeat           send the heartbeat now
-    GET    /api/v1/marketplace/catalog             the catalogue (q, type, tier, publisher, sort, limit, offset)
-    GET    /api/v1/marketplace/catalog/<id>        one plugin: plans, permissions, requires
+    GET    /api/v1/marketplace/catalog             the catalogue for this panel, with each plugin's action
+    GET    /api/v1/marketplace/catalog/<id>        one plugin's public page: permissions, screenshots, plans
     GET    /api/v1/marketplace/categories          plugin types with counts
-    GET    /api/v1/marketplace/purchases           purchases of this server (?format=csv for a file)
-    POST   /api/v1/marketplace/purchases           buy {"plugin_id", "plan_id"}: installs at once when paid
+    GET    /api/v1/marketplace/billing             may this server buy, its limit, the card a purchase charges
+    GET    /api/v1/marketplace/purchases           purchases asked for from this server (?format=csv for a file)
+    POST   /api/v1/marketplace/purchases           buy {"plugin_id", "plan_id", "idempotency_key"}
     GET    /api/v1/marketplace/purchases/<id>      one purchase (the web app follows a Checkout with it)
+    GET    /api/v1/marketplace/receipts            receipts of this server's plugins (?format=csv for a file)
 
 Seeing needs "plugins.view" (super admins and administrators); installing, buying, switching and linking need
 "settings.manage" (super admins). No endpoint returns a plugin's files or package.
@@ -31,7 +33,7 @@ from urllib.parse import urlsplit
 
 from flask import Blueprint, Response, abort, g, request
 
-from sudoo import plugin_manager
+from sudoo import accounts, plugin_manager
 from sudoo.core import jobs
 from sudoo.hub import HubRefused, HubUnavailable, marketplace
 
@@ -43,7 +45,7 @@ from .responses import PREFIX, iso, ok
 blueprint = Blueprint("plugins", __name__)
 
 UNREACHABLE = "The marketplace cannot be reached right now. Installed plugins keep working; try again later."
-_LATEST: dict[str, tuple[float, str | None]] = {}  # plugin id -> (when asked, newest published version)
+_LATEST: dict[str, tuple[float, dict[str, dict[str, Any]]]] = {}  # "installed" -> (when asked, the hub's view)
 _LATEST_SECONDS = 600
 _LATEST_LOCK = threading.Lock()
 
@@ -66,26 +68,32 @@ def _marketplace_on() -> None:
 # ---------------------------------------------------------------- installed plugins
 
 
-def _latest(plugin_id: str) -> str | None:
-    """The newest published version (asked at most every 10 minutes; None when the hub cannot say)."""
+def _hub_view() -> dict[str, dict[str, Any]]:
+    """What the hub says about the installed plugins (action, compatible_version), asked at most every 10 minutes;
+    the last answer when the hub cannot be reached."""
     with _LATEST_LOCK:
-        cached = _LATEST.get(plugin_id)
+        cached = _LATEST.get("installed")
     if cached and time.time() - cached[0] < _LATEST_SECONDS:
         return cached[1]
-    newest: str | None = None
+    view = cached[1] if cached else {}
     if marketplace.enabled():
         try:
-            newest = (marketplace.plugin(plugin_id).get("latest_version") or {}).get("version")
+            items, _ = marketplace.catalog({"installed": "true", "limit": "100"})
+            view = {str(item.get("id")): item for item in items}
         except (HubUnavailable, HubRefused):
-            newest = cached[1] if cached else None
+            pass
     with _LATEST_LOCK:
-        _LATEST[plugin_id] = (time.time(), newest)
-    return newest
+        _LATEST["installed"] = (time.time(), view)
+    return view
 
 
-def plugin_resource(rec: dict[str, Any], now: float, lease_valid: bool, latest: bool = True) -> dict[str, Any]:
+def plugin_resource(
+    rec: dict[str, Any], now: float, lease_valid: bool, hub: dict[str, dict[str, Any]] | None = None
+) -> dict[str, Any]:
     licence = rec.get("licence") or {}
-    newest = _latest(rec["id"]) if latest else None
+    seen = (hub or {}).get(rec["id"]) or {}
+    compatible = seen.get("compatible_version")
+    newest = compatible.get("version") if isinstance(compatible, dict) else None
     try:
         update = bool(newest and plugin_manager.semver_key(newest) > plugin_manager.semver_key(rec["version"]))
     except ValueError:
@@ -138,8 +146,9 @@ def _installed(plugin_id: str) -> dict[str, Any]:
 def installed() -> Response:
     now, lease_valid = marketplace.trusted_now(), marketplace.lease() is not None
     found = sorted(plugin_manager.records().values(), key=lambda r: str(r.get("name", r["id"])).lower())
+    hub = _hub_view() if found else {}
     return ok(
-        [plugin_resource(rec, now, lease_valid) for rec in found],
+        [plugin_resource(rec, now, lease_valid, hub) for rec in found],
         meta={"restart_pending": plugin_manager.restart_pending()},
     )
 
@@ -199,7 +208,7 @@ def _switch(plugin_id: str, value: bool) -> Response:
         updated = plugin_manager.set_enabled(rec["id"], value, g.user["name"])
     except plugin_manager.PluginRefused as error:
         abort(409, str(error))
-    return ok(plugin_resource(updated, marketplace.trusted_now(), marketplace.lease() is not None, latest=False))
+    return ok(plugin_resource(updated, marketplace.trusted_now(), marketplace.lease() is not None))
 
 
 @blueprint.post("/plugins/<plugin_id>/disable")
@@ -271,7 +280,6 @@ def heartbeat() -> Response:
 
 _SORTS = ("popular", "rating", "newest", "name", "trusted")
 _TIERS = ("free", "paid")
-_PUBLISHERS = ("verified", "official")
 
 
 def _query() -> dict[str, str]:
@@ -285,11 +293,11 @@ def _query() -> dict[str, str]:
         if not kind.replace("_", "").isalpha():
             abort(400, "Give a plugin type such as mailer.")
         query["type"] = kind
-    for key, allowed in (("tier", _TIERS), ("publisher", _PUBLISHERS), ("sort", _SORTS)):
+    for key, allowed in (("tier", _TIERS), ("installed", ("true", "false")), ("sort", _SORTS)):
         value = args.get(key, "")
         if value:
             query[key] = check.one_of(value, allowed, f"{key} must be one of: {', '.join(allowed)}.")
-    query["limit"] = str(check.whole_number(args.get("limit", "48"), "limit", minimum=1, maximum=100))
+    query["limit"] = str(check.whole_number(args.get("limit", "50"), "limit", minimum=1, maximum=100))
     query["offset"] = str(check.whole_number(args.get("offset", "0"), "offset", maximum=100_000))
     return query
 
@@ -303,9 +311,8 @@ def catalog() -> Response:
     except (HubUnavailable, HubRefused) as error:
         _hub_error(error)
     installed_versions = {pid: rec["version"] for pid, rec in plugin_manager.records().items()}
-    for item in items:
-        if isinstance(item, dict):
-            item["installed_version"] = installed_versions.get(str(item.get("id")))
+    for item in items:  # what is on disk now (the hub knows what the last heartbeat reported)
+        item["installed_version"] = installed_versions.get(str(item.get("id")))
     return ok(items, meta=meta)
 
 
@@ -337,22 +344,63 @@ def _https(value: Any) -> str | None:
     return value if isinstance(value, str) and urlsplit(value).scheme == "https" else None
 
 
+@blueprint.get("/marketplace/billing")
+@require("plugins.view")
+def billing() -> Response:
+    _marketplace_on()
+    try:
+        found = marketplace.billing()
+    except (HubUnavailable, HubRefused) as error:
+        _hub_error(error)
+    keys = ("payments_enabled", "linked", "account_name", "purchases_allowed", "monthly_limit_cents",
+            "spent_this_month_cents", "remaining_cents", "currency", "card")  # fmt: skip
+    return ok({**{key: found.get(key) for key in keys}, "manage_url": _https(found.get("manage_url"))})
+
+
 def purchase_resource(item: dict[str, Any]) -> dict[str, Any]:
-    plan: dict[str, Any] = item["plan"] if isinstance(item.get("plan"), dict) else {}
+    """A purchase as the hub's panel contract shows it, with only https links."""
+    requested: dict[str, Any] = item["requested_by"] if isinstance(item.get("requested_by"), dict) else {}
     return {
         "id": str(item.get("id", "")),
         "plugin_id": item.get("plugin_id"),
         "plugin_name": item.get("plugin_name") or item.get("plugin_id"),
-        "plan": item.get("plan_kind") or plan.get("kind"),
+        "plan_id": item.get("plan_id"),
+        "plan_kind": item.get("plan_kind"),
         "amount_cents": item.get("amount_cents"),
         "currency": item.get("currency"),
-        "status": item.get("status"),  # paid, pending, failed, refunded, cancelled
-        "kind": item.get("kind"),  # purchase or renewal
-        "created_at": item.get("created_at"),
-        "paid_at": item.get("paid_at"),
-        "receipt_url": _https(item.get("receipt_url")),
+        "status": item.get("status"),  # succeeded, processing, checkout_required, failed, expired
+        "method": item.get("method"),  # saved_card or checkout
+        "reason": item.get("reason"),
         "checkout_url": _https(item.get("checkout_url")),
+        "license": item.get("license"),
+        "receipt_number": item.get("receipt_number"),
+        "requested_by": {"name": requested.get("name"), "email": requested.get("email")},
+        "created_at": item.get("created_at"),
+        "completed_at": item.get("completed_at"),
     }
+
+
+def receipt_resource(item: dict[str, Any]) -> dict[str, Any]:
+    keys = ("id", "kind", "number", "issued_at", "plugin_id", "plugin_name", "plan_kind", "payment_kind",
+            "total_cents", "currency", "requested_by_name")  # fmt: skip
+    return {key: item.get(key) for key in keys}
+
+
+def _csv(rows: list[dict[str, Any]], columns: list[str], filename: str) -> Response:
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(columns)
+    for row in rows:
+        writer.writerow([_cell(row.get(column)) for column in columns])
+    response = Response(out.getvalue(), mimetype="text/csv")
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+def _cell(value: Any) -> str:
+    """A CSV cell that a spreadsheet will not run as a formula."""
+    text = "" if value is None else str(value)
+    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
 
 
 @blueprint.get("/marketplace/purchases")
@@ -360,27 +408,40 @@ def purchase_resource(item: dict[str, Any]) -> dict[str, Any]:
 def purchases() -> Response:
     _marketplace_on()
     try:
-        found = [purchase_resource(p) for p in marketplace.purchases() if isinstance(p, dict)]
+        found = [purchase_resource(p) for p in marketplace.purchases()]
     except (HubUnavailable, HubRefused) as error:
         _hub_error(error)
     if request.args.get("format") == "csv":
-        out = io.StringIO()
-        columns = ["created_at", "plugin_name", "plugin_id", "kind", "plan", "amount_cents", "currency", "status",
-                   "receipt_url"]  # fmt: skip
-        writer = csv.writer(out)
-        writer.writerow(columns)
-        for item in found:
-            writer.writerow([_cell(item.get(c)) for c in columns])
-        response = Response(out.getvalue(), mimetype="text/csv")
-        response.headers["Content-Disposition"] = 'attachment; filename="sudoo-purchases.csv"'
-        return response
+        rows = [{**p, "requested_by": p["requested_by"]["name"]} for p in found]
+        columns = ["created_at", "plugin_name", "plugin_id", "plan_kind", "amount_cents", "currency", "status",
+                   "method", "reason", "receipt_number", "requested_by"]  # fmt: skip
+        return _csv(rows, columns, "sudoo-purchases.csv")
     return ok(found)
 
 
-def _cell(value: Any) -> str:
-    """A CSV cell that a spreadsheet will not run as a formula."""
-    text = "" if value is None else str(value)
-    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+@blueprint.get("/marketplace/receipts")
+@require("plugins.view")
+def receipts() -> Response:
+    _marketplace_on()
+    try:
+        found = [receipt_resource(r) for r in marketplace.receipts()]
+    except (HubUnavailable, HubRefused) as error:
+        _hub_error(error)
+    if request.args.get("format") == "csv":
+        columns = ["number", "kind", "issued_at", "plugin_name", "plugin_id", "plan_kind", "payment_kind",
+                   "total_cents", "currency", "requested_by_name"]  # fmt: skip
+        return _csv(found, columns, "sudoo-receipts.csv")
+    return ok(found)
+
+
+def _requested_by() -> dict[str, str]:
+    """Who pressed Buy: kept with the purchase and printed on the receipt."""
+    account = accounts.get(g.user["name"]) or {}
+    email = account.get("email") or ""
+    if not email:
+        abort(400, "Your account has no e-mail address; add one under My account before buying.")
+    name = accounts.display_name(g.user["name"], account) if account else g.user["name"]
+    return {"name": "".join(c for c in name if c not in "<>")[:120] or g.user["name"], "email": email}
 
 
 @blueprint.post("/marketplace/purchases")
@@ -390,13 +451,14 @@ def buy() -> Response:
     data = check.body()
     plugin_id = check.plugin_id(check.text(data, "plugin_id", max_length=128))
     plan_id = check.hub_reference(check.text(data, "plan_id", max_length=64), "plan")
+    key = check.idempotency_key(check.text(data, "idempotency_key", max_length=64))
     try:
-        bought = purchase_resource(marketplace.buy(plugin_id, plan_id))
+        bought = purchase_resource(marketplace.buy(plugin_id, plan_id, key, _requested_by()))
     except (HubUnavailable, HubRefused) as error:
         log("plugin purchase refused", ok=False, detail=plugin_id)
         _hub_error(error)
-    log("plugin purchase started", detail=f"{plugin_id} {bought['status']}")
-    if bought["status"] == "paid":  # the saved card was charged: install at once
+    log("plugin purchase", detail=f"{plugin_id} {bought['status']} {bought['method'] or ''}".strip())
+    if bought["status"] == "succeeded":  # the saved card was charged: install at once
         job = _start_install(plugin_id, None, f"Install {plugin_id}")
         return ok({"purchase": bought, "job": job_resource(job)}, status=202)
     return ok({"purchase": bought, "job": None})

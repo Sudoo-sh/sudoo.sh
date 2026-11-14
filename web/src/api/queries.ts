@@ -4,6 +4,8 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./client";
 import type {
+  Billing,
+  Receipt,
   Account,
   CatalogPlugin,
   CatalogPluginDetail,
@@ -178,6 +180,10 @@ export const useCatalogPlugin = (id: string | null) =>
     enabled: !!id,
     retry: false,
   });
+export const useBilling = (enabled: boolean) =>
+  useQuery({ queryKey: ["marketplace", "billing"], queryFn: () => api.get<Billing>("/marketplace/billing"), enabled, retry: false });
+export const useReceipts = (enabled: boolean) =>
+  useQuery({ queryKey: ["marketplace", "receipts"], queryFn: () => api.get<Receipt[]>("/marketplace/receipts"), enabled, retry: false });
 export const usePurchases = (enabled: boolean) =>
   useQuery({ queryKey: keys.purchases, queryFn: () => api.get<Purchase[]>("/marketplace/purchases"), enabled, retry: false });
 

@@ -202,3 +202,10 @@ def link_code(value: str) -> str:
     if not LINK_CODE_RE.match(value):
         abort(400, "Enter the code shown on app.sudoo.sh (letters and digits).")
     return value
+
+
+def idempotency_key(value: str) -> str:
+    """Made once per press of Buy and sent again unchanged on a retry: 16 to 64 of A-Z, a-z, 0-9, _ and -."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,64}", value):
+        abort(400, "The purchase needs an idempotency_key: 16 to 64 letters, digits, - and _.")
+    return value

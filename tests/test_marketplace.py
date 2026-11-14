@@ -266,8 +266,12 @@ def test_install_through_a_storage_redirect_and_update(hub: FakeHub, admin: Clie
     assert install(admin, FREE).status == "success"
     listing.versions["1.1.0"] = make_package(FREE, "1.1.0", module="hello_redirect", entry="hello-redirect")
     plugin_manager._RESTART_PENDING.clear()
+    marketplace.heartbeat()  # the hub now knows 1.0.0 is installed and offers 1.1.0
     web, headers = admin
-    assert web.get("/api/v1/plugins").get_json()["data"][0]["update_available"] is True
+    listed = web.get("/api/v1/plugins").get_json()["data"][0]
+    assert listed["update_available"] is True and listed["latest_version"] == "1.1.0"
+    item = web.get("/api/v1/marketplace/catalog?installed=true").get_json()["data"][0]
+    assert item["action"] == "update"
     answer = web.post(f"/api/v1/plugins/{FREE}/update", headers=headers)
     assert wait(answer.get_json()["data"]["id"]).status == "success"
     rec = plugin_manager.record(FREE)
@@ -431,20 +435,27 @@ def test_link_with_a_one_time_code(hub: FakeHub, admin: Client) -> None:
     assert web.get("/api/v1/marketplace").get_json()["data"]["linked"]["account_name"] == "Ada's company"
 
 
+def buy(web: FlaskClient, headers: dict[str, str], key: str = "press-0001-abcdefgh") -> Any:
+    body = {"plugin_id": PAID, "plan_id": "plan-monthly", "idempotency_key": key}
+    return web.post("/api/v1/marketplace/purchases", json=body, headers=headers)
+
+
 def test_buy_with_the_saved_card_installs_at_once(hub: FakeHub, admin: Client) -> None:
     paid_listing(hub)
     web, headers = admin
-    refused = web.post(
-        "/api/v1/marketplace/purchases", json={"plugin_id": PAID, "plan_id": "plan-monthly"}, headers=headers
-    )
+    refused = buy(web, headers)
     assert refused.status_code == 409 and "Link this panel" in refused.get_json()["detail"]
     web.post("/api/v1/marketplace/link", json={"code": "LINKCODE42"}, headers=headers)
-    answer = web.post(
-        "/api/v1/marketplace/purchases", json={"plugin_id": PAID, "plan_id": "plan-monthly"}, headers=headers
-    )
+    billing = web.get("/api/v1/marketplace/billing").get_json()["data"]
+    assert billing["linked"] and billing["purchases_allowed"] and billing["card"]["last4"] == "4242"
+    assert billing["manage_url"].startswith("https://")
+    answer = buy(web, headers)
     assert answer.status_code == 202
     data = answer.get_json()["data"]
-    assert data["purchase"]["status"] == "paid" and data["purchase"]["receipt_url"].startswith("https://")
+    assert data["purchase"]["status"] == "succeeded" and data["purchase"]["method"] == "saved_card"
+    assert data["purchase"]["receipt_number"] == "SR-000001"
+    sent = next(iter(hub.purchases.values()))["requested_by"]  # who pressed Buy, for the receipt
+    assert sent["email"] == "ada@example.com" and sent["name"]
     job = wait(data["job"]["id"])
     assert job.status == "success", "".join(job.log)
     rec = plugin_manager.record(PAID)
@@ -452,6 +463,11 @@ def test_buy_with_the_saved_card_installs_at_once(hub: FakeHub, admin: Client) -
     assert rec["standing"] == "licensed" and rec["licence"]["grace_until"]  # dates from the signed lease
     listed = web.get("/api/v1/plugins").get_json()["data"][0]
     assert listed["licence"]["phase"] == "active" and listed["status"] == "active"
+    # pressing again with the same key answers the same purchase: nothing is charged twice
+    plugin_manager._RESTART_PENDING.clear()
+    again = buy(web, headers)
+    assert again.get_json()["data"]["purchase"]["id"] == data["purchase"]["id"]
+    assert len(hub.receipts) == 1
 
 
 def test_buy_through_checkout_then_install(hub: FakeHub, admin: Client) -> None:
@@ -459,24 +475,39 @@ def test_buy_through_checkout_then_install(hub: FakeHub, admin: Client) -> None:
     hub.charge_saved_card = False
     web, headers = admin
     web.post("/api/v1/marketplace/link", json={"code": "LINKCODE42"}, headers=headers)
-    answer = web.post(
-        "/api/v1/marketplace/purchases", json={"plugin_id": PAID, "plan_id": "plan-monthly"}, headers=headers
-    )
+    assert web.get("/api/v1/marketplace/billing").get_json()["data"]["card"] is None
+    answer = buy(web, headers)
     assert answer.status_code == 200
     purchase = answer.get_json()["data"]["purchase"]
-    assert purchase["status"] == "pending" and purchase["checkout_url"].startswith("https://checkout.stripe.com/")
-    # before paying, the hub does not serve the package
+    assert purchase["status"] == "checkout_required"
+    assert purchase["checkout_url"].startswith("https://checkout.stripe.com/")
+    # before paying, the hub does not hand out the package
     job = install(admin, PAID)
     assert job.status == "failed" and "no licence" in "".join(job.log)
     plugin_manager._RESTART_PENDING.clear()
-    assert web.get(f"/api/v1/marketplace/purchases/{purchase['id']}").get_json()["data"]["status"] == "pending"
+    poll = f"/api/v1/marketplace/purchases/{purchase['id']}"
+    assert web.get(poll).get_json()["data"]["status"] == "checkout_required"
     hub.complete_checkout(purchase["id"])
-    assert web.get(f"/api/v1/marketplace/purchases/{purchase['id']}").get_json()["data"]["status"] == "paid"
+    paid = web.get(poll).get_json()["data"]
+    assert paid["status"] == "succeeded" and paid["checkout_url"] is None
+    # the next lease lists the licence even before the plugin is installed
+    marketplace.heartbeat()
+    lease = marketplace.lease()
+    assert lease is not None and PAID in lease.licences and plugin_manager.record(PAID) is None
     assert install(admin, PAID).status == "success"
     history = web.get("/api/v1/marketplace/purchases").get_json()["data"]
-    assert [p["status"] for p in history] == ["paid"]
-    csv = web.get("/api/v1/marketplace/purchases?format=csv")
-    assert csv.mimetype == "text/csv" and csv.text.splitlines()[0].startswith("created_at,plugin_name")
+    assert [(p["status"], p["receipt_number"]) for p in history] == [("succeeded", "SR-000001")]
+    receipts = web.get("/api/v1/marketplace/receipts").get_json()["data"]
+    assert receipts[0]["number"] == "SR-000001" and receipts[0]["total_cents"] == 500
+    csv = web.get("/api/v1/marketplace/receipts?format=csv")
+    assert csv.mimetype == "text/csv" and csv.text.splitlines()[0].startswith("number,kind,issued_at")
+    assert web.get("/api/v1/marketplace/purchases?format=csv").text.startswith("created_at,plugin_name")
+
+
+def test_a_purchase_needs_an_idempotency_key(hub: FakeHub, admin: Client) -> None:
+    web, headers = admin
+    body = {"plugin_id": PAID, "plan_id": "plan-monthly"}
+    assert web.post("/api/v1/marketplace/purchases", json=body, headers=headers).status_code == 400
 
 
 # ---------------------------------------------------------------- licences: expiry, grace, end, renewal
@@ -589,8 +620,11 @@ def test_catalogue_marks_installed_plugins(hub: FakeHub, admin: Client) -> None:
     web, _ = admin
     items = web.get("/api/v1/marketplace/catalog?q=hello").get_json()["data"]
     assert [(i["id"], i["installed_version"]) for i in items] == [(FREE, "1.0.0")]
+    actions = {i["id"]: i["action"] for i in web.get("/api/v1/marketplace/catalog").get_json()["data"]}
+    assert actions[PAID] == "buy"
     detail = web.get(f"/api/v1/marketplace/catalog/{PAID}").get_json()["data"]
-    assert detail["plans"][0]["id"] == "plan-monthly" and detail["installed_version"] is None
+    assert detail["plans"][0]["id"] == "plan-monthly" and detail["permissions"] == ["network.outbound"]
+    assert detail["installed_version"] is None
     assert web.get("/api/v1/marketplace/catalog?sort=wrong").status_code == 400
     assert web.get("/api/v1/marketplace/categories").get_json()["data"][0]["type"] == "mailer"
 

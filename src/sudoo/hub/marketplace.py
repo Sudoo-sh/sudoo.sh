@@ -38,7 +38,7 @@ HEARTBEAT_HOURS = 6
 RETRY_MINUTES = 15
 LEASE_WARNING_DAYS = 2
 BLOCKING = ("integrity_violation", "installation_suspended")  # hub answers that switch every plugin off
-PURCHASES = "/api/v1/purchases"  # signed: buy for this installation, follow a purchase, history
+PANEL = "/api/v1/installations"  # the hub's panel contract (sudoo-hub README, "Panel contract"), all signed
 
 _LOCK = threading.Lock()
 _LEASE_SEEN: dict[str, float] = {}  # "iat" of the lease received in this process -> time.monotonic() then
@@ -248,13 +248,40 @@ def link(code: str) -> dict[str, Any]:
     return linked
 
 
-def catalog(query: dict[str, str]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    answer = client.request("GET", f"/api/v1/catalog?{urlencode(query)}" if query else "/api/v1/catalog", signed=False)
+def _for_panel(method: str, path: str, body: Any = None) -> client.Answer:
+    """A signed call of the panel contract. The hub serves it only with a current lease: when it says the lease
+    expired, send a heartbeat and try once more."""
+    register()
+    try:
+        return client.request(method, path, body)
+    except HubRefused as error:
+        if error.code != "lease_expired":
+            raise
+    heartbeat()
+    return client.request(method, path, body)
+
+
+def _object(answer: client.Answer) -> dict[str, Any]:
+    if not isinstance(answer.data, dict):
+        raise HubUnavailable("The marketplace sent an answer the panel does not understand.")
+    return answer.data
+
+
+def _list(answer: client.Answer) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     meta = answer.headers.get("x-sudoo-meta")
-    return (answer.data if isinstance(answer.data, list) else []), (json.loads(meta) if meta else {})
+    items = [item for item in answer.data if isinstance(item, dict)] if isinstance(answer.data, list) else []
+    return items, (json.loads(meta) if meta else {})
+
+
+def catalog(query: dict[str, str]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """The catalogue for this panel: each plugin with `plans`, `latest_version`, `compatible_version`,
+    `installed_version`, `license` and `action` (install, update, installed, buy, renew, incompatible)."""
+    path = f"{PANEL}/catalog?{urlencode(query)}" if query else f"{PANEL}/catalog"
+    return _list(_for_panel("GET", path))
 
 
 def plugin(plugin_id: str) -> dict[str, Any]:
+    """The public page of one plugin: permissions, screenshots, plans (no signature needed)."""
     data = client.get(f"/api/v1/catalog/{plugin_id}")
     if not isinstance(data, dict):
         raise HubUnavailable("The marketplace sent an answer the panel does not understand.")
@@ -266,26 +293,43 @@ def categories() -> list[dict[str, Any]]:
     return data if isinstance(data, list) else []
 
 
-def buy(plugin_id: str, plan_id: str) -> dict[str, Any]:
-    """Buy a paid plugin for this installation. The hub either charges the account's saved card ("status": "paid")
-    or answers with a Checkout link ("status": "pending", "checkout_url")."""
-    register()
-    data = client.request("POST", PURCHASES, {"plugin_id": plugin_id, "plan_id": plan_id}).data
-    if not isinstance(data, dict) or "id" not in data:
-        raise HubUnavailable("The marketplace sent an answer the panel does not understand.")
-    return data
+def billing() -> dict[str, Any]:
+    """Whether this server may buy: linked, purchases_allowed, the monthly limit, the card a purchase charges."""
+    return _object(_for_panel("GET", f"{PANEL}/billing"))
+
+
+def install_info(plugin_id: str, version: str | None) -> dict[str, Any]:
+    """May this plugin be installed, and the package to download: download_path, package_sha256, signature,
+    signing_key_id, version, tier, requires, license."""
+    body: dict[str, Any] = {"plugin_id": plugin_id}
+    if version:
+        body["version"] = version
+    return _object(_for_panel("POST", f"{PANEL}/install", body))
+
+
+def buy(plugin_id: str, plan_id: str, idempotency_key: str, requested_by: dict[str, str]) -> dict[str, Any]:
+    """Buy a paid plugin for this server. The answer is a purchase: `succeeded` (the saved card was charged; install
+    now), `checkout_required` (open `checkout_url`), `processing` (follow it), `failed` or `expired` (`reason`).
+    The same idempotency key always answers the same purchase, so a retried request never charges twice."""
+    body = {
+        "plugin_id": plugin_id,
+        "plan_id": plan_id,
+        "idempotency_key": idempotency_key,
+        "requested_by": requested_by,
+    }
+    return _object(_for_panel("POST", f"{PANEL}/purchase", body))
 
 
 def purchase(purchase_id: str) -> dict[str, Any]:
-    data = client.request("GET", f"{PURCHASES}/{purchase_id}").data
-    if not isinstance(data, dict):
-        raise HubUnavailable("The marketplace sent an answer the panel does not understand.")
-    return data
+    return _object(_for_panel("GET", f"{PANEL}/purchases/{purchase_id}"))
 
 
-def purchases() -> list[dict[str, Any]]:
-    data = client.request("GET", PURCHASES).data
-    return data if isinstance(data, list) else []
+def purchases(limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
+    return _list(_for_panel("GET", f"{PANEL}/purchases?limit={limit}&offset={offset}"))[0]
+
+
+def receipts(limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
+    return _list(_for_panel("GET", f"{PANEL}/receipts?limit={limit}&offset={offset}"))[0]
 
 
 # ---------------------------------------------------------------- what the web app shows

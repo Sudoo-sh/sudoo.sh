@@ -100,7 +100,7 @@ reset with **Use .env**.
 
 | Setting | Type | Default | Applies | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
-| `UPDATE_TRIGGERS` | str | `polling` | **restart** | What starts code updates, comma-separated: "polling", "github-webhook" or both. See [Plugins](PLUGINS.md#5-update-triggers-what-starts-a-code-update). |
+| `UPDATE_TRIGGERS` | str | `polling,github-app` | **restart** | What starts code updates, comma-separated: "polling", "github-app" (the GitHub App's webhook), "github-webhook" (one webhook per repository). See [Plugins](PLUGINS.md#5-update-triggers-what-starts-a-code-update). |
 | `GITHUB_WEBHOOK_SECRET` | str | empty | **live** | github-webhook: the secret entered on GitHub (20 or more random characters). Secret: write-only on the Settings page. |
 | `POLL_MINUTES` | float | `2` | **live** | polling: check GitHub for new commits this often. |
 

@@ -42,6 +42,7 @@ export const router = createBrowserRouter([
           { path: "/tokens", lazy: page(() => import("./pages/Tokens"), (m) => m.TokensPage, "tokens.manage") },
           { path: "/backups", lazy: page(() => import("./pages/Backups"), (m) => m.BackupsPage, "backups.manage") },
           { path: "/activity", lazy: page(() => import("./pages/Audit"), (m) => m.AuditPage, "audit.view") },
+          { path: "/github/app/:step", lazy: page(() => import("./pages/GitHub"), (m) => m.GitHubReturnPage, "settings.manage") },
           { path: "/github", lazy: page(() => import("./pages/GitHub"), (m) => m.GitHubPage, "github.manage") },
           { path: "/account", lazy: page(() => import("./pages/Account"), (m) => m.AccountPage) },
           { path: "/help/*", lazy: page(() => import("./pages/Help"), (m) => m.HelpPage) },

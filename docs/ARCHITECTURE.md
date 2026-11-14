@@ -135,7 +135,7 @@ How git reaches GitHub is configured once for every git command the panel runs (
 | Repository | Way |
 | :--- | :--- |
 | has a deploy key on the server | SSH with that repository's key (`git_ssh.py` decrypts it for the length of the connection) |
-| any other | anonymous HTTPS (public repositories) |
+| any other | HTTPS; when GitHub asks for credentials, git's credential helper (`git_credential.py`) hands it a read-only installation token of the panel's GitHub App installed on the repository's owner (`github_app.py`); public repositories need none |
 
 Both `https://github.com/owner/repo` and `git@github.com:owner/repo` addresses, including those written in
 `.gitmodules`, are mapped to that one way. See [Deploy keys](concepts/DEPLOY_KEYS.md) and
@@ -189,18 +189,23 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
   the instance, which breaks API calls, webhooks, links in e-mails and having two instances open at the same time.
 - **Cost:** one small connector per instance (about 30 MB of memory).
 
-### Read-only deploy keys for private repositories
-- **Chosen:** one SSH deploy key per repository, created by the panel, added on GitHub by someone with admin rights on
-  that repository. Repositories without a key are fetched anonymously over https. See [Deploy keys](concepts/DEPLOY_KEYS.md).
-- **Why:** a deploy key gives read-only access to exactly one repository and belongs to no person: no personal
-  account or token whose owner might leave, and each key can be revoked on its own.
-- **Cost:** one key per private repository, including each private submodule.
+### One GitHub App per panel, deploy keys as the fallback
+- **Chosen:** each panel registers its own private, read-only GitHub App through GitHub's App Manifest flow, and a
+  super admin installs it on a personal account or organisations (all or selected repositories). The panel signs a
+  short JWT with the app's private key, exchanges it for one-hour installation tokens, and hands them to git through
+  a credential helper. Deploy keys (one SSH key per repository) stay for servers without an app. See
+  [Administrator guide](ADMIN_GUIDE.md#15-the-github-app) and [Deploy keys](concepts/DEPLOY_KEYS.md).
+- **Why:** an app belongs to no person (no personal token whose owner might leave), is read-only, covers every
+  repository and submodule of an account in a few clicks, and brings one webhook for all of them, whose address the
+  panel can update itself when a quick tunnel changes. The manifest flow means no key or secret is ever copied by hand.
+- **Cost:** a few minutes of setup per panel; the app is shown on GitHub under the account that created it.
 - **Considered:** a personal access token (gives access to everything that person can see, expires, belongs to a
-  person); a GitHub App (more setup than a server needs). Only one way is kept, so there is one path to debug.
+  person); deploy keys only (one key per private repository and submodule, a webhook per repository).
 
 ### Update triggers as plugins: polling by default, webhooks where possible
 - **Chosen:** what starts a code update is a list of trigger plugins (`UPDATE_TRIGGERS`). `polling` checks each
-  branch every 2 minutes; `github-webhook` receives GitHub's push events, checked with GitHub's HMAC signature.
+  branch every 2 minutes; `github-app` receives the panel's GitHub App events, `github-webhook` per-repository push
+  events, both checked with GitHub's HMAC signature.
 - **Why:** a webhook is immediate but needs a panel address that never changes; polling needs nothing from GitHub
   and nothing reachable from outside, so it works behind quick tunnels. Each server enables what fits it, or both.
 - **Cost:** with polling only, an update starts up to 2 minutes after a push.

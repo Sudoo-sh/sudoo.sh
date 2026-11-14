@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **GitHub App:** "Connect GitHub" on the GitHub access page (super admins) registers one private, read-only GitHub
+  App for the panel through GitHub's App Manifest flow, for a personal account or an organisation, and "Install on
+  GitHub" gives it all or selected repositories; several installations work side by side. The panel reads private
+  repositories and their submodules with one-hour installation tokens handed to git by a credential helper (never in
+  addresses, `.git/config` or logs). The New instance page lists the app's repositories as you type, branches come
+  from GitHub's API, and the new update trigger `github-app` (default `UPDATE_TRIGGERS=polling,github-app`) updates
+  instances seconds after a push through the app's webhook, whose address the panel updates itself when a Cloudflare
+  quick tunnel changes. Existing deploy keys keep working and remain the fallback. API: `/api/v1/github/app`,
+  `/api/v1/github/app/manifest`, `/api/v1/github/app/installations`, `/api/v1/github/repositories`.
+
 - **Daily backups:** once a day (`DAILY_BACKUP_TIME`, default 00:00, in `TIMEZONE`), every instance that was used
   since its last daily backup is backed up. Each instance keeps only its latest daily backup; they go when the
   instance is deleted. Settings: `DAILY_BACKUPS`, `DAILY_BACKUP_TIME`, `TIMEZONE` (Settings, Backups).

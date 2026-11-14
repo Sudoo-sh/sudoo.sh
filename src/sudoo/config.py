@@ -77,7 +77,9 @@ class Settings(BaseSettings):
 
     # ------------------------------------------------------------------ update triggers (plugins)
     update_triggers: str = Field(
-        "polling", description='What starts code updates, comma-separated: "polling", "github-webhook" or both.'
+        "polling,github-app",
+        description='What starts code updates, comma-separated: "polling", "github-app" (the GitHub App\'s webhook), '
+        '"github-webhook" (one webhook per repository).',
     )
     github_webhook_secret: str = Field(
         "", description="github-webhook: the secret entered on GitHub (20 or more random characters)."

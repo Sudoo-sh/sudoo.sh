@@ -1,6 +1,6 @@
 <div align="center">
 
-<a href="https://sudoo.sh"><img src="docs/images/brand/mark-animated.svg" alt="Sudoo.sh" width="96" height="96"></a>
+<a href="https://sudoo.sh"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/brand/mark-animated-dark.svg"><img src="docs/images/brand/mark-animated.svg" alt="Sudoo.sh" width="96" height="96"></picture></a>
 
 <h1>Sudoo.sh</h1>
 
@@ -393,6 +393,12 @@ and share, for any **noncommercial** purpose.
 | Personal use, study, research, testing | Selling it, or selling a service built on it |
 | Use by charities, schools, public bodies | Using it to make money for a company without permission |
 | Changing it and sharing your changes under the same licence | Removing the licence or the copyright notice |
+
+### Name and logo
+
+"Sudoo" and "Sudoo.sh", the logo and the marketplace's "Official" and "Verified" badges are trademarks of the
+author, and the licence does not cover them: a changed copy may not use the name or logo, and only plugins
+published on marketplace.sudoo.sh may show the badges. See [TRADEMARKS.md](TRADEMARKS.md).
 
 ### Commercial licences
 

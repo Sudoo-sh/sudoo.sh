@@ -7,7 +7,8 @@ Install (a job, docs/MARKETPLACE.md)
     3. Its manifest.json must name the same plugin and version, suit this panel (min/max Sudoo version, SDK
        version), and every plugin it `requires` must be installed and enabled in a matching version.
     4. Packages that need third-party Python packages are refused in this version (no dependency installer), as
-       are compiled files (native extensions, .pyc), links, absolute paths and archive bombs.
+       are compiled files (native extensions, .pyc), links, absolute paths and archive bombs. The plugin SDK is the
+       exception: a plugin may declare it when the panel has it, in a version the plugin accepts.
     5. It is unpacked into <ODOO_ROOT>/manager/plugins/<id>/<version>/ (folders 700, files 600, readable by root
        only; the web container does not mount that folder), the package file is deleted, the entry points are
        written as a small dist-info so `plugins.load` finds them, and a hash of every unpacked file is recorded.
@@ -44,7 +45,8 @@ import time
 import tomllib
 import zipfile
 from collections.abc import Callable, Iterable
-from importlib.metadata import entry_points
+from importlib.metadata import PackageNotFoundError, entry_points
+from importlib.metadata import version as package_version
 from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
@@ -60,6 +62,7 @@ log = logging.getLogger("sudoo.plugins")
 COLLECTION = "plugins"
 JOB_INSTANCE = "panel:plugins"  # the job "instance" of plugin work: one plugin job at a time, never a real name
 SDK_VERSION = "0.1.0"  # the plugin SDK contract this panel implements (manifest "sdk_version")
+SDK_DIST = "sudoo-plugin-sdk"  # the SDK's package: a plugin may depend on it when the panel has it
 MAX_PACKAGE_BYTES = 25 * 1024 * 1024
 MAX_UNPACKED_BYTES = 200 * 1024 * 1024
 MAX_FILES = 5000
@@ -74,6 +77,7 @@ SEMVER_RE = re.compile(
     r"(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?"
     r"(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$"
 )
+_REQUIREMENT_RE = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*((?:[<>=!~][^;]*)?)\s*$")
 _CLAUSE_RE = re.compile(r"^\s*(>=|<=|==|!=|~=|>|<)\s*(\S+)\s*$")
 
 _LOCK = threading.RLock()
@@ -371,21 +375,54 @@ def _requirements(manifest: dict[str, Any]) -> list[tuple[str, str | None]]:
     return found
 
 
+def _sdk_requirement(requirement: str) -> str | None:
+    """The version specifier when `requirement` is the plugin SDK ("sudoo-plugin-sdk>=0.1.0,<1.0.0" -> ">=0.1.0,
+    <1.0.0", "" for any version); None for any other package."""
+    match = _REQUIREMENT_RE.match(requirement)
+    if match is None or re.sub(r"[-_.]+", "-", match[1]).lower() != SDK_DIST:
+        return None
+    return match[2].strip()
+
+
 def _has_dependencies(archive: zipfile.ZipFile) -> bool:
+    """Whether the package needs Python packages the panel does not have. The plugin SDK (`sudoo-plugin-sdk`,
+    which every plugin made with it declares) does not count when the panel has a version it accepts."""
     names = set(archive.namelist())
     if "pyproject.toml" in names:
         try:
             project = tomllib.loads(archive.read("pyproject.toml").decode()).get("project", {})
         except (ValueError, UnicodeDecodeError):
             raise PluginRefused("The package's pyproject.toml cannot be read.") from None
-        if project.get("dependencies") or project.get("optional-dependencies"):
+        if project.get("optional-dependencies"):
             return True
+        for requirement in project.get("dependencies") or []:
+            specifier = _sdk_requirement(str(requirement))
+            if specifier is None:
+                return True
+            _check_sdk(specifier)
     for name in names:
         if "/" not in name and name.startswith("requirements") and name.endswith(".txt"):
             lines = archive.read(name).decode(errors="replace").splitlines()
             if any(line.strip() and not line.strip().startswith("#") for line in lines):
                 return True
     return False
+
+
+def _check_sdk(specifier: str) -> None:
+    """A plugin that imports the SDK runs only where the SDK is installed in a version it accepts."""
+    try:
+        installed = package_version(SDK_DIST)
+    except PackageNotFoundError:
+        raise PluginRefused(
+            "This plugin needs the Sudoo.sh plugin SDK, which this panel does not include yet. Update Sudoo.sh, or "
+            "ask the publisher for a version that does not need it."
+        ) from None
+    try:
+        ok = satisfies(installed, specifier)
+    except ValueError:
+        ok = False
+    if not ok:
+        raise PluginRefused(f"This plugin needs plugin SDK {specifier}; this panel has {installed}.")
 
 
 def check_package(archive: zipfile.ZipFile, plugin_id: str, version: str) -> dict[str, Any]:
@@ -525,7 +562,8 @@ def _hub_message(error: HubRefused) -> str:
         "already_licensed": "This server already has a licence for this plugin: install it.",
         "not_for_sale": "This plugin is free: install it.",
         "developer_not_payable": "This plugin cannot be bought right now (its publisher cannot receive payments).",
-        "purchase_in_progress": "A purchase of this plugin with another plan is under way. Finish or cancel it first.",
+        "purchase_in_progress": "A purchase of this plugin is already under way. Look at Purchases, or try again "
+        "in a minute.",
         "payments_disabled": "Payments are switched off on the marketplace right now. Try again later.",
     }.get(error.code or "", error.detail)
 

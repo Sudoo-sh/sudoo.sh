@@ -171,7 +171,7 @@ function PluginCard({ plugin, onOpen }: { plugin: CatalogPlugin; onOpen: () => v
         <span className="row xsmall faint">
           <Star /> {plugin.rating_count ? plugin.avg_rating.toFixed(1) : "—"}
         </span>
-        <span className="xsmall faint">{number(plugin.install_count)} installs</span>
+        <span className="xsmall faint">{number(plugin.install_count)} {plugin.install_count === 1 ? "install" : "installs"}</span>
         <span className="spacer" />
         {label && <Tag tone={tone}>{label}</Tag>}
       </div>
@@ -227,7 +227,12 @@ function PluginSheet({
         if (current.status === "succeeded") {
           stop = true;
           toast("success", "Payment received", `Installing ${plugin.name}`);
-          await install();
+          try {
+            await install();
+          } catch (err) {
+            toast("error", `Paid, but ${plugin.name} is not installed yet`, `${errorText(err)} Install it from the Marketplace.`);
+            setStep("idle");
+          }
         } else if (current.status === "failed" || current.status === "expired") {
           stop = true;
           toast("error", "The payment did not go through", reasonText(current.reason) || "Nothing was charged. Try again when you are ready.");
@@ -272,8 +277,18 @@ function PluginSheet({
     const tab = billing?.card && !billing.card.expired ? null : window.open("about:blank", "_blank");
     try {
       const body = { plugin_id: plugin.id, plan_id: chosen.id, idempotency_key: newIdempotencyKey() };
-      const answer = await api.post<{ purchase: Purchase; job: Job | null }>("/marketplace/purchases", body);
+      const answer = await api.post<{ purchase: Purchase; job: Job | null; install_error: string | null }>(
+        "/marketplace/purchases",
+        body,
+      );
       const bought = answer.purchase;
+      if (bought.status === "succeeded" && !answer.job) {
+        // paid, but the panel cannot install right now (jobs running, a restart coming): the licence is kept
+        tab?.close();
+        toast("success", "Paid", `${answer.install_error ?? ""} Install ${plugin.name} from the Marketplace then.`.trim());
+        onClose();
+        return;
+      }
       if (answer.job) {
         tab?.close();
         toast("success", `Paid with the saved card${billing?.card ? ` •••• ${billing.card.last4}` : ""}`, `Installing ${plugin.name}`);

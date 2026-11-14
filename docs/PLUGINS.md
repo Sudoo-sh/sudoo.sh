@@ -362,7 +362,8 @@ Rules for a marketplace plugin, on top of [Rules for plugins](#7-rules-for-plugi
 
 * **Standard library only, for now.** Packages that declare dependencies (`[project] dependencies` in
   `pyproject.toml`, or a `requirements*.txt` with entries) are refused, because this version of the panel has no
-  dependency installer.
+  dependency installer. Only `sudoo-plugin-sdk` may be declared, and only runs where the panel has the SDK in a
+  version the plugin accepts.
 * **Python source only.** No `.so`, `.pyd`, `.pyc` or other compiled files.
 * **Your own names.** Entry-point names must not be taken by another plugin of the same group, and top-level module
   names must not clash with the panel's (`sudoo`) or its libraries (`flask`, `cryptography`...). A storage plugin

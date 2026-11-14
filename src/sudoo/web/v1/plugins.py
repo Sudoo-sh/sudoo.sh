@@ -159,12 +159,19 @@ def notices() -> Response:
     return ok([{**notice, "date": iso(notice.get("date"))} for notice in plugin_manager.notices()])
 
 
-def _start_install(plugin_id: str, version: str | None, title: str) -> jobs.Job:
+def _install_blocked() -> str | None:
+    """Why a plugin cannot be installed right now (jobs running, a restart coming), or None."""
     if jobs.ACTIVE_JOB:
         running = ", ".join(sorted(j.instance for j in jobs.ACTIVE_JOB.values()))
-        abort(409, f"Jobs are running ({running}). Install when they have finished: the panel restarts afterwards.")
+        return f"Jobs are running ({running}). Install when they have finished: the panel restarts afterwards."
     if plugin_manager.restart_pending():
-        abort(409, "The panel is about to restart. Try again in a minute.")
+        return "The panel is about to restart. Try again in a minute."
+    return None
+
+
+def _start_install(plugin_id: str, version: str | None, title: str) -> jobs.Job:
+    if blocked := _install_blocked():
+        abort(409, blocked)
     return jobs.start(
         plugin_manager.JOB_INSTANCE, title, "plugin-install", plugin_manager.install, plugin_id, version,
         g.user["name"], user=g.user["name"],
@@ -357,13 +364,19 @@ def billing() -> Response:
     return ok({**{key: found.get(key) for key in keys}, "manage_url": _https(found.get("manage_url"))})
 
 
+def _plugin_name(plugin_id: Any) -> Any:
+    """The hub's purchases name the plugin by id only: use the name of the installed plugin when there is one."""
+    rec = plugin_manager.record(plugin_id) if isinstance(plugin_id, str) else None
+    return rec.get("name", plugin_id) if rec else plugin_id
+
+
 def purchase_resource(item: dict[str, Any]) -> dict[str, Any]:
     """A purchase as the hub's panel contract shows it, with only https links."""
     requested: dict[str, Any] = item["requested_by"] if isinstance(item.get("requested_by"), dict) else {}
     return {
         "id": str(item.get("id", "")),
         "plugin_id": item.get("plugin_id"),
-        "plugin_name": item.get("plugin_name") or item.get("plugin_id"),
+        "plugin_name": item.get("plugin_name") or _plugin_name(item.get("plugin_id")),
         "plan_id": item.get("plan_id"),
         "plan_kind": item.get("plan_kind"),
         "amount_cents": item.get("amount_cents"),
@@ -458,10 +471,12 @@ def buy() -> Response:
         log("plugin purchase refused", ok=False, detail=plugin_id)
         _hub_error(error)
     log("plugin purchase", detail=f"{plugin_id} {bought['status']} {bought['method'] or ''}".strip())
-    if bought["status"] == "succeeded":  # the saved card was charged: install at once
+    if bought["status"] == "succeeded":  # the saved card was charged: install at once, when the panel can
+        if blocked := _install_blocked():  # paid all the same: never answer an error for a purchase that went through
+            return ok({"purchase": bought, "job": None, "install_error": blocked})
         job = _start_install(plugin_id, None, f"Install {plugin_id}")
-        return ok({"purchase": bought, "job": job_resource(job)}, status=202)
-    return ok({"purchase": bought, "job": None})
+        return ok({"purchase": bought, "job": job_resource(job), "install_error": None}, status=202)
+    return ok({"purchase": bought, "job": None, "install_error": None})
 
 
 @blueprint.get("/marketplace/purchases/<purchase_id>")

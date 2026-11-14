@@ -7,6 +7,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import re
 import shutil
 import stat
 import time
@@ -358,6 +359,46 @@ def test_packages_that_do_not_suit_are_refused(files: dict[str, bytes | str], me
         plugin_manager.check_package(_zip(files), FREE, "1.0.0")
 
 
+SDK_PYPROJECT = '[project]\nname="x"\ndependencies=["sudoo-plugin-sdk>=0.1.0,<1.0.0"]\n'
+
+
+@pytest.mark.parametrize(
+    ("installed", "extra", "message"),
+    [
+        ("0.1.0", "", None),  # every plugin made with the SDK declares it: fine when the panel has it
+        (None, "", "does not include yet"),
+        ("1.2.0", "", "needs plugin SDK >=0.1.0,<1.0.0; this panel has 1.2.0"),
+        ("0.1.0", "requests", "other Python packages"),
+    ],
+)
+def test_a_dependency_on_the_plugin_sdk(
+    monkeypatch: pytest.MonkeyPatch, installed: str | None, extra: str, message: str | None
+) -> None:
+    def sdk_version(name: str) -> str:
+        assert name == "sudoo-plugin-sdk"
+        if installed is None:
+            raise plugin_manager.PackageNotFoundError(name)
+        return installed
+
+    monkeypatch.setattr(plugin_manager, "package_version", sdk_version)
+    pyproject = SDK_PYPROJECT.replace('"]\n', f'", "{extra}"]\n') if extra else SDK_PYPROJECT
+    files = {**dict(_entries(make_package(FREE, "1.0.0", module="sdk_hello"))), "pyproject.toml": pyproject}
+    if message is None:
+        assert plugin_manager.check_package(_zip(files), FREE, "1.0.0")["id"] == FREE
+    else:
+        with pytest.raises(plugin_manager.PluginRefused, match=re.escape(message)):
+            plugin_manager.check_package(_zip(files), FREE, "1.0.0")
+
+
+def test_a_refused_install_says_why(hub: FakeHub, admin: Client) -> None:
+    free_listing(hub, manifest={"min_sudoo_version": "99.0.0"})
+    job = install(admin, FREE)
+    web, _ = admin
+    shown = web.get(f"/api/v1/jobs/{job.id}").get_json()["data"]
+    assert shown["status"] == "failed"
+    assert "needs Sudoo.sh 99.0.0 or newer" in shown["error"]  # the reason, not a general hint
+
+
 def test_links_in_a_package_are_refused() -> None:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
@@ -468,6 +509,21 @@ def test_buy_with_the_saved_card_installs_at_once(hub: FakeHub, admin: Client) -
     again = buy(web, headers)
     assert again.get_json()["data"]["purchase"]["id"] == data["purchase"]["id"]
     assert len(hub.receipts) == 1
+
+
+def test_a_purchase_that_went_through_is_never_answered_as_an_error(
+    hub: FakeHub, admin: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paid_listing(hub)
+    web, headers = admin
+    web.post("/api/v1/marketplace/link", json={"code": "LINKCODE42"}, headers=headers)
+    monkeypatch.setitem(jobs.ACTIVE_JOB, "demo", jobs.Job("demo", "Back up", "backup", "x"))
+    answer = buy(web, headers)
+    assert answer.status_code == 200
+    data = answer.get_json()["data"]
+    assert data["purchase"]["status"] == "succeeded" and data["job"] is None
+    assert "Jobs are running" in data["install_error"]
+    assert len(hub.receipts) == 1 and plugin_manager.record(PAID) is None  # paid; installed once jobs end
 
 
 def test_buy_through_checkout_then_install(hub: FakeHub, admin: Client) -> None:

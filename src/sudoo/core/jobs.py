@@ -179,7 +179,9 @@ def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
                     step["status"] = "failed"
             job.status = "failed"
             job.write(f"\nERROR: {exc}\n")
-            job.hint = friendly_hint("".join(job.log))
+            # a panel job (plugins) refuses in plain words already: show them rather than a general hint
+            plain = isinstance(exc, JobError) and is_panel_job(job.instance) and str(exc)
+            job.hint = plain or friendly_hint("".join(job.log))
         finally:
             job.finished = time.time()
             ACTIVE_JOB.pop(job.instance, None)

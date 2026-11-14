@@ -189,7 +189,9 @@ Before anything is unpacked:
 5. Every plugin it `requires` must be installed and switched on, in a matching version.
 6. It must not need **other Python packages**. This version of the panel has no dependency installer, so packages
    that declare dependencies (in `pyproject.toml` or a `requirements*.txt`) are refused; publishers ship plugins
-   that use only the Python standard library and what the panel already provides.
+   that use only the Python standard library and what the panel already provides. The one exception is the plugin
+   SDK (`sudoo-plugin-sdk`, which every plugin made with it declares): it is accepted when the panel has the SDK
+   installed in a version the plugin accepts, and refused with "needs the Sudoo.sh plugin SDK" otherwise.
 7. It must not contain compiled code (`.so`, `.pyd`, `.pyc` ...), links, special files, absolute paths or `..`,
    and must stay within 25 MB, 200 MB unpacked and 5,000 files (no archive bombs).
 8. Its entry points must be in `sudoo.*` groups, must not take a name another plugin already uses, and its modules
@@ -261,5 +263,6 @@ The API behind the page is described in [Panel API](PANEL_API.md#plugins-and-the
 | The package's signature is not valid / SHA-256 does not match | The download was changed on the way or is not from the marketplace. Nothing was installed; try again, and tell Sudoo.sh if it repeats. |
 | Signed with a key this panel does not trust | The hub uses a key this panel has not pinned. Run `sudoo.sh marketplace repin` only if Sudoo.sh announced a new key. |
 | This plugin needs other Python packages | Not supported yet; ask the publisher for a version without dependencies. |
+| This plugin needs the Sudoo.sh plugin SDK | This panel does not have the SDK (or not a version the plugin accepts). Update Sudoo.sh, or ask the publisher. |
 | Files changed | Someone or something changed the plugin's files on the server. Find out why, then install the plugin again. |
 | The marketplace refuses this panel (integrity violation) | The panel's own files differ from the released version. Reinstall the released version with `install.sh`. |

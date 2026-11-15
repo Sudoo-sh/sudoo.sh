@@ -135,6 +135,20 @@ class SqliteStorage:
             if cursor.lastrowid and cursor.lastrowid % 1000 == 0:
                 db.execute("DELETE FROM audit WHERE id <= ?", (cursor.lastrowid - _AUDIT_KEEP,))
 
+    def rewrite_audit_details(self, event: str, fn: Callable[[str], str]) -> int:
+        """Replace the detail of every entry of `event` by fn(detail) (a schema change, migrate.py); returns how
+        many entries changed."""
+        changed = 0
+        self._db().execute("PRAGMA secure_delete = ON")  # the old text is overwritten in the file, not just freed
+        with self._connection(write=True) as db:
+            rows = db.execute("SELECT id, detail FROM audit WHERE event = ? AND detail IS NOT NULL", (event,))
+            for entry_id, detail in rows.fetchall():
+                new = fn(detail)
+                if new != detail:
+                    db.execute("UPDATE audit SET detail = ? WHERE id = ?", (new, entry_id))
+                    changed += 1
+        return changed
+
     def logs(
         self, limit: int = 200, offset: int = 0, user: str | None = None, instance: str | None = None
     ) -> list[Document]:

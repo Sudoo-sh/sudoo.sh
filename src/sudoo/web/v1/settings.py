@@ -7,7 +7,8 @@
 
 "applies" says when a change takes effect: "now", "restart" (it chooses a plugin; restart the panel with
 POST /api/v1/server/restart) or "env" (only in .env: folders, ports, exposure, storage). Changes are kept on top of
-.env (config.py, LiveSettings); secrets are stored encrypted and never shown, only whether they are set.
+.env (config.py, LiveSettings); secrets are stored encrypted and never shown, only whether they are set. The audit
+log names every changed setting with its new value, except secrets: "SMTP_PASSWORD=(set)".
 """
 
 from __future__ import annotations
@@ -78,6 +79,13 @@ def read() -> Response:
     return ok(resource())
 
 
+def audit_value(key: str, value: Any) -> str:
+    """How a changed setting appears in the audit log: its value, "(env)" when reset, "(set)" for a secret."""
+    if value is None:
+        return "(env)"
+    return "(set)" if key in config.SECRET else str(value)
+
+
 def _change(values: dict[str, Any]) -> None:
     try:
         live.change(values)
@@ -86,7 +94,7 @@ def _change(values: dict[str, Any]) -> None:
         abort(400, f"{str(first['loc'][0]).upper()}: {first['msg']}.")
     except ValueError as error:
         abort(400, str(error))
-    log("settings changed", detail=", ".join(f"{k.upper()}={'(env)' if v is None else v}" for k, v in values.items()))
+    log("settings changed", detail=", ".join(f"{k.upper()}={audit_value(k, v)}" for k, v in values.items()))
 
 
 @blueprint.patch("/settings")

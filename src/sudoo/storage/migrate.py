@@ -7,6 +7,7 @@ start does not import it again.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from .base import Storage
@@ -14,7 +15,7 @@ from .base import Storage
 _COLLECTIONS = {"users.json": "users", "api_tokens.json": "api_tokens", "state.json": "instance_state"}
 
 
-SCHEMA = 2  # 2: the five roles of roles.py
+SCHEMA = 3  # 2: the five roles of roles.py; 3: no values of secret settings in the audit log
 
 
 def migrate(storage: Storage, folder: Path) -> None:
@@ -26,8 +27,25 @@ def migrate(storage: Storage, folder: Path) -> None:
         for name, user in storage.all("users").items():
             if user.get("role") in renamed:
                 storage.put("users", name, {**user, "role": renamed[user["role"]]})
+    if meta["version"] < 3:
+        rewrite = getattr(storage, "rewrite_audit_details", None)  # optional: the built-in SQLite storage has it
+        if rewrite is not None:
+            rewrite("settings changed", hide_secret_settings)
     if meta["version"] != SCHEMA:
         storage.put("meta", "schema", {"version": SCHEMA})
+
+
+def hide_secret_settings(detail: str) -> str:
+    """The detail of a "settings changed" entry with the values of secret settings replaced by "(set)"; earlier
+    versions wrote them there as typed. "SMTP_PASSWORD=abc, IDLE_HOURS=2" -> "SMTP_PASSWORD=(set), IDLE_HOURS=2"."""
+    from sudoo.config import SECRET
+
+    parts = re.split(r", (?=[A-Z][A-Z0-9_]*=)", detail)
+    for index, part in enumerate(parts):
+        key, _, value = part.partition("=")
+        if key.lower() in SECRET and value != "(env)":
+            parts[index] = f"{key}=(set)"
+    return ", ".join(parts)
 
 
 def migrate_json_files(storage: Storage, folder: Path) -> None:

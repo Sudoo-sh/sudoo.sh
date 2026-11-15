@@ -8,6 +8,7 @@ The backend answers:
 A browser session must be valid:
     - a signed session cookie (HttpOnly, SameSite=Strict, Secure)
     - its account still exists and its session_version matches (password changes end other sessions)
+    - it was not signed out: each session has a random id (sid), remembered as ended when its owner signs out
     - not idle for more than SESSION_IDLE_MINUTES and not older than SESSION_MAX_HOURS
 Every change (non-GET request) must come from the panel's own address, be sent as JSON and carry the session's
 CSRF token. Values inside the request are checked by validation.py.
@@ -85,17 +86,19 @@ def client_ip() -> str:
 def user_of_session(data: Mapping[str, Any], check_idle: bool = True) -> dict[str, str] | None:
     """{"name", "role"} of a session's account while the session is valid, else None.
 
-    Valid: the account exists, its password was not changed since (session_version), and the session is not older
-    than SESSION_MAX_HOURS nor (with check_idle) unused for SESSION_IDLE_MINUTES.
+    Valid: the account exists, its password was not changed since (session_version), the session was not signed
+    out (sid), and it is not older than SESSION_MAX_HOURS nor (with check_idle) unused for SESSION_IDLE_MINUTES.
     """
     name = data.get("user")
     account = accounts.get(name) if isinstance(name, str) else None
     now = time.time()
+    sid = data.get("sid")
     valid = (
         account is not None
         and data.get("version") == account["session_version"]
         and (not check_idle or now - data.get("seen", 0) <= settings.session_idle_minutes * 60)
         and now - data.get("started", 0) <= settings.session_max_hours * 3600
+        and not (isinstance(sid, str) and accounts.session_ended(sid))
     )
     return {"name": str(name), "role": roles.normalize(account["role"])} if valid and account is not None else None
 
@@ -110,7 +113,18 @@ def current_user() -> dict[str, str] | None:
     now = time.time()
     if now - session["seen"] > 30:
         session["seen"] = now
+    if "sid" not in session:  # a session started before sessions had an id gets one, so signing out can end it
+        session["sid"] = secrets.token_urlsafe(16)
     return user
+
+
+def end_current_session() -> None:
+    """Sign out: the session's id is remembered as ended (a copy of the cookie stops working), and the cookie is
+    cleared."""
+    sid = session.get("sid")
+    if isinstance(sid, str):
+        accounts.end_session(sid, float(session.get("started", time.time())))
+    session.clear()
 
 
 def start_session(name: str, version: int, restricted: str | None = None) -> None:
@@ -119,7 +133,9 @@ def start_session(name: str, version: int, restricted: str | None = None) -> Non
     now = time.time()
     session.clear()
     session.permanent = True
-    session.update(user=name, version=version, csrf=secrets.token_urlsafe(32), started=now, seen=now)
+    session.update(
+        user=name, version=version, sid=secrets.token_urlsafe(16), csrf=secrets.token_urlsafe(32), started=now, seen=now
+    )
     session["restricted"] = restricted
 
 
@@ -189,8 +205,8 @@ class Headers(Protocol):
 
 
 def api_caller(headers: Headers, method: str, path_with_query: str, body: bytes, ip: str) -> dict[str, str]:
-    """The user an API-token call acts as: {"name": "api:<token name>", "role"}. Raises PermissionError with the
-    HTTP status as its second argument when the call is refused; refusals are counted and audit-logged."""
+    """The user an API-token call acts as: {"name": "api:<token name>", "role", "token_id"}. Raises PermissionError
+    with the HTTP status as its second argument when the call is refused; refusals are counted and audit-logged."""
     if accounts.THROTTLE.seconds_to_wait(ip, "api-token"):
         raise PermissionError("Too many refused API calls from this address. Try again in 15 minutes.", 429)
     try:
@@ -210,7 +226,8 @@ def api_caller(headers: Headers, method: str, path_with_query: str, body: bytes,
     if token["scope"] != "write" and method not in SAFE_METHODS:
         audit.record(f"api:{token['name']}", ip, "API change refused (read-only token)", ok=False)
         raise PermissionError("This API token can only read. Create a token with the write scope to make changes.", 403)
-    return {"name": f"api:{token['name']}", "role": "admin" if token["scope"] == "write" else "viewer"}
+    role = "admin" if token["scope"] == "write" else "viewer"
+    return {"name": f"api:{token['name']}", "role": role, "token_id": str(token["id"])}
 
 
 def _path_with_query() -> str:

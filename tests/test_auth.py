@@ -218,3 +218,119 @@ def test_email_shows_where_the_request_came_from_and_escapes_values() -> None:
     )  # fmt: skip
     assert "123456" in html and "user-select:all" in html and "203.0.113.9" in html and "Chrome on Windows" in html
     assert "&lt;b&gt;sam&lt;/b&gt;" in html and "<b>sam</b>" in text  # escaped in HTML only
+
+
+# ---------------------------------------------------------------- sessions and the own account
+
+
+def _cookie(client: FlaskClient) -> str:
+    cookie = client.get_cookie("sudoo_session")
+    assert cookie is not None
+    return cookie.value
+
+
+def _with_cookie(app: Flask, value: str) -> FlaskClient:
+    """A new browser holding a copy of a session cookie."""
+    client = app.test_client()
+    client.set_cookie("sudoo_session", value)
+    return client
+
+
+def test_a_session_of_a_deleted_account_does_not_open_an_account_created_later_with_its_name(app: Flask) -> None:
+    name, password = _user("viewer")
+    client, _ = _sign_in(app, name, password)
+    copy = _cookie(client)
+    assert _with_cookie(app, copy).get("/api/v1/session").status_code == 200
+    accounts.delete(name)
+    accounts.create(name, "admin", "orchid-pebble-summit-73", must_change=False)  # someone else, same user name
+    assert _with_cookie(app, copy).get("/api/v1/session").status_code == 401
+
+
+def test_session_versions_are_random_and_change_on_every_ending() -> None:
+    first, _ = _user()
+    second, _ = _user()
+    versions = {accounts.get(first)["session_version"], accounts.get(second)["session_version"]}  # type: ignore[index]
+    assert len(versions) == 2 and 1 not in versions
+    before = accounts.get(first)["session_version"]  # type: ignore[index]
+    assert accounts.end_sessions(first) not in (before, before + 1)
+
+
+def test_an_account_of_an_earlier_version_keeps_its_sessions(app: Flask) -> None:
+    name, password = _user()
+    accounts.update(name, session_version=1)  # counted from 1, as before
+    client, answer = _sign_in(app, name, password)
+    assert answer.status_code == 201 and client.get("/api/v1/session").status_code == 200
+    assert accounts.end_sessions(name) != 1 and client.get("/api/v1/session").status_code == 401
+
+
+def test_signing_out_ends_the_session_on_the_server(app: Flask) -> None:
+    name, password = _user()
+    client, _ = _sign_in(app, name, password)
+    copy = _cookie(client)
+    other, _ = _sign_in(app, name, password)
+    assert client.delete("/api/v1/session", headers=_csrf(client)).status_code == 204
+    assert _with_cookie(app, copy).get("/api/v1/session").status_code == 401  # a copy of the cookie stops working
+    assert other.get("/api/v1/session").status_code == 200  # the account's other sessions continue
+
+
+def test_ended_sessions_are_forgotten_once_they_would_have_expired() -> None:
+    accounts.end_session("old-session", started=time.time() - 13 * 3600)  # SESSION_MAX_HOURS is 12
+    accounts.end_session("new-session", started=time.time())
+    assert not accounts.session_ended("old-session") and accounts.session_ended("new-session")
+
+
+def test_replacing_a_second_factor_needs_the_password_and_ends_other_sessions(app: Flask) -> None:
+    name, password = _user()
+    client, _ = _sign_in(app, name, password)
+    other, _ = _sign_in(app, name, password)
+    headers = _csrf(client)
+    path = "/api/v1/account/second-factors/totp"
+    started = client.post(path, json={}, headers=headers).get_json()["data"]
+    code = totp.code_at(started["secret"], int(time.time() // 30))
+    assert client.put(path, json={"code": code}, headers=headers).status_code == 200
+    enrolled = accounts.get(name)["second_factors"]["totp"]  # type: ignore[index]
+    assert other.get("/api/v1/session").status_code == 200  # setting up the first one ends nothing
+
+    assert client.post(path, json={}, headers=headers).status_code == 400  # no password
+    assert client.post(path, json={"password": "wrong-password-123"}, headers=headers).status_code == 400
+    started = client.post(path, json={"password": password}, headers=headers).get_json()["data"]
+    new_code = totp.code_at(started["secret"], int(time.time() // 30))
+    # a refused attempt in between: the replacement must be confirmed again
+    assert client.post(path, json={"password": "wrong-password-123"}, headers=headers).status_code == 400
+    assert client.put(path, json={"code": new_code}, headers=headers).status_code == 400
+    assert accounts.get(name)["second_factors"]["totp"] == enrolled  # type: ignore[index]
+
+    started = client.post(path, json={"password": password}, headers=headers).get_json()["data"]
+    new_code = totp.code_at(started["secret"], int(time.time() // 30))
+    assert client.put(path, json={"code": new_code}, headers=headers).status_code == 200
+    assert accounts.get(name)["second_factors"]["totp"]["secret"] != enrolled["secret"]  # type: ignore[index]
+    assert other.get("/api/v1/session").status_code == 401  # other sessions end
+    assert client.get("/api/v1/session").status_code == 200  # this one continues
+
+
+def test_an_email_address_of_another_account_is_refused(app: Flask, mailbox: FakeMailer) -> None:
+    owner, _ = _user()
+    accounts.update(owner, email=f"{owner}@example.com")
+    name, password = _user()
+    client, _ = _sign_in(app, name, password)
+    headers = _csrf(client)
+    taken = client.patch("/api/v1/account", json={"email": f"{owner.upper()}@Example.com"}, headers=headers)
+    assert (
+        taken.status_code == 400 and taken.get_json()["detail"] == "Another account already uses this e-mail address."
+    )
+    path = "/api/v1/account/second-factors/email"
+    factor = client.post(path, json={"email": f"{owner}@example.com"}, headers=headers)
+    assert factor.status_code == 400 and not mailbox.sent
+    assert accounts.get(name).get("email") is None  # type: ignore[union-attr]
+    assert accounts.find(f"{owner}@example.com") == owner
+
+
+def test_changing_the_sign_in_email_ends_other_sessions(app: Flask) -> None:
+    name, password = _user()
+    client, _ = _sign_in(app, name, password)
+    other, _ = _sign_in(app, name, password)
+    headers = _csrf(client)
+    assert client.patch("/api/v1/account", json={"first_name": "Sam"}, headers=headers).status_code == 200
+    assert other.get("/api/v1/session").status_code == 200  # a name changes nothing
+    assert client.patch("/api/v1/account", json={"email": f"{name}@example.com"}, headers=headers).status_code == 200
+    assert other.get("/api/v1/session").status_code == 401 and client.get("/api/v1/session").status_code == 200

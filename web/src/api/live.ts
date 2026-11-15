@@ -1,5 +1,7 @@
 // The live event stream (GET /api/v1/events): every change arrives as it happens and is written straight into
 // the query caches, so pages update without asking. EventSource reconnects by itself and resumes where it stopped.
+// When the server refuses the stream (too many open connections: 429 or 503), EventSource gives up; the stream is
+// then opened again after a growing pause, unless the session has ended.
 
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -116,28 +118,74 @@ export interface Sync {
   lastAt: number | null;
 }
 
+const RETRY_FIRST_MS = 5_000;
+const RETRY_MAX_MS = 60_000;
+
+/** Whether the session still works; the stream is refused for other reasons too (too many open connections). */
+async function signedIn(): Promise<boolean> {
+  try {
+    const answer = await fetch("/api/v1/session", { credentials: "same-origin", headers: { Accept: "application/json" } });
+    return answer.status !== 401;
+  } catch {
+    return true; // the server cannot be reached: keep trying
+  }
+}
+
 export function useLiveEvents(enabled: boolean): Sync {
   const client = useQueryClient();
   const [sync, setSync] = useState<Sync>({ state: "connecting", lastAt: null });
   useEffect(() => {
     if (!enabled) return;
-    const source = new EventSource("/api/v1/events");
-    source.onopen = () => setSync((s) => ({ state: "open", lastAt: s.lastAt ?? Date.now() }));
-    source.onerror = () =>
-      setSync((s) => ({ ...s, state: source.readyState === EventSource.CLOSED ? "closed" : "connecting" }));
-    for (const topic of TOPICS) {
-      source.addEventListener(topic, (message) => {
-        // a new object only when the state changes: the frame (Shell) re-renders with it, and events arrive often
-        setSync((s) => (s.state === "open" ? s : { state: "open", lastAt: Date.now() }));
-        try {
-          const { key, data } = JSON.parse((message as MessageEvent<string>).data);
-          handle(client, topic, key, data);
-        } catch {
-          /* a malformed event is skipped; the next one carries the full state again */
+    let source: EventSource | null = null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    let lastId = "";
+    let pause = RETRY_FIRST_MS;
+    const open = () => {
+      const current = new EventSource(lastId ? `/api/v1/events?last_event_id=${encodeURIComponent(lastId)}` : "/api/v1/events");
+      source = current;
+      current.onopen = () => {
+        pause = RETRY_FIRST_MS;
+        setSync((s) => ({ state: "open", lastAt: s.lastAt ?? Date.now() }));
+      };
+      current.onerror = () => {
+        if (current.readyState !== EventSource.CLOSED) {
+          setSync((s) => ({ ...s, state: "connecting" })); // EventSource tries again by itself
+          return;
         }
-      });
-    }
-    return () => source.close();
+        current.close();
+        void signedIn().then((yes) => {
+          if (stopped) return;
+          if (!yes) {
+            setSync((s) => ({ ...s, state: "closed" }));
+            return;
+          }
+          setSync((s) => ({ ...s, state: "connecting" }));
+          timer = setTimeout(open, pause);
+          pause = Math.min(pause * 2, RETRY_MAX_MS);
+        });
+      };
+      for (const topic of TOPICS) {
+        current.addEventListener(topic, (message) => {
+          const event = message as MessageEvent<string>;
+          if (event.lastEventId) lastId = event.lastEventId;
+          // a new object only when the state changes: the frame (Shell) re-renders with it, and events arrive often
+          setSync((s) => (s.state === "open" ? s : { state: "open", lastAt: Date.now() }));
+          try {
+            const { key, data } = JSON.parse(event.data);
+            handle(client, topic, key, data);
+          } catch {
+            /* a malformed event is skipped; the next one carries the full state again */
+          }
+        });
+      }
+    };
+    open();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      source?.close();
+    };
   }, [client, enabled]);
   return sync;
 }

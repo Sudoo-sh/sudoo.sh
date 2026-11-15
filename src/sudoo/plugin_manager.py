@@ -796,7 +796,7 @@ def panel_backup(reason: str) -> Path:
 
 
 def _known_documents() -> dict[str, Any]:
-    names = ("users", "api_tokens", "instance_state", "creations", COLLECTION, "marketplace")
+    names = ("users", "api_tokens", "instance_state", "creations", "ended_sessions", COLLECTION, "marketplace")
     return {name: storage().all(name) for name in names}
 
 

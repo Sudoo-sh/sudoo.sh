@@ -4,11 +4,11 @@
 
 <h1>Sudoo.sh</h1>
 
-**A self-hosted Odoo.sh alternative: every branch of your repository becomes a running Odoo, any version, Community
-or Enterprise, with its own HTTPS link, in about two minutes, on a server you own.**
+**Every Odoo environment your team needs (demos, test branches, training, customer previews) on one server
+you own, for the price of that server instead of a bill per environment.**
 
-For teams that build, demo and teach Odoo and want a live preview of every branch without a hosted subscription or
-handing their code to someone else's cloud.
+Any branch of your repository becomes a running Odoo, any version, Community or Enterprise, with its own HTTPS link,
+in about two minutes. Instances nobody is using pause themselves, so one ordinary server holds dozens of them.
 
 `sudo` + `Odoo`: full control of your Odoo instances, on a server you own.
 
@@ -26,6 +26,7 @@ handing their code to someone else's cloud.
 
 Community and Enterprise · Any Odoo version · GitHub sync · Live metrics · Five roles · Second factors · Auto-pause · Daily backups and one-click restore · One-command install
 
+[Why Sudoo.sh](#why-sudoosh) ·
 [What it does](#what-this-panel-does) ·
 [Quick start](#quick-start) ·
 [Architecture](#architectural-position) ·
@@ -68,7 +69,40 @@ your name, e-mail and password; you sign in with your e-mail address. Everything
 in the website. Without the installer: [Manual installation](#manual-installation). Details in
 [Installation & Configuration](#installation--configuration).
 
-## Sudoo.sh and Odoo.sh
+## Why Sudoo.sh
+
+### The problem: every extra environment costs money
+
+Odoo teams rarely need just one test database. A partner wants a fresh demo for each prospect, developers want
+every feature branch running before it reaches production, consultants want a copy to try a configuration on,
+trainers want one per class, and customers want a link to check a fix themselves.
+
+On hosted platforms such as [Odoo.sh](https://www.odoo.sh/pricing), each staging environment is billed every month
+on top of workers and storage, development builds are short-lived and not meant for customers, and the hosting
+price does not include the Enterprise licence. The more branches a team keeps, the higher the bill, so teams start
+rationing: demos are deleted too early, several features share one staging, and some work never gets a live
+environment at all.
+
+### The solution: pay for one server, run as many environments as it holds
+
+| | Hosted, billed per environment | Sudoo.sh |
+| :--- | :--- | :--- |
+| One more demo or test branch | adds to the monthly bill | costs nothing extra; limited by your server's disk |
+| Environments nobody is using | billed while idle | paused, using no memory, until someone opens the link |
+| A demo for a prospect | wait for a build, share access to the project | its own link in about two minutes, deleted after the days you choose, with a backup |
+| Testing a feature branch | a few staging slots shared by everyone | every branch its own instance, updated on every push |
+| Where your code and data live | the provider's cloud | your server |
+
+A typical team runs Sudoo.sh on a single rented server with a few gigabytes of memory: the instances in use run,
+the rest wait paused, and the monthly cost stays the server's price however many branches there are.
+
+**Made for:** Odoo partners and integrators (a demo per prospect), in-house Odoo teams (every branch tested before
+production), trainers and schools (an instance per class or student), and freelancers.
+
+**Not for:** production databases. Keep live company data on a production host; Sudoo.sh is for everything around
+it (development, demos, tests and training).
+
+### Sudoo.sh and Odoo.sh
 
 Sudoo.sh is to your own server what [Odoo.sh](https://www.odoo.sh) is to Odoo's cloud: branches become running
 instances. It is an independent project, not affiliated with Odoo S.A.
@@ -76,9 +110,9 @@ instances. It is an independent project, not affiliated with Odoo S.A.
 | | Odoo.sh | Sudoo.sh |
 | :--- | :--- | :--- |
 | Where it runs | Odoo's cloud | your server (one Docker host) |
-| Cost | per worker and per user | free for noncommercial use ([licence](#licensing--terms)) |
+| Cost | per worker, per GB of storage and per staging environment | your server; free for noncommercial use, a [commercial licence](#commercial-licences) for companies |
 | A running Odoo per branch | yes | yes, Community or Enterprise, any version |
-| Updates on push | yes | yes: GitHub webhook, or polling ([plugins](docs/PLUGINS.md)) |
+| Updates on push | yes | yes: GitHub App, GitHub webhook or polling ([plugins](docs/PLUGINS.md)) |
 | Instances that pause and expire | staging builds expire | pause when unused, wake on the next visit; lifetime with a backup |
 | How instances are reached | `*.odoo.com` | free Cloudflare tunnels, open ports, or your own exposure plugin |
 | API for automation | | signed REST API ([Panel API](docs/PANEL_API.md)) |
@@ -404,7 +438,7 @@ How to repeat these checks is described in the [Administrator guide](docs/ADMIN_
   others pause by themselves.
 * **Python libraries** listed in a module's `requirements.txt` are not in the official Odoo image.
 * **An instance's major version cannot be changed**; create a new instance for another version.
-* **Updates start up to 2 minutes after a push** (GitHub is polled, not called back).
+* **Without the GitHub App or a webhook, updates start up to 2 minutes after a push** (GitHub is polled).
 * **The vault key is on the same server** as the secrets it protects: it protects copies and backups of the data,
   not a person who already has full control of the server. See [Security](docs/SECURITY.md#7-what-is-not-protected).
 

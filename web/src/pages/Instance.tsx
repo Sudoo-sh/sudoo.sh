@@ -3,6 +3,7 @@ import {
   ArrowUpRight,
   Box,
   Code2,
+  FolderGit2,
   Container,
   Database,
   Download,
@@ -27,7 +28,7 @@ import {
   Trash2,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useCredentials, useHistory, useInstance, useJobs, useOdooLog } from "@/api/queries";
@@ -42,6 +43,7 @@ import { Button, Callout, CopyField, Empty, Field, Progress, Segmented, Skeleton
 import { Menu, Modal, useToast } from "@/components/ui/overlay";
 import { ago, bytes, dateTime, duration, elapsed, ms, percent } from "@/lib/format";
 import { CreatingInstance, MissingInstance } from "./InstanceCreating";
+import { RepositoryPicker, useDebounced } from "./NewInstance";
 
 type Action = { action: string; body?: Record<string, unknown>; title: string };
 
@@ -78,7 +80,7 @@ export function InstancePage() {
   const { data: instance, isPending, error } = useInstance(name);
   const [jobId, setJobId] = useState<string | null>(null);
   const run = useRun(name, setJobId);
-  const [dialog, setDialog] = useState<null | "upgrade" | "branch" | "delete" | "submodule" | "rollback">(null);
+  const [dialog, setDialog] = useState<null | "upgrade" | "branch" | "delete" | "submodule" | "rollback" | "connect">(null);
 
   if (error && !instance) return <MissingInstance name={name} error={error} />;
   if (instance?.status === "creating" && instance.current_job) return <CreatingInstance instance={instance} />;
@@ -165,7 +167,11 @@ export function InstancePage() {
                       <button disabled={busy} onClick={item(() => setDialog("upgrade"))}>
                         <Zap /> Upgrade modules…
                       </button>
-                      {!plain && (
+                      {plain ? (
+                        <button disabled={busy} onClick={item(() => setDialog("connect"))}>
+                          <FolderGit2 /> Connect a repository…
+                        </button>
+                      ) : (
                         <button disabled={busy || !instance.git.repository} onClick={item(() => setDialog("branch"))}>
                           <GitBranch /> Switch branch…
                         </button>
@@ -260,6 +266,7 @@ export function InstancePage() {
       {jobId && <JobDrawer id={jobId} onClose={() => setJobId(null)} />}
       {dialog === "upgrade" && <UpgradeDialog onClose={() => setDialog(null)} onRun={(modules) => act("upgrade", "Upgrade modules", { modules })} />}
       {dialog === "branch" && <BranchDialog instance={instance} onClose={() => setDialog(null)} onRun={(branch) => act("switch-branch", "Switch branch", { branch })} />}
+      {dialog === "connect" && <ConnectDialog onClose={() => setDialog(null)} onRun={(body) => act("connect-repository", "Connect a repository", body)} />}
       {dialog === "submodule" && <SubmoduleDialog version={instance.odoo.version} onClose={() => setDialog(null)} onRun={(body) => act("add-submodule", "Add submodule", body)} />}
       {dialog === "delete" && <DeleteDialog name={name} onClose={() => setDialog(null)} />}
       {dialog === "rollback" && instance.rollback && (
@@ -692,6 +699,51 @@ function BranchDialog({ instance, onClose, onRun }: { instance: Instance; onClos
           </select>
         </Field>
       )}
+    </Modal>
+  );
+}
+
+const REPOSITORY_ADDRESS = /^(https:\/\/github\.com\/|git@github\.com:)[\w.-]+\/[\w.-]+/;
+
+/** Give an instance of plain Odoo a repository: pick it (or paste its address), then a branch. */
+function ConnectDialog({ onClose, onRun }: { onClose: () => void; onRun: (body: Record<string, unknown>) => void }) {
+  const [repo, setRepo] = useState("");
+  const [picking, setPicking] = useState(false);
+  const [branch, setBranch] = useState("");
+  const [branches, setBranches] = useState<string[] | null>(null);
+  const [error, setError] = useState("");
+  const [install, setInstall] = useState(true);
+  const address = useDebounced(repo.trim());
+  useEffect(() => {
+    setBranches(null);
+    setError("");
+    if (!REPOSITORY_ADDRESS.test(address)) return;
+    let current = true;
+    api.get<{ branches: string[]; default: string }>(`/repositories/branches?url=${encodeURIComponent(address)}`).then(
+      (r) => { if (current) { setBranches(r.branches); setBranch((b) => (b && r.branches.includes(b) ? b : r.default || r.branches[0] || "")); } },
+      (e) => { if (current) setError(errorText(e)); },
+    );
+    return () => { current = false; };
+  }, [address]);
+  return (
+    <Modal title="Connect a repository" description="The instance gets the code of a GitHub branch and restarts. Its database and files stay as they are." onClose={onClose}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={!branches || !branch} onClick={() => { onRun({ repo: repo.trim(), branch, install_modules: install }); onClose(); }}>Connect</Button></>}>
+      <div className="stack">
+        <Field label="GitHub repository" error={error} hint={branches ? `${branches.length} branches found` : "Search your repositories, or paste https://github.com/owner/repository"}>
+          <div className="stack-sm">
+            <input className="input" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repo} aria-invalid={!!error}
+              onChange={(e) => setRepo(e.target.value)} onFocus={() => setPicking(true)} onBlur={() => setPicking(false)} />
+            {picking && <RepositoryPicker typed={repo.trim()} onPick={(r) => { setRepo(r.url); setBranch(r.default_branch); setPicking(false); }} />}
+          </div>
+        </Field>
+        <Field label="Branch">
+          <select className="select" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!branches}>
+            {!branches && <option value="">{REPOSITORY_ADDRESS.test(address) && !error ? "Loading branches…" : "Choose the repository first"}</option>}
+            {branches?.map((b) => <option key={b}>{b}</option>)}
+          </select>
+        </Field>
+        <Switch checked={install} onChange={setInstall} label="Install the repository's modules" />
+      </div>
     </Modal>
   );
 }

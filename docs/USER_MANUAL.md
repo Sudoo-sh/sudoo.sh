@@ -281,10 +281,14 @@ Click **New instance** in the sidebar (roles that may create instances). Under *
   `odoo-18-0-community-3f9a`, shown in the hint), then the version, edition and options; go on with step 6.
   Such an instance has no code to update: **Get latest code**, **Switch branch**, **Update submodules**, the
   **Code** tab and the automatic update settings do not appear. Everything else works the same: pausing and
-  starting, backups and restore, lifetime, its link, figures and the integrity checks.
+  starting, backups and restore, lifetime, its link, figures and the integrity checks. To add code later, open
+  the instance, click **⋯** then **Connect a repository…**, pick the repository and branch, and choose whether to
+  install its modules. The database and files stay; the instance restarts with the code and from then on works
+  like one created from that repository.
 
 1. **GitHub repository**: when the GitHub App is connected, type part of the repository's name and pick it from the
-   list. Otherwise paste the repository's address: on GitHub, open the repository, click the green **Code** button
+   list. A repository missing from the list is not among those the app may read: the link under the list
+   (**Choose which repositories the app can read**) opens the installation's page on GitHub to add it. Otherwise paste the repository's address: on GitHub, open the repository, click the green **Code** button
    and copy the address, for example `https://github.com/acme-co/sales`.
 2. The panel checks the repository while you type. The hint under the field says how many branches it found, or
    what is wrong.

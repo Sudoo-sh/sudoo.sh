@@ -196,3 +196,72 @@ def test_resource_says_plain(admin: Client) -> None:
     assert plain["source"] == "plain" and plain["git"]["branch"] is None and plain["git"]["repository"] is None
     coded = client.get(f"/api/v1/instances/{CODED}").get_json()["data"]
     assert coded["source"] == "repository" and coded["git"]["branch"] == "main"
+
+
+def test_connect_repository_only_for_plain_odoo(admin: Client, started: list[Any]) -> None:
+    client, headers = admin
+    body = {"repo": "https://github.com/acme/shop", "branch": "dev", "install_modules": True}
+    answer = client.post(f"/api/v1/instances/{PLAIN}/actions/connect-repository", json=body, headers=headers)
+    assert answer.status_code == 202, answer.get_json()
+    assert started[-1] == (operations.connect_repository, (PLAIN, "https://github.com/acme/shop", "dev", True))
+    refused = client.post(f"/api/v1/instances/{CODED}/actions/connect-repository", json=body, headers=headers)
+    assert refused.status_code == 409 and "has a GitHub repository already" in refused.get_json()["detail"]
+    bad = client.post(f"/api/v1/instances/{PLAIN}/actions/connect-repository", json={"repo": "x"}, headers=headers)
+    assert bad.status_code == 400
+    assert len(started) == 1
+
+
+def test_connect_repository_moves_the_clone_into_the_same_folder(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The clone goes into the existing add-ons folder (the containers mount that folder), the instance stops being
+    plain, and the code change is applied; nothing is installed when not asked."""
+    source = tmp_path / "shop"
+    (source / "sale_custom").mkdir(parents=True)
+    (source / "sale_custom" / "__manifest__.py").write_text("{'name': 'Sale custom'}\n")
+    for cmd in (
+        ["init", "-q", "-b", "dev"],
+        ["add", "."],
+        ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "x"],
+    ):
+        subprocess.run(["git", "-C", str(source), *cmd], check=True)
+
+    def fake_run(self: jobs.Job, cmd: list[str], **kwargs: Any) -> None:
+        assert cmd[0] == "git", cmd  # no Docker: nothing is installed
+        subprocess.run(cmd, check=True)
+
+    applied: list[str] = []
+    monkeypatch.setattr(jobs.Job, "run", fake_run)
+    monkeypatch.setattr(operations, "_apply_code_change", lambda job, name: applied.append(name))
+    addons = store.addons_dir(PLAIN)
+    inode = addons.stat().st_ino
+    job = jobs.Job(PLAIN, "Connect a repository", "update", "admin1")
+    operations.connect_repository(job, PLAIN, str(source), "dev")
+    assert addons.stat().st_ino == inode and (addons / "sale_custom" / "__manifest__.py").exists()
+    assert not (store.folder(PLAIN) / "addons.connecting").exists()
+    env = store.read_env(PLAIN)
+    assert not store.plain(env) and env["GIT_BRANCH"] == "dev"
+    assert applied == [PLAIN]
+    from sudoo.web.v1.instances import has_repository
+
+    assert has_repository(PLAIN)
+    with pytest.raises(jobs.JobError, match="already has"):
+        operations.connect_repository(job, PLAIN, str(source), "dev")
+
+
+def test_connect_repository_never_overwrites_files(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    source = tmp_path / "shop"
+    source.mkdir()
+    for cmd in (
+        ["init", "-q", "-b", "main"],
+        ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "x", "--allow-empty"],
+    ):
+        subprocess.run(["git", "-C", str(source), *cmd], check=True)
+    monkeypatch.setattr(jobs.Job, "run", lambda self, cmd, **kwargs: subprocess.run(cmd, check=True))
+    (store.addons_dir(PLAIN) / "mine.txt").write_text("kept")
+    job = jobs.Job(PLAIN, "Connect a repository", "update", "admin1")
+    with pytest.raises(jobs.JobError, match="not empty"):
+        operations.connect_repository(job, PLAIN, str(source), "main")
+    assert (store.addons_dir(PLAIN) / "mine.txt").read_text() == "kept"
+    assert store.plain(store.read_env(PLAIN))
+    assert not (store.folder(PLAIN) / "addons.connecting").exists()

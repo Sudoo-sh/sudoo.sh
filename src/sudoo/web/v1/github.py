@@ -8,7 +8,8 @@ DELETE /api/v1/github/app                          disconnect (forget the creden
 POST   /api/v1/github/app/installations            record {"installation_id"} after installing on GitHub -> 201
 POST   /api/v1/github/app/installations/sync       read the installations from GitHub again
 DELETE /api/v1/github/app/installations/<id>       forget an installation -> 204
-GET    /api/v1/github/repositories?q=              repositories readable through the app (repository picker)
+GET    /api/v1/github/repositories?q=              repositories readable through the app (repository picker);
+                                                   meta.installations: where to choose them on GitHub
 GET    /api/v1/deploy-keys                         deploy keys
 POST   /api/v1/deploy-keys                         create for {"repo"}; the public key to add on GitHub -> 201
 DELETE /api/v1/deploy-keys/<owner>/<repo>          delete -> 204
@@ -184,7 +185,13 @@ def repositories() -> Response:
     if not app.connected():
         return ok([], meta={"connected": False})
     found = _github(lambda: app.repositories(check.text(request.args, "q", max_length=100)))
-    return ok(found[:200], meta={"connected": True, "total": len(found)})
+    # where to change which repositories the app may read (a repository missing from the list is not among them)
+    installed = [
+        {"account": i["account"], "settings_url": i["settings_url"]}
+        for i in app.installations()
+        if i.get("settings_url")
+    ]
+    return ok(found[:200], meta={"connected": True, "total": len(found), "installations": installed})
 
 
 # --------------------------------------------------------------------------- deploy keys and checks

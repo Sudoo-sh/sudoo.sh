@@ -230,7 +230,7 @@ An account:
 | `POST /github/app/installations` | `settings.manage` | `{"installation_id"}` from GitHub's redirect to `/github/app/installed` | **201**, the installation, after GitHub confirms it belongs to the app |
 | `POST /github/app/installations/sync` | `settings.manage` | | 200, the installations as GitHub lists them now |
 | `DELETE /github/app/installations/<id>` | `settings.manage` | | **204**, forgotten by the panel (uninstall it on GitHub too) |
-| `GET /github/repositories?q=` | `instances.create` | | 200, repositories readable through the app, newest push first, filtered by words of `q` (at most 200); `meta.connected` |
+| `GET /github/repositories?q=` | `instances.create` | | 200, repositories readable through the app, newest push first, filtered by words of `q` (at most 200); `meta.connected`, and `meta.installations` (`[{"account", "settings_url"}]`: where to choose on GitHub which repositories the app may read) |
 
 The GitHub App in `GET /github/app` (`app` is `null` while none is connected; secrets are never returned):
 
@@ -505,11 +505,12 @@ nothing. Without `name` either, it is called `odoo-<version>-<edition>-<4 random
 backups, restore and rollback, lifetime, links, metrics, the integrity watchdog, `upgrade` of Odoo's own modules).
 The actions that need a repository (`update`, `update-submodules`, `switch-branch`, `add-submodule`,
 `remove-submodule`) and `PATCH` with `auto_update` or `auto_upgrade` set to true answer **409** with a problem
-detail saying it runs plain Odoo:
+detail saying it runs plain Odoo. To give it a repository later, run `connect-repository` (below): its database
+and files are kept, and from then on it works like an instance created from that repository.
 
 ```json
 {"type": "about:blank", "title": "Conflict", "status": 409,
- "detail": "odoo-18-0-community-3f9a runs plain Odoo without a GitHub repository: it has no code to update, no branch and no submodules. Create an instance from a repository for that.",
+ "detail": "odoo-18-0-community-3f9a runs plain Odoo without a GitHub repository: it has no code to update, no branch and no submodules. Connect a repository to it first.",
  "instance": "/api/v1/instances/odoo-18-0-community-3f9a/actions/update", "request_id": "..."}
 ```
 
@@ -534,6 +535,7 @@ Actions (`POST /instances/<name>/actions/<action>`); each needs its own permissi
 | `upgrade` | Upgrade modules | `instances.operate` | `{"modules": "sale_custom,stock_custom"}` or `{"modules": "all"}` |
 | `remove-submodule` | Remove a submodule | `instances.operate` | `{"path": "oca/web"}` |
 | `switch-branch` | Switch branch | `instances.operate` | `{"branch": "main"}` |
+| `connect-repository` | Give an instance of plain Odoo a GitHub repository: clone it, install its modules if asked, restart (data kept); 409 when it has one | `instances.operate` | `{"repo": "https://github.com/acme/odoo-addons", "branch": "main", "install_modules": true}` (`branch` defaults to `main`) |
 | `backup` | Back up now | `instances.operate` | `{}` |
 | `update-images` | Download the instance's Odoo and PostgreSQL images again (same names and tags), pin the new digests, recreate the containers | `instances.operate` | `{}` |
 | `repair` | Restore the panel's configuration after a change made outside the panel (also started on its own with `DRIFT_ACTION=restore`) | `instances.operate` | `{}` |

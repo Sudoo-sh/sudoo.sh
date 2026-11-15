@@ -238,3 +238,23 @@ def test_websocket_messages_pass_and_oversized_ones_close_the_connection(monkeyp
             assert ws.close_code in (WSCloseCode.MESSAGE_TOO_BIG, None) or message.data == WSCloseCode.MESSAGE_TOO_BIG
 
     _run(scenario)
+
+
+def test_ambiguous_request_framing_is_refused_before_odoo() -> None:
+    """A request whose length is ambiguous (request smuggling) never reaches Odoo."""
+    RECEIVED.pop("upload_headers", None)
+
+    async def scenario(client: TestClient[web.Request, web.Application]) -> None:
+        for framing in (
+            b"Content-Length: 4\r\nTransfer-Encoding: chunked\r\n",
+            b"Content-Length: 4\r\nContent-Length: 5\r\n",
+            b"Transfer-Encoding: chunked, identity\r\n",
+        ):
+            reader, writer = await asyncio.open_connection("127.0.0.1", client.port)
+            writer.write(b"POST /upload HTTP/1.1\r\nHost: x\r\n" + framing + b"\r\n0\r\n\r\nabcde")
+            await writer.drain()
+            assert (await asyncio.wait_for(reader.readline(), 5)).split()[1] == b"400"
+            writer.close()
+        assert "upload_headers" not in RECEIVED
+
+    _run(scenario)

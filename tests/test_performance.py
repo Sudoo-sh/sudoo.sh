@@ -134,6 +134,11 @@ def test_shared_answers_are_compressed_once_for_callers_that_accept_it(admin: Cl
     assert plain.headers.get("Content-Encoding") is None and "Accept-Encoding" in plain.headers["Vary"]
     assert packed.headers["Content-Encoding"] == "gzip"
     assert gzip.decompress(packed.get_data()) == plain.get_data()
+    smaller = client.get("/api/v1/metrics/history?minutes=60", headers={"Accept-Encoding": "gzip, zstd"})
+    if smaller.headers["Content-Encoding"] == "zstd":  # Python 3.14 and later
+        from compression import zstd  # type: ignore[import-not-found, unused-ignore]
+
+        assert zstd.decompress(smaller.get_data()) == plain.get_data()
 
 
 def test_shared_answers_still_check_the_caller(app: Flask) -> None:

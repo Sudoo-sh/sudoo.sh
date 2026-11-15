@@ -47,8 +47,13 @@ def ok(data: Any, status: int = 200, meta: dict[str, Any] | None = None) -> Resp
     return response
 
 
-_SHARED: VersionedMemo[tuple[bytes, bytes | None]] = VersionedMemo(seconds=60, size=256)
-_GZIP_FROM = 1400  # bytes; smaller answers fit in one packet anyway
+try:  # Zstandard is in the standard library from Python 3.14 (the panel's image); gzip alone before
+    from compression import zstd as _zstd  # type: ignore[import-not-found, unused-ignore]
+except ImportError:  # pragma: no cover - older Python
+    _zstd = None
+
+_SHARED: VersionedMemo[dict[str, bytes]] = VersionedMemo(seconds=60, size=256)
+_COMPRESS_FROM = 1400  # bytes; smaller answers fit in one packet anyway
 
 
 def ok_shared(key: Any, version: Any, build: Callable[[], tuple[Any, dict[str, Any] | None]]) -> Response:
@@ -57,17 +62,21 @@ def ok_shared(key: Any, version: Any, build: Callable[[], tuple[Any, dict[str, A
     that are the same for everyone allowed to read them, after the permission check: the key never names a caller.
     The web service passes an answer compressed here on as it is, instead of compressing it again for every caller."""
 
-    def serialise() -> tuple[bytes, bytes | None]:
+    def serialise() -> dict[str, bytes]:
         data, meta = build()
         body = current_app.json.dumps({"data": data, **({"meta": meta} if meta else {})}).encode() + b"\n"
-        return body, gzip.compress(body, compresslevel=6, mtime=0) if len(body) >= _GZIP_FROM else None
+        encodings = {"identity": body}
+        if len(body) >= _COMPRESS_FROM:
+            if _zstd is not None:
+                encodings["zstd"] = _zstd.compress(body)
+            encodings["gzip"] = gzip.compress(body, compresslevel=6, mtime=0)
+        return encodings
 
-    body, compressed = _SHARED.get(key, version, serialise)
-    if compressed is None or not request.accept_encodings["gzip"]:
-        response = current_app.response_class(body, mimetype="application/json")
-    else:
-        response = current_app.response_class(compressed, mimetype="application/json")
-        response.headers["Content-Encoding"] = "gzip"
+    encodings = _SHARED.get(key, version, serialise)
+    chosen = next((name for name in ("zstd", "gzip") if name in encodings and request.accept_encodings[name]), None)
+    response = current_app.response_class(encodings[chosen or "identity"], mimetype="application/json")
+    if chosen:
+        response.headers["Content-Encoding"] = chosen
     response.vary.add("Accept-Encoding")
     return response
 

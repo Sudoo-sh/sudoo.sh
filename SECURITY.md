@@ -5,7 +5,7 @@ The panel manages Docker on its server and stores the credentials of its GitHub 
 ## Supported versions
 
 Only the latest release receives security fixes. `sudo sudoo-install update` updates a server to it. How the release
-images and files are signed, and how to check them: [docs/SECURITY.md](docs/SECURITY.md#12-releases-and-signatures).
+images and files are signed, and how to check them: [docs/SECURITY.md](docs/SECURITY.md#13-releases-and-signatures).
 
 ## Reporting a vulnerability
 

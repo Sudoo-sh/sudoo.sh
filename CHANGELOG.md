@@ -17,6 +17,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   instances seconds after a push through the app's webhook, whose address the panel updates itself when a Cloudflare
   quick tunnel changes. Existing deploy keys keep working and remain the fallback. API: `/api/v1/github/app`,
   `/api/v1/github/app/manifest`, `/api/v1/github/app/installations`, `/api/v1/github/repositories`.
+- **Plugin store:** a new **Plugins** page (super admins install and buy; administrators can look) with the
+  Sudoo.sh marketplace's catalogue (search, categories, a **Recommended** row with the reason for each suggestion,
+  plugin icons, countries and a "Made for your country" badge, Official and Verified publishers, plan prices with
+  their monthly equivalent and saving, one-time licences), the installed plugins (versions, updates, licence dates,
+  switch off and on, uninstall after a backup) and the receipts and purchases of this server, each with a CSV
+  export. A free plugin installs with one click: the package is downloaded with a signed request, its SHA-256 and
+  the hub's Ed25519 signature are checked, it is unpacked into a private folder and the backend restarts by itself.
+  **The panel never charges anything:** buying opens a checkout session whose page on app.sudoo.sh opens in a new
+  tab, where the account owner pays; the Plugins page follows it (waiting, declined card, cancelled, expired) and
+  installs the plugin once paid. Licences are followed offline (reminder 7 days before, grace period, `run_until`
+  from each lease, backup and switch-off keeping the data, switch-on after a renewal). The panel registers with the
+  hub, sends a signed heartbeat every 15 minutes (with its hardware fingerprint and coarse server figures), keeps
+  the 72-hour signed lease, and **verifies the hub's signature on every answer** with keys it trusts (root keys,
+  rotations followed through endorsements, revoked keys dropped). **Log out of the account** (Settings,
+  Marketplace) unlinks the server: the hub's signed command makes the panel back up and remove its paid plugins,
+  while the panel, free plugins and instances keep running. A server flagged as a copy shows its paid plugins as
+  withheld; a revoked key makes the panel register again with a new identity. Everything keeps working when the hub
+  cannot be reached. New settings `MARKETPLACE`, `HUB_URL` and `HUB_PUBLIC_KEYS`, a read-only mount of the host's
+  `/etc/machine-id` in `compose.yaml`, permission `plugins.view`, command `sudoo.sh marketplace`, and
+  [Marketplace](docs/MARKETPLACE.md).
 
 ## [1.0.0] - 2026-11-14
 

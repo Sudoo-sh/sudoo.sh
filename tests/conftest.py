@@ -26,12 +26,18 @@ os.environ.update(
     ODOO_VERSIONS="18.0,19.0,20.0",
     ENTERPRISE_SOURCE="none",
     REQUIRE_SECOND_FACTOR="none",  # test_auth.py turns it on where it is tested
+    # the whole suite makes many changes from one address within a minute; test_auth.py tests the limits itself
+    RATE_LIMIT_CHANGES_PER_MINUTE="100000",
 )
 
 from flask import Flask  # noqa: E402
 from flask.testing import FlaskClient  # noqa: E402
 
-from sudoo import accounts, background  # noqa: E402
+from sudoo import accounts, background, plugin_manager  # noqa: E402
+
+RESTARTS: list[float] = []
+# the backend is never really stopped in tests: a plugin change only records that it would restart
+plugin_manager.stop_backend = lambda: RESTARTS.append(1.0)
 
 ORIGIN = {"Origin": "http://localhost"}
 

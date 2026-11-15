@@ -78,7 +78,7 @@ What it does, in order:
    plugins, starting Docker. Each question is answered **[y]es**, **[n]o** or **[a]ll** (yes to every later question).
    Without a terminal it stops and prints the command to run again with `--yes` (also `--allow-all`).
 3. **Downloads the images** `ghcr.io/sudoo-sh/sudoo-panel` and `ghcr.io/sudoo-sh/sudoo-web`, pinned by digest in the
-   installer, and checks their signatures when `cosign` is installed ([Security](SECURITY.md#12-releases-and-signatures)).
+   installer, and checks their signatures when `cosign` is installed ([Security](SECURITY.md#13-releases-and-signatures)).
 4. **Writes the files**: `/opt/odoo/{manager,instances,enterprise}` (root only), `/opt/odoo/manager/.env` from the
    release's settings template (values already there are kept), and `/opt/odoo/manager/compose.yaml`.
 5. **Starts** `sudoo-panel` and `sudoo-web` and waits until both are healthy.
@@ -785,7 +785,7 @@ anything; a ! is a warning. `sudo sudoo-install check` runs them all without cha
 | :--- | :--- |
 | "There is no terminal to ask, so nothing was changed." | Run the printed command (the same, with `--yes`). |
 | "Could not download ghcr.io/sudoo-sh/..." | Check access to `ghcr.io`; `docker pull` the image by hand to see Docker's message. |
-| "The signature of ... could not be verified" | Do not install it; report it ([Security](SECURITY.md#12-releases-and-signatures)). |
+| "The signature of ... could not be verified" | Do not install it; report it ([Security](SECURITY.md#13-releases-and-signatures)). |
 | "Sudoo.sh did not become healthy." | `docker logs sudoo-panel` names the problem (usually `.env`); fix it and run `sudo sudoo-install update`, or go back with `sudo sudoo-install update --rollback`. |
 | "These containers changed meanwhile" | The installer does not touch instances or connectors; the panel itself may have started or paused an instance. Check `docker ps`. |
 | "No earlier version is kept on this server." | A rollback needs an update made by this installer; install a given version with `update --version X`. |

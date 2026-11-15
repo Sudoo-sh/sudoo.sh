@@ -24,6 +24,14 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # same path as on the host, so paths in the instances' compose files mean the same inside and outside
       - /opt/odoo:/opt/odoo
+      # the host's machine id, read-only, for the marketplace's hardware fingerprint (docs/MARKETPLACE.md); the long
+      # form never creates the file on the host: a host without /etc/machine-id runs `systemd-machine-id-setup`
+      - type: bind
+        source: /etc/machine-id
+        target: /host/etc/machine-id
+        read_only: true
+        bind:
+          create_host_path: false
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:$${API_PORT:-9002}/healthz || exit 1"]
       interval: 10s

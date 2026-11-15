@@ -17,8 +17,9 @@
 8. [API tokens and webhooks](#8-api-tokens-and-webhooks)
 9. [Roles and the audit log](#9-roles-and-the-audit-log)
 10. [Instance containers](#10-instance-containers)
-11. [Checklist for the administrator](#11-checklist-for-the-administrator)
-12. [Releases and signatures](#12-releases-and-signatures)
+11. [Marketplace plugins: keys, signatures, licences](#11-marketplace-plugins-keys-signatures-licences)
+12. [Checklist for the administrator](#12-checklist-for-the-administrator)
+13. [Releases and signatures](#13-releases-and-signatures)
 
 ---
 
@@ -273,6 +274,8 @@ Being clear about limits is part of security.
 | **Root and the docker group** | Anyone who is root on the server, or in its `docker` group, can change, replace or enter every container and file; nothing inside the panel can prevent that. The panel makes such changes visible and undoes them on instances ([Instance containers](#10-instance-containers)); it cannot stop them. |
 | **Sign-in lockout after a restart** | Failed attempts are counted in memory; a panel restart resets the counters. The slow hash still limits guessing. |
 | **Odoo's own security** | Odoo inside an instance is the official image, unchanged; its own security is Odoo's. |
+| **A plugin's files, from root** | Installed plugins are in `/opt/odoo/manager/plugins/` (root only, never served, no API returns them), but root on the server can read them. Their code is protected by the panel never exposing it and by the licence forbidding copies, not by encryption ([Marketplace plugins](#11-marketplace-plugins-keys-signatures-licences)). |
+| **What a plugin does once loaded** | A plugin runs inside the panel's process with the panel's rights. The marketplace's review, the permissions it must declare and the hub's signature are the safeguards; install only the plugins you need. |
 
 ---
 
@@ -342,7 +345,8 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `accounts.manage` | Create, change and delete accounts | yes | yes | | | |
 | `tokens.manage` | Create and revoke API tokens | yes | yes | | | |
 | `audit.view` | Read the audit log | yes | yes | | | |
-| `settings.manage` | Change the panel's settings and restart it | yes | | | | |
+| `plugins.view` | See installed plugins, the marketplace and purchases | yes | yes | | | |
+| `settings.manage` | Change the panel's settings, install and buy plugins, and restart it | yes | | | | |
 
 * Only a **super admin** creates, changes, resets or deletes super admin accounts. The last super admin cannot be
   deleted or given another role, so there is always at least one.
@@ -437,7 +441,50 @@ root, and keep SSH access limited.
 
 ---
 
-## 11. Checklist for the administrator
+## 11. Marketplace plugins: keys, signatures, licences
+
+Plugins from the Sudoo.sh marketplace are checked by the panel itself before they run
+([Marketplace](MARKETPLACE.md)).
+
+| Key or value | Kind | Where it is kept | What it does |
+| :--- | :--- | :--- | :--- |
+| Installation key | Ed25519 private key, made on the server | The panel's database, encrypted with the vault key (label `hub-identity:<id>`) | Signs every request to the hub (method, path, installation id, time, single-use nonce, body hash), so the hub knows which panel asks and nobody can replay or alter a request |
+| Hub keys | Ed25519 public keys | The panel's database, starting from the root keys (`HUB_PUBLIC_KEYS`, else the keys the release ships for hub.sudoo.sh; for another hub, the keys it lists the first time) | Verify every answer, lease, command and package. A key the hub lists as `active` is accepted, a `retiring` one until its `not_after`; a `revoked` or `expired` one is dropped at once. A new key is trusted only when its endorsement, signed by a key already trusted and not revoked, verifies (`sudoo-hub-key-v1`, key id, public key, `not_before`) |
+| Answer signature | Ed25519, header `Sudoo-Signature: kid=, ts=, sig=` over `sudoo-hub-response-v1`, the request's method, path, installation id and nonce, the status, the time and the body's SHA-256 | Checked on every answer, refusals and downloads included (a download over its `X-Sudoo-Package-SHA256`) | An answer without a valid signature from an accepted key, or more than 5 minutes from the server's clock, is not believed: it counts as "the marketplace cannot be reached". A changed or replayed answer (another request's nonce) fails |
+| Lease | JWT signed by the hub (EdDSA only; `none` and HMAC algorithms are refused), for this installation, 72 hours | The panel's database | Says which plugins may run, the licence dates of the paid ones (with `run_until`) and the flags; only verified claims are used |
+| Commands | Ed25519 over `sudoo-hub-command-v1`, id, installation id, kind, time and the SHA-256 of the canonical JSON payload | Carried out once, recorded in the panel's database | `remove_paid_plugins` (after the server is logged out of its account): back up, remove the listed paid plugins, acknowledge. A command whose signature does not verify is ignored |
+| Hardware fingerprint | SHA-256 of `sudoo-fingerprint-v1`, the installation public key, the host's `/etc/machine-id` (mounted read-only) and the primary MAC address | Sent at registration and in every heartbeat; the hub keeps a keyed digest | A copy of the panel's data on another machine is flagged: its paid licences are withheld until the account owner accepts the machine or revokes the key |
+| Package signature | Ed25519 over `sudoo-plugin-v1`, id, version and SHA-256 | Sent with the package | Binds a package to one plugin and one version; checked with an accepted hub key before anything is unpacked |
+| Plugin file hashes | SHA-256 over every unpacked file | The plugin's record | Checked at every start and every 10 minutes; a changed plugin is not loaded and the super admins are e-mailed |
+
+* Every request to the hub is signed, so every answer is signed back; downloads use a signed request, and a redirect
+  to a storage link (itself signed) is followed only over https, without the signature.
+* Packages with links, special files, absolute or `..` paths, compiled code, archive bombs or Python dependencies are
+  refused; plugins are unpacked into `/opt/odoo/manager/plugins/` (folders 700, files 600) and the package file is
+  deleted. The web container does not mount that folder.
+* No endpoint returns a plugin's files or package. Payment links and receipts reach the browser only when they are
+  https. Plugin icons are fetched by the panel (signed) and served from its own address, PNG or SVG only, with a
+  CSP that runs nothing.
+* **The panel never charges anything.** Buying opens a checkout session; the account owner pays on app.sudoo.sh.
+  Card details never pass through the panel. Each press of **Buy** carries a single-use idempotency key, so a retried
+  request never opens a second purchase.
+* A paid plugin stops at its `run_until` (the last lease's end plus 96 hours for an active licence, never after the
+  licence's grace), when its licence ends, or when the hub withholds it (`blocked`, a flagged server). The panel
+  never counts a time earlier than one it saw before or than the last lease's signed issue time plus the time
+  measured since, so turning the clock back does not extend a licence. When the hub reports an integrity violation
+  or a suspension, every plugin is switched off.
+* A verified 401 `key_revoked` (the owner revoked this server's key on app.sudoo.sh) makes the panel stop using that
+  id and key: it makes a new identity, registers it, and must be linked again.
+* The heartbeat sends the version, the hash of the panel's Python files, the fingerprint, the installed plugins and
+  coarse server figures (CPU, memory and disk use, how many instances exist and run, their Odoo versions and
+  edition); nothing about instances' contents, accounts or their data. A purchase also sends the name and e-mail
+  address of the super admin who pressed **Buy**, shown on the checkout page and the receipt. Opening a plugin's
+  page in the Marketplace tab tells the hub which plugin was viewed (kept only with the account owner's consent).
+* Root on the server can read plugin files and the vault key; see [What is not protected](#7-what-is-not-protected).
+
+---
+
+## 12. Checklist for the administrator
 
 - [ ] Create the first account with the setup code right after installing, so nobody else can.
 - [ ] Turn on a second factor for your own account; keep `REQUIRE_SECOND_FACTOR` at `admins` or `everyone`.
@@ -451,13 +498,15 @@ root, and keep SSH access limited.
 - [ ] Remove deploy keys of repositories that are no longer used, in the panel and on GitHub.
 - [ ] Give each system its own API token, `read` where reading is enough; revoke tokens no longer used.
 - [ ] With `host-ports`, put https in front of the panel and limit who can reach its port.
+- [ ] Install only the plugins you need, preferably from Official or Verified publishers; read what each asks
+      permission to do.
 - [ ] Keep `DRIFT_ACTION=restore`, give super admins an e-mail address, and look into every "changed outside the
       panel" message: only root or the `docker` group can cause one.
 - [ ] Keep the `docker` group to administrators trusted with root.
 
 ---
 
-## 12. Releases and signatures
+## 13. Releases and signatures
 
 Servers run prebuilt images; nobody builds or downloads the source code to install. How you can check what you run:
 

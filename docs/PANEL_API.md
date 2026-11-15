@@ -282,6 +282,41 @@ Enterprise instance.
 To restore a backup into an instance (its own, or another instance's), use the `restore` action; to start a new
 instance from one, `from_backup` of `POST /instances` ([below](#instances-jobs-and-actions-in-detail)).
 
+### Plugins and the marketplace
+
+What the **Plugins** page uses ([Marketplace](MARKETPLACE.md)). The panel talks to the hub itself, with its own
+signed requests; callers of these endpoints never need a hub account or key. When the hub cannot be reached, the
+`/marketplace/...` endpoints answer **503** with a sentence saying so, and the `/plugins` endpoints keep working. A
+hub refusal is passed on as **409** (404 for something that does not exist) with the hub's reason in plain words,
+for example that the panel must be linked first. With `MARKETPLACE=off` the `/marketplace/...` endpoints and
+installing answer **409**.
+
+| Method and path | Permission | Body | Answer |
+| :--- | :--- | :--- | :--- |
+| `GET /plugins` | `plugins.view` | | 200, the installed plugins: `id`, `name`, `version`, `tier`, `publisher`, `permissions`, `requires`, `enabled`, `status` (`active`, `disabled`, `modified`, `blocked`, `switched_off`, `unlicensed`), `loaded`, `restart_pending`, `licence` (`state`, `standing`, `expires_at`, `grace_until`, `phase`: `active`, `expiring`, `grace`, `ended`, `no_lease`, `unlicensed`; null for free plugins), `latest_version`, `update_available`; `meta.restart_pending` |
+| `GET /plugins/notices` | `plugins.view` | | 200, banners: `[{"plugin", "kind", "level", "text", "date"}]` for licences ending, in grace or ended, changed files, and the hub refusing the panel |
+| `POST /plugins` | `settings.manage` | `{"id": "com.sudoo.smtp", "version": "1.2.0"}` (version optional: the newest) | **202**, the job (kind `plugin-install`); the backend restarts when it has finished. **409** while jobs run or when that version is installed |
+| `POST /plugins/<id>/update` | `settings.manage` | `{}` | **202**, the job installing the newest version |
+| `POST /plugins/<id>/disable` | `settings.manage` | `{}` | 200, the plugin; the backend restarts without it. **409** when another installed plugin needs it |
+| `POST /plugins/<id>/enable` | `settings.manage` | `{}` | 200, the plugin; the backend restarts with it. **409** when its files were changed |
+| `DELETE /plugins/<id>` | `settings.manage` | `{"confirm": "<id>"}` | **202**, the job: backs up the panel's data, removes the plugin, restarts |
+| `GET /marketplace` | `plugins.view` | | 200, the connection: `enabled`, `hub_url`, `installation_id`, `registered`, `hub_keys` (accepted key ids), `reachable`, `error`, `error_code` (`unreachable`, `unverified` for an answer that was not signed by an accepted key, or the hub's code), `hub_status`, `flags` (`fingerprint_mismatch`), `linked` (`account_name`), `key_revoked_at`, `removing_paid_plugins`, `last_heartbeat_at`, `next_heartbeat_at`, `lease_expires_at`, `lease_valid`, `lease_ending_soon` |
+| `POST /marketplace/link` | `settings.manage` | `{"code": "<one-time code from app.sudoo.sh>"}` | 200, `{"account_name", "linked_at"}`; 404 for a wrong or used code; 409 when the account already has a server or this server belongs to another account |
+| `POST /marketplace/unlink` | `settings.manage` | `{"confirm": true}` | Log out of the account: the hub revokes this server's paid licences and the panel removes its paid plugins after a backup (a job, `plugin-remove-paid`). The panel, free plugins and instances keep running. 200, the connection |
+| `POST /marketplace/heartbeat` | `settings.manage` | `{}` | 200, the connection after a heartbeat sent now |
+| `GET /marketplace/catalog?q=&type=&tier=&installed=&sort=&limit=50&offset=0` | `plugins.view` | | 200, the hub's catalogue for this panel (`tier`: `free` or `paid`; `installed`: `true` or `false`; `sort`: `popular`, `rating`, `newest`, `name`, `trusted`). Each plugin has `publisher` (`verified`, `official`), `icon_url` (the panel's own address for the icon, or null), `countries`, `languages`, `odoo_versions`, `local`, `plans` (cheapest first: `id`, `kind` `monthly`, `yearly`, `fixed_term` or `one_time`, `price_cents`, `currency`, `period_days`, `interval`, `perpetual`, `monthly_equivalent_cents`, `savings_percent`), `latest_version`, `compatible_version` (the newest that runs on this panel), `installed_version`, `license` and `action`: `install`, `update`, `installed`, `buy`, `renew` (a licence that ended) or `incompatible` |
+| `GET /marketplace/catalog/<id>` | `plugins.view` | | 200, the plugin's page: `permissions`, screenshots, plans, `installed_version`. The panel tells the hub the page was shown (a recommendation signal, kept only with the account owner's consent) |
+| `GET /marketplace/recommendations?limit=8` | `plugins.view` | | 200, `[{"plugin", "score", "reasons"}]`: plugins the hub suggests for this server, each with up to three reasons ("Because you use Sample mailer") |
+| `GET /marketplace/icons/<id>?v=` | `plugins.view` | | 200, the plugin's icon (PNG or SVG), fetched from the hub with a signed request; 404 when it has none |
+| `GET /marketplace/categories` | `plugins.view` | | 200, `[{"type", "count"}]` |
+| `GET /marketplace/billing` | `plugins.view` | | 200, whether a checkout session can be opened now: `payments_enabled`, `linked`, `account_name`, `can_buy`, `reason` (`payments_disabled`, `link_required`, `fingerprint_mismatch`), `currency`, `manage_url` (app.sudoo.sh, Servers) |
+| `POST /marketplace/checkout-sessions` | `settings.manage` | `{"plugin_id", "plan_id", "idempotency_key"}` | Asks to buy for this server; the panel never charges anything. The caller's name and e-mail go with the request (shown on the checkout page and the receipt). `idempotency_key` (16 to 64 of `A-Za-z0-9_-`) is new for each press of Buy and the same when that request is retried: the hub answers the same session. **201** + `Location`, the session: `id`, `status` (`open`, `processing`, `checkout_required`, `succeeded`, `expired`, `cancelled`, `failed`), `url` (`https://app.sudoo.sh/checkout/...`: open it in a new tab, where the account owner pays), `expires_at`, `plugin_id`, `plugin_name`, `plan`, `amount_cents`, `currency`, `method`, `reason` (why the last payment failed), `receipt_number`, `requested_by`, `created_at`, `completed_at`. 409 for `already_licensed`, `purchase_in_progress`, `idempotency_key_reused` ...; 503 when payments are off |
+| `GET /marketplace/checkout-sessions/<id>` | `settings.manage` | | 200, the session; poll it every few seconds while `open`, `processing` or `checkout_required` (a declined card leaves it `open` with a `reason`); on `succeeded` install with `POST /plugins`; on `expired`, `cancelled` or `failed` start again with a new key |
+| `GET /marketplace/checkout-sessions` | `plugins.view` | | 200, the sessions opened from this server, newest first (the same objects); `?format=csv` answers a CSV file |
+| `GET /marketplace/receipts` | `plugins.view` | | 200, receipts and credit notes of this server's plugins: `number`, `kind` (`receipt` or `credit_note`), `issued_at`, `plugin_name`, `plan_kind`, `payment_kind` (`purchase` or `renewal`), `total_cents`, `currency`, `requested_by_name`; `?format=csv` answers a CSV file |
+
+No endpoint returns a plugin's files or its package.
+
 ### Documentation
 
 | Method and path | Permission | Body | Answer |

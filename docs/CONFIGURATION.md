@@ -44,6 +44,7 @@ reset with **Use .env**.
 8. [Limits](#limits)
 9. [Ports](#ports)
 10. [Behaviour](#behaviour)
+11. [Marketplace](#marketplace)
 11. [Locations](#locations)
 
 ---
@@ -254,6 +255,19 @@ Answers over a request limit are `429 Too Many Requests` with `Retry-After`; eve
 | `DAILY_BACKUP_TIME` | text | `00:00` | **live** | When the daily backups run, `HH:MM` on a 24-hour clock, in `TIMEZONE`. |
 | `TIMEZONE` | text | `UTC` | **live** | Time zone of `DAILY_BACKUP_TIME` and of the times in backup names shown in the panel, for example `Africa/Cairo`. |
 | `ROLLBACK_HOURS` | float | `24` | **live** | After a restore, the state the instance had before it is kept this many hours (up to 720), and the instance page offers **Rollback** meanwhile. Then that backup is removed. |
+
+---
+
+## Marketplace
+
+How the panel talks to the Sudoo.sh hub, which lists plugins, sells paid ones and signs every package. See
+[Marketplace](MARKETPLACE.md).
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `MARKETPLACE` | bool | `off` | **live** | Off by default until the marketplace opens. `on`: register with the hub, send a signed heartbeat every 15 minutes (version, core hash, fingerprint, installed plugins and coarse server figures) and install plugins from the Plugins page. `off`: the panel never contacts the hub; installed free plugins keep working, paid ones stop at their `run_until` (the last lease's end plus 96 hours, about 7 days). |
+| `HUB_URL` | text | `https://hub.sudoo.sh` | `.env` only | The hub's address: `https://` (`http://` only for `localhost` while testing). The panel registers with each hub it is pointed at. |
+| `HUB_PUBLIC_KEYS` | text | empty | `.env` only | The hub's root public keys (Ed25519, base64url, comma-separated). Every answer, lease, command and package must be signed by one of them, or by a newer key one of them endorsed. Empty: the keys this release ships for `hub.sudoo.sh`; for another hub (while testing), the keys it lists the first time the panel reaches it. |
 
 ---
 

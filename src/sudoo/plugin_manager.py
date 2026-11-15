@@ -7,8 +7,9 @@ Install (a job, docs/MARKETPLACE.md)
     3. Its manifest.json must name the same plugin and version, suit this panel (min/max Sudoo version, SDK
        version), and every plugin it `requires` must be installed and enabled in a matching version.
     4. Packages that need third-party Python packages are refused in this version (no dependency installer), as
-       are compiled files (native extensions, .pyc), links, absolute paths and archive bombs. The plugin SDK is the
-       exception: a plugin may declare it when the panel has it, in a version the plugin accepts.
+       are compiled files (native extensions, .pyc), package metadata (.dist-info, .egg-info, .egg-link, .pth),
+       links, absolute paths and archive bombs. The plugin SDK is the exception: a plugin may declare it when the
+       panel has it, in a version the plugin accepts.
     5. It is unpacked into <ODOO_ROOT>/manager/plugins/<id>/<version>/ (folders 700, files 600, readable by root
        only; the web container does not mount that folder), the package file is deleted, the entry points are
        written as a small dist-info so `plugins.load` finds them, and a hash of every unpacked file is recorded.
@@ -76,6 +77,8 @@ MAX_RATIO = 100
 EXPIRY_NOTICE_DAYS = 7
 WATCH_SECONDS = 600
 REFUSED_SUFFIXES = (".so", ".pyd", ".dll", ".dylib", ".exe", ".pyc", ".pyo")
+# metadata that would register entry points or run code when its folder is on the path: refused anywhere in a package
+METADATA_SUFFIXES = (".dist-info", ".egg-info", ".egg-link", ".pth")
 RESERVED_GROUPS = ("sudoo.storage",)  # installed plugins are recorded in storage: it must be built in
 PLUGIN_ID_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*){2,6}$")
 SEMVER_RE = re.compile(
@@ -262,6 +265,7 @@ def activate() -> set[str]:
         for plugin_id, rec in installed.items():
             if not verify_files(rec):
                 continue
+            rec = _renew_meta(rec)
             if not allowed(rec)[0]:
                 continue
             _wipe_bytecode(folder(rec))
@@ -271,6 +275,43 @@ def activate() -> set[str]:
             LOADED.add(plugin_id)
         importlib.invalidate_caches()
         return LOADED
+
+
+def _renew_meta(rec: dict[str, Any]) -> dict[str, Any]:
+    """A plugin installed when its distribution name was made from its id with dots turned into dashes (two ids
+    could share one) gets its dist-info under the current name, and its files' hash is recorded again. Called only
+    for files that were just verified."""
+    meta = folder(rec) / "meta"
+    if (meta / _meta_folder(rec["id"], rec["version"])).is_dir() or not isinstance(rec.get("entry_points"), dict):
+        return rec
+    renewed = meta.with_name("meta.partial")
+    shutil.rmtree(renewed, ignore_errors=True)
+    _write_meta(renewed, rec)
+    _lock_down(renewed)
+    shutil.rmtree(meta, ignore_errors=True)
+    renewed.rename(meta)
+    return _update(rec["id"], tree_hash=tree_hash(folder(rec))) or rec
+
+
+def entry_allowed(entry: Any, group: str) -> bool:
+    """Whether `plugins.load` may use `entry` of `group`: one from the panel's own environment, or one an installed
+    plugin declares in its verified manifest, under that plugin's own distribution. Entry points found anywhere else
+    under the plugins folder (metadata shipped inside a package) are never used."""
+    dist = getattr(entry, "dist", None)
+    if dist is None:
+        return False
+    try:
+        root = Path(str(dist.locate_file(""))).resolve()
+    except (OSError, NotImplementedError):
+        return False
+    if not root.is_relative_to(plugins_dir().resolve()):
+        return True  # installed with the panel (its own package, or one added to its environment)
+    name = dist.metadata.get("Name", None)
+    return any(
+        name == _dist_name(pid) and entry.name in ((rec.get("entry_points") or {}).get(group) or {})
+        for pid, rec in records().items()
+        if pid in (LOADED or set())
+    )
 
 
 def verify_files(rec: dict[str, Any]) -> bool:
@@ -360,6 +401,11 @@ def _members(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
             raise PluginRefused("The package is encrypted.")
         if name.lower().endswith(REFUSED_SUFFIXES):
             raise PluginRefused(f"The package contains compiled code ({name[:80]!r}); only Python source is accepted.")
+        if any(part.lower().endswith(METADATA_SUFFIXES) for part in name.split("/")):
+            raise PluginRefused(
+                f"The package contains Python package metadata ({name[:80]!r}); its entry points come from "
+                "manifest.json only."
+            )
         total += info.file_size
         if info.compress_size and info.file_size / info.compress_size > MAX_RATIO and info.file_size > 1024 * 1024:
             raise PluginRefused("The package is compressed suspiciously well (an archive bomb?).")
@@ -486,9 +532,14 @@ def check_package(archive: zipfile.ZipFile, plugin_id: str, version: str) -> dic
             raise PluginRefused(f"The entry point group {str(group)[:60]!r} is not a Sudoo.sh group.")
         if group in RESERVED_GROUPS:
             raise PluginRefused(f"Plugins for {group} cannot be installed from the marketplace.")
-        taken = {
-            e.name for e in entry_points(group=group) if not _belongs_to(e, plugin_id)
-        }  # names of other plugins of the group
+        # names of other plugins of the group: built in, loaded, and those of every other installed plugin
+        taken = {e.name for e in entry_points(group=group) if not _belongs_to(e, plugin_id)}
+        taken.update(
+            name
+            for other_id, other in records().items()
+            if other_id != plugin_id
+            for name in ((other.get("entry_points") or {}).get(group) or {})
+        )
         for name, target in entries.items():
             if not isinstance(target, str) or ":" not in target:
                 raise PluginRefused(f"The entry point {str(name)[:40]!r} is not module:Object.")
@@ -525,13 +576,19 @@ def _top_level_modules(infos: Iterable[zipfile.ZipInfo]) -> set[str]:
 
 
 def _dist_name(plugin_id: str) -> str:
-    return "sudoo-plugin-" + plugin_id.replace(".", "-")
+    """The distribution name of a plugin's entry points: one per plugin id (two ids never share one, as
+    importlib.metadata would then keep only one of them)."""
+    return "sudoo-plugin-" + hashlib.sha256(plugin_id.encode()).hexdigest()[:24]
+
+
+def _meta_folder(plugin_id: str, version: str) -> str:
+    return f"{_dist_name(plugin_id).replace('-', '_')}-{version}.dist-info"
 
 
 def _write_meta(meta: Path, manifest: dict[str, Any]) -> None:
     """A dist-info folder, so importlib.metadata (and so plugins.load) finds the plugin's entry points."""
     name = _dist_name(manifest["id"])
-    info = meta / f"{name.replace('-', '_')}-{manifest['version']}.dist-info"
+    info = meta / _meta_folder(manifest["id"], manifest["version"])
     info.mkdir(parents=True, mode=0o700)
     lines = []
     for group, entries in manifest["entry_points"].items():

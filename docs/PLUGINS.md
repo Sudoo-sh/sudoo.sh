@@ -375,10 +375,12 @@ Rules for a marketplace plugin, on top of [Rules for plugins](#7-rules-for-plugi
   `pyproject.toml`, or a `requirements*.txt` with entries) are refused, because this version of the panel has no
   dependency installer. Only `sudoo-plugin-sdk` may be declared, and only runs where the panel has the SDK in a
   version the plugin accepts.
-* **Python source only.** No `.so`, `.pyd`, `.pyc` or other compiled files.
-* **Your own names.** Entry-point names must not be taken by another plugin of the same group, and top-level module
-  names must not clash with the panel's (`sudoo`) or its libraries (`flask`, `cryptography`...). A storage plugin
-  (`sudoo.storage`) cannot be installed from the marketplace.
+* **Python source only.** No `.so`, `.pyd`, `.pyc` or other compiled files, and no package metadata (`*.dist-info`,
+  `*.egg-info`, `*.egg-link`, `*.pth`): the panel writes the entry points from `manifest.json` itself.
+* **Your own names.** Entry-point names must not be taken by another plugin of the same group (built in or
+  installed), and top-level module names must not clash with the panel's (`sudoo`) or its libraries (`flask`,
+  `cryptography`...). A storage plugin (`sudoo.storage`) cannot be installed from the marketplace. A name that two
+  installed packages provide is not loaded at all.
 * **Declare what you need.** The manifest's `permissions` are shown before installing and checked by the
   marketplace's reviewers.
 

@@ -499,6 +499,62 @@ def test_modified_files_are_detected(hub: FakeHub, admin: Client) -> None:
     assert web.post(f"/api/v1/plugins/{FREE}/enable", headers=headers).status_code == 409
 
 
+def test_every_plugin_id_has_its_own_distribution_name() -> None:
+    assert plugin_manager._dist_name("com.acme.foo-bar") != plugin_manager._dist_name("com.acme-foo.bar")
+
+
+def test_a_name_of_any_installed_plugin_is_taken(hub: FakeHub) -> None:
+    # installed but not loaded in this process (disabled, or waiting for the restart): its names are still taken
+    storage().put(plugin_manager.COLLECTION, "com.other.mail", {
+        "id": "com.other.mail", "version": "1.0.0", "entry_points": {"sudoo.mailers": {"hello-mail": "x:Y"}},
+    })  # fmt: skip
+    with pytest.raises(plugin_manager.PluginRefused, match="already provides 'hello-mail'"):
+        plugin_manager.check_package(_zip(_package()), FREE, "1.0.0")
+
+
+def _dist_info(root: Path, name: str, entries: str) -> None:
+    info = root / f"{name}-1.0.dist-info"
+    info.mkdir(parents=True)
+    (info / "METADATA").write_text(f"Metadata-Version: 2.1\nName: {name}\nVersion: 1.0\n")
+    (info / "entry_points.txt").write_text(entries)
+
+
+def test_entry_points_not_declared_by_an_installed_plugin_are_not_loaded(
+    hub: FakeHub, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # metadata inside a plugin's folder that its manifest does not account for (as a package could have carried)
+    smuggled = plugin_manager.plugins_dir() / "com.other.tools" / "1.0.0" / "package"
+    _dist_info(smuggled, "zz_hijack", "[sudoo.mailers]\nhijacked-mail = json:JSONDecoder\n")
+    monkeypatch.syspath_prepend(str(smuggled))
+    with pytest.raises(plugins.PluginError, match="not installed by the panel"):
+        plugins.load("sudoo.mailers", "hijacked-mail", settings)
+    # one name from two distributions is refused rather than guessed
+    for name in ("first_mail", "second_mail"):
+        _dist_info(tmp_path / name, name, "[sudoo.mailers]\ntwice-mail = json:JSONDecoder\n")
+        monkeypatch.syspath_prepend(str(tmp_path / name))
+    with pytest.raises(plugins.PluginError, match="Several installed plugins"):
+        plugins.load("sudoo.mailers", "twice-mail", settings)
+
+
+def test_a_plugin_installed_under_the_old_distribution_name_keeps_working(hub: FakeHub, admin: Client) -> None:
+    free_listing(hub, module="hello_renamed", entry="hello-renamed")
+    assert install(admin, FREE).status == "success"
+    rec = plugin_manager.record(FREE)
+    assert rec is not None
+    meta = plugin_manager.folder(rec) / "meta"
+    shutil.rmtree(meta)  # as written before distribution names were made from a hash of the id
+    old = meta / "sudoo_plugin_com_example_hello-1.0.0.dist-info"
+    old.mkdir(parents=True)
+    (old / "METADATA").write_text("Metadata-Version: 2.1\nName: sudoo-plugin-com-example-hello\nVersion: 1.0.0\n")
+    (old / "entry_points.txt").write_text("[sudoo.mailers]\nhello-renamed = hello_renamed.plugin:Hello\n")
+    plugin_manager._update(FREE, tree_hash=plugin_manager.tree_hash(plugin_manager.folder(rec)))
+    plugin_manager.LOADED = None
+    assert FREE in plugin_manager.activate()
+    assert [p.name for p in meta.iterdir()] == [plugin_manager._meta_folder(FREE, "1.0.0")]
+    assert plugin_manager.verify_files(plugin_manager.record(FREE) or {})
+    assert type(plugins.load("sudoo.mailers", "hello-renamed", settings)).__name__ == "Hello"
+
+
 def _zip(files: dict[str, bytes | str]) -> zipfile.ZipFile:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
@@ -529,6 +585,10 @@ def _entries(package: bytes) -> Iterator[tuple[str, bytes]]:
         ({**_package(), "pyproject.toml": '[project]\nname="x"\ndependencies=["requests"]\n'}, "other Python packages"),
         ({**_package(), "requirements.txt": "requests==2.0\n"}, "other Python packages"),
         ({**_package(), "hello_plugin/fast.so": b"\x7fELF"}, "compiled code"),
+        ({**_package(), "zz_hijack-1.0.dist-info/entry_points.txt": "[sudoo.mailers]\nsmtp = x:Y\n"}, "metadata"),
+        ({**_package(), "src/zz.egg-info/PKG-INFO": "Name: zz\n"}, "metadata"),
+        ({**_package(), "hello_plugin/zz.egg-link": "/tmp\n"}, "metadata"),
+        ({**_package(), "zz.pth": "import os\n"}, "metadata"),
         ({**_package(), "../evil.py": "x"}, "outside its folder"),
         ({**_package(), "/etc/evil.py": "x"}, "outside its folder"),
         ({**_package(), "flask/__init__.py": ""}, "would clash"),

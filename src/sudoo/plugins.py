@@ -15,7 +15,7 @@ plugin is loaded; the storage plugin is loaded before that, because the installe
 
 from __future__ import annotations
 
-from importlib.metadata import entry_points
+from importlib.metadata import EntryPoint, entry_points
 from typing import Any
 
 from sudoo.config import Settings
@@ -48,10 +48,25 @@ def available(group: str) -> list[str]:
     return sorted(entry.name for entry in entry_points(group=group))
 
 
+def _distribution(entry: EntryPoint) -> str:
+    dist = entry.dist
+    return "" if dist is None else str(dist.metadata.get("Name", "")).lower().replace("_", "-")
+
+
 def load(group: str, name: str, settings: Settings) -> Any:
-    """Create the plugin `name` of `group`, giving it the settings."""
+    """Create the plugin `name` of `group`, giving it the settings.
+
+    A name that two distributions provide is refused rather than guessed, and a marketplace plugin's entry point is
+    used only when its own verified manifest declares it (plugin_manager.entry_allowed)."""
     _with_installed(group)
-    for entry in entry_points(group=group):
-        if entry.name == name:
-            return entry.load()(settings)
+    found = [entry for entry in entry_points(group=group) if entry.name == name]
+    if len({_distribution(entry) for entry in found}) > 1:
+        raise PluginError(f'Several installed plugins provide "{name}" for {group}; uninstall all but one.')
+    if found:
+        if group != STORAGE_GROUP:  # storage is built in, and the installed plugins are recorded in it
+            from sudoo import plugin_manager
+
+            if not plugin_manager.entry_allowed(found[0], group):
+                raise PluginError(f'The plugin "{name}" for {group} was not installed by the panel; it is not loaded.')
+        return found[0].load()(settings)
     raise PluginError(f'No plugin "{name}" for {group}. Installed: {", ".join(available(group)) or "none"}.')

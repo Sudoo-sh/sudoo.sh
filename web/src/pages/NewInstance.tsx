@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Archive, Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Lock, Package, SlidersHorizontal } from "lucide-react";
+import { Archive, ArrowUpRight, Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Lock, Package, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, errorText } from "@/api/client";
@@ -110,7 +110,12 @@ export function NewInstancePage() {
         setBranches(found.branches);
         setBranch((b) => (b && found.branches.includes(b) ? b : found.default));
       })
-      .catch((error) => current && setRepoError(errorText(error)))
+      .catch((error) => {
+        if (!current) return;
+        setRepoError(errorText(error));
+        // the report says what applies (the GitHub App not installed there, the repository not selected...) and links to the fix
+        api.get<RepoAccess>(`/repositories/access?url=${encodeURIComponent(debouncedRepo)}`).then((report) => current && setAccess(report)).catch(() => undefined);
+      })
       .finally(() => current && setChecking(false));
     return () => {
       current = false;
@@ -225,14 +230,19 @@ export function NewInstancePage() {
               {access && (
                 <div className="full stack-sm">
                   {access.repositories.map((r) => (
-                    <div key={r.url} className="row small">
+                    <div key={r.url} className="row small" style={{ flexWrap: "wrap" }}>
                       {r.ok ? <CircleCheck size={16} color="var(--positive)" /> : <CircleX size={16} color="var(--negative)" />}
                       <span className="truncate">{r.url}</span>
                       <Tag>{r.role}</Tag>
-                      {!r.ok && <span style={{ color: "var(--negative)" }}>{r.problem}</span>}
+                      {!r.ok && r.problem !== repoError && <span style={{ color: "var(--negative)" }}>{r.problem}</span>}
+                      {!r.ok && r.fix?.url && (r.fix.url.startsWith("/") ? (
+                        <Link className="btn sm" to={r.fix.url} viewTransition>{r.fix.label}</Link>
+                      ) : (
+                        <a className="btn sm" href={r.fix.url} target="_blank" rel="noreferrer">{r.fix.label} <ArrowUpRight /></a>
+                      ))}
                     </div>
                   ))}
-                  {!access.all_ok && (
+                  {!access.all_ok && !access.repositories.some((r) => r.fix) && (
                     <Callout tone="warning">
                       The server cannot read every repository. For private ones, connect the GitHub App (or add a deploy key) under <Link to="/github" viewTransition>GitHub access</Link>.
                     </Callout>

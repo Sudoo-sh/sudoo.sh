@@ -345,6 +345,8 @@ export interface RepoAccess {
     ok: boolean;
     problem: string | null;
     via?: "deploy-key" | "github-app" | "public";
+    /** what keeps the GitHub App from this repository and where to fix it; url is a panel path when it starts with "/" */
+    fix?: { reason: string; url: string; label: string } | null;
   }[];
   all_ok: boolean;
 }

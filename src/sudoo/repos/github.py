@@ -186,9 +186,27 @@ def access_via(rid: str | None) -> str:
     return "public"
 
 
+def diagnose(address: str) -> dict[str, str] | None:
+    """What keeps the GitHub App from reading a repository the server could not read, and what to do about it
+    (github_app.explain), or None: no app connected, the repository has a deploy key, or GitHub cannot say."""
+    name = repo_name(address)
+    if not name or has_key(name.lower()):
+        return None
+    try:
+        return github_app.explain(name)
+    except github_app.GitHubError:
+        return None
+
+
+def _problem(address: str, log: str) -> str:
+    found = diagnose(address)
+    return found["message"] if found else friendly_hint(log)
+
+
 def branches(address: str) -> tuple[list[str], str | None, str | None]:
     """(branches, default branch, error) of a repository: through the GitHub App's API when it covers the
     repository, else with git (deploy key or anonymous)."""
+    github_app.sync_if_stale()  # installations made on GitHub itself count at once
     name = repo_name(address)
     if name and access_via(name.lower()) == "github-app":
         try:
@@ -199,7 +217,7 @@ def branches(address: str) -> tuple[list[str], str | None, str | None]:
             return found[0], found[1], None
     result = subprocess.run(["git", "ls-remote", "--symref", "--", address], capture_output=True, text=True, timeout=40)
     if result.returncode != 0:
-        return [], None, friendly_hint(result.stderr)
+        return [], None, _problem(address, result.stderr)
     names: list[str] = []
     default: str | None = None
     for line in result.stdout.splitlines():
@@ -212,7 +230,7 @@ def branches(address: str) -> tuple[list[str], str | None, str | None]:
 
 def _readable(address: str) -> tuple[bool, str]:
     result = subprocess.run(["git", "ls-remote", "--heads", "--", address], capture_output=True, text=True, timeout=40)
-    return result.returncode == 0, ("" if result.returncode == 0 else friendly_hint(result.stderr))
+    return result.returncode == 0, ("" if result.returncode == 0 else _problem(address, result.stderr))
 
 
 def _absolute(parent: str, address: str) -> str:
@@ -228,8 +246,10 @@ def _absolute(parent: str, address: str) -> str:
 def access_report(address: str, branch: str = "") -> list[dict[str, Any]]:
     """Can the server read the repository and every submodule of `branch` (default branch when empty)?
 
-    One entry per repository: {"url", "role", "ok", "problem", "repo", "has_key", "via", "github_url"}.
+    One entry per repository: {"url", "role", "ok", "problem", "repo", "has_key", "via", "github_url", "fix"}; "fix"
+    is {"reason", "url", "label"} when the GitHub App explains a failure (github_app.explain), else None.
     """
+    github_app.sync_if_stale()  # installations made on GitHub itself count at once
     readable, problem = _readable(address)
     report: list[dict[str, Any]] = [{"url": address, "role": "main", "ok": readable, "problem": problem}]
     if readable:
@@ -258,5 +278,12 @@ def access_report(address: str, branch: str = "") -> list[dict[str, Any]]:
             report.append({"url": sub_address, "role": "submodule", "ok": ok, "problem": sub_problem})
     for entry in report:
         rid = repo_id(entry["url"])
-        entry.update(repo=rid, has_key=has_key(rid), via=access_via(rid), github_url=add_key_url(rid) if rid else None)
+        found = None if entry["ok"] else diagnose(entry["url"])
+        entry.update(
+            repo=rid,
+            has_key=has_key(rid),
+            via=access_via(rid),
+            github_url=add_key_url(rid) if rid else None,
+            fix={k: found[k] for k in ("reason", "url", "label")} if found else None,
+        )
     return report

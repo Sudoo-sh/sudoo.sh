@@ -17,11 +17,13 @@ from sudoo import addons as addons_sources
 from sudoo import exposure
 from sudoo.config import settings
 from sudoo.core import vault
+from sudoo.core.hints import panel_hint
 from sudoo.core.jobs import Job, JobError
 from sudoo.core.shell import capture
 from sudoo.core.state import STATE
 from sudoo.instances import backups, gateway, integrity, monitor, odoo, store
 from sudoo.instances.store import compose
+from sudoo.repos import github
 from sudoo.repos.gitrepo import branch_on_github, changed_modules, git, module_folders, own_modules, snapshot
 
 # --------------------------------------------------------------------------- helpers
@@ -134,10 +136,16 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     _remove_leftovers(job, name)
     if plan["repo"]:
         job.step("Downloading the code from GitHub")
-        job.run(
-            ["git", "clone", "--recurse-submodules", "-b", plan["branch"], "--", plan["repo"], str(addons)],
-            timeout=1800,
-        )
+        try:
+            job.run(
+                ["git", "clone", "--recurse-submodules", "-b", plan["branch"], "--", plan["repo"], str(addons)],
+                timeout=1800,
+            )
+        except JobError:
+            found = github.diagnose(plan["repo"])  # the GitHub App says what keeps it from the repository
+            if found:
+                job.write(panel_hint(found["message"]))
+            raise
     else:
         job.run(["git", "init", "-q", "-b", plan["branch"], str(addons)])
 

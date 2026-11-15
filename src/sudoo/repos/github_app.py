@@ -56,9 +56,11 @@ ORG_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
 CODE_RE = re.compile(r"^[A-Za-z0-9_-]{8,128}$")
 TOKEN_MARGIN = 300  # a cached token is used until five minutes before it expires
 REPOSITORY_CACHE_SECONDS = 60
+SYNC_SECONDS = 60  # installations are read from GitHub again at most once a minute (sync_if_stale)
 
 _lock = threading.Lock()
 _repositories: dict[int, tuple[float, list[dict[str, Any]]]] = {}
+_synced = 0.0  # when the installations were last read from GitHub
 
 
 class GitHubError(Exception):
@@ -269,10 +271,12 @@ def update_hook_url(base: str) -> bool:
 def disconnect() -> dict[str, Any] | None:
     """Forget the app: its credentials, installations and cached tokens. Returns what it was (for the links to
     uninstall and delete it on GitHub), or None."""
+    global _synced
     data = describe()
     _file().unlink(missing_ok=True)
     _token_file().unlink(missing_ok=True)
     _repositories.clear()
+    _synced = 0.0
     return data
 
 
@@ -321,7 +325,10 @@ def forget_repositories() -> None:
 
 
 def sync_installations() -> list[dict[str, Any]]:
-    """Replace the recorded installations with the ones GitHub lists (installed or removed on GitHub itself)."""
+    """Replace the recorded installations with the ones GitHub lists (installed or removed on GitHub itself, or
+    installed while GitHub's redirect never reached the panel)."""
+    global _synced
+    _synced = time.time()
     jwt = app_jwt()
     found: list[dict[str, Any]] = []
     for number in range(1, 11):
@@ -333,10 +340,29 @@ def sync_installations() -> list[dict[str, Any]]:
         data = _read()
         if data is None:
             raise GitHubError("No GitHub App is connected.", 409)
-        data["installations"] = {str(i["id"]): _installation_record(i) for i in found}
+        known = data.get("installations", {})
+        fresh = {str(i["id"]): _installation_record(i) for i in found}
+        for key, record in fresh.items():  # keep when the panel first saw an installation
+            record["added"] = known.get(key, {}).get("added", record["added"])
+        data["installations"] = fresh
         _write(data)
     _repositories.clear()
     return sorted(data["installations"].values(), key=lambda i: str(i["account"]).lower())
+
+
+def sync_if_stale(max_age: float = SYNC_SECONDS) -> bool:
+    """Read the installations from GitHub again when the last reading is older than `max_age` seconds (cheap: one
+    call a minute at most, also when GitHub fails). Called when the GitHub access page loads and before a repository
+    check, so installations made directly on GitHub are found without pressing Refresh. True when it read them."""
+    global _synced
+    if not connected() or time.time() - _synced < max_age:
+        return False
+    _synced = time.time()
+    try:
+        sync_installations()
+    except GitHubError:
+        return False
+    return True
 
 
 def remove_installation(installation_id: int) -> bool:
@@ -448,27 +474,31 @@ def _repository(found: dict[str, Any], installation: dict[str, Any]) -> dict[str
     }
 
 
+def installation_repositories(installation: dict[str, Any]) -> list[dict[str, Any]]:
+    """The repositories one installation may read (cached for a minute)."""
+    now = time.time()
+    number = int(installation["id"])
+    cached = _repositories.get(number)
+    if cached is None or now - cached[0] > REPOSITORY_CACHE_SECONDS:
+        token = installation_token(number)
+        listed: list[dict[str, Any]] = []
+        for page in range(1, 21):
+            answer = request("GET", f"/installation/repositories?per_page=100&page={page}", bearer=token)
+            batch = answer.get("repositories", [])
+            listed += [_repository(r, installation) for r in batch]
+            if len(batch) < 100:
+                break
+        cached = (now, listed)
+        _repositories[number] = cached
+    return cached[1]
+
+
 def repositories(query: str = "") -> list[dict[str, Any]]:
     """Repositories readable through the installations, newest push first, filtered by `query` (in the name)."""
-    now = time.time()
     found: list[dict[str, Any]] = []
     for installation in installations():
-        if installation.get("suspended"):
-            continue
-        number = int(installation["id"])
-        cached = _repositories.get(number)
-        if cached is None or now - cached[0] > REPOSITORY_CACHE_SECONDS:
-            token = installation_token(number)
-            listed: list[dict[str, Any]] = []
-            for page in range(1, 21):
-                answer = request("GET", f"/installation/repositories?per_page=100&page={page}", bearer=token)
-                batch = answer.get("repositories", [])
-                listed += [_repository(r, installation) for r in batch]
-                if len(batch) < 100:
-                    break
-            cached = (now, listed)
-            _repositories[number] = cached
-        found += cached[1]
+        if not installation.get("suspended"):
+            found += installation_repositories(installation)
     words = query.lower().split()
     chosen = [r for r in found if all(w in r["full_name"].lower() for w in words)]
     return sorted(chosen, key=lambda r: str(r.get("pushed_at") or ""), reverse=True)
@@ -488,6 +518,66 @@ def branches(full_name: str) -> tuple[list[str], str] | None:
         if len(batch) < 100:
             break
     return sorted(names), default
+
+
+def explain(full_name: str) -> dict[str, str] | None:
+    """Why the app cannot read the repository `full_name` ("owner/repo"), saying what to do about it:
+    {"reason", "message", "url", "label"} ("url" is a GitHub page, or a panel path starting with "/"; it and "label"
+    are empty when there is nothing to open). None when no app is connected (deploy keys are the way then).
+
+    reason: "app_owned_elsewhere" (a private app can be installed only on the account that owns it), "not_installed",
+    "suspended", "not_selected" (installed on the owner, but the repository is not among the selected ones) or
+    "not_found" (the app can read the owner's repositories, so the address or the branch is wrong)."""
+    data = _read()
+    if data is None:
+        return None
+    owner = full_name.split("/")[0]
+    app_owner = str((data.get("owner") or {}).get("login", ""))
+    found = next((i for i in installations() if str(i["account"]).lower() == owner.lower()), None)
+    if found is None:
+        if app_owner.lower() != owner.lower():
+            return {
+                "reason": "app_owned_elsewhere",
+                "message": f"The panel's GitHub App belongs to {app_owner}. A private GitHub App can only be installed "
+                f"on the account that owns it, so it can never read the repositories of {owner}. To use them, "
+                f"disconnect it on the GitHub access page and connect GitHub again for {owner} (an owner of "
+                f"{owner} on GitHub has to create the app).",
+                "url": "/github",
+                "label": "Open GitHub access",
+            }
+        return {
+            "reason": "not_installed",
+            "message": f"The GitHub App is not installed on {owner}. Install it there and give it this repository.",
+            "url": install_url(data),
+            "label": f"Install on {owner}",
+        }
+    if found.get("suspended"):
+        return {
+            "reason": "suspended",
+            "message": f"The GitHub App's installation on {owner} is suspended. Unsuspend it on GitHub.",
+            "url": str(found.get("settings_url", "")),
+            "label": "Open the installation",
+        }
+    if found.get("repository_selection") != "all":
+        try:
+            names = {str(r["full_name"]).lower() for r in installation_repositories(found)}
+        except GitHubError:
+            names = None
+        if names is not None and full_name.lower() not in names:
+            return {
+                "reason": "not_selected",
+                "message": f"The GitHub App is installed on {owner}, but {full_name} is not among the repositories it "
+                "may read. Add it to the installation's selected repositories.",
+                "url": str(found.get("settings_url", "")),
+                "label": "Choose repositories",
+            }
+    return {
+        "reason": "not_found",
+        "message": f"The GitHub App can read the repositories of {owner}, but GitHub does not know {full_name}. "
+        "Check the address.",
+        "url": "",
+        "label": "",
+    }
 
 
 # --------------------------------------------------------------------------- webhook signatures

@@ -5,7 +5,8 @@ database manager produces and accepts under "Restore":
 
     dump.sql        the database, as SQL (pg_dump --no-owner)
     filestore/      attachments and images
-    manifest.json   what the backup is (database, Odoo version)
+    manifest.json   what the backup is (database, Odoo version, edition, and the instance it was taken from:
+                    its name and INSTANCE_ID)
 
 Kinds (files of earlier versions have no kind and count as "manual"):
 
@@ -25,6 +26,9 @@ The database container is started for a backup if the instance is paused; the in
 otherwise. restore() puts a backup back: the database is replaced and so is the filestore. A backup can be put into
 another instance (or a new one) of the same Odoo series: it is loaded under the target's database name and then
 neutralised (neutralize()), so the copy sends no e-mail and runs no scheduled actions of the original.
+
+A backup is an instance's own only when it was taken from that very instance (belongs_to), not from an earlier,
+deleted instance of the same name: the file name gives the instance's name, the manifest its INSTANCE_ID.
 """
 
 from __future__ import annotations
@@ -68,10 +72,12 @@ def create(job: Job, name: str, kind: str = "manual") -> list[Path]:
     _database_up(job, name)
     env = store.read_env(name)
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    saved = [
-        _backup_database(job, name, db, env["ODOO_VERSION"], env.get("EDITION", "community"), stamp, kind)
-        for db in odoo.databases(name)
-    ]
+    facts = {
+        "version": env["ODOO_VERSION"],
+        "edition": env.get("EDITION", "community"),
+        "instance_id": env.get("INSTANCE_ID", ""),
+    }
+    saved = [_backup_database(job, name, db, facts, stamp, kind) for db in odoo.databases(name)]
     if kind in _KEEP_ONE:
         for older in of_instance(name, (kind,)):
             if older["file"] not in {path.name for path in saved}:
@@ -87,7 +93,8 @@ def _database_up(job: Job, name: str) -> None:
         raise JobError("the database did not start")
 
 
-def _backup_database(job: Job, name: str, db: str, version: str, edition: str, stamp: str, kind: str) -> Path:
+def _backup_database(job: Job, name: str, db: str, facts: dict[str, str], stamp: str, kind: str) -> Path:
+    """Back up database `db` of instance `name`; `facts`: its "version", "edition" and "instance_id"."""
     if not DB_NAME_RE.fullmatch(db):  # it becomes part of the backup's file name
         raise JobError(f"{db[:70]!r} is not a database name this panel uses")
     target = settings.backups_dir / f"{name}__{db}__{stamp}__{kind}.zip"
@@ -119,11 +126,12 @@ def _backup_database(job: Job, name: str, db: str, version: str, edition: str, s
                     {
                         "odoo_dump": "1",
                         "db_name": db,
-                        "version": version,
-                        "major_version": version,
+                        "version": facts["version"],
+                        "major_version": facts["version"],
                         "created_by": "Sudoo",
                         "instance": name,
-                        "edition": edition,
+                        "edition": facts["edition"],
+                        **({"instance_id": facts["instance_id"]} if facts.get("instance_id") else {}),
                     },
                     indent=2,
                 ),
@@ -185,10 +193,35 @@ def of_instance(name: str, kinds: tuple[str, ...] = KINDS) -> list[dict[str, Any
     return [b for b in all_backups() if b["instance"] == name and b["kind"] in kinds]
 
 
+def belongs_to(name: str, backup: dict[str, Any]) -> bool:
+    """Whether `backup` was taken from the instance `name` that exists now, not from another one or from an earlier,
+    deleted instance of the same name.
+
+    Both carry INSTANCE_ID (recorded at creation, and in each backup's manifest): they must be the same. A backup
+    without one (taken before it was recorded) is the instance's own when it was taken after the instance was
+    created; one with an id is never the own backup of an instance without one."""
+    if backup["instance"] != name:
+        return False
+    env = store.read_env(name)
+    own, taken_from = env.get("INSTANCE_ID", ""), instance_id(backup["file"])
+    if taken_from:
+        return taken_from == own
+    try:
+        created = float(env.get("CREATED_AT") or "inf")
+    except ValueError:
+        return False
+    return float(backup["created"]) >= created
+
+
+def own_backups(name: str, kinds: tuple[str, ...] = KINDS) -> list[dict[str, Any]]:
+    """The backups of these kinds taken from the instance `name` that exists now (belongs_to), newest first."""
+    return [b for b in of_instance(name, kinds) if belongs_to(name, b)]
+
+
 def latest(name: str) -> dict[str, Any] | None:
-    """The newest backup that "Restore the latest backup" would put back, or None."""
+    """The newest backup that "Restore the latest backup" would put back, or None: one of the instance's own."""
     databases = odoo.databases(name)
-    return next((b for b in of_instance(name, RESTORABLE) if b["db"] in databases), None)
+    return next((b for b in own_backups(name, RESTORABLE) if b["db"] in databases), None)
 
 
 def remove_daily(name: str) -> None:
@@ -199,7 +232,7 @@ def remove_daily(name: str) -> None:
 
 # ---------------------------------------------------------------- what a backup contains
 
-_DETAILS: dict[tuple[str, float], dict[str, str | None]] = {}  # (file, mtime) -> details; files never change
+_DETAILS: dict[tuple[str, float], dict[str, str | None]] = {}  # (file, mtime) -> manifest; files never change
 
 
 def details(file_name: str) -> dict[str, str | None]:
@@ -208,9 +241,20 @@ def details(file_name: str) -> dict[str, str | None]:
     "series" is the Odoo release the database belongs to ("17.0", "saas~17.1" gives "17.1"): a database can only be
     opened by Odoo of the same series. "edition" is only recorded by this version of Sudoo.sh on.
     """
+    found = _manifest(file_name)
+    return {key: found.get(key) for key in ("version", "series", "edition")}
+
+
+def instance_id(file_name: str) -> str | None:
+    """The INSTANCE_ID of the instance the backup was taken from (manifest.json), or None for backups taken before
+    it was recorded."""
+    return _manifest(file_name).get("instance_id")
+
+
+def _manifest(file_name: str) -> dict[str, str | None]:
     path = path_of(file_name)
     if path is None:
-        return {"version": None, "series": None, "edition": None}
+        return {"version": None, "series": None, "edition": None, "instance_id": None}
     key = (path.name, path.stat().st_mtime)
     if key not in _DETAILS:
         manifest: dict[str, Any] = {}
@@ -227,6 +271,7 @@ def details(file_name: str) -> dict[str, str | None]:
             "version": version,
             "series": series(version),
             "edition": edition if edition in ("community", "enterprise") else None,
+            "instance_id": manifest["instance_id"] if isinstance(manifest.get("instance_id"), str) else None,
         }
     return _DETAILS[key]
 
@@ -257,7 +302,7 @@ def rollback_snapshot(name: str, now: float | None = None) -> list[dict[str, Any
     """The before-restore backup(s) a rollback puts back: the newest of the instance (one file per database, all
     with the same stamp), if taken less than ROLLBACK_HOURS ago and the instance was not rolled back to it already
     (STATE "rolled_back"); [] otherwise. Going back to it once more is still possible by restoring the file."""
-    found = of_instance(name, ("before-restore",))
+    found = own_backups(name, ("before-restore",))
     if not found or found[0]["created"] < (time.time() if now is None else now) - settings.rollback_hours * 3600:
         return []
     if STATE.get(name).get("rolled_back") == found[0]["file"]:

@@ -549,7 +549,8 @@ admin or Administrator all of them.
 `restore` without `file` puts back the newest `manual`, `daily` or `deletion` backup of a database the instance has
 (`restorable_backup` in `GET /instances/<name>`); 409 when there is none. With `file`, it may be any backup of the
 same Odoo series (`series` in `GET /backups`): one of the instance's own `backups`, or, with `backups.manage` too,
-another instance's (403 without it). An unknown file answers 404, a backup of another series or an Enterprise backup
+another instance's (403 without it). A backup of an earlier, deleted instance with the same name is another
+instance's: it is not in `backups`, not chosen without `file`, needs `backups.manage` and is neutralised. An unknown file answers 404, a backup of another series or an Enterprise backup
 for a Community instance 400. The job (`"action": "Restore a backup"`) saves the current state as a `before-restore`
 backup, stops Odoo, replaces the database and the filestore, sets the instance's public address again and starts
 Odoo. Another instance's backup is loaded under this instance's database name and neutralised first (Odoo's

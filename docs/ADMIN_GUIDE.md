@@ -610,8 +610,12 @@ integrations each installed app declares; on older versions, or if that command 
 `ir_mail_server`, incoming mail servers and every scheduled action except Odoo's database cleanup directly in SQL.
 In both cases the copy gets a new `database.uuid` and `database.secret`, so it is not taken for the original and
 sessions of the original do not work in it. The job's notes say it was neutralised. Finally web.base.url is set to
-the instance's own address, as for every restore. A backup whose instance has the same name as the target (its own,
-or one of an earlier instance of that name) is not neutralised.
+the instance's own address, as for every restore. The instance's own backups are not neutralised. A backup of an
+earlier, deleted instance with the same name is not the instance's own: each instance has a random `INSTANCE_ID`
+(in its `.env`, and in the `manifest.json` of every backup taken from it), so such a backup needs `backups.manage`,
+is never picked by **Restore the latest backup**, and is neutralised like any other instance's data. Instances and
+backups from before `INSTANCE_ID` was recorded are told apart by time: a backup without an id is the instance's own
+when it was taken after the instance was created.
 
 A new instance started from a backup skips creating an empty database (and demo data). If **Install the
 repository's modules** is on, only the repository's modules the backup does not have installed are installed;

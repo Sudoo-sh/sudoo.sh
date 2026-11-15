@@ -191,6 +191,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
             "DELETE_AFTER_DAYS": plan["delete_after_days"],  # 0: keep until deleted by hand
             "CREATED_AT": int(time.time()),
             "CREATED_BY": plan.get("created_by", ""),
+            "INSTANCE_ID": secrets.token_hex(16),  # tells this instance's backups from those of an earlier one
             "ENTERPRISE_FOLDER": str(enterprise_folder or ""),
         },
     )
@@ -372,15 +373,15 @@ def chosen_backup(name: str, file_name: str | None) -> dict[str, Any]:
     problem = backups.problem(chosen["file"], env["ODOO_VERSION"], env.get("EDITION", "community"))
     if problem:
         raise JobError(problem)
-    if chosen["instance"] == name and chosen["db"] not in odoo.databases(name):
+    if backups.belongs_to(name, chosen) and chosen["db"] not in odoo.databases(name):
         raise JobError(f"The backup is of database {chosen['db']}, which this instance does not have.")
     return chosen
 
 
 def target_database(name: str, backup: dict[str, Any]) -> str:
     """The database of instance `name` a backup goes into: its own database for a backup of this instance, the
-    instance's (first) database for a backup of another one."""
-    return backup["db"] if backup["instance"] == name else odoo.databases(name)[0]
+    instance's (first) database for a backup of another one (or of an earlier instance of the same name)."""
+    return backup["db"] if backups.belongs_to(name, backup) else odoo.databases(name)[0]
 
 
 def restore(job: Job, name: str, file_name: str | None = None) -> None:
@@ -392,11 +393,11 @@ def restore(job: Job, name: str, file_name: str | None = None) -> None:
     Restoring the instance's own before-restore backup is a rollback (see rollback): taking a new before-restore
     first would replace the very file being restored."""
     chosen = chosen_backup(name, file_name)
-    if chosen["instance"] == name and chosen["kind"] == "before-restore":
+    foreign = not backups.belongs_to(name, chosen)  # another instance's, or an earlier one's of the same name
+    if not foreign and chosen["kind"] == "before-restore":
         _rollback(job, name, [chosen])
         return
     taken = datetime.fromtimestamp(chosen["created"], settings.zone).strftime("%Y-%m-%d %H:%M")
-    foreign = chosen["instance"] != name
     db = target_database(name, chosen)
     job.expect(5 + 2 * foreign)  # the last step, waiting for Odoo, is _start_odoo's
     job.step("Saving the current state first")
@@ -405,7 +406,8 @@ def restore(job: Job, name: str, file_name: str | None = None) -> None:
     job.note(f"The state before the restore is kept for {hours} hours as {', '.join(p.name for p in saved)}")
     job.step("Stopping Odoo")
     job.run(compose(name, "stop", "odoo"), timeout=300)
-    job.step(f"Restoring the backup of {taken}" + (f" from {chosen['instance']}" if foreign else ""))
+    origin = chosen["instance"] if chosen["instance"] != name else f"an earlier instance named {name}"
+    job.step(f"Restoring the backup of {taken}" + (f" from {origin}" if foreign else ""))
     backups.restore(job, name, chosen, db)
     if foreign:
         job.step("Neutralising the copied data")

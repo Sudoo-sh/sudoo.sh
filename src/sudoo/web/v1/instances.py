@@ -172,10 +172,12 @@ def _usable_backup(file_name: str, version: str, edition: str, instance: str | N
     """`file_name` when that backup exists, the caller may use it and it fits Odoo `version` and `edition`.
 
     A backup of `instance` itself needs nothing more than the action's permission; any other backup (another
-    instance's, or one to start a new instance from) also needs backups.manage, which shows every backup."""
+    instance's, an earlier deleted instance's of the same name, or one to start a new instance from) also needs
+    backups.manage, which shows every backup."""
     # the permission first: without backups.manage, other instances' backups must not even be found (404 or not)
     match = backups.FILE_RE.match(file_name)
-    if instance is None or match is None or match["instance"] != instance:
+    found = next((b for b in backups.all_backups() if b["file"] == file_name), None) if match else None
+    if instance is None or found is None or not backups.belongs_to(instance, found):
         refuse_unless("backups.manage", f"use backup {file_name[:80]}" + (f" for {instance}" if instance else ""))
     path = check.backup_file(file_name)  # 404 for an unknown file or anything that is not a backup name
     problem = backups.problem(path.name, version, edition)

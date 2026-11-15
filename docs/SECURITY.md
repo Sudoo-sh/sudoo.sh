@@ -199,6 +199,11 @@ the download link.
 
 Restoring a backup replaces an instance's database and files, so it has its own permission, `instances.restore`
 (super admins, administrators and maintainers). With it alone, a restore only takes a backup of that same instance.
+"Same" means the instance that exists now, not an earlier, deleted instance that had its name: each instance gets a
+random `INSTANCE_ID` when it is created, recorded in every backup's `manifest.json`, and a backup is its own only
+when the two match (a backup taken before the id was recorded counts when it was taken after the instance was
+created). A deleted instance's backups therefore need `backups.manage` even when its name is reused, are never
+picked by "Restore the latest backup", and are neutralised when they are put back.
 Putting another instance's backup into an instance, or starting a new instance from a backup, copies one instance's
 data into another, so it also needs `backups.manage`, the permission that already lets a role see and download every
 backup (super admins and administrators): a maintainer cannot use it to read an instance's data through another one.

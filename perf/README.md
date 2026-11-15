@@ -34,6 +34,8 @@ docker image rm pperf-web:old pperf-web:new
 | `k6/gateway.js` | Run twice: straight against the stub Odoo, then through the instance's gateway; the difference is what the gateway adds. Page loads, a static asset, RPC calls (32 users), long polling (200 users), WebSocket round trips (50 users), 50 MB uploads and 100 MB downloads (4 users). |
 | `sse_bench.py` | 300 browsers on the live event stream; a setting is changed 20 times and the time until each browser has the event is measured (k6 has no Server-Sent Events client). |
 | `cold_start.py` | Time from `sudoo.sh serve` to the first answer of `/healthz`, five times, and the backend's memory once started. |
+| `lighthouse.py` | The sign-in page and the dashboard in Lighthouse 12 (mobile), median of three runs (part `web`). |
+| `gateway_ab.py` | The gateway of two versions side by side in rounds that alternate, so a busy machine slows both alike: `uv run python perf/gateway_ab.py <run folder> <old src> src`. |
 | `report.py` | The tables of one run, or of two side by side. |
 
 Every run folder keeps the raw results (`panel.json`, `gateway-direct.json`, `gateway.json`, `sse.json`,

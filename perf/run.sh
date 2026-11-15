@@ -17,6 +17,11 @@ here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(dirname "$here")"
 run="$(mkdir -p "$1" && cd "$1" && pwd)"
 source_dir="$(cd "${2:-$repo/src}" && pwd)"
+if [ ! -f "$source_dir/sudoo/__init__.py" ]; then
+  # without this check Python would quietly import the installed copy instead, and measure the wrong code
+  echo "$source_dir does not contain the sudoo package" >&2
+  exit 1
+fi
 web_image="${WEB_IMAGE:-pperf-web:local}"
 k6_image="${K6_IMAGE:-grafana/k6:2.4.0}"
 seconds="${SECONDS_PER_SCENARIO:-20}"
@@ -24,6 +29,13 @@ only=",${ONLY:-panel,gateway,events,web,cold},"
 export PYTHONPATH="$source_dir"
 python="$repo/.venv/bin/python"
 export PATH="$repo/.venv/bin:$PATH"
+
+for port in 19100 19101 19102 19200 19300; do
+  if (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
+    echo "Port $port is in use: stop whatever listens there (an earlier run?) first." >&2
+    exit 1
+  fi
+done
 
 pids=()
 cleanup() {
@@ -78,17 +90,19 @@ k6() {
 }
 
 cp "$run/secrets.json" "$run/k6-secrets.json"
-if [[ $only == *,panel,* ]]; then
-  echo 0 >"$run/peak_rss_kb"
-  k6 -e BASE="http://127.0.0.1:$PANEL_PORT" -e SECRETS=/out/k6-secrets.json -e OUT=/out/panel.json \
-    /scripts/panel.js >"$run/k6-panel.log" 2>&1
-  echo "$(cat "$run/peak_rss_kb") KB" >"$run/peak_rss_panel.txt"
-fi
+# the gateway first: the panel part leaves the process larger (Python keeps memory it used), which would hide what
+# uploads and downloads cost
 if [[ $only == *,gateway,* ]]; then
   echo 0 >"$run/peak_rss_kb"
   k6 -e BASE="http://127.0.0.1:19300" -e OUT=/out/gateway-direct.json /scripts/gateway.js >"$run/k6-direct.log" 2>&1
   k6 -e BASE="http://127.0.0.1:19200" -e OUT=/out/gateway.json /scripts/gateway.js >"$run/k6-gateway.log" 2>&1
   echo "$(cat "$run/peak_rss_kb") KB" >"$run/peak_rss_gateway.txt"
+fi
+if [[ $only == *,panel,* ]]; then
+  echo 0 >"$run/peak_rss_kb"
+  k6 -e BASE="http://127.0.0.1:$PANEL_PORT" -e SECRETS=/out/k6-secrets.json -e OUT=/out/panel.json \
+    /scripts/panel.js >"$run/k6-panel.log" 2>&1
+  echo "$(cat "$run/peak_rss_kb") KB" >"$run/peak_rss_panel.txt"
 fi
 if [[ $only == *,events,* ]]; then
   "$python" "$here/sse_bench.py" "$run" --base "http://127.0.0.1:$PANEL_PORT" >"$run/sse.log" 2>&1

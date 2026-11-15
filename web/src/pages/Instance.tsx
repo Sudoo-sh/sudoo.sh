@@ -247,7 +247,7 @@ export function InstancePage() {
         ))}
       </nav>
 
-      <div className="rise" key={tab}>
+      <div className="rise tab-panel" key={tab}>
         {tab === "" && <Overview instance={instance} busy={busy} act={act} />}
         {tab === "activity" && <ActivityTab name={name} onOpen={setJobId} />}
         {tab === "code" && !plain && <CodeTab instance={instance} canAdd={can("instances.update")} canRemove={can("instances.operate")} busy={busy} onAdd={() => setDialog("submodule")} act={act} />}

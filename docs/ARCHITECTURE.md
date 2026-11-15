@@ -401,7 +401,7 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
 - **Chosen:** graphite neutrals with Odoo's plum as the single accent; the platform's system font; translucent
   sidebar and top bar; motion only where it explains something, following Apple's *Designing Fluid Interfaces* and
   Emil Kowalski's animation standards (press feedback, origin-aware menus, sheets that leave the way they came,
-  quick cross-fades between pages); status shown only when it matters. Details in [Design](DESIGN.md).
+  a quick fade out and in between pages); status shown only when it matters. Details in [Design](DESIGN.md).
 - **Why:** people keep the panel open for hours; quiet chrome lets the instances and their figures read first, and
   motion that is fast and consistent makes the panel feel responsive rather than busy.
 

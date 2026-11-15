@@ -145,6 +145,12 @@ def test_unsafe_renderings_are_refused() -> None:
         lambda s: s["services"]["odoo"].update(ports=["0.0.0.0:8069:8069"]),
         lambda s: s["services"]["odoo"]["volumes"].append("/var/run/docker.sock:/var/run/docker.sock"),
         lambda s: s["services"]["odoo"]["volumes"].append("/srv/data:/mnt/data"),
+        lambda s: s["services"]["odoo"]["volumes"].append("/srv/data:/mnt/data:ro"),
+        lambda s: s["services"]["odoo"]["volumes"].append(f"/opt/odoo/manager:{odoo.ENTERPRISE_ADDONS_MOUNT}:ro"),
+        lambda s: s["services"]["odoo"]["volumes"].append(f"{store.folder('other')}/config:/etc/other:ro"),
+        lambda s: s["services"]["odoo"]["volumes"].append(
+            f"/opt/odoo/enterprise/18.0/../..:{odoo.ENTERPRISE_ADDONS_MOUNT}:ro"
+        ),
         lambda s: s["services"]["odoo"].update(cap_add=["SYS_ADMIN"]),
         lambda s: s["services"].update(shell={"image": "alpine"}),
         lambda s: s.update(configs={}),
@@ -154,6 +160,42 @@ def test_unsafe_renderings_are_refused() -> None:
         change(unsafe)
         with pytest.raises(odoo.UnsafeCompose):
             odoo.check_spec(unsafe)
+
+
+def test_only_the_instances_own_folders_and_enterprise_add_ons_are_mounted() -> None:
+    spec = _apply()["spec"]
+    for folder in ("/opt/odoo/enterprise/18.0", "/opt/odoo/enterprise/saas~17.1"):  # ENTERPRISE_PATH of a version
+        allowed = copy.deepcopy(spec)
+        allowed["services"]["odoo"]["volumes"].append(f"{folder}:{odoo.ENTERPRISE_ADDONS_MOUNT}:ro")
+        odoo.check_spec(allowed)
+    for target in ("/etc/odoo", "/mnt/data"):  # Enterprise add-ons only where Enterprise belongs
+        moved = copy.deepcopy(spec)
+        moved["services"]["odoo"]["volumes"].append(f"/opt/odoo/enterprise/18.0:{target}:ro")
+        with pytest.raises(odoo.UnsafeCompose):
+            odoo.check_spec(moved)
+
+
+def test_env_cannot_give_a_hardened_community_instance_an_enterprise_mount() -> None:
+    """The Enterprise folder of a hardened instance comes from the panel's record ("" for Community), never from
+    lines added to .env."""
+    kept = _apply()
+    assert kept["inputs"]["ENTERPRISE_FOLDER"] == "" and kept["inputs"]["EDITION"] == "community"
+    store.update_env(NAME, EDITION="enterprise", ENTERPRISE_FOLDER="/opt/odoo/manager")
+    kept = _apply()
+    volumes = kept["spec"]["services"]["odoo"]["volumes"]
+    assert not any(odoo.ENTERPRISE_ADDONS_MOUNT in volume for volume in volumes)
+    assert "/opt/odoo/manager" not in (store.folder(NAME) / "docker-compose.yml").read_text()
+    assert kept["inputs"]["ENTERPRISE_FOLDER"] == "" and kept["inputs"]["EDITION"] == "community"
+    assert store.read_env(NAME)["EDITION"] == "community"  # put back from the record
+
+
+def test_instances_hardened_before_the_record_kept_the_edition() -> None:
+    kept = _apply()
+    kept["inputs"].pop("EDITION")
+    integrity.storage().put(integrity.COLLECTION, NAME, kept)
+    store.update_env(NAME, EDITION="enterprise", ENTERPRISE_FOLDER="/opt/odoo/manager")
+    kept = _apply()
+    assert kept["inputs"]["EDITION"] == "community" and kept["inputs"]["ENTERPRISE_FOLDER"] == ""
 
 
 def test_plain_odoo_is_rendered_and_checked_the_same() -> None:

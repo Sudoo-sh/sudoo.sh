@@ -3,6 +3,9 @@
 All three can be changed on the Settings page (0 turns each off). An instance belongs to whoever created it (the
 person, or "api:<token name>"), recorded as CREATED_BY in its .env. Creation times are kept in the storage
 (collection "creations"), so the waiting time also counts instances that were deleted since.
+
+Creations that are queued or running count as instances already (of the user who started them), and the API holds
+LOCK from the check until the creation's job is registered, so creations started at the same time cannot all pass.
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ from sudoo.instances import store
 from sudoo.storage import Document, storage
 
 CREATIONS = "creations"
-_LOCK = threading.Lock()  # checking and recording a creation happen together
+LOCK = threading.RLock()  # checking and recording a creation happen together (and starting its job, see above)
 
 
 @dataclass
@@ -30,14 +33,25 @@ def owned_by(user: str) -> list[str]:
     return [name for name in store.names() if store.read_env(name).get("CREATED_BY") == user]
 
 
+def _counted() -> tuple[list[str], list[tuple[str, str]]]:
+    """The instances that exist, and (name, user) of the creations not finished yet that are not among them (an
+    instance being created is listed once its files are written: it is counted once)."""
+    from sudoo.core import jobs  # late: core/jobs.py is imported by most of the panel
+
+    names = store.names()
+    existing = set(names)
+    return names, [(name, user) for name, user in jobs.pending_creations() if name not in existing]
+
+
 def usage(user: str) -> dict[str, object]:
     """What the user may still create, for the panel to show before they try."""
     last = (storage().get(CREATIONS, user) or {}).get("last", 0)
     cooldown = settings.create_cooldown_minutes * 60
+    names, pending = _counted()
     return {
-        "instances": len(store.names()),
+        "instances": len(names) + len(pending),
         "max_instances": settings.max_instances or None,
-        "own_instances": len(owned_by(user)),
+        "own_instances": len(owned_by(user)) + sum(1 for _, creator in pending if creator == user),
         "max_instances_per_user": settings.max_instances_per_user or None,
         "cooldown_minutes": settings.create_cooldown_minutes or None,
         "next_creation_at": int(last + cooldown) if cooldown and time.time() < last + cooldown else None,
@@ -47,13 +61,14 @@ def usage(user: str) -> dict[str, object]:
 def claim(user: str) -> None:
     """Check every limit for a new instance of `user` and, when all allow it, record the creation now.
     Raises QuotaError saying which limit, and when it is a waiting time, how long."""
-    with _LOCK:
-        total = len(store.names())
+    with LOCK:
+        names, pending = _counted()
+        total = len(names) + len(pending)
         if settings.max_instances and total >= settings.max_instances:
             raise QuotaError(
                 f"This server has its maximum of {settings.max_instances} instances. Delete one first.", 403
             )
-        own = len(owned_by(user))
+        own = len(owned_by(user)) + sum(1 for _, creator in pending if creator == user)
         if settings.max_instances_per_user and own >= settings.max_instances_per_user:
             raise QuotaError(
                 f"You have {own} instances, the most one user may have ({settings.max_instances_per_user}). "

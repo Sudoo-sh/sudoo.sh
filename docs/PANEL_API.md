@@ -128,9 +128,9 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `GET /instances/<name>/credentials` | `instances.credentials` | | 200, Odoo `login`, `admin_password`, `master_password`, `ports`; written to the audit log |
 | `GET /instances/<name>/logs?lines=300` | `instances.logs` | | 200, `{"text"}`: the end of Odoo's log (1 to 5000 lines) |
 | `POST /instances` | `instances.create` | as below | **202**, the job; `Content-Location` names the new instance |
-| `PATCH /instances/<name>` | `instances.operate` | any of `auto_update`, `auto_upgrade`, `auto_pause` (true or false), `delete_after_days` (0 keeps it) | 200, the instance |
+| `PATCH /instances/<name>` | `instances.operate`; also `instances.delete` for a `delete_after_days` that ends the lifetime sooner (403 otherwise) | any of `auto_update`, `auto_upgrade`, `auto_pause` (true or false), `delete_after_days` (0 keeps it) | 200, the instance |
 | `POST /instances/<name>/actions/<action>` | depends on the action (below) | `{}`, or the action's fields | **202**, the job |
-| `DELETE /instances/<name>` | `instances.delete` | `{"confirm": "<name>"}` | **202**, the job; a backup is taken first |
+| `DELETE /instances/<name>` | `instances.delete`; with `without_backup` also `backups.manage` | `{"confirm": "<name>"}`, and `"without_backup": true` to delete even when the backup fails (audit-logged) | **202**, the job; a backup is taken first, and without `without_backup` a failed backup stops the deletion |
 | `GET /instance-plan?repo=&branch=&name=&version=&edition=` | `instances.create` | | 200, the name and database a new instance would get, and the defaults; without `repo` and `name`, a name for plain Odoo with a random part (`odoo-19-0-community-3f9a`), new on each call |
 | `GET /instance-quota` | `instances.view` | | 200, how many instances the caller may still create, and when ([Limits](#11-limits)) |
 | `GET /jobs?instance=&limit=30&offset=0` | `instances.view` | | 200, recent jobs, newest first |
@@ -549,7 +549,8 @@ admin or Administrator all of them.
 `restore` without `file` puts back the newest `manual`, `daily` or `deletion` backup of a database the instance has
 (`restorable_backup` in `GET /instances/<name>`); 409 when there is none. With `file`, it may be any backup of the
 same Odoo series (`series` in `GET /backups`): one of the instance's own `backups`, or, with `backups.manage` too,
-another instance's (403 without it). An unknown file answers 404, a backup of another series or an Enterprise backup
+another instance's (403 without it). A backup of an earlier, deleted instance with the same name is another
+instance's: it is not in `backups`, not chosen without `file`, needs `backups.manage` and is neutralised. An unknown file answers 404, a backup of another series or an Enterprise backup
 for a Community instance 400. The job (`"action": "Restore a backup"`) saves the current state as a `before-restore`
 backup, stops Odoo, replaces the database and the filestore, sets the instance's public address again and starts
 Odoo. Another instance's backup is loaded under this instance's database name and neutralised first (Odoo's
@@ -898,4 +899,5 @@ GET /api/v1/instance-quota
 ```
 
 `next_creation_at` (Unix time) is set while the caller has to wait. A creation that breaks a limit is refused with
-403 (a number is reached) or 429 with `Retry-After` (wait).
+403 (a number is reached) or 429 with `Retry-After` (wait). Creations that are queued or running count as instances
+(of whoever started them), in `instances` and `own_instances` too, so creations started together cannot pass a limit.

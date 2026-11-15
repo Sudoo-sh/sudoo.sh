@@ -205,6 +205,41 @@ def test_creation_limits(monkeypatch: pytest.MonkeyPatch) -> None:
     assert quotas.usage("kim")["next_creation_at"] is not None
 
 
+def test_creations_in_progress_count_toward_the_limits(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo.core import jobs
+
+    owners = {"a": "ann"}
+    monkeypatch.setattr(quotas.store, "names", lambda: list(owners))
+    monkeypatch.setattr(quotas.store, "read_env", lambda name: {"CREATED_BY": owners[name]})
+    pending = [("b", "ann"), ("a", "ann")]  # "a" is being created and listed already: counted once
+    monkeypatch.setattr(jobs, "pending_creations", lambda: pending)
+    live.change({"max_instances": 3})
+    quotas.claim("bob")  # a and b: 2 of 3
+    pending.append(("c", "bob"))
+    with pytest.raises(quotas.QuotaError, match="maximum of 3"):
+        quotas.claim("bob")
+    live.change({"max_instances": 0, "max_instances_per_user": 2})
+    with pytest.raises(quotas.QuotaError, match="You have 2 instances"):
+        quotas.claim("ann")
+    quotas.claim("bob")
+    usage = quotas.usage("ann")
+    assert usage["instances"] == 3 and usage["own_instances"] == 2
+
+
+def test_pending_creations_are_the_queued_and_running_ones(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo.core import jobs
+
+    made = {status: jobs.Job(f"q-{status}", "Create instance", "create", "ann") for status in ("queued", "running")}
+    made["failed"] = jobs.Job("q-failed", "Create instance", "create", "ann")
+    made["failed"].status = "failed"
+    made["running"].status = "running"
+    other = jobs.Job("q-other", "Restart", "restart", "ann")
+    for job in (*made.values(), other):
+        monkeypatch.setitem(jobs.JOBS, job.id, job)
+    found = [entry for entry in jobs.pending_creations() if entry[0].startswith("q-")]
+    assert sorted(found) == [("q-queued", "ann"), ("q-running", "ann")]
+
+
 def test_email_shows_where_the_request_came_from_and_escapes_values() -> None:
     from sudoo.auth.base import RequestInfo
     from sudoo.mail.render import render

@@ -203,6 +203,11 @@ the download link.
 
 Restoring a backup replaces an instance's database and files, so it has its own permission, `instances.restore`
 (super admins, administrators and maintainers). With it alone, a restore only takes a backup of that same instance.
+"Same" means the instance that exists now, not an earlier, deleted instance that had its name: each instance gets a
+random `INSTANCE_ID` when it is created, recorded in every backup's `manifest.json`, and a backup is its own only
+when the two match (a backup taken before the id was recorded counts when it was taken after the instance was
+created). A deleted instance's backups therefore need `backups.manage` even when its name is reused, are never
+picked by "Restore the latest backup", and are neutralised when they are put back.
 Putting another instance's backup into an instance, or starting a new instance from a backup, copies one instance's
 data into another, so it also needs `backups.manage`, the permission that already lets a role see and download every
 backup (super admins and administrators): a maintainer cannot use it to read an instance's data through another one.
@@ -354,10 +359,10 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `instances.view` | See instances, their figures and activity | yes | yes | yes | yes | yes |
 | `instances.logs` | Read Odoo's log and jobs' technical logs | yes | yes | yes | yes | yes |
 | `instances.update` | Get new code, update submodules, restart, start, add submodules | yes | yes | yes | yes | |
-| `instances.operate` | Pause, switch off, upgrade modules, switch branch, back up, remove submodules, change automation and lifetime | yes | yes | yes | | |
+| `instances.operate` | Pause, switch off, upgrade modules, switch branch, back up, remove submodules, change automation, make the lifetime longer | yes | yes | yes | | |
 | `instances.create` | Create instances | yes | yes | yes | | |
 | `instances.restore` | Restore an instance from a backup (replaces its database and files) | yes | yes | yes | | |
-| `instances.delete` | Delete instances | yes | yes | | | |
+| `instances.delete` | Delete instances, also by giving one a shorter lifetime | yes | yes | | | |
 | `instances.credentials` | See Odoo passwords and ports | yes | yes | yes | | |
 | `backups.manage` | Download and delete backups | yes | yes | | | |
 | `github.manage` | Manage deploy keys; see the GitHub App's state | yes | yes | yes | | |
@@ -412,8 +417,16 @@ install modules and print PDF reports with read-only system files and no capabil
 The compose file is rendered by the panel from a fixed list of keys (`odoo.compose_spec`). Before it is written, the
 panel refuses any rendering with another service or key, more capabilities, a port that is not on `127.0.0.1`, the
 Docker socket or a system folder, or a writable folder from the server; neither a plugin nor a setting can add one.
-Values are written into the file literally, and the panel runs Compose with a fixed project name and without the
-`.env` file, so editing `.env` cannot change an image, a port, a password or the project.
+Folders from the server are an allow-list: the instance's own folder, and at the Enterprise mount point only a folder
+of Enterprise add-ons (one `ENTERPRISE_PATH` names, a version folder of the `git` source, or one the Enterprise
+source returned). Values are written into the file literally, and the panel runs Compose with a fixed project name
+and without the `.env` file, so editing `.env` cannot change an image, a port, a password, the edition, the
+Enterprise folder or the project. The Enterprise folder and the edition are recorded when the instance is created
+and come from that record from then on, an empty folder (Community) included.
+
+The panel writes `.env` one key per line: it refuses a key that is not an upper-case name and a value with a line
+break or another control character. Values it reads from an instance, such as the login of the Odoo administrator
+after a restore, are only recorded when they are a single short line.
 
 The instance folder is mode 700 and owned by root; `.env` and `docker-compose.yml` are mode 600; `config/` and
 `odoo.conf` are mode 700 and 600 and owned by the Odoo image's user, so Odoo (which gets the folder read-only) can
@@ -422,7 +435,8 @@ read its configuration and no other user on the server can.
 **Only through the panel.** Nothing of an instance listens anywhere but `127.0.0.1`; visitors reach Odoo through the
 panel's gateway, and people change instances through the panel's jobs, each checked against a permission and written
 to the audit log. A restore's filestore step runs one short-lived root container with only `CHOWN`, `DAC_OVERRIDE`
-and `FOWNER`; everything else the panel does inside containers (`docker exec` of `psql`, `pg_dump`, `du`) runs with
+and `FOWNER` (the database name is checked against the names the panel gives and passed to it as an argument, never
+as part of its script); everything else the panel does inside containers (`docker exec` of `psql`, `pg_dump`, `du`) runs with
 the container's own limits.
 
 **Changes made by hand.** When the panel starts an instance it records what it applied (the values that shape the

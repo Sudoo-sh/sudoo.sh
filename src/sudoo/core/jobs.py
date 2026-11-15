@@ -348,6 +348,16 @@ def being_created() -> list[str]:
         )
 
 
+def pending_creations() -> list[tuple[str, str]]:
+    """(instance, user) of each creation that is queued or running."""
+    with _JOBS_LOCK:
+        return [
+            (j.instance, j.user)
+            for j in JOBS.values()
+            if j.kind == "create" and j.status in ("queued", "running") and not is_panel_job(j.instance)
+        ]
+
+
 def busy(instance: str) -> bool:
     return INSTANCE_LOCKS[instance].locked()
 

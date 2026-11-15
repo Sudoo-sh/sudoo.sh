@@ -29,7 +29,14 @@ from sudoo.instances import backups, operations, store
 Client = tuple[FlaskClient, dict[str, str]]
 
 
-def _instance(name: str, version: str = "18.0", edition: str = "community") -> None:
+def _instance(
+    name: str,
+    version: str = "18.0",
+    edition: str = "community",
+    created_hours_ago: float = 30 * 24,
+    instance_id: str | None = None,
+) -> None:
+    """An instance created `created_hours_ago` (before the backups the tests make, unless they say otherwise)."""
     folder = store.folder(name)
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "docker-compose.yml").write_text("services: {}\n")
@@ -44,7 +51,8 @@ def _instance(name: str, version: str = "18.0", edition: str = "community") -> N
             "AUTO_UPGRADE": "false",
             "AUTO_PAUSE": "false",
             "DELETE_AFTER_DAYS": "0",
-            "CREATED_AT": int(time.time()),
+            "CREATED_AT": int(time.time() - created_hours_ago * 3600),
+            **({"INSTANCE_ID": instance_id} if instance_id else {}),
         },
     )
 
@@ -56,6 +64,7 @@ def _backup(
     age_hours: float = 1,
     edition: str | None = None,
     stamp: str = "20261112-000000",
+    instance_id: str | None = None,
 ) -> str:
     settings.backups_dir.mkdir(parents=True, exist_ok=True)
     name = f"{instance}__{instance.replace('-', '_')}__{stamp}__{kind}.zip"
@@ -66,6 +75,8 @@ def _backup(
             manifest: dict[str, Any] = {"db_name": instance, "version": version}
             if edition:
                 manifest["edition"] = edition
+            if instance_id:
+                manifest["instance_id"] = instance_id
             archive.writestr("manifest.json", json.dumps(manifest))
     taken = time.time() - age_hours * 3600
     os.utime(path, (taken, taken))
@@ -200,6 +211,165 @@ def test_cross_instance_restore_uses_the_target_database_and_neutralises(monkeyp
     assert done == [("backup", "before-restore"), ("restore", (own, "shop"))]  # its own data: not neutralised
 
 
+def test_the_filestore_folder_is_an_argument_of_the_restore_script(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The database name (DB_NAME of .env for another instance's backup) never becomes part of the root script."""
+    _instance("shop")
+    _backup("lab")
+    backup = backups.all_backups()[0]
+    fed: list[list[str]] = []
+    monkeypatch.setattr(backups, "_database_up", lambda job, name: None)
+    monkeypatch.setattr(backups, "_feed", lambda cmd, data, what: fed.append(cmd))
+    job = jobs.Job("shop", "Restore", "restore", "test")
+    monkeypatch.setattr(job, "run", lambda *args, **kwargs: None)
+    for db in ("a;cd ~odoo;sh x #", "shop/../../x", "Shop", "$(x)"):
+        with pytest.raises(jobs.JobError):
+            backups.restore(job, "shop", backup, db)
+    assert not fed
+
+    backups.restore(job, "shop", backup, "shop")
+    script = fed[-1][-3]
+    assert fed[-1][-5:] == ["odoo", "-c", script, "sh", "/var/lib/odoo/filestore/shop"]
+    assert "shop" not in script and '"$1"' in script
+
+
+@pytest.mark.parametrize("ids", [True, False])  # instances and backups with INSTANCE_ID, and older ones without
+def test_a_new_instance_does_not_own_the_backups_of_a_deleted_one_of_the_same_name(
+    ids: bool, admin: Client, maintainer: Client, started: list[Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _instance("shop", instance_id="1" * 32 if ids else None)
+    deletion = _backup("shop", "deletion", instance_id="1" * 32 if ids else None)
+    assert backups.belongs_to("shop", backups.all_backups()[0]) and backups.latest("shop") is not None
+    shutil.rmtree(store.folder("shop"))  # deleted; a maintainer creates an instance of the same name again
+    _instance("shop", created_hours_ago=0, instance_id="2" * 32 if ids else None)
+
+    old = backups.all_backups()[0]
+    assert not backups.belongs_to("shop", old) and backups.latest("shop") is None
+    assert backups.own_backups("shop") == [] and backups.rollback_snapshot("shop") == []
+    m_client, m_headers = maintainer
+    answer = m_client.post("/api/v1/instances/shop/actions/restore", json={"file": deletion}, headers=m_headers)
+    assert answer.status_code == 403
+    answer = m_client.post("/api/v1/instances/shop/actions/restore", json={}, headers=m_headers)
+    assert answer.status_code == 409
+    assert not started
+
+    # with backups.manage it can be put back, as another instance's data: neutralised, the administrator adopted
+    client, headers = admin
+    answer = client.post("/api/v1/instances/shop/actions/restore", json={"file": deletion}, headers=headers)
+    assert answer.status_code == 202 and started[-1] == (operations.restore, ("shop", deletion))
+    done: list[str] = []
+    monkeypatch.setattr(backups, "create", lambda job, name, kind="manual": [])
+    monkeypatch.setattr(backups, "restore", lambda job, name, b, db=None: done.append("restore"))
+    monkeypatch.setattr(backups, "neutralize", lambda job, name, db: done.append("neutralize") or "neutral")
+    monkeypatch.setattr(operations, "_adopt_admin", lambda job, name, db: done.append("admin") or "admin")
+    monkeypatch.setattr(operations, "_finish_restore", lambda job, name: None)
+    job = jobs.Job("shop", "Restore", "restore", "test")
+    monkeypatch.setattr(job, "run", lambda *args, **kwargs: None)
+    operations.restore(job, "shop", deletion)
+    assert done == ["restore", "neutralize", "admin"]
+
+    # backups the new instance takes are its own
+    _backup("shop", "manual", age_hours=0, stamp="20261113-000000", instance_id="2" * 32 if ids else None)
+    assert backups.latest("shop")["file"] != deletion  # type: ignore[index]
+    m_client.post("/api/v1/instances/shop/actions/restore", json={}, headers=m_headers)
+    assert started[-1] == (operations.restore, ("shop", None))
+
+
+def test_backups_record_the_instance_they_were_taken_from(monkeypatch: pytest.MonkeyPatch) -> None:
+    _instance("shop", instance_id="3" * 32)
+    monkeypatch.setattr(backups, "_database_up", lambda job, name: None)
+
+    commands: list[list[str]] = []
+
+    def fake_copy(cmd: list[str], path: Any, what: str) -> None:
+        commands.append(cmd)
+        if what == "file storage copy":
+            import tarfile
+
+            with tarfile.open(path, "w"):
+                pass
+        else:
+            path.write_text("-- dump\n")
+
+    monkeypatch.setattr(backups, "_run_to_file", fake_copy)
+    (saved,) = backups.create(jobs.Job("shop", "Back up", "backup", "test"), "shop")
+    assert backups.instance_id(saved.name) == "3" * 32 and backups.belongs_to("shop", backups.all_backups()[0])
+    assert "instance_id" not in backups.details(saved.name)  # not part of what the API shows
+    assert f"--lock-wait-timeout={backups.PG_DUMP_LOCK_WAIT}" in commands[0]  # a held lock cannot stall the dump
+
+
+# ---------------------------------------------------------------- deleting when the backup fails
+
+
+def _failing_deletion(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """The instance's backup fails (as code inside it can make it); the removal steps are recorded."""
+    from sudoo.instances import gateway, integrity
+
+    def broken(job: jobs.Job, name: str, kind: str = "manual") -> list[Any]:
+        raise jobs.JobError("file storage copy failed: no such folder")
+
+    done: list[str] = []
+    monkeypatch.setattr(backups, "create", broken)
+    monkeypatch.setattr(gateway, "remove", lambda name: done.append("gateway"))
+    monkeypatch.setattr(operations.exposure, "remove", lambda name: done.append("exposure"))
+    monkeypatch.setattr(integrity, "forget", lambda name: None)
+    return done
+
+
+def test_deletion_without_a_complete_backup(admin: Client, maintainer: Client, started: list[Any],
+                                            monkeypatch: pytest.MonkeyPatch) -> None:  # fmt: skip
+    from sudoo.core import audit
+
+    _instance("shop")
+    body = {"confirm": "shop", "without_backup": True}
+    m_client, m_headers = maintainer
+    assert m_client.delete("/api/v1/instances/shop", json=body, headers=m_headers).status_code == 403
+    client, headers = admin
+    assert client.delete("/api/v1/instances/shop", json=body, headers=headers).status_code == 202
+    assert started[-1] == (operations.delete, ("shop", True))
+    assert client.delete("/api/v1/instances/shop", json={"confirm": "shop"}, headers=headers).status_code == 202
+    assert started[-1] == (operations.delete, ("shop",))
+
+    done = _failing_deletion(monkeypatch)
+    job = jobs.Job("shop", "Delete instance", "delete", "admin1")
+    monkeypatch.setattr(job, "run", lambda *args, **kwargs: None)
+    with pytest.raises(jobs.JobError):
+        operations.delete(job, "shop")  # no backup, no deletion
+    assert store.exists("shop") and not done and "without a complete backup" in "".join(job.log)
+
+    operations.delete(job, "shop", without_backup=True)
+    assert not store.folder("shop").exists() and done == ["gateway", "exposure"]
+    assert job.notes[-1]["level"] == "warning"
+    logged = audit.latest(5, instance="shop")
+    assert logged[0]["event"] == "instance deleted without a complete backup" and logged[0]["user"] == "admin1"
+
+
+def test_automatic_deletion_switches_off_after_repeated_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo import background
+    from sudoo.core import hints
+
+    _instance("shop")
+    store.update_env("shop", DELETE_AFTER_DAYS=7)  # created 30 days ago: expired
+    monkeypatch.setattr(operations.monitor, "mark_stopped", lambda name: None)
+    begun: list[str] = []
+    monkeypatch.setattr(
+        jobs, "start", lambda instance, action, kind, fn, *args, **_: begun.append(fn.__name__) or jobs.Job(
+            instance, action, kind, "system")
+    )  # fmt: skip
+    _failing_deletion(monkeypatch)
+    stopped: list[list[str]] = []
+    monkeypatch.setattr(jobs.Job, "run_unchecked", lambda self, cmd, timeout=None, input=None: stopped.append(cmd) or 0)
+    for attempt in range(1, operations.EXPIRY_ATTEMPTS + 1):
+        assert background.delete_expired_instances() == ["shop"] and begun[-1] == "expire"
+        job = jobs.Job("shop", "Deleted automatically", "delete", "system")
+        with pytest.raises(jobs.JobError):
+            operations.expire(job, "shop")
+        assert STATE.get("shop")["expiry_failures"] == attempt
+        assert bool(stopped) == (attempt == operations.EXPIRY_ATTEMPTS)
+    assert STATE.get("shop")["switched_off"] and STATE.get("shop")["expiry_stopped"]
+    assert "switched off instead" in hints.friendly_hint("".join(job.log))
+    assert background.delete_expired_instances() == []  # given up on: left switched off
+
+
 # ---------------------------------------------------------------- rollback
 
 
@@ -305,6 +475,41 @@ def test_credentials_show_the_administrator_login_of_a_backup(admin: Client, mon
     assert operations._record_admin_login("shop", "shop") == "boss@example.com"
 
 
+@pytest.mark.parametrize(
+    "login",
+    [
+        "admin\nODOO_PORT=2375\nGATEWAY_PORT=8000\nDELETE_AFTER_DAYS=1\nCREATED_AT=0\nCREATED_BY=someone-else",
+        "admin\rEDITION=enterprise",
+        "admin\x00x",
+        "a" * 201,
+    ],
+)
+def test_an_administrator_login_from_the_database_cannot_change_env(
+    login: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The login comes from the instance's own database: only a short single line is recorded, anything else leaves
+    .env as it was."""
+    _instance("shop")
+    store.update_env("shop", ODOO_ADMIN_LOGIN="boss", ODOO_PORT=8070, GATEWAY_PORT=8100, CREATED_BY="admin1")
+    before = store.read_env("shop")
+    raw = (store.folder("shop") / ".env").read_text()
+    monkeypatch.setattr(operations, "capture", lambda cmd, timeout=30: login + "\n")
+    assert operations._record_admin_login("shop", "shop") == "boss"
+    assert store.read_env("shop") == before and (store.folder("shop") / ".env").read_text() == raw
+    assert operations.expires_at(store.read_env("shop")) is None
+
+
+def test_env_writer_refuses_line_breaks_and_odd_keys() -> None:
+    _instance("shop")
+    raw = (store.folder("shop") / ".env").read_text()
+    for values in ({"ODOO_ADMIN_LOGIN": "a\nODOO_PORT=1"}, {"ODOO_ADMIN_LOGIN": "a\tb"}, {"x": "1"}, {"A B": "1"}):
+        with pytest.raises(ValueError):
+            store.update_env("shop", **values)
+    assert (store.folder("shop") / ".env").read_text() == raw
+    store.update_env("shop", ODOO_ADMIN_LOGIN="boss@example.com")
+    assert store.read_env("shop")["ODOO_ADMIN_LOGIN"] == "boss@example.com"
+
+
 def test_rollback_hours_is_a_documented_live_setting() -> None:
     from sudoo.config import EDITABLE
 
@@ -368,7 +573,14 @@ def test_filestore_files_are_copied_into_the_backup_piece_by_piece(monkeypatch: 
     job = jobs.Job("streamed", "Back up", "backup", "admin1")
     tracemalloc.start()
     try:
-        target = backups._backup_database(job, "streamed", "streamed", "18.0", "community", "20261115-000000", "manual")
+        target = backups._backup_database(
+            job,
+            "streamed",
+            "streamed",
+            {"version": "18.0", "edition": "community", "instance_id": ""},
+            "20261115-000000",
+            "manual",
+        )
         _, peak = tracemalloc.get_traced_memory()
     finally:
         tracemalloc.stop()

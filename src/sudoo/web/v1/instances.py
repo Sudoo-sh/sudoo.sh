@@ -8,14 +8,17 @@
     GET    /api/v1/instances/<name>/logs?lines=      the end of Odoo's log
     POST   /api/v1/instances                         create; {"from_backup"} optional; without "repo": plain Odoo
                                                      (no code, no branch, no update) -> 202, Location: job
-    PATCH  /api/v1/instances/<name>                  change automation settings and lifetime
+    PATCH  /api/v1/instances/<name>                  change automation settings and lifetime (a lifetime that
+                                                     ends sooner also needs instances.delete)
     POST   /api/v1/instances/<name>/actions/<action> restart, update, pause, ...    -> 202, Location: job
                                                      restore: {"file"} optional (any instance's backup of the
                                                      same Odoo series), the latest backup otherwise
                                                      rollback: back to before the last restore (ROLLBACK_HOURS)
                                                      connect-repository: {"repo", "branch", "install_modules"}
                                                      gives plain Odoo a repository (its data is kept)
-    DELETE /api/v1/instances/<name>                  delete after a backup; body {"confirm": "<name>"} -> 202
+    DELETE /api/v1/instances/<name>                  delete after a backup; body {"confirm": "<name>"} -> 202;
+                                                     "without_backup": true also when the backup fails (needs
+                                                     backups.manage too; audit-logged)
     GET    /api/v1/instance-plan?repo=&branch=&name=&version=&edition=
                                                      the name and database a new instance would get
     GET    /api/v1/instance-quota                    how many instances the caller may still create, and when
@@ -42,6 +45,7 @@ from flask import Blueprint, Response, abort, g, request
 from sudoo import addons, exposure
 from sudoo.config import settings
 from sudoo.core import events, jobs, vault
+from sudoo.core.state import STATE
 from sudoo.instances import backups, odoo, operations, store
 from sudoo.limits import quotas
 from sudoo.repos import github
@@ -172,10 +176,12 @@ def _usable_backup(file_name: str, version: str, edition: str, instance: str | N
     """`file_name` when that backup exists, the caller may use it and it fits Odoo `version` and `edition`.
 
     A backup of `instance` itself needs nothing more than the action's permission; any other backup (another
-    instance's, or one to start a new instance from) also needs backups.manage, which shows every backup."""
+    instance's, an earlier deleted instance's of the same name, or one to start a new instance from) also needs
+    backups.manage, which shows every backup."""
     # the permission first: without backups.manage, other instances' backups must not even be found (404 or not)
     match = backups.FILE_RE.match(file_name)
-    if instance is None or match is None or match["instance"] != instance:
+    found = next((b for b in backups.all_backups() if b["file"] == file_name), None) if match else None
+    if instance is None or found is None or not backups.belongs_to(instance, found):
         refuse_unless("backups.manage", f"use backup {file_name[:80]}" + (f" for {instance}" if instance else ""))
     path = check.backup_file(file_name)  # 404 for an unknown file or anything that is not a backup name
     problem = backups.problem(path.name, version, edition)
@@ -222,6 +228,19 @@ def create() -> Response:
     if from_backup:
         refuse_unless("instances.restore", "create an instance from a backup")
         from_backup = _usable_backup(from_backup, version, edition)
+    with quotas.LOCK:  # until the job is registered: from then on it counts toward the limits
+        return _start_creation(data, repo, branch, version, edition, custom_name, from_backup)
+
+
+def _start_creation(
+    data: Mapping[str, Any],
+    repo: str,
+    branch: str,
+    version: str,
+    edition: str,
+    custom_name: str,
+    from_backup: str | None,
+) -> Response:
     try:
         quotas.claim(g.user["name"])
     except quotas.QuotaError as error:
@@ -272,7 +291,10 @@ def create() -> Response:
 @blueprint.patch("/instances/<name>")
 @require("instances.operate")
 def change(name: str) -> Response:
-    """Change only the settings that are sent; the others keep their value."""
+    """Change only the settings that are sent; the others keep their value.
+
+    A lifetime that makes the instance expire sooner than now (also from "keep" to any number of days) deletes it
+    sooner, so it needs instances.delete as well."""
     existing(name)
     data = check.body()
     switches = {"auto_update": "AUTO_UPDATE", "auto_upgrade": "AUTO_UPGRADE", "auto_pause": "AUTO_PAUSE"}
@@ -280,12 +302,20 @@ def change(name: str) -> Response:
         key: str(check.flag(data, field)).lower() for field, key in switches.items() if field in data
     }
     if "delete_after_days" in data:
-        values["DELETE_AFTER_DAYS"] = check.days(data, "delete_after_days")
+        days = check.days(data, "delete_after_days")
+        env = store.read_env(name)
+        current = operations.expires_at(env)
+        proposed = operations.expires_at({**env, "DELETE_AFTER_DAYS": str(days)})
+        if proposed is not None and (current is None or proposed < current):
+            refuse_unless("instances.delete", f"shorten the lifetime of {name}")
+        values["DELETE_AFTER_DAYS"] = days
     if not values:
         abort(400, "Send at least one of: auto_update, auto_upgrade, auto_pause, delete_after_days.")
     if values.get("AUTO_UPDATE") == "true" or values.get("AUTO_UPGRADE") == "true":
         refuse_plain(name)
     store.update_env(name, **values)
+    if "DELETE_AFTER_DAYS" in values:  # a new lifetime: automatic deletion starts counting its attempts again
+        STATE.update(name, expiry_failures=0, expiry_stopped=False)
     log("instance settings changed", instance=name, detail=", ".join(sorted(values)))
     events.publish("instance", name)
     return ok(instance_resource(name, full=True))
@@ -336,6 +366,11 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
     if action == "delete":
         if check.text(data, "confirm", max_length=40) != name:
             abort(400, "Type the instance name exactly to confirm.")
+        if check.flag(data, "without_backup"):
+            # the backup may be all that is left of the instance's data: only for those who manage backups
+            refuse_unless("backups.manage", f"delete {name} without a complete backup")
+            log("instance deletion without a complete backup requested", instance=name)
+            return operations.delete, (name, True)
         return operations.delete, (name,)
     if action == "restore":
         file_name = check.text(data, "file", max_length=200) or None

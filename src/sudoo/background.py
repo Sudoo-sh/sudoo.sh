@@ -67,20 +67,29 @@ def _pause_idle_instances() -> None:
 
 
 def _delete_expired_instances() -> None:
-    """Every few minutes: delete instances whose lifetime (DELETE_AFTER_DAYS) is over. The deletion backs up first."""
+    """Every few minutes: delete instances whose lifetime (DELETE_AFTER_DAYS) is over. The deletion backs up first;
+    an instance whose deletion failed operations.EXPIRY_ATTEMPTS times is switched off and left alone (expire)."""
     while True:
         time.sleep(settings.expiry_check_interval_seconds)
-        for name in store.names():
-            env = store.read_env(name)
-            expires = operations.expires_at(env)
-            if expires and time.time() > expires and not jobs.busy(name):
-                jobs.start(
-                    name,
-                    f"Deleted automatically ({env['DELETE_AFTER_DAYS']} days after creation)",
-                    "delete",
-                    operations.delete,
-                    name,
-                )
+        delete_expired_instances()
+
+
+def delete_expired_instances(now: float | None = None) -> list[str]:
+    """Start the deletion of each expired instance that is not busy and not given up on; return their names."""
+    started = []
+    for name in store.names():
+        env = store.read_env(name)
+        expires = operations.expires_at(env)
+        if not expires or (time.time() if now is None else now) <= expires or jobs.busy(name):
+            continue
+        if STATE.get(name).get("expiry_stopped"):
+            continue
+        jobs.start(
+            name, f"Deleted automatically ({env['DELETE_AFTER_DAYS']} days after creation)", "delete",
+            operations.expire, name,
+        )  # fmt: skip
+        started.append(name)
+    return started
 
 
 def _daily_backups() -> None:

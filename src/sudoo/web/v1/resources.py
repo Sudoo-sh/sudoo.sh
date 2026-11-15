@@ -218,7 +218,7 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
                     "size_bytes": b["size"],
                     "created_at": iso(b["created"]),
                 }
-                for b in backups.of_instance(name)
+                for b in backups.own_backups(name)
             ],
             "restorable_backup": (latest or {}).get("file"),
             "rollback": rollback(name),

@@ -264,7 +264,10 @@ front can set (the built-in `cloudflare-quick` uses Cloudflare's `CF-Connecting-
 panel trusts it for sign-in lockout, rate limits and the audit log, so name a header only when visitors cannot
 reach the panel without passing through that service, which replaces any value they send. An add-on source works the same way: implement
 `available(version)` and `prepare(version, log)` from `addons/base.py` and register it under
-`sudoo.addon_sources`. An update trigger implements `start(request_update)` and `blueprint()` from
+`sudoo.addon_sources`. The panel mounts into an instance only folders it knows hold Enterprise add-ons: give your
+source an `owns(folder)` method returning whether a folder is one of yours, so instances made from it keep starting
+after the panel restarts and no other folder can be mounted in their place (a source without it is trusted with any
+folder outside the system folders). An update trigger implements `start(request_update)` and `blueprint()` from
 `triggers/base.py` and is registered under `sudoo.update_triggers`; a webhook's endpoints are served under
 `/hooks/` and must check their sender's signature themselves.
 

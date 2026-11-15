@@ -187,7 +187,7 @@ The menu:
 | **Update Odoo and PostgreSQL images** | Downloads the newest build of the instance's Odoo version and PostgreSQL (same versions) and restarts with them. Until then the instance keeps the exact images it was created with. |
 | **Pause** | Stops it to free memory now. It starts again on the next visit. |
 | **Switch off** | Stops it completely. Visitors see that it is switched off, and it does not start until someone clicks **Start**. |
-| **Delete** | Removes Odoo, its database and its files, after a backup. Type the instance's name to confirm. |
+| **Delete** | Removes Odoo, its database and its files, after a backup. Type the instance's name to confirm. If the backup fails, nothing is removed; someone who may also manage backups can turn on **Delete even if the backup fails** to remove the instance anyway (the audit log records it). |
 
 **Back up now** and **Restore the latest** are on the **Backups** card of the **Overview** tab
 ([The Backups card](#the-backups-card)).
@@ -367,7 +367,9 @@ branch was merged and deleted on GitHub, or to show other work in the same datab
 | **Pause when idle** | Off: the instance never pauses by itself (it keeps using memory). |
 | **Lifetime** | The number of days after creation when the instance is deleted, after a backup; or **Keep until deleted by hand**. |
 
-Changes on this tab are saved at once.
+Changes on this tab are saved at once. A lifetime that ends sooner than the current one (also any number of days
+instead of **Keep until deleted by hand**) deletes the instance sooner, so only roles that may delete instances can
+choose one; a maintainer can make the lifetime longer, not shorter.
 
 ---
 
@@ -486,7 +488,8 @@ Every account has one role. The role decides which pages, buttons and menu items
 | Create instances | yes | yes | yes | no | no |
 | Pause, switch off, upgrade modules, switch branch, back up now, remove a submodule | yes | yes | yes | no | no |
 | Restore a backup of an instance (replaces its database and files) | yes | yes | yes | no | no |
-| Change an instance's settings tab (automation, lifetime) | yes | yes | yes | no | no |
+| Change an instance's settings tab (automation, a longer lifetime) | yes | yes | yes | no | no |
+| Give an instance a shorter lifetime | yes | yes | no | no | no |
 | See the Odoo passwords (Access tab) | yes | yes | yes | no | no |
 | GitHub access (deploy keys; see the GitHub App's state) | yes | yes | yes | no | no |
 | Connect, install and disconnect the GitHub App | yes | no | no | no | no |

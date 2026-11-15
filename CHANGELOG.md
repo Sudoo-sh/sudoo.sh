@@ -113,6 +113,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Security
 
+- **Instance files:** `.env` holds one line per key: values with control characters are refused, and an Odoo
+  administrator login read from a database that is not a single plain line is not recorded. The Enterprise mount of
+  a hardened instance comes from the panel's record only, and only the instance's own folder and the Enterprise
+  source's folders may be mounted. The filestore restore script takes its folder as an argument.
+- **Backups belong to an instance, not a name:** new instances get an `INSTANCE_ID`, written into every backup.
+  A backup of an earlier instance with the same name counts as another instance's (needs `backups.manage`, is
+  neutralised, is not "the latest backup").
+- **Lifetime and deletion:** making an instance expire sooner needs `instances.delete`. With `instances.delete` and
+  `backups.manage`, an instance can be deleted even when its backup fails; after three failed automatic deletions
+  it is switched off instead. Creations in progress count toward the instance limits.
+- **Sessions and accounts:** session versions are random, so an account re-created under the same name never
+  accepts an old cookie; signing out ends the session on the server; replacing a second factor needs the password
+  and ends other sessions, as does changing the sign-in e-mail; an e-mail another account uses is refused.
+- **Audit log:** secret settings are recorded as `KEY=(set)`; values written by earlier versions are removed on
+  upgrade. Rotate the SMTP password and the GitHub webhook secret if administrators or write tokens could read the
+  log.
+- **Live events:** at most 8 streams per account or token (429); streams end when their token is revoked or their
+  session ends; the web app reconnects with backoff.
+- **Jobs:** a step's timeout holds even for a command that prints nothing; the command's process group and its
+  `docker compose run` container are stopped.
+- **Credentials in logs:** user names and passwords in addresses are masked in job logs; `ENTERPRISE_GIT_URL` with a
+  password is refused.
+- **Plugins:** packages with Python metadata or `.pth` files are refused, and a plugin cannot provide another
+  plugin's entry points.
+- **Gateway:** request headers must arrive within `GATEWAY_HEADER_TIMEOUT_SECONDS` (30), with connection caps per
+  instance and overall (`GATEWAY_MAX_CONNECTIONS`, `GATEWAY_MAX_CONNECTIONS_TOTAL`). Backups copy filestore files in
+  pieces instead of reading them whole.
 - Gateway: headers named in `Connection` (and `Proxy-Connection`) are removed both ways, like the other hop-by-hop
   headers; repeated request headers are passed on instead of only the last one; the panel's cookie is removed from
   every `Cookie` header a browser sends (HTTP/2 splits them), not only from one.

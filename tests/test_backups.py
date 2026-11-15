@@ -302,6 +302,41 @@ def test_credentials_show_the_administrator_login_of_a_backup(admin: Client, mon
     assert operations._record_admin_login("shop", "shop") == "boss@example.com"
 
 
+@pytest.mark.parametrize(
+    "login",
+    [
+        "admin\nODOO_PORT=2375\nGATEWAY_PORT=8000\nDELETE_AFTER_DAYS=1\nCREATED_AT=0\nCREATED_BY=someone-else",
+        "admin\rEDITION=enterprise",
+        "admin\x00x",
+        "a" * 201,
+    ],
+)
+def test_an_administrator_login_from_the_database_cannot_change_env(
+    login: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The login comes from the instance's own database: only a short single line is recorded, anything else leaves
+    .env as it was."""
+    _instance("shop")
+    store.update_env("shop", ODOO_ADMIN_LOGIN="boss", ODOO_PORT=8070, GATEWAY_PORT=8100, CREATED_BY="admin1")
+    before = store.read_env("shop")
+    raw = (store.folder("shop") / ".env").read_text()
+    monkeypatch.setattr(operations, "capture", lambda cmd, timeout=30: login + "\n")
+    assert operations._record_admin_login("shop", "shop") == "boss"
+    assert store.read_env("shop") == before and (store.folder("shop") / ".env").read_text() == raw
+    assert operations.expires_at(store.read_env("shop")) is None
+
+
+def test_env_writer_refuses_line_breaks_and_odd_keys() -> None:
+    _instance("shop")
+    raw = (store.folder("shop") / ".env").read_text()
+    for values in ({"ODOO_ADMIN_LOGIN": "a\nODOO_PORT=1"}, {"ODOO_ADMIN_LOGIN": "a\tb"}, {"x": "1"}, {"A B": "1"}):
+        with pytest.raises(ValueError):
+            store.update_env("shop", **values)
+    assert (store.folder("shop") / ".env").read_text() == raw
+    store.update_env("shop", ODOO_ADMIN_LOGIN="boss@example.com")
+    assert store.read_env("shop")["ODOO_ADMIN_LOGIN"] == "boss@example.com"
+
+
 def test_rollback_hours_is_a_documented_live_setting() -> None:
     from sudoo.config import EDITABLE
 

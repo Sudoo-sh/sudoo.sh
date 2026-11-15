@@ -27,6 +27,8 @@ from sudoo.config import settings
 from sudoo.core.cache import FileMemo
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
+ENV_KEY_RE = re.compile(r"[A-Z][A-Z0-9_]*")
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")  # a line break in a value would add or replace keys of .env
 _COMPOSE = "docker-compose.yml"
 
 
@@ -99,10 +101,22 @@ def master_password_label(name: str) -> str:
     return f"master-password:{name}"
 
 
+def unsafe_env_value(value: object) -> bool:
+    """True when `value` cannot be written into .env as it is: it contains a line break or another control
+    character, so it could add keys or replace others."""
+    return bool(_CONTROL_RE.search(str(value)))
+
+
 def write_env(name: str, env: Mapping[str, object]) -> None:
-    """Write the instance's .env file, readable by its owner only (it holds the database password)."""
+    """Write the instance's .env file, readable by its owner only (it holds the database password).
+
+    Keys are upper-case names and values one line without control characters: anything else raises ValueError
+    before the file is touched, so no value (some come from an instance's own database) can add or replace keys."""
     from sudoo.instances import integrity
 
+    for key, value in env.items():
+        if not ENV_KEY_RE.fullmatch(key) or unsafe_env_value(value):
+            raise ValueError(f"refusing to write an unsafe .env entry {key[:40]!r}")
     path = folder(name) / ".env"
     with integrity.writing(name, ".env"):
         path.touch(mode=0o600)

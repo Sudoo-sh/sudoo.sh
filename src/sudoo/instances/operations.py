@@ -307,6 +307,9 @@ def _adopt_admin(job: Job, name: str, db: str) -> str:
     return _record_admin_login(name, db)
 
 
+ADMIN_LOGIN_MAX_LENGTH = 200
+
+
 def _record_admin_login(name: str, db: str) -> str:
     """Read the login of the administrator (user 2) of database `db` and keep it as ODOO_ADMIN_LOGIN (shown with the
     instance's credentials). When it cannot be read, the login kept so far is left as it is and returned."""
@@ -314,6 +317,10 @@ def _record_admin_login(name: str, db: str) -> str:
     container = store.container(name, "db")
     kept = store.read_env(name).get("ODOO_ADMIN_LOGIN") or "admin"
     login = capture(["docker", "exec", container, "psql", "-U", "odoo", "-d", db, "-tAc", sql]).strip()
+    # the database belongs to the instance (its add-ons and its Odoo administrator can change it): only a short,
+    # single-line login is kept, anything else leaves the recorded one as it is
+    if len(login) > ADMIN_LOGIN_MAX_LENGTH or store.unsafe_env_value(login):
+        return kept
     if login and login != kept:
         store.update_env(name, ODOO_ADMIN_LOGIN=login)
     return login or kept

@@ -4,10 +4,13 @@ that would run commands are replaced."""
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import shutil
+import tarfile
 import time
+import tracemalloc
 import zipfile
 from collections.abc import Iterator
 from typing import Any
@@ -545,3 +548,43 @@ def test_create_from_backup_plan(admin: Client, maintainer: Client, started: lis
     (settings.backups_dir / source).unlink()
     with pytest.raises(jobs.JobError):
         operations._backup_to_start_from(plan)
+
+
+def test_filestore_files_are_copied_into_the_backup_piece_by_piece(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A large attachment never sits whole in the panel's memory, and the backup is the same as before."""
+    big = os.urandom(2**20) * 8  # 8 MB
+    small = b"an attachment\n"
+
+    def fake_run_to_file(cmd: list[str], path: Any, what: str) -> None:
+        if cmd[1] == "exec":
+            path.write_text("-- dump\n")
+            return
+        with tarfile.open(path, "w") as tar:  # what `docker cp <container>:<filestore>/<db> -` writes
+            folder = tarfile.TarInfo("streamed")
+            folder.type = tarfile.DIRTYPE
+            tar.addfile(folder)
+            for name, data in (("streamed/ab/big", big), ("streamed/cd/small", small)):
+                info = tarfile.TarInfo(name)
+                info.size = len(data)
+                tar.addfile(info, io.BytesIO(data))
+
+    monkeypatch.setattr(backups, "_run_to_file", fake_run_to_file)
+    settings.backups_dir.mkdir(parents=True, exist_ok=True)
+    job = jobs.Job("streamed", "Back up", "backup", "admin1")
+    tracemalloc.start()
+    try:
+        target = backups._backup_database(job, "streamed", "streamed", "18.0", "community", "20261115-000000", "manual")
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    try:
+        assert peak < 4 * 2**20, f"{peak} bytes held at once"
+        with zipfile.ZipFile(target) as archive:
+            assert archive.namelist() == ["dump.sql", "filestore/ab/big", "filestore/cd/small", "manifest.json"]
+            assert archive.read("filestore/ab/big") == big and archive.read("filestore/cd/small") == small
+            for name in ("filestore/ab/big", "filestore/cd/small"):
+                entry = archive.getinfo(name)
+                assert entry.compress_type == zipfile.ZIP_DEFLATED and entry.external_attr == 0o600 << 16
+            assert json.loads(archive.read("manifest.json"))["db_name"] == "streamed"
+    finally:
+        target.unlink()

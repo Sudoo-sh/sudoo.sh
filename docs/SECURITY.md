@@ -80,7 +80,10 @@ appends the address it can vouch for (`CF-Connecting-IP` with `cloudflare-quick`
 Odoo's own sign-in limits count. It also removes hop-by-hop headers (and any header named in `Connection`) in both
 directions, refuses request bodies larger than `GATEWAY_MAX_UPLOAD_MB`, gives up on bodies that stop arriving
 (`GATEWAY_IDLE_TIMEOUT_SECONDS`) and limits WebSocket messages (`GATEWAY_WEBSOCKET_MAX_MESSAGE_MB`), so one visitor
-cannot make the gateway that every instance shares hold gigabytes in memory. The web service gives a request 10
+cannot make the gateway that every instance shares hold gigabytes in memory. A connection that does not send its
+request headers within `GATEWAY_HEADER_TIMEOUT_SECONDS` is closed, and the number of connections open at once is
+capped per instance (`GATEWAY_MAX_CONNECTIONS`) and for all gateways (`GATEWAY_MAX_CONNECTIONS_TOTAL`), so slow or
+idle connections cannot use up the panel's open files. The web service gives a request 10
 seconds for its headers and 30 for its body, and refuses bodies over 1 MB for the backend. See
 [Performance](PERFORMANCE.md#5-security-on-the-hot-paths).
 
@@ -105,7 +108,7 @@ stored = scrypt( HMAC-SHA256(pepper, password), salt )      salt: 16 random byte
 | **Generated passwords** | When an administrator chooses **Generate** for a new account or a new password, the panel makes 24 random characters (144 bits), shown once. They must be replaced at the first sign-in (see below). |
 | **Passwords typed by an administrator** | Checked against the same rules as any chosen password. By default they must also be replaced at the first sign-in; the administrator can turn that off. |
 | **Rules for chosen passwords** | Follow NIST SP 800-63B: length and a blocklist, no composition rules ([below](#password-rules)). Checked on the server and, as you type, in the browser. |
-| **Sign-in by e-mail address** | People sign in with their e-mail address (or their user name). Each e-mail address belongs to one account at most. A wrong address and a wrong password give the same answer, "Wrong e-mail address or password.", and take as long: an unknown address still runs a full password check. |
+| **Sign-in by e-mail address** | People sign in with their e-mail address (or their user name). Each e-mail address belongs to one account at most, also when people change their own address in **My account** (compared without case). A wrong address and a wrong password give the same answer, "Wrong e-mail address or password.", and take as long: an unknown address still runs a full password check. |
 | **Sign-in lockout** | 5 failures for an account from one address, or 20 from one address, block sign-in for 15 minutes. An e-mail address counts as its account, so switching between the address and the user name does not give more tries. |
 | **Changing or resetting a password** | Ends every other session of that account. |
 | **Upgrade on sign-in** | Hashes made before the pepper existed are replaced with the current kind the next time their owner signs in. |
@@ -172,7 +175,8 @@ A password can leak; a second factor means a leaked password alone does not open
 * After the password, the session only remembers who passed the first step, for 5 minutes; it opens nothing.
 * Wrong codes count like wrong passwords (5 per account and address in 15 minutes, then blocked).
 * `REQUIRE_SECOND_FACTOR` (`admins` by default) makes it compulsory: such an account without a factor can only set
-  one up after signing in. Removing a factor needs the password and ends the account's other sessions.
+  one up after signing in. Removing a factor, or replacing one that is set up, needs the password and ends the
+  account's other sessions. A new sign-in e-mail address (in the profile or through the e-mail code) ends them too.
 * A lost phone: an administrator removes the account's factors (**Accounts**, or
   `DELETE /api/v1/users/<name>/second-factors`), which signs it out everywhere.
 * More factors (SMS, hardware keys) can be added as plugins ([Plugins](PLUGINS.md#8-more-plugin-types)).
@@ -233,7 +237,10 @@ Super admins change almost every setting on the **Settings** page (`PATCH /api/v
   page and the API only say whether they are set, never their value. In `settings.json` they are encrypted with the
   vault key; without `vault.key` they cannot be read back.
 * Folders, ports, the exposure and the storage can only be set in `.env`, which only root on the server can edit.
-* Every change is in the audit log with the names of the settings (secret values are not written there).
+* Every change is in the audit log with the names of the settings. Secret values are not written there: a changed
+  secret appears as `SMTP_PASSWORD=(set)`. Versions before this one wrote the value; the panel replaces those
+  values with `(set)` once, the first time it starts after the update. If administrators or `write` API tokens
+  could read the audit log before, change the mail password and the webhook secret.
 
 ---
 
@@ -243,7 +250,9 @@ Super admins change almost every setting on the **Settings** page (`PATCH /api/v
 | :--- | :--- |
 | Signed session cookie `sudoo_session` | `HttpOnly` (scripts cannot read it), `Secure` (https only), `SameSite=Strict` (never sent with requests started by another site). |
 | Session limits | Ends after 60 minutes without activity and after 12 hours in any case. |
-| Session version | Each account has a version number in its record; a password change, reset or deletion raises it, and every older session stops working at once. |
+| Session version | Each account has a random version number in its record, drawn again on a password change or reset, a replaced or removed second factor, a new sign-in e-mail address and every other event that ends its sessions; every older session then stops working at once. Because it is random, an account created later under the same user name never accepts a session of a deleted one. |
+| Signing out | Each session has a random id. **Sign out** records it as ended on the server (until the session would have expired anyway), so a copy of the cookie taken before stops working. |
+| Live events | The event stream checks its caller every minute and ends when the session was signed out or ended, the account deleted or the API token revoked. One account or token holds at most 8 streams at once, so no one caller can take the 500 the panel allows. |
 | CSRF token | Every change must carry the session's secret token in a header, which another site cannot know. |
 | Same-origin check | Every change must come from the panel's own address (`Origin` header). |
 | JSON only | Every change must be sent as `application/json`; a form posted from another site cannot do that. |

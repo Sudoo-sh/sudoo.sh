@@ -10,7 +10,10 @@ adds a note or ends, and "job.output" with new log text at most twice a second.
 
 from __future__ import annotations
 
+import contextlib
+import os
 import queue
+import signal
 import subprocess
 import threading
 import time
@@ -21,6 +24,7 @@ from typing import Any
 
 from sudoo.core import events
 from sudoo.core.hints import friendly_hint
+from sudoo.core.shell import redact
 
 JOBS: OrderedDict[str, Job] = OrderedDict()
 _JOBS_LOCK = threading.Lock()
@@ -86,7 +90,8 @@ class Job:
             self._published_lines = end
 
     def write(self, text: str) -> None:
-        self.log.append(text)
+        """Add `text` to the log, with the user name and password of any address in it masked."""
+        self.log.append(redact(text))
 
     def step(self, title: str) -> None:
         """Start a new user-facing step; the previous one is marked done."""
@@ -106,31 +111,14 @@ class Job:
     def run(self, cmd: list[str], timeout: float | None = None, input: str | None = None) -> None:
         """Run a command, stream its output into the log, raise JobError when it fails."""
         if self.run_unchecked(cmd, timeout, input) != 0:
-            raise JobError(f"command failed: {' '.join(cmd[:4])} ...")
+            raise JobError(f"command failed: {' '.join(redact(a) for a in cmd[:4])} ...")
 
     def run_unchecked(self, cmd: list[str], timeout: float | None = None, input: str | None = None) -> int:
-        """Run a command, stream its output into the log, return its exit code."""
-        self.write(f"$ {' '.join(cmd)}\n")
-        proc = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE if input else subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
-        if input:
-            assert proc.stdin is not None
-            proc.stdin.write(input)
-            proc.stdin.close()
-        deadline = time.time() + timeout if timeout else None
-        assert proc.stdout is not None
-        for line in proc.stdout:
-            self.write(line)
-            if deadline and time.time() > deadline:
-                proc.kill()
-                raise JobError("this step took too long and was stopped")
-        return proc.wait()
+        """Run a command, stream its output into the log, return its exit code.
+
+        The timeout holds whether or not the command writes anything: when it passes, the command and everything it
+        started are stopped (with the container of a `docker compose run`) and JobError is raised."""
+        return self._execute(cmd, timeout, input)
 
     def run_watched(
         self,
@@ -142,9 +130,29 @@ class Job:
     ) -> int:
         """Like run_unchecked, also calling on_line(line) for every line and on_silence() whenever the command has
         written nothing for `silence_seconds` (a download that is still going), so the log keeps moving."""
+        return self._execute(cmd, timeout, None, on_line, on_silence, silence_seconds)
+
+    def _execute(
+        self,
+        cmd: list[str],
+        timeout: float | None,
+        input: str | None,
+        on_line: Callable[[str], None] | None = None,
+        on_silence: Callable[[], None] | None = None,
+        silence_seconds: float = 10,
+    ) -> int:
+        """Run `cmd` in its own process group; a thread reads its output, so the deadline is checked on time."""
+        cmd, container = _named_compose_run(cmd, self.id)
         self.write(f"$ {' '.join(cmd)}\n")
-        proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                text=True, bufsize=1)  # fmt: skip
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE if input else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            start_new_session=True,  # its own process group: a timeout stops what it started too
+        )
         lines: queue.Queue[str | None] = queue.Queue()
 
         def read() -> None:
@@ -153,21 +161,40 @@ class Job:
                 lines.put(line)
             lines.put(None)
 
-        threading.Thread(target=read, daemon=True, name=f"job-{self.id}-output").start()
-        deadline = time.monotonic() + timeout
-        while True:
-            if time.monotonic() > deadline:
-                proc.kill()
-                raise JobError("this step took too long and was stopped")
+        def feed(text: str) -> None:
+            assert proc.stdin is not None
             try:
-                line = lines.get(timeout=max(0.1, min(silence_seconds, deadline - time.monotonic())))
+                proc.stdin.write(text)
+                proc.stdin.close()
+            except OSError:  # the command ended, or closed its input before reading everything
+                pass
+
+        if input:  # written by a thread: a command that never reads its input cannot hold the step past the deadline
+            threading.Thread(target=feed, args=(input,), daemon=True, name=f"job-{self.id}-input").start()
+        threading.Thread(target=read, daemon=True, name=f"job-{self.id}-output").start()
+        deadline = time.monotonic() + timeout if timeout else None
+        while True:
+            left = None if deadline is None else deadline - time.monotonic()
+            if left is not None and left <= 0:
+                _stop(proc, container)
+                raise JobError("this step took too long and was stopped")
+            wait = left if on_silence is None else min(silence_seconds, silence_seconds if left is None else left)
+            try:
+                line = lines.get(timeout=None if wait is None else max(0.05, wait))
             except queue.Empty:
-                on_silence()
+                if on_silence is not None and (deadline is None or time.monotonic() < deadline):
+                    on_silence()
                 continue
             if line is None:
-                return proc.wait()
+                break
             self.write(line)
-            on_line(line)
+            if on_line is not None:
+                on_line(line)
+        try:  # the output is closed; the command itself may still be running
+            return proc.wait(timeout=None if deadline is None else max(0.05, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            _stop(proc, container)
+            raise JobError("this step took too long and was stopped") from None
 
     def summary(self) -> dict[str, Any]:
         return {
@@ -181,6 +208,39 @@ class Job:
             "finished": self.finished,
             "steps": self.steps,
         }
+
+
+# options of `docker compose` itself that take a value, to find the command after them (store.compose)
+_COMPOSE_VALUE_OPTIONS = {"--project-directory", "-f", "--file", "-p", "--project-name", "--env-file", "--profile",
+                          "--ansi", "--progress", "--parallel"}  # fmt: skip
+
+
+def _named_compose_run(cmd: list[str], job_id: str) -> tuple[list[str], str | None]:
+    """For `docker compose ... run ...` without --name: the command with a container name chosen here, and that name
+    (stopping the command does not stop its container; the name lets the job remove it). Others are unchanged."""
+    if cmd[:2] != ["docker", "compose"]:
+        return cmd, None
+    index = 2
+    while index < len(cmd) and cmd[index].startswith("-"):
+        index += 2 if cmd[index] in _COMPOSE_VALUE_OPTIONS else 1
+    if index >= len(cmd) or cmd[index] != "run" or "--name" in cmd[index:]:
+        return cmd, None
+    name = f"sudoo-run-{job_id}-{uuid.uuid4().hex[:8]}"
+    return [*cmd[: index + 1], "--name", name, *cmd[index + 1 :]], name
+
+
+def _stop(proc: subprocess.Popen[str], container: str | None) -> None:
+    """Stop a command that took too long: its whole process group, then the container it started, if any."""
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        proc.kill()
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        proc.wait(timeout=10)
+    if container:  # Docker missing or stuck: there is nothing more the job can do
+        with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+            subprocess.run(["docker", "rm", "-f", container], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=60, check=False)  # fmt: skip
 
 
 def is_panel_job(instance: str) -> bool:

@@ -103,8 +103,8 @@ By default super admins and administrators must use a second factor. A super adm
   blocked for **15 minutes**. Wait, or ask an administrator to set a new password for you.
 * You are signed out after **60 minutes without activity**, and after **12 hours** in any case. A super admin can
   change both times on the Settings page.
-* **Sign out** (your name at the bottom of the sidebar, or **My account**) ends the session at once. Use it on
-  shared computers.
+* **Sign out** (your name at the bottom of the sidebar, or **My account**) ends the session at once, on the server
+  too: a copy of the session taken before cannot be used afterwards. Use it on shared computers.
 * The panel's link can change when the server restarts. If the link you saved stops working, ask the administrator
   for the new one ([why links change](concepts/TUNNELING.md#5-why-the-link-changes)).
 
@@ -557,6 +557,7 @@ Click your name at the bottom of the sidebar.
 
 **Profile.** First name, last name, e-mail and phone. Click **Save**. While your e-mail address receives your
 sign-in codes it is locked here; to change it, remove the e-mail code and set it up again with the new address.
+An address that another account uses is refused. A new address signs out your other sessions.
 
 **Password.** Enter your current password and the new one twice, then click **Change password**. The new password
 is checked as you type against the [password rules](#password-rules), and a meter of four bars shows its strength
@@ -570,8 +571,9 @@ enough.
 | **Authenticator app** | Click **Set up**, scan the QR code with an app such as Google Authenticator, Microsoft Authenticator or 1Password, and type the code it shows. |
 | **E-mail code** | Click **Set up**, check the address, click **Send a code**, and type the code from the e-mail. Only offered when the server can send e-mail. |
 
-**Remove** turns a factor off; type your password to confirm. Your other sessions end. If your role requires a
-second factor, keep at least one.
+**Replace** sets a factor up again, for example on a new phone: type your password, then follow the same steps.
+Your other sessions end. **Remove** turns a factor off; type your password to confirm. Your other sessions end. If
+your role requires a second factor, keep at least one.
 
 ### Password rules
 
@@ -653,7 +655,8 @@ Restoring brings back both the data and the attachments, because both are in the
 
 **Audit log** (sidebar, Operations) lists what happened, newest first: sign-ins (also failed ones), refused actions,
 every job on an instance, viewing an instance's passwords, account, key, token and settings changes. Each line shows
-when, the account, what happened, the instance and the address it came from. Use **Search** to find entries,
+when, the account, what happened, the instance and the address it came from. A changed secret setting (a password
+or webhook secret) appears as `(set)`, never with its value. Use **Search** to find entries,
 **Refused only** to see only what was not allowed, and **Show older entries** to go further back.
 
 ---

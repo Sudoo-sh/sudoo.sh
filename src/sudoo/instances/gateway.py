@@ -37,6 +37,7 @@ from sudoo.instances.monitor import STATUS
 _LOOP = asyncio.new_event_loop()
 _SESSION: aiohttp.ClientSession | None = None
 _RUNNERS: dict[str, web.AppRunner] = {}
+_LISTENERS: dict[str, asyncio.Server] = {}
 LISTENER_ERRORS: dict[str, str] = {}
 _WAKE_REQUESTED: dict[str, float] = {}
 _wake: Callable[[str], jobs.Job] | None = None  # callable(name) -> Job; set by start()
@@ -129,25 +130,103 @@ async def _add(name: str) -> None:
     if name in _RUNNERS:
         return
     port = int(store.read_env(name)["GATEWAY_PORT"])
-    app = web.Application()  # bodies are never read whole: they are passed on as they arrive (_body)
-    app[INSTANCE] = name
-    app.router.add_route("*", "/{tail:.*}", _handle)
-    runner = web.AppRunner(app, access_log=None, handle_signals=False, read_bufsize=_READ_BUFFER)
-    await runner.setup()
     try:
-        await web.TCPSite(runner, exposure.provider().listen_host, port, reuse_address=True).start()
+        runner, listener = await _serve(name, exposure.provider().listen_host, port)
     except OSError as exc:
         LISTENER_ERRORS[name] = f"Gateway port {port} is used by another program ({exc.strerror})."
-        await runner.cleanup()
         return
     LISTENER_ERRORS.pop(name, None)
     _RUNNERS[name] = runner
+    _LISTENERS[name] = listener
+
+
+async def _serve(name: str, host: str, port: int) -> tuple[web.AppRunner, asyncio.Server]:
+    """The gateway application of instance `name`, listening on host:port.
+
+    A connection has GATEWAY_HEADER_TIMEOUT_SECONDS to send a request's line and headers (aiohttp's keep-alive
+    timeout, which runs from the moment a connection opens and again after every answer, and is not counted while
+    a request is being handled: long polling, WebSockets and slow uploads are not cut short). Connections are
+    counted (_Counted): beyond GATEWAY_MAX_CONNECTIONS for one instance or GATEWAY_MAX_CONNECTIONS_TOTAL for all,
+    a new one is answered 503 and closed, so slow or idle visitors cannot use up the panel's open files."""
+    app = web.Application()  # bodies are never read whole: they are passed on as they arrive (_body)
+    app[INSTANCE] = name
+    app.router.add_route("*", "/{tail:.*}", _handle)
+    runner = web.AppRunner(
+        app,
+        access_log=None,
+        handle_signals=False,
+        read_bufsize=_READ_BUFFER,
+        keepalive_timeout=settings.gateway_header_timeout_seconds,
+    )
+    await runner.setup()
+    server = runner.server
+    assert server is not None  # set by setup()
+    try:
+        listener = await asyncio.get_running_loop().create_server(
+            lambda: _Counted(name, server()), host, port, reuse_address=True
+        )
+    except OSError:
+        await runner.cleanup()
+        raise
+    return runner, listener
 
 
 async def _remove(name: str) -> None:
+    listener = _LISTENERS.pop(name, None)
+    if listener:
+        listener.close()  # no new connections; the runner closes the open ones
     runner = _RUNNERS.pop(name, None)
     if runner:
         await runner.cleanup()
+
+
+_OPEN: dict[str, int] = {}  # instance name -> visitors' connections open to its gateway
+_BUSY = b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nRetry-After: 5\r\nConnection: close\r\n\r\n"
+
+
+class _Counted(asyncio.Protocol):
+    """A visitor's connection to a gateway, counted against GATEWAY_MAX_CONNECTIONS (per instance) and
+    GATEWAY_MAX_CONNECTIONS_TOTAL. One over either limit is answered 503 and closed at once; the others are handed
+    to aiohttp's handler unchanged. Runs on the gateway's event loop only, so the counts need no lock."""
+
+    def __init__(self, name: str, handler: asyncio.Protocol) -> None:
+        self.name = name
+        self.handler = handler
+        self.counted = False
+
+    def connection_made(self, transport: asyncio.BaseTransport) -> None:
+        if (
+            _OPEN.get(self.name, 0) >= settings.gateway_max_connections
+            or sum(_OPEN.values()) >= settings.gateway_max_connections_total
+        ):
+            if isinstance(transport, asyncio.WriteTransport):
+                transport.write(_BUSY)
+            transport.close()
+            return
+        self.counted = True
+        _OPEN[self.name] = _OPEN.get(self.name, 0) + 1
+        self.handler.connection_made(transport)
+
+    def connection_lost(self, exc: Exception | None) -> None:
+        if self.counted:
+            self.counted = False
+            _OPEN[self.name] -= 1
+            self.handler.connection_lost(exc)
+
+    def data_received(self, data: bytes) -> None:
+        if self.counted:
+            self.handler.data_received(data)
+
+    def eof_received(self) -> bool | None:
+        return self.handler.eof_received() if self.counted else None
+
+    def pause_writing(self) -> None:
+        if self.counted:
+            self.handler.pause_writing()
+
+    def resume_writing(self) -> None:
+        if self.counted:
+            self.handler.resume_writing()
 
 
 # --------------------------------------------------------------------------- requests

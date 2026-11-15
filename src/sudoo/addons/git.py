@@ -17,6 +17,7 @@ from pathlib import Path
 from sudoo.addons.base import Log
 from sudoo.addons.folder import expand
 from sudoo.config import Settings
+from sudoo.core.shell import redact
 
 _BRANCH_CACHE_SECONDS = 600
 
@@ -46,6 +47,8 @@ class GitSource:
     def prepare(self, version: str, log: Log) -> Path:
         folder, branch = self.folder(version), self.branch(version)
         if (folder / ".git").is_dir():
+            # the address as set now, so a download made with an older one keeps nothing of it in .git/config
+            self._git(log, "-C", str(folder), "remote", "set-url", "origin", "--", self.settings.enterprise_git_url)
             self._git(log, "-C", str(folder), "fetch", "--depth", "1", "origin", branch)
             self._git(log, "-C", str(folder), "reset", "--hard", "FETCH_HEAD")
         else:
@@ -71,8 +74,8 @@ class GitSource:
 
     @staticmethod
     def _git(log: Log, *args: str) -> None:
-        log(f"$ git {' '.join(args)}\n")
+        log(redact(f"$ git {' '.join(args)}\n"))
         result = subprocess.run(["git", *args], capture_output=True, text=True, timeout=1800)
-        log(result.stdout + result.stderr)
+        log(redact(result.stdout + result.stderr))
         if result.returncode != 0:
             raise RuntimeError(f"git {args[0] if args[0] != '-C' else args[2]} failed")

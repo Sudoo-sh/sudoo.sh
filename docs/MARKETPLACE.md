@@ -235,11 +235,15 @@ Before anything is unpacked:
    that use only the Python standard library and what the panel already provides. The one exception is the plugin
    SDK (`sudoo-plugin-sdk`, which every plugin made with it declares): it is accepted when the panel has the SDK
    installed in a version the plugin accepts, and refused with "needs the Sudoo.sh plugin SDK" otherwise.
-7. It must not contain compiled code (`.so`, `.pyd`, `.pyc` ...), links, special files, absolute paths or `..`,
-   and must stay within 25 MB, 200 MB unpacked and 5,000 files (no archive bombs).
-8. Its entry points must be in `sudoo.*` groups, must not take a name another plugin already uses, and its modules
-   must not clash with the panel's own or with its libraries. Storage plugins cannot come from the marketplace (the
-   installed plugins are recorded in storage).
+7. It must not contain compiled code (`.so`, `.pyd`, `.pyc` ...), Python package metadata (`*.dist-info`,
+   `*.egg-info`, `*.egg-link`, `*.pth`: its entry points come from `manifest.json` only), links, special files,
+   absolute paths or `..`, and must stay within 25 MB, 200 MB unpacked and 5,000 files (no archive bombs).
+8. Its entry points must be in `sudoo.*` groups, must not take a name that a built-in plugin or any other installed
+   plugin (switched on or not) already uses, and its modules must not clash with the panel's own or with its
+   libraries. Storage plugins cannot come from the marketplace (the installed plugins are recorded in storage).
+
+When the panel loads a plugin, it uses an entry point from the plugins folder only when the manifest of the plugin
+it belongs to declares it, and it refuses a name that two installed packages provide instead of picking one.
 
 A package that fails any check is deleted and nothing is installed.
 

@@ -9,7 +9,9 @@ is derived from the vault key (vault.py), which is kept outside users.json: with
 attacked. Hashes made before the pepper existed are replaced the next time their owner signs in.
 
 Accounts are stored in the panel's storage (storage/, collection "users"). Each account has a session_version:
-changing or resetting its password, or deleting it, invalidates all of its sessions.
+changing or resetting its password, or deleting it, invalidates all of its sessions. The version is a random number,
+chosen when the account is created and again whenever it changes, so an account created later under the same user
+name never accepts a session of the deleted one.
 
 Roles and their permissions: roles.py. There are no default accounts: the first account, a super admin, is
 created on the panel's first-run page with the setup code that the installer prints (complete_setup).
@@ -290,6 +292,15 @@ def username_for(email: str) -> str:
     return candidate
 
 
+def new_session_version(current: int | None = None) -> int:
+    """A random session version (63 bits), different from `current`. Random rather than counted from 1, so a
+    session of a deleted account never matches an account created later under the same user name."""
+    while True:
+        version = secrets.randbits(63)
+        if version != current:
+            return version
+
+
 def display_name(username: str, account: dict[str, Any]) -> str:
     full = " ".join(part for part in (account.get("first_name"), account.get("last_name")) if part)
     return full or username
@@ -323,7 +334,7 @@ def create(
             raise ValueError("An account with this name already exists.")
         account: Document = {
             "role": role,
-            "session_version": 1,
+            "session_version": new_session_version(),
             "created": time.time(),
             "password_changed": time.time(),
             **{key: value for key, value in fields.items() if value not in (None, "")},
@@ -398,7 +409,7 @@ def set_password(username: str, password: str, must_change: bool = False) -> int
     def apply(user: Document | None) -> Document:
         if user is None:
             raise ValueError("No such account.")
-        changed = {**user, "hash": new_hash, "session_version": user["session_version"] + 1}
+        changed = {**user, "hash": new_hash, "session_version": new_session_version(user["session_version"])}
         changed["password_changed"] = time.time()
         changed.pop("must_change_password", None)
         if must_change:
@@ -414,13 +425,34 @@ def end_sessions(username: str) -> int:
     def bump(user: Document | None) -> Document:
         if user is None:
             raise ValueError("No such account.")
-        return {**user, "session_version": user["session_version"] + 1}
+        return {**user, "session_version": new_session_version(user["session_version"])}
 
     return int((storage().change(USERS, username, bump) or {})["session_version"])
 
 
 def record_sign_in(username: str) -> None:
     _change(username, last_login=time.time())
+
+
+# --------------------------------------------------------------------------- ended sessions
+
+ENDED_SESSIONS = "ended_sessions"
+
+
+def end_session(sid: str, started: float) -> None:
+    """Remember that the session `sid` (started at `started`) was signed out, so a copy of its cookie no longer
+    works. Kept until the session would have ended anyway (SESSION_MAX_HOURS); older records are removed here."""
+    store = storage()
+    store.put(ENDED_SESSIONS, sid, {"started": started, "ended": time.time()})
+    oldest = time.time() - settings.session_max_hours * 3600
+    for key, record in store.all(ENDED_SESSIONS).items():
+        if record.get("started", 0) < oldest:
+            store.delete(ENDED_SESSIONS, key)
+
+
+def session_ended(sid: str) -> bool:
+    """Whether the session `sid` was signed out."""
+    return storage().get(ENDED_SESSIONS, sid) is not None
 
 
 # --------------------------------------------------------------------------- sign-in throttling

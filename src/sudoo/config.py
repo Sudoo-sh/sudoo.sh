@@ -165,6 +165,18 @@ class Settings(BaseSettings):
     gateway_websocket_max_message_mb: int = Field(
         16, ge=1, le=1024, description="Largest single WebSocket message passed to or from an instance, in MB."
     )
+    gateway_header_timeout_seconds: float = Field(
+        30,
+        ge=1,
+        le=3600,
+        description="Seconds a visitor's connection has to send a request's headers (and is kept open while idle).",
+    )
+    gateway_max_connections: int = Field(
+        1000, ge=1, description="Visitors' connections open at once to one instance's gateway; more are answered 503."
+    )
+    gateway_max_connections_total: int = Field(
+        4000, ge=1, description="Visitors' connections open at once to all gateways together; more are answered 503."
+    )
 
     # ------------------------------------------------------------------ ports
     panel_port: int = Field(9000, description="Port of the panel: the web service (sudoo-web) listens here.")
@@ -250,6 +262,21 @@ class Settings(BaseSettings):
         if parts.query or parts.fragment or parts.username or parts.password:
             raise ValueError("must be a plain address such as https://hub.sudoo.sh")
         return value.strip().rstrip("/")
+
+    @field_validator("enterprise_git_url")
+    @classmethod
+    def _no_credentials_in_git_url(cls, value: str) -> str:
+        from urllib.parse import urlsplit
+
+        value = value.strip()
+        if "://" in value:
+            parts = urlsplit(value)
+            if parts.password is not None or (parts.username and parts.scheme not in ("ssh", "git+ssh")):
+                raise ValueError(
+                    "must not contain a user name or password (they would end up in job logs and in the add-ons' "
+                    ".git/config); use an SSH address and give the server a deploy key under GitHub access"
+                )
+        return value
 
     @field_validator("timezone")
     @classmethod

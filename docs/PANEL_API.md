@@ -354,12 +354,12 @@ to `/help/<path>`, the web app's Help pages.
 | `POST /session/second-factor` | public | `{"method", "code"}` | **201**, signed in |
 | `POST /session/second-factor/<method>` | public | `{}` | 200, a new code was sent (`email`) |
 | `GET /session` | signed in | | 200, the signed-in account (below) |
-| `DELETE /session` | signed in | | **204**, signed out |
+| `DELETE /session` | signed in | | **204**, signed out; the session ends on the server too, so a copy of its cookie stops working |
 | `PUT /session/password` | signed in | `{"current", "new"}` | **204**; other sessions of the account end, and a `password` restriction is lifted |
 | `GET /account` | signed in | | 200, own account: profile, role, second factors, whether one is required |
-| `PATCH /account` | signed in | any of `first_name`, `last_name`, `email`, `phone` | 200, the account. The e-mail address cannot change while it receives sign-in codes |
-| `POST /account/second-factors/<name>` | signed in | `email`: `{"email"}`; `totp`: `{}` | 200: a code was sent, or `{"secret", "otpauth_uri"}` for the app |
-| `PUT /account/second-factors/<name>` | signed in | `{"code"}` | 200, the factors; it is set up |
+| `PATCH /account` | signed in | any of `first_name`, `last_name`, `email`, `phone` | 200, the account. The e-mail address cannot change while it receives sign-in codes. An address another account uses is refused: 400 "Another account already uses this e-mail address." A new address ends the account's other sessions |
+| `POST /account/second-factors/<name>` | signed in | `email`: `{"email"}`; `totp`: `{}`. To replace a factor that is already set up, add `"password"` | 200: a code was sent, or `{"secret", "otpauth_uri"}` for the app. 400 when the password is missing or wrong, or the e-mail address belongs to another account |
+| `PUT /account/second-factors/<name>` | signed in | `{"code"}` | 200, the factors; it is set up. Replacing a factor, or a new e-mail address, ends the account's other sessions |
 | `DELETE /account/second-factors/<name>` | signed in | `{"password"}` | **204**; the account's other sessions end |
 
 `GET /session`:
@@ -706,7 +706,8 @@ GET /api/v1/settings
 A wrong value is refused with 400 and the setting's name (`IDLE_HOURS: Input should be greater than or equal to
 0.`); a setting that can only be set in `.env` is refused with 400. Secrets (`smtp_password`,
 `odoo_admin_password`, `github_webhook_secret`) are write-only: `value` and `env_value` only say whether they are
-set, and they are stored encrypted with the vault key. Every change sends the `settings` [live event](#8-live-events).
+set, and they are stored encrypted with the vault key. The audit log records their change as `SMTP_PASSWORD=(set)`,
+never the value. Every change sends the `settings` [live event](#8-live-events).
 
 ---
 
@@ -742,6 +743,11 @@ data: {"key": "", "data": {"server": {"cpu": 12.5, ...}, "instances": {"sales-ma
 * When the connection drops, `EventSource` reconnects by itself and sends the last `id` it received
   (`Last-Event-ID`); the stream starts with what was missed, only the latest state of each instance and job.
   Other clients can send `?last_event_id=` instead.
+* An open stream checks its caller every minute and ends when the session was signed out or ended, the account was
+  deleted, or the API token was revoked. Reconnecting then answers **401**.
+* One account or API token can hold **8** streams at once; one more is answered **429**. The panel holds 500 in all;
+  beyond that the answer is **503**. Both carry `Retry-After`: wait, then open the stream again. The panel's web
+  app does this by itself.
 
 In a browser (the session cookie is sent by itself):
 

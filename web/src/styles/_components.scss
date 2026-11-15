@@ -133,7 +133,7 @@
   white-space: nowrap;
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
   &.online { --c: var(--positive); }
-  &.starting, &.busy, &.running, &.queued { --c: var(--working); .dot { animation: running 1.4s var(--ease) infinite; } }
+  &.creating, &.starting, &.busy, &.running, &.queued { --c: var(--working); .dot { animation: running 1.4s var(--ease) infinite; } }
   &.paused { --c: var(--caution); }
   &.failed { --c: var(--negative); }
   &.success { --c: var(--positive); }

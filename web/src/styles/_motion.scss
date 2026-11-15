@@ -1,22 +1,27 @@
 // Motion that explains something, and only as much as the action is rare (Emil Kowalski's frequency rule):
-// moving between pages happens all day, so it is a short cross-fade; menus grow from their trigger; sheets and
+// moving between pages happens all day, so it is a short fade out and in; menus grow from their trigger; sheets and
 // toasts leave the way they came; presses answer at once. Nothing loops except the dot of something running.
 
 // ---------------------------------------------------------------- moving between pages
 // The View Transitions API (React Router's `viewTransition` on links and navigate); browsers without it change the
-// page at once. Only the content moves: the sidebar, the top bar, a page's title block and its tabs are captured on
-// their own and stay where they are (a changed title or tab cross-fades in place), while the rest of the view fades
-// out and the new page comes in with a small shift: from the right going forward, from the left going back
-// (lib/navigation.ts sets data-nav). Only opacity and transform move; the content is the viewport's snapshot, so a
-// page scrolled down does not jump.
+// page at once. One thing is on screen at a time: the old view fades out (120 ms), and only then does the new one
+// fade in (190 ms, rising 4 px). Nothing of the two pages is shared or cross-faded, so two titles or two intros are
+// never seen together. Only the frame is captured on its own and stays still: the sidebar, the top bar (whose
+// breadcrumb changes in step with the content) and the Help pages' list of pages, whose highlighted item simply
+// moves. Between the tabs of one page (an instance's tabs, Plugins; lib/navigation.ts sets data-nav="tab"), only the
+// tab's content (.tab-panel) does the same out-then-in fade; the title and the tabs stay. Only opacity and transform
+// move; the content is the viewport's snapshot, so a page scrolled down does not jump.
 
-:root { --page-shift: 8px; }
-:root[data-nav="back"] { --page-shift: -8px; }
+:root {
+  --page-out: 120ms;
+  --page-in: 190ms;
+  --page-rise: 4px;
+}
 
 .topbar { view-transition-name: topbar; }
-.page > .page-head { view-transition-name: page-head; }
-.page > .tabs { view-transition-name: page-tabs; }
+.topbar .crumbs { view-transition-name: crumbs; }
 .help-nav { view-transition-name: help-nav; }
+:root[data-nav="tab"] .tab-panel { view-transition-name: tab-panel; }
 // on a phone the sidebar is a drawer that closes while the page changes: it moves with the view
 @media (min-width: 961px) {
   .sidebar { view-transition-name: sidebar; }
@@ -25,36 +30,68 @@
 // the backdrop of the transition is the page's own background, so nothing flashes between the two views
 ::view-transition { background: var(--bg); }
 
-::view-transition-old(root) {
-  animation: page-out 120ms var(--ease) both;
+// what changes: out, then in (the new view waits until the old one has gone)
+::view-transition-old(root),
+::view-transition-old(crumbs),
+::view-transition-old(tab-panel) {
+  animation: page-out var(--page-out) ease-out both; // a plain ease-out: a steeper curve would cut it short
   mix-blend-mode: normal;
 }
-::view-transition-new(root) {
-  animation: page-in 200ms var(--ease) both;
+::view-transition-new(root),
+::view-transition-new(crumbs),
+::view-transition-new(tab-panel) {
+  animation: page-in var(--page-in) var(--ease) var(--page-out) both;
   mix-blend-mode: normal;
 }
 @keyframes page-out {
-  to { opacity: 0; transform: translateX(calc(var(--page-shift) * -0.5)); }
+  to { opacity: 0; }
 }
 @keyframes page-in {
-  from { opacity: 0; transform: translateX(var(--page-shift)); }
+  from { opacity: 0; transform: translateY(var(--page-rise)); }
 }
+// the breadcrumb and a tab's content keep their own size (no stretching to the other one's) and do not travel
+::view-transition-group(crumbs),
+::view-transition-group(tab-panel) {
+  animation: none;
+}
+::view-transition-old(crumbs),
+::view-transition-new(crumbs) {
+  inline-size: auto;
+  block-size: auto;
+}
+// between tabs, the rest of the page (title, tabs, banners) is the same: it stays, the tab underline simply moves
+:root[data-nav="tab"]::view-transition-old(root) { animation: none; opacity: 0; }
+:root[data-nav="tab"]::view-transition-new(root) { animation: none; }
 
-// what stays: no movement from one place to another, a plain cross-fade where the content differs
+// the frame: does not move and is not cross-faded; what differs in it (the highlighted item) changes at once
 ::view-transition-group(topbar),
 ::view-transition-group(sidebar),
-::view-transition-group(page-head),
-::view-transition-group(page-tabs),
 ::view-transition-group(help-nav) {
   animation: none;
 }
-::view-transition-image-pair(topbar),
-::view-transition-image-pair(sidebar),
-::view-transition-image-pair(page-head),
-::view-transition-image-pair(page-tabs),
-::view-transition-image-pair(help-nav) {
-  animation-duration: 160ms;
-  animation-timing-function: var(--ease);
+::view-transition-old(topbar),
+::view-transition-old(sidebar),
+::view-transition-old(help-nav) {
+  animation: none;
+  opacity: 0;
+}
+::view-transition-new(topbar),
+::view-transition-new(sidebar),
+::view-transition-new(help-nav) {
+  animation: none;
+}
+// a frame part that only one of the two views has (the Help pages' list, the sign-in page has no sidebar) leaves or
+// arrives with the content
+::view-transition-old(topbar):only-child,
+::view-transition-old(sidebar):only-child,
+::view-transition-old(help-nav):only-child {
+  animation: page-out var(--page-out) ease-out both;
+  opacity: 1;
+}
+::view-transition-new(topbar):only-child,
+::view-transition-new(sidebar):only-child,
+::view-transition-new(help-nav):only-child {
+  animation: page-in var(--page-in) var(--ease) var(--page-out) both;
 }
 // the top bar is translucent: keep its blur over the content that moves beneath it
 ::view-transition-group(topbar) {
@@ -127,8 +164,8 @@
     transition-duration: 150ms !important;
   }
   .rise, .auth .stagger > *, .modal, .drawer, .menu, .toast { animation: fade 150ms ease both !important; transform: none !important; }
-  // the page transition becomes a short cross-fade
-  :root { --page-shift: 0px; }
+  // the page transition stays a fade, quicker and without the rise
+  :root { --page-out: 80ms; --page-in: 120ms; --page-rise: 0px; }
   // loading placeholders keep their delay: it avoids a flash, it is not movement
   .nav-progress, .spinner[role="status"] { animation-delay: 150ms !important; }
   .skeleton { animation-delay: 0ms, 150ms !important; }

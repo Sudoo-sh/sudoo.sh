@@ -40,7 +40,12 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
       client.setQueryData<Instance[]>(keys.instances, (list) =>
         upsert(list, instance, (i) => i.name === instance.name)?.sort((a, b) => a.name.localeCompare(b.name)),
       );
-      client.setQueryData<Instance>(keys.instance(instance.name), (old) => (old ? { ...old, ...instance } : old));
+      if (client.getQueryData(keys.instance(instance.name))) {
+        client.setQueryData<Instance>(keys.instance(instance.name), (old) => (old ? { ...old, ...instance } : old));
+      } else {
+        // a page that asked before the instance was known (a creation just accepted) asks again
+        client.invalidateQueries({ queryKey: keys.instance(instance.name) });
+      }
       break;
     }
     case "instance.deleted":

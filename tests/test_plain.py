@@ -65,7 +65,9 @@ def instances() -> Iterator[None]:
 def started(monkeypatch: pytest.MonkeyPatch) -> list[tuple[Any, tuple[Any, ...]]]:
     calls: list[tuple[Any, tuple[Any, ...]]] = []
 
-    def fake_start(instance: str, action: str, kind: str, fn: Any, *args: Any, user: str = "system") -> jobs.Job:
+    def fake_start(
+        instance: str, action: str, kind: str, fn: Any, *args: Any, user: str = "system", **_: Any
+    ) -> jobs.Job:
         calls.append((fn, args))
         return jobs.Job(instance, action, kind, user)
 
@@ -128,6 +130,8 @@ def test_creation_job_does_not_clone(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(jobs.Job, "run", fake_run)
     monkeypatch.setattr(operations, "_remove_leftovers", lambda job, name: None)
+    monkeypatch.setattr(integrity, "present", lambda image: False)
+    monkeypatch.setattr(integrity, "pull_image", lambda job, image: commands.append(["docker", "pull", image]))
     monkeypatch.setattr(integrity, "apply", stop)
     plan = {
         "name": "made-here", "db_name": "made_here", "repo": "", "branch": "", "version": "18.0",
@@ -136,8 +140,12 @@ def test_creation_job_does_not_clone(monkeypatch: pytest.MonkeyPatch) -> None:
         "created_by": "admin1", "from_backup": None,
     }  # fmt: skip
     store.folder("made-here").mkdir(parents=True)
+    job = jobs.Job("made-here", "Create instance", "create", "admin1")
     with pytest.raises(Stop):
-        operations._create(jobs.Job("made-here", "Create instance", "create", "admin1"), plan)
+        operations._create(job, plan)
+    # the images come first, in a step of their own, so a first download shows what takes the time
+    assert [step["title"] for step in job.steps] == ["Downloading Odoo 18.0 image", "Preparing the instance"]
+    assert commands[:2] == [["docker", "pull", "odoo:18.0"], ["docker", "pull", "postgres:16"]]
     assert not any("clone" in cmd for cmd in commands)
     assert ["git", "init", "-q", "-b", "main", str(store.addons_dir("made-here"))] in commands
     env = store.read_env("made-here")

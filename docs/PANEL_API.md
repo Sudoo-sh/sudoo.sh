@@ -123,8 +123,8 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 
 | Method and path | Permission | Body | Answer |
 | :--- | :--- | :--- | :--- |
-| `GET /instances?limit=100&offset=0` | `instances.view` | | 200, a list of instances; `meta`: `total`, `count`, `limit` (1 to 500), `offset` |
-| `GET /instances/<name>` | `instances.view` | | 200, the instance with `disk`, `recent_commits`, `submodules`, `backups`, `restorable_backup` and `recent_jobs` ([below](#instances-jobs-and-actions-in-detail)) |
+| `GET /instances?limit=100&offset=0` | `instances.view` | | 200, a list of instances (those being created too, status `creating`); `meta`: `total`, `count`, `limit` (1 to 500), `offset` |
+| `GET /instances/<name>` | `instances.view` | | 200, the instance with `disk`, `recent_commits`, `submodules`, `backups`, `restorable_backup` and `recent_jobs` ([below](#instances-jobs-and-actions-in-detail)); also while it is being created (status `creating`) |
 | `GET /instances/<name>/credentials` | `instances.credentials` | | 200, Odoo `login`, `admin_password`, `master_password`, `ports`; written to the audit log |
 | `GET /instances/<name>/logs?lines=300` | `instances.logs` | | 200, `{"text"}`: the end of Odoo's log (1 to 5000 lines) |
 | `POST /instances` | `instances.create` | as below | **202**, the job; `Content-Location` names the new instance |
@@ -435,7 +435,25 @@ would use without a `file` (`null` when there is none):
 `rollback` is `null` unless the instance was restored in the last `ROLLBACK_HOURS` (and not rolled back since):
 then it names the `before-restore` backup(s) the `rollback` action puts back, and until when it is offered.
 
-`status` is one of `online`, `starting`, `busy` (a job is running), `paused`, `switched_off`, `stopped`, `unknown`.
+`status` is one of `creating`, `online`, `starting`, `busy` (a job is running), `paused`, `switched_off`, `stopped`,
+`unknown`.
+
+`creating`: the instance's creation is queued or running. The instance answers (and is listed) from the moment
+`POST /instances` is accepted, before any of its files exist: then it shows what the creation was asked for (version,
+edition, database, repository and branch, settings) and `null` or empty for everything else. `current_job` is the
+creation job with its steps so far (`status` `queued` while it waits for another job on the same name, then
+`running`); follow it with `GET /jobs/<id>` or the live `job` events. Actions, settings, credentials and logs answer
+409 until the creation has finished. When the creation fails, what it made is removed: `GET /instances/<name>`
+answers 404 again (a live `instance.deleted` event is sent) and the job, with its error, stays under `/jobs`.
+
+```json
+"status": "creating",
+"current_job": {"id": "b7e0c2a41f93", "action": "Create instance", "status": "running", "progress_percent": 0,
+                "steps": [{"title": "Downloading Odoo 19.0 image", "status": "running"}],
+                "links": {"self": "/api/v1/jobs/b7e0c2a41f93"}}
+```
+
+While another job runs, `current_job` has the same shape.
 
 A job (the answer to every 202, and to `GET /jobs/<id>`):
 

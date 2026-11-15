@@ -322,15 +322,18 @@ Click **New instance** in the sidebar (roles that may create instances). Under *
 If the server has a limit on the number of instances, or a waiting time between two new instances, a warning above
 the form says so before you start, and the numbers under the button show how many exist.
 
-The new instance's page opens and shows each step: preparing, downloading the code, downloading Odoo (the first time
-for a version takes a few minutes), starting the database, creating the Odoo database, installing modules,
-creating the public link, starting Odoo. A new instance usually takes **2 to 4 minutes**. You can leave the page:
-the work continues and is listed under **Activity**.
+The new instance's page opens at once with the status **Creating** (**Waiting to start** while another job on the
+same name finishes) and shows each step as it happens, with the progress and the technical log: downloading the
+Odoo image (the first time for a version takes a few minutes; the log says how far the download is), preparing,
+downloading the code, starting the database, creating the Odoo database, installing modules, creating the public
+link, starting Odoo. A new instance usually takes **2 to 4 minutes**. You can leave the page: the work continues,
+the instance is listed with the status **Creating**, and the job is under **Activity**.
 
-When it is ready, the link is in the header and the login is on the **Access** tab.
+When it is ready, the page becomes the instance's own page: the link is in the header and the login is on the
+**Access** tab.
 
-If a step fails, the job explains what went wrong in plain words, with the technical log below. Everything created
-so far is removed, so you can simply try again.
+If a step fails, the page says **Not created** and explains what went wrong in plain words, with the step where it
+stopped and the technical log. Everything created so far is removed, so you can simply try again (**Try again**).
 
 ---
 

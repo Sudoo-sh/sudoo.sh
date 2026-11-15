@@ -67,6 +67,7 @@ reset with **Use .env**.
 | :--- | :--- | :--- | :--- | :--- |
 | `ODOO_VERSIONS` | str | `auto` | **live** | Versions offered: "auto" (every published version of the official image from odoo_min_version) or a comma-separated list such as 17.0,18.0,saas-18.2. |
 | `ODOO_MIN_VERSION` | str | `16.0` | **live** | Oldest version offered when odoo_versions is "auto". |
+| `PREPULL_IMAGES` | bool | `false` | **live** | Download the Odoo image of every offered version, and the PostgreSQL image, in the background (checked every 30 minutes), so the first instance of a version does not wait for the download. Only missing images are downloaded; each Odoo image takes 1-3 GB of disk. |
 | `ODOO_IMAGE` | str | `odoo` | **live** | Docker image of Odoo; the tag is the Odoo version. Used for instances created after the change. |
 | `POSTGRES_IMAGE` | str | `postgres:16` | **live** | Docker image of each instance's database. Used for instances created after the change. |
 | `ODOO_ADMIN_PASSWORD` | str | `admin` | **live** | Password of the Odoo user "admin" in new instances. Secret: write-only on the Settings page. |

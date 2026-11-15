@@ -120,7 +120,7 @@ short, purposeful animation. The first-run and sign-in screens, seen rarely, bri
 | Dialogs | Not anchored to a trigger: materialize in the centre (scale 0.96, opacity, 4 px blur) | `--ease`, 240 ms |
 | Drawer | In from the right edge and out the same way (spatial consistency) | `--ease-drawer` (the iOS sheet curve), 400 ms in, 280 ms out |
 | Toasts | Rise from the bottom edge, sink back when they go | `--ease`, 320 ms |
-| Moving between pages | The View Transitions API (`viewTransition` on links and `navigate`). The sidebar, the top bar, the page's title block (`.page-head`) and its tabs are captured on their own and stay where they are, cross-fading in place when they change; the rest of the view fades out and the new page fades in shifted 8 px: from the right going forward, from the left going back through history (`lib/navigation.ts` sets `data-nav` on `<html>`). The content is the viewport's snapshot, so a scrolled page does not jump. Browsers without the API change the page at once | `--ease`, 120 ms out, 200 ms in, 160 ms for what stays |
+| Moving between pages | The View Transitions API (`viewTransition` on links and `navigate`). One page at a time: the old view fades out, and only when it is gone does the new one fade in, rising 4 px, so two titles or two intros are never on screen together. Nothing is shared or cross-faded between two pages; only the frame stays still: the sidebar, the top bar (its breadcrumb fades out and in with the content) and the Help pages' list, where the highlight simply moves. Between the tabs of one page (an instance's tabs, Plugins), only the tab's content (`.tab-panel`) fades out and in; the title and the tabs stay (`lib/navigation.ts` sets `data-nav="tab"` or `"page"` on `<html>` before the old view is captured). The content is the viewport's snapshot, so a scrolled page does not jump. Browsers without the API change the page at once | 120 ms out (ease-out), then 190 ms in (`--ease`); reduced motion: 80 ms out, 120 ms in, no rise |
 | Loading placeholders | Skeletons and a page's spinner stay invisible for 150 ms, then fade in, so a quick load never flashes; a 2 px bar at the top appears after 150 ms while a page's code is still loading | `--ease`, `--quick` after 150 ms |
 | Segmented control | The thumb slides to the chosen option | `--ease-move`, 280 ms |
 | Switch | The thumb stretches while pressed, as on iOS | `--ease`, 160 ms |
@@ -139,8 +139,8 @@ Implementation rules:
 - **Nothing appears from `scale(0)`:** entries start at 0.96 to 0.97.
 - **Hover styles only for real pointers** (`@media (hover: hover) and (pointer: fine)`), so taps on a phone do not
   leave things highlighted.
-- **Reduced motion** keeps changes understandable: movement is removed and replaced by short cross-fades (the page
-  transition loses its shift; loading placeholders keep their 150 ms delay, which is not movement).
+- **Reduced motion** keeps changes understandable: movement is removed and replaced by short fades (the page
+  transition stays an out-then-in fade, quicker and without its rise; loading placeholders keep their 150 ms delay, which is not movement).
 - **A new page starts at its top,** and going back returns to where you were (`ScrollRestoration`, in
   `components/PageMotion.tsx`).
 - **Status chrome only when it matters:** no "live" or "synced" badge; a small "Reconnecting" notice appears only

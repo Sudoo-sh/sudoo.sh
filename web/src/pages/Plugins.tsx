@@ -894,7 +894,7 @@ export function PluginsPage() {
           </NavLink>
         ))}
       </nav>
-      <div className="rise" key={tab}>
+      <div className="rise tab-panel" key={tab}>
         {tab === "installed" ? (
           isPending ? <Skeleton height={160} /> : <Installed plugins={installed ?? []} busy={!!installer.work} onStarted={started} />
         ) : tab === "purchases" ? (

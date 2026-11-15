@@ -573,7 +573,14 @@ def test_filestore_files_are_copied_into_the_backup_piece_by_piece(monkeypatch: 
     job = jobs.Job("streamed", "Back up", "backup", "admin1")
     tracemalloc.start()
     try:
-        target = backups._backup_database(job, "streamed", "streamed", "18.0", "community", "20261115-000000", "manual")
+        target = backups._backup_database(
+            job,
+            "streamed",
+            "streamed",
+            {"version": "18.0", "edition": "community", "instance_id": ""},
+            "20261115-000000",
+            "manual",
+        )
         _, peak = tracemalloc.get_traced_memory()
     finally:
         tracemalloc.stop()

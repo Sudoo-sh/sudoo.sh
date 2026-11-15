@@ -608,10 +608,14 @@ function LogsTab({ name }: { name: string }) {
 
 function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }) {
   const toast = useToast();
+  const can = useCan();
   const save = useCall((body: Record<string, unknown>) => api.patch<Instance>(`/instances/${instance.name}`, body), [keys.instance(instance.name), keys.instances]);
   const set = (body: Record<string, unknown>) =>
     save.mutate(body, { onSuccess: () => toast("success", "Saved"), onError: (e) => toast("error", "Not saved", errorText(e)) });
   const s = instance.settings;
+  // a lifetime that ends sooner deletes the instance sooner: only roles that may delete instances choose one
+  const mayShorten = can("instances.delete");
+  const sooner = (days: number) => days > 0 && (s.delete_after_days === 0 || days < s.delete_after_days);
   const rows: [keyof typeof s, string, string][] = [
     // plain Odoo has no code to update: only what applies to it
     ...(plain
@@ -631,9 +635,17 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
         </div>
       ))}
       <div className="settings-row">
-        <div><div className="name">Lifetime</div><div className="desc">Deleted automatically this many days after it was created, after a backup.</div></div>
+        <div>
+          <div className="name">Lifetime</div>
+          <div className="desc">
+            Deleted automatically this many days after it was created, after a backup.
+            {!mayShorten && " Your role can make it longer, not shorter."}
+          </div>
+        </div>
         <select className="select" value={s.delete_after_days} onChange={(e) => set({ delete_after_days: Number(e.target.value) })}>
-          {[...new Set([7, 14, 30, 60, 90, 180, s.delete_after_days])].filter((d) => d > 0).sort((a, b) => a - b).map((d) => <option key={d} value={d}>{d} days</option>)}
+          {[...new Set([7, 14, 30, 60, 90, 180, s.delete_after_days])].filter((d) => d > 0).sort((a, b) => a - b).map((d) => (
+            <option key={d} value={d} disabled={!mayShorten && sooner(d)}>{d} days</option>
+          ))}
           <option value={0}>Keep until deleted by hand</option>
         </select>
       </div>

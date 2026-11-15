@@ -640,7 +640,8 @@ Instances page.
 **Lifetime.** Each instance has `DELETE_AFTER_DAYS` in its `.env` (0: kept). Every 10 minutes the panel deletes the
 instances whose lifetime is over, backup first; if the backup fails, the instance is not deleted. New instances get
 the default lifetime (30 days; Settings, New instances) unless "Keep until deleted by hand" is chosen; it can be
-changed on the instance's Settings tab.
+changed on the instance's Settings tab. Making it end sooner (also from "Keep" to a number of days) needs
+`instances.delete` as well, since it deletes the instance sooner: maintainers can only make it longer.
 
 **By hand**, for an instance (database and attachments):
 

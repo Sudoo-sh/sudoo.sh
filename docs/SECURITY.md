@@ -350,10 +350,10 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `instances.view` | See instances, their figures and activity | yes | yes | yes | yes | yes |
 | `instances.logs` | Read Odoo's log and jobs' technical logs | yes | yes | yes | yes | yes |
 | `instances.update` | Get new code, update submodules, restart, start, add submodules | yes | yes | yes | yes | |
-| `instances.operate` | Pause, switch off, upgrade modules, switch branch, back up, remove submodules, change automation and lifetime | yes | yes | yes | | |
+| `instances.operate` | Pause, switch off, upgrade modules, switch branch, back up, remove submodules, change automation, make the lifetime longer | yes | yes | yes | | |
 | `instances.create` | Create instances | yes | yes | yes | | |
 | `instances.restore` | Restore an instance from a backup (replaces its database and files) | yes | yes | yes | | |
-| `instances.delete` | Delete instances | yes | yes | | | |
+| `instances.delete` | Delete instances, also by giving one a shorter lifetime | yes | yes | | | |
 | `instances.credentials` | See Odoo passwords and ports | yes | yes | yes | | |
 | `backups.manage` | Download and delete backups | yes | yes | | | |
 | `github.manage` | Manage deploy keys; see the GitHub App's state | yes | yes | yes | | |

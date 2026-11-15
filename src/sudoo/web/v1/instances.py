@@ -8,7 +8,8 @@
     GET    /api/v1/instances/<name>/logs?lines=      the end of Odoo's log
     POST   /api/v1/instances                         create; {"from_backup"} optional; without "repo": plain Odoo
                                                      (no code, no branch, no update) -> 202, Location: job
-    PATCH  /api/v1/instances/<name>                  change automation settings and lifetime
+    PATCH  /api/v1/instances/<name>                  change automation settings and lifetime (a lifetime that
+                                                     ends sooner also needs instances.delete)
     POST   /api/v1/instances/<name>/actions/<action> restart, update, pause, ...    -> 202, Location: job
                                                      restore: {"file"} optional (any instance's backup of the
                                                      same Odoo series), the latest backup otherwise
@@ -274,7 +275,10 @@ def create() -> Response:
 @blueprint.patch("/instances/<name>")
 @require("instances.operate")
 def change(name: str) -> Response:
-    """Change only the settings that are sent; the others keep their value."""
+    """Change only the settings that are sent; the others keep their value.
+
+    A lifetime that makes the instance expire sooner than now (also from "keep" to any number of days) deletes it
+    sooner, so it needs instances.delete as well."""
     existing(name)
     data = check.body()
     switches = {"auto_update": "AUTO_UPDATE", "auto_upgrade": "AUTO_UPGRADE", "auto_pause": "AUTO_PAUSE"}
@@ -282,7 +286,13 @@ def change(name: str) -> Response:
         key: str(check.flag(data, field)).lower() for field, key in switches.items() if field in data
     }
     if "delete_after_days" in data:
-        values["DELETE_AFTER_DAYS"] = check.days(data, "delete_after_days")
+        days = check.days(data, "delete_after_days")
+        env = store.read_env(name)
+        current = operations.expires_at(env)
+        proposed = operations.expires_at({**env, "DELETE_AFTER_DAYS": str(days)})
+        if proposed is not None and (current is None or proposed < current):
+            refuse_unless("instances.delete", f"shorten the lifetime of {name}")
+        values["DELETE_AFTER_DAYS"] = days
     if not values:
         abort(400, "Send at least one of: auto_update, auto_upgrade, auto_pause, delete_after_days.")
     if values.get("AUTO_UPDATE") == "true" or values.get("AUTO_UPGRADE") == "true":

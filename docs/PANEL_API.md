@@ -128,7 +128,7 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `GET /instances/<name>/credentials` | `instances.credentials` | | 200, Odoo `login`, `admin_password`, `master_password`, `ports`; written to the audit log |
 | `GET /instances/<name>/logs?lines=300` | `instances.logs` | | 200, `{"text"}`: the end of Odoo's log (1 to 5000 lines) |
 | `POST /instances` | `instances.create` | as below | **202**, the job; `Content-Location` names the new instance |
-| `PATCH /instances/<name>` | `instances.operate` | any of `auto_update`, `auto_upgrade`, `auto_pause` (true or false), `delete_after_days` (0 keeps it) | 200, the instance |
+| `PATCH /instances/<name>` | `instances.operate`; also `instances.delete` for a `delete_after_days` that ends the lifetime sooner (403 otherwise) | any of `auto_update`, `auto_upgrade`, `auto_pause` (true or false), `delete_after_days` (0 keeps it) | 200, the instance |
 | `POST /instances/<name>/actions/<action>` | depends on the action (below) | `{}`, or the action's fields | **202**, the job |
 | `DELETE /instances/<name>` | `instances.delete` | `{"confirm": "<name>"}` | **202**, the job; a backup is taken first |
 | `GET /instance-plan?repo=&branch=&name=&version=&edition=` | `instances.create` | | 200, the name and database a new instance would get, and the defaults; without `repo` and `name`, a name for plain Odoo with a random part (`odoo-19-0-community-3f9a`), new on each call |

@@ -367,7 +367,9 @@ branch was merged and deleted on GitHub, or to show other work in the same datab
 | **Pause when idle** | Off: the instance never pauses by itself (it keeps using memory). |
 | **Lifetime** | The number of days after creation when the instance is deleted, after a backup; or **Keep until deleted by hand**. |
 
-Changes on this tab are saved at once.
+Changes on this tab are saved at once. A lifetime that ends sooner than the current one (also any number of days
+instead of **Keep until deleted by hand**) deletes the instance sooner, so only roles that may delete instances can
+choose one; a maintainer can make the lifetime longer, not shorter.
 
 ---
 
@@ -486,7 +488,8 @@ Every account has one role. The role decides which pages, buttons and menu items
 | Create instances | yes | yes | yes | no | no |
 | Pause, switch off, upgrade modules, switch branch, back up now, remove a submodule | yes | yes | yes | no | no |
 | Restore a backup of an instance (replaces its database and files) | yes | yes | yes | no | no |
-| Change an instance's settings tab (automation, lifetime) | yes | yes | yes | no | no |
+| Change an instance's settings tab (automation, a longer lifetime) | yes | yes | yes | no | no |
+| Give an instance a shorter lifetime | yes | yes | no | no | no |
 | See the Odoo passwords (Access tab) | yes | yes | yes | no | no |
 | GitHub access (deploy keys; see the GitHub App's state) | yes | yes | yes | no | no |
 | Connect, install and disconnect the GitHub App | yes | no | no | no | no |

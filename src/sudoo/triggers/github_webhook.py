@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+from typing import Any
 
 from flask import Blueprint, Response, abort, jsonify, request
 
@@ -33,6 +34,9 @@ from sudoo.triggers.base import RequestUpdate
 class GitHubWebhook:
     """Receives GitHub push events at /hooks/github."""
 
+    path = "/hooks/github"
+    endpoint = "github_webhook"
+
     def __init__(self, settings: Settings) -> None:
         if len(settings.github_webhook_secret) < 20:
             raise ValueError(
@@ -45,8 +49,8 @@ class GitHubWebhook:
         self._request_update = request_update
 
     def blueprint(self) -> Blueprint | None:
-        hooks = Blueprint("github_webhook", __name__)
-        hooks.add_url_rule("/hooks/github", "receive", self.receive, methods=["POST"])
+        hooks = Blueprint(self.endpoint, __name__)
+        hooks.add_url_rule(self.path, "receive", self.receive, methods=["POST"])
         return hooks
 
     def signature_valid(self, body: bytes, header: str) -> bool:
@@ -61,7 +65,10 @@ class GitHubWebhook:
             return jsonify(ok=True, message="Webhook received. Push events will update the matching instances.")
         if event != "push":
             return jsonify(ok=True, message=f"Ignored the {event or 'unknown'} event; only push events are used.")
-        payload = request.get_json(silent=True) or {}
+        return self.push(request.get_json(silent=True) or {})
+
+    def push(self, payload: dict[str, Any]) -> Response:
+        """Update the instances that follow the pushed repository and branch."""
         repository = str((payload.get("repository") or {}).get("full_name", "")).lower()
         branch = str(payload.get("ref", "")).removeprefix("refs/heads/")
         updated = self.instances_following(repository, branch)

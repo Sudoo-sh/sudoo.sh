@@ -11,6 +11,7 @@ import type {
   DeployKey,
   DocPage,
   DocsContents,
+  GitHubAppState,
   Instance,
   Job,
   Metrics,
@@ -110,6 +111,14 @@ export const useTokens = () => useQuery({ queryKey: ["tokens"], queryFn: () => a
 export const useBackups = () => useQuery({ queryKey: ["backups"], queryFn: () => api.get<Backup[]>("/backups") });
 export const useDeployKeys = () =>
   useQuery({ queryKey: ["deploy-keys"], queryFn: () => api.get<DeployKey[]>("/deploy-keys") });
+export const useGitHubApp = () =>
+  useQuery({
+    queryKey: ["github-app"],
+    queryFn: async () => {
+      const answer = await api.page<GitHubAppState>("/github/app");
+      return { ...answer.data, can_manage: Boolean(answer.meta?.can_manage) };
+    },
+  });
 export const useAudit = (limit: number) =>
   useQuery({
     queryKey: ["audit", limit],

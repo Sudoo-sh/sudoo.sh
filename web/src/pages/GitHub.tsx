@@ -27,7 +27,7 @@ function postToGitHub(action: string, manifest: unknown) {
 
 function ConnectModal({ onClose }: { onClose: () => void }) {
   const toast = useToast();
-  const [kind, setKind] = useState<"personal" | "organization">("personal");
+  const [kind, setKind] = useState<"personal" | "organization" | null>(null);
   const [organization, setOrganization] = useState("");
   const [leaving, setLeaving] = useState(false);
   const start = async () => {
@@ -50,21 +50,27 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" icon={<ArrowUpRight />} loading={leaving} disabled={kind === "organization" && !organization.trim()} onClick={start}>
+          <Button variant="primary" icon={<ArrowUpRight />} loading={leaving} disabled={!kind || (kind === "organization" && !organization.trim())} onClick={start}>
             Continue on GitHub
           </Button>
         </>
       }
     >
       <div className="stack">
+        <div className="stack-sm">
+          <h3>Whose repositories will the instances use?</h3>
+          <p className="small muted">
+            A private GitHub App works only on the account that owns it. For a company's repositories, create it under the company's organisation: you need to be an owner of that organisation on GitHub.
+          </p>
+        </div>
         <div className="grid-2">
-          <button type="button" className="choice" aria-pressed={kind === "personal"} onClick={() => setKind("personal")}>
-            <User />
-            <span><span className="t">My account</span><br /><span className="d">The app belongs to your GitHub account.</span></span>
-          </button>
           <button type="button" className="choice" aria-pressed={kind === "organization"} onClick={() => setKind("organization")}>
             <Building2 />
-            <span><span className="t">An organisation</span><br /><span className="d">The app belongs to your company's organisation; you must be one of its owners.</span></span>
+            <span><span className="t">An organisation</span><br /><span className="d">A company's repositories. The app belongs to the organisation.</span></span>
+          </button>
+          <button type="button" className="choice" aria-pressed={kind === "personal"} onClick={() => setKind("personal")}>
+            <User />
+            <span><span className="t">My personal account</span><br /><span className="d">Only repositories of your own GitHub account.</span></span>
           </button>
         </div>
         {kind === "organization" && (
@@ -73,7 +79,7 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
           </Field>
         )}
         <p className="small muted">
-          On GitHub, check the name and press <b>Create GitHub App</b>. GitHub brings you back here; then install the app on the accounts whose repositories the instances use.
+          On GitHub, check the name and press <b>Create GitHub App</b>. GitHub brings you back here; then install the app and choose its repositories.
         </p>
       </div>
     </Modal>
@@ -98,7 +104,7 @@ function Installations({ app, canManage }: { app: GitHubApp; canManage: boolean 
       </div>
       {!app.installations.length ? (
         <Callout tone="warning">
-          Not installed yet: press <b>Install on GitHub</b>, choose your account or organisation and the repositories (all, or selected ones). Installed elsewhere already? Press <b>Refresh</b>.
+          Not installed yet: press <b>Install on GitHub</b> and choose the repositories (all, or selected ones). Installations made on GitHub show up here within a minute.
         </Callout>
       ) : (
         <div className="table-wrap">
@@ -158,7 +164,10 @@ function AppCard() {
           <>
             <div className="row" style={{ flexWrap: "wrap" }}>
               <span className="small spacer">
-                <b>{app.name}</b> <span className="muted">· owned by {app.owner.login}</span>
+                <b>{app.name}</b>{" "}
+                <span className="muted">
+                  · owned by {app.owner.login} ({app.owner.type === "Organization" ? "organisation" : "personal account"}); it can be installed only there
+                </span>
               </span>
               <a className="btn sm ghost" href={app.settings_url} target="_blank" rel="noreferrer">App settings <ArrowUpRight /></a>
               {state.can_manage && (
@@ -172,7 +181,7 @@ function AppCard() {
             <Installations app={app} canManage={state.can_manage} />
             {!state.trigger_running && (
               <Callout>
-                New code arrives through polling. For updates seconds after a push, add <code>github-app</code> to the update triggers (<Link to="/settings">Settings</Link>, Plugins) and restart the panel.
+                New code arrives through polling. For updates seconds after a push, add <code>github-app</code> to the update triggers (<Link to="/settings" viewTransition>Settings</Link>, Plugins) and restart the panel.
               </Callout>
             )}
           </>
@@ -311,7 +320,7 @@ export function GitHubReturnPage() {
         {problem ? (
           <>
             <Callout tone="danger">{problem}</Callout>
-            <div><Link className="btn" to="/github">Back to GitHub access</Link></div>
+            <div><Link className="btn" to="/github" viewTransition>Back to GitHub access</Link></div>
           </>
         ) : (
           <div className="row"><Spinner /> <span className="muted">Finishing with GitHub…</span></div>

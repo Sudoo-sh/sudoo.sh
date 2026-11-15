@@ -1,6 +1,7 @@
 """GitHub: the panel's GitHub App, deploy keys and repository checks.
 
-GET    /api/v1/github/app                          the GitHub App: connected?, installations, webhook
+GET    /api/v1/github/app                          the GitHub App: connected?, installations (read from GitHub at
+                                                   most once a minute), webhook
 POST   /api/v1/github/app/manifest                 start Connect GitHub: the manifest and where to post it
 POST   /api/v1/github/app                          finish it: {"code", "state"} from GitHub's redirect -> 201
 DELETE /api/v1/github/app                          disconnect (forget the credentials); links to delete it on GitHub
@@ -72,6 +73,7 @@ def _trigger_running() -> bool:
 @blueprint.get("/github/app")
 @require("github.manage")
 def show_app() -> Response:
+    app.sync_if_stale()  # installations made on GitHub itself (or whose redirect never came back) show up at once
     described = app.describe()
     public = exposure.address(exposure.PANEL)
     return ok(

@@ -23,6 +23,7 @@ from flask import Flask
 from flask.testing import FlaskClient
 
 from sudoo.config import Settings, settings
+from sudoo.core.hints import friendly_hint, panel_hint
 from sudoo.core.state import STATE
 from sudoo.repos import git_credential, github, github_app
 from sudoo.triggers.github_app import GitHubAppWebhook
@@ -55,6 +56,8 @@ def jwt_claims(token: str) -> dict[str, Any]:
 class FakeGitHub(BaseHTTPRequestHandler):
     calls: list[tuple[str, str, Any]] = []
     tokens_issued = 0
+    selection = "all"  # the installation's repository_selection
+    suspended_at: str | None = None
 
     def log_message(self, *args: Any) -> None:  # quiet
         pass
@@ -88,9 +91,9 @@ class FakeGitHub(BaseHTTPRequestHandler):
         installation = {
             "id": INSTALLATION,
             "account": {"login": "Acme", "type": "Organization"},
-            "repository_selection": "all",
+            "repository_selection": FakeGitHub.selection,
             "html_url": "https://github.com/organizations/Acme/settings/installations/77",
-            "suspended_at": None,
+            "suspended_at": FakeGitHub.suspended_at,
         }
         if method == "POST" and path == f"/app-manifests/{CODE}/conversions":
             return self._send(
@@ -162,8 +165,10 @@ def fake_github() -> Iterator[type[FakeGitHub]]:
 def no_app(fake_github: type[FakeGitHub]) -> Iterator[type[FakeGitHub]]:
     github_app.disconnect()
     FakeGitHub.calls.clear()
+    FakeGitHub.selection, FakeGitHub.suspended_at = "all", None
     yield fake_github
     github_app.disconnect()
+    FakeGitHub.selection, FakeGitHub.suspended_at = "all", None
 
 
 @pytest.fixture
@@ -322,6 +327,128 @@ def test_repository_picker_without_app(admin: Client, no_app: type[FakeGitHub]) 
 def test_branches_come_from_the_api(connected: type[FakeGitHub]) -> None:
     assert github.branches("https://github.com/Acme/shop") == (["dev", "main"], "main", None)
     assert github.access_via("acme/shop") == "github-app"
+
+
+# ---------------------------------------------------------------- installations found without Refresh
+
+
+def _listings(fake: type[FakeGitHub]) -> int:
+    return len([c for c in fake.calls if c[1].startswith("/app/installations?")])
+
+
+def test_installations_are_read_when_the_page_loads(admin: Client, no_app: type[FakeGitHub]) -> None:
+    """Installed directly on GitHub (or GitHub's redirect never reached the panel): the GitHub access page finds it,
+    reading GitHub at most once a minute."""
+    client, _ = admin
+    github_app.convert(CODE)
+    assert github_app.installations() == []
+    shown = client.get("/api/v1/github/app").get_json()["data"]
+    assert [i["account"] for i in shown["app"]["installations"]] == ["Acme"]
+    client.get("/api/v1/github/app")
+    assert _listings(no_app) == 1  # cached for a minute
+    assert not github_app.sync_if_stale()
+    assert github_app.sync_if_stale(max_age=0) and _listings(no_app) == 2
+
+
+def test_installations_are_read_before_a_repository_check(no_app: type[FakeGitHub]) -> None:
+    github_app.convert(CODE)
+    assert github.branches("https://github.com/Acme/shop") == (["dev", "main"], "main", None)
+    assert github_app.installation_for("acme") == INSTALLATION
+
+
+def test_sync_keeps_when_an_installation_was_first_seen(connected: type[FakeGitHub]) -> None:
+    first = github_app.installations()[0]["added"]
+    time.sleep(1.1)
+    assert github_app.sync_installations()[0]["added"] == first
+
+
+def test_sync_waits_a_minute_after_github_failed(no_app: type[FakeGitHub], monkeypatch: pytest.MonkeyPatch) -> None:
+    github_app.convert(CODE)
+
+    def down() -> list[dict[str, Any]]:
+        raise github_app.GitHubError("GitHub cannot be reached (URLError).")
+
+    monkeypatch.setattr(github_app, "sync_installations", down)
+    assert not github_app.sync_if_stale()
+    monkeypatch.undo()
+    assert not github_app.sync_if_stale()  # tried less than a minute ago
+
+
+# ---------------------------------------------------------------- what keeps the app from a repository
+
+
+def test_explain_without_app(no_app: type[FakeGitHub]) -> None:
+    assert github_app.explain("Acme/shop") is None
+
+
+def test_explain_app_owned_by_another_account(connected: type[FakeGitHub]) -> None:
+    found = github_app.explain("Other-Co/erp")
+    assert found is not None and found["reason"] == "app_owned_elsewhere"
+    assert "belongs to Acme" in found["message"] and "only be installed on the account that owns it" in found["message"]
+    assert "for Other-Co" in found["message"] and found["url"] == "/github"
+
+
+def test_explain_not_installed(connected: type[FakeGitHub]) -> None:
+    github_app.remove_installation(INSTALLATION)
+    found = github_app.explain("acme/shop")
+    assert found is not None and found["reason"] == "not_installed"
+    assert found["message"].startswith("The GitHub App is not installed on acme.")
+    assert found["url"] == "https://github.com/apps/sudoo-sh-panel-ab12/installations/new"
+
+
+def test_explain_repository_not_selected(connected: type[FakeGitHub]) -> None:
+    connected.selection = "selected"
+    github_app.sync_installations()
+    found = github_app.explain("Acme/payroll")
+    assert found is not None and found["reason"] == "not_selected"
+    assert "Acme/payroll is not among the repositories it may read" in found["message"]
+    assert found["url"] == "https://github.com/organizations/Acme/settings/installations/77"
+    selected = github_app.explain("acme/SHOP")  # selected, so the address must be wrong
+    assert selected is not None and selected["reason"] == "not_found"
+
+
+def test_explain_all_repositories_and_suspended(connected: type[FakeGitHub]) -> None:
+    found = github_app.explain("Acme/nothing")
+    assert found is not None and found["reason"] == "not_found" and "Check the address" in found["message"]
+    connected.suspended_at = "2026-11-01T00:00:00Z"
+    github_app.sync_installations()
+    suspended = github_app.explain("Acme/shop")
+    assert suspended is not None and suspended["reason"] == "suspended"
+
+
+def _git_refuses(monkeypatch: pytest.MonkeyPatch) -> None:
+    """git cannot read the repository (as for a private repository without access)."""
+    refused = subprocess.CompletedProcess([], 128, "", "remote: Repository not found.\nfatal: repository not found")
+    monkeypatch.setattr(github.subprocess, "run", lambda *a, **k: refused)
+
+
+def test_repository_check_says_what_applies(
+    admin: Client, connected: type[FakeGitHub], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, _ = admin
+    _git_refuses(monkeypatch)
+    names, default, error = github.branches("https://github.com/Other-Co/erp")
+    assert names == [] and default is None and error and "belongs to Acme" in error
+    report = client.get("/api/v1/repositories/access?url=https://github.com/Other-Co/erp").get_json()["data"]
+    entry = report["repositories"][0]
+    assert not report["all_ok"] and "belongs to Acme" in entry["problem"]
+    assert entry["fix"] == {"reason": "app_owned_elsewhere", "url": "/github", "label": "Open GitHub access"}
+
+
+def test_deploy_key_advice_only_without_app(no_app: type[FakeGitHub], monkeypatch: pytest.MonkeyPatch) -> None:
+    _git_refuses(monkeypatch)
+    error = github.branches("https://github.com/Other-Co/erp")[2]
+    assert error and "deploy key" in error
+    assert friendly_hint("fatal: Repository not found") == error
+    github_app.convert(CODE)
+    assert "deploy key" not in friendly_hint("fatal: Repository not found")
+    assert "GitHub App" in friendly_hint("fatal: Repository not found")
+
+
+def test_a_job_shows_the_panels_own_explanation() -> None:
+    log = "Cloning into 'addons'...\nremote: Repository not found." + panel_hint("The GitHub App is not installed.")
+    assert friendly_hint(log) == "The GitHub App is not installed."
+    assert friendly_hint("hint: Using 'master' as the name") != "Using 'master' as the name"
 
 
 # ---------------------------------------------------------------- webhook

@@ -221,9 +221,9 @@ An account:
 | `GET /deploy-keys` | `github.manage` | | 200, deploy keys |
 | `POST /deploy-keys` | `github.manage` | `{"repo"}` | **201**, the public key and the GitHub page to add it on |
 | `DELETE /deploy-keys/<owner>/<repo>` | `github.manage` | | **204** |
-| `GET /repositories/branches?url=` | `instances.view` | | 200, `{"branches", "default"}`; through the GitHub App's API when it covers the repository |
-| `GET /repositories/access?url=&branch=` | `instances.view` | | 200, whether the server can read the repository and each submodule, and how (`via`: `deploy-key`, `github-app` or `public`); `meta.can_manage_keys`, `meta.github_app` |
-| `GET /github/app` | `github.manage` | | 200, `{"connected", "app", "trigger_running", "expected_hook_url", "deploy_keys"}`; `meta.can_manage` (below) |
+| `GET /repositories/branches?url=` | `instances.view` | | 200, `{"branches", "default"}`; through the GitHub App's API when it covers the repository; 400 with what keeps the server from the repository (below) |
+| `GET /repositories/access?url=&branch=` | `instances.view` | | 200, whether the server can read the repository and each submodule, and how (`via`: `deploy-key`, `github-app` or `public`); a line that cannot be read has `problem` and, when the GitHub App explains it, `fix` (below); `meta.can_manage_keys`, `meta.github_app` |
+| `GET /github/app` | `github.manage` | | 200, `{"connected", "app", "trigger_running", "expected_hook_url", "deploy_keys"}`; `meta.can_manage` (below). The installations are read from GitHub first when the last reading is more than a minute old |
 | `POST /github/app/manifest` | `settings.manage` | `{"organization"}` (empty: the personal account) | 200, `{"action", "manifest", "state"}`: post `manifest` as a form field to `action` from the browser; the state is kept in the session for one hour |
 | `POST /github/app` | `settings.manage` | `{"code", "state"}` from GitHub's redirect to `/github/app/created` | **201**, the app; 400 when the state does not match the session's or the code expired |
 | `DELETE /github/app` | `settings.manage` | | 200, `{"settings_url", "installations"}`: GitHub pages to uninstall and delete the app; the panel forgets its credentials |
@@ -244,6 +244,22 @@ The GitHub App in `GET /github/app` (`app` is `null` while none is connected; se
                     "settings_url": "https://github.com/organizations/acme/settings/installations/777",
                     "suspended": false, "added": 1794441700}]}
 ```
+
+Both repository checks also read the app's installations from GitHub when the last reading is more than a minute
+old, so installations made on GitHub itself count at once. When a repository cannot be read and an app is connected,
+`problem` (and the 400's `detail`) says what applies, and the access report's line carries `fix`:
+
+```json
+{"url": "https://github.com/acme/erp", "role": "main", "ok": false,
+ "problem": "The GitHub App is not installed on acme. Install it there and give it this repository.",
+ "fix": {"reason": "not_installed", "url": "https://github.com/apps/sudoo-sh-panel-3f9a/installations/new",
+         "label": "Install on acme"}}
+```
+
+`reason` is `app_owned_elsewhere` (the app is private and belongs to another account, so it can never be installed on
+the repository's owner; `url` is the panel's `/github`), `not_installed`, `suspended`, `not_selected` (installed, but
+the repository is not among the selected ones; `url` is the installation's settings on GitHub) or `not_found`
+(`url` and `label` empty). Without an app, `fix` is `null` and `problem` advises a deploy key.
 
 A repository in `GET /github/repositories`:
 

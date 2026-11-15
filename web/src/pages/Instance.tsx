@@ -550,24 +550,26 @@ function CodeTab({ instance, canAdd, canRemove, busy, onAdd, act }: { instance: 
           {canAdd && <Button size="sm" icon={<Plus />} disabled={busy || !instance.git.repository} onClick={onAdd}>Add</Button>}
         </div>
         {instance.submodules?.length ? (
-          <table className="table">
-            <tbody>
-              {instance.submodules.map((s) => (
-                <tr key={s.path}>
-                  <td>
-                    <div>{s.path}</div>
-                    <div className="xsmall faint truncate">{s.url}</div>
-                  </td>
-                  <td className="mono xsmall">{s.sha}</td>
-                  <td className="actions">
-                    {canRemove && (
-                      <Button size="sm" variant="ghost" icon={<Trash2 />} disabled={busy} aria-label="Remove" onClick={() => confirm(`Remove submodule ${s.path}? The change is pushed to GitHub.`) && act("remove-submodule", "Remove submodule", { path: s.path })} />
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-wrap">
+            <table className="table">
+              <tbody>
+                {instance.submodules.map((s) => (
+                  <tr key={s.path}>
+                    <td>
+                      <div>{s.path}</div>
+                      <div className="xsmall faint truncate">{s.url}</div>
+                    </td>
+                    <td className="mono xsmall">{s.sha}</td>
+                    <td className="actions">
+                      {canRemove && (
+                        <Button size="sm" variant="ghost" icon={<Trash2 />} disabled={busy} aria-label="Remove" onClick={() => confirm(`Remove submodule ${s.path}? The change is pushed to GitHub.`) && act("remove-submodule", "Remove submodule", { path: s.path })} />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <Empty icon={<Layers />} title="No submodules">Add other repositories (OCA modules, shared add-ons) to this branch.</Empty>
         )}

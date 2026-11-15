@@ -18,7 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   ([Panel API](docs/PANEL_API.md)).
 - **GitHub App:** "Connect GitHub" on the GitHub access page (super admins) registers one private, read-only GitHub
   App for the panel through GitHub's App Manifest flow, for a personal account or an organisation, and "Install on
-  GitHub" gives it all or selected repositories; several installations work side by side. The panel reads private
+  GitHub" gives it all or selected repositories of the account that owns it (the app is private). The panel reads private
   repositories and their submodules with one-hour installation tokens handed to git by a credential helper (never in
   addresses, `.git/config` or logs). The New instance page lists the app's repositories as you type, branches come
   from GitHub's API, and the new update trigger `github-app` (default `UPDATE_TRIGGERS=polling,github-app`) updates
@@ -48,6 +48,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Moving between pages** is smoother in browsers with the View Transitions API: the sidebar, the top bar, a page's
+  title block and its tabs stay still while only the content fades and shifts 8 px (from the right going forward,
+  from the left going back through the browser's history), in 120 ms out and 200 ms in; with reduced motion it is a
+  plain cross-fade, and other browsers change the page at once. A new page starts at its top and going back returns
+  to where you were. Loading placeholders appear only after 150 ms, so quick pages never flash a skeleton or
+  spinner, and a thin bar shows while a page's code is still loading. On a phone, an instance's backup buttons and
+  submodules table no longer widen the page.
 - **Performance** (figures, method and targets in [Performance](docs/PERFORMANCE.md); a repeatable load test in
   `perf/`):
   - The gateway passes request bodies on to Odoo as they arrive instead of reading them whole first, and answers as
@@ -66,6 +73,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
     frame no longer redraws on every live event.
   - The backend starts faster (the dummy password hash is made in the background), and gunicorn keeps its
     heartbeat file in memory.
+
+### Fixed
+
+- **GitHub App and organisations:** a private GitHub App can be installed only on the account that owns it, so an app
+  created on a personal account could never read a company organisation's private repositories, and creating an
+  instance from one failed with advice about deploy keys. **Connect GitHub** now asks whose repositories the instances
+  use and explains this, recommending an app created under the organisation (by one of its owners). The panel reads
+  the app's installations from GitHub by itself (at most once a minute, when the GitHub access page opens and before
+  a repository check), so installations made on GitHub are found without **Refresh**. When a repository cannot be
+  read, the New instance page and the failed job say what applies, with a button to fix it: the app belongs to
+  another account, is not installed on the owner, is suspended, or the repository is not among its selected ones;
+  the deploy-key advice is given only when no app is connected. The access report gains `fix`
+  ([Panel API](docs/PANEL_API.md)); the recommended setup is in the
+  [Administrator guide](docs/ADMIN_GUIDE.md#which-account-should-own-the-app).
 
 ### Security
 

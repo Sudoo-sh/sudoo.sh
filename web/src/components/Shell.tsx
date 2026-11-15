@@ -28,6 +28,7 @@ import { percent } from "@/lib/format";
 import { applyTheme, storedTheme, type ThemeChoice } from "@/lib/theme";
 import { Brand } from "./ui/Brand";
 import { Button, Callout } from "./ui/basics";
+import { PageMotion } from "./PageMotion";
 import { Menu, useToast } from "./ui/overlay";
 
 import { useCan, useMe } from "./Session";
@@ -284,6 +285,7 @@ export function Shell() {
   useEffect(() => setMenuOpen(false), [pathname]);
   return (
     <div className="shell">
+      <PageMotion />
       <Sidebar open={menuOpen} />
       {menuOpen && <div className="sidebar-scrim" onClick={() => setMenuOpen(false)} />}
       <div className="main">

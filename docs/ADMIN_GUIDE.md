@@ -743,7 +743,7 @@ After installing or updating:
 | A plugin setting changed in the browser has no effect | Plugin settings apply after a restart | Settings, Plugins, **Restart the panel** (refused while jobs run: wait for them) |
 | A value changed in `.env` has no effect | The same setting was changed on the Settings page, which wins | Click **Use .env** next to it on the Settings page |
 | "Starting up" for several minutes | Odoo fails to start | The instance's **Odoo log** tab |
-| An access report line is red on New instance | The GitHub App is not installed on the repository's owner, or the repository is not among its selected ones; or no deploy key | Install the app, or add the repository under **Choose repositories** ([section 15](#15-the-github-app)); or create a deploy key ([User manual](USER_MANUAL.md#7-github-access-private-repositories)) |
+| An access report line is red on New instance | The message says which: the app belongs to another account, is not installed on the repository's owner, the repository is not among its selected ones; or no app and no deploy key | Follow the button next to the line ([When a repository cannot be read](#when-a-repository-cannot-be-read)); or create a deploy key ([User manual](USER_MANUAL.md#7-github-access-private-repositories)) |
 | GitHub's page after **Create GitHub App** or **Install** does not open | The panel's quick-tunnel address changed since the app was created (GitHub still has the old one) | Open the panel at its current address, **GitHub access**, **Refresh**. A new app: connect again |
 | Pushes do not start updates at once | `github-app` is not in `UPDATE_TRIGGERS`, or GitHub cannot reach the panel | Settings, Plugins; on GitHub, the app's **Advanced** page lists recent deliveries and their answers |
 | Update fails: "branch ... no longer exists on GitHub" (or "no such ref was fetched"); the instance page warns about it | The branch was deleted on GitHub, usually after its pull request was merged | Menu, **Switch branch**, choose the branch to follow now (for example `main`) |
@@ -824,11 +824,32 @@ What the app may do, and nothing more:
 | Visibility | Private: only the account that owns it can install it |
 | Webhook | `<panel address>/hooks/github-app`, signed with a secret GitHub creates |
 
+### Which account should own the app
+
+A private GitHub App can be installed **only on the account that owns it**. An app created on your personal account
+can never read the repositories of your company's organisation, and an app created under the organisation cannot
+read your personal repositories. The panel connects one app, so choose its owner by where the instances' code is:
+
+| The code is in | Create the app under | Other repositories |
+| :--- | :--- | :--- |
+| A company organisation (the usual case) | The organisation (**An organisation** in step 2 below). An owner of the organisation on GitHub has to do it | Personal or other repositories: deploy keys ([User manual](USER_MANUAL.md#7-github-access-private-repositories)), one per repository |
+| Your personal account only | Your account (**My personal account**) | Company repositories: deploy keys, or reconnect the app under the organisation |
+
+The app stays private and read-only either way. Connecting a second app at the same time is not supported: each app
+has its own private key, webhook secret and webhook, and one app per panel keeps that simple and safe.
+
+An app already connected under the wrong account (for example created on a personal account when the repositories
+are the company's): click **Disconnect**, delete the old app on GitHub (the links the panel shows), then **Connect
+GitHub** again and choose **An organisation**. Instances keep their code; they get new code again once the new app is
+installed on the organisation.
+
 ### Connecting
 
 1. Sign in as a super admin, open **GitHub access** and click **Connect GitHub**.
-2. Choose **My account** or **An organisation**. For an organisation, type its name as in `github.com/<name>`;
-   you must be an owner of the organisation (GitHub refuses otherwise). Click **Continue on GitHub**.
+2. Answer **Whose repositories will the instances use?**: **An organisation** (a company's repositories) or **My
+   personal account** (see [Which account should own the app](#which-account-should-own-the-app)). For an
+   organisation, type its name as in `github.com/<name>`; you must be an owner of the organisation (GitHub refuses
+   otherwise). Click **Continue on GitHub**.
 3. GitHub shows **Create GitHub App for &lt;account&gt;** with the name filled in, for example
    `Sudoo.sh panel-3f9a`. The name must be unique on all of GitHub; change it if GitHub says it is taken (34
    characters at most). Click **Create GitHub App for &lt;account&gt;**.
@@ -840,16 +861,30 @@ The private key, the webhook secret and the client secret are stored encrypted w
 
 ### Installing
 
-1. Click **Install on GitHub**. GitHub asks **Where do you want to install &lt;app&gt;?**: pick your account or an
-   organisation (installing on an organisation other than the app's owner works only when the app was created under
-   that account; create the app under the organisation in step 2 above for company repositories).
+1. Click **Install on GitHub**. GitHub offers only the account that owns the app (the app is private).
 2. Choose **All repositories** or **Only select repositories** (then pick them), and click **Install**.
 3. GitHub sends you back; the panel checks the installation with GitHub and lists it under **Installed on**. In an
-   organisation where you are not an owner, GitHub sends a request to the owners instead; once they approve it,
-   click **Refresh**.
+   organisation where you are not an owner, GitHub sends a request to the owners instead.
 
-Several installations work side by side (for example your own account and two organisations). The panel uses, for
-each repository, the installation of the repository's owner.
+The panel also reads the app's installations from GitHub by itself, at most once a minute: when the GitHub access
+page opens and before it checks a repository. An installation made directly on GitHub, approved later by an
+organisation owner, or whose return to the panel never arrived therefore shows up without pressing **Refresh**
+(which reads them at once). The panel uses, for each repository, the installation of the repository's owner.
+
+### When a repository cannot be read
+
+When the panel cannot read a repository (the **New instance** page's check, or the first step of creating an
+instance), it says what applies, with a button to fix it:
+
+| Message begins with | What it means | What to do |
+| :--- | :--- | :--- |
+| The panel's GitHub App belongs to &lt;account&gt; | The repository's owner is another account; a private app cannot be installed there | Reconnect the app under that organisation ([Which account should own the app](#which-account-should-own-the-app)), or use a deploy key |
+| The GitHub App is not installed on &lt;owner&gt; | The app belongs to that account but has no installation there | **Install on &lt;owner&gt;** |
+| The GitHub App's installation on &lt;owner&gt; is suspended | Someone suspended it on GitHub | Unsuspend it in the installation's settings on GitHub |
+| The GitHub App is installed on &lt;owner&gt;, but &lt;repository&gt; is not among the repositories it may read | The installation has **Only select repositories** | **Choose repositories** and add it |
+| The GitHub App can read the repositories of &lt;owner&gt;, but GitHub does not know &lt;repository&gt; | The address is wrong | Check the address |
+
+Without a connected app, the message advises a deploy key instead.
 
 ### How the panel uses it
 

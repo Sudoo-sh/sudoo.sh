@@ -293,9 +293,10 @@ Click **New instance** in the sidebar (roles that may create instances). Under *
 4. **Name**: leave it empty to use repository and branch. The hint shows the final name and the database name, for
    example "Will be **sales-main** · database `sales_main`".
 5. Below the name, the **access report** shows one line for the repository and one for every submodule, each with
-   a mark: green when the server can read it, red with the reason when it cannot. For a private repository, install
-   the GitHub App on its owner or add a deploy key under **GitHub access**
-   ([section 7](#7-github-access-private-repositories)); the report is checked again when you come back.
+   a mark: green when the server can read it, red with the reason when it cannot. The reason says what applies, with
+   a button to fix it: the GitHub App belongs to another account, is not installed on the repository's owner, or
+   may not read this repository yet (**Choose repositories**). Without a GitHub App, add a deploy key under **GitHub
+   access** ([section 7](#7-github-access-private-repositories)); the report is checked again when you come back.
 6. **Version**: the Odoo versions offered on this server.
 7. **Edition**: **Community** (Odoo's free edition) or **Enterprise** (Enterprise apps and interface). Enterprise
    can be chosen only for the versions whose Enterprise add-ons are on the server.
@@ -397,7 +398,7 @@ read access, which it gets in one of two ways:
 
 | Way | What it covers | Who sets it up |
 | :--- | :--- | :--- |
-| **GitHub App** (recommended) | Every repository of a GitHub account or organisation that you allow (all, or selected ones), submodules included. Read-only. | A super admin, once, in a few clicks. |
+| **GitHub App** (recommended) | Every repository that you allow (all, or selected ones) of the one GitHub account or organisation that owns the app, submodules included. Read-only. | A super admin, once, in a few clicks. |
 | **Deploy key** (fallback) | Exactly one repository. Read-only unless you allow writing. | Anyone who manages GitHub access, once per repository. |
 
 ### Connecting the GitHub App
@@ -406,17 +407,22 @@ A super admin connects GitHub once; the administrator's guide has the screens in
 ([The GitHub App](ADMIN_GUIDE.md#15-the-github-app)).
 
 1. Open **GitHub access** (sidebar, Operations) and click **Connect GitHub**.
-2. Choose **My account** or **An organisation** (type its name, as in `github.com/acme`: `acme`; you must be an owner
-   of the organisation), then **Continue on GitHub**.
+2. Answer **Whose repositories will the instances use?** A private GitHub App works only on the account that owns
+   it, so for a company's repositories choose **An organisation** and type its name, as in `github.com/acme`:
+   `acme` (you must be an owner of the organisation on GitHub). Choose **My personal account** only when the code
+   is in your own account. Then **Continue on GitHub**.
 3. GitHub shows the new app already filled in. Press **Create GitHub App**. GitHub brings you back to the panel,
    which says "GitHub App created".
-4. Click **Install on GitHub**, choose the account or organisation, then **All repositories** or **Only select
-   repositories**, and press **Install**. GitHub brings you back again and the account appears under **Installed
-   on**.
+4. Click **Install on GitHub**, then **All repositories** or **Only select repositories**, and press **Install**.
+   GitHub brings you back again and the account appears under **Installed on**.
 
-Repeat step 4 for every account or organisation whose repositories the instances use. **Choose repositories** next
-to an installation opens GitHub's page where you change its repositories later. If you installed the app on GitHub
-directly, or GitHub's page did not bring you back, click **Refresh**.
+**Choose repositories** next to the installation opens GitHub's page where you change its repositories later. If you
+installed the app on GitHub directly, or GitHub's page did not bring you back, the installation appears by itself
+within a minute when you open **GitHub access** or check a repository (**Refresh** reads it at once).
+
+Repositories of other accounts (for example your personal ones when the app belongs to the company) need deploy
+keys; the administrator's guide explains the choice
+([Which account should own the app](ADMIN_GUIDE.md#which-account-should-own-the-app)).
 
 From then on, the **New instance** page offers your repositories as you type in the repository field, and pushes
 reach the panel at once through the app (no webhook per repository).

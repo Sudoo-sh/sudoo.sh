@@ -4,6 +4,16 @@
 	admin off
 	auto_https off
 	persist_config off
+	servers {
+		# a visitor must send a request's headers within 10 s and its body within 30 s (the panel's requests are
+		# small), and an idle connection is closed after 2 minutes, so slow or abandoned connections cannot pile up
+		# and tie up the backend's threads; answers are not limited (the live events stream for hours)
+		timeouts {
+			read_header 10s
+			read_body 30s
+			idle 2m
+		}
+	}
 }
 
 http://:{$PANEL_PORT} {
@@ -19,9 +29,13 @@ http://:{$PANEL_PORT} {
 		}
 	}
 
-	# the backend: API, webhooks, documentation pages and their files, health check
+	# the backend: API, webhooks, documentation pages and their files, health check. Its requests are small JSON
+	# documents (the backend refuses more than 64 KB); a much larger body is refused here already
 	@backend path /api/* /hooks/* /docs /docs/* /static/* /healthz
 	handle @backend {
+		request_body {
+			max_size 1MB
+		}
 		reverse_proxy 127.0.0.1:{$API_PORT}
 	}
 
@@ -42,6 +56,9 @@ http://:{$PANEL_PORT} {
 		@pages not path /assets/*
 		header @pages Cache-Control "no-cache"
 		try_files {path} /index.html
-		file_server
+		# the .br and .gz copies made when the app was built (scripts/precompress.mjs): no compressing per answer
+		file_server {
+			precompressed br gzip
+		}
 	}
 }

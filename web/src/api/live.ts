@@ -107,7 +107,7 @@ const TOPICS = ["instance", "instance.deleted", "job", "job.output", "metrics", 
 
 export interface Sync {
   state: LiveState;
-  /** when the last event arrived (ms); the server sends figures every METRICS_INTERVAL_SECONDS */
+  /** when the stream last opened (ms) */
   lastAt: number | null;
 }
 
@@ -122,7 +122,8 @@ export function useLiveEvents(enabled: boolean): Sync {
       setSync((s) => ({ ...s, state: source.readyState === EventSource.CLOSED ? "closed" : "connecting" }));
     for (const topic of TOPICS) {
       source.addEventListener(topic, (message) => {
-        setSync({ state: "open", lastAt: Date.now() });
+        // a new object only when the state changes: the frame (Shell) re-renders with it, and events arrive often
+        setSync((s) => (s.state === "open" ? s : { state: "open", lastAt: Date.now() }));
         try {
           const { key, data } = JSON.parse((message as MessageEvent<string>).data);
           handle(client, topic, key, data);

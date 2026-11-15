@@ -38,6 +38,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `/etc/machine-id` in `compose.yaml`, permission `plugins.view`, command `sudoo.sh marketplace`, and
   [Marketplace](docs/MARKETPLACE.md).
 
+### Changed
+
+- **Moving between pages** is smoother in browsers with the View Transitions API: the sidebar, the top bar, a page's
+  title block and its tabs stay still while only the content fades and shifts 8 px (from the right going forward,
+  from the left going back through the browser's history), in 120 ms out and 200 ms in; with reduced motion it is a
+  plain cross-fade, and other browsers change the page at once. A new page starts at its top and going back returns
+  to where you were. Loading placeholders appear only after 150 ms, so quick pages never flash a skeleton or
+  spinner, and a thin bar shows while a page's code is still loading. On a phone, an instance's backup buttons and
+  submodules table no longer widen the page.
+
 ## [1.0.0] - 2026-11-14
 
 ### Added

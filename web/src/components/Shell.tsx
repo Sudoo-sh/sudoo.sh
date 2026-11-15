@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { PageMotion } from "./PageMotion";
 import {
   BookOpen,
   ChevronRight,
@@ -317,6 +318,7 @@ export function Shell() {
   useEffect(() => setMenuOpen(false), [pathname]);
   return (
     <div className="shell">
+      <PageMotion />
       <Sidebar open={menuOpen} />
       {menuOpen && <div className="sidebar-scrim" onClick={() => setMenuOpen(false)} />}
       <div className="main">

@@ -109,9 +109,9 @@ Following Apple's use of translucent materials:
 
 The rules come from Emil Kowalski's animation standards and Apple's *Designing Fluid Interfaces*.
 
-**Only as much motion as the action is rare.** Moving between pages happens all day, so it is a quick cross-fade
-(120 ms out, 180 ms in), with no slide. Menus, sheets and toasts appear occasionally and get a short, purposeful
-animation. The first-run and sign-in screens, seen rarely, bring their blocks in one after the other.
+**Only as much motion as the action is rare.** Moving between pages happens all day, so it is short and small: only
+the content moves, the frame stays still (see the table). Menus, sheets and toasts appear occasionally and get a
+short, purposeful animation. The first-run and sign-in screens, seen rarely, bring their blocks in one after the other.
 
 | Thing | Motion | Curve and duration |
 | :--- | :--- | :--- |
@@ -120,6 +120,8 @@ animation. The first-run and sign-in screens, seen rarely, bring their blocks in
 | Dialogs | Not anchored to a trigger: materialize in the centre (scale 0.96, opacity, 4 px blur) | `--ease`, 240 ms |
 | Drawer | In from the right edge and out the same way (spatial consistency) | `--ease-drawer` (the iOS sheet curve), 400 ms in, 280 ms out |
 | Toasts | Rise from the bottom edge, sink back when they go | `--ease`, 320 ms |
+| Moving between pages | The View Transitions API (`viewTransition` on links and `navigate`). The sidebar, the top bar, the page's title block (`.page-head`) and its tabs are captured on their own and stay where they are, cross-fading in place when they change; the rest of the view fades out and the new page fades in shifted 8 px: from the right going forward, from the left going back through history (`lib/navigation.ts` sets `data-nav` on `<html>`). The content is the viewport's snapshot, so a scrolled page does not jump. Browsers without the API change the page at once | `--ease`, 120 ms out, 200 ms in, 160 ms for what stays |
+| Loading placeholders | Skeletons and a page's spinner stay invisible for 150 ms, then fade in, so a quick load never flashes; a 2 px bar at the top appears after 150 ms while a page's code is still loading | `--ease`, `--quick` after 150 ms |
 | Segmented control | The thumb slides to the chosen option | `--ease-move`, 280 ms |
 | Switch | The thumb stretches while pressed, as on iOS | `--ease`, 160 ms |
 | Numbers | Tween to the new value | ease-out, 600 ms |
@@ -137,7 +139,10 @@ Implementation rules:
 - **Nothing appears from `scale(0)`:** entries start at 0.96 to 0.97.
 - **Hover styles only for real pointers** (`@media (hover: hover) and (pointer: fine)`), so taps on a phone do not
   leave things highlighted.
-- **Reduced motion** keeps changes understandable: movement is removed and replaced by short cross-fades.
+- **Reduced motion** keeps changes understandable: movement is removed and replaced by short cross-fades (the page
+  transition loses its shift; loading placeholders keep their 150 ms delay, which is not movement).
+- **A new page starts at its top,** and going back returns to where you were (`ScrollRestoration`, in
+  `components/PageMotion.tsx`).
 - **Status chrome only when it matters:** no "live" or "synced" badge; a small "Reconnecting" notice appears only
   when the connection to the server has been lost for more than three seconds.
 

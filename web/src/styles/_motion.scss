@@ -2,17 +2,83 @@
 // moving between pages happens all day, so it is a short cross-fade; menus grow from their trigger; sheets and
 // toasts leave the way they came; presses answer at once. Nothing loops except the dot of something running.
 
-::view-transition-old(page) {
-  animation: page-out 120ms var(--ease) both;
+// ---------------------------------------------------------------- moving between pages
+// The View Transitions API (React Router's `viewTransition` on links and navigate); browsers without it change the
+// page at once. Only the content moves: the sidebar, the top bar, a page's title block and its tabs are captured on
+// their own and stay where they are (a changed title or tab cross-fades in place), while the rest of the view fades
+// out and the new page comes in with a small shift: from the right going forward, from the left going back
+// (lib/navigation.ts sets data-nav). Only opacity and transform move; the content is the viewport's snapshot, so a
+// page scrolled down does not jump.
+
+:root { --page-shift: 8px; }
+:root[data-nav="back"] { --page-shift: -8px; }
+
+.topbar { view-transition-name: topbar; }
+.page > .page-head { view-transition-name: page-head; }
+.page > .tabs { view-transition-name: page-tabs; }
+.help-nav { view-transition-name: help-nav; }
+// on a phone the sidebar is a drawer that closes while the page changes: it moves with the view
+@media (min-width: 961px) {
+  .sidebar { view-transition-name: sidebar; }
 }
-::view-transition-new(page) {
-  animation: page-in 180ms var(--ease) both;
+
+// the backdrop of the transition is the page's own background, so nothing flashes between the two views
+::view-transition { background: var(--bg); }
+
+::view-transition-old(root) {
+  animation: page-out 120ms var(--ease) both;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  animation: page-in 200ms var(--ease) both;
+  mix-blend-mode: normal;
 }
 @keyframes page-out {
-  to { opacity: 0; }
+  to { opacity: 0; transform: translateX(calc(var(--page-shift) * -0.5)); }
 }
 @keyframes page-in {
-  from { opacity: 0; }
+  from { opacity: 0; transform: translateX(var(--page-shift)); }
+}
+
+// what stays: no movement from one place to another, a plain cross-fade where the content differs
+::view-transition-group(topbar),
+::view-transition-group(sidebar),
+::view-transition-group(page-head),
+::view-transition-group(page-tabs),
+::view-transition-group(help-nav) {
+  animation: none;
+}
+::view-transition-image-pair(topbar),
+::view-transition-image-pair(sidebar),
+::view-transition-image-pair(page-head),
+::view-transition-image-pair(page-tabs),
+::view-transition-image-pair(help-nav) {
+  animation-duration: 160ms;
+  animation-timing-function: var(--ease);
+}
+// the top bar is translucent: keep its blur over the content that moves beneath it
+::view-transition-group(topbar) {
+  backdrop-filter: var(--material-blur);
+  -webkit-backdrop-filter: var(--material-blur);
+}
+
+// shown only when opening a page takes longer than 150 ms (a page's code still loading)
+.nav-progress {
+  position: fixed;
+  z-index: 60;
+  inset: 0 0 auto 0;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  animation: fade var(--quick) var(--ease) 150ms both;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background: var(--accent);
+    animation: sweep 1.1s linear infinite;
+  }
 }
 
 @keyframes rise {
@@ -48,7 +114,10 @@
     &:nth-child(#{$i}) { animation-delay: #{($i - 1) * 40}ms; }
   }
 }
-.rise { animation: rise 320ms var(--ease) both; }
+// cards that rise as a page opens, only where the page transition above is not available (it would move them twice)
+@supports not (view-transition-name: none) {
+  .rise { animation: rise 320ms var(--ease) both; }
+}
 
 // reduced motion: no movement, but changes still fade so they can be followed
 @media (prefers-reduced-motion: reduce) {
@@ -58,4 +127,9 @@
     transition-duration: 150ms !important;
   }
   .rise, .auth .stagger > *, .modal, .drawer, .menu, .toast { animation: fade 150ms ease both !important; transform: none !important; }
+  // the page transition becomes a short cross-fade
+  :root { --page-shift: 0px; }
+  // loading placeholders keep their delay: it avoids a flash, it is not movement
+  .nav-progress, .spinner[role="status"] { animation-delay: 150ms !important; }
+  .skeleton { animation-delay: 0ms, 150ms !important; }
 }

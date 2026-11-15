@@ -55,6 +55,7 @@ FILE_RE = re.compile(
     r"^(?P<instance>[a-z0-9][a-z0-9-]{0,30})__(?P<db>[a-z0-9_]{1,63})__(?P<stamp>\d{8}-\d{6})"
     r"(?:__(?P<kind>manual|daily|deletion|before-restore|before-rollback|before-repair))?\.zip$"
 )
+DB_NAME_RE = re.compile(r"[a-z0-9_]{1,63}")  # the database names the panel gives (and FILE_RE accepts)
 KINDS = ("manual", "daily", "deletion", "before-restore", "before-rollback", "before-repair")
 RESTORABLE = ("manual", "daily", "deletion")  # what "Restore the latest backup" chooses from
 SNAPSHOTS = ("before-restore", "before-rollback")  # safety copies, removed ROLLBACK_HOURS after they were taken
@@ -87,6 +88,8 @@ def _database_up(job: Job, name: str) -> None:
 
 
 def _backup_database(job: Job, name: str, db: str, version: str, edition: str, stamp: str, kind: str) -> Path:
+    if not DB_NAME_RE.fullmatch(db):  # it becomes part of the backup's file name
+        raise JobError(f"{db[:70]!r} is not a database name this panel uses")
     target = settings.backups_dir / f"{name}__{db}__{stamp}__{kind}.zip"
     job.write(f"Backing up database {db} to {target}\n")
     with tempfile.TemporaryDirectory(dir=settings.backups_dir) as tmp:
@@ -304,6 +307,8 @@ def restore(job: Job, name: str, backup: dict[str, Any], db: str | None = None) 
     if path is None:
         raise JobError("the backup file is gone")
     db = db or backup["db"]
+    if not DB_NAME_RE.fullmatch(db):  # it goes into SQL and into a path below: only names the panel gives
+        raise JobError(f"{db[:70]!r} is not a database name this panel uses")
     container = store.container(name, "db")
     with zipfile.ZipFile(path) as archive:
         names = set(archive.namelist())
@@ -330,15 +335,16 @@ def restore(job: Job, name: str, backup: dict[str, Any], db: str | None = None) 
                     with archive.open(entry) as data:
                         tar.addfile(info, data)
             tar_file.seek(0)
+            # the folder is the script's argument ($1), never part of the script's text
+            script = 'rm -rf "$1" && mkdir -p "$1" && tar -x -C "$1" && chown -R odoo: "$1"'
             target = f"/var/lib/odoo/filestore/{db}"
-            script = f"rm -rf {target} && mkdir -p {target} && tar -x -C {target} && chown -R odoo: {target}"
             # root in a short-lived container, with only what replacing files owned by Odoo's user needs (the
             # instance's containers drop every capability otherwise)
             capabilities = [arg for cap in odoo.FILESTORE_CAPABILITIES for arg in ("--cap-add", cap)]
             command = store.compose(
                 name, "run", "--rm", "--no-deps", "-T", "--user", "root", *capabilities, "--entrypoint", "sh"
             )
-            _feed([*command, "odoo", "-c", script], tar_file, "filestore")
+            _feed([*command, "odoo", "-c", script, "sh", target], tar_file, "filestore")
 
 
 _NEUTRALIZE_SQL = (

@@ -197,6 +197,27 @@ def test_cross_instance_restore_uses_the_target_database_and_neutralises(monkeyp
     assert done == [("backup", "before-restore"), ("restore", (own, "shop"))]  # its own data: not neutralised
 
 
+def test_the_filestore_folder_is_an_argument_of_the_restore_script(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The database name (DB_NAME of .env for another instance's backup) never becomes part of the root script."""
+    _instance("shop")
+    _backup("lab")
+    backup = backups.all_backups()[0]
+    fed: list[list[str]] = []
+    monkeypatch.setattr(backups, "_database_up", lambda job, name: None)
+    monkeypatch.setattr(backups, "_feed", lambda cmd, data, what: fed.append(cmd))
+    job = jobs.Job("shop", "Restore", "restore", "test")
+    monkeypatch.setattr(job, "run", lambda *args, **kwargs: None)
+    for db in ("a;cd ~odoo;sh x #", "shop/../../x", "Shop", "$(x)"):
+        with pytest.raises(jobs.JobError):
+            backups.restore(job, "shop", backup, db)
+    assert not fed
+
+    backups.restore(job, "shop", backup, "shop")
+    script = fed[-1][-3]
+    assert fed[-1][-5:] == ["odoo", "-c", script, "sh", "/var/lib/odoo/filestore/shop"]
+    assert "shop" not in script and '"$1"' in script
+
+
 # ---------------------------------------------------------------- rollback
 
 

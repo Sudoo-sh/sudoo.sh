@@ -421,7 +421,8 @@ read its configuration and no other user on the server can.
 **Only through the panel.** Nothing of an instance listens anywhere but `127.0.0.1`; visitors reach Odoo through the
 panel's gateway, and people change instances through the panel's jobs, each checked against a permission and written
 to the audit log. A restore's filestore step runs one short-lived root container with only `CHOWN`, `DAC_OVERRIDE`
-and `FOWNER`; everything else the panel does inside containers (`docker exec` of `psql`, `pg_dump`, `du`) runs with
+and `FOWNER` (the database name is checked against the names the panel gives and passed to it as an argument, never
+as part of its script); everything else the panel does inside containers (`docker exec` of `psql`, `pg_dump`, `du`) runs with
 the container's own limits.
 
 **Changes made by hand.** When the panel starts an instance it records what it applied (the values that shape the

@@ -92,9 +92,15 @@ def test_compose_run_gets_a_name_it_can_be_removed_by() -> None:
 
 
 def test_addresses_with_credentials_are_masked_in_the_log() -> None:
-    assert redact("git clone -- https://user:secret@example.com/r.git /x") == "git clone -- https://***@example.com/r.git /x"
+    assert (
+        redact("git clone -- https://user:secret@example.com/r.git /x")
+        == "git clone -- https://***@example.com/r.git /x"
+    )
     assert redact("https://token@example.com/r.git") == "https://***@example.com/r.git"
-    assert redact("git@github.com:acme/r.git and https://example.com/a@b") == "git@github.com:acme/r.git and https://example.com/a@b"
+    assert (
+        redact("git@github.com:acme/r.git and https://example.com/a@b")
+        == "git@github.com:acme/r.git and https://example.com/a@b"
+    )
     job = _job()
     job.run_unchecked(["echo", "https://user:secret@example.com/r.git"])
     assert "secret" not in "".join(job.log)

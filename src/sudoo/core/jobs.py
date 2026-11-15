@@ -10,6 +10,7 @@ adds a note or ends, and "job.output" with new log text at most twice a second.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import queue
 import signal
@@ -22,8 +23,8 @@ from collections.abc import Callable
 from typing import Any
 
 from sudoo.core import events
-from sudoo.core.shell import redact
 from sudoo.core.hints import friendly_hint
+from sudoo.core.shell import redact
 
 JOBS: OrderedDict[str, Job] = OrderedDict()
 _JOBS_LOCK = threading.Lock()
@@ -234,16 +235,12 @@ def _stop(proc: subprocess.Popen[str], container: str | None) -> None:
         os.killpg(proc.pid, signal.SIGKILL)
     except (ProcessLookupError, PermissionError):
         proc.kill()
-    try:
+    with contextlib.suppress(subprocess.TimeoutExpired):
         proc.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        pass
-    if container:
-        try:
+    if container:  # Docker missing or stuck: there is nothing more the job can do
+        with contextlib.suppress(OSError, subprocess.TimeoutExpired):
             subprocess.run(["docker", "rm", "-f", container], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                            stderr=subprocess.DEVNULL, timeout=60, check=False)  # fmt: skip
-        except (OSError, subprocess.TimeoutExpired):
-            pass  # Docker is missing or stuck: there is nothing more the job can do
 
 
 def is_panel_job(instance: str) -> bool:

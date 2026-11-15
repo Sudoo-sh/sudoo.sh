@@ -136,8 +136,7 @@ def _copy_member(archive: zipfile.ZipFile, name: str, tar: tarfile.TarFile, memb
     """Copy a file of the tar into the zip as `name` piece by piece, so a large attachment never sits whole in the
     panel's memory. The entry is the one writestr() would make (time, compression, mode 600)."""
     info = zipfile.ZipInfo(name, date_time=time.localtime(time.time())[:6])
-    info.compress_type = archive.compression
-    info.compress_level = archive.compresslevel
+    info.compress_type = archive.compression  # at zlib's default level, as the archive is opened with no level
     info.external_attr = 0o600 << 16
     info.file_size = member.size  # known in advance: very large files get ZIP64 headers, as with writestr()
     with cast(IO[bytes], tar.extractfile(member)) as source, archive.open(info, "w") as target:

@@ -222,8 +222,8 @@ SMTP_PASSWORD=...
 | `RATE_LIMITER` | str | `memory` | **restart** | Where request counts are kept: `memory`. |
 | `RATE_LIMIT_READS_PER_MINUTE` | int | `600` | **live** | Requests that read, per minute, per signed-in user or API token (per address before signing in); 0: no limit. |
 | `RATE_LIMIT_CHANGES_PER_MINUTE` | int | `60` | **live** | Requests that change something, per minute, counted the same way; 0: no limit. |
-| `MAX_INSTANCES` | int | `0` | **live** | Instances on this server at most; 0: no limit. |
-| `MAX_INSTANCES_PER_USER` | int | `0` | **live** | Instances one person or API token may have created and not yet deleted; 0: no limit. |
+| `MAX_INSTANCES` | int | `0` | **live** | Instances on this server at most, those being created included; 0: no limit. |
+| `MAX_INSTANCES_PER_USER` | int | `0` | **live** | Instances one person or API token may have created (or be creating) and not yet deleted; 0: no limit. |
 | `CREATE_COOLDOWN_MINUTES` | float | `0` | **live** | Minutes one person or token must wait between two creations, for example `60`; 0: no wait. |
 
 Answers over a request limit are `429 Too Many Requests` with `Retry-After`; every limited answer carries

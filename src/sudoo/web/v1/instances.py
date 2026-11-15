@@ -228,6 +228,19 @@ def create() -> Response:
     if from_backup:
         refuse_unless("instances.restore", "create an instance from a backup")
         from_backup = _usable_backup(from_backup, version, edition)
+    with quotas.LOCK:  # until the job is registered: from then on it counts toward the limits
+        return _start_creation(data, repo, branch, version, edition, custom_name, from_backup)
+
+
+def _start_creation(
+    data: Mapping[str, Any],
+    repo: str,
+    branch: str,
+    version: str,
+    edition: str,
+    custom_name: str,
+    from_backup: str | None,
+) -> Response:
     try:
         quotas.claim(g.user["name"])
     except quotas.QuotaError as error:

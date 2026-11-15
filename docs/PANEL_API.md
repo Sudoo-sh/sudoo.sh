@@ -893,4 +893,5 @@ GET /api/v1/instance-quota
 ```
 
 `next_creation_at` (Unix time) is set while the caller has to wait. A creation that breaks a limit is refused with
-403 (a number is reached) or 429 with `Retry-After` (wait).
+403 (a number is reached) or 429 with `Retry-After` (wait). Creations that are queued or running count as instances
+(of whoever started them), in `instances` and `own_instances` too, so creations started together cannot pass a limit.

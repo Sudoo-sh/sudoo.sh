@@ -18,6 +18,44 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   quick tunnel changes. Existing deploy keys keep working and remain the fallback. API: `/api/v1/github/app`,
   `/api/v1/github/app/manifest`, `/api/v1/github/app/installations`, `/api/v1/github/repositories`.
 
+## [1.0.0] - 2026-11-14
+
+### Added
+
+- **Prebuilt, signed images:** every version tag publishes `ghcr.io/sudoo-sh/sudoo-panel` and
+  `ghcr.io/sudoo-sh/sudoo-web` for linux/amd64 and linux/arm64 (tags `1.2.3`, `1.2`, `1`, `latest`), with an SBOM and
+  provenance attestation, signed with Sigstore (cosign, keyless). The documentation is inside the panel image. The
+  release carries `compose.yaml` with the images pinned by digest, `env.example` and `SHA256SUMS`. Every commit on
+  `main` publishes `edge` and `sha-<commit>` images.
+- **One-file installer:** `curl -fsSL https://github.com/Sudoo-sh/sudoo.sh/releases/latest/download/sudoo-install.sh | sudo bash`.
+  It checks the server first (each problem with its fix), installs Docker and other missing programs only after
+  asking ([y]es / [n]o / [a]ll, `--yes` for scripts), and runs the release's images. It stays on the server as
+  `sudoo-install` with `check`, `update`, `update --rollback`, `update --version edge`, `status` and `uninstall`
+  (`--purge`). An update replaces only `sudoo-panel` and `sudoo-web`; instances and connectors are never touched.
+- **Manual installation** with the release's `compose.yaml` (docs/ADMIN_GUIDE.md), and **from source** with
+  `docker compose build` (README).
+- **Hardened instance containers:** each instance's `odoo` and `db` run with `no-new-privileges`, every Linux
+  capability dropped except the few PostgreSQL's entry point needs (Odoo gets none), read-only system files (only
+  the data volumes and in-memory `/tmp` are writable; `config/` and the add-ons are mounted read-only), an init
+  process, rotated logs, process, memory and processor limits (`ODOO_MEMORY_LIMIT`, `ODOO_CPU_LIMIT`,
+  `DB_MEMORY_LIMIT`, `DB_CPU_LIMIT`, `CONTAINER_PIDS_LIMIT`, `CONTAINER_LOG_MAX_SIZE`, `CONTAINER_LOG_MAX_FILES`;
+  Settings, Instance containers), and the database on an internal network only (no port, no way out, not
+  reachable from other instances or, on Docker 28+, from the server). Images are pinned by digest at creation;
+  **Update Odoo and PostgreSQL images** (action `update-images`) refreshes them. The compose file is rendered from
+  a fixed list of keys, refuses anything else (extra keys, more capabilities, ports off `127.0.0.1`, the Docker
+  socket, writable folders from the server), holds its values literally and is run without `.env`. Instance folders
+  are mode 700, `.env` and the compose file 600, `odoo.conf` 600 and owned by the Odoo image's user. Existing
+  instances get all this the next time they start or restart through the panel; running ones are not restarted for
+  it. New Cloudflare connectors are hardened too; existing ones are left as they are (their links would change).
+- **Changes made by hand are found and undone:** every 20 seconds the panel compares each instance's files and
+  containers (`docker inspect`: image, capabilities, privileges, mounts, networks, ports, environment, labels,
+  limits, restart policy) with what it applied, and looks for containers that pretend to belong to an instance. A
+  difference goes to the audit log, shows as a **Changed outside the panel** banner and is e-mailed to super admins.
+  With `DRIFT_ACTION=restore` (default) the panel then backs up the database (new backup kind `before-repair`) when
+  its container is affected, writes its own files back, stops strange containers and recreates the affected ones;
+  `warn` only reports, with a **Restore the panel's configuration** button (action `repair`). Connectors and `.env`
+  are only ever reported. See [Security](docs/SECURITY.md#10-instance-containers).
+
 - **Daily backups:** once a day (`DAILY_BACKUP_TIME`, default 00:00, in `TIMEZONE`), every instance that was used
   since its last daily backup is backed up. Each instance keeps only its latest daily backup; they go when the
   instance is deleted. Settings: `DAILY_BACKUPS`, `DAILY_BACKUP_TIME`, `TIMEZONE` (Settings, Backups).
@@ -43,51 +81,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   by the administrator, checked live with a strength meter; optionally without asking the person to change it.
 - **A new logo,** the same everywhere: Odoo's round "o" followed by a text cursor.
 
-### Changed
-
-- **The logo follows the theme:** the favicon and the status pages' icon switch to the graphite tile in dark
-  mode, and the README shows the dark animated mark there.
-- **TRADEMARKS.md:** what you may do with the name, logo and badges; the licence covers the code only.
-- **The logo is redrawn:** a plum ring with a dot and a text cursor on a white tile (light plum on graphite in dark
-  mode), in the app, favicon, status pages, e-mails and README; the README shows it with a blinking cursor. The
-  repository moved to the Sudoo-sh organization and every link points there.
-- **Sign in with the e-mail address.** Every account has a unique e-mail address; the user name is made from it and
-  still works. First-run setup no longer asks for a user name.
-- **Super admins can be edited,** including your own account; the last super admin stays one.
-- **Stronger password rules** (NIST SP 800-63B): sequences such as 12345 or qwerty, repeated characters and the
-  person's own name or address are refused, in the browser and on the server.
-- **Menus open above the page,** so a list never cuts them off, and upwards near the bottom of the window.
-- **The unsaved-changes bar on the Settings page follows the theme.**
-- **The web app builds with Node.js 26, the current LTS release** (image, CI and `engines`). Dependabot proposes
-  only LTS (even-numbered) Node majors.
-- **The interface follows Apple's design and motion principles** ([docs/DESIGN.md](docs/DESIGN.md)):
-  - the system font with size-specific tracking;
-  - graphite neutrals with Odoo's plum as the single accent;
-  - a translucent sidebar and top bar;
-  - presses that answer at once; menus that grow from their trigger; dialogs that materialize in the centre;
-  - a job drawer and toasts that leave the way they came; a sliding segmented control; quick cross-fades
-    between pages;
-  - themes that fade instead of flashing;
-  - support for reduced motion, reduced transparency and higher contrast.
-- **The live charts use Chart.js,** updated in place as each sample arrives.
-- **Faster measurements:** every 5 seconds (`METRICS_INTERVAL_SECONDS`), from a continuous `docker stats` stream.
-  Git details are read at most once a minute and right after a job.
-- **No status badge:** a small "Reconnecting" notice appears only when the connection is lost.
-- **Five roles** replace administrator and sync operator: super admin, administrator, maintainer, developer and
-  viewer, each a set of named permissions checked on every request. Existing accounts are renamed automatically
-  (administrator to super admin, sync operator to developer).
-- **No default accounts:** the installer prints a one-time setup code, and the first visit creates your own
-  account (name, e-mail, phone, password).
-- **Generated passwords** (new accounts, resets) must be replaced at the first sign-in.
-- **Almost every setting can be changed on the Settings page,** including the e-mail account:
-  - secrets are stored encrypted;
-  - settings that choose plugins apply after **Restart the panel**;
-  - folders, ports, the exposure and the storage stay in `.env`.
-- **The documentation is shown on the web app's Help pages,** from the same files as on GitHub.
-- **The previous pages and the internal `/api/*` are removed;** everything uses `/api/v1`.
-
-### Added
-
 - **One-command install:** `curl -fsSL https://raw.githubusercontent.com/Sudoo-sh/sudoo.sh/main/get.sh | sudo bash`
   installs Docker if needed, downloads the latest release and runs the installer.
 - **Account profiles** (first and last name, e-mail, phone), editable on My account and by administrators.
@@ -99,17 +92,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Sign-in codes in e-mails** can be selected with one tap.
 - **A design guide** (`docs/DESIGN.md`) explaining the tokens, type, materials and motion, and how to restyle
   Sudoo.sh.
-
-### Renamed
-
-- The project is now **Sudoo** (`sudo` + `Odoo`), the self-hosted counterpart of Odoo.sh: repository
-  `sudoo.sh`, Python package and command `sudoo`, containers `sudoo-panel` and `sudoo-connector-<name>`,
-  API tokens `sudoo_...`, signature headers `X-Sudoo-*`.
-- New sudoo.sh logo (light and dark) and social preview in `docs/images/brand/`, shown at the top of the
-  README; the remaining `odoo-sudoo` folder names in the README, CONTRIBUTING and the Administrator guide now say
-  `sudoo.sh`.
-
-### Added
 
 - **A new web app** (`web/`): React, TypeScript and SCSS, built with Vite and served by Caddy as its own container
   (`sudoo-web`) on the panel's port, using only `/api/v1`. Every page is new:
@@ -185,6 +167,52 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Servers no longer build the images or keep the source code.** `get.sh`, `install.sh` and `check-server.sh` are
+  gone; servers installed with them move to the images with `sudoo-install update` (same containers, folders and
+  `.env`; the source files and `/opt/sudoo.sh-kit` are removed afterwards and kept in the backup).
+- `compose.yaml` has health checks for both services; settings in `.env` that the template does not know are kept.
+
+- **The logo follows the theme:** the favicon and the status pages' icon switch to the graphite tile in dark
+  mode, and the README shows the dark animated mark there.
+- **TRADEMARKS.md:** what you may do with the name, logo and badges; the licence covers the code only.
+- **The logo is redrawn:** a plum ring with a dot and a text cursor on a white tile (light plum on graphite in dark
+  mode), in the app, favicon, status pages, e-mails and README; the README shows it with a blinking cursor. The
+  repository moved to the Sudoo-sh organization and every link points there.
+- **Sign in with the e-mail address.** Every account has a unique e-mail address; the user name is made from it and
+  still works. First-run setup no longer asks for a user name.
+- **Super admins can be edited,** including your own account; the last super admin stays one.
+- **Stronger password rules** (NIST SP 800-63B): sequences such as 12345 or qwerty, repeated characters and the
+  person's own name or address are refused, in the browser and on the server.
+- **Menus open above the page,** so a list never cuts them off, and upwards near the bottom of the window.
+- **The unsaved-changes bar on the Settings page follows the theme.**
+- **The web app builds with Node.js 26, the current LTS release** (image, CI and `engines`). Dependabot proposes
+  only LTS (even-numbered) Node majors.
+- **The interface follows Apple's design and motion principles** ([docs/DESIGN.md](docs/DESIGN.md)):
+  - the system font with size-specific tracking;
+  - graphite neutrals with Odoo's plum as the single accent;
+  - a translucent sidebar and top bar;
+  - presses that answer at once; menus that grow from their trigger; dialogs that materialize in the centre;
+  - a job drawer and toasts that leave the way they came; a sliding segmented control; quick cross-fades
+    between pages;
+  - themes that fade instead of flashing;
+  - support for reduced motion, reduced transparency and higher contrast.
+- **The live charts use Chart.js,** updated in place as each sample arrives.
+- **Faster measurements:** every 5 seconds (`METRICS_INTERVAL_SECONDS`), from a continuous `docker stats` stream.
+  Git details are read at most once a minute and right after a job.
+- **No status badge:** a small "Reconnecting" notice appears only when the connection is lost.
+- **Five roles** replace administrator and sync operator: super admin, administrator, maintainer, developer and
+  viewer, each a set of named permissions checked on every request. Existing accounts are renamed automatically
+  (administrator to super admin, sync operator to developer).
+- **No default accounts:** the installer prints a one-time setup code, and the first visit creates your own
+  account (name, e-mail, phone, password).
+- **Generated passwords** (new accounts, resets) must be replaced at the first sign-in.
+- **Almost every setting can be changed on the Settings page,** including the e-mail account:
+  - secrets are stored encrypted;
+  - settings that choose plugins apply after **Restart the panel**;
+  - folders, ports, the exposure and the storage stay in `.env`.
+- **The documentation is shown on the web app's Help pages,** from the same files as on GitHub.
+- **The previous pages and the internal `/api/*` are removed;** everything uses `/api/v1`.
+
 - Dependencies are installed with uv from `uv.lock` instead of Alpine packages; the image is based on
   `python:3.12-alpine`.
 - Settings are typed and checked at start-up (pydantic-settings): a wrong value stops the panel with a clear message.
@@ -192,17 +220,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   hints on every function, formatted with black.
 - `ADMIN_CONTACT_NAME` defaults to "the administrator".
 
-### Upgrading
+### Renamed
 
-Run `install.sh` as usual. It replaces the old `manager/` files, adds the new settings to `.env` with their
-defaults and keeps your values. `ODOO_VERSIONS` keeps its current value; set it to `auto` to offer every version.
-Use `sudoo` instead of `python3 manage.py` in commands.
+- The project is now **Sudoo** (`sudo` + `Odoo`), the self-hosted counterpart of Odoo.sh: repository
+  `sudoo.sh`, Python package and command `sudoo`, containers `sudoo-panel` and `sudoo-connector-<name>`,
+  API tokens `sudoo_...`, signature headers `X-Sudoo-*`.
+- New sudoo.sh logo (light and dark) and social preview in `docs/images/brand/`, shown at the top of the
+  README; the remaining `odoo-sudoo` folder names in the README, CONTRIBUTING and the Administrator guide now say
+  `sudoo.sh`.
 
 ### Fixed
 
 - **Live container figures work with Docker 29:** the `docker stats` stream ends its lines with a terminal code
   that stopped the reader, so per-instance processor and memory figures were missing. A line it cannot read is now
   skipped instead of restarting the stream.
+
+### Upgrading
+
+Run `install.sh` as usual. It replaces the old `manager/` files, adds the new settings to `.env` with their
+defaults and keeps your values. `ODOO_VERSIONS` keeps its current value; set it to `auto` to offer every version.
+Use `sudoo` instead of `python3 manage.py` in commands.
 
 ## [0.1.0] - 2026-11-11
 
@@ -220,5 +257,6 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/Sudoo-sh/sudoo.sh/releases/tag/v0.1.0

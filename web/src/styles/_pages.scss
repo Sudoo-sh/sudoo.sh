@@ -463,3 +463,10 @@
     .desc { flex: 1 1 0; color: var(--text-3); font-size: var(--text-13); }
   }
 }
+
+// what an instance's integrity check found changed outside the panel (Instance page, drift callout)
+.drift-list {
+  margin: var(--s2) 0 var(--s3);
+  padding-left: var(--s5);
+  li { overflow-wrap: anywhere; }
+}

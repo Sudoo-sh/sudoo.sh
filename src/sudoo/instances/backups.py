@@ -32,6 +32,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import tarfile
@@ -109,7 +110,7 @@ def _backup_database(job: Job, name: str, db: str, version: str, edition: str, s
                 for member in tar:
                     inside = member.name.split("/", 1)[1] if "/" in member.name else ""
                     if member.isfile() and inside:
-                        archive.writestr(f"filestore/{inside}", cast(IO[bytes], tar.extractfile(member)).read())
+                        _copy_member(archive, f"filestore/{inside}", tar, member)
             archive.writestr(
                 "manifest.json",
                 json.dumps(
@@ -129,6 +130,18 @@ def _backup_database(job: Job, name: str, db: str, version: str, edition: str, s
         partial.replace(target)
     job.write(f"Backup written: {target.name} ({target.stat().st_size // 1024} KB)\n")
     return target
+
+
+def _copy_member(archive: zipfile.ZipFile, name: str, tar: tarfile.TarFile, member: tarfile.TarInfo) -> None:
+    """Copy a file of the tar into the zip as `name` piece by piece, so a large attachment never sits whole in the
+    panel's memory. The entry is the one writestr() would make (time, compression, mode 600)."""
+    info = zipfile.ZipInfo(name, date_time=time.localtime(time.time())[:6])
+    info.compress_type = archive.compression
+    info.compress_level = archive.compresslevel
+    info.external_attr = 0o600 << 16
+    info.file_size = member.size  # known in advance: very large files get ZIP64 headers, as with writestr()
+    with cast(IO[bytes], tar.extractfile(member)) as source, archive.open(info, "w") as target:
+        shutil.copyfileobj(source, target, 2**20)
 
 
 def _run_to_file(cmd: list[str], path: Path, what: str) -> None:

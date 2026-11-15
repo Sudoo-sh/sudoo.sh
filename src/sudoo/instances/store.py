@@ -5,7 +5,8 @@ An instance lives in INSTANCES_DIR/<name>/:
                           the Odoo master password in it is encrypted (vault.py)
     docker-compose.yml    its two containers: odoo and db (PostgreSQL)
     config/odoo.conf      Odoo configuration
-    addons/               clone of its GitHub repository (with submodules)
+    addons/               clone of its GitHub repository (with submodules); for plain Odoo (SOURCE=plain in .env)
+                          an empty folder (a git repository without a remote, so git commands stay inside it)
 
 Each instance gets three ports on 127.0.0.1, allocated together when it is created:
     GATEWAY_PORT          the gateway listens here; the instance's Cloudflare connector points at it
@@ -85,6 +86,12 @@ _ENV = FileMemo(_parse_env)  # every API answer and every visit reads it; it cha
 def read_env(name: str) -> dict[str, str]:
     """The instance's .env file as a dict (a new one each time: callers may change it)."""
     return dict(_ENV.get(os.path.join(_instances_dir(), name, ".env")))
+
+
+def plain(env: Mapping[str, str]) -> bool:
+    """Whether the instance runs plain Odoo, created without a repository (SOURCE=plain in its .env): no code to
+    update, no branch, no submodules."""
+    return env.get("SOURCE") == "plain"
 
 
 def master_password_label(name: str) -> str:

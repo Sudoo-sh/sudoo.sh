@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Plain Odoo instances:** the New instance page asks first **From a repository** or **Plain Odoo (no
+  repository)**. A plain instance runs the official Odoo only (Community or Enterprise, any version offered): nothing
+  is cloned, it gets no update triggers, and the update, branch and submodule actions, the Code tab and the automatic
+  update settings are hidden; the API refuses them with 409. Without a name it is called
+  `odoo-<version>-<edition>-<random>`. Pausing, backups, restore, lifetime, links, metrics and the integrity
+  watchdog work as for any instance. API: `repo` is optional in `POST /api/v1/instances`, instances show `source`
+  (`repository` or `plain`), and `GET /api/v1/instance-plan` takes `version` and `edition`
+  ([Panel API](docs/PANEL_API.md)).
 - **GitHub App:** "Connect GitHub" on the GitHub access page (super admins) registers one private, read-only GitHub
   App for the panel through GitHub's App Manifest flow, for a personal account or an organisation, and "Install on
   GitHub" gives it all or selected repositories; several installations work side by side. The panel reads private

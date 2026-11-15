@@ -138,8 +138,8 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
             ["git", "clone", "--recurse-submodules", "-b", plan["branch"], "--", plan["repo"], str(addons)],
             timeout=1800,
         )
-    else:
-        job.run(["git", "init", "-q", "-b", plan["branch"], str(addons)])
+    else:  # plain Odoo: an empty add-ons folder, a repository without a remote so git commands stay inside it
+        job.run(["git", "init", "-q", "-b", "main", str(addons)])
 
     enterprise_folder: Path | None = None
     if enterprise:
@@ -155,7 +155,8 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
             **{key: str(port) for key, port in plan["ports"].items()},
             "DB_NAME": db,
             "DB_PASSWORD": db_password,
-            "GIT_BRANCH": plan["branch"],
+            "GIT_BRANCH": plan["branch"] if plan["repo"] else "",
+            **({} if plan["repo"] else {"SOURCE": "plain"}),
             "ODOO_ADMIN_PASSWORD": settings.odoo_admin_password,
             "MASTER_PASSWORD": vault.encrypt(master_password, store.master_password_label(name)),
             "AUTO_UPDATE": str(plan["auto_update"]).lower(),

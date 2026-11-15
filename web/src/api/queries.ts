@@ -151,13 +151,15 @@ export const useOdooLog = (name: string, lines: number) =>
     queryKey: ["odoo-log", name, lines],
     queryFn: () => api.get<{ text: string }>(`/instances/${name}/logs?lines=${lines}`),
   });
-export const usePlan = (repo: string, branch: string, name: string) =>
+export const usePlan = (repo: string, branch: string, name: string, version = "", edition = "") =>
   useQuery({
-    queryKey: ["plan", repo, branch, name],
+    queryKey: ["plan", repo, branch, name, version, edition],
     queryFn: () =>
       api.get<Plan>(
-        `/instance-plan?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}&name=${encodeURIComponent(name)}`,
+        `/instance-plan?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}&name=${encodeURIComponent(name)}` +
+          `&version=${encodeURIComponent(version)}&edition=${encodeURIComponent(edition)}`,
       ),
+    staleTime: Infinity, // a plain instance's suggested name has a random part: keep the one shown
     placeholderData: keepPreviousData,
   });
 

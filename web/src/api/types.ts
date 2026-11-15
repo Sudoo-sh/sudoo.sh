@@ -92,9 +92,11 @@ export interface Instance {
   status: InstanceStatus;
   url: string | null;
   odoo: { version: string; edition: "community" | "enterprise"; database: string };
+  /** "plain": the official Odoo only, created without a repository (no code to update, no branch, no submodules) */
+  source: "repository" | "plain";
   git: {
     repository: string | null;
-    branch: string;
+    branch: string | null;
     branch_deleted_on_github: boolean;
     commit: { sha: string; subject: string; author: string; age: string } | null;
   };

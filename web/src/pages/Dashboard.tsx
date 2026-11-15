@@ -176,7 +176,7 @@ export function DashboardPage() {
     return { online: count(["online", "starting"]), paused: count(ASLEEP), busy: count(["busy"]) };
   }, [instances]);
   const shown = (instances ?? []).filter((i) => {
-    const text = `${i.name} ${i.git.branch} ${i.git.repository ?? ""} ${i.odoo.version}`.toLowerCase();
+    const text = `${i.name} ${i.git.branch ?? "plain"} ${i.git.repository ?? ""} ${i.odoo.version}`.toLowerCase();
     if (query && !text.includes(query.toLowerCase())) return false;
     if (filter === "online") return i.status === "online" || i.status === "starting";
     if (filter === "paused") return ASLEEP.includes(i.status);

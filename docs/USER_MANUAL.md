@@ -273,12 +273,19 @@ replaces it: Rollback always goes back to just before the last restore.
 
 ## 4. Creating an instance
 
-Click **New instance** in the sidebar (roles that may create instances).
+Click **New instance** in the sidebar (roles that may create instances). Under **Code**, choose first:
+
+* **From a repository**: a branch of your GitHub repository, with its modules (the steps below).
+* **Plain Odoo (no repository)**: the official Odoo only, Community or Enterprise, any version offered. Only
+  **Name** is asked (optional: empty gives `odoo-<version>-<edition>-<4 random characters>`, for example
+  `odoo-18-0-community-3f9a`, shown in the hint), then the version, edition and options; go on with step 6.
+  Such an instance has no code to update: **Get latest code**, **Switch branch**, **Update submodules**, the
+  **Code** tab and the automatic update settings do not appear. Everything else works the same: pausing and
+  starting, backups and restore, lifetime, its link, figures and the integrity checks.
 
 1. **GitHub repository**: when the GitHub App is connected, type part of the repository's name and pick it from the
    list. Otherwise paste the repository's address: on GitHub, open the repository, click the green **Code** button
-   and copy the address, for example `https://github.com/acme-co/sales`. Leave it empty for a plain Odoo without
-   custom modules.
+   and copy the address, for example `https://github.com/acme-co/sales`.
 2. The panel checks the repository while you type. The hint under the field says how many branches it found, or
    what is wrong.
 3. **Branch**: pick the branch. The instance only ever takes code from this branch. When the branch is named like a

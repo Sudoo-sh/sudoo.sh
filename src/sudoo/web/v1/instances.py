@@ -4,14 +4,16 @@
     GET    /api/v1/instances/<name>                  one instance, with commits, submodules and recent jobs
     GET    /api/v1/instances/<name>/credentials      Odoo admin and master passwords, ports
     GET    /api/v1/instances/<name>/logs?lines=      the end of Odoo's log
-    POST   /api/v1/instances                         create; {"from_backup"} optional -> 202, Location: job
+    POST   /api/v1/instances                         create; {"from_backup"} optional; without "repo": plain Odoo
+                                                     (no code, no branch, no update) -> 202, Location: job
     PATCH  /api/v1/instances/<name>                  change automation settings and lifetime
     POST   /api/v1/instances/<name>/actions/<action> restart, update, pause, ...    -> 202, Location: job
                                                      restore: {"file"} optional (any instance's backup of the
                                                      same Odoo series), the latest backup otherwise
                                                      rollback: back to before the last restore (ROLLBACK_HOURS)
     DELETE /api/v1/instances/<name>                  delete after a backup; body {"confirm": "<name>"} -> 202
-    GET    /api/v1/instance-plan?repo=&branch=&name= the name and database a new instance would get
+    GET    /api/v1/instance-plan?repo=&branch=&name=&version=&edition=
+                                                     the name and database a new instance would get
     GET    /api/v1/instance-quota                    how many instances the caller may still create, and when
     GET    /api/v1/jobs?instance=&limit=&offset=     recent jobs, newest first
     GET    /api/v1/jobs/<id>?include=log             a job
@@ -20,12 +22,14 @@
 
 Every endpoint names the permission it needs (roles.py); each action has its own (ACTIONS). Putting another
 instance's backup into an instance, or starting a new instance from a backup, also needs backups.manage, the
-permission that shows every backup (_usable_backup).
+permission that shows every backup (_usable_backup). An instance of plain Odoo (created without "repo") refuses
+the actions and settings that need a repository (REPOSITORY_ACTIONS) with 409.
 """
 
 from __future__ import annotations
 
 import re
+import secrets
 from collections.abc import Callable, Mapping
 from typing import Any, cast
 
@@ -37,6 +41,7 @@ from sudoo.core import events, jobs, vault
 from sudoo.instances import backups, odoo, operations, store
 from sudoo.limits import quotas
 from sudoo.repos import github
+from sudoo.repos.gitrepo import origin_url
 
 from .. import validation as check
 from ..security import can, log, message_for_user, refuse_unless, require
@@ -130,10 +135,13 @@ def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
-def _plan_name(repo: str, branch: str, custom_name: str) -> tuple[str, str]:
-    """Instance name (from the custom name, or repository + branch), made unique, and its database name."""
+def _plan_name(repo: str, branch: str, custom_name: str, version: str = "", edition: str = "") -> tuple[str, str]:
+    """Instance name (from the custom name, repository + branch, or for plain Odoo "odoo-<version>-<edition>-<4
+    random characters>"), made unique, and its database name."""
     if custom_name:
         base = _slug(custom_name)
+    elif not repo and version:  # plain Odoo
+        base = "-".join(part for part in ("odoo", _slug(version), _slug(edition), secrets.token_hex(2)) if part)
     else:
         repository = (github.repo_name(repo) or "").split("/")[-1]
         base = "-".join(part for part in (_slug(repository), _slug(branch)) if part)
@@ -168,6 +176,8 @@ def plan() -> Response:
         check.text(request.args, "repo"),
         check.text(request.args, "branch"),
         check.custom_name(check.text(request.args, "name", max_length=40)),
+        check.text(request.args, "version", max_length=10),
+        check.text(request.args, "edition", max_length=20),
     )
     defaults = {
         key: getattr(settings, key) for key in ("delete_after_days", "auto_update", "auto_upgrade", "auto_pause")
@@ -190,8 +200,6 @@ def create() -> Response:
     version = check.one_of(check.text(data, "version"), odoo.versions(), "Choose an Odoo version from the list.")
     edition = check.one_of(check.text(data, "edition"), ("community", "enterprise"), "Choose Community or Enterprise.")
     custom_name = check.custom_name(check.text(data, "name", max_length=40))
-    if not repo and not custom_name:
-        abort(400, "Enter a GitHub repository or a name for the instance.")
     if edition == "enterprise" and not addons.available(version):
         abort(400, f"Odoo {version} Enterprise is not available on this server.")
     from_backup = check.text(data, "from_backup", max_length=200) or None
@@ -204,7 +212,7 @@ def create() -> Response:
         g.retry_after = error.retry_after
         log("instance creation refused (limit)", ok=False, detail=error.message)
         abort(error.status, error.message)
-    name, db_name = _plan_name(repo, branch, custom_name)
+    name, db_name = _plan_name(repo, branch, custom_name, version, edition)
     plan_data = {
         "name": name,
         "db_name": db_name,
@@ -217,6 +225,7 @@ def create() -> Response:
         "delete_after_days": check.days(data, "delete_after_days"),
         # automation switches: the panel's defaults (AUTO_PAUSE, AUTO_UPDATE, AUTO_UPGRADE) unless sent
         **{key: check.flag(data, key, getattr(settings, key)) for key in ("auto_update", "auto_upgrade", "auto_pause")},
+        **({} if repo else {"branch": "", "auto_update": False, "auto_upgrade": False}),  # plain Odoo: no code
         "ports": store.reserve_ports(exposure.provider().instance_ports()),
         "created_by": g.user["name"],
         "from_backup": from_backup,
@@ -225,7 +234,9 @@ def create() -> Response:
     log(
         "Create instance",
         instance=name,
-        detail=f"Odoo {version} {edition}" + (f" from {from_backup}" if from_backup else ""),
+        detail=f"Odoo {version} {edition}"
+        + ("" if repo else " (plain, no repository)")
+        + (f" from {from_backup}" if from_backup else ""),
     )
     response = _accepted(job)
     response.headers["Content-Location"] = f"{PREFIX}/instances/{name}"
@@ -249,14 +260,37 @@ def change(name: str) -> Response:
         values["DELETE_AFTER_DAYS"] = check.days(data, "delete_after_days")
     if not values:
         abort(400, "Send at least one of: auto_update, auto_upgrade, auto_pause, delete_after_days.")
+    if values.get("AUTO_UPDATE") == "true" or values.get("AUTO_UPGRADE") == "true":
+        refuse_plain(name)
     store.update_env(name, **values)
     log("instance settings changed", instance=name, detail=", ".join(sorted(values)))
     events.publish("instance", name)
     return ok(instance_resource(name, full=True))
 
 
+REPOSITORY_ACTIONS = ("update", "update-submodules", "switch-branch", "add-submodule", "remove-submodule")
+"""Actions that need the instance's repository: refused for plain Odoo."""
+
+
+def has_repository(name: str) -> bool:
+    """False for plain Odoo: SOURCE=plain in .env, or (instances made before it was recorded) no GitHub remote."""
+    return not store.plain(store.read_env(name)) and bool(origin_url(store.addons_dir(name)))
+
+
+def refuse_plain(name: str) -> None:
+    """409 with a problem detail when the instance runs plain Odoo (nothing that needs a repository applies)."""
+    if not has_repository(name):
+        abort(
+            409,
+            f"{name} runs plain Odoo without a GitHub repository: it has no code to update, no branch and no "
+            "submodules. Create an instance from a repository for that.",
+        )
+
+
 def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[..., Any], tuple[Any, ...]]:
     """(function, arguments) of the job for `action`, after validating the request data."""
+    if action in REPOSITORY_ACTIONS:
+        refuse_plain(name)
     simple: dict[str, tuple[Callable[..., Any], tuple[Any, ...]]] = {
         "update": (operations.update_code, (name,)),
         "update-submodules": (operations.update_code, (name, True)),

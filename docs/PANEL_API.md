@@ -131,7 +131,7 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `PATCH /instances/<name>` | `instances.operate` | any of `auto_update`, `auto_upgrade`, `auto_pause` (true or false), `delete_after_days` (0 keeps it) | 200, the instance |
 | `POST /instances/<name>/actions/<action>` | depends on the action (below) | `{}`, or the action's fields | **202**, the job |
 | `DELETE /instances/<name>` | `instances.delete` | `{"confirm": "<name>"}` | **202**, the job; a backup is taken first |
-| `GET /instance-plan?repo=&branch=&name=` | `instances.create` | | 200, the name and database a new instance would get, and the defaults |
+| `GET /instance-plan?repo=&branch=&name=&version=&edition=` | `instances.create` | | 200, the name and database a new instance would get, and the defaults; without `repo` and `name`, a name for plain Odoo with a random part (`odoo-19-0-community-3f9a`), new on each call |
 | `GET /instance-quota` | `instances.view` | | 200, how many instances the caller may still create, and when ([Limits](#11-limits)) |
 | `GET /jobs?instance=&limit=30&offset=0` | `instances.view` | | 200, recent jobs, newest first |
 | `GET /jobs/<id>` | `instances.view` | | 200, the job; `?include=log` adds its technical log when the caller also has `instances.logs` |
@@ -394,6 +394,7 @@ An instance:
     "status": "online",
     "url": "https://river-stone-apple.trycloudflare.com",
     "odoo": {"version": "19.0", "edition": "enterprise", "database": "sales_main"},
+    "source": "repository",
     "git": {
       "repository": "https://github.com/acme-co/sales",
       "branch": "main",
@@ -475,6 +476,23 @@ Creating an instance takes the same fields as the **New instance** form:
   "delete_after_days": 30,
   "from_backup": "sales-main__sales_main__20261112-000012__daily.zip"
 }
+```
+
+**Plain Odoo.** `repo` is optional: without it the instance runs the official Odoo only (Community or Enterprise,
+any offered version), with no code from GitHub. Nothing is cloned (its add-ons folder stays empty and is not on
+Odoo's add-ons path), `branch` is ignored, `auto_update` and `auto_upgrade` are false and `install_modules` does
+nothing. Without `name` either, it is called `odoo-<version>-<edition>-<4 random characters>` (for example
+`odoo-18-0-community-3f9a`); the usual name rules apply to a given name. It shows `"source": "plain"` and
+`"git": {"repository": null, "branch": null, ...}`. Everything else works as for any instance (pause and start,
+backups, restore and rollback, lifetime, links, metrics, the integrity watchdog, `upgrade` of Odoo's own modules).
+The actions that need a repository (`update`, `update-submodules`, `switch-branch`, `add-submodule`,
+`remove-submodule`) and `PATCH` with `auto_update` or `auto_upgrade` set to true answer **409** with a problem
+detail saying it runs plain Odoo:
+
+```json
+{"type": "about:blank", "title": "Conflict", "status": 409,
+ "detail": "odoo-18-0-community-3f9a runs plain Odoo without a GitHub repository: it has no code to update, no branch and no submodules. Create an instance from a repository for that.",
+ "instance": "/api/v1/instances/odoo-18-0-community-3f9a/actions/update", "request_id": "..."}
 ```
 
 `from_backup` is optional: the new instance starts with that backup's database and files (loaded under the new

@@ -562,3 +562,17 @@
   padding-left: var(--s5);
   li { overflow-wrap: anywhere; }
 }
+
+// ---------------------------------------------------------------- new instance
+// the form, and its options beside it (staying in view while the form scrolls); one column on a phone
+.new-instance-grid {
+  display: grid;
+  gap: var(--s4);
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  align-items: start;
+  > aside { position: sticky; top: 84px; }
+  @media (max-width: 960px) {
+    grid-template-columns: minmax(0, 1fr);
+    > aside { position: static; }
+  }
+}

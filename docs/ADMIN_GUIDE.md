@@ -401,7 +401,7 @@ Do not restart or recreate the connector containers by hand: their links would c
     ├── docker-compose.yml                   the instance's two containers, written by the panel (mode 600)
     ├── config/odoo.conf                     Odoo configuration; master password as a HASH only (mode 600,
     │                                        owned by the Odoo image's user)
-    └── addons/                              the repository, with its submodules
+    └── addons/                              the repository, with its submodules (empty for plain Odoo)
 ```
 
 ### Useful commands

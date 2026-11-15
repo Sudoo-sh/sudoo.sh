@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Archive, ArrowUpRight, Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Lock, Package, SlidersHorizontal } from "lucide-react";
+import { Archive, ArrowUpRight, Box, Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Lock, Package, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, errorText } from "@/api/client";
@@ -65,6 +65,8 @@ export function NewInstancePage() {
   const { data: settings } = useSettings();
   const setting = (key: string) => settings?.find((s) => s.key === key)?.value;
 
+  const [source, setSource] = useState<"repository" | "plain">("repository");
+  const plain = source === "plain";
   const [repo, setRepo] = useState("");
   const [branch, setBranch] = useState("");
   const [name, setName] = useState("");
@@ -134,7 +136,7 @@ export function NewInstancePage() {
     };
   }, [branches, branch, debouncedRepo]);
 
-  const { data: plan } = usePlan(debouncedRepo, branch, useDebounced(name.trim()));
+  const { data: plan } = usePlan(plain ? "" : debouncedRepo, plain ? "" : branch, useDebounced(name.trim()), plain ? version : "", plain ? edition : "");
   const enterpriseAvailable = versions?.find((v) => v.version === version)?.enterprise ?? false;
   useEffect(() => {
     if (!enterpriseAvailable) setEdition("community");
@@ -144,15 +146,15 @@ export function NewInstancePage() {
   const create = useCall(
     () =>
       api.post<Job>("/instances", {
-        repo: repo.trim(),
-        branch: branch || "main",
+        ...(plain ? {} : { repo: repo.trim(), branch: branch || "main" }),
         version,
         edition,
-        name: name.trim(),
-        install_modules: installModules,
+        // plain Odoo without a name: the suggested one shown (odoo-<version>-<edition>-<random>)
+        name: name.trim() || (plain ? (plan?.name ?? "") : ""),
+        install_modules: installModules && !plain,
         demo: demo && !useBackup,
         delete_after_days: lifetime ?? 30,
-        auto_update: autoUpdate,
+        auto_update: autoUpdate && !plain,
         auto_pause: autoPause,
         ...(useBackup && fromBackup ? { from_backup: fromBackup } : {}),
       }),
@@ -164,7 +166,11 @@ export function NewInstancePage() {
     (quota?.max_instances != null && quota.instances >= quota.max_instances) ||
     (quota?.max_instances_per_user != null && quota.own_instances >= quota.max_instances_per_user);
   const canCreate =
-    !!version && (!!repo.trim() ? !!branches && !repoError : !!name.trim()) && !waiting && !full && (!useBackup || !!fromBackup);
+    !!version &&
+    (plain ? !!name.trim() || !!plan : !!repo.trim() && !!branches && !repoError) &&
+    !waiting &&
+    !full &&
+    (!useBackup || !!fromBackup);
 
   const submit = () =>
     create.mutate(undefined, {
@@ -178,7 +184,7 @@ export function NewInstancePage() {
   return (
     <Page>
       <PageHead title="New instance">
-        Pick a branch. Sudoo.sh downloads it, starts Odoo with its own database, installs your modules and gives it a link.
+        Pick a branch, or plain Odoo. Sudoo.sh downloads the code, starts Odoo with its own database, installs your modules and gives it a link.
       </PageHead>
 
       {(waiting || full) && (
@@ -189,15 +195,30 @@ export function NewInstancePage() {
         </Callout>
       )}
 
-      <div className="grid-3" style={{ gridTemplateColumns: "minmax(0, 2fr) minmax(280px, 1fr)", alignItems: "start" }}>
+      <div className="new-instance-grid">
         <div className="stack">
           <section className="card">
             <div className="card-head">
               <FolderGit2 />
               <h2>Code</h2>
-              <span className="sub">optional: leave empty for an Odoo without custom modules</span>
             </div>
             <div className="card-body form-grid">
+              <div className="full grid-2" role="radiogroup" aria-label="Code">
+                <button type="button" className="choice" role="radio" aria-checked={!plain} aria-pressed={!plain} onClick={() => setSource("repository")}>
+                  <FolderGit2 />
+                  <span><span className="t">From a repository</span><br /><span className="d">A branch of your GitHub repository, with its modules.</span></span>
+                </button>
+                <button type="button" className="choice" role="radio" aria-checked={plain} aria-pressed={plain} onClick={() => setSource("plain")}>
+                  <Box />
+                  <span><span className="t">Plain Odoo (no repository)</span><br /><span className="d">The official Odoo only. No code to update.</span></span>
+                </button>
+              </div>
+              {plain ? (
+                <Field className="full" label="Name" hint={plan ? <>Will be <b>{plan.name}</b> · database <code>{plan.database}</code></> : "Empty: Odoo, version, edition"}>
+                  <input className="input" placeholder={plan?.name ?? "sales-demo"} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
+                </Field>
+              ) : (
+              <>
               <Field
                 className="full"
                 label="GitHub repository"
@@ -248,6 +269,8 @@ export function NewInstancePage() {
                     </Callout>
                   )}
                 </div>
+              )}
+              </>
               )}
             </div>
           </section>
@@ -306,13 +329,13 @@ export function NewInstancePage() {
           )}
         </div>
 
-        <aside className="stack" style={{ position: "sticky", top: 84 }}>
+        <aside className="stack">
           <section className="card">
             <div className="card-head"><SlidersHorizontal /><h2>Options</h2></div>
             <div className="card-body stack">
-              <Switch checked={installModules} onChange={setInstallModules} label={useBackup ? "Install the repository's modules the backup lacks" : "Install the repository's modules"} />
+              {!plain && <Switch checked={installModules} onChange={setInstallModules} label={useBackup ? "Install the repository's modules the backup lacks" : "Install the repository's modules"} />}
               {!useBackup && <Switch checked={demo} onChange={setDemo} label="Load demo data" />}
-              <Switch checked={autoUpdate} onChange={setAutoUpdate} label="Get new code automatically" />
+              {!plain && <Switch checked={autoUpdate} onChange={setAutoUpdate} label="Get new code automatically" />}
               <Switch checked={autoPause} onChange={setAutoPause} label="Pause when nobody uses it" />
               <Field label="Lifetime" hint="Deleted after this, with a backup first.">
                 <select className="select" value={lifetime ?? 30} onChange={(e) => setLifetime(Number(e.target.value))}>

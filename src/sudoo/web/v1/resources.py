@@ -15,7 +15,7 @@ from sudoo.core import jobs
 from sudoo.core.cache import VersionedMemo
 from sudoo.core.state import STATE
 from sudoo.instances import backups, gateway, metrics, monitor, operations, store
-from sudoo.repos.gitrepo import commits, submodules
+from sudoo.repos.gitrepo import commits, origin_url, submodules
 
 from .responses import PREFIX, iso
 
@@ -113,9 +113,11 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
         "status": status,  # online, starting, busy, paused, switched_off, stopped, unknown
         "url": exposure.address(name),
         "odoo": {"version": env["ODOO_VERSION"], "edition": env["EDITION"], "database": env["DB_NAME"]},
+        # "plain": Odoo without a repository (store.plain; instances made before SOURCE was recorded: no remote)
+        "source": "plain" if store.plain(env) or not origin_url(store.addons_dir(name)) else "repository",
         "git": {
             "repository": measured.get("repo") or None,
-            "branch": env["GIT_BRANCH"],
+            "branch": env["GIT_BRANCH"] or None,
             "branch_deleted_on_github": bool(state.get("branch_missing")),
             "commit": (
                 dict(zip(("sha", "subject", "age", "author"), commit, strict=True)) if len(commit) == 4 else None

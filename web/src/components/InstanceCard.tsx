@@ -1,4 +1,4 @@
-import { ArrowUpRight, GitBranch } from "lucide-react";
+import { ArrowUpRight, Box, GitBranch } from "lucide-react";
 import { Link } from "react-router";
 import { useJob } from "@/api/queries";
 import type { Instance, Job } from "@/api/types";
@@ -39,8 +39,8 @@ export function InstanceCard({ instance }: { instance: Instance }) {
           {/* the whole card opens the instance: this link covers it (.ic-open::after), the Open button sits above */}
           <Link to={`/i/${instance.name}`} viewTransition className="ic-name ic-open truncate">{instance.name}</Link>
           <div className="ic-sub">
-            <GitBranch />
-            <span className="truncate">{instance.git.branch}</span>
+            {instance.source === "plain" ? <Box /> : <GitBranch />}
+            <span className="truncate">{instance.source === "plain" ? "Plain Odoo" : instance.git.branch}</span>
           </div>
         </div>
         <Status status={instance.status} />
@@ -60,7 +60,7 @@ export function InstanceCard({ instance }: { instance: Instance }) {
             <span className="truncate">{instance.git.commit.subject}</span>
           </div>
         ) : (
-          <div className="ic-commit faint">No code from GitHub</div>
+          <div className="ic-commit faint">{instance.source === "plain" ? "No repository: the official Odoo only" : "No code from GitHub"}</div>
         )}
         <div className="ic-stats">
           <div>

@@ -156,6 +156,18 @@ def test_unsafe_renderings_are_refused() -> None:
             odoo.check_spec(unsafe)
 
 
+def test_plain_odoo_is_rendered_and_checked_the_same() -> None:
+    """Plain Odoo (no repository): the same hardened rendering, its empty add-ons folder mounted read-only, and the
+    watchdog finds no change in its containers."""
+    store.update_env(NAME, SOURCE="plain", GIT_BRANCH="")
+    found = _apply()
+    spec = found["spec"]
+    odoo.check_spec(spec)
+    assert f"{store.addons_dir(NAME)}:{odoo.CUSTOM_ADDONS_MOUNT}:ro" in spec["services"]["odoo"]["volumes"]
+    for service in ("odoo", "db"):
+        assert not integrity.compare(NAME, service, spec, found, _inspect(service, spec))
+
+
 def test_resource_settings_are_rendered() -> None:
     live.change({"odoo_memory_limit": "0", "db_cpu_limit": 0, "container_pids_limit": 300})
     spec = _apply()["spec"]

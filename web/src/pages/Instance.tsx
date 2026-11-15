@@ -1,6 +1,7 @@
 import {
   Activity,
   ArrowUpRight,
+  Box,
   Code2,
   Container,
   Database,
@@ -89,6 +90,7 @@ export function InstancePage() {
     );
 
   const busy = !!instance.current_job;
+  const plain = instance.source === "plain"; // no repository: nothing to update, no branch, no submodules
   const asleep = ["paused", "switched_off", "stopped"].includes(instance.status);
   const act = (action: string, title: string, body?: Record<string, unknown>) => run.mutate({ action, title, body });
 
@@ -105,9 +107,15 @@ export function InstancePage() {
             <div className="row-wrap small muted">
               <Tag mono>{instance.odoo.version}</Tag>
               <Tag>{instance.odoo.edition === "enterprise" ? "Enterprise" : "Community"}</Tag>
-              <span className="row mono xsmall" style={{ gap: 4 }}>
-                <GitBranch size={14} strokeWidth={1.5} /> {instance.git.branch}
-              </span>
+              {plain ? (
+                <span className="row xsmall" style={{ gap: 4 }}>
+                  <Box size={14} strokeWidth={1.5} /> Plain Odoo, no repository
+                </span>
+              ) : (
+                <span className="row mono xsmall" style={{ gap: 4 }}>
+                  <GitBranch size={14} strokeWidth={1.5} /> {instance.git.branch}
+                </span>
+              )}
               {instance.url && (
                 <a href={instance.url} target="_blank" rel="noreferrer" className="row truncate mono xsmall" style={{ gap: 4 }}>
                   <Globe size={14} strokeWidth={1.5} /> {instance.url.replace(/^https?:\/\//, "")}
@@ -132,7 +140,7 @@ export function InstancePage() {
                 Restart
               </Button>
             ))}
-          {can("instances.update") && (
+          {can("instances.update") && !plain && (
             <Button icon={<DownloadCloud />} disabled={busy || !instance.git.repository} onClick={() => act("update", "Get latest code")}>
               Get latest code
             </Button>
@@ -146,17 +154,21 @@ export function InstancePage() {
               };
               return (
                 <>
-                  <button disabled={busy || !instance.git.repository} onClick={item(() => act("update-submodules", "Update submodules"))}>
-                    <RefreshCw /> Update submodules
-                  </button>
+                  {!plain && (
+                    <button disabled={busy || !instance.git.repository} onClick={item(() => act("update-submodules", "Update submodules"))}>
+                      <RefreshCw /> Update submodules
+                    </button>
+                  )}
                   {can("instances.operate") && (
                     <>
                       <button disabled={busy} onClick={item(() => setDialog("upgrade"))}>
                         <Zap /> Upgrade modules…
                       </button>
-                      <button disabled={busy || !instance.git.repository} onClick={item(() => setDialog("branch"))}>
-                        <GitBranch /> Switch branch…
-                      </button>
+                      {!plain && (
+                        <button disabled={busy || !instance.git.repository} onClick={item(() => setDialog("branch"))}>
+                          <GitBranch /> Switch branch…
+                        </button>
+                      )}
                       <button disabled={busy} onClick={item(() => act("update-images", "Update Odoo and PostgreSQL images"))}>
                         <Container /> Update Odoo and PostgreSQL images
                       </button>
@@ -228,7 +240,7 @@ export function InstancePage() {
       )}
 
       <nav className="tabs">
-        {TABS.filter((t) => !t.permission || can(t.permission)).map((t) => (
+        {TABS.filter((t) => (!t.permission || can(t.permission)) && !(plain && t.id === "code")).map((t) => (
           <NavLink key={t.id} to={`/i/${name}${t.id ? `/${t.id}` : ""}`} end viewTransition className={({ isActive }) => (isActive ? "active" : "")}>
             {t.icon} {t.label}
           </NavLink>
@@ -238,9 +250,9 @@ export function InstancePage() {
       <div className="rise" key={tab}>
         {tab === "" && <Overview instance={instance} busy={busy} act={act} />}
         {tab === "activity" && <ActivityTab name={name} onOpen={setJobId} />}
-        {tab === "code" && <CodeTab instance={instance} canAdd={can("instances.update")} canRemove={can("instances.operate")} busy={busy} onAdd={() => setDialog("submodule")} act={act} />}
+        {tab === "code" && !plain && <CodeTab instance={instance} canAdd={can("instances.update")} canRemove={can("instances.operate")} busy={busy} onAdd={() => setDialog("submodule")} act={act} />}
         {tab === "logs" && can("instances.logs") && <LogsTab name={name} />}
-        {tab === "settings" && can("instances.operate") && <SettingsTab instance={instance} />}
+        {tab === "settings" && can("instances.operate") && <SettingsTab instance={instance} plain={plain} />}
         {tab === "access" && can("instances.credentials") && <AccessTab instance={instance} />}
       </div>
 
@@ -320,7 +332,7 @@ function Overview({ instance, busy, act }: { instance: Instance; busy: boolean; 
               <dt>Database</dt>
               <dd className="mono">{instance.odoo.database}</dd>
               <dt>Repository</dt>
-              <dd className="truncate">{instance.git.repository ? <a href={instance.git.repository} target="_blank" rel="noreferrer">{instance.git.repository.replace(/^https:\/\/github\.com\//, "")}</a> : <span className="faint">None</span>}</dd>
+              <dd className="truncate">{instance.git.repository ? <a href={instance.git.repository} target="_blank" rel="noreferrer">{instance.git.repository.replace(/^https:\/\/github\.com\//, "")}</a> : <span className="faint">{instance.source === "plain" ? "None: plain Odoo" : "None"}</span>}</dd>
               <dt>Running for</dt>
               <dd>{duration(u.uptime_seconds)}</dd>
               <dt>Disk</dt>
@@ -586,15 +598,20 @@ function LogsTab({ name }: { name: string }) {
 
 // ---------------------------------------------------------------- settings
 
-function SettingsTab({ instance }: { instance: Instance }) {
+function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }) {
   const toast = useToast();
   const save = useCall((body: Record<string, unknown>) => api.patch<Instance>(`/instances/${instance.name}`, body), [keys.instance(instance.name), keys.instances]);
   const set = (body: Record<string, unknown>) =>
     save.mutate(body, { onSuccess: () => toast("success", "Saved"), onError: (e) => toast("error", "Not saved", errorText(e)) });
   const s = instance.settings;
   const rows: [keyof typeof s, string, string][] = [
-    ["auto_update", "Get new code automatically", "When the branch on GitHub has new commits, update this instance."],
-    ["auto_upgrade", "Upgrade changed modules", "After an update, upgrade the modules whose code changed."],
+    // plain Odoo has no code to update: only what applies to it
+    ...(plain
+      ? []
+      : ([
+          ["auto_update", "Get new code automatically", "When the branch on GitHub has new commits, update this instance."],
+          ["auto_upgrade", "Upgrade changed modules", "After an update, upgrade the modules whose code changed."],
+        ] as [keyof typeof s, string, string][])),
     ["auto_pause", "Pause when idle", "Free the server's memory when nobody has opened it for a while; the next visit starts it again."],
   ];
   return (

@@ -64,6 +64,7 @@ KINDS = ("manual", "daily", "deletion", "before-restore", "before-rollback", "be
 RESTORABLE = ("manual", "daily", "deletion")  # what "Restore the latest backup" chooses from
 SNAPSHOTS = ("before-restore", "before-rollback")  # safety copies, removed ROLLBACK_HOURS after they were taken
 _KEEP_ONE = ("daily", "before-repair", *SNAPSHOTS)  # kinds of which each instance keeps only the latest
+PG_DUMP_LOCK_WAIT = "300s"  # a lock held inside the instance makes the dump fail after this, rather than wait for ever
 
 
 def create(job: Job, name: str, kind: str = "manual") -> list[Path]:
@@ -102,7 +103,8 @@ def _backup_database(job: Job, name: str, db: str, facts: dict[str, str], stamp:
     with tempfile.TemporaryDirectory(dir=settings.backups_dir) as tmp:
         dump, files = Path(tmp) / "dump.sql", Path(tmp) / "filestore.tar"
         _run_to_file(
-            ["docker", "exec", store.container(name, "db"), "pg_dump", "-U", "odoo", "--no-owner", db],
+            ["docker", "exec", store.container(name, "db"), "pg_dump", "-U", "odoo", "--no-owner",
+             f"--lock-wait-timeout={PG_DUMP_LOCK_WAIT}", db],  # fmt: skip
             dump,
             "database dump",
         )

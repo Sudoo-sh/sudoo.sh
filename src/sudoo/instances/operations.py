@@ -327,12 +327,24 @@ def _record_admin_login(name: str, db: str) -> str:
     return login or kept
 
 
-def delete(job: Job, name: str) -> None:
-    """Back up every database, then remove the instance completely. No backup, no deletion."""
+def delete(job: Job, name: str, without_backup: bool = False) -> None:
+    """Back up every database, then remove the instance completely. No backup, no deletion, unless `without_backup`
+    (asked for by someone who may manage backups): then a failed backup is noted and audit-logged, and the instance
+    is removed anyway. Code running in the instance can make its own backup fail; this keeps it from staying."""
     job.expect(3)
     job.step("Backing up the database and files")
-    saved = backups.create(job, name, "deletion")
-    job.note(f"Backup kept: {', '.join(path.name for path in saved)}")
+    try:
+        saved = backups.create(job, name, "deletion")
+    except Exception as error:
+        if not without_backup:
+            job.write(panel_hint(DELETION_BACKUP_FAILED))
+            raise
+        from sudoo.core import audit
+
+        job.note(f"The backup failed, so the instance is deleted without a complete backup: {error}", "warning")
+        audit.record(job.user, None, "instance deleted without a complete backup", name, ok=False, detail=error)
+    else:
+        job.note(f"Backup kept: {', '.join(path.name for path in saved)}")
     job.step("Removing Odoo, its database and its files")
     job.run(compose(name, "down", "-v", "--remove-orphans"), timeout=600)
     gateway.remove(name)
@@ -342,6 +354,41 @@ def delete(job: Job, name: str) -> None:
     STATE.remove(name)
     integrity.forget(name)
     backups.remove_daily(name)  # the backup above is newer
+
+
+DELETION_BACKUP_FAILED = (
+    "The backup taken before the deletion failed, so the instance was not deleted. Something in the instance may "
+    "keep its backup from working. Someone who may delete instances and manage backups can delete it without a "
+    'complete backup (Delete, then "Delete even if the backup fails").'
+)
+EXPIRY_ATTEMPTS = 3  # failed automatic deletions in a row before the panel switches the instance off instead
+
+
+def expire(job: Job, name: str) -> None:
+    """The automatic deletion at the end of the instance's lifetime (background.py): delete() with its backup. After
+    EXPIRY_ATTEMPTS failures in a row the instance is switched off instead, the attempts stop (STATE
+    "expiry_stopped") and the audit log says so, until someone deletes it or gives it another lifetime."""
+    try:
+        delete(job, name)
+    except Exception as error:
+        failures = int(STATE.get(name).get("expiry_failures") or 0) + 1
+        STATE.update(name, expiry_failures=failures)
+        if failures >= EXPIRY_ATTEMPTS and store.exists(name):
+            from sudoo.core import audit
+
+            job.write(
+                panel_hint(
+                    f"The automatic deletion failed {failures} times, so the instance was switched off instead and is "
+                    "no longer deleted automatically. Delete it by hand (without a complete backup if needed), or "
+                    "give it another lifetime."
+                )
+            )
+            job.run_unchecked(compose(name, "stop"), timeout=300)
+            STATE.update(name, switched_off=True, paused=False, expiry_stopped=True)
+            monitor.mark_stopped(name)
+            audit.record("system", None, "automatic deletion stopped, instance switched off", name, ok=False,
+                         detail=f"{failures} failed attempts; last: {error}")  # fmt: skip
+        raise
 
 
 def backup(job: Job, name: str, kind: str = "manual") -> None:

@@ -130,7 +130,7 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `POST /instances` | `instances.create` | as below | **202**, the job; `Content-Location` names the new instance |
 | `PATCH /instances/<name>` | `instances.operate`; also `instances.delete` for a `delete_after_days` that ends the lifetime sooner (403 otherwise) | any of `auto_update`, `auto_upgrade`, `auto_pause` (true or false), `delete_after_days` (0 keeps it) | 200, the instance |
 | `POST /instances/<name>/actions/<action>` | depends on the action (below) | `{}`, or the action's fields | **202**, the job |
-| `DELETE /instances/<name>` | `instances.delete` | `{"confirm": "<name>"}` | **202**, the job; a backup is taken first |
+| `DELETE /instances/<name>` | `instances.delete`; with `without_backup` also `backups.manage` | `{"confirm": "<name>"}`, and `"without_backup": true` to delete even when the backup fails (audit-logged) | **202**, the job; a backup is taken first, and without `without_backup` a failed backup stops the deletion |
 | `GET /instance-plan?repo=&branch=&name=&version=&edition=` | `instances.create` | | 200, the name and database a new instance would get, and the defaults; without `repo` and `name`, a name for plain Odoo with a random part (`odoo-19-0-community-3f9a`), new on each call |
 | `GET /instance-quota` | `instances.view` | | 200, how many instances the caller may still create, and when ([Limits](#11-limits)) |
 | `GET /jobs?instance=&limit=30&offset=0` | `instances.view` | | 200, recent jobs, newest first |

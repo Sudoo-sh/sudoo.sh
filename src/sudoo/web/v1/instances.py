@@ -16,7 +16,9 @@
                                                      rollback: back to before the last restore (ROLLBACK_HOURS)
                                                      connect-repository: {"repo", "branch", "install_modules"}
                                                      gives plain Odoo a repository (its data is kept)
-    DELETE /api/v1/instances/<name>                  delete after a backup; body {"confirm": "<name>"} -> 202
+    DELETE /api/v1/instances/<name>                  delete after a backup; body {"confirm": "<name>"} -> 202;
+                                                     "without_backup": true also when the backup fails (needs
+                                                     backups.manage too; audit-logged)
     GET    /api/v1/instance-plan?repo=&branch=&name=&version=&edition=
                                                      the name and database a new instance would get
     GET    /api/v1/instance-quota                    how many instances the caller may still create, and when
@@ -43,6 +45,7 @@ from flask import Blueprint, Response, abort, g, request
 from sudoo import addons, exposure
 from sudoo.config import settings
 from sudoo.core import events, jobs, vault
+from sudoo.core.state import STATE
 from sudoo.instances import backups, odoo, operations, store
 from sudoo.limits import quotas
 from sudoo.repos import github
@@ -298,6 +301,8 @@ def change(name: str) -> Response:
     if values.get("AUTO_UPDATE") == "true" or values.get("AUTO_UPGRADE") == "true":
         refuse_plain(name)
     store.update_env(name, **values)
+    if "DELETE_AFTER_DAYS" in values:  # a new lifetime: automatic deletion starts counting its attempts again
+        STATE.update(name, expiry_failures=0, expiry_stopped=False)
     log("instance settings changed", instance=name, detail=", ".join(sorted(values)))
     events.publish("instance", name)
     return ok(instance_resource(name, full=True))
@@ -348,6 +353,11 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
     if action == "delete":
         if check.text(data, "confirm", max_length=40) != name:
             abort(400, "Type the instance name exactly to confirm.")
+        if check.flag(data, "without_backup"):
+            # the backup may be all that is left of the instance's data: only for those who manage backups
+            refuse_unless("backups.manage", f"delete {name} without a complete backup")
+            log("instance deletion without a complete backup requested", instance=name)
+            return operations.delete, (name, True)
         return operations.delete, (name,)
     if action == "restore":
         file_name = check.text(data, "file", max_length=200) or None

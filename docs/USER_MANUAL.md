@@ -187,7 +187,7 @@ The menu:
 | **Update Odoo and PostgreSQL images** | Downloads the newest build of the instance's Odoo version and PostgreSQL (same versions) and restarts with them. Until then the instance keeps the exact images it was created with. |
 | **Pause** | Stops it to free memory now. It starts again on the next visit. |
 | **Switch off** | Stops it completely. Visitors see that it is switched off, and it does not start until someone clicks **Start**. |
-| **Delete** | Removes Odoo, its database and its files, after a backup. Type the instance's name to confirm. |
+| **Delete** | Removes Odoo, its database and its files, after a backup. Type the instance's name to confirm. If the backup fails, nothing is removed; someone who may also manage backups can turn on **Delete even if the backup fails** to remove the instance anyway (the audit log records it). |
 
 **Back up now** and **Restore the latest** are on the **Backups** card of the **Overview** tab
 ([The Backups card](#the-backups-card)).

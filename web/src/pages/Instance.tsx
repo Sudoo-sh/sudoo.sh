@@ -780,18 +780,29 @@ function SubmoduleDialog({ version, onClose, onRun }: { version: string; onClose
 
 function DeleteDialog({ name, onClose }: { name: string; onClose: () => void }) {
   const [typed, setTyped] = useState("");
+  const [withoutBackup, setWithoutBackup] = useState(false);
+  const can = useCan();
   const navigate = useNavigate();
   const toast = useToast();
-  const remove = useCall(() => api.del<Job>(`/instances/${name}`, { confirm: name }), [keys.jobs()]);
+  const remove = useCall(
+    () => api.del<Job>(`/instances/${name}`, { confirm: name, ...(withoutBackup ? { without_backup: true } : {}) }),
+    [keys.jobs()],
+  );
   return (
     <Modal title={`Delete ${name}?`} onClose={onClose}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" icon={<Trash2 />} loading={remove.isPending} disabled={typed !== name}
         onClick={() => remove.mutate(undefined, { onSuccess: () => { toast("success", "Deletion started", "A backup is taken first"); navigate("/", { viewTransition: true }); }, onError: (e) => toast("error", "Not deleted", errorText(e)) })}>Delete</Button></>}>
       <div className="stack">
-        <Callout tone="danger"><b>Odoo, its database and its files are removed.</b> A backup is taken first and kept under Backups.</Callout>
+        <Callout tone="danger">
+          <b>Odoo, its database and its files are removed.</b> A backup is taken first and kept under Backups
+          {withoutBackup ? "; if it fails, the instance is removed anyway and its data is lost." : "; if it fails, nothing is removed."}
+        </Callout>
         <Field label={<>Type <code>{name}</code> to confirm</>}>
           <input className="input" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} />
         </Field>
+        {can("backups.manage") && (
+          <Switch checked={withoutBackup} onChange={setWithoutBackup} label="Delete even if the backup fails" />
+        )}
       </div>
     </Modal>
   );

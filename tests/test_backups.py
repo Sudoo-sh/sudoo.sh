@@ -275,7 +275,10 @@ def test_backups_record_the_instance_they_were_taken_from(monkeypatch: pytest.Mo
     _instance("shop", instance_id="3" * 32)
     monkeypatch.setattr(backups, "_database_up", lambda job, name: None)
 
+    commands: list[list[str]] = []
+
     def fake_copy(cmd: list[str], path: Any, what: str) -> None:
+        commands.append(cmd)
         if what == "file storage copy":
             import tarfile
 
@@ -288,6 +291,80 @@ def test_backups_record_the_instance_they_were_taken_from(monkeypatch: pytest.Mo
     (saved,) = backups.create(jobs.Job("shop", "Back up", "backup", "test"), "shop")
     assert backups.instance_id(saved.name) == "3" * 32 and backups.belongs_to("shop", backups.all_backups()[0])
     assert "instance_id" not in backups.details(saved.name)  # not part of what the API shows
+    assert f"--lock-wait-timeout={backups.PG_DUMP_LOCK_WAIT}" in commands[0]  # a held lock cannot stall the dump
+
+
+# ---------------------------------------------------------------- deleting when the backup fails
+
+
+def _failing_deletion(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """The instance's backup fails (as code inside it can make it); the removal steps are recorded."""
+    from sudoo.instances import gateway, integrity
+
+    def broken(job: jobs.Job, name: str, kind: str = "manual") -> list[Any]:
+        raise jobs.JobError("file storage copy failed: no such folder")
+
+    done: list[str] = []
+    monkeypatch.setattr(backups, "create", broken)
+    monkeypatch.setattr(gateway, "remove", lambda name: done.append("gateway"))
+    monkeypatch.setattr(operations.exposure, "remove", lambda name: done.append("exposure"))
+    monkeypatch.setattr(integrity, "forget", lambda name: None)
+    return done
+
+
+def test_deletion_without_a_complete_backup(admin: Client, maintainer: Client, started: list[Any],
+                                            monkeypatch: pytest.MonkeyPatch) -> None:  # fmt: skip
+    from sudoo.core import audit
+
+    _instance("shop")
+    body = {"confirm": "shop", "without_backup": True}
+    m_client, m_headers = maintainer
+    assert m_client.delete("/api/v1/instances/shop", json=body, headers=m_headers).status_code == 403
+    client, headers = admin
+    assert client.delete("/api/v1/instances/shop", json=body, headers=headers).status_code == 202
+    assert started[-1] == (operations.delete, ("shop", True))
+    assert client.delete("/api/v1/instances/shop", json={"confirm": "shop"}, headers=headers).status_code == 202
+    assert started[-1] == (operations.delete, ("shop",))
+
+    done = _failing_deletion(monkeypatch)
+    job = jobs.Job("shop", "Delete instance", "delete", "admin1")
+    monkeypatch.setattr(job, "run", lambda *args, **kwargs: None)
+    with pytest.raises(jobs.JobError):
+        operations.delete(job, "shop")  # no backup, no deletion
+    assert store.exists("shop") and not done and "without a complete backup" in "".join(job.log)
+
+    operations.delete(job, "shop", without_backup=True)
+    assert not store.folder("shop").exists() and done == ["gateway", "exposure"]
+    assert job.notes[-1]["level"] == "warning"
+    logged = audit.latest(5, instance="shop")
+    assert logged[0]["event"] == "instance deleted without a complete backup" and logged[0]["user"] == "admin1"
+
+
+def test_automatic_deletion_switches_off_after_repeated_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo import background
+    from sudoo.core import hints
+
+    _instance("shop")
+    store.update_env("shop", DELETE_AFTER_DAYS=7)  # created 30 days ago: expired
+    monkeypatch.setattr(operations.monitor, "mark_stopped", lambda name: None)
+    begun: list[str] = []
+    monkeypatch.setattr(
+        jobs, "start", lambda instance, action, kind, fn, *args, **_: begun.append(fn.__name__) or jobs.Job(
+            instance, action, kind, "system")
+    )  # fmt: skip
+    _failing_deletion(monkeypatch)
+    stopped: list[list[str]] = []
+    monkeypatch.setattr(jobs.Job, "run_unchecked", lambda self, cmd, timeout=None, input=None: stopped.append(cmd) or 0)
+    for attempt in range(1, operations.EXPIRY_ATTEMPTS + 1):
+        assert background.delete_expired_instances() == ["shop"] and begun[-1] == "expire"
+        job = jobs.Job("shop", "Deleted automatically", "delete", "system")
+        with pytest.raises(jobs.JobError):
+            operations.expire(job, "shop")
+        assert STATE.get("shop")["expiry_failures"] == attempt
+        assert bool(stopped) == (attempt == operations.EXPIRY_ATTEMPTS)
+    assert STATE.get("shop")["switched_off"] and STATE.get("shop")["expiry_stopped"]
+    assert "switched off instead" in hints.friendly_hint("".join(job.log))
+    assert background.delete_expired_instances() == []  # given up on: left switched off
 
 
 # ---------------------------------------------------------------- rollback

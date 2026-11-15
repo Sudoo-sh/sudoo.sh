@@ -638,7 +638,13 @@ ones kept by hand, and check `du -sh /opt/odoo/backups` from time to time; the s
 Instances page.
 
 **Lifetime.** Each instance has `DELETE_AFTER_DAYS` in its `.env` (0: kept). Every 10 minutes the panel deletes the
-instances whose lifetime is over, backup first; if the backup fails, the instance is not deleted. New instances get
+instances whose lifetime is over, backup first; if the backup fails, the instance is not deleted. Code running in an
+instance can make its own backup fail, so after three failed automatic deletions in a row the panel switches the
+instance off instead, stops trying, and records "automatic deletion stopped" in the audit log; the failed job says
+so too. Delete it by hand then: **Delete even if the backup fails** in the Delete dialog (`"without_backup": true`
+in the API) removes it without a complete backup and needs `backups.manage` as well as `instances.delete`. Giving
+the instance another lifetime starts the automatic attempts again. A backup's `pg_dump` waits at most five minutes
+for a lock, so a lock held inside the instance makes it fail rather than hang. New instances get
 the default lifetime (30 days; Settings, New instances) unless "Keep until deleted by hand" is chosen; it can be
 changed on the instance's Settings tab. Making it end sooner (also from "Keep" to a number of days) needs
 `instances.delete` as well, since it deletes the instance sooner: maintainers can only make it longer.

@@ -282,7 +282,9 @@ def test_a_shorter_lifetime_needs_the_delete_permission(app: Any, admin: Client)
     assert store.read_env(CODED)["DELETE_AFTER_DAYS"] == "0"
 
     a_client, a_headers = admin
+    STATE.update(CODED, expiry_failures=3, expiry_stopped=True)
     assert a_client.patch(url, json={"delete_after_days": 60}, headers=a_headers).status_code == 200
+    assert not STATE.get(CODED)["expiry_stopped"]  # a new lifetime: automatic deletion tries again
     assert client.patch(url, json={"delete_after_days": 7}, headers=headers).status_code == 403
     assert client.patch(url, json={"delete_after_days": 60}, headers=headers).status_code == 200  # unchanged
     assert client.patch(url, json={"delete_after_days": 90}, headers=headers).status_code == 200  # longer

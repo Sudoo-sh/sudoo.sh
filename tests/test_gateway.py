@@ -258,3 +258,65 @@ def test_ambiguous_request_framing_is_refused_before_odoo() -> None:
         assert "upload_headers" not in RECEIVED
 
     _run(scenario)
+
+
+async def _poll(request: web.Request) -> web.Response:
+    await asyncio.sleep(1.2)  # longer than the header timeout below: a request being answered is not cut short
+    return web.json_response({"ok": True})
+
+
+def test_slow_headers_are_cut_off_and_connections_are_capped(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        gateway,
+        "settings",
+        _Settings(gateway_header_timeout_seconds=0.5, gateway_max_connections=3, gateway_max_connections_total=100),
+    )
+
+    async def main() -> None:
+        odoo_app = _odoo()
+        odoo_app.router.add_get("/longpolling/poll", _poll)
+        odoo = TestServer(odoo_app)
+        await odoo.start_server()
+        folder = store.folder(NAME)
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "docker-compose.yml").write_text("services: {}\n")
+        store.write_env(NAME, {"ODOO_PORT": odoo.port, "GATEWAY_PORT": 1})
+        await gateway._create_session()
+        runner, listener = await gateway._serve(NAME, "127.0.0.1", 0)
+        port = listener.sockets[0].getsockname()[1]
+        loop = asyncio.get_running_loop()
+        try:
+            # headers that never finish: the connection is closed after the header timeout
+            reader, writer = await asyncio.open_connection("127.0.0.1", port)
+            writer.write(b"GET /echo HTTP/1.1\r\nHost: x\r\n")
+            began = loop.time()
+            assert await asyncio.wait_for(reader.read(), 3) == b""
+            assert loop.time() - began < 2
+            writer.close()
+            await asyncio.sleep(0.1)
+            # three connections are allowed at once; the fourth is answered 503 and closed
+            held = [await asyncio.open_connection("127.0.0.1", port) for _ in range(3)]
+            reader, writer = await asyncio.open_connection("127.0.0.1", port)
+            assert (await asyncio.wait_for(reader.read(), 3)).startswith(b"HTTP/1.1 503")
+            writer.close()
+            for _, idle in held:
+                idle.close()
+            await asyncio.sleep(0.1)
+            assert gateway._OPEN[NAME] == 0
+            # long polling and WebSockets outlast the header timeout
+            async with aiohttp.ClientSession() as visitor:
+                async with visitor.get(f"http://127.0.0.1:{port}/longpolling/poll") as answer:
+                    assert answer.status == 200
+                async with visitor.ws_connect(f"http://127.0.0.1:{port}/websocket") as ws:
+                    await asyncio.sleep(1)
+                    await ws.send_str("still here")
+                    assert (await ws.receive(timeout=5)).data == "still here"
+        finally:
+            listener.close()
+            await runner.cleanup()
+            assert gateway._SESSION is not None
+            await gateway._SESSION.close()
+            await odoo.close()
+            shutil.rmtree(folder)
+
+    asyncio.run(main())

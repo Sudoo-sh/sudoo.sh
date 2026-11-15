@@ -165,6 +165,18 @@ class Settings(BaseSettings):
     gateway_websocket_max_message_mb: int = Field(
         16, ge=1, le=1024, description="Largest single WebSocket message passed to or from an instance, in MB."
     )
+    gateway_header_timeout_seconds: float = Field(
+        30,
+        ge=1,
+        le=3600,
+        description="Seconds a visitor's connection has to send a request's headers (and is kept open while idle).",
+    )
+    gateway_max_connections: int = Field(
+        1000, ge=1, description="Visitors' connections open at once to one instance's gateway; more are answered 503."
+    )
+    gateway_max_connections_total: int = Field(
+        4000, ge=1, description="Visitors' connections open at once to all gateways together; more are answered 503."
+    )
 
     # ------------------------------------------------------------------ ports
     panel_port: int = Field(9000, description="Port of the panel: the web service (sudoo-web) listens here.")

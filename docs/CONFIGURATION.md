@@ -242,6 +242,9 @@ limits keep one visitor from tying up the gateway that every instance shares.
 | `GATEWAY_MAX_UPLOAD_MB` | int | `2048` | **live** | Largest request body a visitor may send to an instance (file uploads, imports), in MB. Larger ones get `413 Content Too Large` before Odoo sees them. |
 | `GATEWAY_IDLE_TIMEOUT_SECONDS` | float | `120` | **live** | Seconds a visitor may send nothing while sending a request body (5 to 3600); then the gateway answers `408 Request Timeout` and frees the connection. |
 | `GATEWAY_WEBSOCKET_MAX_MESSAGE_MB` | int | `16` | **live** | Largest single WebSocket message passed to or from Odoo (Odoo's own live updates are far smaller); a larger one closes that connection (code 1009). |
+| `GATEWAY_HEADER_TIMEOUT_SECONDS` | float | `30` | `.env` only | Seconds a visitor's connection has to send a request's line and headers (1 to 3600), counted from when it opens and again after every answer; then the gateway closes it. Requests being answered are not affected: long polling, WebSockets and slow uploads (see `GATEWAY_IDLE_TIMEOUT_SECONDS`) keep going. |
+| `GATEWAY_MAX_CONNECTIONS` | int | `1000` | `.env` only | Visitors' connections open at once to one instance's gateway. A new one beyond it is answered `503 Service Unavailable` (`Retry-After: 5`) and closed. A browser tab of Odoo uses up to about 7. |
+| `GATEWAY_MAX_CONNECTIONS_TOTAL` | int | `4000` | `.env` only | Visitors' connections open at once to all gateways together; beyond it, the same `503`. Each one can use two of the panel's open files (the visitor's and the one to Odoo): keep this well below the backend's open-files limit (`ulimit -n` in the `sudoo-panel` container). |
 
 ---
 

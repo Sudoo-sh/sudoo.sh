@@ -102,6 +102,8 @@ export interface Instance {
   usage: Usage;
   uptime: string | null;
   gateway_error: string | null;
+  /** changes made outside the panel: what they are, and whether the panel puts its configuration back */
+  drift: { detected_at: string | null; items: string[]; action: "restore" | "warn" } | null;
   created_at: string | null;
   last_visit_at: string | null;
   pauses_at: string | null;
@@ -251,7 +253,7 @@ export interface Token {
   last_used: number | null;
 }
 
-export type BackupKind = "manual" | "daily" | "deletion" | "before-restore" | "before-rollback";
+export type BackupKind = "manual" | "daily" | "deletion" | "before-restore" | "before-rollback" | "before-repair";
 export interface Backup {
   file: string;
   instance: string;

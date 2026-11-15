@@ -16,8 +16,10 @@
 7. [What is not protected](#7-what-is-not-protected)
 8. [API tokens and webhooks](#8-api-tokens-and-webhooks)
 9. [Roles and the audit log](#9-roles-and-the-audit-log)
-10. [Marketplace plugins: keys, signatures, licences](#10-marketplace-plugins-keys-signatures-licences)
-11. [Checklist for the administrator](#11-checklist-for-the-administrator)
+10. [Instance containers](#10-instance-containers)
+11. [Marketplace plugins: keys, signatures, licences](#11-marketplace-plugins-keys-signatures-licences)
+12. [Checklist for the administrator](#12-checklist-for-the-administrator)
+13. [Releases and signatures](#13-releases-and-signatures)
 
 ---
 
@@ -266,10 +268,11 @@ Being clear about limits is part of security.
 | **A super admin or administrator account** | The panel controls Docker, so these roles can do anything on the server. Give them only to people who would be trusted with the server. |
 | **Plain http with `host-ports`** | With `PUBLIC_SCHEME=http`, passwords and session cookies travel unencrypted (the cookie is then not marked Secure). Put a TLS proxy in front, or keep it to trusted networks. |
 | **Traffic inside Cloudflare** | Quick tunnels end https at Cloudflare's edge. For a server this is acceptable; Tailscale Funnel is the end-to-end alternative ([Tunneling](concepts/TUNNELING.md#7-other-ways-and-why-we-chose-this-one)). |
-| **Each instance's database password** | Stored readable in the instance's `.env` and `odoo.conf` (folder mode 700, root only). The database is reachable only from that instance's Odoo container, on a private Docker network, so the password is of no use to anyone who could not already read the whole server. |
+| **Each instance's database password** | Stored readable in the instance's `.env`, `docker-compose.yml` and `odoo.conf` (folder mode 700, root only; `odoo.conf` readable by the Odoo container's user only). The database is reachable only from that instance's Odoo container, on an internal Docker network that the server itself has no address on (Docker 28 and later), so the password is of no use to anyone who could not already read the whole server. |
+| **Root and the docker group** | Anyone who is root on the server, or in its `docker` group, can change, replace or enter every container and file; nothing inside the panel can prevent that. The panel makes such changes visible and undoes them on instances ([Instance containers](#10-instance-containers)); it cannot stop them. |
 | **Sign-in lockout after a restart** | Failed attempts are counted in memory; a panel restart resets the counters. The slow hash still limits guessing. |
 | **Odoo's own security** | Odoo inside an instance is the official image, unchanged; its own security is Odoo's. |
-| **A plugin's files, from root** | Installed plugins are in `/opt/odoo/manager/plugins/` (root only, never served, no API returns them), but root on the server can read them. Their code is protected by the panel never exposing it and by the licence forbidding copies, not by encryption ([Marketplace plugins](#10-marketplace-plugins-keys-signatures-licences)). |
+| **A plugin's files, from root** | Installed plugins are in `/opt/odoo/manager/plugins/` (root only, never served, no API returns them), but root on the server can read them. Their code is protected by the panel never exposing it and by the licence forbidding copies, not by encryption ([Marketplace plugins](#11-marketplace-plugins-keys-signatures-licences)). |
 | **What a plugin does once loaded** | A plugin runs inside the panel's process with the panel's rights. The marketplace's review, the permissions it must declare and the hub's signature are the safeguards; install only the plugins you need. |
 
 ---
@@ -331,7 +334,84 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 
 ---
 
-## 10. Marketplace plugins: keys, signatures, licences
+## 10. Instance containers
+
+Each instance is two containers, `odoo` and `db` (PostgreSQL), plus a Cloudflare connector with the
+`cloudflare-quick` exposure. They exist to run Odoo for visitors who come through the panel's gateway, and nothing
+else. Three things follow from that: they get the least they need, there is no way into them except through the
+panel, and a change made to them by hand is found, reported and undone.
+
+**What is protected, and how**
+
+| Protection | Odoo | PostgreSQL | Connector (new ones) |
+| :--- | :--- | :--- | :--- |
+| Linux capabilities | none (it runs as the image's `odoo` user from the start) | only `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETGID`, `SETUID` (the image's entry point prepares its folders as root, then becomes `postgres`) and `KILL` (so the init process can pass stop signals to PostgreSQL) | none |
+| `no-new-privileges` | yes | yes | yes |
+| Read-only system files | yes; writable: the `odoo-data` volume (`/var/lib/odoo`) and an in-memory `/tmp` | yes; writable: the `db-data` volume and in-memory `/var/run/postgresql` and `/tmp` | yes, with an in-memory `/tmp` |
+| Folders from the server | `config/` (odoo.conf), `addons/` (the repository) and the Enterprise add-ons, all read-only | none | none |
+| Network | the instance's own network (way out to the internet, for Odoo's own services) and its internal network to the database | the internal network only: no published port, no way out, unreachable from other instances and (Docker 28 and later) from the server | the server's network (it reaches the gateway on `127.0.0.1`) |
+| Published ports | `127.0.0.1:<ODOO_PORT>` only | none | none |
+| Limits | processes (`CONTAINER_PIDS_LIMIT`), memory (`ODOO_MEMORY_LIMIT`), processors (`ODOO_CPU_LIMIT`) | `CONTAINER_PIDS_LIMIT`, `DB_MEMORY_LIMIT`, `DB_CPU_LIMIT` | 256 processes, 256 MB |
+| Logs | rotated (`CONTAINER_LOG_MAX_SIZE`, `CONTAINER_LOG_MAX_FILES`) | rotated | rotated (10 MB, 3 files) |
+| Init process, restart policy | yes, `unless-stopped`, set by the panel | the same | the same |
+| Image | pinned by digest when the instance is created; changes only with **Update Odoo and PostgreSQL images** | the same | `CLOUDFLARED_IMAGE` |
+| Docker socket | never mounted | never mounted | never mounted |
+
+These were checked by running the official images: Odoo 16.0, 17.0, 18.0 and 19.0 start, create databases,
+install modules and print PDF reports with read-only system files and no capabilities.
+
+The compose file is rendered by the panel from a fixed list of keys (`odoo.compose_spec`). Before it is written, the
+panel refuses any rendering with another service or key, more capabilities, a port that is not on `127.0.0.1`, the
+Docker socket or a system folder, or a writable folder from the server; neither a plugin nor a setting can add one.
+Values are written into the file literally, and the panel runs Compose with a fixed project name and without the
+`.env` file, so editing `.env` cannot change an image, a port, a password or the project.
+
+The instance folder is mode 700 and owned by root; `.env` and `docker-compose.yml` are mode 600; `config/` and
+`odoo.conf` are mode 700 and 600 and owned by the Odoo image's user, so Odoo (which gets the folder read-only) can
+read its configuration and no other user on the server can.
+
+**Only through the panel.** Nothing of an instance listens anywhere but `127.0.0.1`; visitors reach Odoo through the
+panel's gateway, and people change instances through the panel's jobs, each checked against a permission and written
+to the audit log. A restore's filestore step runs one short-lived root container with only `CHOWN`, `DAC_OVERRIDE`
+and `FOWNER`; everything else the panel does inside containers (`docker exec` of `psql`, `pg_dump`, `du`) runs with
+the container's own limits.
+
+**Changes made by hand.** When the panel starts an instance it records what it applied (the values that shape the
+containers, the files it wrote and their SHA-256, the images). Every 20 seconds the monitor compares each instance
+that has no job running with that record:
+
+* `docker-compose.yml`, `config/odoo.conf` and `.env`: their hashes and their modes;
+* each container, through `docker inspect`: image, capabilities, privileged mode, read-only system files, security
+  options, user, mounts, networks, published ports, environment, labels, limits, restart policy, log rotation and
+  init process;
+* containers that carry the instance's label (`sh.sudoo.instance`) or Compose project but are not the panel's;
+* the connector: no privileges, mounts, added capabilities or ports.
+
+A difference seen twice in a row goes to the audit log ("configuration changed outside the panel"), shows as a banner
+on the instance's page and is e-mailed to every super admin with an address. With `DRIFT_ACTION=restore` (the
+default) the panel then runs **Restore the panel's configuration** as soon as no other job runs on the instance: it
+backs up the database first when its container is affected (kind `before-repair`), writes its own compose file and
+`odoo.conf` back, stops strange containers (they are kept, stopped, for whoever looks into it) and recreates the
+affected containers. A paused instance stays paused. Before any Compose command that creates or starts containers,
+the panel also puts its own files back, so it never applies a file it did not write.
+
+What the panel never does on its own:
+
+* recreate a connector (its public link would change): connector findings are only reported;
+* take `.env` back: only a person can tell which of its values are right. The values that shape the containers come
+  from the panel's record anyway; **Restore the panel's configuration** accepts the rest of the file as it is;
+* restart a running instance to apply new hardening or new limits: instances made before this version, and changed
+  limits, are applied the next time the instance starts or restarts through the panel.
+
+**What cannot be protected.** Root, and anyone in the `docker` group, can do everything: stop the panel, change its
+record, edit files and containers between two checks, or run `docker exec` into a container and act inside it with
+that container's rights. Hardening limits what such a change can do inside a container, and the checks make it
+visible and short-lived; they do not stop it. Keep the `docker` group empty except for administrators trusted with
+root, and keep SSH access limited.
+
+---
+
+## 11. Marketplace plugins: keys, signatures, licences
 
 Plugins from the Sudoo.sh marketplace are checked by the panel itself before they run
 ([Marketplace](MARKETPLACE.md)).
@@ -374,7 +454,7 @@ Plugins from the Sudoo.sh marketplace are checked by the panel itself before the
 
 ---
 
-## 11. Checklist for the administrator
+## 12. Checklist for the administrator
 
 - [ ] Create the first account with the setup code right after installing, so nobody else can.
 - [ ] Turn on a second factor for your own account; keep `REQUIRE_SECOND_FACTOR` at `admins` or `everyone`.
@@ -389,3 +469,41 @@ Plugins from the Sudoo.sh marketplace are checked by the panel itself before the
 - [ ] With `host-ports`, put https in front of the panel and limit who can reach its port.
 - [ ] Install only the plugins you need, preferably from Official or Verified publishers; read what each asks
       permission to do.
+- [ ] Keep `DRIFT_ACTION=restore`, give super admins an e-mail address, and look into every "changed outside the
+      panel" message: only root or the `docker` group can cause one.
+- [ ] Keep the `docker` group to administrators trusted with root.
+
+---
+
+## 13. Releases and signatures
+
+Servers run prebuilt images; nobody builds or downloads the source code to install. How you can check what you run:
+
+| What | How it is protected |
+| :--- | :--- |
+| Images `ghcr.io/sudoo-sh/sudoo-panel` and `ghcr.io/sudoo-sh/sudoo-web` | Built by GitHub Actions (`.github/workflows/images.yml`) from the tagged commit, for linux/amd64 and linux/arm64, with an SBOM and a provenance attestation, and signed by digest with Sigstore keyless signing (cosign): the certificate names the workflow and the tag. |
+| `compose.yaml` of a release | Names both images by digest, so a tag that moves later cannot change what a server runs. Signed by the release workflow (`compose.yaml.sigstore.json`) and listed in `SHA256SUMS`. |
+| `sudoo-install.sh` | Pins the same digests. Checked (shellcheck, tests, a dry run against the release's images) and attached to the release with its SHA-256 in `SHA256SUMS`, and a Sigstore bundle (`sudoo-install.sh.sigstore.json`) when it is signed. When it updates to another version it downloads that release's installer and runs it only if the SHA-256 matches. |
+
+Check an image yourself with [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) 3 or newer (the
+digest is in the release's `compose.yaml`):
+
+```bash
+cosign verify ghcr.io/sudoo-sh/sudoo-panel@sha256:<digest> \
+  --certificate-identity-regexp '^https://github\.com/Sudoo-sh/sudoo\.sh/\.github/workflows/images\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Images of `main` (`edge`) are signed the same way, with `@refs/heads/main` in the identity. When `cosign` is
+installed on the server, the installer runs this check itself before it uses an image and stops if it fails.
+
+The SBOM and the provenance are attached to the images: `docker buildx imagetools inspect --format
+'{{ json .SBOM }}' ghcr.io/sudoo-sh/sudoo-panel:<version>` (or `.Provenance`).
+
+Check the release's `compose.yaml`:
+
+```bash
+cosign verify-blob compose.yaml --bundle compose.yaml.sigstore.json \
+  --certificate-identity https://github.com/Sudoo-sh/sudoo.sh/.github/workflows/release.yml@refs/tags/v<version> \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```

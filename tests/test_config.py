@@ -44,6 +44,7 @@ def test_every_setting_is_documented() -> None:
     fixed = {
         "pause_check_interval_seconds",
         "expiry_check_interval_seconds",
+        "integrity_check_interval_seconds",
         "history_samples",
     }
     documented = (Path(__file__).resolve().parent.parent / "docs" / "CONFIGURATION.md").read_text()
@@ -55,7 +56,12 @@ def test_every_setting_is_in_the_env_template() -> None:
     """.env.example names every setting (as NAME=value, or commented out for the rarely changed ones)."""
     import re
 
-    fixed = {"pause_check_interval_seconds", "expiry_check_interval_seconds", "history_samples"}
+    fixed = {
+        "pause_check_interval_seconds",
+        "expiry_check_interval_seconds",
+        "integrity_check_interval_seconds",
+        "history_samples",
+    }
     template = (Path(__file__).resolve().parent.parent / ".env.example").read_text()
     missing = [
         name

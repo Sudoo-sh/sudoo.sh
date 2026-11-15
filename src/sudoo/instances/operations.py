@@ -644,6 +644,63 @@ def switch_branch(job: Job, name: str, branch: str) -> None:
         restart(job, name)
 
 
+def connect_repository(job: Job, name: str, repo: str, branch: str, install_modules: bool = False) -> None:
+    """Give an instance of plain Odoo a GitHub repository: clone it next to the empty add-ons folder, move it in (the
+    folder stays the same, so the containers keep their mount), record the branch, install the repository's modules
+    if asked, and restart. From then on the instance is like one created from that repository; its data is kept."""
+    addons = store.addons_dir(name)
+    if capture(git(addons, "remote", "get-url", "origin")):
+        raise JobError("This instance already has a GitHub repository.")
+    clone = store.folder(name) / "addons.connecting"
+    shutil.rmtree(clone, ignore_errors=True)  # left over from an attempt that failed halfway
+    job.step(f"Downloading the code of {github.repo_name(repo) or repo} ({branch}) from GitHub")
+    try:
+        job.run(["git", "clone", "--recurse-submodules", "-b", branch, "--", repo, str(clone)], timeout=1800)
+    except JobError:
+        shutil.rmtree(clone, ignore_errors=True)
+        found = github.diagnose(repo)
+        if found:
+            job.write(panel_hint(found["message"]))
+        raise
+    job.step("Putting the code into the instance")
+    others = [entry.name for entry in addons.iterdir() if entry.name != ".git"]
+    if others:  # a plain instance's add-ons folder is empty: never overwrite what someone put there by hand
+        shutil.rmtree(clone, ignore_errors=True)
+        raise JobError(f"The add-ons folder is not empty ({', '.join(sorted(others)[:5])}). Empty it first.")
+    shutil.rmtree(addons / ".git")
+    for entry in clone.iterdir():
+        entry.rename(addons / entry.name)
+    clone.rmdir()
+    env = store.read_env(name)
+    env.pop("SOURCE", None)
+    env["GIT_BRANCH"] = branch
+    store.write_env(name, env)
+    STATE.update(name, branch_missing=False)
+    events.publish("instance", name)
+    modules = own_modules(addons) if install_modules else []
+    paused = _paused(name)
+    if modules:
+        job.step(f"Installing the repository's modules ({len(modules)})")
+        refresh_addons_path(job, name)
+        job.run(compose(name, "up", "-d", "db"), timeout=300)
+        job.run(compose(name, "stop", "odoo"), timeout=300)
+        for db in odoo.databases(name):
+            if job.run_unchecked(
+                odoo.run_cmd(name, "-d", db, "-i", ",".join(modules), "--stop-after-init", "--no-http"), timeout=3600
+            ):
+                job.note(
+                    "Some of the repository's modules could not be installed. Odoo works; install them from Apps "
+                    "after a developer has looked at the technical log.",
+                    "warning",
+                )
+        if paused:
+            job.run(compose(name, "stop"), timeout=300)
+    elif install_modules:
+        job.note("The repository has no Odoo modules to install.")
+    job.note(f"Connected to {repo}, branch {branch}. Get latest code and Switch branch work from now on.")
+    _apply_code_change(job, name)
+
+
 def _apply_code_change(job: Job, name: str) -> None:
     """After the code changed: a paused instance only gets the new addons_path, a running one restarts."""
     if _paused(name):

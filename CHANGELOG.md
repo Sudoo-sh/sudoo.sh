@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Connect a repository to plain Odoo:** an instance created without a repository gets one later through
+  **⋯ → Connect a repository…** (API action `connect-repository`, `instances.operate`): the panel clones the branch
+  into its add-ons folder, installs the repository's modules if asked and restarts it. Its database and files are
+  kept, and from then on it works like an instance created from that repository.
+- **Repository access from the picker:** under the New instance page's repository list, a link opens the GitHub
+  App installation's page on GitHub to choose which repositories the app may read (one link per account it is
+  installed on). `GET /api/v1/github/repositories` lists them in `meta.installations`.
 - **Plain Odoo instances:** the New instance page asks first **From a repository** or **Plain Odoo (no
   repository)**. A plain instance runs the official Odoo only (Community or Enterprise, any version offered): nothing
   is cloned, it gets no update triggers, and the update, branch and submodule actions, the Code tab and the automatic

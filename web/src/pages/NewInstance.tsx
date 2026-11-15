@@ -11,7 +11,7 @@ import { Tag, Button, Callout, Field, Switch } from "@/components/ui/basics";
 import { useToast } from "@/components/ui/overlay";
 import { ago } from "@/lib/format";
 
-function useDebounced<T>(value: T, delay = 450): T {
+export function useDebounced<T>(value: T, delay = 450): T {
   const [shown, setShown] = useState(value);
   useEffect(() => {
     const timer = setTimeout(() => setShown(value), delay);
@@ -32,26 +32,48 @@ function useRepositoryPicker(typed: string) {
     staleTime: 60_000,
     retry: false,
   });
-  return { connected: data?.meta?.connected === true, repositories: data?.data ?? [] };
+  const installations = (data?.meta?.installations ?? []) as { account: string; settings_url: string }[];
+  return { connected: data?.meta?.connected === true, repositories: data?.data ?? [], installations };
 }
 
-function RepositoryPicker({ typed, onPick }: { typed: string; onPick: (repository: GitHubRepository) => void }) {
-  const { connected, repositories } = useRepositoryPicker(typed);
-  if (!connected || ADDRESS.test(typed)) return null;
-  if (!repositories.length) return typed ? <p className="xsmall faint">No repository of the GitHub App matches "{typed}".</p> : null;
+/** Where to choose on GitHub which repositories the app may read: one link per account it is installed on. */
+function RepositoryAccessLinks({ installations }: { installations: { account: string; settings_url: string }[] }) {
+  if (!installations.length) return null;
   return (
-    <ul className="repo-picker" role="listbox" aria-label="Repositories on GitHub">
-      {repositories.slice(0, 8).map((r) => (
-        <li key={r.full_name} role="option" aria-selected={false}>
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(r)}>
-            <FolderGit2 />
-            <span className="name truncate">{r.full_name}</span>
-            {r.private && <Lock size={12} aria-label="private" />}
-            {r.description && <span className="desc truncate">{r.description}</span>}
-          </button>
-        </li>
+    <p className="xsmall faint row-wrap" style={{ gap: 8 }}>
+      Not listed? Choose which repositories the app can read:
+      {installations.map((i) => (
+        <a key={i.account} href={i.settings_url} target="_blank" rel="noreferrer" onMouseDown={(e) => e.preventDefault()} className="row" style={{ gap: 2 }}>
+          {i.account} <ArrowUpRight size={12} />
+        </a>
       ))}
-    </ul>
+    </p>
+  );
+}
+
+export function RepositoryPicker({ typed, onPick }: { typed: string; onPick: (repository: GitHubRepository) => void }) {
+  const { connected, repositories, installations } = useRepositoryPicker(typed);
+  if (!connected || ADDRESS.test(typed)) return null;
+  return (
+    <>
+      {repositories.length ? (
+        <ul className="repo-picker" role="listbox" aria-label="Repositories on GitHub">
+          {repositories.slice(0, 8).map((r) => (
+            <li key={r.full_name} role="option" aria-selected={false}>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(r)}>
+                <FolderGit2 />
+                <span className="name truncate">{r.full_name}</span>
+                {r.private && <Lock size={12} aria-label="private" />}
+                {r.description && <span className="desc truncate">{r.description}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : typed ? (
+        <p className="xsmall faint">No repository of the GitHub App matches "{typed}".</p>
+      ) : null}
+      <RepositoryAccessLinks installations={installations} />
+    </>
   );
 }
 

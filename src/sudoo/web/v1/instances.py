@@ -13,6 +13,8 @@
                                                      restore: {"file"} optional (any instance's backup of the
                                                      same Odoo series), the latest backup otherwise
                                                      rollback: back to before the last restore (ROLLBACK_HOURS)
+                                                     connect-repository: {"repo", "branch", "install_modules"}
+                                                     gives plain Odoo a repository (its data is kept)
     DELETE /api/v1/instances/<name>                  delete after a backup; body {"confirm": "<name>"} -> 202
     GET    /api/v1/instance-plan?repo=&branch=&name=&version=&edition=
                                                      the name and database a new instance would get
@@ -64,6 +66,7 @@ ACTIONS = {
     "upgrade": ("Upgrade modules", "upgrade", "instances.operate"),
     "remove-submodule": ("Remove submodule", "submodule", "instances.operate"),
     "switch-branch": ("Switch branch", "update", "instances.operate"),
+    "connect-repository": ("Connect a repository", "update", "instances.operate"),
     "backup": ("Back up", "backup", "instances.operate"),
     "update-images": ("Update Odoo and PostgreSQL images", "update", "instances.operate"),
     "repair": ("Restore the panel's configuration", "repair", "instances.operate"),
@@ -303,7 +306,7 @@ def refuse_plain(name: str) -> None:
         abort(
             409,
             f"{name} runs plain Odoo without a GitHub repository: it has no code to update, no branch and no "
-            "submodules. Create an instance from a repository for that.",
+            "submodules. Connect a repository to it first.",
         )
 
 
@@ -311,6 +314,12 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
     """(function, arguments) of the job for `action`, after validating the request data."""
     if action in REPOSITORY_ACTIONS:
         refuse_plain(name)
+    if action == "connect-repository":
+        if has_repository(name):
+            abort(409, f"{name} has a GitHub repository already. Switch branch changes its code.")
+        repo = check.repo_address(check.text(data, "repo"))
+        branch = check.branch(check.text(data, "branch", default="main"))
+        return operations.connect_repository, (name, repo, branch, check.flag(data, "install_modules"))
     simple: dict[str, tuple[Callable[..., Any], tuple[Any, ...]]] = {
         "update": (operations.update_code, (name,)),
         "update-submodules": (operations.update_code, (name, True)),

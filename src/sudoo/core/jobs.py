@@ -10,6 +10,7 @@ adds a note or ends, and "job.output" with new log text at most twice a second.
 
 from __future__ import annotations
 
+import queue
 import subprocess
 import threading
 import time
@@ -51,6 +52,7 @@ class Job:
         self.finished: float | None = None
         self._published_lines = 0  # log lines already sent as "job.output" events
         self.expected_steps: int | None = None  # set by operations that know how many steps they take
+        self.details: dict[str, Any] = {}  # what the caller knows in advance (a creation's plan, without secrets)
 
     def expect(self, steps: int) -> None:
         """Announce how many steps this job will take, so its progress can be shown as a percentage."""
@@ -130,6 +132,43 @@ class Job:
                 raise JobError("this step took too long and was stopped")
         return proc.wait()
 
+    def run_watched(
+        self,
+        cmd: list[str],
+        timeout: float,
+        on_line: Callable[[str], None],
+        on_silence: Callable[[], None],
+        silence_seconds: float = 10,
+    ) -> int:
+        """Like run_unchecked, also calling on_line(line) for every line and on_silence() whenever the command has
+        written nothing for `silence_seconds` (a download that is still going), so the log keeps moving."""
+        self.write(f"$ {' '.join(cmd)}\n")
+        proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, bufsize=1)  # fmt: skip
+        lines: queue.Queue[str | None] = queue.Queue()
+
+        def read() -> None:
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                lines.put(line)
+            lines.put(None)
+
+        threading.Thread(target=read, daemon=True, name=f"job-{self.id}-output").start()
+        deadline = time.monotonic() + timeout
+        while True:
+            if time.monotonic() > deadline:
+                proc.kill()
+                raise JobError("this step took too long and was stopped")
+            try:
+                line = lines.get(timeout=max(0.1, min(silence_seconds, deadline - time.monotonic())))
+            except queue.Empty:
+                on_silence()
+                continue
+            if line is None:
+                return proc.wait()
+            self.write(line)
+            on_line(line)
+
     def summary(self) -> dict[str, Any]:
         return {
             "id": self.id,
@@ -149,15 +188,29 @@ def is_panel_job(instance: str) -> bool:
     return ":" in instance
 
 
-def start(instance: str, action: str, kind: str, fn: Callable[..., object], *args: Any, user: str = "system") -> Job:
-    """Run fn(job, *args) in the background for `instance` and return the Job."""
+def start(
+    instance: str,
+    action: str,
+    kind: str,
+    fn: Callable[..., object],
+    *args: Any,
+    user: str = "system",
+    details: dict[str, Any] | None = None,
+) -> Job:
+    """Run fn(job, *args) in the background for `instance` and return the Job.
+
+    `details` are facts known before the job runs, shown while it does: a creation's plan is what the instance
+    looks like until its files exist (web/v1/resources.py)."""
     job = Job(instance, action, kind, user)
+    job.details = dict(details or {})
     with _JOBS_LOCK:
         JOBS[job.id] = job
         while len(JOBS) > _KEEP:
             JOBS.popitem(last=False)
     _start_output_publisher()
     job.changed()
+    if kind == "create" and not is_panel_job(instance):
+        events.publish("instance", instance)  # the new instance appears at once, as being created
     threading.Thread(target=_run, args=(job, fn, args), daemon=True).start()
     return job
 
@@ -192,6 +245,8 @@ def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
             job.changed()
             if job.kind == "delete" and job.status == "success":
                 events.publish("instance.deleted", job.instance, {"name": job.instance})
+            elif job.kind == "create" and job.status == "failed":
+                pass  # nothing was left (operations.create announces the removal), or the name was someone else's
             elif not is_panel_job(job.instance):
                 events.publish("instance", job.instance)
 
@@ -212,6 +267,25 @@ def _start_output_publisher() -> None:
                 job.publish_output()
 
     threading.Thread(target=publish_forever, daemon=True, name="job-output").start()
+
+
+def creating(instance: str) -> Job | None:
+    """The job creating `instance` while it is queued or running; None otherwise."""
+    with _JOBS_LOCK:
+        found = [j for j in JOBS.values() if j.instance == instance and j.kind == "create"]
+    return next((j for j in reversed(found) if j.status in ("queued", "running")), None)
+
+
+def being_created() -> list[str]:
+    """Names of the instances whose creation is queued or running."""
+    with _JOBS_LOCK:
+        return sorted(
+            {
+                j.instance
+                for j in JOBS.values()
+                if j.kind == "create" and j.status in ("queued", "running") and not is_panel_job(j.instance)
+            }
+        )
 
 
 def busy(instance: str) -> bool:

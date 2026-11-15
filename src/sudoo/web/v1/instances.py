@@ -1,7 +1,9 @@
 """Instances, jobs and Odoo versions.
 
-    GET    /api/v1/instances?limit=&offset=          list
-    GET    /api/v1/instances/<name>                  one instance, with commits, submodules and recent jobs
+    GET    /api/v1/instances?limit=&offset=          list (instances being created too, status "creating")
+    GET    /api/v1/instances/<name>                  one instance, with commits, submodules and recent jobs; while
+                                                     its creation is queued or running: status "creating" and the
+                                                     job as current_job (404 once a failed creation left nothing)
     GET    /api/v1/instances/<name>/credentials      Odoo admin and master passwords, ports
     GET    /api/v1/instances/<name>/logs?lines=      the end of Odoo's log
     POST   /api/v1/instances                         create; {"from_backup"} optional; without "repo": plain Odoo
@@ -72,8 +74,18 @@ ACTIONS = {
 
 
 def existing(name: str) -> str:
-    """`name` when that instance exists; 404 otherwise."""
+    """`name` when that instance exists; 409 while it is still being created, 404 otherwise."""
     if not store.exists(check.instance_name(name)):
+        if jobs.creating(name):
+            abort(409, "This instance is still being created. Try again when its creation has finished.")
+        abort(404, "This instance does not exist.")
+    return name
+
+
+def known(name: str) -> str:
+    """`name` when that instance exists or is being created; 404 otherwise (also after a creation that failed and
+    left nothing: its job stays under /api/v1/jobs)."""
+    if not store.exists(check.instance_name(name)) and not jobs.creating(name):
         abort(404, "This instance does not exist.")
     return name
 
@@ -97,13 +109,14 @@ def _limits(default: int = 100) -> tuple[int, int]:
 @require("instances.view")
 def list_instances() -> Response:
     limit, offset = _limits()
-    return page(store.names(), limit, offset, instance_resource)
+    names = sorted(set(store.names()) | set(jobs.being_created()))  # those being created have status "creating"
+    return page(names, limit, offset, instance_resource)
 
 
 @blueprint.get("/instances/<name>")
 @require("instances.view")
 def instance(name: str) -> Response:
-    return ok(instance_resource(existing(name), full=True))
+    return ok(instance_resource(known(name), full=True))
 
 
 @blueprint.get("/instances/<name>/credentials")
@@ -230,7 +243,14 @@ def create() -> Response:
         "created_by": g.user["name"],
         "from_backup": from_backup,
     }
-    job = jobs.start(name, "Create instance", "create", operations.create, plan_data, user=g.user["name"])
+    # what the instance looks like until its files exist (web/v1/resources.creating_resource): no ports, no secrets
+    shown = ("version", "edition", "db_name", "repo", "branch", "created_by")
+    details = {
+        key: plan_data[key] for key in (*shown, "auto_update", "auto_upgrade", "auto_pause", "delete_after_days")
+    }
+    job = jobs.start(
+        name, "Create instance", "create", operations.create, plan_data, user=g.user["name"], details=details
+    )
     log(
         "Create instance",
         instance=name,

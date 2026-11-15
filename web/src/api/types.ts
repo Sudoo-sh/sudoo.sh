@@ -24,7 +24,8 @@ export interface Profile {
   email: string | null;
   phone: string | null;
 }
-export type InstanceStatus = "online" | "starting" | "busy" | "paused" | "switched_off" | "stopped" | "unknown";
+/** "creating": its creation is queued or running (GET answers before its files exist, with the job as current_job) */
+export type InstanceStatus = "creating" | "online" | "starting" | "busy" | "paused" | "switched_off" | "stopped" | "unknown";
 export type JobStatus = "queued" | "running" | "success" | "failed";
 
 export interface Envelope<T> {
@@ -61,6 +62,11 @@ export interface JobRef {
   action: string;
   status: JobStatus;
   progress_percent: number | null;
+}
+
+/** An instance's job in progress: the reference with its steps so far */
+export interface CurrentJob extends JobRef {
+  steps: { title: string; status: "running" | "done" | "failed" }[];
 }
 
 export interface Job extends JobRef {
@@ -110,7 +116,7 @@ export interface Instance {
   last_visit_at: string | null;
   pauses_at: string | null;
   expires_at: string | null;
-  current_job: JobRef | null;
+  current_job: CurrentJob | null;
   created_by: string | null;
   // only on GET /instances/<name>
   disk?: { database_bytes: number | null; files_bytes: number | null };

@@ -74,7 +74,7 @@ function Charts({ instances }: { instances: Instance[] | undefined }) {
     const count = (statuses: InstanceStatus[]) => instances?.filter((i) => statuses.includes(i.status)).length ?? 0;
     return [
       { label: "Online", value: count(["online", "starting"]), color: "--positive" },
-      { label: "Working", value: count(["busy"]), color: "--working" },
+      { label: "Working", value: count(["busy", "creating"]), color: "--working" },
       { label: "Paused", value: count(["paused"]), color: "--idle" },
       { label: "Switched off", value: count(["switched_off", "stopped", "unknown"]), color: "--text-3" },
     ];
@@ -173,14 +173,14 @@ export function DashboardPage() {
 
   const counts = useMemo(() => {
     const count = (statuses: InstanceStatus[]) => instances?.filter((i) => statuses.includes(i.status)).length ?? 0;
-    return { online: count(["online", "starting"]), paused: count(ASLEEP), busy: count(["busy"]) };
+    return { online: count(["online", "starting"]), paused: count(ASLEEP), busy: count(["busy", "creating"]) };
   }, [instances]);
   const shown = (instances ?? []).filter((i) => {
     const text = `${i.name} ${i.git.branch ?? "plain"} ${i.git.repository ?? ""} ${i.odoo.version}`.toLowerCase();
     if (query && !text.includes(query.toLowerCase())) return false;
     if (filter === "online") return i.status === "online" || i.status === "starting";
     if (filter === "paused") return ASLEEP.includes(i.status);
-    if (filter === "busy") return i.status === "busy";
+    if (filter === "busy") return i.status === "busy" || i.status === "creating";
     return true;
   });
   const cpuAverage = average(history?.server.cpu_percent);

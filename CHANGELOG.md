@@ -48,10 +48,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
-- **Moving between pages** is smoother in browsers with the View Transitions API: the sidebar, the top bar, a page's
-  title block and its tabs stay still while only the content fades and shifts 8 px (from the right going forward,
-  from the left going back through the browser's history), in 120 ms out and 200 ms in; with reduced motion it is a
-  plain cross-fade, and other browsers change the page at once. A new page starts at its top and going back returns
+- **Moving between pages** is smoother in browsers with the View Transitions API: the sidebar and the top bar stay
+  still while the page fades out (120 ms) and the new one then fades in (190 ms, rising 4 px); between an
+  instance's tabs only the tab's content does. With reduced motion the fades are shorter and nothing moves, and
+  other browsers change the page at once. A new page starts at its top and going back returns
   to where you were. Loading placeholders appear only after 150 ms, so quick pages never flash a skeleton or
   spinner, and a thin bar shows while a page's code is still loading. On a phone, an instance's backup buttons and
   submodules table no longer widen the page.
@@ -75,6 +75,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
     heartbeat file in memory.
 
 ### Fixed
+
+- **Page transitions:** moving between pages no longer shows both pages' titles and introductions on top of each other
+  for a moment (they were cross-faded in place): the old page now fades out completely before the new one fades in,
+  and between an instance's tabs only the tab's content fades ([Design](docs/DESIGN.md#6-motion)).
+- **A new instance showed "This page does not exist"** after **Create**, for as long as its files did not exist
+  (minutes when the Odoo image had to be downloaded first), and the page did not recover. An instance now answers
+  from the moment its creation is accepted, with status `creating` (listed too, with the creation job as
+  `current_job` and its steps); its page shows the creation live (status, steps, progress and technical log, or
+  "Waiting to start" while another job on the name finishes) and becomes the instance's page when it succeeds. A
+  failed creation shows its error, the step where it stopped and a way back, and the API answers 404 again while the
+  job stays readable ([Panel API](docs/PANEL_API.md#instances-jobs-and-actions-in-detail)). Creating an instance now
+  starts by downloading the Odoo and PostgreSQL images, in a step of its own ("Downloading Odoo 19.0 image", or
+  "Checking for a newer ..." when the image is already on the server), and the log says how far the download is
+  every 10 seconds while Docker writes nothing; when the check fails but the image is on the server, that copy is
+  used. The new setting `PREPULL_IMAGES` (off by default) downloads the images of every offered version in the
+  background, so the first instance of a version does not wait for it ([Configuration](docs/CONFIGURATION.md)).
 
 - **GitHub App and organisations:** a private GitHub App can be installed only on the account that owns it, so an app
   created on a personal account could never read a company organisation's private repositories, and creating an

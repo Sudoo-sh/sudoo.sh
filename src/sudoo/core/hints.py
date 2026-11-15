@@ -25,7 +25,8 @@ _HINTS: list[tuple[str, str]] = [
         "That branch does not exist on GitHub. Pick another branch.",
     ),
     (
-        r"manifest unknown|manifest for odoo:.* not found|pull access denied for odoo",
+        r"manifest unknown|manifest for odoo:.* not found|pull access denied for odoo"
+        r'|failed to resolve reference "[^"]*/odoo:[^"]*": .*not found',
         "This Odoo version is not published on Docker Hub yet. Choose another version.",
     ),
     (

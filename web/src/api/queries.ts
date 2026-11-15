@@ -74,10 +74,11 @@ export const useInstances = () =>
 export const useInstance = (name: string) =>
   useQuery({ queryKey: keys.instance(name), queryFn: () => api.get<Instance>(`/instances/${name}`) });
 
-export const useJobs = (instance?: string) =>
+export const useJobs = (instance?: string, enabled = true) =>
   useQuery({
     queryKey: keys.jobs(instance),
     queryFn: () => api.get<Job[]>(`/jobs?limit=40${instance ? `&instance=${encodeURIComponent(instance)}` : ""}`),
+    enabled,
   });
 
 export const useJob = (id: string | null) =>

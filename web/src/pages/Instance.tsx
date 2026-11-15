@@ -41,7 +41,7 @@ import { StatCard } from "@/components/StatCard";
 import { Button, Callout, CopyField, Empty, Field, Progress, Segmented, Skeleton, Status, Switch, Tag } from "@/components/ui/basics";
 import { Menu, Modal, useToast } from "@/components/ui/overlay";
 import { ago, bytes, dateTime, duration, elapsed, ms, percent } from "@/lib/format";
-import { NotFoundPage } from "./NotFound";
+import { CreatingInstance, MissingInstance } from "./InstanceCreating";
 
 type Action = { action: string; body?: Record<string, unknown>; title: string };
 
@@ -80,7 +80,8 @@ export function InstancePage() {
   const run = useRun(name, setJobId);
   const [dialog, setDialog] = useState<null | "upgrade" | "branch" | "delete" | "submodule" | "rollback">(null);
 
-  if (error && !instance) return <NotFoundPage />;
+  if (error && !instance) return <MissingInstance name={name} error={error} />;
+  if (instance?.status === "creating" && instance.current_job) return <CreatingInstance instance={instance} />;
   if (isPending || !instance)
     return (
       <Page>
@@ -200,7 +201,7 @@ export function InstancePage() {
 
       {instance.current_job && (
         <button className="card pad" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => setJobId(instance.current_job!.id)}>
-          <JobLine job={{ ...instance.current_job, steps: [] }} />
+          <JobLine job={instance.current_job} />
         </button>
       )}
       {instance.rollback && can("instances.restore") && (

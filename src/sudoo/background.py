@@ -1,6 +1,6 @@
 """Work that runs on its own inside the panel process: monitor, automatic pause, automatic deletion, daily backups,
-removal of expired rollback snapshots, GitHub polling, the GitHub App's webhook address, gateway, connectors,
-the marketplace heartbeat and the plugin watchdog (files, licences)."""
+downloading images ahead of time (PREPULL_IMAGES), removal of expired rollback snapshots, GitHub polling, the GitHub
+App's webhook address, gateway, connectors, the marketplace heartbeat and the plugin watchdog (files, licences)."""
 
 from __future__ import annotations
 
@@ -8,11 +8,12 @@ import threading
 import time
 
 from sudoo import accounts, exposure, plugin_manager, triggers
-from sudoo.config import settings
+from sudoo.config import live, settings
 from sudoo.core import audit, jobs
+from sudoo.core.shell import succeeds
 from sudoo.core.state import STATE
 from sudoo.hub import marketplace
-from sudoo.instances import backups, gateway, monitor, operations, store
+from sudoo.instances import backups, gateway, integrity, monitor, odoo, operations, store
 from sudoo.repos import github, github_app
 
 
@@ -26,6 +27,7 @@ def start() -> None:
         _pause_idle_instances,
         _delete_expired_instances,
         _daily_backups,
+        _prepull_images,
         _remove_expired_snapshots,
         _keep_github_webhook_current,
         marketplace.heartbeat_forever,
@@ -97,6 +99,41 @@ def _daily_backups() -> None:
             if backups.needs_daily(STATE.get(name).get("used_since"), slot):
                 tried[name] = slot
                 jobs.start(name, "Daily backup", "backup", operations.daily_backup, name)
+
+
+PREPULL_CHECK_SECONDS = 1800
+_PREPULL_NOW = threading.Event()
+_PREPULL_INPUTS = {"prepull_images", "odoo_versions", "odoo_min_version", "odoo_image", "postgres_image"}
+
+
+def _prepull_images() -> None:
+    """Every half hour, and as soon as one of its settings changes, when PREPULL_IMAGES is on: download the images a
+    new instance needs that are not on this server yet (the Odoo image of every offered version, the PostgreSQL
+    image), so creating one does not wait for them. Images already here are left alone: creating an instance checks
+    for a newer one anyway."""
+    live.on_change(lambda changed: _PREPULL_NOW.set() if _PREPULL_INPUTS & set(changed) else None)
+    _PREPULL_NOW.wait(60)  # let the panel start first
+    while True:
+        _PREPULL_NOW.clear()
+        if settings.prepull_images:
+            prepull_images()
+        _PREPULL_NOW.wait(PREPULL_CHECK_SECONDS)
+
+
+def prepull_images() -> list[str]:
+    """Download the missing images (one after the other); return those that were downloaded."""
+    wanted = [f"{settings.odoo_image}:{version}" for version in odoo.versions()] + [settings.postgres_image]
+    pulled = []
+    for image in wanted:
+        if not settings.prepull_images or integrity.present(image):
+            continue
+        started = time.monotonic()
+        if succeeds(["docker", "pull", "--quiet", image], timeout=3600):
+            pulled.append(image)
+            print(f"Downloaded {image} ahead of time in {time.monotonic() - started:.0f} s", flush=True)
+        else:
+            print(f"Could not download {image} ahead of time; trying again later", flush=True)
+    return pulled
 
 
 SNAPSHOT_CHECK_SECONDS = 300

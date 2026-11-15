@@ -68,6 +68,7 @@ export function monogram(name: string): { from: string; to: string; letters: str
 }
 
 export const STATUS_LABEL: Record<string, string> = {
+  creating: "Creating",
   online: "Online",
   starting: "Starting",
   busy: "Working",

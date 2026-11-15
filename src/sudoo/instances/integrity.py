@@ -198,6 +198,48 @@ def _container_image(container: str) -> str:
     return capture(["docker", "inspect", "--format", "{{.Image}}", container])
 
 
+_LAYER_LINE = re.compile(r"^([0-9a-f]{12}): (.+)$")
+_DOWNLOADED = ("Download complete", "Verifying Checksum", "Extracting", "Pull complete", "Already exists")
+
+
+def present(reference: str) -> bool:
+    """Whether the image is on this server already."""
+    return _image(reference) is not None
+
+
+def pull_image(job: Job, reference: str, timeout: float = 1800) -> None:
+    """`docker pull reference` with its output in the job's log. Docker writes nothing while a large layer downloads,
+    so every 10 seconds without news a line says how far it is (layers downloaded and unpacked, time so far).
+
+    When the download fails but the image is on this server already (no network), the job goes on with that one."""
+    layers: dict[str, str] = {}
+    started = time.monotonic()
+
+    def follow(line: str) -> None:
+        found = _LAYER_LINE.match(line.strip())
+        # layers are announced ("Pulling fs layer", "Already exists"); other ids (the image's configuration) are not
+        if found and (found[1] in layers or found[2] in ("Pulling fs layer", "Already exists")):
+            layers[found[1]] = found[2]
+
+    def progress() -> None:
+        seconds = round(time.monotonic() - started)
+        if not layers:
+            job.write(f"Still downloading {reference} ({seconds} s)\n")
+            return
+        downloaded = sum(state in _DOWNLOADED for state in layers.values())
+        unpacked = sum(state in ("Pull complete", "Already exists") for state in layers.values())
+        job.write(
+            f"Still downloading {reference}: {downloaded} of {len(layers)} layers downloaded, {unpacked} unpacked "
+            f"({seconds} s)\n"
+        )
+
+    if job.run_watched(["docker", "pull", reference], timeout, follow, progress) == 0:
+        return
+    if not present(reference):
+        raise JobError(f"command failed: docker pull {reference}")
+    job.note(f"Could not check for a newer {reference}; the copy on this server is used.", "warning")
+
+
 def pin_images(job: Job, name: str, pull: bool) -> dict[str, str]:
     """Image references of the instance, pinned by digest, written to its .env (ODOO_IMAGE_REF, DB_IMAGE_REF).
 
@@ -221,7 +263,7 @@ def pin_images(job: Job, name: str, pull: bool) -> dict[str, str]:
             configured = current.split("@")[0]  # could not open its data); only the digest is refreshed
         image: dict[str, Any] | None = None
         if pull:
-            job.run(["docker", "pull", configured], timeout=1800)
+            pull_image(job, configured)
         else:
             running = _container_image(store.container(name, service))
             image = _image(running) if running else None
@@ -229,7 +271,7 @@ def pin_images(job: Job, name: str, pull: bool) -> dict[str, str]:
                 configured = _legacy_reference(name, service, env) or configured
         image = image or _image(configured)
         if image is None:
-            job.run(["docker", "pull", configured], timeout=1800)
+            pull_image(job, configured)
             image = _image(configured)
         if image is None:
             raise JobError(f"The image {configured} is not available.")
@@ -251,8 +293,10 @@ def _legacy_reference(name: str, service: str, env: dict[str, str]) -> str | Non
 def odoo_user(reference: str) -> str:
     """ "uid:gid" of the user "odoo" in the Odoo image (owner of odoo.conf, so Odoo can read it and nobody else)."""
     command = ["docker", "run", "--rm", "--network", "none", "--cap-drop", "ALL", "--entrypoint", "id", reference]
-    uid, gid = capture([*command, "-u"], timeout=120), capture([*command, "-g"], timeout=120)
-    return f"{uid}:{gid}" if uid.isdigit() and gid.isdigit() else ""
+    found = re.match(
+        r"uid=(\d+)\S* gid=(\d+)", capture(command, timeout=120)
+    )  # one container: "uid=101(odoo) gid=101(odoo) ..."
+    return f"{found[1]}:{found[2]}" if found else ""
 
 
 def isolated_networks() -> bool:

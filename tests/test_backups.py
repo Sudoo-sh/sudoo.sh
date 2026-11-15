@@ -84,7 +84,9 @@ def started(monkeypatch: pytest.MonkeyPatch) -> list[tuple[Any, tuple[Any, ...]]
     """Jobs are recorded (function, arguments) instead of run."""
     calls: list[tuple[Any, tuple[Any, ...]]] = []
 
-    def fake_start(instance: str, action: str, kind: str, fn: Any, *args: Any, user: str = "system") -> jobs.Job:
+    def fake_start(
+        instance: str, action: str, kind: str, fn: Any, *args: Any, user: str = "system", **_: Any
+    ) -> jobs.Job:
         calls.append((fn, args))
         return jobs.Job(instance, action, kind, user)
 

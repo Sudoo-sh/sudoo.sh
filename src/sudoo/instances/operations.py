@@ -16,7 +16,7 @@ from typing import Any
 from sudoo import addons as addons_sources
 from sudoo import exposure
 from sudoo.config import settings
-from sudoo.core import vault
+from sudoo.core import events, vault
 from sudoo.core.hints import panel_hint
 from sudoo.core.jobs import Job, JobError
 from sudoo.core.shell import capture
@@ -104,13 +104,30 @@ def create(job: Job, plan: dict[str, Any]) -> None:
         _create(job, plan)
     except Exception:
         job.write("\nRemoving the half-created instance so the same name can be used again.\n")
-        if (folder / "docker-compose.yml").exists():
-            job.run_unchecked(compose(name, "down", "-v", "--remove-orphans"), timeout=300)
-        gateway.remove(name)
-        exposure.remove(name)
-        shutil.rmtree(folder, ignore_errors=True)
-        STATE.remove(name)
-        integrity.forget(name)
+        compose_file, env_file = folder / "docker-compose.yml", folder / ".env"
+
+        def containers() -> None:
+            if compose_file.exists():
+                job.run_unchecked(compose(name, "down", "-v", "--remove-orphans"), timeout=300)
+
+        def link() -> None:
+            if env_file.exists():  # they need its ports, in .env (written after the images and the code)
+                gateway.remove(name)
+                exposure.remove(name)
+
+        undo: list[tuple[str, Callable[[], object]]] = [
+            ("stop its containers", containers),
+            ("remove its gateway and public link", link),
+            ("remove its folder", lambda: shutil.rmtree(folder, ignore_errors=True)),
+            ("forget its state", lambda: STATE.remove(name)),
+            ("forget its configuration", lambda: integrity.forget(name)),
+        ]
+        for what, step in undo:  # each one on its own: a failing one must not keep the others or the error away
+            try:
+                step()
+            except Exception as error:  # noqa: BLE001 - reported in the log, the creation's own error follows
+                job.write(f"Could not {what}: {error!r}\n")
+        events.publish("instance.deleted", name, {"name": name})  # it was listed as "creating"; its job keeps the error
         raise
     finally:
         store.release_ports(plan["ports"])
@@ -124,13 +141,14 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     foreign = source is not None and source["instance"] != name
 
     job.expect(
-        7  # preparing, Odoo image, database container, Odoo database, public link, starting Odoo, waiting
+        7  # Odoo image, preparing, database container, Odoo database, public link, starting Odoo, waiting
         + bool(plan["repo"])
         + enterprise
         + bool(plan["install_modules"] and plan["repo"])
         + (settings.odoo_admin_password != "admin" or bool(source))
         + foreign
     )
+    _download_images(job, version)
     job.step("Preparing the instance")
     (store.folder(name) / "config").mkdir()
     _remove_leftovers(job, name)
@@ -180,8 +198,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     refresh_addons_path(job, name)
     STATE.update(name, last_visit=time.time(), paused=False, switched_off=False)
 
-    job.step(f"Downloading Odoo {version} (the first time can take a few minutes)")
-    integrity.apply(job, name, pull=True)  # images pinned by digest, hardened compose file, protected files
+    integrity.apply(job, name)  # the images just downloaded, pinned by digest; hardened compose file; protected files
 
     job.step("Starting the database")
     job.run(compose(name, "up", "-d", "db"), timeout=300)
@@ -246,6 +263,20 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     job.result = {"name": name, "url": url, "login": login, "password": settings.odoo_admin_password, "db": db}
     if source:
         job.note(f"Started from the backup {source['file']}")
+
+
+def _download_images(job: Job, version: str) -> None:
+    """The first step of a creation: download the Odoo and PostgreSQL images (or check for newer ones), with the
+    download's progress in the log, so a first instance of a version shows what takes the time."""
+    odoo_image = f"{settings.odoo_image}:{version}"
+    new = not integrity.present(odoo_image)
+    job.step(f"Downloading Odoo {version} image" if new else f"Checking for a newer Odoo {version} image")
+    if new:
+        job.write(f"{odoo_image} is not on this server yet: the first download can take several minutes.\n")
+    started = time.monotonic()
+    for image in (odoo_image, settings.postgres_image):
+        integrity.pull_image(job, image)
+    job.write(f"Images ready in {round(time.monotonic() - started)} s.\n")
 
 
 def _backup_to_start_from(plan: dict[str, Any]) -> dict[str, Any] | None:

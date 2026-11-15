@@ -49,6 +49,11 @@ class Settings(BaseSettings):
         "or a comma-separated list such as 17.0,18.0,saas-18.2.",
     )
     odoo_min_version: str = Field("16.0", description='Oldest version offered when odoo_versions is "auto".')
+    prepull_images: bool = Field(
+        False,
+        description="Download the Odoo image of every offered version, and the PostgreSQL image, in the background, "
+        "so the first instance of a version does not wait for the download (each Odoo image takes 1-3 GB of disk).",
+    )
     postgres_image: str = Field("postgres:16", description="Docker image of each instance's database.")
     odoo_admin_password: str = Field("admin", description='Password of the Odoo user "admin" in new instances.')
 
@@ -339,6 +344,7 @@ EDITABLE = (
     "rollback_hours",
     "odoo_versions",
     "odoo_min_version",
+    "prepull_images",
     "odoo_image",
     "postgres_image",
     "odoo_admin_password",

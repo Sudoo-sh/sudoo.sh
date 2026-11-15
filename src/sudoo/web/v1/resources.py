@@ -30,6 +30,11 @@ def job_reference(job: jobs.Job) -> dict[str, Any]:
     }
 
 
+def current_job(job: jobs.Job) -> dict[str, Any]:
+    """An instance's job in progress: its reference with the steps so far."""
+    return job_reference(job) | {"steps": [{"title": step["title"], "status": step["status"]} for step in job.steps]}
+
+
 def job_resource(job: jobs.Job, include_log: bool = False) -> dict[str, Any]:
     resource: dict[str, Any] = {
         "id": job.id,
@@ -100,17 +105,73 @@ def backup_resource(backup: dict[str, Any]) -> dict[str, Any]:
     return backup | backups.details(backup["file"])
 
 
+def creating_resource(job: jobs.Job, full: bool = False) -> dict[str, Any]:
+    """An instance whose creation is queued or running and whose files do not exist yet: the instance resource with
+    what the creation's plan says (job.details), status "creating" and the job as current_job; the rest is empty."""
+    plan = job.details
+    repo = plan.get("repo") or None
+    resource: dict[str, Any] = {
+        "name": job.instance,
+        "status": "creating",
+        "url": None,
+        "odoo": {
+            "version": plan.get("version", ""),
+            "edition": plan.get("edition", "community"),
+            "database": plan.get("db_name", ""),
+        },
+        "source": "repository" if repo else "plain",
+        "git": {
+            "repository": repo,
+            "branch": plan.get("branch") or None,
+            "branch_deleted_on_github": False,
+            "commit": None,
+        },
+        "settings": {
+            "auto_update": bool(plan.get("auto_update")),
+            "auto_upgrade": bool(plan.get("auto_upgrade")),
+            "auto_pause": bool(plan.get("auto_pause")),
+            "delete_after_days": int(plan.get("delete_after_days") or 0),
+        },
+        "usage": {"cpu_percent": 0, "memory_bytes": 0},
+        "uptime": None,
+        "gateway_error": None,
+        "drift": None,
+        "created_at": iso(job.started),
+        "created_by": plan.get("created_by") or job.user,
+        "last_visit_at": None,
+        "pauses_at": None,
+        "expires_at": None,
+        "current_job": current_job(job),
+        "links": {"self": f"{PREFIX}/instances/{job.instance}"},
+    }
+    if full:
+        resource |= {
+            "disk": {"database_bytes": None, "files_bytes": None},
+            "recent_commits": [],
+            "submodules": [],
+            "backups": [],
+            "restorable_backup": None,
+            "rollback": None,
+            "recent_jobs": [job_reference(job)],
+        }
+    return resource
+
+
 def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
-    """An instance as the API shows it: grouped, ISO times, no passwords or ports."""
+    """An instance as the API shows it: grouped, ISO times, no passwords or ports. While it is being created, its
+    status is "creating"; before its files exist, what its creation's plan says (creating_resource)."""
+    creation = jobs.creating(name)
+    if creation and not store.exists(name):
+        return creating_resource(creation, full)
     env, measured, state = store.read_env(name), monitor.STATUS.get(name, {}), STATE.get(name)
-    status = monitor.status(name)
+    status = "creating" if creation else monitor.status(name)
     commit = (measured.get("commit") or "").split("|")
     last_visit = state.get("last_visit")
     pausing = env["AUTO_PAUSE"] == "true" and settings.idle_hours > 0 and status == "online" and last_visit
-    current = jobs.ACTIVE_JOB.get(name)
+    current = jobs.ACTIVE_JOB.get(name) or creation
     resource: dict[str, Any] = {
         "name": name,
-        "status": status,  # online, starting, busy, paused, switched_off, stopped, unknown
+        "status": status,  # creating, online, starting, busy, paused, switched_off, stopped, unknown
         "url": exposure.address(name),
         "odoo": {"version": env["ODOO_VERSION"], "edition": env["EDITION"], "database": env["DB_NAME"]},
         # "plain": Odoo without a repository (store.plain; instances made before SOURCE was recorded: no remote)
@@ -138,7 +199,7 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
         "last_visit_at": iso(last_visit),
         "pauses_at": iso(float(last_visit or 0) + settings.idle_hours * 3600) if pausing else None,
         "expires_at": iso(operations.expires_at(env)),
-        "current_job": job_reference(current) if current else None,
+        "current_job": current_job(current) if current else None,
         "links": {"self": f"{PREFIX}/instances/{name}"},
     }
     if full:

@@ -1,6 +1,7 @@
 import { Check, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useJob, useJobLog } from "@/api/queries";
+import type { Job } from "@/api/types";
 import { ago, elapsed } from "@/lib/format";
 import { Callout, Progress, Spinner, Status } from "./ui/basics";
 import { Drawer } from "./ui/overlay";
@@ -32,6 +33,25 @@ export function Terminal({ text, live }: { text: string; live?: boolean }) {
       {text.trimEnd().split("\n").slice(-3000).map(colour)}
       {live && <span className="cursor" />}
     </pre>
+  );
+}
+
+/** A job's steps as a timeline: done, failed, or the one running now. */
+export function JobSteps({ job }: { job: Pick<Job, "steps"> }) {
+  return (
+    <ol className="timeline">
+      {job.steps.map((step, i) => (
+        <li key={i}>
+          <span className={`node ${step.status}`}>
+            {step.status === "done" ? <Check /> : step.status === "failed" ? <X /> : <span className="spinner" />}
+          </span>
+          <span className={step.status === "running" ? "" : "muted"}>
+            {step.title}
+          </span>
+        </li>
+      ))}
+      {!job.steps.length && <li className="faint">Waiting to start…</li>}
+    </ol>
   );
 }
 
@@ -69,19 +89,7 @@ export function JobDrawer({ id, onClose }: { id: string; onClose: () => void }) 
               {note.text}
             </Callout>
           ))}
-          <ol className="timeline">
-            {job.steps.map((step, i) => (
-              <li key={i}>
-                <span className={`node ${step.status}`}>
-                  {step.status === "done" ? <Check /> : step.status === "failed" ? <X /> : <span className="spinner" />}
-                </span>
-                <span className={step.status === "running" ? "" : "muted"}>
-                  {step.title}
-                </span>
-              </li>
-            ))}
-            {!job.steps.length && <li className="faint">Waiting to start…</li>}
-          </ol>
+          <JobSteps job={job} />
           <h2 className="small muted">Technical log</h2>
           <Terminal text={log?.text ?? ""} live={running} />
         </div>

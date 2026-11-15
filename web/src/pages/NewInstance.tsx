@@ -234,7 +234,7 @@ export function NewInstancePage() {
                   ))}
                   {!access.all_ok && (
                     <Callout tone="warning">
-                      The server cannot read every repository. For private ones, connect the GitHub App (or add a deploy key) under <Link to="/github">GitHub access</Link>.
+                      The server cannot read every repository. For private ones, connect the GitHub App (or add a deploy key) under <Link to="/github" viewTransition>GitHub access</Link>.
                     </Callout>
                   )}
                 </div>

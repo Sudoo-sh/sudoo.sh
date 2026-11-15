@@ -9,10 +9,12 @@ import { RouterProvider } from "react-router";
 import { ApiError } from "./api/client";
 import { keys } from "./api/queries";
 import { ToastProvider } from "./components/ui/overlay";
+import { followNavigationDirection } from "./lib/navigation";
 import { applyTheme, storedTheme } from "./lib/theme";
 import { router } from "./router";
 
 applyTheme(storedTheme());
+followNavigationDirection(router);
 
 const signedOut = (error: unknown) => {
   if (error instanceof ApiError && error.status === 401) client.setQueryData(keys.session, null);

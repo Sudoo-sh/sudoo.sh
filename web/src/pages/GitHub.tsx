@@ -172,7 +172,7 @@ function AppCard() {
             <Installations app={app} canManage={state.can_manage} />
             {!state.trigger_running && (
               <Callout>
-                New code arrives through polling. For updates seconds after a push, add <code>github-app</code> to the update triggers (<Link to="/settings">Settings</Link>, Plugins) and restart the panel.
+                New code arrives through polling. For updates seconds after a push, add <code>github-app</code> to the update triggers (<Link to="/settings" viewTransition>Settings</Link>, Plugins) and restart the panel.
               </Callout>
             )}
           </>
@@ -311,7 +311,7 @@ export function GitHubReturnPage() {
         {problem ? (
           <>
             <Callout tone="danger">{problem}</Callout>
-            <div><Link className="btn" to="/github">Back to GitHub access</Link></div>
+            <div><Link className="btn" to="/github" viewTransition>Back to GitHub access</Link></div>
           </>
         ) : (
           <div className="row"><Spinner /> <span className="muted">Finishing with GitHub…</span></div>

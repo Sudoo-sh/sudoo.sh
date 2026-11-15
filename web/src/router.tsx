@@ -6,6 +6,7 @@ import type { ComponentType } from "react";
 import { createBrowserRouter } from "react-router";
 import type { Permission } from "./api/types";
 import { RequirePermission, RequireSession } from "./components/Session";
+import { Spinner } from "./components/ui/basics";
 import { LoginPage } from "./pages/Login";
 
 function page<M>(load: () => Promise<M>, pick: (module: M) => ComponentType, permission?: Permission) {
@@ -23,11 +24,19 @@ function page<M>(load: () => Promise<M>, pick: (module: M) => ComponentType, per
   };
 }
 
+// shown while the first page's code loads, only when that takes longer than 150 ms (the spinner's own delay)
+const loading = (
+  <div style={{ display: "grid", placeItems: "center", height: "100vh" }}>
+    <Spinner />
+  </div>
+);
+
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
-  { path: "/setup", lazy: page(() => import("./pages/Setup"), (m) => m.SetupPage) },
+  { path: "/setup", lazy: page(() => import("./pages/Setup"), (m) => m.SetupPage), hydrateFallbackElement: loading },
   {
     element: <RequireSession />,
+    hydrateFallbackElement: loading,
     children: [
       { path: "/change-password", lazy: page(() => import("./pages/Setup"), (m) => m.ChangePasswordPage) },
       { path: "/setup-second-factor", lazy: page(() => import("./pages/Account"), (m) => m.SetupSecondFactorPage) },

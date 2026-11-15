@@ -80,7 +80,10 @@ appends the address it can vouch for (`CF-Connecting-IP` with `cloudflare-quick`
 Odoo's own sign-in limits count. It also removes hop-by-hop headers (and any header named in `Connection`) in both
 directions, refuses request bodies larger than `GATEWAY_MAX_UPLOAD_MB`, gives up on bodies that stop arriving
 (`GATEWAY_IDLE_TIMEOUT_SECONDS`) and limits WebSocket messages (`GATEWAY_WEBSOCKET_MAX_MESSAGE_MB`), so one visitor
-cannot make the gateway that every instance shares hold gigabytes in memory. The web service gives a request 10
+cannot make the gateway that every instance shares hold gigabytes in memory. A connection that does not send its
+request headers within `GATEWAY_HEADER_TIMEOUT_SECONDS` is closed, and the number of connections open at once is
+capped per instance (`GATEWAY_MAX_CONNECTIONS`) and for all gateways (`GATEWAY_MAX_CONNECTIONS_TOTAL`), so slow or
+idle connections cannot use up the panel's open files. The web service gives a request 10
 seconds for its headers and 30 for its body, and refuses bodies over 1 MB for the backend. See
 [Performance](PERFORMANCE.md#5-security-on-the-hot-paths).
 

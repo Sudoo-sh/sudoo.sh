@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
+
+_USERINFO = re.compile(r"(://)[^/@\s]+@")
+
+
+def redact(text: str) -> str:
+    """`text` with the user name and password of every address in it masked (`https://***@host/...`), for logs."""
+    return _USERINFO.sub(r"\1***@", text)
 
 
 def capture(cmd: list[str], timeout: float = 30) -> str:

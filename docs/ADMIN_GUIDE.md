@@ -178,6 +178,11 @@ downloads the latest release's installer and checks it against that release's `S
 Running instances are not restarted. Read the release notes before updating to a new major version. A specific
 version: `sudo sudoo-install update --version 1.2.0`.
 
+Earlier versions wrote the value of a secret setting changed on the Settings page (mail password, webhook secret,
+default Odoo admin password) into the audit log. The first start after updating replaces those values with
+`(set)`. When administrators or `write` API tokens could read the audit log, change the mail password and the
+webhook secret after updating.
+
 ### Rolling back
 
 ```bash

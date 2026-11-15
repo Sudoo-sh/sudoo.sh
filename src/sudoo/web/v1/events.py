@@ -19,7 +19,10 @@ event is "reset": the client reloads its data.
 The stream runs on the asyncio event loop shared with the gateway, not in the web server's threads, so a thousand
 open tabs cost a thousand small coroutines, not a thousand threads. It listens on 127.0.0.1:EVENTS_PORT; the web
 service forwards /api/v1/events to it. It accepts the same callers as the rest of the API: the panel's session
-cookie (the browser), or an API token with a signature (other systems).
+cookie (the browser), or an API token with a signature (other systems). Every minute an open stream checks that its
+caller is still allowed (the session was not signed out or ended, the account and the token still exist) and ends
+when not. One account or token holds at most MAX_PER_CALLER streams at once (429 beyond), and the panel at most
+MAX_CLIENTS (503 beyond).
 """
 
 from __future__ import annotations
@@ -32,6 +35,7 @@ from typing import Any
 from aiohttp import web
 from flask import Flask
 
+from sudoo import api_tokens
 from sudoo.config import settings
 from sudoo.core.events import BUS, Event
 from sudoo.instances import gateway
@@ -45,7 +49,9 @@ TOPICS = frozenset(
 )
 HEARTBEAT_SECONDS = 20
 MAX_CLIENTS = 500
-_RECHECK_SECONDS = 60  # how often a long stream checks that its session is still valid
+MAX_PER_CALLER = 8  # streams one account or token may hold at once: one caller cannot take every slot
+_RECHECK_SECONDS = 60  # how often a long stream checks that its caller is still allowed
+_OPEN: dict[str, int] = {}  # caller -> open streams; event loop thread only
 
 
 def start(flask_app: Flask) -> None:
@@ -142,13 +148,47 @@ def _last_id(request: web.Request) -> int | None:
     return int(given) if given.isdigit() else None
 
 
+def _still_allowed(user: dict[str, str], session: dict[str, Any] | None) -> bool:
+    """Whether an open stream's caller may still receive events: its session was not signed out or ended (password
+    changed, account deleted), or its API token was not revoked."""
+    if session is not None:
+        return user_of_session(session, check_idle=False) is not None
+    token_id = user.get("token_id")
+    return token_id is None or api_tokens.exists(token_id)
+
+
+def _caller_key(user: dict[str, str]) -> str:
+    token_id = user.get("token_id")
+    return f"token:{token_id}" if token_id else f"user:{user['name']}"
+
+
 async def stream(request: web.Request) -> web.StreamResponse:
     user, session, refusal = _caller(request)
-    if refusal is not None:
-        return refusal
+    if refusal is not None or user is None:
+        return refusal or _problem(401, "Unauthorized", "Your session has ended. Please sign in again.")
+    key = _caller_key(user)
+    if _OPEN.get(key, 0) >= MAX_PER_CALLER:
+        refused = _problem(
+            429,
+            "Too Many Requests",
+            f"At most {MAX_PER_CALLER} live connections at once. Close one, or try again later.",
+        )
+        refused.headers["Retry-After"] = "30"
+        return refused
     if BUS.subscriber_count >= MAX_CLIENTS:
-        return _problem(503, "Service Unavailable", "Too many open live connections. Try again in a minute.")
+        busy = _problem(503, "Service Unavailable", "Too many open live connections. Try again in a minute.")
+        busy.headers["Retry-After"] = "60"
+        return busy
+    _OPEN[key] = _OPEN.get(key, 0) + 1
+    try:
+        return await _send(request, user, session)
+    finally:
+        _OPEN[key] -= 1
+        if not _OPEN[key]:
+            del _OPEN[key]
 
+
+async def _send(request: web.Request, user: dict[str, str], session: dict[str, Any] | None) -> web.StreamResponse:
     response = web.StreamResponse(
         headers={
             "Content-Type": "text/event-stream",
@@ -162,7 +202,7 @@ async def stream(request: web.Request) -> web.StreamResponse:
     subscription, last_before = BUS.subscribe(topics)
     loop = asyncio.get_running_loop()
     try:
-        await response.write(f"retry: 3000\n: hello {user and user['name']}\n\n".encode())
+        await response.write(f"retry: 3000\n: hello {user['name']}\n\n".encode())
         after = _last_id(request)
         if after is not None:
             missed = BUS.missed(after, last_before, topics)
@@ -188,9 +228,9 @@ async def stream(request: web.Request) -> web.StreamResponse:
                     data = await loop.run_in_executor(None, BUS.data_of, event)
                     if data is not None:
                         await response.write(_frame(event, data))
-            if session is not None and loop.time() - checked > _RECHECK_SECONDS:
+            if loop.time() - checked > _RECHECK_SECONDS:
                 checked = loop.time()
-                if user_of_session(session, check_idle=False) is None:  # signed out elsewhere, password changed
+                if not await loop.run_in_executor(None, _still_allowed, user, session):  # signed out, token revoked
                     break
     except ConnectionResetError:
         pass  # the client went away

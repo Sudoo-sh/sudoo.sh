@@ -97,6 +97,11 @@ def revoke(token_id: str) -> str:
     return str(record["name"])
 
 
+def exists(token_id: str) -> bool:
+    """Whether the token still exists (it was not revoked); a long-lived event stream checks this now and then."""
+    return storage().get(TOKENS, token_id) is not None
+
+
 def string_to_sign(timestamp: str, nonce: str, method: str, path: str, body: bytes) -> bytes:
     """What the client signs: timestamp, nonce, method, path with query and the body's SHA-256, one per line."""
     return "\n".join([timestamp, nonce, method.upper(), path, hashlib.sha256(body).hexdigest()]).encode()

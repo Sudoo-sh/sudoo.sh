@@ -28,7 +28,7 @@ from sudoo.core import audit
 
 from .. import signin
 from .. import validation as check
-from ..security import client_ip, log, start_session
+from ..security import client_ip, end_current_session, log, start_session
 from .responses import no_content, ok
 
 blueprint = Blueprint("session", __name__)
@@ -129,7 +129,7 @@ def read() -> Response:
 @blueprint.delete("/session")
 def sign_out() -> Response:
     log("signed out")
-    session.clear()
+    end_current_session()  # a copy of the cookie stops working too
     return no_content()
 
 

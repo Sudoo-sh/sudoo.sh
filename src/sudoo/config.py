@@ -147,6 +147,20 @@ class Settings(BaseSettings):
         0, ge=0, description="Minutes a user must wait between two creations; 0: no wait."
     )
 
+    # ------------------------------------------------------------------ gateway (instances/gateway.py)
+    gateway_max_upload_mb: int = Field(
+        2048, ge=1, description="Largest request body a visitor may send to an instance (uploads, imports), in MB."
+    )
+    gateway_idle_timeout_seconds: float = Field(
+        120,
+        ge=5,
+        le=3600,
+        description="Seconds a visitor may send nothing while sending a request body before the gateway gives up.",
+    )
+    gateway_websocket_max_message_mb: int = Field(
+        16, ge=1, le=1024, description="Largest single WebSocket message passed to or from an instance, in MB."
+    )
+
     # ------------------------------------------------------------------ ports
     panel_port: int = Field(9000, description="Port of the panel: the web service (sudoo-web) listens here.")
     api_port: int = Field(9002, description="Port of the backend (127.0.0.1 only); the web service forwards to it.")
@@ -309,6 +323,9 @@ EDITABLE = (
     "max_instances",
     "max_instances_per_user",
     "create_cooldown_minutes",
+    "gateway_max_upload_mb",
+    "gateway_idle_timeout_seconds",
+    "gateway_websocket_max_message_mb",
     "idle_hours",
     "auto_pause",
     "auto_update",

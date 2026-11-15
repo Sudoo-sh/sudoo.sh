@@ -7,7 +7,7 @@ from __future__ import annotations
 import threading
 import time
 
-from sudoo import exposure, plugin_manager, triggers
+from sudoo import accounts, exposure, plugin_manager, triggers
 from sudoo.config import settings
 from sudoo.core import audit, jobs
 from sudoo.core.state import STATE
@@ -19,6 +19,7 @@ from sudoo.repos import github, github_app
 def start() -> None:
     """Start everything. Called once when the web panel starts."""
     github.configure_git()
+    threading.Thread(target=accounts.dummy_hash, daemon=True, name="dummy-hash").start()
     for loop in (
         monitor.run_forever,
         STATE.save_visits_forever,

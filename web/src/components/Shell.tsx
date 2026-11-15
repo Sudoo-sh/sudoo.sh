@@ -1,5 +1,4 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { PageMotion } from "./PageMotion";
 import {
   BookOpen,
   ChevronRight,
@@ -20,53 +19,21 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router";
-import { api, setCsrfToken } from "@/api/client";
+import { useEffect, useState, type ReactNode } from "react";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import { api } from "@/api/client";
 import { useLiveEvents, type Sync } from "@/api/live";
-import { keys, useInstances, useMetrics, usePluginNotices, useSession } from "@/api/queries";
-import type { Permission, Session } from "@/api/types";
+import { keys, useInstances, useMetrics, usePluginNotices } from "@/api/queries";
 import { percent } from "@/lib/format";
-import { applyBrandColor, applyTheme, storedTheme, type ThemeChoice } from "@/lib/theme";
+import { applyTheme, storedTheme, type ThemeChoice } from "@/lib/theme";
 import { Brand } from "./ui/Brand";
-import { Button, Callout, Spinner } from "./ui/basics";
+import { Button, Callout } from "./ui/basics";
+import { PageMotion } from "./PageMotion";
 import { Menu, useToast } from "./ui/overlay";
 
-const SessionContext = createContext<Session | null>(null);
-export const useMe = () => useContext(SessionContext)!;
-/** Whether the signed-in role includes a permission (the backend checks it again on every request). */
-export const useCan = () => {
-  const me = useMe();
-  return (permission: Permission) => me.permissions.includes(permission);
-};
+import { useCan, useMe } from "./Session";
 
-const RESTRICTED_PAGE = { password: "/change-password", second_factor: "/setup-second-factor" } as const;
-
-/** Pages that need a signed-in session; sends everyone else to the sign-in page. */
-export function RequireSession() {
-  const { data: session, isPending } = useSession();
-  const location = useLocation();
-  useEffect(() => applyBrandColor(session?.brand_color), [session?.brand_color]);
-  if (isPending)
-    return (
-      <div style={{ display: "grid", placeItems: "center", height: "100vh" }}>
-        <Spinner />
-      </div>
-    );
-  if (!session) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
-  setCsrfToken(session.csrf_token);
-  const task = session.restricted ? RESTRICTED_PAGE[session.restricted] : null;
-  if (task && location.pathname !== task) return <Navigate to={task} replace />;
-  return (
-    <SessionContext.Provider value={session}>
-      <Outlet />
-    </SessionContext.Provider>
-  );
-}
-
-export function RequirePermission({ permission, children }: { permission: Permission; children: ReactNode }) {
-  return useCan()(permission) ? <>{children}</> : <Navigate to="/" replace />;
-}
+export { RequirePermission, RequireSession, useCan, useMe } from "./Session";
 
 export function useSignOut() {
   const client = useQueryClient();

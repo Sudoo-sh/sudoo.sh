@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections import OrderedDict
 from typing import Any
 
 from aiohttp import web
@@ -114,6 +115,23 @@ def _frame(event: Event, data: Any) -> bytes:
     return f"id: {event.id}\nevent: {event.topic}\ndata: {payload}\n\n".encode()
 
 
+_FRAMES: OrderedDict[int, tuple[Event, bytes]] = OrderedDict()  # event id -> (event, frame); event loop thread only
+_FRAMES_KEPT = 256
+
+
+def _published_frame(event: Event) -> bytes:
+    """The frame of an event published with its data: the same bytes for every client, so built once (a metrics
+    event for 500 open tabs is serialised once, not 500 times)."""
+    found = _FRAMES.get(event.id)
+    if found is not None and found[0] is event:
+        return found[1]
+    frame = _frame(event, event.data)
+    _FRAMES[event.id] = (event, frame)
+    while len(_FRAMES) > _FRAMES_KEPT:
+        _FRAMES.popitem(last=False)
+    return frame
+
+
 def _topics(request: web.Request) -> frozenset[str] | None:
     asked = {t.strip() for t in request.query.get("topics", "").split(",") if t.strip()}
     return frozenset(asked & TOPICS) if asked else None
@@ -164,9 +182,12 @@ async def stream(request: web.Request) -> web.StreamResponse:
             else:
                 if event is None:  # too slow: closed; the browser reconnects with Last-Event-ID
                     break
-                data = event.data if event.data is not None else await loop.run_in_executor(None, BUS.data_of, event)
-                if data is not None:
-                    await response.write(_frame(event, data))
+                if event.data is not None:
+                    await response.write(_published_frame(event))
+                else:
+                    data = await loop.run_in_executor(None, BUS.data_of, event)
+                    if data is not None:
+                        await response.write(_frame(event, data))
             if session is not None and loop.time() - checked > _RECHECK_SECONDS:
                 checked = loop.time()
                 if user_of_session(session, check_idle=False) is None:  # signed out elsewhere, password changed

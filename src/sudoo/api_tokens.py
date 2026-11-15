@@ -25,6 +25,7 @@ import re
 import secrets
 import threading
 import time
+from collections import deque
 from typing import Any
 
 from sudoo.core import vault
@@ -35,7 +36,10 @@ TOKEN_RE = re.compile(r"^sudoo_([0-9a-f]{12})_([A-Za-z0-9_-]{43})$")
 NAME_RE = re.compile(r"^[A-Za-z0-9 ._-]{3,40}$")
 MAX_CLOCK_SKEW_SECONDS = 300
 _LOCK = threading.Lock()
-_NONCES: dict[str, float] = {}  # nonce -> time it may be forgotten
+_NONCES: set[str] = set()  # nonces seen within the last 2 * MAX_CLOCK_SKEW_SECONDS
+_NONCE_ORDER: deque[tuple[float, str]] = deque()  # (time it may be forgotten, nonce), oldest first
+LAST_USED_EVERY_SECONDS = 60  # "last used" is written at most this often per token, not on every call
+_LAST_WRITTEN: dict[str, float] = {}
 
 
 TOKENS = "api_tokens"
@@ -131,15 +135,24 @@ def verify(
 
 
 def _remember_nonce(nonce: str) -> None:
-    """Refuse a nonce seen before (a replayed request). Nonces are forgotten once their timestamp would be refused."""
+    """Refuse a nonce seen before (a replayed request). Nonces are forgotten once their timestamp would be refused:
+    they expire in the order they arrived, so forgetting costs nothing per call however many there are."""
     now = time.time()
     with _LOCK:
-        for old in [key for key, forget_at in _NONCES.items() if forget_at < now]:
-            del _NONCES[old]
+        while _NONCE_ORDER and _NONCE_ORDER[0][0] < now:
+            _NONCES.discard(_NONCE_ORDER.popleft()[1])
         if nonce in _NONCES:
             raise PermissionError("This request was already received (X-Sudoo-Nonce used before).")
-        _NONCES[nonce] = now + 2 * MAX_CLOCK_SKEW_SECONDS
+        _NONCES.add(nonce)
+        _NONCE_ORDER.append((now + 2 * MAX_CLOCK_SKEW_SECONDS, nonce))
 
 
 def _mark_used(token_id: str) -> None:
-    storage().change(TOKENS, token_id, lambda record: record and {**record, "last_used": time.time()})
+    """Record when the token was last used, to the minute: a write on every call would serialise all API calls on
+    the storage's write lock."""
+    now = time.time()
+    with _LOCK:
+        if now - _LAST_WRITTEN.get(token_id, 0) < LAST_USED_EVERY_SECONDS:
+            return
+        _LAST_WRITTEN[token_id] = now
+    storage().change(TOKENS, token_id, lambda record: record and {**record, "last_used": now})

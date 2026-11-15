@@ -18,5 +18,22 @@ export default defineConfig({
       "/static": { target: api, changeOrigin: false },
     },
   },
-  build: { target: "es2022", sourcemap: false, chunkSizeWarningLimit: 600 },
+  build: {
+    target: "es2022",
+    sourcemap: false,
+    chunkSizeWarningLimit: 600,
+    rolldownOptions: {
+      output: {
+        // libraries in chunks of their own: they change far less often than the panel's code, so browsers keep
+        // them across releases (assets are immutable, by their content hash); the charts load only with a chart
+        codeSplitting: {
+          groups: [
+            { name: "react", test: /node_modules[\\/](react|react-dom|scheduler|react-router|@tanstack)[\\/]/ },
+            { name: "charts", test: /node_modules[\\/](chart\.js|@kurkle)[\\/]/ },
+            { name: "icons", test: /node_modules[\\/]lucide-react[\\/]/ }, // one file, not one per icon
+          ],
+        },
+      },
+    },
+  },
 });

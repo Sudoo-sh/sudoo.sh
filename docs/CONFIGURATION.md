@@ -42,10 +42,11 @@ reset with **Use .env**.
 6. [Code updates (plugins)](#code-updates-plugins)
 7. [Storage, sign-in and e-mail (plugins)](#storage-sign-in-and-e-mail-plugins)
 8. [Limits](#limits)
-9. [Ports](#ports)
-10. [Behaviour](#behaviour)
-11. [Marketplace](#marketplace)
-11. [Locations](#locations)
+9. [Gateway](#gateway)
+10. [Ports](#ports)
+11. [Behaviour](#behaviour)
+12. [Marketplace](#marketplace)
+13. [Locations](#locations)
 
 ---
 
@@ -226,6 +227,20 @@ SMTP_PASSWORD=...
 
 Answers over a request limit are `429 Too Many Requests` with `Retry-After`; every limited answer carries
 `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`.
+
+---
+
+## Gateway
+
+What the gateway in front of every instance accepts from visitors ([Gateway](concepts/GATEWAY.md)). Request bodies
+are passed on to Odoo piece by piece as they arrive, so an upload never sits whole in the panel's memory; these
+limits keep one visitor from tying up the gateway that every instance shares.
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `GATEWAY_MAX_UPLOAD_MB` | int | `2048` | **live** | Largest request body a visitor may send to an instance (file uploads, imports), in MB. Larger ones get `413 Content Too Large` before Odoo sees them. |
+| `GATEWAY_IDLE_TIMEOUT_SECONDS` | float | `120` | **live** | Seconds a visitor may send nothing while sending a request body (5 to 3600); then the gateway answers `408 Request Timeout` and frees the connection. |
+| `GATEWAY_WEBSOCKET_MAX_MESSAGE_MB` | int | `16` | **live** | Largest single WebSocket message passed to or from Odoo (Odoo's own live updates are far smaller); a larger one closes that connection (code 1009). |
 
 ---
 

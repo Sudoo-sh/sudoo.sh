@@ -74,6 +74,16 @@ visitor can make up:
 | `X-Forwarded-For` | Only when the request reaches the backend from `127.0.0.1`, that is from the web service, which replaces any value sent by the visitor with the address it received the request from. |
 | The connection's own address | In every other case. |
 
+Odoo, behind the gateway, runs in proxy mode and believes the **last** address in `X-Forwarded-For`. The gateway
+appends the address it can vouch for (`CF-Connecting-IP` with `cloudflare-quick`, the connection's own address with
+`host-ports`) and sets `X-Forwarded-Proto` and `X-Forwarded-Host` itself, so a visitor cannot choose the address
+Odoo's own sign-in limits count. It also removes hop-by-hop headers (and any header named in `Connection`) in both
+directions, refuses request bodies larger than `GATEWAY_MAX_UPLOAD_MB`, gives up on bodies that stop arriving
+(`GATEWAY_IDLE_TIMEOUT_SECONDS`) and limits WebSocket messages (`GATEWAY_WEBSOCKET_MAX_MESSAGE_MB`), so one visitor
+cannot make the gateway that every instance shares hold gigabytes in memory. The web service gives a request 10
+seconds for its headers and 30 for its body, and refuses bodies over 1 MB for the backend. See
+[Performance](PERFORMANCE.md#5-security-on-the-hot-paths).
+
 ---
 
 ## 3. Panel passwords

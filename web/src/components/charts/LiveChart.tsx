@@ -4,6 +4,7 @@
 
 import {
   Chart,
+  Decimation,
   Filler,
   LinearScale,
   LineController,
@@ -16,7 +17,7 @@ import {
 import { useEffect, useRef } from "react";
 import { alpha, token, useThemeVersion } from "./theme";
 
-Chart.register(LineController, LineElement, PointElement, LinearScale, Filler, Tooltip);
+Chart.register(LineController, LineElement, PointElement, LinearScale, Filler, Tooltip, Decimation);
 
 export interface Series {
   label: string;
@@ -54,6 +55,7 @@ export function LiveChart({
   const theme = useThemeVersion();
   const latest = useRef({ t, series, format });
   latest.current = { t, series, format };
+  const drawn = useRef<unknown[]>([]); // the data the chart was created with: not drawn a second time
 
   const datasets = (): ChartDataset<"line">[] =>
     latest.current.series.map((s, index) => {
@@ -64,6 +66,9 @@ export function LiveChart({
         borderColor: color,
         borderWidth: index === 0 ? 2 : 1.5,
         pointRadius: 0,
+        // fixed point colours: otherwise each of the hour's points asks the gradient function below for its own
+        pointBackgroundColor: color,
+        pointBorderColor: color,
         pointHoverRadius: 4,
         pointHoverBackgroundColor: color,
         pointHoverBorderColor: token("--surface"),
@@ -93,7 +98,9 @@ export function LiveChart({
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: { duration: 300, easing: "easeOutQuart" },
+        parsing: false, // the points are given as {x, y} already, in time order
+        normalized: true,
+        animation: false, // drawn at once; new samples glide in (below)
         interaction: { mode: "index", intersect: false },
         scales: {
           x: {
@@ -125,6 +132,8 @@ export function LiveChart({
         },
         plugins: {
           legend: { display: false },
+          // an hour of samples: drawn from at most 360 points that keep its shape (LTTB), about one per 2 pixels
+          decimation: { enabled: true, algorithm: "lttb", samples: 360, threshold: 360 },
           tooltip: {
             backgroundColor: token("--text"),
             titleColor: token("--bg"),
@@ -144,6 +153,8 @@ export function LiveChart({
         },
       },
     });
+    chart.current.options.animation = { duration: 300, easing: "easeOutQuart" };
+    drawn.current = [latest.current.t, latest.current.series];
     return () => {
       chart.current?.destroy();
       chart.current = null;
@@ -153,7 +164,9 @@ export function LiveChart({
   // new samples: change the data in place; the existing points glide to their new places
   useEffect(() => {
     const current = chart.current;
-    if (!current) return;
+    if (!current || (drawn.current[0] === t && drawn.current[1] === series)) return;
+    // the first figures (the hour's history arriving) appear at once; later samples glide in
+    const first = !current.data.datasets.some((dataset) => dataset.data.length);
     const fresh = datasets();
     fresh.forEach((dataset, i) => {
       const existing = current.data.datasets[i];
@@ -162,7 +175,7 @@ export function LiveChart({
     });
     current.data.datasets.length = fresh.length;
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    current.update(reduce ? "none" : undefined);
+    current.update(first || reduce ? "none" : undefined);
   }, [t, series]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (

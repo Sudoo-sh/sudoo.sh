@@ -45,10 +45,12 @@ There is one gateway port per instance, on `127.0.0.1`. The instance's tunnel co
 | Step | Why |
 | :--- | :--- |
 | Records the time of the visit | Instances without visits for 6 hours are paused. |
-| Removes the panel's cookie, if the browser sent one, and stops Odoo from setting a cookie with that name | The panel's session must never reach an instance. |
-| Passes on the visitor's address and `https` (`X-Forwarded-For`, `X-Forwarded-Proto`) | Odoo then knows who visits and that the visit is secure. |
-| Forwards the request to the instance's Odoo, streaming the body | Large uploads and downloads do not fill memory. |
-| Keeps WebSocket connections open both ways | Odoo's live updates (chat, notifications) work. |
+| Removes the panel's cookie, if the browser sent one (in any of its `Cookie` headers), and stops Odoo from setting a cookie with that name | The panel's session must never reach an instance. |
+| Removes hop-by-hop headers (`Connection`, `Upgrade`, `Transfer-Encoding`, ... and any header named in `Connection`), both ways | They describe one connection, not the request; passed on, they can confuse Odoo about where a request ends. |
+| Appends the visitor's address to `X-Forwarded-For` and sets `X-Forwarded-Proto` and `X-Forwarded-Host` itself | Odoo believes the last address of `X-Forwarded-For`. That is the address Cloudflare reports (`CF-Connecting-IP`) or, with `host-ports`, the address the connection comes from: never one the visitor typed, so Odoo's sign-in limits per address cannot be dodged. |
+| Forwards the request to the instance's Odoo, passing the body on piece by piece as it arrives, and the answer the same way | Large uploads and downloads never sit whole in memory. Bodies larger than `GATEWAY_MAX_UPLOAD_MB` are refused (`413`), and one that stops arriving for `GATEWAY_IDLE_TIMEOUT_SECONDS` is given up (`408`). |
+| Keeps WebSocket connections open both ways, each message up to `GATEWAY_WEBSOCKET_MAX_MESSAGE_MB` | Odoo's live updates (chat, notifications) work; one visitor cannot make the panel hold a huge message. |
+| Reuses its connections to Odoo (keep-alive) | No new connection per request. |
 | If Odoo does not answer: starts the instance once, answers "Starting up" (`503`, `Retry-After: 4`) | A paused instance wakes on the first visit. |
 | If an update is running: answers "Update in progress" | Visitors see a clear message instead of an error. |
 | If the instance is switched off: answers "Switched off" | Nothing is started. |

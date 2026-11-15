@@ -89,7 +89,13 @@ def test_plan_names_plain_odoo_after_version_and_edition(admin: Client) -> None:
 
 def test_create_plain_odoo(admin: Client, started: list[Any]) -> None:
     client, headers = admin
-    body = {"version": "18.0", "edition": "community", "delete_after_days": 0, "auto_update": True, "auto_upgrade": True}
+    body = {
+        "version": "18.0",
+        "edition": "community",
+        "delete_after_days": 0,
+        "auto_update": True,
+        "auto_upgrade": True,
+    }
     answer = client.post("/api/v1/instances", json=body, headers=headers)
     assert answer.status_code == 202, answer.get_json()
     fn, (plan,) = started[-1]
@@ -167,7 +173,9 @@ def test_plain_odoo_keeps_everything_else(admin: Client, started: list[Any]) -> 
     for action in ("restart", "pause", "backup", "start"):
         answer = client.post(f"/api/v1/instances/{PLAIN}/actions/{action}", json={}, headers=headers)
         assert answer.status_code == 202, (action, answer.get_json())
-    changed = client.patch(f"/api/v1/instances/{PLAIN}", json={"auto_pause": True, "delete_after_days": 7}, headers=headers)
+    changed = client.patch(
+        f"/api/v1/instances/{PLAIN}", json={"auto_pause": True, "delete_after_days": 7}, headers=headers
+    )
     assert changed.status_code == 200
     refused = client.patch(f"/api/v1/instances/{PLAIN}", json={"auto_update": True}, headers=headers)
     assert refused.status_code == 409

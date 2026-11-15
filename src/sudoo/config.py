@@ -251,6 +251,21 @@ class Settings(BaseSettings):
             raise ValueError("must be a plain address such as https://hub.sudoo.sh")
         return value.strip().rstrip("/")
 
+    @field_validator("enterprise_git_url")
+    @classmethod
+    def _no_credentials_in_git_url(cls, value: str) -> str:
+        from urllib.parse import urlsplit
+
+        value = value.strip()
+        if "://" in value:
+            parts = urlsplit(value)
+            if parts.password is not None or (parts.username and parts.scheme not in ("ssh", "git+ssh")):
+                raise ValueError(
+                    "must not contain a user name or password (they would end up in job logs and in the add-ons' "
+                    ".git/config); use an SSH address and give the server a deploy key under GitHub access"
+                )
+        return value
+
     @field_validator("timezone")
     @classmethod
     def _known_timezone(cls, value: str) -> str:

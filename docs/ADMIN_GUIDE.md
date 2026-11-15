@@ -515,7 +515,10 @@ Each folder holds the modules directly:
 **Git source**: set `ENTERPRISE_SOURCE=git`, `ENTERPRISE_GIT_URL` (a private repository you control, with one branch
 per version) and `ENTERPRISE_GIT_BRANCH` (for example `{version}`). Give the server a deploy key for that repository
 under **GitHub access**. The branch is downloaded when an Enterprise instance of that version is created, and
-refreshed the next time.
+refreshed the next time. Use an SSH address (`git@github.com:my-company/odoo-enterprise.git`): an address with a user
+name or password in it (`https://user:token@...`) is refused, because it would be shown in job logs and kept in the
+downloaded folder, which every Enterprise instance can read. If your `.env` still has such an address, the panel does
+not start until you replace it.
 
 Adding or updating a version, from a computer that has the add-ons folder (the folder that directly contains
 `web_enterprise`, `account_accountant` and so on):

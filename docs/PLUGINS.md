@@ -149,7 +149,7 @@ Enterprise instance of that version is created (latest commit only) and refreshe
 | `ENTERPRISE_GIT_BRANCH` | `{version}` or `enterprise-{major}` | Branch name of a version |
 
 Use a private repository you control, and give the server read-only access with a deploy key (**GitHub access** in
-the panel). Downloads are kept in `<ODOO_ROOT>/enterprise-git/<version>`.
+the panel). An address with a user name or password in it (`https://user:token@...`) is refused. Downloads are kept in `<ODOO_ROOT>/enterprise-git/<version>`.
 
 ---
 

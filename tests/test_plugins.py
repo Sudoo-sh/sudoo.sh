@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -75,6 +76,38 @@ def test_git_source_needs_a_repository() -> None:
         GitSource(Settings())
     source = GitSource(Settings(enterprise_git_url="git@example.com:me/ent.git", enterprise_git_branch="ent-{major}"))
     assert source.branch("20.0") == "ent-20"
+
+
+def test_git_source_refuses_credentials_in_its_address() -> None:
+    for address in ("https://user:token@example.com/ent.git", "https://token@example.com/ent.git",
+                    "ssh://git:secret@example.com/ent.git"):  # fmt: skip
+        with pytest.raises(ValueError, match="user name or password"):
+            Settings(enterprise_git_url=address)
+    for address in ("git@example.com:me/ent.git", "ssh://git@example.com/me/ent.git", "https://example.com/ent.git"):
+        assert Settings(enterprise_git_url=address).enterprise_git_url == address
+
+
+def test_git_source_keeps_no_old_credentials_and_logs_none(tmp_path: Path) -> None:
+    def git(*args: str) -> None:
+        subprocess.run(["git", *args], check=True, capture_output=True)
+
+    origin = tmp_path / "origin"
+    (origin / "web_enterprise").mkdir(parents=True)
+    (origin / "web_enterprise" / "__manifest__.py").write_text("{}")
+    git("-C", str(origin), "init", "-q", "-b", "19.0")
+    git("-C", str(origin), "add", ".")
+    git("-C", str(origin), "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "add-ons")
+    settings = Settings(odoo_root=tmp_path / "root", enterprise_git_url=origin.as_uri())
+    source = GitSource(settings)
+    folder = source.prepare("19.0", lambda _: None)
+    # a download made earlier with a password in its address: the next refresh forgets it
+    git("-C", str(folder), "remote", "set-url", "origin", "https://user:secret@example.com/ent.git")
+    source.prepare("19.0", lambda _: None)
+    assert "secret" not in (folder / ".git" / "config").read_text()
+    log: list[str] = []
+    with pytest.raises(RuntimeError):
+        GitSource._git(log.append, "ls-remote", "--", "https://user:secret@127.0.0.1:1/ent.git")
+    assert "https://***@127.0.0.1:1/ent.git" in log[0] and "secret" not in "".join(log)
 
 
 def test_versions_from_the_setting() -> None:

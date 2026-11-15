@@ -9,6 +9,7 @@ import os
 import signal
 import threading
 import time
+from functools import cache
 from importlib.metadata import version
 
 from flask import Blueprint, Response, abort, request
@@ -21,9 +22,14 @@ from sudoo.instances import metrics
 from .. import validation as check
 from ..security import log, require
 from .instances import existing
-from .responses import ok
+from .responses import ok, ok_shared
 
 blueprint = Blueprint("server", __name__)
+
+
+@cache
+def _version() -> str:
+    return version("sudoo")  # reads the installed package's metadata files: once
 
 
 @blueprint.get("/server")
@@ -31,7 +37,7 @@ blueprint = Blueprint("server", __name__)
 def server() -> Response:
     return ok(
         {
-            "version": version("sudoo"),
+            "version": _version(),
             "panel_url": exposure.address(exposure.PANEL),
             "plugins": {
                 "exposure": settings.exposure,
@@ -57,9 +63,14 @@ def current() -> Response:
 @blueprint.get("/metrics/history")
 @require("instances.view")
 def history() -> Response:
+    """The dashboard's charts: every instance's last hour, the largest answer of the API. It changes only with each
+    measurement, so it is built once per measurement for every caller."""
     minutes = _minutes()
-    return ok(
-        metrics.history(minutes), meta={"minutes": minutes, "interval_seconds": settings.metrics_interval_seconds}
+    interval = settings.metrics_interval_seconds
+    return ok_shared(
+        ("history", minutes),
+        (metrics.version(), interval),
+        lambda: (metrics.history(minutes), {"minutes": minutes, "interval_seconds": interval}),
     )
 
 
@@ -68,9 +79,14 @@ def history() -> Response:
 def instance(name: str) -> Response:
     minutes = _minutes()
     existing(name)
-    return ok(
-        {"current": metrics.snapshot()["instances"].get(name), "history": metrics.instance_history(name, minutes)},
-        meta={"minutes": minutes, "interval_seconds": settings.metrics_interval_seconds},
+    interval = settings.metrics_interval_seconds
+    return ok_shared(
+        ("instance-metrics", name, minutes),
+        (metrics.version(), interval),
+        lambda: (
+            {"current": metrics.snapshot()["instances"].get(name), "history": metrics.instance_history(name, minutes)},
+            {"minutes": minutes, "interval_seconds": interval},
+        ),
     )
 
 

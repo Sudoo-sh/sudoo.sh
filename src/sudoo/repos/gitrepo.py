@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from pathlib import Path
 
+from sudoo.core.cache import VersionedMemo, settled, signature
 from sudoo.core.shell import capture
 
 _SKIP_DIRS = {"__pycache__", "node_modules", "setup"}
@@ -32,8 +34,20 @@ def branch_on_github(addons: Path, branch: str) -> bool | None:
     return bool(result.stdout.strip())
 
 
+_ORIGINS: VersionedMemo[str] = VersionedMemo(seconds=3600)
+
+
+def _address_rules() -> tuple[tuple[str, str], ...]:
+    """git's address rules for this process (github.configure_git), which change how `get-url` answers."""
+    return tuple(sorted((key, value) for key, value in os.environ.items() if key.startswith("GIT_CONFIG_")))
+
+
 def origin_url(addons: Path) -> str:
-    return capture(git(addons, "remote", "get-url", "origin"))
+    """The repository's address. A webhook delivery asks for it for every instance, so it is remembered while
+    .git/config and git's address rules stay the same (core/cache.py)."""
+    config = signature(addons / ".git" / "config")
+    version = (config if settled(config) else time.monotonic_ns(), _address_rules())
+    return _ORIGINS.get(str(addons), version, lambda: capture(git(addons, "remote", "get-url", "origin")))
 
 
 def head(addons: Path) -> str:

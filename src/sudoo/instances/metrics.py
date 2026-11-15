@@ -86,6 +86,7 @@ INSTANCES: dict[str, dict[str, Any]] = {}
 _SERVER_HISTORY: deque[dict[str, Any]] = deque(maxlen=_HISTORY_SAMPLES)
 _INSTANCE_HISTORY: defaultdict[str, deque[dict[str, Any]]] = defaultdict(lambda: deque(maxlen=_HISTORY_SAMPLES))
 _LAST_SAMPLE = 0.0
+_SAMPLES = 0  # samples taken: the version of everything read here (answers built from them are cached per version)
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,10 +103,11 @@ class Usage:
 
 def sample(server: dict[str, Any], usage: dict[str, Usage]) -> dict[str, Any]:
     """Record one sample of the server and every instance; return the snapshot (the "metrics" event)."""
-    global _LAST_SAMPLE
+    global _LAST_SAMPLE, _SAMPLES
     now = time.time()
     seconds = max(1.0, now - _LAST_SAMPLE) if _LAST_SAMPLE else float(settings.metrics_interval_seconds)
     _LAST_SAMPLE = now
+    _SAMPLES += 1
     requests = _take_requests()
 
     SERVER.clear()
@@ -146,6 +148,11 @@ def _round(value: float | None) -> float | None:
 
 
 # ---------------------------------------------------------------- reading
+
+
+def version() -> int:
+    """Changes with every sample: answers built from the figures are valid until the next one."""
+    return _SAMPLES
 
 
 def snapshot() -> dict[str, Any]:

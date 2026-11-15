@@ -6,11 +6,13 @@ roles with "instances.credentials" can read (GET /api/v1/instances/<name>/creden
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from sudoo import exposure
 from sudoo.config import settings
 from sudoo.core import jobs
+from sudoo.core.cache import VersionedMemo
 from sudoo.core.state import STATE
 from sudoo.instances import backups, gateway, metrics, monitor, operations, store
 from sudoo.repos.gitrepo import commits, submodules
@@ -81,6 +83,18 @@ def drift(found: dict[str, Any] | None) -> dict[str, Any] | None:
     return {"detected_at": iso(found.get("found_at")), "items": list(found.get("items", [])), "action": found["action"]}
 
 
+# An instance's commits and submodules come from git (several commands); its code changes through jobs, so they are
+# read again after every job on it, while one runs, and at least every 30 seconds (changes made by hand).
+_CODE: VersionedMemo[tuple[list[dict[str, str]], list[dict[str, str]]]] = VersionedMemo(seconds=30)
+
+
+def code(name: str) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """(recent commits, submodules) of the instance."""
+    addons_dir = store.addons_dir(name)
+    version = jobs.generation(name) if not jobs.busy(name) else -time.monotonic_ns()
+    return _CODE.get(name, version, lambda: (commits(addons_dir), submodules(addons_dir)))
+
+
 def backup_resource(backup: dict[str, Any]) -> dict[str, Any]:
     """A backup as GET /api/v1/backups lists it: the file's facts and what its manifest says."""
     return backup | backups.details(backup["file"])
@@ -126,13 +140,13 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
         "links": {"self": f"{PREFIX}/instances/{name}"},
     }
     if full:
-        addons_dir = store.addons_dir(name)
+        recent_commits, found_submodules = code(name)
         disk = monitor.disk_usage(name)
         latest = backups.latest(name)
         resource |= {
             "disk": {"database_bytes": disk.get("db"), "files_bytes": disk.get("files")},
-            "recent_commits": commits(addons_dir),
-            "submodules": submodules(addons_dir),
+            "recent_commits": recent_commits,
+            "submodules": found_submodules,
             "backups": [
                 {
                     "file": b["file"],

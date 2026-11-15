@@ -11,13 +11,16 @@ every reply  X-Request-ID (the caller's own when it sent a valid one)
 
 from __future__ import annotations
 
+import gzip
 import uuid
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from http import HTTPStatus
 from typing import Any
 
-from flask import Response, g, jsonify, request
+from flask import Response, current_app, g, jsonify, request
+
+from sudoo.core.cache import VersionedMemo
 
 PREFIX = "/api/v1"
 
@@ -41,6 +44,31 @@ def request_id() -> str:
 def ok(data: Any, status: int = 200, meta: dict[str, Any] | None = None) -> Response:
     response = jsonify({"data": data, **({"meta": meta} if meta else {})})
     response.status_code = status
+    return response
+
+
+_SHARED: VersionedMemo[tuple[bytes, bytes | None]] = VersionedMemo(seconds=60, size=256)
+_GZIP_FROM = 1400  # bytes; smaller answers fit in one packet anyway
+
+
+def ok_shared(key: Any, version: Any, build: Callable[[], tuple[Any, dict[str, Any] | None]]) -> Response:
+    """Like ok(data, meta=meta) for `(data, meta) = build()`, serialised (and gzip-compressed, when large) once per
+    `version` of `key` and given to every caller until the version changes (at most a minute). Only for answers
+    that are the same for everyone allowed to read them, after the permission check: the key never names a caller.
+    The web service passes an answer compressed here on as it is, instead of compressing it again for every caller."""
+
+    def serialise() -> tuple[bytes, bytes | None]:
+        data, meta = build()
+        body = current_app.json.dumps({"data": data, **({"meta": meta} if meta else {})}).encode() + b"\n"
+        return body, gzip.compress(body, compresslevel=6, mtime=0) if len(body) >= _GZIP_FROM else None
+
+    body, compressed = _SHARED.get(key, version, serialise)
+    if compressed is None or not request.accept_encodings["gzip"]:
+        response = current_app.response_class(body, mimetype="application/json")
+    else:
+        response = current_app.response_class(compressed, mimetype="application/json")
+        response.headers["Content-Encoding"] = "gzip"
+    response.vary.add("Accept-Encoding")
     return response
 
 

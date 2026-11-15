@@ -38,6 +38,45 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `/etc/machine-id` in `compose.yaml`, permission `plugins.view`, command `sudoo.sh marketplace`, and
   [Marketplace](docs/MARKETPLACE.md).
 
+### Changed
+
+- **Performance** (figures, method and targets in [Performance](docs/PERFORMANCE.md); a repeatable load test in
+  `perf/`):
+  - The gateway passes request bodies on to Odoo as they arrive instead of reading them whole first, and answers as
+    they come: four 50 MB uploads at once no longer make the panel hold 200 MB, and an upload of several gigabytes
+    never sits in memory. It reads an instance's `.env` only when the file changed, reads and writes sockets in
+    larger steps, and adds less time to every visit.
+  - The API reads instances' `.env` files, the backup list, repository addresses and recent commits only when they
+    changed (by file signature, or after a job on the instance), so the instance list, an instance's page and
+    GitHub webhook deliveries no longer start git or read every file on every call.
+  - The dashboard's metrics history and an instance's figures are built once per measurement for every viewer,
+    and each live event is serialised once for all open tabs; documentation pages are rendered once.
+  - API tokens: "last used" is written at most once a minute per token (to the minute), and replayed-request
+    checks no longer slow down as calls add up.
+  - The web app loads less before the sign-in page appears (no charts, no panel frame), keeps libraries in files
+    of their own that browsers reuse across releases, and is served precompressed (Brotli, gzip) by Caddy; the
+    frame no longer redraws on every live event.
+  - The backend starts faster (the dummy password hash is made in the background), and gunicorn keeps its
+    heartbeat file in memory.
+
+### Security
+
+- Gateway: headers named in `Connection` (and `Proxy-Connection`) are removed both ways, like the other hop-by-hop
+  headers; repeated request headers are passed on instead of only the last one; the panel's cookie is removed from
+  every `Cookie` header a browser sends (HTTP/2 splits them), not only from one.
+- Gateway: `X-Forwarded-For` ends with the address the gateway can vouch for (Cloudflare's `CF-Connecting-IP`, or
+  the connecting address with `host-ports`), and `X-Forwarded-Proto` and `X-Forwarded-Host` are always set by it.
+  Before, with `host-ports`, a visitor could send their own `X-Forwarded-For` and Odoo (in proxy mode) believed it,
+  for example to get around Odoo's sign-in limits per address.
+- Gateway: new settings `GATEWAY_MAX_UPLOAD_MB` (2048), `GATEWAY_IDLE_TIMEOUT_SECONDS` (120) and
+  `GATEWAY_WEBSOCKET_MAX_MESSAGE_MB` (16), also on the Settings page. WebSocket messages had no size limit, so one
+  visitor could make the panel process hold a message of any size; a request body that stops arriving now frees
+  the connection; the gateway no longer asks Odoo for gzip on behalf of visitors that did not ask for it.
+- Web service: Caddy gives a request 10 s for its headers and 30 s for its body, closes idle connections after 2
+  minutes, and refuses bodies over 1 MB for the backend before they reach it.
+- Sign-in throttling keeps only failures: a flood of sign-ins or API calls under made-up names or from many
+  addresses can no longer fill the panel's memory.
+
 ## [1.0.0] - 2026-11-14
 
 ### Added

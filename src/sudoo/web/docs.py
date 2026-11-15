@@ -34,7 +34,10 @@ INDEX = "docs/README.md"
 SECTIONS = (  # sidebar: (title, path prefixes or exact paths)
     ("Start here", ("README.md", "docs/README.md", "docs/USER_MANUAL.md")),
     ("Guides", ("docs/ADMIN_GUIDE.md", "docs/PLUGINS.md", "docs/PANEL_API.md", "docs/API.md")),
-    ("Reference", ("docs/CONFIGURATION.md", "docs/ARCHITECTURE.md", "docs/SECURITY.md", "docs/DESIGN.md")),
+    (
+        "Reference",
+        ("docs/CONFIGURATION.md", "docs/ARCHITECTURE.md", "docs/SECURITY.md", "docs/DESIGN.md", "docs/PERFORMANCE.md"),
+    ),
     ("Concepts", ("docs/concepts/",)),
 )
 _LINK = re.compile(r'(href|src|srcset)="(?![a-z]+:|/|#)([^"#]+\.(?:md|svg))(#[^"]*)?"')

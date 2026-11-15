@@ -1,6 +1,6 @@
 # Security Policy
 
-The panel manages Docker on its server and stores deploy keys and Odoo master passwords, so security problems are taken seriously. Thank you for reporting them responsibly.
+The panel manages Docker on its server and stores the credentials of its GitHub App, deploy keys and Odoo master passwords, so security problems are taken seriously. Thank you for reporting them responsibly.
 
 ## Supported versions
 

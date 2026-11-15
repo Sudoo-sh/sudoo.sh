@@ -32,6 +32,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 import subprocess
 import tarfile
 import tempfile
@@ -44,6 +45,7 @@ from pathlib import Path
 from typing import IO, Any, cast
 
 from sudoo.config import settings
+from sudoo.core.cache import FileMemo
 from sudoo.core.jobs import Job, JobError
 from sudoo.core.shell import capture
 from sudoo.core.state import STATE
@@ -136,14 +138,21 @@ def _run_to_file(cmd: list[str], path: Path, what: str) -> None:
         raise JobError(f"{what} failed: {result.stderr.decode(errors='replace').strip()[-300:]}")
 
 
-def all_backups() -> list[dict[str, Any]]:
-    """Every backup file, newest first: [{"file", "instance", "db", "stamp", "kind", "size", "created"}]."""
-    if not settings.backups_dir.exists():
-        return []
+def _list_backups(folder: Path) -> list[dict[str, Any]]:
     found: list[dict[str, Any]] = []
-    for path in settings.backups_dir.iterdir():
+    try:
+        paths = list(folder.iterdir())
+    except FileNotFoundError:
+        return found
+    for path in paths:
         match = FILE_RE.match(path.name)
-        if match and path.is_file():
+        if not match:
+            continue
+        try:
+            facts = path.stat()
+        except FileNotFoundError:  # removed meanwhile
+            continue
+        if stat.S_ISREG(facts.st_mode):
             found.append(
                 {
                     "file": path.name,
@@ -151,11 +160,21 @@ def all_backups() -> list[dict[str, Any]]:
                     "db": match["db"],
                     "stamp": match["stamp"],
                     "kind": match["kind"] or "manual",
-                    "size": path.stat().st_size,
-                    "created": path.stat().st_mtime,
+                    "size": facts.st_size,
+                    "created": facts.st_mtime,
                 }
             )
     return sorted(found, key=lambda b: b["created"], reverse=True)
+
+
+# A backup file is written under another name and renamed when complete, and removed by unlinking it: both change
+# the folder itself, so its signature says when the list must be read again (core/cache.py).
+_LISTING = FileMemo(_list_backups, size=4)
+
+
+def all_backups() -> list[dict[str, Any]]:
+    """Every backup file, newest first: [{"file", "instance", "db", "stamp", "kind", "size", "created"}]."""
+    return [dict(backup) for backup in _LISTING.get(settings.backups_dir)]
 
 
 def of_instance(name: str, kinds: tuple[str, ...] = KINDS) -> list[dict[str, Any]]:

@@ -18,6 +18,7 @@ from __future__ import annotations
 import html
 import posixpath
 import re
+from functools import cache
 from typing import Any
 
 import markdown
@@ -33,7 +34,10 @@ INDEX = "docs/README.md"
 SECTIONS = (  # sidebar: (title, path prefixes or exact paths)
     ("Start here", ("README.md", "docs/README.md", "docs/USER_MANUAL.md")),
     ("Guides", ("docs/ADMIN_GUIDE.md", "docs/PLUGINS.md", "docs/PANEL_API.md", "docs/API.md")),
-    ("Reference", ("docs/CONFIGURATION.md", "docs/ARCHITECTURE.md", "docs/SECURITY.md", "docs/DESIGN.md")),
+    (
+        "Reference",
+        ("docs/CONFIGURATION.md", "docs/ARCHITECTURE.md", "docs/SECURITY.md", "docs/DESIGN.md", "docs/PERFORMANCE.md"),
+    ),
     ("Concepts", ("docs/concepts/",)),
 )
 _LINK = re.compile(r'(href|src|srcset)="(?![a-z]+:|/|#)([^"#]+\.(?:md|svg))(#[^"]*)?"')
@@ -107,17 +111,29 @@ def sections() -> list[dict[str, Any]]:
 _HEADING = re.compile(r'<h([23]) id="([^"]+)">(.*?)</h\1>')
 
 
+@cache
+def _rendered(path: str) -> tuple[str, tuple[tuple[int, str, str], ...]]:
+    """(HTML, headings) of a page. The pages are read once at start-up and never change while the panel runs, so
+    each is rendered once (a long page takes tens of milliseconds)."""
+    body = _render(path, PAGES[path][1])
+    headings = tuple(
+        (int(level), anchor, html.unescape(re.sub(r"<[^>]+>", "", inner)))
+        for level, anchor, inner in _HEADING.findall(body)
+    )
+    return body, headings
+
+
 def page_resource(path: str) -> dict[str, Any] | None:
     """A page as the web app shows it: title, HTML, and its headings for the "On this page" list."""
     if path not in PAGES:
         return None
-    title, text = PAGES[path]
-    body = _render(path, text)
-    headings = [
-        {"level": int(level), "id": anchor, "text": html.unescape(re.sub(r"<[^>]+>", "", inner))}
-        for level, anchor, inner in _HEADING.findall(body)
-    ]
-    return {"path": path, "title": title, "html": body, "headings": headings}
+    body, headings = _rendered(path)
+    return {
+        "path": path,
+        "title": PAGES[path][0],
+        "html": body,
+        "headings": [{"level": level, "id": anchor, "text": text} for level, anchor, text in headings],
+    }
 
 
 @blueprint.get("/docs")

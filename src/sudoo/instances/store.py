@@ -15,6 +15,7 @@ Each instance gets three ports on 127.0.0.1, allocated together when it is creat
 
 from __future__ import annotations
 
+import os
 import re
 import socket
 import threading
@@ -22,23 +23,38 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from sudoo.config import settings
+from sudoo.core.cache import FileMemo
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
+_COMPOSE = "docker-compose.yml"
 
 
 def folder(name: str) -> Path:
     return settings.instances_dir / name
 
 
+_ROOT: list[tuple[Path, str]] = []  # (ODOO_ROOT, its instances folder as text), worked out once per setting
+
+
+def _instances_dir() -> str:
+    root = settings.odoo_root
+    if not _ROOT or _ROOT[0][0] is not root:
+        _ROOT[:] = [(root, os.fspath(root / "instances"))]
+    return _ROOT[0][1]
+
+
 def exists(name: str) -> bool:
-    return bool(NAME_RE.match(name or "")) and (folder(name) / "docker-compose.yml").exists()
+    # plain strings rather than Path objects: this runs for every visit and for every instance of every list
+    return bool(NAME_RE.match(name or "")) and os.path.exists(os.path.join(_instances_dir(), name, _COMPOSE))
 
 
 def names() -> list[str]:
     """Names of all instances, sorted."""
-    if not settings.instances_dir.exists():
+    try:
+        entries = os.listdir(_instances_dir())
+    except FileNotFoundError:
         return []
-    return sorted(p.name for p in settings.instances_dir.iterdir() if exists(p.name))
+    return sorted(name for name in entries if exists(name))
 
 
 def addons_dir(name: str) -> Path:
@@ -49,16 +65,26 @@ def config_file(name: str) -> Path:
     return folder(name) / "config" / "odoo.conf"
 
 
-def read_env(name: str) -> dict[str, str]:
-    """The instance's .env file as a dict."""
+def _parse_env(path: str) -> dict[str, str]:
     env: dict[str, str] = {}
-    path = folder(name) / ".env"
-    if path.exists():
-        for line in path.read_text().splitlines():
-            key, sep, value = line.strip().partition("=")
-            if sep and not key.startswith("#"):
-                env[key.strip()] = value.strip()
+    try:
+        with open(path) as fh:
+            text = fh.read()
+    except FileNotFoundError:
+        return env
+    for line in text.splitlines():
+        key, sep, value = line.strip().partition("=")
+        if sep and not key.startswith("#"):
+            env[key.strip()] = value.strip()
     return env
+
+
+_ENV = FileMemo(_parse_env)  # every API answer and every visit reads it; it changes only when the panel writes it
+
+
+def read_env(name: str) -> dict[str, str]:
+    """The instance's .env file as a dict (a new one each time: callers may change it)."""
+    return dict(_ENV.get(os.path.join(_instances_dir(), name, ".env")))
 
 
 def master_password_label(name: str) -> str:

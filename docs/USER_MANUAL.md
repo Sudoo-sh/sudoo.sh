@@ -529,7 +529,7 @@ Passwords are never stored by the panel, only checked: see
 
 **API tokens** (sidebar, Administration) let other systems, such as a CI pipeline, create and manage instances
 through the panel's API. Click **New token**, give it a name and a scope (**read**, or **write**); copy the token
-and the signing secret, shown once, into the other system. The list shows when each token was last used.
+and the signing secret, shown once, into the other system. The list shows when each token was last used (to the minute).
 **Revoke** stops a token at once. See [Panel API](PANEL_API.md).
 
 ---

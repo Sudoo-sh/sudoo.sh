@@ -19,14 +19,16 @@ import asyncio
 import concurrent.futures
 import threading
 import time
-from collections.abc import Callable, Coroutine
+from collections.abc import AsyncIterator, Callable, Coroutine
 from typing import Any
 
 import aiohttp
 from aiohttp import web
+from multidict import CIMultiDict, CIMultiDictProxy
 from yarl import URL
 
 from sudoo import exposure
+from sudoo.config import settings
 from sudoo.core import jobs
 from sudoo.core.state import STATE
 from sudoo.instances import metrics, status_pages, store
@@ -39,28 +41,43 @@ LISTENER_ERRORS: dict[str, str] = {}
 _WAKE_REQUESTED: dict[str, float] = {}
 _wake: Callable[[str], jobs.Job] | None = None  # callable(name) -> Job; set by start()
 
-_HOP_BY_HOP = {
-    "connection",
-    "keep-alive",
-    "proxy-authenticate",
-    "proxy-authorization",
-    "te",
-    "trailer",
-    "trailers",
-    "transfer-encoding",
-    "upgrade",
-    "content-length",
-    "expect",
-    "host",
-}
+# hop-by-hop headers (RFC 9110, 7.6.1) and those the gateway sets itself; any header named in Connection is one too
+_HOP_BY_HOP = frozenset(
+    {
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "proxy-connection",
+        "te",
+        "trailer",
+        "trailers",
+        "transfer-encoding",
+        "upgrade",
+        "content-length",
+        "expect",
+        "host",
+    }
+)
+_SET_BY_GATEWAY = frozenset({"cookie", "x-forwarded-for", "x-forwarded-proto", "x-forwarded-host"})
 _NOT_A_VISIT = ("/websocket", "/longpolling", "/web/health", "/bus/")  # background traffic of an open tab
 _PANEL_COOKIES = {"sudoo_session"}
 _UPSTREAM_DOWN = (aiohttp.ClientConnectorError, aiohttp.ServerDisconnectedError, aiohttp.ClientOSError)
 _CLIENT_GONE = (ConnectionResetError, aiohttp.ClientConnectionResetError, aiohttp.ClientPayloadError)
+INSTANCE = web.AppKey("instance", str)  # the instance a gateway application serves
+_READ_BUFFER = 2**20  # bytes read from a socket at a time: large uploads and downloads in fewer, larger steps
 
 
 class _OdooDown(Exception):
     """Odoo did not accept the connection (paused, starting or stopped)."""
+
+
+class _BadBody(Exception):
+    """The visitor's request body is larger than GATEWAY_MAX_UPLOAD_MB, or stopped arriving."""
+
+    def __init__(self, status: int, text: str) -> None:
+        super().__init__(text)
+        self.status = status
 
 
 # --------------------------------------------------------------------------- lifecycle
@@ -87,7 +104,10 @@ async def _create_session() -> None:
         auto_decompress=False,
         cookie_jar=aiohttp.DummyCookieJar(),
         timeout=aiohttp.ClientTimeout(total=None, sock_connect=5),
+        # connections to Odoo are kept open and reused (keep-alive), however many visits run at once
         connector=aiohttp.TCPConnector(limit=0),
+        read_bufsize=_READ_BUFFER,
+        skip_auto_headers=("User-Agent", "Accept", "Accept-Encoding"),  # only the visitor's own are passed on
     )
 
 
@@ -109,10 +129,10 @@ async def _add(name: str) -> None:
     if name in _RUNNERS:
         return
     port = int(store.read_env(name)["GATEWAY_PORT"])
-    app = web.Application(client_max_size=2 * 1024**3)
-    app["instance"] = name
+    app = web.Application()  # bodies are never read whole: they are passed on as they arrive (_body)
+    app[INSTANCE] = name
     app.router.add_route("*", "/{tail:.*}", _handle)
-    runner = web.AppRunner(app, access_log=None, handle_signals=False)
+    runner = web.AppRunner(app, access_log=None, handle_signals=False, read_bufsize=_READ_BUFFER)
     await runner.setup()
     try:
         await web.TCPSite(runner, exposure.provider().listen_host, port, reuse_address=True).start()
@@ -134,7 +154,7 @@ async def _remove(name: str) -> None:
 
 
 async def _handle(request: web.Request) -> web.StreamResponse:
-    name = request.app["instance"]
+    name = request.app[INSTANCE]
     if not store.exists(name):
         return status_pages.render(request, name, "gone")
     if not request.path.startswith(_NOT_A_VISIT):
@@ -150,51 +170,117 @@ async def _handle(request: web.Request) -> web.StreamResponse:
         return _not_ready(request, name)
 
 
-def _forward_headers(request: web.Request) -> dict[str, str]:
-    """Request headers for Odoo: without hop-by-hop headers and panel cookies, with the visitor's details.
+def _named_in_connection(headers: CIMultiDictProxy[str]) -> set[str]:
+    """Headers a sender declared hop-by-hop by naming them in Connection (RFC 9110, 7.6.1)."""
+    return {token.strip().lower() for value in headers.getall("Connection", ()) for token in value.split(",")}
 
-    Requests reach the gateway only from this server (the instance's connector), so the forwarding headers it
-    adds (real visitor address, https) are trusted and passed on; Odoo runs with proxy_mode = True.
+
+def _forward_headers(request: web.Request) -> CIMultiDict[str]:
+    """Request headers for Odoo: the visitor's own, in order and repeated ones kept, without hop-by-hop headers and
+    panel cookies, and with forwarding headers the visitor cannot forge.
+
+    Odoo runs with proxy_mode = True and believes the last address of X-Forwarded-For (werkzeug's ProxyFix), so the
+    gateway appends the address it can vouch for: the one the exposure plugin's own proxy reports
+    (Cloudflare's CF-Connecting-IP), or else the address the connection comes from. Whatever a visitor put in front
+    stays in front, where Odoo does not look; X-Forwarded-Proto and X-Forwarded-Host are always the gateway's.
     """
-    headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP_BY_HOP}
+    dropped = _HOP_BY_HOP | _SET_BY_GATEWAY | _named_in_connection(request.headers)
+    headers: CIMultiDict[str] = CIMultiDict(
+        (key, value) for key, value in request.headers.items() if key.lower() not in dropped
+    )
     headers["Host"] = request.host
-    if "Cookie" in headers:
-        kept = [c for c in headers.pop("Cookie").split(";") if c.split("=", 1)[0].strip() not in _PANEL_COOKIES]
-        if kept:
-            headers["Cookie"] = ";".join(kept).strip()
-    headers.setdefault("X-Forwarded-For", request.remote or "")
-    headers.setdefault("X-Forwarded-Proto", request.scheme)
+    cookies = [
+        crumb.strip()
+        for value in request.headers.getall("Cookie", ())
+        for crumb in value.split(";")
+        if crumb.strip() and crumb.split("=", 1)[0].strip() not in _PANEL_COOKIES
+    ]
+    if cookies:  # a browser may send its cookies in several Cookie headers (HTTP/2): Odoo gets them as one
+        headers["Cookie"] = "; ".join(cookies)
+    provider = exposure.provider()
+    trusted = getattr(provider, "client_ip_header", None)
+    visitor = (request.headers.get(trusted, "") if trusted else "") or request.remote or ""
+    chain = ", ".join(request.headers.getall("X-Forwarded-For", ()))
+    headers["X-Forwarded-For"] = f"{chain}, {visitor}" if chain else visitor
+    headers["X-Forwarded-Proto"] = "https" if provider.https else request.scheme
     headers["X-Forwarded-Host"] = request.host
     return headers
 
 
+async def _body(request: web.Request, limit: int, idle: float) -> AsyncIterator[bytes]:
+    """The visitor's request body, passed on piece by piece as it arrives (an upload of several gigabytes never sits
+    in memory), refused beyond `limit` bytes or when nothing arrives for `idle` seconds."""
+    received = 0
+    while True:
+        try:
+            async with asyncio.timeout(idle):
+                chunk = await request.content.readany()
+        except TimeoutError as exc:
+            raise _BadBody(408, "The request body stopped arriving.") from exc
+        if not chunk:
+            return
+        received += len(chunk)
+        if received > limit:
+            raise _BadBody(413, _too_large())
+        yield chunk
+
+
+def _bad_body(exc: BaseException) -> _BadBody | None:
+    """The _BadBody behind an error of the upstream request, if that is what it is."""
+    seen: BaseException | None = exc
+    while seen is not None:
+        if isinstance(seen, _BadBody):
+            return seen
+        seen = seen.__cause__ or seen.__context__
+    return None
+
+
+def _too_large() -> str:
+    return f"The request is larger than this server accepts ({settings.gateway_max_upload_mb} MB)."
+
+
 async def _forward_http(request: web.Request, odoo_url: str) -> web.StreamResponse:
     assert _SESSION is not None  # created when the event loop starts
-    body = await request.read() if request.body_exists else None
+    headers = _forward_headers(request)
+    body: AsyncIterator[bytes] | None = None
+    if request.body_exists:
+        limit = settings.gateway_max_upload_mb * 2**20
+        if request.content_length is not None:
+            if request.content_length > limit:
+                return web.Response(status=413, text=_too_large())
+            headers["Content-Length"] = str(request.content_length)  # passed on as it came, not chunked
+        body = _body(request, limit, settings.gateway_idle_timeout_seconds)
     began = time.perf_counter()
     try:
         upstream = await _SESSION.request(
             request.method,
             URL(odoo_url + request.raw_path, encoded=True),
-            headers=_forward_headers(request),
+            headers=headers,
             data=body,
             allow_redirects=False,
         )
-    except _UPSTREAM_DOWN as exc:
-        raise _OdooDown from exc
+    except (_BadBody, aiohttp.ClientError) as exc:
+        refused = _bad_body(exc)
+        if refused is not None:  # the visitor's body was refused while it was being passed on
+            return web.Response(status=refused.status, text=str(refused))
+        if isinstance(exc, _UPSTREAM_DOWN):
+            raise _OdooDown from exc
+        raise
     if not request.path.startswith(_NOT_A_VISIT):  # long-polling would distort the response times
-        metrics.record_request(request.app["instance"], upstream.status, (time.perf_counter() - began) * 1000)
+        metrics.record_request(request.app[INSTANCE], upstream.status, (time.perf_counter() - began) * 1000)
     async with upstream:
         response = web.StreamResponse(status=upstream.status, reason=upstream.reason)
+        dropped = (_HOP_BY_HOP - {"content-length"}) | _named_in_connection(upstream.headers)
         for key, value in upstream.headers.items():
-            if key.lower() in _HOP_BY_HOP - {"content-length"}:
+            lowered = key.lower()
+            if lowered in dropped:
                 continue
-            if key.lower() == "set-cookie" and value.split("=", 1)[0].strip() in _PANEL_COOKIES:
+            if lowered == "set-cookie" and value.split("=", 1)[0].strip() in _PANEL_COOKIES:
                 continue
             response.headers.add(key, value)
         try:
             await response.prepare(request)
-            async for chunk in upstream.content.iter_chunked(65536):
+            async for chunk in upstream.content.iter_any():  # whatever has arrived, at once (long polling, files)
                 await response.write(chunk)
             await response.write_eof()
         except _CLIENT_GONE:
@@ -204,19 +290,22 @@ async def _forward_http(request: web.Request, odoo_url: str) -> web.StreamRespon
 
 async def _forward_websocket(request: web.Request, odoo_url: str) -> web.StreamResponse:
     assert _SESSION is not None  # created when the event loop starts
-    headers = {k: v for k, v in _forward_headers(request).items() if not k.lower().startswith("sec-websocket")}
+    headers = CIMultiDict(
+        (key, value) for key, value in _forward_headers(request).items() if not key.lower().startswith("sec-websocket")
+    )
     try:
         upstream = await _SESSION.ws_connect(
             URL(odoo_url.replace("http", "ws", 1) + request.raw_path, encoded=True),
             headers=headers,
             autoping=False,
-            max_msg_size=0,
+            max_msg_size=settings.gateway_websocket_max_message_mb * 2**20,
         )
     except _UPSTREAM_DOWN as exc:
         raise _OdooDown from exc
     except aiohttp.WSServerHandshakeError as exc:
         return web.Response(status=exc.status)
-    downstream = web.WebSocketResponse(autoping=False, max_msg_size=0)
+    # a message is held whole in memory before it is passed on: larger ones close the connection (code 1009)
+    downstream = web.WebSocketResponse(autoping=False, max_msg_size=settings.gateway_websocket_max_message_mb * 2**20)
     await downstream.prepare(request)
 
     async def pump(

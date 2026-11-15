@@ -78,5 +78,6 @@ starts with an everyday comparison, then shows what it looks like on our server.
 | [Architecture](ARCHITECTURE.md) | Components, request flow, life of an instance, decisions and their reasons |
 | [Security](SECURITY.md) | What is protected, how, and what is not |
 | [Configuration](CONFIGURATION.md) | Every setting, with its type and default |
+| [Performance](PERFORMANCE.md) | How fast the panel and the gateway are, how it is measured, and what keeps them fast |
 | [Plugins](PLUGINS.md) | Choosing how instances are reached and where Enterprise comes from; writing your own |
 | [Marketplace](MARKETPLACE.md) | Installing and buying plugins, licences, the hub connection, what is protected |

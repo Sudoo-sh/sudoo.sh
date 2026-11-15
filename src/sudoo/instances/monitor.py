@@ -30,7 +30,7 @@ from sudoo.core import events, jobs
 from sudoo.core.shell import capture, succeeds
 from sudoo.core.state import STATE
 from sudoo.instances import integrity, metrics, odoo, store
-from sudoo.repos.gitrepo import git
+from sudoo.repos.gitrepo import git, origin_url
 
 STATUS: dict[str, dict[str, Any]] = {}  # instance name -> latest measurements
 HOST: dict[str, Any] = {"history": deque(maxlen=settings.history_samples)}
@@ -129,7 +129,7 @@ def _git_details(name: str, refresh: bool) -> tuple[str, str]:
     addons = store.addons_dir(name)
     found = (
         capture(git(addons, "log", "-1", "--format=%h|%s|%cr|%an")),
-        capture(git(addons, "remote", "get-url", "origin")),
+        origin_url(addons),
     )
     _GIT[name] = (time.time(), *found)
     return found

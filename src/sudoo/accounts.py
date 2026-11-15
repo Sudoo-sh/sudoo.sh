@@ -31,7 +31,7 @@ import re
 import secrets
 import threading
 import time
-from collections import defaultdict, deque
+from collections import deque
 from typing import Any
 
 from sudoo.config import settings
@@ -144,7 +144,17 @@ def _needs_rehash(stored: str) -> bool:
     return algorithm != _ALGORITHM or (int(n), int(r), int(p)) != tuple(_SCRYPT.values())
 
 
-_DUMMY_HASH = hash_password(secrets.token_hex(16))  # unknown users take as long to reject as known ones
+_DUMMY_HASH: list[str] = []  # unknown users take as long to reject as known ones
+_DUMMY_LOCK = threading.Lock()
+
+
+def dummy_hash() -> str:
+    """A hash of a random password, checked when the account does not exist. Made once, in the background when the
+    panel starts (background.py) rather than while it imports: hashing is slow on purpose."""
+    with _DUMMY_LOCK:
+        if not _DUMMY_HASH:
+            _DUMMY_HASH.append(hash_password(secrets.token_hex(16)))
+        return _DUMMY_HASH[0]
 
 
 def generate_password() -> str:
@@ -224,7 +234,7 @@ def check_password(username: str, password: str) -> dict[str, Any] | None:
     """The account if the password is right, else None (the "local" auth plugin uses this)."""
     user = get(username)
     if not user or "hash" not in user:
-        verify_password(password, _DUMMY_HASH)
+        verify_password(password, dummy_hash())
         return None
     if not verify_password(password, user["hash"]):
         return None
@@ -417,36 +427,57 @@ def record_sign_in(username: str) -> None:
 
 
 class SignInThrottle:
-    """Refuses sign-ins after too many failures: per account and address, and per address."""
+    """Refuses sign-ins after too many failures: per account and address, and per address.
+
+    Only failures are kept, and only for WINDOW_SECONDS: asking about an address that never failed stores nothing,
+    so a flood of sign-ins under made-up names or from many addresses cannot fill the panel's memory."""
 
     WINDOW_SECONDS = 15 * 60
     MAX_PER_ACCOUNT_AND_ADDRESS = 5
     MAX_PER_ADDRESS = 20
 
     def __init__(self) -> None:
-        self._failures: defaultdict[tuple[str, str | None], deque[float]] = defaultdict(deque)
+        self._lock = threading.Lock()
+        self._failures: dict[tuple[str, str | None], deque[float]] = {}
+        self._swept = 0.0
 
-    def _recent(self, key: tuple[str, str | None], now: float) -> deque[float]:
-        failures = self._failures[key]
+    def _recent(self, key: tuple[str, str | None], now: float) -> int:
+        failures = self._failures.get(key)
+        if failures is None:
+            return 0
         while failures and now - failures[0] > self.WINDOW_SECONDS:
             failures.popleft()
-        return failures
+        if not failures:
+            del self._failures[key]
+            return 0
+        return len(failures)
+
+    def _sweep(self, now: float) -> None:
+        """Forget every key without a recent failure (at most once a minute)."""
+        if now - self._swept < 60:
+            return
+        self._swept = now
+        for key in list(self._failures):
+            self._recent(key, now)
 
     def seconds_to_wait(self, ip: str, username: str) -> int:
         now = time.time()
-        for key, limit in (((ip, username), self.MAX_PER_ACCOUNT_AND_ADDRESS), ((ip, None), self.MAX_PER_ADDRESS)):
-            failures = self._recent(key, now)
-            if len(failures) >= limit:
-                return int(self.WINDOW_SECONDS - (now - failures[0])) + 1
+        with self._lock:
+            self._sweep(now)
+            for key, limit in (((ip, username), self.MAX_PER_ACCOUNT_AND_ADDRESS), ((ip, None), self.MAX_PER_ADDRESS)):
+                if self._recent(key, now) >= limit:
+                    return int(self.WINDOW_SECONDS - (now - self._failures[key][0])) + 1
         return 0
 
     def failed(self, ip: str, username: str) -> None:
         now = time.time()
-        self._failures[(ip, username)].append(now)
-        self._failures[(ip, None)].append(now)
+        with self._lock:
+            for key in ((ip, username), (ip, None)):
+                self._failures.setdefault(key, deque()).append(now)
 
     def succeeded(self, ip: str, username: str) -> None:
-        self._failures.pop((ip, username), None)
+        with self._lock:
+            self._failures.pop((ip, username), None)
 
 
 THROTTLE = SignInThrottle()

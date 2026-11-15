@@ -403,8 +403,16 @@ install modules and print PDF reports with read-only system files and no capabil
 The compose file is rendered by the panel from a fixed list of keys (`odoo.compose_spec`). Before it is written, the
 panel refuses any rendering with another service or key, more capabilities, a port that is not on `127.0.0.1`, the
 Docker socket or a system folder, or a writable folder from the server; neither a plugin nor a setting can add one.
-Values are written into the file literally, and the panel runs Compose with a fixed project name and without the
-`.env` file, so editing `.env` cannot change an image, a port, a password or the project.
+Folders from the server are an allow-list: the instance's own folder, and at the Enterprise mount point only a folder
+of Enterprise add-ons (one `ENTERPRISE_PATH` names, a version folder of the `git` source, or one the Enterprise
+source returned). Values are written into the file literally, and the panel runs Compose with a fixed project name
+and without the `.env` file, so editing `.env` cannot change an image, a port, a password, the edition, the
+Enterprise folder or the project. The Enterprise folder and the edition are recorded when the instance is created
+and come from that record from then on, an empty folder (Community) included.
+
+The panel writes `.env` one key per line: it refuses a key that is not an upper-case name and a value with a line
+break or another control character. Values it reads from an instance, such as the login of the Odoo administrator
+after a restore, are only recorded when they are a single short line.
 
 The instance folder is mode 700 and owned by root; `.env` and `docker-compose.yml` are mode 600; `config/` and
 `odoo.conf` are mode 700 and 600 and owned by the Odoo image's user, so Odoo (which gets the folder read-only) can

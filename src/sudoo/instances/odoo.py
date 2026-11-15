@@ -59,6 +59,7 @@ def compose_spec(
     db_password: str,
     enterprise_folder: Path | None,
     isolated_network: bool,
+    enterprise_recorded: bool = False,
 ) -> dict[str, Any]:
     """The instance's two containers as a Compose document (a dict), hardened:
 
@@ -69,6 +70,9 @@ def compose_spec(
     - process, memory and processor limits, rotated logs, an init process, a restart policy the panel sets;
     - images pinned by digest, labels that say which instance and which rendering a container belongs to.
     Values are written literally: the file does not depend on the .env next to it.
+
+    `enterprise_recorded`: the Enterprise folder is the one the panel recorded when it created the instance (see
+    check_spec).
     """
     folder = store.folder(name)
     logging = {
@@ -137,7 +141,7 @@ def compose_spec(
         "networks": {"backend": backend, "default": {}},
         "volumes": {"db-data": {}, "odoo-data": {}},
     }
-    check_spec(spec)
+    check_spec(spec, enterprise_folder if enterprise_recorded else None)
     for service in spec["services"].values():
         service["labels"][LABEL_HASH] = config_hash(spec)
     return spec
@@ -151,10 +155,26 @@ def config_hash(spec: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(plain, sort_keys=True).encode()).hexdigest()
 
 
-def check_spec(spec: dict[str, Any]) -> None:
+def _mount_allowed(name: str, source: str, target: str, recorded: Path | None) -> bool:
+    """Whether host folder `source` may be mounted at `target` into instance `name`: a folder inside the instance's
+    own folder (its configuration and its code), or at the Enterprise mount point the folder the panel recorded for
+    the instance when it was created, or a folder of Enterprise add-ons of this server (addons.owns)."""
+    from sudoo import addons
+
+    own, path = store.folder(name).resolve(), Path(source).resolve()
+    if own in path.parents:
+        return True
+    if target != ENTERPRISE_ADDONS_MOUNT:
+        return False
+    return (recorded is not None and Path(source) == recorded) or addons.owns(Path(source))
+
+
+def check_spec(spec: dict[str, Any], recorded_enterprise: Path | None = None) -> None:
     """Refuse a rendering that gives an instance more than running Odoo and PostgreSQL needs: unknown keys (no
     plugin or person can add any), more capabilities, ports on another address, the Docker socket or a system
-    folder, writable folders from the server other than the configuration."""
+    folder, writable folders from the server, and any folder from the server other than the instance's own and its
+    Enterprise add-ons (`recorded_enterprise`: the folder the panel recorded for it, see _mount_allowed)."""
+    name = str(spec.get("name", "")).removeprefix("odoo-")
     services = spec.get("services", {})
     if set(services) != {"db", "odoo"}:
         raise UnsafeCompose(f"an instance has exactly the services db and odoo, not {sorted(services)}")
@@ -183,6 +203,10 @@ def check_spec(spec: dict[str, Any]) -> None:
                 raise UnsafeCompose(f"{service_name}: {source} cannot be mounted into an instance")
             if not rest.endswith(":ro"):
                 raise UnsafeCompose(f"{service_name}: {source} must be mounted read-only")
+            if not store.NAME_RE.match(name) or not _mount_allowed(
+                name, source, rest.partition(":")[0], recorded_enterprise
+            ):
+                raise UnsafeCompose(f"{service_name}: {source} is not a folder of this instance or of Enterprise")
 
 
 def to_yaml(value: Any, indent: int = 0) -> str:

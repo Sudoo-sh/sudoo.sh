@@ -57,7 +57,7 @@ ENV = ".env"
 RESTORABLE_FILES = (COMPOSE, CONF)  # the panel can write these again; .env holds data only the panel knows
 
 # .env keys that shape the containers; taken from the record once there is one
-_INPUTS = ("ODOO_IMAGE_REF", "DB_IMAGE_REF", "ODOO_PORT", "DB_PASSWORD", "ENTERPRISE_FOLDER", "ODOO_USER")
+_INPUTS = ("ODOO_IMAGE_REF", "DB_IMAGE_REF", "ODOO_PORT", "DB_PASSWORD", "ENTERPRISE_FOLDER", "ODOO_USER", "EDITION")
 
 _LOCK = threading.RLock()  # writing an instance's files and comparing them never overlap
 _SEEN: dict[str, tuple[str, ...]] = {}  # instance -> differences found by the previous check, not yet confirmed
@@ -331,7 +331,8 @@ def inputs(name: str) -> dict[str, str]:
     return {key: str(kept.get(key, env.get(key, ""))) for key in _INPUTS}
 
 
-def render(name: str, values: dict[str, str]) -> dict[str, Any]:
+def render(name: str, values: dict[str, str], recorded: bool = False) -> dict[str, Any]:
+    """The compose document for `values`; `recorded`: the Enterprise folder comes from the panel's record."""
     enterprise = values.get("ENTERPRISE_FOLDER")
     return odoo.compose_spec(
         name,
@@ -341,6 +342,7 @@ def render(name: str, values: dict[str, str]) -> dict[str, Any]:
         db_password=values["DB_PASSWORD"],
         enterprise_folder=Path(enterprise) if enterprise else None,
         isolated_network=isolated_networks(),
+        enterprise_recorded=recorded,
     )
 
 
@@ -351,12 +353,20 @@ def apply(job: Job, name: str, pull: bool = False) -> None:
     refs = pin_images(job, name, pull)
     with _LOCK:
         values = inputs(name) | refs
-        if not values.get("ENTERPRISE_FOLDER"):
+        found = record(name)
+        kept = (found or {}).get("inputs", {})
+        # The Enterprise folder is chosen when the instance is created (the Enterprise source's folder) and comes
+        # from the record from then on, "" (Community) included: nothing written into .env adds or moves it. Only
+        # instances hardened before the record kept it read it from .env or their compose file, once.
+        recorded = "ENTERPRISE_FOLDER" in kept
+        if not recorded:
             values["ENTERPRISE_FOLDER"] = _enterprise_folder(name, env)
+        if found is not None and "EDITION" not in kept:  # recorded before the edition was: what the folder says
+            values["EDITION"] = "enterprise" if values["ENTERPRISE_FOLDER"] else "community"
         if pull or not values.get("ODOO_USER"):
             values["ODOO_USER"] = odoo_user(values["ODOO_IMAGE_REF"]) or values.get("ODOO_USER", "")
         store.update_env(name, **{k: v for k, v in values.items() if env.get(k) != v})
-        spec = render(name, values)
+        spec = render(name, values, recorded)
         text = odoo.compose_text(spec)
         folder = store.folder(name)
         (folder / COMPOSE).write_text(text)

@@ -56,10 +56,36 @@ _HINTS: list[tuple[str, str]] = [
 ]
 
 
+PANEL_HINT = "Sudoo.sh: "  # a step that knows better writes "Sudoo.sh: <explanation>" into the log (panel_hint)
+_PANEL_HINT_RE = re.compile(r"^Sudoo\.sh: (.+)$", re.MULTILINE)
+_APP_NOT_FOUND = (
+    "GitHub says this repository does not exist, or the panel's GitHub App cannot read it. Check the address, and on "
+    "the GitHub access page which accounts the app is installed on and which repositories it may read."
+)
+
+
+def panel_hint(text: str) -> str:
+    """The log line that makes `text` the hint of a failed job (it wins over the patterns below)."""
+    return f"\n{PANEL_HINT}{text}\n"
+
+
+def _app_connected() -> bool:
+    from sudoo.repos import github_app  # late: repos/github.py imports this module
+
+    return github_app.connected()
+
+
 def friendly_hint(log: str) -> str:
-    """The first explanation whose pattern appears in the end of `log`, or a general one."""
+    """The panel's own explanation written into the log (panel_hint), else the first explanation whose pattern
+    appears in the end of `log`, else a general one. The deploy-key advice is given only when no GitHub App is
+    connected."""
     tail = log[-20000:]
+    own = _PANEL_HINT_RE.findall(tail)
+    if own:
+        return str(own[-1]).strip()
     for pattern, hint in _HINTS:
+        if pattern.startswith("could not read Username") and re.search(pattern, tail, re.IGNORECASE):
+            return _APP_NOT_FOUND if _app_connected() else hint
         if re.search(pattern, tail, re.IGNORECASE):
             return hint
     return "Something went wrong. The technical log shows exactly what happened; send it to a developer if needed."

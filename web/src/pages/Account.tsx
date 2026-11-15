@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, KeyRound, LogOut, Mail, ShieldCheck, Smartphone, Trash2, UserRound } from "lucide-react";
+import { CircleCheck, KeyRound, LogOut, Mail, RefreshCw, ShieldCheck, Smartphone, Trash2, UserRound } from "lucide-react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
@@ -29,11 +29,14 @@ function Qr({ value }: { value: string }) {
   return <div className="qr" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
-/** Setting up one second factor: the app (QR code) or an e-mail address (confirmed with a code). */
+/** Setting up one second factor: the app (QR code) or an e-mail address (confirmed with a code). Replacing one that
+ * is already set up starts with the account's password, as removing it does. */
 function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: () => void; onCancel: () => void }) {
   const toast = useToast();
+  const replacing = factor.enrolled;
   const [started, setStarted] = useState<{ secret?: string; otpauth_uri?: string; sent_to?: string } | null>(null);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -49,14 +52,15 @@ function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: () => voi
     }
   };
   useEffect(() => {
-    if (factor.name === "totp") begin();
+    if (factor.name === "totp" && !replacing) begin();
   }, []);
   const finish = async (value = code) => {
     setBusy(true);
     setError("");
     try {
       await api.put(`/account/second-factors/${factor.name}`, { code: value });
-      toast("success", `${factor.label} is set up`, "You will be asked for a code when you sign in.");
+      if (replacing) toast("success", `${factor.label} replaced`, "Your other sessions were signed out.");
+      else toast("success", `${factor.label} is set up`, "You will be asked for a code when you sign in.");
       onDone();
     } catch (e) {
       setCode("");
@@ -65,9 +69,20 @@ function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: () => voi
       setBusy(false);
     }
   };
+  const passwordField = (
+    <Field label="Your password" className="spacer">
+      <input className="input" type="password" autoComplete="current-password" autoFocus={factor.name === "totp"} value={password} onChange={(e) => setPassword(e.target.value)} />
+    </Field>
+  );
   return (
     <div className="stack">
-      {factor.name === "totp" ? (
+      {replacing && !started && <span className="small muted">Replacing it ends your other sessions. Type your password to continue.</span>}
+      {factor.name === "totp" && replacing && !started ? (
+        <form className="row" style={{ alignItems: "flex-end" }} onSubmit={(e) => { e.preventDefault(); begin({ password }); }}>
+          {passwordField}
+          <Button type="submit" variant="primary" loading={busy} disabled={!password}>Continue</Button>
+        </form>
+      ) : factor.name === "totp" ? (
         started?.otpauth_uri ? (
           <div className="row" style={{ alignItems: "flex-start", gap: 20, flexWrap: "wrap" }}>
             <Qr value={started.otpauth_uri} />
@@ -82,11 +97,12 @@ function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: () => voi
           <Skeleton height={190} />
         )
       ) : !started ? (
-        <form className="row" style={{ alignItems: "flex-end" }} onSubmit={(e) => { e.preventDefault(); begin({ email }); }}>
+        <form className="row" style={{ alignItems: "flex-end", flexWrap: "wrap" }} onSubmit={(e) => { e.preventDefault(); begin(replacing ? { email, password } : { email }); }}>
           <Field label="E-mail address" className="spacer">
             <input className="input" type="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
           </Field>
-          <Button type="submit" variant="primary" loading={busy} disabled={!email}>Send a code</Button>
+          {replacing && passwordField}
+          <Button type="submit" variant="primary" loading={busy} disabled={!email || (replacing && !password)}>Send a code</Button>
         </form>
       ) : (
         <Callout tone="success">We sent a code to {started.sent_to}. Type it below to confirm the address.</Callout>
@@ -128,7 +144,10 @@ function Factors({ onChange }: { onChange?: () => void }) {
               <span className="d">{f.name === "email" && account.email && f.enrolled ? `Codes go to ${account.email}.` : TEXT[f.name]}</span>
             </span>
             {f.enrolled ? (
-              <Button size="sm" variant="ghost" icon={<Trash2 />} onClick={() => setRemoving(f)}>Remove</Button>
+              <>
+                <Button size="sm" variant="ghost" icon={<RefreshCw />} onClick={() => setSetting(f)}>Replace</Button>
+                <Button size="sm" variant="ghost" icon={<Trash2 />} onClick={() => setRemoving(f)}>Remove</Button>
+              </>
             ) : (
               <Button size="sm" variant="soft" onClick={() => setSetting(f)}>Set up</Button>
             )}

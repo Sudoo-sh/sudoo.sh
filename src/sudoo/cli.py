@@ -124,8 +124,10 @@ def serve(_: argparse.Namespace) -> None:
     """Start gunicorn: one process (jobs, monitor and gateway share its memory), on 127.0.0.1:API_PORT. Visitors
     reach it through the web service (web/, container sudoo-web), which listens on PANEL_PORT."""
     bind = f"127.0.0.1:{settings.api_port}"
+    # the worker's heartbeat file in memory (MEMORY_DIR, /dev/shm): on a container's disk, a slow write can make
+    # gunicorn think the worker hangs
     os.execvp("gunicorn", ["gunicorn", "--workers", "1", "--threads", "32", "--timeout", "120",
-                           "--bind", bind, "sudoo.wsgi:app"])  # fmt: skip
+                           "--worker-tmp-dir", str(settings.memory_dir), "--bind", bind, "sudoo.wsgi:app"])  # fmt: skip
 
 
 def main(argv: list[str] | None = None) -> None:

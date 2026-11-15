@@ -36,6 +36,7 @@ def create_app() -> Flask:
         MAX_CONTENT_LENGTH=64 * 1024,  # every request is a small JSON object
         SEND_FILE_MAX_AGE_DEFAULT=0,
     )
+    app.json.sort_keys = False  # type: ignore[attr-defined]  # answers keep the order they were built in: no sort per answer
     security.install(app)
     app.register_blueprint(docs.blueprint)
     v1.register(app)

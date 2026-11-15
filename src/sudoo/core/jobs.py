@@ -25,6 +25,7 @@ JOBS: OrderedDict[str, Job] = OrderedDict()
 _JOBS_LOCK = threading.Lock()
 INSTANCE_LOCKS: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)
 ACTIVE_JOB: dict[str, Job] = {}  # instance name -> the job currently running on it
+_GENERATIONS: defaultdict[str, int] = defaultdict(int)  # instance name -> jobs started or ended on it
 _KEEP = 300
 _OUTPUT_EVERY_SECONDS = 0.5
 
@@ -164,6 +165,7 @@ def start(instance: str, action: str, kind: str, fn: Callable[..., object], *arg
 def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
     with INSTANCE_LOCKS[job.instance]:
         ACTIVE_JOB[job.instance] = job
+        _GENERATIONS[job.instance] += 1
         job.status = "running"
         job.changed()
         if not is_panel_job(job.instance):
@@ -185,6 +187,7 @@ def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
         finally:
             job.finished = time.time()
             ACTIVE_JOB.pop(job.instance, None)
+            _GENERATIONS[job.instance] += 1  # before the events below: clients that reload see the new state
             job.publish_output()
             job.changed()
             if job.kind == "delete" and job.status == "success":
@@ -213,6 +216,12 @@ def _start_output_publisher() -> None:
 
 def busy(instance: str) -> bool:
     return INSTANCE_LOCKS[instance].locked()
+
+
+def generation(instance: str) -> int:
+    """Changes whenever a job starts or ends on the instance: what is cached about an instance's code (its commits,
+    its submodules) is valid only for one generation (web/v1/resources.py)."""
+    return _GENERATIONS[instance]
 
 
 def recent(instance: str | None = None, limit: int = 30) -> list[dict[str, Any]]:

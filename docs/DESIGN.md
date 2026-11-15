@@ -158,6 +158,9 @@ Implementation rules:
 - **Muted grid and monospace labels;** the time axis shows seconds while the chart covers only a few minutes.
 - **Live without redrawing:** each sample from the event stream is written into the chart, and the points glide to
   their new places (300 ms). Colours are read from the tokens (`charts/theme.ts`) and follow the theme.
+- **Light to draw:** a chart appears at once with the hour it was given (no entrance animation, nothing drawn twice),
+  draws an hour from at most 360 points (sparklines 120, LTTB decimation keeps the shape), and gives its points
+  fixed colours, so a page with several charts stays responsive on a slow phone ([Performance](PERFORMANCE.md)).
 
 ---
 

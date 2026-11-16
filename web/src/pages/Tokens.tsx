@@ -1,4 +1,4 @@
-import { KeyRound, Plus, Trash2 } from "lucide-react";
+import { ArrowUpRight, KeyRound, Plus, Store, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { api, errorText } from "@/api/client";
 import { useCall, useTokens } from "@/api/queries";
@@ -15,6 +15,15 @@ const SCOPES: { value: Scope; label: string; hint: string }[] = [
   { value: "read", label: "Read only", hint: "Reads instances, jobs and versions; changes nothing." },
   { value: "instances", label: "Instances", hint: "For connected apps such as the Odoo module: list, create, start, pause, restart, back up, extend and delete instances; nothing else." },
   { value: "write", label: "Read and write", hint: "Acts as an administrator: everything except the panel's settings." },
+];
+
+/** The Sudoo.sh apps for Odoo on the Odoo Apps store: free, for Odoo 17.0 to 20.0; each page switches versions. */
+const ODOO_STORE = "https://apps.odoo.com/apps/modules";
+const ODOO_APPS: { name: string; module: string; adds: string }[] = [
+  { name: "Instance Manager", module: "sudoo_base", adds: "Create and manage instances from Odoo, within the rules an administrator sets." },
+  { name: "CRM Demos", module: "sudoo_crm", adds: "A Create demo button on opportunities." },
+  { name: "Project Tests", module: "sudoo_project", adds: "A Test instance button on tasks." },
+  { name: "Helpdesk Tests", module: "sudoo_helpdesk", adds: "A Test instance button on tickets (Odoo Enterprise)." },
 ];
 
 export function TokensPage() {
@@ -55,6 +64,34 @@ export function TokensPage() {
           </div>
         )}
       </div>
+      <section className="card rise" aria-labelledby="odoo-apps-title">
+        <div className="card-head">
+          <Store />
+          <h2 id="odoo-apps-title" className="spacer">Use this panel from your company's Odoo</h2>
+          <Button size="sm" icon={<Plus />} onClick={() => { setName("Odoo"); setScope("instances"); setCreating(true); }}>Token for Odoo</Button>
+        </div>
+        <div className="card-body stack">
+          <p className="small muted">
+            Free apps on the Odoo Apps store, for Odoo 17.0 to 20.0, in English and Arabic. People create and manage instances from Odoo;
+            connect them with a token of the <b>Instances</b> scope, which can only manage instances.
+          </p>
+          <div className="table-wrap">
+            <table className="table">
+              <tbody>
+                {ODOO_APPS.map((app) => (
+                  <tr key={app.module}>
+                    <td>Sudoo.sh {app.name}</td>
+                    <td className="small muted">{app.adds}</td>
+                    <td className="actions">
+                      <a className="btn sm ghost" href={`${ODOO_STORE}/20.0/${app.module}`} target="_blank" rel="noreferrer" aria-label={`Sudoo.sh ${app.name} on the Odoo Apps store`}>Odoo Apps store <ArrowUpRight /></a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
       {creating && (
         <Modal title="New API token" onClose={() => setCreating(false)}
           footer={<><Button onClick={() => setCreating(false)}>Cancel</Button><Button variant="primary" loading={create.isPending} disabled={name.trim().length < 3}

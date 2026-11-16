@@ -40,7 +40,7 @@ def test_good_password_is_accepted() -> None:
 
 def test_password_must_not_contain_the_persons_details() -> None:
     assert "name" in (accounts.password_problem("noor-likes-violet-tea", "nk", "x@y.com", ("Noor", "")) or "")
-    assert "e-mail" in (accounts.password_problem("hello-yousef.s-9183", "ys", "yousef.s@x.com") or "")
+    assert "e-mail" in (accounts.password_problem("hello-jane.d-9183", "jd", "jane.d@x.com") or "")
 
 
 def test_master_password_hash_is_odoo_compatible_format() -> None:

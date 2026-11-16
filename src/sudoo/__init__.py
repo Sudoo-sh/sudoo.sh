@@ -1,7 +1,5 @@
 """Sudoo: runs independent Odoo demos on one Docker server and manages them from a web panel.
 
-Created by Yousef M. Y. Al Sabbah.
-
 Module map:
     settings      every setting, read once from the environment
     shell         running external commands

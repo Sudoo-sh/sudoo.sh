@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "Web panel that runs many independent Odoo instances on one Docker server, from any Git branch."
 readme = "README.md"
 license = { file = "LICENSE.md" }
-authors = [{ name = "Yousef M. Y. Al Sabbah" }]
+authors = [{ name = "Sudoo.sh" }]
 requires-python = ">=3.12"
 classifiers = [
     "Framework :: Flask",

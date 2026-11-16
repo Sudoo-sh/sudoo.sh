@@ -6,6 +6,6 @@
 4. **Have an idea?** Open an issue with the **Feature request** form.
 5. **Found a security problem?** Do not open an issue: follow [SECURITY.md](SECURITY.md).
 
-For a commercial licence, or help that does not fit an issue, contact the maintainer, Yousef M. Y. Al Sabbah ([@Yosef-AlSabbah](https://github.com/Yosef-AlSabbah)).
+For a commercial licence, or help that does not fit an issue, write to the maintainers at support@sudoo.sh.
 
 When you ask for help, never paste `.env` files, passwords, deploy keys or the links of instances that hold real data.

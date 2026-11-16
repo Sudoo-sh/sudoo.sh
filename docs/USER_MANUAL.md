@@ -63,8 +63,8 @@ creates the first account, which is a **Super admin**.
 
 3. Click the button at the bottom. The account is created and you are signed in.
 
-You do not choose a user name. The panel makes one from your e-mail address (`yousef.sabbah@example.com` becomes
-`yousef.sabbah`; when it is taken, `yousef.sabbah-2`, `-3` and so on). It is the account's internal key: it appears
+You do not choose a user name. The panel makes one from your e-mail address (`jane.doe@example.com` becomes
+`jane.doe`; when it is taken, `jane.doe-2`, `-3` and so on). It is the account's internal key: it appears
 in small monospace letters under your name, in the audit log and in the API. You can also sign in with it.
 
 The setup code works once: after the first account exists, the page no longer appears. After 5 wrong codes within

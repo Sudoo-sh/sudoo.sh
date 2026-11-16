@@ -235,7 +235,7 @@ resets or deletes super admins (403 otherwise).
 `PATCH /users/<name>` works on your own account too, including your role; a new role ends your sessions as well,
 so you sign in again. `name` is the account's user name: 3 to 32 lower-case letters, digits, dots, dashes and
 underscores, starting with a letter. When it is left out, it is made from the e-mail address
-(`yousef.sabbah@example.com` gives `yousef.sabbah`, then `yousef.sabbah-2` when that is taken).
+(`jane.doe@example.com` gives `jane.doe`, then `jane.doe-2` when that is taken).
 
 The password: without `password` one is generated and `must_change_password` is always `true`. With a typed
 `password`, `must_change_password: false` lets the owner keep it. While `must_change_password` is `true` the

@@ -154,7 +154,7 @@ developer tools and calls the delete endpoint directly, because the menu item is
 
 ```
 DELETE /api/v1/instances/sales-main {"confirm": "sales-main"}
-→ 403 Your role cannot do this (delete instances). Please contact the administrator, Yousef M. Y. Al Sabbah.
+→ 403 Your role cannot do this (delete instances). Please contact the administrator, Jane Doe.
 ```
 
 **What happens.** Every endpoint and action checks a named permission on the server for every request; hiding

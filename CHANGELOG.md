@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Odoo apps on the tokens page:** the API tokens page lists the free Sudoo.sh apps on the Odoo Apps store and has a
+  **Token for Odoo** button that opens the new-token dialog with the Instances scope.
 - **Sudoo.sh apps for Odoo:** the README and the Panel API link the free apps on the Odoo Apps store (Instance
   Manager, CRM Demos, Project Tests, Helpdesk Tests), which use a token of the instances scope.
 - **API tokens for connected apps:** a third token scope, `instances`, for connected apps such as the Sudoo.sh
@@ -65,6 +67,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- The sign-in page, the package details and the examples in the documentation name the project, not a person;
+  support and conduct reports go to support@sudoo.sh.
 - **Moving between pages** is smoother in browsers with the View Transitions API: the sidebar and the top bar stay
   still while the page fades out (120 ms) and the new one then fades in (190 ms, rising 4 px); between an
   instance's tabs only the tab's content does. With reduced motion the fades are shorter and nothing moves, and

@@ -279,7 +279,7 @@ def email_taken(email: str | None, other_than: str | None = None) -> bool:
 
 
 def username_for(email: str) -> str:
-    """A free user name made from an e-mail address: yousef.sabbah@example.com -> yousef.sabbah (-2, -3, ...)."""
+    """A free user name made from an e-mail address: jane.doe@example.com -> jane.doe (-2, -3, ...)."""
     local = re.sub(r"[^a-z0-9._-]", "", email.split("@")[0].lower()).strip("._-")
     if not local or not local[0].isalpha():
         local = "user" + (f"-{local}" if local else "")

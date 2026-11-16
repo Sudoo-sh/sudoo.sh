@@ -31,6 +31,10 @@ Every endpoint names the permission it needs (roles.py); each action has its own
 instance's backup into an instance, or starting a new instance from a backup, also needs backups.manage, the
 permission that shows every backup (_usable_backup). An instance of plain Odoo (created without "repo") refuses
 the actions and settings that need a repository (REPOSITORY_ACTIONS) with 409.
+
+A token with the instances scope (a connected app, roles.CONNECTED_APP) is narrowed further than its permissions:
+only the actions in CONNECTED_APP_ACTIONS, and PATCH only for a later end of the lifetime (_refuse_connected_app);
+it has no instances.restore, so it cannot create from a backup either.
 """
 
 from __future__ import annotations
@@ -42,7 +46,7 @@ from typing import Any, cast
 
 from flask import Blueprint, Response, abort, g, request
 
-from sudoo import addons, exposure
+from sudoo import addons, exposure, roles
 from sudoo.config import settings
 from sudoo.core import events, jobs, vault
 from sudoo.core.state import STATE
@@ -78,6 +82,20 @@ ACTIONS = {
     "rollback": ("Roll back the restore", "restore", "instances.restore"),
     "delete": ("Delete instance", "delete", "instances.delete"),
 }
+
+
+CONNECTED_APP_ACTIONS = frozenset({"start", "pause", "restart", "backup", "delete"})
+"""The only actions a connected app (instances scope) may run, whatever its permissions would allow."""
+
+
+def _connected_app() -> bool:
+    return g.user["role"] == roles.CONNECTED_APP
+
+
+def _refuse_connected_app(what: str, message: str) -> None:
+    """403 for a connected app, audit-logged."""
+    log(f"refused: {what}", ok=False)
+    abort(403, message)
 
 
 def existing(name: str) -> str:
@@ -297,6 +315,8 @@ def change(name: str) -> Response:
     sooner, so it needs instances.delete as well."""
     existing(name)
     data = check.body()
+    if _connected_app():
+        _check_connected_app_change(name, data)
     switches = {"auto_update": "AUTO_UPDATE", "auto_upgrade": "AUTO_UPGRADE", "auto_pause": "AUTO_PAUSE"}
     values: dict[str, object] = {
         key: str(check.flag(data, field)).lower() for field, key in switches.items() if field in data
@@ -319,6 +339,28 @@ def change(name: str) -> Response:
     log("instance settings changed", instance=name, detail=", ".join(sorted(values)))
     events.publish("instance", name)
     return ok(instance_resource(name, full=True))
+
+
+def _check_connected_app_change(name: str, data: Mapping[str, Any]) -> None:
+    """A connected app may only make an instance's lifetime end later: "delete_after_days" alone, a number of days
+    after which the instance expires later than it does now (never 0, "keep", unless it is kept already)."""
+    message = (
+        "This API token has the instances scope: it can only extend an instance's lifetime "
+        "(delete_after_days, ending later than now)."
+    )
+    if set(data) - {"delete_after_days"}:
+        _refuse_connected_app(f"change settings of {name}", message)
+    if "delete_after_days" not in data:
+        return
+    days = check.days(data, "delete_after_days")
+    env = store.read_env(name)
+    current = operations.expires_at(env)
+    proposed = operations.expires_at({**env, "DELETE_AFTER_DAYS": str(days)})
+    later = (current is None and proposed is None) or (
+        current is not None and proposed is not None and proposed >= current
+    )
+    if not later:
+        _refuse_connected_app(f"change the lifetime of {name}", message)
 
 
 REPOSITORY_ACTIONS = ("update", "update-submodules", "switch-branch", "add-submodule", "remove-submodule")
@@ -406,6 +448,12 @@ def run(name: str, action: str) -> Response:
     if action not in ACTIONS:
         abort(404, "Unknown action.")
     title, kind, permission = ACTIONS[action]
+    if _connected_app() and action not in CONNECTED_APP_ACTIONS:
+        _refuse_connected_app(
+            f"{action} on {name}",
+            "This API token has the instances scope: of the actions it can only start, pause, restart, back up "
+            "and delete.",
+        )
     refuse_unless(permission, f"{action} on {name}")
     fn, args = _job_for(action, name, check.body())
     job = jobs.start(name, title, kind, fn, *args, user=g.user["name"])

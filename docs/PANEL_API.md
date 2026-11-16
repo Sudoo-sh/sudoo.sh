@@ -17,7 +17,8 @@ Two kinds of callers are accepted, with the same checks:
 
 Every endpoint needs a **permission** (for example `instances.create`). A person's role gives a set of permissions
 ([Security: roles](SECURITY.md#9-roles-and-the-audit-log)); an API token acts as a role: a `write` token as an
-**Administrator**, a `read` token as a **Viewer**.
+**Administrator**, a `read` token as a **Viewer**, an `instances` token as a **Connected app**
+([the instances scope](#the-instances-scope)).
 
 ---
 
@@ -45,6 +46,7 @@ Someone with the permission `tokens.manage` (super admins and administrators) cr
 | Scope | Acts as | Allows |
 | :--- | :--- | :--- |
 | `read` | Viewer | Read instances, their figures, activity and logs, jobs and versions. Every change is refused with 403. |
+| `instances` | Connected app | For connected apps such as the Odoo module: list, create, start, pause, restart, back up, extend and delete instances; nothing else ([below](#the-instances-scope)). |
 | `write` | Administrator | Everything an Administrator may do: create, change, run actions on and delete instances, read Odoo passwords, manage accounts, tokens, backups and deploy keys. Not the panel's settings. |
 
 The panel shows two values **once**: the **token** (`sudoo_...`) and the **signing secret**. Store both where the other
@@ -56,11 +58,32 @@ On the server, a token can also be created from the command line:
 docker exec sudoo-panel sudoo.sh create-token "CI pipeline" write
 ```
 
+### The instances scope
+
+An `instances` token is the least a connected app (such as the Sudoo.sh module for Odoo) needs. It acts as the role
+**Connected app**, which only a token can have, with the permissions `instances.view`, `instances.create`,
+`instances.update`, `instances.operate` and `instances.delete`, and it may call these endpoints and nothing else:
+
+| Call | What it may do |
+| :--- | :--- |
+| `GET /versions` | The Odoo versions |
+| `GET /instances`, `GET /instances/<name>` | List and read instances |
+| `GET /instance-quota` | How many instances it may still create |
+| `POST /instances` | Create an instance; `from_backup` is refused with 403 |
+| `POST /instances/<name>/actions/<action>` | Only `start`, `pause`, `restart` and `backup`; every other action (`update`, `upgrade`, `switch-branch`, `restore`, `rollback`, `repair`, ...) is refused with 403 |
+| `PATCH /instances/<name>` | Only `delete_after_days`, and only to make the lifetime end later (not `0`, "keep", unless the instance is kept already); anything else is refused with 403 |
+| `DELETE /instances/<name>` | Delete an instance after a backup; `without_backup` is refused with 403 |
+| `GET /jobs/<id>` | Follow a job it started (without its technical log) |
+
+Every other call is refused with 403 and written to the audit log, among them Odoo passwords
+(`/instances/<name>/credentials`), logs, restores, backups, GitHub, accounts, tokens, settings, plugins, metrics and
+the [live event stream](#8-live-events) (follow jobs with `GET /jobs/<id>` instead).
+
 ---
 
 ## 2. Signing a request
 
-Every request carries four headers:
+Every request carries four headers, and a fifth when it is made on someone's behalf:
 
 | Header | Value |
 | :--- | :--- |
@@ -68,8 +91,9 @@ Every request carries four headers:
 | `X-Sudoo-Timestamp` | the current time, Unix seconds, for example `1794430123` |
 | `X-Sudoo-Nonce` | 16 to 64 random letters, digits, `-` or `_`; new for every request |
 | `X-Sudoo-Signature` | `sha256=` and the hex HMAC-SHA256 of the text below, with the signing secret as the key |
+| `X-Sudoo-Acting-For` | optional: the person in the calling system on whose behalf the call is made, 1 to 120 letters, digits, `.`, `_`, `@`, `+` or `-` ([below](#acting-for-someone)) |
 
-The signed text is five lines joined with `\n` (no newline at the end):
+The signed text is five lines joined with `\n` (no newline at the end), and six with `X-Sudoo-Acting-For`:
 
 ```
 <X-Sudoo-Timestamp>
@@ -77,6 +101,7 @@ The signed text is five lines joined with `\n` (no newline at the end):
 <METHOD in capitals>
 <path, with ?query if there is one>
 <hex SHA-256 of the exact request body; of an empty body when there is none>
+<X-Sudoo-Acting-For, exactly as sent; only when the header is sent>
 ```
 
 For example, `GET /api/v1/instances` at `1794430123` with nonce `p4Xq9mW2...`:
@@ -91,6 +116,34 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 
 Requests with a body send it as JSON (`Content-Type: application/json`) and sign the exact bytes sent.
 
+### Acting for someone
+
+A connected app used by many people (the Odoo module, a chat bot) can say who asked for a call with
+`X-Sudoo-Acting-For`, for example `X-Sudoo-Acting-For: sara@example.com`. The value is signed as the sixth line, so
+it cannot be added, removed or changed on the way: a request whose signature does not cover it exactly is refused
+with 401. A value that is empty, longer than 120 characters or has other characters is refused with 400.
+
+The call is then made as `api:<token name> for <person>` instead of `api:<token name>`:
+
+* in the audit log;
+* as `created_by` of the instances it creates;
+* in the [instance limits](#11-limits): `MAX_INSTANCES_PER_USER` and `CREATE_COOLDOWN_MINUTES` count per person,
+  `MAX_INSTANCES` for the whole server still applies. Requests per minute are still counted per token.
+
+The panel trusts the token holder to name the person truthfully: the header records who asked, it gives no rights
+of its own. Without the header, nothing changes: the five-line text, and the caller is `api:<token name>`.
+
+```
+POST /api/v1/instances  (token "Odoo module", X-Sudoo-Acting-For: sara@example.com)
+1794430123
+p4Xq9mW2...
+POST
+/api/v1/instances
+<hex SHA-256 of the body>
+sara@example.com
+  -> 202; the instance's created_by is "api:Odoo module for sara@example.com"
+```
+
 What each part protects against:
 
 | Part | Stops |
@@ -99,6 +152,7 @@ What each part protects against:
 | Signature over method, path and body | A request being changed on the way, and anyone who only has the token (from a log, a proxy, a screenshot) |
 | Timestamp (within 5 minutes) | Old requests being sent again later |
 | Nonce (each one accepted once) | The same request being sent twice within those 5 minutes |
+| Acting-for line (when sent) | Someone adding, removing or changing the person a call is made for |
 
 ---
 
@@ -213,7 +267,7 @@ An account:
 | Method and path | Permission | Body | Answer |
 | :--- | :--- | :--- | :--- |
 | `GET /tokens` | `tokens.manage` | | 200, API tokens (never their secrets) |
-| `POST /tokens` | `tokens.manage` | `{"name", "scope"}` (`read` or `write`) | **201**, with `token` and `signing_secret`, shown once |
+| `POST /tokens` | `tokens.manage` | `{"name", "scope"}` (`read`, `instances` or `write`) | **201**, with `token` and `signing_secret`, shown once |
 | `DELETE /tokens/<id>` | `tokens.manage` | | **204**, revoked |
 | `GET /backups` | `backups.manage` | | 200, backups, newest first (below) |
 | `GET /backups/<file>` | `backups.manage` | | the zip (`dump.sql`, the filestore, `manifest.json`) |
@@ -591,6 +645,16 @@ job = api.create(repo="https://github.com/acme-co/sales", branch="feature-x", ve
 print(job["status"], job["instance"])
 ```
 
+A connected app with an [`instances` token](#the-instances-scope), calling for one of its users:
+
+```python
+odoo_module = PanelAPI("https://panel.example.com", token="sudoo_...", signing_secret="...",
+                       acting_for="sara@example.com")      # signed as the sixth line
+job = odoo_module.create(version="19.0", edition="community", delete_after_days=7)
+print(job["instance"])                              # created_by: "api:<token name> for sara@example.com"
+odoo_module.request("PATCH", f"/api/v1/instances/{job['instance']}", {"delete_after_days": 14})  # extend
+```
+
 **Shell** (bash with openssl):
 
 ```bash
@@ -633,9 +697,9 @@ Errors follow [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) ("problem detai
 
 | Status | Meaning |
 | :--- | :--- |
-| 400 | A field is missing or not valid; `detail` says which and what to send |
+| 400 | A field is missing or not valid (also `X-Sudoo-Acting-For`); `detail` says which and what to send |
 | 401 | Token, timestamp, nonce or signature not accepted, the session has ended, or a wrong e-mail address or password at `POST /session`; `detail` says which |
-| 403 | The caller's role lacks the permission; `detail` names what is missing, for example "Your role cannot do this (delete instances)." A `read` token sending a change, a restricted session, a wrong setup code, and a reached instance limit (`MAX_INSTANCES`, `MAX_INSTANCES_PER_USER`) are also 403, each with its own `detail` |
+| 403 | The caller's role lacks the permission; `detail` names what is missing, for example "Your role cannot do this (delete instances)." A `read` token sending a change, an `instances` token calling anything [outside its scope](#the-instances-scope), a restricted session, a wrong setup code, and a reached instance limit (`MAX_INSTANCES`, `MAX_INSTANCES_PER_USER`) are also 403, each with its own `detail` |
 | 404 | No such instance, job, account, action or documentation page |
 | 405 | The method is not allowed on this path |
 | 409 | `POST /server/restart` while jobs are running |
@@ -652,10 +716,13 @@ Errors follow [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) ("problem detai
 * The token is stored only as a SHA-256 hash, and the signing secret encrypted with the vault key. Neither is ever
   shown again; a lost one means creating a new token.
 * A `write` token acts as an Administrator: it can do everything an administrator can, including deleting instances,
-  reading Odoo passwords and managing accounts (but not the panel's settings). A `read` token acts as a Viewer.
-  Give each system its own token, with the `read` scope where reading is enough, and revoke tokens that are no
+  reading Odoo passwords and managing accounts (but not the panel's settings). A `read` token acts as a Viewer. An
+  `instances` token can only list, create, start, pause, restart, back up, extend and delete instances.
+  Give each system its own token, with the `read` scope where reading is enough and the `instances` scope for a
+  connected app such as the Odoo module, and revoke tokens that are no
   longer used.
-* Every call is in the audit log as `api:<token name>`, and every refused call with its reason and address.
+* Every call is in the audit log as `api:<token name>` (`api:<token name> for <person>` with
+  [`X-Sudoo-Acting-For`](#acting-for-someone)), and every refused call with its reason and address.
 * Resources never contain passwords (Odoo admin, master password) or the server's ports; only
   `GET /instances/<name>/credentials` returns them, to callers with `instances.credentials`, and each read is in the
   audit log.
@@ -897,6 +964,9 @@ GET /api/v1/instance-quota
 {"data": {"instances": 4, "max_instances": 10, "own_instances": 2, "max_instances_per_user": 3,
           "cooldown_minutes": 60, "next_creation_at": 1794433723}}
 ```
+
+With [`X-Sudoo-Acting-For`](#acting-for-someone) the caller is `api:<token name> for <person>`: `own_instances`,
+`MAX_INSTANCES_PER_USER` and the waiting time then count per person.
 
 `next_creation_at` (Unix time) is set while the caller has to wait. A creation that breaks a limit is refused with
 403 (a number is reached) or 429 with `Retry-After` (wait). Creations that are queued or running count as instances

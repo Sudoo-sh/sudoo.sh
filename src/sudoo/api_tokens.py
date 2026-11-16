@@ -6,12 +6,18 @@ Each token has a name, a scope and two secrets, both shown once when it is creat
     signing secret   random               signs every request (HMAC-SHA256); stored encrypted with the vault key
 
 Scopes:
-    read    list and read instances, jobs and versions
-    write   everything read allows, plus create, change, run actions on and delete instances
+    read        list and read instances, jobs and versions (acts as a viewer)
+    instances   for connected apps such as the Odoo module: list, create, start, pause, restart, back up, extend and
+                delete instances; nothing else (roles.CONNECTED_APP, security.CONNECTED_APP_ENDPOINTS)
+    write       everything read allows, plus create, change, run actions on and delete instances (acts as an
+                administrator)
 
 A request needs both: the token says who is calling, the signature proves the request was made by the holder of the
 signing secret, was not changed on the way, and is new (timestamp within 5 minutes, nonce never seen before). A
 token alone, copied from a log or a proxy, is not enough.
+
+A caller may say on whose behalf it calls (X-Sudoo-Acting-For, ACTING_FOR_RE): the value is then signed too, as a
+sixth line, so it cannot be added or changed on the way.
 
 Tokens are stored in the panel's storage (collection "api_tokens"). The token secret has 256 bits of randomness, so a fast hash
 (SHA-256) is enough; slow password hashing is for secrets people choose.
@@ -31,7 +37,8 @@ from typing import Any
 from sudoo.core import vault
 from sudoo.storage import storage
 
-SCOPES = {"read": "Read only", "write": "Read and write"}
+SCOPES = {"read": "Read only", "instances": "Instances (connected apps)", "write": "Read and write"}
+ACTING_FOR_RE = re.compile(r"^[A-Za-z0-9._@+-]{1,120}$")
 TOKEN_RE = re.compile(r"^sudoo_([0-9a-f]{12})_([A-Za-z0-9_-]{43})$")
 NAME_RE = re.compile(r"^[A-Za-z0-9 ._-]{3,40}$")
 MAX_CLOCK_SKEW_SECONDS = 300
@@ -58,7 +65,7 @@ def create(name: str, scope: str, created_by: str) -> tuple[str, str]:
     if not NAME_RE.match(name):
         raise ValueError("Token names are 3 to 40 letters, digits, spaces, dots, dashes or underscores.")
     if scope not in SCOPES:
-        raise ValueError("Choose the scope read or write.")
+        raise ValueError("Choose the scope read, instances or write.")
     token_id, secret, signing_secret = secrets.token_hex(6), secrets.token_urlsafe(32), secrets.token_urlsafe(32)
     with _LOCK:
         if any(record["name"] == name for record in storage().all(TOKENS).values()):
@@ -102,9 +109,15 @@ def exists(token_id: str) -> bool:
     return storage().get(TOKENS, token_id) is not None
 
 
-def string_to_sign(timestamp: str, nonce: str, method: str, path: str, body: bytes) -> bytes:
-    """What the client signs: timestamp, nonce, method, path with query and the body's SHA-256, one per line."""
-    return "\n".join([timestamp, nonce, method.upper(), path, hashlib.sha256(body).hexdigest()]).encode()
+def string_to_sign(
+    timestamp: str, nonce: str, method: str, path: str, body: bytes, acting_for: str | None = None
+) -> bytes:
+    """What the client signs: timestamp, nonce, method, path with query and the body's SHA-256, one per line; and
+    when the request says on whose behalf it is made (X-Sudoo-Acting-For), that value as a sixth line."""
+    lines = [timestamp, nonce, method.upper(), path, hashlib.sha256(body).hexdigest()]
+    if acting_for is not None:
+        lines.append(acting_for)
+    return "\n".join(lines).encode()
 
 
 def sign(signing_secret: str, message: bytes) -> str:
@@ -112,9 +125,17 @@ def sign(signing_secret: str, message: bytes) -> str:
 
 
 def verify(
-    authorization: str, timestamp: str, nonce: str, signature: str, method: str, path: str, body: bytes
+    authorization: str,
+    timestamp: str,
+    nonce: str,
+    signature: str,
+    method: str,
+    path: str,
+    body: bytes,
+    acting_for: str | None = None,
 ) -> dict[str, Any]:
-    """The token's record when the request is authentic; raises PermissionError with the reason otherwise."""
+    """The token's record when the request is authentic; raises PermissionError with the reason otherwise.
+    `acting_for` (already checked against ACTING_FOR_RE) is part of what was signed when it is not None."""
     match = TOKEN_RE.match(authorization.removeprefix("Bearer ").strip())
     if not match:
         raise PermissionError("Send the API token as: Authorization: Bearer sudoo_...")
@@ -130,7 +151,8 @@ def verify(
             "X-Sudoo-Nonce must be 16 to 64 letters, digits, dashes or underscores, new for each request."
         )
     expected = sign(
-        vault.decrypt(record["signing_secret"], _label(token_id)), string_to_sign(timestamp, nonce, method, path, body)
+        vault.decrypt(record["signing_secret"], _label(token_id)),
+        string_to_sign(timestamp, nonce, method, path, body, acting_for),
     )
     if not hmac.compare_digest(expected, signature):
         raise PermissionError("Invalid X-Sudoo-Signature: see docs/PANEL_API.md for what to sign.")

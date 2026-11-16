@@ -307,7 +307,7 @@ Being clear about limits is part of security.
 
 | Entry point | Who can use it | How it is checked |
 | :--- | :--- | :--- |
-| `/api/v1` (other systems) | holders of an API token **and** its signing secret | token (SHA-256 hash), HMAC-SHA256 signature over timestamp, nonce, method, path and body; timestamp within 5 minutes; each nonce accepted once; scope `write` acts as an Administrator, `read` as a Viewer; 5 refused calls from an address block it for 15 minutes |
+| `/api/v1` (other systems) | holders of an API token **and** its signing secret | token (SHA-256 hash), HMAC-SHA256 signature over timestamp, nonce, method, path and body; timestamp within 5 minutes; each nonce accepted once; scope `write` acts as an Administrator, `read` as a Viewer, `instances` as a Connected app limited to the endpoints a connected app needs ([Panel API](PANEL_API.md#the-instances-scope)); an optional `X-Sudoo-Acting-For` is signed too and names the person in the audit log; 5 refused calls from an address block it for 15 minutes |
 | `/hooks/github` (when enabled) | GitHub | `X-Hub-Signature-256`: HMAC-SHA256 of the body with `GITHUB_WEBHOOK_SECRET` |
 | `/hooks/github-app` (when enabled) | GitHub, for the panel's GitHub App | `X-Hub-Signature-256`: HMAC-SHA256 of the body with the app's webhook secret (created by GitHub, stored encrypted); 404 while no app is connected |
 
@@ -378,7 +378,11 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
   password there (that needs the current password, in **My account**).
 * Changing an account's role ends its sessions, your own included; the new permissions apply from the next sign-in.
 * No two accounts share an e-mail address, so an address always signs in as exactly one account.
-* **API tokens** have no account: a `write` token acts as an **Administrator**, a `read` token as a **Viewer**.
+* **API tokens** have no account: a `write` token acts as an **Administrator**, a `read` token as a **Viewer**, an
+  `instances` token as a **Connected app**, a role only tokens can have: `instances.view`, `instances.create`,
+  `instances.update`, `instances.operate` and `instances.delete`, further limited to the calls a connected app
+  needs: listing, creating (not from a backup), starting, pausing, restarting, backing up, extending and deleting
+  instances ([Panel API](PANEL_API.md#the-instances-scope)).
 * Roles without `instances.credentials` never receive passwords, master passwords or ports, even in API answers.
 * Accounts of earlier versions were renamed once, when the panel started: `admin` became Super admin, the sync
   operator became Developer.

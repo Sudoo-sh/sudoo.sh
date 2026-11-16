@@ -6,7 +6,7 @@ docker exec sudoo-panel sudoo.sh reset-password NAME     print a new password
 docker exec sudoo-panel sudoo.sh list-users
 docker exec sudoo-panel sudoo.sh urls                    current public addresses
 docker exec sudoo-panel sudoo.sh config                  effective settings and installed plugins
-docker exec sudoo-panel sudoo.sh create-token NAME SCOPE  SCOPE is read or write; prints the secrets once
+docker exec sudoo-panel sudoo.sh create-token NAME SCOPE  SCOPE is read, instances or write; prints the secrets once
 docker exec sudoo-panel sudoo.sh test-email ADDRESS       send a test e-mail, to check the SMTP settings
 docker exec sudoo-panel sudoo.sh marketplace [status|heartbeat|repin]   the connection to the Sudoo.sh hub
 sudoo.sh serve                                       start the web panel (the container does this)

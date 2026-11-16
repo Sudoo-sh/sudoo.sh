@@ -17,6 +17,7 @@ CSRF token. Values inside the request are checked by validation.py.
 from __future__ import annotations
 
 import hmac
+import re
 import secrets
 import time
 from collections.abc import Callable, Mapping
@@ -55,7 +56,12 @@ def _limit_rate() -> None:
     if not request.path.startswith(("/api/", "/hooks/")):
         return
     user = g.get("user")
-    caller = f"user:{user['name']}" if user else f"ip:{client_ip()}"
+    # per token, not per person a token acts for (X-Sudoo-Acting-For): a token cannot multiply its limit
+    caller = (
+        (f"token:{user['token_id']}" if user.get("token_id") else f"user:{user['name']}")
+        if user
+        else f"ip:{client_ip()}"
+    )
     decision = limits.check_request(caller, changes=request.method not in SAFE_METHODS)
     if decision is None:
         return
@@ -203,12 +209,59 @@ class Headers(Protocol):
 
     def get(self, key: str, default: str, /) -> str: ...
 
+    def __contains__(self, key: str, /) -> bool: ...
+
+
+SCOPE_ROLES = {"read": "viewer", "instances": roles.CONNECTED_APP, "write": "admin"}
+"""The role an API token acts as, by its scope (roles.py)."""
+
+ACTING_FOR_HEADER = "X-Sudoo-Acting-For"
+
+_NAME = r"[^/]+"
+CONNECTED_APP_ENDPOINTS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
+    (method, re.compile(f"{API_PREFIX}{path}"))
+    for method, path in (
+        ("GET", "versions"),
+        ("GET", "instances"),
+        ("POST", "instances"),
+        ("GET", f"instances/{_NAME}"),
+        ("PATCH", f"instances/{_NAME}"),
+        ("DELETE", f"instances/{_NAME}"),
+        ("POST", f"instances/{_NAME}/actions/{_NAME}"),  # which actions: v1/instances.CONNECTED_APP_ACTIONS
+        ("GET", "instance-quota"),
+        ("GET", f"jobs/{_NAME}"),
+    )
+)
+"""All a token with the instances scope may call (method, path): its role's permissions open more endpoints than a
+connected app needs (GitHub repositories, metrics, the documentation...), so the scope is narrowed to these."""
+
+
+def _connected_app_may_call(method: str, path_with_query: str) -> bool:
+    path = path_with_query.split("?", 1)[0]
+    method = "GET" if method == "HEAD" else method
+    return any(method == allowed and pattern.fullmatch(path) for allowed, pattern in CONNECTED_APP_ENDPOINTS)
+
+
+def acting_for(headers: Headers) -> str | None:
+    """The X-Sudoo-Acting-For header: who, in the calling system, the call is made for (None when not sent).
+    Raises PermissionError(message, 400) when it is sent but is not 1-120 letters, digits or ._@+-"""
+    if ACTING_FOR_HEADER not in headers:
+        return None
+    value = headers.get(ACTING_FOR_HEADER, "")
+    if not api_tokens.ACTING_FOR_RE.fullmatch(value):
+        raise PermissionError(
+            f"{ACTING_FOR_HEADER} must be 1 to 120 letters, digits, dots, dashes, underscores, @ or +.", 400
+        )
+    return value
+
 
 def api_caller(headers: Headers, method: str, path_with_query: str, body: bytes, ip: str) -> dict[str, str]:
-    """The user an API-token call acts as: {"name": "api:<token name>", "role", "token_id"}. Raises PermissionError
+    """The user an API-token call acts as: {"name": "api:<token name>", "role", "token_id"}; "api:<token name> for
+    <person>" when the call says on whose behalf it is made (X-Sudoo-Acting-For, signed). Raises PermissionError
     with the HTTP status as its second argument when the call is refused; refusals are counted and audit-logged."""
     if accounts.THROTTLE.seconds_to_wait(ip, "api-token"):
         raise PermissionError("Too many refused API calls from this address. Try again in 15 minutes.", 429)
+    person = acting_for(headers)
     try:
         token = api_tokens.verify(
             headers.get("Authorization", ""),
@@ -218,16 +271,25 @@ def api_caller(headers: Headers, method: str, path_with_query: str, body: bytes,
             method,
             path_with_query,
             body,
+            person,
         )
     except PermissionError as error:
         accounts.THROTTLE.failed(ip, "api-token")
         audit.record("api", ip, "API call refused", ok=False, detail=str(error))
         raise PermissionError(str(error), 401) from error
-    if token["scope"] != "write" and method not in SAFE_METHODS:
-        audit.record(f"api:{token['name']}", ip, "API change refused (read-only token)", ok=False)
+    name = f"api:{token['name']}" + (f" for {person}" if person else "")
+    scope = token["scope"]
+    if scope == "read" and method not in SAFE_METHODS:
+        audit.record(name, ip, "API change refused (read-only token)", ok=False)
         raise PermissionError("This API token can only read. Create a token with the write scope to make changes.", 403)
-    role = "admin" if token["scope"] == "write" else "viewer"
-    return {"name": f"api:{token['name']}", "role": role, "token_id": str(token["id"])}
+    if scope == "instances" and not _connected_app_may_call(method, path_with_query):
+        audit.record(name, ip, "API call refused (instances scope)", ok=False, detail=f"{method} {path_with_query}")
+        raise PermissionError(
+            "This API token has the instances scope: it can list, create, start, pause, restart, back up, extend "
+            "and delete instances, nothing else.",
+            403,
+        )
+    return {"name": name, "role": SCOPE_ROLES.get(scope, "viewer"), "token_id": str(token["id"])}
 
 
 def _path_with_query() -> str:

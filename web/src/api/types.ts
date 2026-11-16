@@ -255,7 +255,7 @@ export interface DocPage {
 export interface Token {
   id: string;
   name: string;
-  scope: "read" | "write";
+  scope: "read" | "instances" | "write";
   created: number;
   created_by: string;
   last_used: number | null;

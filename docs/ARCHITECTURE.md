@@ -213,7 +213,8 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
 ### An API for other systems: token and signature
 - **Chosen:** `/api/v1`, authenticated by an API token (who calls; stored as a hash) and an HMAC-SHA256 signature
   over timestamp, nonce, method, path and body (the request is genuine, unchanged and new; the signing secret is
-  stored encrypted). Read and write scopes. The endpoints reuse the panel's own views.
+  stored encrypted). Read, instances (connected apps, least privilege) and write scopes; an optional signed
+  `X-Sudoo-Acting-For` names the person a call is made for. The endpoints reuse the panel's own views.
 - **Why:** a token alone can leak through logs and proxies; the signature means a leaked token is not enough, and
   the timestamp and nonce stop replays. Reusing the panel's views keeps one set of input checks, roles and audit.
 - **Considered:** OAuth (an authorization server is more than a self-hosted panel needs); mutual TLS (hard to set up

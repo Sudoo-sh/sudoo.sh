@@ -41,7 +41,7 @@ def me() -> dict[str, Any]:
         "display_name": accounts.display_name(g.user["name"], account),
         **{key: account.get(key) for key in accounts.PROFILE_FIELDS},
         "role": g.user["role"],
-        "role_label": accounts.ROLES[g.user["role"]],
+        "role_label": roles.label(g.user["role"]),
         "permissions": sorted(roles.permissions(g.user["role"])),
         "csrf_token": session.get("csrf"),
         "restricted": session.get("restricted"),

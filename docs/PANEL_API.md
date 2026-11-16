@@ -60,7 +60,8 @@ docker exec sudoo-panel sudoo.sh create-token "CI pipeline" write
 
 ### The instances scope
 
-An `instances` token is the least a connected app (such as the Sudoo.sh module for Odoo) needs. It acts as the role
+An `instances` token is the least a connected app (such as the [Sudoo.sh apps for Odoo](https://apps.odoo.com/apps/modules/browse?author=Sudoo.sh),
+source at [Sudoo-sh/sudoo-odoo](https://github.com/Sudoo-sh/sudoo-odoo)) needs. It acts as the role
 **Connected app**, which only a token can have, with the permissions `instances.view`, `instances.create`,
 `instances.update`, `instances.operate` and `instances.delete`, and it may call these endpoints and nothing else:
 

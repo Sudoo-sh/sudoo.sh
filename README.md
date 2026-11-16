@@ -160,9 +160,17 @@ command to use it: people receive a link.
    times and the busiest instances. Pages update by themselves as things change.
 11. **An API for other systems**: CI pipelines and scripts can create, update, restart and delete instances
    with an API token and a signature on every request. See [Panel API](docs/PANEL_API.md).
-12. **Explains itself**: plain-language messages when something fails, the technical log next to it, and this
+12. **Apps for Odoo**: your company's own Odoo can create and manage instances from the record that needs them, with
+   free apps on the Odoo Apps store for Odoo 17.0 to 20.0, in English and Arabic:
+   [Instance Manager](https://apps.odoo.com/apps/modules/20.0/sudoo_base),
+   [CRM Demos](https://apps.odoo.com/apps/modules/20.0/sudoo_crm) (a demo per opportunity),
+   [Project Tests](https://apps.odoo.com/apps/modules/20.0/sudoo_project) (a test instance per task) and
+   [Helpdesk Tests](https://apps.odoo.com/apps/modules/20.0/sudoo_helpdesk) (per ticket). They use a token of the
+   least-privilege [instances scope](docs/PANEL_API.md#the-instances-scope). Source and documentation:
+   [Sudoo-sh/sudoo-odoo](https://github.com/Sudoo-sh/sudoo-odoo).
+13. **Explains itself**: plain-language messages when something fails, the technical log next to it, and this
    documentation inside the panel under **Help**.
-13. **Set up from the website**: every setting, from second factors and limits to the e-mail account, on the
+14. **Set up from the website**: every setting, from second factors and limits to the e-mail account, on the
    **Settings** page, with `.env` as the base. Light and dark themes, and your own accent colour.
 
 ---

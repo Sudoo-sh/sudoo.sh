@@ -6,20 +6,30 @@ import { Page, PageHead } from "@/components/Shell";
 import { Tag, Button, Callout, CopyField, Empty, Field, Segmented, Skeleton } from "@/components/ui/basics";
 import { Modal, useToast } from "@/components/ui/overlay";
 import { ago } from "@/lib/format";
+import type { Token } from "@/api/types";
+
+type Scope = Token["scope"];
+
+/** Each scope, as the page names it and explains it in one line. */
+const SCOPES: { value: Scope; label: string; hint: string }[] = [
+  { value: "read", label: "Read only", hint: "Reads instances, jobs and versions; changes nothing." },
+  { value: "instances", label: "Instances", hint: "For connected apps such as the Odoo module: list, create, start, pause, restart, back up, extend and delete instances; nothing else." },
+  { value: "write", label: "Read and write", hint: "Acts as an administrator: everything except the panel's settings." },
+];
 
 export function TokensPage() {
   const { data: tokens, isPending } = useTokens();
   const toast = useToast();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
-  const [scope, setScope] = useState<"read" | "write">("read");
+  const [scope, setScope] = useState<Scope>("read");
   const [made, setMade] = useState<{ name: string; token: string; signing_secret: string } | null>(null);
   const create = useCall(() => api.post<{ name: string; token: string; signing_secret: string }>("/tokens", { name: name.trim(), scope }), [["tokens"]]);
   const revoke = useCall((id: string) => api.del(`/tokens/${id}`), [["tokens"]]);
   return (
     <Page>
       <PageHead title="API tokens" actions={<Button variant="primary" icon={<Plus />} onClick={() => setCreating(true)}>New token</Button>}>
-        For other systems (CI pipelines, bots, scripts) that call the API. Every request is signed; see <a href="/docs/docs/PANEL_API.md" target="_blank" rel="noreferrer">Panel API</a>.
+        For other systems (CI pipelines, bots, scripts, the Odoo module) that call the API. Every request is signed; see <a href="/docs/docs/PANEL_API.md" target="_blank" rel="noreferrer">Panel API</a>.
       </PageHead>
       <div className="card rise">
         {isPending ? <div className="card-body"><Skeleton height={120} /></div> : !tokens?.length ? (
@@ -32,7 +42,7 @@ export function TokensPage() {
                 {tokens.map((t) => (
                   <tr key={t.id}>
                     <td><div>{t.name}</div><div className="xsmall faint mono">sudoo_{t.id}_…</div></td>
-                    <td><Tag>{t.scope === "write" ? "Read and write" : "Read only"}</Tag></td>
+                    <td><Tag>{SCOPES.find((s) => s.value === t.scope)?.label ?? t.scope}</Tag></td>
                     <td className="small muted">{ago(t.created)} · {t.created_by}</td>
                     <td className="small muted">{ago(t.last_used)}</td>
                     <td className="actions">
@@ -51,8 +61,8 @@ export function TokensPage() {
             onClick={() => create.mutate(undefined, { onSuccess: (m) => { setCreating(false); setName(""); setMade(m); }, onError: (e) => toast("error", "Not created", errorText(e)) })}>Create</Button></>}>
           <div className="stack">
             <Field label="Name" hint="What will use it, e.g. CI pipeline."><input className="input" autoFocus value={name} onChange={(e) => setName(e.target.value)} /></Field>
-            <Field label="Scope">
-              <Segmented value={scope} onChange={setScope} options={[{ value: "read", label: "Read only" }, { value: "write", label: "Read and write" }]} />
+            <Field label="Scope" hint={SCOPES.find((s) => s.value === scope)?.hint}>
+              <Segmented value={scope} onChange={setScope} options={SCOPES.map(({ value, label }) => ({ value, label }))} />
             </Field>
           </div>
         </Modal>

@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **API tokens for connected apps:** a third token scope, `instances`, for connected apps such as the Sudoo.sh
+  module for Odoo: list, create, start, pause, restart, back up, extend and delete instances, and nothing else (no
+  passwords, logs, restores, backups, GitHub, accounts, tokens or settings). The API tokens page offers it next to
+  Read only and Read and write ([Panel API](docs/PANEL_API.md#the-instances-scope)).
+- **Acting for someone:** API calls may send `X-Sudoo-Acting-For` with the person in the calling system who asked
+  for them. The value is signed as a sixth line (requests without it keep the five-line signature), and the caller
+  becomes `api:<token name> for <person>` in the audit log, as `created_by` of new instances and in the per-user
+  instance limits ([Panel API](docs/PANEL_API.md#acting-for-someone)).
 - **Connect a repository to plain Odoo:** an instance created without a repository gets one later through
   **⋯ → Connect a repository…** (API action `connect-repository`, `instances.operate`): the panel clones the branch
   into its add-ons folder, installs the repository's modules if asked and restarts it. Its database and files are
@@ -113,6 +121,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Security
 
+- **Least privilege for connected apps:** an `instances` token acts as the new role Connected app, which only a
+  token can have (`instances.view`, `instances.create`, `instances.update`, `instances.operate`,
+  `instances.delete`), and may call only the endpoints a connected app needs; other actions, `from_backup`,
+  `without_backup` and a shorter lifetime are refused with 403 and audit-logged. Such a token no longer needs the
+  `write` scope, which acts as an Administrator.
+- Requests per minute are counted per API token, whoever it acts for, so `X-Sudoo-Acting-For` cannot multiply a
+  token's limit.
 - **Instance files:** `.env` holds one line per key: values with control characters are refused, and an Odoo
   administrator login read from a database that is not a single plain line is not recorded. The Enterprise mount of
   a hardened instance comes from the panel's record only, and only the instance's own folder and the Enterprise

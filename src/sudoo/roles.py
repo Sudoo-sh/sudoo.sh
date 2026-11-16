@@ -11,8 +11,16 @@ only a named set of permissions:
     viewer        Viewer          sees instances, their activity and logs
 
 Accounts of earlier versions are renamed once when the panel starts (storage/migrate.py): "admin" becomes a super
-admin, "operator" (the sync operator) a developer. API tokens act as an administrator (write scope) or a viewer
-(read scope).
+admin, "operator" (the sync operator) a developer. API tokens act as an administrator (write scope), a viewer
+(read scope) or a connected app (instances scope).
+
+TOKEN_ROLES are roles only an API token can have, never an account (users cannot be given them, and an account's
+stored role is checked against ROLES alone):
+
+    connected_app Connected app   lists, creates, starts, pauses, restarts, backs up, extends and deletes
+                                  instances; nothing else (no passwords, logs, restores, backups, GitHub, accounts,
+                                  tokens or settings). The API narrows it further: security.CONNECTED_APP_ENDPOINTS
+                                  and web/v1/instances.CONNECTED_APP_ACTIONS.
 """
 
 from __future__ import annotations
@@ -63,6 +71,17 @@ ROLES: dict[str, Role] = {
     "developer": Role("Developer", "Gets new code, restarts and starts instances, adds submodules.", _DEVELOP),
     "viewer": Role("Viewer", "Sees instances, their activity and logs.", _VIEW),
 }
+CONNECTED_APP = "connected_app"
+_CONNECTED_APP = frozenset(
+    {"instances.view", "instances.create", "instances.update", "instances.operate", "instances.delete"}
+)
+TOKEN_ROLES: dict[str, Role] = {
+    CONNECTED_APP: Role(
+        "Connected app",
+        "Lists, creates, starts, pauses, restarts, backs up, extends and deletes instances; nothing else.",
+        _CONNECTED_APP,
+    ),
+}
 LABELS = {name: role.label for name, role in ROLES.items()}
 ADMINISTRATORS = frozenset({"super_admin", "admin"})  # "admins" in REQUIRE_SECOND_FACTOR
 
@@ -73,4 +92,11 @@ def normalize(role: str) -> str:
 
 
 def permissions(role: str) -> frozenset[str]:
+    if role in TOKEN_ROLES:
+        return TOKEN_ROLES[role].permissions
     return ROLES[normalize(role)].permissions
+
+
+def label(role: str) -> str:
+    """The role's name as people read it (also for a token's role)."""
+    return TOKEN_ROLES[role].label if role in TOKEN_ROLES else ROLES[normalize(role)].label

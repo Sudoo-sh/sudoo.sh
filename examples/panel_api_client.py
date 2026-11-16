@@ -1,7 +1,8 @@
 """A small client for the panel's API (/api/v1), using only Python's standard library.
 
 Every request carries the API token and an HMAC-SHA256 signature over a timestamp, a one-time nonce, the method,
-the path and the body's SHA-256 (see docs/PANEL_API.md). Copy this file into any project, or run it:
+the path and the body's SHA-256, and the X-Sudoo-Acting-For value when one is given (see docs/PANEL_API.md). Copy
+this file into any project, or run it:
 
     export SUDOO_URL=https://panel.example.com SUDOO_TOKEN=sudoo_... SUDOO_SIGNING_SECRET=...
     python panel_api_client.py                       # list instances
@@ -27,18 +28,27 @@ from typing import Any
 class PanelAPI:
     """Signed calls to the panel's API."""
 
-    def __init__(self, url: str, token: str, signing_secret: str) -> None:
+    def __init__(self, url: str, token: str, signing_secret: str, acting_for: str | None = None) -> None:
+        """`acting_for`: who, in your system, the calls are made for (X-Sudoo-Acting-For, signed); the panel then
+        shows "api:<token name> for <acting_for>" in its audit log and as the creator of new instances."""
         self.url, self.token, self.signing_secret = url.rstrip("/"), token, signing_secret.encode()
+        self.acting_for = acting_for
 
     def signed_headers(self, method: str, path: str, data: bytes) -> dict[str, str]:
         timestamp, nonce = str(int(time.time())), secrets.token_urlsafe(24)
-        message = "\n".join([timestamp, nonce, method, path, hashlib.sha256(data).hexdigest()]).encode()
-        return {
+        lines = [timestamp, nonce, method, path, hashlib.sha256(data).hexdigest()]
+        if self.acting_for is not None:
+            lines.append(self.acting_for)
+        message = "\n".join(lines).encode()
+        headers = {
             "Authorization": f"Bearer {self.token}",
             "X-Sudoo-Timestamp": timestamp,
             "X-Sudoo-Nonce": nonce,
             "X-Sudoo-Signature": "sha256=" + hmac.new(self.signing_secret, message, hashlib.sha256).hexdigest(),
         }
+        if self.acting_for is not None:
+            headers["X-Sudoo-Acting-For"] = self.acting_for
+        return headers
 
     def request(self, method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
         data = json.dumps(body).encode() if body is not None else b""

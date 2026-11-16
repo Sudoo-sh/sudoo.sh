@@ -19,7 +19,9 @@ event is "reset": the client reloads its data.
 The stream runs on the asyncio event loop shared with the gateway, not in the web server's threads, so a thousand
 open tabs cost a thousand small coroutines, not a thousand threads. It listens on 127.0.0.1:EVENTS_PORT; the web
 service forwards /api/v1/events to it. It accepts the same callers as the rest of the API: the panel's session
-cookie (the browser), or an API token with a signature (other systems). Every minute an open stream checks that its
+cookie (the browser), or an API token with a signature (other systems; X-Sudoo-Acting-For is accepted and signed
+as on every API call). A token with the instances scope cannot open the stream (security.CONNECTED_APP_ENDPOINTS):
+it follows its jobs with GET /api/v1/jobs/<id>. Every minute an open stream checks that its
 caller is still allowed (the session was not signed out or ended, the account and the token still exist) and ends
 when not. One account or token holds at most MAX_PER_CALLER streams at once (429 beyond), and the panel at most
 MAX_CLIENTS (503 beyond).
@@ -102,7 +104,8 @@ def _caller(request: web.Request) -> tuple[dict[str, str] | None, dict[str, Any]
             return api_caller(request.headers, "GET", request.path_qs, b"", ip), None, None
         except PermissionError as error:
             status = error.args[1]
-            return None, None, _problem(status, {401: "Unauthorized", 429: "Too Many Requests"}[status], error.args[0])
+            titles = {400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 429: "Too Many Requests"}
+            return None, None, _problem(status, titles[status], error.args[0])
     origin = request.headers.get("Origin")
     if origin and origin.split("://", 1)[-1] != request.headers.get("X-Forwarded-Host", request.host):
         return None, None, _problem(403, "Forbidden", "Request blocked: it did not come from this panel.")

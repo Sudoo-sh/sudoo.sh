@@ -507,9 +507,9 @@ published on marketplace.sudoo.sh may show the badges. See [TRADEMARKS.md](TRADE
 
 ### Commercial licences
 
-Sudoo.sh is owned by its author, Yousef M. Y. Al Sabbah. Companies that want to use it for their business, offer it
-as a hosted service, or build a product on it can get a **commercial licence**, a hosted plan or support: contact
-the author through [GitHub](https://github.com/Yosef-AlSabbah). Contributions are accepted under the terms in
+Sudoo.sh is owned by its author (named in [LICENSE.md](LICENSE.md)). Companies that want to use it for their
+business, offer it as a hosted service, or build a product on it can get a **commercial licence**, a hosted plan or
+support: write to support@sudoo.sh. Contributions are accepted under the terms in
 [CONTRIBUTING](CONTRIBUTING.md#licence-of-contributions), which keep commercial licensing possible.
 
 For commercial use, ask the author for a separate licence. Odoo and Odoo.sh are trademarks of Odoo S.A.; this project is not
@@ -533,5 +533,5 @@ Contributions are welcome: bug reports, documentation fixes and code.
 
 ## Maintainer
 
-Built and maintained by [Yousef Al Sabbah](https://github.com/Yosef-AlSabbah), with help from
+Built and maintained by the [Sudoo.sh](https://github.com/Sudoo-sh) project, with help from
 [every contributor](../../graphs/contributors).

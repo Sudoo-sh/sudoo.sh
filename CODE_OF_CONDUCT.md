@@ -11,6 +11,6 @@ This project adopts the [Contributor Covenant, version 2.1](https://www.contribu
 
 ## Reporting
 
-If you experience or witness unacceptable behaviour, contact the maintainer, Yousef M. Y. Al Sabbah ([@Yosef-AlSabbah](https://github.com/Yosef-AlSabbah)), privately through the contact details on his GitHub profile. Reports are handled confidentially.
+If you experience or witness unacceptable behaviour, write privately to the maintainers at support@sudoo.sh. Reports are handled confidentially.
 
 The maintainer may edit or remove comments, commits, issues and other contributions that break this code of conduct, and may temporarily or permanently block anyone who does, following the enforcement guidelines of the Contributor Covenant.

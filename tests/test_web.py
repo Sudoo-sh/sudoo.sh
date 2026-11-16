@@ -121,10 +121,10 @@ def test_accounts_sign_in_with_their_e_mail_address(app: Flask, admin: Client) -
 
 def test_a_super_admin_can_edit_their_own_account(admin: Client) -> None:
     client, headers = admin
-    changed = client.patch("/api/v1/users/admin1", json={"first_name": "Yousef", "role": "admin"}, headers=headers)
+    changed = client.patch("/api/v1/users/admin1", json={"first_name": "Jane", "role": "admin"}, headers=headers)
     assert changed.status_code == 400  # the last super admin stays one
-    changed = client.patch("/api/v1/users/admin1", json={"first_name": "Yousef"}, headers=headers)
-    assert changed.status_code == 200 and changed.get_json()["data"]["display_name"].startswith("Yousef")
+    changed = client.patch("/api/v1/users/admin1", json={"first_name": "Jane"}, headers=headers)
+    assert changed.status_code == 200 and changed.get_json()["data"]["display_name"].startswith("Jane")
 
 
 def test_security_headers(admin: Client) -> None:
@@ -176,7 +176,7 @@ def test_first_run_needs_the_setup_code(app: Flask, monkeypatch: pytest.MonkeyPa
     body = {
         "username": "owner",
         "password": "lantern-orchard-river-31",
-        "first_name": "Yousef",
+        "first_name": "Jane",
         "email": "y@example.com",
     }
     wrong = client.post("/api/v1/setup", json={**body, "setup_code": "AAAA-BBBB-CCCC"}, headers=ORIGIN)
@@ -184,7 +184,7 @@ def test_first_run_needs_the_setup_code(app: Flask, monkeypatch: pytest.MonkeyPa
     done = client.post("/api/v1/setup", json={**body, "setup_code": code.lower()}, headers=ORIGIN)
     assert done.status_code == 201
     me = done.get_json()["data"]
-    assert me["role"] == "super_admin" and me["display_name"] == "Yousef" and me["restricted"] is None
+    assert me["role"] == "super_admin" and me["display_name"] == "Jane" and me["restricted"] is None
     assert not (accounts.settings.manager_dir / "setup_code_test").exists()
 
 

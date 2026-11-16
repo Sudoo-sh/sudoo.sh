@@ -136,7 +136,7 @@ Open the panel's address above and create your account with this setup code:
 Open the panel's address in a browser. The **Set up Sudoo.sh** page asks for the setup code, first name, last name,
 e-mail (required), phone (optional) and a password twice (12 to 128 characters, following the
 [password rules](USER_MANUAL.md#password-rules)). There is no user name field: the user name is made from the
-e-mail address (`yousef.sabbah@example.com` becomes `yousef.sabbah`, then `-2`, `-3` when taken) and stays the
+e-mail address (`jane.doe@example.com` becomes `jane.doe`, then `-2`, `-3` when taken) and stays the
 account's internal key. It creates the first account, a **Super admin**, and signs it in. Everyone signs in with
 their e-mail address; the user name works too. The other accounts are then created on the **Accounts** page
 ([User manual](USER_MANUAL.md#8-accounts-and-roles)).

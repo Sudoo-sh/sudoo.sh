@@ -37,7 +37,7 @@ export function Preview() {
           </div>
         ))}
       </div>
-      <div className="foot">Sudoo.sh by Yousef M. Y. Al Sabbah</div>
+      <div className="foot">Sudoo.sh</div>
     </section>
   );
 }

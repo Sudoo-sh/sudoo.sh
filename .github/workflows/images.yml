@@ -60,7 +60,7 @@ jobs:
             org.opencontainers.image.title=${{ matrix.title }}
             org.opencontainers.image.description=${{ matrix.description }}
             org.opencontainers.image.vendor=Sudoo.sh
-            org.opencontainers.image.authors=Yousef M. Y. Al Sabbah
+            org.opencontainers.image.authors=Sudoo.sh
             org.opencontainers.image.licenses=PolyForm-Noncommercial-1.0.0
             org.opencontainers.image.documentation=https://github.com/Sudoo-sh/sudoo.sh/tree/main/docs
           annotations: |

@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Sudoo.sh apps for Odoo:** the README and the Panel API link the free apps on the Odoo Apps store (Instance
+  Manager, CRM Demos, Project Tests, Helpdesk Tests), which use a token of the instances scope.
 - **API tokens for connected apps:** a third token scope, `instances`, for connected apps such as the Sudoo.sh
   module for Odoo: list, create, start, pause, restart, back up, extend and delete instances, and nothing else (no
   passwords, logs, restores, backups, GitHub, accounts, tokens or settings). The API tokens page offers it next to

@@ -226,6 +226,19 @@ export function InstancePage() {
           The branch <b>{instance.git.branch}</b> no longer exists on GitHub, so this instance gets no updates. Switch it to another branch, or delete it.
         </Callout>
       )}
+      {instance.update_failure && (
+        <Callout tone={instance.update_failure.rolled_back ? "warning" : "danger"}>
+          <b>{instance.update_failure.rolled_back ? "The last update failed and was undone" : "The last update failed and could not be undone"}{instance.update_failure.failed_at ? ` ${ago(instance.update_failure.failed_at)}` : ""}.</b>{" "}
+          {instance.update_failure.message}
+          {instance.update_failure.job && (
+            <div>
+              <Button size="sm" variant="ghost" onClick={() => setJobId(instance.update_failure!.job!.split("/").pop()!)}>
+                Show the job
+              </Button>
+            </div>
+          )}
+        </Callout>
+      )}
       {instance.gateway_error && <Callout tone="danger">{instance.gateway_error}</Callout>}
       {instance.drift && (
         <Callout tone="danger">

@@ -247,7 +247,7 @@ Every setting belongs to one of three classes:
 
 | Class | Settings | How a change applies |
 | :--- | :--- | :--- |
-| **Now** | Almost everything: second factor requirement, session times, e-mail (including the mail password), limits, defaults for new instances, daily backups (`DAILY_BACKUPS`, `DAILY_BACKUP_TIME`, `TIMEZONE`), Odoo versions and images, instance containers (limits, `DRIFT_ACTION`), Enterprise paths, update checks, webhook secret, contact, accent colour, `METRICS_INTERVAL_SECONDS`. | At once, when saved on the Settings page. Container limits reach an instance when it next starts or restarts. |
+| **Now** | Almost everything: second factor requirement, session times, e-mail (including the mail password), limits, defaults for new instances, daily backups (`DAILY_BACKUPS`, `DAILY_BACKUP_TIME`, `TIMEZONE`), `SAFE_UPDATES`, Odoo versions and images, instance containers (limits, `DRIFT_ACTION`), Enterprise paths, update checks, webhook secret, contact, accent colour, `METRICS_INTERVAL_SECONDS`. | At once, when saved on the Settings page. Container limits reach an instance when it next starts or restarts. |
 | **Restart** | The settings that choose plugins: `MAILER`, `SECOND_FACTORS`, `UPDATE_TRIGGERS`, `ENTERPRISE_SOURCE`, `AUTH`, `RATE_LIMITER`. | After **Restart the panel** (Settings, Plugins). The restart stops only the backend for a few seconds and is refused while jobs run. |
 | **.env only** | `ODOO_ROOT`, `DOCS_DIR`, `MEMORY_DIR`, `EXPOSURE`, `STORAGE`, `PUBLIC_HOST`, `PUBLIC_SCHEME`, all ports (`PANEL_PORT`, `API_PORT`, `EVENTS_PORT`, `GATEWAY_PORT_START`, `ODOO_PORT_START`, connector ports), `CONNECTOR_PREFIX`. | Edit `.env`, then `cd /opt/odoo/manager && docker compose up -d`. The Settings page lists them under **Server**, read only. |
 
@@ -565,6 +565,7 @@ part and count as `manual`.
 | `before-restore` | At the start of every restore: the state just before it, offered as **Rollback**. | Only the latest per instance, for `ROLLBACK_HOURS` (24 by default). Removed when the instance is deleted. |
 | `before-rollback` | At the start of every rollback: the state just before it. | Only the latest per instance, for `ROLLBACK_HOURS`. Removed when the instance is deleted. |
 | `before-repair` | Before the panel recreates a database container that was changed outside the panel ([drift](#hardened-containers-and-changes-made-by-hand)). | Only the latest per instance. Removed when the instance is deleted. |
+| `before-update` | Before an update changes an instance's code (a push, **Get latest code**, **Update submodules**), when `SAFE_UPDATES` is on; for a paused instance only when modules will be upgraded. Put back automatically when the update fails (below). | Only the latest per instance; one is kept for a restore by hand when the automatic rollback failed. Removed when the instance is deleted. |
 
 This is Odoo's own backup format, with both the database and the filestore: restore it with **Restore Database**
 in any Odoo's database manager of the same version, or by hand (`createdb`, `psql -f dump.sql`, copy `filestore/`
@@ -640,8 +641,22 @@ that failed halfway and left no database), the rollback goes on with a warning. 
 `before-rollback` backups older than `ROLLBACK_HOURS`, but never while a job runs (a restore or a creation may be
 about to read one); the Rollback offer ends with the file. After a rollback the banner goes away.
 
-**Disk use.** Backups by hand and before deletions add up until someone deletes them. Daily, before-restore and
-before-rollback backups stay bounded: at most one of each per instance, the last two only for `ROLLBACK_HOURS`. Plan for about two zips per instance in use on top of the
+**Safe updates.** With `SAFE_UPDATES` on (the default, on the Settings page under **Backups**), an update that
+changes an instance's code first saves a `before-update` backup (database and filestore) and records the commit of
+the repository and of every submodule. When a later step fails (the pull cannot fast-forward, a submodule cannot be
+checked out, the module upgrade fails, or Odoo does not answer within the usual wait after the restart), the panel
+puts the instance back on its own: the previous commits, the `before-update` backup when an upgrade ran or started
+(the database may have changed), then Odoo restarted and checked. The job fails with "The update to `<sha>` failed
+at `<step>`; the instance was put back to `<previous sha>`." and the explanation of the error; the instance's page
+shows it until an update works, and the audit log has an entry ("update failed, instance put back"). Automatic
+updates do not try the same commit again (a new push does, and so does **Get latest code**). When putting the
+instance back fails too, the message says so and names the `before-update` backup, which is then kept (a later
+update does not replace it) so you can restore it by hand. A paused instance stays paused: it is backed up only when
+modules are upgraded. `SAFE_UPDATES=false` updates as before, without the backup and the rollback.
+
+**Disk use.** Backups by hand and before deletions add up until someone deletes them. Daily, before-restore,
+before-rollback, before-repair and before-update backups stay bounded: at most one of each per instance, before-restore
+and before-rollback only for `ROLLBACK_HOURS`. Plan for about three zips per instance in use on top of the
 ones kept by hand, and check `du -sh /opt/odoo/backups` from time to time; the server's disk use is also on the
 Instances page.
 

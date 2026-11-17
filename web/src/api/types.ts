@@ -112,6 +112,8 @@ export interface Instance {
   gateway_error: string | null;
   /** changes made outside the panel: what they are, and whether the panel puts its configuration back */
   drift: { detected_at: string | null; items: string[]; action: "restore" | "warn" } | null;
+  /** the last code update failed (until one works): what happened, and whether the instance was put back */
+  update_failure: { message: string; failed_at: string | null; rolled_back: boolean; job: string | null } | null;
   created_at: string | null;
   last_visit_at: string | null;
   pauses_at: string | null;
@@ -261,7 +263,7 @@ export interface Token {
   last_used: number | null;
 }
 
-export type BackupKind = "manual" | "daily" | "deletion" | "before-restore" | "before-rollback" | "before-repair";
+export type BackupKind = "manual" | "daily" | "deletion" | "before-restore" | "before-rollback" | "before-repair" | "before-update";
 export interface Backup {
   file: string;
   instance: string;

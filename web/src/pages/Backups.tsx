@@ -6,7 +6,7 @@ import { Button, Empty, Skeleton, Tag } from "@/components/ui/basics";
 import { useToast } from "@/components/ui/overlay";
 import { ago, bytes, dateTime } from "@/lib/format";
 
-const KIND: Record<string, string> = { manual: "By hand", daily: "Daily", deletion: "Before deletion", "before-restore": "Before a restore", "before-rollback": "Before a rollback", "before-repair": "Before a repair" };
+const KIND: Record<string, string> = { manual: "By hand", daily: "Daily", deletion: "Before deletion", "before-restore": "Before a restore", "before-rollback": "Before a rollback", "before-repair": "Before a repair", "before-update": "Before an update" };
 
 export function BackupsPage() {
   const { data: backups, isPending } = useBackups();

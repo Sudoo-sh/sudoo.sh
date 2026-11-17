@@ -21,6 +21,10 @@ Kinds (files of earlier versions have no kind and count as "manual"):
                     it restores)
     before-repair   taken before the panel recreated a database container that was changed by hand
                     (integrity.py); each instance keeps only its latest one
+    before-update   taken before an update that changes the instance's code (operations.update_code, when
+                    SAFE_UPDATES is on); put back automatically when the update fails after it may have changed the
+                    database. Each instance keeps only its latest one, except one kept for a manual restore after
+                    an automatic rollback failed (STATE "keep_backups")
 
 The database container is started for a backup if the instance is paused; the instance's state is not changed
 otherwise. restore() puts a backup back: the database is replaced and so is the filestore. A backup can be put into
@@ -58,13 +62,18 @@ from sudoo.instances import odoo, store
 
 FILE_RE = re.compile(
     r"^(?P<instance>[a-z0-9][a-z0-9-]{0,30})__(?P<db>[a-z0-9_]{1,63})__(?P<stamp>\d{8}-\d{6})"
-    r"(?:__(?P<kind>manual|daily|deletion|before-restore|before-rollback|before-repair))?\.zip$"
+    r"(?:__(?P<kind>manual|daily|deletion|before-restore|before-rollback|before-repair|before-update))?\.zip$"
 )
 DB_NAME_RE = re.compile(r"[a-z0-9_]{1,63}")  # the database names the panel gives (and FILE_RE accepts)
-KINDS = ("manual", "daily", "deletion", "before-restore", "before-rollback", "before-repair")
+KINDS = ("manual", "daily", "deletion", "before-restore", "before-rollback", "before-repair", "before-update")
 RESTORABLE = ("manual", "daily", "deletion")  # what "Restore the latest backup" chooses from
 SNAPSHOTS = ("before-restore", "before-rollback")  # safety copies, removed ROLLBACK_HOURS after they were taken
-_KEEP_ONE = ("daily", "before-repair", *SNAPSHOTS)  # kinds of which each instance keeps only the latest
+_KEEP_ONE = (
+    "daily",
+    "before-repair",
+    "before-update",
+    *SNAPSHOTS,
+)  # kinds of which each instance keeps only the latest
 PG_DUMP_LOCK_WAIT = "300s"  # a lock held inside the instance makes the dump fail after this, rather than wait for ever
 
 
@@ -81,8 +90,9 @@ def create(job: Job, name: str, kind: str = "manual") -> list[Path]:
     }
     saved = [_backup_database(job, name, db, facts, stamp, kind) for db in odoo.databases(name)]
     if kind in _KEEP_ONE:
+        kept = {path.name for path in saved} | set(STATE.get(name).get("keep_backups") or ())
         for older in of_instance(name, (kind,)):
-            if older["file"] not in {path.name for path in saved}:
+            if older["file"] not in kept:
                 (settings.backups_dir / older["file"]).unlink(missing_ok=True)
                 job.write(f"Removed the previous {kind} backup {older['file']}\n")
     return saved
@@ -239,7 +249,8 @@ def latest(name: str) -> dict[str, Any] | None:
 
 
 def remove_daily(name: str) -> None:
-    """Delete the instance's daily and safety (before-restore, before-rollback) backups (when it is deleted)."""
+    """Delete the instance's daily and safety (before-restore, before-rollback, before-repair, before-update)
+    backups (when it is deleted)."""
     for backup in of_instance(name, _KEEP_ONE):
         (settings.backups_dir / backup["file"]).unlink(missing_ok=True)
 

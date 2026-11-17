@@ -351,6 +351,17 @@ are new commits, it downloads them, upgrades the modules whose files changed and
 
 **By hand.** Click **Get latest code**. Use it right after a developer says "I pushed".
 
+**When an update fails.** Before an update changes the code, the panel backs up the instance's database and files
+(a backup "Before an update" in its list). If anything after that fails (the code cannot be downloaded cleanly, a
+module upgrade fails, or Odoo does not come back after the restart), the panel puts the instance back by itself: the
+previous code, the database from that backup when the upgrade may have changed it, and Odoo started again. The job
+fails with a sentence like "The update to 9b1e0c4 failed at upgrading modules; the instance was put back to
+4f2a9c1." and the reason, and the instance's page shows it until an update works. Fix the code and push again, or
+click **Get latest code** to try the same commit again; automatic updates do not retry it on their own. If putting
+the instance back fails too, the message says so and names the backup to restore (Overview tab, **Restore**). A
+paused instance stays paused and is backed up only when modules are upgraded. Your administrator can switch this off
+(`SAFE_UPDATES`).
+
 **Upgrade modules.** A new field, view or data file needs the module to be upgraded in Odoo. This happens after an
 update when **Upgrade changed modules** is on. Otherwise use **Upgrade modules** in the menu, with the technical
 names separated by commas, or `all`.

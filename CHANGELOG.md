@@ -8,6 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Instances keep serving without the panel:** a separate `sudoo-gateway` container now owns every instance's
+  gateway port, so visitors keep reaching running instances while the panel restarts or is down (a paused instance
+  shows "Starting soon" until the panel is back). It has no Docker socket and no `.env`; while it is not running the
+  panel serves the instances itself and hands the ports back when it returns, so no connector is restarted.
+  `GATEWAY_MODE=embedded` restores the old behaviour.
 - **Instance stages:** every instance is Production, Staging or Development (existing ones are Development and
   behave as before). Production never pauses or expires, is backed up every day and always updated safely, and
   pausing, switching off, restoring or deleting it asks for an extra confirmation; `MAX_PRODUCTION_INSTANCES`

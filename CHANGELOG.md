@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Safe updates:** before an update changes an instance's code (a push, Get latest code, Update submodules), the
+  panel takes a `before-update` backup and records the commits; if the pull, the submodules, the module upgrade or
+  the restart fails, it puts the code back, restores the backup when an upgrade ran, restarts Odoo and says "The
+  update to <sha> failed at <step>; the instance was put back to <sha>." Automatic updates do not retry a commit
+  that was rolled back. `SAFE_UPDATES` (on by default) turns it off.
+- **Server capacity:** the dashboard shows what the panel itself uses, and how many instances the server can run
+  comfortably (from measured memory and processor use); creating or starting one more beyond that shows a warning,
+  and the dashboard warns above 85% memory. `GET /api/v1/server/capacity`; settings `CAPACITY_*` and an optional
+  hard limit `MAX_RUNNING_INSTANCES` (off by default).
 - **Odoo apps on the tokens page:** the API tokens page lists the free Sudoo.sh apps on the Odoo Apps store and has a
   **Token for Odoo** button that opens the new-token dialog with the Instances scope.
 - **Sudoo.sh apps for Odoo:** the README and the Panel API link the free apps on the Odoo Apps store (Instance
@@ -67,6 +76,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Settings page in tabs:** General, Instances, Odoo, Backups, Sign-in and security, E-mail, GitHub and updates,
+  Marketplace and Advanced; the tab is kept in the address (`?tab=`), and tabs with unsaved or restart-pending
+  changes are marked.
 - The sign-in page, the package details and the examples in the documentation name the project, not a person;
   support and conduct reports go to support@sudoo.sh.
 - **Moving between pages** is smoother in browsers with the View Transitions API: the sidebar and the top bar stay

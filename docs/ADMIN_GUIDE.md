@@ -320,8 +320,30 @@ The two choices that shape a server are plugins ([Plugins](PLUGINS.md)):
 | `EXPOSURE` | `cloudflare-quick` (free tunnel per instance, no open port; default) or `host-ports` (open ports, fixed addresses) |
 | `ENTERPRISE_SOURCE` | `folder` (default), `git` (a branch per version) or `none` |
 
-Per instance, the **Settings** tab of the instance's page changes automation and lifetime (stored as
-`AUTO_UPDATE`, `AUTO_UPGRADE`, `AUTO_PAUSE`, `DELETE_AFTER_DAYS` in the instance's `.env`).
+Per instance, the **Settings** tab of the instance's page changes the stage, automation and lifetime (stored as
+`STAGE`, `AUTO_UPDATE`, `AUTO_UPGRADE`, `AUTO_PAUSE`, `DELETE_AFTER_DAYS` in the instance's `.env`).
+
+### Instance stages
+
+Each instance is in a stage: `production`, `staging` or `development` (`STAGE` in its `.env`; an instance without
+it, such as one created before stages existed, is `development` and behaves exactly as before). What the stage
+changes for users is in the [User manual](USER_MANUAL.md#stages-production-staging-and-development); for the server:
+
+| | Development | Staging | Production |
+| :--- | :--- | :--- | :--- |
+| Automatic pause (`IDLE_HOURS`) | when the instance's switch is on | when the instance's switch is on | never |
+| Automatic deletion | after its lifetime (`DELETE_AFTER_DAYS` offered) | after its lifetime (`STAGING_DELETE_AFTER_DAYS` offered) | never; a lifetime is refused |
+| Daily backup | `DAILY_BACKUPS`, when used | `DAILY_BACKUPS` and `STAGING_DAILY_BACKUPS`, when used | every day, used or not, whatever `DAILY_BACKUPS` says |
+| Backup before an update, rollback when it fails | `SAFE_UPDATES` | `SAFE_UPDATES` | always |
+| New code automatically, for new instances | `AUTO_UPDATE` | `AUTO_UPDATE` | `PRODUCTION_AUTO_UPDATE` (off by default) |
+
+`MAX_PRODUCTION_INSTANCES` (1 by default; 0: no limit) caps the instances in production at the same time, those
+being created as production included: creating one more, or moving one more into production, is refused. Every
+setting above is on the Settings page (**Instances**, **Stages**; `STAGING_DAILY_BACKUPS` under **Backups**) and
+in [Configuration](CONFIGURATION.md#stages). Changes of stage are in the audit log ("instance stage changed").
+
+Plan the disk for production: its daily backup is taken every day, but each instance keeps only its latest daily
+backup, so it needs room for about one more copy of its database and files.
 
 ---
 
@@ -627,6 +649,8 @@ last daily backup: opened through its link, or started or restarted. The panel r
 daily backup (`used_since` in the instance state) and clears it when the daily backup starts.
 
 * An instance nobody used gets no new daily backup, so its last one stays.
+* A **production** instance is backed up every day, used or not, even with `DAILY_BACKUPS=false`
+  ([Instance stages](#instance-stages)). `STAGING_DAILY_BACKUPS=false` leaves staging instances out.
 * A running instance keeps running during the backup; a paused one stays paused (only its database container is
   started for the backup, then stopped again).
 * An instance with a job running is tried again a minute later. A daily backup that fails waits for the next day.

@@ -38,6 +38,7 @@ const TABS: { id: TabId; label: string; groups: Group[] }[] = [
     label: "Instances",
     groups: [
       { title: "New instances", text: "What a new instance starts with; each instance can change its own", keys: ["auto_pause", "idle_hours", "auto_update", "auto_upgrade", "delete_after_days", "odoo_admin_password"] },
+      { title: "Stages", text: "Production instances are never paused or deleted automatically, are backed up every day and always updated safely. Staging instances get a longer lifetime. 0 turns the production limit off", keys: ["max_production_instances", "production_auto_update", "staging_delete_after_days"] },
       { title: "How many instances", text: "How many instances, and how often a new one can be created. 0 turns a limit off", keys: ["max_instances", "max_instances_per_user", "create_cooldown_minutes"] },
       { title: "Capacity", text: "How many instances this server runs comfortably at once, and when the panel warns. 0 turns the hard limit off: the panel then only warns", keys: ["capacity_reserve_mb", "capacity_reserve_percent", "capacity_instance_memory_mb", "capacity_warning_percent", "max_running_instances"] },
       { title: "Instance containers", text: "Limits of each instance's containers, applied when an instance next starts, and what happens when someone changes them by hand. 0 turns a limit off", keys: ["odoo_memory_limit", "odoo_cpu_limit", "db_memory_limit", "db_cpu_limit", "container_pids_limit", "container_log_max_size", "container_log_max_files", "drift_action"] },
@@ -56,7 +57,7 @@ const TABS: { id: TabId; label: string; groups: Group[] }[] = [
     id: "backups",
     label: "Backups",
     groups: [
-      { title: "Backups", text: "Each instance used during the day is backed up once, at this time; it keeps only its latest daily backup", keys: ["daily_backups", "daily_backup_time", "timezone", "rollback_hours", "safe_updates"] },
+      { title: "Backups", text: "Each instance used during the day is backed up once, at this time (production instances every day, whatever these say); it keeps only its latest daily backup", keys: ["daily_backups", "staging_daily_backups", "daily_backup_time", "timezone", "rollback_hours", "safe_updates"] },
     ],
   },
   {
@@ -137,6 +138,10 @@ const TITLES: Record<string, string> = {
   auto_update: "Get new code automatically",
   auto_upgrade: "Upgrade changed modules",
   delete_after_days: "Lifetime, days",
+  max_production_instances: "Production instances at most",
+  production_auto_update: "Production gets new code automatically",
+  staging_delete_after_days: "Staging lifetime, days",
+  staging_daily_backups: "Daily backups of staging instances",
   odoo_admin_password: "Odoo admin password",
   odoo_versions: "Versions offered",
   odoo_min_version: "Oldest version offered",

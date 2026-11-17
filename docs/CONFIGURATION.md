@@ -292,6 +292,20 @@ limits keep one visitor from tying up the gateway that every instance shares.
 | `ROLLBACK_HOURS` | float | `24` | **live** | After a restore, the state the instance had before it is kept this many hours (up to 720), and the instance page offers **Rollback** meanwhile. Then that backup is removed. |
 | `SAFE_UPDATES` | bool | `true` | **live** | Before an update that changes an instance's code (a push to its branch, **Get latest code**, **Update submodules**), back up its database and files (kind `before-update`); if the update then fails, put the previous code back, restore that backup when the database may have changed, and start Odoo again. `false`: updates run as before, without the backup and the automatic rollback. See [Keeping the code up to date](USER_MANUAL.md#5-keeping-the-code-up-to-date). |
 
+### Stages
+
+What the stage of an instance changes (production, staging, development; see
+[Stages](USER_MANUAL.md#stages-production-staging-and-development)). A development instance follows the settings
+above exactly. A production instance is never paused or deleted automatically, is backed up every day whatever
+`DAILY_BACKUPS` says (even when nobody used it), and is always updated with `SAFE_UPDATES` behaviour.
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `MAX_PRODUCTION_INSTANCES` | int | `1` | **live** | Instances that may be in production at the same time, those being created as production included. Creating one more, or moving one more to production, is refused with 409. 0: no limit. |
+| `PRODUCTION_AUTO_UPDATE` | bool | `false` | **live** | New production instances get new code from their branch automatically. Off: a production instance gets new code only when someone asks (**Get latest code**), or once **Get new code automatically** is switched on for it. |
+| `STAGING_DELETE_AFTER_DAYS` | int | `90` | **live** | Lifetime offered for new staging instances, in days; 0: keep. |
+| `STAGING_DAILY_BACKUPS` | bool | `true` | **live** | Staging instances get the daily backup too (while `DAILY_BACKUPS` is on). `false`: only their manual and safety backups. |
+
 ---
 
 ## Alerts

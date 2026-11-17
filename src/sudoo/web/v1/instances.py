@@ -7,16 +7,20 @@
     GET    /api/v1/instances/<name>/credentials      Odoo admin and master passwords, ports
     GET    /api/v1/instances/<name>/logs?lines=      the end of Odoo's log
     POST   /api/v1/instances                         create; {"from_backup"} optional; without "repo": plain Odoo
-                                                     (no code, no branch, no update) -> 202, Location: job
-    PATCH  /api/v1/instances/<name>                  change automation settings and lifetime (a lifetime that
-                                                     ends sooner also needs instances.delete)
+                                                     (no code, no branch, no update); "stage" (development by
+                                                     default; production within stages.production_limit())
+                                                     -> 202, Location: job
+    PATCH  /api/v1/instances/<name>                  change automation settings, lifetime and stage (a lifetime
+                                                     that ends sooner also needs instances.delete; leaving
+                                                     production needs "confirm_production": true)
     POST   /api/v1/instances/<name>/actions/<action> restart, update, pause, ...    -> 202, Location: job
                                                      restore: {"file"} optional (any instance's backup of the
                                                      same Odoo series), the latest backup otherwise
                                                      rollback: back to before the last restore (ROLLBACK_HOURS)
                                                      connect-repository: {"repo", "branch", "install_modules"}
                                                      gives plain Odoo a repository (its data is kept)
-    DELETE /api/v1/instances/<name>                  delete after a backup; body {"confirm": "<name>"} -> 202;
+    DELETE /api/v1/instances/<name>                  delete after a backup; body {"confirm": "<name>"} -> 202
+                                                     (production: also "confirm_stage": "production");
                                                      "without_backup": true also when the backup fails (needs
                                                      backups.manage too; audit-logged)
     GET    /api/v1/instance-plan?repo=&branch=&name=&version=&edition=
@@ -35,6 +39,9 @@ the actions and settings that need a repository (REPOSITORY_ACTIONS) with 409.
 A token with the instances scope (a connected app, roles.CONNECTED_APP) is narrowed further than its permissions:
 only the actions in CONNECTED_APP_ACTIONS, and PATCH only for a later end of the lifetime (_refuse_connected_app);
 it has no instances.restore, so it cannot create from a backup either.
+
+A production instance (instances/stages.py) asks for more: pausing, switching off, restoring and rolling back need
+"confirm_production": true in the body, deleting needs "confirm_stage": "production" besides its name.
 """
 
 from __future__ import annotations
@@ -50,7 +57,7 @@ from sudoo import addons, exposure, roles
 from sudoo.config import settings
 from sudoo.core import events, jobs, vault
 from sudoo.core.state import STATE
-from sudoo.instances import backups, capacity, metrics, odoo, operations, store
+from sudoo.instances import backups, capacity, metrics, odoo, operations, stages, store
 from sudoo.limits import quotas
 from sudoo.repos import github
 from sudoo.repos.gitrepo import origin_url
@@ -219,10 +226,31 @@ def plan() -> Response:
         check.text(request.args, "version", max_length=10),
         check.text(request.args, "edition", max_length=20),
     )
-    defaults = {
-        key: getattr(settings, key) for key in ("delete_after_days", "auto_update", "auto_upgrade", "auto_pause")
+    stage = check.one_of(
+        check.text(request.args, "stage", default=stages.DEFAULT, max_length=20), stages.STAGES, STAGE_MESSAGE
+    )
+    return ok(
+        {
+            "name": name,
+            "database": database,
+            "login": "admin",
+            "defaults": stages.defaults(stage),
+            "stage_defaults": {each: stages.defaults(each) for each in stages.STAGES},
+            "production": production_capacity(),
+        }
+    )
+
+
+STAGE_MESSAGE = "Choose a stage: production, staging or development."
+
+
+def production_capacity() -> dict[str, Any]:
+    """How many production instances there may be and are, and why one more is refused (None when it is not)."""
+    return {
+        "limit": stages.production_limit(),
+        "instances": stages.production_instances(),
+        "refusal": stages.production_refusal(),
     }
-    return ok({"name": name, "database": database, "login": "admin", "defaults": defaults})
 
 
 @blueprint.get("/instance-quota")
@@ -242,12 +270,13 @@ def create() -> Response:
     custom_name = check.custom_name(check.text(data, "name", max_length=40))
     if edition == "enterprise" and not addons.available(version):
         abort(400, f"Odoo {version} Enterprise is not available on this server.")
+    stage = check.one_of(check.text(data, "stage", default=stages.DEFAULT, max_length=20), stages.STAGES, STAGE_MESSAGE)
     from_backup = check.text(data, "from_backup", max_length=200) or None
     if from_backup:
         refuse_unless("instances.restore", "create an instance from a backup")
         from_backup = _usable_backup(from_backup, version, edition)
     with quotas.LOCK:  # until the job is registered: from then on it counts toward the limits
-        return _start_creation(data, repo, branch, version, edition, custom_name, from_backup)
+        return _start_creation(data, repo, branch, version, edition, custom_name, from_backup, stage)
 
 
 def _start_creation(
@@ -258,8 +287,19 @@ def _start_creation(
     edition: str,
     custom_name: str,
     from_backup: str | None,
+    stage: str,
 ) -> Response:
     _refuse_over_capacity("instance creation refused (running instances)")
+    defaults = stages.defaults(stage)
+    if stage == stages.PRODUCTION:
+        refused = stages.production_refusal()
+        if refused:
+            log("instance creation refused (production instances)", ok=False, detail=refused)
+            abort(409, refused)
+        if data.get("delete_after_days", 0) != 0:
+            abort(400, PRODUCTION_LIFETIME)
+        if check.flag(data, "auto_pause"):
+            abort(400, PRODUCTION_PAUSE)
     try:
         quotas.claim(g.user["name"])
     except quotas.QuotaError as error:
@@ -276,16 +316,20 @@ def _start_creation(
         "edition": edition,
         "demo": check.flag(data, "demo"),
         "install_modules": check.flag(data, "install_modules"),
-        "delete_after_days": check.days(data, "delete_after_days"),
-        # automation switches: the panel's defaults (AUTO_PAUSE, AUTO_UPDATE, AUTO_UPGRADE) unless sent
-        **{key: check.flag(data, key, getattr(settings, key)) for key in ("auto_update", "auto_upgrade", "auto_pause")},
+        "delete_after_days": (
+            check.days(data, "delete_after_days") if "delete_after_days" in data else defaults["delete_after_days"]
+        ),
+        # automation switches: the stage's defaults (stages.defaults: the panel's AUTO_PAUSE, AUTO_UPDATE,
+        # AUTO_UPGRADE; production never pauses and gets new code only when PRODUCTION_AUTO_UPDATE says) unless sent
+        **{key: check.flag(data, key, bool(defaults[key])) for key in ("auto_update", "auto_upgrade", "auto_pause")},
+        "stage": stage,
         **({} if repo else {"branch": "", "auto_update": False, "auto_upgrade": False}),  # plain Odoo: no code
         "ports": store.reserve_ports(exposure.provider().instance_ports()),
         "created_by": g.user["name"],
         "from_backup": from_backup,
     }
     # what the instance looks like until its files exist (web/v1/resources.creating_resource): no ports, no secrets
-    shown = ("version", "edition", "db_name", "repo", "branch", "created_by")
+    shown = ("version", "edition", "db_name", "repo", "branch", "created_by", "stage")
     details = {
         key: plan_data[key] for key in (*shown, "auto_update", "auto_upgrade", "auto_pause", "delete_after_days")
     }
@@ -295,7 +339,7 @@ def _start_creation(
     log(
         "Create instance",
         instance=name,
-        detail=f"Odoo {version} {edition}"
+        detail=f"Odoo {version} {edition}, {stage}"
         + ("" if repo else " (plain, no repository)")
         + (f" from {from_backup}" if from_backup else ""),
     )
@@ -313,33 +357,80 @@ def change(name: str) -> Response:
     """Change only the settings that are sent; the others keep their value.
 
     A lifetime that makes the instance expire sooner than now (also from "keep" to any number of days) deletes it
-    sooner, so it needs instances.delete as well."""
+    sooner, so it needs instances.delete as well.
+
+    "stage" moves the instance to another stage (instances/stages.py). Into production: refused beyond
+    stages.production_limit(); the instance is then kept (lifetime "keep") and no longer pauses when idle. Out of
+    production: only with "confirm_production": true. A production instance refuses a lifetime and the automatic
+    pause."""
     existing(name)
     data = check.body()
     if _connected_app():
         _check_connected_app_change(name, data)
+    with quotas.LOCK:  # moving into production counts like a creation: the check and the change happen together
+        return _change(name, data)
+
+
+def _change(name: str, data: Mapping[str, Any]) -> Response:
+    env = store.read_env(name)
+    stage_before = stages.of(env)
+    stage = stage_before
+    if "stage" in data:
+        stage = check.one_of(check.text(data, "stage", max_length=20), stages.STAGES, STAGE_MESSAGE)
     switches = {"auto_update": "AUTO_UPDATE", "auto_upgrade": "AUTO_UPGRADE", "auto_pause": "AUTO_PAUSE"}
     values: dict[str, object] = {
         key: str(check.flag(data, field)).lower() for field, key in switches.items() if field in data
     }
-    if "delete_after_days" in data:
+    if stage == stages.PRODUCTION:
+        if values.get("AUTO_PAUSE") == "true":
+            abort(409, PRODUCTION_PAUSE)
+        if "delete_after_days" in data and check.days(data, "delete_after_days") != 0:
+            abort(409, PRODUCTION_LIFETIME)
+    if stage != stage_before:
+        _check_stage_change(name, stage_before, stage, data)
+        values["STAGE"] = stage
+        if stage == stages.PRODUCTION:
+            values |= {"AUTO_PAUSE": "false", "DELETE_AFTER_DAYS": 0}
+    if "delete_after_days" in data and stage != stages.PRODUCTION:
         days = check.days(data, "delete_after_days")
-        env = store.read_env(name)
         current = operations.expires_at(env)
         proposed = operations.expires_at({**env, "DELETE_AFTER_DAYS": str(days)})
         if proposed is not None and (current is None or proposed < current):
             refuse_unless("instances.delete", f"shorten the lifetime of {name}")
         values["DELETE_AFTER_DAYS"] = days
-    if not values:
-        abort(400, "Send at least one of: auto_update, auto_upgrade, auto_pause, delete_after_days.")
+    if not values and not {"delete_after_days", "stage"} & set(data):
+        abort(400, "Send at least one of: auto_update, auto_upgrade, auto_pause, delete_after_days, stage.")
+    if not values:  # the stage it has already, or a production instance's lifetime "keep": nothing changes
+        return ok(instance_resource(name, full=True))
     if values.get("AUTO_UPDATE") == "true" or values.get("AUTO_UPGRADE") == "true":
         refuse_plain(name)
     store.update_env(name, **values)
     if "DELETE_AFTER_DAYS" in values:  # a new lifetime: automatic deletion starts counting its attempts again
         STATE.update(name, expiry_failures=0, expiry_stopped=False)
+    if "STAGE" in values:
+        log("instance stage changed", instance=name, detail=f"{stage_before} -> {stage}")
     log("instance settings changed", instance=name, detail=", ".join(sorted(values)))
     events.publish("instance", name)
     return ok(instance_resource(name, full=True))
+
+
+PRODUCTION_LIFETIME = "A production instance is never deleted automatically: its lifetime is always keep (0)."
+PRODUCTION_PAUSE = "A production instance is never paused automatically."
+
+
+def _check_stage_change(name: str, before: str, after: str, data: Mapping[str, Any]) -> None:
+    """Into production: within the limit. Out of production: only when confirmed."""
+    if after == stages.PRODUCTION:
+        refused = stages.production_refusal(exclude=name)
+        if refused:
+            log(f"stage change of {name} refused (production instances)", ok=False, detail=refused)
+            abort(409, refused)
+    if before == stages.PRODUCTION and check.flag(data, "confirm_production") is not True:
+        abort(
+            400,
+            f"{name} is a production instance. Confirm that it leaves production "
+            '("confirm_production": true): it can then be paused and given a lifetime.',
+        )
 
 
 def _check_connected_app_change(name: str, data: Mapping[str, Any]) -> None:
@@ -383,6 +474,15 @@ def refuse_plain(name: str) -> None:
         )
 
 
+PRODUCTION_CONFIRMED = {
+    "pause": "pause",
+    "switch-off": "switch off",
+    "restore": "restore a backup into",
+    "rollback": "roll back",
+}
+"""Actions on a production instance that need "confirm_production": true (deleting has its own confirmation)."""
+
+
 def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[..., Any], tuple[Any, ...]]:
     """(function, arguments) of the job for `action`, after validating the request data."""
     if action in REPOSITORY_ACTIONS:
@@ -404,11 +504,20 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
         "update-images": (operations.update_images, (name,)),
         "repair": (operations.repair, (name,)),
     }
+    production = stages.is_production(store.read_env(name))
+    if production and action in PRODUCTION_CONFIRMED and check.flag(data, "confirm_production") is not True:
+        abort(
+            400,
+            f"{name} is a production instance: confirm that you want to {PRODUCTION_CONFIRMED[action]} it "
+            '("confirm_production": true).',
+        )
     if action in simple:
         return simple[action]
     if action == "delete":
         if check.text(data, "confirm", max_length=40) != name:
             abort(400, "Type the instance name exactly to confirm.")
+        if production and check.text(data, "confirm_stage", max_length=20) != stages.PRODUCTION:
+            abort(400, 'This is a production instance: type "production" as well to confirm.')
         if check.flag(data, "without_backup"):
             # the backup may be all that is left of the instance's data: only for those who manage backups
             refuse_unless("backups.manage", f"delete {name} without a complete backup")

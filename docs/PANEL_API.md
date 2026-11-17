@@ -183,10 +183,10 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `GET /instances/<name>/credentials` | `instances.credentials` | | 200, Odoo `login`, `admin_password`, `master_password`, `ports`; written to the audit log |
 | `GET /instances/<name>/logs?lines=300` | `instances.logs` | | 200, `{"text"}`: the end of Odoo's log (1 to 5000 lines) |
 | `POST /instances` | `instances.create` | as below | **202**, the job; `Content-Location` names the new instance |
-| `PATCH /instances/<name>` | `instances.operate`; also `instances.delete` for a `delete_after_days` that ends the lifetime sooner (403 otherwise) | any of `auto_update`, `auto_upgrade`, `auto_pause` (true or false), `delete_after_days` (0 keeps it) | 200, the instance |
+| `PATCH /instances/<name>` | `instances.operate`; also `instances.delete` for a `delete_after_days` that ends the lifetime sooner (403 otherwise) | any of `auto_update`, `auto_upgrade`, `auto_pause` (true or false), `delete_after_days` (0 keeps it), `stage` ([Stages](#stages)) | 200, the instance |
 | `POST /instances/<name>/actions/<action>` | depends on the action (below) | `{}`, or the action's fields | **202**, the job |
-| `DELETE /instances/<name>` | `instances.delete`; with `without_backup` also `backups.manage` | `{"confirm": "<name>"}`, and `"without_backup": true` to delete even when the backup fails (audit-logged) | **202**, the job; a backup is taken first, and without `without_backup` a failed backup stops the deletion |
-| `GET /instance-plan?repo=&branch=&name=&version=&edition=` | `instances.create` | | 200, the name and database a new instance would get, and the defaults; without `repo` and `name`, a name for plain Odoo with a random part (`odoo-19-0-community-3f9a`), new on each call |
+| `DELETE /instances/<name>` | `instances.delete`; with `without_backup` also `backups.manage` | `{"confirm": "<name>"}` (a production instance also `"confirm_stage": "production"`), and `"without_backup": true` to delete even when the backup fails (audit-logged) | **202**, the job; a backup is taken first, and without `without_backup` a failed backup stops the deletion |
+| `GET /instance-plan?repo=&branch=&name=&version=&edition=&stage=` | `instances.create` | | 200, the name and database a new instance would get, the defaults of `stage` (development when not given) and of every stage (`stage_defaults`), and `production`: `limit`, `instances`, `refusal` (why one more production instance is refused, or `null`); without `repo` and `name`, a name for plain Odoo with a random part (`odoo-19-0-community-3f9a`), new on each call |
 | `GET /instance-quota` | `instances.view` | | 200, how many instances the caller may still create, and when ([Limits](#11-limits)) |
 | `GET /jobs?instance=&limit=30&offset=0` | `instances.view` | | 200, recent jobs, newest first |
 | `GET /jobs/<id>` | `instances.view` | | 200, the job; `?include=log` adds its technical log when the caller also has `instances.logs` |
@@ -207,7 +207,23 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `PATCH /settings` | `settings.manage` | `{"idle_hours": 4}` | 200, the settings |
 | `DELETE /settings/<key>` | `settings.manage` | | **204**, back to the `.env` value |
 | `POST /settings/test-email` | `settings.manage` | `{"to": "you@example.com"}` | 200 `{"sent_to"}`; 400 when e-mail is not set up, 502 with the mail server's answer when sending fails |
+| `GET /alerts?limit=50` | `audit.view` | | 200, the newest alerts first (1 to 200; the bell of the web app), see below |
+| `POST /alerts/test` | `settings.manage` | `{"channel": "email"}` or `{"channel": "webhook", "webhook": 1}` | 200 `{"alert", "sent_to"}` or `{"alert", "webhook", "status"}`, sent with the saved settings; **400** when there is nothing to send to (e-mail not set up, no recipient, the webhook has no address), **502** when the delivery failed, with the reason |
 | `GET /events` | signed in | | the live event stream ([Live events](#8-live-events)) |
+
+An alert, as `GET /alerts` lists it and the `alert` live event carries it ([Admin guide, Alerts](ADMIN_GUIDE.md#16-alerts)):
+
+```json
+{"id": "3f9c2a1b7d4e", "key": "instance_down:shop-main", "type": "instance_down", "severity": "problem",
+ "title": "shop-main is down", "text": "Instance shop-main is stopped, for 5 minutes now. ...", "hint": null,
+ "details": [], "instance": "shop-main", "link": "/i/shop-main", "at": 1763366400.0, "last_at": 1763366400.0,
+ "count": 1, "resolved_at": null, "delivery": ["e-mailed to 2 of 2 addresses", "webhook 1: delivered (HTTP 200)"]}
+```
+
+`type`: `job_failed`, `update_failed`, `backup_failed`, `instance_down`, `disk`, `memory`, `drift`, `public_link`,
+`test`. `severity`: `problem`, `recovered` or `info`. `count` grows when the same alert repeats inside
+`ALERT_QUIET_MINUTES` (it is not sent again); `last_at` is its latest time and the list's order. `link` is a path of
+the web app. `resolved_at` is set when the problem is over. Webhooks are named by number, never by address.
 
 ### Accounts, roles and the audit log
 
@@ -449,6 +465,7 @@ An instance:
   "data": {
     "name": "sales-main",
     "status": "online",
+    "stage": "development",
     "url": "https://river-stone-apple.trycloudflare.com",
     "odoo": {"version": "19.0", "edition": "enterprise", "database": "sales_main"},
     "source": "repository",
@@ -504,7 +521,7 @@ since), what happened:
 to restore by hand.
 
 `status` is one of `creating`, `online`, `starting`, `busy` (a job is running), `paused`, `switched_off`, `stopped`,
-`unknown`.
+`unknown`. `stage` is `production`, `staging` or `development` ([Stages](#stages)).
 
 `creating`: the instance's creation is queued or running. The instance answers (and is listed) from the moment
 `POST /instances` is accepted, before any of its files exist: then it shows what the creation was asked for (version,
@@ -560,6 +577,7 @@ Creating an instance takes the same fields as the **New instance** form:
   "install_modules": true,
   "demo": false,
   "delete_after_days": 30,
+  "stage": "development",
   "from_backup": "sales-main__sales_main__20261112-000012__daily.zip"
 }
 ```
@@ -581,6 +599,12 @@ and files are kept, and from then on it works like an instance created from that
  "detail": "odoo-18-0-community-3f9a runs plain Odoo without a GitHub repository: it has no code to update, no branch and no submodules. Connect a repository to it first.",
  "instance": "/api/v1/instances/odoo-18-0-community-3f9a/actions/update", "request_id": "..."}
 ```
+
+`stage` is optional (`development` by default) and decides the defaults of the fields not sent: `delete_after_days`
+(`DELETE_AFTER_DAYS`, `STAGING_DELETE_AFTER_DAYS` for staging, always 0 for production), `auto_pause` (never for
+production) and `auto_update` (`PRODUCTION_AUTO_UPDATE` for production). A production instance with
+`delete_after_days` other than 0 or `"auto_pause": true` answers 400; one more production instance than
+`MAX_PRODUCTION_INSTANCES` allows answers **409** with a problem detail naming those in production.
 
 `from_backup` is optional: the new instance starts with that backup's database and files (loaded under the new
 database name) instead of an empty database. It needs `instances.restore` and `backups.manage` besides
@@ -609,10 +633,36 @@ Actions (`POST /instances/<name>/actions/<action>`); each needs its own permissi
 | `repair` | Restore the panel's configuration after a change made outside the panel (also started on its own with `DRIFT_ACTION=restore`) | `instances.operate` | `{}` |
 | `restore` | Restore a backup: replaces the database and the filestore | `instances.restore` (and `backups.manage` for another instance's backup) | `{}` for the latest, or `{"file": "<backup file name>"}` |
 | `rollback` | Go back to the state before the last restore, while it is kept (`ROLLBACK_HOURS`) | `instances.restore` | `{}` |
-| `delete` | Delete, after a backup (same as `DELETE /instances/<name>`) | `instances.delete` | `{"confirm": "<name>"}` |
+| `delete` | Delete, after a backup (same as `DELETE /instances/<name>`) | `instances.delete` | `{"confirm": "<name>"}`; production: also `"confirm_stage": "production"` |
 
 By role: a Developer may run the `instances.update` actions, a Maintainer every action except `delete`, a Super
-admin or Administrator all of them.
+admin or Administrator all of them. On a production instance, `pause`, `switch-off`, `restore` and `rollback` also
+need `"confirm_production": true` in the body, and `delete` needs `"confirm_stage": "production"` besides the name;
+without them the answer is 400 and nothing starts.
+
+#### Stages
+
+Every instance has a `stage`: `production`, `staging` or `development`. Instances made before stages existed are
+`development` and behave exactly as before.
+
+| | Development | Staging | Production |
+| :--- | :--- | :--- | :--- |
+| Paused when idle | when `auto_pause` | when `auto_pause` | never (`auto_pause: true` answers 409) |
+| Deleted automatically | after `delete_after_days` | after `delete_after_days` (new ones: `STAGING_DELETE_AFTER_DAYS`) | never (`delete_after_days` other than 0 answers 409) |
+| Daily backup | when `DAILY_BACKUPS` and used since the last one | the same, and `STAGING_DAILY_BACKUPS` | every day, used or not, whatever `DAILY_BACKUPS` says |
+| Safe updates | when `SAFE_UPDATES` | when `SAFE_UPDATES` | always |
+| New code automatically | `AUTO_UPDATE` for new ones | `AUTO_UPDATE` for new ones | `PRODUCTION_AUTO_UPDATE` for new ones (off by default) |
+
+Change it with `PATCH /instances/<name>` (`instances.operate`) and `{"stage": "production"}`. Moving an instance into
+production answers **409** when `MAX_PRODUCTION_INSTANCES` instances are in production already; otherwise its
+lifetime becomes "keep" and its automatic pause is switched off. Moving one out of production needs
+`"confirm_production": true` (400 without it); its settings stay as they are. Each change is in the audit log
+("instance stage changed", with the stages before and after).
+
+```
+PATCH /api/v1/instances/sales-main  {"stage": "staging", "confirm_production": true}
+  -> 200 {"data": {"name": "sales-main", "stage": "staging", ...}}
+```
 
 `restore` without `file` puts back the newest `manual`, `daily` or `deletion` backup of a database the instance has
 (`restorable_backup` in `GET /instances/<name>`); 409 when there is none. With `file`, it may be any backup of the
@@ -635,7 +685,8 @@ every submodule, the `before-update` backup when an upgrade ran or started, then
 ends `failed` and its `error` reads "The update to `<sha>` failed at `<step>`; the instance was put back to
 `<previous sha>`." followed by the explanation of the failure, when there is one; `update_failure` of the instance
 shows the same, and the audit log has an entry. An automatic update does not try a commit whose update was put back
-again; `update` does. With `SAFE_UPDATES` off, updates run without the backup and the rollback.
+again; `update` does. With `SAFE_UPDATES` off, updates run without the backup and the rollback, except on a
+production instance, which is always updated this way.
 
 `rollback` puts back the `before-restore` backup named in `rollback` of `GET /instances/<name>`; 409 when there is
 none (also once the instance was rolled back to it; restoring that file with `restore` still puts it back). It
@@ -792,11 +843,12 @@ GET /api/v1/settings
 | `PATCH /api/v1/settings` `{"idle_hours": null}` | Back to the `.env` value |
 | `DELETE /api/v1/settings/idle_hours` | The same |
 | `POST /api/v1/settings/test-email` `{"to": "you@example.com"}` | Send a test e-mail with the current mail settings |
+| `POST /api/v1/alerts/test` `{"channel": "webhook", "webhook": 2}` | Send a test alert to webhook 2 (or `{"channel": "email"}`: to every alert recipient) |
 | `POST /api/v1/server/restart` | Apply the `restart` settings; refused with 409 while jobs run |
 
 A wrong value is refused with 400 and the setting's name (`IDLE_HOURS: Input should be greater than or equal to
 0.`); a setting that can only be set in `.env` is refused with 400. Secrets (`smtp_password`,
-`odoo_admin_password`, `github_webhook_secret`) are write-only: `value` and `env_value` only say whether they are
+`odoo_admin_password`, `github_webhook_secret`, `alert_webhook_<n>_url`, `alert_webhook_<n>_secret`) are write-only: `value` and `env_value` only say whether they are
 set, and they are stored encrypted with the vault key. The audit log records their change as `SMTP_PASSWORD=(set)`,
 never the value. Every change sends the `settings` [live event](#8-live-events).
 
@@ -827,6 +879,7 @@ data: {"key": "", "data": {"server": {"cpu": 12.5, ...}, "instances": {"sales-ma
 | `job.output` | New log text of a running job (at most twice a second) | `{"job", "offset", "text"}` |
 | `metrics` | Every `METRICS_INTERVAL_SECONDS` (5 by default) | The new figures, as `GET /metrics` ([Metrics](#9-metrics)) |
 | `settings` | A setting was changed | `{"changed": ["idle_hours", ...]}` |
+| `alert` | An alert was raised, repeated, resolved or delivered; only for callers with `audit.view` | The alert, as `GET /alerts` |
 | `reset` | After a reconnection, when more was missed than the panel keeps | `{}`: reload everything |
 
 * `?topics=job,instance` sends only those events.

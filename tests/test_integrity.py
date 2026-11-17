@@ -357,11 +357,21 @@ def test_drift_shows_on_the_instance(admin: Any) -> None:
     assert shown["items"] == ["odoo: user"] and shown["action"] == "warn"
 
 
-def test_drift_mail_renders() -> None:
+def test_drift_is_alerted(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo import alerts
     from sudoo.mail.render import render
 
-    text, html = render("drift", "subject", instance=NAME, items=["odoo: user"], action="restore")
-    assert "odoo: user" in text and NAME in html and "puts its own configuration back" in text
+    sent: list[alerts.Alert] = []
+    monkeypatch.setattr(alerts, "send", lambda alert, now=None: sent.append(alert))
+    integrity._notify(NAME, ["odoo: user"])
+    assert (
+        sent[0].type == "drift"
+        and sent[0].details == ["odoo: user"]
+        and "puts its own configuration back" in sent[0].text
+    )
+    record = {"text": sent[0].text, "hint": None, "details": sent[0].details, "count": 1}
+    text, html = render("alert", "subject", alert=record, link=None)
+    assert "odoo: user" in text and NAME in html
 
 
 def test_record_survives_json() -> None:

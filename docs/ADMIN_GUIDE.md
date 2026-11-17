@@ -24,6 +24,7 @@ add-ons, backups, daily backups and restores, the command line, checks and troub
 13. [Troubleshooting](#13-troubleshooting)
 14. [Moving to permanent links](#14-moving-to-permanent-links)
 15. [The GitHub App](#15-the-github-app)
+16. [Alerts](#16-alerts)
 
 ---
 
@@ -290,7 +291,7 @@ Settings come from two places:
 | `/opt/odoo/manager/settings.json` | The changes made on the panel's **Settings** page, applied on top of `.env`. Passwords in it are encrypted with the vault key. |
 
 A super admin changes most settings in the browser (**Settings** in the sidebar, grouped in tabs: General, Instances,
-Odoo, Backups, Sign-in and security, E-mail, GitHub and updates, Marketplace, Advanced; [User manual](USER_MANUAL.md#11-settings)).
+Odoo, Backups, Sign-in and security, E-mail, Alerts, GitHub and updates, Marketplace, Advanced; [User manual](USER_MANUAL.md#11-settings)).
 A tab can be linked directly, for example `/settings?tab=email`.
 Every setting belongs to one of three classes:
 
@@ -321,8 +322,30 @@ The two choices that shape a server are plugins ([Plugins](PLUGINS.md)):
 | `EXPOSURE` | `cloudflare-quick` (free tunnel per instance, no open port; default) or `host-ports` (open ports, fixed addresses) |
 | `ENTERPRISE_SOURCE` | `folder` (default), `git` (a branch per version) or `none` |
 
-Per instance, the **Settings** tab of the instance's page changes automation and lifetime (stored as
-`AUTO_UPDATE`, `AUTO_UPGRADE`, `AUTO_PAUSE`, `DELETE_AFTER_DAYS` in the instance's `.env`).
+Per instance, the **Settings** tab of the instance's page changes the stage, automation and lifetime (stored as
+`STAGE`, `AUTO_UPDATE`, `AUTO_UPGRADE`, `AUTO_PAUSE`, `DELETE_AFTER_DAYS` in the instance's `.env`).
+
+### Instance stages
+
+Each instance is in a stage: `production`, `staging` or `development` (`STAGE` in its `.env`; an instance without
+it, such as one created before stages existed, is `development` and behaves exactly as before). What the stage
+changes for users is in the [User manual](USER_MANUAL.md#stages-production-staging-and-development); for the server:
+
+| | Development | Staging | Production |
+| :--- | :--- | :--- | :--- |
+| Automatic pause (`IDLE_HOURS`) | when the instance's switch is on | when the instance's switch is on | never |
+| Automatic deletion | after its lifetime (`DELETE_AFTER_DAYS` offered) | after its lifetime (`STAGING_DELETE_AFTER_DAYS` offered) | never; a lifetime is refused |
+| Daily backup | `DAILY_BACKUPS`, when used | `DAILY_BACKUPS` and `STAGING_DAILY_BACKUPS`, when used | every day, used or not, whatever `DAILY_BACKUPS` says |
+| Backup before an update, rollback when it fails | `SAFE_UPDATES` | `SAFE_UPDATES` | always |
+| New code automatically, for new instances | `AUTO_UPDATE` | `AUTO_UPDATE` | `PRODUCTION_AUTO_UPDATE` (off by default) |
+
+`MAX_PRODUCTION_INSTANCES` (1 by default; 0: no limit) caps the instances in production at the same time, those
+being created as production included: creating one more, or moving one more into production, is refused. Every
+setting above is on the Settings page (**Instances**, **Stages**; `STAGING_DAILY_BACKUPS` under **Backups**) and
+in [Configuration](CONFIGURATION.md#stages). Changes of stage are in the audit log ("instance stage changed").
+
+Plan the disk for production: its daily backup is taken every day, but each instance keeps only its latest daily
+backup, so it needs room for about one more copy of its database and files.
 
 ---
 
@@ -675,6 +698,8 @@ last daily backup: opened through its link, or started or restarted. The panel r
 daily backup (`used_since` in the instance state) and clears it when the daily backup starts.
 
 * An instance nobody used gets no new daily backup, so its last one stays.
+* A **production** instance is backed up every day, used or not, even with `DAILY_BACKUPS=false`
+  ([Instance stages](#instance-stages)). `STAGING_DAILY_BACKUPS=false` leaves staging instances out.
 * A running instance keeps running during the backup; a paused one stays paused (only its database container is
   started for the backup, then stopped again).
 * An instance with a job running is tried again a minute later. A daily backup that fails waits for the next day.
@@ -1046,3 +1071,91 @@ added.
 
 Every step (connection started, refused, connected, installed, refreshed, forgotten, disconnected, webhook address
 changed) is recorded in the audit log.
+
+---
+
+## 16. Alerts
+
+The panel tells the right people when something needs attention, so nobody has to watch the dashboard. Set it up on
+the **Settings** page, **Alerts** tab (`/settings?tab=alerts`); every switch, threshold and duration there is a
+setting with a default ([Configuration, Alerts](CONFIGURATION.md#alerts)).
+
+### What is alerted
+
+| Alert | When | Setting |
+| :--- | :--- | :--- |
+| A job failed | Any job on an instance fails. The alert carries the plain hint the panel shows next to the job, the step that failed and a link that opens the job's log. | `ALERT_JOB_FAILED` |
+| An update failed | An update failed and the instance was put back to its previous code and database (`SAFE_UPDATES`), or putting it back failed too (the before-update backup is then kept for a restore by hand). | `ALERT_UPDATE_FAILED` |
+| A backup failed | A manual or daily backup failed. | `ALERT_BACKUP_FAILED` |
+| An instance is down | An instance that should run (not paused, not switched off, no job on it) is stopped, or Odoo in it does not answer, for `ALERT_INSTANCE_DOWN_MINUTES` (5). | `ALERT_INSTANCE_DOWN` |
+| Disk almost full | The disk holding the instances and backups has less than `ALERT_DISK_FREE_PERCENT` (10 %) free. | `ALERT_DISK` |
+| Memory high | Server memory stays at or above the capacity warning (`CAPACITY_WARNING_PERCENT`, 85 %) for `ALERT_MEMORY_MINUTES` (10). | `ALERT_MEMORY` |
+| Changed outside the panel | An instance's containers or files were changed by hand ([Hardened containers](#hardened-containers-and-changes-made-by-hand)). | `ALERT_DRIFT` |
+| No public link | The panel, or an instance that is online, has had no public link for `ALERT_PUBLIC_LINK_MINUTES` (10): its Cloudflare connector stopped, for example. | `ALERT_PUBLIC_LINK` |
+
+When a problem that lasts is over (the instance answers again, the disk has room, memory is back below the warning,
+the link is back), a **resolved** notice follows, unless `ALERT_RECOVERY` is off. A paused, switched-off or deleted
+instance is not watched; an open alert about it is closed without a notice. While a job runs on an instance (a
+restart, an update), the countdown waits.
+
+### Who receives them
+
+* **E-mail**: every super admin with an e-mail address (`ALERT_SUPER_ADMINS`, on by default) and the addresses in
+  `ALERT_EMAILS` (an on-call mailbox, say). E-mail must be set up ([E-mail](#6-e-mail)).
+* **Webhooks**: up to three (`ALERT_WEBHOOK_1_URL` to `ALERT_WEBHOOK_3_URL`), each in a format: `json` (the panel's
+  own JSON, signed), `slack`, `discord` or `teams` (paste the incoming webhook address from Slack, Discord or a
+  Teams workflow).
+* **The bell** at the top of the panel lists the latest alerts for everyone who may read the audit log (super admins
+  and administrators); new ones appear as they happen, with a dot until you open the list.
+
+**Send a test alert** next to the recipients and next to each webhook sends a test with the saved settings, and says
+what went wrong when it fails. Save your changes first.
+
+### How often
+
+The same alert (same kind, same instance) is sent at most once in `ALERT_QUIET_MINUTES` (60). A repeat inside that
+time is not sent again; the bell counts it on the alert already listed ("3 times"). With `ALERT_DIGEST` on, e-mails
+come as one summary a day at `ALERT_DIGEST_TIME` (08:00 in `TIMEZONE`) instead of one per alert; webhooks and the
+bell still get each alert at once.
+
+### Webhooks in detail
+
+A `json` webhook receives a POST with `Content-Type: application/json`:
+
+```json
+{"event": "alert", "id": "3f9c2a1b7d4e", "type": "instance_down", "severity": "problem",
+ "title": "shop-main is down", "text": "Instance shop-main is stopped, for 5 minutes now. ...",
+ "hint": null, "details": [], "instance": "shop-main", "link": "https://panel.example.com/i/shop-main",
+ "count": 1, "at": "2026-11-17T08:00:00+00:00", "sent_at": "2026-11-17T08:00:01+00:00"}
+```
+
+`type` is one of `job_failed`, `update_failed`, `backup_failed`, `instance_down`, `disk`, `memory`, `drift`,
+`public_link` and `test`; `severity` is `problem`, `recovered` (the problem is over) or `info` (a test). The header
+`X-Sudoo-Event` repeats the type.
+
+With a secret (`ALERT_WEBHOOK_<n>_SECRET`), every request carries
+`X-Sudoo-Signature: sha256=<hex HMAC-SHA256 of the raw body, keyed with the secret>`. Check it before trusting the
+body, in constant time, and ignore a `sent_at` older than a few minutes:
+
+```python
+import hashlib, hmac
+
+def genuine(body: bytes, header: str, secret: str) -> bool:
+    expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, header)
+```
+
+Rules the panel keeps for every webhook:
+
+* Only `https://` addresses (`http://` only for `localhost`), without a user name or password in them.
+* Redirects are never followed: a 3xx answer counts as a failed delivery.
+* Each request may take `ALERT_WEBHOOK_TIMEOUT_SECONDS` (10); the body is at most 64 KB, and at most 64 KB of the
+  answer is read.
+* A webhook's address and secret are secrets: stored encrypted, never shown on the Settings page, never written to
+  the audit log (a failed delivery is logged as "alert webhook failed", naming the webhook by its number).
+
+### What an alert never contains
+
+Alerts are written by the panel in plain words; they never copy a job's log, an instance's passwords, API tokens or
+keys, and any address with a user name or password in it is masked. The link in an alert opens the panel, which asks
+the reader to sign in.

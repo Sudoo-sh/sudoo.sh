@@ -1,6 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  Bell,
   BookOpen,
+  CircleAlert,
+  CircleCheck,
+  Info,
   ChevronRight,
   ChevronsUpDown,
   DatabaseBackup,
@@ -23,8 +27,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { api } from "@/api/client";
 import { useLiveEvents, type Sync } from "@/api/live";
-import { keys, useInstances, useMetrics, usePluginNotices } from "@/api/queries";
-import { percent } from "@/lib/format";
+import { keys, useAlerts, useInstances, useMetrics, usePluginNotices } from "@/api/queries";
+import type { Alert } from "@/api/types";
+import { ago, percent } from "@/lib/format";
 import { applyTheme, storedTheme, type ThemeChoice } from "@/lib/theme";
 import { Brand } from "./ui/Brand";
 import { Button, Callout } from "./ui/basics";
@@ -222,6 +227,85 @@ const CRUMBS: Record<string, string> = {
   help: "Help",
 };
 
+const SEEN_KEY = "sudoo.alerts.seen";
+
+function readSeen(): number {
+  try {
+    return Number(localStorage.getItem(SEEN_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function AlertIcon({ alert }: { alert: Alert }) {
+  if (alert.severity === "recovered") return <CircleCheck className="positive" />;
+  if (alert.severity === "info") return <Info />;
+  return <CircleAlert className={alert.resolved_at ? "" : "negative"} />;
+}
+
+/** The bell: the latest alerts, for those who may read the audit log. A dot marks alerts newer than the last time the
+ *  list was opened (remembered in this browser only). */
+function Alerts() {
+  const can = useCan();
+  const allowed = can("audit.view");
+  const { data: alerts } = useAlerts(allowed);
+  const [seen, setSeen] = useState(readSeen);
+  if (!allowed) return null;
+  const list = alerts ?? [];
+  const unseen = list.filter((a) => a.last_at > seen && a.severity !== "info").length;
+  const markSeen = () => {
+    const latest = Math.max(seen, ...list.map((a) => a.last_at));
+    setSeen(latest);
+    try {
+      localStorage.setItem(SEEN_KEY, String(latest));
+    } catch {
+      /* private window: the dot comes back after a reload */
+    }
+  };
+  const label = unseen ? `Alerts, ${unseen} new` : "Alerts";
+  return (
+    <Menu
+      trigger={(toggle) => (
+        <span className="bell">
+          <Button variant="ghost" size="sm" icon={<Bell />} title={label} aria-label={label}
+            onClick={() => { toggle(); markSeen(); }} />
+          {unseen > 0 && <span className="bell-dot" aria-hidden="true" />}
+        </span>
+      )}
+    >
+      {(close) => (
+        <div className="bell-menu">
+          <div className="bell-head">
+            <b>Alerts</b>
+            <span className="spacer" />
+            {can("settings.manage") && <Link to="/settings?tab=alerts" viewTransition onClick={close}>Settings</Link>}
+          </div>
+          {list.length === 0 ? (
+            <p className="bell-empty">Nothing needed attention. Failed jobs, instances that are down and a full disk show here.</p>
+          ) : (
+            <div className="bell-list">
+              {list.map((alert) => (
+                <Link key={alert.id} to={alert.link ?? "/"} viewTransition onClick={close} className={alert.resolved_at ? "resolved" : ""}>
+                  <AlertIcon alert={alert} />
+                  <span className="bell-item">
+                    <span className="bell-title">{alert.title}</span>
+                    <span className="bell-text">{alert.text}</span>
+                    <span className="bell-when">
+                      {ago(alert.last_at)}
+                      {alert.count > 1 && ` · ${alert.count} times`}
+                      {alert.severity === "problem" && alert.resolved_at && " · resolved"}
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Menu>
+  );
+}
+
 function Topbar({ onMenu }: { onMenu: () => void }) {
   const location = useLocation();
   const { data: metrics } = useMetrics();
@@ -249,6 +333,7 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
           CPU <b>{percent(server.cpu_percent)}</b> &nbsp; Memory <b>{percent(server.memory_percent)}</b>
         </span>
       )}
+      <Alerts />
     </header>
   );
 }

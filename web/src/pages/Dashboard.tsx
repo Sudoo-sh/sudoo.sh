@@ -2,11 +2,12 @@ import { Boxes, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useHistory, useInstances, useMetrics } from "@/api/queries";
-import type { Columns, Instance, InstanceStatus } from "@/api/types";
+import type { Columns, Instance, InstanceStatus, Stage } from "@/api/types";
 import { Bars } from "@/components/charts/Bars";
 import { LiveChart } from "@/components/charts/LiveChart";
 import { Ring } from "@/components/charts/Ring";
 import { InstanceCard } from "@/components/InstanceCard";
+import { STAGE_ORDER, STAGES } from "@/components/StageTag";
 import { Page, PageHead, useCan } from "@/components/Shell";
 import { StatCard } from "@/components/StatCard";
 import { Callout, Empty, Segmented, Skeleton } from "@/components/ui/basics";
@@ -169,20 +170,26 @@ export function DashboardPage() {
   const { data: history } = useHistory();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [stage, setStage] = useState<Stage | "all">("all");
   const server = metrics?.server;
 
   const counts = useMemo(() => {
     const count = (statuses: InstanceStatus[]) => instances?.filter((i) => statuses.includes(i.status)).length ?? 0;
     return { online: count(["online", "starting"]), paused: count(ASLEEP), busy: count(["busy", "creating"]) };
   }, [instances]);
+  const stageCounts = useMemo(
+    () => Object.fromEntries(STAGES.map((st) => [st.value, instances?.filter((i) => i.stage === st.value).length ?? 0])) as Record<Stage, number>,
+    [instances],
+  );
   const shown = (instances ?? []).filter((i) => {
+    if (stage !== "all" && i.stage !== stage) return false;
     const text = `${i.name} ${i.git.branch ?? "plain"} ${i.git.repository ?? ""} ${i.odoo.version}`.toLowerCase();
     if (query && !text.includes(query.toLowerCase())) return false;
     if (filter === "online") return i.status === "online" || i.status === "starting";
     if (filter === "paused") return ASLEEP.includes(i.status);
     if (filter === "busy") return i.status === "busy" || i.status === "creating";
     return true;
-  });
+  }).sort((a, b) => (STAGE_ORDER[a.stage] ?? 9) - (STAGE_ORDER[b.stage] ?? 9)); // production first; by name within a stage
   const cpuAverage = average(history?.server.cpu_percent);
   const serverT = history?.server.t ?? [];
   const capacity = metrics?.capacity ?? null;
@@ -276,6 +283,12 @@ export function DashboardPage() {
             { value: "busy", label: <>Working <span className="count">{counts.busy}</span></> },
           ]}
         />
+        <select className="select stage-filter" aria-label="Stage" value={stage} onChange={(e) => setStage(e.target.value as Stage | "all")}>
+          <option value="all">All stages</option>
+          {STAGES.map((st) => (
+            <option key={st.value} value={st.value}>{st.label} ({stageCounts[st.value]})</option>
+          ))}
+        </select>
       </div>
 
       {isPending ? (

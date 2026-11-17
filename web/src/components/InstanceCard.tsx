@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { useJob } from "@/api/queries";
 import type { Instance, Job } from "@/api/types";
 import { ago, monogram, percent } from "@/lib/format";
+import { StageTag } from "./StageTag";
 import { Progress, Status, Tag } from "./ui/basics";
 
 export function Monogram({ name, large }: { name: string; large?: boolean }) {
@@ -47,6 +48,7 @@ export function InstanceCard({ instance }: { instance: Instance }) {
       </div>
       <div className="ic-body">
         <div className="row-wrap">
+          <StageTag stage={instance.stage} />
           <Tag mono>{instance.odoo.version}</Tag>
           <Tag>{instance.odoo.edition === "enterprise" ? "Enterprise" : "Community"}</Tag>
           {instance.git.branch_deleted_on_github && <Tag tone="negative">Branch deleted</Tag>}

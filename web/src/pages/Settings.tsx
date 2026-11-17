@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Mail, Plug, Puzzle, RefreshCcw, RotateCcw, Send, ServerCog } from "lucide-react";
+import { Bell, Mail, Plug, Puzzle, RefreshCcw, RotateCcw, Send, ServerCog, Webhook } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, errorText } from "@/api/client";
@@ -10,8 +10,18 @@ import { Page, PageHead, useMe } from "@/components/Shell";
 import { Button, Callout, Skeleton, Switch, Tag } from "@/components/ui/basics";
 import { Modal, useToast } from "@/components/ui/overlay";
 
-type Group = { title: string; text: string; keys: string[] };
-type TabId = "general" | "instances" | "odoo" | "backups" | "security" | "email" | "github" | "marketplace" | "advanced";
+/** `test`: the group has a "Send a test alert" button, by e-mail or to that webhook. */
+type Group = { title: string; text: string; keys: string[]; test?: "email" | 1 | 2 | 3 };
+type TabId = "general" | "instances" | "odoo" | "backups" | "security" | "email" | "alerts" | "github" | "marketplace" | "advanced";
+
+const webhookGroup = (n: 1 | 2 | 3): Group => ({
+  title: `Webhook ${n}`,
+  text: n === 1
+    ? "Alerts posted to Slack, Discord, Teams (their incoming webhook address) or your own system (signed JSON). https only"
+    : "Another place alerts are posted to",
+  keys: [`alert_webhook_${n}_url`, `alert_webhook_${n}_format`, `alert_webhook_${n}_secret`],
+  test: n,
+});
 
 /** The tabs of the page and the groups of settings in each. Every setting that can be changed is in one group only;
  *  one the page does not know yet shows under Advanced, Other. */
@@ -28,6 +38,7 @@ const TABS: { id: TabId; label: string; groups: Group[] }[] = [
     label: "Instances",
     groups: [
       { title: "New instances", text: "What a new instance starts with; each instance can change its own", keys: ["auto_pause", "idle_hours", "auto_update", "auto_upgrade", "delete_after_days", "odoo_admin_password"] },
+      { title: "Stages", text: "Production instances are never paused or deleted automatically, are backed up every day and always updated safely. Staging instances get a longer lifetime. 0 turns the production limit off", keys: ["max_production_instances", "production_auto_update", "staging_delete_after_days"] },
       { title: "How many instances", text: "How many instances, and how often a new one can be created. 0 turns a limit off", keys: ["max_instances", "max_instances_per_user", "create_cooldown_minutes"] },
       { title: "Capacity", text: "How many instances this server runs comfortably at once, and when the panel warns. 0 turns the hard limit off: the panel then only warns", keys: ["capacity_reserve_mb", "capacity_reserve_percent", "capacity_instance_memory_mb", "capacity_warning_percent", "max_running_instances"] },
       { title: "Instance containers", text: "Limits of each instance's containers, applied when an instance next starts, and what happens when someone changes them by hand. 0 turns a limit off", keys: ["odoo_memory_limit", "odoo_cpu_limit", "db_memory_limit", "db_cpu_limit", "container_pids_limit", "container_log_max_size", "container_log_max_files", "drift_action"] },
@@ -46,7 +57,7 @@ const TABS: { id: TabId; label: string; groups: Group[] }[] = [
     id: "backups",
     label: "Backups",
     groups: [
-      { title: "Backups", text: "Each instance used during the day is backed up once, at this time; it keeps only its latest daily backup", keys: ["daily_backups", "daily_backup_time", "timezone", "rollback_hours", "safe_updates"] },
+      { title: "Backups", text: "Each instance used during the day is backed up once, at this time (production instances every day, whatever these say); it keeps only its latest daily backup", keys: ["daily_backups", "staging_daily_backups", "daily_backup_time", "timezone", "rollback_hours", "safe_updates"] },
     ],
   },
   {
@@ -62,6 +73,19 @@ const TABS: { id: TabId; label: string; groups: Group[] }[] = [
     label: "E-mail",
     groups: [
       { title: "E-mail", text: "The mailbox that sends sign-in codes, for example a Gmail account with an app password", keys: ["mailer", "mail_from", "smtp_host", "smtp_port", "smtp_security", "smtp_username", "smtp_password", "mail_templates_dir"] },
+    ],
+  },
+  {
+    id: "alerts",
+    label: "Alerts",
+    groups: [
+      { title: "Who receives alerts", text: "Alerts by e-mail, through the mail settings of the E-mail tab. The bell at the top lists them for everyone who may read the audit log", keys: ["alerts", "alert_super_admins", "alert_emails"], test: "email" },
+      { title: "Jobs and backups", text: "Alerted as soon as they happen, with the plain explanation and a link to the job", keys: ["alert_job_failed", "alert_update_failed", "alert_backup_failed", "alert_drift"] },
+      { title: "Instances and server", text: "Problems that last are alerted after their minutes, and a notice follows when they are over", keys: ["alert_instance_down", "alert_instance_down_minutes", "alert_public_link", "alert_public_link_minutes", "alert_memory", "alert_memory_minutes", "alert_disk", "alert_disk_free_percent"] },
+      { title: "How often", text: "The same alert is sent once per quiet period; repeats only count up in the bell", keys: ["alert_recovery", "alert_quiet_minutes", "alert_digest", "alert_digest_time", "alert_webhook_timeout_seconds"] },
+      webhookGroup(1),
+      webhookGroup(2),
+      webhookGroup(3),
     ],
   },
   {
@@ -114,6 +138,10 @@ const TITLES: Record<string, string> = {
   auto_update: "Get new code automatically",
   auto_upgrade: "Upgrade changed modules",
   delete_after_days: "Lifetime, days",
+  max_production_instances: "Production instances at most",
+  production_auto_update: "Production gets new code automatically",
+  staging_delete_after_days: "Staging lifetime, days",
+  staging_daily_backups: "Daily backups of staging instances",
   odoo_admin_password: "Odoo admin password",
   odoo_versions: "Versions offered",
   odoo_min_version: "Oldest version offered",
@@ -148,6 +176,33 @@ const TITLES: Record<string, string> = {
   enterprise_source: "Enterprise source",
   auth: "Authenticator",
   rate_limiter: "Rate limiter",
+  alerts: "Send alerts",
+  alert_super_admins: "E-mail every super admin",
+  alert_emails: "Also e-mail these addresses",
+  alert_job_failed: "A job failed",
+  alert_update_failed: "An update failed and was rolled back",
+  alert_backup_failed: "A backup failed",
+  alert_drift: "Changed outside the panel",
+  alert_instance_down: "An instance is down",
+  alert_instance_down_minutes: "Down for, minutes",
+  alert_public_link: "No public link",
+  alert_public_link_minutes: "Without a link for, minutes",
+  alert_memory: "Memory high (from the capacity warning)",
+  alert_memory_minutes: "Memory high for, minutes",
+  alert_disk: "Disk almost full",
+  alert_disk_free_percent: "Alert below, % free",
+  alert_recovery: "Say when a problem is over",
+  alert_quiet_minutes: "Same alert at most every, minutes",
+  alert_digest: "One e-mail a day instead",
+  alert_digest_time: "Daily e-mail at (HH:MM)",
+  alert_webhook_timeout_seconds: "Webhook timeout, seconds",
+  ...Object.fromEntries(
+    [1, 2, 3].flatMap((n) => [
+      [`alert_webhook_${n}_url`, "Address"],
+      [`alert_webhook_${n}_format`, "Format"],
+      [`alert_webhook_${n}_secret`, "Signing secret (json)"],
+    ]),
+  ),
 };
 
 const CHOICES: Record<string, [string, string][]> = {
@@ -156,6 +211,12 @@ const CHOICES: Record<string, [string, string][]> = {
   mailer: [["smtp", "SMTP"], ["none", "No e-mail"]],
   drift_action: [["restore", "Report it and restore the panel's configuration"], ["warn", "Only report it"]],
   enterprise_source: [["folder", "Folder"], ["git", "Git repository"], ["none", "None (Community only)"]],
+  ...Object.fromEntries(
+    [1, 2, 3].map((n) => [
+      `alert_webhook_${n}_format`,
+      [["json", "JSON, signed (your own system)"], ["slack", "Slack"], ["discord", "Discord"], ["teams", "Microsoft Teams"]] as [string, string][],
+    ]),
+  ),
 };
 
 type Value = string | number | boolean;
@@ -237,6 +298,27 @@ function TestEmail({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** Sends a test alert with the saved settings: by e-mail to every alert recipient, or to one webhook. */
+function useTestAlert() {
+  const toast = useToast();
+  const [busy, setBusy] = useState<string | null>(null);
+  const send = async (target: "email" | 1 | 2 | 3, unsaved: boolean) => {
+    const id = String(target);
+    setBusy(id);
+    try {
+      const body = target === "email" ? { channel: "email" } : { channel: "webhook", webhook: target };
+      const result = await api.post<{ sent_to?: string[]; status?: number }>("/alerts/test", body);
+      const where = target === "email" ? `To ${result.sent_to?.join(", ")}` : `Webhook ${target} answered ${result.status}`;
+      toast("success", "Test alert sent", where + (unsaved ? ". Unsaved changes were not used" : ""));
+    } catch (error) {
+      toast("error", "Test alert not sent", errorText(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return { busy, send };
+}
+
 /** The tabs as an accessible tablist: arrow keys, Home and End move between tabs and open them; the chosen tab is
  *  the only one in the Tab order. A dot marks a tab with unsaved changes, or one waiting for a restart. */
 function TabList({ tab, onSelect, marks }: { tab: TabId; onSelect: (id: TabId) => void; marks: Record<string, { unsaved: number; restart: boolean }> }) {
@@ -300,6 +382,7 @@ export function SettingsPage() {
   const tab: TabId = TAB_IDS.has(asked) ? (asked as TabId) : "general";
   const [draft, setDraft] = useState<Record<string, Value>>({});
   const [testing, setTesting] = useState(false);
+  const testAlert = useTestAlert();
   const [restarting, setRestarting] = useState(false);
   const byKey = useMemo(() => Object.fromEntries((settings ?? []).map((s) => [s.key, s])), [settings]);
   const dirty = Object.keys(draft).filter((k) => byKey[k] && (byKey[k]!.secret ? draft[k] !== "" : draft[k] !== byKey[k]!.value));
@@ -408,8 +491,17 @@ export function SettingsPage() {
                 key={group.title}
                 title={group.title}
                 text={group.text}
-                icon={group.title === "E-mail" ? <Mail /> : undefined}
-                actions={group.title === "E-mail" && <Button size="sm" icon={<Send />} onClick={() => setTesting(true)}>Send a test</Button>}
+                icon={group.title === "E-mail" ? <Mail /> : group.test === "email" ? <Bell /> : group.test ? <Webhook /> : undefined}
+                actions={
+                  group.title === "E-mail" ? (
+                    <Button size="sm" icon={<Send />} onClick={() => setTesting(true)}>Send a test</Button>
+                  ) : group.test ? (
+                    <Button size="sm" icon={<Send />} loading={testAlert.busy === String(group.test)}
+                      onClick={() => testAlert.send(group.test!, group.keys.some((k) => dirty.includes(k)))}>
+                      Send a test alert
+                    </Button>
+                  ) : undefined
+                }
               >
                 {rows(group.keys)}
               </Section>

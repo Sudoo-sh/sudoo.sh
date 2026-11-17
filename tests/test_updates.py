@@ -320,3 +320,14 @@ def test_with_safe_updates_off_updates_work_as_before(world: World) -> None:
         operations.update_code(job, NAME)
     assert world.kinds() == ["upgrade"]  # no backup, nothing put back
     assert _head(world.addons) == new and STATE.get(NAME).get("update_failed") is None
+
+
+def test_a_production_instance_is_updated_safely_even_with_safe_updates_off(world: World) -> None:
+    live.change({"safe_updates": False})
+    store.update_env(NAME, STAGE="production")
+    before = _head(world.addons)
+    world.push()
+    world.upgrade_fails = True
+    job, message = _failing_update()
+    assert world.kinds()[0] == "backup" and "restore" in world.kinds()  # backed up first, then put back
+    assert _head(world.addons) == before and "was put back" in message

@@ -4,6 +4,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./client";
 import type {
+  Alert,
   Billing,
   Receipt,
   Account,
@@ -38,6 +39,7 @@ import type {
 
 export const keys = {
   session: ["session"] as const,
+  alerts: ["alerts"] as const,
   instances: ["instances"] as const,
   instance: (name: string) => ["instance", name] as const,
   jobs: (instance?: string) => ["jobs", instance ?? null] as const,
@@ -168,6 +170,9 @@ export const usePlan = (repo: string, branch: string, name: string, version = ""
 
 export const usePlugins = () =>
   useQuery({ queryKey: keys.plugins, queryFn: () => api.get<InstalledPlugin[]>("/plugins") });
+/** The latest alerts, newest first (the bell); new ones arrive as the "alert" live event. */
+export const useAlerts = (enabled: boolean) =>
+  useQuery({ queryKey: keys.alerts, queryFn: () => api.get<Alert[]>("/alerts?limit=30"), enabled, staleTime: Infinity });
 export const usePluginNotices = (enabled: boolean) =>
   useQuery({ queryKey: keys.pluginNotices, queryFn: () => api.get<PluginNotice[]>("/plugins/notices"), enabled, staleTime: 300_000 });
 export const useMarketplace = () =>

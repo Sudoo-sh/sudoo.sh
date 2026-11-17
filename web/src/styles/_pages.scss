@@ -165,6 +165,7 @@
   gap: var(--s3);
   flex-wrap: wrap;
   .input-group { width: min(320px, 100%); }
+  .stage-filter { width: auto; min-width: 160px; }
 }
 
 .instance-grid {

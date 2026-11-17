@@ -93,9 +93,14 @@ export interface Usage {
   disk_bytes?: number | null;
 }
 
+/** production: never paused or deleted automatically, backed up every day, updated safely; staging and development:
+ *  the panel's own rules (instances/stages.py) */
+export type Stage = "production" | "staging" | "development";
+
 export interface Instance {
   name: string;
   status: InstanceStatus;
+  stage: Stage;
   url: string | null;
   odoo: { version: string; edition: "community" | "enterprise"; database: string };
   /** "plain": the official Odoo only, created without a repository (no code to update, no branch, no submodules) */
@@ -236,6 +241,26 @@ export interface Setting {
   description: string | null;
 }
 
+/** An alert (GET /api/v1/alerts, live event "alert"): something that needed attention, or the notice it is over. */
+export interface Alert {
+  id: string;
+  key: string;
+  type: "job_failed" | "update_failed" | "backup_failed" | "instance_down" | "disk" | "memory" | "drift" | "public_link" | "test";
+  severity: "problem" | "recovered" | "info";
+  title: string;
+  text: string;
+  hint: string | null;
+  details: string[];
+  instance: string | null;
+  /** a path of the web app, e.g. /i/shop/activity?job=abc */
+  link: string | null;
+  at: number;
+  last_at: number;
+  count: number;
+  resolved_at: number | null;
+  delivery: string[];
+}
+
 export interface Version {
   version: string;
   enterprise: boolean;
@@ -245,8 +270,14 @@ export interface Plan {
   name: string;
   database: string;
   login: string;
-  defaults: { delete_after_days: number; auto_update: boolean; auto_upgrade: boolean; auto_pause: boolean };
+  defaults: PlanDefaults;
+  /** what a new instance of each stage starts with */
+  stage_defaults: Record<Stage, PlanDefaults>;
+  /** how many production instances there may be (0: no limit) and are, and why one more is refused */
+  production: { limit: number; instances: string[]; refusal: string | null };
 }
+
+export type PlanDefaults = { delete_after_days: number; auto_update: boolean; auto_upgrade: boolean; auto_pause: boolean };
 
 export interface Quota {
   instances: number;

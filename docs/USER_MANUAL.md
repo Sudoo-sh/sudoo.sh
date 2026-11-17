@@ -147,10 +147,13 @@ still let you go ahead.
 | **Response time** | How long Odoo takes to start answering, over the last hour: the slowest instance's 95th percentile (95% of its requests were faster) and the average. |
 | **By instance** | Bars of the instances that use the most now. Switch between **CPU**, **Memory** and **Disk**. Click a bar to open that instance. |
 
-**The list of instances.** Use **Search** to find an instance by name, and the filters **All**, **Online**,
-**Paused** and **Working** (each with its count). Each instance has a card with:
+**The list of instances.** Use **Search** to find an instance by name, the filters **All**, **Online**,
+**Paused** and **Working** (each with its count), and the stage menu (**All stages**, **Production**, **Staging**,
+**Development**). Production instances come first. Each instance has a card with:
 
 * its name and status ([statuses](#statuses)),
+* its stage: **Production** stands out, **Staging** and **Development** stay quiet
+  ([Stages](#stages-production-staging-and-development)),
 * its Odoo version, edition (Community or Enterprise) and branch,
 * the last commit, or, while a job runs, that job with its progress,
 * processor, memory and requests per minute,
@@ -167,7 +170,7 @@ connection to the server is lost for a moment, a small **Reconnecting** notice s
 
 ### The header
 
-At the top: the instance's name and status, its Odoo version, edition, branch and link. While a job runs, a line
+At the top: the instance's name, stage and status, its Odoo version, edition, branch and link. While a job runs, a line
 below the header shows it with its progress; click it to follow the steps.
 
 A warning appears when the instance's branch no longer exists on GitHub, or when its link has a problem.
@@ -190,9 +193,9 @@ The menu:
 | **Upgrade modules** | Like **Upgrade** in Odoo's Apps menu. Enter technical names separated by commas, or `all`. |
 | **Switch branch** | Moves the instance to another branch of the same repository, upgrades its modules and restarts. The database stays. |
 | **Update Odoo and PostgreSQL images** | Downloads the newest build of the instance's Odoo version and PostgreSQL (same versions) and restarts with them. Until then the instance keeps the exact images it was created with. |
-| **Pause** | Stops it to free memory now. It starts again on the next visit. |
-| **Switch off** | Stops it completely. Visitors see that it is switched off, and it does not start until someone clicks **Start**. |
-| **Delete** | Removes Odoo, its database and its files, after a backup. Type the instance's name to confirm. If the backup fails, nothing is removed; someone who may also manage backups can turn on **Delete even if the backup fails** to remove the instance anyway (the audit log records it). |
+| **Pause** | Stops it to free memory now. It starts again on the next visit. A production instance asks first. |
+| **Switch off** | Stops it completely. Visitors see that it is switched off, and it does not start until someone clicks **Start**. A production instance asks first. |
+| **Delete** | Removes Odoo, its database and its files, after a backup. Type the instance's name to confirm (a production instance: also the word `production`). If the backup fails, nothing is removed; someone who may also manage backups can turn on **Delete even if the backup fails** to remove the instance anyway (the audit log records it). |
 
 **Back up now** and **Restore the latest** are on the **Backups** card of the **Overview** tab
 ([The Backups card](#the-backups-card)).
@@ -225,7 +228,7 @@ wait: one job per instance at a time.
 | **Activity** | Every job on this instance, newest first. Click one to open a panel with its steps, notes, the reason it failed (if it did) and the technical log, which follows live while the job runs. |
 | **Code** | The repository and branch, the recent commits, and the submodules, with **Add submodule** and **Remove** ([section 6](#6-submodules)). |
 | **Odoo log** | The latest lines Odoo wrote (100 to 3000), with **Refresh**. Lines with `ERROR` or `Traceback` usually explain a problem. |
-| **Settings** | The automation switches and the lifetime ([section 5](#5-keeping-the-code-up-to-date)). Changes are saved at once. |
+| **Settings** | The stage ([Stages](#stages-production-staging-and-development)), the automation switches and the lifetime ([section 5](#5-keeping-the-code-up-to-date)). Changes are saved at once. |
 | **Access** | The Odoo sign-in: address, login, password, and the master password (for Odoo's database manager). Click **Show the passwords**; each viewing is recorded in the audit log. |
 
 ### The Backups card
@@ -309,7 +312,10 @@ Click **New instance** in the sidebar (roles that may create instances). Under *
 6. **Version**: the Odoo versions offered on this server.
 7. **Edition**: **Community** (Odoo's free edition) or **Enterprise** (Enterprise apps and interface). Enterprise
    can be chosen only for the versions whose Enterprise add-ons are on the server.
-8. **Options**:
+8. **Stage**: **Production**, **Staging** or **Development** (the default). The stage sets the options below to
+   its own defaults; see [Stages](#stages-production-staging-and-development). When the server already has as many
+   production instances as it allows, a warning says so and **Production** cannot be created.
+9. **Options**:
 
    | Option | Effect |
    | :--- | :--- |
@@ -317,16 +323,16 @@ Click **New instance** in the sidebar (roles that may create instances). Under *
    | **Load demo data** | Sample customers, products and orders, useful for presentations. |
    | **Get new code automatically** | New commits on the branch are applied by themselves ([section 5](#5-keeping-the-code-up-to-date)). |
    | **Pause when nobody uses it** | The instance pauses after some hours without visits, to free memory. |
-   | **Lifetime** | Deleted that many days after creation (30 by default), with a backup first; or **Keep until deleted by hand**. |
+   | **Lifetime** | Deleted that many days after creation (30 by default, 90 for staging), with a backup first; or **Keep until deleted by hand**. Not shown for production. |
 
-9. **Start from a backup** (optional; administrators and super admins): switch it on and pick a backup from the
+10. **Start from a backup** (optional; administrators and super admins): switch it on and pick a backup from the
    list, grouped by instance. Only backups of the chosen Odoo version (and, for Enterprise backups, an Enterprise
    instance) are listed. The new instance starts with that backup's data and files instead of an empty database,
    loaded under its own database name. A backup of another instance is neutralised: no e-mail goes out and no
    scheduled actions run until you switch them back on in Odoo. **Install the repository's modules** then installs
    only the modules the backup does not have yet; **Load demo data** does not apply. The backup's administrator
    (the first user, usually `admin`) gets the instance's admin password, so the **Access** tab works for it.
-10. Click **Create instance**.
+11. Click **Create instance**.
 
 If the server has a limit on the number of instances, or a waiting time between two new instances, a warning above
 the form says so before you start, and the numbers under the button show how many exist.
@@ -343,6 +349,35 @@ When it is ready, the page becomes the instance's own page: the link is in the h
 
 If a step fails, the page says **Not created** and explains what went wrong in plain words, with the step where it
 stopped and the technical log. Everything created so far is removed, so you can simply try again (**Try again**).
+
+### Stages: production, staging and development
+
+Every instance has a stage, shown as a badge on its card and its page. It decides what the panel does with the
+instance on its own:
+
+| | Development | Staging | Production |
+| :--- | :--- | :--- | :--- |
+| What it is for | Day-to-day work on a branch | Rehearsing a release before it goes live | The live database your users work in |
+| Pauses when nobody uses it | Yes, unless switched off | Yes, unless switched off | Never |
+| Deleted at the end of its lifetime | Yes (30 days by default) | Yes (90 days by default) | Never: kept until someone deletes it |
+| Daily backup | After a day it was used | After a day it was used (the administrator can turn it off for staging) | Every day, used or not |
+| Updates | Backed up first and undone if they fail, unless the administrator turned that off | The same | Always backed up first and undone if they fail |
+| New code automatically | As chosen | As chosen | Off by default: **Get latest code** when you are ready, or switch it on |
+
+Instances created before stages existed are **Development** instances and work exactly as before.
+
+**Production asks before it acts.** Pausing or switching off a production instance asks you to confirm. Restoring a
+backup into it or rolling it back says it is the production instance (the state before is always backed up first).
+Deleting it needs its name **and** the word `production`.
+
+**How many production instances.** The server allows one production instance by default; the administrator can
+change the number (**Settings**, **Instances**, **Stages**). When the limit is reached, **New instance** says so
+and an instance cannot be moved to production until another one leaves it.
+
+**Changing the stage.** Open the instance, tab **Settings**, and choose another **Stage** (roles that may change
+automation: maintainers, administrators, super admins). Moving to **Production** switches off the automatic pause
+and makes its lifetime "keep". Moving out of production asks you to confirm; its settings then stay as they are
+until you change them. The audit log records every change of stage.
 
 ---
 
@@ -676,6 +711,15 @@ when, the account, what happened, the instance and the address it came from. A c
 or webhook secret) appears as `(set)`, never with its value. Use **Search** to find entries,
 **Refused only** to see only what was not allowed, and **Show older entries** to go further back.
 
+### Alerts (the bell)
+
+The bell at the top right lists the latest alerts: a job that failed, an update that was rolled back, a failed
+backup, an instance that is down, the disk almost full, memory high, a change made outside the panel, a missing
+public link, and a **Resolved** line when such a problem is over. A dot on the bell means there are alerts you have
+not seen yet; opening the list clears it. Click an alert to open the instance or the job it is about. Super admins
+and administrators see the bell (everyone who may read the audit log). Who also gets alerts by e-mail or in Slack,
+Discord or Teams is set by a super admin under **Settings**, **Alerts**.
+
 ---
 
 ## 11. Settings
@@ -691,6 +735,7 @@ the browser, in tabs:
 | **Backups** | Whether daily backups are taken, at what time (`HH:MM`, 24-hour clock) and in which time zone (for example `Africa/Cairo`; UTC by default), and how long a restore can be rolled back. Changes apply at once. |
 | **Sign-in and security** | Who must use a second factor (none, administrators, everyone), which second factors are offered, the authenticator, how long a session lasts, and requests per minute with the rate limiter. |
 | **E-mail** | The mailer and the mailbox that sends sign-in codes, with **Send a test**. |
+| **Alerts** | Who is told when something needs attention (super admins, more addresses, up to three webhooks for Slack, Discord, Teams or your own system), which alerts are sent, their thresholds, how often the same alert may repeat, and a daily summary, with **Send a test alert** ([Administrator guide: Alerts](ADMIN_GUIDE.md#16-alerts)). |
 | **GitHub and updates** | How often GitHub is checked, the update triggers, and the webhook secret. |
 | **Marketplace** | The connection to the Sudoo.sh marketplace, and linking this panel to an account ([Marketplace](MARKETPLACE.md)). |
 | **Advanced** | How often figures are measured, the Cloudflare connector image, **Restart the panel**, and **Server**: read only, the folders, ports and how the panel is reached, which stay in the server's `.env`. |
@@ -704,7 +749,7 @@ How changes apply:
 
 * **At once.** Almost every change applies as soon as you save it. It is kept on top of the server's `.env` file.
 * **Use .env** next to a changed setting brings back the value from `.env`.
-* **Passwords** (mail password, Odoo admin password, webhook secret) are write-only: the page shows whether one is
+* **Passwords** (mail password, Odoo admin password, webhook secrets, alert webhook addresses) are write-only: the page shows whether one is
   set, never the value. They are stored encrypted.
 * **Plugins** (settings tagged "plugin, needs a restart": the mailer, second factors, authenticator, rate limiter,
   update triggers and Enterprise source) apply after **Restart the panel**: a notice with the button appears above

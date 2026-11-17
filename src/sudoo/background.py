@@ -1,19 +1,20 @@
 """Work that runs on its own inside the panel process: monitor, automatic pause, automatic deletion, daily backups,
 downloading images ahead of time (PREPULL_IMAGES), removal of expired rollback snapshots, GitHub polling, the GitHub
-App's webhook address, gateway, connectors, the marketplace heartbeat and the plugin watchdog (files, licences)."""
+App's webhook address, gateway, connectors, alerts, the marketplace heartbeat and the plugin watchdog (files,
+licences)."""
 
 from __future__ import annotations
 
 import threading
 import time
 
-from sudoo import accounts, exposure, plugin_manager, triggers
+from sudoo import accounts, alerts, exposure, plugin_manager, triggers
 from sudoo.config import live, settings
 from sudoo.core import audit, jobs
 from sudoo.core.shell import succeeds
 from sudoo.core.state import STATE
 from sudoo.hub import marketplace
-from sudoo.instances import backups, gateway, integrity, monitor, odoo, operations, store
+from sudoo.instances import backups, gateway, integrity, monitor, odoo, operations, stages, store
 from sudoo.repos import github, github_app
 
 
@@ -34,6 +35,7 @@ def start() -> None:
         plugin_manager.watch_forever,
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
+    alerts.start()
     gateway.start(wake=start_wake_job)
     threading.Thread(target=exposure.ensure_all, daemon=True, name="connectors").start()
     triggers.start_all()
@@ -48,22 +50,29 @@ def _pause_idle_instances() -> None:
     """Every few minutes: pause running instances that nobody opened for IDLE_HOURS (0 turns this off)."""
     while True:
         time.sleep(settings.pause_check_interval_seconds)
-        if settings.idle_hours <= 0:
+        pause_idle_instances()
+
+
+def pause_idle_instances(now: float | None = None) -> list[str]:
+    """Start the pause of each running instance idle for IDLE_HOURS whose automatic pause is on; return their names.
+    A production instance is never paused automatically (stages.pauses_when_idle)."""
+    started: list[str] = []
+    if settings.idle_hours <= 0:
+        return started
+    for name in store.names():
+        if (
+            not stages.pauses_when_idle(store.read_env(name))
+            or jobs.busy(name)
+            or not monitor.STATUS.get(name, {}).get("running")
+        ):
             continue
-        for name in store.names():
-            if (
-                store.read_env(name)["AUTO_PAUSE"] != "true"
-                or jobs.busy(name)
-                or not monitor.STATUS.get(name, {}).get("running")
-            ):
-                continue
-            last_visit = STATE.get(name).get("last_visit")
-            if not last_visit:  # no visit recorded yet: start counting now
-                STATE.record_visit(name)
-            elif time.time() - last_visit > settings.idle_hours * 3600:
-                jobs.start(
-                    name, f"Paused (no visits for {settings.idle_hours:g} hours)", "pause", operations.pause, name
-                )
+        last_visit = STATE.get(name).get("last_visit")
+        if not last_visit:  # no visit recorded yet: start counting now
+            STATE.record_visit(name)
+        elif (time.time() if now is None else now) - last_visit > settings.idle_hours * 3600:
+            jobs.start(name, f"Paused (no visits for {settings.idle_hours:g} hours)", "pause", operations.pause, name)
+            started.append(name)
+    return started
 
 
 def _delete_expired_instances() -> None:
@@ -93,21 +102,28 @@ def delete_expired_instances(now: float | None = None) -> list[str]:
 
 
 def _daily_backups() -> None:
-    """Every minute: once DAILY_BACKUP_TIME has passed, back up each instance that was used since its last daily
-    backup (STATE "used_since" earlier than that time). An instance that is busy is tried again a minute later; one
-    whose backup failed waits for the next day."""
+    """Every minute: once DAILY_BACKUP_TIME has passed, back up each instance that is due (daily_backups)."""
     tried: dict[str, float] = {}
     while True:
         time.sleep(60)
-        if not settings.daily_backups:
+        daily_backups(tried)
+
+
+def daily_backups(tried: dict[str, float], now: float | None = None) -> list[str]:
+    """Start the daily backup of each instance due for the current slot (stages.daily_backup_due: production every
+    day, the others when DAILY_BACKUPS is on and they were used since their last one); return their names. `tried`
+    remembers the slot each instance was tried for: one that is busy is tried again a minute later, one whose
+    backup failed waits for the next day."""
+    slot = backups.daily_slot(now)
+    started: list[str] = []
+    for name in store.names():
+        if tried.get(name) == slot or jobs.busy(name):
             continue
-        slot = backups.daily_slot()
-        for name in store.names():
-            if tried.get(name) == slot or jobs.busy(name):
-                continue
-            if backups.needs_daily(STATE.get(name).get("used_since"), slot):
-                tried[name] = slot
-                jobs.start(name, "Daily backup", "backup", operations.daily_backup, name)
+        if stages.daily_backup_due(name, store.read_env(name), STATE.get(name).get("used_since"), slot):
+            tried[name] = slot
+            jobs.start(name, "Daily backup", "backup", operations.daily_backup, name)
+            started.append(name)
+    return started
 
 
 PREPULL_CHECK_SECONDS = 1800

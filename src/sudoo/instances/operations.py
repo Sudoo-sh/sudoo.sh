@@ -21,7 +21,7 @@ from sudoo.core.hints import panel_hint, specific_hint
 from sudoo.core.jobs import Job, JobError
 from sudoo.core.shell import capture
 from sudoo.core.state import STATE
-from sudoo.instances import backups, gateway, integrity, monitor, odoo, store
+from sudoo.instances import backups, gateway, integrity, monitor, odoo, stages, store
 from sudoo.instances.store import compose
 from sudoo.repos import github
 from sudoo.repos.gitrepo import branch_on_github, changed_modules, git, module_folders, own_modules, snapshot
@@ -197,6 +197,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
             "CREATED_BY": plan.get("created_by", ""),
             "INSTANCE_ID": secrets.token_hex(16),  # tells this instance's backups from those of an earlier one
             "ENTERPRISE_FOLDER": str(enterprise_folder or ""),
+            "STAGE": plan.get("stage") or stages.DEFAULT,
         },
     )
     odoo.write_config(name, db, db_password, master_password)
@@ -523,8 +524,8 @@ def _finish_restore(job: Job, name: str) -> None:
 
 
 def expires_at(env: dict[str, str]) -> int | None:
-    """When the instance is deleted automatically (a timestamp), or None when it is kept."""
-    days = int(env["DELETE_AFTER_DAYS"])
+    """When the instance is deleted automatically (a timestamp), or None when it is kept (always in production)."""
+    days = stages.lifetime_days(env)
     return int(env["CREATED_AT"]) + days * 86400 if days > 0 else None
 
 
@@ -673,7 +674,7 @@ class _Update:
 def update_code(job: Job, name: str, submodules_only: bool = False) -> None:
     """Get new code from GitHub (or move submodules to their latest commit), upgrade what changed, restart.
 
-    With SAFE_UPDATES (the default), the instance's database and files are backed up first (before-update) when the
+    With SAFE_UPDATES (the default; always for a production instance), the instance's database and files are backed up first (before-update) when the
     update changes the code (for a paused instance: only when an upgrade will run), and a failure at any later step
     puts the instance back: the previous code (repository and submodules), the backup when an upgrade may have
     changed the database, and Odoo started again on that version. The job then fails with a plain sentence saying
@@ -682,7 +683,7 @@ def update_code(job: Job, name: str, submodules_only: bool = False) -> None:
     if not capture(git(addons, "remote", "get-url", "origin")):
         raise JobError("This instance has no GitHub repository.")
     paused = _paused(name)
-    safe = settings.safe_updates
+    safe = stages.safe_updates(store.read_env(name))  # always in production
     run = _Update(snapshot(addons))
     upgrade = store.read_env(name)["AUTO_UPGRADE"] == "true"
     try:

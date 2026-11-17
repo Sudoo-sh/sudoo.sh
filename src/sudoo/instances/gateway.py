@@ -10,7 +10,18 @@ request, it can:
     - keep the panel's cookies away from Odoo
     - count requests, errors and response times for the metrics (metrics.py)
 
-It runs on its own asyncio event loop in a background thread of the panel process.
+Where it runs is the GATEWAY_MODE setting:
+    service   (the default) its own process, the sudoo-gateway container (gateway_service.py), which keeps the
+              instances answering while the panel restarts or is down; the panel hands it the instances and asks
+              it to start paused ones (gateway_link.py)
+    embedded  inside the panel process, on the event loop below
+
+Either way, this module is the gateway itself. What it needs from the process it runs in (where an instance's Odoo
+is, what to do with a visit, how to wake a paused instance) is a Host: PanelHost in the panel, gateway_service's
+ServiceHost in the gateway service. The panel always runs this module's event loop in a background thread: the live
+event stream uses it (web/v1/events.py), and in service mode the panel serves the instances itself on it while the
+gateway service is not running. Listeners set SO_REUSEPORT, so the panel and the gateway service can hold the same
+port for a moment while one hands it over to the other.
 """
 
 from __future__ import annotations
@@ -19,8 +30,9 @@ import asyncio
 import concurrent.futures
 import threading
 import time
-from collections.abc import AsyncIterator, Callable, Coroutine
-from typing import Any
+from collections.abc import AsyncIterator, Callable, Coroutine, Mapping
+from dataclasses import dataclass
+from typing import Any, Protocol
 
 import aiohttp
 from aiohttp import web
@@ -38,6 +50,7 @@ _LOOP = asyncio.new_event_loop()
 _SESSION: aiohttp.ClientSession | None = None
 _RUNNERS: dict[str, web.AppRunner] = {}
 _LISTENERS: dict[str, asyncio.Server] = {}
+_PORTS: dict[str, tuple[str, int]] = {}  # instance name -> (address, port) it listens on
 LISTENER_ERRORS: dict[str, str] = {}
 _WAKE_REQUESTED: dict[str, float] = {}
 _wake: Callable[[str], jobs.Job] | None = None  # callable(name) -> Job; set by start()
@@ -81,16 +94,95 @@ class _BadBody(Exception):
         self.status = status
 
 
-# --------------------------------------------------------------------------- lifecycle
+# --------------------------------------------------------------------------- where the gateway runs
+
+
+@dataclass(frozen=True, slots=True)
+class Route:
+    """Where an instance's Odoo is, and whether visitors may reach it."""
+
+    odoo_port: int
+    switched_off: bool = False
+
+
+class Edge(Protocol):
+    """What the gateway needs to know about the exposure in front of it (an exposure plugin is one)."""
+
+    @property
+    def https(self) -> bool: ...
+
+    @property
+    def client_ip_header(self) -> str | None: ...
+
+
+class Host(Protocol):
+    """What the gateway needs from the process it runs in."""
+
+    def route(self, name: str) -> Route | None:
+        """The instance's route, or None when it does not exist (any more)."""
+        ...
+
+    def edge(self) -> Edge: ...
+
+    def visited(self, name: str) -> None:
+        """Someone opened the instance (not the background traffic of an open tab)."""
+        ...
+
+    def answered(self, name: str, status: int, duration_ms: float) -> None:
+        """Odoo answered a request (for the metrics)."""
+        ...
+
+    async def not_ready(self, request: web.Request, name: str) -> web.StreamResponse:
+        """Odoo did not accept the connection: the answer for the visitor (and start the instance if needed)."""
+        ...
+
+
+class PanelHost:
+    """The gateway inside the panel process: instances from their folders, state, jobs and metrics in memory."""
+
+    def route(self, name: str) -> Route | None:
+        if not store.exists(name):
+            return None
+        return Route(int(store.read_env(name)["ODOO_PORT"]), bool(STATE.get(name).get("switched_off")))
+
+    def edge(self) -> Edge:
+        return exposure.provider()
+
+    def visited(self, name: str) -> None:
+        STATE.record_visit(name)
+
+    def answered(self, name: str, status: int, duration_ms: float) -> None:
+        metrics.record_request(name, status, duration_ms)
+
+    async def not_ready(self, request: web.Request, name: str) -> web.StreamResponse:
+        page, since = wake_decision(name)
+        return status_pages.render(request, name, page, since=since)
+
+
+HOST: Host = PanelHost()
+
+
+def use(host: Host) -> None:
+    """Serve the instances with another host (the gateway service does, gateway_service.py)."""
+    global HOST
+    HOST = host
+
+
+# --------------------------------------------------------------------------- lifecycle (in the panel)
 
 
 def start(wake: Callable[[str], jobs.Job]) -> None:
-    """Start the event loop thread and a listener for every instance. `wake(name)` starts a wake-up job."""
+    """Start the event loop thread and the gateway as GATEWAY_MODE says: a listener for every instance here
+    (embedded), or the link to the gateway service (service). `wake(name)` starts a wake-up job."""
+    from sudoo.instances import gateway_link
+
     global _wake
     _wake = wake
     threading.Thread(target=_run_loop, daemon=True, name="gateway").start()
-    for name in store.names():
-        add(name)
+    gateway_link.start()
+    if settings.gateway_mode == "embedded":
+        for name in store.names():
+            add(name)
 
 
 def _run_loop() -> None:
@@ -117,27 +209,65 @@ def submit[T](coroutine: Coroutine[Any, Any, T]) -> concurrent.futures.Future[T]
     return asyncio.run_coroutine_threadsafe(coroutine, _LOOP)
 
 
+def run[T](coroutine: Coroutine[Any, Any, T], timeout: float = 15) -> T:
+    """Run a coroutine on the gateway's event loop and wait for its result (from another thread)."""
+    return submit(coroutine).result(timeout)
+
+
 def add(name: str) -> None:
-    """Listen on the instance's gateway port (called from other threads)."""
-    asyncio.run_coroutine_threadsafe(_add(name), _LOOP).result(15)
+    """Serve the instance on its gateway port (called from other threads): here (embedded), or by the gateway
+    service, which is asked to reconcile its listeners at once (service)."""
+    if settings.gateway_mode == "service":
+        from sudoo.instances import gateway_link
+
+        gateway_link.add(name)
+        return
+    run(_listen(name, exposure.provider().listen_host, int(store.read_env(name)["GATEWAY_PORT"])))
 
 
 def remove(name: str) -> None:
-    asyncio.run_coroutine_threadsafe(_remove(name), _LOOP).result(15)
+    """Stop serving the instance (it is being deleted)."""
+    if settings.gateway_mode == "service":
+        from sudoo.instances import gateway_link
+
+        gateway_link.remove(name)
+    run(_unlisten(name))  # in service mode too: the panel may be serving it while the gateway service is down
 
 
-async def _add(name: str) -> None:
+# --------------------------------------------------------------------------- listeners (on the event loop)
+
+
+def listening() -> dict[str, int]:
+    """The instances served here, with their gateway port."""
+    return {name: port for name, (_, port) in _PORTS.items()}
+
+
+async def reconcile(wanted: Mapping[str, tuple[str, int]]) -> None:
+    """Listen exactly on `wanted` ({name: (address, port)}): stop the listeners not wanted (or on another address
+    or port), start the missing ones. A port another program holds is recorded in LISTENER_ERRORS and tried again
+    at the next call."""
+    for name in list(_PORTS):
+        if _PORTS[name] != wanted.get(name):
+            await _unlisten(name)
+    for name in set(LISTENER_ERRORS) - set(wanted):
+        LISTENER_ERRORS.pop(name, None)
+    for name, (host, port) in wanted.items():
+        if name not in _PORTS:
+            await _listen(name, host, port)
+
+
+async def _listen(name: str, host: str, port: int) -> None:
     if name in _RUNNERS:
         return
-    port = int(store.read_env(name)["GATEWAY_PORT"])
     try:
-        runner, listener = await _serve(name, exposure.provider().listen_host, port)
+        runner, listener = await _serve(name, host, port)
     except OSError as exc:
         LISTENER_ERRORS[name] = f"Gateway port {port} is used by another program ({exc.strerror})."
         return
     LISTENER_ERRORS.pop(name, None)
     _RUNNERS[name] = runner
     _LISTENERS[name] = listener
+    _PORTS[name] = (host, port)
 
 
 async def _serve(name: str, host: str, port: int) -> tuple[web.AppRunner, asyncio.Server]:
@@ -147,7 +277,10 @@ async def _serve(name: str, host: str, port: int) -> tuple[web.AppRunner, asynci
     timeout, which runs from the moment a connection opens and again after every answer, and is not counted while
     a request is being handled: long polling, WebSockets and slow uploads are not cut short). Connections are
     counted (_Counted): beyond GATEWAY_MAX_CONNECTIONS for one instance or GATEWAY_MAX_CONNECTIONS_TOTAL for all,
-    a new one is answered 503 and closed, so slow or idle visitors cannot use up the panel's open files."""
+    a new one is answered 503 and closed, so slow or idle visitors cannot use up the server's open files.
+
+    The port is opened with SO_REUSEPORT: the panel and the gateway service (same user) can both hold it while one
+    hands it over to the other, so visitors are not turned away in between."""
     app = web.Application()  # bodies are never read whole: they are passed on as they arrive (_body)
     app[INSTANCE] = name
     app.router.add_route("*", "/{tail:.*}", _handle)
@@ -163,7 +296,7 @@ async def _serve(name: str, host: str, port: int) -> tuple[web.AppRunner, asynci
     assert server is not None  # set by setup()
     try:
         listener = await asyncio.get_running_loop().create_server(
-            lambda: _Counted(name, server()), host, port, reuse_address=True
+            lambda: _Counted(name, server()), host, port, reuse_address=True, reuse_port=True
         )
     except OSError:
         await runner.cleanup()
@@ -171,7 +304,8 @@ async def _serve(name: str, host: str, port: int) -> tuple[web.AppRunner, asynci
     return runner, listener
 
 
-async def _remove(name: str) -> None:
+async def _unlisten(name: str) -> None:
+    _PORTS.pop(name, None)
     listener = _LISTENERS.pop(name, None)
     if listener:
         listener.close()  # no new connections; the runner closes the open ones
@@ -234,19 +368,20 @@ class _Counted(asyncio.Protocol):
 
 async def _handle(request: web.Request) -> web.StreamResponse:
     name = request.app[INSTANCE]
-    if not store.exists(name):
+    route = HOST.route(name)
+    if route is None:
         return status_pages.render(request, name, "gone")
     if not request.path.startswith(_NOT_A_VISIT):
-        STATE.record_visit(name)
-    if STATE.get(name).get("switched_off"):
+        HOST.visited(name)
+    if route.switched_off:
         return status_pages.render(request, name, "off")
-    odoo_url = f"http://127.0.0.1:{store.read_env(name)['ODOO_PORT']}"
+    odoo_url = f"http://127.0.0.1:{route.odoo_port}"
     try:
         if request.headers.get("Upgrade", "").lower() == "websocket":
             return await _forward_websocket(request, odoo_url)
         return await _forward_http(request, odoo_url)
     except _OdooDown:
-        return _not_ready(request, name)
+        return await HOST.not_ready(request, name)
 
 
 def _named_in_connection(headers: CIMultiDictProxy[str]) -> set[str]:
@@ -276,7 +411,7 @@ def _forward_headers(request: web.Request) -> CIMultiDict[str]:
     ]
     if cookies:  # a browser may send its cookies in several Cookie headers (HTTP/2): Odoo gets them as one
         headers["Cookie"] = "; ".join(cookies)
-    provider = exposure.provider()
+    provider = HOST.edge()
     trusted = getattr(provider, "client_ip_header", None)
     visitor = (request.headers.get(trusted, "") if trusted else "") or request.remote or ""
     chain = ", ".join(request.headers.getall("X-Forwarded-For", ()))
@@ -346,7 +481,7 @@ async def _forward_http(request: web.Request, odoo_url: str) -> web.StreamRespon
             raise _OdooDown from exc
         raise
     if not request.path.startswith(_NOT_A_VISIT):  # long-polling would distort the response times
-        metrics.record_request(request.app[INSTANCE], upstream.status, (time.perf_counter() - began) * 1000)
+        HOST.answered(request.app[INSTANCE], upstream.status, (time.perf_counter() - began) * 1000)
     async with upstream:
         response = web.StreamResponse(status=upstream.status, reason=upstream.reason)
         dropped = (_HOP_BY_HOP - {"content-length"}) | _named_in_connection(upstream.headers)
@@ -414,14 +549,16 @@ async def _forward_websocket(request: web.Request, odoo_url: str) -> web.StreamR
     return downstream
 
 
-def _not_ready(request: web.Request, name: str) -> web.Response:
-    """Odoo is not answering: start it if it is not running (once a minute at most) and tell the visitor."""
+def wake_decision(name: str) -> tuple[str, float]:
+    """Odoo is not answering: start the instance if it is not running (once a minute at most). Returns the page
+    for its visitors ("waking", "busy" while another job runs, "off" when it is switched off) and since when."""
+    if STATE.get(name).get("switched_off"):
+        return "off", time.time()
     job: jobs.Job | None = jobs.ACTIVE_JOB.get(name)
     if job is None and not STATUS.get(name, {}).get("running") and time.time() - _WAKE_REQUESTED.get(name, 0) > 60:
         _WAKE_REQUESTED[name] = time.time()
         assert _wake is not None  # set by start() before any listener exists
         job = _wake(name)
     if job is not None and job.kind not in ("wake", "restart", "create"):
-        return status_pages.render(request, name, "busy", since=job.started)
-    since = job.started if job else _WAKE_REQUESTED.get(name, time.time())
-    return status_pages.render(request, name, "waking", since=since)
+        return "busy", job.started
+    return "waking", job.started if job else _WAKE_REQUESTED.get(name, time.time())

@@ -1,4 +1,5 @@
-"""Small pages the gateway shows a visitor while an instance is not available (starting, updating, switched off).
+"""Small pages the gateway shows a visitor while an instance is not available (starting, updating, switched off;
+"waiting": a paused instance while the panel, which starts it, is not reachable from the gateway service).
 
 Browsers get an HTML page that refreshes itself; API clients get plain text. Both use HTTP 503 with Retry-After,
 which API clients and webhook senders understand as "try again shortly".
@@ -23,6 +24,12 @@ _PAGES = {
         "Starting up",
         "This Odoo was paused to save server resources because nobody used it for a while. It is starting "
         "now, which usually takes 20 to 60 seconds. This page opens Odoo automatically when it is ready.",
+    ),
+    "waiting": (
+        "Starting soon",
+        "This Odoo was paused to save server resources because nobody used it for a while. The server's control "
+        "panel is restarting at the moment; this Odoo starts as soon as the panel is back, usually within a minute. "
+        "This page opens Odoo automatically when it is ready.",
     ),
     "busy": (
         "Update in progress",
@@ -58,7 +65,7 @@ def render(request: web.Request, name: str, kind: str, since: float | None = Non
     title, text = _PAGES[kind]
     if not (request.method == "GET" and "text/html" in request.headers.get("Accept", "")):
         return web.Response(status=503, text=f"{title}. {text}", headers={"Retry-After": "4"})
-    waiting = kind in ("waking", "busy")
+    waiting = kind in ("waking", "waiting", "busy")
     elapsed = int(time.time() - since) if since else 0
     contact = ""
     if kind in ("off", "gone") or elapsed > 180:

@@ -11,8 +11,9 @@ Odoo, and because it sees every visit, it can notice when an instance is unused 
 2. [What a reverse proxy is](#2-what-a-reverse-proxy-is)
 3. [What our gateway does](#3-what-our-gateway-does)
 4. [Example: a visit to a paused instance](#4-example-a-visit-to-a-paused-instance)
-5. [Why Odoo needs proxy_mode](#5-why-odoo-needs-proxy_mode)
-6. [Why we wrote our own](#6-why-we-wrote-our-own)
+5. [Where it runs: its own container](#5-where-it-runs-its-own-container)
+6. [Why Odoo needs proxy_mode](#6-why-odoo-needs-proxy_mode)
+7. [Why we wrote our own](#7-why-we-wrote-our-own)
 
 ---
 
@@ -33,14 +34,15 @@ back. The visitor only ever talks to the proxy.
 
 ![A reverse proxy](../images/reverse-proxy.svg)
 
-Well-known reverse proxies are nginx, Apache and Caddy. Ours is about 200 lines of Python (`gateway.py`, built on
-aiohttp), because it needs to do things those do not do on their own.
+Well-known reverse proxies are nginx, Apache and Caddy. Ours is a few hundred lines of Python (`gateway.py`, built
+on aiohttp), because it needs to do things those do not do on their own.
 
 ---
 
 ## 3. What our gateway does
 
-There is one gateway port per instance, on `127.0.0.1`. The instance's tunnel connector points at it. For every request:
+There is one gateway port per instance, on `127.0.0.1` (on every interface with the `host-ports` exposure). The
+instance's tunnel connector points at it. For every request:
 
 | Step | Why |
 | :--- | :--- |
@@ -49,10 +51,10 @@ There is one gateway port per instance, on `127.0.0.1`. The instance's tunnel co
 | Removes hop-by-hop headers (`Connection`, `Upgrade`, `Transfer-Encoding`, ... and any header named in `Connection`), both ways | They describe one connection, not the request; passed on, they can confuse Odoo about where a request ends. |
 | Appends the visitor's address to `X-Forwarded-For` and sets `X-Forwarded-Proto` and `X-Forwarded-Host` itself | Odoo believes the last address of `X-Forwarded-For`. That is the address Cloudflare reports (`CF-Connecting-IP`) or, with `host-ports`, the address the connection comes from: never one the visitor typed, so Odoo's sign-in limits per address cannot be dodged. |
 | Forwards the request to the instance's Odoo, passing the body on piece by piece as it arrives, and the answer the same way | Large uploads and downloads never sit whole in memory. Bodies larger than `GATEWAY_MAX_UPLOAD_MB` are refused (`413`), and one that stops arriving for `GATEWAY_IDLE_TIMEOUT_SECONDS` is given up (`408`). |
-| Closes a connection that has not sent its request headers within `GATEWAY_HEADER_TIMEOUT_SECONDS`, and answers `503` to new connections beyond `GATEWAY_MAX_CONNECTIONS` (this instance) or `GATEWAY_MAX_CONNECTIONS_TOTAL` (all instances) | Slow or idle connections cannot use up the panel's open files. |
-| Keeps WebSocket connections open both ways, each message up to `GATEWAY_WEBSOCKET_MAX_MESSAGE_MB` | Odoo's live updates (chat, notifications) work; one visitor cannot make the panel hold a huge message. |
+| Closes a connection that has not sent its request headers within `GATEWAY_HEADER_TIMEOUT_SECONDS`, and answers `503` to new connections beyond `GATEWAY_MAX_CONNECTIONS` (this instance) or `GATEWAY_MAX_CONNECTIONS_TOTAL` (all instances) | Slow or idle connections cannot use up the gateway's open files. |
+| Keeps WebSocket connections open both ways, each message up to `GATEWAY_WEBSOCKET_MAX_MESSAGE_MB` | Odoo's live updates (chat, notifications) work; one visitor cannot make the gateway hold a huge message. |
 | Reuses its connections to Odoo (keep-alive) | No new connection per request. |
-| If Odoo does not answer: starts the instance once, answers "Starting up" (`503`, `Retry-After: 4`) | A paused instance wakes on the first visit. |
+| If Odoo does not answer: asks the panel to start the instance (once), answers "Starting up" (`503`, `Retry-After: 4`); "Starting soon" while the panel cannot be reached, asking again every few seconds | A paused instance wakes on the first visit. |
 | If an update is running: answers "Update in progress" | Visitors see a clear message instead of an error. |
 | If the instance is switched off: answers "Switched off" | Nothing is started. |
 
@@ -72,7 +74,38 @@ An API client gets the same `503` with `Retry-After: 4` as plain text, and tries
 
 ---
 
-## 5. Why Odoo needs proxy_mode
+## 5. Where it runs: its own container
+
+The gateways run in their own container, `sudoo-gateway` (`GATEWAY_MODE=service`, the default), apart from the
+panel's backend (`sudoo-panel`). Restarting or updating the panel then no longer takes the instances offline:
+
+| While the panel is down | |
+| :--- | :--- |
+| A running instance | Answers as usual. Visits are recorded in `visits.json`; the panel takes them when it is back. |
+| A paused instance | Answers "Starting soon"; the page asks again every 4 seconds, and the instance starts as soon as the panel is back. |
+| A switched-off instance | Answers "Switched off". |
+| Creating, deleting, settings | Wait for the panel. A change of a gateway setting reaches the gateway within 2 seconds of the panel being back. |
+
+The gateway has no Docker access, no `.env` and none of the panel's data. It shares one folder with the panel,
+`/opt/odoo/gateway`: the panel writes `routes.json` there (the instances, their ports, the gateway settings), the
+gateway writes `visits.json`, and each serves a Unix socket for the other (the panel asks the gateway to reload its
+routes and collects the request counts for the metrics; the gateway asks the panel to start a paused instance).
+The [Architecture](../ARCHITECTURE.md#2-how-a-visit-reaches-odoo) page has the details.
+
+**Why the gateway asks the panel to start an instance.** Starting needs Docker, and the Docker socket is root on the
+server. Giving it to the one process that every visitor talks to would undo the point of separating it. Letting the
+gateway start only the two containers of an instance would still be a way to Docker from the internet-facing
+process, and would skip what the panel does first (apply the instance's current configuration and limits). So
+waking waits for the panel; only paused instances are affected, and production instances never pause.
+
+**When the gateway service is not running**, the panel serves the instances itself, exactly as it did before: at
+once when the gateway stopped normally, after `GATEWAY_TAKEOVER_SECONDS` (10) when it stopped answering. Both open
+the ports with `SO_REUSEPORT`, so a port changes hands without a moment where nobody listens, and the connectors
+never notice. `GATEWAY_MODE=embedded` keeps the gateways in the panel for good.
+
+---
+
+## 6. Why Odoo needs proxy_mode
 
 Without a proxy, Odoo sees the visitor directly. Behind the gateway, every request seems to come from `127.0.0.1`
 over plain http. With `proxy_mode = True` in `odoo.conf`, Odoo reads the forwarded headers instead:
@@ -84,7 +117,7 @@ over plain http. With `proxy_mode = True` in `odoo.conf`, Odoo reads the forward
 
 ---
 
-## 6. Why we wrote our own
+## 7. Why we wrote our own
 
 | Option | Why not |
 | :--- | :--- |

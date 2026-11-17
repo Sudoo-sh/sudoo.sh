@@ -177,7 +177,7 @@ def _host_memory() -> tuple[int, int]:
     return info["MemTotal"], info["MemTotal"] - info["MemAvailable"]
 
 
-PANEL_CONTAINERS = {"backend": "sudoo-panel", "web": "sudoo-web"}  # compose.yaml's container names
+PANEL_CONTAINERS = {"backend": "sudoo-panel", "web": "sudoo-web", "gateway": "sudoo-gateway"}  # compose.yaml's
 
 
 def _own_memory() -> int:
@@ -193,8 +193,8 @@ def _own_memory() -> int:
 
 
 def panel_footprint(usage: dict[str, tuple[float, int, int]], cores: int) -> dict[str, dict[str, Any]]:
-    """What the panel itself uses, by part: its backend and web service containers, and the Cloudflare connectors
-    (one for the panel and one per instance; they run whether the instances run or not). Each part:
+    """What the panel itself uses, by part: its backend, web service and gateway containers, and the Cloudflare
+    connectors (one for the panel and one per instance; they run whether the instances run or not). Each part:
     {"cpu_percent" (of the whole server), "memory_bytes", "containers"}."""
     parts: dict[str, dict[str, Any]] = {}
     for part, container in PANEL_CONTAINERS.items():

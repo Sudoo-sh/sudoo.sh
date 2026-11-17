@@ -53,6 +53,19 @@ class StateStore:
                 state["used_since"] = now
             self._dirty.add(name)
 
+    def merge_visit(self, name: str, when: float) -> bool:
+        """A visit recorded elsewhere (by the gateway service, instances/gateway_link.py): taken when it is newer
+        than the last one known. Returns whether it was."""
+        with self._lock:
+            state = self._all().setdefault(name, {})
+            if when <= (state.get("last_visit") or 0):
+                return False
+            state["last_visit"] = when
+            if not state.get("used_since"):
+                state["used_since"] = when
+            self._dirty.add(name)
+            return True
+
     def remove(self, name: str) -> None:
         with self._lock:
             self._all().pop(name, None)

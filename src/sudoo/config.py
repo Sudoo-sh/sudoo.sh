@@ -181,6 +181,19 @@ class Settings(BaseSettings):
     )
 
     # ------------------------------------------------------------------ gateway (instances/gateway.py)
+    gateway_mode: Literal["service", "embedded"] = Field(
+        "service",
+        description='Where the gateways run: "service" (their own container, sudoo-gateway: instances keep '
+        "answering while the panel restarts; the panel serves them itself while that container is not running) or "
+        '"embedded" (inside the panel process, as before 3.0).',
+    )
+    gateway_takeover_seconds: float = Field(
+        10,
+        ge=2,
+        le=600,
+        description="service mode: seconds the gateway service may not answer the panel before the panel serves "
+        "the instances itself (at once when the service stopped normally).",
+    )
     gateway_max_upload_mb: int = Field(
         2048, ge=1, description="Largest request body a visitor may send to an instance (uploads, imports), in MB."
     )
@@ -342,6 +355,11 @@ class Settings(BaseSettings):
     @property
     def manager_dir(self) -> Path:
         return self.odoo_root / "manager"
+
+    @property
+    def gateway_dir(self) -> Path:
+        """Shared by the panel and the gateway service (instances/gateway_service.py); nothing secret in it."""
+        return self.odoo_root / "gateway"
 
     @property
     def keys_dir(self) -> Path:
@@ -535,6 +553,16 @@ class LiveSettings:
             vault.write_private(self._file, json.dumps(stored, indent=1))
         for listener in self._listeners:
             listener(dict(values))
+
+    def use(self, values: Mapping[str, Any]) -> None:
+        """Take these values on top of `.env`, in memory only: the gateway service gets the panel's current values
+        from the panel (instances/gateway_service.py) and has no settings.json of its own. Raises ValueError when
+        a value is not valid; nothing changes then."""
+        current = Settings(**dict(values))
+        with self._lock:
+            self._overrides = {k: getattr(current, k) for k in values}
+            self._encrypted = {}
+            self._current = current
 
     def on_change(self, listener: Callable[[dict[str, Any]], None]) -> None:
         """Call `listener(changed values)` after every change."""

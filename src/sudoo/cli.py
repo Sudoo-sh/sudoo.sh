@@ -10,6 +10,7 @@ docker exec sudoo-panel sudoo.sh create-token NAME SCOPE  SCOPE is read, instanc
 docker exec sudoo-panel sudoo.sh test-email ADDRESS       send a test e-mail, to check the SMTP settings
 docker exec sudoo-panel sudoo.sh marketplace [status|heartbeat|repin]   the connection to the Sudoo.sh hub
 sudoo.sh serve                                       start the web panel (the container does this)
+sudoo.sh gateway [--check]                           start the gateway service (container sudoo-gateway)
 """
 
 from __future__ import annotations
@@ -130,6 +131,13 @@ def serve(_: argparse.Namespace) -> None:
                            "--worker-tmp-dir", str(settings.memory_dir), "--bind", bind, "sudoo.wsgi:app"])  # fmt: skip
 
 
+def gateway(args: argparse.Namespace) -> None:
+    """Run the gateway service (instances/gateway_service.py): every instance's gateway port, in its own process."""
+    from sudoo.instances import gateway_service
+
+    gateway_service.main(health_check=args.check)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="sudoo.sh", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)  # fmt: skip
@@ -156,6 +164,9 @@ def main(argv: list[str] | None = None) -> None:
     hub.add_argument("action", nargs="?", default="status", choices=("status", "heartbeat", "repin"))
     hub.set_defaults(run=marketplace)
     commands.add_parser("serve", help="start the web panel").set_defaults(run=serve)
+    service = commands.add_parser("gateway", help="start the gateway service (every instance's gateway port)")
+    service.add_argument("--check", action="store_true", help="exit 0 when a running gateway service answers")
+    service.set_defaults(run=gateway)
     args = parser.parse_args(argv)
     try:
         args.run(args)

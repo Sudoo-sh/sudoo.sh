@@ -24,8 +24,8 @@ each part was chosen.
 | :--- | :--- | :--- |
 | **Web app** | The panel in the browser: React, TypeScript and SCSS design tokens, Chart.js for the live charts, built by Vite and served by Caddy (container `sudoo-web`) on `PANEL_PORT` (9000). Caddy forwards `/api`, `/hooks` and `/docs` to the backend and `/api/v1/events` to the live events. The design system is described in [Design](DESIGN.md). | `web/` |
 | **Backend** | The API, `/api/v1` (Flask, served by Gunicorn, container `sudoo-panel`) on `127.0.0.1:API_PORT` (9002). | `sudoo/web/` |
-| **Live events** | `/api/v1/events`: every change (jobs, instances, resource figures, settings) pushed to connected clients as Server-Sent Events, on the gateway's asyncio loop, `127.0.0.1:9001`. | `sudoo/core/events.py`, `web/v1/events.py` |
-| **Gateway** | One small web server per instance (aiohttp) on `127.0.0.1:<gateway port>`. Forwards every request to that instance's Odoo. | `sudoo/instances/gateway.py` |
+| **Live events** | `/api/v1/events`: every change (jobs, instances, resource figures, settings) pushed to connected clients as Server-Sent Events, on the backend's asyncio loop (the one `gateway.py` runs), `127.0.0.1:9001`. Always in the backend. | `sudoo/core/events.py`, `web/v1/events.py` |
+| **Gateway** | One small web server per instance (aiohttp) on `127.0.0.1:<gateway port>`. Forwards every request to that instance's Odoo. Runs in its own container, `sudoo-gateway` (`GATEWAY_MODE=service`, the default), or inside the backend (`embedded`). | `sudoo/instances/gateway.py`, `gateway_service.py`, `gateway_link.py` |
 | **Metrics** | Figures of the server and every instance (CPU, memory, requests, errors, response times, uptime, disk) with one hour of history, from the monitor and the gateway. | `sudoo/instances/metrics.py` |
 | **Roles** | Five roles, each a set of named permissions; every endpoint and action checks a permission, never a role. | `sudoo/roles.py` |
 | **Storage** | The panel's own data (accounts, tokens, audit log, instance state) in SQLite, behind a storage plugin. | `sudoo/storage/` |
@@ -37,11 +37,12 @@ each part was chosen.
 | **Settings** | Every setting, typed and checked (pydantic-settings). Almost all can be changed on the Settings page while the panel runs, kept on top of `.env` with secrets encrypted. | `sudoo/config.py` |
 | **Instances** | One Docker Compose project per instance: an `odoo` container (official image) and a `db` container (PostgreSQL 16), two volumes. | `/opt/odoo/instances/<name>/` |
 
-The backend (API, live events, gateway, background work, jobs) runs in **one container** and **one process**
+The backend (API, live events, background work, jobs) runs in **one container** and **one process**
 (`sudoo-panel`), so they share their state in memory without a message queue; the web app is a second, separate
-container (`sudoo-web`) that holds no state. The container uses
-the server's network (`network_mode: host`), so `127.0.0.1` means the same inside and outside it, and the server's
-Docker through `/var/run/docker.sock`.
+container (`sudoo-web`) that holds no state. The gateways run in a third container, `sudoo-gateway`, so that
+visitors keep reaching the instances while the backend restarts or is down (next section). All three use the
+server's network (`network_mode: host`), so `127.0.0.1` means the same inside and outside them; only the backend
+uses the server's Docker, through `/var/run/docker.sock`.
 
 Each instance uses three ports on `127.0.0.1`, chosen when it is created and stored in its `.env`:
 
@@ -59,6 +60,27 @@ Each instance uses three ports on `127.0.0.1`, chosen when it is created and sto
 
 Odoo runs with `proxy_mode = True`, so it trusts the forwarded headers: it sees the visitor's real address and
 knows the visit came over https. WebSocket connections (Odoo's live updates, `/websocket`) take the same path.
+
+**The gateway service.** The gateway ports belong to the `sudoo-gateway` container (`sudoo.sh gateway`,
+`instances/gateway_service.py`), not to the backend. It has no Docker socket, no `.env` and none of the panel's
+data; it shares one folder with the backend, `<ODOO_ROOT>/gateway` (root only):
+
+| File | Written by | What it is |
+| :--- | :--- | :--- |
+| `routes.json` | backend | Every instance's gateway and Odoo port and whether it is switched off, the address to listen on and the visitor-address header the exposure trusts, and the gateway settings (also those changed in the panel). |
+| `visits.json` | gateway | The last visit of every instance; the backend takes newer ones into the instance state (automatic pause, daily backups). |
+| `gateway.sock` | gateway | Control channel: `POST /sync` makes the gateway read `routes.json` and reconcile its listeners now, and answers with them, their errors and the requests counted since the last call (the backend adds them to the metrics); `GET /healthz` for the health check. |
+| `panel.sock` | backend | `POST /wake/<name>`: the gateway asks the backend to start a paused instance. |
+
+The backend (`instances/gateway_link.py`) runs one round every 2 seconds and at once when an instance is created or
+deleted: write `routes.json` if it changed, `POST /sync`, read `visits.json`. While the backend is down, the gateway
+keeps serving with the last `routes.json`, records visits and counts requests; a visitor of a **paused** instance
+gets "Starting soon" (the page asks again every 4 seconds) until the backend is back and starts it. While the
+gateway service does not answer, the backend serves the instances itself, exactly as in `embedded` mode: at once
+when `gateway.sock` is missing (no service, or it stopped normally), after `GATEWAY_TAKEOVER_SECONDS` otherwise.
+Both open the ports with `SO_REUSEPORT`, so a port is handed over without a moment where nobody listens. With
+`GATEWAY_MODE=embedded` the backend writes `routes.json` with mode `embedded` and keeps the ports; a gateway service
+that still runs then holds none.
 
 When the instance is **paused**, the gateway notices that Odoo does not answer, starts the instance once, and
 answers in the meantime:
@@ -164,12 +186,26 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
   the others, and deleting would need careful clean-up).
 
 ### A gateway in front of every Odoo
-- **Chosen:** visitors reach a small gateway in the panel, which forwards to Odoo. See [Gateway](concepts/GATEWAY.md).
+- **Chosen:** visitors reach a small gateway, which forwards to Odoo. See [Gateway](concepts/GATEWAY.md).
 - **Why:** a stopped Odoo cannot start itself, and Odoo does not know when it was last used. The gateway sees every
   request, so it records the last visit, starts a paused instance on the first request and shows clear pages
   ("Starting up", "Update in progress", "Switched off").
-- **Cost:** the panel container must run for instances to be reachable; it restarts automatically with the server.
+- **Cost:** the gateway must run for instances to be reachable; it restarts automatically with the server.
 - **Considered:** nginx (cannot start a stopped container by itself); keeping every instance running (not enough memory).
+
+### The gateway in its own container, waking through the backend
+- **Chosen:** the gateways run in `sudoo-gateway`, without Docker access; to start a paused instance it asks the
+  backend over a Unix socket (`panel.sock`). While the backend is down it shows "Starting soon" and asks again.
+- **Why:** updating or restarting the backend no longer takes every instance offline, and the process that faces
+  the internet holds no key to the server: the Docker socket is root on the host, so a gateway with it would be as
+  powerful as the backend, which is exactly what the separation avoids. Running instances, and production instances
+  (which never pause), do not need the backend at all; only waking a paused one waits for it.
+- **Cost:** a paused instance cannot start while the backend is down; one more container (about 40 MB).
+- **Considered:** the gateway starting the instance's two containers itself (needs the Docker socket, or a proxy
+  that only allows `start` of `odoo-*` containers: still a way to Docker from the internet-facing process, and
+  starting is not enough, since the backend first applies the instance's current configuration); a TCP port with a
+  shared secret (a Unix socket in a root-only folder is unreachable from the network and the instances' containers,
+  with nothing to leak).
 
 ### Cloudflare quick tunnels for public access
 - **Chosen:** each destination (panel, every instance) has a `cloudflared` connector that connects out to Cloudflare
@@ -252,7 +288,8 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
 ### Metrics in memory, measured where the traffic passes
 - **Chosen:** the monitor reads a continuous `docker stats` stream and samples every `METRICS_INTERVAL_SECONDS`
   (5 seconds); the gateway, which every visit already passes, counts
-  requests, 5xx answers and the time to Odoo's first byte. One hour of samples is kept in fixed-size rings and
+  requests, 5xx answers and the time to Odoo's first byte (in the gateway service, the backend collects the counts
+  every 2 seconds). One hour of samples is kept in fixed-size rings and
   served in columns; each new sample is a live event.
 - **Why:** no extra service, agent or database, and no work in Odoo; the figures that matter for a demo server (is it
   slow, is it failing, is it full) come from the two places that already see everything.

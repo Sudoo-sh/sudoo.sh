@@ -31,7 +31,7 @@ Please give a reasonable time to fix the problem before you talk about it public
 
 ## Scope
 
-In scope: the panel, its gateway, the release images and the installer (`sudoo-install.sh`), and the way they store secrets and run commands.
+In scope: the panel, its gateway service, the release images and the installer (`sudoo-install.sh`), and the way they store secrets and run commands.
 
 Out of scope, because they are documented on purpose in [docs/SECURITY.md](docs/SECURITY.md) and the README's *Known Limitations*:
 

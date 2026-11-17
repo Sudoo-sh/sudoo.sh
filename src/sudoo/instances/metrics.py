@@ -1,7 +1,8 @@
 """Metrics of the server and every instance: current figures and one hour of history.
 
 The monitor (monitor.py) measures every 15 seconds and calls `sample()`; the gateway calls `record_request()` for
-every request it forwards to Odoo. From both, each interval gets one sample per instance:
+every request it forwards to Odoo (in the gateway service, the panel collects them every few seconds and adds them
+with `add_requests()`, gateway_link.py). From both, each interval gets one sample per instance:
 
     cpu_percent          share of the whole server's processor (all cores), Odoo and its database together
     memory_percent       memory in use, of the containers' limit (the server's memory when they have none)
@@ -9,8 +10,8 @@ every request it forwards to Odoo. From both, each interval gets one sample per 
     error_rate_percent   share of those answered with a 5xx error
     response_ms_avg/p95  time until Odoo started answering: average, and the time 95 % of requests stayed under
 
-The server's figures include the panel's own footprint (`panel_*`: its backend, its web service and the Cloudflare
-connectors), now and at most over the history, which capacity.py turns into how many instances the server can run.
+The server's figures include the panel's own footprint (`panel_*`: its backend, web service and gateway, and the
+Cloudflare connectors), now and at most over the history, which capacity.py turns into how many instances the server can run.
 
 History is kept in memory as fixed-size rings (240 samples: one hour), so it costs a few hundred kilobytes and no
 database; it starts empty when the panel restarts. The API returns it in columns ({"t": [...], "cpu_percent":
@@ -60,7 +61,7 @@ class _Requests:
 
 _LOCK = threading.Lock()
 _REQUESTS: defaultdict[str, _Requests] = defaultdict(_Requests)
-_MAX_DURATIONS = 5000  # per interval; enough for a precise p95, bounded memory under heavy load
+MAX_DURATIONS = 5000  # per interval; enough for a precise p95, bounded memory under heavy load
 
 
 def record_request(name: str, status: int, duration_ms: float) -> None:
@@ -69,8 +70,18 @@ def record_request(name: str, status: int, duration_ms: float) -> None:
         requests = _REQUESTS[name]
         requests.count += 1
         requests.errors += status >= 500
-        if len(requests.durations_ms) < _MAX_DURATIONS:
+        if len(requests.durations_ms) < MAX_DURATIONS:
             requests.durations_ms.append(duration_ms)
+
+
+def add_requests(name: str, count: int, errors: int, durations_ms: list[float]) -> None:
+    """Add requests counted elsewhere: by the gateway service, which the panel collects them from
+    (gateway_link.py)."""
+    with _LOCK:
+        requests = _REQUESTS[name]
+        requests.count += count
+        requests.errors += errors
+        requests.durations_ms.extend(durations_ms[: max(0, MAX_DURATIONS - len(requests.durations_ms))])
 
 
 def _take_requests() -> dict[str, _Requests]:

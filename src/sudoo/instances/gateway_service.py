@@ -1,0 +1,390 @@
+"""The gateway service: the gateway (gateway.py) in its own process, the sudoo-gateway container (`sudoo.sh gateway`).
+
+It holds every instance's gateway port, so visitors keep reaching the instances while the panel restarts or is
+down. It has no Docker access, no `.env`, no secrets: it reads and writes only GATEWAY_DIR (<ODOO_ROOT>/gateway),
+which it shares with the panel:
+
+    routes.json    written by the panel (gateway_link.py): the instances (gateway port, Odoo port, switched off),
+                   the address to listen on and the visitor-address header the exposure trusts, and the gateway's
+                   settings (limits, contact details for the pages). Read again whenever it changes; a file that is
+                   not valid is refused and the last valid one kept.
+    visits.json    written here: the last visit of every instance. The panel reads it (automatic pause, daily
+                   backups), also when it was down while the visits happened.
+    gateway.sock   served here, for the panel: POST /sync (read routes.json now and reconcile the listeners; the
+                   answer has the listeners, their errors and the requests counted since the last call, for the
+                   metrics) and GET /healthz (the container's health check).
+    panel.sock     served by the panel: POST /wake/<name> starts a paused instance (Docker is the panel's alone).
+
+When the panel cannot be reached, a visitor of a paused instance gets "Starting soon" and the page asks again every
+few seconds; running instances are not affected at all. Both sockets are Unix sockets in a folder only root can
+open (mode 700): they are not reachable over the network, nor from the instances' containers.
+
+On a normal stop the service removes gateway.sock first, waits a moment so the panel can take over the ports (both
+open them with SO_REUSEPORT), then closes its listeners.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import ipaddress
+import json
+import os
+import re
+import signal
+import sys
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import aiohttp
+from aiohttp import web
+
+from sudoo.config import live, settings
+from sudoo.core.vault import write_private
+from sudoo.instances import gateway, gateway_health, metrics, status_pages, store
+
+ROUTES = "routes.json"
+VISITS = "visits.json"
+GATEWAY_SOCKET = "gateway.sock"
+PANEL_SOCKET = "panel.sock"
+FORMAT = 1  # version of routes.json and visits.json
+
+ROUND_SECONDS = 2.0  # how often routes.json is checked and failed ports are tried again
+VISITS_SECONDS = 5.0  # how often new visits are written
+ASK_SECONDS = 3.0  # an instance's answer from the panel is reused this long (a page reloads every 4 seconds)
+HANDOVER_SECONDS = 3.0  # on a normal stop: time the panel gets to take over the ports
+
+# the settings the gateway uses; the panel hands over its current values in routes.json
+ROUTED_SETTINGS = (
+    "gateway_max_upload_mb",
+    "gateway_idle_timeout_seconds",
+    "gateway_websocket_max_message_mb",
+    "gateway_header_timeout_seconds",
+    "gateway_max_connections",
+    "gateway_max_connections_total",
+    "admin_contact_name",
+    "admin_contact_phone",
+    "admin_contact_email",
+)
+_HEADER_RE = re.compile(r"^[A-Za-z0-9-]{1,64}$")
+
+
+def path(file: str) -> Path:
+    return settings.gateway_dir / file
+
+
+def prepare_dir() -> None:
+    """GATEWAY_DIR, readable by root only (the sockets in it are the control channel)."""
+    settings.gateway_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(settings.gateway_dir, 0o700)
+
+
+# --------------------------------------------------------------------------- routes.json
+
+
+@dataclass(frozen=True, slots=True)
+class Edge:
+    listen_host: str = "127.0.0.1"
+    https: bool = False
+    client_ip_header: str | None = None
+
+
+@dataclass(frozen=True)
+class Routes:
+    """routes.json, checked."""
+
+    mode: str = "service"
+    edge: Edge = field(default_factory=Edge)
+    settings: dict[str, Any] = field(default_factory=dict)
+    instances: dict[str, tuple[int, gateway.Route]] = field(default_factory=dict)  # name -> (gateway port, route)
+
+    def wanted(self) -> dict[str, tuple[str, int]]:
+        """The listeners these routes ask for: none unless the gateways run here (mode "service")."""
+        if self.mode != "service":
+            return {}
+        return {name: (self.edge.listen_host, port) for name, (port, _) in self.instances.items()}
+
+
+def _port(value: Any) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 65535:
+        raise ValueError(f"not a port: {value!r}")
+    return value
+
+
+def parse_routes(data: Any) -> Routes:
+    """Routes from the content of routes.json; raises ValueError when anything in it is not as expected."""
+    if not isinstance(data, dict) or data.get("format") != FORMAT:
+        raise ValueError("not a routes file of a known format")
+    mode = data.get("mode")
+    if mode not in ("service", "embedded"):
+        raise ValueError(f"unknown mode {mode!r}")
+    raw_edge = data.get("edge")
+    if not isinstance(raw_edge, dict):
+        raise ValueError("no edge")
+    listen_host = str(ipaddress.ip_address(str(raw_edge.get("listen_host"))))
+    header = raw_edge.get("client_ip_header")
+    if header is not None and not (isinstance(header, str) and _HEADER_RE.match(header)):
+        raise ValueError("client_ip_header is not a header name")
+    edge = Edge(listen_host, raw_edge.get("https") is True, header)
+    values = data.get("settings", {})
+    if not isinstance(values, dict):
+        raise ValueError("no settings")
+    # only the gateway's own settings; others (from a newer panel) are left out, not refused
+    values = {key: value for key, value in values.items() if key in ROUTED_SETTINGS}
+    instances: dict[str, tuple[int, gateway.Route]] = {}
+    raw_instances = data.get("instances")
+    if not isinstance(raw_instances, dict):
+        raise ValueError("no instances")
+    ports: set[int] = set()
+    for name, entry in raw_instances.items():
+        if not store.NAME_RE.match(name) or not isinstance(entry, dict):
+            raise ValueError(f"not an instance: {name!r}")
+        port = _port(entry.get("gateway_port"))
+        if port in ports:
+            raise ValueError(f"gateway port {port} given twice")
+        ports.add(port)
+        instances[name] = (port, gateway.Route(_port(entry.get("odoo_port")), entry.get("switched_off") is True))
+    return Routes(mode, edge, dict(values), instances)
+
+
+def routes_document(mode: str, edge: Edge, values: dict[str, Any], instances: dict[str, dict[str, Any]]) -> str:
+    """The text of routes.json (written by the panel, gateway_link.py)."""
+    document = {
+        "format": FORMAT,
+        "mode": mode,
+        "edge": {"listen_host": edge.listen_host, "https": edge.https, "client_ip_header": edge.client_ip_header},
+        "settings": values,
+        "instances": instances,
+    }
+    return json.dumps(document, indent=1, sort_keys=True)
+
+
+# --------------------------------------------------------------------------- visits.json
+
+
+def read_visits(file: Path) -> dict[str, float]:
+    """The visits in visits.json ({name: Unix time}); entries that are not valid are left out."""
+    try:
+        data = json.loads(file.read_text())
+    except (OSError, ValueError):
+        return {}
+    visits = data.get("visits") if isinstance(data, dict) and data.get("format") == FORMAT else None
+    if not isinstance(visits, dict):
+        return {}
+    return {
+        name: float(when)
+        for name, when in visits.items()
+        if isinstance(name, str)
+        and store.NAME_RE.match(name)
+        and isinstance(when, int | float)
+        and not isinstance(when, bool)
+        and 0 < when < time.time() + 300
+    }
+
+
+# --------------------------------------------------------------------------- the service's host
+
+
+class ServiceHost:
+    """The gateway in its own process: routes from the panel's routes.json, visits to visits.json, metrics counted
+    until the panel collects them, paused instances started by asking the panel."""
+
+    def __init__(self) -> None:
+        self.routes = Routes()
+        self.routes_seen: tuple[int, int] | None = None  # routes.json's (mtime_ns, size) when last read
+        self.routes_problem = ""
+        self.visits: dict[str, float] = {}
+        self.visits_dirty = False
+        self.waiting_since: dict[str, float] = {}  # instance -> when the panel could first not be asked
+        self.answers: dict[str, tuple[float, str, float]] = {}  # instance -> (asked at, page, since)
+        self._panel: aiohttp.ClientSession | None = None
+
+    # ---- Host
+
+    def route(self, name: str) -> gateway.Route | None:
+        entry = self.routes.instances.get(name)
+        return entry[1] if entry else None
+
+    def edge(self) -> gateway.Edge:
+        return self.routes.edge
+
+    def visited(self, name: str) -> None:
+        self.visits[name] = time.time()
+        self.visits_dirty = True
+
+    def answered(self, name: str, status: int, duration_ms: float) -> None:
+        metrics.record_request(name, status, duration_ms)
+
+    async def not_ready(self, request: web.Request, name: str) -> web.StreamResponse:
+        page, since = await self.ask_panel(name)
+        return status_pages.render(request, name, page, since=since)
+
+    # ---- asking the panel to start an instance
+
+    async def ask_panel(self, name: str) -> tuple[str, float]:
+        """The page for a visitor of an instance whose Odoo does not answer: the panel's ("waking", "busy",
+        "off"; it starts the instance if needed), or "waiting" while the panel cannot be reached."""
+        now = time.time()
+        cached = self.answers.get(name)
+        if cached and now - cached[0] < ASK_SECONDS:
+            return cached[1], cached[2]
+        try:
+            if self._panel is None:
+                self._panel = aiohttp.ClientSession(
+                    connector=aiohttp.UnixConnector(path=str(path(PANEL_SOCKET))),
+                    timeout=aiohttp.ClientTimeout(total=5),
+                )
+            async with self._panel.post(f"http://panel/wake/{name}") as answer:
+                answer.raise_for_status()
+                data = await answer.json()
+            page, since = data["page"], float(data["since"])
+            if page not in ("waking", "busy", "off"):
+                raise ValueError(page)
+            self.waiting_since.pop(name, None)
+        except (aiohttp.ClientError, OSError, TimeoutError, ValueError, KeyError, TypeError):
+            page, since = "waiting", self.waiting_since.setdefault(name, now)
+        self.answers[name] = (now, page, since)
+        return page, since
+
+    async def close(self) -> None:
+        if self._panel is not None:
+            await self._panel.close()
+
+    # ---- routes and visits
+
+    def read_routes(self, force: bool = False) -> None:
+        """Read routes.json when it changed (or `force`); keep the last valid routes when it is not valid."""
+        file = path(ROUTES)
+        try:
+            stat = file.stat()
+        except FileNotFoundError:
+            return  # the panel has not written it yet: nothing to serve, or keep what was served
+        seen = (stat.st_mtime_ns, stat.st_size)
+        if seen == self.routes_seen and not force:
+            return
+        self.routes_seen = seen
+        try:
+            routes = parse_routes(json.loads(file.read_text()))
+            live.use(routes.settings)
+        except (OSError, ValueError) as error:
+            if str(error) != self.routes_problem:
+                self.routes_problem = str(error)
+                print(f"{ROUTES} not used ({error}); keeping the routes read before", flush=True)
+            return
+        self.routes_problem = ""
+        self.routes = routes
+
+    def load_visits(self) -> None:
+        self.visits = read_visits(path(VISITS))
+
+    def save_visits(self) -> None:
+        if not self.visits_dirty:
+            return
+        self.visits_dirty = False
+        if self.routes.instances:  # forget the visits of deleted instances
+            self.visits = {name: when for name, when in self.visits.items() if name in self.routes.instances}
+        write_private(path(VISITS), json.dumps({"format": FORMAT, "visits": self.visits}))
+
+    def status(self, drain: bool) -> dict[str, Any]:
+        """The control channel's answer: what is served, and (with `drain`) the requests counted since the last
+        time the panel collected them."""
+        answer: dict[str, Any] = {
+            "mode": self.routes.mode,
+            "listening": gateway.listening(),
+            "errors": dict(gateway.LISTENER_ERRORS),
+            "connections": {name: count for name, count in gateway._OPEN.items() if count},
+            "routes_problem": self.routes_problem or None,
+        }
+        if drain:
+            answer["requests"] = {
+                name: {"count": counted.count, "errors": counted.errors, "durations_ms": counted.durations_ms}
+                for name, counted in metrics._take_requests().items()
+            }
+        return answer
+
+
+# --------------------------------------------------------------------------- the process
+
+
+class Service:
+    def __init__(self, host: ServiceHost | None = None) -> None:
+        self.host = host or ServiceHost()
+        self.stopping = asyncio.Event()
+        self._control: web.AppRunner | None = None
+
+    async def refresh(self, force: bool = False) -> None:
+        self.host.read_routes(force)
+        await gateway.reconcile(self.host.routes.wanted())
+
+    async def _sync(self, _: web.Request) -> web.Response:
+        await self.refresh(force=True)
+        return web.json_response(self.host.status(drain=True))
+
+    async def _health(self, _: web.Request) -> web.Response:
+        return web.json_response(self.host.status(drain=False))
+
+    async def start(self) -> None:
+        prepare_dir()
+        self.host.load_visits()
+        gateway.use(self.host)
+        await gateway._create_session()
+        await self.refresh(force=True)
+        app = web.Application()
+        app.router.add_post("/sync", self._sync)
+        app.router.add_get("/healthz", self._health)
+        self._control = web.AppRunner(app, access_log=None, handle_signals=False)
+        await self._control.setup()
+        sock = path(GATEWAY_SOCKET)
+        sock.unlink(missing_ok=True)  # left by a service that did not stop normally
+        await web.UnixSite(self._control, str(sock)).start()
+        os.chmod(sock, 0o600)
+
+    async def run(self) -> None:
+        """Serve until stopped (SIGTERM, SIGINT or stop())."""
+        await self.start()
+        loop = asyncio.get_running_loop()
+        for stop_signal in (signal.SIGTERM, signal.SIGINT):
+            with contextlib.suppress(NotImplementedError, RuntimeError):  # not in the main thread (tests)
+                loop.add_signal_handler(stop_signal, self.stopping.set)
+        print(f"Gateway service started: {len(gateway.listening())} instance(s)", flush=True)
+        saved = time.monotonic()
+        while not self.stopping.is_set():
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(self.stopping.wait(), ROUND_SECONDS)
+            if self.stopping.is_set():
+                break
+            await self.refresh()
+            if time.monotonic() - saved >= VISITS_SECONDS:
+                self.host.save_visits()
+                saved = time.monotonic()
+        await self.stop()
+
+    async def stop(self, handover: float = HANDOVER_SECONDS) -> None:
+        """Remove the control socket (the panel then takes over the ports), wait `handover` seconds, close."""
+        path(GATEWAY_SOCKET).unlink(missing_ok=True)
+        if self._control is not None:
+            await self._control.cleanup()
+            self._control = None
+        if handover and gateway.listening():
+            await asyncio.sleep(handover)
+        await gateway.reconcile({})
+        self.host.save_visits()
+        await self.host.close()
+        if gateway._SESSION is not None:
+            await gateway._SESSION.close()
+        print("Gateway service stopped", flush=True)
+
+
+def check() -> bool:
+    """True when the gateway service answers on its control socket (as the container's health check asks)."""
+    return gateway_health.answers(str(path(GATEWAY_SOCKET)))
+
+
+def main(health_check: bool = False) -> None:
+    """`sudoo.sh gateway`: run the gateway service (`--check`: exit 0 when a running one answers)."""
+    if health_check:
+        sys.exit(0 if check() else 1)
+    asyncio.set_event_loop(gateway._LOOP)
+    gateway._LOOP.run_until_complete(Service().run())

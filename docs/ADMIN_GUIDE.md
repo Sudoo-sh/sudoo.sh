@@ -220,7 +220,9 @@ downloads the latest release's installer and checks it against that release's `S
 | Accounts, API tokens, audit log (`sudoo.db`), deploy keys, vault key, secret key | |
 | Settings in `.env` and `settings.json` | |
 
-Running instances are not restarted. Read the release notes before updating to a new major version. A specific
+Running instances are not restarted. From version 3.0 on, the instances' gateway ports belong to their own container,
+`sudoo-gateway`, so the instances keep answering while `sudoo-panel` is recreated; while `sudoo-gateway` itself is
+recreated, the panel serves them ([section 8](#what-keeps-running-when-the-panel-is-down)). Read the release notes before updating to a new major version. A specific
 version: `sudo sudoo-install update --version 1.2.0`.
 
 Earlier versions wrote the value of a secret setting changed on the Settings page (mail password, webhook secret,
@@ -260,8 +262,8 @@ afterwards (they are in the backup), and the images built on the server are kept
 
 For a [manual installation](#manual-installation): download the new release's `compose.yaml` into
 `/opt/odoo/manager`, add the new keys of its `env.example` to `.env`, then
-`sudo docker compose pull && sudo docker compose up -d` there. `docker compose` only recreates `sudoo-panel` and
-`sudoo-web`; never use `--remove-orphans` or restart the connectors.
+`sudo docker compose pull && sudo docker compose up -d` there. `docker compose` only recreates `sudoo-panel`,
+`sudoo-gateway` and `sudoo-web`; never use `--remove-orphans` or restart the connectors.
 
 ### Uninstalling
 
@@ -412,7 +414,8 @@ then open `http://localhost:9000`. Why the server needs tunnels at all is explai
 | Container | What it is |
 | :--- | :--- |
 | `sudoo-web` | The web app (React, served by Caddy) on `PANEL_PORT` (9000). Forwards `/api`, `/hooks` and `/docs` to the backend and `/api/v1/events` to the live events. |
-| `sudoo-panel` | The backend: the API on `127.0.0.1:API_PORT` (9002), live events on `127.0.0.1:EVENTS_PORT` (9001), the gateways in front of the instances, the monitor and the jobs. |
+| `sudoo-panel` | The backend: the API on `127.0.0.1:API_PORT` (9002), live events on `127.0.0.1:EVENTS_PORT` (9001), the monitor and the jobs; it starts, stops and changes the instances through the server's Docker. |
+| `sudoo-gateway` | The gateways in front of the instances: every instance's `GATEWAY_PORT`, where its connector points. Same image as `sudoo-panel`, without Docker access or the panel's data ([Gateway](concepts/GATEWAY.md#5-where-it-runs-its-own-container)). |
 | `sudoo-connector-panel` | The panel's Cloudflare connector. |
 | `sudoo-connector-<name>` | One connector per instance. |
 | `odoo-<name>-odoo-1`, `odoo-<name>-db-1` | The instance's Odoo and PostgreSQL. |
@@ -426,7 +429,8 @@ Do not restart or recreate the connector containers by hand: their links would c
 /opt/odoo/                                   root only
 ├── manager/
 │   ├── .env                                 settings (mode 600)
-│   ├── compose.yaml                         sudoo-panel and sudoo-web, images pinned (written by the installer)
+│   ├── compose.yaml                         sudoo-panel, sudoo-gateway and sudoo-web, images pinned (written by
+│   │                                        the installer)
 │   ├── installer/                           sudoo-install.sh (the sudoo-install command), the running and the
 │   │                                        previous version (release, previous-release)
 │   ├── settings.json                        settings changed on the Settings page, on top of .env;
@@ -443,6 +447,10 @@ Do not restart or recreate the connector containers by hand: their links would c
 │   ├── keys/deploy/<owner>__<repo>.name     the repository name as written on GitHub
 │   └── documentation, code                  none: they are inside the images (the documentation of the running
 │                                            version is in sudoo-panel under /app/documentation)
+├── gateway/                                 shared by sudoo-panel and sudoo-gateway (mode 700), nothing secret:
+│   ├── routes.json                          the instances and their ports, written by the panel
+│   ├── visits.json                          the last visit of every instance, written by the gateway
+│   └── gateway.sock, panel.sock             how the two talk to each other
 ├── manager-backup-<date>.tgz                /opt/odoo/manager before an update or rollback (mode 600)
 ├── enterprise/<version>/                    Enterprise add-ons (folder source, default ENTERPRISE_PATH)
 ├── enterprise-git/<version>/                Enterprise add-ons downloaded by the git source
@@ -463,6 +471,8 @@ Do not restart or recreate the connector containers by hand: their links would c
 | Everything running | `docker ps` |
 | Backend log | `docker logs -f sudoo-panel` |
 | Web app log | `docker logs -f sudoo-web` |
+| Gateway log | `docker logs -f sudoo-gateway` |
+| Is the gateway service answering? | `docker exec sudoo-gateway sudoo.sh gateway --check && echo yes` |
 | Odoo log of an instance | `cd /opt/odoo/instances/<name> && docker compose logs -f odoo` |
 | Current links | `docker exec sudoo-panel sudoo.sh urls` |
 | Effective settings | `docker exec sudoo-panel sudoo.sh config` |
@@ -472,6 +482,45 @@ Do not restart or recreate the connector containers by hand: their links would c
 Do not run `docker compose up` or `down` for an instance by hand: use the panel, which also keeps its gateway,
 connector and state in step. A change made by hand to an instance's containers or files is found and, with
 `DRIFT_ACTION=restore`, undone (next section).
+
+### What keeps running when the panel is down
+
+With `GATEWAY_MODE=service` (the default), stopping, restarting or updating `sudoo-panel` does not stop the
+instances' links:
+
+| | While `sudoo-panel` is down |
+| :--- | :--- |
+| Running instances | Answer as usual, through `sudoo-gateway`. Visits are recorded and reach the panel when it is back. |
+| Paused instances | Answer "Starting soon" and start as soon as the panel is back (the page asks every 4 seconds). |
+| Switched-off instances | Answer "Switched off". |
+| The panel's own link, the API, jobs, automatic pause and backups, new instances | Wait for the panel. |
+
+And while `sudoo-gateway` is down (stopped, being updated), the panel serves the instances itself: at once when it
+was stopped normally, after `GATEWAY_TAKEOVER_SECONDS` (10) when it stopped answering. It hands the ports back when
+the gateway is up again. The connectors are never restarted: their links stay the same.
+
+### Moving to the gateway service, or back
+
+A server that runs a version before 3.0 has the gateways inside `sudoo-panel`. Updating moves them:
+
+1. Update as usual ([section 4](#4-updating-rolling-back-uninstalling)), so that `compose.yaml` has the `gateway`
+   service. Leave `GATEWAY_MODE` unset (or set it to `service`).
+2. `sudoo-panel` is recreated with the new image. While it starts, the instances do not answer for a few seconds,
+   as with every update before 3.0. It writes `/opt/odoo/gateway/routes.json` and, while no gateway service
+   answers yet, opens the gateway ports itself.
+3. `sudoo-gateway` starts, reads `routes.json` and opens the same ports next to the panel (both use
+   `SO_REUSEPORT`); the panel sees it answer and closes its own, within 2 seconds. No connector is restarted.
+4. Check: `docker exec sudoo-gateway sudoo.sh gateway --check && echo yes`, every link answers
+   (`docker exec sudoo-panel sudoo.sh urls`), and `docker logs sudoo-panel` says nothing about the gateway service
+   not answering. From now on, `docker restart sudoo-panel` leaves the instances answering.
+
+If `sudoo-gateway` is not started (an older `compose.yaml`, or an installer that recreates only `sudoo-panel` and
+`sudoo-web`), nothing breaks: the panel keeps serving the instances, as before.
+
+To keep the gateways in the panel, set `GATEWAY_MODE=embedded` in `.env` and recreate `sudoo-panel`
+(`docker compose up -d manager`); `sudoo-gateway`, if it runs, gives the ports back and stays idle (stop it with
+`docker compose stop gateway`). To move back to `service`, remove the line, recreate `sudoo-panel` and start
+`sudoo-gateway` (`docker compose up -d`). Either way the ports change hands without a connector restart.
 
 ### Hardened containers and changes made by hand
 
@@ -785,7 +834,7 @@ second factors** on the Accounts page. If no administrator can sign in, create a
 
 After installing or updating:
 
-1. `docker ps` shows `sudoo-web`, `sudoo-panel`, `sudoo-connector-panel`, and for each instance its connector, Odoo
+1. `docker ps` shows `sudoo-web`, `sudoo-panel`, `sudoo-gateway`, `sudoo-connector-panel`, and for each instance its connector, Odoo
    and database (paused and switched-off instances show only their connector).
 2. `docker exec sudoo-panel sudoo.sh urls` prints the panel's link and every instance's link.
 3. Open the panel's link and sign in (on a new server: the setup page, [section 3](#3-the-first-account)).
@@ -824,6 +873,9 @@ After installing or updating:
 | A plugin setting changed in the browser has no effect | Plugin settings apply after a restart | Settings, Advanced, **Restart the panel** (refused while jobs run: wait for them) |
 | A value changed in `.env` has no effect | The same setting was changed on the Settings page, which wins | Click **Use .env** next to it on the Settings page |
 | "Starting up" for several minutes | Odoo fails to start | The instance's **Odoo log** tab |
+| "Starting soon" on a paused instance | `sudoo-panel` is down or restarting; only it can start an instance | `docker ps -a`, `docker logs sudoo-panel`; the instance starts once the panel is back |
+| An instance's page says its gateway port is used by another program | Another program holds that port | `ss -ltnp 'sport = :<port>'` shows which; stop it, and the gateway takes the port within seconds |
+| `docker logs sudoo-panel` says the gateway service does not answer | `sudoo-gateway` is stopped, restarting or hangs (the panel serves the instances meanwhile) | `docker logs sudoo-gateway`, then `cd /opt/odoo/manager && docker compose up -d gateway` |
 | An access report line is red on New instance | The message says which: the app belongs to another account, is not installed on the repository's owner, the repository is not among its selected ones; or no app and no deploy key | Follow the button next to the line ([When a repository cannot be read](#when-a-repository-cannot-be-read)); or create a deploy key ([User manual](USER_MANUAL.md#7-github-access-private-repositories)) |
 | GitHub's page after **Create GitHub App** or **Install** does not open | The panel's quick-tunnel address changed since the app was created (GitHub still has the old one) | Open the panel at its current address, **GitHub access**, **Refresh**. A new app: connect again |
 | Pushes do not start updates at once | `github-app` is not in `UPDATE_TRIGGERS`, or GitHub cannot reach the panel | Settings, Plugins; on GitHub, the app's **Advanced** page lists recent deliveries and their answers |

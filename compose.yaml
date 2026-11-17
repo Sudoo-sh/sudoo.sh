@@ -1,6 +1,6 @@
-# Sudoo.sh: the backend (sudoo-panel) and the web app (sudoo-web). Instances (odoo-*) and Cloudflare connectors
-# (sudoo-connector-*) are separate containers that the backend manages: they are not part of this project, and
-# recreating these two services never touches them.
+# Sudoo.sh: the backend (sudoo-panel), the gateway service (sudoo-gateway) and the web app (sudoo-web). Instances
+# (odoo-*) and Cloudflare connectors (sudoo-connector-*) are separate containers that the backend manages: they are
+# not part of this project, and recreating these services never touches them.
 #
 # Each release attaches this file as compose.yaml with the images pinned by digest and without the build lines; that
 # is the file a server uses (docs/ADMIN_GUIDE.md). In a clone of the repository, `docker compose build` builds the
@@ -38,6 +38,41 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
+
+  gateway:
+    # every instance's gateway port (GATEWAY_MODE=service, the default): visitors keep reaching the instances while
+    # the panel restarts or is down. Same image as the backend, without the Docker socket, without .env and without
+    # the panel's data: it reads and writes only /opt/odoo/gateway, where the backend hands it the instances and
+    # their settings (docs/concepts/GATEWAY.md). While it is not running, the backend serves the instances itself.
+    image: ${SUDOO_PANEL_IMAGE:-sudoo-panel:local}
+    container_name: sudoo-gateway
+    command: ["sudoo.sh", "gateway"]
+    restart: unless-stopped
+    init: true
+    # host networking: the gateway ports are where the connectors (or visitors, with host-ports) expect them
+    network_mode: host
+    volumes:
+      - /opt/odoo/gateway:/opt/odoo/gateway
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    # on a normal stop it gives the panel 3 seconds to take the ports over before it closes them
+    stop_grace_period: 15s
+    healthcheck:
+      test: ["CMD", "python", "-m", "sudoo.instances.gateway_health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   web:
     # the web app (web/): the React front end, served by Caddy, which forwards /api, /hooks and /docs to the

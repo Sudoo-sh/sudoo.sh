@@ -46,10 +46,10 @@ Examples of each attempt, and how the panel stops it, are in [Web attacks](conce
 
 ## 2. Reachability
 
-* The panel is two containers. The web service (`sudoo-web`, Caddy) serves the web app on `PANEL_PORT` and forwards
+* The panel is three containers. The web service (`sudoo-web`, Caddy) serves the web app on `PANEL_PORT` and forwards
   `/api`, `/hooks` and `/docs` to the backend (`sudoo-panel`). The backend's API (`API_PORT`) and its live event
   stream (`EVENTS_PORT`) listen on `127.0.0.1` only, with every exposure: nothing reaches them except through the
-  web service.
+  web service. The third, the gateway service (`sudoo-gateway`), holds the instances' gateway ports (next section).
 * With the default exposure plugin (`cloudflare-quick`), the web service, every gateway and every Odoo
   listen on `127.0.0.1` only. Nothing is reachable from the internet except through the Cloudflare connectors that
   the server opened itself, and SSH for administrators.
@@ -62,6 +62,28 @@ Examples of each attempt, and how the panel stops it, are in [Web attacks](conce
 * The panel and every instance have different addresses (different browser origins), so an instance's pages can never read
   the panel's cookie. The gateway also removes the panel's cookie from requests to Odoo and stops Odoo from setting
   one with the same name.
+
+### The gateway service
+
+The gateways are the only part of the panel that every visitor of every instance talks to, so they run apart from
+the backend (`GATEWAY_MODE=service`, the default) with as little as possible:
+
+| | Gateway service (`sudoo-gateway`) | Backend (`sudoo-panel`) |
+| :--- | :--- | :--- |
+| Docker socket | not mounted | mounted (it manages the instances) |
+| `.env`, vault key, accounts, sessions, backups | none: no `env_file`, no mount of `/opt/odoo` | all |
+| Files | `/opt/odoo/gateway` only, read-write: routes from the backend, visits for it, the two sockets | `/opt/odoo` |
+| Container | read-only file system, all capabilities dropped, `no-new-privileges`, at most 256 processes | as before |
+
+The two talk through Unix sockets in that folder (mode `700`, root only), never over the network: `gateway.sock`
+(the backend asks the gateway to reload its routes and collects the request counts) and `panel.sock` (the gateway
+asks the backend to start a paused instance, naming it; the backend checks the name and decides, through the same
+job as a start from the panel). A process that can open those sockets is root on the server already, so they need
+no further secret; the instances' containers have no access to the folder. Everything the gateway reads from
+`routes.json` is checked (instance names, ports, a known listen address and header name, only the gateway's own
+settings), and everything the backend reads from the gateway (visits, counts, errors) is checked and limited to known
+instances. Someone who took over the gateway service could read and change visitors' traffic to the instances (as
+any reverse proxy could), but would not reach Docker, the panel's data or its secrets.
 
 ### The visitor's address
 
@@ -83,7 +105,7 @@ directions, refuses request bodies larger than `GATEWAY_MAX_UPLOAD_MB`, gives up
 cannot make the gateway that every instance shares hold gigabytes in memory. A connection that does not send its
 request headers within `GATEWAY_HEADER_TIMEOUT_SECONDS` is closed, and the number of connections open at once is
 capped per instance (`GATEWAY_MAX_CONNECTIONS`) and for all gateways (`GATEWAY_MAX_CONNECTIONS_TOTAL`), so slow or
-idle connections cannot use up the panel's open files. The web service gives a request 10
+idle connections cannot use up the gateway's open files. The web service gives a request 10
 seconds for its headers and 30 for its body, and refuses bodies over 1 MB for the backend. See
 [Performance](PERFORMANCE.md#5-security-on-the-hot-paths).
 

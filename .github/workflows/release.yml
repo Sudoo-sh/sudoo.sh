@@ -74,7 +74,7 @@ jobs:
             -e "s#^(    image: )\\$\\{SUDOO_PANEL_IMAGE:-[^}]*\\}\$#\\1$PANEL#" \
             -e "s#^(    image: )\\$\\{SUDOO_WEB_IMAGE:-[^}]*\\}\$#\\1$WEB#" \
             -e '/^    build: /d' compose.yaml > dist/compose.yaml
-          [ "$(grep -c '^    image: ghcr.io/sudoo-sh/sudoo-[a-z]*@sha256:[0-9a-f]\{64\}$' dist/compose.yaml)" = 2 ]
+          [ "$(grep -c '^    image: ghcr.io/sudoo-sh/sudoo-[a-z]*@sha256:[0-9a-f]\{64\}$' dist/compose.yaml)" = 3 ]
           if grep -q '^    build:' dist/compose.yaml; then exit 1; fi
           cp .env.example dist/env.example
           (cd dist && cp env.example .env && docker compose config --quiet && rm .env)

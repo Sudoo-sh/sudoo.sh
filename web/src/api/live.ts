@@ -6,7 +6,7 @@
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { keys, type JobLog } from "./queries";
-import type { Columns, Instance, Job, Metrics, MetricsHistory } from "./types";
+import type { Alert, Columns, Instance, Job, Metrics, MetricsHistory } from "./types";
 
 export type LiveState = "connecting" | "open" | "closed";
 
@@ -104,13 +104,20 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
       client.invalidateQueries({ queryKey: keys.marketplace });
       client.invalidateQueries({ queryKey: keys.plugins });
       break;
+    case "alert": {
+      const alert = data as Alert;
+      client.setQueryData<Alert[]>(keys.alerts, (list) =>
+        upsert(list, alert, (a) => a.id === alert.id, true)?.sort((a, b) => b.last_at - a.last_at).slice(0, 30),
+      );
+      break;
+    }
     case "reset":
       client.invalidateQueries();
       break;
   }
 }
 
-const TOPICS = ["instance", "instance.deleted", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "reset"];
+const TOPICS = ["instance", "instance.deleted", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "alert", "reset"];
 
 export interface Sync {
   state: LiveState;

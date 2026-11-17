@@ -193,7 +193,7 @@ Some secrets must be **read back** by the panel, so they cannot be hashed. They 
 | The GitHub App's private key, webhook secret and client secret (`keys/github-app.json`, mode 600) | AES-256-GCM, labels `github-app:pem`, `github-app:webhook_secret`, `github-app:client_secret` | The private key to sign a short JWT when a new installation token is needed; the webhook secret to check each delivery; the client secret is kept but not used |
 | GitHub App installation tokens (read-only, one hour) | AES-256-GCM in a file in `MEMORY_DIR` (memory only, mode 600), label `github-app-token:<installation>` | When git needs one (through the panel's credential helper) and for API calls; reused until five minutes before they expire |
 | Odoo master password of each instance (`MASTER_PASSWORD` in its `.env`) | AES-256-GCM, label `master-password:<name>` | When someone with the permission `instances.credentials` opens an instance's **Access** tab (and the audit log records it) |
-| Secret settings changed in the panel (`smtp_password`, `odoo_admin_password`, `github_webhook_secret`) | AES-256-GCM in `/opt/odoo/manager/settings.json`, label `setting:<key>` | When the panel starts, and when a setting is changed |
+| Secret settings changed in the panel (`smtp_password`, `odoo_admin_password`, `github_webhook_secret`, the alert webhooks' `alert_webhook_<n>_url` and `alert_webhook_<n>_secret`) | AES-256-GCM in `/opt/odoo/manager/settings.json`, label `setting:<key>` | When the panel starts, and when a setting is changed |
 | API tokens' signing secrets | AES-256-GCM | On every signed API call |
 
 Backups (`/opt/odoo/backups`) contain whole databases, so they are mode 600 (root only), listed and downloaded only
@@ -233,9 +233,9 @@ can be undone ([Administrator guide: Backups](ADMIN_GUIDE.md#10-backups)).
 Super admins change almost every setting on the **Settings** page (`PATCH /api/v1/settings`, permission
 `settings.manage`). The changes are kept in `/opt/odoo/manager/settings.json` (mode 600) on top of `.env`.
 
-* The three secret settings (`SMTP_PASSWORD`, `ODOO_ADMIN_PASSWORD`, `GITHUB_WEBHOOK_SECRET`) are **write-only**: the
-  page and the API only say whether they are set, never their value. In `settings.json` they are encrypted with the
-  vault key; without `vault.key` they cannot be read back.
+* The secret settings (`SMTP_PASSWORD`, `ODOO_ADMIN_PASSWORD`, `GITHUB_WEBHOOK_SECRET`, the alert webhooks' addresses
+  and secrets) are **write-only**: the page and the API only say whether they are set, never their value. In
+  `settings.json` they are encrypted with the vault key; without `vault.key` they cannot be read back.
 * Folders, ports, the exposure and the storage can only be set in `.env`, which only root on the server can edit.
 * Every change is in the audit log with the names of the settings. Secret values are not written there: a changed
   secret appears as `SMTP_PASSWORD=(set)`. Versions before this one wrote the value; the panel replaces those

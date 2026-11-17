@@ -78,7 +78,8 @@ export function InstancePage() {
   const { name = "", tab = "" } = useParams();
   const can = useCan();
   const { data: instance, isPending, error } = useInstance(name);
-  const [jobId, setJobId] = useState<string | null>(null);
+  // an alert links to /i/<name>/activity?job=<id>: that job opens at once
+  const [jobId, setJobId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("job"));
   const run = useRun(name, setJobId);
   const capacity = useCapacity();
   const [dialog, setDialog] = useState<null | "upgrade" | "branch" | "delete" | "submodule" | "rollback" | "connect">(null);

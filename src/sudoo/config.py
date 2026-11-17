@@ -250,6 +250,112 @@ class Settings(BaseSettings):
         "when it may have changed) when the update fails.",
     )
 
+    # ------------------------------------------------------------------ alerts (alerts/, docs/ADMIN_GUIDE.md "Alerts")
+    alerts: bool = Field(
+        True,
+        description="Tell people when something needs attention (a failed job, an instance down, a full disk), by "
+        "e-mail and webhooks; off: no alert is sent or listed.",
+    )
+    alert_super_admins: bool = Field(True, description="Send alert e-mails to every super admin with an address.")
+    alert_emails: str = Field(
+        "", description="More addresses that receive alert e-mails, comma-separated (an on-call mailbox, say)."
+    )
+    alert_job_failed: bool = Field(True, description="Alert when a job fails (with its plain hint and a link).")
+    alert_update_failed: bool = Field(
+        True, description="Alert when an update failed and was rolled back, or its rollback failed too."
+    )
+    alert_backup_failed: bool = Field(True, description="Alert when a backup fails (manual, daily or before a change).")
+    alert_instance_down: bool = Field(
+        True, description="Alert when an instance that should run does not answer for alert_instance_down_minutes."
+    )
+    alert_instance_down_minutes: float = Field(
+        5, ge=1, le=1440, description="Minutes an instance must stay down before the alert."
+    )
+    alert_disk: bool = Field(True, description="Alert when the free disk falls below alert_disk_free_percent.")
+    alert_disk_free_percent: float = Field(
+        10, ge=1, le=90, description="Free disk, in % of the disk holding ODOO_ROOT, below which the alert is sent."
+    )
+    alert_memory: bool = Field(
+        True,
+        description="Alert when server memory stays above capacity_warning_percent for alert_memory_minutes.",
+    )
+    alert_memory_minutes: float = Field(
+        10, ge=1, le=1440, description="Minutes memory must stay above the warning before the alert."
+    )
+    alert_drift: bool = Field(True, description="Alert when an instance was changed outside the panel (drift).")
+    alert_public_link: bool = Field(
+        True,
+        description="Alert when the panel or a running instance has no public link for alert_public_link_minutes.",
+    )
+    alert_public_link_minutes: float = Field(
+        10, ge=1, le=1440, description="Minutes without a public link before the alert."
+    )
+    alert_recovery: bool = Field(
+        True, description="Send a notice when a problem that was alerted is over (back online, disk freed)."
+    )
+    alert_quiet_minutes: float = Field(
+        60, ge=0, le=10080, description="The same alert is sent at most once in this many minutes; 0: every time."
+    )
+    alert_digest: bool = Field(
+        False,
+        description="E-mail one summary a day instead of each alert as it happens (webhooks and the bell still "
+        "get each alert at once).",
+    )
+    alert_digest_time: str = Field(
+        "08:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$", description="When the daily summary is sent (HH:MM, TIMEZONE)."
+    )
+    alert_webhook_timeout_seconds: float = Field(
+        10, ge=1, le=60, description="Seconds a webhook may take to answer before the delivery counts as failed."
+    )
+    alert_webhook_1_url: str = Field("", description="Webhook 1: address alerts are posted to (https).")
+    alert_webhook_1_secret: str = Field("", description="Webhook 1: key of the X-Sudoo-Signature HMAC-SHA256.")
+    alert_webhook_1_format: Literal["json", "slack", "discord", "teams"] = Field(
+        "json", description='Webhook 1: "json" (signed JSON), "slack", "discord" or "teams" (incoming webhooks).'
+    )
+    alert_webhook_2_url: str = Field("", description="Webhook 2: address alerts are posted to (https).")
+    alert_webhook_2_secret: str = Field("", description="Webhook 2: key of the X-Sudoo-Signature HMAC-SHA256.")
+    alert_webhook_2_format: Literal["json", "slack", "discord", "teams"] = Field(
+        "json", description='Webhook 2: "json", "slack", "discord" or "teams".'
+    )
+    alert_webhook_3_url: str = Field("", description="Webhook 3: address alerts are posted to (https).")
+    alert_webhook_3_secret: str = Field("", description="Webhook 3: key of the X-Sudoo-Signature HMAC-SHA256.")
+    alert_webhook_3_format: Literal["json", "slack", "discord", "teams"] = Field(
+        "json", description='Webhook 3: "json", "slack", "discord" or "teams".'
+    )
+
+    @field_validator("alert_emails")
+    @classmethod
+    def _alert_emails(cls, value: str) -> str:
+        import re
+
+        addresses = [part.strip() for part in value.replace(";", ",").split(",") if part.strip()]
+        for address in addresses:
+            if not re.fullmatch(r"[^@\s,]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}", address):
+                raise ValueError(f"{address[:80]} is not an e-mail address")
+        if len(addresses) > 50:
+            raise ValueError("at most 50 addresses")
+        return ",".join(dict.fromkeys(addresses))
+
+    @field_validator("alert_webhook_1_url", "alert_webhook_2_url", "alert_webhook_3_url")
+    @classmethod
+    def _webhook_url(cls, value: str) -> str:
+        from urllib.parse import urlsplit
+
+        value = value.strip()
+        if not value:
+            return ""
+        try:
+            parts = urlsplit(value)
+            host = parts.hostname
+        except ValueError:
+            raise ValueError("must be an https:// address") from None
+        local = host in ("localhost", "127.0.0.1", "::1")
+        if parts.scheme not in ("https", "http") or not host or (parts.scheme == "http" and not local):
+            raise ValueError("must be an https:// address (http:// only for localhost)")
+        if parts.username or parts.password or parts.fragment or len(value) > 2000:
+            raise ValueError("must be a plain address, without a user name, password or #fragment")
+        return value
+
     # ------------------------------------------------------------------ marketplace (docs/MARKETPLACE.md)
     marketplace: bool = Field(
         False,
@@ -377,6 +483,9 @@ class Settings(BaseSettings):
 
 # ---------------------------------------------------------------------- changes made in the panel
 
+ALERT_SETTINGS = tuple(name for name in Settings.model_fields if name == "alerts" or name.startswith("alert_"))
+"""Every alert setting (alerts/); all of them can be changed in the panel."""
+
 EDITABLE = (
     # take effect at once
     "brand_color",
@@ -439,13 +548,19 @@ EDITABLE = (
     "admin_contact_phone",
     "admin_contact_email",
     "marketplace",
+    *ALERT_SETTINGS,
 )
 """Settings that can be changed in the panel, taking effect at once."""
 
 RESTART = ("mailer", "second_factors", "update_triggers", "enterprise_source", "auth", "rate_limiter")
 """Settings that can be changed in the panel and take effect when the panel restarts (they choose plugins)."""
 
-SECRET = ("odoo_admin_password", "github_webhook_secret", "smtp_password")
+SECRET = (
+    "odoo_admin_password",
+    "github_webhook_secret",
+    "smtp_password",
+    *(f"alert_webhook_{n}_{part}" for n in (1, 2, 3) for part in ("url", "secret")),
+)
 """Settings whose value is never shown, only whether they are set; kept encrypted in settings.json."""
 
 _CHANGEABLE = frozenset(EDITABLE + RESTART)

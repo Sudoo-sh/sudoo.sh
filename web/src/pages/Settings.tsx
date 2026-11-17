@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Mail, Plug, Puzzle, RefreshCcw, RotateCcw, Send, ServerCog } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
-import { Link } from "react-router";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Link, useSearchParams } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useSettings } from "@/api/queries";
 import type { Setting } from "@/api/types";
@@ -10,20 +10,79 @@ import { Page, PageHead, useMe } from "@/components/Shell";
 import { Button, Callout, Skeleton, Switch, Tag } from "@/components/ui/basics";
 import { Modal, useToast } from "@/components/ui/overlay";
 
-const GROUPS: { title: string; text: string; keys: string[] }[] = [
-  { title: "Sign-in and security", text: "Second factors and how long a session lasts before signing in again", keys: ["require_second_factor", "session_idle_minutes", "session_max_hours"] },
-  { title: "E-mail", text: "The mailbox that sends sign-in codes, for example a Gmail account with an app password", keys: ["mail_from", "smtp_host", "smtp_port", "smtp_security", "smtp_username", "smtp_password", "mail_templates_dir"] },
-  { title: "Limits", text: "Requests per minute, and how many instances, how often. 0 turns a limit off", keys: ["rate_limit_reads_per_minute", "rate_limit_changes_per_minute", "max_instances", "max_instances_per_user", "create_cooldown_minutes"] },
-  { title: "Gateway", text: "What visitors may send to an instance through the gateway, which every instance shares", keys: ["gateway_max_upload_mb", "gateway_idle_timeout_seconds", "gateway_websocket_max_message_mb"] },
-  { title: "New instances", text: "What a new instance starts with; each instance can change its own", keys: ["auto_pause", "idle_hours", "auto_update", "auto_upgrade", "delete_after_days", "odoo_admin_password"] },
-  { title: "Backups", text: "Each instance used during the day is backed up once, at this time; it keeps only its latest daily backup", keys: ["daily_backups", "daily_backup_time", "timezone", "rollback_hours", "safe_updates"] },
-  { title: "Odoo versions and images", text: "Which versions are offered and where Odoo and PostgreSQL come from", keys: ["odoo_versions", "odoo_min_version", "prepull_images", "odoo_image", "postgres_image"] },
-  { title: "Instance containers", text: "Limits of each instance's containers, applied when an instance next starts, and what happens when someone changes them by hand. 0 turns a limit off", keys: ["odoo_memory_limit", "odoo_cpu_limit", "db_memory_limit", "db_cpu_limit", "container_pids_limit", "container_log_max_size", "container_log_max_files", "drift_action"] },
-  { title: "Enterprise add-ons", text: "Where the Enterprise add-ons of each version are", keys: ["enterprise_path", "enterprise_git_url", "enterprise_git_branch", "enterprise_marker"] },
-  { title: "Code updates and monitoring", text: "How often GitHub is checked and figures are measured", keys: ["poll_minutes", "github_webhook_secret", "metrics_interval_seconds", "cloudflared_image"] },
-  { title: "Contact and appearance", text: "Who people are told to contact, and the accent colour of the panel and its e-mails", keys: ["admin_contact_name", "admin_contact_email", "admin_contact_phone", "brand_color"] },
+type Group = { title: string; text: string; keys: string[] };
+type TabId = "general" | "instances" | "odoo" | "backups" | "security" | "email" | "github" | "marketplace" | "advanced";
+
+/** The tabs of the page and the groups of settings in each. Every setting that can be changed is in one group only;
+ *  one the page does not know yet shows under Advanced, Other. */
+const TABS: { id: TabId; label: string; groups: Group[] }[] = [
+  {
+    id: "general",
+    label: "General",
+    groups: [
+      { title: "Contact and appearance", text: "Who people are told to contact, and the accent colour of the panel and its e-mails", keys: ["admin_contact_name", "admin_contact_email", "admin_contact_phone", "brand_color"] },
+    ],
+  },
+  {
+    id: "instances",
+    label: "Instances",
+    groups: [
+      { title: "New instances", text: "What a new instance starts with; each instance can change its own", keys: ["auto_pause", "idle_hours", "auto_update", "auto_upgrade", "delete_after_days", "odoo_admin_password"] },
+      { title: "How many instances", text: "How many instances, and how often a new one can be created. 0 turns a limit off", keys: ["max_instances", "max_instances_per_user", "create_cooldown_minutes"] },
+      { title: "Instance containers", text: "Limits of each instance's containers, applied when an instance next starts, and what happens when someone changes them by hand. 0 turns a limit off", keys: ["odoo_memory_limit", "odoo_cpu_limit", "db_memory_limit", "db_cpu_limit", "container_pids_limit", "container_log_max_size", "container_log_max_files", "drift_action"] },
+      { title: "Gateway", text: "What visitors may send to an instance through the gateway, which every instance shares", keys: ["gateway_max_upload_mb", "gateway_idle_timeout_seconds", "gateway_websocket_max_message_mb"] },
+    ],
+  },
+  {
+    id: "odoo",
+    label: "Odoo",
+    groups: [
+      { title: "Odoo versions and images", text: "Which versions are offered and where Odoo and PostgreSQL come from", keys: ["odoo_versions", "odoo_min_version", "prepull_images", "odoo_image", "postgres_image"] },
+      { title: "Enterprise add-ons", text: "Where the Enterprise add-ons of each version are", keys: ["enterprise_source", "enterprise_path", "enterprise_git_url", "enterprise_git_branch", "enterprise_marker"] },
+    ],
+  },
+  {
+    id: "backups",
+    label: "Backups",
+    groups: [
+      { title: "Backups", text: "Each instance used during the day is backed up once, at this time; it keeps only its latest daily backup", keys: ["daily_backups", "daily_backup_time", "timezone", "rollback_hours", "safe_updates"] },
+    ],
+  },
+  {
+    id: "security",
+    label: "Sign-in and security",
+    groups: [
+      { title: "Sign-in", text: "Second factors, how people sign in, and how long a session lasts before signing in again", keys: ["require_second_factor", "second_factors", "session_idle_minutes", "session_max_hours", "auth"] },
+      { title: "Requests per minute", text: "How many requests one person may send. 0 turns a limit off", keys: ["rate_limit_reads_per_minute", "rate_limit_changes_per_minute", "rate_limiter"] },
+    ],
+  },
+  {
+    id: "email",
+    label: "E-mail",
+    groups: [
+      { title: "E-mail", text: "The mailbox that sends sign-in codes, for example a Gmail account with an app password", keys: ["mailer", "mail_from", "smtp_host", "smtp_port", "smtp_security", "smtp_username", "smtp_password", "mail_templates_dir"] },
+    ],
+  },
+  {
+    id: "github",
+    label: "GitHub and updates",
+    groups: [
+      { title: "Code updates", text: "How new code reaches the instances: how often GitHub is checked, and what else starts an update", keys: ["poll_minutes", "update_triggers", "github_webhook_secret"] },
+    ],
+  },
+  { id: "marketplace", label: "Marketplace", groups: [] },
+  {
+    id: "advanced",
+    label: "Advanced",
+    groups: [
+      { title: "Monitoring", text: "How often figures are measured, and the image of the Cloudflare connector", keys: ["metrics_interval_seconds", "cloudflared_image"] },
+    ],
+  },
 ];
-const PLUGINS = { title: "Plugins", text: "Each chooses a plugin; a change applies when the panel restarts", keys: ["mailer", "second_factors", "update_triggers", "enterprise_source", "auth", "rate_limiter"] };
+const TAB_IDS = new Set<string>(TABS.map((t) => t.id));
+const KNOWN = new Set<string>([...TABS.flatMap((t) => t.groups.flatMap((g) => g.keys)), "marketplace"]);
+const keysOfTab = (tab: (typeof TABS)[number], other: string[]) =>
+  [...tab.groups.flatMap((g) => g.keys), ...(tab.id === "marketplace" ? ["marketplace"] : []), ...(tab.id === "advanced" ? other : [])];
 
 const TITLES: Record<string, string> = {
   require_second_factor: "Second factor required for",
@@ -172,10 +231,67 @@ function TestEmail({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** The tabs as an accessible tablist: arrow keys, Home and End move between tabs and open them; the chosen tab is
+ *  the only one in the Tab order. A dot marks a tab with unsaved changes, or one waiting for a restart. */
+function TabList({ tab, onSelect, marks }: { tab: TabId; onSelect: (id: TabId) => void; marks: Record<string, { unsaved: number; restart: boolean }> }) {
+  const list = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // on a narrow screen the tabs scroll sideways: keep the chosen one in view
+    const chosen = list.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    chosen?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: reduce ? "auto" : "smooth" });
+  }, [tab]);
+  const move = (event: KeyboardEvent<HTMLDivElement>) => {
+    const index = TABS.findIndex((t) => t.id === tab);
+    const next =
+      event.key === "ArrowRight" ? (index + 1) % TABS.length
+      : event.key === "ArrowLeft" ? (index - 1 + TABS.length) % TABS.length
+      : event.key === "Home" ? 0
+      : event.key === "End" ? TABS.length - 1
+      : null;
+    if (next === null) return;
+    event.preventDefault();
+    onSelect(TABS[next]!.id);
+    list.current?.querySelector<HTMLElement>(`#settings-tab-${TABS[next]!.id}`)?.focus();
+  };
+  return (
+    <div className="tabs settings-tabs" role="tablist" aria-label="Settings" ref={list} onKeyDown={move}>
+      {TABS.map((t) => {
+        const mark = marks[t.id];
+        const state = [
+          mark?.unsaved ? `${mark.unsaved} unsaved ${mark.unsaved === 1 ? "change" : "changes"}` : "",
+          mark?.restart ? "waits for a restart" : "",
+        ].filter(Boolean).join(", ");
+        return (
+          <button
+            key={t.id}
+            id={`settings-tab-${t.id}`}
+            role="tab"
+            type="button"
+            aria-selected={t.id === tab}
+            aria-controls={`settings-panel-${t.id}`}
+            tabIndex={t.id === tab ? 0 : -1}
+            className={t.id === tab ? "active" : ""}
+            title={state || undefined}
+            onClick={() => onSelect(t.id)}
+          >
+            {t.label}
+            <span className={`tab-mark ${mark?.unsaved ? "unsaved" : mark?.restart ? "restart" : ""}`} aria-hidden="true" />
+            {state && <span className="sr-only">, {state}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const { data: settings, isPending } = useSettings();
   const toast = useToast();
   const client = useQueryClient();
+  const [params, setParams] = useSearchParams();
+  const asked = params.get("tab") ?? "";
+  const tab: TabId = TAB_IDS.has(asked) ? (asked as TabId) : "general";
   const [draft, setDraft] = useState<Record<string, Value>>({});
   const [testing, setTesting] = useState(false);
   const [restarting, setRestarting] = useState(false);
@@ -184,6 +300,23 @@ export function SettingsPage() {
   const save = useCall((values: Record<string, Value>) => api.patch<Setting[]>("/settings", values), [keys.settings, keys.session]);
   const reset = useCall((key: string) => api.del(`/settings/${key}`), [keys.settings, keys.session]);
   const pending = (settings ?? []).some((s) => s.pending_restart);
+  // a setting the page does not place yet still shows, under Advanced
+  const other = (settings ?? []).filter((s) => s.applies !== "env" && !KNOWN.has(s.key)).map((s) => s.key);
+  const marks = Object.fromEntries(
+    TABS.map((t) => {
+      const keysOf = keysOfTab(t, other);
+      return [t.id, { unsaved: dirty.filter((k) => keysOf.includes(k)).length, restart: keysOf.some((k) => byKey[k]?.pending_restart) }];
+    }),
+  );
+  const dirtyTabs = TABS.filter((t) => marks[t.id]!.unsaved > 0).map((t) => t.label);
+
+  const select = (id: TabId) => {
+    if (id === tab) return;
+    const next = new URLSearchParams(params);
+    if (id === "general") next.delete("tab");
+    else next.set("tab", id);
+    setParams(next, { preventScrollReset: true, viewTransition: true });
+  };
 
   const submit = () =>
     save.mutate(Object.fromEntries(dirty.map((k) => [k, draft[k]!])), {
@@ -225,7 +358,7 @@ export function SettingsPage() {
             <div className="name">
               {TITLES[key] ?? key}
               {setting.secret && <Tag tone={setting.value ? "positive" : undefined}>{setting.value ? "set" : "not set"}</Tag>}
-              {setting.pending_restart && <Tag tone="caution">applies after a restart</Tag>}
+              {setting.pending_restart ? <Tag tone="caution">applies after a restart</Tag> : setting.applies === "restart" && <Tag>plugin, needs a restart</Tag>}
             </div>
             <div className="desc">{setting.description}</div>
             <div className="env">
@@ -244,6 +377,7 @@ export function SettingsPage() {
       );
     });
 
+  const current = TABS.find((t) => t.id === tab)!;
   return (
     <Page>
       <PageHead title="Settings">
@@ -252,51 +386,72 @@ export function SettingsPage() {
       {isPending ? (
         <Skeleton height={400} />
       ) : (
-        <div className="stack">
-          {GROUPS.map((group) => (
-            <Section
-              key={group.title}
-              title={group.title}
-              text={group.text}
-              icon={group.title === "E-mail" ? <Mail /> : undefined}
-              actions={group.title === "E-mail" && <Button size="sm" icon={<Send />} onClick={() => setTesting(true)}>Send a test</Button>}
-            >
-              {rows(group.keys)}
-            </Section>
-          ))}
-          <Section title={PLUGINS.title} text={PLUGINS.text} icon={<Plug />}
-            actions={<Button size="sm" variant={pending ? "primary" : "default"} icon={<RefreshCcw />} loading={restarting} onClick={restart}>Restart the panel</Button>}>
-            {pending && <div style={{ padding: "12px 20px 0" }}><Callout tone="warning">Some changes wait for a restart. Instances, links and the web app keep running while the panel restarts.</Callout></div>}
-            {rows(PLUGINS.keys)}
-          </Section>
-          <Section title="Marketplace" text="Plugins from Sudoo.sh: the connection to the hub, and linking this panel to an account on app.sudoo.sh" icon={<Puzzle />}
-            actions={<Link className="btn sm" to="/plugins" viewTransition>Open Plugins</Link>}>
-            {rows(["marketplace"])}
-            <MarketplaceSettings />
-          </Section>
-          <Section title="Server" text="Folders, ports and how the panel is reached. Change these in /opt/odoo/manager/.env" icon={<ServerCog />}>
-            <div className="table-wrap">
-              <table className="table">
-                <tbody>
-                  {(settings ?? []).filter((s) => s.applies === "env").map((s) => (
-                    <tr key={s.key}>
-                      <td className="mono small nowrap">{s.env}</td>
-                      <td className="mono small">{String(s.value) || <span className="faint">empty</span>}</td>
-                      <td className="small muted">{s.description}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Section>
+        <>
+          {pending && (
+            <Callout tone="warning">
+              <div className="row-wrap">
+                <span className="spacer">Some changes wait for a restart. Instances, links and the web app keep running while the panel restarts.</span>
+                <Button size="sm" variant="primary" icon={<RefreshCcw />} loading={restarting} onClick={restart}>Restart the panel</Button>
+              </div>
+            </Callout>
+          )}
+          <TabList tab={tab} onSelect={select} marks={marks} />
+          <div className="rise tab-panel stack" key={tab} id={`settings-panel-${tab}`} role="tabpanel" aria-labelledby={`settings-tab-${tab}`}>
+            {current.groups.map((group) => (
+              <Section
+                key={group.title}
+                title={group.title}
+                text={group.text}
+                icon={group.title === "E-mail" ? <Mail /> : undefined}
+                actions={group.title === "E-mail" && <Button size="sm" icon={<Send />} onClick={() => setTesting(true)}>Send a test</Button>}
+              >
+                {rows(group.keys)}
+              </Section>
+            ))}
+            {tab === "marketplace" && (
+              <Section title="Marketplace" text="Plugins from Sudoo.sh: the connection to the hub, and linking this panel to an account on app.sudoo.sh" icon={<Puzzle />}
+                actions={<Link className="btn sm" to="/plugins" viewTransition>Open Plugins</Link>}>
+                {rows(["marketplace"])}
+                <MarketplaceSettings />
+              </Section>
+            )}
+            {tab === "advanced" && (
+              <>
+                {other.length > 0 && <Section title="Other" text="Settings this page does not group yet">{rows(other)}</Section>}
+                <Section title="Restart the panel" icon={<Plug />}
+                  text="Settings marked as a plugin choose which plugin does a job; a change applies when the panel restarts. It is refused while jobs run"
+                  actions={<Button size="sm" variant={pending ? "primary" : "default"} icon={<RefreshCcw />} loading={restarting} onClick={restart}>Restart the panel</Button>}>
+                  {null}
+                </Section>
+                <Section title="Server" text="Folders, ports and how the panel is reached. Change these in /opt/odoo/manager/.env" icon={<ServerCog />}>
+                  <div className="table-wrap">
+                    <table className="table">
+                      <tbody>
+                        {(settings ?? []).filter((s) => s.applies === "env").map((s) => (
+                          <tr key={s.key}>
+                            <td className="mono small nowrap">{s.env}</td>
+                            <td className="mono small">{String(s.value) || <span className="faint">empty</span>}</td>
+                            <td className="small muted">{s.description}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Section>
+              </>
+            )}
+          </div>
           {dirty.length > 0 && (
             <div className="save-bar">
-              <span className="spacer">{dirty.length} unsaved {dirty.length === 1 ? "change" : "changes"}</span>
+              <span className="spacer">
+                {dirty.length} unsaved {dirty.length === 1 ? "change" : "changes"}
+                <span className="count"> in {dirtyTabs.join(", ")}</span>
+              </span>
               <Button variant="ghost" onClick={() => setDraft({})}>Discard</Button>
               <Button variant="primary" loading={save.isPending} onClick={submit}>Save</Button>
             </div>
           )}
-        </div>
+        </>
       )}
       {testing && <TestEmail onClose={() => setTesting(false)} />}
     </Page>

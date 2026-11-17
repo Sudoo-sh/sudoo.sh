@@ -14,8 +14,8 @@ The **Applies** column of each table says how a change takes effect:
 | Applies | Changed where | Takes effect |
 | :--- | :--- | :--- |
 | **live** | Settings page or `.env` | On the Settings page: at once, without a restart. |
-| **restart** | Settings page or `.env` | These settings choose plugins. On the Settings page: after **Restart the panel** (Settings, Plugins), which stops only the backend for a few seconds and is refused while jobs run. |
-| `.env` only | `.env` only | Folders, ports, the exposure and the storage, which the web service and the containers read too. The Settings page lists them, read-only, under **Server**. |
+| **restart** | Settings page or `.env` | These settings choose plugins. On the Settings page: after **Restart the panel** (Settings, Advanced), which stops only the backend for a few seconds and is refused while jobs run. |
+| `.env` only | `.env` only | Folders, ports, the exposure and the storage, which the web service and the containers read too. The Settings page lists them, read-only, under **Advanced**, **Server**. |
 
 A change made in `.env` itself (any class) applies when the containers are recreated:
 `cd /opt/odoo/manager && docker compose up -d`. A value changed on the Settings page wins over `.env` until it is

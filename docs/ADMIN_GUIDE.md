@@ -242,14 +242,16 @@ Settings come from two places:
 | `/opt/odoo/manager/.env` (mode 600) | The base value of every setting, written by the installer. |
 | `/opt/odoo/manager/settings.json` | The changes made on the panel's **Settings** page, applied on top of `.env`. Passwords in it are encrypted with the vault key. |
 
-A super admin changes most settings in the browser (**Settings** in the sidebar; [User manual](USER_MANUAL.md#11-settings)).
+A super admin changes most settings in the browser (**Settings** in the sidebar, grouped in tabs: General, Instances,
+Odoo, Backups, Sign-in and security, E-mail, GitHub and updates, Marketplace, Advanced; [User manual](USER_MANUAL.md#11-settings)).
+A tab can be linked directly, for example `/settings?tab=email`.
 Every setting belongs to one of three classes:
 
 | Class | Settings | How a change applies |
 | :--- | :--- | :--- |
 | **Now** | Almost everything: second factor requirement, session times, e-mail (including the mail password), limits, defaults for new instances, daily backups (`DAILY_BACKUPS`, `DAILY_BACKUP_TIME`, `TIMEZONE`), `SAFE_UPDATES`, Odoo versions and images, instance containers (limits, `DRIFT_ACTION`), Enterprise paths, update checks, webhook secret, contact, accent colour, `METRICS_INTERVAL_SECONDS`. | At once, when saved on the Settings page. Container limits reach an instance when it next starts or restarts. |
-| **Restart** | The settings that choose plugins: `MAILER`, `SECOND_FACTORS`, `UPDATE_TRIGGERS`, `ENTERPRISE_SOURCE`, `AUTH`, `RATE_LIMITER`. | After **Restart the panel** (Settings, Plugins). The restart stops only the backend for a few seconds and is refused while jobs run. |
-| **.env only** | `ODOO_ROOT`, `DOCS_DIR`, `MEMORY_DIR`, `EXPOSURE`, `STORAGE`, `PUBLIC_HOST`, `PUBLIC_SCHEME`, all ports (`PANEL_PORT`, `API_PORT`, `EVENTS_PORT`, `GATEWAY_PORT_START`, `ODOO_PORT_START`, connector ports), `CONNECTOR_PREFIX`. | Edit `.env`, then `cd /opt/odoo/manager && docker compose up -d`. The Settings page lists them under **Server**, read only. |
+| **Restart** | The settings that choose plugins: `MAILER`, `SECOND_FACTORS`, `UPDATE_TRIGGERS`, `ENTERPRISE_SOURCE`, `AUTH`, `RATE_LIMITER`. | After **Restart the panel** (Settings, Advanced, or the notice above the tabs while a restart waits). The restart stops only the backend for a few seconds and is refused while jobs run. |
+| **.env only** | `ODOO_ROOT`, `DOCS_DIR`, `MEMORY_DIR`, `EXPOSURE`, `STORAGE`, `PUBLIC_HOST`, `PUBLIC_SCHEME`, all ports (`PANEL_PORT`, `API_PORT`, `EVENTS_PORT`, `GATEWAY_PORT_START`, `ODOO_PORT_START`, connector ports), `CONNECTOR_PREFIX`. | Edit `.env`, then `cd /opt/odoo/manager && docker compose up -d`. The Settings page lists them under **Advanced**, **Server**, read only. |
 
 A value changed on the Settings page wins over `.env`. **Use .env** on that page removes the change and brings back
 the `.env` value. Editing `.env` by hand therefore has no effect on a setting that was changed in the browser until
@@ -432,7 +434,7 @@ Each instance's `odoo` and `db` containers run with no extra privileges, read-on
 capabilities as the images need, limits, rotated logs, images pinned by digest, and the database on an internal
 network only. What exactly, and what cannot be protected: [Security](SECURITY.md#10-instance-containers).
 
-**Limits.** Set on the Settings page (**Instance containers**) or in `.env`:
+**Limits.** Set on the Settings page (**Instances**, **Instance containers**) or in `.env`:
 
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
@@ -487,7 +489,7 @@ docker exec sudoo-panel python -c "from sudoo.instances import integrity; print(
 **The Enterprise add-ons are not part of this project** and never go into its repository: they are Odoo's
 proprietary code, available to Odoo partners and subscribers. Each server needs its own copy. Where the panel finds
 it is chosen by the add-on source plugin (`ENTERPRISE_SOURCE`, see [Plugins](PLUGINS.md#4-add-on-sources-where-enterprise-comes-from)).
-The paths and the git address can be changed on the Settings page (**Enterprise add-ons**); changing the source
+The paths and the git address can be changed on the Settings page (**Odoo**, **Enterprise add-ons**); changing the source
 itself needs **Restart the panel**.
 
 The **Edition** field offers Enterprise for each version the source can provide. The add-ons are mounted read-only
@@ -668,7 +670,7 @@ so too. Delete it by hand then: **Delete even if the backup fails** in the Delet
 in the API) removes it without a complete backup and needs `backups.manage` as well as `instances.delete`. Giving
 the instance another lifetime starts the automatic attempts again. A backup's `pg_dump` waits at most five minutes
 for a lock, so a lock held inside the instance makes it fail rather than hang. New instances get
-the default lifetime (30 days; Settings, New instances) unless "Keep until deleted by hand" is chosen; it can be
+the default lifetime (30 days; Settings, Instances, New instances) unless "Keep until deleted by hand" is chosen; it can be
 changed on the instance's Settings tab. Making it end sooner (also from "Keep" to a number of days) needs
 `instances.delete` as well, since it deletes the instance sooner: maintainers can only make it longer.
 
@@ -774,7 +776,7 @@ After installing or updating:
 | A copy of another instance sends no e-mail | It was neutralised on purpose | In Odoo, switch the outgoing mail servers and the scheduled actions you need back on |
 | E-mail codes or the test e-mail do not arrive | Wrong mail settings, or Gmail refuses the normal password | **Send a test** (or `sudoo.sh test-email ADDRESS`) shows the reason. For Gmail, `SMTP_PASSWORD` must be an app password and 2-Step Verification must be on ([section 6](#6-e-mail)). Look in the spam folder. |
 | "E-mail code" is not offered | No mail server set, or `email` not in `SECOND_FACTORS` | Set up e-mail ([section 6](#6-e-mail)); after changing `SECOND_FACTORS`, **Restart the panel** |
-| A plugin setting changed in the browser has no effect | Plugin settings apply after a restart | Settings, Plugins, **Restart the panel** (refused while jobs run: wait for them) |
+| A plugin setting changed in the browser has no effect | Plugin settings apply after a restart | Settings, Advanced, **Restart the panel** (refused while jobs run: wait for them) |
 | A value changed in `.env` has no effect | The same setting was changed on the Settings page, which wins | Click **Use .env** next to it on the Settings page |
 | "Starting up" for several minutes | Odoo fails to start | The instance's **Odoo log** tab |
 | An access report line is red on New instance | The message says which: the app belongs to another account, is not installed on the repository's owner, the repository is not among its selected ones; or no app and no deploy key | Follow the button next to the line ([When a repository cannot be read](#when-a-repository-cannot-be-read)); or create a deploy key ([User manual](USER_MANUAL.md#7-github-access-private-repositories)) |

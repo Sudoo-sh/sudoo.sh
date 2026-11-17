@@ -46,7 +46,7 @@ const TABS: { id: TabId; label: string; groups: Group[] }[] = [
     id: "backups",
     label: "Backups",
     groups: [
-      { title: "Backups", text: "Each instance used during the day is backed up once, at this time; it keeps only its latest daily backup", keys: ["daily_backups", "daily_backup_time", "timezone", "rollback_hours"] },
+      { title: "Backups", text: "Each instance used during the day is backed up once, at this time; it keeps only its latest daily backup", keys: ["daily_backups", "daily_backup_time", "timezone", "rollback_hours", "safe_updates"] },
     ],
   },
   {
@@ -132,6 +132,7 @@ const TITLES: Record<string, string> = {
   enterprise_git_url: "Git repository",
   enterprise_git_branch: "Branch of a version",
   enterprise_marker: "Module that proves the add-ons are there",
+  safe_updates: "Back up before updates, put back failed ones",
   poll_minutes: "Check GitHub every, minutes",
   github_webhook_secret: "GitHub webhook secret",
   metrics_interval_seconds: "Measure every, seconds",

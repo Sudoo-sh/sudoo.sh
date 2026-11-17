@@ -244,6 +244,11 @@ class Settings(BaseSettings):
         le=720,
         description="How long the state before a restore is kept, and Rollback offered, after a restore (hours).",
     )
+    safe_updates: bool = Field(
+        True,
+        description="Back up an instance before an update changes its code, and put it back (code, and the database "
+        "when it may have changed) when the update fails.",
+    )
 
     # ------------------------------------------------------------------ marketplace (docs/MARKETPLACE.md)
     marketplace: bool = Field(
@@ -402,6 +407,7 @@ EDITABLE = (
     "daily_backup_time",
     "timezone",
     "rollback_hours",
+    "safe_updates",
     "odoo_versions",
     "odoo_min_version",
     "prepull_images",

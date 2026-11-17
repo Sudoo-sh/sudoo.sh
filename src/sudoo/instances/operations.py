@@ -17,7 +17,7 @@ from sudoo import addons as addons_sources
 from sudoo import exposure
 from sudoo.config import settings
 from sudoo.core import events, vault
-from sudoo.core.hints import panel_hint
+from sudoo.core.hints import panel_hint, specific_hint
 from sudoo.core.jobs import Job, JobError
 from sudoo.core.shell import capture
 from sudoo.core.state import STATE
@@ -61,9 +61,12 @@ def _paused(name: str) -> bool:
     )
 
 
-def _wait_until_ready(job: Job, name: str) -> None:
+def _wait_until_ready(job: Job, name: str, strict: bool = False) -> None:
+    """Wait until Odoo answers. When it does not in time: a warning, or with `strict` a failed step."""
     if odoo.wait_until_ready(store.read_env(name)["ODOO_PORT"]):
         monitor.mark_running(name)
+    elif strict:
+        raise JobError("Odoo did not answer after it was started")
     else:
         job.note(
             "Odoo is taking longer than usual to answer. It may still be starting; check the logs if it does "
@@ -72,8 +75,9 @@ def _wait_until_ready(job: Job, name: str) -> None:
         )
 
 
-def _start_odoo(job: Job, name: str, restart: bool = False) -> None:
-    """Start the instance (database and Odoo), restart Odoo if asked, and wait until Odoo answers.
+def _start_odoo(job: Job, name: str, restart: bool = False, strict: bool = False) -> None:
+    """Start the instance (database and Odoo), restart Odoo if asked, and wait until Odoo answers (with `strict`,
+    the step fails when it does not in time).
 
     Its connector is started too, in case it was stopped, so the instance keeps its public link.
     """
@@ -86,7 +90,7 @@ def _start_odoo(job: Job, name: str, restart: bool = False) -> None:
     STATE.update(name, paused=False, switched_off=False)
     STATE.record_visit(name)
     job.step("Waiting for Odoo to be ready")
-    _wait_until_ready(job, name)
+    _wait_until_ready(job, name, strict)
 
 
 # --------------------------------------------------------------------------- create and delete
@@ -633,47 +637,193 @@ def _pull(job: Job, addons: Path) -> None:
 
 def upgrade_modules(job: Job, name: str, modules: list[str], stay_paused: bool = False) -> None:
     """Run `odoo -u <modules>` on every database of the instance, with Odoo stopped meanwhile."""
+    _upgrade(job, name, modules)
+    if stay_paused:
+        _stay_paused(job, name)
+    else:
+        job.step("Starting Odoo")
+        _start_odoo(job, name)
+
+
+def _upgrade(job: Job, name: str, modules: list[str]) -> None:
     job.step(f"Upgrading modules: {', '.join(modules)}")
     refresh_addons_path(job, name)
     job.run(compose(name, "up", "-d", "db"), timeout=300)
     job.run(compose(name, "stop", "odoo"), timeout=300)
     for db in odoo.databases(name):
         job.run(odoo.run_cmd(name, "-d", db, "-u", ",".join(modules), "--stop-after-init", "--no-http"), timeout=3600)
-    if stay_paused:
-        job.run(compose(name, "stop"), timeout=300)
-        job.note("The instance stays paused and uses the new code when someone opens it.")
-    else:
-        job.step("Starting Odoo")
-        _start_odoo(job, name)
+
+
+def _stay_paused(job: Job, name: str) -> None:
+    job.run(compose(name, "stop"), timeout=300)
+    job.note("The instance stays paused and uses the new code when someone opens it.")
+
+
+class _Update:
+    """What an update has done so far, so that a failure can be undone (update_code)."""
+
+    def __init__(self, before: dict[str, str]) -> None:
+        self.before = before  # snapshot(): the commit of the repository and of every submodule before the update
+        self.target = ""  # the commit the update goes to, when known
+        self.stage = "downloading the code"  # what it is doing, in the words of the failure message
+        self.backup: list[Path] = []  # the before-update backup
+        self.database_touched = False  # an upgrade ran or started: the database may have changed
 
 
 def update_code(job: Job, name: str, submodules_only: bool = False) -> None:
-    """Get new code from GitHub (or move submodules to their latest commit), upgrade what changed, restart."""
+    """Get new code from GitHub (or move submodules to their latest commit), upgrade what changed, restart.
+
+    With SAFE_UPDATES (the default), the instance's database and files are backed up first (before-update) when the
+    update changes the code (for a paused instance: only when an upgrade will run), and a failure at any later step
+    puts the instance back: the previous code (repository and submodules), the backup when an upgrade may have
+    changed the database, and Odoo started again on that version. The job then fails with a plain sentence saying
+    so. An automatic update does not try again a commit whose update was rolled back; Get latest code does."""
     addons = store.addons_dir(name)
     if not capture(git(addons, "remote", "get-url", "origin")):
         raise JobError("This instance has no GitHub repository.")
     paused = _paused(name)
-    before = snapshot(addons)
-    if submodules_only:
-        job.step("Moving the submodules to their latest version")
-        job.run(git(addons, "submodule", "update", "--init", "--remote", "--recursive"), timeout=1800)
+    safe = settings.safe_updates
+    run = _Update(snapshot(addons))
+    upgrade = store.read_env(name)["AUTO_UPGRADE"] == "true"
+    try:
+        if submodules_only:
+            run.stage = "moving the submodules"
+            job.step("Moving the submodules to their latest version")
+            job.run(git(addons, "submodule", "update", "--init", "--remote", "--recursive"), timeout=1800)
+        else:
+            job.step("Checking GitHub for new code" if safe else "Downloading the latest code from GitHub")
+            _require_branch(job, name, addons)
+            if safe:
+                job.run(git(addons, "fetch", "origin"), timeout=900)
+                run.target = capture(git(addons, "rev-parse", "@{upstream}"))
+                failed = STATE.get(name).get("update_failed") or {}
+                if job.user == "system" and run.target and failed.get("target") == run.target:
+                    job.note(
+                        f"The update to {run.target[:7]} failed before and the instance was put back, so it is not "
+                        "tried again automatically. Push a fix, or use Get latest code to try it again."
+                    )
+                    return
+                if run.target != run.before["."] and not paused:
+                    _back_up_before_update(job, name, run)
+                job.step("Downloading the latest code from GitHub")
+            _pull(job, addons)
+        after = snapshot(addons)
+        if run.before == after:
+            job.note("Already up to date: there is nothing new on GitHub.")
+            STATE.update(name, update_failed=None)
+            return
+        run.target = after["."] if after["."] != run.before["."] else run.target
+        modules = changed_modules(addons, run.before, after)
+        job.note(f"Changed modules: {', '.join(modules)}" if modules else "New code downloaded.")
+        upgrading = bool(modules) and upgrade
+        if safe and not run.backup and (upgrading or not paused):
+            _back_up_before_update(job, name, run)
+        if upgrading:
+            run.stage, run.database_touched = "upgrading modules", True
+            _upgrade(job, name, modules)
+            if paused:
+                _stay_paused(job, name)
+            else:
+                run.stage = "starting Odoo"
+                job.step("Starting Odoo")
+                _start_odoo(job, name, strict=safe)
+        elif paused:
+            refresh_addons_path(job, name)
+            job.note("The instance stays paused and uses the new code when someone opens it.")
+        else:
+            run.stage = "starting Odoo"
+            job.step("Restarting Odoo")
+            _start_odoo(job, name, restart=True, strict=safe)
+    except Exception as error:
+        if not safe or not (run.backup or run.database_touched or snapshot(addons) != run.before):
+            raise  # nothing was changed yet (GitHub not reachable, branch deleted): nothing to put back
+        _put_back(job, name, run, paused, submodules_only, error)
+    STATE.update(name, update_failed=None)  # a before-update backup kept after a failed rollback stays kept
+
+
+def _back_up_before_update(job: Job, name: str, run: _Update) -> None:
+    stage, run.stage = run.stage, "backing up the database"
+    job.step("Backing up the database and files before the update")
+    try:
+        run.backup = backups.create(job, name, "before-update")
+    except Exception:
+        job.write(panel_hint(UPDATE_BACKUP_FAILED))
+        raise
+    run.stage = stage
+    job.note(f"Backup taken before the update: {', '.join(path.name for path in run.backup)}")
+
+
+UPDATE_BACKUP_FAILED = (
+    "The backup taken before the update failed, so the update was not applied. Something in the instance may keep "
+    "its backup from working; the technical log shows what."
+)
+
+
+def _put_back(job: Job, name: str, run: _Update, paused: bool, submodules_only: bool, error: Exception) -> None:
+    """After an update failed: the previous code, the before-update backup when the database may have changed, and
+    Odoo on that version. Always raises JobError with a sentence that says what happened."""
+    from sudoo.core import audit
+
+    hint = specific_hint("".join(job.log))  # what explains the failure, before the rollback writes its own log
+    previous = run.before["."][:7]
+    target = "the latest submodules" if submodules_only else (run.target[:7] or "the latest code")
+    job.write(f"\nThe update failed ({error}); putting the instance back to {previous}.\n")
+    job.step(f"Putting the instance back to {previous}")
+    problem = ""
+    try:
+        _reset_code(job, store.addons_dir(name), run.before)
+        if run.database_touched and run.backup:
+            job.run(compose(name, "stop", "odoo"), timeout=300)
+            for path in run.backup:
+                found = backups.FILE_RE.match(path.name)
+                backups.restore(job, name, {"file": path.name, "db": found["db"] if found else ""})
+        if paused:
+            refresh_addons_path(job, name)
+            if run.database_touched:
+                job.run(compose(name, "stop"), timeout=300)
+        else:
+            _start_odoo(job, name, restart=True, strict=True)
+    except Exception as undo_error:  # noqa: BLE001 - said in the job's message, which ends it
+        problem = str(undo_error)
+    if problem:
+        message = (
+            f"The update to {target} failed at {run.stage}, and putting the instance back to {previous} failed "
+            f"too ({problem})."
+        )
+        if run.backup:
+            files = ", ".join(path.name for path in run.backup)
+            message += f" The backup taken before the update is kept for a restore by hand: {files}."
+            kept = list(STATE.get(name).get("keep_backups") or [])
+            STATE.update(name, keep_backups=kept + [path.name for path in run.backup if path.name not in kept])
     else:
-        job.step("Downloading the latest code from GitHub")
-        _require_branch(job, name, addons)
-        _pull(job, addons)
-    after = snapshot(addons)
-    if before == after:
-        job.note("Already up to date: there is nothing new on GitHub.")
-        return
-    modules = changed_modules(addons, before, after)
-    job.note(f"Changed modules: {', '.join(modules)}" if modules else "New code downloaded.")
-    if modules and store.read_env(name)["AUTO_UPGRADE"] == "true":
-        upgrade_modules(job, name, modules, stay_paused=paused)
-    elif paused:
-        refresh_addons_path(job, name)
-        job.note("The instance stays paused and uses the new code when someone opens it.")
-    else:
-        restart(job, name)
+        message = f"The update to {target} failed at {run.stage}; the instance was put back to {previous}."
+    if hint:
+        message += f" {hint}"
+    STATE.update(
+        name,
+        update_failed={
+            "target": run.target,
+            "message": message,
+            "at": time.time(),
+            "job": job.id,
+            "rolled_back": not problem,
+        },
+    )
+    audit.record(job.user, None, "update failed, instance put back" if not problem else "update failed, rollback failed",
+                 name, ok=False, detail=message)  # fmt: skip
+    job.write(panel_hint(message))
+    raise JobError(message) from error
+
+
+def _reset_code(job: Job, addons: Path, before: dict[str, str]) -> None:
+    """Put the repository and every submodule back to the commits of `before` (snapshot())."""
+    job.run(git(addons, "reset", "--hard", before["."]))
+    job.run(git(addons, "submodule", "sync", "--recursive"))
+    job.run(git(addons, "submodule", "update", "--init", "--recursive", "--force"), timeout=1800)
+    current = snapshot(addons)
+    for path in sorted((p for p in before if p != "."), key=lambda p: p.count("/")):
+        if current.get(path) != before[path]:  # moved with --remote before the update: back where it was
+            job.run(git(addons / path, "checkout", "-q", "--force", "--detach", before[path]))
 
 
 def _require_branch(job: Job, name: str, addons: Path) -> None:

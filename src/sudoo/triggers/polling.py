@@ -54,6 +54,9 @@ class Polling:
         fetched = subprocess.run(
             git(addons, "fetch", "-q", "origin", env["GIT_BRANCH"]), capture_output=True, timeout=120
         )
-        return fetched.returncode == 0 and (
-            capture(git(addons, "rev-parse", "HEAD")) != capture(git(addons, "rev-parse", "FETCH_HEAD"))
-        )
+        if fetched.returncode != 0:
+            return False
+        latest = capture(git(addons, "rev-parse", "FETCH_HEAD"))
+        failed = STATE.get(name).get("update_failed") or {}
+        # an update to this commit failed and was rolled back (operations.update_code): not again every few minutes
+        return latest != capture(git(addons, "rev-parse", "HEAD")) and latest != failed.get("target")

@@ -80,6 +80,19 @@ def rollback(name: str) -> dict[str, Any] | None:
     }
 
 
+def update_failure(found: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The instance's last update failed (operations.update_code): when, the job, the sentence that says what happened,
+    and whether the instance was put back to its previous version; None after an update that worked."""
+    if not found:
+        return None
+    return {
+        "message": found.get("message", ""),
+        "failed_at": iso(found.get("at")),
+        "rolled_back": bool(found.get("rolled_back")),
+        "job": f"{PREFIX}/jobs/{found['job']}" if found.get("job") else None,
+    }
+
+
 def drift(found: dict[str, Any] | None) -> dict[str, Any] | None:
     """Changes made to the instance outside the panel (instances/integrity.py), or None: when they were found, what
     they are, and whether the panel puts its configuration back ("restore") or only reports them ("warn")."""
@@ -136,6 +149,7 @@ def creating_resource(job: jobs.Job, full: bool = False) -> dict[str, Any]:
         "uptime": None,
         "gateway_error": None,
         "drift": None,
+        "update_failure": None,
         "created_at": iso(job.started),
         "created_by": plan.get("created_by") or job.user,
         "last_visit_at": None,
@@ -194,6 +208,7 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
         "uptime": measured.get("uptime") or None,
         "gateway_error": gateway.LISTENER_ERRORS.get(name),
         "drift": drift(state.get("drift")),
+        "update_failure": update_failure(state.get("update_failed")),
         "created_at": iso(env["CREATED_AT"]),
         "created_by": env.get("CREATED_BY") or None,
         "last_visit_at": iso(last_visit),

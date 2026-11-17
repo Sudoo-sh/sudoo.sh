@@ -80,6 +80,14 @@ def friendly_hint(log: str) -> str:
     """The panel's own explanation written into the log (panel_hint), else the first explanation whose pattern
     appears in the end of `log`, else a general one. The deploy-key advice is given only when no GitHub App is
     connected."""
+    return specific_hint(log) or GENERAL_HINT
+
+
+GENERAL_HINT = "Something went wrong. The technical log shows exactly what happened; send it to a developer if needed."
+
+
+def specific_hint(log: str) -> str | None:
+    """friendly_hint without the general fallback: None when nothing in `log` has an explanation of its own."""
     tail = log[-20000:]
     own = _PANEL_HINT_RE.findall(tail)
     if own:
@@ -89,4 +97,4 @@ def friendly_hint(log: str) -> str:
             return _APP_NOT_FOUND if _app_connected() else hint
         if re.search(pattern, tail, re.IGNORECASE):
             return hint
-    return "Something went wrong. The technical log shows exactly what happened; send it to a developer if needed."
+    return None

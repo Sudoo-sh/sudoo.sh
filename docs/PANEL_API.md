@@ -350,6 +350,7 @@ Enterprise instance.
 | `before-restore` | At the start of a `restore` action | Only the latest per instance, for `ROLLBACK_HOURS`; removed with the instance |
 | `before-rollback` | At the start of a `rollback` action | Only the latest per instance, for `ROLLBACK_HOURS`; removed with the instance |
 | `before-repair` | Before the panel recreates a database container that was changed outside the panel (`repair`) | Only the latest per instance; removed with the instance |
+| `before-update` | Before an `update` or `update-submodules` job (also an automatic one) changes the code, when `SAFE_UPDATES` is on; for a paused instance only when modules will be upgraded | Only the latest per instance (one kept for a restore by hand when an automatic rollback failed); removed with the instance |
 
 To restore a backup into an instance (its own, or another instance's), use the `restore` action; to start a new
 instance from one, `from_backup` of `POST /instances` ([below](#instances-jobs-and-actions-in-detail)).
@@ -491,6 +492,17 @@ would use without a `file` (`null` when there is none):
 `rollback` is `null` unless the instance was restored in the last `ROLLBACK_HOURS` (and not rolled back since):
 then it names the `before-restore` backup(s) the `rollback` action puts back, and until when it is offered.
 
+Every instance also has `update_failure`: `null`, or, when its last code update failed (and no update has worked
+since), what happened:
+
+```json
+"update_failure": {"message": "The update to 9b1e0c4 failed at upgrading modules; the instance was put back to 4f2a9c1. One of the modules has an error in its XML files (views or data). ...",
+                   "failed_at": "2026-11-12T10:20:31Z", "rolled_back": true, "job": "/api/v1/jobs/7d0e5f2a9b13"}
+```
+
+`rolled_back` is `false` when putting the instance back failed too; `message` then names the `before-update` backup
+to restore by hand.
+
 `status` is one of `creating`, `online`, `starting`, `busy` (a job is running), `paused`, `switched_off`, `stopped`,
 `unknown`.
 
@@ -614,6 +626,16 @@ Odoo. Another instance's backup is loaded under this instance's database name an
 the job's notes say so; its administrator (user 2) then gets this instance's admin password, and
 `GET /instances/<name>/credentials` shows that administrator's `login`. When the backup is of a database the
 instance does not have, the job fails and `error` says so.
+
+`update` and `update-submodules` with `SAFE_UPDATES` on (the default): when the update changes the code, the job
+first saves a `before-update` backup (for a paused instance only when modules will be upgraded), then pulls,
+upgrades and restarts. If a later step fails (a pull that cannot fast-forward, a submodule, the module upgrade, or
+Odoo not answering after the restart), the job puts the instance back: the previous commit of the repository and of
+every submodule, the `before-update` backup when an upgrade ran or started, then Odoo restarted and checked. The job
+ends `failed` and its `error` reads "The update to `<sha>` failed at `<step>`; the instance was put back to
+`<previous sha>`." followed by the explanation of the failure, when there is one; `update_failure` of the instance
+shows the same, and the audit log has an entry. An automatic update does not try a commit whose update was put back
+again; `update` does. With `SAFE_UPDATES` off, updates run without the backup and the rollback.
 
 `rollback` puts back the `before-restore` backup named in `rollback` of `GET /instances/<name>`; 409 when there is
 none (also once the instance was rolled back to it; restoring that file with `restore` still puts it back). It

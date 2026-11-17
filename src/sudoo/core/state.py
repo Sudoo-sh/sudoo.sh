@@ -1,6 +1,8 @@
 """Persistent per-instance state that is not part of the instance's files: last visit, paused, switched off, and
 "used_since": the first visit after the instance's last daily backup (instances/backups.py), cleared by that backup,
-and "rolled_back": the before-restore backup the instance was last rolled back to (its Rollback offer then ends).
+"rolled_back": the before-restore backup the instance was last rolled back to (its Rollback offer then ends),
+"update_failed": the last code update failed and was (or could not be) put back (instances/operations.update_code),
+and "keep_backups": before-update backups kept for a restore by hand after an automatic rollback failed.
 
 Kept by the storage plugin (collection "instance_state"). Visits are recorded on every request, so they are kept in
 memory and written at most every 30 seconds; all other changes are written immediately.
@@ -30,7 +32,7 @@ class StateStore:
 
     def get(self, name: str) -> dict[str, Any]:
         """A copy of the instance's state: {"last_visit", "used_since", "paused", "switched_off", "branch_missing",
-        "rolled_back"}."""
+        "rolled_back", "update_failed", "keep_backups"}."""
         with self._lock:
             return dict(self._all().get(name, {}))
 

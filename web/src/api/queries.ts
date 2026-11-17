@@ -100,6 +100,8 @@ export const useJobLog = (id: string | null) =>
   });
 
 export const useMetrics = () => useQuery({ queryKey: keys.metrics, queryFn: () => api.get<Metrics>("/metrics") });
+/** How many instances the server runs comfortably (kept current by the "metrics" live event); null until measured. */
+export const useCapacity = () => useMetrics().data?.capacity ?? null;
 export const useHistory = () =>
   useQuery({
     queryKey: keys.history,

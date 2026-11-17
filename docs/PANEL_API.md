@@ -199,7 +199,8 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | :--- | :--- | :--- | :--- |
 | `GET /server` | `instances.view` | | 200, the panel's version and address, the plugins in use, the server's figures, the number of live-event clients |
 | `POST /server/restart` | `settings.manage` | `{}` | **202** `{"restarting": true}`: the backend stops and Docker starts it again within seconds; the web app, the connectors and the instances keep running. **409** while jobs run |
-| `GET /metrics` | `instances.view` | | 200, the latest figures of the server and every instance ([Metrics](#9-metrics)) |
+| `GET /metrics` | `instances.view` | | 200, the latest figures of the server and every instance, and the capacity estimate ([Metrics](#9-metrics)) |
+| `GET /server/capacity` | `instances.view` | | 200, how many instances the server can run at once, how many run, the panel's own use, disk headroom ([Capacity](#capacity)); **503** before the first measurement |
 | `GET /metrics/history?minutes=60` | `instances.view` | | 200, up to one hour of figures, in columns |
 | `GET /instances/<name>/metrics?minutes=60` | `instances.view` | | 200, one instance's latest figures and history |
 | `GET /settings` | `settings.manage` | | 200, every setting ([Settings](#7-settings)) |
@@ -700,7 +701,7 @@ Errors follow [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) ("problem detai
 | :--- | :--- |
 | 400 | A field is missing or not valid (also `X-Sudoo-Acting-For`); `detail` says which and what to send |
 | 401 | Token, timestamp, nonce or signature not accepted, the session has ended, or a wrong e-mail address or password at `POST /session`; `detail` says which |
-| 403 | The caller's role lacks the permission; `detail` names what is missing, for example "Your role cannot do this (delete instances)." A `read` token sending a change, an `instances` token calling anything [outside its scope](#the-instances-scope), a restricted session, a wrong setup code, and a reached instance limit (`MAX_INSTANCES`, `MAX_INSTANCES_PER_USER`) are also 403, each with its own `detail` |
+| 403 | The caller's role lacks the permission; `detail` names what is missing, for example "Your role cannot do this (delete instances)." A `read` token sending a change, an `instances` token calling anything [outside its scope](#the-instances-scope), a restricted session, a wrong setup code, and a reached instance limit (`MAX_INSTANCES`, `MAX_INSTANCES_PER_USER`, `MAX_RUNNING_INSTANCES`) are also 403, each with its own `detail` |
 | 404 | No such instance, job, account, action or documentation page |
 | 405 | The method is not allowed on this path |
 | 409 | `POST /server/restart` while jobs are running |
@@ -853,6 +854,7 @@ restarts). Container figures come from a continuous `docker stats` stream.
 | `uptime_seconds` | Since Odoo's container started; `null` when it is not running |
 | `disk_bytes` | Database and files, measured every 5 minutes while running |
 | Server only: `memory_*_bytes`, `disk_percent`, `disk_*_bytes`, `load_1m`, `cores`, `uptime_seconds`, `instances_running`, `instances_total` | `instances_running`: how many instances run now |
+| Server only: `panel_cpu_percent`, `panel_memory_bytes`, `panel_cpu_peak_percent`, `panel_memory_peak_bytes` | The panel's own use (its backend, its web service and the Cloudflare connectors): now, and the highest over the history kept |
 
 `GET /api/v1/metrics` returns the latest sample:
 
@@ -882,6 +884,54 @@ libraries draw from directly; `t` holds the times (Unix seconds):
 ```
 
 A dashboard loads the history once, then appends the sample of every `metrics` [live event](#8-live-events).
+`GET /metrics` and the `metrics` event also carry `capacity`, the estimate below (`null` before the first
+measurement).
+
+### Capacity
+
+`GET /api/v1/server/capacity` says how many instances the server can run at the same time comfortably, so a tool
+can check before it creates or starts one. How the figures are made, in plain language:
+[How many instances can my server run?](ADMIN_GUIDE.md#how-many-instances-can-my-server-run).
+
+```json
+{
+  "data": {
+    "comfortable": 9, "running": 9, "headroom": 0, "limited_by": "memory",
+    "warning": true,
+    "message": "This server can run about 9 instances at once; 9 are running. Starting another may slow every instance.",
+    "overloaded": false, "alert": null, "memory_percent": 71.4, "warning_percent": 85,
+    "hard_limit": null, "blocked": false,
+    "memory": {"total_bytes": 8589934592, "reserve_bytes": 1073741824, "panel_bytes": 314572800,
+               "usable_bytes": 7201619968, "per_instance_bytes": 734003200, "per_instance_source": "default",
+               "instance_average_bytes": null, "instance_peak_bytes": null, "instance_largest_bytes": null,
+               "measured_instances": 0, "instances": 9},
+    "processor": {"cores": 4, "panel_percent": 0.6, "per_instance_percent": null, "instances": null},
+    "disk": {"free_bytes": 128849018880, "instance_average_bytes": 1610612736, "more_instances": 80},
+    "by_version": [],
+    "panel": {"cpu_percent": 0.4, "cpu_peak_percent": 3.1, "memory_bytes": 251658240, "memory_peak_bytes": 314572800,
+              "parts": {"backend": {"cpu_percent": 0.3, "memory_bytes": 167772160, "containers": 1},
+                        "web": {"cpu_percent": 0.0, "memory_bytes": 20971520, "containers": 1},
+                        "connectors": {"cpu_percent": 0.1, "memory_bytes": 62914560, "containers": 3}}}
+  }
+}
+```
+
+| Field | Meaning |
+| :--- | :--- |
+| `comfortable` | Instances that can run at once: `memory.instances`, or `processor.instances` when that is lower (`limited_by`) |
+| `running`, `headroom` | Instances running now or being created or started, and `comfortable - running` (negative when over) |
+| `warning`, `message` | `true` when starting one more goes beyond `comfortable`, with the sentence the panel shows |
+| `overloaded`, `alert` | `true` when the server's memory use reached `warning_percent` (`CAPACITY_WARNING_PERCENT`) or more instances run than `comfortable`, with the dashboard's sentence |
+| `hard_limit`, `blocked` | `MAX_RUNNING_INSTANCES` (`null` when off), and whether creating or starting one more is refused now (403) |
+| `memory` | `usable_bytes = total_bytes - reserve_bytes - panel_bytes`; `per_instance_bytes` is the measured peak of a running instance, averaged over `measured_instances`, or `CAPACITY_INSTANCE_MEMORY_MB` (`per_instance_source: "default"`) |
+| `processor` | The average share of the server's processor one running instance uses; `instances`: how many fit under `warning_percent` (`null` before one is measured) |
+| `disk` | Free disk, the average size of an instance (database and files) and how many more of that size fit |
+| `by_version` | Per Odoo version, once instances of it were measured: `{"version": "18.0", "instances": 3, "average_bytes", "peak_bytes"}` |
+| `panel` | The panel's own use: now, the highest over the history, and by part |
+
+The estimate is never a refusal unless `MAX_RUNNING_INSTANCES` is set: then `POST /instances` and the `start` action
+answer 403 with `detail` "This server runs at most 9 instances at once and 9 are running or starting. Pause one
+first." while that many run.
 
 ---
 

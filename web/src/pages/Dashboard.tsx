@@ -9,7 +9,7 @@ import { Ring } from "@/components/charts/Ring";
 import { InstanceCard } from "@/components/InstanceCard";
 import { Page, PageHead, useCan } from "@/components/Shell";
 import { StatCard } from "@/components/StatCard";
-import { Empty, Segmented, Skeleton } from "@/components/ui/basics";
+import { Callout, Empty, Segmented, Skeleton } from "@/components/ui/basics";
 import { bytes, duration } from "@/lib/format";
 
 const average = (values: (number | null)[] | undefined) => {
@@ -185,6 +185,10 @@ export function DashboardPage() {
   });
   const cpuAverage = average(history?.server.cpu_percent);
   const serverT = history?.server.t ?? [];
+  const capacity = metrics?.capacity ?? null;
+  const panelMemory = server?.panel_memory_bytes;
+  const panelGb = panelMemory != null && panelMemory >= 1024 ** 3;
+  const freeDisk = server ? bytes(server.disk_total_bytes! - server.disk_used_bytes!) : null;
 
   return (
     <Page>
@@ -201,7 +205,16 @@ export function DashboardPage() {
         Every branch you run, with the server they share. Paused instances start again when someone opens them.
       </PageHead>
 
-      <div className="grid-4 stagger">
+      {capacity?.overloaded && capacity.alert && (
+        <Callout tone="warning">
+          {capacity.alert}{" "}
+          <Link to="/help/docs/ADMIN_GUIDE.md#how-many-instances-can-my-server-run" viewTransition>
+            How many instances can this server run?
+          </Link>
+        </Callout>
+      )}
+
+      <div className="grid-5 stagger">
         <StatCard label="Processor" value={server?.cpu_percent} unit="%"
           trend={{ t: serverT, values: history?.server.cpu_percent ?? [], max: 100 }}
           detail={cpuAverage != null ? `${cpuAverage.toFixed(0)}% average, last hour · ${server?.cores ?? "…"} cores` : `${server?.cores ?? "…"} cores`} />
@@ -210,11 +223,40 @@ export function DashboardPage() {
           detail={server ? `${bytes(server.memory_used_bytes)} of ${bytes(server.memory_total_bytes)}` : "Measuring"} />
         <StatCard label="Disk" value={server?.disk_percent} unit="%"
           trend={{ t: serverT, values: history?.server.disk_percent ?? [], max: 100 }}
-          detail={server ? `${bytes(server.disk_total_bytes! - server.disk_used_bytes!)} free` : "Measuring"} />
-        <StatCard label="Running" value={server?.instances_running ?? (instances ? counts.online : undefined)}
-          unit={instances ? ` of ${instances.length}` : undefined}
-          trend={{ t: serverT, values: history?.server.instances_running ?? [], max: Math.max(1, instances?.length ?? 1) }}
-          detail={server?.uptime_seconds ? `Server up ${duration(server.uptime_seconds)}` : "Instances online"} />
+          detail={
+            freeDisk
+              ? capacity?.disk.more_instances != null
+                ? `${freeDisk} free · room for about ${capacity.disk.more_instances} more instances`
+                : `${freeDisk} free`
+              : "Measuring"
+          } />
+        <StatCard label="Panel" value={panelMemory == null ? undefined : panelGb ? panelMemory / 1024 ** 3 : Math.round(panelMemory / 1024 ** 2)}
+          decimals={panelGb ? 1 : 0} unit={panelGb ? " GB" : " MB"}
+          trend={{ t: serverT, values: history?.server.panel_memory_bytes ?? [] }}
+          detail={
+            server?.panel_memory_peak_bytes != null
+              ? `Most ${bytes(server.panel_memory_peak_bytes)}, last hour · ${(server.panel_cpu_percent ?? 0).toFixed(1)}% processor`
+              : "Measuring"
+          } />
+        <StatCard label="Running" value={capacity?.running ?? server?.instances_running ?? (instances ? counts.online : undefined)}
+          unit={capacity ? ` of about ${capacity.comfortable}` : instances ? ` of ${instances.length}` : undefined}
+          trend={{
+            t: serverT,
+            values: history?.server.instances_running ?? [],
+            max: Math.max(1, capacity?.comfortable ?? 0, instances?.length ?? 1),
+            color: capacity && capacity.headroom < 0 ? "--caution" : undefined,
+          }}
+          detail={
+            capacity
+              ? capacity.headroom > 0
+                ? `Room for ${capacity.headroom} more at once · ${instances?.length ?? 0} in all`
+                : capacity.headroom === 0
+                  ? `As many as it runs comfortably · ${instances?.length ?? 0} in all`
+                  : `More than it runs comfortably · ${instances?.length ?? 0} in all`
+              : server?.uptime_seconds
+                ? `Server up ${duration(server.uptime_seconds)}`
+                : "Instances online"
+          } />
       </div>
 
       <Charts instances={instances} />

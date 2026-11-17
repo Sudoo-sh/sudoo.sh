@@ -29,7 +29,7 @@ from sudoo.config import settings
 from sudoo.core import events, jobs
 from sudoo.core.shell import capture, succeeds
 from sudoo.core.state import STATE
-from sudoo.instances import integrity, metrics, odoo, store
+from sudoo.instances import capacity, integrity, metrics, odoo, store
 from sudoo.repos.gitrepo import git, origin_url
 
 STATUS: dict[str, dict[str, Any]] = {}  # instance name -> latest measurements
@@ -177,6 +177,42 @@ def _host_memory() -> tuple[int, int]:
     return info["MemTotal"], info["MemTotal"] - info["MemAvailable"]
 
 
+PANEL_CONTAINERS = {"backend": "sudoo-panel", "web": "sudoo-web"}  # compose.yaml's container names
+
+
+def _own_memory() -> int:
+    """Resident memory of this process (the backend), for a panel not running in its container (development)."""
+    try:
+        with open("/proc/self/status") as fh:
+            for line in fh:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) * 1024
+    except OSError:
+        pass
+    return 0
+
+
+def panel_footprint(usage: dict[str, tuple[float, int, int]], cores: int) -> dict[str, dict[str, Any]]:
+    """What the panel itself uses, by part: its backend and web service containers, and the Cloudflare connectors
+    (one for the panel and one per instance; they run whether the instances run or not). Each part:
+    {"cpu_percent" (of the whole server), "memory_bytes", "containers"}."""
+    parts: dict[str, dict[str, Any]] = {}
+    for part, container in PANEL_CONTAINERS.items():
+        if container in usage:
+            cpu, memory, _ = usage[container]
+            parts[part] = {"cpu_percent": round(cpu / cores, 2), "memory_bytes": memory, "containers": 1}
+    if "backend" not in parts:  # not in its container: this process is the backend
+        parts["backend"] = {"cpu_percent": 0.0, "memory_bytes": _own_memory(), "containers": 0}
+    connectors = [figures for name, figures in usage.items() if name.startswith(settings.connector_prefix)]
+    if connectors:
+        parts["connectors"] = {
+            "cpu_percent": round(sum(c[0] for c in connectors) / cores, 2),
+            "memory_bytes": sum(c[1] for c in connectors),
+            "containers": len(connectors),
+        }
+    return parts
+
+
 def collect() -> None:
     """Measure the server and every instance once."""
     containers: dict[str, dict[str, Any]] = {}
@@ -238,6 +274,7 @@ def collect() -> None:
         disk_used=disk.used,
     )
     HOST["history"].append((int(now), round(cpu, 1), memory_used))
+    panel = panel_footprint(usage, cores)
     metrics.sample(
         {
             "cpu_percent": round(cpu, 1),
@@ -252,8 +289,11 @@ def collect() -> None:
             "uptime_seconds": _host_uptime(),
             "instances_running": sum(1 for u in measured_instances.values() if u.running),
             "instances_total": len(measured_instances),
+            "panel_cpu_percent": round(sum(p["cpu_percent"] for p in panel.values()), 2),
+            "panel_memory_bytes": sum(p["memory_bytes"] for p in panel.values()),
         },
         measured_instances,
+        panel,
     )
 
 
@@ -298,7 +338,7 @@ def mark_stopped(name: str) -> None:
 
 def publish_changes() -> None:
     """Publish "metrics", and "instance" for every instance that looks different to a client than last time."""
-    events.publish("metrics", "", metrics.snapshot())
+    events.publish("metrics", "", capacity.snapshot())
     for name in store.names():
         state = STATE.get(name)
         seen = (

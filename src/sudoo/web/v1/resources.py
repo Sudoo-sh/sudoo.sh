@@ -14,7 +14,7 @@ from sudoo.config import settings
 from sudoo.core import jobs
 from sudoo.core.cache import VersionedMemo
 from sudoo.core.state import STATE
-from sudoo.instances import backups, gateway, metrics, monitor, operations, store
+from sudoo.instances import backups, gateway, metrics, monitor, operations, stages, store
 from sudoo.repos.gitrepo import commits, origin_url, submodules
 
 from .responses import PREFIX, iso
@@ -126,6 +126,7 @@ def creating_resource(job: jobs.Job, full: bool = False) -> dict[str, Any]:
     resource: dict[str, Any] = {
         "name": job.instance,
         "status": "creating",
+        "stage": plan.get("stage") or stages.DEFAULT,
         "url": None,
         "odoo": {
             "version": plan.get("version", ""),
@@ -181,11 +182,12 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
     status = "creating" if creation else monitor.status(name)
     commit = (measured.get("commit") or "").split("|")
     last_visit = state.get("last_visit")
-    pausing = env["AUTO_PAUSE"] == "true" and settings.idle_hours > 0 and status == "online" and last_visit
+    pausing = stages.pauses_when_idle(env) and settings.idle_hours > 0 and status == "online" and last_visit
     current = jobs.ACTIVE_JOB.get(name) or creation
     resource: dict[str, Any] = {
         "name": name,
         "status": status,  # creating, online, starting, busy, paused, switched_off, stopped, unknown
+        "stage": stages.of(env),  # production, staging, development (instances/stages.py)
         "url": exposure.address(name),
         "odoo": {"version": env["ODOO_VERSION"], "edition": env["EDITION"], "database": env["DB_NAME"]},
         # "plain": Odoo without a repository (store.plain; instances made before SOURCE was recorded: no remote)

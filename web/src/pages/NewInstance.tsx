@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { Archive, ArrowUpRight, Box, Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Lock, Package, SlidersHorizontal } from "lucide-react";
+import { Archive, ArrowUpRight, Box, Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Layers, Lock, Package, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useCapacity, usePlan, useQuota, useSettings, useVersions } from "@/api/queries";
-import type { GitHubRepository, Job, RepoAccess } from "@/api/types";
+import type { GitHubRepository, Job, RepoAccess, Stage } from "@/api/types";
 import { BackupPicker } from "@/components/BackupPicker";
 import { Page, PageHead, useCan } from "@/components/Shell";
+import { STAGE_ICON, STAGES } from "@/components/StageTag";
 import { Tag, Button, Callout, Field, Switch } from "@/components/ui/basics";
 import { useToast } from "@/components/ui/overlay";
 import { ago } from "@/lib/format";
@@ -102,6 +103,8 @@ export function NewInstancePage() {
   const [lifetime, setLifetime] = useState<number | null>(null);
   const [fromBackup, setFromBackup] = useState<string | null>(null);
   const [useBackup, setUseBackup] = useState(false);
+  const [stage, setStage] = useState<Stage>("development");
+  const production = stage === "production";
 
   const [branches, setBranches] = useState<string[] | null>(null);
   const [access, setAccess] = useState<RepoAccess | null>(null);
@@ -160,6 +163,22 @@ export function NewInstancePage() {
   }, [branches, branch, debouncedRepo]);
 
   const { data: plan } = usePlan(plain ? "" : debouncedRepo, plain ? "" : branch, useDebounced(name.trim()), plain ? version : "", plain ? edition : "");
+  // a stage brings its own defaults (production: never paused, kept, new code on demand); each can still be changed
+  const chooseStage = (next: Stage) => {
+    setStage(next);
+    const defaults = plan?.stage_defaults?.[next];
+    if (!defaults) {
+      if (next === "production") {
+        setAutoUpdate(false);
+        setAutoPause(false);
+      }
+      return;
+    }
+    setAutoUpdate(defaults.auto_update);
+    setAutoPause(defaults.auto_pause);
+    setLifetime(defaults.delete_after_days);
+  };
+  const productionRefused = production ? plan?.production?.refusal ?? null : null;
   const enterpriseAvailable = versions?.find((v) => v.version === version)?.enterprise ?? false;
   useEffect(() => {
     if (!enterpriseAvailable) setEdition("community");
@@ -176,9 +195,10 @@ export function NewInstancePage() {
         name: name.trim() || (plain ? (plan?.name ?? "") : ""),
         install_modules: installModules && !plain,
         demo: demo && !useBackup,
-        delete_after_days: lifetime ?? 30,
+        stage,
+        delete_after_days: production ? 0 : lifetime ?? 30,
         auto_update: autoUpdate && !plain,
-        auto_pause: autoPause,
+        auto_pause: autoPause && !production,
         ...(useBackup && fromBackup ? { from_backup: fromBackup } : {}),
       }),
     [keys.instances, ["quota"]],
@@ -194,6 +214,7 @@ export function NewInstancePage() {
     !waiting &&
     !full &&
     !capacity?.blocked &&
+    !productionRefused &&
     (!useBackup || !!fromBackup);
 
   const submit = () =>
@@ -332,6 +353,28 @@ export function NewInstancePage() {
             </div>
           </section>
 
+          <section className="card">
+            <div className="card-head">
+              <Layers />
+              <h2>Stage</h2>
+            </div>
+            <div className="card-body stack">
+              <div className="grid-3" role="radiogroup" aria-label="Stage">
+                {STAGES.map((st) => {
+                  const Icon = STAGE_ICON[st.value];
+                  return (
+                    <button key={st.value} type="button" className="choice" role="radio" aria-checked={stage === st.value} aria-pressed={stage === st.value}
+                      onClick={() => chooseStage(st.value)}>
+                      <Icon />
+                      <span><span className="t">{st.label}</span><br /><span className="d">{st.text}</span></span>
+                    </button>
+                  );
+                })}
+              </div>
+              {productionRefused && <Callout tone="warning">{productionRefused}</Callout>}
+            </div>
+          </section>
+
           {mayUseBackups && (
             <section className="card">
               <div className="card-head">
@@ -360,13 +403,19 @@ export function NewInstancePage() {
               {!plain && <Switch checked={installModules} onChange={setInstallModules} label={useBackup ? "Install the repository's modules the backup lacks" : "Install the repository's modules"} />}
               {!useBackup && <Switch checked={demo} onChange={setDemo} label="Load demo data" />}
               {!plain && <Switch checked={autoUpdate} onChange={setAutoUpdate} label="Get new code automatically" />}
-              <Switch checked={autoPause} onChange={setAutoPause} label="Pause when nobody uses it" />
-              <Field label="Lifetime" hint="Deleted after this, with a backup first.">
-                <select className="select" value={lifetime ?? 30} onChange={(e) => setLifetime(Number(e.target.value))}>
-                  {[...new Set([...LIFETIMES, lifetime ?? 30])].filter((d) => d > 0).sort((a, b) => a - b).map((d) => <option key={d} value={d}>{d} days</option>)}
-                  <option value={0}>Keep until deleted by hand</option>
-                </select>
-              </Field>
+              {production ? (
+                <p className="small muted">A production instance is never paused or deleted automatically, and is backed up every day.</p>
+              ) : (
+                <>
+                  <Switch checked={autoPause} onChange={setAutoPause} label="Pause when nobody uses it" />
+                  <Field label="Lifetime" hint="Deleted after this, with a backup first.">
+                    <select className="select" value={lifetime ?? 30} onChange={(e) => setLifetime(Number(e.target.value))}>
+                      {[...new Set([...LIFETIMES, lifetime ?? 30])].filter((d) => d > 0).sort((a, b) => a - b).map((d) => <option key={d} value={d}>{d} days</option>)}
+                      <option value={0}>Keep until deleted by hand</option>
+                    </select>
+                  </Field>
+                </>
+              )}
             </div>
             <div className="card-foot">
               <Button variant="primary" size="lg" block loading={create.isPending} disabled={!canCreate} onClick={submit}>

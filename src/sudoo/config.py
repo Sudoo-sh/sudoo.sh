@@ -219,6 +219,22 @@ class Settings(BaseSettings):
     auto_update: bool = Field(True, description="New instances get new code automatically.")
     auto_upgrade: bool = Field(True, description="New instances upgrade changed modules after an update.")
     delete_after_days: int = Field(30, ge=0, description="Lifetime offered for new instances, in days; 0: keep.")
+
+    # ------------------------------------------------------------------ stages (instances/stages.py)
+    max_production_instances: int = Field(
+        1, ge=0, description="Instances that may be in the production stage at the same time; 0: no limit."
+    )
+    production_auto_update: bool = Field(
+        False,
+        description="New production instances get new code automatically (off: updates only when someone asks, or "
+        "once switched on for the instance).",
+    )
+    staging_delete_after_days: int = Field(
+        90, ge=0, description="Lifetime offered for new staging instances, in days; 0: keep."
+    )
+    staging_daily_backups: bool = Field(
+        True, description="Staging instances get the daily backup too (when daily_backups is on)."
+    )
     poll_minutes: float = Field(2, gt=0, description="polling: check GitHub for new commits this often.")
     session_idle_minutes: float = Field(60, gt=0, description="Panel sign-out after this long without activity.")
     session_max_hours: float = Field(12, gt=0, description="Longest panel session.")
@@ -401,6 +417,10 @@ EDITABLE = (
     "auto_update",
     "auto_upgrade",
     "delete_after_days",
+    "max_production_instances",
+    "production_auto_update",
+    "staging_delete_after_days",
+    "staging_daily_backups",
     "poll_minutes",
     "metrics_interval_seconds",
     "daily_backups",

@@ -32,10 +32,11 @@ import { useEffect, useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useCapacity, useCredentials, useHistory, useInstance, useJobs, useOdooLog } from "@/api/queries";
-import type { Instance, InstanceBackup, Job, Permission } from "@/api/types";
+import type { Instance, InstanceBackup, Job, Permission, Stage } from "@/api/types";
 import { BACKUP_KIND as KIND_LABEL, BackupPicker } from "@/components/BackupPicker";
 import { LiveChart } from "@/components/charts/LiveChart";
 import { JobLine, Monogram } from "@/components/InstanceCard";
+import { STAGE_LABEL, STAGES, StageTag } from "@/components/StageTag";
 import { JobDrawer, Terminal } from "@/components/JobDrawer";
 import { Page, useCan } from "@/components/Shell";
 import { StatCard } from "@/components/StatCard";
@@ -81,7 +82,7 @@ export function InstancePage() {
   const [jobId, setJobId] = useState<string | null>(null);
   const run = useRun(name, setJobId);
   const capacity = useCapacity();
-  const [dialog, setDialog] = useState<null | "upgrade" | "branch" | "delete" | "submodule" | "rollback" | "connect">(null);
+  const [dialog, setDialog] = useState<null | "upgrade" | "branch" | "delete" | "submodule" | "rollback" | "connect" | "pause" | "switch-off">(null);
 
   if (error && !instance) return <MissingInstance name={name} error={error} />;
   if (instance?.status === "creating" && instance.current_job) return <CreatingInstance instance={instance} />;
@@ -96,7 +97,10 @@ export function InstancePage() {
   const busy = !!instance.current_job;
   const plain = instance.source === "plain"; // no repository: nothing to update, no branch, no submodules
   const asleep = ["paused", "switched_off", "stopped"].includes(instance.status);
-  const act = (action: string, title: string, body?: Record<string, unknown>) => run.mutate({ action, title, body });
+  const production = instance.stage === "production";
+  // on a production instance, what replaces or stops its data says so: the dialogs ask first, the request confirms
+  const act = (action: string, title: string, body?: Record<string, unknown>) =>
+    run.mutate({ action, title, body: production && PRODUCTION_CONFIRMED.includes(action) ? { ...body, confirm_production: true } : body });
 
   return (
     <Page>
@@ -106,6 +110,7 @@ export function InstancePage() {
           <div className="titles" style={{ minWidth: 0 }}>
             <div className="row-wrap" style={{ gap: 12 }}>
               <h1 className="truncate">{instance.name}</h1>
+              <StageTag stage={instance.stage} />
               <Status status={instance.status} />
             </div>
             <div className="row-wrap small muted">
@@ -182,12 +187,12 @@ export function InstancePage() {
                       </button>
                       <hr />
                       {!asleep && (
-                        <button disabled={busy} onClick={item(() => act("pause", "Pause"))}>
+                        <button disabled={busy} onClick={item(() => (production ? setDialog("pause") : act("pause", "Pause")))}>
                           <Pause /> Pause
                         </button>
                       )}
                       {instance.status !== "switched_off" && (
-                        <button disabled={busy} onClick={item(() => act("switch-off", "Switch off"))}>
+                        <button disabled={busy} onClick={item(() => (production ? setDialog("switch-off") : act("switch-off", "Switch off")))}>
                           <Power /> Switch off
                         </button>
                       )}
@@ -283,11 +288,44 @@ export function InstancePage() {
       {dialog === "branch" && <BranchDialog instance={instance} onClose={() => setDialog(null)} onRun={(branch) => act("switch-branch", "Switch branch", { branch })} />}
       {dialog === "connect" && <ConnectDialog onClose={() => setDialog(null)} onRun={(body) => act("connect-repository", "Connect a repository", body)} />}
       {dialog === "submodule" && <SubmoduleDialog version={instance.odoo.version} onClose={() => setDialog(null)} onRun={(body) => act("add-submodule", "Add submodule", body)} />}
-      {dialog === "delete" && <DeleteDialog name={name} onClose={() => setDialog(null)} />}
+      {dialog === "delete" && <DeleteDialog name={name} production={production} onClose={() => setDialog(null)} />}
+      {(dialog === "pause" || dialog === "switch-off") && (
+        <StopProductionDialog name={name} action={dialog} onClose={() => setDialog(null)}
+          onRun={() => act(dialog, dialog === "pause" ? "Pause" : "Switch off")} />
+      )}
       {dialog === "rollback" && instance.rollback && (
         <RollbackDialog instance={instance} onClose={() => setDialog(null)} onRun={() => act("rollback", "Rollback")} />
       )}
     </Page>
+  );
+}
+
+const PRODUCTION_CONFIRMED = ["pause", "switch-off", "restore", "rollback"];
+
+/** Pausing or switching off a production instance takes its users offline: asked once more. */
+function StopProductionDialog({ name, action, onClose, onRun }: { name: string; action: "pause" | "switch-off"; onClose: () => void; onRun: () => void }) {
+  const verb = action === "pause" ? "Pause" : "Switch off";
+  return (
+    <Modal title={`${verb} ${name}?`} description="This is a production instance" onClose={onClose}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" icon={action === "pause" ? <Pause /> : <Power />} onClick={() => { onRun(); onClose(); }}>{verb}</Button></>}>
+      <Callout tone="warning">
+        {action === "pause"
+          ? "Its users lose access until the next visit starts it again, which takes a minute or two."
+          : "Its users lose access until someone clicks Start: visits do not start it."}
+      </Callout>
+    </Modal>
+  );
+}
+
+/** What the production stage changes, shown on a production instance's overview. */
+function ProductionNote() {
+  return (
+    <Callout tone="info">
+      <b>What changes in production.</b> This instance is never paused or deleted automatically. It is backed up every
+      day, used or not, and every update backs it up first and is undone if it fails. It gets new code only when
+      someone asks, unless automatic updates are switched on. Pausing, switching off, restoring and deleting ask for
+      a confirmation.
+    </Callout>
   );
 }
 
@@ -309,6 +347,7 @@ function Overview({ instance, busy, act }: { instance: Instance; busy: boolean; 
   const chosen = METRICS[metric];
   return (
     <div className="stack">
+      {instance.stage === "production" && <ProductionNote />}
       <div className="grid-4 stagger">
         <StatCard label="Processor" value={u.cpu_percent ?? null} unit="%" decimals={1} detail="of the whole server"
           trend={{ t: series?.t ?? [], values: series?.cpu_percent ?? [] }} />
@@ -460,6 +499,7 @@ function RestoreDialog({ instance, backup, onClose, onRun }: { instance: Instanc
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" onClick={() => { onRun(); onClose(); }}>Restore</Button></>}>
       <div className="stack">
         <Callout tone="warning">
+          {instance.stage === "production" && <><b>This is the production instance.</b> </>}
           The database <b className="mono">{backup.database}</b> and its files go back to how they were on {dateTime(backup.created_at)}. Changes made since then are replaced.
         </Callout>
         <p className="small muted">
@@ -480,6 +520,7 @@ function AnotherBackupDialog({ instance, onClose, onRun }: { instance: Instance;
         <BackupPicker version={instance.odoo.version} edition={instance.odoo.edition} value={file} onChange={setFile} />
         {file && (
           <Callout tone="warning">
+            {instance.stage === "production" && <><b>This is the production instance.</b> </>}
             The database <b className="mono">{instance.odoo.database}</b> and its files are replaced by the backup's. The current state is backed up first and offered as <b>Rollback</b> for a while.
             {foreign && <> The data comes from another instance, so it is neutralised: it sends no e-mail and runs no scheduled actions until you switch them back on in Odoo.</>}
           </Callout>
@@ -496,6 +537,7 @@ function RollbackDialog({ instance, onClose, onRun }: { instance: Instance; onCl
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" icon={<Undo2 />} onClick={() => { onRun(); onClose(); }}>Rollback</Button></>}>
       <div className="stack">
         <Callout tone="warning">
+          {instance.stage === "production" && <><b>This is the production instance.</b> </>}
           The database and its files go back to how they were just before the restore of {dateTime(rollback.taken_at)}. Changes made since the restore are replaced.
         </Callout>
         <p className="small muted">
@@ -628,6 +670,12 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
   const set = (body: Record<string, unknown>) =>
     save.mutate(body, { onSuccess: () => toast("success", "Saved"), onError: (e) => toast("error", "Not saved", errorText(e)) });
   const s = instance.settings;
+  const production = instance.stage === "production";
+  const [leaving, setLeaving] = useState<Stage | null>(null);
+  const changeStage = (stage: Stage) => {
+    if (production && stage !== "production") setLeaving(stage); // leaving production is asked first
+    else set({ stage });
+  };
   // a lifetime that ends sooner deletes the instance sooner: only roles that may delete instances choose one
   const mayShorten = can("instances.delete");
   const sooner = (days: number) => days > 0 && (s.delete_after_days === 0 || days < s.delete_after_days);
@@ -639,16 +687,36 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
           ["auto_update", "Get new code automatically", "When the branch on GitHub has new commits, update this instance."],
           ["auto_upgrade", "Upgrade changed modules", "After an update, upgrade the modules whose code changed."],
         ] as [keyof typeof s, string, string][])),
-    ["auto_pause", "Pause when idle", "Free the server's memory when nobody has opened it for a while; the next visit starts it again."],
+    ...(production
+      ? []
+      : ([["auto_pause", "Pause when idle", "Free the server's memory when nobody has opened it for a while; the next visit starts it again."]] as [keyof typeof s, string, string][])),
   ];
   return (
     <div className="card">
+      <div className="settings-row">
+        <div>
+          <div className="name">Stage</div>
+          <div className="desc">{STAGES.find((st) => st.value === instance.stage)?.text}</div>
+        </div>
+        <select className="select" aria-label="Stage" value={instance.stage} disabled={save.isPending} onChange={(e) => changeStage(e.target.value as Stage)}>
+          {STAGES.map((st) => <option key={st.value} value={st.value}>{st.label}</option>)}
+        </select>
+      </div>
       {rows.map(([key, title, text]) => (
         <div className="settings-row" key={key}>
           <div><div className="name">{title}</div><div className="desc">{text}</div></div>
           <div style={{ justifySelf: "end" }}><Switch checked={s[key] as boolean} onChange={(v) => set({ [key]: v })} /></div>
         </div>
       ))}
+      {production ? (
+        <div className="settings-row">
+          <div>
+            <div className="name">Lifetime</div>
+            <div className="desc">A production instance is kept until someone deletes it, and never paused automatically.</div>
+          </div>
+          <span className="small muted" style={{ justifySelf: "end" }}>Kept</span>
+        </div>
+      ) : (
       <div className="settings-row">
         <div>
           <div className="name">Lifetime</div>
@@ -664,6 +732,19 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
           <option value={0}>Keep until deleted by hand</option>
         </select>
       </div>
+      )}
+      {leaving && (
+        <Modal title={`Move ${instance.name} to ${STAGE_LABEL[leaving].toLowerCase()}?`} description="It leaves production" onClose={() => setLeaving(null)}
+          footer={<><Button onClick={() => setLeaving(null)}>Cancel</Button><Button variant="danger" loading={save.isPending}
+            onClick={() => save.mutate({ stage: leaving, confirm_production: true }, {
+              onSuccess: () => { toast("success", `Moved to ${STAGE_LABEL[leaving].toLowerCase()}`); setLeaving(null); },
+              onError: (e) => toast("error", "Not moved", errorText(e)),
+            })}>Leave production</Button></>}>
+          <Callout tone="warning">
+            It then follows the panel's rules again: it can be paused, given a lifetime, and its daily backup is taken only after a day it was used. Its settings stay as they are until you change them.
+          </Callout>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -793,28 +874,45 @@ function SubmoduleDialog({ version, onClose, onRun }: { version: string; onClose
   );
 }
 
-function DeleteDialog({ name, onClose }: { name: string; onClose: () => void }) {
+function DeleteDialog({ name, production, onClose }: { name: string; production: boolean; onClose: () => void }) {
   const [typed, setTyped] = useState("");
+  const [typedStage, setTypedStage] = useState("");
+  const confirmed = typed === name && (!production || typedStage === "production");
   const [withoutBackup, setWithoutBackup] = useState(false);
   const can = useCan();
   const navigate = useNavigate();
   const toast = useToast();
   const remove = useCall(
-    () => api.del<Job>(`/instances/${name}`, { confirm: name, ...(withoutBackup ? { without_backup: true } : {}) }),
+    () =>
+      api.del<Job>(`/instances/${name}`, {
+        confirm: name,
+        ...(production ? { confirm_stage: "production" } : {}),
+        ...(withoutBackup ? { without_backup: true } : {}),
+      }),
     [keys.jobs()],
   );
   return (
     <Modal title={`Delete ${name}?`} onClose={onClose}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" icon={<Trash2 />} loading={remove.isPending} disabled={typed !== name}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" icon={<Trash2 />} loading={remove.isPending} disabled={!confirmed}
         onClick={() => remove.mutate(undefined, { onSuccess: () => { toast("success", "Deletion started", "A backup is taken first"); navigate("/", { viewTransition: true }); }, onError: (e) => toast("error", "Not deleted", errorText(e)) })}>Delete</Button></>}>
       <div className="stack">
         <Callout tone="danger">
           <b>Odoo, its database and its files are removed.</b> A backup is taken first and kept under Backups
           {withoutBackup ? "; if it fails, the instance is removed anyway and its data is lost." : "; if it fails, nothing is removed."}
         </Callout>
+        {production && (
+          <Callout tone="danger">
+            <b>This is the production instance.</b> Its users lose it, and it is not created again by itself.
+          </Callout>
+        )}
         <Field label={<>Type <code>{name}</code> to confirm</>}>
           <input className="input" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} />
         </Field>
+        {production && (
+          <Field label={<>Type <code>production</code> as well</>}>
+            <input className="input" value={typedStage} onChange={(e) => setTypedStage(e.target.value)} />
+          </Field>
+        )}
         {can("backups.manage") && (
           <Switch checked={withoutBackup} onChange={setWithoutBackup} label="Delete even if the backup fails" />
         )}

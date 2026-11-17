@@ -229,6 +229,20 @@ SMTP_PASSWORD=...
 Answers over a request limit are `429 Too Many Requests` with `Retry-After`; every limited answer carries
 `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`.
 
+### Capacity
+
+How many instances the server runs comfortably at the same time, and when the panel warns. The panel never refuses
+an instance because of these figures unless `MAX_RUNNING_INSTANCES` is set; how the estimate is made:
+[How many instances can my server run?](ADMIN_GUIDE.md#how-many-instances-can-my-server-run).
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `CAPACITY_RESERVE_MB` | int | `1024` | **live** | Memory kept free for the operating system, Docker and the file cache, in MB. The larger of this and `CAPACITY_RESERVE_PERCENT` is used. |
+| `CAPACITY_RESERVE_PERCENT` | float | `10` | **live** | The same reserve as a share of the server's memory, 0 to 90. |
+| `CAPACITY_INSTANCE_MEMORY_MB` | int | `700` | **live** | Memory one running instance is counted with until the panel has measured one (a few measurements of a running instance in the last hour), in MB. |
+| `CAPACITY_WARNING_PERCENT` | float | `85` | **live** | Server memory use, in %, from which the dashboard warns that instances may slow down; also the share of the processor the estimate lets instances use. |
+| `MAX_RUNNING_INSTANCES` | int | `0` | **live** | Instances running at once at most, those being created or started included: creating or starting one more (in the panel or the API) is refused with 403. Visitors opening a paused instance still start it. 0: never refused, only warned. |
+
 ---
 
 ## Gateway

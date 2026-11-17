@@ -31,7 +31,7 @@ import {
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
 import { api, errorText } from "@/api/client";
-import { keys, useCall, useCredentials, useHistory, useInstance, useJobs, useOdooLog } from "@/api/queries";
+import { keys, useCall, useCapacity, useCredentials, useHistory, useInstance, useJobs, useOdooLog } from "@/api/queries";
 import type { Instance, InstanceBackup, Job, Permission } from "@/api/types";
 import { BACKUP_KIND as KIND_LABEL, BackupPicker } from "@/components/BackupPicker";
 import { LiveChart } from "@/components/charts/LiveChart";
@@ -43,7 +43,7 @@ import { Button, Callout, CopyField, Empty, Field, Progress, Segmented, Skeleton
 import { Menu, Modal, useToast } from "@/components/ui/overlay";
 import { ago, bytes, dateTime, duration, elapsed, ms, percent } from "@/lib/format";
 import { CreatingInstance, MissingInstance } from "./InstanceCreating";
-import { RepositoryPicker, useDebounced } from "./NewInstance";
+import { CapacityNote, RepositoryPicker, useDebounced } from "./NewInstance";
 
 type Action = { action: string; body?: Record<string, unknown>; title: string };
 
@@ -80,6 +80,7 @@ export function InstancePage() {
   const { data: instance, isPending, error } = useInstance(name);
   const [jobId, setJobId] = useState<string | null>(null);
   const run = useRun(name, setJobId);
+  const capacity = useCapacity();
   const [dialog, setDialog] = useState<null | "upgrade" | "branch" | "delete" | "submodule" | "rollback" | "connect">(null);
 
   if (error && !instance) return <MissingInstance name={name} error={error} />;
@@ -135,7 +136,7 @@ export function InstancePage() {
           )}
           {can("instances.update") &&
             (asleep ? (
-              <Button variant="primary" icon={<Play />} disabled={busy} onClick={() => act("start", "Start")}>
+              <Button variant="primary" icon={<Play />} disabled={busy || !!capacity?.blocked} onClick={() => act("start", "Start")}>
                 Start
               </Button>
             ) : (
@@ -221,6 +222,7 @@ export function InstancePage() {
           </Button>
         </div>
       )}
+      {asleep && !busy && can("instances.update") && <CapacityNote />}
       {instance.git.branch_deleted_on_github && (
         <Callout tone="warning">
           The branch <b>{instance.git.branch}</b> no longer exists on GitHub, so this instance gets no updates. Switch it to another branch, or delete it.

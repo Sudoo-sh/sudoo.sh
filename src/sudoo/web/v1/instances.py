@@ -50,7 +50,7 @@ from sudoo import addons, exposure, roles
 from sudoo.config import settings
 from sudoo.core import events, jobs, vault
 from sudoo.core.state import STATE
-from sudoo.instances import backups, odoo, operations, store
+from sudoo.instances import backups, capacity, metrics, odoo, operations, store
 from sudoo.limits import quotas
 from sudoo.repos import github
 from sudoo.repos.gitrepo import origin_url
@@ -259,6 +259,7 @@ def _start_creation(
     custom_name: str,
     from_backup: str | None,
 ) -> Response:
+    _refuse_over_capacity("instance creation refused (running instances)")
     try:
         quotas.claim(g.user["name"])
     except quotas.QuotaError as error:
@@ -443,6 +444,18 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
     return operations.remove_submodule, (name, check.submodule_path(path))
 
 
+def _running(name: str) -> bool:
+    return bool(metrics.INSTANCES.get(name, {}).get("running"))
+
+
+def _refuse_over_capacity(what: str) -> None:
+    """403 when MAX_RUNNING_INSTANCES instances run already (off by default: the panel only warns)."""
+    refused = capacity.refusal()
+    if refused:
+        log(what, ok=False, detail=refused)
+        abort(403, refused)
+
+
 def run(name: str, action: str) -> Response:
     existing(name)
     if action not in ACTIONS:
@@ -456,6 +469,8 @@ def run(name: str, action: str) -> Response:
         )
     refuse_unless(permission, f"{action} on {name}")
     fn, args = _job_for(action, name, check.body())
+    if action == "start" and not _running(name):
+        _refuse_over_capacity(f"start of {name} refused (running instances)")
     job = jobs.start(name, title, kind, fn, *args, user=g.user["name"])
     log(title, instance=name)
     return _accepted(job)

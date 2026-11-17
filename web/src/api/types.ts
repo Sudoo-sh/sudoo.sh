@@ -152,6 +152,50 @@ export interface ServerFigures {
   uptime_seconds: number;
   instances_running: number;
   instances_total: number;
+  /** the panel's own use: backend, web service and Cloudflare connectors; now and at most over the history */
+  panel_cpu_percent: number;
+  panel_memory_bytes: number;
+  panel_cpu_peak_percent: number;
+  panel_memory_peak_bytes: number;
+}
+
+/** GET /server/capacity, and `capacity` of the metrics: how many instances the server runs comfortably. */
+export interface Capacity {
+  comfortable: number;
+  running: number;
+  headroom: number;
+  limited_by: "memory" | "processor";
+  warning: boolean;
+  message: string | null;
+  overloaded: boolean;
+  alert: string | null;
+  memory_percent: number | null;
+  warning_percent: number;
+  hard_limit: number | null;
+  blocked: boolean;
+  memory: {
+    total_bytes: number;
+    reserve_bytes: number;
+    panel_bytes: number;
+    usable_bytes: number;
+    per_instance_bytes: number;
+    per_instance_source: "measured" | "default";
+    instance_average_bytes: number | null;
+    instance_peak_bytes: number | null;
+    instance_largest_bytes: number | null;
+    measured_instances: number;
+    instances: number;
+  };
+  processor: { cores: number; panel_percent: number; per_instance_percent: number | null; instances: number | null };
+  disk: { free_bytes: number; instance_average_bytes: number | null; more_instances: number | null };
+  by_version: { version: string; instances: number; average_bytes: number; peak_bytes: number }[];
+  panel: {
+    cpu_percent: number | null;
+    cpu_peak_percent: number | null;
+    memory_bytes: number | null;
+    memory_peak_bytes: number | null;
+    parts: Record<string, { cpu_percent: number; memory_bytes: number; containers: number }>;
+  };
 }
 
 export interface Metrics {
@@ -159,6 +203,7 @@ export interface Metrics {
   interval_seconds: number;
   server: Partial<ServerFigures>;
   instances: Record<string, Usage & { running: boolean }>;
+  capacity: Capacity | null;
 }
 
 export type Columns = { t: number[] } & Record<string, (number | null)[]>;

@@ -3,7 +3,7 @@ import { Archive, ArrowUpRight, Box, Building2, CircleCheck, CircleX, FolderGit2
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, errorText } from "@/api/client";
-import { keys, useCall, usePlan, useQuota, useSettings, useVersions } from "@/api/queries";
+import { keys, useCall, useCapacity, usePlan, useQuota, useSettings, useVersions } from "@/api/queries";
 import type { GitHubRepository, Job, RepoAccess } from "@/api/types";
 import { BackupPicker } from "@/components/BackupPicker";
 import { Page, PageHead, useCan } from "@/components/Shell";
@@ -84,6 +84,7 @@ export function NewInstancePage() {
   const mayUseBackups = can("instances.restore") && can("backups.manage");
   const { data: versions } = useVersions();
   const { data: quota } = useQuota();
+  const capacity = useCapacity();
   const { data: settings } = useSettings();
   const setting = (key: string) => settings?.find((s) => s.key === key)?.value;
 
@@ -192,6 +193,7 @@ export function NewInstancePage() {
     (plain ? !!name.trim() || !!plan : !!repo.trim() && !!branches && !repoError) &&
     !waiting &&
     !full &&
+    !capacity?.blocked &&
     (!useBackup || !!fromBackup);
 
   const submit = () =>
@@ -372,6 +374,7 @@ export function NewInstancePage() {
               </Button>
             </div>
           </section>
+          <CapacityNote />
           {quota && (quota.max_instances || quota.max_instances_per_user) && (
             <p className="xsmall faint" style={{ textAlign: "center" }}>
               {quota.max_instances ? `${quota.instances} of ${quota.max_instances} on this server` : ""}
@@ -382,5 +385,28 @@ export function NewInstancePage() {
         </aside>
       </div>
     </Page>
+  );
+}
+
+/** Before one more instance starts: says when the server already runs as many as it takes comfortably (never
+ * blocks, unless MAX_RUNNING_INSTANCES is set and reached). Shown on New instance and before Start. */
+export function CapacityNote() {
+  const capacity = useCapacity();
+  if (!capacity) return null;
+  if (capacity.blocked)
+    return (
+      <Callout tone="danger">
+        This server runs at most {capacity.hard_limit} instances at once, and {capacity.running} are running or
+        starting. Pause one first.
+      </Callout>
+    );
+  if (!capacity.warning || !capacity.message) return null;
+  return (
+    <Callout tone="warning">
+      {capacity.message}{" "}
+      <Link to="/help/docs/ADMIN_GUIDE.md#how-many-instances-can-my-server-run" viewTransition>
+        Why
+      </Link>
+    </Callout>
   );
 }

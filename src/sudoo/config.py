@@ -152,6 +152,34 @@ class Settings(BaseSettings):
         0, ge=0, description="Minutes a user must wait between two creations; 0: no wait."
     )
 
+    # ------------------------------------------------------------------ capacity (instances/capacity.py)
+    capacity_reserve_mb: int = Field(
+        1024,
+        ge=0,
+        description="Memory kept free for the operating system and Docker, in MB (the larger of this and "
+        "capacity_reserve_percent is used).",
+    )
+    capacity_reserve_percent: float = Field(
+        10, ge=0, le=90, description="Memory kept free for the operating system and Docker, in % of the server's."
+    )
+    capacity_instance_memory_mb: int = Field(
+        700,
+        ge=50,
+        description="Memory one running instance is counted with while none has been measured yet, in MB.",
+    )
+    capacity_warning_percent: float = Field(
+        85,
+        ge=10,
+        le=100,
+        description="Server memory use, in %, from which the dashboard warns that instances may slow down.",
+    )
+    max_running_instances: int = Field(
+        0,
+        ge=0,
+        description="Instances running at once at most: creating or starting one more is refused; 0: never refused, "
+        "only warned.",
+    )
+
     # ------------------------------------------------------------------ gateway (instances/gateway.py)
     gateway_max_upload_mb: int = Field(
         2048, ge=1, description="Largest request body a visitor may send to an instance (uploads, imports), in MB."
@@ -360,6 +388,11 @@ EDITABLE = (
     "max_instances",
     "max_instances_per_user",
     "create_cooldown_minutes",
+    "capacity_reserve_mb",
+    "capacity_reserve_percent",
+    "capacity_instance_memory_mb",
+    "capacity_warning_percent",
+    "max_running_instances",
     "gateway_max_upload_mb",
     "gateway_idle_timeout_seconds",
     "gateway_websocket_max_message_mb",

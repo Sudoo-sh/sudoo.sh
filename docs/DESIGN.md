@@ -61,7 +61,7 @@ Components take their look only from tokens. A component never names a raw colou
 
 | Group | Tokens | Notes |
 | :--- | :--- | :--- |
-| Accent | `--accent`, `--accent-ink`, `--on-accent`, `--accent-soft`, `--accent-ring` | `--accent` follows `BRAND_COLOR` (Settings, Appearance) |
+| Accent | `--accent`, `--accent-ink`, `--on-accent`, `--accent-soft`, `--accent-ring` | `--accent` follows `BRAND_COLOR` (Settings, General) |
 | Neutrals | `--bg`, `--surface`, `--raised`, `--hairline`, `--hairline-strong`, `--text`, `--text-2`, `--text-3` | Graphite in both themes; three text roles only |
 | Meaning | `--positive`, `--negative`, `--caution`, `--working`, `--idle` | Used for status only, never for decoration |
 | Charts | `--series-1` (the accent), `--series-2`, `--series-grid` | The first series leads, others stay quiet |
@@ -182,7 +182,7 @@ Implementation rules:
 
 | To change | Do this |
 | :--- | :--- |
-| The accent colour | Settings, Contact and appearance, **Accent colour** (or `BRAND_COLOR` in `.env`); it also colours the e-mails |
+| The accent colour | Settings, General, **Accent colour** (or `BRAND_COLOR` in `.env`); it also colours the e-mails |
 | Neutrals, radii, spacing, motion | Edit `web/src/styles/_tokens.scss` (both the light block and the `dark` mixin), then rebuild: `docker compose build web` on the server, or `npm run build` |
 | Fonts | `--font` and `--mono` in `_tokens.scss`; add the font files with `npm install @fontsource/<name>` and import them in `web/src/main.tsx` |
 | One component | Its block in `_components.scss` or `_pages.scss`, named after the component |

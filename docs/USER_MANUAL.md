@@ -670,21 +670,24 @@ or webhook secret) appears as `(set)`, never with its value. Use **Search** to f
 ## 11. Settings
 
 Super admins only. **Settings** (sidebar, Administration) shows every setting of the panel that can be changed in
-the browser, in groups:
+the browser, in tabs:
 
-| Group | What it holds |
+| Tab | What it holds |
 | :--- | :--- |
-| **Sign-in and security** | Who must use a second factor (none, administrators, everyone), and how long a session lasts. |
-| **E-mail** | The mailbox that sends sign-in codes, with **Send a test**. |
-| **Limits** | Requests per minute, how many instances in total and per person, and how often a new one can be created. 0 turns a limit off. |
-| **New instances** | What a new instance starts with: pause when idle and after how many hours, automatic updates, upgrades, lifetime, Odoo login. |
-| **Backups** | Whether daily backups are taken, at what time (`HH:MM`, 24-hour clock) and in which time zone (for example `Africa/Cairo`; UTC by default). Changes apply at once. |
-| **Odoo versions and images** | Which versions are offered and where Odoo and PostgreSQL come from. |
-| **Enterprise add-ons** | Where the Enterprise add-ons of each version are. |
-| **Code updates and monitoring** | How often GitHub is checked, the webhook secret, how often figures are measured. |
-| **Contact and appearance** | Who people are told to contact, and the accent colour of the panel and its e-mails. |
-| **Plugins** | Which plugin does each job (mail, second factors, update triggers, Enterprise source, sign-in, rate limits). |
-| **Server** | Read only: folders, ports and how the panel is reached. These stay in the server's `.env`. |
+| **General** | Contact and appearance: who people are told to contact, and the accent colour of the panel and its e-mails. |
+| **Instances** | What a new instance starts with (pause when idle and after how many hours, automatic updates, upgrades, lifetime, Odoo login); how many instances in total and per person, and how often a new one can be created; the limits of each instance's containers; what visitors may send through the gateway. 0 turns a limit off. |
+| **Odoo** | Which versions are offered, where Odoo and PostgreSQL come from, and where the Enterprise add-ons are (including the Enterprise source plugin). |
+| **Backups** | Whether daily backups are taken, at what time (`HH:MM`, 24-hour clock) and in which time zone (for example `Africa/Cairo`; UTC by default), and how long a restore can be rolled back. Changes apply at once. |
+| **Sign-in and security** | Who must use a second factor (none, administrators, everyone), which second factors are offered, the authenticator, how long a session lasts, and requests per minute with the rate limiter. |
+| **E-mail** | The mailer and the mailbox that sends sign-in codes, with **Send a test**. |
+| **GitHub and updates** | How often GitHub is checked, the update triggers, and the webhook secret. |
+| **Marketplace** | The connection to the Sudoo.sh marketplace, and linking this panel to an account ([Marketplace](MARKETPLACE.md)). |
+| **Advanced** | How often figures are measured, the Cloudflare connector image, **Restart the panel**, and **Server**: read only, the folders, ports and how the panel is reached, which stay in the server's `.env`. |
+
+The chosen tab is part of the address (for example `/settings?tab=backups`), so it can be linked and survives a
+reload. Changes can be made in several tabs and saved together: the bar at the bottom counts them and names the tabs,
+and a dot after a tab's name marks unsaved changes in it (accent) or a change waiting for a restart (amber). The
+arrow keys move between tabs; on a narrow screen the tabs scroll sideways.
 
 How changes apply:
 
@@ -692,12 +695,13 @@ How changes apply:
 * **Use .env** next to a changed setting brings back the value from `.env`.
 * **Passwords** (mail password, Odoo admin password, webhook secret) are write-only: the page shows whether one is
   set, never the value. They are stored encrypted.
-* **Plugins** apply after **Restart the panel** (in the Plugins group; the button is highlighted when a restart is
-  waiting). The restart stops only the panel's backend for a few seconds; instances keep running. It is refused
-  while jobs run.
-* **Server** settings can only be changed by the server administrator, in `.env` on the server.
+* **Plugins** (settings tagged "plugin, needs a restart": the mailer, second factors, authenticator, rate limiter,
+  update triggers and Enterprise source) apply after **Restart the panel**: a notice with the button appears above
+  the tabs while a restart is waiting, and the button is always under **Advanced**. The restart stops only the
+  panel's backend for a few seconds; instances keep running. It is refused while jobs run.
+* **Server** settings (Advanced tab) can only be changed by the server administrator, in `.env` on the server.
 
-**Send a test** (E-mail group) sends a test message with the saved settings to an address you enter. If it fails,
+**Send a test** (E-mail tab) sends a test message with the saved settings to an address you enter. If it fails,
 the message says why; for Gmail, the password must be an app password
 ([Administrator guide: E-mail](ADMIN_GUIDE.md#6-e-mail)).
 
@@ -713,7 +717,7 @@ as in the repository.
 
 **Theme.** The button at the bottom of the sidebar switches between **System** (follows your computer's setting),
 **Light** and **Dark**. The choice is kept in your browser. The accent colour is chosen by a super admin
-(**Settings, Contact and appearance**).
+(**Settings, General**).
 
 ---
 

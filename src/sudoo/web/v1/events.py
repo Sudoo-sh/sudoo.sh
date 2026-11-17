@@ -8,8 +8,9 @@ A client opens one long-lived request and receives every change as it happens:
 
 Topics: "instance" (an instance changed; data is the instance), "instance.deleted", "job" (a job started, moved to
 another step or ended), "job.output" (new log text of a job), "metrics" (resource use, every METRICS_INTERVAL_SECONDS),
-"settings", "plugins" (an installed plugin changed) and "marketplace" (the connection to the hub changed); the last
-two carry no details, only that something changed. `?topics=job,instance` limits the stream to some topics. A
+"settings", "plugins" (an installed plugin changed), "marketplace" (the connection to the hub changed); the last
+two carry no details, only that something changed; and "alert" (a new or changed alert, as GET /api/v1/alerts shows
+it; only for callers that may read the audit log). `?topics=job,instance` limits the stream to some topics. A
 comment line is sent every 20 seconds so proxies keep the connection open.
 
 After a lost connection, the browser's EventSource reconnects by itself and sends Last-Event-ID; the stream then
@@ -41,14 +42,16 @@ from sudoo import api_tokens
 from sudoo.config import settings
 from sudoo.core.events import BUS, Event
 from sudoo.instances import gateway
+from sudoo.roles import permissions
 
 from ..security import api_caller, client_ip_of, user_of_session
 
 PATH = "/api/v1/events"
 FLASK_APP = web.AppKey("flask", Flask)
 TOPICS = frozenset(
-    {"instance", "instance.deleted", "job", "job.output", "metrics", "settings", "plugins", "marketplace"}
+    {"instance", "instance.deleted", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "alert"}
 )
+RESTRICTED = {"alert": "audit.view"}  # topic -> the permission a caller needs to receive it
 HEARTBEAT_SECONDS = 20
 MAX_CLIENTS = 500
 MAX_PER_CALLER = 8  # streams one account or token may hold at once: one caller cannot take every slot
@@ -141,9 +144,14 @@ def _published_frame(event: Event) -> bytes:
     return frame
 
 
-def _topics(request: web.Request) -> frozenset[str] | None:
+def _topics(request: web.Request, user: dict[str, str]) -> frozenset[str] | None:
+    """The topics asked for (None: all), without those the caller may not receive (RESTRICTED)."""
     asked = {t.strip() for t in request.query.get("topics", "").split(",") if t.strip()}
-    return frozenset(asked & TOPICS) if asked else None
+    allowed = permissions(user["role"])
+    hidden = {topic for topic, permission in RESTRICTED.items() if permission not in allowed}
+    if not hidden:
+        return frozenset(asked & TOPICS) if asked else None
+    return frozenset((asked or TOPICS) & TOPICS - hidden)
 
 
 def _last_id(request: web.Request) -> int | None:
@@ -201,7 +209,7 @@ async def _send(request: web.Request, user: dict[str, str], session: dict[str, A
         }
     )
     await response.prepare(request)
-    topics = _topics(request)
+    topics = _topics(request, user)
     subscription, last_before = BUS.subscribe(topics)
     loop = asyncio.get_running_loop()
     try:

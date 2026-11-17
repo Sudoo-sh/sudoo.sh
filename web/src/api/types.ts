@@ -236,6 +236,26 @@ export interface Setting {
   description: string | null;
 }
 
+/** An alert (GET /api/v1/alerts, live event "alert"): something that needed attention, or the notice it is over. */
+export interface Alert {
+  id: string;
+  key: string;
+  type: "job_failed" | "update_failed" | "backup_failed" | "instance_down" | "disk" | "memory" | "drift" | "public_link" | "test";
+  severity: "problem" | "recovered" | "info";
+  title: string;
+  text: string;
+  hint: string | null;
+  details: string[];
+  instance: string | null;
+  /** a path of the web app, e.g. /i/shop/activity?job=abc */
+  link: string | null;
+  at: number;
+  last_at: number;
+  count: number;
+  resolved_at: number | null;
+  delivery: string[];
+}
+
 export interface Version {
   version: string;
   enterprise: boolean;

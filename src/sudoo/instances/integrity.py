@@ -19,7 +19,7 @@ Every INTEGRITY_CHECK_INTERVAL seconds (from the monitor) the panel compares, fo
                 capabilities; reported only, never recreated (its public address would change)
 
 A difference seen in two checks in a row is drift: it goes to the audit log, the live events (the instance shows a
-banner), and an e-mail to every super admin with an address. With DRIFT_ACTION=restore a "Restore the panel's
+banner), and an alert (alerts/: e-mail, webhooks, the bell). With DRIFT_ACTION=restore a "Restore the panel's
 configuration" job then runs as soon as nothing else runs on the instance: it backs the database up first when the
 database container is affected, writes the panel's own files back, stops strange containers and recreates the
 affected containers. The panel itself never applies a compose file or odoo.conf it did not write: before every
@@ -662,7 +662,7 @@ def handle(name: str, found: list[Finding]) -> None:
         if new:  # what was reported already (a connector that is only ever reported, say) is not sent again
             audit.record("system", None, "configuration changed outside the panel", name, ok=False,
                          detail="; ".join(new))  # fmt: skip
-            threading.Thread(target=_notify, args=(name, new), daemon=True, name="drift-mail").start()
+            threading.Thread(target=_notify, args=(name, new), daemon=True, name="drift-alert").start()
     _maybe_repair(name, found, signature)
 
 
@@ -679,26 +679,31 @@ def _maybe_repair(name: str, found: list[Finding], signature: tuple[str, ...]) -
 
 
 def _notify(name: str, items: list[str]) -> None:
-    """E-mail every super admin who has an address."""
-    from sudoo import accounts
-    from sudoo.mail import MailError, send_template
+    """Alert (alerts/: e-mail to the super admins and ALERT_EMAILS, webhooks, the bell), unless ALERT_DRIFT is off."""
+    from sudoo import alerts
 
-    action = "restore" if settings.drift_action == "restore" else "warn"
-    for account in accounts.all_users().values():
-        if account.get("role") != "super_admin" or not account.get("email"):
-            continue
-        try:
-            send_template(
-                account["email"],
-                "drift",
-                f"Sudoo.sh: instance {name} was changed outside the panel",
-                preheader=f"Someone changed {name} by hand.",
-                instance=name,
-                items=items,
-                action=action,
-            )
-        except (MailError, OSError) as error:
-            print("drift e-mail:", repr(error), flush=True)
+    if settings.drift_action == "restore":
+        then = (
+            "The panel puts its own configuration back as soon as nothing else runs on the instance, backing the "
+            "database up first when its container is affected. Find out who made the change: only root and members "
+            "of the docker group on the server can."
+        )
+    else:
+        then = (
+            "The panel only reports this (DRIFT_ACTION=warn). Undo the change, or restart the instance from the "
+            "panel to recreate its containers from the panel's configuration."
+        )
+    alerts.send(
+        alerts.Alert(
+            "drift",
+            f"{name} was changed outside the panel",
+            f"Instance {name} was changed outside the Sudoo.sh panel. {then}",
+            instance=name,
+            path=f"/i/{name}",
+            details=items,
+            key=f"drift:{name}:{'|'.join(sorted(items))}",
+        )
+    )
 
 
 def _strangers(name: str, containers: dict[str, dict[str, Any]], connector: str | None) -> list[str]:

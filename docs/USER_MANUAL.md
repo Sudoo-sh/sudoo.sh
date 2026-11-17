@@ -676,6 +676,15 @@ when, the account, what happened, the instance and the address it came from. A c
 or webhook secret) appears as `(set)`, never with its value. Use **Search** to find entries,
 **Refused only** to see only what was not allowed, and **Show older entries** to go further back.
 
+### Alerts (the bell)
+
+The bell at the top right lists the latest alerts: a job that failed, an update that was rolled back, a failed
+backup, an instance that is down, the disk almost full, memory high, a change made outside the panel, a missing
+public link, and a **Resolved** line when such a problem is over. A dot on the bell means there are alerts you have
+not seen yet; opening the list clears it. Click an alert to open the instance or the job it is about. Super admins
+and administrators see the bell (everyone who may read the audit log). Who also gets alerts by e-mail or in Slack,
+Discord or Teams is set by a super admin under **Settings**, **Alerts**.
+
 ---
 
 ## 11. Settings
@@ -691,6 +700,7 @@ the browser, in tabs:
 | **Backups** | Whether daily backups are taken, at what time (`HH:MM`, 24-hour clock) and in which time zone (for example `Africa/Cairo`; UTC by default), and how long a restore can be rolled back. Changes apply at once. |
 | **Sign-in and security** | Who must use a second factor (none, administrators, everyone), which second factors are offered, the authenticator, how long a session lasts, and requests per minute with the rate limiter. |
 | **E-mail** | The mailer and the mailbox that sends sign-in codes, with **Send a test**. |
+| **Alerts** | Who is told when something needs attention (super admins, more addresses, up to three webhooks for Slack, Discord, Teams or your own system), which alerts are sent, their thresholds, how often the same alert may repeat, and a daily summary, with **Send a test alert** ([Administrator guide: Alerts](ADMIN_GUIDE.md#16-alerts)). |
 | **GitHub and updates** | How often GitHub is checked, the update triggers, and the webhook secret. |
 | **Marketplace** | The connection to the Sudoo.sh marketplace, and linking this panel to an account ([Marketplace](MARKETPLACE.md)). |
 | **Advanced** | How often figures are measured, the Cloudflare connector image, **Restart the panel**, and **Server**: read only, the folders, ports and how the panel is reached, which stay in the server's `.env`. |
@@ -704,7 +714,7 @@ How changes apply:
 
 * **At once.** Almost every change applies as soon as you save it. It is kept on top of the server's `.env` file.
 * **Use .env** next to a changed setting brings back the value from `.env`.
-* **Passwords** (mail password, Odoo admin password, webhook secret) are write-only: the page shows whether one is
+* **Passwords** (mail password, Odoo admin password, webhook secrets, alert webhook addresses) are write-only: the page shows whether one is
   set, never the value. They are stored encrypted.
 * **Plugins** (settings tagged "plugin, needs a restart": the mailer, second factors, authenticator, rate limiter,
   update triggers and Enterprise source) apply after **Restart the panel**: a notice with the button appears above

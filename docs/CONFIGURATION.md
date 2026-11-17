@@ -26,7 +26,8 @@ reset with **Use .env**.
 * See what the panel actually uses: `docker exec sudoo-panel sudoo.sh config`.
 * The settings are defined in `src/sudoo/config.py` (the lists `EDITABLE`, `RESTART` and `SECRET`); a test fails when
   one of them is missing here.
-* Secret settings (`SMTP_PASSWORD`, `ODOO_ADMIN_PASSWORD`, `GITHUB_WEBHOOK_SECRET`) are write-only on the Settings
+* Secret settings (`SMTP_PASSWORD`, `ODOO_ADMIN_PASSWORD`, `GITHUB_WEBHOOK_SECRET`, the alert webhooks' addresses
+  and secrets) are write-only on the Settings
   page: it only shows whether they are set. Changed there, they are stored encrypted with the vault key
   ([Security](SECURITY.md#4-stored-secrets-the-vault)).
 
@@ -45,8 +46,9 @@ reset with **Use .env**.
 9. [Gateway](#gateway)
 10. [Ports](#ports)
 11. [Behaviour](#behaviour)
-12. [Marketplace](#marketplace)
-13. [Locations](#locations)
+12. [Alerts](#alerts)
+13. [Marketplace](#marketplace)
+14. [Locations](#locations)
 
 ---
 
@@ -289,6 +291,46 @@ limits keep one visitor from tying up the gateway that every instance shares.
 | `TIMEZONE` | text | `UTC` | **live** | Time zone of `DAILY_BACKUP_TIME` and of the times in backup names shown in the panel, for example `Africa/Cairo`. |
 | `ROLLBACK_HOURS` | float | `24` | **live** | After a restore, the state the instance had before it is kept this many hours (up to 720), and the instance page offers **Rollback** meanwhile. Then that backup is removed. |
 | `SAFE_UPDATES` | bool | `true` | **live** | Before an update that changes an instance's code (a push to its branch, **Get latest code**, **Update submodules**), back up its database and files (kind `before-update`); if the update then fails, put the previous code back, restore that backup when the database may have changed, and start Odoo again. `false`: updates run as before, without the backup and the automatic rollback. See [Keeping the code up to date](USER_MANUAL.md#5-keeping-the-code-up-to-date). |
+
+---
+
+## Alerts
+
+Who is told when something needs attention, about what, and how often. How alerts work, their e-mails, webhooks
+and the bell: [Admin guide, Alerts](ADMIN_GUIDE.md#16-alerts). All of them are on the Settings page, **Alerts** tab,
+with **Send a test alert** for the e-mail and each webhook.
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `ALERTS` | bool | `true` | **live** | Send alerts at all. `false`: no alert is sent, listed in the bell or kept. |
+| `ALERT_SUPER_ADMINS` | bool | `true` | **live** | E-mail alerts to every super admin who has an e-mail address. |
+| `ALERT_EMAILS` | text | empty | **live** | More addresses that receive alert e-mails, comma-separated (an on-call mailbox, say); at most 50. |
+| `ALERT_JOB_FAILED` | bool | `true` | **live** | A job failed: its plain hint (the one the panel shows) and a link to its log. |
+| `ALERT_UPDATE_FAILED` | bool | `true` | **live** | An update failed and the instance was put back (`SAFE_UPDATES`), or putting it back failed too. Such a job sends this alert instead of `ALERT_JOB_FAILED`. |
+| `ALERT_BACKUP_FAILED` | bool | `true` | **live** | A backup job (manual or daily) failed. Sent instead of `ALERT_JOB_FAILED`. |
+| `ALERT_INSTANCE_DOWN` | bool | `true` | **live** | An instance that should run (not paused, not switched off, no job on it) is stopped, or runs without Odoo answering, for `ALERT_INSTANCE_DOWN_MINUTES`. |
+| `ALERT_INSTANCE_DOWN_MINUTES` | float | `5` | **live** | Minutes it must stay down before the alert (1 to 1440). |
+| `ALERT_DISK` | bool | `true` | **live** | The disk holding `ODOO_ROOT` has less than `ALERT_DISK_FREE_PERCENT` free. |
+| `ALERT_DISK_FREE_PERCENT` | float | `10` | **live** | Free disk, in %, below which the alert is sent (1 to 90). |
+| `ALERT_MEMORY` | bool | `true` | **live** | Server memory stays at or above `CAPACITY_WARNING_PERCENT` for `ALERT_MEMORY_MINUTES`. |
+| `ALERT_MEMORY_MINUTES` | float | `10` | **live** | Minutes memory must stay high before the alert (1 to 1440). |
+| `ALERT_DRIFT` | bool | `true` | **live** | An instance's containers or files were changed outside the panel (`DRIFT_ACTION`). |
+| `ALERT_PUBLIC_LINK` | bool | `true` | **live** | The panel, or an instance that is online, has had no public link for `ALERT_PUBLIC_LINK_MINUTES` (its connector stopped, say). |
+| `ALERT_PUBLIC_LINK_MINUTES` | float | `10` | **live** | Minutes without a public link before the alert (1 to 1440). |
+| `ALERT_RECOVERY` | bool | `true` | **live** | Send a notice when a problem that was alerted is over: back online, disk freed, memory normal, link back. |
+| `ALERT_QUIET_MINUTES` | float | `60` | **live** | The same alert (same kind, same instance) is sent at most once in this many minutes; a repeat inside it only counts up on the alert in the bell. `0`: every time (0 to 10080). |
+| `ALERT_DIGEST` | bool | `false` | **live** | E-mail one summary a day, at `ALERT_DIGEST_TIME`, instead of each alert as it happens. Webhooks and the bell still get each alert at once. |
+| `ALERT_DIGEST_TIME` | text | `08:00` | **live** | When the daily summary is sent, `HH:MM` on a 24-hour clock, in `TIMEZONE`. |
+| `ALERT_WEBHOOK_TIMEOUT_SECONDS` | float | `10` | **live** | Seconds a webhook may take to answer before the delivery counts as failed (1 to 60). |
+| `ALERT_WEBHOOK_1_URL` | text | empty | **live** | Webhook 1: the address alerts are posted to. `https://` only (`http://` only for `localhost`); no user name or password in it. Secret: write-only on the Settings page. |
+| `ALERT_WEBHOOK_1_SECRET` | text | empty | **live** | Webhook 1: key of the `X-Sudoo-Signature` header (HMAC-SHA256 of the body). Empty: requests are not signed. Secret. |
+| `ALERT_WEBHOOK_1_FORMAT` | text | `json` | **live** | Webhook 1: `json` (the panel's own signed JSON), `slack`, `discord` or `teams` (their incoming webhooks). |
+| `ALERT_WEBHOOK_2_URL` | text | empty | **live** | Webhook 2: as webhook 1. Secret. |
+| `ALERT_WEBHOOK_2_SECRET` | text | empty | **live** | Webhook 2: as webhook 1. Secret. |
+| `ALERT_WEBHOOK_2_FORMAT` | text | `json` | **live** | Webhook 2: as webhook 1. |
+| `ALERT_WEBHOOK_3_URL` | text | empty | **live** | Webhook 3: as webhook 1. Secret. |
+| `ALERT_WEBHOOK_3_SECRET` | text | empty | **live** | Webhook 3: as webhook 1. Secret. |
+| `ALERT_WEBHOOK_3_FORMAT` | text | `json` | **live** | Webhook 3: as webhook 1. |
 
 ---
 

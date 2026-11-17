@@ -207,7 +207,23 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `PATCH /settings` | `settings.manage` | `{"idle_hours": 4}` | 200, the settings |
 | `DELETE /settings/<key>` | `settings.manage` | | **204**, back to the `.env` value |
 | `POST /settings/test-email` | `settings.manage` | `{"to": "you@example.com"}` | 200 `{"sent_to"}`; 400 when e-mail is not set up, 502 with the mail server's answer when sending fails |
+| `GET /alerts?limit=50` | `audit.view` | | 200, the newest alerts first (1 to 200; the bell of the web app), see below |
+| `POST /alerts/test` | `settings.manage` | `{"channel": "email"}` or `{"channel": "webhook", "webhook": 1}` | 200 `{"alert", "sent_to"}` or `{"alert", "webhook", "status"}`, sent with the saved settings; **400** when there is nothing to send to (e-mail not set up, no recipient, the webhook has no address), **502** when the delivery failed, with the reason |
 | `GET /events` | signed in | | the live event stream ([Live events](#8-live-events)) |
+
+An alert, as `GET /alerts` lists it and the `alert` live event carries it ([Admin guide, Alerts](ADMIN_GUIDE.md#16-alerts)):
+
+```json
+{"id": "3f9c2a1b7d4e", "key": "instance_down:shop-main", "type": "instance_down", "severity": "problem",
+ "title": "shop-main is down", "text": "Instance shop-main is stopped, for 5 minutes now. ...", "hint": null,
+ "details": [], "instance": "shop-main", "link": "/i/shop-main", "at": 1763366400.0, "last_at": 1763366400.0,
+ "count": 1, "resolved_at": null, "delivery": ["e-mailed to 2 of 2 addresses", "webhook 1: delivered (HTTP 200)"]}
+```
+
+`type`: `job_failed`, `update_failed`, `backup_failed`, `instance_down`, `disk`, `memory`, `drift`, `public_link`,
+`test`. `severity`: `problem`, `recovered` or `info`. `count` grows when the same alert repeats inside
+`ALERT_QUIET_MINUTES` (it is not sent again); `last_at` is its latest time and the list's order. `link` is a path of
+the web app. `resolved_at` is set when the problem is over. Webhooks are named by number, never by address.
 
 ### Accounts, roles and the audit log
 
@@ -792,11 +808,12 @@ GET /api/v1/settings
 | `PATCH /api/v1/settings` `{"idle_hours": null}` | Back to the `.env` value |
 | `DELETE /api/v1/settings/idle_hours` | The same |
 | `POST /api/v1/settings/test-email` `{"to": "you@example.com"}` | Send a test e-mail with the current mail settings |
+| `POST /api/v1/alerts/test` `{"channel": "webhook", "webhook": 2}` | Send a test alert to webhook 2 (or `{"channel": "email"}`: to every alert recipient) |
 | `POST /api/v1/server/restart` | Apply the `restart` settings; refused with 409 while jobs run |
 
 A wrong value is refused with 400 and the setting's name (`IDLE_HOURS: Input should be greater than or equal to
 0.`); a setting that can only be set in `.env` is refused with 400. Secrets (`smtp_password`,
-`odoo_admin_password`, `github_webhook_secret`) are write-only: `value` and `env_value` only say whether they are
+`odoo_admin_password`, `github_webhook_secret`, `alert_webhook_<n>_url`, `alert_webhook_<n>_secret`) are write-only: `value` and `env_value` only say whether they are
 set, and they are stored encrypted with the vault key. The audit log records their change as `SMTP_PASSWORD=(set)`,
 never the value. Every change sends the `settings` [live event](#8-live-events).
 
@@ -827,6 +844,7 @@ data: {"key": "", "data": {"server": {"cpu": 12.5, ...}, "instances": {"sales-ma
 | `job.output` | New log text of a running job (at most twice a second) | `{"job", "offset", "text"}` |
 | `metrics` | Every `METRICS_INTERVAL_SECONDS` (5 by default) | The new figures, as `GET /metrics` ([Metrics](#9-metrics)) |
 | `settings` | A setting was changed | `{"changed": ["idle_hours", ...]}` |
+| `alert` | An alert was raised, repeated, resolved or delivered; only for callers with `audit.view` | The alert, as `GET /alerts` |
 | `reset` | After a reconnection, when more was missed than the panel keeps | `{}`: reload everything |
 
 * `?topics=job,instance` sends only those events.

@@ -32,7 +32,7 @@ add-ons, backups, daily backups and restores, the command line, checks and troub
 | Need | Why |
 | :--- | :--- |
 | Ubuntu 22.04+ or Debian 12+ (others may work, with a warning), amd64 or arm64, booted with systemd | Every part runs in Docker containers ([Docker](concepts/DOCKER.md)); the images exist for both architectures. |
-| 2 CPU cores, 2 GB of memory or more (4 GB recommended); about 1 to 1.5 GB per running instance | Odoo and PostgreSQL. Paused instances use none. |
+| 2 CPU cores, 2 GB of memory or more (4 GB recommended); about 0.7 to 1.5 GB per running instance | Odoo and PostgreSQL. Paused instances use none; [how many instances a server runs](#how-many-instances-can-my-server-run). |
 | 20 GB of free disk on `/opt` and on Docker's folder (`/var/lib/docker`) | Odoo images (about 1.5 GB per version), databases, attachments, backups. |
 | Docker Engine 24+ with the Compose v2 plugin (the installer installs them after asking) | The panel and every instance are Compose projects. |
 | Outgoing HTTPS to github.com, ghcr.io, registry-1.docker.io and Cloudflare (443, 7844); GitHub SSH (22) for private repositories | Releases and code, the Sudoo.sh images, the Odoo images, public links. |
@@ -46,6 +46,51 @@ curl -fsSL https://github.com/Sudoo-sh/sudoo.sh/releases/latest/download/sudoo-i
 
 Each line is marked ✓ (fine), ! (a warning) or ✗ (must be fixed), and every problem has a `Fix:` line;
 [section 13](#installer-checks) lists them all.
+
+### How many instances can my server run?
+
+Memory decides. A running instance (Odoo and its database) keeps its memory while it runs; when the server runs
+short, it starts swapping or stops processes, and every instance on it slows down at once. A busy processor only
+makes instances take turns. Paused and switched-off instances use no memory and no processor, only disk.
+
+The panel works the number out from what it measures (the dashboard shows it on the **Running** card, and
+`GET /api/v1/server/capacity` returns it, see the [Panel API](PANEL_API.md#9-metrics)):
+
+1. **The server's memory**, minus a **reserve** for the operating system, Docker and the file cache: 1 GB or 10 %
+   of the memory, whichever is larger (`CAPACITY_RESERVE_MB`, `CAPACITY_RESERVE_PERCENT`).
+2. Minus **the panel itself**: its backend, its web service and the Cloudflare connectors, at the most they used
+   in the last hour. The dashboard shows it on the **Panel** card, now and at its highest; usually 150 to 400 MB.
+3. Divided by **the memory of one running instance**: the most each running instance used in the last hour,
+   averaged over the instances. Until one has run for a few measurements, the panel counts 700 MB
+   (`CAPACITY_INSTANCE_MEMORY_MB`), what a lightly used Odoo with its database takes. The API also gives the figure
+   per Odoo version.
+4. Rounded down. If the processor is the tighter limit (instances that keep it busy all the time), the lower
+   number is used: instances may use together up to `CAPACITY_WARNING_PERCENT` (85 %) of it.
+
+The result is how many instances can run **at the same time, comfortably**. You can have many more instances: the
+ones nobody uses pause (Settings, **Pause after, hours without visits**) and start again when someone opens them.
+
+| | 8 GB server | 16 GB server |
+| :--- | ---: | ---: |
+| Memory | 8,192 MB | 16,384 MB |
+| Reserve (1 GB or 10 %, the larger) | 1,024 MB | 1,638 MB |
+| The panel (an example) | 300 MB | 300 MB |
+| Left for instances | 6,868 MB | 14,446 MB |
+| Instances at once, nothing measured yet (700 MB each) | **9** | **20** |
+| Instances at once, measured 1.1 GB each (busier instances) | **6** | **12** |
+
+**Disk.** Paused instances keep their database and files. The **Disk** card says how many more instances of the
+average size fit on the free disk (for example 120 GB free and 1.5 GB per instance: about 80 more). Backups and the
+Odoo images (about 1.5 GB per version) take disk too.
+
+**Warnings.** When as many instances run as the server takes comfortably, **New instance** and **Start** say so:
+"This server can run about 9 instances at once; 9 are running. Starting another may slow every instance." They do
+not stop you. The dashboard warns when the server's memory use reaches `CAPACITY_WARNING_PERCENT` (85 %), or when
+more instances run than the estimate. To refuse creating and starting instances beyond a number, set
+`MAX_RUNNING_INSTANCES` (Settings, **Capacity**); a visitor opening a paused instance still starts it.
+
+The figures cover the last hour and start again when the panel restarts, so right after a restart the panel counts
+the default until it has measured again.
 
 ---
 

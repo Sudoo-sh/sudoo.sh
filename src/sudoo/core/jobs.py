@@ -358,6 +358,16 @@ def pending_creations() -> list[tuple[str, str]]:
         ]
 
 
+def starting() -> set[str]:
+    """Instances a queued or running job is creating or starting (they will run once it ends)."""
+    with _JOBS_LOCK:
+        return {
+            j.instance
+            for j in JOBS.values()
+            if j.kind in ("create", "wake") and j.status in ("queued", "running") and not is_panel_job(j.instance)
+        }
+
+
 def busy(instance: str) -> bool:
     return INSTANCE_LOCKS[instance].locked()
 

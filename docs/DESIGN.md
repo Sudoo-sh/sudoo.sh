@@ -154,7 +154,7 @@ Implementation rules:
 `Sparkline` (the line inside a figure card), `Bars` (one bar per instance) and `Ring` (parts of a whole).
 
 - **Each chart answers its own question;** no figure is drawn twice on a page. On the Instances page: the figure
-  cards (processor, memory, disk, instances running), then requests and errors of all instances, instances by state,
+  cards (processor, memory, disk, the panel's own memory, instances running of the capacity), then requests and errors of all instances, instances by state,
   response time, and which instances use the most (processor, memory or disk, with a switch).
 - **Figure cards carry a line** of the last hour under the figure: no axes, no labels, no tooltip. The figure says
   the value; the line says the direction.

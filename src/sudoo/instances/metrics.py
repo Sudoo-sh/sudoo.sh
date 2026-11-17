@@ -9,6 +9,9 @@ every request it forwards to Odoo. From both, each interval gets one sample per 
     error_rate_percent   share of those answered with a 5xx error
     response_ms_avg/p95  time until Odoo started answering: average, and the time 95 % of requests stayed under
 
+The server's figures include the panel's own footprint (`panel_*`: its backend, its web service and the Cloudflare
+connectors), now and at most over the history, which capacity.py turns into how many instances the server can run.
+
 History is kept in memory as fixed-size rings (240 samples: one hour), so it costs a few hundred kilobytes and no
 database; it starts empty when the panel restarts. The API returns it in columns ({"t": [...], "cpu_percent":
 [...]}), the shape charts draw from directly, and the live "metrics" event carries each new sample.
@@ -34,7 +37,15 @@ INSTANCE_SERIES = (
     "response_ms_avg",
     "response_ms_p95",
 )
-SERVER_SERIES = ("cpu_percent", "memory_percent", "disk_percent", "load_1m", "instances_running")
+SERVER_SERIES = (
+    "cpu_percent",
+    "memory_percent",
+    "disk_percent",
+    "load_1m",
+    "instances_running",
+    "panel_cpu_percent",
+    "panel_memory_bytes",
+)
 
 
 # ---------------------------------------------------------------- requests (from the gateway's thread)
@@ -82,6 +93,7 @@ def percentile(values: list[float], share: float) -> float | None:
 
 _HISTORY_SAMPLES = 1800  # one hour at the shortest interval (2 seconds); older samples are left out by time
 SERVER: dict[str, Any] = {}
+PANEL: dict[str, Any] = {}  # the panel's footprint by part (monitor.py): {"backend": {...}, "web": {...}, ...}
 INSTANCES: dict[str, dict[str, Any]] = {}
 _SERVER_HISTORY: deque[dict[str, Any]] = deque(maxlen=_HISTORY_SAMPLES)
 _INSTANCE_HISTORY: defaultdict[str, deque[dict[str, Any]]] = defaultdict(lambda: deque(maxlen=_HISTORY_SAMPLES))
@@ -101,8 +113,12 @@ class Usage:
     disk_bytes: int | None  # database and files, when known
 
 
-def sample(server: dict[str, Any], usage: dict[str, Usage]) -> dict[str, Any]:
-    """Record one sample of the server and every instance; return the snapshot (the "metrics" event)."""
+def sample(server: dict[str, Any], usage: dict[str, Usage], panel: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Record one sample of the server and every instance; return the snapshot (the "metrics" event).
+
+    `panel` is the panel's footprint by part; the server's `panel_cpu_percent` and `panel_memory_bytes` are its
+    totals, and their highest values over the history are added as `panel_cpu_peak_percent` and
+    `panel_memory_peak_bytes`."""
     global _LAST_SAMPLE, _SAMPLES
     now = time.time()
     seconds = max(1.0, now - _LAST_SAMPLE) if _LAST_SAMPLE else float(settings.metrics_interval_seconds)
@@ -113,6 +129,11 @@ def sample(server: dict[str, Any], usage: dict[str, Usage]) -> dict[str, Any]:
     SERVER.clear()
     SERVER.update(server)
     _SERVER_HISTORY.append({"t": int(now), **{key: server.get(key) for key in SERVER_SERIES}})
+    PANEL.clear()
+    PANEL.update(panel or {})
+    if server.get("panel_memory_bytes") is not None:
+        SERVER["panel_memory_peak_bytes"] = _peak("panel_memory_bytes")
+        SERVER["panel_cpu_peak_percent"] = _peak("panel_cpu_percent")
 
     for name in set(INSTANCES) - set(usage):  # deleted
         INSTANCES.pop(name, None)
@@ -137,6 +158,11 @@ def sample(server: dict[str, Any], usage: dict[str, Usage]) -> dict[str, Any]:
         INSTANCES[name] = figures
         _INSTANCE_HISTORY[name].append({"t": int(now), **{key: figures[key] for key in INSTANCE_SERIES}})
     return snapshot()
+
+
+def _peak(key: str) -> Any:
+    """The highest value of a server figure over the history kept."""
+    return max((s[key] for s in _SERVER_HISTORY if s.get(key) is not None), default=None)
 
 
 def _percent(part: float, whole: float) -> float | None:
@@ -180,6 +206,29 @@ def server_history(minutes: int = 60) -> dict[str, list[Any]]:
 
 def instance_history(name: str, minutes: int = 60) -> dict[str, list[Any]]:
     return _columns(_since(_INSTANCE_HISTORY.get(name, deque()), minutes), INSTANCE_SERIES)
+
+
+def running_profiles(minutes: int = 60) -> dict[str, dict[str, float | int]]:
+    """How much each instance used while it ran (samples with memory in use), over the last `minutes`:
+    {name: {"samples", "average_bytes", "peak_bytes", "cpu_percent"}} (cpu_percent: the average)."""
+    profiles: dict[str, dict[str, float | int]] = {}
+    for name in list(_INSTANCE_HISTORY):
+        ran = [s for s in _since(_INSTANCE_HISTORY.get(name, deque()), minutes) if s.get("memory_bytes")]
+        if ran:
+            memory = [s["memory_bytes"] for s in ran]
+            profiles[name] = {
+                "samples": len(ran),
+                "average_bytes": sum(memory) / len(memory),
+                "peak_bytes": max(memory),
+                "cpu_percent": sum(s.get("cpu_percent") or 0 for s in ran) / len(ran),
+            }
+    return profiles
+
+
+def server_average(key: str, minutes: int = 60) -> float | None:
+    """The average of a server figure over the last `minutes`."""
+    values = [s[key] for s in _since(_SERVER_HISTORY, minutes) if s.get(key) is not None]
+    return sum(values) / len(values) if values else None
 
 
 def history(minutes: int = 60) -> dict[str, Any]:

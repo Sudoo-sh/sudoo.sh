@@ -1,6 +1,7 @@
 """The server and the panel itself.
 
-GET /api/v1/server   resource use of the server, the panel's address, version and plugins in use
+GET /api/v1/server            resource use of the server, the panel's address, version and plugins in use
+GET /api/v1/server/capacity   how many instances the server can run at once, the panel's own use, disk headroom
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from flask import Blueprint, Response, abort, request
 from sudoo import exposure
 from sudoo.config import settings
 from sudoo.core import events, jobs
-from sudoo.instances import metrics
+from sudoo.instances import capacity, metrics
 
 from .. import validation as check
 from ..security import log, require
@@ -57,7 +58,17 @@ def _minutes() -> int:
 @blueprint.get("/metrics")
 @require("instances.view")
 def current() -> Response:
-    return ok(metrics.snapshot())
+    return ok(capacity.snapshot())
+
+
+@blueprint.get("/server/capacity")
+@require("instances.view")
+def server_capacity() -> Response:
+    """The capacity estimate (instances/capacity.py), for the web app's warnings and for other tools."""
+    estimate = capacity.current()
+    if estimate is None:
+        abort(503, "The server has not been measured yet. Try again in a few seconds.")
+    return ok(estimate)
 
 
 @blueprint.get("/metrics/history")

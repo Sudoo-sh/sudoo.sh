@@ -123,15 +123,20 @@ This is the first page after signing in. The sidebar on the left leads to the ot
 
 On a small screen the sidebar opens with the menu button at the top left.
 
-**Server figures** (the four cards at the top). Each card shows the figure now and, inside it, a small line of the
+**Server figures** (the five cards at the top). Each card shows the figure now and, inside it, a small line of the
 last hour:
 
 | Card | What it shows |
 | :--- | :--- |
 | Processor | How busy the server's processor is. |
 | Memory | Memory in use on the server. |
-| Disk | Disk space in use on the server. |
-| Running | How many instances are running now. |
+| Disk | Disk space in use on the server, and about how many more instances fit on the free disk. |
+| Panel | Memory the panel itself uses (its backend, its web service and the public-link connectors), the most it used in the last hour, and its share of the processor. |
+| Running | How many instances are running now, of about how many the server runs comfortably at once ([How many instances can my server run?](ADMIN_GUIDE.md#how-many-instances-can-my-server-run)). |
+
+When the server's memory is nearly full, or more instances run than it takes comfortably, a warning above the
+cards says so. **New instance** and **Start** show the same kind of warning before one more instance starts; they
+still let you go ahead.
 
 **Charts.** Below the cards, four charts show what the cards do not:
 

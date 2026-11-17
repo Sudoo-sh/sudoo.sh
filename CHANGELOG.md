@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Instance stages:** every instance is Production, Staging or Development (existing ones are Development and
+  behave as before). Production never pauses or expires, is backed up every day and always updated safely, and
+  pausing, switching off, restoring or deleting it asks for an extra confirmation; `MAX_PRODUCTION_INSTANCES`
+  (default 1) limits how many there are. Staging keeps a longer lifetime (`STAGING_DELETE_AFTER_DAYS`).
+- **Alerts:** e-mail and webhooks (signed JSON, Slack, Discord, Teams) when a job, an update or a backup fails, an
+  instance is down, the disk is nearly full, memory stays high, a public link is missing or an instance was changed
+  outside the panel, with recovery notices, a quiet period and an optional daily digest; a bell lists recent alerts.
+  Every alert and threshold is a setting (Settings, Alerts), with a "Send a test alert" button.
 - **Safe updates:** before an update changes an instance's code (a push, Get latest code, Update submodules), the
   panel takes a `before-update` backup and records the commits; if the pull, the submodules, the module upgrade or
   the restart fails, it puts the code back, restores the backup when an upgrade ran, restarts Odoo and says "The

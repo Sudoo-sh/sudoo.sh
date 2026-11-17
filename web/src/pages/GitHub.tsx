@@ -181,7 +181,7 @@ function AppCard() {
             <Installations app={app} canManage={state.can_manage} />
             {!state.trigger_running && (
               <Callout>
-                New code arrives through polling. For updates seconds after a push, add <code>github-app</code> to the update triggers (<Link to="/settings" viewTransition>Settings</Link>, Plugins) and restart the panel.
+                New code arrives through polling. For updates seconds after a push, add <code>github-app</code> to the update triggers (<Link to="/settings?tab=github" viewTransition>Settings</Link>, GitHub and updates) and restart the panel.
               </Callout>
             )}
           </>

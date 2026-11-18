@@ -1,11 +1,17 @@
 """The signed-in person's own account and second factors.
 
-GET    /api/v1/account                          the account, its e-mail and second factors
-PATCH  /api/v1/account                          change the profile (names, e-mail, phone)
+GET    /api/v1/account                          the account, its e-mail, second factors, recovery codes left and
+                                                whether it gets the sign-in e-mail
+PATCH  /api/v1/account                          change the profile (names, e-mail, phone) and {"sign_in_email":
+                                                true|false|null} (null: the server's default)
 POST   /api/v1/account/second-factors/<name>    start setting one up: e-mail {"email"}; app {} -> the secret;
                                                 replacing one already set up also takes {"password"}
-PUT    /api/v1/account/second-factors/<name>    confirm with {"code"}
+PUT    /api/v1/account/second-factors/<name>    confirm with {"code"}; setting up the app also makes recovery
+                                                codes, returned once in meta.recovery_codes
 DELETE /api/v1/account/second-factors/<name>    remove it; {"password"} confirms -> 204
+POST   /api/v1/account/recovery-codes           new recovery codes, replacing the old ones; {"password"} confirms
+                                                -> 201 {"codes", ...}, shown this once
+DELETE /api/v1/account/sessions                 sign out every other session of the account -> 204
 
 An e-mail address another account uses is refused. Replacing a second factor, or changing the sign-in e-mail
 address, ends the account's other sessions; the one making the change continues.
@@ -18,6 +24,7 @@ from typing import Any
 from flask import Blueprint, Response, abort, g, session
 
 from sudoo import accounts, auth, roles
+from sudoo.auth import recovery, sign_in_notice
 from sudoo.config import settings
 from sudoo.mail import MailError
 
@@ -69,14 +76,26 @@ def read() -> Response:
             "second_factors": factors_of(account),
             "second_factor_required": auth.must_use_second_factor(account),
             "require_second_factor": settings.require_second_factor,
+            "recovery_codes": recovery_resource(account),
+            "recovery_codes_needed": recovery.needed(account),
+            "sign_in_email": sign_in_notice.preference(account),
         }
     )
+
+
+def recovery_resource(account: dict[str, Any]) -> dict[str, Any] | None:
+    found = recovery.state(account)
+    return found and {**found, "created_at": iso(found.pop("created"))}
 
 
 @blueprint.patch("/account")
 def change_profile() -> Response:
     data = check.body()
+    if "sign_in_email" in data:
+        _sign_in_email(data["sign_in_email"])
     values = {key: check.text(data, key, max_length=120) for key in accounts.PROFILE_FIELDS if key in data}
+    if not values:
+        return read()
     if "email" in values and "email" in account_factor_names():
         abort(400, "Your e-mail address receives sign-in codes: change it by setting up the e-mail code again.")
     problem = accounts.profile_problem(values)
@@ -90,6 +109,16 @@ def change_profile() -> Response:
         _end_other_sessions()  # people sign in with this address
     log("own profile changed", detail=", ".join(sorted(values)))
     return read()
+
+
+def _sign_in_email(choice: Any) -> None:
+    """The person's own choice for the sign-in e-mail; turning it off only where the server allows it."""
+    if choice is not None and not isinstance(choice, bool):
+        abort(400, "sign_in_email must be true, false or null.")
+    if choice is False and not settings.sign_in_email_opt_out:
+        abort(403, "The sign-in e-mail cannot be turned off on this panel. " + settings.contact_sentence())
+    accounts.update(g.user["name"], **{sign_in_notice.FIELD: choice})
+    log("sign-in e-mail " + ("turned on" if choice else "turned off" if choice is False else "back to the default"))
 
 
 def account_factor_names() -> list[str]:
@@ -152,7 +181,11 @@ def finish(name: str) -> Response:
     if session.get("restricted") == "second_factor":
         session["restricted"] = signin.restriction(accounts.get(g.user["name"]) or {})
     log(f"second factor {'replaced' if replacing else 'set up'} ({name})")
-    return ok(factors_of(_account()))
+    meta = None
+    if name == "totp" and recovery.needed(_account()):  # new to the app: codes for the day the phone is lost
+        meta = {"recovery_codes": recovery.create(g.user["name"])}
+        log("recovery codes made", detail=f"{len(meta['recovery_codes'])} codes")
+    return ok(factors_of(_account()), meta=meta)
 
 
 @blueprint.delete("/account/second-factors/<name>")
@@ -166,4 +199,24 @@ def remove(name: str) -> Response:
     accounts.update(g.user["name"], **plugin.remove(account))
     _end_other_sessions()
     log(f"second factor removed ({name})")
+    return no_content()
+
+
+@blueprint.post("/account/recovery-codes")
+def new_recovery_codes() -> Response:
+    """New recovery codes; every earlier one stops working. The password confirms, as for a second factor."""
+    account = _account()
+    if not auth.factor("totp") or "totp" not in auth.enrolled(account):
+        abort(400, "Recovery codes are for the authenticator app: set it up first.")
+    _confirm_password("new recovery codes")
+    codes = recovery.create(g.user["name"])
+    log("recovery codes made", detail=f"{len(codes)} codes, the earlier ones no longer work")
+    return ok({"codes": codes, **(recovery_resource(_account()) or {})}, status=201)
+
+
+@blueprint.delete("/account/sessions")
+def sign_out_elsewhere() -> Response:
+    """Sign out every other session of the account (a browser left signed in, a sign-in that was not yours)."""
+    _end_other_sessions()
+    log("signed out every other session")
     return no_content()

@@ -1,4 +1,9 @@
-"""Sending e-mail, through the mailer plugin named by the MAILER setting (base.py), from templates (render.py)."""
+"""Sending e-mail, through the mailer plugin named by the MAILER setting (base.py).
+
+Every e-mail the panel sends is listed in catalog.py; its text is the built-in one or the one changed on the
+E-mail templates page, and render.py turns it into a message. Call send(to, key, **values) with the values of its
+placeholders.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +15,7 @@ from sudoo.config import settings
 
 from .base import Mailer, MailError
 
-__all__ = ["MailError", "Mailer", "mailer", "send_template"]
+__all__ = ["MailError", "Mailer", "mailer", "send"]
 
 
 @cache
@@ -19,9 +24,9 @@ def mailer() -> Mailer:
     return plugin
 
 
-def send_template(to: str, template: str, subject: str, **context: Any) -> None:
-    """Render `template` (HTML and text, see render.py) and send it; raises MailError."""
-    from .render import render
+def send(to: str, key: str, **values: Any) -> None:
+    """Compose the e-mail `key` (catalog.MESSAGES) with these placeholder values and send it; raises MailError."""
+    from .render import compose
 
-    text, html = render(template, subject, **context)
-    mailer().send(to, subject, text, html)
+    message = compose(key, values)
+    mailer().send(to, message.subject, message.text, message.html)

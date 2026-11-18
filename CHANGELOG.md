@@ -8,6 +8,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Recovery codes for the authenticator app:** setting up the app now shows 10 single-use recovery codes
+  (`RECOVERY_CODES_COUNT`) to copy or download; each signs in once in place of the app's code ("Lost your phone?"
+  on the sign-in page). They are stored only as keyed hashes, count like wrong passwords when wrong, are audited,
+  and can be made again with the password (the old ones stop working). My account shows how many are left; accounts
+  that used the app before are asked to make them. Removing the app, or an administrator removing an account's
+  second factors, removes them.
+- **Sign-in e-mail:** every successful sign-in e-mails the account when, from which address, browser and system,
+  and how it signed in, with a link to change the password or sign out everywhere. Sent in the background, only when
+  e-mail is set up. `SIGN_IN_EMAIL` (on) and `SIGN_IN_EMAIL_OPT_OUT` (on) decide who gets it and whether people may
+  turn it off on My account, which also has **Sign out others** (`DELETE /api/v1/account/sessions`).
+- **E-mail templates page:** super admins (new permission `mail.manage`) change the subject, title and text of every
+  e-mail the panel sends (sign-in code, address confirmation, new sign-in, alert, daily summary, plugin notice, test
+  e-mail) in a plain format with placeholders, bold, lists, notes and buttons, with a live preview, **Send me a
+  test** and **Reset to default**. Unknown placeholders and unsafe links are refused, values are always escaped, and
+  no template code is run; changes are audited. API: `/api/v1/mail-templates`.
+
 - **Demo build:** `npm run build:demo` builds the web app as a static, fully client-side demo with sample data (an
   integrator's client projects, live metrics, simulated jobs, backups, accounts, audit log and alerts) and a banner
   to view it as a super admin, admin, developer or viewer; ready for Cloudflare Pages (README, Demo build). The
@@ -94,6 +110,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- `MAIL_TEMPLATES_DIR` now replaces only the frame of the e-mails (`layout.html`); the per-e-mail template files
+  (`code.html`, `alert.html`, ...) are gone, and their texts are changed on the E-mail templates page instead.
 - **Settings page in tabs:** General, Instances, Odoo, Backups, Sign-in and security, E-mail, GitHub and updates,
   Marketplace and Advanced; the tab is kept in the address (`?tab=`), and tabs with unsaved or restart-pending
   changes are marked.

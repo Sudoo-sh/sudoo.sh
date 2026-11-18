@@ -133,7 +133,18 @@ class Settings(BaseSettings):
     smtp_security: Literal["starttls", "ssl", "none"] = Field("starttls", description="smtp: encryption.")
     smtp_username: str = Field("", description="smtp: user name, usually the full e-mail address.")
     smtp_password: str = Field("", description="smtp: password or app password.")
-    mail_templates_dir: str = Field("", description="Folder with e-mail templates that replace the built-in ones.")
+    mail_templates_dir: str = Field(
+        "", description="Folder with a layout.html that replaces the built-in frame of every e-mail."
+    )
+    recovery_codes_count: int = Field(
+        10, ge=4, le=20, description="Recovery codes made for an account that uses an authenticator app."
+    )
+    sign_in_email: bool = Field(
+        True, description="E-mail people each time their account signs in (when e-mail is set up)."
+    )
+    sign_in_email_opt_out: bool = Field(
+        True, description="People may turn the sign-in e-mail off for their own account."
+    )
     brand_color: str = Field(
         "#714B67", pattern=r"^#[0-9A-Fa-f]{6}$", description="Accent colour of e-mails, as #RRGGBB."
     )
@@ -581,6 +592,9 @@ EDITABLE = (
     "smtp_username",
     "smtp_password",
     "mail_templates_dir",
+    "recovery_codes_count",
+    "sign_in_email",
+    "sign_in_email_opt_out",
     "cloudflared_image",
     "admin_contact_name",
     "admin_contact_phone",

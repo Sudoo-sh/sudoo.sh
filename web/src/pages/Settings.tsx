@@ -65,6 +65,7 @@ const TABS: { id: TabId; label: string; groups: Group[] }[] = [
     label: "Sign-in and security",
     groups: [
       { title: "Sign-in", text: "Second factors, how people sign in, and how long a session lasts before signing in again", keys: ["require_second_factor", "second_factors", "session_idle_minutes", "session_max_hours", "auth"] },
+      { title: "Sign-in e-mail and recovery codes", text: "Tell people about every sign-in to their account, and how many recovery codes an authenticator app comes with", keys: ["sign_in_email", "sign_in_email_opt_out", "recovery_codes_count"] },
       { title: "Requests per minute", text: "How many requests one person may send. 0 turns a limit off", keys: ["rate_limit_reads_per_minute", "rate_limit_changes_per_minute", "rate_limiter"] },
     ],
   },
@@ -119,7 +120,10 @@ const TITLES: Record<string, string> = {
   smtp_security: "Encryption",
   smtp_username: "User name",
   smtp_password: "Password",
-  mail_templates_dir: "Own e-mail templates folder",
+  mail_templates_dir: "Own e-mail frame (layout.html) folder",
+  sign_in_email: "E-mail people at each sign-in",
+  sign_in_email_opt_out: "People may turn it off for themselves",
+  recovery_codes_count: "Recovery codes per account",
   rate_limit_reads_per_minute: "Reading requests per minute",
   rate_limit_changes_per_minute: "Changing requests per minute",
   max_instances: "Instances on this server",
@@ -374,6 +378,7 @@ function TabList({ tab, onSelect, marks }: { tab: TabId; onSelect: (id: TabId) =
 }
 
 export function SettingsPage() {
+  const me = useMe();
   const { data: settings, isPending } = useSettings();
   const toast = useToast();
   const client = useQueryClient();
@@ -494,7 +499,10 @@ export function SettingsPage() {
                 icon={group.title === "E-mail" ? <Mail /> : group.test === "email" ? <Bell /> : group.test ? <Webhook /> : undefined}
                 actions={
                   group.title === "E-mail" ? (
-                    <Button size="sm" icon={<Send />} onClick={() => setTesting(true)}>Send a test</Button>
+                    <div className="row">
+                      {me.permissions.includes("mail.manage") && <Link className="btn sm ghost" to="/email-templates" viewTransition>E-mail texts</Link>}
+                      <Button size="sm" icon={<Send />} onClick={() => setTesting(true)}>Send a test</Button>
+                    </div>
                   ) : group.test ? (
                     <Button size="sm" icon={<Send />} loading={testAlert.busy === String(group.test)}
                       onClick={() => testAlert.send(group.test!, group.keys.some((k) => dirty.includes(k)))}>

@@ -9,6 +9,7 @@ import type {
   Receipt,
   Account,
   CatalogPlugin,
+  MailTemplate,
   CatalogPluginDetail,
   InstalledPlugin,
   MarketplaceStatus,
@@ -48,6 +49,8 @@ export const keys = {
   metrics: ["metrics"] as const,
   history: ["metrics-history"] as const,
   settings: ["settings"] as const,
+  account: ["account"] as const,
+  mailTemplates: ["mail-templates"] as const,
   plugins: ["plugins"] as const,
   pluginNotices: ["plugins", "notices"] as const,
   marketplace: ["marketplace"] as const,
@@ -116,7 +119,7 @@ export const useSettings = () => useQuery({ queryKey: keys.settings, queryFn: ()
 export const useVersions = () =>
   useQuery({ queryKey: ["versions"], queryFn: () => api.get<Version[]>("/versions"), staleTime: 600_000 });
 export const useQuota = () => useQuery({ queryKey: ["quota"], queryFn: () => api.get<Quota>("/instance-quota") });
-export const useAccount = () => useQuery({ queryKey: ["account"], queryFn: () => api.get<Account>("/account") });
+export const useAccount = () => useQuery({ queryKey: keys.account, queryFn: () => api.get<Account>("/account") });
 export const useRoles = () =>
   useQuery({ queryKey: ["roles"], queryFn: () => api.get<{ roles: RoleInfo[] }>("/roles"), staleTime: Infinity });
 export const useSetup = () =>
@@ -125,6 +128,14 @@ export const useDocs = () =>
   useQuery({ queryKey: ["docs"], queryFn: () => api.get<DocsContents>("/docs"), staleTime: Infinity });
 export const useDocPage = (path: string) =>
   useQuery({ queryKey: ["docs", path], queryFn: () => api.get<DocPage>(`/docs/${path}`), staleTime: Infinity, enabled: !!path });
+export const useMailTemplates = () =>
+  useQuery({
+    queryKey: keys.mailTemplates,
+    queryFn: async () => {
+      const answer = await api.page<MailTemplate[]>("/mail-templates");
+      return { templates: answer.data, mailReady: Boolean(answer.meta?.mail_ready) };
+    },
+  });
 export const useUsers = () => useQuery({ queryKey: ["users"], queryFn: () => api.get<User[]>("/users") });
 export const useTokens = () => useQuery({ queryKey: ["tokens"], queryFn: () => api.get<Token[]>("/tokens") });
 export const useBackups = () => useQuery({ queryKey: ["backups"], queryFn: () => api.get<Backup[]>("/backups") });

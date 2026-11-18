@@ -199,8 +199,17 @@ A password can leak; a second factor means a leaked password alone does not open
 * `REQUIRE_SECOND_FACTOR` (`admins` by default) makes it compulsory: such an account without a factor can only set
   one up after signing in. Removing a factor, or replacing one that is set up, needs the password and ends the
   account's other sessions. A new sign-in e-mail address (in the profile or through the e-mail code) ends them too.
-* A lost phone: an administrator removes the account's factors (**Accounts**, or
-  `DELETE /api/v1/users/<name>/second-factors`), which signs it out everywhere.
+* **Recovery codes** (`RECOVERY_CODES_COUNT`, 10 by default) come with the authenticator app and are shown once.
+  Each is 10 characters from an alphabet of 31 (about 49 bits), works once in place of the app's code, and is
+  stored only as HMAC-SHA256 keyed with a key derived from the vault key and bound to the user name. Spending one
+  is atomic (two requests with the same code: one succeeds). Wrong codes count like wrong passwords, every use is
+  audited, new codes need the password and replace the old ones, and removing the app removes them.
+* A lost phone without recovery codes: an administrator removes the account's factors (**Accounts**, or
+  `DELETE /api/v1/users/<name>/second-factors`), which removes the recovery codes and signs it out everywhere.
+* **Sign-in e-mail** (`SIGN_IN_EMAIL`, on by default): every successful sign-in is e-mailed to the account with the
+  time, address, browser and how it signed in, in the background so a mail failure never blocks a sign-in.
+  `SIGN_IN_EMAIL_OPT_OUT` decides whether people may turn it off. **Sign out others** on **My account**
+  (`DELETE /api/v1/account/sessions`) ends every other session of the account.
 * More factors (SMS, hardware keys) can be added as plugins ([Plugins](PLUGINS.md#8-more-plugin-types)).
 
 ---
@@ -393,6 +402,7 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `audit.view` | Read the audit log | yes | yes | | | |
 | `plugins.view` | See installed plugins, the marketplace and purchases | yes | yes | | | |
 | `settings.manage` | Change the panel's settings, install and buy plugins, and restart it | yes | | | | |
+| `mail.manage` | Change the texts of the e-mails the panel sends (E-mail templates) | yes | | | | |
 
 * Only a **super admin** creates, changes, resets or deletes super admin accounts. The last super admin cannot be
   deleted or given another role, so there is always at least one.
@@ -547,6 +557,8 @@ Plugins from the Sudoo.sh marketplace are checked by the panel itself before the
 
 - [ ] Create the first account with the setup code right after installing, so nobody else can.
 - [ ] Turn on a second factor for your own account; keep `REQUIRE_SECOND_FACTOR` at `admins` or `everyone`.
+      Save the recovery codes of the authenticator app somewhere away from the phone.
+- [ ] Set up e-mail and keep `SIGN_IN_EMAIL` on, so people hear about sign-ins that were not theirs.
 - [ ] Back up `vault.key` separately from other backups (without it, encrypted settings and keys cannot be read).
 - [ ] Give the Super admin and Administrator roles only to people trusted with the server; give everyone else the
       smallest role that is enough (Viewer, Developer, Maintainer).

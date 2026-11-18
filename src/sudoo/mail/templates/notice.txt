@@ -1,9 +1,0 @@
-Hello,
-
-{{ text }}
-{% if panel_url %}
-Open Plugins: {{ panel_url }}/plugins
-{% endif %}
-
---
-Sudoo.sh - Your Odoo instances, on your own server.

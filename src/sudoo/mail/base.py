@@ -1,4 +1,4 @@
-"""The interface of a mailer plugin: how the panel sends e-mail (sign-in codes, and later notifications).
+"""The interface of a mailer plugin: how the panel sends e-mail (codes, sign-in notices, alerts, notices).
 
 Built in: "smtp" (your own mailbox, e.g. no-reply@your-site.com) and "none". A plugin for an e-mail service's API
 (SendGrid, Amazon SES, ...) implements this Protocol and is registered under "sudoo.mailers".

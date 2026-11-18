@@ -119,7 +119,7 @@ def reset(key: str) -> Response:
 @blueprint.post("/settings/test-email")
 @require("settings.manage")
 def test_email() -> Response:
-    from sudoo.mail import MailError, mailer, send_template
+    from sudoo.mail import MailError, mailer, send
 
     to = check.text(check.body(), "to", max_length=254)
     if not accounts.EMAIL_RE.match(to):
@@ -128,8 +128,7 @@ def test_email() -> Response:
         abort(400, "E-mail is not set up yet: fill in the mail server (SMTP) settings first.")
     server = f"{settings.smtp_host}:{settings.smtp_port} ({settings.smtp_security})"
     try:
-        send_template(to, "test", "Sudoo.sh e-mail works", preheader="Your mail settings work.",
-                      kicker="E-mail settings", title="It works", server=server)  # fmt: skip
+        send(to, "test", server=server)
     except MailError as error:
         abort(502, f"{error} For Gmail, the password must be an app password.")
     log("test e-mail sent", detail=to)

@@ -32,7 +32,7 @@ const MAINTAIN: Permission[] = [...DEVELOP, "instances.operate", "instances.rest
 const ALL: Permission[] = [
   "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "instances.restore",
   "instances.delete", "instances.credentials", "backups.manage", "github.manage", "accounts.manage", "tokens.manage",
-  "audit.view", "plugins.view", "settings.manage",
+  "audit.view", "plugins.view", "settings.manage", "mail.manage",
 ];
 
 export const PERMISSIONS: Record<Permission, string> = {
@@ -51,11 +51,12 @@ export const PERMISSIONS: Record<Permission, string> = {
   "audit.view": "Read the audit log",
   "plugins.view": "See installed plugins, the marketplace and purchases",
   "settings.manage": "Change the panel's settings, install and buy plugins, and restart it",
+  "mail.manage": "Change the texts of the e-mails the panel sends",
 };
 
 export const ROLES: RoleInfo[] = [
   { name: "super_admin", label: "Super admin", description: "Everything, including the panel's settings.", permissions: ALL },
-  { name: "admin", label: "Administrator", description: "Everything except the panel's settings.", permissions: ALL.filter((p) => p !== "settings.manage") },
+  { name: "admin", label: "Administrator", description: "Everything except the panel's settings and e-mail texts.", permissions: ALL.filter((p) => p !== "settings.manage" && p !== "mail.manage") },
   { name: "maintainer", label: "Maintainer", description: "Creates instances and runs every action on them except deleting.", permissions: MAINTAIN },
   { name: "developer", label: "Developer", description: "Gets new code, restarts and starts instances, adds submodules.", permissions: DEVELOP },
   { name: "viewer", label: "Viewer", description: "Sees instances, their activity and logs.", permissions: VIEW },

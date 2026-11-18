@@ -9,6 +9,7 @@ role (roles.py), and the same permission checks apply.
     account.py     own account and second factors
     instances.py   instances, jobs, versions
     settings.py    the panel's settings, changed while it runs
+    mail_templates.py  the texts of the e-mails the panel sends
     server.py      the server's resource use, the panel's address and plugins
     users.py       roles, accounts and the audit log
     tokens.py      API tokens
@@ -28,7 +29,21 @@ from sudoo.config import live
 from sudoo.core import events as bus
 from sudoo.core import jobs
 
-from . import account, alerts, backups, docs, github, instances, plugins, server, session, settings, tokens, users
+from . import (
+    account,
+    alerts,
+    backups,
+    docs,
+    github,
+    instances,
+    mail_templates,
+    plugins,
+    server,
+    session,
+    settings,
+    tokens,
+    users,
+)
 from . import events as stream
 from .resources import instance_resource, job_resource
 from .responses import PREFIX, add_request_id, problem
@@ -44,6 +59,7 @@ def register(app: Flask) -> None:
         account,
         instances,
         settings,
+        mail_templates,
         alerts,
         server,
         users,

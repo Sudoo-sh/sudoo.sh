@@ -9,7 +9,7 @@
     PATCH  /api/v1/users/<name>                  change the role or the profile (also your own)
     POST   /api/v1/users/<name>/password         set a new password: {"password"} (optional: generated),
                                                  {"must_change_password"} (default true); returns it once
-    DELETE /api/v1/users/<name>/second-factors   remove all second factors (a lost phone) -> 204
+    DELETE /api/v1/users/<name>/second-factors   remove all second factors and recovery codes (a lost phone) -> 204
     DELETE /api/v1/users/<name>                  delete -> 204
     GET    /api/v1/audit?limit=&user=&instance=  the latest audit-log entries, newest first
 
@@ -173,7 +173,7 @@ def reset_password(name: str) -> Response:
 @require("accounts.manage")
 def reset_second_factors(name: str) -> Response:
     _guard(roles.normalize(_account(name)["role"]))
-    accounts.update(name, second_factors=None, totp_pending=None)
+    accounts.update(name, second_factors=None, totp_pending=None, recovery_codes=None)  # the codes go with the app
     accounts.end_sessions(name)
     log("second factors removed", detail=name)
     return no_content()

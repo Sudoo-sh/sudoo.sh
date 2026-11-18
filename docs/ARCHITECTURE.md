@@ -317,7 +317,17 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
   too, so a company directory can replace local passwords.
 - **Why:** an administrator can delete every instance; a leaked password must not be enough. TOTP costs nothing and
   works offline; e-mail needs nothing on the phone. SMS costs money per message and is the weakest of the three,
-  so it is left to a plugin.
+  so it is left to a plugin. Recovery codes (`auth/recovery.py`) come with the app, so a lost phone does not need
+  an administrator; they are kept as keyed hashes only, like the other secrets that never need to be read back.
+
+### E-mail texts as data, not templates
+- **Chosen:** every e-mail is listed in `mail/catalog.py` with its built-in subject, title and text in a small plain
+  format (placeholders, bold, lists, notes, buttons; `mail/textformat.py`); changes made on the E-mail templates page
+  are stored in the panel's storage and checked against the e-mail's placeholders. Only the frame
+  (`templates/layout.html`) is a Jinja template, and it is code, not something edited in the browser.
+- **Why:** a template language run on text typed in a browser is a way to run code on the server (template
+  injection). A fixed list of placeholders, escaped values and no logic keep every e-mail safe to edit, and an update
+  can still change the built-in texts without overwriting someone's changes.
 
 ### Limits on requests and creations
 - **Chosen:** requests per minute per user, token or address (sliding window, IETF `RateLimit` headers); instance

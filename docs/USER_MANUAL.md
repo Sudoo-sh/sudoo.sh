@@ -80,6 +80,8 @@ The setup code works once: after the first account exists, the page no longer ap
      after 60 seconds.
    * **Authenticator app**: open the app and type the 6-digit code shown for Sudoo.sh.
    * When your account has both, switch between them with the buttons above the code.
+   * **Lost your phone?** (under the authenticator code) asks for one of your **recovery codes** instead
+     ([section 9](#9-my-account)). Each code works once. **Use the app instead** goes back.
    * Type the code (it is checked as soon as the sixth digit is in) or click **Verify and sign in**. **Back**
      returns to the e-mail address and password.
 
@@ -101,6 +103,10 @@ By default super admins and administrators must use a second factor. A super adm
   does not tell which of the two was wrong.
 * After **5 wrong passwords** for the same account from the same place, or 20 from the same place, signing in is
   blocked for **15 minutes**. Wait, or ask an administrator to set a new password for you.
+* After each sign-in the panel e-mails you when, from which address and from which browser and system your account
+  signed in, and how (password, authenticator app, e-mail code or recovery code). If it was not you, change your
+  password at once and use **Sign out others** on **My account**. You can turn this e-mail off there, unless the
+  administrator keeps it on for everyone.
 * You are signed out after **60 minutes without activity**, and after **12 hours** in any case. A super admin can
   change both times on the Settings page.
 * **Sign out** (your name at the bottom of the sidebar, or **My account**) ends the session at once, on the server
@@ -549,6 +555,7 @@ Every account has one role. The role decides which pages, buttons and menu items
 | Accounts, API tokens, audit log | yes | yes | no | no | no |
 | Create, change and delete super admins | yes | no | no | no | no |
 | Settings, restart the panel | yes | no | no | no | no |
+| E-mail templates (the texts of the e-mails the panel sends) | yes | no | no | no | no |
 
 API tokens act with a role too: a **write** token as an Administrator, a **read** token as a Viewer.
 
@@ -626,6 +633,24 @@ enough.
 **Replace** sets a factor up again, for example on a new phone: type your password, then follow the same steps.
 Your other sessions end. **Remove** turns a factor off; type your password to confirm. Your other sessions end. If
 your role requires a second factor, keep at least one.
+
+**Recovery codes.** When you set up the authenticator app, the panel shows **10 recovery codes** (the administrator
+can choose another number). Each one signs you in once, in place of the app's code, if you lose your phone. They are
+shown only that once:
+
+1. Click **Copy all** or **Download** and keep them in a password manager or another safe place, away from your
+   phone.
+2. Click **I saved them**.
+
+The **Recovery codes** line under your second factors says how many are left. **New codes** (type your password)
+makes a new set and the old codes stop working; do this when few are left or if someone may have seen them.
+Removing the authenticator app removes its codes too. If your account used the app before recovery codes existed,
+a notice at the top of every page asks you to make them.
+
+**Sign-in alerts.** **E-mail me at each sign-in** turns the sign-in e-mail on or off for your account. The switch is
+locked when the administrator keeps the e-mail on for everyone, and nothing is sent while e-mail is not set up on the
+panel. **Sign out others** ends every other session of your account, for example a browser you left signed in;
+this one stays signed in.
 
 ### Password rules
 
@@ -733,8 +758,8 @@ the browser, in tabs:
 | **Instances** | What a new instance starts with (pause when idle and after how many hours, automatic updates, upgrades, lifetime, Odoo login); how many instances in total and per person, and how often a new one can be created; the limits of each instance's containers; what visitors may send through the gateway. 0 turns a limit off. |
 | **Odoo** | Which versions are offered, where Odoo and PostgreSQL come from, and where the Enterprise add-ons are (including the Enterprise source plugin). |
 | **Backups** | Whether daily backups are taken, at what time (`HH:MM`, 24-hour clock) and in which time zone (for example `Africa/Cairo`; UTC by default), and how long a restore can be rolled back. Changes apply at once. |
-| **Sign-in and security** | Who must use a second factor (none, administrators, everyone), which second factors are offered, the authenticator, how long a session lasts, and requests per minute with the rate limiter. |
-| **E-mail** | The mailer and the mailbox that sends sign-in codes, with **Send a test**. |
+| **Sign-in and security** | Who must use a second factor (none, administrators, everyone), which second factors are offered, the authenticator, how long a session lasts, the sign-in e-mail (on for everyone by default, and whether each person may turn it off), how many recovery codes an authenticator app comes with, and requests per minute with the rate limiter. |
+| **E-mail** | The mailer and the mailbox that sends sign-in codes, with **Send a test**, and a link to **E-mail texts** ([Administrator guide: E-mail templates](ADMIN_GUIDE.md#17-e-mail-templates)). |
 | **Alerts** | Who is told when something needs attention (super admins, more addresses, up to three webhooks for Slack, Discord, Teams or your own system), which alerts are sent, their thresholds, how often the same alert may repeat, and a daily summary, with **Send a test alert** ([Administrator guide: Alerts](ADMIN_GUIDE.md#16-alerts)). |
 | **GitHub and updates** | How often GitHub is checked, the update triggers, and the webhook secret. |
 | **Marketplace** | The connection to the Sudoo.sh marketplace, and linking this panel to an account ([Marketplace](MARKETPLACE.md)). |

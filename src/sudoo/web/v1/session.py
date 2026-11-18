@@ -23,6 +23,7 @@ from typing import Any
 from flask import Blueprint, Response, abort, g, session
 
 from sudoo import accounts, auth, roles
+from sudoo.auth import recovery
 from sudoo.config import settings
 from sudoo.core import audit
 
@@ -46,6 +47,7 @@ def me() -> dict[str, Any]:
         "csrf_token": session.get("csrf"),
         "restricted": session.get("restricted"),
         "must_set_up_second_factor": session.get("restricted") == "second_factor",
+        "recovery_codes_needed": recovery.needed(account),
         "brand_color": settings.brand_color,
     }
 

@@ -319,9 +319,20 @@ def deliver(record: dict[str, Any]) -> list[str]:
     return notes
 
 
-def _subject(record: dict[str, Any]) -> str:
-    prefix = {"recovered": "Resolved", "info": "Notice"}.get(record["severity"], "Alert")
-    return f"Sudoo.sh {prefix}: {record['title']}"[:180]
+def _mail_values(record: dict[str, Any], base: str | None) -> dict[str, Any]:
+    """The placeholders of the "alert" e-mail (mail/catalog.py)."""
+    from sudoo.mail.catalog import lines_block
+
+    count = int(record.get("count") or 1)
+    return {
+        "kind": {"recovered": "Resolved", "info": "Notice"}.get(record["severity"], "Alert"),
+        "alert_title": record["title"],
+        "alert_text": record["text"],
+        "hint": record.get("hint") or "",
+        "details": lines_block([str(item) for item in record.get("details") or []]),
+        "repeats": str(count) if count > 1 else "",
+        "link": link(record, base) or "",
+    }
 
 
 def email(record: dict[str, Any], to: list[str], base: str | None) -> int:
@@ -334,9 +345,7 @@ def email(record: dict[str, Any], to: list[str], base: str | None) -> int:
     sent, failed = 0, ""
     for address in to:
         try:
-            mail.send_template(address, "alert", _subject(record), preheader=record["text"][:90],
-                               kicker={"recovered": "Resolved", "info": "Notice"}.get(record["severity"], "Alert"),
-                               title=record["title"], alert=record, link=link(record, base))  # fmt: skip
+            mail.send(address, "alert", **_mail_values(record, base))
             sent += 1
         except (mail.MailError, OSError) as error:
             failed = str(error)
@@ -436,13 +445,13 @@ def send_digest(now: float | None = None) -> int:
         return 0
     base = panel_url()
     items = [{**r, "link": link(r, base)} for r in due]
-    subject = f"Sudoo.sh: {len(due)} {'alert' if len(due) == 1 else 'alerts'} in the last day"
+    from sudoo.mail.catalog import alerts_block
+
+    count = f"{len(due)} {'alert' if len(due) == 1 else 'alerts'}"
     sent = 0
     for address in to:
         try:
-            mail.send_template(address, "alert_digest", subject, preheader=subject, kicker="Daily summary",
-                               title=f"{len(due)} {'alert' if len(due) == 1 else 'alerts'}", alerts=items,
-                               link=base)  # fmt: skip
+            mail.send(address, "alert_digest", count=count, alerts=alerts_block(items), link=base or "")
             sent += 1
         except (mail.MailError, OSError) as error:
             print("alert summary e-mail:", repr(error), flush=True)

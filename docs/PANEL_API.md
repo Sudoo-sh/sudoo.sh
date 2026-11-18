@@ -210,6 +210,24 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `GET /alerts?limit=50` | `audit.view` | | 200, the newest alerts first (1 to 200; the bell of the web app), see below |
 | `POST /alerts/test` | `settings.manage` | `{"channel": "email"}` or `{"channel": "webhook", "webhook": 1}` | 200 `{"alert", "sent_to"}` or `{"alert", "webhook", "status"}`, sent with the saved settings; **400** when there is nothing to send to (e-mail not set up, no recipient, the webhook has no address), **502** when the delivery failed, with the reason |
 | `GET /events` | signed in | | the live event stream ([Live events](#8-live-events)) |
+| `GET /mail-templates` | `mail.manage` | | 200, every e-mail the panel sends (below); `meta.mail_ready` says whether e-mail is set up |
+| `GET /mail-templates/<key>` | `mail.manage` | | 200, one e-mail |
+| `PUT /mail-templates/<key>` | `mail.manage` | `{"subject", "title", "body"}` | 200, the e-mail; **400** naming every problem: an unknown placeholder, one not written like `{{ name }}`, a block placeholder not alone on its line, a link that is not `https://`, `http://`, `mailto:` or a link placeholder, a missing required placeholder |
+| `DELETE /mail-templates/<key>` | `mail.manage` | | **204**, back to the built-in text |
+| `POST /mail-templates/<key>/preview` | `mail.manage` | `{"subject", "title", "body"}`, each optional (the current text) | 200, `{"subject", "html", "text", "problems"}` with sample values; with problems, the other fields are `null` |
+| `POST /mail-templates/<key>/test` | `mail.manage` | as for preview | 200 `{"sent_to"}`: the preview sent to your own address, subject starting `[Test]`; 400 when e-mail is not set up or your account has no address, 502 when sending fails |
+
+An e-mail as `GET /mail-templates` lists it ([Admin guide, E-mail templates](ADMIN_GUIDE.md#17-e-mail-templates)):
+
+```json
+{"key": "test", "name": "Test e-mail", "description": "...", "recipients": "...",
+ "subject": "Sudoo.sh e-mail works", "title": "It works", "body": "Hello,\n\n...",
+ "default": {"subject": "...", "title": "...", "body": "..."}, "customized": false, "changed_at": null,
+ "changed_by": null, "placeholders": [{"name": "server", "description": "...", "kind": "text"}], "required": []}
+```
+
+`kind` is `text`, `link` (an address, usable as a link target) or `block` (drawn by the panel, alone on its line).
+Keys: `sign_in_code`, `email_confirmation`, `sign_in_notice`, `alert`, `alert_digest`, `plugin_notice`, `test`.
 
 An alert, as `GET /alerts` lists it and the `alert` live event carries it ([Admin guide, Alerts](ADMIN_GUIDE.md#16-alerts)):
 
@@ -234,7 +252,7 @@ the web app. `resolved_at` is set when the problem is over. Webhooks are named b
 | `POST /users` | `accounts.manage` | `{"email", "role"}` required; optional `first_name`, `last_name`, `phone`, `name` (made from the e-mail address when absent), `password` (generated when absent), `must_change_password` (default `true`) | **201**, the account with its `password`, shown once |
 | `PATCH /users/<name>` | `accounts.manage` | any of `role`, `first_name`, `last_name`, `email`, `phone` (`""` clears one); also for your own account | 200, the account; a new role ends its sessions |
 | `POST /users/<name>/password` | `accounts.manage` | `{}` to generate one, or `{"password", "must_change_password"}` | 200, `{"password"}`, shown once; the account's sessions end |
-| `DELETE /users/<name>/second-factors` | `accounts.manage` | | **204**: removes the account's second factors (a lost phone) and signs it out |
+| `DELETE /users/<name>/second-factors` | `accounts.manage` | | **204**: removes the account's second factors and recovery codes (a lost phone) and signs it out |
 | `DELETE /users/<name>` | `accounts.manage` | | **204** |
 | `GET /audit?limit=200&user=&instance=` | `audit.view` | | 200, the latest audit-log entries, newest first (`limit` 1 to 2000) |
 
@@ -424,16 +442,18 @@ to `/help/<path>`, the web app's Help pages.
 | `POST /setup` | public | `{"setup_code", "password", "first_name", "email"}` required; `last_name`, `phone`, `username` optional (made from `email` when absent) | **201**, signed in as the first account, a super admin ([10](#10-signing-in-from-a-web-app)) |
 | `GET /contact` | public | | 200, who to contact |
 | `POST /session` | public | `{"username", "password"}`; `username` is the e-mail address (up to 254 characters) or the user name | **201**, the session (as `GET /session`); sets the session cookie. Or **200** with `second_factor` when a code is needed. **401** "Wrong e-mail address or password." |
-| `POST /session/second-factor` | public | `{"method", "code"}` | **201**, signed in |
+| `POST /session/second-factor` | public | `{"method", "code"}`; `"method": "recovery"` takes a recovery code (`"k7m2p-x9qrt"`, capitals, spaces and the dash optional) | **201**, signed in; each recovery code works once. **401** for a wrong or used code; wrong codes count like wrong passwords |
 | `POST /session/second-factor/<method>` | public | `{}` | 200, a new code was sent (`email`) |
 | `GET /session` | signed in | | 200, the signed-in account (below) |
 | `DELETE /session` | signed in | | **204**, signed out; the session ends on the server too, so a copy of its cookie stops working |
 | `PUT /session/password` | signed in | `{"current", "new"}` | **204**; other sessions of the account end, and a `password` restriction is lifted |
-| `GET /account` | signed in | | 200, own account: profile, role, second factors, whether one is required |
-| `PATCH /account` | signed in | any of `first_name`, `last_name`, `email`, `phone` | 200, the account. The e-mail address cannot change while it receives sign-in codes. An address another account uses is refused: 400 "Another account already uses this e-mail address." A new address ends the account's other sessions |
+| `GET /account` | signed in | | 200, own account: profile, role, second factors, whether one is required, `recovery_codes` (`{"left", "total", "created_at"}` or `null`), `recovery_codes_needed`, and `sign_in_email` (`{"enabled", "own_choice", "default", "can_turn_off", "mail_ready"}`) |
+| `PATCH /account` | signed in | any of `first_name`, `last_name`, `email`, `phone`, and `sign_in_email` (`true`, `false`, or `null` for the server's default) | 200, the account. `sign_in_email: false` is **403** when `SIGN_IN_EMAIL_OPT_OUT` is off. The e-mail address cannot change while it receives sign-in codes. An address another account uses is refused: 400 "Another account already uses this e-mail address." A new address ends the account's other sessions |
 | `POST /account/second-factors/<name>` | signed in | `email`: `{"email"}`; `totp`: `{}`. To replace a factor that is already set up, add `"password"` | 200: a code was sent, or `{"secret", "otpauth_uri"}` for the app. 400 when the password is missing or wrong, or the e-mail address belongs to another account |
-| `PUT /account/second-factors/<name>` | signed in | `{"code"}` | 200, the factors; it is set up. Replacing a factor, or a new e-mail address, ends the account's other sessions |
-| `DELETE /account/second-factors/<name>` | signed in | `{"password"}` | **204**; the account's other sessions end |
+| `PUT /account/second-factors/<name>` | signed in | `{"code"}` | 200, the factors; it is set up. Setting up `totp` on an account without recovery codes also returns them, once, in `meta.recovery_codes`. Replacing a factor, or a new e-mail address, ends the account's other sessions |
+| `DELETE /account/second-factors/<name>` | signed in | `{"password"}` | **204**; the account's other sessions end; removing `totp` removes the recovery codes |
+| `POST /account/recovery-codes` | signed in | `{"password"}` | **201**, `{"codes", "left", "total", "created_at"}`: new codes, shown once; the earlier ones stop working. 400 without the authenticator app or with a wrong password |
+| `DELETE /account/sessions` | signed in | | **204**; every other session of the account ends, this one continues |
 
 `GET /session`:
 
@@ -447,6 +467,7 @@ to `/help/<path>`, the web app's Help pages.
     "csrf_token": "...",
     "restricted": null,
     "must_set_up_second_factor": false,
+    "recovery_codes_needed": false,
     "brand_color": "#714B67"
   }
 }
@@ -1059,7 +1080,12 @@ Setting up an authenticator app:
 POST /api/v1/account/second-factors/totp   {}      -> {"secret": "JBSW...", "otpauth_uri": "otpauth://totp/..."}
                                                        (show the URI as a QR code)
 PUT  /api/v1/account/second-factors/totp   {"code": "123456"}
+  -> 200 {"data": [...factors], "meta": {"recovery_codes": ["k7m2p-x9qrt", ...]}}   show them once
 ```
+
+With the app set up, the sign-in challenge also lists `{"name": "recovery", "label": "Recovery code"}`: a lost phone
+signs in with `POST /api/v1/session/second-factor {"method": "recovery", "code": "k7m2p-x9qrt"}`. Every successful
+sign-in is e-mailed to the account when `SIGN_IN_EMAIL` applies.
 
 API tokens are not affected: a token already is something only its system has.
 

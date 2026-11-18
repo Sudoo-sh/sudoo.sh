@@ -43,8 +43,8 @@ def clean(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[dict[str, Any]]]:
     watch._ACTIVE.clear()
     sent: list[dict[str, Any]] = []
     monkeypatch.setattr(mail, "mailer", lambda: FakeMailer())
-    monkeypatch.setattr(mail, "send_template", lambda to, template, subject, **context: sent.append(
-        {"to": to, "template": template, "subject": subject, **context}))  # fmt: skip
+    monkeypatch.setattr(mail, "send", lambda to, template, **context: sent.append(
+        {"to": to, "template": template, **context}))  # fmt: skip
     monkeypatch.setattr(alerts, "panel_url", lambda: "https://panel.example.com")
     live.change({"alert_super_admins": False, "alert_emails": "ops@example.com"})
     host = dict(monitor.HOST)
@@ -157,7 +157,7 @@ def test_instance_down_after_its_minutes_then_recovered(
     recovered, problem = _listed()
     assert recovered["severity"] == "recovered" and recovered["title"] == f"{NAME} is back online"
     assert problem["resolved_at"] is not None
-    assert [m["kicker"] for m in clean] == ["Alert", "Resolved"]
+    assert [m["kind"] for m in clean] == ["Alert", "Resolved"]
 
 
 def test_busy_waits_and_paused_closes_silently(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -264,21 +264,27 @@ def test_daily_digest_instead_of_each_e_mail(clean: list[dict[str, Any]], monkey
     assert alerts.send_digest(morning - 60) == 0  # the previous slot had nothing
     assert alerts.send_digest(morning + 60) == 2
     [summary] = clean
-    assert summary["template"] == "alert_digest" and [a["title"] for a in summary["alerts"]] == [
-        "Disk almost full", "Backup failed"]  # fmt: skip
+    listed = summary["alerts"].text
+    assert summary["template"] == "alert_digest" and summary["count"] == "2 alerts"
+    assert listed.index("Disk almost full") < listed.index("Backup failed")
     assert alerts.send_digest(morning + 120) == 0  # once per day
 
 
 def test_alert_e_mails_render() -> None:
-    from sudoo.mail.render import render
+    from sudoo.mail.catalog import alerts_block
+    from sudoo.mail.render import compose
 
-    record = {"text": "Instance shop is down.", "hint": "Restart it.", "details": ["Failed at: x"], "count": 3,
-              "severity": "problem"}  # fmt: skip
-    text, html = render("alert", "Sudoo.sh Alert: shop is down", alert=record, link="https://p/i/shop")
-    assert "Instance shop is down." in text and "Seen 3 times" in text and "https://p/i/shop" in html
-    items = [{**record, "title": "shop is down", "link": "https://p/i/shop"}]
-    text, html = render("alert_digest", "s", alerts=items, link="https://p")
-    assert "shop is down (3 times)" in text and "https://p/i/shop" in html
+    record = {"title": "shop is down", "text": "Instance shop is down.", "hint": "Restart it.",
+              "details": ["Failed at: x"], "count": 3, "severity": "problem"}  # fmt: skip
+    message = compose("alert", alerts._mail_values(record, None) | {"link": "https://p/i/shop"})
+    assert message.subject == "Sudoo.sh Alert: shop is down"
+    assert "Instance shop is down." in message.text and "Seen 3 times" in message.text
+    assert "Failed at: x" in message.html and "https://p/i/shop" in message.html
+    once = compose("alert", alerts._mail_values({**record, "count": 1, "hint": None}, None))
+    assert "Seen" not in once.text and "Restart it" not in once.text  # lines with empty placeholders are left out
+    items = [{**record, "link": "https://p/i/shop"}]
+    message = compose("alert_digest", {"count": "1 alert", "alerts": alerts_block(items), "link": "https://p"})
+    assert "shop is down (3 times)" in message.text and "https://p/i/shop" in message.html
 
 
 def test_recipients_include_super_admins(passwords: dict[str, str]) -> None:
@@ -472,7 +478,8 @@ def test_test_alert_by_e_mail(admin: Client, clean: list[dict[str, Any]]) -> Non
     answer = client.post("/api/v1/alerts/test", json={"channel": "email"}, headers=headers)
     assert answer.status_code == 200, answer.get_json()
     assert answer.get_json()["data"]["sent_to"] == ["ops@example.com"]
-    assert clean[0]["title"] == "Test alert" and clean[0]["kicker"] == "Notice"
+    [sent] = [m for m in clean if m["template"] == "alert"]  # signing in also sent the sign-in e-mail
+    assert sent["alert_title"] == "Test alert" and sent["kind"] == "Notice"
     assert audit.latest(1)[0]["event"] == "test alert sent"
     live.change({"alert_emails": ""})
     nobody = client.post("/api/v1/alerts/test", json={"channel": "email"}, headers=headers)

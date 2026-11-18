@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Lock, Mail, Smartphone } from "lucide-react";
+import { ArrowLeft, LifeBuoy, Lock, Mail, Smartphone } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, errorText, setCsrfToken } from "@/api/client";
@@ -99,8 +99,10 @@ export function LoginPage() {
     }
   };
 
+  const recovering = method === "recovery";
+  const codeReady = (value: string) => (recovering ? value.replace(/[\s-]/g, "").length === 10 : value.length === 6);
   const submitCode = async (value = code) => {
-    if (value.length !== 6) return;
+    if (!codeReady(value)) return;
     setBusy(true);
     setError("");
     try {
@@ -161,25 +163,39 @@ export function LoginPage() {
               <header>
                 <h1>Enter your code</h1>
                 <p>
-                  {method === "email"
+                  {recovering
+                    ? "Type one of the recovery codes you saved when you set up the authenticator app. Each works once"
+                    : method === "email"
                     ? challenge.sent_to
                       ? `We sent a 6-digit code to ${challenge.sent_to}`
                       : "We can send a 6-digit code to your e-mail address"
                     : "Open your authenticator app and type the code for Sudoo.sh"}
                 </p>
               </header>
-              {challenge.methods.length > 1 && (
+              {!recovering && challenge.methods.filter((m) => m.name !== "recovery").length > 1 && (
                 <div className="segmented" style={{ alignSelf: "flex-start" }}>
-                  {challenge.methods.map((m) => (
+                  {challenge.methods.filter((m) => m.name !== "recovery").map((m) => (
                     <button key={m.name} type="button" aria-pressed={m.name === method} onClick={() => { setMethod(m.name); setCode(""); setError(""); }}>
                       {FACTOR_ICON[m.name]} {m.label}
                     </button>
                   ))}
                 </div>
               )}
-              <OtpInput value={code} onChange={setCode} onComplete={submitCode} shake={shake} />
+              {recovering ? (
+                <form onSubmit={(e) => { e.preventDefault(); submitCode(); }}>
+                  <Field label="Recovery code" htmlFor="recovery-code">
+                    <div className="input-group">
+                      <LifeBuoy />
+                      <input id="recovery-code" className={`input mono ${shake ? "shake" : ""}`} autoComplete="one-time-code" autoCapitalize="none" spellCheck={false}
+                        placeholder="xxxxx-xxxxx" maxLength={24} autoFocus value={code} onChange={(e) => setCode(e.target.value)} />
+                    </div>
+                  </Field>
+                </form>
+              ) : (
+                <OtpInput value={code} onChange={setCode} onComplete={submitCode} shake={shake} />
+              )}
               {error && <Callout tone="danger">{error}</Callout>}
-              <Button variant="primary" size="lg" block loading={busy} disabled={code.length !== 6} onClick={() => submitCode()}>
+              <Button variant="primary" size="lg" block loading={busy} disabled={!codeReady(code)} onClick={() => submitCode()}>
                 Verify and sign in
               </Button>
               <div className="row small">
@@ -187,6 +203,11 @@ export function LoginPage() {
                   Back
                 </Button>
                 <span className="spacer" />
+                {challenge.methods.some((m) => m.name === "recovery") && (method === "totp" || recovering) && (
+                  <Button variant="ghost" size="sm" onClick={() => { setMethod(recovering ? "totp" : "recovery"); setCode(""); setError(""); }}>
+                    {recovering ? "Use the app instead" : "Lost your phone?"}
+                  </Button>
+                )}
                 {method === "email" && (
                   <Button variant="ghost" size="sm" disabled={resendIn > 0} onClick={sendEmail}>
                     {resendIn > 0 ? `Send again in ${resendIn}s` : challenge.sent_to ? "Send a new code" : "Send the code"}

@@ -17,8 +17,7 @@ from sudoo.core.state import STATE
 from sudoo.instances import backups, integrity, odoo, operations, stages, store
 from sudoo.instances.store import compose
 from sudoo.repos.gitrepo import git
-from sudoo.upgrades import Secret, get, method_for, remember, rollback_open, update
-from sudoo.upgrades import methods
+from sudoo.upgrades import Secret, get, method_for, methods, remember, rollback_open, update
 
 PRODUCTION_WAIT_SECONDS = 1800
 WATCH_SECONDS = 30

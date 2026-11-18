@@ -137,6 +137,7 @@ def test(name: str) -> Response:
         abort(409, report["blocking"][0]["text"])
     if doc.get("state") in BUSY_STATES:
         abort(409, "A test or an upgrade of this instance is running already.")
+    instances_api.refuse_unlinked("testing upgrades", f"upgrade test of {name} refused (panel not linked)")
     code = _code(name, data)
     existing = upgrades.staging_of(name)
     if existing and store.read_env(existing).get("ODOO_VERSION") == target:
@@ -202,6 +203,7 @@ def promote(name: str) -> Response:
             "ported to the new version to that branch, run the pre-check and the test again, then upgrade.",
         )
     _confirm_production(name, data, f"upgrade it to Odoo {target}")
+    instances_api.refuse_unlinked("upgrading instances", f"upgrade of {name} refused (panel not linked)")
     code = _code(name, data)
     if jobs.busy(name):
         abort(409, f"{name} is busy; try again when its job has finished.")

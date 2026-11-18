@@ -25,6 +25,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `UPGRADE_SERVICE_URL` (`.env` only), `OPENUPGRADE_REPOSITORY`, `OPENUPGRADE_REFS`, `OPENUPGRADE_LIB`,
   `UPGRADE_ROLLBACK_MINUTES`, `UPGRADE_MAX_HOURS`, `PROJECT_UPGRADE_TEST_ON_PUSH`; API under
   `/api/v1/instances/<name>/upgrade`; the demo simulates the whole flow.
+- **Developer API tokens:** a new `developer` scope for developers' tools and CI. Such a token lists and reads the
+  projects, branches and instances it may see, their logs, jobs and caught e-mails; starts, pauses, restarts, gets the
+  latest code and updates submodules; creates development instances (also for a project's development branch) and
+  deletes them. It never changes settings, accounts, teams, access, locks or stages, never touches production,
+  restores, backups, domains, off-site copies or shells; every other call is refused with 403 and audit-logged. As
+  every token, its rights are the scope's ∩ its creator's role, and the creator's teams, project access and locked
+  branches apply. New **Developer** choice on the API tokens page; English and Arabic.
+- **Link the panel within 7 days:** a panel is linked to a Sudoo.sh account within `LINK_DEADLINE_DAYS` (default 7,
+  **Settings, About**) of its first run, recorded once and never reset. Until then super admins and administrators
+  see a banner on every page that cannot be closed (**Link this panel to your Sudoo.sh account**, with the days left
+  and, for super admins, the button to the link flow); other roles see nothing. After the deadline, while unlinked,
+  new instances, stage changes into production and updates or deploys (also automatic updates on push and instances
+  for new branches) are refused until it is linked; instances keep serving and backups keep running. Linking lifts
+  it at once. `GET /plan` has `link_deadline`; the demo shows the banner. English and Arabic.
 - **The plan from the hub's signed licence:** the panel reads the entitlements of the lease each heartbeat brings
   (production branches with extra branches and privileges, servers, projects, teams, `per_project_access`,
   `custom_domains`, `offsite_backups`, support level, withheld production, ban) and enforces them: one more production

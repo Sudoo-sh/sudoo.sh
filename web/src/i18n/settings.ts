@@ -89,6 +89,7 @@ const en = {
   webhookOther: "Another place alerts are posted to",
   titles: {
     licence_required_version: "Required licence version",
+    link_deadline_days: "Days to link to Sudoo.sh",
     require_second_factor: "Second factor required for",
     session_idle_minutes: "Sign out after inactivity, minutes",
     session_max_hours: "Longest session, hours",
@@ -274,6 +275,8 @@ const en = {
   descriptions: {
     licence_required_version:
       "Oldest version of the Sudoo.sh Licence Agreement that counts. While no super admin has accepted it (or a later one), the next super admin to sign in must accept it before anything else. Instances keep running. It cannot be newer than the version this release bundles.",
+    link_deadline_days:
+      "Days after the panel's first run to link it to a Sudoo.sh account (Settings, Marketplace). Until then super admins and administrators see a banner; after that, while it is not linked, no new instances, no stage changes into production and no updates or deploys. Instances keep serving and backups keep running. The first run is recorded once and never changes.",
     odoo_root: "Folder that holds instances, backups and panel data.",
     odoo_image: "Docker image of Odoo; the tag is the Odoo version.",
     odoo_versions: "Versions offered: \"auto\" (every published version of the official image from odoo_min_version) or a comma-separated list such as 17.0,18.0,saas-18.2.",
@@ -635,6 +638,7 @@ const ar: typeof en = {
   webhookOther: "مكان آخر تُرسل إليه التنبيهات",
   titles: {
     licence_required_version: "إصدار الترخيص المطلوب",
+    link_deadline_days: "أيام الربط بـ Sudoo.sh",
     require_second_factor: "عامل التحقق الثاني مطلوب من",
     session_idle_minutes: "تسجيل الخروج بعد عدم النشاط، بالدقائق",
     session_max_hours: "أطول جلسة، بالساعات",
@@ -819,6 +823,8 @@ const ar: typeof en = {
   descriptions: {
     licence_required_version:
       "أقدم إصدار من اتفاقية ترخيص Sudoo.sh يُعتدّ به. ما دام لم يقبله مسؤول أعلى (أو إصداراً أحدث)، يجب على أول مسؤول أعلى يسجّل الدخول أن يقبله قبل أي شيء آخر. تبقى النسخ تعمل. لا يمكن أن يكون أحدث من الإصدار المرفق مع هذا الإصدار من اللوحة.",
+    link_deadline_days:
+      "عدد الأيام بعد أول تشغيل للوحة لربطها بحساب Sudoo.sh (الإعدادات، متجر الإضافات). حتى ذلك الحين يرى المسؤولون الأعلون والمسؤولون شريطًا تنبيهيًا؛ وبعده، ما دامت غير مرتبطة، لا بيئات جديدة ولا نقل إلى الإنتاج ولا تحديثات أو نشر. تستمر البيئات في الخدمة ويستمر النسخ الاحتياطي. يُسجَّل أول تشغيل مرة واحدة ولا يتغير أبدًا.",
     odoo_root: "المجلد الذي يضم البيئات والنسخ الاحتياطية وبيانات اللوحة.",
     odoo_image: "صورة Docker لـ Odoo؛ الوسم (tag) هو إصدار Odoo.",
     odoo_versions: "الإصدارات المعروضة: \"auto\" (كل إصدار منشور من الصورة الرسمية ابتداءً من odoo_min_version) أو قائمة مفصولة بفواصل مثل 17.0,18.0,saas-18.2.",

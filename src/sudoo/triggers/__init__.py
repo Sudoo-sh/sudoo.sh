@@ -29,7 +29,9 @@ def enabled() -> list[UpdateTrigger]:
 def request_update(name: str, reason: str) -> None:
     """Update instance `name` now, if it takes automatic updates and is not busy with something else. A staging
     instance of a project that rebuilds staging on push is rebuilt from production instead (projects/automation.py).
-    An instance of a locked branch is never updated automatically (projects/access.py): the skip is audit-logged."""
+    An instance of a locked branch is never updated automatically (projects/access.py), nor any instance once the days
+    to link the panel to a Sudoo.sh account have passed while it is unlinked (link_deadline.py): the skip is
+    audit-logged."""
     if not store.exists(name) or store.read_env(name)["AUTO_UPDATE"] != "true" or jobs.busy(name):
         return
     from sudoo.projects import access, automation  # late: projects/ imports the instances package, as this does
@@ -38,6 +40,13 @@ def request_update(name: str, reason: str) -> None:
         from sudoo.core import audit
 
         audit.record("system", None, "automatic update skipped (branch locked)", name, detail=reason[:200])
+        return
+    from sudoo import link_deadline
+
+    if link_deadline.restricted():  # the days to link the panel have passed (link_deadline.py)
+        from sudoo.core import audit
+
+        audit.record("system", None, "automatic update skipped (panel not linked)", name, detail=reason[:200])
         return
 
     special = automation.update_for(name)

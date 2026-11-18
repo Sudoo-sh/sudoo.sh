@@ -51,13 +51,37 @@ export function PlanNotices({ plan }: { plan: PlanStatus }) {
   );
 }
 
-/** The banner of the panel's frame for super admins: not linked (the Free plan), or the plan needs attention. */
+/** Link this panel to a Sudoo.sh account within LINK_DEADLINE_DAYS of its first run (src/sudoo/link_deadline.py):
+ *  for super admins and administrators (the server sends link_deadline to them only), on every page, never closed.
+ *  Super admins get the button to the link flow (Settings, Marketplace); administrators are told who links it. */
+function LinkBanner({ restricted, daysLeft, canLink }: { restricted: boolean; daysLeft: number; canLink: boolean }) {
+  const t = useT(words);
+  return (
+    <div className="notices" role="status">
+      <Callout tone={restricted ? "danger" : "warning"}>
+        <b>{restricted ? t.linkOverdue : t.linkTitle(daysLeft)}</b> {restricted ? t.linkOverdueText : t.linkText}{" "}
+        {canLink ? (
+          <Link className="btn sm primary" to="/settings?tab=marketplace" viewTransition>{t.linkButton}</Link>
+        ) : (
+          <span className="faint">{t.linkAskSuperAdmin}</span>
+        )}
+      </Callout>
+    </div>
+  );
+}
+
+/** The banner of the panel's frame: the link deadline for super admins and administrators; for super admins also
+ *  not linked (the Free plan), or the plan needs attention. */
 export function PlanBanner() {
   const me = useMe();
   const t = useT(words);
   const allowed = me.permissions.includes("settings.manage");
   const { data: plan } = useSudooPlan();
-  if (!allowed || !plan) return null;
+  if (!plan) return null;
+  const deadline = plan.link_deadline;
+  if (deadline && !deadline.linked && (me.role === "super_admin" || me.role === "admin"))
+    return <LinkBanner restricted={deadline.restricted} daysLeft={deadline.days_left} canLink={allowed} />;
+  if (!allowed) return null;
   if (!plan.linked)
     return (
       <div className="notices" role="status">

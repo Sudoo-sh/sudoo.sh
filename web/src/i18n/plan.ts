@@ -5,6 +5,9 @@ import { countIn, iso, ltr, type Plural } from "./plural.ts";
 const BRANCHES_EN: Plural = { one: "# production branch", other: "# production branches" };
 const BRANCHES_AR: Plural = { zero: "# فرع إنتاج", one: "فرع إنتاج واحد", two: "فرعا إنتاج", few: "# فروع إنتاج", many: "# فرع إنتاج", other: "# فرع إنتاج" };
 
+const DAYS_EN: Plural = { one: "# day", other: "# days" };
+const DAYS_AR: Plural = { zero: "# يوم", one: "يوم واحد", two: "يومان", few: "# أيام", many: "# يومًا", other: "# يوم" };
+
 const en = {
   title: "Plan",
   text: "What this panel's Sudoo.sh plan allows, as the signed licence from the hub says, and what the panel uses.",
@@ -67,6 +70,12 @@ const en = {
   unlinkedBanner: (n: number) =>
     `This panel is not linked to a Sudoo.sh account, so it has the Free plan of the licence: ${countIn("en", n, BRANCHES_EN)} and the paid features off.`,
   unlinkedAction: "Link it in Settings, Marketplace",
+  linkTitle: (days: number) => `Link this panel to your Sudoo.sh account — ${countIn("en", days, DAYS_EN)} left.`,
+  linkText: "Panels are linked within the first days after they start. Until then everything works.",
+  linkOverdue: "Link this panel to your Sudoo.sh account.",
+  linkOverdueText: "The days to link it have passed: new instances, moving to production and updates wait until it is linked. Instances keep serving and backups keep running.",
+  linkButton: "Link this panel",
+  linkAskSuperAdmin: "A super admin links it in Settings, Marketplace.",
   expiredBanner: "The panel could not confirm its plan with Sudoo.sh for too long. Everything keeps running; new production branches wait until the hub is reached.",
   leavingBanner: (names: string) => `After the plan's downgrade, ${names} will become development branches.`,
   upsell: (feature: string) => `${feature} come with the Pro and Business plans.`,
@@ -135,6 +144,12 @@ const ar: typeof en = {
   unlinkedBanner: (n: number) =>
     `هذه اللوحة غير مرتبطة بحساب Sudoo.sh، لذا لها خطة Free في الرخصة: ${countIn("ar", n, BRANCHES_AR)} والميزات المدفوعة متوقفة.`,
   unlinkedAction: "اربطها من الإعدادات، متجر الإضافات",
+  linkTitle: (days: number) => `اربط هذه اللوحة بحساب Sudoo.sh الخاص بك — بقي ${countIn("ar", days, DAYS_AR)}.`,
+  linkText: "تُربط اللوحات خلال الأيام الأولى بعد تشغيلها. وحتى ذلك الحين يعمل كل شيء.",
+  linkOverdue: "اربط هذه اللوحة بحساب Sudoo.sh الخاص بك.",
+  linkOverdueText: "انقضت أيام الربط: تنتظر البيئات الجديدة والنقل إلى الإنتاج والتحديثات حتى تُربط. تستمر البيئات في الخدمة ويستمر النسخ الاحتياطي.",
+  linkButton: "اربط هذه اللوحة",
+  linkAskSuperAdmin: "يربطها مسؤول أعلى من الإعدادات، متجر الإضافات.",
   expiredBanner: "لم تستطع اللوحة تأكيد خطتها مع Sudoo.sh مدة طويلة. يستمر كل شيء في العمل؛ وتنتظر فروع الإنتاج الجديدة حتى يُتاح الوصول إلى المركز.",
   leavingBanner: (names: string) => `بعد تخفيض الخطة ستصبح ${names} فروع تطوير.`,
   upsell: (feature: string) => `${feature} متاحة في خطتي Pro وBusiness.`,

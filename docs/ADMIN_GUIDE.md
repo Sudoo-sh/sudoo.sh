@@ -1728,6 +1728,28 @@ taken. Which ones were sent is kept apart (collection `licence_sync`), so the re
 Until it does, the panel keeps them and tries again with every heartbeat; **Settings, About** shows them as
 **Waiting**. Nothing else depends on it.
 
+### Linking the panel within 7 days
+
+A panel is linked to a Sudoo.sh account within `LINK_DEADLINE_DAYS` (**Settings, About**, default `7`) of its first
+run. The first run is recorded once in the panel's database (collection `installation`), the first time the panel
+starts (for a panel installed before this rule, the first start of the release that has it); no setting, restart or
+update changes it. The clock used never goes back, so changing the server's time gives no more days.
+
+- **Until it is linked,** super admins and administrators see a banner on every page that cannot be closed: **Link
+  this panel to your Sudoo.sh account**, with the days left. Super admins have the **Link this panel** button
+  (**Settings, Marketplace**: turn the marketplace on, then link with the code from the account site); administrators
+  are told that a super admin links it. Other roles see nothing.
+- **After the deadline, while it is not linked,** managing is limited: no new instances (by hand, through the API, or
+  for a new branch), no stage change into production (an instance or a branch), and no updates or deploys (get
+  latest code, submodules, switch branch, connect a repository, upgrade modules, new images, rebuild staging;
+  pushes do not update instances either). Each refusal says why and is in the audit log. Nothing stops serving:
+  instances keep running and serving, and start, pause, restart, backups (daily and by hand), restores, monitoring and
+  certificates go on.
+- **Linking lifts the limits at once.** Logging out of the account, or turning the marketplace off, makes the panel
+  unlinked again; past the deadline the limits are then back.
+
+The licence acceptance and the link flow itself are unchanged.
+
 ---
 
 ## 23. Mail catcher

@@ -233,6 +233,15 @@ class Settings(BaseSettings):
         "it (or a later one), the next super admin to sign in must accept it before anything else. Instances keep "
         "running. It cannot be newer than the version this release bundles.",
     )
+    link_deadline_days: int = Field(
+        7,
+        ge=1,
+        le=365,
+        description="Days after the panel's first run to link it to a Sudoo.sh account (Settings, Marketplace). "
+        "Until then super admins and administrators see a banner; after that, while it is not linked, no new "
+        "instances, no stage changes into production and no updates or deploys. Instances keep serving and backups "
+        "keep running. The first run is recorded once and never changes.",
+    )
 
     # ------------------------------------------------------------------ limits
     rate_limiter: str = Field("memory", description='Where request counts are kept: "memory".')
@@ -1222,6 +1231,7 @@ EDITABLE = (
     "brand_color",
     "default_language",
     "licence_required_version",
+    "link_deadline_days",
     "require_second_factor",
     "session_idle_minutes",
     "session_max_hours",

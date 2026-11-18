@@ -68,7 +68,7 @@ with urllib.request.urlopen(sys.argv[1], timeout=900) as answer:
 ' "$1"
 mv /tmp/openupgrade-src/* /tmp/openupgrade
 echo "Installing $2"
-python3 -m pip install --quiet --no-cache-dir --disable-pip-version-check --target /tmp/openupgrade-lib "$2"
+python3 -m pip install --quiet --no-cache-dir --disable-pip-version-check --no-deps --target /tmp/openupgrade-lib "$2"
 shift 2
 PYTHONPATH=/tmp/openupgrade-lib exec odoo "$@"
 """

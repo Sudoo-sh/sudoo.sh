@@ -2,7 +2,8 @@
 
 **Audience:** the person responsible for the server and the panel.
 **Covers:** installing, updating, rolling back and uninstalling, the first account, settings, e-mail, links, files and containers, Enterprise
-add-ons, backups, daily backups and restores, the command line, checks and troubleshooting, the GitHub App.
+add-ons, backups, daily backups and restores, the command line, checks and troubleshooting, the GitHub App, custom
+domains and certificates.
 **You need:** SSH access to the server as root (or with `sudo`).
 
 ---
@@ -27,6 +28,7 @@ add-ons, backups, daily backups and restores, the command line, checks and troub
 16. [Alerts](#16-alerts)
 17. [E-mail templates](#17-e-mail-templates)
 18. [Sign-in e-mails and recovery codes](#18-sign-in-e-mails-and-recovery-codes)
+19. [Custom domains and certificates](#19-custom-domains-and-certificates)
 
 ---
 
@@ -1255,3 +1257,81 @@ lost phone without asking an administrator.
 If someone has lost both the phone and the codes, a super admin or administrator removes their second factors on
 the **Accounts** page; that removes the recovery codes too, and the person sets the app up again at the next
 sign-in.
+
+---
+
+## 19. Custom domains and certificates
+
+An instance (usually a production instance) can answer on your client's own names, such as `erp.client.com`, over
+https. Administrators add the domains on the instance's **Domains** tab ([User Manual](USER_MANUAL.md)); this
+section is about what the server needs. Custom domains are off until you choose how https is handled, with
+`CUSTOM_DOMAINS` on **Settings, Custom domains** ([Configuration](CONFIGURATION.md#custom-domains)).
+
+### Which mode
+
+| Your server | `CUSTOM_DOMAINS` | What happens |
+| :--- | :--- | :--- |
+| Accepts connections from the internet on ports 80 and 443 (a VPS with a public address) | `acme` | The gateway answers the domains on ports 80 and 443, gets a certificate for each from Let's Encrypt (or the authority in `ACME_DIRECTORY`) and renews it. Works with any `EXPOSURE`: the instances' own links stay as they are. |
+| Reached only through tunnels (`EXPOSURE=cloudflare-quick`, no open port) | `external`, or none | A quick tunnel cannot carry your own domain. With your own Cloudflare account, create a named tunnel that sends the domain to `http://127.0.0.1:<the instance's gateway port>` (shown under **Credentials**); Cloudflare then handles https, and the panel records the domain, checks that it reaches the instance, and uses it as the instance's address. Without your own Cloudflare (or another proxy), custom domains are not available on this server, and the Domains tab says so. |
+| Behind a proxy or load balancer you run | `external` | Same as above: the proxy handles https and forwards to the gateway port. |
+
+### Setting up `acme`
+
+1. Open ports 80 and 443 (TCP) to the internet in the server's firewall and at your hosting provider. Nothing else on
+   the server may use them (the panel's own web service does not).
+2. Set `DOMAIN_DNS_TARGET` to the server's public name, such as `server.yourcompany.com` (a name you control, with
+   an A/AAAA record pointing at the server), or leave it empty to use `PUBLIC_HOST`. Users are told to create a
+   CNAME record pointing at it; for a bare domain (`client.com`) they get A/AAAA records with its addresses. An IP
+   address works too (users then create A or AAAA records), but a name lets you move the server later without
+   asking every client to change their records.
+3. Optionally set `ACME_EMAIL` (the contact the authority has for the account; empty uses `ADMIN_CONTACT_EMAIL`).
+4. Set `CUSTOM_DOMAINS=acme`. Choosing it means you agree to the authority's terms of service (for Let's Encrypt,
+   its subscriber agreement). To try the setup without using up Let's Encrypt's limits, set `ACME_DIRECTORY=staging`
+   first: certificates then come from its test authority, browsers do not trust them, and the Domains tab says so.
+5. Make sure the `sudoo-gateway` service runs with the current `compose.yaml` (it needs the `NET_BIND_SERVICE`
+   capability to open ports below 1024): `cd /opt/odoo/manager && docker compose up -d gateway`.
+
+If the gateway cannot open port 80 or 443 (another program holds it, or the capability is missing), the Domains tab
+of every instance shows the error.
+
+### What happens to a domain
+
+1. **Waiting for DNS.** The panel looks the domain up from the server (with `DOMAIN_DNS_TIMEOUT_SECONDS` per lookup)
+   every minute at first, then less often (up to once an hour). It passes when every address of the domain is one of
+   the target's. A domain proxied by Cloudflare (orange cloud) resolves to Cloudflare's addresses: switch the record
+   to DNS only, or use `external`.
+2. **Checking over http.** With `DOMAIN_HTTP_PROBE` on, the panel fetches a random answer through
+   `http://<domain>/.well-known/acme-challenge/...`, as the authority will. A closed port 80 is reported here instead
+   of costing a failed attempt at the authority. Some networks do not let a server reach its own public address:
+   turn the probe off then.
+3. **Issuing.** The panel asks the authority for a certificate (HTTP-01 challenge, answered by the gateway on port
+   80), with a new P-256 key for each certificate. Usually under a minute.
+4. **Active.** The gateway serves the domain over https (TLS 1.2 or later, the certificate chosen by the name the
+   browser asks for) and redirects http to https. If it is the instance's primary domain, it becomes the instance's
+   address in the panel, and Odoo's `web.base.url` follows within a few seconds, so links in e-mails and the portal
+   use it.
+5. **Renewing.** `CERTIFICATE_RENEW_DAYS` (30) before it expires, the certificate is renewed; the old one is served
+   until the new one is in place, and the gateway picks the new one up at the next connection, without a restart.
+
+A failed issuance or renewal is tried again after 5 minutes, then 10, 20 and so on, at most
+`CERTIFICATE_RETRY_MAX_HOURS` apart (the authority allows only a few failed checks per domain per hour). Each
+failure is an alert (type certificate, e-mail "Certificate not issued"), and a certificate that expires within
+`ALERT_CERTIFICATE_DAYS` without being renewed is alerted once a day (e-mail "Certificate expires soon"). Both
+e-mails can be changed on the **E-mail templates** page. **Check now** on the Domains tab skips the wait.
+
+### Where things are kept
+
+| What | Where |
+| :--- | :--- |
+| Certificates and their private keys | `<ODOO_ROOT>/gateway/certs/<domain>.pem`, mode 600, in a folder only root can open; the gateway reads them |
+| Challenge answers while a check runs | `<ODOO_ROOT>/gateway/acme-challenge/`, removed after each check |
+| The ACME account key | `<ODOO_ROOT>/manager/keys/acme-accounts.json`, encrypted with the vault key |
+| The domains and their state | the panel's storage (collection `domains`) |
+
+Removing a domain deletes its certificate and key at once. Deleting an instance removes its domains.
+
+### Permissions
+
+Administrators and super admins add and remove domains and choose the primary one (permission `domains.manage`);
+every change is in the audit log. Everyone who can see the instance can see its domains and their state. On a
+production instance every domain change must be confirmed, since it moves where the instance's users reach it.

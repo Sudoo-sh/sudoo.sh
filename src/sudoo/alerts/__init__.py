@@ -49,6 +49,7 @@ TYPES: dict[str, str | None] = {
     "memory": "alert_memory",
     "drift": "alert_drift",
     "public_link": "alert_public_link",
+    "certificate": "alert_certificate",
     "test": None,
 }
 """Kind of alert -> the setting that turns it on (a test alert is always sent)."""
@@ -77,6 +78,7 @@ class Alert:
     details: list[str] = field(default_factory=list)
     severity: str = "problem"  # "problem", "recovered" or "info"
     key: str | None = None
+    facts: dict[str, str] = field(default_factory=dict)  # values for an e-mail of its own (EMAILS), such as the domain
 
     def identity(self) -> str:
         return self.key or f"{self.type}:{self.instance or ''}"
@@ -152,6 +154,7 @@ def send(alert: Alert, now: float | None = None) -> dict[str, Any] | None:
             "details": [_clean(item, 300) for item in alert.details[:20]],
             "instance": alert.instance,
             "path": alert.path,
+            "facts": {str(k): _clean(v, 300) for k, v in list(alert.facts.items())[:10]},
             "at": now,
             "last_at": now,
             "sent_at": now,
@@ -335,6 +338,31 @@ def _mail_values(record: dict[str, Any], base: str | None) -> dict[str, Any]:
     }
 
 
+def template(record: dict[str, Any]) -> str:
+    """The e-mail (mail/catalog.py) an alert is sent with: a certificate problem has its own, the rest "alert"."""
+    if record.get("type") == "certificate" and record.get("severity") == "problem":
+        return (
+            "certificate_expiring"
+            if str(record.get("key", "")).startswith("certificate-expiring:")
+            else ("certificate_failed")
+        )
+    return "alert"
+
+
+def _template_values(record: dict[str, Any], base: str | None) -> dict[str, Any]:
+    key = template(record)
+    if key == "alert":
+        return _mail_values(record, base)
+    facts = record.get("facts") or {}
+    return {
+        "domain": facts.get("domain", ""),
+        "instance": record.get("instance") or "",
+        "reason": record.get("text") or "",
+        "expires": facts.get("expires", ""),
+        "link": link(record, base) or "",
+    }
+
+
 def email(record: dict[str, Any], to: list[str], base: str | None) -> int:
     """E-mail one alert to each address; the number sent. Raises AlertError when e-mail is not set up or nothing
     could be sent."""
@@ -345,7 +373,7 @@ def email(record: dict[str, Any], to: list[str], base: str | None) -> int:
     sent, failed = 0, ""
     for address in to:
         try:
-            mail.send(address, "alert", **_mail_values(record, base))
+            mail.send(address, template(record), **_template_values(record, base))
             sent += 1
         except (mail.MailError, OSError) as error:
             failed = str(error)

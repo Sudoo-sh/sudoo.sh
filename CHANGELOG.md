@@ -8,6 +8,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Custom domains with certificates (3.0.0):** an instance can answer on your own domains, such as
+  `erp.client.com`, over https (`CUSTOM_DOMAINS`, off by default). With `acme` the gateway answers them on ports 80
+  and 443, routes each by its name, redirects http to https and gets a certificate for each from Let's Encrypt
+  (`ACME_DIRECTORY`: production, staging or another ACME authority; `ACME_EMAIL`) by HTTP-01, renewed
+  `CERTIFICATE_RENEW_DAYS` before it expires; with `external` your own Cloudflare tunnel or proxy handles https and
+  the panel records and checks the domains. Before asking for a certificate the panel checks the domain's DNS from
+  the server (`DOMAIN_DNS_TARGET`, `DOMAIN_DNS_TIMEOUT_SECONDS`) and, with `DOMAIN_HTTP_PROBE`, that it reaches the
+  server over http. Failures are retried with growing waits (`CERTIFICATE_RETRY_MAX_HOURS`) and alerted (new alert
+  type certificate, `ALERT_CERTIFICATE`, `ALERT_CERTIFICATE_DAYS`, e-mails "Certificate not issued" and "Certificate
+  expires soon" on the E-mail templates page). The primary domain becomes the instance's address and Odoo's
+  `web.base.url`. Administrators manage domains (new permission `domains.manage`, `DOMAINS_PER_INSTANCE`), production
+  instances ask for a confirmation, and every change is audited. API: `/api/v1/instances/<name>/domains`; live event
+  `domains`. The `sudoo-gateway` service gets the `NET_BIND_SERVICE` capability (update `compose.yaml`).
+
 - **Recovery codes for the authenticator app:** setting up the app now shows 10 single-use recovery codes
   (`RECOVERY_CODES_COUNT`) to copy or download; each signs in once in place of the app's code ("Lost your phone?"
   on the sign-in page). They are stored only as keyed hashes, count like wrong passwords when wrong, are audited,

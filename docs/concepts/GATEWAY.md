@@ -57,6 +57,7 @@ instance's tunnel connector points at it. For every request:
 | If Odoo does not answer: asks the panel to start the instance (once), answers "Starting up" (`503`, `Retry-After: 4`); "Starting soon" while the panel cannot be reached, asking again every few seconds | A paused instance wakes on the first visit. |
 | If an update is running: answers "Update in progress" | Visitors see a clear message instead of an error. |
 | If the instance is switched off: answers "Switched off" | Nothing is started. |
+| With custom domains (`CUSTOM_DOMAINS=acme`): answers them on ports 80 and 443, picks the certificate by the name the browser asks for, serves the instance only when `Host` is that same name, redirects http to https and answers the ACME checks on port 80 | An instance can live at `https://erp.client.com` ([Administrator Guide](../ADMIN_GUIDE.md#19-custom-domains-and-certificates)); a renewed certificate is used at the next connection, without a restart. |
 
 ---
 

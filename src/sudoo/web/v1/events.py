@@ -49,7 +49,18 @@ from ..security import api_caller, client_ip_of, user_of_session
 PATH = "/api/v1/events"
 FLASK_APP = web.AppKey("flask", Flask)
 TOPICS = frozenset(
-    {"instance", "instance.deleted", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "alert"}
+    {
+        "instance",
+        "instance.deleted",
+        "domains",
+        "job",
+        "job.output",
+        "metrics",
+        "settings",
+        "plugins",
+        "marketplace",
+        "alert",
+    }
 )
 RESTRICTED = {"alert": "audit.view"}  # topic -> the permission a caller needs to receive it
 HEARTBEAT_SECONDS = 20

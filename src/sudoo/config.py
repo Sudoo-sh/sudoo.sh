@@ -230,6 +230,89 @@ class Settings(BaseSettings):
         4000, ge=1, description="Visitors' connections open at once to all gateways together; more are answered 503."
     )
 
+    # ------------------------------------------------------------------ custom domains (domains/)
+    custom_domains: Literal["off", "acme", "external"] = Field(
+        "off",
+        description='Custom domains for instances: "off", "acme" (the gateway answers on ports 80 and 443 and gets '
+        'a certificate for each domain from an ACME authority such as Let\'s Encrypt) or "external" (something in '
+        "front, such as your own Cloudflare tunnel or proxy, handles https; the panel only records the domains).",
+    )
+    acme_directory: str = Field(
+        "production",
+        description='The ACME authority: "production" (Let\'s Encrypt), "staging" (Let\'s Encrypt\'s test '
+        "authority: certificates browsers do not trust, for trying things out) or the https address of another "
+        "ACME directory.",
+    )
+    acme_email: str = Field(
+        "", description="Contact e-mail given to the ACME authority; empty: ADMIN_CONTACT_EMAIL, or none."
+    )
+    certificate_renew_days: int = Field(
+        30, ge=1, le=90, description="Renew a certificate this many days before it expires."
+    )
+    certificate_retry_max_hours: float = Field(
+        24, ge=1, le=168, description="Longest wait between two attempts after a certificate could not be issued."
+    )
+    domains_per_instance: int = Field(5, ge=0, le=100, description="Custom domains one instance may have; 0: none.")
+    domain_dns_target: str = Field(
+        "",
+        description="The name (or address) custom domains point to; empty: PUBLIC_HOST. A name is shown as a CNAME "
+        "record, an address as an A or AAAA record.",
+    )
+    domain_dns_timeout_seconds: float = Field(
+        5, ge=1, le=60, description="Seconds a DNS lookup of a custom domain may take."
+    )
+    domain_http_probe: bool = Field(
+        True,
+        description="Before asking for a certificate, check that the domain reaches this server over http (port "
+        "80), as the ACME authority will.",
+    )
+    domain_http_port: int = Field(80, description="Port the gateway answers custom domains on over http.")
+    domain_https_port: int = Field(443, description="Port the gateway answers custom domains on over https.")
+
+    @field_validator("acme_directory")
+    @classmethod
+    def _acme_directory(cls, value: str) -> str:
+        from urllib.parse import urlsplit
+
+        value = value.strip()
+        if value in ("production", "staging"):
+            return value
+        parts = urlsplit(value)
+        local = parts.hostname in ("localhost", "127.0.0.1", "::1")
+        if parts.scheme not in ("https", "http") or not parts.hostname or (parts.scheme == "http" and not local):
+            raise ValueError('must be "production", "staging" or an https:// address')
+        if parts.username or parts.password or parts.fragment or len(value) > 500:
+            raise ValueError("must be a plain address, without a user name, password or #fragment")
+        return value
+
+    @field_validator("acme_email")
+    @classmethod
+    def _acme_email(cls, value: str) -> str:
+        import re
+
+        value = value.strip()
+        if value and not re.fullmatch(r"[^@\s,:]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}", value):
+            raise ValueError("is not an e-mail address")
+        return value
+
+    @field_validator("domain_dns_target")
+    @classmethod
+    def _domain_dns_target(cls, value: str) -> str:
+        import ipaddress
+        import re
+
+        value = value.strip().lower().rstrip(".")
+        if not value:
+            return ""
+        try:
+            return str(ipaddress.ip_address(value))
+        except ValueError:
+            pass
+        label = r"(?!-)[a-z0-9-]{1,63}(?<!-)"
+        if len(value) > 253 or not re.fullmatch(rf"{label}(\.{label})+", value):
+            raise ValueError("must be a host name such as server.example.com, or an IP address")
+        return value
+
     # ------------------------------------------------------------------ ports
     panel_port: int = Field(9000, description="Port of the panel: the web service (sudoo-web) listens here.")
     api_port: int = Field(9002, description="Port of the backend (127.0.0.1 only); the web service forwards to it.")
@@ -329,6 +412,14 @@ class Settings(BaseSettings):
     )
     alert_public_link_minutes: float = Field(
         10, ge=1, le=1440, description="Minutes without a public link before the alert."
+    )
+    alert_certificate: bool = Field(
+        True,
+        description="Alert when a custom domain's certificate cannot be issued or renewed, or expires within "
+        "alert_certificate_days.",
+    )
+    alert_certificate_days: float = Field(
+        14, ge=1, le=60, description="Days before a certificate expires from which it is shown and alerted as expiring."
     )
     alert_recovery: bool = Field(
         True, description="Send a notice when a problem that was alerted is over (back online, disk freed)."
@@ -491,7 +582,8 @@ class Settings(BaseSettings):
 
     @property
     def gateway_dir(self) -> Path:
-        """Shared by the panel and the gateway service (instances/gateway_service.py); nothing secret in it."""
+        """Shared by the panel and the gateway service (instances/gateway_service.py), readable by root only. The
+        only secrets in it are the custom domains' certificate keys (certs/, domains/certificates.py)."""
         return self.odoo_root / "gateway"
 
     @property
@@ -600,6 +692,15 @@ EDITABLE = (
     "admin_contact_phone",
     "admin_contact_email",
     "marketplace",
+    "custom_domains",
+    "acme_directory",
+    "acme_email",
+    "certificate_renew_days",
+    "certificate_retry_max_hours",
+    "domains_per_instance",
+    "domain_dns_target",
+    "domain_dns_timeout_seconds",
+    "domain_http_probe",
     *ALERT_SETTINGS,
 )
 """Settings that can be changed in the panel, taking effect at once."""

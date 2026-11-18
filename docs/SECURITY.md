@@ -73,7 +73,7 @@ the backend (`GATEWAY_MODE=service`, the default) with as little as possible:
 | Docker socket | not mounted | mounted (it manages the instances) |
 | `.env`, vault key, accounts, sessions, backups | none: no `env_file`, no mount of `/opt/odoo` | all |
 | Files | `/opt/odoo/gateway` only, read-write: routes from the backend, visits for it, the two sockets | `/opt/odoo` |
-| Container | read-only file system, all capabilities dropped, `no-new-privileges`, at most 256 processes | as before |
+| Container | read-only file system, all capabilities dropped except `NET_BIND_SERVICE` (to open ports 80 and 443 for custom domains), `no-new-privileges`, at most 256 processes | as before |
 
 The two talk through Unix sockets in that folder (mode `700`, root only), never over the network: `gateway.sock`
 (the backend asks the gateway to reload its routes and collects the request counts) and `panel.sock` (the gateway
@@ -84,6 +84,34 @@ no further secret; the instances' containers have no access to the folder. Every
 settings), and everything the backend reads from the gateway (visits, counts, errors) is checked and limited to known
 instances. Someone who took over the gateway service could read and change visitors' traffic to the instances (as
 any reverse proxy could), but would not reach Docker, the panel's data or its secrets.
+
+### Custom domains and certificates
+
+With `CUSTOM_DOMAINS=acme` the gateway also answers on ports 80 and 443 of every interface, for the custom domains
+of the instances ([Administrator Guide](ADMIN_GUIDE.md#19-custom-domains-and-certificates)):
+
+* **Names.** Only full host names are accepted: no IP address, no wildcard, no local or reserved name, nothing under
+  `sudoo.sh`, nor the server's or panel's own names. A domain belongs to one instance at most. The gateway answers a
+  TLS handshake only for a domain that has a certificate (by SNI; an unknown name ends the handshake), and serves a
+  request only when its `Host` is the name the handshake was for (`421` otherwise), so one domain cannot be used to
+  reach another instance. Port 80 answers only ACME checks and a redirect to https for known domains.
+* **Ownership.** A domain is served only after its DNS points at this server (every address of it is one of the
+  target's), checked from the server, and its certificate needs the authority to fetch a random answer through it.
+  Whoever controls the domain's DNS controls where it points: removing the record (or the domain in the panel) ends
+  it.
+* **TLS.** TLS 1.2 or later, Python's default cipher suites; one P-256 key per certificate, made on the server, never
+  leaving it.
+* **Keys.** Certificate keys are files of root only (mode 600) in `<ODOO_ROOT>/gateway/certs/` (mode 700); they are
+  not encrypted, because the gateway service, which holds no vault key, must read them. The ACME account key is
+  encrypted with the vault key. Removing a domain deletes its key at once.
+* **Visitors' address.** Visitors of a custom domain connect directly, so no header is trusted for their address: the
+  gateway appends the connection's own address to `X-Forwarded-For`, and `X-Forwarded-Proto` is `https`.
+* **The ACME client** (`domains/acme.py`) talks only https to the configured authority (http only for `localhost`),
+  with certificate checks on; HTTP-01 answers are written only for tokens of the expected form and removed after
+  each check.
+
+With `CUSTOM_DOMAINS=external` nothing new listens: the visitor's own proxy or tunnel handles https and reaches the
+instance's gateway port as before.
 
 ### The visitor's address
 
@@ -396,6 +424,7 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `instances.delete` | Delete instances, also by giving one a shorter lifetime | yes | yes | | | |
 | `instances.credentials` | See Odoo passwords and ports | yes | yes | yes | | |
 | `backups.manage` | Download and delete backups | yes | yes | | | |
+| `domains.manage` | Add and remove instances' custom domains, choose the primary one (seeing them needs `instances.view`) | yes | yes | | | |
 | `github.manage` | Manage deploy keys; see the GitHub App's state | yes | yes | yes | | |
 | `accounts.manage` | Create, change and delete accounts | yes | yes | | | |
 | `tokens.manage` | Create and revoke API tokens | yes | yes | | | |

@@ -5,9 +5,12 @@ down. It has no Docker access, no `.env`, no secrets: it reads and writes only G
 which it shares with the panel:
 
     routes.json    written by the panel (gateway_link.py): the instances (gateway port, Odoo port, switched off),
-                   the address to listen on and the visitor-address header the exposure trusts, and the gateway's
-                   settings (limits, contact details for the pages). Read again whenever it changes; a file that is
-                   not valid is refused and the last valid one kept.
+                   the address to listen on and the visitor-address header the exposure trusts, the gateway's
+                   settings (limits, contact details for the pages) and the custom domains (their instance, whether
+                   they have a certificate, ports 80/443). Read again whenever it changes; a file that is not valid
+                   is refused and the last valid one kept.
+    certs/         the custom domains' certificates and keys, acme-challenge/ the answers of running domain checks
+                   (written by the panel, domains/certificates.py)
     visits.json    written here: the last visit of every instance. The panel reads it (automatic pause, daily
                    backups), also when it was down while the visits happened.
     gateway.sock   served here, for the panel: POST /sync (read routes.json now and reconcile the listeners; the
@@ -69,6 +72,7 @@ ROUTED_SETTINGS = (
     "admin_contact_email",
 )
 _HEADER_RE = re.compile(r"^[A-Za-z0-9-]{1,64}$")
+_DOMAIN_RE = re.compile(r"^(?=.{1,253}$)(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$")
 
 
 def path(file: str) -> Path:
@@ -99,12 +103,18 @@ class Routes:
     edge: Edge = field(default_factory=Edge)
     settings: dict[str, Any] = field(default_factory=dict)
     instances: dict[str, tuple[int, gateway.Route]] = field(default_factory=dict)  # name -> (gateway port, route)
+    domains: gateway.DomainRoutes = field(default_factory=gateway.DomainRoutes)
 
     def wanted(self) -> dict[str, tuple[str, int]]:
-        """The listeners these routes ask for: none unless the gateways run here (mode "service")."""
+        """The listeners these routes ask for: none unless the gateways run here (mode "service"); the custom
+        domains' two listeners come from `domains` (gateway.reconcile)."""
         if self.mode != "service":
             return {}
         return {name: (self.edge.listen_host, port) for name, (port, _) in self.instances.items()}
+
+    def served_domains(self) -> gateway.DomainRoutes:
+        """The custom domains these routes ask for: none unless the gateways run here."""
+        return self.domains if self.mode == "service" else gateway.DomainRoutes()
 
 
 def _port(value: Any) -> int:
@@ -146,18 +156,52 @@ def parse_routes(data: Any) -> Routes:
             raise ValueError(f"gateway port {port} given twice")
         ports.add(port)
         instances[name] = (port, gateway.Route(_port(entry.get("odoo_port")), entry.get("switched_off") is True))
-    return Routes(mode, edge, dict(values), instances)
+    return Routes(mode, edge, dict(values), instances, _parse_domains(data.get("domains"), instances, ports))
 
 
-def routes_document(mode: str, edge: Edge, values: dict[str, Any], instances: dict[str, dict[str, Any]]) -> str:
+def _parse_domains(raw: Any, instances: dict[str, tuple[int, gateway.Route]], ports: set[int]) -> gateway.DomainRoutes:
+    """The custom domains of routes.json (absent in files of earlier panels: none)."""
+    if raw is None:
+        return gateway.DomainRoutes()
+    if not isinstance(raw, dict) or not isinstance(raw.get("hosts"), dict):
+        raise ValueError("domains is not as expected")
+    http_port, https_port = _port(raw.get("http_port")), _port(raw.get("https_port"))
+    if http_port == https_port or {http_port, https_port} & ports:
+        raise ValueError("the domains' ports are taken")
+    hosts: dict[str, gateway.DomainHost] = {}
+    for domain, entry in raw["hosts"].items():
+        if not isinstance(domain, str) or not _DOMAIN_RE.match(domain) or not isinstance(entry, dict):
+            raise ValueError(f"not a domain: {str(domain)[:80]!r}")
+        if entry.get("instance") not in instances:
+            raise ValueError(f"{domain}: unknown instance")
+        hosts[domain] = gateway.DomainHost(str(entry["instance"]), entry.get("certificate") is True)
+    return gateway.DomainRoutes(http_port, https_port, hosts)
+
+
+def routes_document(
+    mode: str,
+    edge: Edge,
+    values: dict[str, Any],
+    instances: dict[str, dict[str, Any]],
+    domains: gateway.DomainRoutes | None = None,
+) -> str:
     """The text of routes.json (written by the panel, gateway_link.py)."""
-    document = {
+    document: dict[str, Any] = {
         "format": FORMAT,
         "mode": mode,
         "edge": {"listen_host": edge.listen_host, "https": edge.https, "client_ip_header": edge.client_ip_header},
         "settings": values,
         "instances": instances,
     }
+    if domains is not None:
+        document["domains"] = {
+            "http_port": domains.http_port,
+            "https_port": domains.https_port,
+            "hosts": {
+                domain: {"instance": host.instance, "certificate": host.certificate}
+                for domain, host in domains.hosts.items()
+            },
+        }
     return json.dumps(document, indent=1, sort_keys=True)
 
 
@@ -316,7 +360,7 @@ class Service:
 
     async def refresh(self, force: bool = False) -> None:
         self.host.read_routes(force)
-        await gateway.reconcile(self.host.routes.wanted())
+        await gateway.reconcile(self.host.routes.wanted(), self.host.routes.served_domains())
 
     async def _sync(self, _: web.Request) -> web.Response:
         await self.refresh(force=True)
@@ -369,7 +413,7 @@ class Service:
             self._control = None
         if handover and gateway.listening():
             await asyncio.sleep(handover)
-        await gateway.reconcile({})
+        await gateway.reconcile({}, gateway.DomainRoutes())
         self.host.save_visits()
         await self.host.close()
         if gateway._SESSION is not None:

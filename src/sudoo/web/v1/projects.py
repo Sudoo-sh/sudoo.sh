@@ -2,8 +2,13 @@
 
     GET    /api/v1/projects                          every project (counts of branches by stage, of instances by
                                                      status); meta.standalone: instances outside every project
+    GET    /api/v1/projects/repository-owners        where a new, empty repository can be created (GitHub App
+                                                     installations with Administration: write), and what to do
+                                                     elsewhere; ?refresh=1 reads the installations again
     POST   /api/v1/projects                          link an existing repository: {"repository" (address or
-                                                     owner/name), "name"?, "odoo_version", "edition"} -> 201
+                                                     owner/name), "name"?, "odoo_version", "edition"}, or create a
+                                                     new, empty one: {"create": {"owner", "name", "private",
+                                                     "description"}, ...} (also github.manage) -> 201
     GET    /api/v1/projects/<id>?refresh=            the project with its branches (read from GitHub at most every
                                                      30 seconds; refresh=1 reads them again) and the server's
                                                      capacity
@@ -42,7 +47,7 @@ from sudoo.core import events, jobs
 from sudoo.instances import capacity, monitor, odoo, stages, store
 from sudoo.limits import quotas
 from sudoo.projects import access, adopt, branches, staging
-from sudoo.repos import github
+from sudoo.repos import github, github_app
 
 from .. import validation as check
 from ..security import log, refuse_unless
@@ -207,34 +212,87 @@ def _name(data: Mapping[str, Any], required: bool = False) -> str:
     return name
 
 
+@blueprint.get("/projects/repository-owners")
+def repository_owners() -> Response:
+    """Where a new, empty repository can be created (organisations with the GitHub App and its Administration:
+    write permission), and for the others what to do; ?refresh=1 reads the installations from GitHub again."""
+    _refuse_unless("projects.manage", None, request.path)
+    if not github_app.connected():
+        return ok([], meta={"connected": False, "creation": github_app.repository_creation("")})
+    try:
+        if request.args.get("refresh") in ("1", "true"):
+            github_app.sync_installations()
+        else:
+            github_app.sync_if_stale()
+    except github_app.GitHubError as error:
+        abort(502, str(error))
+    return ok(github_app.repository_owners(), meta={"connected": True})
+
+
+def _create_repository(data: Mapping[str, Any]) -> tuple[str, list[str]]:
+    """Create the new, empty repository a project asks for ({"owner", "name", "private", "description"});
+    returns ("Owner/Name", its branches: none)."""
+    refuse_unless("github.manage", "create a repository on GitHub")
+    owner = check.text(data, "owner", max_length=39)
+    name = check.text(data, "name", max_length=100)
+    if not owner or not name:
+        abort(400, "Choose the organisation and the name of the new repository.")
+    if projects.by_repository(f"{owner}/{name}") is not None:
+        abort(409, f"{owner}/{name} has a project already.")
+    try:
+        made = github_app.create_repository(
+            owner, name, check.flag(data, "private", True), check.text(data, "description", max_length=350)
+        )
+    except github_app.GitHubError as error:
+        log("repository creation refused", ok=False, detail=f"{owner}/{name}: {error}")
+        abort(error.status if error.status in (400, 409) else 502, str(error))
+    log("repository created on GitHub", detail=made["full_name"])
+    return str(made["full_name"]), []
+
+
 @blueprint.post("/projects")
 def create_project() -> Response:
     _refuse_unless("projects.manage", None, "create a project")
     data = check.body()
+    version, edition = _version_and_edition(data)
+    adopt.adopt_once()
+    if isinstance(data.get("create"), dict):
+        made, seen = _create_repository(data["create"])
+        return _new_project(data, made, version, edition, "created", seen, None)
     reference = check.text(data, "repository", max_length=200)
     repository = github.repo_name(reference) if reference else None
     if not repository:
         abort(400, "Give the repository's address, for example https://github.com/company/repository.")
-    version, edition = _version_and_edition(data)
-    adopt.adopt_once()
     if projects.by_repository(repository) is not None:
         abort(409, f"{repository} has a project already.")
     found, default, error = github.heads(f"https://github.com/{repository}")
     if error:
         abort(400, error)
+    return _new_project(data, repository, version, edition, "linked", sorted(found), default)
+
+
+def _new_project(
+    data: Mapping[str, Any],
+    repository: str,
+    version: str,
+    edition: str,
+    origin: str,
+    seen: list[str],
+    default: str | None,
+) -> Response:
     try:
         project = projects.create(
             repository=repository,
             odoo_version=version,
             edition=edition,
-            origin="linked",
+            origin=origin,
             user=g.user["name"],
             name=_name(data),
         )
     except projects.ProjectError as refusal:
         abort(refusal.status, str(refusal))
-    projects.change(project["id"], lambda p: {**p, "seen": sorted(found)})  # its branches today are not "new"
-    log("project created", detail=f"{project['id']}: linked {repository}")
+    projects.change(project["id"], lambda p: {**p, "seen": seen})  # its branches today are not "new"
+    log("project created", detail=f"{project['id']}: {origin} {repository}")
     events.publish("project", project["id"])
     project = projects.get(project["id"]) or project
     return created(project_resource(project) | {"default_branch": default}, f"{PREFIX}/projects/{project['id']}")

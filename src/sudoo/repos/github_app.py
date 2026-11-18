@@ -1,4 +1,6 @@
-"""The panel's GitHub App: read-only access to every repository of the GitHub accounts it is installed on.
+"""The panel's GitHub App: read-only access to every repository of the GitHub accounts it is installed on, and,
+when it was given Administration: write, the creation of empty repositories for new projects in organisations
+(create_repository; GitHub lets an app create repositories only in organisations).
 
 One GitHub App per panel, registered from a manifest (GitHub's "App Manifest" flow) so nothing is typed by hand:
 
@@ -48,6 +50,8 @@ API = "https://api.github.com"  # changed by the tests, which run a fake GitHub
 WEB = "https://github.com"
 API_VERSION = "2022-11-28"
 PERMISSIONS = {"contents": "read", "metadata": "read"}
+CREATE_PERMISSIONS = {"administration": "write"}  # creating repositories in an organisation (projects/)
+REPOSITORY_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 EVENTS = ["push", "create", "delete"]
 HOOK_PATH = "/hooks/github-app"
 SECRET_FIELDS = ("pem", "webhook_secret", "client_secret")
@@ -193,20 +197,24 @@ def app_name(host: str) -> str:
     return f"Sudoo.sh {label[: NAME_LIMIT - len('Sudoo.sh ') - 5]}-{suffix}"
 
 
-def manifest(panel_url: str, hook_base: str, host: str) -> dict[str, Any]:
-    """The GitHub App manifest: read-only, private, push/create/delete events to the panel's webhook."""
+def manifest(panel_url: str, hook_base: str, host: str, create_repositories: bool = False) -> dict[str, Any]:
+    """The GitHub App manifest: read-only, private, push/create/delete events to the panel's webhook. With
+    `create_repositories`, also Administration: write, so the panel can create empty repositories for new projects
+    in the organisations it is installed on (CREATE_PERMISSIONS)."""
     panel_url, hook_base = panel_url.rstrip("/"), hook_base.rstrip("/")
+    permissions = {**PERMISSIONS, **(CREATE_PERMISSIONS if create_repositories else {})}
     return {
         "name": app_name(host),
         "url": panel_url,
-        "description": "Read-only access for the Sudoo.sh panel: it downloads branches to run them as Odoo instances.",
+        "description": "Access for the Sudoo.sh panel: it downloads branches to run them as Odoo instances"
+        + (" and creates empty repositories for new projects." if create_repositories else " (read-only)."),
         "hook_attributes": {"url": hook_base + HOOK_PATH, "active": True},
         "redirect_url": f"{panel_url}/github/app/created",
         "setup_url": f"{panel_url}/github/app/installed",
         "setup_on_update": True,
         "public": False,
         "request_oauth_on_install": False,
-        "default_permissions": dict(PERMISSIONS),
+        "default_permissions": permissions,
         "default_events": list(EVENTS),
     }
 
@@ -292,6 +300,7 @@ def _installation_record(found: dict[str, Any]) -> dict[str, Any]:
         "repository_selection": str(found.get("repository_selection", "selected")),
         "settings_url": str(found.get("html_url", "")),
         "suspended": bool(found.get("suspended_at")),
+        "permissions": {str(k): str(v) for k, v in (found.get("permissions") or {}).items()},
         "added": round(time.time()),
     }
 
@@ -590,3 +599,110 @@ def signature_valid(body: bytes, header: str, secret: str | None = None) -> bool
         return False
     expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, header)
+
+
+# --------------------------------------------------------------------------- creating repositories (projects/)
+
+
+def repository_creation(owner: str) -> dict[str, Any]:
+    """Whether the panel can create a repository in the GitHub account `owner`, and if not, what to do:
+    {"possible", "reason", "message", "url", "label"}. reason: "ok", "no_app", "not_installed", "suspended",
+    "personal_account" (a GitHub App can create repositories only in organisations), "permission_missing" (the
+    app lacks Administration: write, or the organisation has not accepted it yet)."""
+    data = _read()
+    if data is None:
+        return {
+            "possible": False,
+            "reason": "no_app",
+            "message": "Connect the GitHub App first (GitHub access), on the organisation the repository goes to.",
+            "url": "/github",
+            "label": "Open GitHub access",
+        }
+    found = next((i for i in installations() if str(i["account"]).lower() == owner.lower()), None)
+    if found is None:
+        return {
+            "possible": False,
+            "reason": "not_installed",
+            "message": f"The GitHub App is not installed on {owner}. Install it there first.",
+            "url": install_url(data),
+            "label": f"Install on {owner}",
+        }
+    if found.get("suspended"):
+        return {
+            "possible": False,
+            "reason": "suspended",
+            "message": f"The GitHub App's installation on {owner} is suspended. Unsuspend it on GitHub.",
+            "url": str(found.get("settings_url", "")),
+            "label": "Open the installation",
+        }
+    if found.get("account_type") != "Organization":
+        return {
+            "possible": False,
+            "reason": "personal_account",
+            "message": f"{owner} is a personal account: a GitHub App can create repositories only in organisations. "
+            "Create an empty repository on GitHub (without a README), then link it here.",
+            "url": "https://github.com/new",
+            "label": "New repository on GitHub",
+        }
+    if (found.get("permissions") or {}).get("administration") != "write":
+        return {
+            "possible": False,
+            "reason": "permission_missing",
+            "message": "The panel's GitHub App may not create repositories yet. On GitHub, open the app's settings, "
+            "Permissions and events, Repository permissions, set Administration to Read and write and save. Then an "
+            f"owner of {owner} accepts the new permission on the installation's page (GitHub sends them an e-mail "
+            "too). Come back here and press Check again.",
+            "url": settings_url(data) + "/permissions",
+            "label": "Open the app's permissions",
+            "accept_url": str(found.get("settings_url", "")),
+        }
+    return {"possible": True, "reason": "ok", "message": "", "url": "", "label": ""}
+
+
+def create_repository(owner: str, name: str, private: bool = True, description: str = "") -> dict[str, Any]:
+    """Create a new, empty repository (no README, no branch) in the organisation `owner`; returns
+    {"full_name", "url", "private", "default_branch"}. Raises GitHubError with a sentence for people."""
+    if not ORG_RE.match(owner) or not REPOSITORY_NAME_RE.match(name) or name in (".", ".."):
+        raise GitHubError("This is not a repository name GitHub accepts (letters, digits, '.', '-', '_').", 400)
+    check = repository_creation(owner)
+    if not check["possible"]:
+        raise GitHubError(str(check["message"]), 409)
+    installation = installation_for(owner)
+    assert installation is not None
+    # a token of its own, with only what creating needs (never cached: the read-only tokens stay read-only)
+    answer = request(
+        "POST",
+        f"/app/installations/{installation}/access_tokens",
+        bearer=app_jwt(),
+        body={"permissions": {**CREATE_PERMISSIONS, "metadata": "read"}},
+    )
+    token = str(answer["token"])
+    body = {"name": name, "private": private, "description": description[:350], "auto_init": False}
+    try:
+        created = request("POST", f"/orgs/{owner}/repos", bearer=token, body=body)
+    except GitHubError as error:
+        if error.status == 422:
+            raise GitHubError(f"{owner} has a repository named {name} already. Choose another name.", 409) from None
+        if error.status in (401, 403, 404):
+            raise GitHubError(
+                f"GitHub refused to create the repository in {owner} ({error}). Check that the app has "
+                "Administration: Read and write and that an owner of the organisation accepted it.",
+                409,
+            ) from None
+        raise
+    _repositories.clear()
+    full_name = str(created.get("full_name") or f"{owner}/{name}")
+    return {
+        "full_name": full_name,
+        "url": f"{WEB}/{full_name}",
+        "private": bool(created.get("private", private)),
+        "default_branch": str(created.get("default_branch") or "main"),
+    }
+
+
+def repository_owners() -> list[dict[str, Any]]:
+    """Every account the app is installed on, with whether a repository can be created there (repository_creation)."""
+    return [
+        {"account": i["account"], "account_type": i.get("account_type", "User"), **repository_creation(i["account"])}
+        for i in sorted(installations(), key=lambda i: str(i["account"]).lower())
+    ]

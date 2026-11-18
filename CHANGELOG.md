@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **New projects with a new, empty repository:** creating a project can make a new, totally empty repository (no
+  README, no branch; private by default) in an organisation the GitHub App is installed on, instead of linking an
+  existing one. It needs the app's **Administration: write** permission: **Connect GitHub** can ask for it ("Also
+  allow creating repositories"), and for an app connected earlier the panel detects that it is missing and says how
+  to grant it on GitHub (and that an organisation owner must accept it). The permission is used only through a
+  separate one-hour token for that one call; git's tokens stay read-only. API: `GET /projects/repository-owners`,
+  `POST /projects` with `create`, `POST /github/app/manifest` with `create_repositories`; installations record their
+  permissions.
 - **Projects (the Odoo.sh model):** a project is one GitHub repository, and each of its branches has a stage:
   production, staging or development. Every instance of a repository now belongs to its project; existing instances
   join theirs when the panel starts (one project per repository; only `PROJECT=<id>` is added to their `.env`, so

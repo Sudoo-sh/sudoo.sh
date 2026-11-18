@@ -8,7 +8,8 @@ role (roles.py), and the same permission checks apply.
     session.py     sign in (password, then a second factor when needed) and out, own password, contact
     account.py     own account and second factors
     instances.py   instances, jobs, versions
-    projects.py    projects (one GitHub repository each), their branches and stages
+    projects.py    projects (one GitHub repository each), their branches and stages, access and locked branches
+    teams.py       teams: named groups of accounts that project access is given to
     domains.py     instances' custom domains
     caught_mail.py the e-mails of staging and development instances, caught by the mail catcher
     help_panel.py  what the help panel needs: version, documentation and support addresses
@@ -58,6 +59,7 @@ from . import (
     session,
     settings,
     shell,
+    teams,
     tokens,
     users,
 )
@@ -102,6 +104,7 @@ def register(app: Flask) -> None:
         help_panel,
         plugins,
         shell,
+        teams,
     ):
         api.register_blueprint(module.blueprint)
     app.register_blueprint(api)

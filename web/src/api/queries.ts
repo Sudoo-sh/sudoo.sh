@@ -36,8 +36,10 @@ import type {
   Job,
   Metrics,
   MetricsHistory,
+  Permission,
   Plan,
   Project,
+  ProjectAccess,
   ProjectDetail,
   ProjectMeta,
   RepositoryOwner,
@@ -47,6 +49,7 @@ import type {
   Session,
   InstanceResources,
   Setting,
+  Team,
   Token,
   CaughtMail,
   CaughtMailDetail,
@@ -62,6 +65,8 @@ export const keys = {
   instances: ["instances"] as const,
   projects: ["projects"] as const,
   project: (id: string) => ["project", id] as const,
+  projectAccess: (id: string) => ["project", id, "access"] as const,
+  teams: ["teams"] as const,
   instance: (name: string) => ["instance", name] as const,
   domains: (name: string) => ["domains", name] as const,
   mail: (name: string) => ["caught-mail", name] as const,
@@ -140,6 +145,16 @@ export const useRepositoryOwners = (enabled: boolean) =>
 export const useInstance = (name: string) =>
   useQuery({ queryKey: keys.instance(name), queryFn: () => api.get<Instance>(`/instances/${name}`) });
 
+/** What the caller may do in an instance (its project's access and its branch's lock): GET /instances/<name>'s
+ *  meta.permissions, read again when the lock changes. */
+export const useInstancePermissions = (name: string, lock: string) =>
+  useQuery({
+    queryKey: [...keys.instance(name), "permissions", lock] as const,
+    queryFn: async () => ((await api.page<Instance>(`/instances/${name}`)).meta?.permissions ?? null) as Permission[] | null,
+    enabled: !!name,
+    staleTime: 30_000,
+  });
+
 export const useInstanceResources = (name: string) =>
   useQuery({ queryKey: keys.resources(name), queryFn: () => api.get<InstanceResources>(`/instances/${name}/resources`) });
 
@@ -200,6 +215,9 @@ export const useMailTemplates = () =>
       return { templates: answer.data, mailReady: Boolean(answer.meta?.mail_ready) };
     },
   });
+export const useTeams = (enabled = true) => useQuery({ queryKey: keys.teams, queryFn: () => api.get<Team[]>("/teams"), enabled });
+export const useProjectAccess = (id: string, enabled = true) =>
+  useQuery({ queryKey: keys.projectAccess(id), queryFn: () => api.get<ProjectAccess>(`/projects/${encodeURIComponent(id)}/access`), enabled });
 export const useUsers = () => useQuery({ queryKey: ["users"], queryFn: () => api.get<User[]>("/users") });
 export const useTokens = () => useQuery({ queryKey: ["tokens"], queryFn: () => api.get<Token[]>("/tokens") });
 export const useBackups = () => useQuery({ queryKey: ["backups"], queryFn: () => api.get<Backup[]>("/backups") });

@@ -725,12 +725,24 @@ async def _forward_websocket(request: web.Request, odoo_url: str, edge: Edge) ->
     return downstream
 
 
+def _locked(name: str) -> bool:
+    from sudoo.projects import access  # late: projects/ imports the instances package
+
+    try:
+        return access.instance_lock(name) is not None
+    except Exception:  # noqa: BLE001 - a broken project document must not stop the visitor's page
+        return False
+
+
 def wake_decision(name: str) -> tuple[str, float]:
     """Odoo is not answering: start the instance if it is not running (once a minute at most). Returns the page
-    for its visitors ("waking", "busy" while another job runs, "off" when it is switched off) and since when."""
+    for its visitors ("waking", "busy" while another job runs, "off" when it is switched off, "locked" when it is
+    paused and its branch is locked: a visit never starts it) and since when."""
     if STATE.get(name).get("switched_off"):
         return "off", time.time()
     job: jobs.Job | None = jobs.ACTIVE_JOB.get(name)
+    if job is None and not STATUS.get(name, {}).get("running") and _locked(name):
+        return "locked", time.time()
     if job is None and not STATUS.get(name, {}).get("running") and time.time() - _WAKE_REQUESTED.get(name, 0) > 60:
         _WAKE_REQUESTED[name] = time.time()
         assert _wake is not None  # set by start() before any listener exists

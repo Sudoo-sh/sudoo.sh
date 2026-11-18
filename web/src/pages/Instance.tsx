@@ -36,7 +36,7 @@ import {
 import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate, useParams } from "react-router";
 import { api, errorText } from "@/api/client";
-import { keys, useCall, useCapacity, useCredentials, useHistory, useInstance, useJobs, useOdooLog } from "@/api/queries";
+import { keys, useCall, useCapacity, useCredentials, useHistory, useInstance, useInstancePermissions, useJobs, useOdooLog } from "@/api/queries";
 import type { Instance, InstanceBackup, Job, Permission, Stage } from "@/api/types";
 import { BackupPicker } from "@/components/BackupPicker";
 import { LiveChart } from "@/components/charts/LiveChart";
@@ -45,6 +45,7 @@ import { StageTag } from "@/components/StageTag";
 import { DomainsTab } from "@/components/DomainsTab";
 import { ShellTab } from "@/components/shell/ShellTab";
 import { MailTab } from "@/components/MailTab";
+import { LockBanner } from "@/components/ProjectAccess";
 import { ResourcesCard } from "@/components/ResourcesCard";
 import { JobDrawer } from "@/components/JobDrawer";
 import { LogView } from "@/components/LogView";
@@ -94,10 +95,17 @@ const TABS: { id: string; label: keyof (typeof words)["en"]["tabs"]; icon: React
   { id: "shell", label: "shell", icon: <SquareTerminal />, permission: "instances.shell" },
 ];
 
+/** What the caller may do in this instance: their role, narrowed by the project's access and the branch's lock. */
+function useCanIn(instance: Instance | undefined) {
+  const roleCan = useCan();
+  const { data } = useInstancePermissions(instance?.name ?? "", JSON.stringify(instance?.lock ?? null));
+  return (permission: Permission) => roleCan(permission) && (!data || data.includes(permission));
+}
+
 export function InstancePage() {
   const { name = "", tab = "" } = useParams();
-  const can = useCan();
   const { data: instance, isPending, error } = useInstance(name);
+  const can = useCanIn(instance);
   // an alert links to /i/<name>/activity?job=<id>: that job opens at once
   const [jobId, setJobId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("job"));
   const run = useRun(name, setJobId);
@@ -154,7 +162,7 @@ export function InstancePage() {
                   <GitBranch size={14} strokeWidth={1.5} /> <bdi dir="ltr">{instance.git.branch}</bdi>
                 </span>
               )}
-              {instance.url && (
+              {instance.url && (!instance.lock || can("instances.logs")) && (
                 <a href={instance.url} target="_blank" rel="noreferrer" className="row truncate mono xsmall" style={{ gap: 4 }}>
                   <Globe size={14} strokeWidth={1.5} /> <bdi dir="ltr">{instance.url.replace(/^https?:\/\//, "")}</bdi>
                 </a>
@@ -163,7 +171,7 @@ export function InstancePage() {
           </div>
         </div>
         <div className="actions">
-          {instance.url && !asleep && (
+          {instance.url && !asleep && (!instance.lock || can("instances.logs")) && (
             <a className="btn primary" href={instance.url} target="_blank" rel="noreferrer">
               {t.openOdoo} <ArrowUpRight className="flip-rtl" />
             </a>
@@ -240,6 +248,7 @@ export function InstancePage() {
         </div>
       </div>
 
+      {instance.lock && <LockBanner lock={instance.lock} allowed={can("instances.logs")} />}
       {instance.current_job && (
         <button className="card pad" style={{ textAlign: "start", cursor: "pointer" }} onClick={() => setJobId(instance.current_job!.id)}>
           <JobLine job={instance.current_job} />
@@ -450,7 +459,7 @@ function Overview({ instance, busy, act }: { instance: Instance; busy: boolean; 
 // ---------------------------------------------------------------- backups
 
 function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolean; act: (action: string, title: string, body?: Record<string, unknown>) => void }) {
-  const can = useCan();
+  const can = useCanIn(instance);
   const [restoring, setRestoring] = useState<InstanceBackup | null>(null);
   const [picking, setPicking] = useState(false);
   const list = instance.backups ?? [];
@@ -750,7 +759,7 @@ function LogsTab({ name }: { name: string }) {
 
 function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }) {
   const toast = useToast();
-  const can = useCan();
+  const can = useCanIn(instance);
   const t = useT(words).settings;
   const c = useT(common);
   const stageLabel = (stage: Stage) => c.stages[stage]?.label ?? stage;

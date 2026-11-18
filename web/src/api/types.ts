@@ -8,6 +8,8 @@ export type Permission =
   | "instances.operate"
   | "instances.create"
   | "projects.manage"
+  | "projects.access"
+  | "teams.manage"
   | "instances.restore"
   | "instances.delete"
   | "instances.credentials"
@@ -206,6 +208,8 @@ export interface Instance {
   stage: Stage;
   /** the project (GitHub repository) it belongs to; null: standalone (plain Odoo) */
   project: ProjectReference | null;
+  /** its branch's lock (projects/access.py), or null */
+  lock?: BranchLock | null;
   url: string | null;
   odoo: { version: string; edition: "community" | "enterprise"; database: string };
   /** "plain": the official Odoo only, created without a repository (no code to update, no branch, no submodules) */
@@ -276,8 +280,49 @@ export interface Project {
   production_branches: string[];
   options: ProjectOptions;
   own_options: Partial<ProjectOptions>;
-  access: { mode: string };
+  /** panel_roles: everyone's role applies; restricted: only the teams and people granted see it */
+  access: { mode: AccessMode; grants: number; restricted_branches: string[]; locked_branches: string[] };
   links: { self: string };
+}
+
+export type AccessMode = "panel_roles" | "restricted";
+export type AccessLevel = "none" | "view" | "developer" | "maintainer" | "admin";
+export interface AccessSubject {
+  type: "team" | "user";
+  id: string;
+  /** the team's or account's name; null when it no longer exists */
+  name?: string | null;
+}
+export interface Grant extends AccessSubject {
+  level: AccessLevel;
+}
+/** A locked branch: nobody but whoever `allow` names may open, change, deploy, back up, restore or delete it */
+export interface BranchLock {
+  locked_by: string | null;
+  locked_at: number | null;
+  reason: string;
+  allow: AccessSubject[];
+}
+/** GET /projects/<id>/access */
+export interface ProjectAccess {
+  mode: AccessMode;
+  grants: Grant[];
+  branches: Record<string, { restricted: boolean; grants: Grant[] }>;
+  locks: Record<string, BranchLock>;
+  levels: AccessLevel[];
+}
+
+/** A team: a named group of accounts that project access is given to (GET /teams) */
+export interface Team {
+  id: string;
+  name: string;
+  description: string;
+  members: { name: string; display_name: string; role: Role }[];
+  projects: { id: string; name: string }[];
+  created_at: string | null;
+  created_by: string | null;
+  changed_at: string | null;
+  changed_by: string | null;
 }
 
 export interface ProjectBranch {
@@ -289,6 +334,11 @@ export interface ProjectBranch {
   commit: { sha: string; full_sha: string; subject: string; when: string; author: string } | null;
   instances: string[];
   auto_created: string | null;
+  lock: BranchLock | null;
+  /** seen only by the teams and people its own grants name */
+  restricted: boolean;
+  /** what the caller may do in this branch (role ∩ access, the lock) */
+  permissions?: Permission[];
 }
 
 /** GET /projects/<id>: the project with its branches */
@@ -303,6 +353,8 @@ export interface ProjectMeta {
   capacity: { comfortable: number; running: number; headroom: number; warning: boolean; message: string | null; overloaded: boolean } | null;
   production_limit: number | null;
   server_production_limit: number | null;
+  /** what the caller may do in the project as a whole */
+  permissions?: Permission[];
 }
 
 /** GET /projects/repository-owners: where a new, empty repository can be created */

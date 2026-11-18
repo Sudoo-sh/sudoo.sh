@@ -31,6 +31,7 @@ from flask.typing import ResponseReturnValue
 from sudoo import accounts, api_tokens, exposure, licence, limits, roles
 from sudoo.config import settings
 from sudoo.core import audit
+from sudoo.projects import access
 
 PUBLIC_PATHS = {"/healthz"}
 
@@ -296,7 +297,12 @@ def api_caller(headers: Headers, method: str, path_with_query: str, body: bytes,
             "and delete instances, nothing else.",
             403,
         )
-    return {"name": name, "role": SCOPE_ROLES.get(scope, "viewer"), "token_id": str(token["id"])}
+    return {
+        "name": name,
+        "role": SCOPE_ROLES.get(scope, "viewer"),
+        "token_id": str(token["id"]),
+        "owner": str(token.get("created_by") or ""),  # whose teams and grants apply (projects/access.py)
+    }
 
 
 def _path_with_query() -> str:
@@ -345,9 +351,21 @@ def _add_headers(response: Response) -> Response:
     return response
 
 
+def _instance_in_path() -> str | None:
+    """The instance named in the path (/api/v1/instances/<name>/...), when the endpoint is about one."""
+    name = (request.view_args or {}).get("name")
+    if isinstance(name, str) and request.path.startswith(f"{API_PREFIX}instances/"):
+        return name
+    return None
+
+
 def can(permission: str) -> bool:
-    """Whether the caller's role includes `permission` (roles.py)."""
-    return permission in roles.permissions(g.user["role"])
+    """Whether the caller has `permission`: their role's (roles.py), and in an instance of a project (the instance
+    the path names) what their access there gives (projects/access.py: role ∩ grant, locked branches)."""
+    name = _instance_in_path()
+    if name is not None:
+        return access.allowed_instance(g.user, permission, name)
+    return permission in access.role_permissions(g.user)
 
 
 def message_for_user(text: str | None) -> str | None:
@@ -357,15 +375,28 @@ def message_for_user(text: str | None) -> str | None:
     return text
 
 
-def refuse_unless(permission: str, what: str) -> None:
-    if not can(permission):
-        audit.record(g.user["name"], client_ip(), f"refused: {what}", ok=False)
+def refuse_unless(permission: str, what: str, instance: str | None = None) -> None:
+    """403 (404 for an instance the caller may not see) unless the caller has `permission`, in `instance` (default:
+    the instance the path names); audit-logged."""
+    name = instance or _instance_in_path()
+    if name is not None:
+        found = access.instance_refusal(g.user, permission, name)
+    elif permission not in access.role_permissions(g.user):
+        found = (403, "")
+    else:
+        found = None
+    if found is None:
+        return
+    status, message = found
+    audit.record(g.user["name"], client_ip(), f"refused: {what}", instance=name, ok=False)
+    if permission not in access.role_permissions(g.user):
         needed = roles.PERMISSIONS[permission].lower()
         abort(403, f"Your role cannot do this ({needed}). {settings.contact_sentence()}")
+    abort(status, message)
 
 
 def require[**P, R](permission: str) -> Callable[[Callable[P, R]], Callable[P, R]]:
-    """Decorator: the endpoint needs `permission`."""
+    """Decorator: the endpoint needs `permission` (in the instance the path names, when it names one)."""
 
     def decorate(view: Callable[P, R]) -> Callable[P, R]:
         @wraps(view)

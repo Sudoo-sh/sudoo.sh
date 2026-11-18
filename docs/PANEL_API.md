@@ -53,6 +53,11 @@ Someone with the permission `tokens.manage` (super admins and administrators) cr
 The panel shows two values **once**: the **token** (`sudoo_...`) and the **signing secret**. Store both where the other
 system keeps secrets. A token can be revoked at any time on the same page; it stops working at once.
 
+A token belongs to the account that created it: it never does more than that account's role allows, and that
+account's teams, project access and locked branches apply to it ([Projects](#projects)). A token made on the command
+line (below) belongs to no account: it keeps its scope's role but does not see restricted projects or branches and
+cannot act on locked branches.
+
 On the server, a token can also be created from the command line:
 
 ```bash
@@ -216,15 +221,36 @@ instance; `null` for plain Odoo). See [Projects and branches](ADMIN_GUIDE.md#24-
 
 | Method and path | Permission | Body | Answer |
 | :--- | :--- | :--- | :--- |
-| `GET /projects` | `instances.view` | | 200, every project: `id`, `name`, `repository` (`full_name`, `url`), `odoo` (`version`, `edition`), `origin` (`linked`, `created`, `adopted`), `created_at`, `created_by`, `branches` (`total` and the count per stage of the branches it knows), `instances` (`total`, `by_status`, `names`), `attention` (instances with a failed update, changes made by hand or a deleted branch), `production_branches`, `options` (what applies), `own_options` (set for the project), `access` (`mode`: `panel_roles`); `meta.standalone`: the instances in no project (plain Odoo) |
+| `GET /projects` | `instances.view` | | 200, every project: `id`, `name`, `repository` (`full_name`, `url`), `odoo` (`version`, `edition`), `origin` (`linked`, `created`, `adopted`), `created_at`, `created_by`, `branches` (`total` and the count per stage of the branches it knows), `instances` (`total`, `by_status`, `names`), `attention` (instances with a failed update, changes made by hand or a deleted branch), `production_branches`, `options` (what applies), `own_options` (set for the project), `access` (`mode`: `panel_roles` or `restricted`, `grants` (how many), `restricted_branches`, `locked_branches`); `meta.standalone`: the instances in no project (plain Odoo). Only the projects, branches and instances the caller may see are listed |
 | `GET /projects/repository-owners?refresh=1` | `projects.manage` | | 200, each account the GitHub App is installed on: `account`, `account_type`, `possible`, `reason` (`ok`, `no_app`, `not_installed`, `suspended`, `personal_account`, `permission_missing`), `message`, `url` and `label` (where to fix it), `accept_url` (where an owner accepts a new permission); `refresh=1` reads the installations from GitHub now |
 | `POST /projects` | `projects.manage` | link: `{"repository": "https://github.com/acme/erp", "odoo_version": "19.0", "edition": "community", "name"?}`; or create a new, empty repository (also `github.manage`): `{"create": {"owner": "acme", "name": "erp", "private": true, "description"?}, "odoo_version", "edition", "name"?}` | **201**, the project (`origin` `linked` or `created`) and `default_branch`, `Location`; 400 when the server cannot read the repository (the GitHub App's explanation) or the name is not one GitHub accepts, 409 when it has a project already, the name is taken on GitHub, or the app may not create repositories there (`detail` says what to do) |
-| `GET /projects/<id>?refresh=1` | `instances.view` | | 200, the project with `branches_list`: each branch's `name`, `stage`, `default`, `on_github` (`null` when GitHub could not be read), `commit` (`sha`, `full_sha`, `subject`, `when`, `author`), `instances`, `auto_created`; production first. `meta`: `default_branch`, `branches_error`, `branches_read_at` (GitHub is read at most every 30 seconds; `refresh=1` reads it now), `capacity` (`comfortable`, `running`, `headroom`, `warning`, `message`, `overloaded`), `production_limit`, `server_production_limit` |
+| `GET /projects/<id>?refresh=1` | `instances.view` | | 200, the project with `branches_list`: each branch's `name`, `stage`, `default`, `on_github` (`null` when GitHub could not be read), `commit` (`sha`, `full_sha`, `subject`, `when`, `author`), `instances`, `auto_created`, `lock` (`locked_by`, `locked_at`, `reason`, `allow`; `null`), `restricted`, `permissions` (what the caller may do in that branch); production first; branches hidden from the caller are left out. 404 for a project the caller may not see. `meta`: `permissions` (in the project as a whole), `default_branch`, `branches_error`, `branches_read_at` (GitHub is read at most every 30 seconds; `refresh=1` reads it now), `capacity` (`comfortable`, `running`, `headroom`, `warning`, `message`, `overloaded`), `production_limit`, `server_production_limit` |
 | `PATCH /projects/<id>` | `projects.manage` | any of `name`, `odoo_version` and `edition` (for new instances), `options`: `{"auto_development": false, "max_auto_development": 5, "development_demo_data": true, "staging_on_push": "rebuild" or "keep_data", "branch_deleted": "keep", "archive" or "delete", "development_lifetime_days": 7, "staging_lifetime_days": 30}`; `null` follows the panel's setting again | 200, the project |
 | `DELETE /projects/<id>` | `projects.manage` | `{"confirm": "<id>"}` | **204**; 409 while it has instances. The repository on GitHub is never touched |
 | `PUT /projects/<id>/branches/<branch>/stage` | `projects.manage` | `{"stage": "production", "confirm_production": true}` | 200, the branch; every instance of it moves to the stage (the checks of `PATCH /instances/<name>`). Making a branch production, or moving it out of production, needs `"confirm_production": true` (400); **409** beyond `PROJECT_PRODUCTION_BRANCHES` in the project or `MAX_PRODUCTION_INSTANCES` on the server. A branch name may contain `/` |
 | `POST /projects/<id>/branches/<branch>/instances` | `instances.create`; staging also `instances.restore` | `{"name"?, "demo"? (development only; the project's option by default), "install_modules"? (true)}` | **202**, the creation's job: an instance of the branch in the branch's stage, with the project's Odoo version and edition and lifetime. Staging starts from a neutralised copy of the project's production instance (**409** when it has none, or another Odoo version or edition). 404 when GitHub has no such branch |
-| `POST /projects/<id>/branches/<branch>/rebuild` | `instances.restore` | `{"instance"?}` (the branch's first instance by default) | **202**, the job "Rebuild from production"; 409 for an instance that is not staging, or a project without a production instance |
+| `POST /projects/<id>/branches/<branch>/rebuild` | `instances.restore` | `{"instance"?}` (the branch's first instance by default) | **202**, the job "Rebuild from production"; 409 for an instance that is not staging, or a project without a production instance; 403 when production's branch is locked against the caller |
+| `GET /projects/<id>/access` | `projects.access` | | 200, `{"mode", "grants": [{"type": "team" or "user", "id", "level", "name"}], "branches": {"<branch>": {"restricted", "grants"}}, "locks": {"<branch>": {"locked_by", "locked_at", "reason", "allow": [{"type", "id", "name"}]}}, "levels"}`; `name` is `null` for a team or account that no longer exists |
+| `PUT /projects/<id>/access` | `projects.access` | `{"mode": "panel_roles" or "restricted", "grants": [{"type", "id", "level"}], "branches": {"<branch>": {"restricted": true, "grants": [...]}}}`; `level` is `none`, `view`, `developer`, `maintainer` or `admin` | 200, the access (locks unchanged); 400 for an unknown team or account; **409** when the change would leave the caller without `projects.access` in the project |
+| `PUT /projects/<id>/branches/<branch>/lock` | `projects.access` in the branch; to change an existing lock, also allowed by it (super admins always) | `{"reason"?, "allow": [{"type": "team" or "user", "id"}]}` | 200, the lock; the caller is always added to `allow`. 404 for a branch the project does not know |
+| `DELETE /projects/<id>/branches/<branch>/lock` | `projects.access`, allowed by the lock (super admins always) | | **204**; 404 when the branch is not locked |
+
+Inside a project every permission is the caller's role ∩ the level the project (or the branch) gives them, and a
+locked branch takes every project permission but `instances.view` from whoever its lock does not allow
+([Security](SECURITY.md#teams-project-access-and-locked-branches)). This applies to every endpoint about an instance
+(`/instances/<name>/...`, its jobs, backups, off-site copies, shell tickets): an instance hidden from the caller
+answers 404 like one that does not exist, a refused permission 403 with the reason, and lists leave hidden ones out.
+`GET /instances/<name>` has `meta.permissions`, what the caller may do in it, and every instance has `lock`.
+
+### Teams
+
+| Method and path | Permission | Body | Answer |
+| :--- | :--- | :--- | :--- |
+| `GET /teams` | `teams.manage` or `projects.access` | | 200, every team: `id`, `name`, `description`, `members` (`name`, `display_name`, `role`), `projects` (`id`, `name`: the projects whose access or locks name it), `created_at`, `created_by`, `changed_at`, `changed_by` |
+| `GET /teams/<id>` | `teams.manage` or `projects.access` | | 200, the team |
+| `POST /teams` | `teams.manage` | `{"name", "description"?, "members"?: ["<account>"]}` | **201**, the team; 409 when another team has the name (case aside), 400 for an unknown account |
+| `PATCH /teams/<id>` | `teams.manage` | any of `name`, `description`, `members` | 200, the team |
+| `DELETE /teams/<id>` | `teams.manage` | | **204**; the team leaves every grant and lock |
 
 ### Server, metrics and settings
 

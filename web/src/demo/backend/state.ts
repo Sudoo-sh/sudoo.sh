@@ -30,7 +30,7 @@ const VIEW: Permission[] = ["instances.view", "instances.logs"];
 const DEVELOP: Permission[] = [...VIEW, "instances.update", "caught_mail.view"];
 const MAINTAIN: Permission[] = [...DEVELOP, "instances.operate", "instances.restore", "instances.create", "instances.credentials", "github.manage", "projects.manage"];
 const ALL: Permission[] = [
-  "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "projects.manage", "instances.restore",
+  "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "projects.manage", "projects.access", "teams.manage", "instances.restore",
   "instances.delete", "instances.credentials", "instances.resources", "caught_mail.view", "caught_mail.manage", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
   "audit.view", "plugins.view", "settings.manage", "mail.manage", "offsite.configure", "offsite.restore", "offsite.delete",
   "instances.shell", "instances.database_shell", "shells.supervise",
@@ -44,6 +44,8 @@ export const PERMISSIONS: Record<Permission, string> = {
   "instances.operate": "Pause, switch off, upgrade, switch branch, back up, change automation",
   "instances.create": "Create instances",
   "projects.manage": "Create and link projects (one GitHub repository each), change their settings and the stages of their branches",
+  "projects.access": "Choose who may see and work in a project and its branches (grants, restricted projects and branches) and lock or unlock branches",
+  "teams.manage": "Create, change and delete teams (named groups of accounts that project access is given to)",
   "instances.restore": "Restore an instance from a backup (replaces its database and files)",
   "instances.delete": "Delete instances",
   "instances.credentials": "See Odoo passwords and ports",

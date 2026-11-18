@@ -33,7 +33,7 @@ from sudoo.core.jobs import Job
 from sudoo.core.state import STATE
 from sudoo.instances import capacity, operations, planning, stages, store
 from sudoo.limits import quotas
-from sudoo.projects import branches, staging
+from sudoo.projects import access, branches, staging
 
 SYNC_MINIMUM_SECONDS = 60
 
@@ -74,6 +74,8 @@ def creation_refusal(project: Mapping[str, Any], branch: str) -> str | None:
     """Why no development instance is created by itself for `branch`, or None."""
     if not projects.option(project, "auto_development"):
         return "the project does not create instances for new branches"
+    if access.lock_of(project, branch) is not None:
+        return "the branch is locked"
     if projects.by_branch(project["id"]).get(branch):
         return "the branch has an instance already"
     recorded = (project.get("branches") or {}).get(branch, {}).get("stage")
@@ -158,6 +160,8 @@ def branch_deleted(repository: str, branch: str, user: str = "system") -> list[s
                 action = "archive"  # staging may hold work of testers: never deleted for this
             if action != "keep" and jobs.busy(name):
                 action = "keep"  # it is busy: left as it is, the warning shows that the branch is gone
+            if action != "keep" and access.lock_of(project, branch) is not None:
+                action = "keep"  # a locked branch: nothing is done to its instances automatically
             if action == "archive":
                 jobs.start(name, "Archive (branch deleted on GitHub)", "stop", archive, name, branch, user=user)
             elif action == "delete":
@@ -184,6 +188,11 @@ def update_for(name: str) -> tuple[str, str, Any, tuple[Any, ...]] | None:
     project = projects.get(env.get("PROJECT", ""))
     if project is None or stages.of(env) != stages.STAGING:
         return None
+    if access.lock_of(project, projects.branch_of(name)) is not None:
+        return None  # a locked branch: triggers.request_update skips it anyway
+    production = staging.production_instance(project)
+    if production and access.lock_of(project, projects.branch_of(production)) is not None:
+        return None  # production is locked: its data is not copied automatically, the usual update instead
     if projects.option(project, "staging_on_push") != "rebuild" or staging.rebuild_refusal(name):
         return None
     return "Automatic rebuild from production", "restore", staging.rebuild, (name,)

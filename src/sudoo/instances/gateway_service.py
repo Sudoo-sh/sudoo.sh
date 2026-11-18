@@ -277,7 +277,7 @@ class ServiceHost:
 
     async def ask_panel(self, name: str) -> tuple[str, float]:
         """The page for a visitor of an instance whose Odoo does not answer: the panel's ("waking", "busy",
-        "off"; it starts the instance if needed), or "waiting" while the panel cannot be reached."""
+        "off", "locked"; it starts the instance if needed), or "waiting" while the panel cannot be reached."""
         now = time.time()
         cached = self.answers.get(name)
         if cached and now - cached[0] < ASK_SECONDS:
@@ -292,7 +292,7 @@ class ServiceHost:
                 answer.raise_for_status()
                 data = await answer.json()
             page, since = data["page"], float(data["since"])
-            if page not in ("waking", "busy", "off"):
+            if page not in ("waking", "busy", "off", "locked"):
                 raise ValueError(page)
             self.waiting_since.pop(name, None)
         except (aiohttp.ClientError, OSError, TimeoutError, ValueError, KeyError, TypeError):

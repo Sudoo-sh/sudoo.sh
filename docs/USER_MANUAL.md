@@ -179,6 +179,11 @@ status, and its actions:
 | **Move to** a stage | Changes the branch's stage and moves its instances with it. Making a branch production asks you to confirm what changes: its instances never pause, never expire, are backed up every day and get new code only through a backup and an automatic rollback. A project has one production branch unless the administrator allows more. Leaving production asks for a confirmation too. | maintainers and up |
 | **Rebuild from production** | Staging only: replaces its database and files with a new neutralised copy of production, then takes the branch's latest code. Everything done in staging since its last rebuild is lost. | instances.restore |
 | **Delete instance** | Deletes the instance after a backup (a production instance asks you to type `production` too). The branch stays. | instances.delete |
+| **Lock**, **Change the lock**, **Unlock** | Closes the branch to everyone but the people and teams the lock allows ([locked branches](#project-access-and-locked-branches)). | administrators |
+
+What you may do in a branch also depends on the project's access: a branch hidden from you is not listed, and a
+**Locked** tag marks a locked branch (its menu then offers only what the lock lets you do). **Restricted** marks a
+branch seen only by its own grants.
 
 When the server runs as many instances as it takes comfortably, a warning above the branches says so: many branches
 running at once slow every instance down. Development instances pause when nobody uses them.
@@ -203,6 +208,9 @@ rebuilds it from a new copy of production.
 happens with new, pushed and deleted branches, the lifetimes of new development and staging instances, and
 **Delete the project** (only without instances; the repository on GitHub stays). A value you do not set follows the
 panel's setting (**Settings**, **Instances**, **Projects**); the reset button next to it goes back to it.
+
+**Access** (the project's tab, administrators): who sees the project and at which level, per project and per branch,
+and its locked branches: see [Project access and locked branches](#project-access-and-locked-branches).
 
 ---
 
@@ -767,6 +775,7 @@ Every account has one role. The role decides which pages, buttons and menu items
 | Add and remove an instance's custom domains, choose the primary one | yes | yes | no | no | no |
 | Backups page (download, delete) | yes | yes | no | no | no |
 | Accounts, API tokens, audit log | yes | yes | no | no | no |
+| Teams; a project's access (grants, restricted projects and branches); lock and unlock branches ([Teams](#teams), [Project access and locked branches](#project-access-and-locked-branches)) | yes | yes | no | no | no |
 | Create, change and delete super admins | yes | no | no | no | no |
 | Settings, restart the panel | yes | no | no | no | no |
 | E-mail templates (the texts of the e-mails the panel sends) | yes | no | no | no | no |
@@ -781,8 +790,12 @@ Every account has one role. The role decides which pages, buttons and menu items
 maintainers and developers, may open shells too, and whether shells in production instances are for super admins
 only (the default), for everyone allowed elsewhere, or for nobody. Root shells are always for super admins only.
 
-API tokens act with a role too: a **write** token as an Administrator, a **read** token as a Viewer. No API token can
+API tokens act with a role too: a **write** token as an Administrator, a **read** token as a Viewer, limited by the
+role of the account that created it (its owner), whose teams and project access apply to it as well. No API token can
 open a shell.
+
+Inside a project, a role is the most someone can do: the project's access can narrow it for a team or a person, hide
+a project or a branch, or lock a branch ([Project access and locked branches](#project-access-and-locked-branches)).
 
 When you try something your role does not allow, the panel says which permission is missing. Ask an administrator.
 
@@ -826,6 +839,59 @@ Rules:
 
 Passwords are never stored by the panel, only checked: see
 [Passwords and encryption](concepts/PASSWORDS_AND_ENCRYPTION.md).
+
+### Teams
+
+**Teams** (sidebar, Administration; administrators) are named groups of accounts, for example the leads who release
+to production, a project's developers, or a client's reviewers. **New team** asks for a name, an optional description
+and the members (a list of accounts with a search). The list shows each team's members and the projects whose access
+or locks name it; **Edit** and **Delete** are in its row menu.
+
+A team gives nothing by itself: a project's **Access** tab gives it a level in the project or in one of its branches,
+and a branch's lock can allow it. Deleting a team removes it from every project's access and every lock; deleting
+an account removes it from every team, access and lock. Every change is in the audit log, with the members added and
+removed.
+
+### Project access and locked branches
+
+What someone may do in a project is **their role, limited by the level they have there**. A level never gives more
+than the role: a Viewer given the level Admin is still a Viewer.
+
+| Level | What it allows (within the role) |
+| :--- | :--- |
+| **No access** | Nothing: the project (or the branch) is not shown at all. |
+| **View** | See the instances, their activity and logs. |
+| **Developer** | Also get new code, restart and start, read caught e-mails, open the Odoo container's shell. |
+| **Maintainer** | Also create, operate and restore instances, see the Odoo passwords, change the project's settings and the stages of its branches. |
+| **Admin** | Everything the role allows in the project, its access and locks included. |
+
+A project's **Access** tab (administrators) chooses:
+
+* **Who sees the project.** **Everyone** (every project starts so, and every project made before teams existed):
+  everyone works with their role, and grants change it only for the teams and people they name; a grant of
+  **No access** hides the project from them. **Only those granted**: only the teams and people listed see it.
+* **Grants.** A team or a person, with a level. A person's own grant comes first; otherwise the highest level of
+  their teams applies.
+* **Branches.** A branch can give its own levels (they replace the project's for whoever they name), and it can be
+  **Restricted**: only its own grants see it, for example production for the leads. The rest of the project stays as
+  it is.
+
+Super admins always see every project and branch. The panel refuses a change that would leave you unable to manage
+the project's access yourself: grant yourself (or one of your teams) the Admin level first.
+
+**Locked branches.** A branch's menu on the **Branches** tab has **Lock**: give a reason (optional) and the people and
+teams it allows (you stay allowed). While a branch is locked, nobody else may open its instances from the panel (the
+Odoo link, the Access tab, logs, caught e-mails, the shell), change, update, deploy, back up, restore or delete them,
+change the branch's stage, create an instance of it or copy its data into staging (when it is production). Everyone who
+sees the branch sees the lock: a **Locked** tag on the branch and its instances (who locked it and why on hover), and
+a banner on the instance's page. Super admins are locked out too until they **Unlock**, which they always may; the
+others need to be allowed by the lock, and **Change the lock** follows the same rule. Locking, changing and unlocking
+are recorded in the audit log.
+
+The panel's own safety work goes on while a branch is locked: a locked production branch keeps serving, is never
+paused, and gets its daily backup; monitoring and certificates continue. Automatic changes stop: pushes do not
+update its instances (or rebuild its staging), an expired lifetime does not delete them, a branch deleted on GitHub
+does not archive or delete them, and a visit to a paused instance of it shows **Locked** instead of starting it.
 
 ### API tokens
 

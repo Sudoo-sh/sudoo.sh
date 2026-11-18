@@ -125,6 +125,12 @@ def _delete_expired_instances() -> None:
         delete_expired_instances()
 
 
+def _locked(name: str) -> bool:
+    from sudoo.projects import access  # late: projects/ imports the instances package
+
+    return access.instance_lock(name) is not None
+
+
 def delete_expired_instances(now: float | None = None) -> list[str]:
     """Start the deletion of each expired instance that is not busy and not given up on; return their names."""
     started = []
@@ -134,6 +140,8 @@ def delete_expired_instances(now: float | None = None) -> list[str]:
         if not expires or (time.time() if now is None else now) <= expires or jobs.busy(name):
             continue
         if STATE.get(name).get("expiry_stopped"):
+            continue
+        if _locked(name):  # a locked branch's instance is never deleted automatically (projects/access.py)
             continue
         jobs.start(
             name, f"Deleted automatically ({env['DELETE_AFTER_DAYS']} days after creation)", "delete",

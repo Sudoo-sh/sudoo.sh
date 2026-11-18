@@ -64,6 +64,7 @@ from sudoo.core.state import STATE
 from sudoo.instances import backups, capacity, metrics, naming, odoo, operations, planning, resources, stages, store
 from sudoo.limits import quotas
 from sudoo.mailcatcher import panel as mail_catcher
+from sudoo.projects import access
 from sudoo.repos import github
 from sudoo.repos.gitrepo import origin_url
 
@@ -147,13 +148,16 @@ def _limits(default: int = 100) -> tuple[int, int]:
 def list_instances() -> Response:
     limit, offset = _limits()
     names = sorted(set(store.names()) | set(jobs.being_created()))  # those being created have status "creating"
-    return page(names, limit, offset, instance_resource)
+    return page(access.visible_instances(g.user, names), limit, offset, instance_resource)
 
 
 @blueprint.get("/instances/<name>")
 @require("instances.view")
 def instance(name: str) -> Response:
-    return ok(instance_resource(known(name), full=True))
+    """The instance; meta.permissions: what the caller may do in it (role ∩ project access, locked branch)."""
+    resource = instance_resource(known(name), full=True)
+    project, branch = access.scope_of_instance(name)
+    return ok(resource, meta={"permissions": sorted(access.permissions(g.user, project, branch))})
 
 
 @blueprint.get("/instances/<name>/credentials")
@@ -196,6 +200,9 @@ def _usable_backup(file_name: str, version: str, edition: str, instance: str | N
     found = next((b for b in backups.all_backups() if b["file"] == file_name), None) if match else None
     if instance is None or found is None or not backups.belongs_to(instance, found):
         refuse_unless("backups.manage", f"use backup {file_name[:80]}" + (f" for {instance}" if instance else ""))
+    if found is not None and found["instance"] != instance and store.exists(found["instance"]):
+        # another instance's backup: that instance's access applies too (restricted project, locked branch)
+        refuse_unless("backups.manage", f"use backup {file_name[:80]}", instance=found["instance"])
     path = check.backup_file(file_name)  # 404 for an unknown file or anything that is not a backup name
     problem = backups.problem(path.name, version, edition)
     if problem:
@@ -260,11 +267,25 @@ def create() -> Response:
         abort(400, f"Odoo {version} Enterprise is not available on this server.")
     stage = check.one_of(check.text(data, "stage", default=stages.DEFAULT, max_length=20), stages.STAGES, STAGE_MESSAGE)
     from_backup = check.text(data, "from_backup", max_length=200) or None
+    found = projects.by_repository(github.repo_name(repo) or "") if repo else None
+    if found is not None:  # an instance of a project's branch: the caller's access in that branch
+        _refuse_in_branch("instances.create", found, branch, f"create an instance of {found['id']} {branch}")
     if from_backup:
         refuse_unless("instances.restore", "create an instance from a backup")
+        if found is not None:
+            _refuse_in_branch("instances.restore", found, branch, "create an instance from a backup")
         from_backup = _usable_backup(from_backup, version, edition)
     with quotas.LOCK:  # until the job is registered: from then on it counts toward the limits
         return _start_creation(data, repo, branch, version, edition, custom_name, from_backup, stage)
+
+
+def _refuse_in_branch(permission: str, project: Mapping[str, Any], branch: str, what: str) -> None:
+    """403 (404 when the branch is hidden from the caller) unless the caller has `permission` in the project's
+    branch (projects/access.py), audit-logged."""
+    found = access.refusal(g.user, permission, project, branch)
+    if found is not None:
+        log(f"refused: {what}", ok=False, detail=found[1])
+        abort(*found)
 
 
 def _start_creation(
@@ -653,18 +674,34 @@ def list_jobs() -> Response:
     if instance_name:
         check.instance_name(instance_name)
     found = [j for j in reversed(jobs.JOBS.values()) if not instance_name or j.instance == instance_name]
+    shown = set(access.visible_instances(g.user, {j.instance for j in found if not jobs.is_panel_job(j.instance)}))
+    found = [j for j in found if jobs.is_panel_job(j.instance) or j.instance in shown]
     return page(found, limit, offset, job_resource)
 
 
-def _job(job_id: str) -> jobs.Job:
-    return jobs.JOBS.get(job_id) or abort(404, "This job does not exist or is too old to be kept.")
+def _job(job_id: str, permission: str = "instances.view") -> jobs.Job:
+    """The job, when the caller has `permission` in its instance (404 for an instance hidden from them)."""
+    found = jobs.JOBS.get(job_id) or abort(404, "This job does not exist or is too old to be kept.")
+    if not jobs.is_panel_job(found.instance):
+        refusal = access.instance_refusal(g.user, permission, found.instance)
+        if refusal is not None:
+            log(f"refused: {permission} in job {job_id}", instance=found.instance, ok=False)
+            if refusal[0] == 404:
+                abort(404, "This job does not exist or is too old to be kept.")
+            abort(*refusal)
+    return found
 
 
 @blueprint.get("/jobs/<job_id>")
 @require("instances.view")
 def job(job_id: str) -> Response:
-    include_log = request.args.get("include") == "log" and can("instances.logs")
-    found = job_resource(_job(job_id), include_log=include_log)
+    shown = _job(job_id)
+    include_log = request.args.get("include") == "log" and (
+        can("instances.logs")
+        if jobs.is_panel_job(shown.instance)
+        else access.allowed_instance(g.user, "instances.logs", shown.instance)
+    )
+    found = job_resource(shown, include_log=include_log)
     if found["error"]:
         found["error"] = message_for_user(found["error"])
     return ok(found)
@@ -674,7 +711,7 @@ def job(job_id: str) -> Response:
 @require("instances.logs")
 def job_log(job_id: str) -> Response:
     """The job's log from line `offset` on; `meta.next_offset` is where to continue."""
-    found = _job(job_id)
+    found = _job(job_id, "instances.logs")
     offset = check.whole_number(request.args.get("offset", "0"), "offset")
     lines = found.log[:]
     return ok({"text": "".join(lines[offset:])}, meta={"offset": offset, "next_offset": len(lines)})

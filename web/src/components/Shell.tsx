@@ -24,6 +24,7 @@ import {
   Sun,
   UserRound,
   Users,
+  UsersRound,
 } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { flushSync } from "react-dom";
@@ -107,7 +108,7 @@ function Sidebar({ open }: { open: boolean }) {
   const t = all.nav;
   const operations = can("backups.manage") || can("audit.view") || can("github.manage");
   const administration =
-    can("settings.manage") || can("mail.manage") || can("accounts.manage") || can("tokens.manage") || can("plugins.view");
+    can("settings.manage") || can("mail.manage") || can("accounts.manage") || can("teams.manage") || can("tokens.manage") || can("plugins.view");
   return (
     <aside className={`sidebar ${open ? "open" : ""}`}>
       <Brand />
@@ -172,6 +173,11 @@ function Sidebar({ open }: { open: boolean }) {
             {can("accounts.manage") && (
               <NavItem to="/accounts" icon={<Users />}>
                 {t.accounts}
+              </NavItem>
+            )}
+            {can("teams.manage") && (
+              <NavItem to="/teams" icon={<UsersRound />}>
+                {t.teams}
               </NavItem>
             )}
             {can("tokens.manage") && (
@@ -249,6 +255,7 @@ const CRUMBS: Record<string, keyof (typeof common)["en"]["nav"]> = {
   "email-templates": "emailTemplates",
   plugins: "plugins",
   accounts: "accounts",
+  teams: "teams",
   tokens: "tokens",
   backups: "backups",
   activity: "audit",

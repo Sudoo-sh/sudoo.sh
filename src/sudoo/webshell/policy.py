@@ -8,7 +8,8 @@ Targets (what the Shell tab offers):
     psql         psql on the instance's database, in its database container                instances.database_shell
 
 Rules, in order: shells are switched on (SHELL_ENABLED); the caller is a person in the panel, never an API token;
-their role has the target's permission (roles.permissions, which applies SHELL_ROLES); the instance exists; a
+their role has the target's permission (roles.permissions, which applies SHELL_ROLES); the instance exists; their
+access in its project gives that permission and its branch is not locked against them (projects/access.py); a
 production instance allows it (SHELL_PRODUCTION) and the caller confirmed it, every time; root only for the Odoo
 container's terminal, for super admins, when SHELL_ROOT is on.
 
@@ -25,6 +26,7 @@ from typing import Any
 from sudoo import roles
 from sudoo.config import settings
 from sudoo.instances import odoo, stages, store
+from sudoo.projects import access
 
 TARGETS = ("shell", "odoo-shell", "psql")
 SERVICE = {"shell": "odoo", "odoo-shell": "odoo", "psql": "db"}
@@ -81,6 +83,10 @@ def plan(user: dict[str, str], name: str, target: str, *, as_root: bool = False,
         raise Refused(403, "permission", f"Your role cannot do this ({needed}). {settings.contact_sentence()}")
     if not store.NAME_RE.match(name) or not store.exists(name):
         raise Refused(404, "missing", "This instance does not exist.")
+    refused = access.instance_refusal(user, PERMISSION[target], name)  # project access, locked branch
+    if refused is not None:
+        status, message = refused
+        raise Refused(status, "missing" if status == 404 else "locked" if "locked" in message else "access", message)
     env = store.read_env(name)
     production = stages.is_production(env)
     if production:

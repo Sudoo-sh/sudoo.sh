@@ -55,6 +55,7 @@ export const router = createBrowserRouter([
           { path: "/email-templates", lazy: page(() => import("./pages/EmailTemplates"), (m) => m.EmailTemplatesPage, "mail.manage") },
           { path: "/plugins/:tab?", lazy: page(() => import("./pages/Plugins"), (m) => m.PluginsPage, "plugins.view") },
           { path: "/accounts", lazy: page(() => import("./pages/Accounts"), (m) => m.AccountsPage, "accounts.manage") },
+          { path: "/teams", lazy: page(() => import("./pages/Teams"), (m) => m.TeamsPage, "teams.manage") },
           { path: "/tokens", lazy: page(() => import("./pages/Tokens"), (m) => m.TokensPage, "tokens.manage") },
           { path: "/backups", lazy: page(() => import("./pages/Backups"), (m) => m.BackupsPage, "backups.manage") },
           { path: "/activity", lazy: page(() => import("./pages/Audit"), (m) => m.AuditPage, "audit.view") },

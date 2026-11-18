@@ -278,9 +278,9 @@ seconds. Set them in the panel's `.env` or in the panel, as always.
 
 ## Custom domains
 
-Instances answering on your own names, such as `erp.client.com`, over https ([Administrator Guide, Custom
-domains](ADMIN_GUIDE.md#19-custom-domains-and-certificates)). Off by default. Every value here can be changed on the
-Settings page except the two ports.
+Instances answering on your own names, such as `erp.client.com`, over https
+([Administrator Guide, Custom domains](ADMIN_GUIDE.md#19-custom-domains-and-certificates)). Off by default. Every
+value here can be changed on the Settings page except the two ports.
 
 | Setting | Type | Default | Applies | Meaning |
 | :--- | :--- | :--- | :--- | :--- |

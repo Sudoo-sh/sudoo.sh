@@ -45,7 +45,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       { id: "stages", keys: ["max_production_instances", "production_auto_update", "staging_delete_after_days"] },
       {
         id: "projects",
-        keys: ["project_production_branches", "project_auto_development", "project_max_auto_development", "project_development_demo_data", "project_staging_on_push", "project_branch_deleted"],
+        keys: ["project_production_branches", "project_auto_development", "project_max_auto_development", "project_development_demo_data", "project_staging_on_push", "project_branch_deleted", "project_upgrade_test_on_push"],
       },
       { id: "howMany", keys: ["max_instances", "max_instances_per_user", "create_cooldown_minutes"] },
       { id: "capacity", keys: ["capacity_reserve_mb", "capacity_reserve_percent", "capacity_instance_memory_mb", "capacity_warning_percent", "max_running_instances"] },
@@ -59,6 +59,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
     groups: [
       { id: "versions", keys: ["odoo_versions", "odoo_min_version", "prepull_images", "odoo_image", "postgres_image"] },
       { id: "enterprise", keys: ["enterprise_source", "enterprise_path", "enterprise_git_url", "enterprise_git_branch", "enterprise_marker"] },
+      { id: "upgrades", keys: ["upgrade_methods", "openupgrade_repository", "openupgrade_refs", "openupgrade_lib", "upgrade_rollback_minutes", "upgrade_max_hours", "upgrade_service_url"] },
     ],
   },
   {
@@ -131,13 +132,13 @@ const RESOURCE_KEYS = [
   ...RESOURCE_KNOBS.flatMap((row) => STAGES.map((stage) => limitKey(row, stage))),
 ];
 const TAB_IDS = new Set<string>(TABS.map((t) => t.id));
-const KNOWN = new Set<string>([...TABS.flatMap((t) => t.groups.flatMap((g) => g.keys)), "marketplace", "licence_required_version", ...RESOURCE_KEYS]);
+const KNOWN = new Set<string>([...TABS.flatMap((t) => t.groups.flatMap((g) => g.keys)), "marketplace", "licence_required_version", "link_deadline_days", ...RESOURCE_KEYS]);
 const keysOfTab = (tab: (typeof TABS)[number], other: string[]) => [
   ...tab.groups.flatMap((g) => g.keys),
   ...(tab.id === "marketplace" ? ["marketplace"] : []),
   ...(tab.id === "resources" ? RESOURCE_KEYS : []),
   ...(tab.id === "advanced" ? other : []),
-  ...(tab.id === "about" ? ["licence_required_version"] : []),
+  ...(tab.id === "about" ? ["licence_required_version", "link_deadline_days"] : []),
 ];
 
 /** A group's title and explanation, in the language shown. */
@@ -596,7 +597,7 @@ export function SettingsPage() {
             )}
             {tab === "plan" && <PlanSettings />}
             {tab === "support" && <SupportAccessSettings />}
-            {tab === "about" && <LicenceSettings>{rows(["licence_required_version"])}</LicenceSettings>}
+            {tab === "about" && <LicenceSettings>{rows(["licence_required_version", "link_deadline_days"])}</LicenceSettings>}
             {tab === "advanced" && (
               <>
                 {other.length > 0 && <Section title={t.other.title} text={t.other.text}>{rows(other)}</Section>}

@@ -235,7 +235,9 @@ def end_sessions_now() -> None:
         _ENDED.update(_SESSIONS)
         _SESSIONS.clear()
     for item in ended:
-        user = user_for(get(item["grant_id"]) or {"id": item["grant_id"], "level": "view"}, item["staff_name"], item["id"])
+        user = user_for(
+            get(item["grant_id"]) or {"id": item["grant_id"], "level": "view"}, item["staff_name"], item["id"]
+        )
         audit.record(user["name"], IP, "support session ended", detail=f"ended on the panel; session {item['id']}")
         shells.end_for_session(item["id"])
     events.publish("support", "status", {"changed": True})

@@ -736,7 +736,7 @@ def _locked(name: str) -> bool:
 
 def wake_decision(name: str) -> tuple[str, float]:
     """Odoo is not answering: start the instance if it is not running (once a minute at most). Returns the page
-    for its visitors ("waking", "busy" while another job runs, "off" when it is switched off, "locked" when it is
+    for its visitors ("waking", "busy" while another job runs, "upgrading" while a database upgrade runs, "off" when it is switched off, "locked" when it is
     paused and its branch is locked: a visit never starts it) and since when."""
     if STATE.get(name).get("switched_off"):
         return "off", time.time()
@@ -747,6 +747,8 @@ def wake_decision(name: str) -> tuple[str, float]:
         _WAKE_REQUESTED[name] = time.time()
         assert _wake is not None  # set by start() before any listener exists
         job = _wake(name)
+    if job is not None and job.kind == "db-upgrade":
+        return "upgrading", job.started
     if job is not None and job.kind not in ("wake", "restart", "create"):
         return "busy", job.started
     return "waking", job.started if job else _WAKE_REQUESTED.get(name, time.time())

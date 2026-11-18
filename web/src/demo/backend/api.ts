@@ -2,7 +2,7 @@
 // same envelopes ({"data", "meta"}), 202 + the job for background work, 204 for deletions, RFC 9457 problem details
 // for errors, and the same permission checks per role. It changes the in-memory state and starts simulated jobs.
 
-import type { Account, Backup, CatalogPlugin, Instance, Invitation, Job, Permission, ProjectOptions, Session, Stage, User } from "@/api/types";
+import type { Account, Backup, CatalogPlugin, Instance, Invitation, Job, Permission, ProjectOptions, Session, Stage, Upgrade, UpgradeMethod, UpgradeReport, User } from "@/api/types";
 import { browserLocale, isLocale, storedLocale, type Locale } from "@/i18n";
 import { publish } from "./bus";
 import { docPage, DOCS } from "./docs";
@@ -53,7 +53,7 @@ import {
   UPDATE_STEPS,
   users,
 } from "./state";
-import { DAY, hash, hex, HOUR, iso, OPENED, Problem, slug } from "./util";
+import { DAY, hash, hex, HOUR, iso, MINUTE, OPENED, Problem, slug } from "./util";
 
 export interface Answer {
   status: number;
@@ -478,7 +478,10 @@ route("POST", "/instances", ({ body }) => {
 
 /** A new instance as POST /instances makes it; `extra` for an instance of a project's branch (the project, the
  *  production instance a staging one copies). */
-function createInstance(body: Record<string, unknown>, extra: { project?: string; fromProduction?: Instance | null } = {}): Answer {
+function createInstance(
+  body: Record<string, unknown>,
+  extra: { project?: string; fromProduction?: Instance | null; upgradeOf?: { source: Instance; target: string; method: UpgradeMethod; onDone: () => void } } = {},
+): Answer {
   const repo = String(body.repo ?? "").trim();
   const branch = String(body.branch ?? "main") || "main";
   const version = String(body.version ?? "19.0");
@@ -542,6 +545,13 @@ function createInstance(body: Record<string, unknown>, extra: { project?: string
     steps = [`Copying the data of ${extra.fromProduction.name} (production)`, ...steps.slice(0, at), `Loading the backup of ${extra.fromProduction.name} into database ${instance.odoo.database}`, "Neutralising the copied data", "Setting the admin password", ...steps.slice(at + 1)];
     addBackup(extra.fromProduction, "staging-copy", Date.now());
   }
+  if (extra.upgradeOf) {
+    const { source, target, method } = extra.upgradeOf;
+    const at = steps.findIndex((s) => s.startsWith("Creating the Odoo"));
+    steps = [`Backing up ${source.name}`, ...steps.slice(0, at), `Loading the backup of ${source.name} into database ${instance.odoo.database}`,
+      `Upgrading the copy to Odoo ${target} (${method === "enterprise" ? "Odoo's upgrade service" : "OpenUpgrade"})`, "Neutralising the copied data", "Setting the admin password", ...steps.slice(at + 1)];
+    addBackup(source, "staging-copy", Date.now());
+  }
   if (fromBackup) {
     const at = steps.findIndex((s) => s.startsWith("Creating the Odoo"));
     steps = [...steps.slice(0, at), `Loading the backup of ${fromBackup.instance} into database ${instance.odoo.database}`, ...(fromBackup.instance !== name ? ["Neutralising the copied data"] : []), ...steps.slice(at + 1)];
@@ -551,9 +561,11 @@ function createInstance(body: Record<string, unknown>, extra: { project?: string
     action: "Create instance",
     kind: "create",
     steps,
-    seconds: steps.map((s) => (s.startsWith("Creating the Odoo") || s.startsWith("Loading the backup") ? 4.5 : s.startsWith("Installing") ? 3.5 : 2)),
+    seconds: steps.map((s) => (s.startsWith("Upgrading the copy") ? 7 : s.startsWith("Creating the Odoo") || s.startsWith("Loading the backup") ? 4.5 : s.startsWith("Installing") ? 3.5 : 2)),
     status: "creating",
-    notes: extra.fromProduction
+    notes: extra.upgradeOf
+      ? [{ text: `${name} runs a neutralised copy of ${extra.upgradeOf.source.name} upgraded to Odoo ${extra.upgradeOf.target}. Test it; then upgrade production from ${extra.upgradeOf.source.name}'s Upgrade tab.`, level: "info" }]
+      : extra.fromProduction
       ? [{ text: `The data comes from ${extra.fromProduction.name} (production) and was neutralised: it sends no e-mail and runs no scheduled actions; payment providers are off.`, level: "info" }]
       : fromBackup && fromBackup.instance !== name ? [{ text: `The backup of ${fromBackup.instance} was neutralised: outgoing mail, scheduled actions and integrations are off.`, level: "info" }] : [],
     onDone: () => {
@@ -568,6 +580,7 @@ function createInstance(body: Record<string, unknown>, extra: { project?: string
       instance.expires_at = deleteAfter ? iso(now + deleteAfter * DAY) : null;
       instance.disk = { database_bytes: 96 * 1024 ** 2, files_bytes: 12 * 1024 ** 2 };
       profiles.get(name)!.since = Date.now();
+      extra.upgradeOf?.onDone();
     },
   });
   instance.current_job = { ...reference(job), steps: [] };
@@ -1717,6 +1730,242 @@ route("POST", "/projects", ({ body }) => {
   return created({ ...projectResource(project), default_branch: repo?.defaultBranch ?? null });
 });
 
+// ---------------------------------------------------------------- database upgrades (src/sudoo/upgrades/)
+
+const DEMO_VERSIONS = ["17.0", "18.0", "19.0"];
+const OPENUPGRADE_REPOSITORY = "https://github.com/OCA/OpenUpgrade";
+const ODOO_TERMS = "https://www.odoo.com/documentation/18.0/legal/terms/enterprise.html#upgrade-services";
+interface DemoUpgrade {
+  state: Upgrade["state"];
+  target: string | null;
+  branch: string | null;
+  report: UpgradeReport | null;
+  staging: string | null;
+  tested_at: string | null;
+  promotion: Upgrade["promotion"];
+  previous?: { version: string; branch: string | null };
+  history: Upgrade["history"];
+}
+const upgrades = new Map<string, DemoUpgrade>();
+const upgradeOf = (name: string): DemoUpgrade =>
+  upgrades.get(name) ?? (upgrades.set(name, { state: null, target: null, branch: null, report: null, staging: null, tested_at: null, promotion: null, history: [] }), upgrades.get(name)!);
+const upgradeMethod = (instance: Instance): UpgradeMethod => (instance.odoo.edition === "enterprise" ? "enterprise" : "openupgrade");
+const upgradeTargets = (instance: Instance) => {
+  const major = Number(instance.odoo.version.split(".")[0]);
+  const later = DEMO_VERSIONS.filter((v) => Number(v.split(".")[0]) > major);
+  return upgradeMethod(instance) === "enterprise" ? later : later.filter((v) => Number(v.split(".")[0]) === major + 1);
+};
+function rememberUpgrade(name: string, event: string, detail = "", values: Partial<DemoUpgrade> = {}) {
+  const found = upgradeOf(name);
+  Object.assign(found, values);
+  found.history = [{ at: iso(Date.now()), user: ME, event, detail }, ...found.history].slice(0, 20);
+  record(ME, `database upgrade: ${event}`, { instance: name, detail });
+}
+function upgradeResource(instance: Instance): Upgrade {
+  const found = upgradeOf(instance.name);
+  const targets = upgradeTargets(instance);
+  const until = found.promotion?.rollback_until ? Date.parse(found.promotion.rollback_until) : 0;
+  return {
+    instance: instance.name,
+    from_version: instance.odoo.version,
+    edition: instance.odoo.edition,
+    method: upgradeMethod(instance),
+    allowed: true,
+    targets,
+    next: targets[0] ?? null,
+    skips_versions: upgradeMethod(instance) === "enterprise",
+    terms_url: upgradeMethod(instance) === "enterprise" ? ODOO_TERMS : null,
+    openupgrade_source: upgradeMethod(instance) === "openupgrade" ? OPENUPGRADE_REPOSITORY : null,
+    refusal: [...upgrades.values()].some((u) => u.staging === instance.name) ? `${instance.name} is the test instance of another upgrade.` : null,
+    state: found.state,
+    target: found.target,
+    branch: found.branch,
+    report: found.report,
+    checked_at: found.report?.checked_at ?? null,
+    staging: found.staging && instances.has(found.staging) ? found.staging : null,
+    tested_at: found.tested_at,
+    test_job: null,
+    promotion: found.promotion,
+    rollback_open: found.state === "promoted" && until > Date.now(),
+    rollback_minutes: Number(setting("upgrade_rollback_minutes") ?? 60),
+    history: found.history,
+  };
+}
+function upgradeTarget(instance: Instance, body: Record<string, unknown>): string {
+  const targets = upgradeTargets(instance);
+  const target = String(body.target ?? targets[0] ?? "");
+  if (!targets.includes(target)) throw new Problem(400, `Choose a version ${instance.name} can be upgraded to: ${targets.join(", ") || "none"}.`);
+  return target;
+}
+function upgradeCode(instance: Instance, body: Record<string, unknown>) {
+  if (upgradeMethod(instance) !== "enterprise") return;
+  if (body.accept_odoo_terms !== true)
+    throw new Problem(400, 'This uses Odoo S.A.\'s upgrade service under your Odoo Enterprise subscription and Odoo\'s terms: accept them first ("accept_odoo_terms": true).');
+  if (typeof body.subscription_code !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{3,99}$/.test(body.subscription_code.trim()))
+    throw new Problem(400, "Enter the Odoo Enterprise subscription code of this database (letters, digits and dashes).");
+  // the demo never sends it anywhere: Odoo's upgrade service is simulated
+}
+const DEMO_MODULES = (prefix: string, target: string): UpgradeReport["modules"] => [
+  { name: `${prefix}_sale`, version: "18.0.1.2.0", target_version: `${target}.1.0.0`, status: "ready" },
+  { name: `${prefix}_stock`, version: "18.0.1.0.3", target_version: `${target}.1.0.0`, status: "ready" },
+  { name: `${prefix}_reports`, version: "18.0.2.1.0", target_version: "18.0.2.1.0", status: "version_mismatch" },
+];
+
+route("GET", "/instances/:name/upgrade", ({ params }) => {
+  needOn(params.name!, "instances.view");
+  return ok(upgradeResource(instanceOf(params.name!)));
+});
+route("POST", "/instances/:name/upgrade/check", ({ params, body }) => {
+  needOn(params.name!, "instances.upgrade");
+  const instance = instanceOf(params.name!);
+  const target = upgradeTarget(instance, body);
+  const repo = instance.source === "repository";
+  const prefix = (instance.project?.id ?? instance.name).split("-")[0]!.replace(/[^a-z]/g, "") || "custom";
+  const modules = repo ? DEMO_MODULES(prefix, target) : [];
+  const report: UpgradeReport = {
+    instance: instance.name,
+    from_version: instance.odoo.version,
+    target,
+    edition: instance.odoo.edition,
+    method: upgradeMethod(instance),
+    repository: instance.git.repository,
+    branch: repo ? target : null,
+    branch_exists: repo ? true : null,
+    installed: ["base", "web", "sale_management", "stock", "account", ...modules.map((m) => m.name)],
+    installed_count: 42,
+    modules,
+    warnings: modules.some((m) => m.status !== "ready")
+      ? [{ code: "modules_not_ready", text: `1 of the repository's modules is not ready for Odoo ${target}: ${prefix}_reports. A developer has to port it.` }]
+      : [],
+    blocking: [],
+    checked_at: iso(Date.now()),
+  };
+  rememberUpgrade(instance.name, "pre-check", `to Odoo ${target}: ${modules.length} repository modules, ${modules.filter((m) => m.status !== "ready").length} not ready`,
+    { report, target, branch: repo ? target : null, state: upgradeOf(instance.name).state ?? "checked" });
+  return ok(upgradeResource(instance));
+});
+route("POST", "/instances/:name/upgrade/test", ({ params, body }) => {
+  needOn(params.name!, "instances.upgrade");
+  const instance = instanceOf(params.name!);
+  const target = upgradeTarget(instance, body);
+  const found = upgradeOf(instance.name);
+  if (found.report?.target !== target) throw new Problem(409, `Run the pre-check for Odoo ${target} first, and read its report.`);
+  if (found.state === "testing" || found.state === "promoting") throw new Problem(409, "A test or an upgrade of this instance is running already.");
+  upgradeCode(instance, body);
+  const method = upgradeMethod(instance);
+  const staging = found.staging ? instances.get(found.staging) : undefined;
+  if (staging && staging.odoo.version === target) {
+    if (staging.current_job) throw new Problem(409, `${staging.name} is busy; try again when its job has finished.`);
+    rememberUpgrade(instance.name, "test started", `again on ${staging.name}`, { state: "testing" });
+    addBackup(instance, "staging-copy", Date.now());
+    return accepted(startJob({
+      instance: staging.name,
+      action: `Run the Odoo ${target} upgrade test again`,
+      kind: "upgrade-test",
+      steps: [`Backing up ${instance.name}`, `Downloading the latest code of ${target}`, "Stopping Odoo", `Loading the copy into database ${staging.odoo.database}`,
+        `Upgrading the copy to Odoo ${target} (${method === "enterprise" ? "Odoo's upgrade service" : "OpenUpgrade"})`, "Neutralising the copied data", "Setting the admin password", "Starting Odoo"],
+      seconds: [2, 2, 1.5, 3.5, 7, 2, 1.5, 2.5],
+      onDone: () => rememberUpgrade(instance.name, "tested", `again on ${staging.name}`, { state: "tested", tested_at: iso(Date.now()) }),
+    }));
+  }
+  const repo = instance.source === "repository";
+  const answer = createInstance(
+    { repo: repo ? instance.git.repository : "", branch: target, version: target, edition: instance.odoo.edition, stage: "staging", name: `${instance.name.slice(0, 30)}-odoo${target.split(".")[0]}`, install_modules: false },
+    {
+      project: instance.project?.id,
+      upgradeOf: {
+        source: instance,
+        target,
+        method,
+        onDone: () => rememberUpgrade(instance.name, "tested", `on ${stagingName}`, { state: "tested", staging: stagingName, tested_at: iso(Date.now()) }),
+      },
+    },
+  );
+  const stagingName = String((answer.headers?.["Content-Location"] ?? "").split("/").pop());
+  rememberUpgrade(instance.name, "test started", `to Odoo ${target} on ${stagingName}`, { state: "testing", target, staging: stagingName });
+  return answer;
+});
+route("POST", "/instances/:name/upgrade/promote", ({ params, body }) => {
+  needOn(params.name!, "instances.upgrade");
+  const instance = instanceOf(params.name!);
+  const found = upgradeOf(instance.name);
+  if (!found.tested_at || !["tested", "promotion_failed", "rolled_back"].includes(found.state ?? ""))
+    throw new Problem(409, "Test the upgrade first: production is upgraded only after a test that succeeded.");
+  if (instance.stage === "production" && body.confirm_production !== true)
+    throw new Problem(400, `${instance.name} is a production instance: confirm that you want to upgrade it to Odoo ${found.target} ("confirm_production": true).`);
+  upgradeCode(instance, body);
+  if (instance.current_job) throw new Problem(409, `${instance.name} is busy; try again when its job has finished.`);
+  const target = found.target!;
+  const method = upgradeMethod(instance);
+  const minutes = Number(setting("upgrade_rollback_minutes") ?? 60);
+  rememberUpgrade(instance.name, "production upgrade started", `to Odoo ${target}`, { state: "promoting", previous: { version: instance.odoo.version, branch: instance.git.branch } });
+  addBackup(instance, "before-upgrade", Date.now());
+  return accepted(startJob({
+    instance: instance.name,
+    action: `Upgrade to Odoo ${target}`,
+    kind: "db-upgrade",
+    status: "stopped",
+    steps: ["Putting Odoo into maintenance", "Backing up the database and files",
+      ...(method === "enterprise"
+        ? [`Upgrading the database to Odoo ${target} with Odoo's upgrade service`, `Switching to Odoo ${target}${found.branch ? ` and branch ${found.branch}` : ""}`]
+        : [`Switching to Odoo ${target}${found.branch ? ` and branch ${found.branch}` : ""}`, `Upgrading the database to Odoo ${target} with OpenUpgrade`]),
+      "Starting Odoo", "Waiting for Odoo to be ready"],
+    seconds: [1.5, 3, 7, 3, 2, 2],
+    notes: minutes ? [{ text: `${instance.name} runs Odoo ${target}. For ${minutes} minutes you can cancel the upgrade (back to the backup taken before it; what was changed meanwhile is lost), and it is put back by itself if Odoo stops answering.`, level: "info" }] : [],
+    onDone: () => {
+      instance.odoo.version = target;
+      if (found.branch) instance.git.branch = found.branch;
+      instance.status = "online";
+      rememberUpgrade(instance.name, "production upgraded", `to Odoo ${target}`, {
+        state: "promoted",
+        promotion: { at: iso(Date.now()), by: ME, target, backup: [`${instance.name}__before-upgrade.zip`], finished_at: iso(Date.now()), rollback_until: minutes ? iso(Date.now() + minutes * MINUTE) : null },
+      });
+      announce(instance);
+    },
+  }));
+});
+route("POST", "/instances/:name/upgrade/cancel", ({ params, body }) => {
+  needOn(params.name!, "instances.upgrade");
+  const instance = instanceOf(params.name!);
+  const found = upgradeOf(instance.name);
+  if (!upgradeResource(instance).rollback_open) throw new Problem(409, "There is no upgrade of this instance that can still be cancelled.");
+  if (instance.stage === "production" && body.confirm_production !== true)
+    throw new Problem(400, `${instance.name} is a production instance: confirm that you want to cancel its upgrade ("confirm_production": true).`);
+  addBackup(instance, "before-rollback", Date.now());
+  return accepted(startJob({
+    instance: instance.name,
+    action: "Cancel the Odoo upgrade",
+    kind: "db-upgrade",
+    status: "stopped",
+    steps: ["Saving the current state first", "Putting the instance back", "Starting Odoo", "Waiting for Odoo to be ready"],
+    seconds: [2.5, 4, 2, 2],
+    onDone: () => {
+      if (found.previous) {
+        instance.odoo.version = found.previous.version;
+        instance.git.branch = found.previous.branch;
+      }
+      instance.status = "online";
+      rememberUpgrade(instance.name, "production upgrade cancelled", "by hand", { state: "rolled_back", promotion: { ...found.promotion, rolled_back_at: iso(Date.now()), rolled_back_by: ME } });
+      announce(instance);
+    },
+  }));
+});
+route("POST", "/instances/:name/upgrade/keep", ({ params }) => {
+  needOn(params.name!, "instances.upgrade");
+  const instance = instanceOf(params.name!);
+  const found = upgradeOf(instance.name);
+  if (!upgradeResource(instance).rollback_open) throw new Problem(409, "There is no upgrade of this instance that can still be cancelled.");
+  found.promotion = { ...found.promotion, rollback_until: iso(Date.now() - 1000) };
+  rememberUpgrade(instance.name, "upgrade kept", "the rollback window was closed");
+  return ok(upgradeResource(instance));
+});
+route("DELETE", "/instances/:name/upgrade", ({ params }) => {
+  needOn(params.name!, "instances.upgrade");
+  const instance = instanceOf(params.name!);
+  upgrades.delete(instance.name);
+  return none();
+});
+
 const OPTION_CHOICES: Partial<Record<keyof ProjectOptions, string[]>> = { staging_on_push: ["rebuild", "keep_data"], branch_deleted: ["keep", "archive", "delete"] };
 
 route("PATCH", "/projects/:id", ({ params, body }) => {
@@ -2071,6 +2320,12 @@ route("GET", "/plan", () => {
     leaving_production: [],
     links: { pricing: "https://sudoo.sh/pricing", account: "https://app.sudoo.sh", keep: "https://app.sudoo.sh/plan" },
     checked_at: iso(Date.now()),
+    // the demo shows the banner of a panel that is not linked yet (src/sudoo/link_deadline.py): to super admins and
+    // administrators only, five of its seven days left
+    link_deadline:
+      ["super_admin", "admin"].includes(users.find((u) => u.name === ME)?.role ?? "")
+        ? { linked: false, first_run: iso(OPENED - 2 * DAY), deadline_days: 7, deadline: iso(OPENED + 5 * DAY), days_left: 5, restricted: false }
+        : null,
   });
 });
 

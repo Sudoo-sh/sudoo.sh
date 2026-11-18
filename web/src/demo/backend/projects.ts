@@ -62,6 +62,7 @@ const OPTION_SETTINGS: Record<keyof ProjectOptions, string> = {
   development_demo_data: "project_development_demo_data",
   staging_on_push: "project_staging_on_push",
   branch_deleted: "project_branch_deleted",
+  upgrade_test_on_push: "project_upgrade_test_on_push",
   development_lifetime_days: "delete_after_days",
   staging_lifetime_days: "staging_delete_after_days",
 };

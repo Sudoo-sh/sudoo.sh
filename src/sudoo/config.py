@@ -233,6 +233,15 @@ class Settings(BaseSettings):
         "it (or a later one), the next super admin to sign in must accept it before anything else. Instances keep "
         "running. It cannot be newer than the version this release bundles.",
     )
+    link_deadline_days: int = Field(
+        7,
+        ge=1,
+        le=365,
+        description="Days after the panel's first run to link it to a Sudoo.sh account (Settings, Marketplace). "
+        "Until then super admins and administrators see a banner; after that, while it is not linked, no new "
+        "instances, no stage changes into production and no updates or deploys. Instances keep serving and backups "
+        "keep running. The first run is recorded once and never changes.",
+    )
 
     # ------------------------------------------------------------------ limits
     rate_limiter: str = Field("memory", description='Where request counts are kept: "memory".')
@@ -542,6 +551,51 @@ class Settings(BaseSettings):
         'off ("archive") or deleted after a backup ("delete"); staging is archived at most, production only '
         "marked. Each project can change it.",
     )
+    project_upgrade_test_on_push: bool = Field(
+        True,
+        description="A push to a project's upgrade branch (named after the next Odoo version, such as 18.0) runs its "
+        "database upgrade test again (each project can change it).",
+    )
+
+    # ------------------------------------------------------------------ database upgrades (upgrades/)
+    upgrade_methods: str = Field(
+        "enterprise,openupgrade",
+        description='How databases may be upgraded to a newer Odoo version, comma-separated: "enterprise" (Odoo\'s '
+        'upgrade service, with the customer\'s Enterprise subscription code) and "openupgrade" (OCA OpenUpgrade, '
+        "Community); empty: no upgrades.",
+    )
+    upgrade_service_url: str = Field(
+        "https://upgrade.odoo.com",
+        description="Address of Odoo's upgrade service; Odoo's upgrade script is downloaded from <address>/upgrade "
+        "when an upgrade runs. Only in .env: the subscription code is sent there.",
+    )
+    openupgrade_repository: str = Field(
+        "https://github.com/OCA/OpenUpgrade",
+        description="GitHub repository of OpenUpgrade (OCA, AGPL-3.0). Its sources are downloaded at the pinned commit "
+        "by the temporary container that runs the upgrade, never bundled with the panel.",
+    )
+    openupgrade_refs: str = Field(
+        "16.0=08eae463b6bc00bd38abdc141b6f6aabe7ce3d44,17.0=0eddd35be9a1ee7db76f2afb138366ed3538403d,"
+        "18.0=25f74e95a0f2495b91b771ace697082ee3cd121f,19.0=bdae60ef5cece7c0a5e02ef87bc5834ddb310d35,"
+        "20.0=480dce61a36974913d3d883711f4593412e554b0",
+        description="The OpenUpgrade commit used to upgrade to each Odoo version, as version=commit pairs, "
+        "comma-separated (the commit of the repository's branch of that version); a version without one cannot be "
+        "reached with OpenUpgrade.",
+    )
+    openupgrade_lib: str = Field(
+        "openupgradelib==3.13.7", description="The openupgradelib package OpenUpgrade runs with (a pip requirement)."
+    )
+    upgrade_rollback_minutes: int = Field(
+        60,
+        ge=0,
+        le=10080,
+        description="After a production upgrade, how long Cancel the upgrade (back to the backup taken before it) is "
+        "offered and Odoo is watched, rolling back by itself when it stops answering; 0: neither.",
+    )
+    upgrade_max_hours: float = Field(
+        8, gt=0, le=72, description="Longest time one database upgrade (Odoo's service or OpenUpgrade) may take."
+    )
+
     session_idle_minutes: float = Field(60, gt=0, description="Panel sign-out after this long without activity.")
     session_max_hours: float = Field(12, gt=0, description="Longest panel session.")
     admin_contact_name: str = Field("the administrator", description="Who users are told to contact.")
@@ -605,7 +659,7 @@ class Settings(BaseSettings):
     offsite_kinds: str = Field(
         "manual,daily,deletion",
         description="Which backups are copied, comma-separated: manual, daily, deletion, before-update, "
-        "before-restore, before-rollback, before-repair, staging-copy.",
+        "before-restore, before-rollback, before-repair, staging-copy, before-upgrade.",
     )
     offsite_keep_daily_production: int = Field(
         30, ge=1, le=3650, description="Production: keep the newest copy of each of this many most recent days."
@@ -702,6 +756,7 @@ class Settings(BaseSettings):
             "before-rollback",
             "before-repair",
             "staging-copy",
+            "before-upgrade",
         )
         kinds = [part.strip() for part in value.split(",") if part.strip()]
         unknown = [kind for kind in kinds if kind not in known]
@@ -1025,6 +1080,52 @@ class Settings(BaseSettings):
                 )
         return value
 
+    @field_validator("upgrade_methods")
+    @classmethod
+    def _known_upgrade_methods(cls, value: str) -> str:
+        methods = [part.strip() for part in value.split(",") if part.strip()]
+        unknown = [m for m in methods if m not in ("enterprise", "openupgrade")]
+        if unknown:
+            raise ValueError(f"unknown method {unknown[0]!r}; use enterprise, openupgrade or both")
+        return ",".join(dict.fromkeys(methods))
+
+    @field_validator("openupgrade_refs")
+    @classmethod
+    def _openupgrade_refs(cls, value: str) -> str:
+        import re
+
+        pairs = [part.strip() for part in value.split(",") if part.strip()]
+        for pair in pairs:
+            if not re.fullmatch(r"\d{1,3}\.\d=[0-9a-f]{40}", pair):
+                raise ValueError(f"{pair[:60]!r} is not version=commit (a full 40-character commit)")
+        return ",".join(pairs)
+
+    @field_validator("openupgrade_lib")
+    @classmethod
+    def _openupgrade_lib(cls, value: str) -> str:
+        import re
+
+        if not re.fullmatch(r"openupgradelib(==[0-9][0-9A-Za-z.]*)?", value.strip()):
+            raise ValueError("must be openupgradelib or openupgradelib==<version>")
+        return value.strip()
+
+    @field_validator("openupgrade_repository")
+    @classmethod
+    def _openupgrade_repository(cls, value: str) -> str:
+        import re
+
+        value = value.strip().rstrip("/").removesuffix(".git")
+        if not re.fullmatch(r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value):
+            raise ValueError("must be a GitHub repository address, https://github.com/<owner>/<repository>")
+        return value
+
+    @field_validator("upgrade_service_url")
+    @classmethod
+    def _upgrade_service_url(cls, value: str) -> str:
+        if not value.startswith("https://") and not value.startswith("http://127.0.0.1"):
+            raise ValueError("must be an https:// address")
+        return value.rstrip("/")
+
     @field_validator("timezone")
     @classmethod
     def _known_timezone(cls, value: str) -> str:
@@ -1144,6 +1245,7 @@ EDITABLE = (
     "brand_color",
     "default_language",
     "licence_required_version",
+    "link_deadline_days",
     "require_second_factor",
     "session_idle_minutes",
     "session_max_hours",
@@ -1177,6 +1279,12 @@ EDITABLE = (
     "timezone",
     "rollback_hours",
     "safe_updates",
+    "upgrade_methods",
+    "openupgrade_repository",
+    "openupgrade_refs",
+    "openupgrade_lib",
+    "upgrade_rollback_minutes",
+    "upgrade_max_hours",
     "odoo_versions",
     "odoo_min_version",
     "prepull_images",

@@ -73,7 +73,7 @@ OPTION_CHOICES = {
     "staging_on_push": ("rebuild", "keep_data"),
     "branch_deleted": ("keep", "archive", "delete"),
 }
-OPTION_FLAGS = ("auto_development", "development_demo_data")
+OPTION_FLAGS = ("auto_development", "development_demo_data", "upgrade_test_on_push")
 OPTION_NUMBERS = {"max_auto_development": 100, "development_lifetime_days": 3650, "staging_lifetime_days": 3650}
 
 
@@ -444,6 +444,10 @@ def change_stage(project_id: str, branch: str) -> Response:
             if stage == stages.PRODUCTION:
                 if not confirmed:
                     abort(400, PRODUCTION_CONFIRMATION.format(branch=branch))
+                instances_api.refuse_unlinked(
+                    "moving branches into production",
+                    f"stage change of {project_id} {branch} refused (panel not linked)",
+                )
                 refused = projects.production_refusal(found, branch)
                 if refused:
                     log("branch stage change refused (production branches)", ok=False, detail=refused)
@@ -495,6 +499,10 @@ def create_instance(project_id: str, branch: str) -> Response:
     if branch not in heads:
         abort(404, f"{found['repository']} has no branch {branch} on GitHub.")
     stage = projects.branch_stage(found, branch)
+    if instances_api.developer_token() and stage != stages.DEVELOPMENT:
+        instances_api.refuse_developer_token(
+            f"create a {stage} instance of {project_id} {branch}", "only instances of development branches."
+        )
     version, edition = found["odoo_version"], found["edition"]
     if edition == "enterprise" and not addons.available(version):
         abort(409, f"Odoo {version} Enterprise is not available on this server.")
@@ -538,6 +546,7 @@ def rebuild(project_id: str, branch: str) -> Response:
     found = _project(project_id)
     branch = _branch(branch)
     _refuse_unless("instances.restore", found, f"rebuild {project_id} {branch}", branch)
+    instances_api.refuse_unlinked("rebuilding staging", f"rebuild of {project_id} {branch} refused (panel not linked)")
     members = [name for name in projects.by_branch(project_id).get(branch, []) if store.exists(name)]
     if not members:
         abort(404, f"{branch} has no instance to rebuild.")

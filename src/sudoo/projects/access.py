@@ -75,6 +75,7 @@ PROJECT_PERMISSIONS = frozenset(
         "instances.operate",
         "instances.create",
         "instances.restore",
+        "instances.upgrade",
         "instances.delete",
         "instances.credentials",
         "instances.resources",

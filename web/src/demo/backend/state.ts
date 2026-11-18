@@ -30,7 +30,7 @@ const VIEW: Permission[] = ["instances.view", "instances.logs"];
 const DEVELOP: Permission[] = [...VIEW, "instances.update", "caught_mail.view"];
 const MAINTAIN: Permission[] = [...DEVELOP, "instances.operate", "instances.restore", "instances.create", "instances.credentials", "github.manage", "projects.manage"];
 const ALL: Permission[] = [
-  "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "projects.manage", "projects.access", "teams.manage", "instances.restore",
+  "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "projects.manage", "projects.access", "teams.manage", "instances.restore", "instances.upgrade",
   "instances.delete", "instances.credentials", "instances.resources", "caught_mail.view", "caught_mail.manage", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
   "audit.view", "plugins.view", "settings.manage", "mail.manage", "offsite.configure", "offsite.restore", "offsite.delete",
   "instances.shell", "instances.database_shell", "shells.supervise", "support_access.manage",
@@ -47,6 +47,7 @@ export const PERMISSIONS: Record<Permission, string> = {
   "projects.access": "Choose who may see and work in a project and its branches (grants, restricted projects and branches) and lock or unlock branches",
   "teams.manage": "Create, change and delete teams (named groups of accounts that project access is given to)",
   "instances.restore": "Restore an instance from a backup (replaces its database and files)",
+  "instances.upgrade": "Upgrade an instance's database to a newer Odoo version: test it on a new staging instance, then upgrade production (with its backup and rollback)",
   "instances.delete": "Delete instances",
   "instances.credentials": "See Odoo passwords and ports",
   "instances.resources": "Set an instance's resources: Odoo workers, time and memory limits, container limits",

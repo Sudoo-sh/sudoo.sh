@@ -242,7 +242,7 @@ class Headers(Protocol):
     def __contains__(self, key: str, /) -> bool: ...
 
 
-SCOPE_ROLES = {"read": "viewer", "instances": roles.CONNECTED_APP, "write": "admin"}
+SCOPE_ROLES = {"read": "viewer", "instances": roles.CONNECTED_APP, "developer": roles.DEVELOPER_TOKEN, "write": "admin"}
 """The role an API token acts as, by its scope (roles.py)."""
 
 ACTING_FOR_HEADER = "X-Sudoo-Acting-For"
@@ -266,10 +266,42 @@ CONNECTED_APP_ENDPOINTS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
 connected app needs (GitHub repositories, metrics, the documentation...), so the scope is narrowed to these."""
 
 
-def _connected_app_may_call(method: str, path_with_query: str) -> bool:
+DEVELOPER_ENDPOINTS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
+    (method, re.compile(f"{API_PREFIX}{path}"))
+    for method, path in (
+        ("GET", "versions"),
+        ("GET", "instances"),
+        ("POST", "instances"),  # development instances only (v1/instances.create)
+        ("GET", f"instances/{_NAME}"),
+        ("DELETE", f"instances/{_NAME}"),  # development instances only
+        ("GET", f"instances/{_NAME}/logs"),
+        ("GET", f"instances/{_NAME}/resources"),
+        ("GET", f"instances/{_NAME}/mail(/.+)?"),
+        ("POST", f"instances/{_NAME}/actions/{_NAME}"),  # which actions: v1/instances.DEVELOPER_ACTIONS
+        ("GET", "instance-quota"),
+        ("GET", "instance-plan"),
+        ("GET", "jobs"),
+        ("GET", f"jobs/{_NAME}"),
+        ("GET", f"jobs/{_NAME}/log"),
+        ("GET", "projects"),
+        ("GET", f"projects/{_NAME}"),
+        ("POST", f"projects/{_NAME}/branches/.+/instances"),  # development branches only (v1/projects)
+        ("GET", "events"),
+    )
+)
+"""All a token with the developer scope may call (method, path): its role (roles.DEVELOPER_TOKEN) ∩ its owner's
+role still decides, and the project access of its owner applies. Settings, accounts, teams, access, locks, stages,
+restores, backups, domains, off-site copies, shells and credentials are not here."""
+
+
+def _may_call(endpoints: tuple[tuple[str, re.Pattern[str]], ...], method: str, path_with_query: str) -> bool:
     path = path_with_query.split("?", 1)[0]
     method = "GET" if method == "HEAD" else method
-    return any(method == allowed and pattern.fullmatch(path) for allowed, pattern in CONNECTED_APP_ENDPOINTS)
+    return any(method == allowed and pattern.fullmatch(path) for allowed, pattern in endpoints)
+
+
+def _connected_app_may_call(method: str, path_with_query: str) -> bool:
+    return _may_call(CONNECTED_APP_ENDPOINTS, method, path_with_query)
 
 
 def acting_for(headers: Headers) -> str | None:
@@ -317,6 +349,14 @@ def api_caller(headers: Headers, method: str, path_with_query: str, body: bytes,
         raise PermissionError(
             "This API token has the instances scope: it can list, create, start, pause, restart, back up, extend "
             "and delete instances, nothing else.",
+            403,
+        )
+    if scope == "developer" and not _may_call(DEVELOPER_ENDPOINTS, method, path_with_query):
+        audit.record(name, ip, "API call refused (developer scope)", ok=False, detail=f"{method} {path_with_query}")
+        raise PermissionError(
+            "This API token has the developer scope: it can read projects, branches, instances, logs, jobs and "
+            "caught e-mails, start, pause, restart and update instances, and create development instances; "
+            "nothing else.",
             403,
         )
     return {

@@ -2,7 +2,8 @@
 downloading images ahead of time (PREPULL_IMAGES), removal of expired rollback snapshots, GitHub polling, the GitHub
 App's webhook address, gateway, connectors, alerts, the marketplace heartbeat, the plugin watchdog (files,
 licences), custom domains (DNS checks, certificates and their renewal), off-site copies of backups and the mail
-catcher (its settings, network connections and retention)."""
+catcher (its settings, network connections and retention), and the watch over production upgrades in their
+rollback window."""
 
 from __future__ import annotations
 
@@ -38,6 +39,7 @@ def start() -> None:
         plugin_manager.watch_forever,
         domain_worker.run_forever,
         mail_catcher.maintain_forever,
+        _watch_upgrades,
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     alerts.start()
@@ -48,6 +50,14 @@ def start() -> None:
     triggers.start_all()
     threading.Thread(target=_adopt_instances, daemon=True, name="projects").start()
     threading.Thread(target=_check_project_branches, daemon=True, name="project-branches").start()
+
+
+def _watch_upgrades() -> None:
+    """Every 30 seconds: a production upgrade still in its rollback window is put back when Odoo stops answering
+    (upgrades/run.py)."""
+    from sudoo.upgrades import run as upgrade_run
+
+    upgrade_run.watch_forever()
 
 
 def _check_project_branches() -> None:

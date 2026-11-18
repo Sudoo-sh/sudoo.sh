@@ -27,6 +27,8 @@ Kinds (files of earlier versions have no kind and count as "manual"):
                     an automatic rollback failed (STATE "keep_backups")
     staging-copy    taken from a production instance to build (or rebuild) a staging instance of its project from
                     its data (projects/staging.py); each production instance keeps only its latest one
+    before-upgrade  taken before production is upgraded to a newer Odoo version (upgrades/), with Odoo stopped;
+                    put back when the upgrade fails or is cancelled. Each instance keeps only its latest one
 
 The database container is started for a backup if the instance is paused; the instance's state is not changed
 otherwise. restore() puts a backup back: the database is replaced and so is the filestore. A backup can be put into
@@ -64,7 +66,7 @@ from sudoo.instances import odoo, store
 
 FILE_RE = re.compile(
     r"^(?P<instance>[a-z0-9][a-z0-9-]{0,30})__(?P<db>[a-z0-9_]{1,63})__(?P<stamp>\d{8}-\d{6})"
-    r"(?:__(?P<kind>manual|daily|deletion|before-restore|before-rollback|before-repair|before-update|staging-copy))?\.zip$"
+    r"(?:__(?P<kind>manual|daily|deletion|before-restore|before-rollback|before-repair|before-update|staging-copy|before-upgrade))?\.zip$"
 )
 DB_NAME_RE = re.compile(r"[a-z0-9_]{1,63}")  # the database names the panel gives (and FILE_RE accepts)
 KINDS = (
@@ -76,6 +78,7 @@ KINDS = (
     "before-repair",
     "before-update",
     "staging-copy",
+    "before-upgrade",
 )
 RESTORABLE = ("manual", "daily", "deletion")  # what "Restore the latest backup" chooses from
 SNAPSHOTS = ("before-restore", "before-rollback")  # safety copies, removed ROLLBACK_HOURS after they were taken
@@ -84,6 +87,7 @@ _KEEP_ONE = (
     "before-repair",
     "before-update",
     "staging-copy",
+    "before-upgrade",
     *SNAPSHOTS,
 )  # kinds of which each instance keeps only the latest
 PG_DUMP_LOCK_WAIT = "300s"  # a lock held inside the instance makes the dump fail after this, rather than wait for ever

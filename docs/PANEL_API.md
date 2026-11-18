@@ -48,6 +48,7 @@ Someone with the permission `tokens.manage` (super admins and administrators) cr
 | :--- | :--- | :--- |
 | `read` | Viewer | Read instances, their figures, activity and logs, jobs and versions. Every change is refused with 403. |
 | `instances` | Connected app | For connected apps such as the Odoo module: list, create, start, pause, restart, back up, extend and delete instances; nothing else ([below](#the-instances-scope)). |
+| `developer` | Developer (API) | For developers' tools and CI: list and read projects, branches and instances, their logs, jobs and caught e-mails; start, pause, restart, get latest code, update submodules; create and delete development instances. Never settings, accounts, teams, access, stages, production, restores, domains, off-site copies or shells ([below](#the-developer-scope)). |
 | `write` | Administrator | Everything an Administrator may do: create, change, run actions on and delete instances, read Odoo passwords, manage accounts, tokens, backups and deploy keys. Not the panel's settings. |
 
 The panel shows two values **once**: the **token** (`sudoo_...`) and the **signing secret**. Store both where the other
@@ -85,6 +86,34 @@ source at [Sudoo-sh/sudoo-odoo](https://github.com/Sudoo-sh/sudoo-odoo)) needs. 
 Every other call is refused with 403 and written to the audit log, among them Odoo passwords
 (`/instances/<name>/credentials`), logs, restores, backups, GitHub, accounts, tokens, settings, plugins, metrics and
 the [live event stream](#8-live-events) (follow jobs with `GET /jobs/<id>` instead).
+
+### The developer scope
+
+A `developer` token is for developers' own tools and CI. It acts as the role **Developer (API)**, which only a token
+can have, with the permissions `instances.view`, `instances.logs`, `instances.update`, `instances.operate` (for
+pausing only), `instances.create` and `instances.delete` (development instances only) and `caught_mail.view`. As every
+token, it never does more than the account that created it: its rights are the scope's ∩ that account's role, and
+that account's teams, project access and locked branches apply (a project or branch hidden from the account is
+hidden from the token, 404). It may call these endpoints and nothing else:
+
+| Call | What it may do |
+| :--- | :--- |
+| `GET /versions` | The Odoo versions |
+| `GET /projects`, `GET /projects/<id>` | List and read the projects it may see, with their branches |
+| `GET /instances`, `GET /instances/<name>`, `GET /instances/<name>/resources` | List and read instances |
+| `GET /instances/<name>/logs` | Odoo's log |
+| `GET /instances/<name>/mail...` | Caught e-mails (reading only) |
+| `GET /jobs`, `GET /jobs/<id>`, `GET /jobs/<id>/log` | Jobs and their technical logs |
+| `GET /instance-quota`, `GET /instance-plan` | How many it may still create, and the name a new one would get |
+| `GET /events` | The [live event stream](#8-live-events) |
+| `POST /instances` | Create a **development** instance; another `stage` or `from_backup` is refused with 403 |
+| `POST /projects/<id>/branches/<branch>/instances` | Create an instance of a **development** branch; staging and production branches are refused with 403 |
+| `POST /instances/<name>/actions/<action>` | Only `start`, `pause`, `restart`, `update` and `update-submodules`; every other action (`backup`, `upgrade`, `switch-branch`, `restore`, `rollback`, `repair`, `update-images`, submodules added or removed, ...) is refused with 403 |
+| `DELETE /instances/<name>` | Delete a **development** instance after a backup; staging and production are refused with 403 |
+
+Every other call is refused with 403 and written to the audit log: changing an instance (`PATCH`, its settings,
+lifetime or stage), resources, Odoo passwords, settings, accounts, tokens, teams, project settings, access, locks and
+branch stages, backups, restores, custom domains, off-site copies, shells, the audit log and plugins.
 
 ---
 
@@ -214,6 +243,25 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `DELETE /instances/<name>/mail` | `caught_mail.manage` | | **204**, every caught e-mail of the instance deleted; audit-logged |
 | `POST /instances/<name>/mail/<id>/release` | `caught_mail.manage` | `{"to": "qa@example.com"}` | 200, `{"released", "to", "id"}`: a copy was sent from the panel's own address (`MAIL_FROM`), audit-logged; 400 for an address, **403** when `MAIL_CATCHER_RELEASE` is off, 503 when the panel cannot send e-mail |
 
+### Database upgrades
+
+An instance's database moved to a newer Odoo version ([Database upgrades](ADMIN_GUIDE.md#25-database-upgrades)).
+Reading needs `instances.view`; everything else `instances.upgrade`. A production instance also needs
+`"confirm_production": true` to be upgraded or to cancel its upgrade. For an Enterprise database (Odoo S.A.'s upgrade
+service) the test and the upgrade also need `"subscription_code"` (the database's Odoo Enterprise subscription code,
+passed to the job only: never stored, never logged) and `"accept_odoo_terms": true` (the service is used under the
+customer's subscription and Odoo's terms, `terms_url`).
+
+| Method and path | Permission | Body | Answer |
+| :--- | :--- | :--- | :--- |
+| `GET /instances/<name>/upgrade` | `instances.view` | | 200: `from_version`, `edition`, `method` (`enterprise` or `openupgrade`), `allowed`, `targets` (the next version first), `skips_versions`, `terms_url`, `refusal`, `state` (`checked`, `testing`, `tested`, `test_failed`, `promoting`, `promoted`, `promotion_failed`, `rolled_back`), `target`, `branch` (the upgrade branch, when the repository has it), `report` (the pre-check), `staging` (the test instance), `tested_at`, `promotion` (`job`, `at`, `by`, `backup`, `rollback_until`, ...), `rollback_open`, `rollback_minutes`, `history` |
+| `POST /instances/<name>/upgrade/check` | `instances.upgrade` | `{"target": "19.0"}` (the next version when left out) | 200, the upgrade with its `report`: `installed`, `modules` (each `name`, `version`, `target_version`, `status`: `ready`, `version_mismatch`, `unknown_version`, `not_installable`, `missing`), `branch_exists`, `warnings` and `blocking` (each `code`, `text`) |
+| `POST /instances/<name>/upgrade/test` | `instances.upgrade` | `{"target"}` and, for Enterprise, `subscription_code`, `accept_odoo_terms` | **202**, the job: a new staging instance on the target version, or the test run again on the one there is; 409 without a pre-check of that target or with a blocking finding |
+| `POST /instances/<name>/upgrade/promote` | `instances.upgrade` | `confirm_production` (production), and for Enterprise `subscription_code`, `accept_odoo_terms` | **202**, the job "Upgrade to Odoo <version>"; 409 before a successful test, or when the repository has no upgrade branch |
+| `POST /instances/<name>/upgrade/cancel` | `instances.upgrade` | `confirm_production` (production) | **202**, the job: back to the backup taken before the upgrade; 409 after `UPGRADE_ROLLBACK_MINUTES` |
+| `POST /instances/<name>/upgrade/keep` | `instances.upgrade` | | 200: the rollback window ends now |
+| `DELETE /instances/<name>/upgrade` | `instances.upgrade` | | **204**: the upgrade is forgotten (its test instance stays); 409 while it runs or can be cancelled |
+
 ### Projects
 
 A project is one GitHub repository; every instance of a repository belongs to its project (`project` of an
@@ -246,7 +294,7 @@ answers 404 like one that does not exist, a refused permission 403 with the reas
 
 | Method and path | Permission | Body | Answer |
 | :--- | :--- | :--- | :--- |
-| `GET /plan` | `instances.view` | | 200, `plan`, `source` (`hub`, `grace`: the hub cannot be reached and the last licence applies, `expired`: no new production branches until it is heard again, `unlinked`, `default`: the Free plan), `linked`, `account_name`, `received_at`, `valid_until`, `entitlements` (`max_production_branches`, `max_servers`, `max_projects` (`null`: unlimited), `teams`, `features` (`per_project_access`, `custom_domains`, `offsite_backups`), `support_level`, `addons`, and `period`, `renews_at`, `trial_plan` when the hub says them), `production_withheld`, `banned`, `over_limit`, `usage` (`servers`, `projects`, `production_branches`, `production_branch_names`, `instances_by_stage`), `production_refusal` (why one more production branch would be refused, or `null`), `production_keep`, `leaving_production`, `links` (`pricing`, `account`, `keep`) |
+| `GET /plan` | `instances.view` | | 200, `plan`, `source` (`hub`, `grace`: the hub cannot be reached and the last licence applies, `expired`: no new production branches until it is heard again, `unlinked`, `default`: the Free plan), `linked`, `account_name`, `received_at`, `valid_until`, `entitlements` (`max_production_branches`, `max_servers`, `max_projects` (`null`: unlimited), `teams`, `features` (`per_project_access`, `custom_domains`, `offsite_backups`), `support_level`, `addons`, and `period`, `renews_at`, `trial_plan` when the hub says them), `production_withheld`, `banned`, `over_limit`, `usage` (`servers`, `projects`, `production_branches`, `production_branch_names`, `instances_by_stage`), `production_refusal` (why one more production branch would be refused, or `null`), `production_keep`, `leaving_production`, `links` (`pricing`, `account`, `keep`), `link_deadline` (for super admins and administrators, `null` for everyone else: `linked`, `first_run`, `deadline_days`, `deadline`, `days_left`, `restricted`: the panel was not linked to a Sudoo.sh account within `LINK_DEADLINE_DAYS` of its first run, so new instances, moves into production and updates are refused until it is) |
 
 A request the plan does not allow answers 403 with a sentence naming the plans that have it and the addresses of the
 pricing page and the account site (`POST /teams`, `PATCH /teams/<id>` beyond taking members out, `PUT /projects/<id>/access`
@@ -257,7 +305,7 @@ endpoints answer **429** with `Retry-After` (seconds to midnight UTC) and say wh
 
 ### Support access
 
-Letting Sudoo.sh support into the panel for a while ([Admin guide](ADMIN_GUIDE.md#25-support-access)). Granting,
+Letting Sudoo.sh support into the panel for a while ([Admin guide](ADMIN_GUIDE.md#26-support-access)). Granting,
 withdrawing and ending are for people only: an API token is refused with 403.
 
 | Request | Permission | Body | Answer |
@@ -399,7 +447,7 @@ An account:
 | Method and path | Permission | Body | Answer |
 | :--- | :--- | :--- | :--- |
 | `GET /tokens` | `tokens.manage` | | 200, API tokens (never their secrets) |
-| `POST /tokens` | `tokens.manage` | `{"name", "scope"}` (`read`, `instances` or `write`) | **201**, with `token` and `signing_secret`, shown once |
+| `POST /tokens` | `tokens.manage` | `{"name", "scope"}` (`read`, `instances`, `developer` or `write`) | **201**, with `token` and `signing_secret`, shown once |
 | `DELETE /tokens/<id>` | `tokens.manage` | | **204**, revoked |
 | `GET /backups` | `backups.manage` | | 200, backups, newest first (below) |
 | `GET /backups/<file>` | `backups.manage` | | the zip (`dump.sql`, the filestore, `manifest.json`) |
@@ -903,7 +951,7 @@ Errors follow [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) ("problem detai
 | :--- | :--- |
 | 400 | A field is missing or not valid (also `X-Sudoo-Acting-For`); `detail` says which and what to send |
 | 401 | Token, timestamp, nonce or signature not accepted, the session has ended, or a wrong e-mail address or password at `POST /session`; `detail` says which |
-| 403 | The caller's role lacks the permission; `detail` names what is missing, for example "Your role cannot do this (delete instances)." A `read` token sending a change, an `instances` token calling anything [outside its scope](#the-instances-scope), a restricted session, a wrong setup code, and a reached instance limit (`MAX_INSTANCES`, `MAX_INSTANCES_PER_USER`, `MAX_RUNNING_INSTANCES`) are also 403, each with its own `detail` |
+| 403 | The caller's role lacks the permission; `detail` names what is missing, for example "Your role cannot do this (delete instances)." A `read` token sending a change, an `instances` token calling anything [outside its scope](#the-instances-scope), a `developer` token calling anything [outside its scope](#the-developer-scope), a call refused because the panel was not linked to a Sudoo.sh account within `LINK_DEADLINE_DAYS` (new instances, moves into production, updates), a restricted session, a wrong setup code, and a reached instance limit (`MAX_INSTANCES`, `MAX_INSTANCES_PER_USER`, `MAX_RUNNING_INSTANCES`) are also 403, each with its own `detail` |
 | 404 | No such instance, job, account, action or documentation page |
 | 405 | The method is not allowed on this path |
 | 409 | `POST /server/restart` while jobs are running |

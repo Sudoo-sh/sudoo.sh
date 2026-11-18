@@ -7,7 +7,7 @@ entry-point group "sudoo.storage" (docs/PLUGINS.md).
 
 Collections used by the panel: users, api_tokens, instance_state, creations, ended_sessions, alerts, alert_meta,
 mail_templates, offsite_copies, offsite_meta,
-licence_acceptances (append-only: never changed or deleted), licence_sync.
+licence_acceptances (append-only: never changed or deleted), licence_sync, installation (the first run).
 """
 
 from __future__ import annotations

@@ -55,6 +55,33 @@ export function stepLines(title: string, c: LogContext): string[] {
     const modules = title.split(":")[1]?.trim() ?? "all";
     return [`$ odoo -d ${c.database} -u ${modules.replace(/\s/g, "")} --stop-after-init`, odooLine(c.database, "odoo.modules.loading", "updating modules list"), odooLine(c.database, "odoo.modules.loading", "Modules loaded.")];
   }
+  if (t.startsWith("upgrading the copy") || t.startsWith("upgrading the database to odoo")) {
+    const target = title.match(/Odoo (\S+)/)?.[1] ?? c.version;
+    if (t.includes("openupgrade"))
+      return [
+        "$ docker compose run --rm --no-deps -T --entrypoint sh odoo -c '…' sh https://github.com/OCA/OpenUpgrade/archive/<pinned>.tar.gz openupgradelib==3.13.7 …",
+        "Downloading OpenUpgrade from https://github.com/OCA/OpenUpgrade/archive/<pinned>.tar.gz",
+        "Installing openupgradelib==3.13.7",
+        odooLine(c.database, "odoo.modules.loading", "loading 64 modules..."),
+        odooLine(c.database, "OpenUpgrade", "base: migration script post-migration.py executed"),
+        odooLine(c.database, "odoo.modules.loading", "64 modules loaded in 312.40s, 98411 queries"),
+        `The database's base module is at version ${target}.1.3`,
+      ];
+    return [
+      "Downloading Odoo's upgrade script from https://upgrade.odoo.com/upgrade",
+      "(demo: Odoo's upgrade service is simulated, nothing leaves this page)",
+      "INFO: Dump the database as 'origin.dump'",
+      "INFO: Upload the database dump",
+      "INFO: Upgrade request processing: pending, progress, done",
+      "INFO: The upgraded database and filestore have been downloaded",
+      `Loading the upgraded database into ${c.database}`,
+      `The database's base module is at version ${target}.1.3`,
+    ];
+  }
+  if (t.startsWith("switching to odoo")) return [`$ docker pull odoo:${title.match(/Odoo (\S+)/)?.[1] ?? c.version}`, "Pinned the new image in compose.yaml"];
+  if (t.startsWith("putting odoo into maintenance")) return ["$ docker compose stop odoo", "Visitors see the Upgrading page until the upgrade ends."];
+  if (t.startsWith("putting the instance back")) return ["$ git checkout -B main <previous commit>", "Pinned the previous image in compose.yaml", `$ psql ${c.database} < dump.sql`, "Restored the filestore (1 284 files)"];
+  if (t.startsWith("loading the copy")) return [`$ dropdb --if-exists ${c.database} && createdb ${c.database}`, `$ psql ${c.database} < dump.sql`];
   if (t.startsWith("setting the admin password")) return ["The administrator (user 2) got this instance's admin password"];
   if (t.startsWith("creating the public link")) return [`Starting connector sudoo-connector-${c.name}`, `Public link: https://${c.name}.demo.sudoo.sh`];
   if (t.startsWith("starting odoo"))

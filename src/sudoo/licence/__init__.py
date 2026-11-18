@@ -51,7 +51,6 @@ COLLECTION = "licence_acceptances"
 SYNC_COLLECTION = "licence_sync"
 TEXT_FILE = Path(__file__).with_name("agreement.md")
 INSTALLER_LOG = "licence-acceptance.log"
-HUB_PATH = "/api/v1/installations/licence-acceptances"
 
 USES = ("personal", "company", "service_provider")
 COMPANY_USES = ("company", "service_provider")

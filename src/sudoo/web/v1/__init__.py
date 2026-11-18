@@ -10,6 +10,7 @@ role (roles.py), and the same permission checks apply.
     instances.py   instances, jobs, versions
     domains.py     instances' custom domains
     settings.py    the panel's settings, changed while it runs
+    licence.py     the Sudoo.sh Licence Agreement: its text, acceptances
     mail_templates.py  the texts of the e-mails the panel sends
     server.py      the server's resource use, the panel's address and plugins
     users.py       roles, accounts and the audit log
@@ -43,6 +44,7 @@ from . import (
     github,
     instances,
     invitations,
+    licence,
     mail_templates,
     offsite,
     plugins,
@@ -69,6 +71,7 @@ def register(app: Flask) -> None:
         instances,
         domains,
         settings,
+        licence,
         mail_templates,
         alerts,
         server,

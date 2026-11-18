@@ -61,6 +61,20 @@ def passwords() -> dict[str, str]:
     chosen = {"admin": "plum-river-lantern-42", "operator": "copper-meadow-violin-17"}
     accounts.create("admin1", "super_admin", chosen["admin"], first_name="Ada", email="ada@example.com")
     accounts.create("sync1", "developer", chosen["operator"])
+    # the panel's licence agreement is accepted, as after first-run setup (test_licence.py tests the step itself)
+    from sudoo import licence
+
+    if not licence.history():
+        licence.record(
+            user="admin1",
+            account=accounts.get("admin1") or {},
+            role="super_admin",
+            ip="127.0.0.1",
+            user_agent="pytest",
+            use="company",
+            on_behalf=True,
+            surface="panel_setup",
+        )
     return chosen
 
 

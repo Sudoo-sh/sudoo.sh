@@ -1,10 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { KeyRound, LogOut } from "lucide-react";
+import { ArrowLeft, KeyRound, LogOut } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { api, errorText, setCsrfToken } from "@/api/client";
-import { keys, useSetup } from "@/api/queries";
-import type { Session } from "@/api/types";
+import { keys, useLicenceText, useSetup } from "@/api/queries";
+import type { LicenceAcceptance as Acceptance, Session } from "@/api/types";
+import { LicenceAcceptance } from "@/components/LicenceAcceptance";
+import licenceWords from "@/i18n/licence";
 import { useSignOut } from "@/components/Shell";
 import { Brand } from "@/components/ui/Brand";
 import { Button, Callout, Field, Spinner } from "@/components/ui/basics";
@@ -16,9 +18,13 @@ import common from "@/i18n/common";
 import { LanguageSwitch } from "@/components/LanguageSwitch";
 import { Preview } from "./Login";
 
-/** First run: no account exists yet. Whoever has the setup code printed by the installer creates the first one. */
+/** First run: no account exists yet. Whoever has the setup code printed by the installer accepts the licence
+ *  agreement (step 1), then creates the first account (step 2); both are sent together. */
 export function SetupPage() {
   const { data: setup, isPending } = useSetup();
+  const licenceText = useLicenceText();
+  const [licence, setLicence] = useState<Acceptance | null>(null);
+  const l = useT(licenceWords);
   const client = useQueryClient();
   const navigate = useNavigate();
   const [form, setForm] = useState({ setup_code: "", first_name: "", last_name: "", email: "", phone: "" });
@@ -37,7 +43,7 @@ export function SetupPage() {
     setBusy(true);
     setError("");
     try {
-      const me = await api.post<Session>("/setup", { ...form, email: form.email.trim(), password: password[0] });
+      const me = await api.post<Session>("/setup", { ...form, email: form.email.trim(), password: password[0], licence });
       setCsrfToken(me.csrf_token);
       client.setQueryData(["setup"], { ...setup, needed: false });
       client.setQueryData(keys.session, me);
@@ -49,12 +55,37 @@ export function SetupPage() {
     }
   };
 
+  if (!licence)
+    return (
+      <div className="auth">
+        <section className="auth-panel">
+          <div className="auth-card wide">
+            <div className="row"><Brand to="/setup" /><span className="spacer" /><LanguageSwitch /></div>
+            <header>
+              <span className="faint small">{l.step(1, 2)}</span>
+              <h1>{l.title}</h1>
+              <p>{l.setupText}</p>
+            </header>
+            {licenceText.data ? (
+              <LicenceAcceptance text={licenceText.data} onAccept={setLicence} submitLabel={l.submit} />
+            ) : licenceText.isError ? (
+              <Callout tone="danger">{l.loadFailed}</Callout>
+            ) : (
+              <Spinner />
+            )}
+          </div>
+        </section>
+        <Preview />
+      </div>
+    );
+
   return (
     <div className="auth">
       <section className="auth-panel">
         <form className="auth-card wide" onSubmit={submit}>
           <div className="row"><Brand to="/setup" /><span className="spacer" /><LanguageSwitch /></div>
           <header>
+            <span className="faint small">{l.step(2, 2)}</span>
             <h1>{t.title}</h1>
             <p>{t.text}</p>
           </header>
@@ -75,6 +106,7 @@ export function SetupPage() {
           <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={!ready}>
             {t.submit}
           </Button>
+          <Button variant="ghost" icon={<ArrowLeft className="flip-rtl" />} onClick={() => setLicence(null)} style={{ alignSelf: "flex-start" }}>{l.back}</Button>
         </form>
       </section>
       <Preview />

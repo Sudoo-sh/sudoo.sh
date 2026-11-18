@@ -3,7 +3,8 @@
     GET    /api/v1/setup                           whether the panel still needs its first account, and the server's
                                                    default language (public)
     POST   /api/v1/setup                           create the first account, a super admin, with the setup code
-                                                   printed by the installer, and sign in -> 201 (public)
+                                                   printed by the installer, and sign in -> 201 (public); "licence"
+                                                   holds the acceptance of the licence agreement (v1/licence.py)
     GET    /api/v1/contact                         who to contact and the server's default language (public: shown
                                                    on the sign-in page)
     POST   /api/v1/session                         sign in: {"username", "password"}, where "username" may be the
@@ -22,9 +23,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from flask import Blueprint, Response, abort, g, session
+from flask import Blueprint, Response, abort, g, request, session
 
-from sudoo import accounts, auth, roles
+from sudoo import accounts, auth, licence, roles
 from sudoo.auth import recovery
 from sudoo.config import settings
 from sudoo.core import audit
@@ -52,6 +53,8 @@ def me() -> dict[str, Any]:
         "recovery_codes_needed": recovery.needed(account),
         "brand_color": settings.brand_color,
         "language": accounts.language(account),
+        # a super admin must accept the licence agreement before anything else (security.py)
+        "licence_required": g.user["role"] == "super_admin" and licence.pending(),
     }
 
 
@@ -87,6 +90,10 @@ def setup() -> Response:
     problem = accounts.profile_problem(profile)
     if problem:
         abort(400, problem)
+    try:  # the licence agreement is accepted in the same step, before the account exists
+        accepted = licence.check_acceptance(data.get("licence"))
+    except licence.LicenceError as error:
+        abort(400, str(error))
     chosen = check.text(data, "username", max_length=32).lower()
     username = check.username(chosen) if chosen else accounts.username_for(profile["email"])
     try:
@@ -100,8 +107,20 @@ def setup() -> Response:
     except ValueError as error:
         abort(400, str(error))
     account = accounts.get(username) or {}
+    entry = licence.record(
+        user=username,
+        account=account,
+        role="super_admin",
+        ip=ip,
+        user_agent=request.headers.get("User-Agent", ""),
+        surface="panel_setup",
+        **accepted,
+    )
     start_session(username, account["session_version"], restricted=signin.restriction(account))
     audit.record(username, ip, "first-run setup: super admin account created")
+    audit.record(
+        username, ip, "accepted the Sudoo.sh Licence Agreement", detail=f"version {entry['version']}, use {entry['use']}"
+    )
     return _signed_in_answer()
 
 

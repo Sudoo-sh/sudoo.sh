@@ -19,7 +19,7 @@ from typing import Any
 from flask import Blueprint, Response, abort
 from pydantic import ValidationError
 
-from sudoo import accounts, config
+from sudoo import accounts, config, licence
 from sudoo.config import Settings, live, settings
 from sudoo.core import events
 
@@ -92,6 +92,8 @@ def _change(values: dict[str, Any]) -> None:
     if offsite:  # where backups go off the server: its own permission, besides settings.manage
         refuse_unless("offsite.configure", f"change {', '.join(k.upper() for k in offsite)}")
     try:
+        if "licence_required_version" in values:
+            licence.check_required_version(values["licence_required_version"])
         live.change(values)
     except ValidationError as error:
         first = error.errors()[0]

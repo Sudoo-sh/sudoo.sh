@@ -288,6 +288,9 @@ def heartbeat_forever() -> None:
         if enabled():
             try:
                 current = heartbeat()
+                from sudoo import licence
+
+                licence.sync()  # acceptances that could not be sent before
                 wait = max(60.0, float(current.get("next_heartbeat_at") or 0) - time.time())
                 wait = min(wait, HEARTBEAT_SECONDS)
             except HubRefused as error:
@@ -403,7 +406,16 @@ def link(code: str) -> dict[str, Any]:
     linked = {"account_name": answer.get("account_name"), "linked_at": answer.get("linked_at")}
     _save(linked=linked, key_revoked_at=None)
     _changed()
+    from sudoo import licence
+
+    licence.sync_soon()  # the account gets this installation's licence acceptances
     return linked
+
+
+def send_licence_acceptances(acceptances: list[dict[str, Any]]) -> None:
+    """Send licence acceptances (licence.py) to the hub, signed. Raises HubUnavailable or HubRefused (404 while the
+    hub does not take them yet)."""
+    _for_panel("POST", f"{PANEL}/licence-acceptances", {"acceptances": acceptances})
 
 
 def unlink() -> None:

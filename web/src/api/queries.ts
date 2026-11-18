@@ -20,6 +20,8 @@ import type {
   Recommendation,
   AuditEntry,
   Backup,
+  OffsiteCopy,
+  OffsiteState,
   Credentials,
   DeployKey,
   Domains,
@@ -143,6 +145,11 @@ export const useMailTemplates = () =>
 export const useUsers = () => useQuery({ queryKey: ["users"], queryFn: () => api.get<User[]>("/users") });
 export const useTokens = () => useQuery({ queryKey: ["tokens"], queryFn: () => api.get<Token[]>("/tokens") });
 export const useBackups = () => useQuery({ queryKey: ["backups"], queryFn: () => api.get<Backup[]>("/backups") });
+/** Off-site copies: the state (where they go, the signing key) and the copies; the live event "offsite" refreshes both. */
+export const useOffsite = (enabled = true) =>
+  useQuery({ queryKey: ["offsite", "state"], queryFn: () => api.get<OffsiteState>("/offsite"), enabled });
+export const useOffsiteCopies = (enabled = true) =>
+  useQuery({ queryKey: ["offsite", "copies"], queryFn: () => api.get<OffsiteCopy[]>("/offsite/copies"), enabled });
 export const useDeployKeys = () =>
   useQuery({ queryKey: ["deploy-keys"], queryFn: () => api.get<DeployKey[]>("/deploy-keys") });
 export const useGitHubApp = () =>

@@ -99,6 +99,11 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
       client.invalidateQueries({ queryKey: keys.settings });
       client.invalidateQueries({ queryKey: ["account"] });
       client.invalidateQueries({ queryKey: ["quota"] });
+      client.invalidateQueries({ queryKey: ["offsite"] });
+      break;
+    case "offsite": // an off-site copy changed (a restore also adds its files to the local backups)
+      client.invalidateQueries({ queryKey: ["offsite"] });
+      client.invalidateQueries({ queryKey: ["backups"] });
       break;
     case "plugins":
       client.invalidateQueries({ queryKey: keys.plugins });
@@ -120,7 +125,7 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
   }
 }
 
-const TOPICS = ["instance", "instance.deleted", "domains", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "alert", "reset"];
+const TOPICS = ["instance", "instance.deleted", "domains", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "alert", "offsite", "reset"];
 
 export interface Sync {
   state: LiveState;

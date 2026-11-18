@@ -18,7 +18,10 @@ export type Permission =
   | "audit.view"
   | "plugins.view"
   | "settings.manage"
-  | "mail.manage";
+  | "mail.manage"
+  | "offsite.configure"
+  | "offsite.restore"
+  | "offsite.delete";
 
 export interface Profile {
   first_name: string | null;
@@ -434,6 +437,52 @@ export interface Token {
 }
 
 export type BackupKind = "manual" | "daily" | "deletion" | "before-restore" | "before-rollback" | "before-repair" | "before-update";
+/** GET /offsite: where off-site copies go, and the panel's signing key (never the storage's secret) */
+export interface OffsiteState {
+  enabled: boolean;
+  /** address, bucket, access key ID and secret are set */
+  configured: boolean;
+  /** enabled and configured: backups are being copied */
+  active: boolean;
+  /** bucket/folder */
+  location: string | null;
+  endpoint: string | null;
+  other_stages: boolean;
+  kinds: string[];
+  /** PEM; null before off-site copies were first switched on */
+  public_key: string | null;
+  /** SHA256:<hex of the DER public key> */
+  fingerprint: string | null;
+  last_scan: { at: number; found: number; missing: number } | null;
+}
+
+export type OffsiteStatus = "uploading" | "stored" | "verifying" | "verified" | "failed";
+
+export interface OffsiteCopy {
+  /** <instance>__<stamp>__<kind> */
+  id: string;
+  instance: string;
+  stage: string | null;
+  kind: BackupKind;
+  stamp: string;
+  /** when the backup was taken (seconds) */
+  created: number | null;
+  status: OffsiteStatus;
+  /** why it failed, or why its last check could not finish */
+  reason: string | null;
+  size: number;
+  files: { name: string; db: string | null; size: number | null }[];
+  location: string;
+  uploaded_at: number | null;
+  verified_at: number | null;
+  /** the fingerprint of the key it was last verified with */
+  verified_with: string | null;
+  /** the job that last copied or checked it */
+  job: string | null;
+  /** found by reading the bucket's list (after a rebuild) rather than copied by this panel */
+  found_in_bucket: boolean;
+}
+
 export interface Backup {
   file: string;
   instance: string;

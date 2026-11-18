@@ -84,6 +84,13 @@ const AR_EXACT: Record<string, string> = {
   "The repository's modules are all installed already": "كل وحدات المستودع مثبّتة بالفعل",
   "Waiting for Odoo to be ready": "انتظار جاهزية Odoo",
   "Rolling back to the state before the restore": "التراجع إلى الحالة السابقة للاستعادة",
+  // off-site copies (offsite/)
+  "Restore an off-site copy": "استعادة نسخة من خارج الخادم",
+  "Off-site retention rules": "قواعد الاحتفاظ بالنسخ خارج الخادم",
+  "Reading the backup files": "قراءة ملفات النسخة الاحتياطية",
+  "Signing and writing the manifest": "توقيع البيان وكتابته",
+  "Applying the off-site retention rules": "تطبيق قواعد الاحتفاظ بالنسخ خارج الخادم",
+  "Checking the signature of the manifest": "التحقق من توقيع البيان",
 };
 
 /** Arabic for titles with values: the English pattern and the Arabic sentence made from its groups. */
@@ -114,6 +121,11 @@ const AR_PATTERNS: Pattern[] = [
   [/^Upgrading modules: changed modules$/, () => "ترقية الوحدات: الوحدات التي تغيّرت"],
   [/^Upgrading modules: (.+)$/, (modules) => `ترقية الوحدات: ${ltr(modules!)}`],
   [/^Downloading (\S+) (\S+)$/, (plugin, version) => `تنزيل ${ltr(plugin!)} ${ltr(version!)}`],
+  [/^Off-site copy of (.+) \(again\)$/, (name) => `نسخ ${ltr(name!)} خارج الخادم (مجددًا)`],
+  [/^Off-site copy of (.+)$/, (name) => `نسخ ${ltr(name!)} خارج الخادم`],
+  [/^Check of the off-site copy (.+)$/, (id) => `فحص النسخة خارج الخادم ${ltr(id!)}`],
+  [/^Copying (.+) to (.+)$/, (file, where) => `نسخ ${ltr(file!)} إلى ${ltr(where!)}`],
+  [/^Downloading and checking (.+)$/, (file) => `تنزيل ${ltr(file!)} وفحصه`],
   [/^Recreating (.+) from the panel's configuration$/, (services) => `إعادة إنشاء ${ltr(services!)} من إعدادات اللوحة`],
 ];
 

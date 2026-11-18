@@ -10,6 +10,7 @@ import { addDomain, checkName, checkNow, domainsOf, findDomain, makePrimary, rem
 import { announce, full, reference, startJob } from "./jobs";
 import { capacity, currentMetrics, history, listed, newProfile } from "./metrics";
 import * as mail from "./mail";
+import * as offsite from "./offsite";
 import { catalog, categories, marketplace, recommendations } from "./marketplace";
 import {
   addBackup,
@@ -652,7 +653,7 @@ function runAction(instance: Instance, action: string, body: Record<string, unkn
       });
     }
     case "backup":
-      return startJob({ ...base, steps: ["Backing up the database and files"], seconds: 4, status: instance.status, onDone: () => addBackup(instance, "manual", Date.now()) });
+      return startJob({ ...base, steps: ["Backing up the database and files"], seconds: 4, status: instance.status, onDone: () => offsite.backupTaken(addBackup(instance, "manual", Date.now())) });
     case "update-images":
       return startJob({ ...base, steps: ["Downloading the images", "Starting Odoo with the new images"], seconds: [4, 2.5], status: "busy", onDone: () => wake(instance) });
     case "repair":
@@ -838,6 +839,7 @@ route("GET", "/settings", () => {
 });
 route("PATCH", "/settings", ({ body }) => {
   need("settings.manage", "/api/v1/settings");
+  if (Object.keys(body).some((key) => key.startsWith("offsite_"))) need("offsite.configure");
   for (const [key, value] of Object.entries(body)) {
     const s = settings.find((x) => x.key === key);
     if (!s) throw new Problem(400, `${key.toUpperCase()}: unknown setting.`);
@@ -1123,6 +1125,89 @@ route("DELETE", "/backups/:file", ({ params }) => {
   if (index < 0) throw new Problem(404, "This backup does not exist.");
   backups.splice(index, 1);
   record(ME, "backup deleted", { detail: params.file });
+  return none();
+});
+// ---------------------------------------------------------------- off-site copies
+const copyOf = (id: string) => offsite.find(id) ?? (() => { throw new Problem(404, "No such off-site copy."); })();
+const busyCopy = (found: { status: string }) => {
+  if (found.status === "uploading" || found.status === "verifying") throw new Problem(409, "This copy is being uploaded or checked right now.");
+};
+const givenKey = (body: Record<string, unknown>) => {
+  const text = String(body.public_key ?? "").trim();
+  if (text && !/^-----BEGIN PUBLIC KEY-----[\s\S]+-----END PUBLIC KEY-----$/.test(text)) throw new Problem(400, "This is not a public key in PEM form (-----BEGIN PUBLIC KEY-----).");
+  return Boolean(text);
+};
+route("GET", "/offsite", () => {
+  need("backups.manage", "/api/v1/offsite");
+  return ok(offsite.state());
+});
+route("GET", "/offsite/public-key", () => {
+  throw offline("Downloading the public key");
+});
+route("POST", "/offsite/test", () => {
+  need("offsite.configure");
+  const state = offsite.state();
+  if (!state.configured) throw new Problem(409, "Off-site storage is not set up yet: fill in its address, bucket and access key in Settings, Backups.");
+  record(ME, "off-site storage tested", { detail: state.location ?? "" });
+  return ok({ location: state.location, steps: ["wrote a test file", "read it back", "listed the folder", "deleted it"] });
+});
+route("POST", "/offsite/scan", () => {
+  need("backups.manage");
+  return ok({ found: 0, missing: 0 });
+});
+route("GET", "/offsite/copies", () => {
+  need("backups.manage", "/api/v1/offsite/copies");
+  return ok(offsite.all());
+});
+route("POST", "/offsite/copies/:id/verify", ({ params, body }) => {
+  need("backups.manage");
+  const found = copyOf(params.id!);
+  busyCopy(found);
+  return accepted(offsite.verify(found, givenKey(body)));
+});
+route("POST", "/offsite/copies/:id/retry", ({ params }) => {
+  need("backups.manage");
+  const found = copyOf(params.id!);
+  busyCopy(found);
+  if (!backups.some((b) => found.files.some((f) => f.name === b.file))) throw new Problem(409, "The backup files of this copy are no longer on this server, so it cannot be copied again.");
+  return accepted(offsite.retry(found));
+});
+route("POST", "/offsite/copies/:id/restore", ({ params, body }) => {
+  need("offsite.restore");
+  need("instances.restore");
+  const found = copyOf(params.id!);
+  const name = String(body.instance ?? "") || found.instance;
+  const instance = instances.get(name);
+  if (!instance) throw new Problem(404, `There is no instance ${name}. Create one of the same Odoo version first, then restore into it.`);
+  busyCopy(found);
+  if (instance.stage === "production" && body.confirm_production !== true) throw new Problem(400, `${name} is a production instance: confirm that you want to restore into it ("confirm_production": true).`);
+  const withKey = givenKey(body);
+  const foreign = found.instance !== name;
+  found.status = "verifying";
+  publish("offsite", found.id, null);
+  record(ME, "off-site copy restore started", { instance: name, detail: found.id });
+  const taken = new Date((found.created ?? 0) * 1000).toUTCString().slice(5, 22);
+  return accepted(startJob({
+    instance: name, action: "Restore an off-site copy", kind: "restore", seconds: 2.2, status: "busy",
+    steps: ["Checking the signature of the manifest", `Downloading and checking ${found.files[0]?.name}`, "Saving the current state first", "Stopping Odoo", `Restoring the backup of ${taken}` + (foreign ? ` from ${found.instance}` : ""), ...(foreign ? ["Neutralising the copied data"] : []), "Starting Odoo"],
+    notes: [{ text: `The off-site copy ${found.id} passed its check${withKey ? " with the public key you gave" : ""} (signature and every checksum)`, level: "info" }],
+    onDone: () => {
+      found.status = "verified";
+      found.verified_at = Date.now() / 1000;
+      found.reason = null;
+      publish("offsite", found.id, null);
+      const before = addBackup(instance, "before-restore", Date.now());
+      instance.rollback = { backups: [before.file], taken_at: iso(Date.now())!, until: iso(Date.now() + Number(setting("rollback_hours")) * HOUR)! };
+      wake(instance);
+    },
+  }));
+});
+route("DELETE", "/offsite/copies/:id", ({ params }) => {
+  need("offsite.delete");
+  const found = copyOf(params.id!);
+  busyCopy(found);
+  if (instances.has(found.instance) && offsite.isProtected(found)) throw new Problem(409, "This is the newest good off-site copy of the instance, so it is kept. Delete it once a newer copy is stored (or after the instance is deleted).");
+  offsite.remove(found);
   return none();
 });
 route("GET", "/deploy-keys", () => {

@@ -22,4 +22,3 @@ export function LockTag({ lock, branch }: { lock: BranchLock; branch: string }) 
     </span>
   );
 }
-

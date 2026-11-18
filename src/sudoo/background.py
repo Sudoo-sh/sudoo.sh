@@ -1,18 +1,19 @@
 """Work that runs on its own inside the panel process: monitor, automatic pause, automatic deletion, daily backups,
 downloading images ahead of time (PREPULL_IMAGES), removal of expired rollback snapshots, GitHub polling, the GitHub
-App's webhook address, gateway, connectors, alerts, the marketplace heartbeat and the plugin watchdog (files,
-licences)."""
+App's webhook address, gateway, connectors, alerts, the marketplace heartbeat, the plugin watchdog (files,
+licences) and custom domains (DNS checks, certificates and their renewal)."""
 
 from __future__ import annotations
 
 import threading
 import time
 
-from sudoo import accounts, alerts, exposure, plugin_manager, triggers
+from sudoo import accounts, alerts, domains, exposure, plugin_manager, triggers
 from sudoo.config import live, settings
 from sudoo.core import audit, jobs
 from sudoo.core.shell import succeeds
 from sudoo.core.state import STATE
+from sudoo.domains import worker as domain_worker
 from sudoo.hub import marketplace
 from sudoo.instances import backups, gateway, integrity, monitor, odoo, operations, stages, store
 from sudoo.repos import github, github_app
@@ -33,12 +34,27 @@ def start() -> None:
         _keep_github_webhook_current,
         marketplace.heartbeat_forever,
         plugin_manager.watch_forever,
+        domain_worker.run_forever,
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     alerts.start()
     gateway.start(wake=start_wake_job)
+    live.on_change(_domain_settings_changed)
     threading.Thread(target=exposure.ensure_all, daemon=True, name="connectors").start()
     triggers.start_all()
+
+
+_DOMAIN_SETTINGS = {"custom_domains", "domain_http_probe", "acme_directory", "domain_dns_target"}
+
+
+def _domain_settings_changed(changed: dict[str, object]) -> None:
+    """Custom domains turned on or off, or their checks changed: serve accordingly, look at every domain now."""
+    if _DOMAIN_SETTINGS & set(changed):
+        domains.WAKE.set()
+        try:
+            gateway.refresh_domains()
+        except Exception as error:  # noqa: BLE001 - the gateway catches up at its next round
+            print(f"domains: gateway not refreshed: {error!r}", flush=True)
 
 
 def start_wake_job(name: str) -> jobs.Job:

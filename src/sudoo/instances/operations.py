@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from sudoo import addons as addons_sources
-from sudoo import exposure
+from sudoo import domains, exposure
 from sudoo.config import settings
 from sudoo.core import events, vault
 from sudoo.core.hints import panel_hint, specific_hint
@@ -354,6 +354,7 @@ def delete(job: Job, name: str, without_backup: bool = False) -> None:
     job.run(compose(name, "down", "-v", "--remove-orphans"), timeout=600)
     gateway.remove(name)
     exposure.remove(name)
+    domains.forget_instance(name)
     job.step("Removing the instance folder")
     shutil.rmtree(store.folder(name))
     STATE.remove(name)

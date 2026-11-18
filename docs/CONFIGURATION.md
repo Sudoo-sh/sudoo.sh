@@ -44,11 +44,12 @@ reset with **Use .env**.
 7. [Storage, sign-in and e-mail (plugins)](#storage-sign-in-and-e-mail-plugins)
 8. [Limits](#limits)
 9. [Gateway](#gateway)
-10. [Ports](#ports)
-11. [Behaviour](#behaviour)
-12. [Alerts](#alerts)
-13. [Marketplace](#marketplace)
-14. [Locations](#locations)
+10. [Custom domains](#custom-domains)
+11. [Ports](#ports)
+12. [Behaviour](#behaviour)
+13. [Alerts](#alerts)
+14. [Marketplace](#marketplace)
+15. [Locations](#locations)
 
 ---
 
@@ -274,6 +275,28 @@ seconds. Set them in the panel's `.env` or in the panel, as always.
 
 ---
 
+## Custom domains
+
+Instances answering on your own names, such as `erp.client.com`, over https ([Administrator Guide, Custom
+domains](ADMIN_GUIDE.md#19-custom-domains-and-certificates)). Off by default. Every value here can be changed on the
+Settings page except the two ports.
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `CUSTOM_DOMAINS` | text | `off` | **live** | `off`: no custom domains (recorded ones are kept, not served). `acme`: the gateway answers custom domains on ports 80 and 443 of the server, gets a certificate for each from the ACME authority and renews it; needs a server that accepts connections on those ports. `external`: something in front (your own Cloudflare tunnel or proxy) handles https and sends the visits to the instance's gateway port; the panel only records the domains, checks that they reach the instance, and uses the primary one as its address. Choosing `acme` means agreeing to the ACME authority's terms of service (Let's Encrypt's subscriber agreement). |
+| `ACME_DIRECTORY` | text | `production` | **live** | The ACME authority: `production` (Let's Encrypt), `staging` (Let's Encrypt's test authority: certificates browsers do not trust, with far higher limits, for trying the setup out) or the `https://` address of another authority's ACME directory. |
+| `ACME_EMAIL` | text | empty | **live** | Contact e-mail given to the ACME authority when the panel creates its account there; empty: `ADMIN_CONTACT_EMAIL`, or none. |
+| `CERTIFICATE_RENEW_DAYS` | int | `30` | **live** | Renew a certificate this many days before it expires (1 to 90); a short-lived certificate is renewed a third of its lifetime before it expires at the latest. |
+| `CERTIFICATE_RETRY_MAX_HOURS` | float | `24` | **live** | After a failed issuance or renewal the panel tries again after 5 minutes, then 10, 20 and so on, at most this many hours apart (1 to 168). |
+| `DOMAINS_PER_INSTANCE` | int | `5` | **live** | Custom domains one instance may have (0 to 100); `0`: none. |
+| `DOMAIN_DNS_TARGET` | text | empty | **live** | The server's public name (or address) custom domains point to; empty: `PUBLIC_HOST`. A name is shown to users as a CNAME record, an address as an A or AAAA record. Without either, no domain can be checked. |
+| `DOMAIN_DNS_TIMEOUT_SECONDS` | float | `5` | **live** | Seconds one DNS lookup of a custom domain may take (1 to 60). |
+| `DOMAIN_HTTP_PROBE` | bool | `true` | **live** | Before asking for a certificate, fetch a check answer through the domain over http (port 80), as the ACME authority will, so a closed port is reported clearly instead of costing a failed attempt. Turn it off when the server cannot reach its own public address (some networks do not allow it). |
+| `DOMAIN_HTTP_PORT` | int | `80` | `.env` only | Port the gateway answers custom domains on over http: ACME checks and the redirect to https. The ACME authority always connects to port 80: change this only when something forwards port 80 to it. |
+| `DOMAIN_HTTPS_PORT` | int | `443` | `.env` only | Port the gateway answers custom domains on over https. |
+
+---
+
 ## Ports
 
 | Setting | Type | Default | Applies | Meaning |
@@ -341,6 +364,8 @@ with **Send a test alert** for the e-mail and each webhook.
 | `ALERT_DRIFT` | bool | `true` | **live** | An instance's containers or files were changed outside the panel (`DRIFT_ACTION`). |
 | `ALERT_PUBLIC_LINK` | bool | `true` | **live** | The panel, or an instance that is online, has had no public link for `ALERT_PUBLIC_LINK_MINUTES` (its connector stopped, say). |
 | `ALERT_PUBLIC_LINK_MINUTES` | float | `10` | **live** | Minutes without a public link before the alert (1 to 1440). |
+| `ALERT_CERTIFICATE` | bool | `true` | **live** | A custom domain's certificate could not be issued or renewed, or expires within `ALERT_CERTIFICATE_DAYS` and was not renewed yet (e-mails "Certificate not issued" and "Certificate expires soon"). |
+| `ALERT_CERTIFICATE_DAYS` | float | `14` | **live** | Days before a certificate expires from which it is shown and alerted as expiring (1 to 60). |
 | `ALERT_RECOVERY` | bool | `true` | **live** | Send a notice when a problem that was alerted is over: back online, disk freed, memory normal, link back. |
 | `ALERT_QUIET_MINUTES` | float | `60` | **live** | The same alert (same kind, same instance) is sent at most once in this many minutes; a repeat inside it only counts up on the alert in the bell. `0`: every time (0 to 10080). |
 | `ALERT_DIGEST` | bool | `false` | **live** | E-mail one summary a day, at `ALERT_DIGEST_TIME`, instead of each alert as it happens. Webhooks and the bell still get each alert at once. |

@@ -15,6 +15,7 @@ classifiers = [
 dependencies = [
     "aiohttp>=3.10",
     "cryptography>=43",
+    "dnspython>=2.6",
     "flask>=3.0",
     "gunicorn>=23.0",
     "markdown>=3.7",

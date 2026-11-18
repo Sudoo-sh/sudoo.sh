@@ -1627,6 +1627,7 @@ source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "cryptography" },
+    { name = "dnspython" },
     { name = "flask" },
     { name = "gunicorn" },
     { name = "markdown" },
@@ -1648,6 +1649,7 @@ dev = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.10" },
     { name = "cryptography", specifier = ">=43" },
+    { name = "dnspython", specifier = ">=2.6" },
     { name = "flask", specifier = ">=3.0" },
     { name = "gunicorn", specifier = ">=23.0" },
     { name = "markdown", specifier = ">=3.7" },

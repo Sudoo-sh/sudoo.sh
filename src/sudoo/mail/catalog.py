@@ -9,6 +9,8 @@ below stay as they are, so "Reset to default" only forgets the change. Texts are
     sign_in_notice       "new sign-in to your account", after each sign-in (SIGN_IN_EMAIL)
     alert                one alert: a failed job, an instance down, a full disk, ... or that it is over
     alert_digest         the daily summary of alerts (ALERT_DIGEST)
+    certificate_failed   a custom domain's certificate could not be issued or renewed (an alert of type certificate)
+    certificate_expiring a custom domain's certificate expires soon and was not renewed yet
     plugin_notice        a notice for the super admins about a plugin (licence ending, switched off, ...)
     test                 the test e-mail of Settings, E-mail and `sudoo.sh test-email`
 
@@ -340,6 +342,70 @@ MESSAGES: dict[str, Message] = {
                 Placeholder("link", "The panel", "https://panel.example.com", LINK),
             ),
             required=("alerts",),
+        ),
+        Message(
+            key="certificate_failed",
+            name="Certificate not issued",
+            description="A custom domain's certificate could not be issued or renewed (an alert).",
+            recipients="Alert recipients (Settings, Alerts)",
+            kicker="Custom domains",
+            preheader="{{ reason }}",
+            subject="Sudoo.sh alert: no certificate for {{ domain }}",
+            title="No certificate for {{ domain }}",
+            body=(
+                "Hello,\n\n"
+                "The certificate of **{{ domain }}** (instance {{ instance }}) could not be issued or renewed:\n\n"
+                "{{ reason }}\n\n"
+                "The panel tries again on its own, waiting longer each time. Check the domain's DNS record and that "
+                "ports 80 and 443 of the server are open, then choose Check now on the instance's Domains tab.\n\n"
+                "[Open the domains]({{ link }})\n\n"
+                "You receive this because alerts are sent to you (Settings, Alerts)."
+            ),
+            placeholders=(
+                Placeholder("domain", "The custom domain", "erp.client.com"),
+                Placeholder("instance", "The instance it belongs to", "shop-main"),
+                Placeholder(
+                    "reason",
+                    "Why, in a sentence",
+                    "The ACME authority could not reach erp.client.com over http: connection refused.",
+                ),
+                Placeholder(
+                    "link", "The instance's Domains tab", "https://panel.example.com/i/shop-main/domains", LINK
+                ),
+            ),
+            required=("domain",),
+        ),
+        Message(
+            key="certificate_expiring",
+            name="Certificate expires soon",
+            description="A custom domain's certificate expires soon and could not be renewed yet (an alert).",
+            recipients="Alert recipients (Settings, Alerts)",
+            kicker="Custom domains",
+            preheader="It expires on {{ expires }}",
+            subject="Sudoo.sh alert: the certificate of {{ domain }} expires on {{ expires }}",
+            title="Certificate of {{ domain }} expires soon",
+            body=(
+                "Hello,\n\n"
+                "The certificate of **{{ domain }}** (instance {{ instance }}) expires on **{{ expires }}** and was "
+                "not renewed yet:\n\n"
+                "{{ reason }}\n\n"
+                "After that date browsers warn visitors and refuse to open the instance through this domain. The "
+                "panel keeps trying; fix what the reason says, then choose Check now on the instance's Domains tab.\n\n"
+                "[Open the domains]({{ link }})\n\n"
+                "You receive this because alerts are sent to you (Settings, Alerts)."
+            ),
+            placeholders=(
+                Placeholder("domain", "The custom domain", "erp.client.com"),
+                Placeholder("instance", "The instance it belongs to", "shop-main"),
+                Placeholder("expires", "The day the certificate expires", "02 December 2026"),
+                Placeholder(
+                    "reason", "Why it was not renewed", "It was not renewed yet: erp.client.com has no DNS record yet."
+                ),
+                Placeholder(
+                    "link", "The instance's Domains tab", "https://panel.example.com/i/shop-main/domains", LINK
+                ),
+            ),
+            required=("domain",),
         ),
         Message(
             key="plugin_notice",

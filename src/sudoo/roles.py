@@ -6,7 +6,7 @@ only a named set of permissions:
     super_admin   Super admin     everything, including the panel's settings, the e-mail texts and the other super
                                   admins
     admin         Administrator   everything except the panel's settings and the e-mail texts (sees plugins, cannot
-                                  install them)
+                                  install them); adds and removes instances' custom domains
     maintainer    Maintainer      creates instances and does everything on them except deleting (restoring backups
                                   too); GitHub access
     developer     Developer       follows instances: gets new code, restarts, starts, adds submodules
@@ -39,6 +39,7 @@ PERMISSIONS: dict[str, str] = {
     "instances.delete": "Delete instances",
     "instances.credentials": "See Odoo passwords and ports",
     "backups.manage": "Download and delete backups",
+    "domains.manage": "Add and remove instances' custom domains (seeing them needs instances.view)",
     "github.manage": "Manage deploy keys; see the GitHub App's state",
     "accounts.manage": "Create, change and delete accounts",
     "tokens.manage": "Create and revoke API tokens",

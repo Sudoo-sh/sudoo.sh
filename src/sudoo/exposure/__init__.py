@@ -16,7 +16,18 @@ from sudoo.instances import store
 
 PANEL = "panel"
 
-__all__ = ["PANEL", "Exposure", "Target", "address", "ensure", "ensure_all", "provider", "remove", "wait_for_address"]
+__all__ = [
+    "PANEL",
+    "Exposure",
+    "Target",
+    "address",
+    "default_address",
+    "ensure",
+    "ensure_all",
+    "provider",
+    "remove",
+    "wait_for_address",
+]
 
 
 @cache
@@ -43,6 +54,18 @@ def remove(name: str) -> None:
 
 
 def address(name: str) -> str | None:
+    """The public address: an instance's primary custom domain once it is served (domains/), else the plugin's."""
+    if name != PANEL:
+        from sudoo import domains
+
+        custom = domains.primary_url(name)
+        if custom:
+            return custom
+    return default_address(name)
+
+
+def default_address(name: str) -> str | None:
+    """The address the exposure plugin gives (without custom domains)."""
     return provider().address(target(name))
 
 

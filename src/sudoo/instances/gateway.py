@@ -28,10 +28,12 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import ssl
 import threading
 import time
+import weakref
 from collections.abc import AsyncIterator, Callable, Coroutine, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 import aiohttp
@@ -115,6 +117,43 @@ class Edge(Protocol):
     def client_ip_header(self) -> str | None: ...
 
 
+@dataclass(frozen=True, slots=True)
+class DirectEdge:
+    """Custom domains (ports 80 and 443): visitors connect straight to the gateway, over https on 443; no header
+    can be trusted for their address."""
+
+    https: bool = True
+    client_ip_header: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DomainHost:
+    """A custom domain the gateway answers on ports 80/443 (CUSTOM_DOMAINS=acme), and whether it has a certificate."""
+
+    instance: str
+    certificate: bool = False
+
+
+@dataclass(frozen=True)
+class DomainRoutes:
+    """Every custom domain, and the ports they are answered on (all of the server's addresses)."""
+
+    http_port: int = 80
+    https_port: int = 443
+    hosts: Mapping[str, DomainHost] = field(default_factory=dict)
+
+    def wanted(self) -> dict[str, tuple[str, int]]:
+        """The two listeners, when there is any domain ("" listens on every address, IPv4 and IPv6)."""
+        if not self.hosts:
+            return {}
+        return {HTTP_LISTENER: ("", self.http_port), HTTPS_LISTENER: ("", self.https_port)}
+
+
+HTTP_LISTENER, HTTPS_LISTENER = "*http", "*https"  # listener names next to the instances' (never an instance name)
+CHALLENGE_PATH = "/.well-known/acme-challenge/"
+DOMAINS = DomainRoutes()  # the custom domains served now (set by reconcile)
+
+
 class Host(Protocol):
     """What the gateway needs from the process it runs in."""
 
@@ -183,6 +222,7 @@ def start(wake: Callable[[str], jobs.Job]) -> None:
     if settings.gateway_mode == "embedded":
         for name in store.names():
             add(name)
+        refresh_domains()
 
 
 def _run_loop() -> None:
@@ -242,10 +282,15 @@ def listening() -> dict[str, int]:
     return {name: port for name, (_, port) in _PORTS.items()}
 
 
-async def reconcile(wanted: Mapping[str, tuple[str, int]]) -> None:
+async def reconcile(wanted: Mapping[str, tuple[str, int]], domains: DomainRoutes | None = None) -> None:
     """Listen exactly on `wanted` ({name: (address, port)}): stop the listeners not wanted (or on another address
     or port), start the missing ones. A port another program holds is recorded in LISTENER_ERRORS and tried again
-    at the next call."""
+    at the next call. `domains` (when given) become the custom domains served, and their listeners (HTTP_LISTENER,
+    HTTPS_LISTENER) are added to `wanted`."""
+    global DOMAINS
+    if domains is not None:
+        DOMAINS = domains
+        wanted = {**wanted, **domains.wanted()}
     for name in list(_PORTS):
         if _PORTS[name] != wanted.get(name):
             await _unlisten(name)
@@ -283,7 +328,8 @@ async def _serve(name: str, host: str, port: int) -> tuple[web.AppRunner, asynci
     hands it over to the other, so visitors are not turned away in between."""
     app = web.Application()  # bodies are never read whole: they are passed on as they arrive (_body)
     app[INSTANCE] = name
-    app.router.add_route("*", "/{tail:.*}", _handle)
+    handler = {HTTP_LISTENER: _handle_domain_http, HTTPS_LISTENER: _handle_domain_https}.get(name, _handle)
+    app.router.add_route("*", "/{tail:.*}", handler)
     runner = web.AppRunner(
         app,
         access_log=None,
@@ -296,7 +342,12 @@ async def _serve(name: str, host: str, port: int) -> tuple[web.AppRunner, asynci
     assert server is not None  # set by setup()
     try:
         listener = await asyncio.get_running_loop().create_server(
-            lambda: _Counted(name, server()), host, port, reuse_address=True, reuse_port=True
+            lambda: _Counted(name, server()),
+            host or None,
+            port,
+            reuse_address=True,
+            reuse_port=True,
+            ssl=_tls_server() if name == HTTPS_LISTENER else None,
         )
     except OSError:
         await runner.cleanup()
@@ -329,8 +380,10 @@ class _Counted(asyncio.Protocol):
         self.counted = False
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
+        own_limit = not self.name.startswith("*")  # the custom domains' listeners count only towards the total
         if (
-            _OPEN.get(self.name, 0) >= settings.gateway_max_connections
+            own_limit
+            and _OPEN.get(self.name, 0) >= settings.gateway_max_connections
             or sum(_OPEN.values()) >= settings.gateway_max_connections_total
         ):
             if isinstance(transport, asyncio.WriteTransport):
@@ -367,7 +420,14 @@ class _Counted(asyncio.Protocol):
 
 
 async def _handle(request: web.Request) -> web.StreamResponse:
-    name = request.app[INSTANCE]
+    if request.path.startswith(CHALLENGE_PATH):  # a domain check through the visitor's own proxy (external)
+        answer = _challenge(request)
+        if answer is not None:
+            return answer
+    return await _to_instance(request, request.app[INSTANCE], HOST.edge())
+
+
+async def _to_instance(request: web.Request, name: str, edge: Edge) -> web.StreamResponse:
     route = HOST.route(name)
     if route is None:
         return status_pages.render(request, name, "gone")
@@ -378,10 +438,113 @@ async def _handle(request: web.Request) -> web.StreamResponse:
     odoo_url = f"http://127.0.0.1:{route.odoo_port}"
     try:
         if request.headers.get("Upgrade", "").lower() == "websocket":
-            return await _forward_websocket(request, odoo_url)
-        return await _forward_http(request, odoo_url)
+            return await _forward_websocket(request, odoo_url, edge)
+        return await _forward_http(request, odoo_url, name, edge)
     except _OdooDown:
         return await HOST.not_ready(request, name)
+
+
+# --------------------------------------------------------------------------- custom domains (ports 80 and 443)
+
+
+def _challenge(request: web.Request) -> web.Response | None:
+    """The answer to an HTTP-01 check (or the panel's own probe) while one runs, else None."""
+    from sudoo.domains import certificates
+
+    answer = certificates.challenge_answer(request.path[len(CHALLENGE_PATH) :])
+    return None if answer is None else web.Response(body=answer, content_type="text/plain")
+
+
+def _domain_of(request: web.Request) -> str:
+    return (request.url.host or "").lower().rstrip(".")
+
+
+async def _handle_domain_http(request: web.Request) -> web.StreamResponse:
+    """Port 80: HTTP-01 checks, then a permanent redirect to https once the domain has its certificate."""
+    domain = _domain_of(request)
+    entry = DOMAINS.hosts.get(domain)
+    if entry is None:
+        return web.Response(status=404, text="This domain is not served here.")
+    if request.path.startswith(CHALLENGE_PATH):
+        return _challenge(request) or web.Response(status=404, text="No check is running for this token.")
+    if not entry.certificate:
+        return web.Response(
+            status=503, text="https for this domain is being set up. Try again in a few minutes.",
+            headers={"Retry-After": "120"},
+        )  # fmt: skip
+    port = "" if DOMAINS.https_port == 443 else f":{DOMAINS.https_port}"
+    raise web.HTTPPermanentRedirect(f"https://{domain}{port}{request.raw_path}")
+
+
+async def _handle_domain_https(request: web.Request) -> web.StreamResponse:
+    """Port 443: the instance of the domain, when the name the browser asked for (SNI) is the same as Host."""
+    domain = _domain_of(request)
+    entry = DOMAINS.hosts.get(domain)
+    ssl_object = request.transport.get_extra_info("ssl_object") if request.transport else None
+    asked = _CONTEXT_DOMAIN.get(ssl_object.context, "") if ssl_object is not None else ""
+    if entry is None or not entry.certificate or asked != domain:
+        return web.Response(status=421, text="This domain is not served on this connection.")
+    return await _to_instance(request, entry.instance, DirectEdge())
+
+
+_CONTEXTS: dict[str, tuple[tuple[int, int], ssl.SSLContext]] = {}  # domain -> (file's mtime and size, context)
+# context -> its domain: the name the browser asked for (SNI) of a connection, from the context chosen for it
+_CONTEXT_DOMAIN: weakref.WeakKeyDictionary[ssl.SSLContext, str] = weakref.WeakKeyDictionary()
+
+
+def _new_context() -> ssl.SSLContext:
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.set_alpn_protocols(["http/1.1"])
+    return context
+
+
+def _domain_context(domain: str) -> ssl.SSLContext | None:
+    """The TLS context with the domain's certificate, loaded again when its file changed (a renewal)."""
+    from sudoo.domains import certificates
+
+    file = certificates.cert_file(domain)
+    try:
+        stat = file.stat()
+    except OSError:
+        return None
+    seen = (stat.st_mtime_ns, stat.st_size)
+    cached = _CONTEXTS.get(domain)
+    if cached and cached[0] == seen:
+        return cached[1]
+    context = _new_context()
+    try:
+        context.load_cert_chain(file)
+    except (OSError, ssl.SSLError) as error:
+        print(f"Certificate of {domain} not usable: {error}", flush=True)
+        return None
+    _CONTEXTS[domain] = (seen, context)
+    _CONTEXT_DOMAIN[context] = domain
+    return context
+
+
+def _choose_certificate(ssl_object: ssl.SSLObject, server_name: str | None, _: ssl.SSLContext) -> int | None:
+    """SNI: the certificate of the domain asked for; an unknown name (or none) ends the handshake."""
+    domain = (server_name or "").lower().rstrip(".")
+    entry = DOMAINS.hosts.get(domain)
+    context = _domain_context(domain) if entry and entry.certificate else None
+    if context is None:
+        return ssl.ALERT_DESCRIPTION_UNRECOGNIZED_NAME
+    ssl_object.context = context
+    return None
+
+
+def _tls_server() -> ssl.SSLContext:
+    context = _new_context()
+    context.sni_callback = _choose_certificate
+    return context
+
+
+def refresh_domains() -> None:
+    """The custom domains changed: serve them now (called from other threads)."""
+    from sudoo.instances import gateway_link
+
+    gateway_link.refresh_domains()
 
 
 def _named_in_connection(headers: CIMultiDictProxy[str]) -> set[str]:
@@ -389,7 +552,7 @@ def _named_in_connection(headers: CIMultiDictProxy[str]) -> set[str]:
     return {token.strip().lower() for value in headers.getall("Connection", ()) for token in value.split(",")}
 
 
-def _forward_headers(request: web.Request) -> CIMultiDict[str]:
+def _forward_headers(request: web.Request, provider: Edge) -> CIMultiDict[str]:
     """Request headers for Odoo: the visitor's own, in order and repeated ones kept, without hop-by-hop headers and
     panel cookies, and with forwarding headers the visitor cannot forge.
 
@@ -411,7 +574,6 @@ def _forward_headers(request: web.Request) -> CIMultiDict[str]:
     ]
     if cookies:  # a browser may send its cookies in several Cookie headers (HTTP/2): Odoo gets them as one
         headers["Cookie"] = "; ".join(cookies)
-    provider = HOST.edge()
     trusted = getattr(provider, "client_ip_header", None)
     visitor = (request.headers.get(trusted, "") if trusted else "") or request.remote or ""
     chain = ", ".join(request.headers.getall("X-Forwarded-For", ()))
@@ -453,9 +615,9 @@ def _too_large() -> str:
     return f"The request is larger than this server accepts ({settings.gateway_max_upload_mb} MB)."
 
 
-async def _forward_http(request: web.Request, odoo_url: str) -> web.StreamResponse:
+async def _forward_http(request: web.Request, odoo_url: str, name: str, edge: Edge) -> web.StreamResponse:
     assert _SESSION is not None  # created when the event loop starts
-    headers = _forward_headers(request)
+    headers = _forward_headers(request, edge)
     body: AsyncIterator[bytes] | None = None
     if request.body_exists:
         limit = settings.gateway_max_upload_mb * 2**20
@@ -481,7 +643,7 @@ async def _forward_http(request: web.Request, odoo_url: str) -> web.StreamRespon
             raise _OdooDown from exc
         raise
     if not request.path.startswith(_NOT_A_VISIT):  # long-polling would distort the response times
-        HOST.answered(request.app[INSTANCE], upstream.status, (time.perf_counter() - began) * 1000)
+        HOST.answered(name, upstream.status, (time.perf_counter() - began) * 1000)
     async with upstream:
         response = web.StreamResponse(status=upstream.status, reason=upstream.reason)
         dropped = (_HOP_BY_HOP - {"content-length"}) | _named_in_connection(upstream.headers)
@@ -502,10 +664,12 @@ async def _forward_http(request: web.Request, odoo_url: str) -> web.StreamRespon
         return response
 
 
-async def _forward_websocket(request: web.Request, odoo_url: str) -> web.StreamResponse:
+async def _forward_websocket(request: web.Request, odoo_url: str, edge: Edge) -> web.StreamResponse:
     assert _SESSION is not None  # created when the event loop starts
     headers = CIMultiDict(
-        (key, value) for key, value in _forward_headers(request).items() if not key.lower().startswith("sec-websocket")
+        (key, value)
+        for key, value in _forward_headers(request, edge).items()
+        if not key.lower().startswith("sec-websocket")
     )
     try:
         upstream = await _SESSION.ws_connect(

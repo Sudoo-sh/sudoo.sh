@@ -8,6 +8,7 @@ role (roles.py), and the same permission checks apply.
     session.py     sign in (password, then a second factor when needed) and out, own password, contact
     account.py     own account and second factors
     instances.py   instances, jobs, versions
+    domains.py     instances' custom domains
     settings.py    the panel's settings, changed while it runs
     mail_templates.py  the texts of the e-mails the panel sends
     server.py      the server's resource use, the panel's address and plugins
@@ -34,6 +35,7 @@ from . import (
     alerts,
     backups,
     docs,
+    domains,
     github,
     instances,
     mail_templates,
@@ -58,6 +60,7 @@ def register(app: Flask) -> None:
         session,
         account,
         instances,
+        domains,
         settings,
         mail_templates,
         alerts,
@@ -73,4 +76,5 @@ def register(app: Flask) -> None:
     app.register_blueprint(api)
     bus.present("instance", instance_resource)
     bus.present("job", lambda job_id: job_resource(jobs.JOBS[job_id]))
+    bus.present("domains", domains.domains_resource)
     live.on_change(settings.publish_changes)

@@ -355,6 +355,112 @@
    }
   },
   {
+   "key": "certificate_failed",
+   "name": "Certificate not issued",
+   "description": "A custom domain's certificate could not be issued or renewed (an alert).",
+   "recipients": "Alert recipients (Settings, Alerts)",
+   "kicker": "Custom domains",
+   "preheader": "{{ reason }}",
+   "default": {
+    "subject": "Sudoo.sh alert: no certificate for {{ domain }}",
+    "title": "No certificate for {{ domain }}",
+    "body": "Hello,\n\nThe certificate of **{{ domain }}** (instance {{ instance }}) could not be issued or renewed:\n\n{{ reason }}\n\nThe panel tries again on its own, waiting longer each time. Check the domain's DNS record and that ports 80 and 443 of the server are open, then choose Check now on the instance's Domains tab.\n\n[Open the domains]({{ link }})\n\nYou receive this because alerts are sent to you (Settings, Alerts)."
+   },
+   "placeholders": [
+    {
+     "name": "domain",
+     "description": "The custom domain",
+     "kind": "text"
+    },
+    {
+     "name": "instance",
+     "description": "The instance it belongs to",
+     "kind": "text"
+    },
+    {
+     "name": "reason",
+     "description": "Why, in a sentence",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The instance's Domains tab",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [
+    "domain"
+   ],
+   "samples": {
+    "domain": "erp.client.com",
+    "instance": "shop-main",
+    "reason": "The ACME authority could not reach erp.client.com over http: connection refused.",
+    "link": "https://panel.example.com/i/shop-main/domains",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
+   "key": "certificate_expiring",
+   "name": "Certificate expires soon",
+   "description": "A custom domain's certificate expires soon and could not be renewed yet (an alert).",
+   "recipients": "Alert recipients (Settings, Alerts)",
+   "kicker": "Custom domains",
+   "preheader": "It expires on {{ expires }}",
+   "default": {
+    "subject": "Sudoo.sh alert: the certificate of {{ domain }} expires on {{ expires }}",
+    "title": "Certificate of {{ domain }} expires soon",
+    "body": "Hello,\n\nThe certificate of **{{ domain }}** (instance {{ instance }}) expires on **{{ expires }}** and was not renewed yet:\n\n{{ reason }}\n\nAfter that date browsers warn visitors and refuse to open the instance through this domain. The panel keeps trying; fix what the reason says, then choose Check now on the instance's Domains tab.\n\n[Open the domains]({{ link }})\n\nYou receive this because alerts are sent to you (Settings, Alerts)."
+   },
+   "placeholders": [
+    {
+     "name": "domain",
+     "description": "The custom domain",
+     "kind": "text"
+    },
+    {
+     "name": "instance",
+     "description": "The instance it belongs to",
+     "kind": "text"
+    },
+    {
+     "name": "expires",
+     "description": "The day the certificate expires",
+     "kind": "text"
+    },
+    {
+     "name": "reason",
+     "description": "Why it was not renewed",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The instance's Domains tab",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [
+    "domain"
+   ],
+   "samples": {
+    "domain": "erp.client.com",
+    "instance": "shop-main",
+    "expires": "02 December 2026",
+    "reason": "It was not renewed yet: erp.client.com has no DNS record yet.",
+    "link": "https://panel.example.com/i/shop-main/domains",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
    "key": "plugin_notice",
    "name": "Plugin notice",
    "description": "A plugin's licence ends soon or ended, or a plugin was switched off.",

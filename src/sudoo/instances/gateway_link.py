@@ -103,7 +103,30 @@ def build_routes(mode: str) -> str:
             continue  # still being created
         switched_off = bool(STATE.get(name).get("switched_off"))
         instances[name] = {"gateway_port": ports[0], "odoo_port": ports[1], "switched_off": switched_off}
-    return routes_document(mode, edge, values, instances)
+    return routes_document(mode, edge, values, instances, domain_routes(set(instances)))
+
+
+def domain_routes(instances: set[str] | None = None) -> gateway.DomainRoutes:
+    """The custom domains the gateway answers on ports 80/443 (domains.gateway_hosts), of instances routed now."""
+    from sudoo import domains
+
+    hosts = {
+        domain: gateway.DomainHost(entry["instance"], bool(entry["certificate"]))
+        for domain, entry in domains.gateway_hosts().items()
+        if instances is None or entry["instance"] in instances
+    }
+    return gateway.DomainRoutes(settings.domain_http_port, settings.domain_https_port, hosts)
+
+
+def refresh_domains() -> None:
+    """The custom domains changed: in service mode a round now (routes.json, and the panel's own listeners while
+    it serves the instances itself); embedded: this process's listeners."""
+    if settings.gateway_mode == "service":
+        if LINK.written is not None:  # the link runs (not before the panel started it)
+            sync()
+        return
+    wanted = {name: address for name, address in gateway._PORTS.items() if not name.startswith("*")}
+    gateway.run(gateway.reconcile(wanted, domain_routes()))
 
 
 def write_routes(text: str) -> None:
@@ -189,13 +212,19 @@ def sync() -> None:
             errors = errors if isinstance(errors, dict) else {}
             mine = set(gateway.listening())
             gateway.LISTENER_ERRORS.clear()
+            domain_listeners = {gateway.HTTP_LISTENER, gateway.HTTPS_LISTENER}
             gateway.LISTENER_ERRORS.update(
-                {name: str(text)[:200] for name, text in errors.items() if name in known and name not in mine}
+                {
+                    name: str(text)[:200]
+                    for name, text in errors.items()
+                    if (name in known or name in domain_listeners) and name not in mine
+                }
             )
         else:
             LINK.collect = False
             if panel_should_serve(now, LINK.last_seen, LINK.started, path(GATEWAY_SOCKET).exists()):
-                gateway.run(gateway.reconcile(parse_routes(json.loads(text)).wanted()))
+                routes = parse_routes(json.loads(text))
+                gateway.run(gateway.reconcile(routes.wanted(), routes.served_domains()))
                 if not LINK.serving_reported:
                     LINK.serving_reported = True
                     print("The gateway service does not answer: the panel serves the instances itself", flush=True)

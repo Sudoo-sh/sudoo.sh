@@ -192,6 +192,11 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `GET /jobs/<id>` | `instances.view` | | 200, the job; `?include=log` adds its technical log when the caller also has `instances.logs` |
 | `GET /jobs/<id>/log?offset=0` | `instances.logs` | | 200, `{"text"}` from that line on; `meta.next_offset` is where to continue |
 | `GET /versions` | `instances.view` | | 200, `[{"version": "19.0", "enterprise": true}, ...]` |
+| `GET /instances/<name>/domains` | `instances.view` | | 200, the instance's custom domains and how to set them up: `mode` (`off`, `acme`, `external`), `limit`, `default_url`, `target` (`{"host", "record_type"}` or `null`), `exposure`, `listener_error`, `authority` (`production`, `staging`, `custom`), `domains`: each with `domain`, `primary`, `status` (`waiting_dns`, `issuing`, `active`, `renewing`, `expiring`, `failed`), `reason`, `tls`, `dns_records` (`[{"type", "name", "value"}]`), `addresses`, `added_at`, `added_by`, `checked_at`, `next_check_at`, `renews_at`, `certificate` (`issued_at`, `expires_at`, `issuer`, `staging`) and `url` ([Administrator Guide](ADMIN_GUIDE.md#19-custom-domains-and-certificates)) |
+| `POST /instances/<name>/domains` | `domains.manage` | `{"domain": "erp.client.com"}`; a production instance also `"confirm_production": true` | **201**, the domain, `Location`; 400 for a name that cannot be used, 409 when custom domains are off, the domain is taken or the instance has `DOMAINS_PER_INSTANCE` |
+| `PATCH /instances/<name>/domains/<domain>` | `domains.manage` | `{"primary": true}` (production: also `"confirm_production": true`) | 200, the domain: it is the primary one now |
+| `POST /instances/<name>/domains/<domain>/check` | `domains.manage` | | 200, the domain: checked (and issued) now instead of at its next attempt |
+| `DELETE /instances/<name>/domains/<domain>` | `domains.manage` | production: `{"confirm_production": true}` | **204**; its certificate and key are deleted, the next domain becomes primary |
 
 ### Server, metrics and settings
 
@@ -896,6 +901,7 @@ data: {"key": "", "data": {"server": {"cpu": 12.5, ...}, "instances": {"sales-ma
 | :--- | :--- | :--- |
 | `instance` | An instance changed: status, code, address, settings, a job started or ended | The instance, as `GET /instances/<name>` |
 | `instance.deleted` | An instance was deleted | `{"name"}` |
+| `domains` | An instance's custom domains changed: added, removed, checked, issued, renewed (key: the instance) | As `GET /instances/<name>/domains` |
 | `job` | A job started, moved to another step, added a note or ended | The job, as `GET /jobs/<id>` |
 | `job.output` | New log text of a running job (at most twice a second) | `{"job", "offset", "text"}` |
 | `metrics` | Every `METRICS_INTERVAL_SECONDS` (5 by default) | The new figures, as `GET /metrics` ([Metrics](#9-metrics)) |

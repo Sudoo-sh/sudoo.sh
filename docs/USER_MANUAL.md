@@ -51,7 +51,20 @@ creates the first account, which is a **Super admin**.
 
 1. Ask the server administrator for the **setup code**. The installer prints it (it looks like `ABCD-EFGH-JKLM`);
    it can be shown again on the server with `docker exec sudoo-panel sudoo.sh setup-code`.
-2. Open the panel's link and fill in:
+2. Open the panel's link. **Step 1 of 2, Licence agreement**: read the summary of the
+   [Sudoo.sh Licence Agreement](https://sudoo.sh/legal/license) (**Read the full agreement** shows the whole text;
+   **Open the published version** opens it on sudoo.sh). Choose how you will use Sudoo.sh:
+
+   | Choice | When |
+   | :--- | :--- |
+   | **Personal projects** | Non-commercial only. No work for a business, employer or client. |
+   | **My company** | Running Odoo for your company and its group companies only. |
+   | **Service provider** | Running, hosting, managing or maintaining Odoo for other companies. |
+
+   Tick **I have read and accept the Sudoo.sh Licence Agreement**; for **My company** and **Service provider** also
+   tick **I accept it on behalf of my company, and I am authorised to bind it**. Click **Accept and continue**.
+   Nothing is kept until the account is created; **Back** on the next step returns here.
+3. **Step 2 of 2**: fill in:
 
    | Field | What to enter |
    | :--- | :--- |
@@ -61,7 +74,8 @@ creates the first account, which is a **Super admin**.
    | **Phone** | Optional. |
    | **Password**, **Password again** | 12 to 128 characters that follow the [password rules](#password-rules). A few unrelated words make a strong one. |
 
-3. Click the button at the bottom. The account is created and you are signed in.
+4. Click the button at the bottom. The account is created, your acceptance of the licence agreement is recorded, and
+   you are signed in.
 
 You do not choose a user name. The panel makes one from your e-mail address (`jane.doe@example.com` becomes
 `jane.doe`; when it is taken, `jane.doe-2`, `-3` and so on). It is the account's internal key: it appears
@@ -87,12 +101,13 @@ The setup code works once: after the first account exists, the page no longer ap
 
 ### Before anything else opens
 
-Two things can be asked of you right after signing in. Until they are done, no other page opens.
+Three things can be asked of you right after signing in. Until they are done, no other page opens.
 
 | Situation | What you do |
 | :--- | :--- |
 | Your account is new, or an administrator set a new password for you | **Choose your password**: enter the password you were given, then your own new password twice. An administrator who typed your password can leave this step out. |
 | The server requires a second factor for your role, and you have none | **Set up a second factor**: an authenticator app or an e-mail code ([section 9](#9-my-account)). |
+| You are a super admin, and nobody has accepted the licence agreement this version of the panel requires (a server set up before version 3.0, or a newer version of the agreement) | **Accept the licence agreement**: the same choices as at the first run. Until a super admin accepts, other super admins see this step too; administrators and everyone else carry on, and instances keep running and serving. |
 
 By default super admins and administrators must use a second factor. A super admin can change this
 (**Settings, Sign-in and security**).
@@ -899,6 +914,7 @@ the browser, in tabs:
 | **GitHub and updates** | How often GitHub is checked, the update triggers, and the webhook secret. |
 | **Marketplace** | The connection to the Sudoo.sh marketplace, and linking this panel to an account ([Marketplace](MARKETPLACE.md)). |
 | **Advanced** | How often figures are measured, the Cloudflare connector image, **Restart the panel**, and **Server**: read only, the folders, ports and how the panel is reached, which stay in the server's `.env`. |
+| **About** | The licence agreement: the version this release bundles, the **Required licence version** (a newer one asks super admins to accept again), who accepted it, when and for which use, every acceptance (in the panel and by the installer, and whether your Sudoo.sh account has it), the full text, and **Review and accept again** (super admins) ([Administrator guide: The licence agreement](ADMIN_GUIDE.md#22-the-licence-agreement)). |
 
 The chosen tab is part of the address (for example `/settings?tab=backups`), so it can be linked and survives a
 reload. Changes can be made in several tabs and saved together: the bar at the bottom counts them and names the tabs,

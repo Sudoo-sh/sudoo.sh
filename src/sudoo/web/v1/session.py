@@ -119,7 +119,10 @@ def setup() -> Response:
     start_session(username, account["session_version"], restricted=signin.restriction(account))
     audit.record(username, ip, "first-run setup: super admin account created")
     audit.record(
-        username, ip, "accepted the Sudoo.sh Licence Agreement", detail=f"version {entry['version']}, use {entry['use']}"
+        username,
+        ip,
+        "accepted the Sudoo.sh Licence Agreement",
+        detail=f"version {entry['version']}, use {entry['use']}",
     )
     return _signed_in_answer()
 

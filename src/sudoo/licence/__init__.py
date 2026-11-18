@@ -76,7 +76,7 @@ class Agreement:
 
 
 def version_key(version: str) -> tuple[int, ...]:
-    """"1.10" -> (1, 10), so versions compare as numbers."""
+    """ "1.10" -> (1, 10), so versions compare as numbers."""
     return tuple(int(part) for part in version.split("."))
 
 
@@ -90,7 +90,9 @@ def bundled() -> Agreement:
         raise RuntimeError(f"{TEXT_FILE}: no 'Version X.Y, effective YYYY-MM-DD.' line")
     links = re.findall(r"<(https://sudoo\.sh/legal/license[^>]*)>", text)
     version = found.group(1)
-    version_url = next((link for link in links if link.endswith(f"/v{version}")), f"https://sudoo.sh/legal/license/v{version}")
+    version_url = next(
+        (link for link in links if link.endswith(f"/v{version}")), f"https://sudoo.sh/legal/license/v{version}"
+    )
     return Agreement(
         version=version,
         effective=found.group(2),
@@ -108,9 +110,14 @@ def _html(text: str) -> str:
     # as on GitHub (CommonMark), a list may start right under a paragraph: Python-Markdown needs a blank line first
     lines: list[str] = []
     for line in text.splitlines():
-        if _LIST_ITEM.match(line) and lines and lines[-1].strip() and not _LIST_ITEM.match(lines[-1]):
-            if not lines[-1].startswith((" ", ">")):
-                lines.append("")
+        previous = lines[-1] if lines else ""
+        if (
+            _LIST_ITEM.match(line)
+            and previous.strip()
+            and not _LIST_ITEM.match(previous)
+            and not previous.startswith((" ", ">"))
+        ):
+            lines.append("")
         lines.append(line)
     return markdown.markdown("\n".join(lines), extensions=["tables", "sane_lists", "toc"])
 
@@ -180,7 +187,11 @@ def check_acceptance(data: Any) -> dict[str, Any]:
     if use in COMPANY_USES and not on_behalf:
         raise LicenceError("Confirm that you accept on behalf of your company and that you are authorised to bind it.")
     language = data.get("language")
-    return {"use": use, "on_behalf": on_behalf if use in COMPANY_USES else False, "language": language if language in ("en", "ar") else "en"}
+    return {
+        "use": use,
+        "on_behalf": on_behalf if use in COMPANY_USES else False,
+        "language": language if language in ("en", "ar") else "en",
+    }
 
 
 def _iso(timestamp: float) -> str:

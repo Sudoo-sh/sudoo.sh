@@ -166,7 +166,6 @@ def test_every_documentation_link_and_image_works(admin: Client) -> None:
 
 def test_first_run_needs_the_setup_code(app: Flask, monkeypatch: pytest.MonkeyPatch) -> None:
     from sudoo import accounts
-
     from test_licence import licence_acceptance
 
     monkeypatch.setattr(accounts, "setup_needed", lambda: True)

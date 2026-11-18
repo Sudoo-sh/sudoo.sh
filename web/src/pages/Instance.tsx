@@ -2,9 +2,11 @@ import {
   Activity,
   ArrowUpRight,
   Box,
+  Check,
   Code2,
   FolderGit2,
   Container,
+  Copy,
   Database,
   Download,
   DownloadCloud,
@@ -47,7 +49,8 @@ import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/instance";
 import { jobTitle } from "@/i18n/jobs";
-import { ago, bytes, count, dateTime, duration, elapsed, ms, number, percent } from "@/lib/format";
+import { ago, bytes, count, dateTime, duration, elapsed, fullDateTime, ms, number, percent } from "@/lib/format";
+import { commitPage } from "@/lib/git";
 import { CreatingInstance, MissingInstance } from "./InstanceCreating";
 import { CapacityNote, RepositoryPicker, useDebounced } from "./NewInstance";
 
@@ -608,6 +611,53 @@ function ActivityTab({ name, onOpen }: { name: string; onOpen: (id: string) => v
 
 // ---------------------------------------------------------------- code
 
+type Commit = NonNullable<Instance["recent_commits"]>[number];
+
+/** One commit: its message, then its short hash (a link to the commit when the repository's page is known, else a
+ *  button that copies it), its author and when, as a relative time with the full date and time on hover. */
+function CommitRow({ commit, latest, repository }: { commit: Commit; latest: boolean; repository: string | null }) {
+  const t = useT(words).code;
+  const c = useT(common).common;
+  const [copied, setCopied] = useState(false);
+  const date = /^\d{4}-\d\d-\d\dT/.test(commit.when) ? new Date(commit.when) : null;
+  const valid = date && !Number.isNaN(date.getTime());
+  const page = commitPage(repository, commit.full_sha || commit.sha);
+  const copy = async () => {
+    await navigator.clipboard.writeText(commit.full_sha || commit.sha).catch(() => undefined);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1400);
+  };
+  return (
+    <li className="commit">
+      <span className={`node ${latest ? "done" : ""}`}><GitCommitHorizontal /></span>
+      <div className="commit-body">
+        <div className="commit-message truncate" title={commit.subject}><bdi>{commit.subject}</bdi></div>
+        <div className="commit-meta xsmall">
+          {page ? (
+            <a className="commit-sha" href={page} target="_blank" rel="noreferrer" dir="ltr" title={t.openCommit}>
+              {commit.sha}
+              <ArrowUpRight aria-hidden="true" />
+            </a>
+          ) : (
+            <button type="button" className="commit-sha" dir="ltr" onClick={copy} title={copied ? c.copied : t.copyCommit} aria-label={copied ? c.copied : t.copyCommit}>
+              {commit.sha}
+              {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+            </button>
+          )}
+          <span className="faint" aria-hidden="true">·</span>
+          <bdi className="faint truncate">{commit.author}</bdi>
+          <span className="faint" aria-hidden="true">·</span>
+          {valid ? (
+            <time className="faint nowrap" dateTime={commit.when} title={fullDateTime(commit.when)}>{ago(commit.when)}</time>
+          ) : (
+            <span className="faint nowrap">{commit.when}</span>
+          )}
+        </div>
+      </div>
+    </li>
+  );
+}
+
 function CodeTab({ instance, canAdd, canRemove, busy, onAdd, act }: { instance: Instance; canAdd: boolean; canRemove: boolean; busy: boolean; onAdd: () => void; act: (action: string, title: string, body?: Record<string, unknown>) => void }) {
   const all = useT(words);
   const t = all.code;
@@ -621,13 +671,7 @@ function CodeTab({ instance, canAdd, canRemove, busy, onAdd, act }: { instance: 
         {instance.recent_commits?.length ? (
           <ol className="timeline card-body">
             {instance.recent_commits.map((c, i) => (
-              <li key={c.sha}>
-                <span className={`node ${i === 0 ? "done" : ""}`}><GitCommitHorizontal /></span>
-                <div style={{ minWidth: 0 }}>
-                  <div className="truncate"><bdi>{c.subject}</bdi></div>
-                  <div className="xsmall faint"><span className="mono">{c.sha}</span> · <bdi>{c.author}</bdi> · {/^\d{4}-\d\d-\d\dT/.test(c.when) ? ago(c.when) : c.when}</div>
-                </div>
-              </li>
+              <CommitRow key={c.sha} commit={c} latest={i === 0} repository={instance.git.repository} />
             ))}
           </ol>
         ) : (

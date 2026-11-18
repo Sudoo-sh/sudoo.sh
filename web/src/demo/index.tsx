@@ -4,7 +4,7 @@
 import "./demo.scss";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowUpRight, ChevronDown } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { DataRouter } from "react-router";
 import { keys } from "@/api/queries";
@@ -18,10 +18,12 @@ import { seedDomains } from "./backend/domains";
 import { startMetrics } from "./backend/metrics";
 import { startScenario } from "./backend/scenario";
 import { roleInfo, seedAll, session } from "./backend/state";
+import { rememberReferrer, websiteLink } from "./referrer";
 import { installTransport, setNotifier } from "./transport";
 
 /** Seeds the sample data, puts the in-browser backend in place of the network and starts the live figures. */
 export function start() {
+  rememberReferrer();
   try {
     const saved = JSON.parse(sessionStorage.getItem("sudoo.demo") ?? "null") as { role?: Role; signedIn?: boolean } | null;
     if (saved?.role && PERSPECTIVES.some((p) => p.role === saved.role)) switchRole(saved.role);
@@ -89,6 +91,10 @@ export function DemoBanner({ router }: { router: Pick<DataRouter, "state" | "sub
         </span>
       </label>
       <LanguageSwitch signedIn={session.signedIn && path !== "/login"} className="demo-language" />
+      <a className="demo-back" href={websiteLink()} title={t.back} aria-label={t.back}>
+        <ArrowLeft aria-hidden="true" className="flip-rtl" />
+        <span className="demo-long">{t.back}</span>
+      </a>
       <a className="demo-install" href="https://sudoo.sh">
         <span className="demo-long">{t.install}</span>
         <span className="demo-short">{t.installShort}</span>

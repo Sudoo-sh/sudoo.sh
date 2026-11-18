@@ -136,3 +136,36 @@ pre, .terminal { direction: ltr; text-align: left; }
 [dir="rtl"] :is(input, textarea)[dir="ltr"]:placeholder-shown { text-align: right; }
 // an icon inside a left-to-right field of an Arabic page sits on the right: the room for it is on the right too
 [dir="rtl"] .input-group > .input:is([dir="ltr"], [type="email"], [type="password"], [inputmode="email"]) { padding-left: var(--s3); padding-right: 36px; }
+
+// ---------------------------------------------------------------- scrollbars
+// The same thin, quiet scrollbar as the Sudoo.sh websites, for everything that scrolls: the page, dialogs, drawers,
+// tables, code and logs. Never hidden (people need to see where they are); the thumb takes the accent on hover.
+// A dark surface in the light theme (the terminal) sets its own --scrollbar-thumb.
+:root {
+  --scrollbar-thumb: color-mix(in oklab, var(--text-3) 45%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--accent) 55%, var(--text-3));
+}
+// Firefox (and any browser without the WebKit pseudo-elements): on every element, so each one reads its own colours.
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+}
+// Chromium and Safari: an 8px rounded thumb on a transparent track
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--scrollbar-thumb) padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}

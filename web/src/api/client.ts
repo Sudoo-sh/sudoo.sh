@@ -23,7 +23,7 @@ export const setCsrfToken = (token: string) => {
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-export async function call<T>(method: Method, path: string, body?: unknown): Promise<Envelope<T>> {
+export async function call<T>(method: Method, path: string, body?: unknown, signal?: AbortSignal): Promise<Envelope<T>> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (method !== "GET" && csrfToken) headers["X-CSRF-Token"] = csrfToken;
@@ -34,8 +34,10 @@ export async function call<T>(method: Method, path: string, body?: unknown): Pro
       headers,
       credentials: "same-origin",
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
     });
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error; // cancelled on purpose (a newer request replaced it): not a network problem
     throw new ApiError(0, words(common).common.unreachable);
   }
   if (response.status === 204) return { data: undefined as T };
@@ -50,7 +52,7 @@ export async function call<T>(method: Method, path: string, body?: unknown): Pro
 export const api = {
   get: <T>(path: string) => call<T>("GET", path).then((r) => r.data),
   page: <T>(path: string) => call<T>("GET", path),
-  post: <T>(path: string, body: unknown = {}) => call<T>("POST", path, body).then((r) => r.data),
+  post: <T>(path: string, body: unknown = {}, signal?: AbortSignal) => call<T>("POST", path, body, signal).then((r) => r.data),
   put: <T>(path: string, body: unknown = {}) => call<T>("PUT", path, body).then((r) => r.data),
   patch: <T>(path: string, body: unknown) => call<T>("PATCH", path, body).then((r) => r.data),
   del: <T = void>(path: string, body?: unknown) => call<T>("DELETE", path, body).then((r) => r.data),

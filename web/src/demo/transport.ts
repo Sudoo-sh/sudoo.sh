@@ -5,6 +5,7 @@
 import { answer } from "./backend/api";
 import { subscribe, type Topic } from "./backend/bus";
 import { roleInfo, session } from "./backend/state";
+import { websiteLink } from "./referrer";
 
 const ours = (url: URL) => url.origin === location.origin && (url.pathname.startsWith("/api/") || url.pathname === "/healthz");
 
@@ -118,7 +119,7 @@ function why(url: URL, link: HTMLAnchorElement): [string, string] | null {
       return ["Downloads are off in the demo", "The backups and files here are sample data. On your own server this downloads the file."];
     return null;
   }
-  if (ALLOWED.has(url.hostname)) return null;
+  if (ALLOWED.has(url.hostname) || url.href === websiteLink()) return null;
   if (url.hostname.endsWith(".demo.sudoo.sh"))
     return ["There is no Odoo behind this instance", "The instances in the demo are sample data. On your own server this opens the instance's Odoo."];
   if (url.hostname === "github.com" || url.hostname.endsWith(".github.com"))

@@ -331,3 +331,19 @@ def test_a_production_instance_is_updated_safely_even_with_safe_updates_off(worl
     job, message = _failing_update()
     assert world.kinds()[0] == "backup" and "restore" in world.kinds()  # backed up first, then put back
     assert _head(world.addons) == before and "was put back" in message
+
+
+def test_recent_commits_have_iso_times_and_full_hashes(tmp_path: Path) -> None:
+    """The instance page shows when each commit was made in the reader's language: the API gives ISO times in UTC
+    (never git's English "3 hours ago"), the whole hash for links, and subjects with a "|" intact."""
+    from sudoo.repos.gitrepo import commits
+
+    env = {"GIT_AUTHOR_NAME": "Lena", "GIT_AUTHOR_EMAIL": "l@example.com", "GIT_COMMITTER_NAME": "Lena"}
+    env |= {"GIT_COMMITTER_EMAIL": "l@example.com", "GIT_COMMITTER_DATE": "2026-11-18T08:34:19+02:00"}
+    run = {"cwd": tmp_path, "check": True, "capture_output": True, "env": {**env, "PATH": "/usr/bin:/bin"}}
+    subprocess.run(["git", "init", "-q"], **run)  # type: ignore[call-overload]
+    subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "Totals | per payment method"], **run)  # type: ignore[call-overload]
+    (found,) = commits(tmp_path)
+    assert found["when"] == "2026-11-18T06:34:19Z" and found["author"] == "Lena"
+    assert found["subject"] == "Totals | per payment method"
+    assert len(found["full_sha"]) == 40 and found["full_sha"].startswith(found["sha"])

@@ -33,14 +33,19 @@ function useSettled<T>(value: T, ms: number): T {
   return settled;
 }
 
+/** The preview of one template. The page keys it by template, so moving to another template starts afresh: a draft
+ *  of the previous one, still settling, is never checked against the new one's placeholders. A request replaced by a
+ *  newer one (more typing) is cancelled, and an answer about another text than the one shown is never displayed. */
 function Preview({ template, text }: { template: MailTemplate; text: Text }) {
   const [view, setView] = useState<"html" | "text">("html");
   const settled = useSettled(text, 350);
   const t = useT(words).mail;
+  const key = template.key;
   const { data, isPending } = useQuery({
-    queryKey: ["mail-preview", template.key, settled],
-    queryFn: () => api.post<MailPreview>(`/mail-templates/${template.key}/preview`, settled),
-    placeholderData: keepPreviousData,
+    queryKey: ["mail-preview", key, settled],
+    queryFn: ({ signal }) => api.post<MailPreview>(`/mail-templates/${key}/preview`, settled, signal),
+    // while typing, the last preview of this template stays until the next one arrives (never another template's)
+    placeholderData: (previous, query) => (query?.queryKey[1] === key ? keepPreviousData(previous) : undefined),
     staleTime: Infinity,
   });
   return (
@@ -263,7 +268,7 @@ export function EmailTemplatesPage() {
             <div className="stack" key={chosen.key}>
               <Editor template={chosen} draft={draft} mailReady={Boolean(data?.mailReady)} onChange={(text) => setDrafts((d) => ({ ...d, [chosen.key]: text }))} />
             </div>
-            <Preview template={chosen} text={draft} />
+            <Preview key={chosen.key} template={chosen} text={draft} />
           </div>
         </>
       )}

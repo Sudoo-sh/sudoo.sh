@@ -173,6 +173,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Panel polish:** recent commits show when they were made in the reader's language ("3 hours ago", in Arabic too),
+  with the full date and time on hover, the short hash linked to the commit (or copied) and the author
+  (`recent_commits[].when` is now an ISO time in UTC, with `full_sha`). Switching e-mail templates no longer flashes
+  "Unknown placeholders" from the previous one. One thin scrollbar everywhere, as on the websites. Moving between
+  Settings tabs keeps the title and the tabs still, with a "Settings › tab" breadcrumb. A back-to-top button on long
+  pages, and a "Back to website" link in the demo's banner.
+
 - **Page transitions:** moving between pages no longer shows both pages' titles and introductions on top of each other
   for a moment (they were cross-faded in place): the old page now fades out completely before the new one fades in,
   and between an instance's tabs only the tab's content fades ([Design](docs/DESIGN.md#6-motion)).

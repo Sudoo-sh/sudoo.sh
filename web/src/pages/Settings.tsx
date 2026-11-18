@@ -6,7 +6,7 @@ import { api, errorText } from "@/api/client";
 import { keys, useCall, useSettings } from "@/api/queries";
 import type { Setting } from "@/api/types";
 import { MarketplaceSettings } from "@/components/Marketplace";
-import { Page, PageHead, useMe } from "@/components/Shell";
+import { Page, PageHead, useMe, useSubCrumb } from "@/components/Shell";
 import { Button, Callout, Skeleton, Switch, Tag } from "@/components/ui/basics";
 import { Modal, useToast } from "@/components/ui/overlay";
 import { useLocale, useT } from "@/i18n";
@@ -292,12 +292,16 @@ export function SettingsPage() {
   );
   const dirtyTabs = TABS.filter((tab) => marks[tab.id]!.unsaved > 0).map((tab) => t.tabs[tab.id]);
 
+  // the content of a tab comes in only when the visitor moves between tabs (opening the page has its own transition)
+  const [moved, setMoved] = useState(false);
   const select = (id: TabId) => {
     if (id === tab) return;
+    setMoved(true);
     const next = new URLSearchParams(params);
     if (id === "general") next.delete("tab");
     else next.set("tab", id);
-    setParams(next, { preventScrollReset: true, viewTransition: true });
+    // no page transition: the title and the tabs stay still, only the tab's content comes in (.tab-enter)
+    setParams(next, { preventScrollReset: true });
   };
 
   const submit = () =>
@@ -360,6 +364,7 @@ export function SettingsPage() {
     });
 
   const current = TABS.find((t) => t.id === tab)!;
+  useSubCrumb(t.tabs[tab]);
   return (
     <Page>
       <PageHead title={t.title}>
@@ -378,7 +383,7 @@ export function SettingsPage() {
             </Callout>
           )}
           <TabList tab={tab} onSelect={select} marks={marks} />
-          <div className="rise tab-panel stack" key={tab} id={`settings-panel-${tab}`} role="tabpanel" aria-labelledby={`settings-tab-${tab}`}>
+          <div className={moved ? "tab-enter stack" : "stack"} key={tab} id={`settings-panel-${tab}`} role="tabpanel" aria-labelledby={`settings-tab-${tab}`}>
             {current.groups.map((group) => (
               <Section
                 key={group.id}

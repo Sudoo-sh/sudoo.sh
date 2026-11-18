@@ -10,7 +10,9 @@ only a named set of permissions:
                                   restores from and deletes off-site copies
     maintainer    Maintainer      creates instances and does everything on them except deleting (restoring backups
                                   too); GitHub access
-    developer     Developer       follows instances: gets new code, restarts, starts, adds submodules
+    developer     Developer       follows instances: gets new code, restarts, starts, adds submodules; reads the
+                                  e-mails caught from staging and development instances (deleting and releasing
+                                  them is for administrators)
     viewer        Viewer          sees instances, their activity and logs
 
 Shells (webshell/): super admins and administrators open terminals in instances' containers (instances.shell,
@@ -47,6 +49,8 @@ PERMISSIONS: dict[str, str] = {
     "instances.delete": "Delete instances",
     "instances.credentials": "See Odoo passwords and ports",
     "instances.resources": "Set an instance's resources: Odoo workers, time and memory limits, container limits",
+    "caught_mail.view": "Read the e-mails caught from staging and development instances (the Mail tab)",
+    "caught_mail.manage": "Delete caught e-mails and release them (send a copy to an address)",
     "backups.manage": "Download and delete backups; see, check and copy again off-site copies",
     "offsite.configure": "Set up where off-site copies go, and test it",
     "offsite.restore": "Restore an instance from an off-site copy (it is downloaded and verified first)",
@@ -73,7 +77,7 @@ class Role:
 
 
 _VIEW = frozenset({"instances.view", "instances.logs"})
-_DEVELOP = _VIEW | {"instances.update"}
+_DEVELOP = _VIEW | {"instances.update", "caught_mail.view"}
 _MAINTAIN = _DEVELOP | {
     "instances.operate",
     "instances.restore",

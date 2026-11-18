@@ -170,3 +170,18 @@
   .nav-progress, .spinner[role="status"] { animation-delay: 150ms !important; }
   .skeleton { animation-delay: 0ms, 150ms !important; }
 }
+
+// ---------------------------------------------------------------- changing the theme
+// The new theme is revealed in a circle growing from the theme button (lib/theme-reveal.ts animates its clip-path):
+// the whole page is one picture (nothing is captured on its own), the old one stays fully visible under the circle,
+// and nothing else moves meanwhile. Only while .theme-reveal is on <html>, so moving between pages is unchanged.
+:root.theme-reveal * { view-transition-name: none !important; }
+:root.theme-reveal *,
+:root.theme-reveal *::before,
+:root.theme-reveal *::after { transition: none !important; }
+:root.theme-reveal::view-transition-old(root),
+:root.theme-reveal::view-transition-new(root) {
+  animation: none;
+  opacity: 1;
+  mix-blend-mode: normal;
+}

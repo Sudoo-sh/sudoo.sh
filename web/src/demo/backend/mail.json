@@ -523,6 +523,112 @@
    }
   },
   {
+   "key": "offsite_failed",
+   "name": "Off-site copy failed",
+   "description": "A backup could not be copied off-site, or an off-site copy failed its check (an alert).",
+   "recipients": "Alert recipients (Settings, Alerts)",
+   "kicker": "Off-site copies",
+   "preheader": "{{ reason }}",
+   "default": {
+    "subject": "Sudoo.sh alert: off-site copy of {{ instance }} failed",
+    "title": "Off-site copy of {{ instance }} failed",
+    "body": "Hello,\n\nAn off-site copy of **{{ instance }}** ({{ copy }}) failed:\n\n{{ reason }}\n\nThe backup on the server is not affected. If the storage refused the copy, check the off-site settings and choose Test connection (Settings, Backups); if a copy failed its check, it was changed or removed in the bucket ({{ storage }}): do not restore it, and look at who can write to the bucket.\n\n[Open the backups]({{ link }})\n\nYou receive this because alerts are sent to you (Settings, Alerts)."
+   },
+   "placeholders": [
+    {
+     "name": "instance",
+     "description": "The instance the backup is of",
+     "kind": "text"
+    },
+    {
+     "name": "copy",
+     "description": "The copy, as the Backups page names it",
+     "kind": "text"
+    },
+    {
+     "name": "reason",
+     "description": "What went wrong, in a sentence",
+     "kind": "text"
+    },
+    {
+     "name": "storage",
+     "description": "The bucket and folder of the copies",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The Backups page",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [
+    "instance"
+   ],
+   "samples": {
+    "instance": "shop-main",
+    "copy": "shop-main__20261118-000000__daily",
+    "reason": "The storage refused PUT shop-main/20261118-000000__daily/manifest.json: the access key may not do this in this bucket (AccessDenied).",
+    "storage": "acme-backups/sudoo",
+    "link": "https://panel.example.com/backups?view=offsite",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
+   "key": "offsite_missing",
+   "name": "No recent off-site copy",
+   "description": "A production instance has had no successful off-site copy for too long (an alert).",
+   "recipients": "Alert recipients (Settings, Alerts)",
+   "kicker": "Off-site copies",
+   "preheader": "Last copy: {{ last_copy }}",
+   "default": {
+    "subject": "Sudoo.sh alert: no off-site copy of {{ instance }} for {{ hours }} hours",
+    "title": "No off-site copy of {{ instance }} for {{ hours }} hours",
+    "body": "Hello,\n\nProduction instance **{{ instance }}** has had no successful off-site copy for {{ hours }} hours (last copy: {{ last_copy }}).\n\nIf the server were lost now, its newest backups would be lost with it. Check that its daily backup works and that the storage accepts copies (Settings, Backups, Test connection).\n\n[Open the backups]({{ link }})\n\nYou receive this because alerts are sent to you (Settings, Alerts)."
+   },
+   "placeholders": [
+    {
+     "name": "instance",
+     "description": "The production instance",
+     "kind": "text"
+    },
+    {
+     "name": "hours",
+     "description": "Hours without a copy that start the alert",
+     "kind": "text"
+    },
+    {
+     "name": "last_copy",
+     "description": "When the last successful copy was made, or never",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The Backups page",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [
+    "instance"
+   ],
+   "samples": {
+    "instance": "shop-main",
+    "hours": "26",
+    "last_copy": "2026-11-16 00:04",
+    "link": "https://panel.example.com/backups?view=offsite",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
    "key": "plugin_notice",
    "name": "Plugin notice",
    "description": "A plugin's licence ends soon or ended, or a plugin was switched off.",

@@ -319,6 +319,15 @@ An account:
 | `GET /backups` | `backups.manage` | | 200, backups, newest first (below) |
 | `GET /backups/<file>` | `backups.manage` | | the zip (`dump.sql`, the filestore, `manifest.json`) |
 | `DELETE /backups/<file>` | `backups.manage` | | **204** |
+| `GET /offsite` | `backups.manage` | | 200, `{"enabled", "configured", "active", "location", "endpoint", "other_stages", "kinds", "public_key", "fingerprint", "last_scan"}` (never the secret) |
+| `GET /offsite/public-key` | `backups.manage` | | the public signing key, `sudoo-offsite-signing.pub.pem` |
+| `POST /offsite/test` | `offsite.configure` | | 200, `{"location", "steps"}`: a test file written, read back, listed and deleted with the saved settings; 502 with the storage's reason |
+| `POST /offsite/scan` | `backups.manage` | | 200, `{"found", "missing"}`: the bucket's list read again |
+| `GET /offsite/copies` | `backups.manage` | | 200, off-site copies, newest first: `{"id", "instance", "stage", "kind", "stamp", "created", "status", "reason", "size", "files", "location", "uploaded_at", "verified_at", "verified_with", "job", "found_in_bucket"}`; `status` is `uploading`, `stored`, `verifying`, `verified` or `failed` |
+| `POST /offsite/copies/<id>/verify` | `backups.manage` | `{"public_key"}` optional (PEM, a key kept off the server) | **202**, the job that downloads and checks the copy |
+| `POST /offsite/copies/<id>/retry` | `backups.manage` | | **202**, the job that copies a failed copy again from the backup on the server; 409 when that backup is gone |
+| `POST /offsite/copies/<id>/restore` | `offsite.restore` and `instances.restore` | `{"instance"}` (default: the copy's), `{"public_key"}` optional, `"confirm_production": true` for a production instance | **202**, the job: download, check (fails closed), then the usual restore with Rollback |
+| `DELETE /offsite/copies/<id>` | `offsite.delete` | | **204**; 409 for the newest good copy of an existing instance |
 | `GET /deploy-keys` | `github.manage` | | 200, deploy keys |
 | `POST /deploy-keys` | `github.manage` | `{"repo"}` | **201**, the public key and the GitHub page to add it on |
 | `DELETE /deploy-keys/<owner>/<repo>` | `github.manage` | | **204** |

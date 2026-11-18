@@ -8,6 +8,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Off-site copies of backups:** backups can be copied to S3-compatible storage (Cloudflare R2, AWS S3, Backblaze
+  B2, MinIO), set up by a super admin under **Settings, Backups** (address, region, bucket, folder, access key; the
+  secret stored encrypted and never shown again) with **Test connection**. Every backup of a production instance is
+  copied (manual, daily and deletion by default, `OFFSITE_KINDS`), the others with `OFFSITE_OTHER_STAGES`. Each copy
+  has a `manifest.json` (instance, stage, kind, time, each file's size and SHA-256) and an Ed25519 signature made
+  with the panel's own key (made when the feature is first switched on, encrypted with the vault key); the public
+  key and its fingerprint are shown with a download button, to keep a copy off the server. The **Backups** page
+  lists local backups and off-site copies per instance with a location badge and the copy's status (uploading,
+  stored, verifying, verified, failed with the reason), with **Verify now**, **Copy again**, **Restore** (download,
+  check signature and checksums, fail closed, then the usual restore with Rollback; a public key kept off the server
+  can be given for the check) and **Delete**. Retention per instance: the newest copy of each of the last 30 days
+  and 12 months for production, 7 days for the others (all settings), never the newest verified copy; every
+  removal is audit-logged. New alerts and e-mails "Off-site copy failed" and "No recent off-site copy" (a production
+  instance without a copy for `ALERT_OFFSITE_MISSING_HOURS`, 26). New permissions `offsite.configure` (super
+  admins), `offsite.restore` and `offsite.delete` (administrators and super admins). Requests are signed with AWS
+  Signature Version 4 by the panel itself (no new dependency). API: `/offsite`, `/offsite/test`, `/offsite/scan`,
+  `/offsite/public-key`, `/offsite/copies` with `verify`, `retry`, `restore` and `DELETE`.
 - **Invitations:** new people are invited by e-mail instead of being given a password. **Accounts, Invite** takes
   the e-mail address and role (name optional) and e-mails a link (new e-mail "Invitation" on the E-mail templates
   page) that works once and for `INVITATION_HOURS` (72 by default); only a hash of it is stored. The invitee chooses

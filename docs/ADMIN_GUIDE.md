@@ -3,7 +3,7 @@
 **Audience:** the person responsible for the server and the panel.
 **Covers:** installing, updating, rolling back and uninstalling, the first account, settings, e-mail, links, files and containers, Enterprise
 add-ons, backups, daily backups and restores, the command line, checks and troubleshooting, the GitHub App, custom
-domains and certificates.
+domains and certificates, off-site copies of backups.
 **You need:** SSH access to the server as root (or with `sudo`).
 
 ---
@@ -29,6 +29,7 @@ domains and certificates.
 17. [E-mail templates](#17-e-mail-templates)
 18. [Sign-in e-mails and recovery codes](#18-sign-in-e-mails-and-recovery-codes)
 19. [Custom domains and certificates](#19-custom-domains-and-certificates)
+20. [Off-site copies](#20-off-site-copies)
 
 ---
 
@@ -813,6 +814,9 @@ the default lifetime (30 days; Settings, Instances, New instances) unless "Keep 
 changed on the instance's Settings tab. Making it end sooner (also from "Keep" to a number of days) needs
 `instances.delete` as well, since it deletes the instance sooner: maintainers can only make it longer.
 
+**Off the server.** Everything above stays on this server's disk: a lost server takes its backups with it. Copy
+them to storage somewhere else with [off-site copies](#20-off-site-copies).
+
 **By hand**, for an instance (database and attachments):
 
 ```bash
@@ -1346,3 +1350,151 @@ Removing a domain deletes its certificate and key at once. Deleting an instance 
 Administrators and super admins add and remove domains and choose the primary one (permission `domains.manage`);
 every change is in the audit log. Everyone who can see the instance can see its domains and their state. On a
 production instance every domain change must be confirmed, since it moves where the instance's users reach it.
+
+---
+
+## 20. Off-site copies
+
+Backups on the server's own disk are lost with the server. Off-site copies send them to S3-compatible storage
+somewhere else (Cloudflare R2, AWS S3, Backblaze B2, MinIO on another machine), each with a signed list of
+checksums, and check them before they are ever used.
+
+### What is copied
+
+While **Off-site copies** is on, after each backup that finished:
+
+* **Production instances:** always, every backup of a kind in `OFFSITE_KINDS` (manual, daily and deletion by
+  default; production instances get the daily backup every day).
+* **Staging and development instances:** only when `OFFSITE_OTHER_STAGES` is on.
+
+One copy is one backup: its zip (one per database), a `manifest.json` and its signature `manifest.json.sig`, in the
+bucket under:
+
+```
+<OFFSITE_PREFIX>/<instance>/<YYYYMMDD-HHMMSS>__<kind>/
+├── <instance>__<database>__<YYYYMMDD-HHMMSS>__<kind>.zip    the backup, exactly as on the server
+├── manifest.json        instance (name and id), stage, kind, time, and each file's name, size and SHA-256
+└── manifest.json.sig    Ed25519 signature of manifest.json (64 raw bytes)
+```
+
+The zips go first, the signature next, and the manifest last: a folder without `manifest.json` is an unfinished copy.
+Every request to the storage carries the SHA-256 of its data, signed, so the storage refuses data changed on the
+way. Files above 64 MB go in 64 MB parts. Copies run one at a time, as jobs of the panel itself, so a long upload never
+holds up an instance's own actions.
+
+### Setting it up
+
+1. **Create a bucket** at your storage provider, private (no public access). If the provider offers it, turn on
+   object versioning or an object lock with a retention of a few days: then even someone holding the access key
+   cannot destroy the copies at once (see the trust model below).
+2. **Create an access key** for that bucket only, allowed to read, write, list and delete objects. On Cloudflare R2:
+   R2, **Manage API tokens**, **Object Read & Write**, limited to the bucket. On AWS: an IAM user with
+   `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject`, `s3:ListBucket`, `s3:AbortMultipartUpload` on the bucket.
+3. In the panel, **Settings**, **Backups**, **Off-site copies**: fill in the address of the storage's S3 API, the
+   region (`auto` for R2), the bucket, a folder (`OFFSITE_PREFIX`), the access key ID and its secret, and save. The
+   secret is stored encrypted and never shown again.
+4. Choose **Test connection**: the panel writes a small file, reads it back, lists the folder and deletes it.
+5. Switch **Off-site copies** on and save. The panel makes its **signing key** now.
+6. **Download the public key** (same tab, **Signing key**) and keep it **off the server**: in your password manager
+   or next to your other recovery documents. Write down its fingerprint too.
+
+Only super admins change these settings and test the storage (permission `offsite.configure`); every change and
+every test is in the audit log.
+
+Typical addresses:
+
+| Storage | `OFFSITE_ENDPOINT` | `OFFSITE_REGION` |
+| :--- | :--- | :--- |
+| Cloudflare R2 | `https://<account-id>.r2.cloudflarestorage.com` | `auto` |
+| AWS S3 | `https://s3.<region>.amazonaws.com` | the bucket's region |
+| Backblaze B2 | `https://s3.<region>.backblazeb2.com` | `us-west-004` and so on |
+| MinIO | `https://minio.example.com` | `us-east-1` |
+
+### Statuses
+
+The **Backups** page lists, per instance, the backups on this server and the off-site copies, each with a location
+badge (**This server** or **Off-site**):
+
+| Status | Meaning |
+| :--- | :--- |
+| Uploading | Being copied, or waiting for the copy before it. |
+| Stored | Complete in the bucket. The storage accepted every file with its checksum. |
+| Verifying | Being downloaded and checked. |
+| Verified | Downloaded again; the signature and every checksum were checked (when, and with which key). |
+| Failed | The copy or its check failed; the reason is shown. The backup on the server is not affected. |
+
+**Verify now** downloads a copy and checks it. The panel also checks the newest copy of each instance by itself when
+none was verified for `OFFSITE_VERIFY_DAYS` (7). **Copy again** retries a failed copy from the backup on the server,
+if it is still there. **Read the bucket** lists the bucket again: copies the panel does not know (after the server
+was rebuilt) are added as stored, and known copies whose manifest is gone are marked failed. The panel reads the
+bucket once a day by itself too.
+
+### Retention
+
+Per instance, the panel keeps the newest copy of each of the most recent days that have a copy and of each of the
+most recent months, as `restic --keep-daily --keep-monthly` count them:
+
+| | Days | Months |
+| :--- | :--- | :--- |
+| Production | `OFFSITE_KEEP_DAILY_PRODUCTION` (30) | `OFFSITE_KEEP_MONTHLY_PRODUCTION` (12) |
+| Staging and development | `OFFSITE_KEEP_DAILY_OTHER` (7) | `OFFSITE_KEEP_MONTHLY_OTHER` (0) |
+
+The rules run after each copy and once a day. They never remove the newest verified copy of an instance (before any
+check: its newest stored copy), copies being uploaded or checked, or failed copies (delete those by hand). Days are
+counted only when they have a copy, so the copies of a deleted instance stay until removed by hand. Every removal is
+in the audit log ("off-site copy removed by the retention rules").
+
+### Restoring from an off-site copy
+
+On the Backups page, **Restore** on an off-site copy:
+
+1. Choose the instance to restore into (the copy's own by default; another instance of the same Odoo series works
+   too, and its data is then neutralised as with any backup of another instance). To restore a deleted or lost
+   instance, create an instance of the same Odoo version first, then restore into it.
+2. Optionally paste or load a **public key kept off the server**. Use it after the server was rebuilt: the new
+   panel has a new signing key, and the copies were signed with the old one.
+3. Confirm. The job downloads the copy into `/opt/odoo/backups/.offsite/` (mode 700), checks the signature of the
+   manifest, that the manifest is the one of this copy (instance, time and kind), and the size and SHA-256 of every
+   file. **Anything missing or different stops the restore**, nothing is changed, and the copy is marked failed with
+   the reason. When everything matches, the zip joins the backups on the server (with its original time) and the
+   panel's own restore runs: the current state is saved first and **Rollback** is offered for `ROLLBACK_HOURS`.
+
+Restoring needs `offsite.restore` and `instances.restore` (administrators and super admins); a production instance
+must be confirmed. Deleting a copy by hand needs `offsite.delete`; the newest good copy of an instance that still
+exists cannot be deleted. Both are in the audit log.
+
+**Checking a copy without the panel**, for example on your laptop with the public key you kept:
+
+```bash
+openssl pkeyutl -verify -pubin -inkey sudoo-offsite-signing.pub.pem -rawin \
+  -in manifest.json -sigfile manifest.json.sig       # "Signature Verified Successfully"
+openssl pkey -pubin -in sudoo-offsite-signing.pub.pem -outform DER | sha256sum    # the fingerprint
+sha256sum *.zip                                       # compare with "sha256" in manifest.json
+```
+
+### Alerts
+
+* **Off-site copy failed** (`ALERT_OFFSITE_FAILED`): a backup could not be copied (the storage refused it, the
+  connection failed, the file was removed first) or a copy failed its check. A notice follows when copies of that
+  instance work again.
+* **No recent off-site copy** (`ALERT_OFFSITE_MISSING`): a production instance has had no successful copy for
+  `ALERT_OFFSITE_MISSING_HOURS` (26) while off-site copies are on.
+
+Both e-mails can be changed on the **E-mail templates** page.
+
+### The trust model
+
+The signing key is made on the server and kept like the panel's other secrets: encrypted with the vault key, in
+`/opt/odoo/manager/offsite/signing.key` (mode 600); the public key is next to it in `signing.pub.pem`. So:
+
+* **Protected:** someone who can write to the bucket (a leaked access key, a compromised storage account) but not
+  to the server cannot change a copy, replace it, or pass a copy off as another instance's or another day's: the
+  check fails and nothing is restored.
+* **Not protected:** someone with root on the server can read the vault key and sign anything; and someone holding
+  the access key can delete copies (versioning or an object lock at the provider limits this). The copies are not
+  encrypted by the panel: choose a provider you trust with the data, or one that encrypts at rest.
+* **Why the public key off the server:** after the server is lost, the copies are only as trustworthy as the key
+  you check them with. A key kept elsewhere, with its fingerprint, is what proves they are yours.
+
+Back up `/opt/odoo/manager/offsite/` with the rest of the panel's data ([The panel itself](#the-panel-itself)); a new
+key can always be made, but copies signed with the old one then need its public key to be checked.

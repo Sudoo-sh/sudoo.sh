@@ -20,6 +20,7 @@
 11. [Marketplace plugins: keys, signatures, licences](#11-marketplace-plugins-keys-signatures-licences)
 12. [Checklist for the administrator](#12-checklist-for-the-administrator)
 13. [Releases and signatures](#13-releases-and-signatures)
+14. [Off-site copies](#14-off-site-copies)
 
 ---
 
@@ -423,7 +424,10 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `instances.restore` | Restore an instance from a backup (replaces its database and files) | yes | yes | yes | | |
 | `instances.delete` | Delete instances, also by giving one a shorter lifetime | yes | yes | | | |
 | `instances.credentials` | See Odoo passwords and ports | yes | yes | yes | | |
-| `backups.manage` | Download and delete backups | yes | yes | | | |
+| `backups.manage` | Download and delete backups; see, check and copy again off-site copies | yes | yes | | | |
+| `offsite.configure` | Set up where off-site copies go (the `OFFSITE_*` settings), and test it | yes | | | | |
+| `offsite.restore` | Restore an instance from an off-site copy (with `instances.restore`) | yes | yes | | | |
+| `offsite.delete` | Delete off-site copies | yes | yes | | | |
 | `domains.manage` | Add and remove instances' custom domains, choose the primary one (seeing them needs `instances.view`) | yes | yes | | | |
 | `github.manage` | Manage deploy keys; see the GitHub App's state | yes | yes | yes | | |
 | `accounts.manage` | Create, change and delete accounts | yes | yes | | | |
@@ -649,3 +653,35 @@ cosign verify-blob sudoo-install.sh --bundle sudoo-install.sh.sigstore.json \
 
 A signature shows who built the file: the release workflow of this repository, run for that tag. `SHA256SUMS` alone
 shows only that the file is the one the release lists.
+
+---
+
+## 14. Off-site copies
+
+Backups copied off the server ([Admin guide, Off-site copies](ADMIN_GUIDE.md#20-off-site-copies)) are signed and
+checked:
+
+* Each copy has a `manifest.json` listing its files with their size and SHA-256, and `manifest.json.sig`, an Ed25519
+  signature of the manifest's exact bytes. The fingerprint of a key is `SHA256:` and the SHA-256 of the public key in
+  DER, as `openssl pkey -pubin -outform DER | sha256sum` prints it.
+* The private key is made the first time off-site copies are switched on and stored encrypted with the vault key
+  (AES-256-GCM, label `offsite-signing-key`) in `<ODOO_ROOT>/manager/offsite/signing.key`, mode 600. The access
+  key's secret is a setting stored the same way, never shown again.
+* Before a copy is used (restore) or when it is checked (**Verify now**, or every `OFFSITE_VERIFY_DAYS`), it is
+  downloaded into `<ODOO_ROOT>/backups/.offsite/` (mode 700) and checked: the signature, that the manifest names this
+  very copy (instance, time and kind, so a signed copy cannot be moved and passed off as another), and every file's
+  size and checksum. The check **fails closed**: a missing manifest or signature, another key, a changed file or a
+  file not listed stops it, and nothing is restored. The failure is in the audit log and alerted.
+* Every request to the storage is signed (AWS Signature Version 4), over https (http only for `localhost`), and
+  carries the SHA-256 of its body.
+
+**The trust model.** The signature protects against someone who can **write to the bucket** but not to the server:
+they cannot change, replace or move a copy unnoticed. It does **not** protect against **root on the server**, who
+can read the vault key and sign anything, nor against deletion by someone holding the access key (use the provider's
+versioning or object lock). Copies are not encrypted by the panel. Keep a copy of the **public key off the server**:
+after the server is lost, checking the copies with it (pasted in the restore dialog, or with `openssl` by hand) is
+what proves they were made by your panel.
+
+Configuring the storage needs `offsite.configure` (super admins only); restoring from a copy needs `offsite.restore`
+and `instances.restore`; deleting a copy needs `offsite.delete`. Each is audit-logged, as is every test of the
+storage, every check someone asks for, and every copy removed by the retention rules.

@@ -3,10 +3,11 @@
 Every check in the panel asks for a permission, never for a role (security.require, security.can), so a role is
 only a named set of permissions:
 
-    super_admin   Super admin     everything, including the panel's settings, the e-mail texts and the other super
-                                  admins
-    admin         Administrator   everything except the panel's settings and the e-mail texts (sees plugins, cannot
-                                  install them); adds and removes instances' custom domains
+    super_admin   Super admin     everything, including the panel's settings, the e-mail texts, where off-site copies
+                                  go, and the other super admins
+    admin         Administrator   everything except the panel's settings, the e-mail texts and where off-site copies
+                                  go (sees plugins, cannot install them); adds and removes instances' custom domains;
+                                  restores from and deletes off-site copies
     maintainer    Maintainer      creates instances and does everything on them except deleting (restoring backups
                                   too); GitHub access
     developer     Developer       follows instances: gets new code, restarts, starts, adds submodules
@@ -38,7 +39,10 @@ PERMISSIONS: dict[str, str] = {
     "instances.restore": "Restore an instance from a backup (replaces its database and files)",
     "instances.delete": "Delete instances",
     "instances.credentials": "See Odoo passwords and ports",
-    "backups.manage": "Download and delete backups",
+    "backups.manage": "Download and delete backups; see, check and copy again off-site copies",
+    "offsite.configure": "Set up where off-site copies go, and test it",
+    "offsite.restore": "Restore an instance from an off-site copy (it is downloaded and verified first)",
+    "offsite.delete": "Delete off-site copies",
     "domains.manage": "Add and remove instances' custom domains (seeing them needs instances.view)",
     "github.manage": "Manage deploy keys; see the GitHub App's state",
     "accounts.manage": "Create, change and delete accounts",
@@ -66,7 +70,7 @@ _MAINTAIN = _DEVELOP | {
     "instances.credentials",
     "github.manage",
 }
-_ADMIN = frozenset(PERMISSIONS) - {"settings.manage", "mail.manage"}
+_ADMIN = frozenset(PERMISSIONS) - {"settings.manage", "mail.manage", "offsite.configure"}
 
 ROLES: dict[str, Role] = {
     "super_admin": Role("Super admin", "Everything, including the panel's settings.", frozenset(PERMISSIONS)),

@@ -758,6 +758,26 @@ another instance of the same Odoo version into it.
 the backups of the chosen Odoo version: the instance starts with that data instead of an empty database
 ([section 4](#4-creating-an-instance)).
 
+**Off-site copies.** When the administrator has set them up, backups are also copied to storage away from the
+server (every backup of a production instance; the others when the administrator chooses so). The **Backups**
+page then groups everything by instance and shows where each backup is: **This server** or **Off-site**, with the
+off-site copy's status:
+
+| Status | Meaning |
+| :--- | :--- |
+| **Uploading** | Being copied. |
+| **Stored** | Complete in the off-site storage. |
+| **Verifying** | Being downloaded and checked. |
+| **Verified** | Downloaded again and checked: its signature and every checksum match (the date says when). |
+| **Failed** | The copy or its check failed; the reason is shown next to it. The backup on the server is not affected. |
+
+On an off-site copy, **Verify now** checks it again, **Copy again** retries a failed copy (while the backup is still
+on the server), and **Restore** puts it back into an instance: the copy is downloaded and checked first, and if
+anything does not match, nothing is restored. After that it works like any restore: the current state is saved
+first and **Rollback** is offered. Restoring needs the right to restore instances and off-site copies
+(administrators); deleting a copy needs the right to delete off-site copies. See
+[Admin guide, Off-site copies](ADMIN_GUIDE.md#20-off-site-copies).
+
 **Restoring into another Odoo.** The zip also works in any Odoo of the same version, for example to make a copy:
 
 1. Open an Odoo of the **same version** (an instance's link, or any other Odoo) at `/web/database/manager`.

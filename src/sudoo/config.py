@@ -387,6 +387,134 @@ class Settings(BaseSettings):
         "when it may have changed) when the update fails.",
     )
 
+    # ------------------------------------------------------------------ off-site copies (offsite/, docs/ADMIN_GUIDE.md "Off-site copies")
+    offsite_backups: bool = Field(
+        False,
+        description="Copy backups to S3-compatible storage off this server (Cloudflare R2, AWS S3, Backblaze B2, "
+        "MinIO...), each copy with a manifest of SHA-256 checksums signed with the panel's Ed25519 key.",
+    )
+    offsite_endpoint: str = Field(
+        "",
+        description="Address of the storage's S3 API, e.g. https://<account>.r2.cloudflarestorage.com or "
+        "https://s3.eu-central-1.amazonaws.com (https; http only for localhost).",
+    )
+    offsite_region: str = Field(
+        "auto", description='Region of the bucket ("auto" for Cloudflare R2; us-east-1, eu-central-1, ... otherwise).'
+    )
+    offsite_bucket: str = Field("", description="The bucket the copies go to (create it first; keep it private).")
+    offsite_prefix: str = Field(
+        "sudoo", description="Folder inside the bucket for this panel's copies (several panels can share a bucket)."
+    )
+    offsite_addressing: Literal["path", "virtual"] = Field(
+        "path",
+        description='How the bucket is addressed: "path" (endpoint/bucket/file: R2, MinIO, B2, S3) or "virtual" '
+        "(bucket.endpoint/file).",
+    )
+    offsite_access_key_id: str = Field("", description="Access key ID of a key that may read and write the bucket.")
+    offsite_secret_access_key: str = Field("", description="The secret of that access key (stored encrypted).")
+    offsite_other_stages: bool = Field(
+        False,
+        description="Copy the backups of staging and development instances off-site too (production instances' "
+        "backups are always copied while off-site copies are on).",
+    )
+    offsite_kinds: str = Field(
+        "manual,daily,deletion",
+        description="Which backups are copied, comma-separated: manual, daily, deletion, before-update, "
+        "before-restore, before-rollback, before-repair.",
+    )
+    offsite_keep_daily_production: int = Field(
+        30, ge=1, le=3650, description="Production: keep the newest copy of each of this many most recent days."
+    )
+    offsite_keep_monthly_production: int = Field(
+        12, ge=0, le=600, description="Production: keep the newest copy of each of this many most recent months too."
+    )
+    offsite_keep_daily_other: int = Field(
+        7, ge=1, le=3650, description="Staging and development: keep the newest copy of each of this many days."
+    )
+    offsite_keep_monthly_other: int = Field(
+        0, ge=0, le=600, description="Staging and development: keep the newest copy of each of this many months too."
+    )
+    offsite_verify_days: float = Field(
+        7,
+        ge=0,
+        le=365,
+        description="Download and check the newest copy of each instance again when none was verified for this many "
+        "days (signature and every checksum); 0: only when someone asks.",
+    )
+    offsite_timeout_seconds: float = Field(
+        60, ge=5, le=600, description="Seconds one request to the storage may wait for an answer."
+    )
+
+    @field_validator("offsite_endpoint")
+    @classmethod
+    def _offsite_endpoint(cls, value: str) -> str:
+        from urllib.parse import urlsplit
+
+        value = value.strip().rstrip("/")
+        if not value:
+            return ""
+        try:
+            parts = urlsplit(value)
+            host = parts.hostname
+        except ValueError:
+            raise ValueError("must be an https:// address") from None
+        local = host in ("localhost", "127.0.0.1", "::1")
+        if parts.scheme not in ("https", "http") or not host or (parts.scheme == "http" and not local):
+            raise ValueError("must be an https:// address (http:// only for localhost)")
+        if parts.username or parts.password or parts.query or parts.fragment or parts.path not in ("", "/"):
+            raise ValueError("must be a plain address such as https://s3.eu-central-1.amazonaws.com, without a path")
+        return value
+
+    @field_validator("offsite_region")
+    @classmethod
+    def _offsite_region(cls, value: str) -> str:
+        import re
+
+        value = value.strip() or "auto"
+        if not re.fullmatch(r"[a-z0-9-]{1,40}", value):
+            raise ValueError("must be a region name such as auto, us-east-1 or eu-central-1")
+        return value
+
+    @field_validator("offsite_bucket")
+    @classmethod
+    def _offsite_bucket(cls, value: str) -> str:
+        import re
+
+        value = value.strip()
+        if value and not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", value):
+            raise ValueError("must be a bucket name: 3-63 lowercase letters, digits, dots and hyphens")
+        return value
+
+    @field_validator("offsite_prefix")
+    @classmethod
+    def _offsite_prefix(cls, value: str) -> str:
+        import re
+
+        value = value.strip().strip("/")
+        if value and (not re.fullmatch(r"[A-Za-z0-9._/-]{1,200}", value) or ".." in value or "//" in value):
+            raise ValueError("must be a folder name of letters, digits, dots, hyphens, underscores and slashes")
+        return value
+
+    @field_validator("offsite_access_key_id")
+    @classmethod
+    def _offsite_access_key_id(cls, value: str) -> str:
+        import re
+
+        value = value.strip()
+        if value and not re.fullmatch(r"[A-Za-z0-9._+/=-]{1,256}", value):
+            raise ValueError("is not an access key ID")
+        return value
+
+    @field_validator("offsite_kinds")
+    @classmethod
+    def _offsite_kinds(cls, value: str) -> str:
+        known = ("manual", "daily", "deletion", "before-update", "before-restore", "before-rollback", "before-repair")
+        kinds = [part.strip() for part in value.split(",") if part.strip()]
+        unknown = [kind for kind in kinds if kind not in known]
+        if unknown:
+            raise ValueError(f"unknown kind {unknown[0][:40]!r}; use {', '.join(known)}")
+        return ",".join(dict.fromkeys(kinds))
+
     # ------------------------------------------------------------------ alerts (alerts/, docs/ADMIN_GUIDE.md "Alerts")
     alerts: bool = Field(
         True,
@@ -420,6 +548,20 @@ class Settings(BaseSettings):
         10, ge=1, le=1440, description="Minutes memory must stay above the warning before the alert."
     )
     alert_drift: bool = Field(True, description="Alert when an instance was changed outside the panel (drift).")
+    alert_offsite_failed: bool = Field(
+        True, description="Alert when a backup could not be copied off-site, or a copy failed its check."
+    )
+    alert_offsite_missing: bool = Field(
+        True,
+        description="Alert when a production instance has had no successful off-site copy for "
+        "alert_offsite_missing_hours (while off-site copies are on).",
+    )
+    alert_offsite_missing_hours: float = Field(
+        26,
+        ge=1,
+        le=720,
+        description="Hours without a successful off-site copy of a production instance before the alert.",
+    )
     alert_public_link: bool = Field(
         True,
         description="Alert when the panel or a running instance has no public link for alert_public_link_minutes.",
@@ -637,6 +779,9 @@ class Settings(BaseSettings):
 ALERT_SETTINGS = tuple(name for name in Settings.model_fields if name == "alerts" or name.startswith("alert_"))
 """Every alert setting (alerts/); all of them can be changed in the panel."""
 
+OFFSITE_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("offsite_"))
+"""Every setting of off-site copies (offsite/); changing them also needs the permission offsite.configure."""
+
 EDITABLE = (
     # take effect at once
     "brand_color",
@@ -719,6 +864,7 @@ EDITABLE = (
     "domain_dns_target",
     "domain_dns_timeout_seconds",
     "domain_http_probe",
+    *OFFSITE_SETTINGS,
     *ALERT_SETTINGS,
 )
 """Settings that can be changed in the panel, taking effect at once."""
@@ -730,6 +876,7 @@ SECRET = (
     "odoo_admin_password",
     "github_webhook_secret",
     "smtp_password",
+    "offsite_secret_access_key",
     *(f"alert_webhook_{n}_{part}" for n in (1, 2, 3) for part in ("url", "secret")),
 )
 """Settings whose value is never shown, only whether they are set; kept encrypted in settings.json."""

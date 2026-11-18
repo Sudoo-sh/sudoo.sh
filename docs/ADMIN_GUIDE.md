@@ -25,6 +25,8 @@ add-ons, backups, daily backups and restores, the command line, checks and troub
 14. [Moving to permanent links](#14-moving-to-permanent-links)
 15. [The GitHub App](#15-the-github-app)
 16. [Alerts](#16-alerts)
+17. [E-mail templates](#17-e-mail-templates)
+18. [Sign-in e-mails and recovery codes](#18-sign-in-e-mails-and-recovery-codes)
 
 ---
 
@@ -357,8 +359,9 @@ backup, so it needs room for about one more copy of its database and files.
 
 ## 6. E-mail
 
-The panel sends e-mail for sign-in codes and test messages. Without e-mail the panel works, but the **E-mail code**
-second factor is not offered. E-mails are HTML in the style of Odoo's own, with a plain-text part; the code in them
+The panel sends e-mail for sign-in codes, sign-in notices, alerts, plugin notices and test messages. Without e-mail
+the panel works, but the **E-mail code** second factor is not offered and nothing else is sent. Their texts can be
+changed on the [E-mail templates](#17-e-mail-templates) page. E-mails are HTML in the style of Odoo's own, with a plain-text part; the code in them
 can be selected with one tap, and Gmail's apps add their own **Copy code** button.
 
 ### Gmail, step by step
@@ -1165,3 +1168,90 @@ Rules the panel keeps for every webhook:
 Alerts are written by the panel in plain words; they never copy a job's log, an instance's passwords, API tokens or
 keys, and any address with a user name or password in it is masked. The link in an alert opens the panel, which asks
 the reader to sign in.
+
+---
+
+## 17. E-mail templates
+
+**E-mail templates** (sidebar, Administration; super admins only, permission `mail.manage`) lists every e-mail the
+panel sends. For each one you can change the **subject**, the **title** (the large line at the top) and the
+**text**. The built-in texts stay in the panel: **Reset to default** brings one back, and a panel update never
+overwrites a text you changed.
+
+| E-mail | When it is sent | To |
+| :--- | :--- | :--- |
+| Sign-in code | Signing in with the e-mail code | The person signing in |
+| E-mail address confirmation | Setting up the e-mail code | The address being set up |
+| New sign-in | After every sign-in ([section 18](#18-sign-in-e-mails-and-recovery-codes)) | The account that signed in |
+| Alert | An alert as it happens, and its recovery ([Alerts](#16-alerts)) | Alert recipients |
+| Daily summary of alerts | Once a day with `ALERT_DIGEST` | Alert recipients |
+| Plugin notice | A plugin's licence ends soon or ended, a plugin was switched off | Every super admin with an address |
+| Test e-mail | **Send a test** on Settings, E-mail, and `sudoo.sh test-email` | The address typed |
+
+The panel sends no invitation or password-reset e-mails: new accounts and new passwords are handed over by the
+administrator who makes them ([Accounts from the command line](#11-accounts-from-the-command-line)).
+
+### Writing a text
+
+Texts are plain text with a few marks. There is no template code: nothing you type is run, and every value the panel
+fills in is escaped, so HTML you type shows as text.
+
+| You type | You get |
+| :--- | :--- |
+| `{{ name }}` | The value of a placeholder. Each e-mail lists its own placeholders with what they hold; click one to insert it where the cursor is |
+| A blank line | A new paragraph (a single line break stays a line break) |
+| `**words**` | Bold |
+| `- item` | A bulleted list, one item per line |
+| `> words` | A highlighted note, for warnings |
+| `[label](https://...)` or `[label]({{ link }})` | A link; alone on its line, a button. Only `https://`, `http://`, `mailto:` and link placeholders are accepted |
+
+A few placeholders are blocks drawn by the panel (the code box, the details of a sign-in, an alert's details, the
+list of alerts): they stand alone on their line. A line whose placeholders are all empty is left out, so
+`Seen {{ repeats }} times.` disappears when an alert was seen once.
+
+**Save** refuses a text with an unknown placeholder, a placeholder not written like `{{ name }}`, a block that is
+not alone on its line, a link that is not allowed, or, for the code e-mails, a text without the code. The message
+lists every problem. The preview shows the e-mail with sample values as you type (**E-mail** and **Text only**, the
+part mail programs show when they show no HTML). **Send me a test** sends the preview, unsaved changes included, to
+your own address with `[Test]` before the subject. Every change and reset is in the audit log.
+
+The frame around every e-mail (the header with the logo, the footer with the contact) is
+`src/sudoo/mail/templates/layout.html`. To change it, put your own `layout.html` in a folder and set
+`MAIL_TEMPLATES_DIR` to that folder ([Configuration](CONFIGURATION.md)). The accent colour is `BRAND_COLOR`.
+
+---
+
+## 18. Sign-in e-mails and recovery codes
+
+### The sign-in e-mail
+
+After every successful sign-in the panel e-mails the account: when, from which address, from which browser and
+system (read from the browser's description, so approximate), and how it signed in (password, authenticator app,
+e-mail code or recovery code), with a link to the account page to change the password or sign out everywhere. It is
+sent in the background: a slow or failing mail server never delays a sign-in. Nothing is sent while e-mail is not
+set up, or to an account without an address.
+
+| Setting | Default | What it does |
+| :--- | :--- | :--- |
+| `SIGN_IN_EMAIL` | on | Whether accounts get the e-mail, unless their owner chose otherwise |
+| `SIGN_IN_EMAIL_OPT_OUT` | on | Whether people may turn it off on their account page. Off: everyone gets it while `SIGN_IN_EMAIL` is on |
+
+Both are on **Settings, Sign-in and security**. Anyone may turn the e-mail on for their own account, even when
+`SIGN_IN_EMAIL` is off.
+
+### Recovery codes
+
+When someone sets up the authenticator app, the panel makes `RECOVERY_CODES_COUNT` recovery codes (10 by default,
+4 to 20) and shows them once. Each code works once at sign-in in place of the app's code. They protect against a
+lost phone without asking an administrator.
+
+* The panel keeps only a keyed hash of each code (HMAC-SHA256 with a key derived from the vault key), never the
+  codes. A code is 10 characters from 31 that are hard to confuse (about 49 bits).
+* Wrong codes count like wrong passwords: 5 per account and address, 20 per address, in 15 minutes. Every use is in
+  the audit log ("recovery code used", with how many are left), and the sign-in e-mail names it.
+* New codes need the account's password and replace the old ones. Removing the authenticator app removes its codes.
+* Accounts that used the app before recovery codes existed see a notice on every page until they make them.
+
+If someone has lost both the phone and the codes, a super admin or administrator removes their second factors on
+the **Accounts** page; that removes the recovery codes too, and the person sets the app up again at the next
+sign-in.

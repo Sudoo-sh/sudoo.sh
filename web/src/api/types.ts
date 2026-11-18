@@ -16,7 +16,8 @@ export type Permission =
   | "tokens.manage"
   | "audit.view"
   | "plugins.view"
-  | "settings.manage";
+  | "settings.manage"
+  | "mail.manage";
 
 export interface Profile {
   first_name: string | null;
@@ -42,6 +43,8 @@ export interface Session extends Profile {
   csrf_token: string;
   restricted: "password" | "second_factor" | null;
   must_set_up_second_factor: boolean;
+  /** the account uses the authenticator app but has no recovery codes: it is asked to make them */
+  recovery_codes_needed: boolean;
   brand_color: string;
 }
 
@@ -305,6 +308,56 @@ export interface Account extends Profile {
   second_factors: Factor[];
   second_factor_required: boolean;
   require_second_factor: "none" | "admins" | "everyone";
+  recovery_codes: RecoveryCodes | null;
+  recovery_codes_needed: boolean;
+  sign_in_email: SignInEmail;
+}
+
+/** The account's recovery codes: how many are left of how many made, and when */
+export interface RecoveryCodes {
+  left: number;
+  total: number;
+  created_at: string | null;
+}
+
+/** POST /account/recovery-codes: the new codes, shown this once */
+export interface NewRecoveryCodes extends RecoveryCodes {
+  codes: string[];
+}
+
+/** Whether the account gets the "new sign-in" e-mail, and what the person may change */
+export interface SignInEmail {
+  enabled: boolean;
+  own_choice: boolean | null;
+  default: boolean;
+  can_turn_off: boolean;
+  mail_ready: boolean;
+}
+
+export type PlaceholderKind = "text" | "link" | "block";
+
+/** One e-mail the panel sends, on the E-mail templates page (GET /mail-templates) */
+export interface MailTemplate {
+  key: string;
+  name: string;
+  description: string;
+  recipients: string;
+  subject: string;
+  title: string;
+  body: string;
+  default: { subject: string; title: string; body: string };
+  customized: boolean;
+  changed_at: string | null;
+  changed_by: string | null;
+  placeholders: { name: string; description: string; kind: PlaceholderKind }[];
+  required: string[];
+}
+
+export interface MailPreview {
+  subject: string | null;
+  html: string | null;
+  text: string | null;
+  problems: string[];
 }
 
 export interface User extends Profile {

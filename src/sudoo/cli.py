@@ -80,7 +80,7 @@ def show_config(_: argparse.Namespace) -> None:
 
 def test_email(args: argparse.Namespace) -> None:
     """Send the test e-mail; says what went wrong when it cannot."""
-    from sudoo.mail import MailError, mailer, send_template
+    from sudoo.mail import MailError, mailer, send
 
     if not mailer().ready:
         sys.exit(
@@ -88,8 +88,7 @@ def test_email(args: argparse.Namespace) -> None:
         )
     server = f"{settings.smtp_host}:{settings.smtp_port} ({settings.smtp_security}) as {settings.smtp_username or '-'}"
     try:
-        send_template(args.address, "test", "Sudoo.sh e-mail works", preheader="Your mail settings work.",
-                      kicker="E-mail settings", title="It works", server=server)  # fmt: skip
+        send(args.address, "test", server=server)
     except MailError as error:
         sys.exit(f"{error}\nCheck SMTP_* in .env; for Gmail, SMTP_PASSWORD must be an app password.")
     audit.record("command line", None, "test e-mail sent", detail=args.address)

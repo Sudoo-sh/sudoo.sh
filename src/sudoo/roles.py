@@ -3,8 +3,10 @@
 Every check in the panel asks for a permission, never for a role (security.require, security.can), so a role is
 only a named set of permissions:
 
-    super_admin   Super admin     everything, including the panel's settings and the other super admins
-    admin         Administrator   everything except the panel's settings (sees plugins, cannot install them)
+    super_admin   Super admin     everything, including the panel's settings, the e-mail texts and the other super
+                                  admins
+    admin         Administrator   everything except the panel's settings and the e-mail texts (sees plugins, cannot
+                                  install them)
     maintainer    Maintainer      creates instances and does everything on them except deleting (restoring backups
                                   too); GitHub access
     developer     Developer       follows instances: gets new code, restarts, starts, adds submodules
@@ -43,6 +45,7 @@ PERMISSIONS: dict[str, str] = {
     "audit.view": "Read the audit log",
     "plugins.view": "See installed plugins, the marketplace and purchases",
     "settings.manage": "Change the panel's settings, install and buy plugins, and restart it",
+    "mail.manage": "Change the texts of the e-mails the panel sends",
 }
 
 
@@ -62,11 +65,11 @@ _MAINTAIN = _DEVELOP | {
     "instances.credentials",
     "github.manage",
 }
-_ADMIN = frozenset(PERMISSIONS) - {"settings.manage"}
+_ADMIN = frozenset(PERMISSIONS) - {"settings.manage", "mail.manage"}
 
 ROLES: dict[str, Role] = {
     "super_admin": Role("Super admin", "Everything, including the panel's settings.", frozenset(PERMISSIONS)),
-    "admin": Role("Administrator", "Everything except the panel's settings.", _ADMIN),
+    "admin": Role("Administrator", "Everything except the panel's settings and e-mail texts.", _ADMIN),
     "maintainer": Role("Maintainer", "Creates instances and runs every action on them except deleting.", _MAINTAIN),
     "developer": Role("Developer", "Gets new code, restarts and starts instances, adds submodules.", _DEVELOP),
     "viewer": Role("Viewer", "Sees instances, their activity and logs.", _VIEW),

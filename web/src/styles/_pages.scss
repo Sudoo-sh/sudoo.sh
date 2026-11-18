@@ -355,6 +355,9 @@
   @include hover { border-color: var(--text-3); }
   &[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); > svg { color: var(--accent); } }
   &:disabled { opacity: 0.45; cursor: not-allowed; }
+  // in a narrow card or on a phone, buttons beside the text move under it instead of spilling out
+  flex-wrap: wrap;
+  > span { min-width: min(60%, 220px); }
 }
 
 .form-grid {
@@ -605,3 +608,124 @@
     > aside { position: static; }
   }
 }
+
+// ---------------------------------------------------------------- recovery codes (account)
+.recovery-codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2) var(--s4);
+  margin: 0;
+  padding: var(--s4) var(--s5);
+  list-style: none;
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  counter-reset: code;
+  li {
+    font-size: var(--text-15);
+    letter-spacing: 0.04em;
+    user-select: all;
+    counter-increment: code;
+    &::before { content: counter(code) "."; display: inline-block; width: 2.2ch; margin-right: var(--s2); color: var(--text-3); font-size: var(--text-12); letter-spacing: 0; }
+  }
+  @media (max-width: 400px) { padding: var(--s3); gap: var(--s2) var(--s3); li { font-size: var(--text-13); } }
+}
+.caution-text { color: var(--caution); }
+
+// ---------------------------------------------------------------- e-mail templates
+.mail-templates {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s5);
+  align-items: start;
+  @media (max-width: 1280px) {
+    grid-template-columns: 220px minmax(0, 1fr);
+    .mail-preview { grid-column: 2; }
+  }
+  @media (max-width: 860px) {
+    grid-template-columns: minmax(0, 1fr);
+    .mail-preview { grid-column: auto; }
+  }
+}
+.mail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: calc(var(--topbar) + var(--s6));
+  .mail-select { display: none; }
+  @media (max-width: 860px) {
+    position: static;
+    .mail-select { display: block; }
+    .mail-item { display: none; }
+  }
+}
+.mail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s2) var(--s3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color var(--quick) var(--ease);
+  @include press(0.985);
+  .t { display: flex; align-items: center; gap: var(--s2); font-weight: 500; font-size: var(--text-13); }
+  .d { color: var(--text-3); font-size: var(--text-12); }
+  .dot.unsaved { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  @include hover { background: var(--raised); }
+  &[aria-current] { background: var(--accent-soft); .t { color: var(--accent-ink); } }
+}
+.mail-body { min-height: 260px; resize: vertical; line-height: 1.55; font-size: var(--text-13); padding-top: var(--s2); padding-bottom: var(--s2); height: auto; }
+.placeholders {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: var(--s2);
+}
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  @include press(0.97);
+  .mono { font-size: var(--text-12); color: var(--accent-ink); }
+  .d { font-size: var(--text-12); color: var(--text-2); }
+  @include hover { border-color: var(--text-3); }
+}
+.mail-preview {
+  position: sticky;
+  top: calc(var(--topbar) + var(--s6));
+  overflow: hidden;
+  @media (max-width: 1280px) { position: static; }
+}
+.mail-subject {
+  display: flex;
+  gap: var(--s3);
+  padding: var(--s3) var(--s5);
+  border-bottom: 1px solid var(--hairline);
+  font-size: var(--text-13);
+  font-weight: 500;
+}
+// e-mails are drawn light in every mail program, so the preview stays light in dark mode too
+.mail-frame { display: block; width: 100%; height: 620px; border: 0; background: #f1f1f1; }
+.mail-text {
+  margin: 0;
+  padding: var(--s4) var(--s5);
+  max-height: 620px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: var(--text-12);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  color: var(--text-2);
+}
+.problems { margin: 0; padding-left: var(--s4); }

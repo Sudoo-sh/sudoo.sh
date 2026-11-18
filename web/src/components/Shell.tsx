@@ -12,6 +12,7 @@ import {
   KeyRound,
   LayoutGrid,
   LogOut,
+  Mail,
   Menu as MenuIcon,
   Monitor,
   Moon,
@@ -95,7 +96,8 @@ function Sidebar({ open }: { open: boolean }) {
   const { data: instances } = useInstances();
   const signOut = useSignOut();
   const operations = can("backups.manage") || can("audit.view") || can("github.manage");
-  const administration = can("settings.manage") || can("accounts.manage") || can("tokens.manage") || can("plugins.view");
+  const administration =
+    can("settings.manage") || can("mail.manage") || can("accounts.manage") || can("tokens.manage") || can("plugins.view");
   return (
     <aside className={`sidebar ${open ? "open" : ""}`}>
       <Brand />
@@ -142,6 +144,11 @@ function Sidebar({ open }: { open: boolean }) {
             {can("settings.manage") && (
               <NavItem to="/settings" icon={<Settings2 />}>
                 Settings
+              </NavItem>
+            )}
+            {can("mail.manage") && (
+              <NavItem to="/email-templates" icon={<Mail />}>
+                E-mail templates
               </NavItem>
             )}
             {can("plugins.view") && (
@@ -223,6 +230,7 @@ const CRUMBS: Record<string, string> = {
   "": "Instances",
   new: "New instance",
   settings: "Settings",
+  "email-templates": "E-mail templates",
   plugins: "Plugins",
   accounts: "Accounts",
   tokens: "API tokens",
@@ -368,6 +376,22 @@ function PluginNotices() {
   );
 }
 
+/** Accounts that use the authenticator app without recovery codes (set up before they existed, or all used) are
+ *  asked to make them, on every page but the account page where that is done. */
+function RecoveryCodesNotice() {
+  const me = useMe();
+  const { pathname } = useLocation();
+  if (!me.recovery_codes_needed || pathname === "/account") return null;
+  return (
+    <div className="notices" role="status">
+      <Callout tone="warning">
+        Your account has no recovery codes: losing the phone with your authenticator app would lock you out.{" "}
+        <Link to="/account" viewTransition>Make recovery codes</Link>
+      </Callout>
+    </div>
+  );
+}
+
 /** The frame of every signed-in page: sidebar, top bar, live updates. */
 export function Shell() {
   const sync = useLiveEvents(true);
@@ -383,6 +407,7 @@ export function Shell() {
         <Topbar onMenu={() => setMenuOpen(true)} />
         <Reconnecting sync={sync} />
         <PluginNotices />
+        <RecoveryCodesNotice />
         <Outlet />
       </div>
     </div>

@@ -5,7 +5,8 @@ audit log. So a storage plugin offers documents in named collections, an atomic 
 Built in: "sqlite" (sqlite.py). A plugin for another database implements this Protocol and is registered under the
 entry-point group "sudoo.storage" (docs/PLUGINS.md).
 
-Collections used by the panel: users, api_tokens, instance_state, creations, ended_sessions, alerts, alert_meta.
+Collections used by the panel: users, api_tokens, instance_state, creations, ended_sessions, alerts, alert_meta,
+mail_templates.
 """
 
 from __future__ import annotations

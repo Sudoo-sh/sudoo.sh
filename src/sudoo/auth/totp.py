@@ -105,4 +105,4 @@ class AuthenticatorApp:
 
     def remove(self, account: Account) -> dict[str, Any]:
         factors = {k: v for k, v in account.get("second_factors", {}).items() if k != "totp"}
-        return {"second_factors": factors, "totp_pending": None}
+        return {"second_factors": factors, "totp_pending": None, "recovery_codes": None}  # they belong to the app

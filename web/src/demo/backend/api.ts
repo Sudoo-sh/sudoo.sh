@@ -7,6 +7,7 @@ import { publish } from "./bus";
 import { docPage, DOCS } from "./docs";
 import { announce, full, reference, startJob } from "./jobs";
 import { capacity, currentMetrics, history, listed, newProfile } from "./metrics";
+import * as mail from "./mail";
 import { catalog, categories, marketplace, recommendations } from "./marketplace";
 import {
   addBackup,
@@ -108,6 +109,7 @@ export function me(): Session {
     csrf_token: session.csrf,
     restricted: null,
     must_set_up_second_factor: false,
+    recovery_codes_needed: users.find((u) => u.name === ME)!.second_factors.includes("totp") && recovery.left === 0,
     brand_color: String(setting("brand_color") ?? "#714B67"),
   };
 }
@@ -123,6 +125,19 @@ export function switchRole(role: Session["role"]) {
 function signedIn() {
   if (!session.signedIn) throw new Problem(401, "Your session has ended. Please sign in again.");
 }
+
+/** The visitor's recovery codes (made 41 days ago with the app; three used since) and sign-in e-mail choice. */
+const recovery = { left: 7, total: 10, created_at: iso(OPENED - 41 * DAY) };
+let signInEmail: boolean | null = null;
+const RECOVERY_ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz";
+const newRecoveryCodes = () => {
+  const codes = Array.from({ length: 10 }, () => {
+    const raw = Array.from({ length: 10 }, () => RECOVERY_ALPHABET[Math.floor(Math.random() * RECOVERY_ALPHABET.length)]).join("");
+    return `${raw.slice(0, 5)}-${raw.slice(5)}`;
+  });
+  Object.assign(recovery, { left: codes.length, total: codes.length, created_at: iso(Date.now()) });
+  return codes;
+};
 
 const factors = () => {
   const user = users.find((u) => u.name === ME)!;
@@ -147,6 +162,15 @@ function account(): Account {
     second_factors: factors(),
     second_factor_required: ["super_admin", "admin"].includes(user.role),
     require_second_factor: "admins",
+    recovery_codes: user.second_factors.includes("totp") ? { ...recovery } : null,
+    recovery_codes_needed: user.second_factors.includes("totp") && recovery.left === 0,
+    sign_in_email: {
+      enabled: signInEmail ?? Boolean(setting("sign_in_email") ?? true),
+      own_choice: signInEmail,
+      default: Boolean(setting("sign_in_email") ?? true),
+      can_turn_off: Boolean(setting("sign_in_email_opt_out") ?? true),
+      mail_ready: true,
+    },
   };
 }
 
@@ -189,6 +213,12 @@ route("GET", "/account", () => {
 route("PATCH", "/account", ({ body }) => {
   signedIn();
   const user = users.find((u) => u.name === ME)!;
+  if ("sign_in_email" in body) {
+    const choice = body.sign_in_email;
+    if (choice === false && !setting("sign_in_email_opt_out")) throw new Problem(403, `The sign-in e-mail cannot be turned off on this panel. ${CONTACT}`);
+    signInEmail = typeof choice === "boolean" ? choice : null;
+    record(ME, `sign-in e-mail ${choice ? "turned on" : choice === false ? "turned off" : "back to the default"}`);
+  }
   for (const key of ["first_name", "last_name", "email", "phone"] as const) {
     if (key in body) user[key] = String(body[key] ?? "") || null;
   }
@@ -201,12 +231,28 @@ route("POST", "/account/second-factors/:name", ({ params, body }) => {
 });
 route("PUT", "/account/second-factors/:name", ({ params }) => {
   const user = users.find((u) => u.name === ME)!;
-  if (!user.second_factors.includes(params.name!)) user.second_factors.push(params.name!);
+  const added = !user.second_factors.includes(params.name!);
+  if (added) user.second_factors.push(params.name!);
+  if (params.name === "totp" && added) return ok(factors(), { recovery_codes: newRecoveryCodes() });
   return ok(factors());
+});
+route("POST", "/account/recovery-codes", ({ body }) => {
+  signedIn();
+  if (!users.find((u) => u.name === ME)!.second_factors.includes("totp")) throw new Problem(400, "Recovery codes are for the authenticator app: set it up first.");
+  if (!String(body.password ?? "")) throw new Problem(400, "The password is not correct.");
+  const codes = newRecoveryCodes();
+  record(ME, "recovery codes made", { detail: `${codes.length} codes, the earlier ones no longer work` });
+  return created({ codes, ...recovery });
+});
+route("DELETE", "/account/sessions", () => {
+  signedIn();
+  record(ME, "signed out every other session");
+  return none();
 });
 route("DELETE", "/account/second-factors/:name", ({ params }) => {
   const user = users.find((u) => u.name === ME)!;
   user.second_factors = user.second_factors.filter((f) => f !== params.name);
+  if (params.name === "totp") recovery.left = 0;
   return none();
 });
 
@@ -742,6 +788,45 @@ route("DELETE", "/settings/:key", ({ params }) => {
 route("POST", "/settings/test-email", ({ body }) => {
   need("settings.manage");
   return ok({ sent_to: String(body.to ?? "") });
+});
+route("GET", "/mail-templates", () => {
+  need("mail.manage", "/api/v1/mail-templates");
+  return ok(mail.all(), { mail_ready: true });
+});
+const mailOf = (key: string) => {
+  need("mail.manage", `/api/v1/mail-templates/${key}`);
+  const found = mail.find(key);
+  if (!found) throw new Problem(404, "No e-mail with this name.");
+  return found;
+};
+const mailText = (key: string, body: Record<string, unknown>) => {
+  const current = mail.resource(mailOf(key));
+  const part = (name: "subject" | "title" | "body") => (typeof body[name] === "string" ? String(body[name]).trim() : current[name]);
+  return { subject: part("subject"), title: part("title"), body: part("body") };
+};
+route("GET", "/mail-templates/:key", ({ params }) => ok(mail.resource(mailOf(params.key!))));
+route("PUT", "/mail-templates/:key", ({ params, body }) => {
+  const message = mailOf(params.key!);
+  const text = mailText(params.key!, body);
+  const problems = mail.problems(message, text);
+  if (problems.length) throw new Problem(400, problems.join(" "));
+  mail.save(message, text, ME);
+  record(ME, "e-mail template changed", { detail: message.name });
+  return ok(mail.resource(message));
+});
+route("DELETE", "/mail-templates/:key", ({ params }) => {
+  const message = mailOf(params.key!);
+  if (mail.reset(message.key)) record(ME, "e-mail template reset to default", { detail: message.name });
+  return none();
+});
+route("POST", "/mail-templates/:key/preview", ({ params, body }) =>
+  ok(mail.preview(mailOf(params.key!), mailText(params.key!, body), String(setting("brand_color") ?? "#714B67"))),
+);
+route("POST", "/mail-templates/:key/test", ({ params, body }) => {
+  const message = mailOf(params.key!);
+  const problems = mail.problems(message, mailText(params.key!, body));
+  if (problems.length) throw new Problem(400, problems.join(" "));
+  throw offline("Sending e-mail");
 });
 route("GET", "/alerts", ({ query }) => {
   need("audit.view", "/api/v1/alerts");

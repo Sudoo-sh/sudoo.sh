@@ -359,7 +359,7 @@ def test_drift_shows_on_the_instance(admin: Any) -> None:
 
 def test_drift_is_alerted(monkeypatch: pytest.MonkeyPatch) -> None:
     from sudoo import alerts
-    from sudoo.mail.render import render
+    from sudoo.mail.render import compose
 
     sent: list[alerts.Alert] = []
     monkeypatch.setattr(alerts, "send", lambda alert, now=None: sent.append(alert))
@@ -369,9 +369,10 @@ def test_drift_is_alerted(monkeypatch: pytest.MonkeyPatch) -> None:
         and sent[0].details == ["odoo: user"]
         and "puts its own configuration back" in sent[0].text
     )
-    record = {"text": sent[0].text, "hint": None, "details": sent[0].details, "count": 1}
-    text, html = render("alert", "subject", alert=record, link=None)
-    assert "odoo: user" in text and NAME in html
+    record = {"title": sent[0].title, "text": sent[0].text, "hint": None, "details": sent[0].details, "count": 1,
+              "severity": "problem"}  # fmt: skip
+    message = compose("alert", alerts._mail_values(record, None))
+    assert "odoo: user" in message.text and NAME in message.html
 
 
 def test_record_survives_json() -> None:

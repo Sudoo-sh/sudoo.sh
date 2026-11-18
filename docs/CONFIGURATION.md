@@ -147,6 +147,9 @@ there.
 | `REQUIRE_SECOND_FACTOR` | str | `admins` | **live** | Who must use a second factor: `none`, `admins` (super admins and administrators) or `everyone`. Such accounts without one can only set one up after signing in. |
 | `SESSION_IDLE_MINUTES` | float | `60` | **live** | Panel sign-out after this long without activity. |
 | `SESSION_MAX_HOURS` | float | `12` | **live** | Longest panel session. |
+| `RECOVERY_CODES_COUNT` | int | `10` | **live** | How many recovery codes an account gets when it sets up the authenticator app, or makes new ones (4 to 20). Each works once, in place of the app's code. |
+| `SIGN_IN_EMAIL` | bool | `true` | **live** | E-mail people each time their account signs in: when, from which address and device, and how. Sent only when e-mail is set up and the account has an address. |
+| `SIGN_IN_EMAIL_OPT_OUT` | bool | `true` | **live** | People may turn the sign-in e-mail off for their own account (Account, Security). Off: everyone gets it while `SIGN_IN_EMAIL` is on. |
 | `MAILER` | str | `smtp` | **restart** | How the panel sends e-mail: `smtp` or `none`. |
 | `MAIL_FROM` | str | empty | **live** | Sender, for example `Sudoo.sh <no-reply@your-site.com>`; empty: `SMTP_USERNAME`. |
 | `SMTP_HOST` | str | empty | **live** | The mail server, for example `mail.your-site.com`. Empty: no e-mail, and no e-mail codes. |
@@ -154,10 +157,11 @@ there.
 | `SMTP_SECURITY` | str | `starttls` | **live** | `starttls`, `ssl` or `none` (only for a mail server on the same machine). |
 | `SMTP_USERNAME` | str | empty | **live** | Usually the full address of the mailbox. |
 | `SMTP_PASSWORD` | str | empty | **live** | Its password (often an "app password"). Secret: write-only on the Settings page. |
-| `MAIL_TEMPLATES_DIR` | str | empty | **live** | A folder with e-mail templates (`layout.html`, `code.html`, `code.txt`, ...) that replace the built-in ones of the same name (`src/sudoo/mail/templates/`). |
+| `MAIL_TEMPLATES_DIR` | str | empty | **live** | A folder with a `layout.html` that replaces the frame every e-mail shares (`src/sudoo/mail/templates/layout.html`). The texts of the e-mails are changed on the **E-mail templates** page instead ([Admin guide](ADMIN_GUIDE.md)). |
 
 E-mails are HTML in the style of Odoo's own (a white card, the title on the left, the product name on the right,
-a button and a footer), with a plain-text version for mail programs that show text only. Sign-in codes also say
+a button and a footer), with a plain-text version for mail programs that show text only. A super admin changes
+their subjects and texts on the **E-mail templates** page. Sign-in codes also say
 when, from which address and which browser they were asked for. The code can be selected with one tap; Gmail's
 apps also offer their own **Copy code** button.
 

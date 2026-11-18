@@ -571,7 +571,49 @@
   "secret": false,
   "type": "string",
   "minimum": null,
-  "description": "Folder with e-mail templates that replace the built-in ones."
+  "description": "Folder with a layout.html that replaces the built-in frame of every e-mail."
+ },
+ {
+  "key": "recovery_codes_count",
+  "env": "RECOVERY_CODES_COUNT",
+  "value": 10,
+  "env_value": 10,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "integer",
+  "minimum": 4,
+  "description": "Recovery codes made for an account that uses an authenticator app."
+ },
+ {
+  "key": "sign_in_email",
+  "env": "SIGN_IN_EMAIL",
+  "value": true,
+  "env_value": true,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "boolean",
+  "minimum": null,
+  "description": "E-mail people each time their account signs in (when e-mail is set up)."
+ },
+ {
+  "key": "sign_in_email_opt_out",
+  "env": "SIGN_IN_EMAIL_OPT_OUT",
+  "value": true,
+  "env_value": true,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "boolean",
+  "minimum": null,
+  "description": "People may turn the sign-in e-mail off for their own account."
  },
  {
   "key": "brand_color",

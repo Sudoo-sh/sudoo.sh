@@ -242,15 +242,18 @@ def test_pending_creations_are_the_queued_and_running_ones(monkeypatch: pytest.M
 
 def test_email_shows_where_the_request_came_from_and_escapes_values() -> None:
     from sudoo.auth.base import RequestInfo
-    from sudoo.mail.render import render
+    from sudoo.mail.catalog import code_block, details_block
+    from sudoo.mail.render import compose
 
     origin = RequestInfo("203.0.113.9", "Mozilla/5.0 (Windows NT 10.0) Chrome/140.0 Safari/537.36", 0)
     assert origin.browser == "Chrome on Windows"
-    text, html = render(
-        "code", "123456 is your code", preheader="p", kicker="Sign in", title="Your sign-in code",
-        username="<b>sam</b>", intro="i", code="123456", minutes=10,
-        details={"time": "now", "ip": origin.ip, "browser": origin.browser}, warning="w",
+    message = compose(
+        "sign_in_code",
+        {"name": "<b>sam</b>", "code": "123456", "minutes": 10, "code_box": code_block("123456", 10),
+         "request": details_block([("When", "now"), ("From", origin.ip), ("Device", origin.browser)])},
     )  # fmt: skip
+    html, text = message.html, message.text
+    assert message.subject == "123456 is your Sudoo.sh sign-in code"
     assert "123456" in html and "user-select:all" in html and "203.0.113.9" in html and "Chrome on Windows" in html
     assert "&lt;b&gt;sam&lt;/b&gt;" in html and "<b>sam</b>" in text  # escaped in HTML only
 

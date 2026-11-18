@@ -1,15 +1,16 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, KeyRound, LogOut, Mail, RefreshCw, ShieldCheck, Smartphone, Trash2, UserRound } from "lucide-react";
+import { BellRing, CircleCheck, KeyRound, LogOut, Mail, MonitorSmartphone, RefreshCw, ShieldCheck, Smartphone, Trash2, UserRound } from "lucide-react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { api, errorText } from "@/api/client";
+import { api, call, errorText } from "@/api/client";
 import { keys, useAccount } from "@/api/queries";
 import type { Factor } from "@/api/types";
 import { Page, PageHead, useMe } from "@/components/Shell";
 import { PasswordFields, passwordReady } from "@/components/PasswordFields";
 import { Brand } from "@/components/ui/Brand";
-import { Tag, Button, Callout, CopyField, Field, Skeleton } from "@/components/ui/basics";
+import { RecoveryCodesRow, RecoveryCodesSheet } from "@/components/RecoveryCodes";
+import { Tag, Button, Callout, CopyField, Field, Skeleton, Switch } from "@/components/ui/basics";
 import { OtpInput } from "@/components/ui/OtpInput";
 import { Modal, useToast } from "@/components/ui/overlay";
 import { ago } from "@/lib/format";
@@ -31,7 +32,7 @@ function Qr({ value }: { value: string }) {
 
 /** Setting up one second factor: the app (QR code) or an e-mail address (confirmed with a code). Replacing one that
  * is already set up starts with the account's password, as removing it does. */
-function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: () => void; onCancel: () => void }) {
+function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: (recoveryCodes?: string[]) => void; onCancel: () => void }) {
   const toast = useToast();
   const replacing = factor.enrolled;
   const [started, setStarted] = useState<{ secret?: string; otpauth_uri?: string; sent_to?: string } | null>(null);
@@ -58,10 +59,11 @@ function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: () => voi
     setBusy(true);
     setError("");
     try {
-      await api.put(`/account/second-factors/${factor.name}`, { code: value });
+      const answer = await call<Factor[]>("PUT", `/account/second-factors/${factor.name}`, { code: value });
       if (replacing) toast("success", `${factor.label} replaced`, "Your other sessions were signed out.");
       else toast("success", `${factor.label} is set up`, "You will be asked for a code when you sign in.");
-      onDone();
+      const codes = answer.meta?.recovery_codes;
+      onDone(Array.isArray(codes) ? (codes as string[]) : undefined);
     } catch (e) {
       setCode("");
       setError(errorText(e));
@@ -124,11 +126,13 @@ function Factors({ onChange }: { onChange?: () => void }) {
   const [setting, setSetting] = useState<Factor | null>(null);
   const [removing, setRemoving] = useState<Factor | null>(null);
   const [password, setPassword] = useState("");
+  const [newCodes, setNewCodes] = useState<string[] | null>(null);
   if (!account) return <Skeleton height={150} />;
-  const done = async () => {
+  const done = async (codes?: string[]) => {
     setSetting(null);
     await refetch();
-    onChange?.();
+    if (codes) setNewCodes(codes); // shown once; whoever waits for the change hears of it when the sheet closes
+    else onChange?.();
   };
   return (
     <div className="stack">
@@ -154,6 +158,10 @@ function Factors({ onChange }: { onChange?: () => void }) {
           </div>
         ),
       )}
+      {account.second_factors.some((f) => f.name === "totp" && f.enrolled) && (
+        <RecoveryCodesRow state={account.recovery_codes} needed={account.recovery_codes_needed} onChange={() => refetch()} />
+      )}
+      {newCodes && <RecoveryCodesSheet codes={newCodes} onClose={() => { setNewCodes(null); onChange?.(); }} />}
       {removing && (
         <Modal title={`Remove ${removing.label}?`} description="Your other sessions end. Type your password to confirm." onClose={() => setRemoving(null)}
           footer={<><Button onClick={() => setRemoving(null)}>Cancel</Button><Button variant="danger" disabled={!password} onClick={async () => {
@@ -255,6 +263,70 @@ function ProfileCard() {
   );
 }
 
+/** The "new sign-in" e-mail, and signing out every other session. */
+function SecurityCard() {
+  const { data: account, refetch } = useAccount();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [ending, setEnding] = useState(false);
+  if (!account) return <Skeleton height={160} />;
+  const mail = account.sign_in_email;
+  const locked = mail.enabled && !mail.can_turn_off;
+  const choose = async (on: boolean) => {
+    setBusy(true);
+    try {
+      await api.patch("/account", { sign_in_email: on === mail.default ? null : on });
+      await refetch();
+      toast("success", on ? "Sign-in e-mail on" : "Sign-in e-mail off");
+    } catch (e) {
+      toast("error", "Not changed", errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const endOthers = async () => {
+    setEnding(true);
+    try {
+      await api.del("/account/sessions");
+      toast("success", "Signed out everywhere else", "Only this browser is still signed in");
+    } catch (e) {
+      toast("error", "Not signed out", errorText(e));
+    } finally {
+      setEnding(false);
+    }
+  };
+  const hint = !mail.mail_ready
+    ? "E-mail is not set up on this panel yet, so nothing is sent."
+    : !account.email
+      ? "Add an e-mail address to your profile to receive it."
+      : locked
+        ? "Your administrator keeps it on for every account."
+        : `When, from where and from which device. ${mail.default ? "On" : "Off"} by default on this panel.`;
+  return (
+    <section className="card">
+      <div className="card-head"><BellRing size={18} /><h2>Sign-in alerts</h2></div>
+      <div className="card-body stack">
+        <div className="row" style={{ alignItems: "flex-start" }}>
+          <span className="spacer">
+            <span className="t" style={{ fontWeight: 500 }}>E-mail me at each sign-in</span>
+            <br />
+            <span className="small muted">{hint}</span>
+          </span>
+          <Switch checked={mail.enabled} disabled={busy || locked} onChange={choose} />
+        </div>
+        <div className="row" style={{ alignItems: "flex-start" }}>
+          <span className="spacer">
+            <span className="t" style={{ fontWeight: 500 }}>Sign out everywhere else</span>
+            <br />
+            <span className="small muted">Ends every other session of your account, for example a browser you left signed in. Change your password too if a sign-in was not yours.</span>
+          </span>
+          <Button size="sm" icon={<MonitorSmartphone />} loading={ending} onClick={endOthers}>Sign out others</Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function AccountPage() {
   const me = useMe();
   return (
@@ -269,7 +341,10 @@ export function AccountPage() {
           </div>
           <div className="card-body"><Factors /></div>
         </section>
-        <PasswordCard />
+        <div className="stack">
+          <PasswordCard />
+          <SecurityCard />
+        </div>
       </div>
     </Page>
   );

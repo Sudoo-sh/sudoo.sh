@@ -186,7 +186,7 @@ Implementation rules:
 | Neutrals, radii, spacing, motion | Edit `web/src/styles/_tokens.scss` (both the light block and the `dark` mixin), then rebuild: `docker compose build web` on the server, or `npm run build` |
 | Fonts | `--font` and `--mono` in `_tokens.scss`; add the font files with `npm install @fontsource/<name>` and import them in `web/src/main.tsx` |
 | One component | Its block in `_components.scss` or `_pages.scss`, named after the component |
-| The e-mails | Templates in `src/sudoo/mail/templates/`, or your own folder with `MAIL_TEMPLATES_DIR` ([Configuration](CONFIGURATION.md)) |
+| The e-mails | Their texts on the **E-mail templates** page ([Admin guide](ADMIN_GUIDE.md#17-e-mail-templates)); their frame is `src/sudoo/mail/templates/layout.html`, or your own `layout.html` in the folder named by `MAIL_TEMPLATES_DIR` ([Configuration](CONFIGURATION.md)) |
 | The logo mark | `web/public/favicon.svg` is the drawing; `web/src/components/ui/Brand.tsx`, `src/sudoo/instances/mark.svg` (status pages), `docs/images/brand/` and the e-mail header (`src/sudoo/mail/templates/layout.html`, drawn in HTML because Gmail removes SVG) repeat it. A test checks the copies match |
 
 Working on the web app: `cd web && npm install && npm run dev` serves it with live reload on port 5173, using a

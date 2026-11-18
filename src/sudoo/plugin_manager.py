@@ -1064,14 +1064,16 @@ def _mail_super_admins(subject: str, title: str, text: str) -> None:
     """E-mail every super admin with an address, through the panel's mailer; never raises."""
     try:
         from sudoo import accounts
-        from sudoo.mail import mailer, send_template
+        from sudoo.mail import mailer, send
+        from sudoo.mail.render import panel_url
 
         if not mailer().ready:
             return
+        panel = panel_url()
+        plugins_link = f"{panel}/plugins" if panel else ""
         for user in accounts.all_users().values():
             if user.get("role") == "super_admin" and user.get("email"):
-                send_template(user["email"], "notice", subject, preheader=text[:90], kicker="Plugins",
-                              title=title, text=text)  # fmt: skip
+                send(user["email"], "plugin_notice", notice_title=title, notice_text=text, plugins_link=plugins_link)
     except Exception:  # noqa: BLE001 - a missing e-mail never stops plugin work
         log.exception("plugins: could not e-mail the super admins")
 

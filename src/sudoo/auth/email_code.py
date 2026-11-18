@@ -12,7 +12,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sudoo.config import Settings
-from sudoo.mail import mailer, send_template
+from sudoo.mail import mailer, send
+from sudoo.mail.catalog import code_block, details_block
 
 from . import codes
 from .base import Account, RequestInfo
@@ -41,34 +42,20 @@ class EmailCode:
         return "email" in account.get("second_factors", {}) and bool(account.get("email"))
 
     def _send(self, address: str, username: str, code: str, origin: RequestInfo, *, setup: bool) -> None:
-        """The Odoo-style HTML e-mail with the code (templates/code.html), and its text version."""
+        """The e-mail with the code (mail/catalog.py: sign_in_code or email_confirmation)."""
         when = datetime.fromtimestamp(origin.at or time.time(), UTC).strftime("%A %d %B %Y, %H:%M UTC")
-        if setup:
-            subject = f"{code} confirms your e-mail address for Sudoo.sh"
-            kicker, title = "Confirm your address", "Your confirmation code"
-            intro = "Type this code in Sudoo.sh to use this address for sign-in codes."
-            warning = "Did not ask for this? Someone signed in to your account: change your password in Sudoo.sh."
-        else:
-            subject = f"{code} is your Sudoo.sh sign-in code"
-            kicker, title = "Sign in", "Your sign-in code"
-            intro = "Type this code in Sudoo.sh to finish signing in."
-            warning = (
-                "Did not try to sign in? Someone knows your password. Do not share this code, and change your "
-                "password in Sudoo.sh."
-            )
-        send_template(
+        minutes = codes.VALID_SECONDS // 60
+        send(
             address,
-            "code",
-            subject,
-            preheader=f"{code} - valid for {codes.VALID_SECONDS // 60} minutes",
-            kicker=kicker,
-            title=title,
-            username=username,
-            intro=intro,
+            "email_confirmation" if setup else "sign_in_code",
+            name=username,
             code=code,
-            minutes=codes.VALID_SECONDS // 60,
-            details={"time": when, "ip": origin.ip, "browser": origin.browser},
-            warning=warning,
+            minutes=minutes,
+            code_box=code_block(code, minutes),
+            time=when,
+            ip=origin.ip,
+            device=origin.browser,
+            request=details_block([("When", when), ("From", origin.ip), ("Device", origin.browser)], "Requested"),
         )
 
     def challenge(self, username: str, account: Account, origin: RequestInfo) -> dict[str, Any]:

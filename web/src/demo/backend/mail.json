@@ -1,0 +1,432 @@
+{
+ "layout": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"color-scheme\" content=\"light\">\n<meta name=\"supported-color-schemes\" content=\"light\">\n<title>@@SUBJECT@@</title>\n</head>\n<body style=\"margin:0; padding:0; background-color:#F1F1F1;\">\n<div style=\"display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#F1F1F1;\">@@PREHEADER@@&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;</div>\n<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"background-color:#F1F1F1; font-family:'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif; color:#454748; padding-top:16px; padding-bottom:16px;\">\n<tr><td align=\"center\" style=\"padding:0 8px;\">\n\n  <table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"590\" style=\"width:100%; max-width:590px; background-color:#FFFFFF; border-collapse:separate; border:1px solid #E7E9ED; border-radius:8px;\">\n    <tr><td style=\"padding:24px 24px 0 24px;\">\n      <table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\">\n        <tr>\n          <td valign=\"middle\">\n            <span style=\"font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:#8F8F8F;\">@@KICKER@@</span><br>\n            <span style=\"font-size:20px; font-weight:bold; color:#212529;\">@@TITLE@@</span>\n          </td>\n          <td valign=\"middle\" align=\"right\">\n            <a href=\"https://demo.sudoo.sh\" style=\"text-decoration:none;\">\n              <span style=\"display:inline-block; width:28px; height:28px; line-height:28px; border-radius:7px; background-color:#FFFFFF; border:1px solid #E7E9ED; text-align:center; vertical-align:middle; font-size:0;\"><span style=\"display:inline-block; width:8px; height:8px; border:2px solid #714B67; border-radius:50%; vertical-align:bottom; margin-bottom:6px;\"></span><span style=\"display:inline-block; width:3px; height:3px; border-radius:50%; background-color:#714B67; vertical-align:top; margin:7px 0 0 0;\"></span><span style=\"display:inline-block; width:2px; height:13px; margin-left:2px; background-color:#714B67; vertical-align:middle;\"></span></span>\n              <span style=\"font-size:18px; font-weight:bold; color:#714B67; vertical-align:middle;\">&nbsp;Sudoo<span style=\"color:#8F8F8F;\">.sh</span></span>\n            </a>\n          </td>\n        </tr>\n      </table>\n      <div style=\"height:1px; line-height:1px; font-size:0; background-color:#E7E9ED; margin:16px 0;\">&nbsp;</div>\n    </td></tr>\n\n    <tr><td style=\"padding:0 24px; font-size:14px; line-height:1.6; color:#454748;\">\n@@BODY@@    </td></tr>\n\n    <tr><td style=\"padding:0 24px 24px 24px;\">\n      <div style=\"height:1px; line-height:1px; font-size:0; background-color:#E7E9ED; margin:16px 0;\">&nbsp;</div>\n      <table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"font-size:12px; color:#8F8F8F; line-height:1.5;\">\n        <tr>\n          <td valign=\"top\">\n            <strong style=\"color:#454748;\">Sudoo.sh</strong><br>\n            Your Odoo instances, on your own server.\n          </td>\n          <td valign=\"top\" align=\"right\">Operations team<br><a href=\"mailto:ops@example.com\" style=\"color:#714B67; text-decoration:none;\">ops@example.com</a><br></td>\n        </tr>\n      </table>\n    </td></tr>\n  </table>\n\n  <table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"590\" style=\"width:100%; max-width:590px;\">\n    <tr><td align=\"center\" style=\"padding:12px 8px; font-size:11px; color:#8F8F8F;\">\n      Sent by Sudoo.sh &middot; <a href=\"https://demo.sudoo.sh\" style=\"color:#8F8F8F;\">demo.sudoo.sh</a>    </td></tr>\n  </table>\n\n</td></tr>\n</table>\n</body>\n</html>",
+ "messages": [
+  {
+   "key": "sign_in_code",
+   "name": "Sign-in code",
+   "description": "The code that finishes signing in, for accounts that use e-mail codes.",
+   "recipients": "The person signing in",
+   "kicker": "Sign in",
+   "preheader": "{{ code }} - valid for {{ minutes }} minutes",
+   "default": {
+    "subject": "{{ code }} is your Sudoo.sh sign-in code",
+    "title": "Your sign-in code",
+    "body": "Hello {{ name }},\n\nType this code in Sudoo.sh to finish signing in.\n\n{{ code_box }}\n\n[Open Sudoo.sh]({{ panel_link }})\n\n{{ request }}\n\n> Did not try to sign in? Someone knows your password. Do not share this code, and change your password in Sudoo.sh."
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The account's user name",
+     "kind": "text"
+    },
+    {
+     "name": "code",
+     "description": "The 6-digit code that finishes signing in",
+     "kind": "text"
+    },
+    {
+     "name": "minutes",
+     "description": "How many minutes the code is valid",
+     "kind": "text"
+    },
+    {
+     "name": "code_box",
+     "description": "The code, large and easy to copy",
+     "kind": "block"
+    },
+    {
+     "name": "time",
+     "description": "When it was asked for",
+     "kind": "text"
+    },
+    {
+     "name": "ip",
+     "description": "The address it was asked from",
+     "kind": "text"
+    },
+    {
+     "name": "device",
+     "description": "Browser and system, from the browser's description",
+     "kind": "text"
+    },
+    {
+     "name": "request",
+     "description": "When, from where and from which device, in a box",
+     "kind": "block"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [
+    "code",
+    "code_box"
+   ],
+   "samples": {
+    "name": "sam",
+    "code": "482913",
+    "minutes": 10,
+    "code_box": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0;\"><tr><td align=\"center\" style=\"padding:8px 0 4px 0;\"><div style=\"display:inline-block; background-color:#F8F9FA; border:1px solid #E7E9ED; border-radius:8px; padding:14px 28px; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:32px; font-weight:bold; letter-spacing:10px; color:#212529; -webkit-user-select:all; user-select:all; cursor:text;\">482913</div></td></tr><tr><td align=\"center\" style=\"padding:4px 0 0 0; font-size:12px; color:#8F8F8F;\">Tap the code to select it, then copy &middot; valid for 10 minutes &middot; works once</td></tr></table>",
+     "text": "    482913\n\nValid for 10 minutes, works once."
+    },
+    "time": "Tuesday 18 November 2026, 09:41 UTC",
+    "ip": "203.0.113.9",
+    "device": "Firefox on macOS",
+    "request": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:12px; color:#6C757D; background-color:#F8F9FA; border-radius:6px;\"><tr><td colspan=\"2\" style=\"padding:8px 0 0 0;\"></td></tr><tr><td colspan=\"2\" style=\"padding:0 14px 4px 14px; font-weight:bold; color:#454748;\">Requested</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">When</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">Tuesday 18 November 2026, 09:41 UTC</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">From</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">203.0.113.9</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Device</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">Firefox on macOS</td></tr><tr><td colspan=\"2\" style=\"padding:0 0 8px 0;\"></td></tr></table>",
+     "text": "Requested\nWhen: Tuesday 18 November 2026, 09:41 UTC\nFrom: 203.0.113.9\nDevice: Firefox on macOS"
+    },
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
+   "key": "email_confirmation",
+   "name": "E-mail address confirmation",
+   "description": "The code that confirms an address when someone sets up e-mail codes.",
+   "recipients": "The address being set up",
+   "kicker": "Confirm your address",
+   "preheader": "{{ code }} - valid for {{ minutes }} minutes",
+   "default": {
+    "subject": "{{ code }} confirms your e-mail address for Sudoo.sh",
+    "title": "Your confirmation code",
+    "body": "Hello {{ name }},\n\nType this code in Sudoo.sh to use this address for sign-in codes.\n\n{{ code_box }}\n\n[Open Sudoo.sh]({{ panel_link }})\n\n{{ request }}\n\n> Did not ask for this? Someone signed in to your account: change your password in Sudoo.sh."
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The account's user name",
+     "kind": "text"
+    },
+    {
+     "name": "code",
+     "description": "The 6-digit code that confirms the address",
+     "kind": "text"
+    },
+    {
+     "name": "minutes",
+     "description": "How many minutes the code is valid",
+     "kind": "text"
+    },
+    {
+     "name": "code_box",
+     "description": "The code, large and easy to copy",
+     "kind": "block"
+    },
+    {
+     "name": "time",
+     "description": "When it was asked for",
+     "kind": "text"
+    },
+    {
+     "name": "ip",
+     "description": "The address it was asked from",
+     "kind": "text"
+    },
+    {
+     "name": "device",
+     "description": "Browser and system, from the browser's description",
+     "kind": "text"
+    },
+    {
+     "name": "request",
+     "description": "When, from where and from which device, in a box",
+     "kind": "block"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [
+    "code",
+    "code_box"
+   ],
+   "samples": {
+    "name": "sam",
+    "code": "482913",
+    "minutes": 10,
+    "code_box": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0;\"><tr><td align=\"center\" style=\"padding:8px 0 4px 0;\"><div style=\"display:inline-block; background-color:#F8F9FA; border:1px solid #E7E9ED; border-radius:8px; padding:14px 28px; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:32px; font-weight:bold; letter-spacing:10px; color:#212529; -webkit-user-select:all; user-select:all; cursor:text;\">482913</div></td></tr><tr><td align=\"center\" style=\"padding:4px 0 0 0; font-size:12px; color:#8F8F8F;\">Tap the code to select it, then copy &middot; valid for 10 minutes &middot; works once</td></tr></table>",
+     "text": "    482913\n\nValid for 10 minutes, works once."
+    },
+    "time": "Tuesday 18 November 2026, 09:41 UTC",
+    "ip": "203.0.113.9",
+    "device": "Firefox on macOS",
+    "request": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:12px; color:#6C757D; background-color:#F8F9FA; border-radius:6px;\"><tr><td colspan=\"2\" style=\"padding:8px 0 0 0;\"></td></tr><tr><td colspan=\"2\" style=\"padding:0 14px 4px 14px; font-weight:bold; color:#454748;\">Requested</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">When</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">Tuesday 18 November 2026, 09:41 UTC</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">From</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">203.0.113.9</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Device</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">Firefox on macOS</td></tr><tr><td colspan=\"2\" style=\"padding:0 0 8px 0;\"></td></tr></table>",
+     "text": "Requested\nWhen: Tuesday 18 November 2026, 09:41 UTC\nFrom: 203.0.113.9\nDevice: Firefox on macOS"
+    },
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
+   "key": "sign_in_notice",
+   "name": "New sign-in",
+   "description": "Sent after every sign-in, so people notice one that was not theirs.",
+   "recipients": "The account that signed in (Sign-in e-mail settings, and each person's own choice)",
+   "kicker": "Security",
+   "preheader": "{{ device }} from {{ ip }}, {{ time }}",
+   "default": {
+    "subject": "New sign-in to your Sudoo.sh account",
+    "title": "New sign-in",
+    "body": "Hello {{ name }},\n\nYour account just signed in to Sudoo.sh.\n\n{{ sign_in }}\n\nIf this was you, there is nothing to do.\n\n> Not you? Change your password now: it signs out every other session. You can also sign out everywhere from your account page.\n\n[Open your account]({{ account_link }})\n\n{{ opt_out }}"
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The account's user name",
+     "kind": "text"
+    },
+    {
+     "name": "time",
+     "description": "When it signed in",
+     "kind": "text"
+    },
+    {
+     "name": "ip",
+     "description": "The address it signed in from",
+     "kind": "text"
+    },
+    {
+     "name": "device",
+     "description": "Browser and system, from the browser's description",
+     "kind": "text"
+    },
+    {
+     "name": "method",
+     "description": "How: password, authenticator app, e-mail code or recovery code",
+     "kind": "text"
+    },
+    {
+     "name": "sign_in",
+     "description": "When, from where, which device and how, in a box",
+     "kind": "block"
+    },
+    {
+     "name": "account_link",
+     "description": "The account page, to change the password or sign out everywhere",
+     "kind": "link"
+    },
+    {
+     "name": "opt_out",
+     "description": "How to turn these e-mails off; empty when people may not",
+     "kind": "text"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "sam",
+    "time": "Tuesday 18 November 2026, 09:41 UTC",
+    "ip": "203.0.113.9",
+    "device": "Firefox on macOS",
+    "method": "Password and authenticator app",
+    "sign_in": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:12px; color:#6C757D; background-color:#F8F9FA; border-radius:6px;\"><tr><td colspan=\"2\" style=\"padding:8px 0 0 0;\"></td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">When</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">Tuesday 18 November 2026, 09:41 UTC</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">From</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">203.0.113.9</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Device</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">Firefox on macOS</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">How</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">Password and authenticator app</td></tr><tr><td colspan=\"2\" style=\"padding:0 0 8px 0;\"></td></tr></table>",
+     "text": "When: Tuesday 18 November 2026, 09:41 UTC\nFrom: 203.0.113.9\nDevice: Firefox on macOS\nHow: Password and authenticator app"
+    },
+    "account_link": "https://panel.example.com/account",
+    "opt_out": "You receive this e-mail at each sign-in. You can turn it off on your account page.",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
+   "key": "alert",
+   "name": "Alert",
+   "description": "One alert as it happens: a failed job, an instance down, a full disk... and when it is over.",
+   "recipients": "Alert recipients (Settings, Alerts)",
+   "kicker": "{{ kind }}",
+   "preheader": "{{ alert_text }}",
+   "default": {
+    "subject": "Sudoo.sh {{ kind }}: {{ alert_title }}",
+    "title": "{{ alert_title }}",
+    "body": "Hello,\n\n{{ alert_text }}\n\n{{ hint }}\n\n{{ details }}\n\nSeen {{ repeats }} times.\n\n[Open Sudoo.sh]({{ link }})\n\nYou receive this because alerts are sent to you (Settings, Alerts)."
+   },
+   "placeholders": [
+    {
+     "name": "kind",
+     "description": "Alert, Resolved or Notice",
+     "kind": "text"
+    },
+    {
+     "name": "alert_title",
+     "description": "What happened, in a few words",
+     "kind": "text"
+    },
+    {
+     "name": "alert_text",
+     "description": "What happened, in a sentence",
+     "kind": "text"
+    },
+    {
+     "name": "hint",
+     "description": "What to do about it, when the panel knows",
+     "kind": "text"
+    },
+    {
+     "name": "details",
+     "description": "Technical details, in a monospace box",
+     "kind": "block"
+    },
+    {
+     "name": "repeats",
+     "description": "How many times it was seen; empty when once",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The page about it",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "kind": "Alert",
+    "alert_title": "Instance shop-main is down",
+    "alert_text": "Instance shop-main did not answer for 5 minutes.",
+    "hint": "Restart it from its page.",
+    "details": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:13px; background-color:#F8F9FA; border-radius:6px;\"><tr><td style=\"padding:10px 14px 2px 14px; color:#212529; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:12px;\">Last answer: 09:36 UTC</td></tr><tr><td style=\"padding:2px 14px 10px 14px; color:#212529; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:12px;\">Container: odoo-shop-main</td></tr></table>",
+     "text": "  - Last answer: 09:36 UTC\n  - Container: odoo-shop-main"
+    },
+    "repeats": "3",
+    "link": "https://panel.example.com/i/shop-main",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
+   "key": "alert_digest",
+   "name": "Daily summary of alerts",
+   "description": "With one e-mail a day (Settings, Alerts), every alert not e-mailed one by one.",
+   "recipients": "Alert recipients (Settings, Alerts)",
+   "kicker": "Daily summary",
+   "preheader": "{{ count }} in the last day",
+   "default": {
+    "subject": "Sudoo.sh: {{ count }} in the last day",
+    "title": "{{ count }}",
+    "body": "Hello,\n\nWhat needed attention since the last summary:\n\n{{ alerts }}\n\n[Open Sudoo.sh]({{ link }})"
+   },
+   "placeholders": [
+    {
+     "name": "count",
+     "description": "How many alerts, as words: \"3 alerts\"",
+     "kind": "text"
+    },
+    {
+     "name": "alerts",
+     "description": "The alerts, each with its title, link and text",
+     "kind": "block"
+    },
+    {
+     "name": "link",
+     "description": "The panel",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [
+    "alerts"
+   ],
+   "samples": {
+    "count": "2 alerts",
+    "alerts": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:13px;\"><tr><td style=\"padding:8px 0; border-top:1px solid #E7E9ED; color:#212529;\"><b><a href=\"https://panel.example.com/i/shop-main\" style=\"color:#212529;\">Instance shop-main is down</a></b> <span style=\"color:#8F8F8F;\">(3 times)</span><br><span style=\"color:#495057;\">It did not answer for 5 minutes.</span></td></tr><tr><td style=\"padding:8px 0; border-top:1px solid #E7E9ED; color:#212529;\"><b><a href=\"https://panel.example.com/i/crm-demo/activity\" style=\"color:#212529;\">Backup of crm-demo failed</a></b><br><span style=\"color:#495057;\">The disk is full.</span></td></tr></table>",
+     "text": "- Instance shop-main is down (3 times)\n  It did not answer for 5 minutes.\n  https://panel.example.com/i/shop-main\n\n- Backup of crm-demo failed\n  The disk is full.\n  https://panel.example.com/i/crm-demo/activity"
+    },
+    "link": "https://panel.example.com",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
+   "key": "plugin_notice",
+   "name": "Plugin notice",
+   "description": "A plugin's licence ends soon or ended, or a plugin was switched off.",
+   "recipients": "Every super admin with an e-mail address",
+   "kicker": "Plugins",
+   "preheader": "{{ notice_text }}",
+   "default": {
+    "subject": "{{ notice_title }}",
+    "title": "{{ notice_title }}",
+    "body": "Hello,\n\n{{ notice_text }}\n\n[Open Plugins]({{ plugins_link }})"
+   },
+   "placeholders": [
+    {
+     "name": "notice_title",
+     "description": "What it is about, in a few words",
+     "kind": "text"
+    },
+    {
+     "name": "notice_text",
+     "description": "What happens and what to do",
+     "kind": "text"
+    },
+    {
+     "name": "plugins_link",
+     "description": "The Plugins page",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [
+    "notice_text"
+   ],
+   "samples": {
+    "notice_title": "Backup to S3 ends soon",
+    "notice_text": "The licence of Backup to S3 ends on 25 November 2026. Renew it on app.sudoo.sh to keep it working.",
+    "plugins_link": "https://panel.example.com/plugins",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
+   "key": "test",
+   "name": "Test e-mail",
+   "description": "Proves the mail settings work (Settings, E-mail, Send a test; sudoo.sh test-email).",
+   "recipients": "The address typed by whoever sends the test",
+   "kicker": "E-mail settings",
+   "preheader": "Your mail settings work.",
+   "default": {
+    "subject": "Sudoo.sh e-mail works",
+    "title": "It works",
+    "body": "Hello,\n\nThis is a test message from your Sudoo.sh panel. If you are reading it, e-mail works: sign-in codes and other messages will arrive like this one.\n\nSent through **{{ server }}**.\n\n[Open Sudoo.sh]({{ panel_link }})"
+   },
+   "placeholders": [
+    {
+     "name": "server",
+     "description": "The mail server and its encryption",
+     "kind": "text"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "server": "smtp.example.com:587 (starttls)",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  }
+ ]
+}

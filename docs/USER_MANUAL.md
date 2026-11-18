@@ -897,8 +897,12 @@ does not archive or delete them, and a visit to a paused instance of it shows **
 
 **API tokens** (sidebar, Administration) let other systems, such as a CI pipeline, create and manage instances
 through the panel's API. Click **New token**, give it a name and a scope (**Read only**, **Instances** for a
-connected app such as the Odoo module, or **Read and write**); copy the token
-and the signing secret, shown once, into the other system. The list shows when each token was last used (to the minute).
+connected app such as the Odoo module, **Developer** for developers' tools and CI, or **Read and write**); copy the
+token and the signing secret, shown once, into the other system. A **Developer** token reads projects, branches,
+instances, logs, jobs and caught e-mails, starts, pauses, restarts and updates instances (latest code, submodules) and
+creates development instances; it never changes settings, accounts, teams, access or stages, never touches
+production, restores, domains, off-site copies or shells. No token ever does more than its creator's role and project
+access allow. The list shows when each token was last used (to the minute).
 **Revoke** stops a token at once. See [Panel API](PANEL_API.md).
 
 ---
@@ -1092,6 +1096,13 @@ What the panel may run is its **Sudoo.sh plan**. A panel linked to a Sudoo.sh ac
 its plan from Sudoo.sh with every heartbeat, signed, so it cannot be changed in the panel; a panel that is not linked
 has the **Free** plan of the licence: one production branch on one server, the paid features off. A banner tells
 super admins so, with a link to link the panel.
+
+**Link within 7 days.** A panel is linked to a Sudoo.sh account within 7 days of its first run (`LINK_DEADLINE_DAYS`,
+Settings, About). Until then, super admins and administrators see a banner on every page, **Link this panel to your
+Sudoo.sh account**, with the days left; it cannot be closed. Once the days have passed and the panel is still not
+linked, no new instances, no moves into production and no updates (latest code, submodules, switch branch, upgrade)
+can be made until a super admin links it; instances keep serving and backups keep running. Linking lifts this at
+once ([Administrator guide](ADMIN_GUIDE.md#linking-the-panel-within-7-days)).
 
 * **Production branches.** Every production branch of every project, and every production instance outside a project,
   counts. One more (a branch made production, a new production instance) is refused beyond the plan's number, with a

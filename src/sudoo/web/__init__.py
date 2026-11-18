@@ -17,7 +17,7 @@ from flask import Flask, Response, jsonify, request
 from flask.typing import ResponseReturnValue
 from werkzeug.exceptions import HTTPException
 
-from sudoo import accounts, background, exposure, triggers
+from sudoo import accounts, background, exposure, link_deadline, triggers
 
 from . import docs, security, v1
 
@@ -64,6 +64,7 @@ def create_app() -> Flask:
         """Every API answer carries X-Request-ID, also errors raised before a view ran."""
         return v1.add_request_id(response) if request.path.startswith(security.API_PREFIX) else response
 
+    link_deadline.first_run()  # recorded once, the first time the panel runs (link_deadline.py)
     background.start()
     v1.stream.start(app)
     return app

@@ -2061,6 +2061,12 @@ route("GET", "/plan", () => {
     leaving_production: [],
     links: { pricing: "https://sudoo.sh/pricing", account: "https://app.sudoo.sh", keep: "https://app.sudoo.sh/plan" },
     checked_at: iso(Date.now()),
+    // the demo shows the banner of a panel that is not linked yet (src/sudoo/link_deadline.py): to super admins and
+    // administrators only, five of its seven days left
+    link_deadline:
+      ["super_admin", "admin"].includes(users.find((u) => u.name === ME)?.role ?? "")
+        ? { linked: false, first_run: iso(OPENED - 2 * DAY), deadline_days: 7, deadline: iso(OPENED + 5 * DAY), days_left: 5, restricted: false }
+        : null,
   });
 });
 

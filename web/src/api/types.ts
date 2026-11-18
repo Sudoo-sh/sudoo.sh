@@ -654,7 +654,7 @@ export interface DocPage {
 export interface Token {
   id: string;
   name: string;
-  scope: "read" | "instances" | "write";
+  scope: "read" | "instances" | "developer" | "write";
   created: number;
   created_by: string;
   last_used: number | null;
@@ -1169,4 +1169,18 @@ export interface PlanStatus {
   leaving_production: string[];
   links: { pricing: string; account: string; keep: string };
   checked_at: string | null;
+  /** linking the panel to a Sudoo.sh account within LINK_DEADLINE_DAYS of its first run (src/sudoo/link_deadline.py);
+   *  null for everyone but super admins and administrators */
+  link_deadline: LinkDeadline | null;
+}
+
+export interface LinkDeadline {
+  linked: boolean;
+  first_run: string;
+  deadline_days: number;
+  deadline: string;
+  /** started days left (1 on the last day); 0 once linked or past the deadline */
+  days_left: number;
+  /** the deadline passed while unlinked: no new instances, no moves to production, no updates */
+  restricted: boolean;
 }

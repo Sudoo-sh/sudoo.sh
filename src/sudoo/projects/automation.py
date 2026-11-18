@@ -26,7 +26,7 @@ import time
 from collections.abc import Mapping
 from typing import Any
 
-from sudoo import projects
+from sudoo import link_deadline, projects
 from sudoo.config import settings
 from sudoo.core import audit, jobs
 from sudoo.core.jobs import Job
@@ -76,6 +76,8 @@ def creation_refusal(project: Mapping[str, Any], branch: str) -> str | None:
         return "the project does not create instances for new branches"
     if access.lock_of(project, branch) is not None:
         return "the branch is locked"
+    if link_deadline.restricted():
+        return "the panel is not linked to a Sudoo.sh account and the days to link it have passed"
     if projects.by_branch(project["id"]).get(branch):
         return "the branch has an instance already"
     recorded = (project.get("branches") or {}).get(branch, {}).get("stage")

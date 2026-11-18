@@ -129,13 +129,13 @@ const RESOURCE_KEYS = [
   ...RESOURCE_KNOBS.flatMap((row) => STAGES.map((stage) => limitKey(row, stage))),
 ];
 const TAB_IDS = new Set<string>(TABS.map((t) => t.id));
-const KNOWN = new Set<string>([...TABS.flatMap((t) => t.groups.flatMap((g) => g.keys)), "marketplace", "licence_required_version", ...RESOURCE_KEYS]);
+const KNOWN = new Set<string>([...TABS.flatMap((t) => t.groups.flatMap((g) => g.keys)), "marketplace", "licence_required_version", "link_deadline_days", ...RESOURCE_KEYS]);
 const keysOfTab = (tab: (typeof TABS)[number], other: string[]) => [
   ...tab.groups.flatMap((g) => g.keys),
   ...(tab.id === "marketplace" ? ["marketplace"] : []),
   ...(tab.id === "resources" ? RESOURCE_KEYS : []),
   ...(tab.id === "advanced" ? other : []),
-  ...(tab.id === "about" ? ["licence_required_version"] : []),
+  ...(tab.id === "about" ? ["licence_required_version", "link_deadline_days"] : []),
 ];
 
 /** A group's title and explanation, in the language shown. */
@@ -593,7 +593,7 @@ export function SettingsPage() {
               </Section>
             )}
             {tab === "plan" && <PlanSettings />}
-            {tab === "about" && <LicenceSettings>{rows(["licence_required_version"])}</LicenceSettings>}
+            {tab === "about" && <LicenceSettings>{rows(["licence_required_version", "link_deadline_days"])}</LicenceSettings>}
             {tab === "advanced" && (
               <>
                 {other.length > 0 && <Section title={t.other.title} text={t.other.text}>{rows(other)}</Section>}

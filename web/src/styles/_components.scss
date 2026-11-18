@@ -22,6 +22,7 @@
   @include press;
   text-decoration: none !important;
   user-select: none;
+  -webkit-user-select: none; // Safari: a long press does not select the label
   svg { width: 16px; height: 16px; flex: none; stroke-width: 1.75; }
   @include hover { background: var(--raised); }
   &:disabled, &[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }

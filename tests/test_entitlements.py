@@ -174,6 +174,7 @@ def test_the_hubs_entitlements_apply_and_the_usage_is_reported(world: str, hub: 
         "projects": 1,
         "production_branches": 2,
         "production_branch_names": ["pl-plain", f"{world}/main"],
+        "instances_by_stage": {"production": 2, "staging": 0, "development": 0},
     }
     found = entitlements.current()
     assert (found.plan, found.source) == ("pro", "hub") and found.has("teams") and found.has("custom_domains")

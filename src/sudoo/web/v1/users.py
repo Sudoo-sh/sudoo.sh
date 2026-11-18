@@ -214,4 +214,7 @@ def audit_log() -> Response:
     limit = check.whole_number(request.args.get("limit", "200"), "limit", minimum=1, maximum=2000)
     user = request.args.get("user") or None
     instance = request.args.get("instance") or None
-    return ok(audit.latest(limit, user=user, instance=instance))
+    from sudoo import support
+
+    return ok([{**entry, "support": support.support_entry(entry.get("user"))} for entry in
+               audit.latest(limit, user=user, instance=instance)])  # fmt: skip

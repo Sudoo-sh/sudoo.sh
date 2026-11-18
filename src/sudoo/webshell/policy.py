@@ -11,7 +11,8 @@ Rules, in order: shells are switched on (SHELL_ENABLED); the caller is a person 
 their role has the target's permission (roles.permissions, which applies SHELL_ROLES); the instance exists; their
 access in its project gives that permission and its branch is not locked against them (projects/access.py); a
 production instance allows it (SHELL_PRODUCTION) and the caller confirmed it, every time; root only for the Odoo
-container's terminal, for super admins, when SHELL_ROOT is on.
+container's terminal, for super admins, when SHELL_ROOT is on. Sudoo.sh support (support/shells.py) follows the
+same rules as an administrator limited by its grant, never as root, and its shells are always recorded.
 
 check_container() then makes sure the container reached is exactly that instance's: its name, the panel's labels,
 running, and nothing that would make a shell in it a shell on the server (privileged, the server's processes or
@@ -78,7 +79,7 @@ def plan(user: dict[str, str], name: str, target: str, *, as_root: bool = False,
         raise Refused(403, "token", "A shell is opened by a person in the panel, not with an API token.")
     if target not in TARGETS:
         raise Refused(400, "target", 'Choose "shell", "odoo-shell" or "psql".')
-    if PERMISSION[target] not in roles.permissions(user["role"]):
+    if PERMISSION[target] not in access.role_permissions(user):
         needed = roles.PERMISSIONS[PERMISSION[target]].lower()
         raise Refused(403, "permission", f"Your role cannot do this ({needed}). {settings.contact_sentence()}")
     if not store.NAME_RE.match(name) or not store.exists(name):
@@ -126,7 +127,7 @@ def plan(user: dict[str, str], name: str, target: str, *, as_root: bool = False,
         workdir=odoo.CUSTOM_ADDONS_MOUNT if service == "odoo" else None,
         root=as_root,
         production=production,
-        recorded=recorded(production, as_root),
+        recorded=True if user.get("support") else recorded(production, as_root),  # support's shells: always
     )
 
 

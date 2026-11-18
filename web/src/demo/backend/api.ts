@@ -2270,6 +2270,16 @@ route("DELETE", "/projects/:id/branches/:*branch/lock", ({ params }) => {
   return none();
 });
 
+// ---------------------------------------------------------------- support access (src/sudoo/support/): the demo has
+// no connection to Sudoo.sh, so access cannot be granted here
+
+route("GET", "/support-access/status", () => ok({ connected: false, sessions: [], active_grants: 0, can_end: false }));
+route("GET", "/support-access", () => {
+  need("support_access.manage");
+  return ok({ enabled: true, unavailable: "not_connected", max_hours: 72, durations: [1, 24, 72], levels: ["view", "admin", "admin_shell"],
+    shell_enabled: true, grants: [], sessions: [], channel: { last_ok: null, error: null } });
+});
+
 // ---------------------------------------------------------------- the panel's plan (src/sudoo/entitlements.py)
 
 route("GET", "/plan", () => {

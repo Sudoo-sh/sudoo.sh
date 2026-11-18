@@ -184,6 +184,12 @@ class FakeHub:
         self.answer_skew = 0  # seconds added to the signed time of answers
         self.now: float | None = None  # the hub's clock for leases (None: real time)
         self.heartbeats: list[dict[str, Any]] = []
+        # support access: what the panel reported on its channel, the requests waiting for it, the open sessions,
+        # and the answers it sent
+        self.support_reports: list[dict[str, Any]] = []
+        self.support_queue: list[dict[str, Any]] = []
+        self.support_sessions: list[dict[str, Any]] = []
+        self.support_answers: dict[str, dict[str, Any]] = {}
         self.requests: list[str] = []
         # the lease's "entitlements" claim (sudoo-hub docs/PLANS.md, "In the signed licence"); None: none, as before
         self.entitlements: dict[str, Any] | None = None
@@ -586,7 +592,11 @@ class FakeHub:
                         return None
                     usage = data.get("usage")
                     if usage is not None:  # the hub's UsageIn is strict: only these fields, names as BranchName
-                        allowed = {"servers", "projects", "production_branches", "production_branch_names"}
+                        allowed = {"servers", "projects", "production_branches", "production_branch_names",
+                                   "instances_by_stage"}  # fmt: skip
+                        stages = usage.get("instances_by_stage") or {}
+                        if set(stages) - {"production", "staging", "development"}:
+                            return self._problem(422, "usage.instances_by_stage: an unknown stage.")
                         names_ok = all(re.match(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$", n)
                                        for n in usage.get("production_branch_names") or [])  # fmt: skip
                         if set(usage) - allowed or not names_ok:
@@ -635,6 +645,23 @@ class FakeHub:
                         return self._problem(404, "There is no such command for this installation.")
                     command["acked"] = True
                     hub.acks.append((command_id, data))
+                    return self._send(204)
+                if self.path == "/api/v1/installations/support/channel":
+                    if self._signed(body) is None:
+                        return None
+                    hub.support_reports.append(data)
+                    reported = {g["id"] for g in data.get("grants", [])}
+                    ended = set(data.get("ended_sessions", []))
+                    hub.support_sessions = [s for s in hub.support_sessions
+                                            if s["grant_id"] in reported and s["id"] not in ended]  # fmt: skip
+                    waiting, hub.support_queue = hub.support_queue[:20], hub.support_queue[20:]
+                    if not reported:
+                        waiting = []
+                    return self._send(200, {"data": {"requests": waiting, "sessions": hub.support_sessions}})
+                if self.path.startswith("/api/v1/installations/support/requests/"):
+                    if self._signed(body) is None:
+                        return None
+                    hub.support_answers[self.path.split("/")[-2]] = data
                     return self._send(204)
                 installation = self._signed(body, lease=True)
                 if installation is None:

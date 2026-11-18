@@ -859,6 +859,20 @@ class Settings(BaseSettings):
         "json", description='Webhook 3: "json", "slack", "discord" or "teams".'
     )
 
+    # ------------------------------------------------------------------ support access (support/, docs/ADMIN_GUIDE.md)
+    support_access: bool = Field(
+        True,
+        description="Super admins and administrators may grant Sudoo.sh support temporary access to the panel "
+        "(Support access); off: no access can be granted and every grant ends.",
+    )
+    support_access_max_hours: int = Field(
+        72,
+        ge=1,
+        le=72,
+        description="The longest support access can be granted for, in hours (the choices are 1 hour, 1 day and 3 "
+        "days, up to this).",
+    )
+
     # ------------------------------------------------------------------ web shell (webshell/, docs/ADMIN_GUIDE.md "Web shell")
     shell_enabled: bool = Field(
         True,
@@ -1323,6 +1337,8 @@ EDITABLE = (
     "plan_pricing_url",
     "plan_account_url",
     *SHELL_SETTINGS,
+    "support_access",
+    "support_access_max_hours",
 )
 """Settings that can be changed in the panel, taking effect at once."""
 

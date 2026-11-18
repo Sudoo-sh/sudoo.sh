@@ -136,6 +136,9 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
       client.invalidateQueries({ queryKey: keys.plugins });
       client.invalidateQueries({ queryKey: keys.plan });
       break;
+    case "support": // support access changed: a grant, or a session starting or ending
+      client.invalidateQueries({ queryKey: keys.support });
+      break;
     case "alert": {
       const alert = data as Alert;
       client.setQueryData<Alert[]>(keys.alerts, (list) =>
@@ -149,7 +152,7 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
   }
 }
 
-const TOPICS = ["instance", "instance.deleted", "project", "domains", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "alert", "offsite", "reset"];
+const TOPICS = ["instance", "instance.deleted", "project", "domains", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "support", "alert", "offsite", "reset"];
 
 export interface Sync {
   state: LiveState;

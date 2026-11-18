@@ -310,13 +310,15 @@ REPORTED_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")  # the hub's 
 
 
 def usage_report() -> dict[str, Any]:
-    """The heartbeat's "usage", as the hub's UsageIn names it: servers, projects, production_branches and
-    production_branch_names (at most 1,000; a name the hub would not take is left out, its count stays)."""
+    """The heartbeat's "usage", as the hub's UsageIn names it: servers, projects, production_branches,
+    production_branch_names (at most 1,000; a name the hub would not take is left out, its count stays) and
+    instances_by_stage ({production, staging, development}: counts, as Settings › Plan shows them)."""
     found = usage()
     report: dict[str, Any] = {
         key: min(int(found[key]), 100_000) for key in ("servers", "projects", "production_branches")
     }
     report["production_branch_names"] = [n for n in found["production_branch_names"] if REPORTED_NAME.match(n)][:1000]
+    report["instances_by_stage"] = {stage: min(int(n), 100_000) for stage, n in found["instances_by_stage"].items()}
     return report
 
 

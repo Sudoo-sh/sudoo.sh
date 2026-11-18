@@ -54,7 +54,8 @@ reset with **Use .env**.
 17. [Mail catcher](#mail-catcher)
 18. [Help panel](#help-panel)
 19. [Marketplace](#marketplace)
-20. [Locations](#locations)
+20. [Support access](#support-access)
+21. [Locations](#locations)
 
 ---
 
@@ -569,6 +570,19 @@ How the panel talks to the Sudoo.sh hub, which lists plugins, sells paid ones an
 | `MARKETPLACE` | bool | `off` | **live** | Off by default until the marketplace opens. `on`: register with the hub, send a signed heartbeat every 15 minutes (version, core hash, fingerprint, installed plugins and coarse server figures) and install plugins from the Plugins page. `off`: the panel never contacts the hub; installed free plugins keep working, paid ones stop at their `run_until` (the last lease's end plus 96 hours, about 7 days). |
 | `HUB_URL` | text | `https://hub.sudoo.sh` | `.env` only | The hub's address: `https://` (`http://` only for `localhost` while testing). The panel registers with each hub it is pointed at. |
 | `HUB_PUBLIC_KEYS` | text | empty | `.env` only | The hub's root public keys (Ed25519, base64url, comma-separated). Every answer, lease, command and package must be signed by one of them, or by a newer key one of them endorsed. Empty: the keys this release ships for `hub.sudoo.sh`; for another hub (while testing), the keys it lists the first time the panel reaches it. |
+
+---
+
+## Support access
+
+Letting Sudoo.sh support into the panel for a while, through the panel's own connection to the hub (needs
+`MARKETPLACE` on). Settings page, **Support access**; how it works: [Admin guide, Support access](ADMIN_GUIDE.md#26-support-access),
+[Security, Support access](SECURITY.md#17-support-access).
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `SUPPORT_ACCESS` | bool | `true` | **live** | Super admins and administrators may grant support access. `false`: none can be granted, and every grant ends at once. |
+| `SUPPORT_ACCESS_MAX_HOURS` | int | `72` | **live** | The longest a grant may last, in hours (1 to 72): the choices 1 hour, 1 day and 3 days are offered up to it. |
 
 ---
 

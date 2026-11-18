@@ -12,6 +12,7 @@ import {
   FolderKanban,
   KeyRound,
   LayoutGrid,
+  LifeBuoy,
   LogOut,
   Mail,
   Menu as MenuIcon,
@@ -45,6 +46,7 @@ import { BackToTop } from "./BackToTop";
 import { HelpButton } from "./HelpPanel";
 import { PageMotion } from "./PageMotion";
 import { PlanBanner } from "./PlanSettings";
+import { SupportBanner } from "./SupportAccess";
 import { Menu, useToast } from "./ui/overlay";
 
 import { useCan, useMe } from "./Session";
@@ -109,7 +111,7 @@ function Sidebar({ open }: { open: boolean }) {
   const t = all.nav;
   const operations = can("backups.manage") || can("audit.view") || can("github.manage");
   const administration =
-    can("settings.manage") || can("mail.manage") || can("accounts.manage") || can("teams.manage") || can("tokens.manage") || can("plugins.view");
+    can("settings.manage") || can("mail.manage") || can("accounts.manage") || can("teams.manage") || can("tokens.manage") || can("plugins.view") || can("support_access.manage");
   return (
     <aside className={`sidebar ${open ? "open" : ""}`}>
       <Brand />
@@ -186,6 +188,11 @@ function Sidebar({ open }: { open: boolean }) {
                 {t.tokens}
               </NavItem>
             )}
+            {can("support_access.manage") && (
+              <NavItem to="/support-access" icon={<LifeBuoy />}>
+                {t.supportAccess}
+              </NavItem>
+            )}
           </nav>
         </>
       )}
@@ -258,6 +265,7 @@ const CRUMBS: Record<string, keyof (typeof common)["en"]["nav"]> = {
   accounts: "accounts",
   teams: "teams",
   tokens: "tokens",
+  "support-access": "supportAccess",
   backups: "backups",
   activity: "audit",
   github: "github",
@@ -470,6 +478,7 @@ export function Shell() {
         <Reconnecting sync={sync} />
         <PluginNotices />
         <RecoveryCodesNotice />
+        <SupportBanner />
         <PlanBanner />
         <Outlet />
       </div>

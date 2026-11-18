@@ -1178,6 +1178,17 @@ How changes apply:
 the message says why; for Gmail, the password must be an app password
 ([Administrator guide: E-mail](ADMIN_GUIDE.md#6-e-mail)).
 
+### Support access
+
+When you ask Sudoo.sh support for help, you can let them into the panel for a while: **Settings › Support access**
+(administrators: **Support access** in the side bar). Choose what they may do (**View**, **Panel admin**, or
+**Panel admin + shell**), for how long (1 hour, 1 day or 3 days), where (all projects and instances, or the ones you
+choose; locked branches stay locked), and, if you have one, the ticket number. Then **Grant access**.
+
+While support is connected, every page shows **Sudoo.sh support is connected** with their name. Press **End now**
+to end it at once; **Withdraw** ends one grant. Everything they do is in the audit log, marked **Support**, and their
+shells are recorded. They cannot see or change accounts, API tokens, teams, access rules or the panel's settings.
+
 Every setting is described in [Configuration](CONFIGURATION.md).
 
 ---

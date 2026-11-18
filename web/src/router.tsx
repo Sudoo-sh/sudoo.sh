@@ -58,6 +58,7 @@ export const router = createBrowserRouter([
           { path: "/teams", lazy: page(() => import("./pages/Teams"), (m) => m.TeamsPage, "teams.manage") },
           { path: "/tokens", lazy: page(() => import("./pages/Tokens"), (m) => m.TokensPage, "tokens.manage") },
           { path: "/backups", lazy: page(() => import("./pages/Backups"), (m) => m.BackupsPage, "backups.manage") },
+          { path: "/support-access", lazy: page(() => import("./pages/SupportAccess"), (m) => m.SupportAccessPage, "support_access.manage") },
           { path: "/activity", lazy: page(() => import("./pages/Audit"), (m) => m.AuditPage, "audit.view") },
           { path: "/github/app/:step", lazy: page(() => import("./pages/GitHub"), (m) => m.GitHubReturnPage, "settings.manage") },
           { path: "/github", lazy: page(() => import("./pages/GitHub"), (m) => m.GitHubPage, "github.manage") },

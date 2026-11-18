@@ -23,6 +23,7 @@
 14. [Off-site copies](#14-off-site-copies)
 15. [Web shell](#15-web-shell)
 16. [Mail catcher](#16-mail-catcher)
+17. [Support access](#17-support-access)
 
 ---
 
@@ -518,7 +519,7 @@ trusted clock (`trusted_now`: turning the clock back does not extend it). A pane
 from the hub, or has `MARKETPLACE` off has the Free plan; a lease that cannot be verified changes nothing. When the
 entitlements expire, only new production branches are refused: nothing that runs is ever stopped or deleted, and a
 `production_keep` after a downgrade only changes stages. Self-hosted code can be patched; the hub compares what each
-server reports (`usage`: servers, projects, production branches and their names) with the plan and flags mismatches.
+server reports (`usage`: servers, projects, production branches and their names, instances by stage) with the plan and flags mismatches.
 
 ---
 
@@ -799,3 +800,16 @@ Staging and development instances send their e-mail to the mail catcher, `sudoo-
 | An e-mail's HTML attacks the person reading it | It is never put into the panel's page: it is served on its own address with `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src data:; ...; sandbox` (no scripts, no forms, no remote images or fonts, so no tracking pixel tells the sender it was opened) and shown in an `<iframe sandbox>` of the panel only (`frame-ancestors 'self'`). Inline images (`cid:`) are turned into `data:` addresses on the server. Attachments and the `.eml` always download as `application/octet-stream`. |
 | Caught e-mail leaves the server | Only by **Release**: administrators (`caught_mail.manage`), one typed address at a time, through the panel's own mailer, audit-logged with the address; `MAIL_CATCHER_RELEASE=false` switches it off. |
 | Caught e-mail piles up | Kept `MAIL_CATCHER_RETENTION_DAYS` (7), at most `MAIL_CATCHER_MAX_MESSAGES` (500) and `MAIL_CATCHER_MAX_MB` (200) per instance; a mailbox is deleted with its instance or when the instance moves to production. Files are mode 600 in a folder only root can open. |
+
+## 17. Support access
+
+Letting Sudoo.sh support into the panel for a while ([Admin guide](ADMIN_GUIDE.md#26-support-access)).
+
+| Threat | Protection |
+| :--- | :--- |
+| Support reaches the server without being asked | Nothing listens for it: no port, no SSH key, no shared secret. Support's requests come only as answers to the panel's own outbound calls to the hub, and only while a grant made by a super admin or administrator is active; without one the panel does not ask. |
+| Someone pretends to be the hub | Every answer of the support channel must carry the hub's Ed25519 signature over the request, its nonce and the body (the same checks as the heartbeat); anything else is dropped. Each request must also name an active grant of this panel and a session the hub says is open on it. |
+| Support does more than granted | Requests run as a synthetic user whose permissions are the grant's level minus accounts, tokens, teams, access and locks, GitHub, settings, plugins and support access itself (those paths are refused before the app sees them); the scope limits projects, branches and instances; locks never let it through. The hub checks the level too (view: reads only; shells only with the shell level). |
+| A grant outlives its purpose | It ends at its time (at most 3 days, `SUPPORT_ACCESS_MAX_HOURS`), on **Withdraw** or **End now**, or when `SUPPORT_ACCESS` goes off; the panel checks the grant on every request and every permission check, so the end is immediate on the panel and reaches the hub with the next call. Support shells close at once. Nothing support does can leave a way back in: it cannot create accounts, tokens, invitations, deploy keys or grants. |
+| A Sudoo.sh staff member's account is stolen | Each session needs a fresh code from that person's authenticator app (never a password or an e-mailed code), belongs to them alone, lasts at most an hour by default and never past the grant; staff need the `support_access.use` permission. |
+| Nobody knows what support did | Every change, refusal, session and shell is in the panel's activity log under "Sudoo.sh support (name)", marked as support; support shells are always recorded (encrypted, played by super admins); the hub keeps its own audit log of sessions, changes and shells, with the staff member's role and reason. |

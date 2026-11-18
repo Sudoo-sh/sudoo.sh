@@ -152,21 +152,25 @@ def production_branches(project: Mapping[str, Any]) -> list[str]:
 
 
 def production_limit() -> int:
-    """Production branches a project may have; 0: no limit. Later the plan's entitlement (licence)."""
+    """Production branches one project may have (PROJECT_PRODUCTION_BRANCHES); 0: no limit. The plan's own limit on
+    the whole panel is entitlements.production_refusal."""
     return int(settings.project_production_branches)
 
 
 def production_refusal(project: Mapping[str, Any], branch: str) -> str | None:
-    """Why `branch` may not become one more production branch of `project`, or None."""
+    """Why `branch` may not become one more production branch of `project`, or None: the project's limit, then the
+    plan's (entitlements.py: production branches of the whole panel, withheld production, an expired licence)."""
     limit = production_limit()
     current = [b for b in production_branches(project) if b != branch]
-    if not limit or len(current) < limit:
-        return None
-    return (
-        f"{project['name']} may have {limit} production {'branch' if limit == 1 else 'branches'}, and "
-        f"{', '.join(current)} {'is' if len(current) == 1 else 'are'} in production already. Move it to staging or "
-        "development first, or raise Production branches per project (Settings, Projects)."
-    )
+    if limit and len(current) >= limit:
+        return (
+            f"{project['name']} may have {limit} production {'branch' if limit == 1 else 'branches'}, and "
+            f"{', '.join(current)} {'is' if len(current) == 1 else 'are'} in production already. Move it to staging or "
+            "development first, or raise Production branches per project (Settings, Projects)."
+        )
+    from sudoo import entitlements  # late: entitlements counts every project's production branches
+
+    return entitlements.production_refusal(f"{project['id']}/{branch}")
 
 
 def option(project: Mapping[str, Any], key: str) -> Any:

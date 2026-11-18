@@ -134,6 +134,7 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
     case "marketplace":
       client.invalidateQueries({ queryKey: keys.marketplace });
       client.invalidateQueries({ queryKey: keys.plugins });
+      client.invalidateQueries({ queryKey: keys.plan });
       break;
     case "alert": {
       const alert = data as Alert;

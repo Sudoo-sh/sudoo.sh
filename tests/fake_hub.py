@@ -19,6 +19,7 @@ import base64
 import hashlib
 import io
 import json
+import re
 import threading
 import time
 import uuid
@@ -184,6 +185,10 @@ class FakeHub:
         self.now: float | None = None  # the hub's clock for leases (None: real time)
         self.heartbeats: list[dict[str, Any]] = []
         self.requests: list[str] = []
+        # the lease's "entitlements" claim (sudoo-hub docs/PLANS.md, "In the signed licence"); None: none, as before
+        self.entitlements: dict[str, Any] | None = None
+        # past the account's daily API quota: counted panel calls answer 429 api_quota_exceeded with Retry-After
+        self.quota_retry_after: int | None = None
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
@@ -307,6 +312,8 @@ class FakeHub:
             "flags": flags,
             "next_heartbeat": now + 900,
         }
+        if self.entitlements is not None:
+            claims["entitlements"] = {"valid_until": min(expires, now + 24 * 3600), **self.entitlements}
         signing_input = f"{b64url(json.dumps(header).encode())}.{b64url(json.dumps(claims).encode())}"
         return f"{signing_input}.{self.key.sign(signing_input.encode())}", {"licenses": licences, "flags": flags}
 
@@ -397,8 +404,19 @@ class FakeHub:
                 self.end_headers()
                 self.wfile.write(body)
 
-            def _problem(self, status: int, detail: str, code: str | None = None) -> None:
-                self._send(status, {"type": "about:blank", "status": status, "detail": detail, "code": code})
+            def _problem(self, status: int, detail: str, code: str | None = None, headers: dict[str, str] | None = None) -> None:  # fmt: skip
+                self._send(status, {"type": "about:blank", "status": status, "detail": detail, "code": code}, headers)
+
+            def _over_quota(self) -> bool:
+                """The hub's api_quota: a counted call past the daily quota answers 429 (PANEL_FREE are not)."""
+                free = ("/api/v1/register", "/api/v1/heartbeat", "/api/v1/licenses/validate",
+                        "/api/v1/installations/licence-acceptances", "/api/v1/keys")  # fmt: skip
+                path = urlsplit(self.path).path
+                if hub.quota_retry_after is None or path in free or path.startswith("/api/v1/commands/"):
+                    return False
+                self._problem(429, "This account has used its 10,000 hub API requests for today (UTC).",
+                              "api_quota_exceeded", {"Retry-After": str(hub.quota_retry_after)})  # fmt: skip
+                return True
 
             def _body(self) -> bytes:
                 return self.rfile.read(int(self.headers.get("Content-Length") or 0))
@@ -462,6 +480,8 @@ class FakeHub:
 
             def do_GET(self) -> None:  # noqa: N802 - the name http.server calls
                 hub.requests.append(f"GET {self.path}")
+                if self._over_quota():
+                    return None
                 path = urlsplit(self.path).path
                 query = parse_qs(urlsplit(self.path).query)
                 parts = path.strip("/").split("/")
@@ -548,6 +568,8 @@ class FakeHub:
             def do_POST(self) -> None:  # noqa: N802
                 hub.requests.append(f"POST {self.path}")
                 body = self._body()
+                if self._over_quota():
+                    return None
                 data = json.loads(body or b"{}")
                 if self.path == "/api/v1/register":
                     key = Ed25519PublicKey.from_public_bytes(unb64url(data["public_key"]))
@@ -562,6 +584,13 @@ class FakeHub:
                     installation = self._signed(body)
                     if installation is None:
                         return None
+                    usage = data.get("usage")
+                    if usage is not None:  # the hub's UsageIn is strict: only these fields, names as BranchName
+                        allowed = {"servers", "projects", "production_branches", "production_branch_names"}
+                        names_ok = all(re.match(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$", n)
+                                       for n in usage.get("production_branch_names") or [])  # fmt: skip
+                        if set(usage) - allowed or not names_ok:
+                            return self._problem(422, "usage: unknown field or a name the hub does not take.")
                     hub.heartbeats.append(data)
                     if data.get("hardware_fingerprint") != hub.fingerprints.get(installation):
                         hub.flagged.add(installation)

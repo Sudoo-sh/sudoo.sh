@@ -99,3 +99,24 @@ def admin(app: Flask, passwords: dict[str, str]) -> Iterator[tuple[FlaskClient, 
 @pytest.fixture
 def operator(app: Flask, passwords: dict[str, str]) -> Iterator[tuple[FlaskClient, dict[str, str]]]:
     yield from _signed_in(app, "sync1", passwords["operator"])
+
+
+@pytest.fixture(autouse=True)
+def unlimited_plan(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The tests run without a hub, which would mean the Free plan (entitlements.py): every test but those of the
+    plan itself runs as a panel whose plan allows everything, so the panel's own limits are what they test."""
+    if request.module.__name__ == "test_entitlements":
+        return
+    from sudoo import entitlements
+
+    unlimited = {
+        **entitlements.FREE,
+        "plan": "business",
+        "max_servers": None,
+        "max_production_branches": 1000,
+        "teams": True,
+        "features": dict.fromkeys(entitlements.FEATURES, True),
+    }
+    monkeypatch.setattr(
+        entitlements, "current", lambda: entitlements.Current(dict(unlimited), "hub", linked=True, account_name="t")
+    )

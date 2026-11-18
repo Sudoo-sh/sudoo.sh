@@ -60,7 +60,7 @@ from sudoo.projects import access, adopt, branches, staging
 from sudoo.repos import github, github_app
 
 from .. import validation as check
-from ..security import log, refuse_unless
+from ..security import log, refuse_unless, refuse_without_feature
 from . import instances as instances_api
 from .resources import job_resource
 from .responses import PREFIX, created, iso, no_content, ok
@@ -647,6 +647,8 @@ def change_access(project_id: str) -> Response:
         restricted = check.flag(rule, "restricted") is True
         if own or restricted:
             rules[str(branch)] = {"restricted": restricted, "grants": own}
+    if mode != "panel_roles" or grants or rules:  # clearing a project's access is always possible
+        refuse_without_feature("per_project_access", f"change the access of {project_id}")
     with projects.LOCK:
         current = projects.get(project_id) or found
         after = {**current, "access": {**access.access_of(current), "mode": mode, "grants": grants, "branches": rules}}

@@ -19,6 +19,11 @@ Answers
     status and the body's SHA-256 (crypto.verify_answer). An answer signed with a key the panel does not know yet
     makes it read the hub's keys once and check again. Anything else is treated as a failure (UnverifiedAnswer).
 
+A 429 `api_quota_exceeded` (the account used its daily hub API requests, sudoo-hub docs/PLANS.md) is remembered
+until its Retry-After (midnight UTC): until then the counted calls are refused without being sent, with a sentence
+that says when they work again; heartbeats, registration, keys, licence acceptances and command acknowledgements
+are never counted and always sent. Any other 429 carries its Retry-After in HubRefused.retry_after.
+
 A 401 `key_revoked` (the account owner revoked this server's key on app.sudoo.sh) makes the panel stop using its
 id and key: it makes a new identity, which registers again and must be linked again.
 
@@ -74,13 +79,45 @@ class UnverifiedAnswer(HubUnavailable):
 
 
 class HubRefused(Exception):
-    """The hub answered with a refusal (4xx): `status`, `code` (when the hub gives one) and `detail`."""
+    """The hub answered with a refusal (4xx): `status`, `code` (when the hub gives one) and `detail`;
+    `retry_after`: the seconds a 429 says to wait (Retry-After), else None."""
 
-    def __init__(self, status: int, detail: str, code: str | None = None) -> None:
+    def __init__(self, status: int, detail: str, code: str | None = None, retry_after: int | None = None) -> None:
         super().__init__(detail)
         self.status = status
         self.detail = detail
         self.code = code
+        self.retry_after = retry_after
+
+
+QUOTA_EXEMPT = ("/api/v1/heartbeat", "/api/v1/register", "/api/v1/keys", "/api/v1/licenses/validate",
+                "/api/v1/installations/licence-acceptances", "/api/v1/commands/")  # fmt: skip
+"""Calls the hub never counts toward the account's daily API quota (its licence never stops on the quota; the hub's
+api_quota.PANEL_FREE), and the hub's keys: they are sent even while the quota is used up."""
+QUOTA_KEY = "api_quota"
+QUOTA_MAX_WAIT = 2 * 86400
+
+
+def quota_wait(path: str, now: float | None = None) -> int:
+    """Seconds left before the hub takes counted calls again after a 429 (0: send)."""
+    if path.split("?", 1)[0].startswith(QUOTA_EXEMPT):
+        return 0
+    found = storage().get(COLLECTION, QUOTA_KEY) or {}
+    left = float(found.get("until") or 0) - (time.time() if now is None else now)
+    return int(left) + 1 if left > 0 else 0
+
+
+def quota_refusal(seconds: int, detail: str | None = None) -> HubRefused:
+    hours, minutes = divmod(max(1, seconds) // 60, 60)
+    when = f"{hours} h {minutes} min" if hours else f"{max(1, minutes)} min"
+    text = detail or "This Sudoo.sh account has used its hub API requests for today (UTC)."
+    return HubRefused(
+        429,
+        f"{text} The marketplace answers again in about {when} (at midnight UTC). Instances, installed plugins and "
+        "licences keep working; a bigger plan has a larger daily quota.",
+        "api_quota_exceeded",
+        seconds,
+    )
 
 
 def hub_url() -> str:
@@ -290,7 +327,7 @@ class _Sent:
     nonce: str
 
 
-def _problem(status: int, body: bytes) -> HubRefused:
+def _problem(status: int, body: bytes, headers: Mapping[str, str] | None = None) -> HubRefused:
     try:
         problem = json.loads(body)
     except ValueError:
@@ -299,7 +336,14 @@ def _problem(status: int, body: bytes) -> HubRefused:
         problem = {}
     detail = str(problem.get("detail") or problem.get("title") or f"The marketplace refused the request ({status}).")
     code = problem.get("code")
-    return HubRefused(status, detail[:500], str(code) if code else None)
+    retry = (headers or {}).get("retry-after", "")
+    retry_after = min(int(retry), QUOTA_MAX_WAIT) if retry.isdigit() else None
+    if status == 429:
+        retry_after = retry_after if retry_after is not None else 60
+        if code == "api_quota_exceeded":  # the account's daily quota: wait for it, whatever asks (hub docs/PLANS.md)
+            storage().put(COLLECTION, QUOTA_KEY, {"until": time.time() + retry_after, "detail": detail[:300]})
+            return quota_refusal(retry_after, detail[:300])
+    return HubRefused(status, detail[:500], str(code) if code else None, retry_after)
 
 
 def _open(request: urllib.request.Request, timeout: float) -> Any:
@@ -312,7 +356,11 @@ def _open(request: urllib.request.Request, timeout: float) -> Any:
 
 
 def _send(method: str, path: str, data: bytes | None, timeout: float, me: Identity | None = None) -> tuple[Any, _Sent]:
-    """Open a signed request (`path` starts with /api/v1); the response is not read yet."""
+    """Open a signed request (`path` starts with /api/v1); the response is not read yet. While the account's daily
+    API quota is used up (a 429 api_quota_exceeded said until when), counted calls are refused here, unsent."""
+    wait = quota_wait(path)
+    if wait:
+        raise quota_refusal(wait, str((storage().get(COLLECTION, QUOTA_KEY) or {}).get("detail") or "") or None)
     me = me or identity()
     body = data or b""
     signed = crypto.signed_headers(me.key, me.installation_id, method, path, body, int(time.time()))
@@ -368,8 +416,8 @@ def _exchange(
     return status, headers, raw, sent
 
 
-def _refused(status: int, raw: bytes, sent: _Sent) -> HubRefused:
-    refusal = _problem(status, raw)
+def _refused(status: int, raw: bytes, sent: _Sent, headers: Mapping[str, str] | None = None) -> HubRefused:
+    refusal = _problem(status, raw, headers)
     if status == 401 and refusal.code == "key_revoked":
         replace_identity(sent.installation_id)
     return refusal
@@ -381,7 +429,7 @@ def request(method: str, path: str, body: Any = None, *, timeout: float = TIMEOU
     status, headers, raw, sent = _exchange(method, path, body, timeout)
     _check(sent, status, headers, hashlib.sha256(raw).hexdigest())
     if status >= 400:
-        raise _refused(status, raw, sent)
+        raise _refused(status, raw, sent, headers)
     try:
         parsed = json.loads(raw) if raw else None
     except ValueError as error:
@@ -409,7 +457,7 @@ def fetch_bytes(path: str, max_bytes: int, timeout: float = TIMEOUT_SECONDS) -> 
         raise HubRefused(413, "The marketplace sent more than the panel accepts.")
     _check(sent, status, headers, hashlib.sha256(raw).hexdigest())
     if status >= 400:
-        raise _refused(status, raw, sent)
+        raise _refused(status, raw, sent, headers)
     return raw, headers.get("content-type", "").split(";")[0].strip().lower()
 
 
@@ -429,7 +477,7 @@ def download(path: str, target: Path, max_bytes: int, timeout: float = 120) -> d
             raw = response.read(MAX_JSON_BYTES)
         _check(sent, status, hub_headers, hashlib.sha256(raw).hexdigest())
         if status >= 400:
-            raise _refused(status, raw, sent)
+            raise _refused(status, raw, sent, hub_headers)
         if status not in (301, 302, 303, 307, 308):
             raise HubUnavailable("The marketplace sent an answer the panel does not understand.")
         location = hub_headers.get("location", "")

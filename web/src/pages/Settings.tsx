@@ -7,6 +7,7 @@ import { keys, useCall, useCapacity, useOffsite, useSettings } from "@/api/queri
 import { RESOURCE_KNOBS, type Setting, type Stage } from "@/api/types";
 import { LicenceSettings } from "@/components/LicenceSettings";
 import { MarketplaceSettings } from "@/components/Marketplace";
+import { PlanSettings } from "@/components/PlanSettings";
 import { Page, PageHead, useMe, useSubCrumb } from "@/components/Shell";
 import { Button, Callout, CopyField, Skeleton, Switch, Tag } from "@/components/ui/basics";
 import { Modal, useToast } from "@/components/ui/overlay";
@@ -18,7 +19,7 @@ import words from "@/i18n/settings";
 /** `test`: the group has a "Send a test alert" button, by e-mail or to that webhook. */
 type GroupId = Exclude<keyof (typeof words)["en"]["groups"], never>;
 type Group = { id: GroupId | `webhook${1 | 2 | 3}`; keys: string[]; test?: "email" | 1 | 2 | 3 };
-type TabId = "general" | "instances" | "resources" | "odoo" | "backups" | "security" | "domains" | "email" | "alerts" | "github" | "marketplace" | "advanced" | "about";
+type TabId = "plan" | "general" | "instances" | "resources" | "odoo" | "backups" | "security" | "domains" | "email" | "alerts" | "github" | "marketplace" | "advanced" | "about";
 
 const webhookGroup = (n: 1 | 2 | 3): Group => ({
   id: `webhook${n}`,
@@ -33,7 +34,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
     id: "general",
     groups: [
       { id: "contact", keys: ["admin_contact_name", "admin_contact_email", "admin_contact_phone", "brand_color", "default_language"] },
-      { id: "help", keys: ["support_url", "hub_support_url", "docs_url"] },
+      { id: "help", keys: ["support_url", "hub_support_url", "docs_url", "plan_pricing_url", "plan_account_url"] },
     ],
   },
   {
@@ -113,6 +114,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
   },
   { id: "github", groups: [{ id: "codeUpdates", keys: ["poll_minutes", "update_triggers", "github_webhook_secret"] }] },
   { id: "marketplace", groups: [] },
+  { id: "plan", groups: [] },
   { id: "advanced", groups: [{ id: "monitoring", keys: ["metrics_interval_seconds", "cloudflared_image"] }] },
   { id: "about", groups: [] },
 ];
@@ -590,6 +592,7 @@ export function SettingsPage() {
                 <MarketplaceSettings />
               </Section>
             )}
+            {tab === "plan" && <PlanSettings />}
             {tab === "about" && <LicenceSettings>{rows(["licence_required_version"])}</LicenceSettings>}
             {tab === "advanced" && (
               <>

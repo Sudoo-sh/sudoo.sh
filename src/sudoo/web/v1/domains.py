@@ -32,7 +32,7 @@ from sudoo.domains import dns
 from sudoo.instances import gateway, stages, store
 
 from .. import validation as check
-from ..security import log, require
+from ..security import log, refuse_without_feature, require
 from .instances import existing
 from .responses import PREFIX, iso, no_content, ok
 
@@ -124,6 +124,7 @@ def read(name: str) -> Response:
 @require("domains.manage")
 def add(name: str) -> Response:
     existing(name)
+    refuse_without_feature("custom_domains", f"add a custom domain to {name}")  # those added before keep serving
     value = check.text(check.body(), "domain", max_length=300)
     if not value:
         abort(400, "Enter the domain, such as erp.example.com.")

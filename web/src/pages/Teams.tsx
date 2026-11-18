@@ -7,6 +7,7 @@ import { Link } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useTeams, useUsers } from "@/api/queries";
 import type { Team } from "@/api/types";
+import { FeatureUpsell } from "@/components/PlanSettings";
 import { Page, PageHead } from "@/components/Shell";
 import { Button, Empty, Field, Skeleton, Tag } from "@/components/ui/basics";
 import { Menu, Modal, useToast } from "@/components/ui/overlay";
@@ -106,6 +107,7 @@ export function TeamsPage() {
       <PageHead title={t.title} actions={<Button variant="primary" icon={<Plus />} onClick={() => setEditing("new")}>{t.new}</Button>}>
         {t.lead}
       </PageHead>
+      <FeatureUpsell feature="teams" />
       <div className="card rise">
         {isPending ? (
           <div className="card-body"><Skeleton height={120} /></div>

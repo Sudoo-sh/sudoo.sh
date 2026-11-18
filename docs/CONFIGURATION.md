@@ -535,6 +535,8 @@ The **?** button at the top of every page opens the help panel. Settings page, *
 | `DOCS_URL` | text | `https://docs.sudoo.sh` | **live** | Where the panel's links to the documentation site go (`https://`; `http://` only for `localhost`). |
 | `SUPPORT_URL` | text | empty | **live** | Where **Contact support** goes while the panel is not linked to a Sudoo.sh account: an `https://` address (your own help desk) or `mailto:` and one address. Empty: an e-mail to `ADMIN_CONTACT_EMAIL`; when that is empty too, the panel names `ADMIN_CONTACT_NAME`. |
 | `HUB_SUPPORT_URL` | text | `https://app.sudoo.sh/support` | **live** | The help desk **Contact support** opens while the panel is linked to a Sudoo.sh account (Settings, Marketplace). |
+| `PLAN_PRICING_URL` | text | `https://sudoo.sh/pricing` | **live** | Where **Settings, Plan** and every message about a plan's limit send people to compare the Sudoo.sh plans (https). |
+| `PLAN_ACCOUNT_URL` | text | `https://app.sudoo.sh` | **live** | The account site where the linked account's plan is managed and, after a downgrade, the production branches to keep are chosen (`<address>/plan`) (https). |
 
 ---
 

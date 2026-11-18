@@ -24,7 +24,7 @@ from sudoo.config import Settings, live, settings
 from sudoo.core import events
 
 from .. import validation as check
-from ..security import log, refuse_unless, require
+from ..security import log, refuse_unless, refuse_without_feature, require
 from .responses import no_content, ok
 
 blueprint = Blueprint("settings", __name__)
@@ -109,6 +109,8 @@ def change() -> Response:
     values = check.body()
     if not values:
         abort(400, 'Send the settings to change, for example {"idle_hours": 4}.')
+    if values.get("offsite_backups") is True and not settings.offsite_backups:  # turning off-site copies on
+        refuse_without_feature("offsite_backups", "turn off-site copies on")
     _change(values)
     return ok(resource())
 

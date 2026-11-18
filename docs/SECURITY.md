@@ -509,6 +509,16 @@ storage, teams) depend on the role alone.
   waking a paused instance), while Odoo's own sign-in protects the database. A locked or hidden branch's running
   instance still answers at its link.
 
+### The plan's entitlements
+
+What the plan allows is read only from the **signed lease** (its `entitlements` claim, verified with the hub's keys
+like every lease; the plain JSON next to it is ignored), kept with its `valid_until` and compared with the panel's
+trusted clock (`trusted_now`: turning the clock back does not extend it). A panel that is not linked, never heard
+from the hub, or has `MARKETPLACE` off has the Free plan; a lease that cannot be verified changes nothing. When the
+entitlements expire, only new production branches are refused: nothing that runs is ever stopped or deleted, and a
+`production_keep` after a downgrade only changes stages. Self-hosted code can be patched; the hub compares what each
+server reports (`usage`: servers, projects, production branches and their names) with the plan and flags mismatches.
+
 ---
 
 ## 10. Instance containers

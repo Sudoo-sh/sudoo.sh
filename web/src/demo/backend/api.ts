@@ -2021,6 +2021,49 @@ route("DELETE", "/projects/:id/branches/:*branch/lock", ({ params }) => {
   return none();
 });
 
+// ---------------------------------------------------------------- the panel's plan (src/sudoo/entitlements.py)
+
+route("GET", "/plan", () => {
+  need("instances.view");
+  const names = new Set<string>();
+  for (const project of projects.values())
+    for (const branch of branchList(project, true)) if (branch.stage === "production") names.add(`${project.id}/${branch.name}`);
+  for (const instance of instances.values()) if (!instance.project && instance.stage === "production") names.add(instance.name);
+  const byStage = { production: 0, staging: 0, development: 0 };
+  for (const instance of instances.values()) byStage[instance.stage] += 1;
+  const limit = 5;
+  const used = names.size;
+  return ok({
+    plan: "pro",
+    source: "hub",
+    linked: true,
+    account_name: "Example Integrator",
+    received_at: iso(Date.now() - 6 * 60 * 1000),
+    valid_until: iso(Date.now() + 23 * HOUR),
+    entitlements: {
+      max_production_branches: limit,
+      max_servers: 2,
+      max_projects: null,
+      teams: true,
+      features: { per_project_access: true, custom_domains: true, offsite_backups: true },
+      support_level: "email",
+      addons: {},
+      period: "year",
+      renews_at: iso(OPENED + 210 * DAY),
+      trial_plan: null,
+    },
+    production_withheld: null,
+    banned: false,
+    over_limit: [],
+    usage: { servers: 1, projects: projects.size, production_branches: used, production_branch_names: [...names].sort(), instances_by_stage: byStage },
+    production_refusal: used >= limit ? `The Pro plan allows ${limit} production branches, and this panel has ${used}. Move one out of production, or get more production branches. See the plans at https://sudoo.sh/pricing, or manage yours at https://app.sudoo.sh.` : null,
+    production_keep: null,
+    leaving_production: [],
+    links: { pricing: "https://sudoo.sh/pricing", account: "https://app.sudoo.sh", keep: "https://app.sudoo.sh/plan" },
+    checked_at: iso(Date.now()),
+  });
+});
+
 // ---------------------------------------------------------------- dispatching
 
 const PUBLIC = ["/setup", "/contact", "/session", "/session/second-factor", "/invitation"];

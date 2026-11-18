@@ -38,6 +38,7 @@ import type {
   MetricsHistory,
   Permission,
   Plan,
+  PlanStatus,
   Project,
   ProjectAccess,
   ProjectDetail,
@@ -67,6 +68,7 @@ export const keys = {
   project: (id: string) => ["project", id] as const,
   projectAccess: (id: string) => ["project", id, "access"] as const,
   teams: ["teams"] as const,
+  plan: ["plan"] as const,
   instance: (name: string) => ["instance", name] as const,
   domains: (name: string) => ["domains", name] as const,
   mail: (name: string) => ["caught-mail", name] as const,
@@ -215,6 +217,8 @@ export const useMailTemplates = () =>
       return { templates: answer.data, mailReady: Boolean(answer.meta?.mail_ready) };
     },
   });
+/** The panel's Sudoo.sh plan (GET /plan); the live event "marketplace" (a heartbeat) refreshes it. */
+export const useSudooPlan = () => useQuery({ queryKey: keys.plan, queryFn: () => api.get<PlanStatus>("/plan"), staleTime: 60_000 });
 export const useTeams = (enabled = true) => useQuery({ queryKey: keys.teams, queryFn: () => api.get<Team[]>("/teams"), enabled });
 export const useProjectAccess = (id: string, enabled = true) =>
   useQuery({ queryKey: keys.projectAccess(id), queryFn: () => api.get<ProjectAccess>(`/projects/${encodeURIComponent(id)}/access`), enabled });

@@ -24,6 +24,7 @@ role (roles.py), and the same permission checks apply.
     offsite.py     off-site copies of backups: where they go, the signing key, checking and restoring copies
     github.py      deploy keys and repository checks
     docs.py        the documentation, for the web app's Help pages
+    plan.py        the panel's Sudoo.sh plan: entitlements, usage, where to manage it
     plugins.py     installed plugins and the marketplace (catalogue, purchases, linking)
     shell.py       the web shell: tickets, open and past shells, recordings
     events.py      the live event stream (Server-Sent Events), served on the asyncio loop
@@ -53,6 +54,7 @@ from . import (
     licence,
     mail_templates,
     offsite,
+    plan,
     plugins,
     projects,
     server,
@@ -99,6 +101,7 @@ def register(app: Flask) -> None:
         tokens,
         backups,
         offsite,
+        plan,
         github,
         docs,
         help_panel,

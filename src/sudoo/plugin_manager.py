@@ -624,6 +624,7 @@ def _hub_message(error: HubRefused) -> str:
     """The hub's refusal in the person's words (codes from the hub's panel contract)."""
     return {
         "link_required": "Link this panel to your Sudoo.sh account first (Settings, Marketplace).",
+        "api_quota_exceeded": error.detail,
         "license_required": "This panel has no licence for this plugin yet. Buy it first.",
         "lease_expired": "The marketplace has not heard from this panel recently. Try again in a minute.",
         "integrity_violation": "The marketplace refuses this panel: its core files differ from the released ones.",

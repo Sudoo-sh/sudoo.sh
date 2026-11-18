@@ -3094,6 +3094,34 @@
   "description": "The help desk Contact support opens when the panel is linked to a Sudoo.sh account (https)."
  },
  {
+  "key": "plan_pricing_url",
+  "env": "PLAN_PRICING_URL",
+  "value": "https://sudoo.sh/pricing",
+  "env_value": "https://sudoo.sh/pricing",
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "string",
+  "minimum": null,
+  "description": "Where the panel sends people to compare the Sudoo.sh plans (Settings, Plan, and every message about a plan's limit) (https)."
+ },
+ {
+  "key": "plan_account_url",
+  "env": "PLAN_ACCOUNT_URL",
+  "value": "https://app.sudoo.sh",
+  "env_value": "https://app.sudoo.sh",
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "string",
+  "minimum": null,
+  "description": "The account site where the plan of the linked account is managed and, after a downgrade, the production branches to keep are chosen (https)."
+ },
+ {
   "key": "marketplace",
   "env": "MARKETPLACE",
   "value": true,

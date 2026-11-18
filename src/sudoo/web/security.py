@@ -409,6 +409,16 @@ def require[**P, R](permission: str) -> Callable[[Callable[P, R]], Callable[P, R
     return decorate
 
 
+def refuse_without_feature(feature: str, what: str) -> None:
+    """403 when the panel's plan does not include `feature` (entitlements.py), with where to get it; audit-logged."""
+    from sudoo import entitlements
+
+    refused = entitlements.feature_refusal(feature)
+    if refused:
+        audit.record(g.user["name"], client_ip(), f"refused: {what} (plan)", ok=False, detail=refused[:300])
+        abort(403, refused)
+
+
 def log(event: str, instance: str | None = None, detail: str | None = None, ok: bool = True) -> None:
     """Audit-log an event of the signed-in user."""
     audit.record(g.user["name"], client_ip(), event, instance=instance, ok=ok, detail=detail)

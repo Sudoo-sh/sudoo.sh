@@ -136,6 +136,17 @@ class Settings(BaseSettings):
     mail_templates_dir: str = Field(
         "", description="Folder with a layout.html that replaces the built-in frame of every e-mail."
     )
+    invitation_hours: int = Field(
+        72, ge=1, le=720, description="Hours an invitation link works before it expires (it works once)."
+    )
+    invitation_password_fallback: Literal["no_mail", "always", "never"] = Field(
+        "no_mail",
+        description="When administrators may set a new account's password instead of inviting the person by e-mail: "
+        '"no_mail" (only while e-mail is not set up), "always" or "never".',
+    )
+    invitations_per_hour: int = Field(
+        20, ge=1, description="Invitations one administrator may send (new or again) per hour."
+    )
     recovery_codes_count: int = Field(
         10, ge=4, le=20, description="Recovery codes made for an account that uses an authenticator app."
     )
@@ -689,6 +700,9 @@ EDITABLE = (
     "smtp_password",
     "mail_templates_dir",
     "recovery_codes_count",
+    "invitation_hours",
+    "invitation_password_fallback",
+    "invitations_per_hour",
     "sign_in_email",
     "sign_in_email_opt_out",
     "cloudflared_image",

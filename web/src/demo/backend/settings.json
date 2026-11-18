@@ -574,6 +574,48 @@
   "description": "Folder with a layout.html that replaces the built-in frame of every e-mail."
  },
  {
+  "key": "invitation_hours",
+  "env": "INVITATION_HOURS",
+  "value": 72,
+  "env_value": 72,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "integer",
+  "minimum": 1,
+  "description": "Hours an invitation link works before it expires (it works once)."
+ },
+ {
+  "key": "invitation_password_fallback",
+  "env": "INVITATION_PASSWORD_FALLBACK",
+  "value": "no_mail",
+  "env_value": "no_mail",
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "string",
+  "minimum": null,
+  "description": "When administrators may set a new account's password instead of inviting the person by e-mail: \"no_mail\" (only while e-mail is not set up), \"always\" or \"never\"."
+ },
+ {
+  "key": "invitations_per_hour",
+  "env": "INVITATIONS_PER_HOUR",
+  "value": 20,
+  "env_value": 20,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "integer",
+  "minimum": 1,
+  "description": "Invitations one administrator may send (new or again) per hour."
+ },
+ {
   "key": "recovery_codes_count",
   "env": "RECOVERY_CODES_COUNT",
   "value": 10,

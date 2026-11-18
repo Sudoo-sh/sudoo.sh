@@ -14,7 +14,9 @@
     GET    /api/v1/audit?limit=&user=&instance=  the latest audit-log entries, newest first
 
 Only a super admin creates, changes or deletes super admins; there is always at least one. Accounts created or reset
-here choose their own password at their next sign-in, unless must_change_password is false.
+here choose their own password at their next sign-in, unless must_change_password is false. New people are normally
+invited by e-mail instead (invitations.py); POST /users is refused unless INVITATION_PASSWORD_FALLBACK allows it
+("no_mail", the default: only while e-mail is not set up).
 """
 
 from __future__ import annotations
@@ -23,8 +25,9 @@ from typing import Any
 
 from flask import Blueprint, Response, abort, g, request
 
-from sudoo import accounts, roles
+from sudoo import accounts, invitations, roles
 from sudoo.core import audit
+from sudoo.mail import mailer
 
 from .. import validation as check
 from ..security import log, require
@@ -110,6 +113,12 @@ def create_user() -> Response:
     data = check.body()
     role = check.one_of(check.text(data, "role"), roles.ROLES, "Choose a role from the list.")
     _guard(role)
+    if not invitations.password_allowed(mailer().ready):
+        abort(
+            400,
+            "Invite the person instead: they receive an e-mail and choose their own password "
+            "(INVITATION_PASSWORD_FALLBACK).",
+        )
     profile = _profile(data)
     if not profile.get("email"):
         abort(400, "Enter the person's e-mail address: they sign in with it.")

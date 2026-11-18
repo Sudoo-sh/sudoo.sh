@@ -232,7 +232,7 @@ An e-mail as `GET /mail-templates` lists it ([Admin guide, E-mail templates](ADM
 ```
 
 `kind` is `text`, `link` (an address, usable as a link target) or `block` (drawn by the panel, alone on its line).
-Keys: `sign_in_code`, `email_confirmation`, `sign_in_notice`, `alert`, `alert_digest`, `plugin_notice`, `test`.
+Keys: `sign_in_code`, `email_confirmation`, `sign_in_notice`, `invitation`, `alert`, `alert_digest`, `plugin_notice`, `test`.
 
 An alert, as `GET /alerts` lists it and the `alert` live event carries it ([Admin guide, Alerts](ADMIN_GUIDE.md#16-alerts)):
 
@@ -254,7 +254,13 @@ the web app. `resolved_at` is set when the problem is over. Webhooks are named b
 | :--- | :--- | :--- | :--- |
 | `GET /roles` | signed in | | 200, `{"roles": [{"name", "label", "description", "permissions"}], "permissions": {"<name>": "<what it allows>"}}` |
 | `GET /users` | `accounts.manage` | | 200, accounts (below) |
-| `POST /users` | `accounts.manage` | `{"email", "role"}` required; optional `first_name`, `last_name`, `phone`, `name` (made from the e-mail address when absent), `password` (generated when absent), `must_change_password` (default `true`) | **201**, the account with its `password`, shown once |
+| `POST /users` | `accounts.manage` | Only when `INVITATION_PASSWORD_FALLBACK` allows it (by default while e-mail is not set up; otherwise invite). `{"email", "role"}` required; optional `first_name`, `last_name`, `phone`, `name` (made from the e-mail address when absent), `password` (generated when absent), `must_change_password` (default `true`) | **201**, the account with its `password`, shown once |
+| `GET /invitations` | `accounts.manage` | | 200, invitations (`id`, `email`, `first_name`, `last_name`, `role`, `invited_by`, `sent_count`, `expired`, `invited_at`, `sent_at`, `expires_at`); `meta`: `mail_ready`, `password_allowed` (`POST /users` is allowed: `INVITATION_PASSWORD_FALLBACK`), `invitation_hours` |
+| `POST /invitations` | `accounts.manage` | `{"email", "role"}` required; optional `first_name`, `last_name` | **201**, the invitation; the link is e-mailed (never returned). 400 when e-mail is not set up, 429 beyond `INVITATIONS_PER_HOUR` |
+| `POST /invitations/<id>/resend` | `accounts.manage` | | 200, the invitation, with a new link and expiry (the old link stops working) |
+| `DELETE /invitations/<id>` | `accounts.manage` | | **204**: the link stops working |
+| `POST /invitation` | public | `{"token"}` (the part of the link after `#`) | 200, `{"email", "first_name", "last_name", "role", "role_label", "invited_by", "expires_at", "second_factor_required"}`; **410** for a used, replaced, revoked or expired link (counted like a wrong password) |
+| `POST /invitation/accept` | public | `{"token", "password", "first_name"}`; optional `last_name`, `phone` | **201**, signed in (as `GET /session`; `restricted: "second_factor"` when one is required); the link is used up |
 | `PATCH /users/<name>` | `accounts.manage` | any of `role`, `first_name`, `last_name`, `email`, `phone` (`""` clears one); also for your own account | 200, the account; a new role ends its sessions |
 | `POST /users/<name>/password` | `accounts.manage` | `{}` to generate one, or `{"password", "must_change_password"}` | 200, `{"password"}`, shown once; the account's sessions end |
 | `DELETE /users/<name>/second-factors` | `accounts.manage` | | **204**: removes the account's second factors and recovery codes (a lost phone) and signs it out |

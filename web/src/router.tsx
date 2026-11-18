@@ -33,6 +33,7 @@ const loading = (
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
+  { path: "/invite", lazy: page(() => import("./pages/Invite"), (m) => m.InvitePage), hydrateFallbackElement: loading },
   { path: "/setup", lazy: page(() => import("./pages/Setup"), (m) => m.SetupPage), hydrateFallbackElement: loading },
   {
     element: <RequireSession />,

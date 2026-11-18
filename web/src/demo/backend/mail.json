@@ -239,6 +239,68 @@
    }
   },
   {
+   "key": "invitation",
+   "name": "Invitation",
+   "description": "Invites a new person: they open the link, choose their password and sign in.",
+   "recipients": "The person invited (Accounts, Invite)",
+   "kicker": "Invitation",
+   "preheader": "{{ inviter }} invited you to Sudoo.sh as {{ role }}",
+   "default": {
+    "subject": "{{ inviter }} invited you to Sudoo.sh",
+    "title": "You are invited to Sudoo.sh",
+    "body": "Hello {{ name }},\n\n{{ inviter }} invited you to their Sudoo.sh panel as **{{ role }}**.\n\nOpen the link to choose your password and sign in.\n\n[Accept the invitation]({{ link }})\n\nThe link works once and until {{ expires }}. If it has expired, ask {{ inviter }} to send it again.\n\n> Not expecting this? You can ignore this e-mail: nothing happens unless the link is opened."
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person's first name, or their e-mail address",
+     "kind": "text"
+    },
+    {
+     "name": "inviter",
+     "description": "Who sent the invitation",
+     "kind": "text"
+    },
+    {
+     "name": "role",
+     "description": "The role the person will have",
+     "kind": "text"
+    },
+    {
+     "name": "expires",
+     "description": "When the link stops working",
+     "kind": "text"
+    },
+    {
+     "name": "hours",
+     "description": "How many hours the link works",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The link that accepts the invitation (works once)",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [
+    "link"
+   ],
+   "samples": {
+    "name": "Huda",
+    "inviter": "Sara Nassar",
+    "role": "Developer",
+    "expires": "Friday 21 November 2026, 09:41 UTC",
+    "hours": 72,
+    "link": "https://panel.example.com/invite#sample-link",
+    "panel_link": "https://panel.example.com"
+   }
+  },
+  {
    "key": "alert",
    "name": "Alert",
    "description": "One alert as it happens: a failed job, an instance down, a full disk... and when it is over.",

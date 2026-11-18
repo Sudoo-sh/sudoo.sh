@@ -158,6 +158,8 @@ PUBLIC_API = {
     ("GET", "/api/v1/contact"),
     ("POST", "/api/v1/session"),
     ("POST", "/api/v1/session/second-factor"),
+    ("POST", "/api/v1/invitation"),  # an invitee: who is invited, then accepting (web/v1/invitations.py)
+    ("POST", "/api/v1/invitation/accept"),
 }
 PUBLIC_API_PREFIXES = ("/api/v1/session/second-factor/",)  # sending a code, between the two sign-in steps
 RESTRICTED_PREFIXES = ("/api/v1/session", "/api/v1/account", "/api/v1/contact")  # all a restricted session opens

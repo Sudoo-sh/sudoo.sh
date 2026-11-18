@@ -2,7 +2,7 @@
 // same envelopes ({"data", "meta"}), 202 + the job for background work, 204 for deletions, RFC 9457 problem details
 // for errors, and the same permission checks per role. It changes the in-memory state and starts simulated jobs.
 
-import type { Account, Backup, CatalogPlugin, Instance, Job, Permission, Session, Stage, User } from "@/api/types";
+import type { Account, Backup, CatalogPlugin, Instance, Invitation, Job, Permission, Session, Stage, User } from "@/api/types";
 import { browserLocale, isLocale, storedLocale, type Locale } from "@/i18n";
 import { publish } from "./bus";
 import { docPage, DOCS } from "./docs";
@@ -939,6 +939,7 @@ function userOf(name: string): User {
 const generated = () => `demo ${["green", "quiet", "early", "silver"][Math.floor(Math.random() * 4)]} ${["harbour", "lantern", "meadow", "comet"][Math.floor(Math.random() * 4)]} ${Math.floor(Math.random() * 90 + 10)}`;
 route("POST", "/users", ({ body }) => {
   need("accounts.manage", "/api/v1/users");
+  if (!passwordAllowed()) throw new Problem(400, "Invite the person instead: they receive an e-mail and choose their own password (INVITATION_PASSWORD_FALLBACK).");
   const email = String(body.email ?? "").trim().toLowerCase();
   if (!email) throw new Problem(400, "Enter the person's e-mail address: they sign in with it.");
   if (users.some((u) => u.email?.toLowerCase() === email)) throw new Problem(400, "Another account already uses this e-mail address.");
@@ -990,6 +991,99 @@ route("DELETE", "/users/:name", ({ params }) => {
   record(ME, "account deleted", { detail: user.name });
   return none();
 });
+// ---------------------------------------------------------------- invitations
+// The demo sends no e-mail: each invitation carries its link (the real API never shows it), and the menu of an
+// invited person opens it. /invite#sample is the seeded invitation's link, for anyone who wants to see the page.
+
+type DemoInvitation = Invitation & { token: string };
+const invitations: DemoInvitation[] = [];
+const MAIL_READY = true; // the demo's e-mail settings are filled in
+const passwordAllowed = () => {
+  const rule = String(setting("invitation_password_fallback") ?? "no_mail");
+  return rule === "always" || (rule === "no_mail" && !MAIL_READY);
+};
+const invitationHours = () => Number(setting("invitation_hours") ?? 72);
+function makeInvitation(email: string, role: User["role"], first: string | null, last: string | null, token = hex(24), sentAgo = 0, by = ME): DemoInvitation {
+  const sent = Date.now() - sentAgo;
+  return {
+    id: hex(12), token, email, first_name: first, last_name: last, role, role_label: roleInfo(role).label, invited_by: by, sent_count: 1,
+    expired: sent + invitationHours() * HOUR < Date.now(), invited_at: iso(sent)!, sent_at: iso(sent)!, expires_at: iso(sent + invitationHours() * HOUR)!,
+    link: `/invite#${token}`,
+  };
+}
+invitations.push(
+  makeInvitation("huda.ali@example.com", "developer", "Huda", "Ali", "sample", 20 * HOUR),
+  makeInvitation("k.mansour@example.com", "viewer", null, null, hex(24), 4 * DAY, "omar"),
+);
+const shownInvitation = ({ token: _t, ...rest }: DemoInvitation): Invitation => ({ ...rest, expired: Date.parse(rest.expires_at) < Date.now() });
+function invitationOf(id: string): DemoInvitation {
+  const found = invitations.find((v) => v.id === id);
+  if (!found) throw new Problem(404, "No such invitation.");
+  if (found.role === "super_admin" && session.role !== "super_admin") throw new Problem(403, "Only a super admin can invite super admins.");
+  return found;
+}
+function validInvitation(token: unknown): DemoInvitation {
+  const found = invitations.find((v) => v.token === String(token ?? "").trim());
+  if (!found || Date.parse(found.expires_at) < Date.now())
+    throw new Problem(410, "This invitation link does not work: it was used, sent again, revoked or it expired. Ask for a new one.");
+  return found;
+}
+route("GET", "/invitations", () => {
+  need("accounts.manage", "/api/v1/invitations");
+  return ok(invitations.map(shownInvitation), { mail_ready: MAIL_READY, password_allowed: passwordAllowed(), invitation_hours: invitationHours() });
+});
+route("POST", "/invitations", ({ body }) => {
+  need("accounts.manage", "/api/v1/invitations");
+  const email = String(body.email ?? "").trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Problem(400, "Enter a valid e-mail address.");
+  if (users.some((u) => u.email?.toLowerCase() === email.toLowerCase())) throw new Problem(400, "An account already uses this e-mail address.");
+  if (invitations.some((v) => v.email.toLowerCase() === email.toLowerCase() && Date.parse(v.expires_at) > Date.now()))
+    throw new Problem(400, "This address is already invited. Send the invitation again from the list instead.");
+  const role = String(body.role ?? "viewer") as User["role"];
+  if (role === "super_admin" && session.role !== "super_admin") throw new Problem(403, "Only a super admin can invite super admins.");
+  const made = makeInvitation(email, role, String(body.first_name ?? "") || null, String(body.last_name ?? "") || null);
+  invitations.unshift(made);
+  record(ME, "invitation sent", { detail: `${email} (${roleInfo(role).label})` });
+  return created(shownInvitation(made));
+});
+route("POST", "/invitations/:id/resend", ({ params }) => {
+  need("accounts.manage");
+  const found = invitationOf(params.id!);
+  found.token = hex(24);
+  found.link = `/invite#${found.token}`;
+  found.sent_count += 1;
+  found.sent_at = iso(Date.now())!;
+  found.expires_at = iso(Date.now() + invitationHours() * HOUR)!;
+  record(ME, "invitation sent again", { detail: found.email });
+  return ok(shownInvitation(found));
+});
+route("DELETE", "/invitations/:id", ({ params }) => {
+  need("accounts.manage");
+  const found = invitationOf(params.id!);
+  invitations.splice(invitations.indexOf(found), 1);
+  record(ME, "invitation revoked", { detail: found.email });
+  return none();
+});
+route("POST", "/invitation", ({ body }) => {
+  const found = validInvitation(body.token);
+  const by = users.find((u) => u.name === found.invited_by);
+  return ok({
+    email: found.email, first_name: found.first_name, last_name: found.last_name, role: found.role, role_label: found.role_label,
+    invited_by: by?.display_name ?? found.invited_by, expires_at: found.expires_at, second_factor_required: false,
+  });
+});
+route("POST", "/invitation/accept", ({ body }) => {
+  const found = validInvitation(body.token);
+  if (!String(body.first_name ?? "").trim()) throw new Problem(400, "Enter your first name.");
+  if (String(body.password ?? "").length < 12) throw new Problem(400, "The password must be at least 12 characters long.");
+  invitations.splice(invitations.indexOf(found), 1);
+  // the demo has one person: accepting signs you in as them again (nothing here is real)
+  session.signedIn = true;
+  remember();
+  record(ME, "invitation accepted: account created", { detail: found.email });
+  return created(me());
+});
+
 route("GET", "/audit", ({ query }) => {
   need("audit.view", "/api/v1/audit");
   return ok(audit.slice(0, Number(query.get("limit") ?? 200)));
@@ -1215,7 +1309,7 @@ route("GET", "/marketplace/receipts", () => ok([]));
 
 // ---------------------------------------------------------------- dispatching
 
-const PUBLIC = ["/setup", "/contact", "/session", "/session/second-factor"];
+const PUBLIC = ["/setup", "/contact", "/session", "/session/second-factor", "/invitation"];
 
 export function remember() {
   try {

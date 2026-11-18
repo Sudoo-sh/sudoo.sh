@@ -37,7 +37,7 @@ concurrency:
 
 env:
   # Sudoo-sh/sudoo-installer, main after Sudoo-sh/sudoo-installer#3
-  INSTALLER_REF: 1930c78aca82d4630e68f660aa4629248fa49cec
+  INSTALLER_REF: 695bf818febcf12b912d498effac743f8ec70ad3
 
 jobs:
   version:
@@ -127,8 +127,9 @@ jobs:
           docker run --rm -v "$PWD/installer:/src:ro" -e TERM=dumb sudoo-installer-tests tests/run.sh
       - name: Build sudoo-install.sh
         run: |
-          installer/build.sh "$VERSION" dist/compose.yaml dist/env.example > dist/sudoo-install.sh
+          installer/build.sh "$VERSION" dist/compose.yaml dist/env.example LICENSE.md > dist/sudoo-install.sh
           grep -qx "SUDOO_RELEASE=\"$VERSION\"" dist/sudoo-install.sh
+          grep -qx "SUDOO_LICENCE_SHA256=\"$(sha256sum LICENSE.md | cut -d' ' -f1)\"" dist/sudoo-install.sh
           grep -qxF "    image: $PANEL" dist/sudoo-install.sh
           grep -qxF "    image: $WEB" dist/sudoo-install.sh
           docker run --rm -v "$PWD/dist:/dist:ro" sudoo-installer-tests shellcheck /dist/sudoo-install.sh
@@ -143,7 +144,7 @@ jobs:
         run: |
           root="$RUNNER_TEMP/root"
           mkdir -p "$root"
-          bash dist/sudoo-install.sh install --dry-run --force --yes --no-color --root-dir "$root" </dev/null | tee dry-run.log
+          bash dist/sudoo-install.sh install --dry-run --force --yes --accept-licence --no-color --root-dir "$root" </dev/null | tee dry-run.log
           grep -qF "$PANEL" dry-run.log
           grep -qF "$WEB" dry-run.log
           grep -qF "image: $PANEL" "$root/opt/odoo/manager/compose.yaml"

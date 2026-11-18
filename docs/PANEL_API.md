@@ -215,6 +215,9 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `PATCH /settings` | `settings.manage` | `{"idle_hours": 4}` | 200, the settings |
 | `DELETE /settings/<key>` | `settings.manage` | | **204**, back to the `.env` value |
 | `POST /settings/test-email` | `settings.manage` | `{"to": "you@example.com"}` | 200 `{"sent_to"}`; 400 when e-mail is not set up, 502 with the mail server's answer when sending fails |
+| `GET /licence/text` | public | | 200, the licence agreement this release bundles: `version`, `effective`, `sha256`, `url`, `version_url`, `statements`, `summary_html`, `summary_ar_html`, `html` ([Administrator Guide](ADMIN_GUIDE.md#22-the-licence-agreement)) |
+| `GET /licence` | signed in | | 200, `bundled_version`, `required_version`, `pending`, `update_needed`, `accepted` (the latest acceptance: version, time, who, declared use); with `settings.manage` also `history`: every acceptance with its address, browser and `synced_at`, and the installer's |
+| `POST /licence/acceptances` | a super admin's session | `{"accepted": true, "version", "sha256", "use": "personal"\|"company"\|"service_provider", "on_behalf", "language"}` | **201**, the licence state; 400 when the version or SHA-256 is not the bundled text's, or a company use without `"on_behalf": true`. While acceptance is pending, every other endpoint answers a super admin's session with 403 |
 | `GET /alerts?limit=50` | `audit.view` | | 200, the newest alerts first (1 to 200; the bell of the web app), see below |
 | `POST /alerts/test` | `settings.manage` | `{"channel": "email"}` or `{"channel": "webhook", "webhook": 1}` | 200 `{"alert", "sent_to"}` or `{"alert", "webhook", "status"}`, sent with the saved settings; **400** when there is nothing to send to (e-mail not set up, no recipient, the webhook has no address), **502** when the delivery failed, with the reason |
 | `GET /events` | signed in | | the live event stream ([Live events](#8-live-events)) |
@@ -462,7 +465,7 @@ to `/help/<path>`, the web app's Help pages.
 | Method and path | Permission | Body | Answer |
 | :--- | :--- | :--- | :--- |
 | `GET /setup` | public | | 200, `{"needed", "contact", "default_language"}`: whether the panel still has no account, and the server's default language (`en` or `ar`) |
-| `POST /setup` | public | `{"setup_code", "password", "first_name", "email"}` required; `last_name`, `phone`, `username` optional (made from `email` when absent) | **201**, signed in as the first account, a super admin ([10](#10-signing-in-from-a-web-app)) |
+| `POST /setup` | public | `{"setup_code", "password", "first_name", "email", "licence"}` required (`licence`: the acceptance of the licence agreement, as `POST /licence/acceptances` takes it); `last_name`, `phone`, `username` optional (made from `email` when absent) | **201**, signed in as the first account, a super admin ([10](#10-signing-in-from-a-web-app)) |
 | `GET /contact` | public | | 200, who to contact, and `default_language` |
 | `POST /session` | public | `{"username", "password"}`; `username` is the e-mail address (up to 254 characters) or the user name | **201**, the session (as `GET /session`); sets the session cookie. Or **200** with `second_factor` when a code is needed. **401** "Wrong e-mail address or password." |
 | `POST /session/second-factor` | public | `{"method", "code"}`; `"method": "recovery"` takes a recovery code (`"k7m2p-x9qrt"`, capitals, spaces and the dash optional) | **201**, signed in; each recovery code works once. **401** for a wrong or used code; wrong codes count like wrong passwords |

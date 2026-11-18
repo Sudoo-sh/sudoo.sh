@@ -1218,6 +1218,20 @@
   "description": "Language of the web app for accounts that have not chosen one: \"en\" or \"ar\"."
  },
  {
+  "key": "licence_required_version",
+  "env": "LICENCE_REQUIRED_VERSION",
+  "value": "1.0",
+  "env_value": "1.0",
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "string",
+  "minimum": null,
+  "description": "Oldest version of the Sudoo.sh Licence Agreement that counts: while no super admin has accepted it (or a later one), the next super admin to sign in must accept it before anything else. Instances keep running. It cannot be newer than the version this release bundles."
+ },
+ {
   "key": "rate_limiter",
   "env": "RATE_LIMITER",
   "value": "memory",

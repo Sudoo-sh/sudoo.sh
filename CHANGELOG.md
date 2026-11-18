@@ -8,6 +8,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Licence acceptance:** the panel asks for the Sudoo.sh Licence Agreement to be accepted. First-run setup starts
+  with a **Licence agreement** step: the agreement's summary (in Arabic, its Annex A), the full text of the copy this
+  release bundles (identical to `LICENSE.md`, a test checks it), a link to the published version, the declared use
+  (**Personal projects**, **My company**, **Service provider**) and, for a company, "I accept it on behalf of my
+  company, and I am authorised to bind it". On a server set up before 3.0, the first super admin to sign in sees
+  **Accept the licence agreement** before anything else; other people, API tokens and the instances carry on, and
+  instances keep running and serving. A new setting `LICENCE_REQUIRED_VERSION` (default `1.0`, never newer than the
+  bundled version) asks again when a new version is required. Each acceptance is recorded append-only (version,
+  SHA-256 of the text, time, address, browser, user, declared use, statements, language) and audit-logged. **Settings,
+  About** shows the bundled and required versions, who accepted and when, every acceptance (the installer's from
+  `/opt/odoo/manager/licence-acceptance.log` too) and the full text, with **Review and accept again**. A panel linked
+  to a Sudoo.sh account sends its acceptances to the hub, and keeps them for later while the hub does not take them
+  yet. API: `GET /licence/text` (public), `GET /licence`, `POST /licence/acceptances`; `POST /setup` takes
+  `licence`. The demo shows the setup step at `/setup` and the step for super admins.
 - **Resources per instance, production first under load:** instances have no processor or memory limit by
   default. Each instance's Odoo and database containers carry its stage's weights, which only act when the server is
   busy: processor weight (`cpu_shares` 4096 production, 2048 staging, 1024 development), a memory reservation for

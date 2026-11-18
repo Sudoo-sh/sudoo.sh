@@ -12,6 +12,7 @@ import { capacity, currentMetrics, history, listed, newProfile } from "./metrics
 import { applied, cleanLimits, markPending, resourcesOf, setOwn } from "./resources";
 import * as mail from "./mail";
 import * as offsite from "./offsite";
+import { acceptLicence, LICENCE, licencePending, licenceStatus } from "./licence";
 import { catalog, categories, marketplace, recommendations } from "./marketplace";
 import { endShell, issueTicket, recordingOf, shellOptions, shellSessions } from "./shell";
 import {
@@ -117,6 +118,7 @@ export function me(): Session {
     recovery_codes_needed: users.find((u) => u.name === ME)!.second_factors.includes("totp") && recovery.left === 0,
     brand_color: String(setting("brand_color") ?? "#714B67"),
     language: language(),
+    licence_required: role.name === "super_admin" && licencePending(),
   };
 }
 
@@ -186,10 +188,35 @@ function account(): Account {
   };
 }
 
-route("GET", "/setup", () => ok({ needed: false, contact: CONTACT, default_language: defaultLanguage() }));
+// first-run setup can be tried by opening /setup: the demo then answers as a panel without accounts, once
+let setUp = false;
+route("GET", "/setup", () => ok({ needed: !setUp && location.pathname === "/setup", contact: CONTACT, default_language: defaultLanguage() }));
 route("GET", "/contact", () => ok({ sentence: CONTACT, name: "Operations team", phone: "", email: "ops@example.com", default_language: defaultLanguage() }));
-route("POST", "/setup", () => {
-  throw new Problem(409, "This panel is set up already.");
+route("POST", "/setup", ({ body }) => {
+  if (setUp) throw new Problem(409, "This panel is set up already.");
+  if (!String(body.setup_code ?? "").trim()) throw new Problem(403, "The setup code is not correct. Show it again with: sudoo.sh setup-code");
+  if (!String(body.first_name ?? "").trim() || !String(body.email ?? "").includes("@")) throw new Problem(400, "Enter at least your first name and your e-mail address.");
+  switchRole("super_admin");
+  acceptLicence(body.licence, { user: ME, display_name: String(body.first_name), email: String(body.email) }, "panel_setup");
+  setUp = true;
+  session.signedIn = true;
+  remember();
+  record(ME, "first-run setup: super admin account created");
+  record(ME, "accepted the Sudoo.sh Licence Agreement", { detail: `version ${LICENCE.version}` });
+  return created(me());
+});
+route("GET", "/licence/text", () => ok(LICENCE));
+route("GET", "/licence", () => {
+  signedIn();
+  return ok(licenceStatus(can("settings.manage")));
+});
+route("POST", "/licence/acceptances", ({ body }) => {
+  signedIn();
+  if (session.role !== "super_admin") throw new Problem(403, "Only a super admin can accept the Sudoo.sh Licence Agreement for this panel.");
+  const self = me();
+  acceptLicence(body, { user: self.user, display_name: self.display_name, email: self.email }, "panel");
+  record(ME, "accepted the Sudoo.sh Licence Agreement", { detail: `version ${LICENCE.version}` });
+  return created(licenceStatus(true));
 });
 route("GET", "/session", () => {
   signedIn();

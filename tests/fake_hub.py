@@ -169,6 +169,8 @@ class FakeHub:
         self.commands: dict[str, dict[str, Any]] = {}  # id -> {kind, issued_at, payload, acked}
         self.acks: list[tuple[str, dict[str, Any]]] = []
         self.views: list[str] = []
+        # licence acceptances sent by panels; None: this hub does not take them (404), like hubs before they did
+        self.licence_acceptances: list[dict[str, Any]] | None = None
         self.reported: dict[str, str] = {}  # plugin id -> version, from the last heartbeat
         self.heartbeat_seen = False
         self.link_codes = {"LINKCODE42": "Ada's company"}
@@ -610,6 +612,11 @@ class FakeHub:
                     return None
                 if self.path == "/api/v1/installations/views":
                     hub.views.append(data.get("plugin_id", ""))
+                    return self._send(204)
+                if self.path == "/api/v1/installations/licence-acceptances":
+                    if hub.licence_acceptances is None:
+                        return self._problem(404, "Not found.")
+                    hub.licence_acceptances.extend(data.get("acceptances", []))
                     return self._send(204)
                 if self.path == "/api/v1/installations/install":
                     listing = hub.listings.get(data.get("plugin_id", ""))

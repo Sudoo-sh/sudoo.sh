@@ -34,6 +34,8 @@ export function RequireSession() {
   setCsrfToken(session.csrf_token);
   const task = session.restricted ? RESTRICTED_PAGE[session.restricted] : null;
   if (task && location.pathname !== task) return <Navigate to={task} replace />;
+  // a super admin accepts the licence agreement before anything else (the backend refuses the rest meanwhile)
+  if (!task && session.licence_required && location.pathname !== "/licence") return <Navigate to="/licence" replace />;
   return (
     <SessionContext.Provider value={session}>
       <Outlet />

@@ -44,6 +44,7 @@ const en = {
     github: "GitHub and updates",
     marketplace: "Marketplace",
     advanced: "Advanced",
+    about: "About",
   },
   groups: {
     contact: { title: "Contact and appearance", text: "Who people are told to contact, the accent colour of the panel and its e-mails, and the panel's language for accounts that have not chosen one" },
@@ -82,6 +83,7 @@ const en = {
   webhookFirst: "Alerts posted to Slack, Discord, Teams (their incoming webhook address) or your own system (signed JSON). https only",
   webhookOther: "Another place alerts are posted to",
   titles: {
+    licence_required_version: "Required licence version",
     require_second_factor: "Second factor required for",
     session_idle_minutes: "Sign out after inactivity, minutes",
     session_max_hours: "Longest session, hours",
@@ -239,6 +241,8 @@ const en = {
   } as Record<string, Record<string, string>>,
   /** the server's explanations, in English (the English page shows the server's own) */
   descriptions: {
+    licence_required_version:
+      "Oldest version of the Sudoo.sh Licence Agreement that counts. While no super admin has accepted it (or a later one), the next super admin to sign in must accept it before anything else. Instances keep running. It cannot be newer than the version this release bundles.",
     odoo_root: "Folder that holds instances, backups and panel data.",
     odoo_image: "Docker image of Odoo; the tag is the Odoo version.",
     odoo_versions: "Versions offered: \"auto\" (every published version of the official image from odoo_min_version) or a comma-separated list such as 17.0,18.0,saas-18.2.",
@@ -531,6 +535,7 @@ const ar: typeof en = {
     github: "GitHub والتحديثات",
     marketplace: "متجر الإضافات",
     advanced: "متقدّم",
+    about: "حول",
   },
   groups: {
     contact: { title: "التواصل والمظهر", text: "من يُطلب من الناس التواصل معه، ولون التمييز في اللوحة ورسائلها، ولغة اللوحة للحسابات التي لم تختر لغة" },
@@ -569,6 +574,7 @@ const ar: typeof en = {
   webhookFirst: "تنبيهات تُرسل إلى Slack أو Discord أو Teams (عنوان incoming webhook الخاص بها) أو إلى نظامك الخاص (JSON موقّع). عبر https فقط",
   webhookOther: "مكان آخر تُرسل إليه التنبيهات",
   titles: {
+    licence_required_version: "إصدار الترخيص المطلوب",
     require_second_factor: "عامل التحقق الثاني مطلوب من",
     session_idle_minutes: "تسجيل الخروج بعد عدم النشاط، بالدقائق",
     session_max_hours: "أطول جلسة، بالساعات",
@@ -725,6 +731,8 @@ const ar: typeof en = {
     ...webhookChoices("JSON موقّع (نظامك الخاص)"),
   },
   descriptions: {
+    licence_required_version:
+      "أقدم إصدار من اتفاقية ترخيص Sudoo.sh يُعتدّ به. ما دام لم يقبله مسؤول أعلى (أو إصداراً أحدث)، يجب على أول مسؤول أعلى يسجّل الدخول أن يقبله قبل أي شيء آخر. تبقى النسخ تعمل. لا يمكن أن يكون أحدث من الإصدار المرفق مع هذا الإصدار من اللوحة.",
     odoo_root: "المجلد الذي يضم البيئات والنسخ الاحتياطية وبيانات اللوحة.",
     odoo_image: "صورة Docker لـ Odoo؛ الوسم (tag) هو إصدار Odoo.",
     odoo_versions: "الإصدارات المعروضة: \"auto\" (كل إصدار منشور من الصورة الرسمية ابتداءً من odoo_min_version) أو قائمة مفصولة بفواصل مثل 17.0,18.0,saas-18.2.",

@@ -28,7 +28,7 @@ from urllib.parse import urlsplit
 from flask import Flask, Response, abort, g, redirect, request, session
 from flask.typing import ResponseReturnValue
 
-from sudoo import accounts, api_tokens, exposure, limits, roles
+from sudoo import accounts, api_tokens, exposure, licence, limits, roles
 from sudoo.config import settings
 from sudoo.core import audit
 
@@ -160,9 +160,11 @@ PUBLIC_API = {
     ("POST", "/api/v1/session/second-factor"),
     ("POST", "/api/v1/invitation"),  # an invitee: who is invited, then accepting (web/v1/invitations.py)
     ("POST", "/api/v1/invitation/accept"),
+    ("GET", "/api/v1/licence/text"),  # the agreement this release bundles, shown at first-run setup
 }
 PUBLIC_API_PREFIXES = ("/api/v1/session/second-factor/",)  # sending a code, between the two sign-in steps
 RESTRICTED_PREFIXES = ("/api/v1/session", "/api/v1/account", "/api/v1/contact")  # all a restricted session opens
+LICENCE_PREFIXES = (*RESTRICTED_PREFIXES, "/api/v1/licence")  # all a super admin can open before accepting it
 
 
 def _check_request() -> ResponseReturnValue | None:
@@ -200,6 +202,9 @@ def _authenticate_browser_call() -> None:
     task = session.get("restricted")
     if task and not request.path.startswith(RESTRICTED_PREFIXES):
         abort(403, "Choose your own password first." if task == "password" else "Set up a second factor first.")
+    if g.user["role"] == "super_admin" and not request.path.startswith(LICENCE_PREFIXES) and licence.pending():
+        # instances keep running and serving; only managing them waits for the acceptance (licence/__init__.py)
+        abort(403, "Accept the Sudoo.sh Licence Agreement first.")
     if request.method not in SAFE_METHODS and not hmac.compare_digest(
         request.headers.get("X-CSRF-Token", ""), session.get("csrf", "")
     ):

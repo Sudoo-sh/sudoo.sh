@@ -489,7 +489,9 @@ def test_the_gateway_answers_custom_domains_over_https(tmp_path: Path) -> None:
                 path = f"/.well-known/acme-challenge/{'t' * 43}"
                 async with session.get(f"http://127.0.0.1:{http_port}{path}", headers={"Host": pending}) as answer:
                     assert answer.status == 200 and await answer.text() == "t" * 43 + ".thumb"
-                async with session.get(f"http://127.0.0.1:{http_port}{path}", headers={"Host": "x.client-one.com"}) as a:
+                async with session.get(
+                    f"http://127.0.0.1:{http_port}{path}", headers={"Host": "x.client-one.com"}
+                ) as a:
                     assert a.status == 404
                 certificates.withdraw_challenge("t" * 43)
                 async with session.get(f"http://127.0.0.1:{http_port}{path}", headers={"Host": pending}) as answer:
@@ -500,8 +502,10 @@ def test_the_gateway_answers_custom_domains_over_https(tmp_path: Path) -> None:
                 os.utime(certificates.cert_file(DOMAIN), (0, 0))
                 certificates.store(DOMAIN, key2, chain2.decode())
                 async with session.get(
-                    f"https://127.0.0.1:{https_port}/", headers={"Host": DOMAIN},
-                    ssl=ssl.create_default_context(cadata=chain2.decode()), server_hostname=DOMAIN,
+                    f"https://127.0.0.1:{https_port}/",
+                    headers={"Host": DOMAIN},
+                    ssl=ssl.create_default_context(cadata=chain2.decode()),
+                    server_hostname=DOMAIN,
                 ) as answer:
                     assert answer.status == 200
             # no domains: no listeners

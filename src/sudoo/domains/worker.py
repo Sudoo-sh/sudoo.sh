@@ -153,7 +153,9 @@ def _issue(record: dict[str, Any], now: float) -> None:
             raise
         # the authority no longer knows the account (deactivated, or another authority at the same address)
         client.account_url = None
-        certificates.save_account(directory, key_pem, client.register(settings.acme_email or settings.admin_contact_email))
+        certificates.save_account(
+            directory, key_pem, client.register(settings.acme_email or settings.admin_contact_email)
+        )
         chain = client.certificate(domain, key, certificates.publish_challenge, certificates.withdraw_challenge)
     found = certificates.store(domain, acme.key_pem(key), chain)
     stored = _set(

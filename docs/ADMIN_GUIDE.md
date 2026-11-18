@@ -196,9 +196,9 @@ What it does, in order:
    Without a terminal it stops and prints the command to run again with `--yes` (also `--allow-all`).
 3. **Downloads the images** `ghcr.io/sudoo-sh/sudoo-panel` and `ghcr.io/sudoo-sh/sudoo-web`, pinned by digest in the
    installer, and checks their signatures when `cosign` is installed ([Security](SECURITY.md#13-releases-and-signatures)).
-4. **Writes the files**: `/opt/odoo/{manager,instances,enterprise}` (root only), `/opt/odoo/manager/.env` from the
-   release's settings template (values already there are kept), and `/opt/odoo/manager/compose.yaml`.
-5. **Starts** `sudoo-panel` and `sudoo-web` and waits until both are healthy.
+4. **Writes the files**: `/opt/odoo/{manager,instances,enterprise,gateway,mail}` (root only), `/opt/odoo/manager/.env`
+   from the release's settings template (values already there are kept), and `/opt/odoo/manager/compose.yaml`.
+5. **Starts** `sudoo-panel`, `sudoo-gateway`, `sudoo-mail` and `sudoo-web` and waits until all are healthy.
 6. Prints the panel's link and, on a new server, the **setup code** for the first account ([section 3](#3-the-first-account)).
 
 It keeps a copy of itself as `/opt/odoo/manager/installer/sudoo-install.sh`, on the path as **`sudoo-install`**.
@@ -220,7 +220,7 @@ Settings you want from the start (another `PANEL_PORT`, `EXPOSURE=host-ports`...
 Without the installer, on a server with Docker Engine 24+ and the Compose plugin:
 
 ```bash
-sudo install -d -m 700 /opt/odoo /opt/odoo/manager /opt/odoo/instances /opt/odoo/enterprise
+sudo install -d -m 700 /opt/odoo /opt/odoo/manager /opt/odoo/instances /opt/odoo/enterprise /opt/odoo/gateway /opt/odoo/mail
 cd /opt/odoo/manager
 sudo curl -fsSLO https://github.com/Sudoo-sh/sudoo.sh/releases/latest/download/compose.yaml
 sudo curl -fsSL -o .env https://github.com/Sudoo-sh/sudoo.sh/releases/latest/download/env.example
@@ -231,7 +231,8 @@ sudo docker exec sudoo-panel sudoo.sh urls
 sudo docker exec sudoo-panel sudoo.sh setup-code
 ```
 
-The release's `compose.yaml` names both images by digest. `SHA256SUMS` of the same release covers `compose.yaml` and
+The release's `compose.yaml` names both images by digest (`sudoo-panel`, `sudoo-gateway` and `sudoo-mail` run the
+panel's image). `SHA256SUMS` of the same release covers `compose.yaml` and
 `env.example`.
 
 ### From source
@@ -290,15 +291,17 @@ installed, its signature by that release's workflow (a missing or failing signat
    `compose.yaml`. The one exception: an `ODOO_ADMIN_PASSWORD` still set to the well-known `admin` is replaced by a
    random value (the old `.env` is in the backup of step 1). New instances get the new password; existing instances
    keep theirs until it is changed in the panel, and a password set on the Settings page still applies;
-4. recreates **only `sudoo-panel` and `sudoo-web`**, waits until both are healthy, and checks that every instance
-   and connector container is still the same container with the same start time.
+4. recreates **only the panel's own containers** (`sudoo-panel`, `sudoo-gateway`, `sudoo-mail` and `sudoo-web`; an
+   update from a release without the gateway service or the mail catcher adds them), waits until they are healthy, and
+   checks that every instance and connector container is still the same container with the same start time.
 
 | Kept | Replaced or restarted |
 | :--- | :--- |
-| Instances, their databases, files and links | `sudoo-panel` and `sudoo-web` (a few seconds) |
+| Instances, their databases, files and links | `sudoo-panel`, `sudoo-gateway`, `sudoo-mail` and `sudoo-web` (a few seconds) |
 | The connector containers, so every public link stays the same | `compose.yaml`; new settings in `.env` |
 | Accounts, API tokens, audit log (`sudoo.db`), deploy keys, vault key, secret key | |
 | Settings in `.env` and `settings.json` | |
+| Caught e-mails (`/opt/odoo/mail`) | |
 
 Running instances are not restarted. From version 3.0 on, the instances' gateway ports belong to their own container,
 `sudoo-gateway`, so the instances keep answering while `sudoo-panel` is recreated; while `sudoo-gateway` itself is
@@ -318,6 +321,8 @@ sudo sudoo-install update --rollback
 
 Puts back the images and `compose.yaml` of the version that ran before the last update (the `.env` stays). Running it
 again switches forward. The backup of `/opt/odoo/manager` taken by the update is there if data must go back too.
+Going back to a version without the mail catcher (or the gateway service) removes `sudoo-mail` (or `sudoo-gateway`);
+the caught e-mails stay in `/opt/odoo/mail` and are shown again after the next update.
 
 ### Following main (edge)
 
@@ -342,8 +347,9 @@ afterwards (they are in the backup), and the images built on the server are kept
 
 For a [manual installation](#manual-installation): download the new release's `compose.yaml` into
 `/opt/odoo/manager`, add the new keys of its `env.example` to `.env`, then
-`sudo docker compose pull && sudo docker compose up -d` there. `docker compose` only recreates `sudoo-panel`,
-`sudoo-gateway` and `sudoo-web`; never use `--remove-orphans` or restart the connectors.
+`sudo docker compose pull && sudo docker compose up -d` there (from a release without the mail catcher, first
+`sudo install -d -m 700 /opt/odoo/mail`). `docker compose` only recreates `sudoo-panel`, `sudoo-gateway`, `sudoo-mail`
+and `sudoo-web`; never use `--remove-orphans` or restart the connectors.
 
 ### Uninstalling
 
@@ -351,9 +357,9 @@ For a [manual installation](#manual-installation): download the new release's `c
 sudo sudoo-install uninstall
 ```
 
-Removes `sudoo-panel`, `sudoo-web`, their images, the Cloudflare connectors (the public links stop working) and the
-`sudoo-install` command, and stops the instances. `/opt/odoo` (settings, accounts, keys, backups) and the instances'
-databases and files are kept; installing again brings them back, with new links.
+Removes `sudoo-panel`, `sudoo-gateway`, `sudoo-mail`, `sudoo-web`, their images, the Cloudflare connectors (the public links stop working) and the
+`sudoo-install` command, and stops the instances. `/opt/odoo` (settings, accounts, keys, backups, caught e-mails) and
+the instances' databases and files are kept; installing again brings them back, with new links.
 
 `sudo sudoo-install uninstall --purge` also deletes every instance with its volumes and all of `/opt/odoo`. It asks you
 to type `DELETE` (`--yes` does not answer it). Docker stays installed.
@@ -953,7 +959,7 @@ second factors** on the Accounts page. If no administrator can sign in, create a
 
 After installing or updating:
 
-1. `docker ps` shows `sudoo-web`, `sudoo-panel`, `sudoo-gateway`, `sudoo-connector-panel`, and for each instance its connector, Odoo
+1. `docker ps` shows `sudoo-web`, `sudoo-panel`, `sudoo-gateway`, `sudoo-mail`, `sudoo-connector-panel`, and for each instance its connector, Odoo
    and database (paused and switched-off instances show only their connector).
 2. `docker exec sudoo-panel sudoo.sh urls` prints the panel's link and every instance's link.
 3. Open the panel's link and sign in (on a new server: the setup page, [section 3](#3-the-first-account)).

@@ -4,8 +4,8 @@
 **Covers:** what you may do with the Sudoo.sh name, logo and badges.
 
 "Sudoo", "Sudoo.sh", the Sudoo.sh logo (the ring, dot and text cursor on a rounded tile, in every colour) and the
-marketplace badges "Official" and "Verified" are trademarks of Yousef M. Y. Al Sabbah. The software licence
-([LICENSE.md](LICENSE.md)) covers the code only; it gives no right to use these marks.
+marketplace badges "Official" and "Verified" are trademarks of Yousef M. Y. Al Sabbah. The software licence, the
+Sudoo.sh Licence Agreement ([LICENSE.md](LICENSE.md)), covers the code only; it gives no right to use these marks.
 
 | You may | You may not |
 | :--- | :--- |
@@ -13,7 +13,7 @@ marketplace badges "Official" and "Verified" are trademarks of Yousef M. Y. Al S
 | Show the unchanged logo next to a link to sudoo.sh or this repository | Change the logo, or use it as your own product's logo or icon |
 | Write articles, tutorials and videos about Sudoo.sh | Suggest that Sudoo.sh made, reviewed, endorses or supports your work when it did not |
 | Use the name in a plugin's description ("for Sudoo.sh") | Show the "Official" or "Verified" badge on anything not published with it on marketplace.sudoo.sh |
-| Keep the name and logo in an unchanged copy you share under the licence | Keep the name or logo in a changed copy: rename it and remove the logo |
+| Keep the name and logo in the unchanged software you use under the licence | Show the name or logo on a changed copy as if it were the original |
 
 Questions, or a use that is not listed: open an issue in this repository.
 

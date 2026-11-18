@@ -105,14 +105,13 @@ Add a line under **Unreleased** in [CHANGELOG.md](CHANGELOG.md) for any change u
 
 ## Licence of contributions
 
-This project is published under the [PolyForm Noncommercial License 1.0.0](LICENSE.md), and the author also offers separate commercial licences. To keep both possible, every contribution has to be licensed in a way that allows it.
+This project is published under the [Sudoo.sh Licence Agreement 1.0](LICENSE.md), and the author may also offer it under separate signed agreements. To keep both possible, every contribution has to be licensed to the author in a way that allows it.
 
 By opening a pull request you confirm that:
 
 1. You have the right to submit the contribution (it is your own work, or you have permission to submit it), as certified by your `Signed-off-by` line.
-2. You license your contribution to the public under the PolyForm Noncommercial License 1.0.0, the same licence as the project.
-3. You also grant Yousef M. Y. Al Sabbah, the project's author, a perpetual, worldwide, non-exclusive, royalty-free, irrevocable licence to use, copy, modify, distribute and sublicense your contribution as part of the project under any licence terms, including commercial licences.
-4. You keep the copyright in your contribution.
+2. You grant Yousef M. Y. Al Sabbah, trading as Sudoo.sh, the project's author (and any successor to the Sudoo.sh business), a perpetual, worldwide, non-exclusive, royalty-free, irrevocable licence to use, copy, modify, distribute and sublicense your contribution as part of the project under any licence terms, including the Sudoo.sh Licence Agreement and commercial or signed agreements.
+3. You keep the copyright in your contribution.
 
 If you cannot agree to these terms, please open an issue to describe the change instead of sending code.
 

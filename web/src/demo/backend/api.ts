@@ -299,7 +299,7 @@ route("GET", "/instances/:name/credentials", ({ params }) => {
 route("GET", "/instances/:name/logs", ({ params, query }) => {
   need("instances.logs");
   const instance = instanceOf(params.name!);
-  return ok({ text: odooLog(instance, Math.min(Number(query.get("lines") ?? 300), 400)) });
+  return ok({ text: odooLog(instance, Math.min(Number(query.get("lines") ?? 300), 3000)) });
 });
 route("GET", "/instances/:name/metrics", ({ params }) => {
   need("instances.view");
@@ -319,6 +319,15 @@ function odooLog(instance: Instance, lines: number): string {
     const path = paths[n % paths.length]!;
     if (n % 37 === 0) out.push(`${stamp} 1 INFO ${db} odoo.addons.base.models.ir_cron: Job 'Mail: Email Queue Manager' (${n % 20}) done in 0.0${n % 9}s`);
     else if (n % 53 === 0) out.push(`${stamp} 1 WARNING ${db} odoo.http: Generating nondeterministic report for invoice INV/2026/0${n % 900}`);
+    else if (n % 89 === 0)
+      out.push(
+        `${stamp} 1 ERROR ${db} odoo.http: Exception during request handling.`,
+        "Traceback (most recent call last):",
+        '  File "/usr/lib/python3/dist-packages/odoo/http.py", line 2203, in __call__',
+        "    response = request._serve_db()",
+        `odoo.exceptions.ValidationError: The payment of order POS/${n % 900} does not match its total.`,
+      );
+    else if (n % 23 === 0) out.push(`${stamp} 1 DEBUG ${db} odoo.sql_db: query took 0.0${n % 90}s: SELECT "res_partner"."id" FROM "res_partner"`);
     else out.push(`${stamp} 1 INFO ${db} werkzeug: 198.51.100.${n % 200} - - "POST ${path} HTTP/1.1" 200 - ${n % 40} 0.0${n % 90} 0.${n % 300}`);
     t += 1000 + (n % 3000);
   }

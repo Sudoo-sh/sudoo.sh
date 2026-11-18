@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Log viewer:** the Odoo log, job logs (job drawer, instance creation) colour each line by level (errors red,
+  warnings amber, steps done and other success green, debug muted), read from the standard Odoo log format and the
+  jobs' markers; tracebacks keep their error's colour. A level filter with counts, search with highlighted matches and
+  next/previous (Enter, Shift+Enter), follow new lines (pauses when you scroll up), copy, and a full-screen view (Esc
+  leaves it, phones too). Logs stay left to right in Arabic; only the last 2,000 lines are drawn at first.
+
 - **Arabic in the web app (3.0.0):** the panel can be used in Arabic, right to left, as well as English. Each person
   chooses on **My account** or with the switch at the bottom of the sidebar; the choice is kept on the account
   (`PATCH /api/v1/account` `language`: `en`, `ar` or `null`; `GET /session` and `GET /account` return it), so it

@@ -10,7 +10,8 @@ import { ApiError } from "@/api/client";
 import { keys, useJob, useJobLog, useJobs } from "@/api/queries";
 import type { Instance, Job } from "@/api/types";
 import { Monogram } from "@/components/InstanceCard";
-import { JobSteps, Terminal } from "@/components/JobDrawer";
+import { JobSteps } from "@/components/JobDrawer";
+import { LogView } from "@/components/LogView";
 import { Page, useCan } from "@/components/Shell";
 import { Callout, Progress, Skeleton, Status, Tag } from "@/components/ui/basics";
 import { useT } from "@/i18n";
@@ -72,7 +73,7 @@ function TechnicalLog({ id, live }: { id: string; live: boolean }) {
         <h2>{t.technicalLog}</h2>
       </div>
       <div className="card-body">
-        <Terminal text={log?.text ?? ""} live={live} />
+        <LogView text={log?.text ?? ""} live={live} />
       </div>
     </section>
   );

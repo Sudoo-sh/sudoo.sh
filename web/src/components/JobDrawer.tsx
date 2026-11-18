@@ -1,43 +1,13 @@
 import { Check, X } from "lucide-react";
-import { useEffect, useRef } from "react";
 import { useJob, useJobLog } from "@/api/queries";
 import type { Job } from "@/api/types";
 import { useT } from "@/i18n";
 import instanceWords from "@/i18n/instance";
 import { jobTitle, stepTitle } from "@/i18n/jobs";
 import { ago, elapsed } from "@/lib/format";
+import { LogView } from "./LogView";
 import { Callout, Progress, Spinner, Status } from "./ui/basics";
 import { Drawer } from "./ui/overlay";
-
-function colour(line: string, index: number) {
-  if (line.startsWith("== ")) return <span key={index} className="step">{line + "\n"}</span>;
-  if (line.startsWith("$ ")) return <span key={index} className="cmd">{line + "\n"}</span>;
-  if (line.startsWith("[warning]")) return <span key={index} className="warn">{line + "\n"}</span>;
-  if (line.startsWith("ERROR") || /Traceback|Error:/.test(line)) return <span key={index} className="err">{line + "\n"}</span>;
-  return line + "\n";
-}
-
-export function Terminal({ text, live }: { text: string; live?: boolean }) {
-  const ref = useRef<HTMLPreElement>(null);
-  const stick = useRef(true);
-  useEffect(() => {
-    const el = ref.current;
-    if (el && stick.current) el.scrollTop = el.scrollHeight;
-  }, [text]);
-  return (
-    <pre
-      className="terminal"
-      ref={ref}
-      onScroll={(e) => {
-        const el = e.currentTarget;
-        stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-      }}
-    >
-      {text.trimEnd().split("\n").slice(-3000).map(colour)}
-      {live && <span className="cursor" />}
-    </pre>
-  );
-}
 
 /** A job's steps as a timeline: done, failed, or the one running now. */
 export function JobSteps({ job }: { job: Pick<Job, "steps"> }) {
@@ -96,7 +66,7 @@ export function JobDrawer({ id, onClose }: { id: string; onClose: () => void }) 
           ))}
           <JobSteps job={job} />
           <h2 className="small muted">{t.technicalLog}</h2>
-          <Terminal text={log?.text ?? ""} live={running} />
+          <LogView text={log?.text ?? ""} live={running} steps={job.steps} />
         </div>
       )}
     </Drawer>

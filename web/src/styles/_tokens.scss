@@ -38,6 +38,21 @@
   --series-2: #0f766e;
   --series-grid: rgb(23 23 23 / 0.06);
 
+  // logs: the terminal is dark in both themes, so its colours are chosen against it (WCAG AA, 4.5:1 or more on
+  // --log-bg); a line's level is also told by more than colour (errors and warnings have a mark at the line's start)
+  --log-bg: #0f0f10;
+  --log-text: #d4d4d8;
+  --log-error: #ff8a80;
+  --log-error-bg: rgb(255 92 80 / 0.1);
+  --log-warning: #f3c969;
+  --log-warning-bg: rgb(243 201 105 / 0.07);
+  --log-success: #6ee7a8;
+  --log-debug: #8e8e96;
+  --log-step: #e6c1dc;
+  --log-cmd: #7dd3c8;
+  --log-mark: rgb(243 201 105 / 0.35);
+  --log-mark-current: #f3c969;
+
   // type: the platform's own face first (SF on Apple devices, with its optical sizes), Inter elsewhere
   --font: "IBM Plex Sans Arabic", -apple-system, BlinkMacSystemFont, "Inter Variable", "Inter", "Segoe UI", system-ui, sans-serif;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono Variable", Menlo, Consolas, monospace;

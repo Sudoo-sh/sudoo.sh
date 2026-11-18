@@ -21,6 +21,7 @@
 12. [Checklist for the administrator](#12-checklist-for-the-administrator)
 13. [Releases and signatures](#13-releases-and-signatures)
 14. [Off-site copies](#14-off-site-copies)
+15. [Web shell](#15-web-shell)
 
 ---
 
@@ -436,6 +437,9 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `plugins.view` | See installed plugins, the marketplace and purchases | yes | yes | | | |
 | `settings.manage` | Change the panel's settings, install and buy plugins, and restart it | yes | | | | |
 | `mail.manage` | Change the texts of the e-mails the panel sends (E-mail templates) | yes | | | | |
+| `instances.shell` | Open a terminal in instances' Odoo containers, and `odoo shell` ([Web shell](#15-web-shell)) | yes | yes | `SHELL_ROLES` | `SHELL_ROLES` | |
+| `instances.database_shell` | Open `psql` in instances' database containers | yes | yes | | | |
+| `shells.supervise` | See open and past shells, end them, play their recordings | yes | | | | |
 
 * Only a **super admin** creates, changes, resets or deletes super admin accounts. The last super admin cannot be
   deleted or given another role, so there is always at least one.
@@ -685,3 +689,38 @@ what proves they were made by your panel.
 Configuring the storage needs `offsite.configure` (super admins only); restoring from a copy needs `offsite.restore`
 and `instances.restore`; deleting a copy needs `offsite.delete`. Each is audit-logged, as is every test of the
 storage, every check someone asks for, and every copy removed by the retention rules.
+
+---
+
+## 15. Web shell
+
+The Shell tab gives a person a terminal inside an instance's containers ([Administrator guide](ADMIN_GUIDE.md#21-web-shell)).
+That is as much power over the instance as the panel itself has, so it is guarded more than any other feature.
+
+### Threat model
+
+| Threat | What stops it |
+| :--- | :--- |
+| Someone without the right role opens a shell, or a role loses it while a shell is open. | Permissions `instances.shell` and `instances.database_shell`, checked when the ticket is asked for, again when the socket opens, and every 15 seconds while it is open (with `SHELL_ENABLED`, `SHELL_PRODUCTION`, `SHELL_ROOT`); a failed check closes the shell. Viewers never have them; `SHELL_ROLES` adds maintainers or developers to the Odoo container only. |
+| Another website opens a WebSocket with the visitor's cookie (cross-site WebSocket hijacking): browsers apply neither CORS nor the same-origin policy to WebSockets, and cookies go along. | The socket needs a **ticket**, which only an ordinary authenticated change can obtain: `POST .../shell/tickets` with the session cookie (SameSite=Strict), the panel's Origin and the `X-CSRF-Token` header, which another site cannot read or send. The socket also refuses any upgrade whose `Origin` is missing or not the panel's own address. |
+| A ticket leaks (logs, history, a shared screen) and is replayed. | A ticket is 32 random bytes, valid for `SHELL_TICKET_SECONDS` (15), used up when presented (even if refused), and accepted only with the cookie of the **same panel session** (same person, same session id) and for the same instance. Only its SHA-256 is kept, in memory. It travels as a WebSocket subprotocol, never in the address, so it is in no access log. |
+| A stolen or signed-out session keeps a shell open. | Signing out, a password change or a deleted account ends the panel session; the shell checks every 15 seconds and closes. The shell's own limits (idle 15 minutes, longest 60) apply whatever the session's. |
+| An API token opens a shell. | Refused for every scope: a shell is for a person in the panel. |
+| A shell reaches the server or the panel, or another instance's containers. | Commands run only through `docker exec` in a container whose name is exactly `odoo-<instance>-odoo-1` or `odoo-<instance>-db-1` and that carries the panel's labels for that instance and service; the instance name comes from the path and is checked against the allow-list. The panel's own container and the server are never targets. A container changed to be privileged, share the server's processes, network or IPC, or mount the Docker socket is refused. |
+| A shell escalates inside the container. | The containers are hardened ([Instance containers](#10-instance-containers)): every capability dropped (the database keeps a few for PostgreSQL), `no-new-privileges`, read-only system files, process and memory limits. Shells run as the container's own user (`odoo`, `postgres` for psql). Root is only for super admins and only when `SHELL_ROOT` is on; even then the capabilities stay dropped. |
+| A shell exhausts the server. | At most `SHELL_MAX_PER_USER` shells per person, `SHELL_MAX_PER_INSTANCE` per instance, 100 on the panel, 5 waiting tickets per person, and the API's rate limit on tickets. The programs run inside the container's memory, processor and process limits, at a lower priority (`nice 10`). Messages from the browser are at most 64 KB. |
+| Programs keep running after the shell (a backdoor started with `nohup`, a forgotten loop). | Docker cannot stop an `exec`'d process. Every process of a shell carries `SUDOO_SHELL=<id>` in its environment; when the shell closes, for any reason, the panel runs a short script in the same container, as the same user, that sends SIGHUP and then SIGKILL to every process with that mark. Shells open when the panel stopped are ended when it starts again. A program that deliberately clears its environment can escape this; it still lives only inside that container, within its limits, until the container restarts. |
+| Someone denies what they did. | `shell opened`, `shell closed` (duration, reason) and `shell refused` in the audit log, always. With `SHELL_RECORDING` (production instances and root shells by default) what was shown and typed is recorded, encrypted with the vault key, viewable by super admins only (each viewing logged), kept `SHELL_RECORDING_DAYS` and capped in size; when a recording is full only typing is recorded, and the shell closes when that is full too. |
+| A recording leaks a secret typed into a program. | Recordings are encrypted per line (AES-256-GCM, vault key, label per shell), mode 600, never sent anywhere, readable only through the API by super admins. Do not type passwords into recorded shells when you can avoid it. |
+| Inline styles or scripts injected through the terminal page. | The Content-Security-Policy stays as strict as everywhere (`style-src 'self'`, `script-src 'self'`): xterm.js is part of the panel (no CDN); the few `<style>` elements it writes are ignored by the browser and their text is applied through constructed stylesheets instead. |
+
+### What a shell does not protect against
+
+- A person allowed to open a shell in the Odoo container controls that instance: Odoo's configuration there holds
+  the database password, so they can also reach its database (`psql` from that container), read and change all its
+  data and files. The separate `instances.database_shell` permission keeps `psql` out of the menu for roles that do
+  not need it; it is not a wall between the two containers. Give shell access only to people you would give the
+  database to.
+- Commands typed in a shell take effect at once; there is no undo. Back up first (or rely on the daily backup).
+- A program started in a shell can use the instance's resources up to its container's limits and so slow or restart
+  that instance (never the others or the panel).

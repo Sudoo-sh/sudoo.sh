@@ -20,7 +20,9 @@ role (roles.py), and the same permission checks apply.
     github.py      deploy keys and repository checks
     docs.py        the documentation, for the web app's Help pages
     plugins.py     installed plugins and the marketplace (catalogue, purchases, linking)
+    shell.py       the web shell: tickets, open and past shells, recordings
     events.py      the live event stream (Server-Sent Events), served on the asyncio loop
+    shell_socket.py  the web shell's WebSocket, served on the same loop
 Answers follow the conventions in responses.py.
 """
 
@@ -47,6 +49,7 @@ from . import (
     server,
     session,
     settings,
+    shell,
     tokens,
     users,
 )
@@ -77,6 +80,7 @@ def register(app: Flask) -> None:
         github,
         docs,
         plugins,
+        shell,
     ):
         api.register_blueprint(module.blueprint)
     app.register_blueprint(api)

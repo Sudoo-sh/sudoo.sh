@@ -12,6 +12,7 @@ import { capacity, currentMetrics, history, listed, newProfile } from "./metrics
 import * as mail from "./mail";
 import * as offsite from "./offsite";
 import { catalog, categories, marketplace, recommendations } from "./marketplace";
+import { endShell, issueTicket, recordingOf, shellOptions, shellSessions } from "./shell";
 import {
   addBackup,
   alerts,
@@ -740,6 +741,36 @@ function ownDomain(instance: Instance, name: string) {
   if (!found) throw new Problem(404, "This instance has no such domain.");
   return found;
 }
+
+// ---------------------------------------------------------------- web shell (simulated: shell.ts)
+
+route("GET", "/instances/:name/shell", ({ params }) => {
+  need("instances.view");
+  return ok(shellOptions(instanceOf(params.name!)));
+});
+route("POST", "/instances/:name/shell/tickets", ({ params, body }) => {
+  const instance = instanceOf(params.name!);
+  try {
+    return created(issueTicket(instance, body));
+  } catch (error) {
+    record(ME, "shell refused", { instance: instance.name, ok: false, detail: error instanceof Error ? error.message : "" });
+    throw error;
+  }
+});
+route("GET", "/shells", ({ query }) => {
+  need("shells.supervise", "/shells");
+  const name = query.get("instance");
+  return ok(shellSessions(name ? instanceOf(name) : null));
+});
+route("DELETE", "/shells/:id", ({ params }) => {
+  need("shells.supervise", "/shells");
+  endShell(params.id!);
+  return none();
+});
+route("GET", "/shells/:id/recording", ({ params }) => {
+  need("shells.supervise", "/shells");
+  return ok(recordingOf(params.id!));
+});
 
 route("GET", "/instances/:name/domains", ({ params }) => {
   need("instances.view");

@@ -77,7 +77,7 @@ def list_roles() -> Response:
                     "name": name,
                     "label": role.label,
                     "description": role.description,
-                    "permissions": sorted(role.permissions),
+                    "permissions": sorted(roles.permissions(name)),
                 }
                 for name, role in roles.ROLES.items()
             ],

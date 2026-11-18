@@ -27,6 +27,7 @@ import {
   ScrollText,
   Settings2,
   ShieldCheck,
+  SquareTerminal,
   Trash2,
   Zap,
 } from "lucide-react";
@@ -40,6 +41,7 @@ import { LiveChart } from "@/components/charts/LiveChart";
 import { JobLine, Monogram } from "@/components/InstanceCard";
 import { StageTag } from "@/components/StageTag";
 import { DomainsTab } from "@/components/DomainsTab";
+import { ShellTab } from "@/components/shell/ShellTab";
 import { JobDrawer } from "@/components/JobDrawer";
 import { LogView } from "@/components/LogView";
 import { Page, useCan } from "@/components/Shell";
@@ -84,6 +86,7 @@ const TABS: { id: string; label: keyof (typeof words)["en"]["tabs"]; icon: React
   { id: "domains", label: "domains", icon: <Globe /> },
   { id: "settings", label: "settings", icon: <Settings2 />, permission: "instances.operate" },
   { id: "access", label: "access", icon: <KeyRound />, permission: "instances.credentials" },
+  { id: "shell", label: "shell", icon: <SquareTerminal />, permission: "instances.shell" },
 ];
 
 export function InstancePage() {
@@ -296,6 +299,7 @@ export function InstancePage() {
         {tab === "domains" && <DomainsTab instance={instance} />}
         {tab === "settings" && can("instances.operate") && <SettingsTab instance={instance} plain={plain} />}
         {tab === "access" && can("instances.credentials") && <AccessTab instance={instance} />}
+        {tab === "shell" && can("instances.shell") && <ShellTab instance={instance} />}
       </div>
 
       {jobId && <JobDrawer id={jobId} onClose={() => setJobId(null)} />}

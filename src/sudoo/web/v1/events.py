@@ -46,6 +46,7 @@ from sudoo.instances import gateway
 from sudoo.roles import permissions
 
 from ..security import api_caller, client_ip_of, user_of_session
+from . import shell_socket
 
 PATH = "/api/v1/events"
 FLASK_APP = web.AppKey("flask", Flask)
@@ -76,8 +77,9 @@ _OPEN: dict[str, int] = {}  # caller -> open streams; event loop thread only
 
 
 def start(flask_app: Flask) -> None:
-    """Serve the stream on the gateway's event loop (called when the panel starts)."""
+    """Serve the stream, and the shells' WebSockets, on the gateway's event loop (called when the panel starts)."""
     gateway.submit(_serve(make_app(flask_app)))
+    gateway.submit(shell_socket.end_left_over())
 
 
 async def _serve(app: web.Application) -> None:
@@ -90,6 +92,7 @@ def make_app(flask_app: Flask) -> web.Application:
     app = web.Application()
     app[FLASK_APP] = flask_app
     app.router.add_get(PATH, stream)
+    shell_socket.add_routes(app)  # the web shell's WebSockets (shell_socket.py) share this server
     return app
 
 

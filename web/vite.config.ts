@@ -43,6 +43,8 @@ export default defineConfig(({ mode }) => ({
     outDir: mode === "demo" ? "dist-demo" : "dist",
     target: "es2022",
     sourcemap: false,
+    // fonts stay files: the Content-Security-Policy (font-src 'self') refuses fonts inlined as data: addresses
+    assetsInlineLimit: (file: string) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
     chunkSizeWarningLimit: 600,
     rolldownOptions: {
       output: {

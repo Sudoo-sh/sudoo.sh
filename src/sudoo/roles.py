@@ -13,6 +13,11 @@ only a named set of permissions:
     developer     Developer       follows instances: gets new code, restarts, starts, adds submodules
     viewer        Viewer          sees instances, their activity and logs
 
+Shells (webshell/): super admins and administrators open terminals in instances' containers (instances.shell,
+instances.database_shell); the SHELL_ROLES setting adds maintainers, or maintainers and developers, for the Odoo
+container only (permissions() adds it); viewers never. Only super admins supervise shells (shells.supervise).
+SHELL_ENABLED off takes the shell permissions from everyone.
+
 Accounts of earlier versions are renamed once when the panel starts (storage/migrate.py): "admin" becomes a super
 admin, "operator" (the sync operator) a developer. API tokens act as an administrator (write scope), a viewer
 (read scope) or a connected app (instances scope).
@@ -29,6 +34,8 @@ stored role is checked against ROLES alone):
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+from sudoo.config import settings
 
 PERMISSIONS: dict[str, str] = {
     "instances.view": "See instances, their figures and activity",
@@ -51,6 +58,9 @@ PERMISSIONS: dict[str, str] = {
     "plugins.view": "See installed plugins, the marketplace and purchases",
     "settings.manage": "Change the panel's settings, install and buy plugins, and restart it",
     "mail.manage": "Change the texts of the e-mails the panel sends",
+    "instances.shell": "Open a terminal in instances' Odoo containers (odoo shell too)",
+    "instances.database_shell": "Open psql in instances' database containers",
+    "shells.supervise": "See open and past shells, end them and play their recordings",
 }
 
 
@@ -70,7 +80,7 @@ _MAINTAIN = _DEVELOP | {
     "instances.credentials",
     "github.manage",
 }
-_ADMIN = frozenset(PERMISSIONS) - {"settings.manage", "mail.manage", "offsite.configure"}
+_ADMIN = frozenset(PERMISSIONS) - {"settings.manage", "mail.manage", "offsite.configure", "shells.supervise"}
 
 ROLES: dict[str, Role] = {
     "super_admin": Role("Super admin", "Everything, including the panel's settings.", frozenset(PERMISSIONS)),
@@ -99,10 +109,22 @@ def normalize(role: str) -> str:
     return role if role in ROLES else "viewer"
 
 
+SHELL_PERMISSIONS = frozenset({"instances.shell", "instances.database_shell"})
+SHELL_ROLES = {"admins": (), "maintainers": ("maintainer",), "developers": ("maintainer", "developer")}
+"""Who else may open a shell in an Odoo container, by the SHELL_ROLES setting (super admins and administrators
+always may; viewers never)."""
+
+
 def permissions(role: str) -> frozenset[str]:
     if role in TOKEN_ROLES:
         return TOKEN_ROLES[role].permissions
-    return ROLES[normalize(role)].permissions
+    role = normalize(role)
+    found = ROLES[role].permissions
+    if not settings.shell_enabled:  # shells switched off: nobody has them (the Shell tab disappears)
+        return found - SHELL_PERMISSIONS
+    if role in SHELL_ROLES.get(settings.shell_roles, ()):
+        return found | {"instances.shell"}
+    return found
 
 
 def label(role: str) -> str:

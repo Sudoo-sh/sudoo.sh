@@ -17,6 +17,7 @@ const en = {
     domains: "Domains",
     settings: "Settings",
     access: "Access",
+    shell: "Shell",
   },
   head: {
     plain: "Plain Odoo, no repository",
@@ -331,6 +332,7 @@ const ar: typeof en = {
     domains: "النطاقات",
     settings: "الإعدادات",
     access: "الوصول",
+    shell: "الطرفية",
   },
   head: {
     plain: "Odoo مجرد، دون مستودع",

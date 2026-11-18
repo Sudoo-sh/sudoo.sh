@@ -30,6 +30,7 @@ domains and certificates, off-site copies of backups.
 18. [Sign-in e-mails and recovery codes](#18-sign-in-e-mails-and-recovery-codes)
 19. [Custom domains and certificates](#19-custom-domains-and-certificates)
 20. [Off-site copies](#20-off-site-copies)
+21. [Web shell](#21-web-shell)
 
 ---
 
@@ -1498,3 +1499,73 @@ The signing key is made on the server and kept like the panel's other secrets: e
 
 Back up `/opt/odoo/manager/offsite/` with the rest of the panel's data ([The panel itself](#the-panel-itself)); a new
 key can always be made, but copies signed with the old one then need its public key to be checked.
+
+---
+
+## 21. Web shell
+
+The **Shell** tab of an instance opens a terminal in the browser inside that instance's containers
+([User manual](USER_MANUAL.md#the-shell-tab)): bash in the Odoo container as the container's user `odoo`,
+`odoo shell` on the instance's database, or `psql` in its database container. It is on by default for super admins
+and administrators. How it is protected is in [Security](SECURITY.md#15-web-shell).
+
+### Who may open one
+
+| Setting (**Settings, Sign-in and security, Web shell**) | Default | What it does |
+| :--- | :--- | :--- |
+| `SHELL_ENABLED` | `true` | Off: nobody can open a shell, the tab disappears and open shells close within 15 seconds. |
+| `SHELL_ROLES` | `admins` | Who may open the Odoo container's terminal and `odoo shell`: `admins` (super admins and administrators), `maintainers` (and maintainers) or `developers` (and developers). Viewers never can. `psql` stays with super admins and administrators. |
+| `SHELL_PRODUCTION` | `super_admins` | Shells in production instances: `off` (nobody), `super_admins` or `allowed` (whoever may open shells elsewhere). Each production shell is confirmed when it is opened. |
+| `SHELL_ROOT` | `false` | Super admins may choose **As root** for the Odoo container's terminal. The container keeps every limit (capabilities dropped, no new privileges, read-only system files): root there cannot reach the server. |
+
+No API token can open a shell, whatever its scope: a shell is opened by a person in the panel.
+
+### Limits
+
+| Setting | Default | What it does |
+| :--- | :--- | :--- |
+| `SHELL_IDLE_MINUTES` | `15` | A shell nobody types in for this long closes (a notice a minute before). Output alone, such as `tail -f`, does not keep it open. |
+| `SHELL_MAX_MINUTES` | `60` | The longest a shell stays open, typing or not. |
+| `SHELL_MAX_PER_USER` | `2` | Shells one person may have open at once. |
+| `SHELL_MAX_PER_INSTANCE` | `3` | Shells open in one instance at once. |
+| `SHELL_TICKET_SECONDS` | `15` | How long the one-time ticket that connects a new shell stays valid. |
+
+At most 100 shells are open on the panel at once. A shell's programs run inside the instance's container, so the
+container's memory, processor and process limits (`ODOO_MEMORY_LIMIT`, `ODOO_CPU_LIMIT`, `CONTAINER_PIDS_LIMIT`,
+and the `DB_` ones) apply to them, and they run with a lower priority than Odoo itself (`nice 10`). A heavy command
+can still use the instance's memory up to its limit: that slows or restarts that instance, never the others.
+
+When a shell closes, for whatever reason (the person closed it, left the page, lost the connection, the idle or
+longest time, an administrator ended it, the panel stopped), every program started in it is ended, also those
+started in the background or with `nohup`: each carries the shell's id in its environment, and the panel sends them
+SIGHUP, then SIGKILL a second later. A shell left open when the panel crashed is ended the same way when it starts
+again.
+
+### Recordings
+
+| Setting | Default | What it does |
+| :--- | :--- | :--- |
+| `SHELL_RECORDING` | `production` | What is recorded: `off`, `production` (shells in production instances and root shells) or `all`. |
+| `SHELL_RECORDING_DAYS` | `30` | Days recordings, and the list of past shells, are kept. |
+| `SHELL_RECORDING_MAX_MB` | `5` | Largest recording of one shell. Beyond it only typing is recorded, and the shell closes when typing alone reaches the size again, so nobody escapes the recording by printing a lot. |
+| `SHELL_RECORDINGS_TOTAL_MB` | `500` | Space all recordings may take together; the oldest are deleted first. |
+
+A recording holds what was shown and what was typed (passwords typed into programs included), in the asciicast v2
+format, each line encrypted with the vault key, in `/opt/odoo/manager/shell-recordings/` (mode 600). Only super
+admins see the list of shells (**Shells in this instance** on the Shell tab) and play recordings; each playing is
+in the audit log. **Download (.cast)** saves a recording for `asciinema play`.
+
+### The audit log
+
+| Entry | Detail |
+| :--- | :--- |
+| `shell opened` | What was opened, as which container user, recorded or not, and the shell's id. |
+| `shell closed` | How long it was open and why it closed (`exit`, `closed`, `idle`, `max-length`, `not-allowed`, `ended`, `stopping`, `recording-full`, `error`). |
+| `shell refused` | A refused ticket or connection, with the reason (no permission, production rules, limits, wrong origin, expired ticket). |
+| `shell ended by a super admin`, `shell recording played` | Supervision by super admins. |
+
+### How it reaches the browser
+
+The terminal is a WebSocket on the same server as the live events (`127.0.0.1:EVENTS_PORT`); the web service
+forwards `/api/v1/instances/<name>/shell/socket` there. A proxy of your own in front of the panel must pass
+WebSocket upgrades (`Upgrade` and `Connection` headers) on that path; Cloudflare tunnels do.

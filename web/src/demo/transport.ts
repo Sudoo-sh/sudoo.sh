@@ -4,6 +4,7 @@
 
 import { answer } from "./backend/api";
 import { subscribe, type Topic } from "./backend/bus";
+import { DemoShellSocket } from "./backend/shell";
 import { roleInfo, session } from "./backend/state";
 import { websiteLink } from "./referrer";
 
@@ -162,8 +163,24 @@ function guardLinks() {
   );
 }
 
+/** The web shell's WebSocket (/api/v1/instances/<name>/shell/socket) answered by the simulated shell; any other
+ *  WebSocket is the browser's own. */
+function installWebSocket() {
+  const RealWebSocket = window.WebSocket;
+  const Demo = function (url: string | URL, protocols?: string | string[]) {
+    const address = new URL(String(url), location.href);
+    if (address.host === location.host && /^\/api\/v1\/instances\/[^/]+\/shell\/socket$/.test(address.pathname)) {
+      return new DemoShellSocket(url, protocols);
+    }
+    return new RealWebSocket(url, protocols);
+  } as unknown as typeof WebSocket;
+  Object.assign(Demo, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
+  window.WebSocket = Demo;
+}
+
 export function installTransport() {
   installFetch();
   installEventSource();
+  installWebSocket();
   guardLinks();
 }

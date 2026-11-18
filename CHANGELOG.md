@@ -25,6 +25,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   admins), `offsite.restore` and `offsite.delete` (administrators and super admins). Requests are signed with AWS
   Signature Version 4 by the panel itself (no new dependency). API: `/offsite`, `/offsite/test`, `/offsite/scan`,
   `/offsite/public-key`, `/offsite/copies` with `verify`, `retry`, `restore` and `DELETE`.
+
+- **Web shell (3.0.0):** a **Shell** tab on an instance's page opens a terminal in the browser (xterm.js, served by
+  the panel, no CDN) inside the instance's own containers: bash in the Odoo container as its user `odoo`, an
+  **odoo shell** on the instance's database, or **psql** in its database container. Copy and paste
+  (Ctrl+Shift+C/V, ⌘C/V), clear, full screen, reconnect, light and dark terminal colours, the panel's monospace font,
+  always left to right; a notice on phones. Security first: new permissions `instances.shell` and
+  `instances.database_shell` (super admins and administrators; `SHELL_ROLES` can add maintainers or developers for
+  the Odoo container, never viewers) and `shells.supervise` (super admins); production shells confirmed every time
+  and by default for super admins only (`SHELL_PRODUCTION`); root only for super admins when `SHELL_ROOT` is on
+  (off by default). The WebSocket opens only with a one-time ticket (`POST /instances/<name>/shell/tickets`, an
+  authenticated change with the CSRF token), valid `SHELL_TICKET_SECONDS` (15), bound to the person, the panel
+  session and the instance, offered as a subprotocol, and only from the panel's own Origin; rules are checked again
+  when it opens and every 15 seconds. Shells reach only the instance's labelled containers (never the panel or the
+  server; containers changed to be privileged or to reach the host are refused). Idle and longest time
+  (`SHELL_IDLE_MINUTES` 15, `SHELL_MAX_MINUTES` 60), shells per person and per instance (`SHELL_MAX_PER_USER` 2,
+  `SHELL_MAX_PER_INSTANCE` 3); programs run within the container's limits at a lower priority, and **every process
+  of a shell is ended when it closes**, background ones included (also after a panel crash). Audit entries `shell
+  opened`, `shell closed` (duration, reason), `shell refused`; recordings of what is shown and typed
+  (`SHELL_RECORDING`: production instances and root shells by default), encrypted with the vault key, capped
+  (`SHELL_RECORDING_MAX_MB`, `SHELL_RECORDINGS_TOTAL_MB`) and kept `SHELL_RECORDING_DAYS`; super admins see the
+  shells of an instance, end open ones and play or download recordings (asciicast). API: `GET /instances/<name>/shell`,
+  `POST /instances/<name>/shell/tickets`, the socket `/instances/<name>/shell/socket`, `GET /shells`,
+  `DELETE /shells/<id>`, `GET /shells/<id>/recording`. The demo has a simulated shell. Fonts are no longer inlined
+  into the stylesheet as `data:` addresses, which the Content-Security-Policy refused.
+
 - **Invitations:** new people are invited by e-mail instead of being given a password. **Accounts, Invite** takes
   the e-mail address and role (name optional) and e-mails a link (new e-mail "Invitation" on the E-mail templates
   page) that works once and for `INVITATION_HOURS` (72 by default); only a hash of it is stored. The invitee chooses

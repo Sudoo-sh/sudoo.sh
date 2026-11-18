@@ -33,7 +33,9 @@ const ALL: Permission[] = [
   "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "instances.restore",
   "instances.delete", "instances.credentials", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
   "audit.view", "plugins.view", "settings.manage", "mail.manage", "offsite.configure", "offsite.restore", "offsite.delete",
+  "instances.shell", "instances.database_shell", "shells.supervise",
 ];
+const SHELL: Permission[] = ["instances.shell", "instances.database_shell"];
 
 export const PERMISSIONS: Record<Permission, string> = {
   "instances.view": "See instances, their figures and activity",
@@ -56,16 +58,25 @@ export const PERMISSIONS: Record<Permission, string> = {
   "offsite.configure": "Set up where off-site copies go, and test it",
   "offsite.restore": "Restore an instance from an off-site copy (it is downloaded and verified first)",
   "offsite.delete": "Delete off-site copies",
+  "instances.shell": "Open a terminal in instances' Odoo containers (odoo shell too)",
+  "instances.database_shell": "Open psql in instances' database containers",
+  "shells.supervise": "See open and past shells, end them and play their recordings",
 };
 
 export const ROLES: RoleInfo[] = [
   { name: "super_admin", label: "Super admin", description: "Everything, including the panel's settings.", permissions: ALL },
-  { name: "admin", label: "Administrator", description: "Everything except the panel's settings and e-mail texts.", permissions: ALL.filter((p) => p !== "settings.manage" && p !== "mail.manage" && p !== "offsite.configure") },
+  { name: "admin", label: "Administrator", description: "Everything except the panel's settings and e-mail texts.", permissions: ALL.filter((p) => p !== "settings.manage" && p !== "mail.manage" && p !== "offsite.configure" && p !== "shells.supervise") },
   { name: "maintainer", label: "Maintainer", description: "Creates instances and runs every action on them except deleting.", permissions: MAINTAIN },
   { name: "developer", label: "Developer", description: "Gets new code, restarts and starts instances, adds submodules.", permissions: DEVELOP },
   { name: "viewer", label: "Viewer", description: "Sees instances, their activity and logs.", permissions: VIEW },
 ];
-export const roleInfo = (role: Role) => ROLES.find((r) => r.name === role) ?? ROLES[4]!;
+/** A role with its permissions as the settings make them: SHELL_ENABLED and SHELL_ROLES (as roles.permissions). */
+export const roleInfo = (role: Role): RoleInfo => {
+  const found = ROLES.find((r) => r.name === role) ?? ROLES[4]!;
+  if (setting("shell_enabled") === false) return { ...found, permissions: found.permissions.filter((p) => !SHELL.includes(p)) };
+  const extra = { admins: [], maintainers: ["maintainer"], developers: ["maintainer", "developer"] }[String(setting("shell_roles")) as "admins"] ?? [];
+  return (extra as string[]).includes(found.name) ? { ...found, permissions: [...found.permissions, "instances.shell"] } : found;
+};
 
 // ---------------------------------------------------------------- repositories on GitHub
 

@@ -22,19 +22,19 @@ Everything about Sudoo.sh, in one place. The same pages are on GitHub and inside
 
 | I want to... | Where |
 | :--- | :--- |
-| Create an instance | [User manual: Creating an instance](USER_MANUAL.md#4-creating-an-instance) |
-| Give a private repository to the server | [User manual: GitHub access](USER_MANUAL.md#7-github-access-private-repositories) |
-| Get a developer's latest push into an instance | [User manual: Keeping the code up to date](USER_MANUAL.md#5-keeping-the-code-up-to-date) |
-| Add an OCA repository | [User manual: Submodules](USER_MANUAL.md#6-submodules) |
+| Create an instance | [User manual: Creating an instance](USER_MANUAL.md#5-creating-an-instance) |
+| Give a private repository to the server | [User manual: GitHub access](USER_MANUAL.md#8-github-access-private-repositories) |
+| Get a developer's latest push into an instance | [User manual: Keeping the code up to date](USER_MANUAL.md#6-keeping-the-code-up-to-date) |
+| Add an OCA repository | [User manual: Submodules](USER_MANUAL.md#7-submodules) |
 | Understand a status (Paused, Switched off...) | [User manual: Statuses](USER_MANUAL.md#statuses) |
-| Read the charts on the Instances page | [User manual: The Instances page](USER_MANUAL.md#2-the-instances-page) |
-| Create an account or set a new password | [User manual: Accounts and roles](USER_MANUAL.md#8-accounts-and-roles) |
+| Read the charts on the Instances page | [User manual: The Instances page](USER_MANUAL.md#3-the-instances-page) |
+| Create an account or set a new password | [User manual: Accounts and roles](USER_MANUAL.md#9-accounts-and-roles) |
 | Know which passwords are accepted | [User manual: Password rules](USER_MANUAL.md#password-rules) |
 | Find the current links after a restart | [Administrator guide: Links](ADMIN_GUIDE.md#7-public-links) |
-| Choose how long an instance lives | [User manual: Creating an instance](USER_MANUAL.md#4-creating-an-instance), step 8 |
+| Choose how long an instance lives | [User manual: Creating an instance](USER_MANUAL.md#5-creating-an-instance), step 8 |
 | Restore an instance from a backup | [User manual: The Backups card](USER_MANUAL.md#the-backups-card) |
-| Find or download a backup, or know when backups are taken | [User manual: Backups and audit log](USER_MANUAL.md#10-backups-and-audit-log) |
-| Change the time of the daily backups | [User manual: Settings](USER_MANUAL.md#11-settings), group **Backups** |
+| Find or download a backup, or know when backups are taken | [User manual: Backups and audit log](USER_MANUAL.md#11-backups-and-audit-log) |
+| Change the time of the daily backups | [User manual: Settings](USER_MANUAL.md#12-settings), group **Backups** |
 | Back up an instance or the panel | [Administrator guide: Backups](ADMIN_GUIDE.md#10-backups) |
 | Add a new Enterprise version | [Administrator guide: Enterprise add-ons](ADMIN_GUIDE.md#9-odoo-enterprise-add-ons) |
 | Fix a problem | [Administrator guide: Troubleshooting](ADMIN_GUIDE.md#13-troubleshooting) |

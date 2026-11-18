@@ -6,10 +6,12 @@ import type { createBrowserRouter } from "react-router";
 
 type Router = ReturnType<typeof createBrowserRouter>;
 
-/** The page a path belongs to, without its tab: /i/<name>/activity -> /i/<name>, /plugins/store -> /plugins. */
+/** The page a path belongs to, without its tab: /i/<name>/activity -> /i/<name>, /projects/<id>/settings
+ *  -> /projects/<id>, /plugins/store -> /plugins. */
 export function pageOf(pathname: string): string {
   const parts = pathname.split("/").filter(Boolean);
   if (parts[0] === "i" && parts[1]) return `/i/${parts[1]}`;
+  if (parts[0] === "projects" && parts[1] && parts[1] !== "new") return `/projects/${parts[1]}`;
   if (parts[0] === "plugins") return "/plugins";
   return pathname;
 }

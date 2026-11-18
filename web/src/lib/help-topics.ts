@@ -4,6 +4,9 @@
 // here against docs/ (keep each entry as ["<path>", "<anchor>"] on one line).
 
 export type Topic =
+  | "projects"
+  | "project"
+  | "newProject"
   | "instances"
   | "newInstance"
   | "overview"
@@ -28,12 +31,15 @@ export type Topic =
   | "other";
 
 export const TOPIC_DOCS: Record<Topic, [string, string]> = {
-  instances: ["docs/USER_MANUAL.md", "2-the-instances-page"],
-  newInstance: ["docs/USER_MANUAL.md", "4-creating-an-instance"],
-  overview: ["docs/USER_MANUAL.md", "3-an-instances-page"],
+  projects: ["docs/USER_MANUAL.md", "the-projects-page"],
+  project: ["docs/USER_MANUAL.md", "a-projects-page"],
+  newProject: ["docs/USER_MANUAL.md", "creating-a-project"],
+  instances: ["docs/USER_MANUAL.md", "3-the-instances-page"],
+  newInstance: ["docs/USER_MANUAL.md", "5-creating-an-instance"],
+  overview: ["docs/USER_MANUAL.md", "4-an-instances-page"],
   activity: ["docs/USER_MANUAL.md", "tabs"],
-  code: ["docs/USER_MANUAL.md", "5-keeping-the-code-up-to-date"],
-  logs: ["docs/USER_MANUAL.md", "13-when-something-goes-wrong"],
+  code: ["docs/USER_MANUAL.md", "6-keeping-the-code-up-to-date"],
+  logs: ["docs/USER_MANUAL.md", "14-when-something-goes-wrong"],
   domains: ["docs/USER_MANUAL.md", "custom-domains"],
   instanceSettings: ["docs/USER_MANUAL.md", "stages-production-staging-and-development"],
   access: ["docs/USER_MANUAL.md", "tabs"],
@@ -42,12 +48,12 @@ export const TOPIC_DOCS: Record<Topic, [string, string]> = {
   settings: ["docs/ADMIN_GUIDE.md", "5-settings"],
   emailTemplates: ["docs/ADMIN_GUIDE.md", "17-e-mail-templates"],
   plugins: ["docs/MARKETPLACE.md", "3-the-plugins-page"],
-  accounts: ["docs/USER_MANUAL.md", "8-accounts-and-roles"],
+  accounts: ["docs/USER_MANUAL.md", "9-accounts-and-roles"],
   tokens: ["docs/USER_MANUAL.md", "api-tokens"],
-  backups: ["docs/USER_MANUAL.md", "10-backups-and-audit-log"],
+  backups: ["docs/USER_MANUAL.md", "11-backups-and-audit-log"],
   audit: ["docs/USER_MANUAL.md", "audit-log"],
-  github: ["docs/USER_MANUAL.md", "7-github-access-private-repositories"],
-  account: ["docs/USER_MANUAL.md", "9-my-account"],
+  github: ["docs/USER_MANUAL.md", "8-github-access-private-repositories"],
+  account: ["docs/USER_MANUAL.md", "10-my-account"],
   help: ["docs/USER_MANUAL.md", "the-help-button"],
   other: ["docs/USER_MANUAL.md", "user-manual"],
 };
@@ -83,6 +89,7 @@ const INSTANCE_TABS: Record<string, Topic> = {
 export function topicOf(pathname: string): Topic {
   const parts = pathname.split("/").filter(Boolean);
   if (parts[0] === "i") return INSTANCE_TABS[parts[2] ?? ""] ?? "overview";
+  if (parts[0] === "projects") return parts[1] === "new" ? "newProject" : parts[1] ? "project" : "projects";
   return PAGES[parts[0] ?? ""] ?? "other";
 }
 

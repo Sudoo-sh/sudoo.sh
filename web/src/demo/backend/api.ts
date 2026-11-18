@@ -2,7 +2,7 @@
 // same envelopes ({"data", "meta"}), 202 + the job for background work, 204 for deletions, RFC 9457 problem details
 // for errors, and the same permission checks per role. It changes the in-memory state and starts simulated jobs.
 
-import type { Account, Backup, CatalogPlugin, Instance, Invitation, Job, Permission, Session, Stage, User } from "@/api/types";
+import type { Account, Backup, CatalogPlugin, Instance, Invitation, Job, Permission, ProjectOptions, Session, Stage, User } from "@/api/types";
 import { browserLocale, isLocale, storedLocale, type Locale } from "@/i18n";
 import { publish } from "./bus";
 import { docPage, DOCS } from "./docs";
@@ -13,6 +13,7 @@ import { applied, cleanLimits, markPending, resourcesOf, setOwn } from "./resour
 import * as mail from "./mail";
 import * as caught from "./caught-mail";
 import * as offsite from "./offsite";
+import { branchList, membersOf, productionInstance, projectResource, projects, stageOf, type DemoProject } from "./projects";
 import { acceptLicence, LICENCE, licencePending, licenceStatus } from "./licence";
 import { catalog, categories, marketplace, recommendations } from "./marketplace";
 import { endShell, issueTicket, recordingOf, shellOptions, shellSessions } from "./shell";
@@ -28,6 +29,8 @@ import {
   deployKeys,
   findRepo,
   github,
+  PROJECT_NAMES,
+  projectReference,
   instances,
   instanceUrl,
   jobs,
@@ -445,6 +448,12 @@ route("GET", "/versions", () => ok(["17.0", "18.0", "19.0"].map((version) => ({ 
 
 route("POST", "/instances", ({ body }) => {
   need("instances.create", "/api/v1/instances");
+  return createInstance(body);
+});
+
+/** A new instance as POST /instances makes it; `extra` for an instance of a project's branch (the project, the
+ *  production instance a staging one copies). */
+function createInstance(body: Record<string, unknown>, extra: { project?: string; fromProduction?: Instance | null } = {}): Answer {
   const repo = String(body.repo ?? "").trim();
   const branch = String(body.branch ?? "main") || "main";
   const version = String(body.version ?? "19.0");
@@ -461,10 +470,19 @@ route("POST", "/instances", ({ body }) => {
   const defaults = DEFAULTS(stage);
   const now = Date.now();
   const deleteAfter = stage === "production" ? 0 : Number(body.delete_after_days ?? defaults.delete_after_days);
+  const projectId = extra.project ?? (known && PROJECT_NAMES[known.name] ? known.name : null);
+  if (stage === "production" && projectId) {
+    const found = projects.get(projectId);
+    const limit = Number(setting("project_production_branches") ?? 1);
+    const others = found ? branchList(found).filter((b) => b.stage === "production" && b.name !== branch) : [];
+    if (found && limit && others.length >= limit)
+      throw new Problem(409, `${found.name} may have ${limit} production ${limit === 1 ? "branch" : "branches"}, and ${others.map((b) => b.name).join(", ")} is in production already.`);
+  }
   const instance: Instance = {
     name,
     status: "creating",
     stage,
+    project: projectId ? projectReference(projectId) : null,
     url: null,
     odoo: { version, edition, database: name.replace(/-/g, "_") },
     source: repo ? "repository" : "plain",
@@ -494,6 +512,11 @@ route("POST", "/instances", ({ body }) => {
   instances.set(name, instance);
   profiles.set(name, newProfile(name, stage === "production"));
   let steps = CREATE_STEPS(instance, body.install_modules !== false);
+  if (extra.fromProduction) {
+    const at = steps.findIndex((s) => s.startsWith("Creating the Odoo"));
+    steps = [`Copying the data of ${extra.fromProduction.name} (production)`, ...steps.slice(0, at), `Loading the backup of ${extra.fromProduction.name} into database ${instance.odoo.database}`, "Neutralising the copied data", "Setting the admin password", ...steps.slice(at + 1)];
+    addBackup(extra.fromProduction, "staging-copy", Date.now());
+  }
   if (fromBackup) {
     const at = steps.findIndex((s) => s.startsWith("Creating the Odoo"));
     steps = [...steps.slice(0, at), `Loading the backup of ${fromBackup.instance} into database ${instance.odoo.database}`, ...(fromBackup.instance !== name ? ["Neutralising the copied data"] : []), ...steps.slice(at + 1)];
@@ -505,7 +528,9 @@ route("POST", "/instances", ({ body }) => {
     steps,
     seconds: steps.map((s) => (s.startsWith("Creating the Odoo") || s.startsWith("Loading the backup") ? 4.5 : s.startsWith("Installing") ? 3.5 : 2)),
     status: "creating",
-    notes: fromBackup && fromBackup.instance !== name ? [{ text: `The backup of ${fromBackup.instance} was neutralised: outgoing mail, scheduled actions and integrations are off.`, level: "info" }] : [],
+    notes: extra.fromProduction
+      ? [{ text: `The data comes from ${extra.fromProduction.name} (production) and was neutralised: it sends no e-mail and runs no scheduled actions; payment providers are off.`, level: "info" }]
+      : fromBackup && fromBackup.instance !== name ? [{ text: `The backup of ${fromBackup.instance} was neutralised: outgoing mail, scheduled actions and integrations are off.`, level: "info" }] : [],
     onDone: () => {
       const commits = known ? commitsOf(known, known.branches.includes(branch) ? branch : known.defaultBranch) : [];
       const head = commits[0];
@@ -523,7 +548,7 @@ route("POST", "/instances", ({ body }) => {
   instance.current_job = { ...reference(job), steps: [] };
   announce(instance);
   return { status: 202, body: { data: job }, headers: { Location: `/api/v1/jobs/${job.id}`, "Content-Location": `/api/v1/instances/${name}` } };
-});
+}
 
 route("PATCH", "/instances/:name", ({ params, body }) => {
   need("instances.operate");
@@ -1555,6 +1580,227 @@ route("GET", "/marketplace/checkout-sessions/:id", () => {
   throw new Problem(404, "This purchase does not exist.");
 });
 route("GET", "/marketplace/receipts", () => ok([]));
+
+// ---------------------------------------------------------------- projects (src/sudoo/web/v1/projects.py)
+
+function projectOf(id: string): DemoProject {
+  const found = projects.get(id);
+  if (!found) throw new Problem(404, "This project does not exist.");
+  return found;
+}
+
+function projectMeta(project: DemoProject) {
+  const c = capacity();
+  return {
+    default_branch: project.repo?.defaultBranch ?? null,
+    branches_error: null,
+    branches_read_at: iso(Date.now() - 12 * 1000),
+    capacity: { comfortable: c.comfortable, running: c.running, headroom: c.headroom, warning: c.warning, message: c.message, overloaded: c.overloaded },
+    production_limit: Number(setting("project_production_branches") ?? 1) || null,
+    server_production_limit: Number(setting("max_production_instances") ?? 0) || null,
+  };
+}
+
+const publishProject = (project: DemoProject) => publish("project", project.id, projectResource(project));
+
+route("GET", "/projects", () => {
+  need("instances.view");
+  const list = [...projects.values()].sort((a, b) => a.name.localeCompare(b.name)).map(projectResource);
+  const standalone = [...instances.values()].filter((i) => !i.project).map((i) => i.name).sort();
+  return ok(list, { standalone, total: list.length });
+});
+
+route("GET", "/projects/repository-owners", () => {
+  need("projects.manage");
+  return ok(
+    (github.app?.installations ?? []).map((i) => ({
+      account: i.account,
+      account_type: i.account_type,
+      possible: true,
+      reason: "ok",
+      message: "",
+      url: "",
+      label: "",
+    })),
+    { connected: true },
+  );
+});
+
+route("GET", "/projects/:id", ({ params }) => {
+  need("instances.view");
+  const project = projectOf(params.id!);
+  return ok({ ...projectResource(project), branches_list: branchList(project) }, projectMeta(project));
+});
+
+route("POST", "/projects", ({ body }) => {
+  need("projects.manage", "/api/v1/projects");
+  const version = String(body.odoo_version ?? "");
+  if (!["17.0", "18.0", "19.0"].includes(version)) throw new Problem(400, "Choose an Odoo version from the list.");
+  const edition = body.edition === "enterprise" ? "enterprise" : "community";
+  const create = body.create as Record<string, unknown> | undefined;
+  let repository: string;
+  let repo = null;
+  if (create) {
+    need("github.manage");
+    const name = String(create.name ?? "").trim();
+    if (!/^[A-Za-z0-9._-]{1,100}$/.test(name) || name === "." || name === "..") throw new Problem(400, "This is not a repository name GitHub accepts (letters, digits, '.', '-', '_').");
+    if (REPOS.some((r) => r.name === name)) throw new Problem(409, `${OWNER} has a repository named ${name} already. Choose another name.`);
+    repository = `${String(create.owner ?? OWNER)}/${name}`;
+  } else {
+    const typed = String(body.repository ?? "").trim().replace(/^https:\/\/github\.com\//, "").replace(/\.git$/, "").replace(/\/$/, "");
+    repo = findRepo(`https://github.com/${typed}`);
+    if (!repo) throw new Problem(400, `The server cannot read ${typed || "this repository"}. In the demo, pick one of ${REPOS.map((r) => r.name).join(", ")}.`);
+    repository = `${OWNER}/${repo.name}`;
+  }
+  if ([...projects.values()].some((p) => p.repository.toLowerCase() === repository.toLowerCase())) throw new Problem(409, `${repository} has a project already.`);
+  const shown = String(body.name ?? "").trim() || repository.split("/")[1]!;
+  let id = slug(shown).slice(0, 36) || "project";
+  for (let n = 2; projects.has(id); n++) id = `${slug(shown).slice(0, 33)}-${n}`;
+  const project: DemoProject = { id, name: shown, repository, repo, version, edition, origin: create ? "created" : "linked", created_at: Date.now(), created_by: ME, own: {}, stages: {}, autoCreated: {} };
+  projects.set(id, project);
+  PROJECT_NAMES[id] = shown;
+  if (create) record(ME, "repository created on GitHub", { detail: repository });
+  record(ME, "project created", { detail: `${id}: ${project.origin} ${repository}` });
+  publishProject(project);
+  return created({ ...projectResource(project), default_branch: repo?.defaultBranch ?? null });
+});
+
+const OPTION_CHOICES: Partial<Record<keyof ProjectOptions, string[]>> = { staging_on_push: ["rebuild", "keep_data"], branch_deleted: ["keep", "archive", "delete"] };
+
+route("PATCH", "/projects/:id", ({ params, body }) => {
+  need("projects.manage");
+  const project = projectOf(params.id!);
+  if ("name" in body) {
+    const name = String(body.name ?? "").trim();
+    if (!name) throw new Problem(400, "Give the project a name.");
+    project.name = name.slice(0, 60);
+    PROJECT_NAMES[project.id] = project.name;
+    for (const instance of membersOf(project.id)) instance.project = projectReference(project.id);
+  }
+  if (typeof body.odoo_version === "string") project.version = body.odoo_version;
+  if (body.edition === "community" || body.edition === "enterprise") project.edition = body.edition;
+  const changes = (body.options ?? {}) as Record<string, unknown>;
+  for (const [key, value] of Object.entries(changes)) {
+    const option = key as keyof ProjectOptions;
+    if (!(option in projectResource(project).options)) throw new Problem(400, `Unknown option ${key}.`);
+    if (value === null) delete project.own[option];
+    else {
+      const choices = OPTION_CHOICES[option];
+      if (choices && !choices.includes(String(value))) throw new Problem(400, `${key}: ${choices.join(" or ")}.`);
+      if (typeof value === "number" && (!Number.isInteger(value) || value < 0)) throw new Problem(400, `${key}: a whole number from 0.`);
+      (project.own as Record<string, unknown>)[option] = value;
+    }
+  }
+  record(ME, "project changed", { detail: project.id });
+  publishProject(project);
+  return ok(projectResource(project));
+});
+
+route("DELETE", "/projects/:id", ({ params, body }) => {
+  need("projects.manage");
+  const project = projectOf(params.id!);
+  if (body.confirm !== project.id) throw new Problem(400, "Type the project's id exactly to confirm.");
+  const members = membersOf(project.id);
+  if (members.length) throw new Problem(409, `${project.name} still has ${members.length} instances. Delete them first; the repository on GitHub is never touched.`);
+  projects.delete(project.id);
+  record(ME, "project deleted", { detail: project.id });
+  publish("project", project.id, { id: project.id, deleted: true });
+  return none();
+});
+
+route("PUT", "/projects/:id/branches/:*branch/stage", ({ params, body }) => {
+  need("projects.manage");
+  const project = projectOf(params.id!);
+  const branch = params.branch!.replace(/\/stage$/, "");
+  const stage = body.stage as Stage;
+  if (!["production", "staging", "development"].includes(stage)) throw new Problem(400, "Choose a stage: production, staging or development.");
+  const before = stageOf(project, branch);
+  if (before !== stage) {
+    if ((stage === "production" || before === "production") && body.confirm_production !== true)
+      throw new Problem(400, stage === "production" ? `Making ${branch} production changes how its instances run. Confirm ("confirm_production": true).` : `${branch} is a production branch. Confirm that it leaves production ("confirm_production": true).`);
+    if (stage === "production") {
+      const limit = Number(setting("project_production_branches") ?? 1);
+      const others = branchList(project).filter((b) => b.stage === "production" && b.name !== branch);
+      if (limit && others.length >= limit)
+        throw new Problem(409, `${project.name} may have ${limit} production ${limit === 1 ? "branch" : "branches"}, and ${others.map((b) => b.name).join(", ")} ${others.length === 1 ? "is" : "are"} in production already. Move it to staging or development first, or raise Production branches per project (Settings, Projects).`);
+    }
+  }
+  for (const instance of membersOf(project.id).filter((i) => i.git.branch === branch)) {
+    if (instance.status === "creating") throw new Problem(409, `${instance.name} is still being created. Try again when its creation has finished.`);
+    if (instance.stage !== stage) {
+      instance.stage = stage;
+      if (stage === "production") {
+        instance.settings.delete_after_days = 0;
+        instance.settings.auto_pause = false;
+        instance.expires_at = null;
+        instance.pauses_at = null;
+      }
+      announce(instance);
+    }
+  }
+  project.stages[branch] = stage;
+  record(ME, "branch stage changed", { detail: `${project.id} ${branch}: ${before} -> ${stage}` });
+  publishProject(project);
+  return ok(branchList(project).find((b) => b.name === branch));
+});
+
+route("POST", "/projects/:id/branches/:*branch/instances", ({ params, body }) => {
+  need("instances.create");
+  const project = projectOf(params.id!);
+  const branch = params.branch!.replace(/\/instances$/, "");
+  if (!branchList(project).some((b) => b.name === branch && b.on_github !== false)) throw new Problem(404, `${project.repository} has no branch ${branch} on GitHub.`);
+  const stage = stageOf(project, branch);
+  let fromProduction: Instance | null = null;
+  if (stage === "staging") {
+    need("instances.restore");
+    fromProduction = productionInstance(project);
+    if (!fromProduction) throw new Problem(409, "This project has no production instance to copy. Create the instance of its production branch first (or give a branch the production stage), or make this branch a development branch.");
+  }
+  const lifetime = stage === "production" ? 0 : stage === "staging" ? Number(projectResource(project).options.staging_lifetime_days) : Number(projectResource(project).options.development_lifetime_days);
+  return createInstance(
+    {
+      repo: `https://github.com/${project.repository}`,
+      branch,
+      version: project.version,
+      edition: project.edition,
+      stage,
+      name: body.name,
+      demo: stage === "development" ? body.demo ?? projectResource(project).options.development_demo_data : false,
+      install_modules: body.install_modules,
+      delete_after_days: lifetime,
+    },
+    { project: project.id, fromProduction },
+  );
+});
+
+route("POST", "/projects/:id/branches/:*branch/rebuild", ({ params, body }) => {
+  need("instances.restore");
+  const project = projectOf(params.id!);
+  const branch = params.branch!.replace(/\/rebuild$/, "");
+  const members = membersOf(project.id).filter((i) => i.git.branch === branch);
+  const instance = members.find((i) => i.name === body.instance) ?? members[0];
+  if (!instance) throw new Problem(404, `${branch} has no instance to rebuild.`);
+  if (instance.stage !== "staging") throw new Problem(409, `${instance.name} is not a staging instance: only staging is rebuilt from production.`);
+  const production = productionInstance(project);
+  if (!production) throw new Problem(409, "This project has no production instance to copy.");
+  if (instance.current_job) throw new Problem(409, `${instance.name} is busy with another job. Try again when it has finished.`);
+  addBackup(production, "staging-copy", Date.now());
+  const job = startJob({
+    instance: instance.name,
+    action: "Rebuild from production",
+    kind: "restore",
+    steps: [`Copying the data of ${production.name} (production)`, `Downloading the latest code of ${branch}`, "Stopping Odoo", `Loading the copy into database ${instance.odoo.database}`, "Neutralising the copied data", "Setting the admin password", "Upgrading the repository's modules (2)", "Starting Odoo", "Waiting for Odoo to be ready"],
+    seconds: [3, 1.5, 1, 3.5, 2, 1, 3, 2, 1.5],
+    status: "busy",
+    notes: [{ text: `Rebuilt from a new copy of ${production.name}: neutralised (no e-mail goes out, scheduled actions and payment providers off).`, level: "info" }],
+    onDone: () => {
+      newCommit(instance);
+      wake(instance);
+    },
+  });
+  record(ME, "Rebuild from production", { instance: instance.name, detail: `${project.id} ${branch}` });
+  return accepted(job);
+});
 
 // ---------------------------------------------------------------- dispatching
 

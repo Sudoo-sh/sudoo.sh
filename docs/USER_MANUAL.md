@@ -12,19 +12,20 @@ your computer.
 ## Contents
 
 1. [First run and signing in](#1-first-run-and-signing-in)
-2. [The Instances page](#2-the-instances-page)
-3. [An instance's page](#3-an-instances-page)
-4. [Creating an instance](#4-creating-an-instance)
-5. [Keeping the code up to date](#5-keeping-the-code-up-to-date)
-6. [Submodules](#6-submodules)
-7. [GitHub access (private repositories)](#7-github-access-private-repositories)
-8. [Accounts and roles](#8-accounts-and-roles)
-9. [My account](#9-my-account)
-10. [Backups and audit log](#10-backups-and-audit-log)
-11. [Settings](#11-settings)
-12. [Help pages and appearance](#12-help-pages-and-appearance)
-13. [When something goes wrong](#13-when-something-goes-wrong)
-14. [Questions and answers](#14-questions-and-answers)
+2. [Projects](#2-projects)
+3. [The Instances page](#3-the-instances-page)
+4. [An instance's page](#4-an-instances-page)
+5. [Creating an instance](#5-creating-an-instance)
+6. [Keeping the code up to date](#6-keeping-the-code-up-to-date)
+7. [Submodules](#7-submodules)
+8. [GitHub access (private repositories)](#8-github-access-private-repositories)
+9. [Accounts and roles](#9-accounts-and-roles)
+10. [My account](#10-my-account)
+11. [Backups and audit log](#11-backups-and-audit-log)
+12. [Settings](#12-settings)
+13. [Help pages and appearance](#13-help-pages-and-appearance)
+14. [When something goes wrong](#14-when-something-goes-wrong)
+15. [Questions and answers](#15-questions-and-answers)
 
 Words used in this manual:
 
@@ -37,7 +38,7 @@ Words used in this manual:
 | **Link** | The public https address of an instance, for example `https://river-stone-apple.example.com`. |
 | **Job** | One action on an instance (create, get latest code, restart...), with its steps and log. |
 
-The panel only shows the pages and buttons your role may use ([section 8](#8-accounts-and-roles)). If something
+The panel only shows the pages and buttons your role may use ([section 9](#9-accounts-and-roles)). If something
 described here is missing for you, your role does not include it.
 
 ---
@@ -95,7 +96,7 @@ The setup code works once: after the first account exists, the page no longer ap
    * **Authenticator app**: open the app and type the 6-digit code shown for Sudoo.sh.
    * When your account has both, switch between them with the buttons above the code.
    * **Lost your phone?** (under the authenticator code) asks for one of your **recovery codes** instead
-     ([section 9](#9-my-account)). Each code works once. **Use the app instead** goes back.
+     ([section 10](#10-my-account)). Each code works once. **Use the app instead** goes back.
    * Type the code (it is checked as soon as the sixth digit is in) or click **Verify and sign in**. **Back**
      returns to the e-mail address and password.
 
@@ -106,7 +107,7 @@ Three things can be asked of you right after signing in. Until they are done, no
 | Situation | What you do |
 | :--- | :--- |
 | Your account is new, or an administrator set a new password for you | **Choose your password**: enter the password you were given, then your own new password twice. An administrator who typed your password can leave this step out. |
-| The server requires a second factor for your role, and you have none | **Set up a second factor**: an authenticator app or an e-mail code ([section 9](#9-my-account)). |
+| The server requires a second factor for your role, and you have none | **Set up a second factor**: an authenticator app or an e-mail code ([section 10](#10-my-account)). |
 | You are a super admin, and nobody has accepted the licence agreement this version of the panel requires (a server set up before version 3.0, or a newer version of the agreement) | **Accept the licence agreement**: the same choices as at the first run. Until a super admin accepts, other super admins see this step too; administrators and everyone else carry on, and instances keep running and serving. |
 
 By default super admins and administrators must use a second factor. A super admin can change this
@@ -131,13 +132,88 @@ By default super admins and administrators must use a second factor. A super adm
 
 ---
 
-## 2. The Instances page
+## 2. Projects
 
-This is the first page after signing in. The sidebar on the left leads to the other pages:
+A **project** is one GitHub repository, as on Odoo.sh. Each branch of the repository can run as an instance, and
+each branch has a **stage**: production, staging or development
+([Stages](#stages-production-staging-and-development)). **Projects** is the first entry of the sidebar; **All
+instances** still lists every instance of the server.
+
+Instances that existed before projects joined their repository's project by themselves, with their names, stages,
+links and backups unchanged. Instances of plain Odoo (without a repository) belong to no project: the Projects page
+lists them under **Without a project**. Give one a repository (**Connect a repository** on its page) and it joins
+that repository's project.
+
+### The Projects page
+
+One card per project: its name and repository, its Odoo version and edition, how many branches it has in each stage,
+and how many of its instances run, are paused or are working. A **needs attention** mark counts instances with a
+failed update, changes made by hand, or a branch deleted on GitHub. Click a card to open the project.
+
+### Creating a project
+
+**New project** (roles that may create projects: maintainers and up):
+
+1. **Repository.** Either **Link a repository** that exists on GitHub (search the repositories the GitHub App can
+   read, or paste its address), or **Create a new repository**: the panel creates a new, totally empty repository
+   (private unless you switch it off, no README, no branch) in an organisation the GitHub App is installed on.
+   Creating needs the app's **Administration: write** permission; when it is missing, the page says what to do on
+   GitHub (an owner of the organisation accepts the change), then **Check again**. A personal account cannot get
+   repositories from an app: create an empty one on GitHub and link it.
+2. **Odoo.** The project's name (empty: the repository's name), and the Odoo version and edition its new instances
+   get.
+3. **Create project.** A linked repository's branches are listed at once; a new repository has none until you push
+   the first branch.
+
+### A project's page
+
+**Branches** lists every branch of the repository (read from GitHub at most every 30 seconds; **Read the branches
+again** reads them now), grouped by stage, production first. Each row shows the branch (with **default** for the
+repository's default branch, and **deleted on GitHub** when it is gone), its latest commit, its instance and its
+status, and its actions:
+
+| Action | What it does | Who |
+| :--- | :--- | :--- |
+| **Create instance** | A new instance of the branch, in the branch's stage, with the project's Odoo version and edition. Development: a fresh database, with Odoo's demo data unless you switch it off. Staging: a neutralised copy of the project's production instance (below). Production: a fresh database without demo data. | instances.create (staging also instances.restore) |
+| **Open**, **Details**, **Logs** | Opens Odoo, the instance's page, or its Odoo log. | everyone |
+| **Move to** a stage | Changes the branch's stage and moves its instances with it. Making a branch production asks you to confirm what changes: its instances never pause, never expire, are backed up every day and get new code only through a backup and an automatic rollback. A project has one production branch unless the administrator allows more. Leaving production asks for a confirmation too. | maintainers and up |
+| **Rebuild from production** | Staging only: replaces its database and files with a new neutralised copy of production, then takes the branch's latest code. Everything done in staging since its last rebuild is lost. | instances.restore |
+| **Delete instance** | Deletes the instance after a backup (a production instance asks you to type `production` too). The branch stays. | instances.delete |
+
+When the server runs as many instances as it takes comfortably, a warning above the branches says so: many branches
+running at once slow every instance down. Development instances pause when nobody uses them.
+
+**Staging from production.** A staging instance runs on a copy of production's data that cannot reach the outside
+world: no e-mail goes out (the **Mail** tab shows what it would have sent), scheduled actions are off, payment
+providers and other services are in test mode or off, it has its own database identity and its own link, and its
+administrator has the instance's own password (on its **Access** tab). By default a push to a staging branch
+rebuilds it from a new copy of production.
+
+**What happens on GitHub by itself** (each project can change it on its **Settings** tab):
+
+* **A new branch** gets a development instance, up to a few per project (3 by default). Beyond that, or when the
+  project does not do it, use **Create instance**.
+* **A push** updates the branch's instances as before; a staging instance is rebuilt from production first (or only
+  takes the code, if the project says so).
+* **A deleted branch:** its development instance is backed up and switched off by default (it can be started again,
+  and its lifetime still ends it); the project can keep it or delete it instead. Staging is switched off at most and
+  production is never touched.
+
+**Settings** (the project's tab, maintainers and up): the name, the Odoo version and edition of new instances, what
+happens with new, pushed and deleted branches, the lifetimes of new development and staging instances, and
+**Delete the project** (only without instances; the repository on GitHub stays). A value you do not set follows the
+panel's setting (**Settings**, **Instances**, **Projects**); the reset button next to it goes back to it.
+
+---
+
+## 3. The Instances page
+
+This is the first page after signing in (**All instances** in the sidebar). The sidebar on the left leads to the
+other pages:
 
 | Sidebar | Pages | Shown to |
 | :--- | :--- | :--- |
-| Top | **Instances**, **New instance**, **Help** | everyone (New instance: roles that may create instances) |
+| Top | **Projects**, **All instances** (this page), **New instance**, **Help** | everyone (New instance: roles that may create instances) |
 | **Operations** | **Backups**, **GitHub access**, **Audit log** | administrators and super admins; GitHub access also to maintainers |
 | **Administration** | **Settings**, **Accounts**, **API tokens** | Settings: super admins; Accounts and API tokens: administrators and super admins |
 | Bottom | your name and role (opens **My account**), the theme button | everyone |
@@ -187,7 +263,7 @@ connection to the server is lost for a moment, a small **Reconnecting** notice s
 
 ---
 
-## 3. An instance's page
+## 4. An instance's page
 
 ### The header
 
@@ -210,7 +286,7 @@ The menu:
 
 | Action | What it does |
 | :--- | :--- |
-| **Update submodules** | Moves every submodule to the newest commit of its branch and restarts ([section 6](#6-submodules)). |
+| **Update submodules** | Moves every submodule to the newest commit of its branch and restarts ([section 7](#7-submodules)). |
 | **Upgrade modules** | Like **Upgrade** in Odoo's Apps menu. Enter technical names separated by commas, or `all`. |
 | **Switch branch** | Moves the instance to another branch of the same repository, upgrades its modules and restarts. The database stays. |
 | **Update Odoo and PostgreSQL images** | Downloads the newest build of the instance's Odoo version and PostgreSQL (same versions) and restarts with them. Until then the instance keeps the exact images it was created with. |
@@ -247,10 +323,10 @@ wait: one job per instance at a time.
 | :--- | :--- |
 | **Overview** | Four cards with the processor, memory, requests per minute and response time of this instance, each with a small line of the last hour; one live chart with a **CPU / Memory / Requests / Response** switch; the **Backups** card; details such as the database, its size and how long it has been running. |
 | **Activity** | Every job on this instance, newest first. Click one to open a panel with its steps, notes, the reason it failed (if it did) and the technical log, which follows live while the job runs. |
-| **Code** | The repository and branch, the recent commits, and the submodules, with **Add submodule** and **Remove** ([section 6](#6-submodules)). |
+| **Code** | The repository and branch, the recent commits, and the submodules, with **Add submodule** and **Remove** ([section 7](#7-submodules)). |
 | **Odoo log** | The latest lines Odoo wrote (100 to 3000), with **Refresh**. Lines with `ERROR` or `Traceback` usually explain a problem. |
 | **Domains** | The instance's own domains, such as `erp.client.com`: their state, the DNS record to create, the certificate and its expiry ([Custom domains](#custom-domains)). Everyone sees them; administrators add and remove them. |
-| **Settings** | The stage ([Stages](#stages-production-staging-and-development)), the automation switches and the lifetime ([section 5](#5-keeping-the-code-up-to-date)), saved at once; and **Resources** ([Resources](#resources)). |
+| **Settings** | The stage ([Stages](#stages-production-staging-and-development)), the automation switches and the lifetime ([section 6](#6-keeping-the-code-up-to-date)), saved at once; and **Resources** ([Resources](#resources)). |
 | **Access** | The Odoo sign-in: address, login, password, and the master password (for Odoo's database manager). Click **Show the passwords**; each viewing is recorded in the audit log. |
 | **Mail** | Staging and development only: the e-mails the instance sent, caught before they reached anyone ([The Mail tab](#the-mail-tab)). Developers and up. |
 | **Shell** | A terminal in the browser, inside the instance's own containers: a command line in the Odoo container, `odoo shell`, or `psql` on its database ([The Shell tab](#the-shell-tab)). Only for the roles allowed to. |
@@ -285,7 +361,7 @@ The **Backups** card on the **Overview** tab holds the instance's backups.
 | **Latest backup** | The date and time of that backup, its kind, its size and how long ago it was taken. |
 | The list | Every backup of the instance, newest first, with when it was taken, its kind and its size. **Restore** puts back that backup; **Download** (the arrow) saves the zip, for roles that may manage backups. |
 
-The kinds of backup are explained in [section 10](#10-backups-and-audit-log).
+The kinds of backup are explained in [section 11](#11-backups-and-audit-log).
 
 **Restoring.** Click **Restore the latest**, or **Restore** on a line of the list. The dialog shows the backup's date,
 kind and size, and says that the database and its files go back to how they were then: changes made since are
@@ -421,7 +497,7 @@ Super admins also see **Shells in this instance** under the terminal: who opened
 ended. **End** closes a shell someone has open; **Play** shows a recording, and **Download (.cast)** saves it in the
 asciinema format.
 
-## 4. Creating an instance
+## 5. Creating an instance
 
 Click **New instance** in the sidebar (roles that may create instances). Under **Code**, choose first:
 
@@ -450,7 +526,7 @@ Click **New instance** in the sidebar (roles that may create instances). Under *
    a mark: green when the server can read it, red with the reason when it cannot. The reason says what applies, with
    a button to fix it: the GitHub App belongs to another account, is not installed on the repository's owner, or
    may not read this repository yet (**Choose repositories**). Without a GitHub App, add a deploy key under **GitHub
-   access** ([section 7](#7-github-access-private-repositories)); the report is checked again when you come back.
+   access** ([section 8](#8-github-access-private-repositories)); the report is checked again when you come back.
 6. **Version**: the Odoo versions offered on this server.
 7. **Edition**: **Community** (Odoo's free edition) or **Enterprise** (Enterprise apps and interface). Enterprise
    can be chosen only for the versions whose Enterprise add-ons are on the server.
@@ -463,7 +539,7 @@ Click **New instance** in the sidebar (roles that may create instances). Under *
    | :--- | :--- |
    | **Install the repository's modules** | Installs the repository's own modules (not those of submodules) after the database is created. |
    | **Load demo data** | Sample customers, products and orders, useful for presentations. |
-   | **Get new code automatically** | New commits on the branch are applied by themselves ([section 5](#5-keeping-the-code-up-to-date)). |
+   | **Get new code automatically** | New commits on the branch are applied by themselves ([section 6](#6-keeping-the-code-up-to-date)). |
    | **Pause when nobody uses it** | The instance pauses after some hours without visits, to free memory. |
    | **Lifetime** | Deleted that many days after creation (30 by default, 90 for staging), with a backup first; or **Keep until deleted by hand**. Not shown for production. |
 
@@ -523,7 +599,7 @@ until you change them. The audit log records every change of stage.
 
 ---
 
-## 5. Keeping the code up to date
+## 6. Keeping the code up to date
 
 **Automatically.** When **Get new code automatically** is on, the panel checks GitHub for new commits on the
 instance's branch (every 2 minutes by default, or at once when GitHub tells the panel about a push through the
@@ -566,7 +642,7 @@ choose one; a maintainer can make the lifetime longer, not shorter.
 
 ---
 
-## 6. Submodules
+## 7. Submodules
 
 A submodule is another repository included inside the instance's repository, for example OCA's `web` modules in a
 folder `oca/web`. See [Git submodules](concepts/GIT_SUBMODULES.md) for how they work.
@@ -593,7 +669,7 @@ server and tells you so: the server and GitHub never disagree.
 
 ---
 
-## 7. GitHub access (private repositories)
+## 8. GitHub access (private repositories)
 
 Public repositories need nothing. For **private** repositories, including private submodules, the server needs
 read access, which it gets in one of two ways:
@@ -666,7 +742,7 @@ needs a deploy key with write access for that repository.
 
 ---
 
-## 8. Accounts and roles
+## 9. Accounts and roles
 
 ### Roles
 
@@ -761,7 +837,7 @@ and the signing secret, shown once, into the other system. The list shows when e
 
 ---
 
-## 9. My account
+## 10. My account
 
 Click your name at the bottom of the sidebar.
 
@@ -824,7 +900,7 @@ remember and the hardest to guess, for example `green tea at 7 on the balcony`.
 
 ---
 
-## 10. Backups and audit log
+## 11. Backups and audit log
 
 ### Backups
 
@@ -867,7 +943,7 @@ another instance of the same Odoo version into it.
 
 **A new instance from a backup.** On the **New instance** page, switch on **Start from a backup** and pick one of
 the backups of the chosen Odoo version: the instance starts with that data instead of an empty database
-([section 4](#4-creating-an-instance)).
+([section 5](#5-creating-an-instance)).
 
 **Off-site copies.** When the administrator has set them up, backups are also copied to storage away from the
 server (every backup of a production instance; the others when the administrator chooses so). The **Backups**
@@ -918,7 +994,7 @@ Discord or Teams is set by a super admin under **Settings**, **Alerts**.
 
 ---
 
-## 11. Settings
+## 12. Settings
 
 Super admins only. **Settings** (sidebar, Administration) shows every setting of the panel that can be changed in
 the browser, in tabs:
@@ -963,7 +1039,7 @@ Every setting is described in [Configuration](CONFIGURATION.md).
 
 ---
 
-## 12. Help pages and appearance
+## 13. Help pages and appearance
 
 **Help** (sidebar) shows this documentation inside the panel: the same pages as in the project's `docs` folder,
 with a table of contents and an **On this page** list of the current page's sections. Links between the pages work
@@ -997,12 +1073,12 @@ in English. E-mails the panel sends are in English for now.
 
 ---
 
-## 13. When something goes wrong
+## 14. When something goes wrong
 
 1. Read the message: the panel explains failures in plain words.
 2. Open the job in the instance's **Activity** tab to see which step failed, the reason and the technical log.
 3. Try **Restart** if Odoo behaves strangely, and look at the **Odoo log** tab if it does not start.
-4. If a button is missing or an action is refused, your role may not include it ([section 8](#8-accounts-and-roles)).
+4. If a button is missing or an action is refused, your role may not include it ([section 9](#9-accounts-and-roles)).
 5. If it is still not solved, contact the administrator named on the sign-in page, and say which instance, what you
    did and what the message said.
 
@@ -1010,7 +1086,7 @@ Common messages are listed in the [Administrator guide's troubleshooting table](
 
 ---
 
-## 14. Questions and answers
+## 15. Questions and answers
 
 **Do the people I show an instance to need an account?**
 No. They only need the instance's link and the Odoo login. Panel accounts are only for people who manage instances.
@@ -1047,12 +1123,12 @@ such as `12345`, or your name. A short sentence of unrelated words is accepted a
 
 **Does a backup include the attachments?**
 Yes. The zip holds the database (`dump.sql`), the filestore with the attachments, and a manifest
-([section 10](#10-backups-and-audit-log)).
+([section 11](#11-backups-and-audit-log)).
 
 **When are backups taken?**
 Once a day for every instance that was used since its last daily backup (at 00:00 UTC unless a super admin changed
 it), before every deletion, at the start of every restore, and whenever someone clicks **Back up now**
-([section 10](#10-backups-and-audit-log)).
+([section 11](#11-backups-and-audit-log)).
 
 **How do I restore an instance?**
 Open the instance, **Overview** tab, **Backups** card. Click **Restore the latest**, or **Restore** next to an older

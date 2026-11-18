@@ -28,9 +28,9 @@ import { backupFile, DAY, hash, hex, HOUR, iso, MINUTE, OPENED, seeded, SECOND }
 
 const VIEW: Permission[] = ["instances.view", "instances.logs"];
 const DEVELOP: Permission[] = [...VIEW, "instances.update", "caught_mail.view"];
-const MAINTAIN: Permission[] = [...DEVELOP, "instances.operate", "instances.restore", "instances.create", "instances.credentials", "github.manage"];
+const MAINTAIN: Permission[] = [...DEVELOP, "instances.operate", "instances.restore", "instances.create", "instances.credentials", "github.manage", "projects.manage"];
 const ALL: Permission[] = [
-  "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "instances.restore",
+  "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "projects.manage", "instances.restore",
   "instances.delete", "instances.credentials", "instances.resources", "caught_mail.view", "caught_mail.manage", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
   "audit.view", "plugins.view", "settings.manage", "mail.manage", "offsite.configure", "offsite.restore", "offsite.delete",
   "instances.shell", "instances.database_shell", "shells.supervise",
@@ -43,6 +43,7 @@ export const PERMISSIONS: Record<Permission, string> = {
   "instances.update": "Get new code, restart, start, add submodules",
   "instances.operate": "Pause, switch off, upgrade, switch branch, back up, change automation",
   "instances.create": "Create instances",
+  "projects.manage": "Create and link projects (one GitHub repository each), change their settings and the stages of their branches",
   "instances.restore": "Restore an instance from a backup (replaces its database and files)",
   "instances.delete": "Delete instances",
   "instances.credentials": "See Odoo passwords and ports",
@@ -164,6 +165,15 @@ export const REPOS: DemoRepo[] = [
     commits: [["Room types and seasonal rates", "Omar"]],
   },
 ];
+/** The demo's projects, one per client repository (projects.ts); their names as people read them. */
+export const PROJECT_NAMES: Record<string, string> = {
+  "acme-retail": "Acme Retail",
+  "nile-logistics": "Nile Logistics",
+  "zahra-clinic": "Zahra Clinic",
+  "cedar-hotels": "Cedar Hotels",
+};
+export const projectReference = (id: string) => ({ id, name: PROJECT_NAMES[id] ?? id, links: { self: `/api/v1/projects/${id}` } });
+
 export const findRepo = (url: string | null | undefined) => {
   const name = /github\.com[/:][\w.-]+\/([\w.-]+?)(?:\.git)?\/?$/.exec(url ?? "")?.[1];
   return REPOS.find((r) => r.name === name) ?? null;
@@ -303,6 +313,7 @@ function build(seed: Seed): Instance {
     name,
     status: seed.status,
     stage: seed.stage,
+    project: repo ? projectReference(repo.name) : null,
     url: instanceUrl(name),
     odoo: { version: seed.version, edition: seed.edition, database: name.replace(/-/g, "_") },
     source: repo ? "repository" : "plain",

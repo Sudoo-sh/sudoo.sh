@@ -263,7 +263,7 @@ e-mail (required), phone (optional) and a password twice (12 to 128 characters, 
 e-mail address (`jane.doe@example.com` becomes `jane.doe`, then `-2`, `-3` when taken) and stays the
 account's internal key. It creates the first account, a **Super admin**, and signs it in. Everyone signs in with
 their e-mail address; the user name works too. The other accounts are then created on the **Accounts** page
-([User manual](USER_MANUAL.md#8-accounts-and-roles)).
+([User manual](USER_MANUAL.md#9-accounts-and-roles)).
 
 | Good to know | |
 | :--- | :--- |
@@ -377,7 +377,7 @@ Settings come from two places:
 | `/opt/odoo/manager/settings.json` | The changes made on the panel's **Settings** page, applied on top of `.env`. Passwords in it are encrypted with the vault key. |
 
 A super admin changes most settings in the browser (**Settings** in the sidebar, grouped in tabs: General, Instances,
-Odoo, Backups, Sign-in and security, E-mail, Alerts, GitHub and updates, Marketplace, Advanced; [User manual](USER_MANUAL.md#11-settings)).
+Odoo, Backups, Sign-in and security, E-mail, Alerts, GitHub and updates, Marketplace, Advanced; [User manual](USER_MANUAL.md#12-settings)).
 A tab can be linked directly, for example `/settings?tab=email`.
 Every setting belongs to one of three classes:
 
@@ -945,7 +945,7 @@ For the first account, and for when nobody can sign in. Every command runs insid
 
 `sudoo` works as a shorter name for `sudoo.sh`. Commands that change something are recorded in the audit log as
 "command line".
-Every other account task is done in the panel ([User manual](USER_MANUAL.md#8-accounts-and-roles)): new accounts
+Every other account task is done in the panel ([User manual](USER_MANUAL.md#9-accounts-and-roles)): new accounts
 need an e-mail address that no other account uses; the password is generated or typed by the administrator
 (checked against the [password rules](USER_MANUAL.md#password-rules)); super admins, including your own account,
 can be edited; and the last super admin cannot be demoted or deleted.
@@ -1002,7 +1002,7 @@ After installing or updating:
 | "Starting soon" on a paused instance | `sudoo-panel` is down or restarting; only it can start an instance | `docker ps -a`, `docker logs sudoo-panel`; the instance starts once the panel is back |
 | An instance's page says its gateway port is used by another program | Another program holds that port | `ss -ltnp 'sport = :<port>'` shows which; stop it, and the gateway takes the port within seconds |
 | `docker logs sudoo-panel` says the gateway service does not answer | `sudoo-gateway` is stopped, restarting or hangs (the panel serves the instances meanwhile) | `docker logs sudoo-gateway`, then `cd /opt/odoo/manager && docker compose up -d gateway` |
-| An access report line is red on New instance | The message says which: the app belongs to another account, is not installed on the repository's owner, the repository is not among its selected ones; or no app and no deploy key | Follow the button next to the line ([When a repository cannot be read](#when-a-repository-cannot-be-read)); or create a deploy key ([User manual](USER_MANUAL.md#7-github-access-private-repositories)) |
+| An access report line is red on New instance | The message says which: the app belongs to another account, is not installed on the repository's owner, the repository is not among its selected ones; or no app and no deploy key | Follow the button next to the line ([When a repository cannot be read](#when-a-repository-cannot-be-read)); or create a deploy key ([User manual](USER_MANUAL.md#8-github-access-private-repositories)) |
 | GitHub's page after **Create GitHub App** or **Install** does not open | The panel's public address changed since the app was created (GitHub still has the old one) | Open the panel at its current address, **GitHub access**, **Refresh**. A new app: connect again |
 | Pushes do not start updates at once | `github-app` is not in `UPDATE_TRIGGERS`, or GitHub cannot reach the panel | Settings, Plugins; on GitHub, the app's **Advanced** page lists recent deliveries and their answers |
 | Update fails: "branch ... no longer exists on GitHub" (or "no such ref was fetched"); the instance page warns about it | The branch was deleted on GitHub, usually after its pull request was merged | Menu, **Switch branch**, choose the branch to follow now (for example `main`) |
@@ -1093,7 +1093,7 @@ read your personal repositories. The panel connects one app, so choose its owner
 
 | The code is in | Create the app under | Other repositories |
 | :--- | :--- | :--- |
-| A company organisation (the usual case) | The organisation (**An organisation** in step 2 below). An owner of the organisation on GitHub has to do it | Personal or other repositories: deploy keys ([User manual](USER_MANUAL.md#7-github-access-private-repositories)), one per repository |
+| A company organisation (the usual case) | The organisation (**An organisation** in step 2 below). An owner of the organisation on GitHub has to do it | Personal or other repositories: deploy keys ([User manual](USER_MANUAL.md#8-github-access-private-repositories)), one per repository |
 | Your personal account only | Your account (**My personal account**) | Company repositories: deploy keys, or reconnect the app under the organisation |
 
 The app stays private and read-only either way. Connecting a second app at the same time is not supported: each app
@@ -1806,7 +1806,7 @@ new, totally empty one in an organisation ([Creating repositories for new projec
 Its page lists every branch of the repository with the
 branch's stage (production, staging or development), its instances and its latest commit. Every instance of a
 repository belongs to that repository's project. What people do with projects is in the
-[User manual](USER_MANUAL.md#4-creating-an-instance); this section is for the server.
+[User manual](USER_MANUAL.md#2-projects); this section is for the server.
 
 ### Existing instances
 

@@ -34,6 +34,9 @@ const en = {
   copied: "Diagnostics copied",
   copyFailed: "Could not copy: the browser refused. Select the text below instead.",
   topics: {
+    projects: { title: "Projects", text: "One project for each GitHub repository, with how many branches it has in each stage and how its instances are doing. Open one to see its branches; New project links a repository or creates an empty one." },
+    project: { title: "A project", text: "Every branch of the repository, grouped by stage, with its latest commit and instance. Create an instance of a branch, move a branch to another stage, or rebuild staging from production. The Settings tab says what happens when branches are pushed or deleted." },
+    newProject: { title: "New project", text: "Link a repository that exists on GitHub, or let the GitHub App create a new, empty one in an organisation. Then choose the Odoo version and edition of the project's instances." },
     instances: { title: "Instances", text: "Every Odoo instance on this server, with its stage, state and use of the server. Open one to see its details, or start one that is paused; filter and sort to find one quickly." },
     newInstance: { title: "New instance", text: "Choose a repository and branch (or plain Odoo), the Odoo version, edition and stage. Production is kept and backed up daily; staging and development pause when idle and never send real e-mail." },
     overview: { title: "An instance", text: "The instance's figures over the last hour, its backups and details. The buttons above start, restart, update and pause it; the tabs hold its activity, code, log, domains, settings and access." },
@@ -89,6 +92,9 @@ const ar: typeof en = {
   copied: "نُسخت معلومات التشخيص",
   copyFailed: "تعذّر النسخ: رفض المتصفح ذلك. حدّد النص أدناه بدلًا من ذلك.",
   topics: {
+    projects: { title: "المشاريع", text: "مشروع لكل مستودع على GitHub، مع عدد فروعه في كل مرحلة وحال بيئاته. افتح مشروعًا لترى فروعه؛ ويربط زر المشروع الجديد مستودعًا أو ينشئ مستودعًا فارغًا." },
+    project: { title: "مشروع", text: "كل فروع المستودع مجمّعة حسب المرحلة، مع آخر إيداع والبيئة. أنشئ بيئة لفرع، أو انقل فرعًا إلى مرحلة أخرى، أو أعد بناء التجهيز من الإنتاج. ويبيّن تبويب الإعدادات ما يحدث عند دفع الفروع أو حذفها." },
+    newProject: { title: "مشروع جديد", text: "اربط مستودعًا موجودًا في GitHub، أو دع تطبيق GitHub ينشئ مستودعًا جديدًا فارغًا في مؤسسة. ثم اختر إصدار Odoo ونسخته لبيئات المشروع." },
     instances: { title: "البيئات", text: "كل بيئات Odoo على هذا الخادم، مع مرحلة كل منها وحالتها واستهلاكها للخادم. افتح بيئة لترى تفاصيلها، أو شغّل بيئة متوقفة مؤقتًا؛ استخدم التصفية والترتيب للعثور على بيئة بسرعة." },
     newInstance: { title: "بيئة جديدة", text: "اختر مستودعًا وفرعًا (أو Odoo دون مستودع)، وإصدار Odoo ونسخته ومرحلته. تُحفظ بيئة الإنتاج ويُنسخ لها احتياطيًا كل يوم؛ وتتوقف بيئات التجهيز والتطوير عند عدم الاستخدام ولا ترسل بريدًا حقيقيًا أبدًا." },
     overview: { title: "بيئة", text: "أرقام البيئة خلال الساعة الأخيرة ونسخها الاحتياطية وتفاصيلها. الأزرار في الأعلى تشغّلها وتعيد تشغيلها وتحدّثها وتوقفها مؤقتًا؛ والتبويبات تضم نشاطها وشيفرتها وسجلها ونطاقاتها وإعداداتها وبيانات الدخول." },

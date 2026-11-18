@@ -12,6 +12,8 @@ const p = (forms: Plural) => forms;
 
 const EN_UNITS = {
   instance: p({ one: "# instance", other: "# instances" }),
+  branch: p({ one: "# branch", other: "# branches" }),
+  project: p({ one: "# project", other: "# projects" }),
   backup: p({ one: "# backup", other: "# backups" }),
   second: p({ one: "# second", other: "# seconds" }),
   minute: p({ one: "# minute", other: "# minutes" }),
@@ -31,6 +33,8 @@ const EN_UNITS = {
 /** Units in the genitive (after منذ، بعد، لمدة), as on the sign-in and account sites: "منذ دقيقتين", "لمدة 7 أيام". */
 const AR_UNITS: typeof EN_UNITS = {
   instance: p({ zero: "# بيئة", one: "بيئة واحدة", two: "بيئتان", few: "# بيئات", many: "# بيئة", other: "# بيئة" }),
+  branch: p({ zero: "# فرع", one: "فرع واحد", two: "فرعان", few: "# فروع", many: "# فرعًا", other: "# فرع" }),
+  project: p({ zero: "# مشروع", one: "مشروع واحد", two: "مشروعان", few: "# مشاريع", many: "# مشروعًا", other: "# مشروع" }),
   backup: p({ zero: "# نسخة احتياطية", one: "نسخة احتياطية واحدة", two: "نسختان احتياطيتان", few: "# نسخ احتياطية", many: "# نسخة احتياطية", other: "# نسخة احتياطية" }),
   second: p({ zero: "# ثانية", one: "ثانية واحدة", two: "ثانيتين", few: "# ثوانٍ", many: "# ثانية", other: "# ثانية" }),
   minute: p({ zero: "# دقيقة", one: "دقيقة واحدة", two: "دقيقتين", few: "# دقائق", many: "# دقيقة", other: "# دقيقة" }),
@@ -141,7 +145,8 @@ const en = {
     workspace: "Workspace",
     operations: "Operations",
     administration: "Administration",
-    instances: "Instances",
+    projects: "Projects",
+    instances: "All instances",
     newInstance: "New instance",
     help: "Help",
     backups: "Backups",
@@ -276,7 +281,8 @@ const ar: Common = {
     workspace: "مساحة العمل",
     operations: "العمليات",
     administration: "الإدارة",
-    instances: "البيئات",
+    projects: "المشاريع",
+    instances: "كل البيئات",
     newInstance: "بيئة جديدة",
     help: "المساعدة",
     backups: "النسخ الاحتياطية",

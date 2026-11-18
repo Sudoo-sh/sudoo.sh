@@ -129,7 +129,7 @@ command to use it: people receive a link.
 
 1. **Create an instance in a few clicks**: choose a GitHub repository, a branch, the Odoo version (any published version) and the
    edition (Community or Enterprise). The name, the database, the ports and the passwords are generated. Two minutes
-   later the panel shows the instance's own https link and its login. See [Creating an instance](docs/USER_MANUAL.md#4-creating-an-instance).
+   later the panel shows the instance's own https link and its login. See [Creating an instance](docs/USER_MANUAL.md#5-creating-an-instance).
 2. **One https link per instance**: every instance is reachable from anywhere through its own public link, provided
    through extensions, so the server needs no open port. Browsers, API clients and webhook senders use it like any
    Odoo address. See [Public links](docs/concepts/TUNNELING.md).
@@ -152,11 +152,11 @@ command to use it: people receive a link.
    backup back in a minute or two, after saving the current state, and **Rollback** undoes it for 24 hours. Any
    backup can also go into another instance of the same Odoo version, or start a new instance, neutralised so the
    copy sends no e-mail. See
-   [Backups](docs/USER_MANUAL.md#10-backups-and-audit-log).
+   [Backups](docs/USER_MANUAL.md#11-backups-and-audit-log).
 9. **Five roles**: super admin, administrator, maintainer, developer and viewer, each a clear set of permissions.
    People sign in with their e-mail address; passwords follow the NIST rules (length and a blocklist, no forced
    symbols). Sign-in can require a second factor: an authenticator app or a code by e-mail. See
-   [Accounts and roles](docs/USER_MANUAL.md#8-accounts-and-roles).
+   [Accounts and roles](docs/USER_MANUAL.md#9-accounts-and-roles).
 10. **Live figures**: processor, memory, requests, errors and response times of the server and every instance, every
    few seconds, with an hour of history. The Instances page charts requests and errors, instances by state, response
    times and the busiest instances. Pages update by themselves as things change.

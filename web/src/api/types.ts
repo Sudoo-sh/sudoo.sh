@@ -7,6 +7,7 @@ export type Permission =
   | "instances.update"
   | "instances.operate"
   | "instances.create"
+  | "projects.manage"
   | "instances.restore"
   | "instances.delete"
   | "instances.credentials"
@@ -203,6 +204,8 @@ export interface Instance {
   name: string;
   status: InstanceStatus;
   stage: Stage;
+  /** the project (GitHub repository) it belongs to; null: standalone (plain Odoo) */
+  project: ProjectReference | null;
   url: string | null;
   odoo: { version: string; edition: "community" | "enterprise"; database: string };
   /** "plain": the official Odoo only, created without a repository (no code to update, no branch, no submodules) */
@@ -238,6 +241,80 @@ export interface Instance {
   restorable_backup?: string | null;
   /** while the state before the last restore is kept (ROLLBACK_HOURS): what Rollback puts back, and until when */
   rollback?: { backups: string[]; taken_at: string; until: string } | null;
+}
+
+export interface ProjectReference {
+  id: string;
+  name: string;
+  links: { self: string };
+}
+
+export interface ProjectOptions {
+  auto_development: boolean;
+  max_auto_development: number;
+  development_demo_data: boolean;
+  staging_on_push: "rebuild" | "keep_data";
+  branch_deleted: "keep" | "archive" | "delete";
+  development_lifetime_days: number;
+  staging_lifetime_days: number;
+}
+
+/** A project: one GitHub repository (GET /projects) */
+export interface Project {
+  id: string;
+  name: string;
+  repository: { full_name: string; url: string };
+  odoo: { version: string; edition: "community" | "enterprise" };
+  /** linked: an existing repository; created: a new, empty one made from the panel; adopted: from existing instances */
+  origin: "linked" | "created" | "adopted";
+  created_at: string | null;
+  created_by: string | null;
+  branches: { total: number } & Record<Stage, number>;
+  instances: { total: number; by_status: Partial<Record<InstanceStatus, number>>; names: string[] };
+  /** instances with a failed update, changes made by hand or a branch deleted on GitHub */
+  attention: string[];
+  production_branches: string[];
+  options: ProjectOptions;
+  own_options: Partial<ProjectOptions>;
+  access: { mode: string };
+  links: { self: string };
+}
+
+export interface ProjectBranch {
+  name: string;
+  stage: Stage;
+  default: boolean;
+  /** null: GitHub could not be read */
+  on_github: boolean | null;
+  commit: { sha: string; full_sha: string; subject: string; when: string; author: string } | null;
+  instances: string[];
+  auto_created: string | null;
+}
+
+/** GET /projects/<id>: the project with its branches */
+export interface ProjectDetail extends Project {
+  branches_list: ProjectBranch[];
+}
+
+export interface ProjectMeta {
+  default_branch: string | null;
+  branches_error: string | null;
+  branches_read_at: string | null;
+  capacity: { comfortable: number; running: number; headroom: number; warning: boolean; message: string | null; overloaded: boolean } | null;
+  production_limit: number | null;
+  server_production_limit: number | null;
+}
+
+/** GET /projects/repository-owners: where a new, empty repository can be created */
+export interface RepositoryOwner {
+  account: string;
+  account_type: string;
+  possible: boolean;
+  reason: "ok" | "no_app" | "not_installed" | "suspended" | "personal_account" | "permission_missing";
+  message: string;
+  url: string;
+  label: string;
+  accept_url?: string;
 }
 
 export interface Credentials {
@@ -531,7 +608,15 @@ export interface Token {
   last_used: number | null;
 }
 
-export type BackupKind = "manual" | "daily" | "deletion" | "before-restore" | "before-rollback" | "before-repair" | "before-update";
+export type BackupKind =
+  | "manual"
+  | "daily"
+  | "deletion"
+  | "before-restore"
+  | "before-rollback"
+  | "before-repair"
+  | "before-update"
+  | "staging-copy";
 /** GET /offsite: where off-site copies go, and the panel's signing key (never the storage's secret) */
 export interface OffsiteState {
   enabled: boolean;

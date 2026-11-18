@@ -37,6 +37,10 @@ import type {
   Metrics,
   MetricsHistory,
   Plan,
+  Project,
+  ProjectDetail,
+  ProjectMeta,
+  RepositoryOwner,
   Quota,
   RoleInfo,
   Server,
@@ -56,6 +60,8 @@ export const keys = {
   session: ["session"] as const,
   alerts: ["alerts"] as const,
   instances: ["instances"] as const,
+  projects: ["projects"] as const,
+  project: (id: string) => ["project", id] as const,
   instance: (name: string) => ["instance", name] as const,
   domains: (name: string) => ["domains", name] as const,
   mail: (name: string) => ["caught-mail", name] as const,
@@ -99,6 +105,37 @@ export const useSession = () =>
 
 export const useInstances = () =>
   useQuery({ queryKey: keys.instances, queryFn: () => api.get<Instance[]>("/instances?limit=500") });
+
+/** Every project, and the instances outside every project (plain Odoo). */
+export const useProjects = () =>
+  useQuery({
+    queryKey: keys.projects,
+    queryFn: async () => {
+      const answer = await api.page<Project[]>("/projects");
+      return { projects: answer.data, standalone: (answer.meta?.standalone as string[] | undefined) ?? [] };
+    },
+  });
+
+/** A project with its branches (read from GitHub at most every 30 seconds by the server). */
+export const useProject = (id: string) =>
+  useQuery({
+    queryKey: keys.project(id),
+    queryFn: async () => {
+      const answer = await api.page<ProjectDetail>(`/projects/${encodeURIComponent(id)}`);
+      return { project: answer.data, meta: answer.meta as unknown as ProjectMeta };
+    },
+  });
+
+export const useRepositoryOwners = (enabled: boolean) =>
+  useQuery({
+    queryKey: ["repository-owners"],
+    queryFn: async () => {
+      const answer = await api.page<RepositoryOwner[]>("/projects/repository-owners");
+      return { owners: answer.data, connected: Boolean(answer.meta?.connected) };
+    },
+    enabled,
+    retry: false,
+  });
 
 export const useInstance = (name: string) =>
   useQuery({ queryKey: keys.instance(name), queryFn: () => api.get<Instance>(`/instances/${name}`) });

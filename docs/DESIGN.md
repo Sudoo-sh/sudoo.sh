@@ -94,8 +94,6 @@ text stronger.
 
 ## 5. Materials and depth
 
-Following Apple's use of translucent materials:
-
 - The **sidebar** and the **top bar** are translucent (`--material`, a blur of 20 px with raised saturation); content
   scrolls under the top bar, and a soft fade marks where they meet instead of a hard line.
 - **Sheets** (dialogs) sit on a dimming scrim, because they are a task that needs attention. The **drawer** (a job's
@@ -106,8 +104,6 @@ Following Apple's use of translucent materials:
 ---
 
 ## 6. Motion
-
-The rules come from Emil Kowalski's animation standards and Apple's *Designing Fluid Interfaces*.
 
 **Only as much motion as the action is rare.** Moving between pages happens all day, so it is short and small: only
 the content moves, the frame stays still (see the table). Menus, sheets and toasts appear occasionally and get a

@@ -25,7 +25,7 @@ link from the panel as the base address, and the database name shown on the inst
 
 | You need | Where to find it |
 | :--- | :--- |
-| Base address | The instance's link, for example `https://river-stone-apple.trycloudflare.com` |
+| Base address | The instance's link, for example `https://river-stone-apple.example.com` |
 | Database | The instance's page, **Database** (for example `sales_main`) |
 | User and password | `admin` / `admin`, or a user you created in that Odoo |
 | API key (JSON-2) | Created in that Odoo, see [section 4](#4-json-2-api-with-an-api-key-odoo-19-and-later) |
@@ -43,7 +43,7 @@ Works with every Odoo version and every language that has an XML-RPC library.
 ```python
 import xmlrpc.client
 
-url, db, user, password = "https://river-stone-apple.trycloudflare.com", "sales_main", "admin", "admin"
+url, db, user, password = "https://river-stone-apple.example.com", "sales_main", "admin", "admin"
 
 common = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/common")
 uid = common.authenticate(db, user, password, {})
@@ -65,7 +65,7 @@ What Odoo's own web client uses. Sign in once, keep the session cookie, then cal
 ```python
 import requests
 
-url = "https://river-stone-apple.trycloudflare.com"
+url = "https://river-stone-apple.example.com"
 s = requests.Session()
 s.post(f"{url}/web/session/authenticate", json={
     "jsonrpc": "2.0", "method": "call",
@@ -91,7 +91,7 @@ The modern API: one HTTP request per call, authenticated with an API key instead
 Copy the key; Odoo shows it only once.
 
 ```bash
-curl -X POST "https://river-stone-apple.trycloudflare.com/json/2/res.partner/search_read" \
+curl -X POST "https://river-stone-apple.example.com/json/2/res.partner/search_read" \
      -H "Authorization: bearer <api key>" \
      -H "Content-Type: application/json" \
      -d '{"domain": [["is_company", "=", true]], "fields": ["name", "email"], "limit": 5}'
@@ -100,7 +100,7 @@ curl -X POST "https://river-stone-apple.trycloudflare.com/json/2/res.partner/sea
 ```python
 import requests
 
-url, key = "https://river-stone-apple.trycloudflare.com", "<api key>"
+url, key = "https://river-stone-apple.example.com", "<api key>"
 r = requests.post(f"{url}/json/2/res.partner/create",
                   headers={"Authorization": f"bearer {key}"},
                   json={"vals_list": [{"name": "Created with JSON-2"}]})
@@ -119,7 +119,7 @@ a rule with the trigger **On webhook**, and choose what it does (for example cre
 Odoo shows the rule's address, `https://<instance link>/web/hook/<random id>`. Give that address to the other system:
 
 ```bash
-curl -X POST "https://river-stone-apple.trycloudflare.com/web/hook/3f6c1b2e-..." \
+curl -X POST "https://river-stone-apple.example.com/web/hook/3f6c1b2e-..." \
      -H "Content-Type: application/json" \
      -d '{"name": "Lead from the website", "email": "visitor@example.com"}'
 ```

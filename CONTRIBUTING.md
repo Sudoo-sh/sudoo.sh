@@ -95,7 +95,7 @@ Style: black formats the code and ruff checks it; add type hints to every functi
 
 1. Fork the repository and create a branch from `main` with a short descriptive name, for example `fix/backup-filestore-size` or `feat/instance-labels`.
 2. Keep each pull request focused on one change. Several small pull requests are reviewed faster than one large one.
-3. Write commit messages in the imperative mood, with a short first line (about 72 characters at most), for example `Retry the tunnel when Cloudflare returns 1033`. Add a body explaining the reason when it is not obvious.
+3. Write commit messages in the imperative mood, with a short first line (about 72 characters at most), for example `Retry the backup when the database is busy`. Add a body explaining the reason when it is not obvious.
 4. Sign off every commit (`git commit -s`). The sign-off line certifies the [Developer Certificate of Origin](https://developercertificate.org/): that you wrote the change or otherwise have the right to submit it.
 5. Open the pull request against `main` and fill in the template. Link the issue it closes (`Closes #123`).
 6. Make sure the automatic checks pass. A maintainer will review; please answer review comments by pushing new commits to the same branch.

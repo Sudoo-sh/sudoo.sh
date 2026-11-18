@@ -493,7 +493,7 @@ An instance:
     "name": "sales-main",
     "status": "online",
     "stage": "development",
-    "url": "https://river-stone-apple.trycloudflare.com",
+    "url": "https://river-stone-apple.example.com",
     "odoo": {"version": "19.0", "edition": "enterprise", "database": "sales_main"},
     "source": "repository",
     "git": {

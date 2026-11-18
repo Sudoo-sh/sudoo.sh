@@ -7,7 +7,7 @@
 
 ## Contents
 
-1. [What we protect, and from whom](#1-what-we-protect-and-from-whom)
+1. [What is protected, and from whom](#1-what-is-protected-and-from-whom)
 2. [Reachability](#2-reachability)
 3. [Panel passwords](#3-panel-passwords)
 4. [Stored secrets: the vault](#4-stored-secrets-the-vault)
@@ -23,7 +23,7 @@
 
 ---
 
-## 1. What we protect, and from whom
+## 1. What is protected, and from whom
 
 | What | Why it matters |
 | :--- | :--- |
@@ -51,14 +51,14 @@ Examples of each attempt, and how the panel stops it, are in [Web attacks](conce
   stream (`EVENTS_PORT`) listen on `127.0.0.1` only, with every exposure: nothing reaches them except through the
   web service. The third, the gateway service (`sudoo-gateway`), holds the instances' gateway ports (next section).
 * With the default exposure plugin (`cloudflare-quick`), the web service, every gateway and every Odoo
-  listen on `127.0.0.1` only. Nothing is reachable from the internet except through the Cloudflare connectors that
-  the server opened itself, and SSH for administrators.
+  listen on `127.0.0.1` only. Nothing is reachable from the internet except through the public-link connectors
+  that the server opened itself, and SSH for administrators.
 * With `host-ports`, the web service and the gateways listen on every interface, on purpose; Odoo itself and the
   databases still listen on `127.0.0.1` only. Use a firewall to limit who can reach the ports, and https in front of
   them on any network you do not fully trust (see [Plugins](PLUGINS.md#host-ports)).
-* Cloudflare carries the traffic over https and decrypts it at its edge (that is how quick tunnels work); between
-  Cloudflare and the server it travels inside the connector's own encrypted connection. See
-  [Tunneling](concepts/TUNNELING.md#6-is-it-safe).
+* With the default exposure plugin, the public-link service (Cloudflare) carries the traffic over https and
+  decrypts it at its edge; between the service and the server it travels inside the connector's own encrypted
+  connection. See [Public links](concepts/TUNNELING.md#6-is-it-safe).
 * The panel and every instance have different addresses (different browser origins), so an instance's pages can never read
   the panel's cookie. The gateway also removes the panel's cookie from requests to Odoo and stops Odoo from setting
   one with the same name.
@@ -110,7 +110,7 @@ of the instances ([Administrator Guide](ADMIN_GUIDE.md#19-custom-domains-and-cer
   with certificate checks on; HTTP-01 answers are written only for tokens of the expected form and removed after
   each check.
 
-With `CUSTOM_DOMAINS=external` nothing new listens: the visitor's own proxy or tunnel handles https and reaches the
+With `CUSTOM_DOMAINS=external` nothing new listens: the visitor's own proxy handles https and reaches the
 instance's gateway port as before.
 
 ### The visitor's address
@@ -352,7 +352,7 @@ Being clear about limits is part of security.
 | **Someone with root on the server** | Root can read `vault.key` as well as the encrypted values, and controls Docker. The vault protects copies and backups, not a compromised server. Keep SSH access to the server limited. |
 | **A super admin or administrator account** | The panel controls Docker, so these roles can do anything on the server. Give them only to people who would be trusted with the server. |
 | **Plain http with `host-ports`** | With `PUBLIC_SCHEME=http`, passwords and session cookies travel unencrypted (the cookie is then not marked Secure). Put a TLS proxy in front, or keep it to trusted networks. |
-| **Traffic inside Cloudflare** | Quick tunnels end https at Cloudflare's edge. For a server this is acceptable; Tailscale Funnel is the end-to-end alternative ([Tunneling](concepts/TUNNELING.md#7-other-ways-and-why-we-chose-this-one)). |
+| **Traffic at the public-link service** | The default exposure plugin ends https at the service's edge (Cloudflare). For instances without real data this is acceptable; for end-to-end encryption use `host-ports` behind your own TLS proxy, or another exposure plugin ([Public links](concepts/TUNNELING.md#7-fixed-addresses-and-other-options)). |
 | **Each instance's database password** | Stored readable in the instance's `.env`, `docker-compose.yml` and `odoo.conf` (folder mode 700, root only; `odoo.conf` readable by the Odoo container's user only). The database is reachable only from that instance's Odoo container, on an internal Docker network that the server itself has no address on (Docker 28 and later), so the password is of no use to anyone who could not already read the whole server. |
 | **Root and the docker group** | Anyone who is root on the server, or in its `docker` group, can change, replace or enter every container and file; nothing inside the panel can prevent that. The panel makes such changes visible and undoes them on instances ([Instance containers](#10-instance-containers)); it cannot stop them. |
 | **Sign-in lockout after a restart** | Failed attempts are counted in memory; a panel restart resets the counters. The slow hash still limits guessing. |

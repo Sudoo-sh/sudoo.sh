@@ -10,8 +10,8 @@ its own database, can run side by side on one server without disturbing each oth
 1. [An everyday comparison](#1-an-everyday-comparison)
 2. [The four words to know](#2-the-four-words-to-know)
 3. [Docker Compose: one instance, one file](#3-docker-compose-one-instance-one-file)
-4. [What it looks like on our server](#4-what-it-looks-like-on-our-server)
-5. [What we gain](#5-what-we-gain)
+4. [What it looks like on the server](#4-what-it-looks-like-on-the-server)
+5. [What it brings](#5-what-it-brings)
 6. [Try it yourself](#6-try-it-yourself)
 
 ---
@@ -29,7 +29,7 @@ different libraries in another, PostgreSQL in a third. The server only has to kn
 
 ## 2. The four words to know
 
-| Word | Meaning | Example on our server |
+| Word | Meaning | Example on a Sudoo.sh server |
 | :--- | :--- | :--- |
 | **Image** | A ready-made, read-only package of a program and everything it needs. Like a recipe, or a template. | `odoo:20.0`, published by Odoo; `postgres:16` |
 | **Container** | A running copy of an image, with its own files, processes and network. Like a dish made from the recipe. | `odoo-sales-main-odoo-1` |
@@ -99,7 +99,7 @@ With this file, one command does a whole job:
 
 ---
 
-## 4. What it looks like on our server
+## 4. What it looks like on the server
 
 ![Containers on the server](../images/docker-server.svg)
 
@@ -112,14 +112,14 @@ on the server.
 
 ---
 
-## 5. What we gain
+## 5. What it brings
 
 | Gain | Without Docker |
 | :--- | :--- |
 | Odoo 18, 19 and 20 side by side | Each version needs different Python libraries; they would conflict on one system. |
 | An instance can break without affecting others | One shared installation: one bad module could stop every instance. |
 | Deleting an instance leaves nothing behind | Leftover databases, files and settings scattered over the server. |
-| Exactly Odoo's official behaviour | Our own installation steps, which could differ from Odoo's. |
+| Exactly Odoo's official behaviour | Custom installation steps, which could differ from Odoo's. |
 | A paused instance uses no memory | Stopping and starting services by hand. |
 
 ---

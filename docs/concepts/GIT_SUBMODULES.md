@@ -52,8 +52,8 @@ someone moves the pointer, and that change is committed like any other change.
 
 ```
 acme-co/sales                  (main repository, branch 19.0)
-├── sales_quote/                our own module
-├── sales_stock/               our own module
+├── sales_quote/                your own module
+├── sales_stock/               your own module
 ├── oca/
 │   ├── web/                   submodule → OCA/web @ 4f2a9c1
 │   │   ├── web_responsive/

@@ -15,7 +15,7 @@ whose submodules are added and removed from the panel (that needs write access, 
 1. [An everyday comparison](#1-an-everyday-comparison)
 2. [Key pairs in two minutes](#2-key-pairs-in-two-minutes)
 3. [Why deploy keys and not a personal token](#3-why-deploy-keys-and-not-a-personal-token)
-4. [What happens on our server](#4-what-happens-on-our-server)
+4. [What happens on the server](#4-what-happens-on-the-server)
 5. [Example: an instance with a private submodule](#5-example-an-instance-with-a-private-submodule)
 6. [Read-only or write access?](#6-read-only-or-write-access)
 
@@ -36,7 +36,7 @@ An SSH key is a **pair**:
 
 | Part | Kept where | Like |
 | :--- | :--- | :--- |
-| **Private key** | Only on our server, encrypted | The key in your pocket. Never shared. |
+| **Private key** | Only on the panel's server, encrypted | The key in your pocket. Never shared. |
 | **Public key** | Pasted into the repository's settings on GitHub | The lock fitted to the storeroom door. Safe to show anyone. |
 
 When the server connects, GitHub sends a challenge that only the matching private key can answer. The private key
@@ -62,7 +62,7 @@ A server needs to read a few repositories. A deploy key gives exactly that, and 
 
 ---
 
-## 4. What happens on our server
+## 4. What happens on the server
 
 ![What happens when a deploy key is created and used](../images/deploy-key-flow.svg)
 

@@ -112,8 +112,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   repositories and their submodules with one-hour installation tokens handed to git by a credential helper (never in
   addresses, `.git/config` or logs). The New instance page lists the app's repositories as you type, branches come
   from GitHub's API, and the new update trigger `github-app` (default `UPDATE_TRIGGERS=polling,github-app`) updates
-  instances seconds after a push through the app's webhook, whose address the panel updates itself when a Cloudflare
-  quick tunnel changes. Existing deploy keys keep working and remain the fallback. API: `/api/v1/github/app`,
+  instances seconds after a push through the app's webhook, whose address the panel updates itself when the panel's
+  public link changes. Existing deploy keys keep working and remain the fallback. API: `/api/v1/github/app`,
   `/api/v1/github/app/manifest`, `/api/v1/github/app/installations`, `/api/v1/github/repositories`.
 - **Plugin store:** a new **Plugins** page (super admins install and buy; administrators can look) with the
   Sudoo.sh marketplace's catalogue (search, categories, a **Recommended** row with the reason for each suggestion,
@@ -431,7 +431,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **The unsaved-changes bar on the Settings page follows the theme.**
 - **The web app builds with Node.js 26, the current LTS release** (image, CI and `engines`). Dependabot proposes
   only LTS (even-numbered) Node majors.
-- **The interface follows Apple's design and motion principles** ([docs/DESIGN.md](docs/DESIGN.md)):
+- **A redesigned interface** ([docs/DESIGN.md](docs/DESIGN.md)):
   - the system font with size-specific tracking;
   - graphite neutrals with Odoo's plum as the single accent;
   - a translucent sidebar and top bar;
@@ -491,7 +491,7 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 
 - Web panel that runs many independent Odoo 18, 19 and 20 instances (Community and Enterprise) on one Docker server.
 - Instance creation from a GitHub repository and branch, with generated names, databases, ports and passwords.
-- One public https link per instance through Cloudflare quick tunnels, with no open incoming port.
+- One public https link per instance, with no open incoming port.
 - GitHub sync every 2 minutes, upgrading only changed modules; submodule update, add and remove.
 - Read-only deploy keys per private repository, stored encrypted with AES-256-GCM.
 - Auto-pause after 6 hours without visits, and wake-up on the next visit.

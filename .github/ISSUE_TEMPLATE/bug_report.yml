@@ -32,7 +32,7 @@ body:
       options:
         - Creating an instance
         - GitHub sync, deploy keys or submodules
-        - Public links (tunnels) or gateway
+        - Public links or gateway
         - Pause, start, restart or switch off
         - Lifetime, deletion or backups
         - Accounts, roles, sign-in or audit log

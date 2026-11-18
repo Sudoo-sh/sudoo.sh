@@ -34,7 +34,7 @@ Words used in this manual:
 | **Panel** | This website, where instances are managed. |
 | **Repository** | The GitHub project that holds the custom modules of an instance. |
 | **Branch** | A line of work inside a repository, for example `main` or `19.0`. |
-| **Link** | The public https address of an instance, for example `https://river-stone-apple.trycloudflare.com`. |
+| **Link** | The public https address of an instance, for example `https://river-stone-apple.example.com`. |
 | **Job** | One action on an instance (create, get latest code, restart...), with its steps and log. |
 
 The panel only shows the pages and buttons your role may use ([section 8](#8-accounts-and-roles)). If something
@@ -112,7 +112,7 @@ By default super admins and administrators must use a second factor. A super adm
 * **Sign out** (your name at the bottom of the sidebar, or **My account**) ends the session at once, on the server
   too: a copy of the session taken before cannot be used afterwards. Use it on shared computers.
 * The panel's link can change when the server restarts. If the link you saved stops working, ask the administrator
-  for the new one ([why links change](concepts/TUNNELING.md#5-why-the-link-changes)).
+  for the new one ([when links change](concepts/TUNNELING.md#5-when-the-link-changes)).
 
 ---
 
@@ -289,8 +289,8 @@ replaces it: Rollback always goes back to just before the last restore.
 An instance, usually a production one, can answer on your client's own domain, such as `erp.client.com`, over
 https. The **Domains** tab shows its domains; administrators add and remove them. Your administrator first turns
 custom domains on for the server ([Administrator Guide](ADMIN_GUIDE.md#19-custom-domains-and-certificates)); until
-then the tab says so, and why (a server reached only through Cloudflare quick tunnels cannot carry your own domain
-without your own Cloudflare tunnel or proxy).
+then the tab says so, and why (a server reached only through the default public links cannot carry your own
+domain without a proxy in front of it).
 
 To add one:
 

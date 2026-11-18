@@ -21,7 +21,7 @@
 
 ## 1. Why plugins
 
-Servers differ. One server accepts no incoming connection and needs a tunnel; another has a public address and can
+Servers differ. One server accepts no incoming connection; another has a public address and can
 simply open ports; a third sits behind the company's reverse proxy. Some teams keep Odoo Enterprise in a folder,
 others in a git repository with one branch per version, others do not use Enterprise at all.
 
@@ -88,9 +88,10 @@ says what the public address is.
 
 ### `cloudflare-quick` (default)
 
-A free Cloudflare quick tunnel per instance and one for the panel. No open port, no account, no domain; https
+The default public-link extension: a public https link per instance and one for the panel, through a connector
+that only makes outgoing connections (Cloudflare quick tunnels). No open port, no account, no domain; https
 included. Addresses look like `https://<words>.trycloudflare.com` and change when the server restarts. See
-[Tunneling](concepts/TUNNELING.md).
+[Public links](concepts/TUNNELING.md).
 
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
@@ -162,7 +163,7 @@ for speed, polling as a safety net).
 
 | Trigger | How it notices | Delay after a push | Needs |
 | :--- | :--- | :--- | :--- |
-| `polling` (default) | Asks GitHub every `POLL_MINUTES` whether each instance's branch has new commits | up to `POLL_MINUTES` (2) | nothing; works behind changing tunnel addresses |
+| `polling` (default) | Asks GitHub every `POLL_MINUTES` whether each instance's branch has new commits | up to `POLL_MINUTES` (2) | nothing; works with changing public addresses |
 | `github-app` (default) | The panel's GitHub App sends every push of the repositories it is installed on to `<panel address>/hooks/github-app` | seconds | a connected GitHub App ([Administrator guide](ADMIN_GUIDE.md#15-the-github-app)); the panel keeps the webhook address current itself |
 | `github-webhook` | GitHub calls `<panel address>/hooks/github` on every push | seconds | a panel address that does not change, and `GITHUB_WEBHOOK_SECRET` |
 
@@ -172,7 +173,7 @@ Nothing to set up per repository: the webhook is part of the GitHub App the pane
 created by GitHub with the app. Each delivery is checked with `X-Hub-Signature-256` and that secret. Besides pushes,
 the trigger follows branch creation and deletion (the instance page's "branch deleted" warning) and the app's
 installations. While no app is connected, `/hooks/github-app` answers 404. When the panel's public address changes
-(Cloudflare quick tunnels), the panel updates the app's webhook address on GitHub within two minutes.
+(the default public-link extension), the panel updates the app's webhook address on GitHub within two minutes.
 
 ### `github-webhook`
 
@@ -374,7 +375,7 @@ from the Sudoo.sh marketplace on the **Plugins** page. The page, buying, licence
 
 Rules for a marketplace plugin, on top of [Rules for plugins](#7-rules-for-plugins):
 
-* **Standard library only, for now.** Packages that declare dependencies (`[project] dependencies` in
+* **Standard library only.** Packages that declare dependencies (`[project] dependencies` in
   `pyproject.toml`, or a `requirements*.txt` with entries) are refused, because this version of the panel has no
   dependency installer. Only `sudoo-plugin-sdk` may be declared, and only runs where the panel has the SDK in a
   version the plugin accepts.

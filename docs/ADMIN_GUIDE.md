@@ -41,7 +41,7 @@ domains and certificates.
 | 20 GB of free disk on `/opt` and on Docker's folder (`/var/lib/docker`) | Odoo images (about 1.5 GB per version), databases, attachments, backups. |
 | Docker Engine 24+ with the Compose v2 plugin (the installer installs them after asking) | The panel and every instance are Compose projects. |
 | Outgoing HTTPS to github.com, ghcr.io, registry-1.docker.io and Cloudflare (443, 7844); GitHub SSH (22) for private repositories | Releases and code, the Sudoo.sh images, the Odoo images, public links. |
-| **No incoming port** | Public access goes through connections the server opens itself ([Tunneling](concepts/TUNNELING.md)). Only SSH is needed, for administration. |
+| **No incoming port** | Public access goes through connections the server opens itself ([Public links](concepts/TUNNELING.md)). Only SSH is needed, for administration. |
 
 The installer checks all of this before it changes anything. To only check (changes nothing):
 
@@ -329,7 +329,7 @@ The two choices that shape a server are plugins ([Plugins](PLUGINS.md)):
 
 | Setting | Options |
 | :--- | :--- |
-| `EXPOSURE` | `cloudflare-quick` (free tunnel per instance, no open port; default) or `host-ports` (open ports, fixed addresses) |
+| `EXPOSURE` | `cloudflare-quick` (the default public-link extension: a link per instance, no open port) or `host-ports` (open ports, fixed addresses) |
 | `ENTERPRISE_SOURCE` | `folder` (default), `git` (a branch per version) or `none` |
 
 Per instance, the **Settings** tab of the instance's page changes the stage, automation and lifetime (stored as
@@ -422,10 +422,10 @@ messages a day for a personal account. Other mail servers are described in
 
 ## 7. Public links
 
-The panel and every instance have their own link, `https://<words>.trycloudflare.com` (with the default
-`EXPOSURE=cloudflare-quick`).
+The panel and every instance have their own public https link. With the default public-link extension
+(`EXPOSURE=cloudflare-quick`) a link looks like `https://<words>.trycloudflare.com`.
 
-**These Cloudflare quick tunnel links change when the server restarts, or when a connector container restarts.**
+**With the default extension, links change when the server restarts, or when a connector container restarts.**
 The panel always shows the current ones, and tells every Odoo its new address within about 15 seconds (so links
 inside Odoo, such as those in e-mails, follow). The GitHub App's webhook address follows too, within two minutes
 ([section 15](#15-the-github-app)). Links you shared earlier, and webhook addresses registered at other services
@@ -439,14 +439,14 @@ To see the current links on the server:
 docker exec sudoo-panel sudoo.sh urls
 ```
 
-Administrators can also reach the panel without Cloudflare, through SSH (9000 is the default `PANEL_PORT`):
+Administrators can also reach the panel without its public link, through SSH (9000 is the default `PANEL_PORT`):
 
 ```bash
 ssh -N -L 9000:localhost:9000 <user>@<server>
 ```
 
-then open `http://localhost:9000`. Why the server needs tunnels at all is explained in
-[Tunneling](concepts/TUNNELING.md).
+then open `http://localhost:9000`. How public links work is explained in
+[Public links](concepts/TUNNELING.md).
 
 ---
 
@@ -922,7 +922,7 @@ After installing or updating:
 | An instance's page says its gateway port is used by another program | Another program holds that port | `ss -ltnp 'sport = :<port>'` shows which; stop it, and the gateway takes the port within seconds |
 | `docker logs sudoo-panel` says the gateway service does not answer | `sudoo-gateway` is stopped, restarting or hangs (the panel serves the instances meanwhile) | `docker logs sudoo-gateway`, then `cd /opt/odoo/manager && docker compose up -d gateway` |
 | An access report line is red on New instance | The message says which: the app belongs to another account, is not installed on the repository's owner, the repository is not among its selected ones; or no app and no deploy key | Follow the button next to the line ([When a repository cannot be read](#when-a-repository-cannot-be-read)); or create a deploy key ([User manual](USER_MANUAL.md#7-github-access-private-repositories)) |
-| GitHub's page after **Create GitHub App** or **Install** does not open | The panel's quick-tunnel address changed since the app was created (GitHub still has the old one) | Open the panel at its current address, **GitHub access**, **Refresh**. A new app: connect again |
+| GitHub's page after **Create GitHub App** or **Install** does not open | The panel's public address changed since the app was created (GitHub still has the old one) | Open the panel at its current address, **GitHub access**, **Refresh**. A new app: connect again |
 | Pushes do not start updates at once | `github-app` is not in `UPDATE_TRIGGERS`, or GitHub cannot reach the panel | Settings, Plugins; on GitHub, the app's **Advanced** page lists recent deliveries and their answers |
 | Update fails: "branch ... no longer exists on GitHub" (or "no such ref was fetched"); the instance page warns about it | The branch was deleted on GitHub, usually after its pull request was merged | Menu, **Switch branch**, choose the branch to follow now (for example `main`) |
 | Update fails: "went in different directions" | Something was changed directly in the instance's `addons` folder | A developer resets that folder to the GitHub branch |
@@ -931,7 +931,7 @@ After installing or updating:
 | "Cannot decrypt the value" in a log | `vault.key` was replaced or lost | Restore `vault.key` from its backup; otherwise recreate deploy keys, set the passwords on the Settings page again and reset account passwords |
 | Deletion failed: "the database did not start, so no backup could be taken" | The instance's database container is broken | Nothing was deleted. Check `docker logs odoo-<name>-db-1`; to delete anyway, fix or remove the database by hand |
 | JSON-2 API: 401 with a valid key | Odoo 20 API key without an expiry date | Create the key with an expiry date ([API](API.md)) |
-| Requests over 100 MB, or over 100 seconds, fail | Cloudflare quick tunnel limits | Split uploads; run long operations in the background |
+| Requests over 100 MB, or over 100 seconds, fail | Limits of the default public-link extension (`cloudflare-quick`) | Split uploads; run long operations in the background |
 
 
 ### Installer checks
@@ -952,7 +952,7 @@ anything; a ! is a warning. `sudo sudoo-install check` runs them all without cha
 | Port ... is free | Another program listens on `PANEL_PORT`, `API_PORT` or `EVENTS_PORT` | `sudo ss -ltnp 'sport = :9000'` shows it; stop it, or set another port in `/opt/odoo/manager/.env` and run the installer again |
 | Tools | curl, tar, openssl or ca-certificates is missing | Answer yes when asked, or `sudo apt-get install -y curl openssl ca-certificates` |
 | HTTPS to github.com, ghcr.io, registry-1.docker.io, download.docker.com, api.trycloudflare.com | No connection | Allow outgoing TCP 443; check DNS (`getent hosts ghcr.io`) and any proxy (`HTTPS_PROXY`, and Docker's own proxy settings) |
-| Cloudflare tunnel port 7844 | ! Outgoing 7844 is blocked | Allow outgoing TCP and UDP 7844 to `*.argotunnel.com` |
+| Port 7844 of the default public-link extension | ! Outgoing 7844 is blocked | Allow outgoing TCP and UDP 7844 to `*.argotunnel.com` |
 | Docker Engine | Missing, from a snap, not running, or older than 24 | Answer yes to install or start it; a snap: `sudo snap remove docker`, then run again; old: upgrade from Docker's repository |
 | Docker Compose | The Compose v2 plugin is missing | Answer yes, or `sudo apt-get install -y docker-compose-plugin` (Ubuntu's `docker.io`: `docker-compose-v2`) |
 | Docker buildx | ! Missing (only needed to build images yourself) | `sudo apt-get install -y docker-buildx-plugin` (or `docker-buildx`) |
@@ -972,18 +972,19 @@ anything; a ! is a warning. `sudo sudoo-install check` runs them all without cha
 
 ## 14. Moving to permanent links
 
-Quick tunnels are free and need no account, but their addresses change. For addresses that never change:
+The default public-link extension needs no account and no domain, but its addresses change. For addresses that
+never change:
 
 | Option | How |
 | :--- | :--- |
 | The server accepts incoming connections | `EXPOSURE=host-ports`, `PUBLIC_HOST=<name or address>`, open the ports. Built in. |
-| A domain behind Cloudflare | Buy a domain (about 10 USD a year), create a Cloudflare named tunnel, and write a small exposure plugin that routes `<instance>.<domain>` to each gateway port ([Plugins](PLUGINS.md#6-writing-a-plugin)). |
+| A domain of your own | Register a domain and write a small exposure plugin that routes `<instance>.<domain>` to each gateway port, for example through a Cloudflare named tunnel on your own account ([Plugins](PLUGINS.md#6-writing-a-plugin)). |
 | A reverse proxy you already run | An exposure plugin like the example in [Plugins](PLUGINS.md#6-writing-a-plugin). |
 
 `EXPOSURE` and `PUBLIC_HOST` are `.env`-only settings: change them in `/opt/odoo/manager/.env` and run
 `cd /opt/odoo/manager && docker compose up -d`. The gateway, the instances and the panel stay as they are; only the
-exposure plugin changes. The comparison with Tailscale and other options is in
-[Tunneling](concepts/TUNNELING.md#7-other-ways-and-why-we-chose-this-one).
+exposure plugin changes. The options are compared in
+[Public links](concepts/TUNNELING.md#7-fixed-addresses-and-other-options).
 
 ---
 
@@ -1076,8 +1077,8 @@ Without a connected app, the message advises a deploy key instead.
 * With `github-app` in `UPDATE_TRIGGERS` (the default for new servers), a push updates the instances that follow
   the branch within seconds; keep `polling` next to it as a safety net. On a server installed earlier, add
   `github-app` on the Settings page (Plugins) and restart the panel.
-* Every two minutes the panel compares its public address with the app's webhook address and, when a Cloudflare
-  quick tunnel got a new address, updates the webhook on GitHub (an audit-log entry says so).
+* Every two minutes the panel compares its public address with the app's webhook address and, when the default
+  public-link extension gave the panel a new address, updates the webhook on GitHub (an audit-log entry says so).
 
 A repository that still has a deploy key keeps using it. Delete the key to switch that repository to the app.
 
@@ -1281,7 +1282,7 @@ section is about what the server needs. Custom domains are off until you choose 
 | Your server | `CUSTOM_DOMAINS` | What happens |
 | :--- | :--- | :--- |
 | Accepts connections from the internet on ports 80 and 443 (a VPS with a public address) | `acme` | The gateway answers the domains on ports 80 and 443, gets a certificate for each from Let's Encrypt (or the authority in `ACME_DIRECTORY`) and renews it. Works with any `EXPOSURE`: the instances' own links stay as they are. |
-| Reached only through tunnels (`EXPOSURE=cloudflare-quick`, no open port) | `external`, or none | A quick tunnel cannot carry your own domain. With your own Cloudflare account, create a named tunnel that sends the domain to `http://127.0.0.1:<the instance's gateway port>` (shown under **Credentials**); Cloudflare then handles https, and the panel records the domain, checks that it reaches the instance, and uses it as the instance's address. Without your own Cloudflare (or another proxy), custom domains are not available on this server, and the Domains tab says so. |
+| Reached only through the default public-link extension (`EXPOSURE=cloudflare-quick`, no open port) | `external`, or none | The default public links cannot carry your own domain. With your own Cloudflare account, create a named tunnel that sends the domain to `http://127.0.0.1:<the instance's gateway port>` (shown under **Credentials**); Cloudflare then handles https, and the panel records the domain, checks that it reaches the instance, and uses it as the instance's address. Without your own Cloudflare (or another proxy), custom domains are not available on this server, and the Domains tab says so. |
 | Behind a proxy or load balancer you run | `external` | Same as above: the proxy handles https and forwards to the gateway port. |
 
 ### Setting up `acme`

@@ -29,6 +29,14 @@ http://:{$PANEL_PORT} {
 		}
 	}
 
+	# web shells: WebSockets, served next to the live events (the backend checks Origin, ticket and session)
+	@shell path_regexp ^/api/v1/instances/[a-z0-9-]+/shell/socket$
+	handle @shell {
+		reverse_proxy 127.0.0.1:{$EVENTS_PORT} {
+			flush_interval -1
+		}
+	}
+
 	# the backend: API, webhooks, documentation pages and their files, health check. Its requests are small JSON
 	# documents (the backend refuses more than 64 KB); a much larger body is refused here already
 	@backend path /api/* /hooks/* /docs /docs/* /static/* /healthz

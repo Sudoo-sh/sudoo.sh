@@ -610,6 +610,56 @@ class Settings(BaseSettings):
         "json", description='Webhook 3: "json", "slack", "discord" or "teams".'
     )
 
+    # ------------------------------------------------------------------ web shell (webshell/, docs/ADMIN_GUIDE.md "Web shell")
+    shell_enabled: bool = Field(
+        True,
+        description="People whose role allows it can open a terminal in an instance's containers from the panel "
+        "(the Shell tab); off: nobody can, and open shells close.",
+    )
+    shell_roles: Literal["admins", "maintainers", "developers"] = Field(
+        "admins",
+        description='Who may open a shell in an instance\'s Odoo container: "admins" (super admins and '
+        'administrators), "maintainers" (and maintainers) or "developers" (and developers). Viewers never can; psql '
+        "in the database container stays with super admins and administrators.",
+    )
+    shell_production: Literal["off", "super_admins", "allowed"] = Field(
+        "super_admins",
+        description='Shells in production instances: "off" (nobody), "super_admins" (super admins only) or "allowed" '
+        "(whoever may open shells in other instances). Each one is confirmed when it is opened.",
+    )
+    shell_root: bool = Field(
+        False,
+        description="Super admins may open the Odoo container's shell as root (the container's capabilities stay "
+        "dropped); off: every shell runs as the container's own user.",
+    )
+    shell_idle_minutes: float = Field(15, ge=1, le=1440, description="A shell nobody types in for this long closes.")
+    shell_max_minutes: float = Field(
+        60, ge=1, le=1440, description="Longest a shell stays open; it then closes (a new one can be opened)."
+    )
+    shell_max_per_user: int = Field(2, ge=1, le=20, description="Shells one person may have open at the same time.")
+    shell_max_per_instance: int = Field(3, ge=1, le=50, description="Shells open in one instance at the same time.")
+    shell_ticket_seconds: int = Field(
+        15, ge=5, le=60, description="Seconds the one-time ticket that connects a new shell stays valid."
+    )
+    shell_recording: Literal["off", "production", "all"] = Field(
+        "production",
+        description='Record what is typed and shown in shells: "off", "production" (shells in production instances '
+        'and root shells) or "all". Recordings are encrypted; only super admins can play them.',
+    )
+    shell_recording_days: int = Field(
+        30, ge=1, le=3650, description="Days recordings, and the list of past shells, are kept."
+    )
+    shell_recording_max_mb: float = Field(
+        5,
+        ge=0.1,
+        le=50,
+        description="Largest recording of one shell, in MB; beyond it only what is typed is recorded, and the shell "
+        "closes when that alone reaches the size again.",
+    )
+    shell_recordings_total_mb: int = Field(
+        500, ge=10, le=100000, description="Space all shell recordings may take together, in MB; the oldest go first."
+    )
+
     @field_validator("alert_emails")
     @classmethod
     def _alert_emails(cls, value: str) -> str:
@@ -782,6 +832,9 @@ ALERT_SETTINGS = tuple(name for name in Settings.model_fields if name == "alerts
 OFFSITE_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("offsite_"))
 """Every setting of off-site copies (offsite/); changing them also needs the permission offsite.configure."""
 
+SHELL_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("shell_"))
+"""Every web shell setting (webshell/); all of them can be changed in the panel."""
+
 EDITABLE = (
     # take effect at once
     "brand_color",
@@ -866,6 +919,7 @@ EDITABLE = (
     "domain_http_probe",
     *OFFSITE_SETTINGS,
     *ALERT_SETTINGS,
+    *SHELL_SETTINGS,
 )
 """Settings that can be changed in the panel, taking effect at once."""
 

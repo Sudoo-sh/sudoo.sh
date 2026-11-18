@@ -9,7 +9,10 @@ import { useEffect, useState } from "react";
 import type { DataRouter } from "react-router";
 import { keys } from "@/api/queries";
 import type { Role } from "@/api/types";
+import { LanguageSwitch } from "@/components/LanguageSwitch";
 import { useToast } from "@/components/ui/overlay";
+import { useT } from "@/i18n";
+import words from "@/i18n/demo";
 import { me, remember, switchRole } from "./backend/api";
 import { seedDomains } from "./backend/domains";
 import { startMetrics } from "./backend/metrics";
@@ -34,18 +37,14 @@ export function start() {
   document.documentElement.dataset.demo = "";
 }
 
-const PERSPECTIVES: { role: Role; label: string }[] = [
-  { role: "super_admin", label: "Super admin" },
-  { role: "admin", label: "Admin" },
-  { role: "developer", label: "Developer" },
-  { role: "viewer", label: "Viewer" },
-];
+const PERSPECTIVES: { role: Role }[] = [{ role: "super_admin" }, { role: "admin" }, { role: "developer" }, { role: "viewer" }];
 
 /** The demo's banner: always at the top, one line. What this is, where to install it, and whose eyes to look with. */
 export function DemoBanner({ router }: { router: Pick<DataRouter, "state" | "subscribe"> }) {
   const client = useQueryClient();
   const toast = useToast();
   const [role, setRole] = useState<Role>(session.role);
+  const t = useT(words);
   const [path, setPath] = useState(router.state.location.pathname);
   useEffect(() => router.subscribe((state) => setPath(state.location.pathname)), [router]);
   useEffect(() => setNotifier((title, text) => toast("info", title, text)), [toast]);
@@ -58,42 +57,42 @@ export function DemoBanner({ router }: { router: Pick<DataRouter, "state" | "sub
       client.setQueryData(keys.session, me());
       void client.invalidateQueries({ predicate: (query) => query.queryKey[0] !== "session" });
     }
-    const label = PERSPECTIVES.find((p) => p.role === next)?.label ?? next;
-    toast("info", `Viewing as ${label}`, roleInfo(next).description);
+    toast("info", t.viewingAsRole(t.roles[next] ?? next), roleInfo(next).description);
   };
 
   return (
-    <div className="demo-bar" role="region" aria-label="About this demo">
+    <div className="demo-bar" role="region" aria-label={t.about}>
       <span className="demo-dot" aria-hidden="true" />
       <p className="demo-text">
         {path === "/login" ? (
           <>
-            <b>Demo.</b> <span className="demo-long">Sign in with any e-mail address and password.</span>
+            <b>{t.demo}.</b> <span className="demo-long">{t.signInAny}</span>
           </>
         ) : (
           <>
-            <b>Demo</b> <span className="demo-long">with sample data. Nothing here is real.</span>
+            <b>{t.demo}</b> <span className="demo-long">{t.sampleData}</span>
           </>
         )}
       </p>
       <span className="demo-spacer" />
       <label className="demo-role">
-        <span className="demo-long">Viewing as</span>
+        <span className="demo-long">{t.viewingAs}</span>
         <span className="demo-select">
-          <select value={role} onChange={(event) => choose(event.target.value as Role)} aria-label="Viewing as">
+          <select value={role} onChange={(event) => choose(event.target.value as Role)} aria-label={t.viewingAs}>
             {PERSPECTIVES.map((p) => (
               <option key={p.role} value={p.role}>
-                {p.label}
+                {t.roles[p.role] ?? p.role}
               </option>
             ))}
           </select>
           <ChevronDown aria-hidden="true" />
         </span>
       </label>
+      <LanguageSwitch signedIn={session.signedIn && path !== "/login"} className="demo-language" />
       <a className="demo-install" href="https://sudoo.sh">
-        <span className="demo-long">Install on your server</span>
-        <span className="demo-short">Install</span>
-        <ArrowUpRight aria-hidden="true" />
+        <span className="demo-long">{t.install}</span>
+        <span className="demo-short">{t.installShort}</span>
+        <ArrowUpRight aria-hidden="true" className="flip-rtl" />
       </a>
     </div>
   );

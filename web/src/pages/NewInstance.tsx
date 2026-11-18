@@ -10,7 +10,9 @@ import { Page, PageHead, useCan } from "@/components/Shell";
 import { STAGE_ICON, STAGES } from "@/components/StageTag";
 import { Tag, Button, Callout, Field, Switch } from "@/components/ui/basics";
 import { useToast } from "@/components/ui/overlay";
-import { ago } from "@/lib/format";
+import { useT } from "@/i18n";
+import words from "@/i18n/new-instance";
+import { ago, number } from "@/lib/format";
 
 export function useDebounced<T>(value: T, delay = 450): T {
   const [shown, setShown] = useState(value);
@@ -39,13 +41,14 @@ function useRepositoryPicker(typed: string) {
 
 /** Where to choose on GitHub which repositories the app may read: one link per account it is installed on. */
 function RepositoryAccessLinks({ installations }: { installations: { account: string; settings_url: string }[] }) {
+  const t = useT(words).picker;
   if (!installations.length) return null;
   return (
     <p className="xsmall faint row-wrap" style={{ gap: 8 }}>
-      Not listed? Choose which repositories the app can read:
+      {t.notListed}
       {installations.map((i) => (
         <a key={i.account} href={i.settings_url} target="_blank" rel="noreferrer" onMouseDown={(e) => e.preventDefault()} className="row" style={{ gap: 2 }}>
-          {i.account} <ArrowUpRight size={12} />
+          <bdi>{i.account}</bdi> <ArrowUpRight size={12} className="flip-rtl" />
         </a>
       ))}
     </p>
@@ -54,24 +57,25 @@ function RepositoryAccessLinks({ installations }: { installations: { account: st
 
 export function RepositoryPicker({ typed, onPick }: { typed: string; onPick: (repository: GitHubRepository) => void }) {
   const { connected, repositories, installations } = useRepositoryPicker(typed);
+  const t = useT(words).picker;
   if (!connected || ADDRESS.test(typed)) return null;
   return (
     <>
       {repositories.length ? (
-        <ul className="repo-picker" role="listbox" aria-label="Repositories on GitHub">
+        <ul className="repo-picker" role="listbox" aria-label={t.label}>
           {repositories.slice(0, 8).map((r) => (
             <li key={r.full_name} role="option" aria-selected={false}>
               <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(r)}>
                 <FolderGit2 />
-                <span className="name truncate">{r.full_name}</span>
-                {r.private && <Lock size={12} aria-label="private" />}
+                <bdi className="name truncate">{r.full_name}</bdi>
+                {r.private && <Lock size={12} aria-label={t.private} />}
                 {r.description && <span className="desc truncate">{r.description}</span>}
               </button>
             </li>
           ))}
         </ul>
       ) : typed ? (
-        <p className="xsmall faint">No repository of the GitHub App matches "{typed}".</p>
+        <p className="xsmall faint">{t.noMatch(typed)}</p>
       ) : null}
       <RepositoryAccessLinks installations={installations} />
     </>
@@ -105,6 +109,7 @@ export function NewInstancePage() {
   const [useBackup, setUseBackup] = useState(false);
   const [stage, setStage] = useState<Stage>("development");
   const production = stage === "production";
+  const t = useT(words);
 
   const [branches, setBranches] = useState<string[] | null>(null);
   const [access, setAccess] = useState<RepoAccess | null>(null);
@@ -220,23 +225,23 @@ export function NewInstancePage() {
   const submit = () =>
     create.mutate(undefined, {
       onSuccess: (job) => {
-        toast("success", `Creating ${job.instance}`, "It takes a few minutes; follow it live.");
+        toast("success", t.creating(job.instance), t.creatingText);
         navigate(`/i/${job.instance}/activity`, { viewTransition: true });
       },
-      onError: (error) => toast("error", "Not created", errorText(error)),
+      onError: (error) => toast("error", t.notCreated, errorText(error)),
     });
 
   return (
     <Page>
-      <PageHead title="New instance">
-        Pick a branch, or plain Odoo. Sudoo.sh downloads the code, starts Odoo with its own database, installs your modules and gives it a link.
+      <PageHead title={t.title}>
+        {t.text}
       </PageHead>
 
       {(waiting || full) && (
         <Callout tone="warning">
           {full
-            ? "An instance limit is reached. Delete an instance first."
-            : `One instance per ${quota?.cooldown_minutes} minutes: you can create the next one ${ago(quota!.next_creation_at)}.`}
+            ? t.limitReached
+            : t.cooldown(number(quota?.cooldown_minutes), ago(quota!.next_creation_at))}
         </Callout>
       )}
 
@@ -245,72 +250,72 @@ export function NewInstancePage() {
           <section className="card">
             <div className="card-head">
               <FolderGit2 />
-              <h2>Code</h2>
+              <h2>{t.code}</h2>
             </div>
             <div className="card-body form-grid">
-              <div className="full grid-2" role="radiogroup" aria-label="Code">
+              <div className="full grid-2" role="radiogroup" aria-label={t.code}>
                 <button type="button" className="choice" role="radio" aria-checked={!plain} aria-pressed={!plain} onClick={() => setSource("repository")}>
                   <FolderGit2 />
-                  <span><span className="t">From a repository</span><br /><span className="d">A branch of your GitHub repository, with its modules.</span></span>
+                  <span><span className="t">{t.fromRepository}</span><br /><span className="d">{t.fromRepositoryText}</span></span>
                 </button>
                 <button type="button" className="choice" role="radio" aria-checked={plain} aria-pressed={plain} onClick={() => setSource("plain")}>
                   <Box />
-                  <span><span className="t">Plain Odoo (no repository)</span><br /><span className="d">The official Odoo only. No code to update.</span></span>
+                  <span><span className="t">{t.plain}</span><br /><span className="d">{t.plainText}</span></span>
                 </button>
               </div>
               {plain ? (
-                <Field className="full" label="Name" hint={plan ? <>Will be <b>{plan.name}</b> · database <code>{plan.database}</code></> : "Empty: Odoo, version, edition"}>
-                  <input className="input" placeholder={plan?.name ?? "sales-demo"} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
+                <Field className="full" label={t.name} hint={plan ? <>{t.willBe(<b key="n" dir="ltr">{plan.name}</b>, <code key="d">{plan.database}</code>)}</> : t.emptyPlain}>
+                  <input className="input" dir="ltr" placeholder={plan?.name ?? "sales-demo"} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
                 </Field>
               ) : (
               <>
               <Field
                 className="full"
-                label="GitHub repository"
+                label={t.repository}
                 error={repoError}
-                hint={checking ? "Checking the repository…" : branches ? `${branches.length} branches found` : "Search your repositories, or paste https://github.com/owner/repository"}
+                hint={checking ? t.checking : branches ? t.branchesFound(branches.length) : t.repositoryHint}
               >
                 <div className="stack-sm">
-                  <input className="input" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repo} aria-invalid={!!repoError}
+                  <input className="input" dir="ltr" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repo} aria-invalid={!!repoError}
                     onChange={(e) => setRepo(e.target.value)} onFocus={() => setPicking(true)} onBlur={() => setPicking(false)} />
                   {picking && (
                     <RepositoryPicker typed={repo.trim()} onPick={(r) => { setRepo(r.url); setBranch(r.default_branch); setPicking(false); }} />
                   )}
                 </div>
               </Field>
-              <Field label="Branch">
+              <Field label={t.branch}>
                 {branches ? (
-                  <select className="select" value={branch} onChange={(e) => setBranch(e.target.value)}>
+                  <select className="select" dir="ltr" value={branch} onChange={(e) => setBranch(e.target.value)}>
                     {branches.map((b) => <option key={b}>{b}</option>)}
                   </select>
                 ) : (
                   <div className="input-group">
                     <GitBranch />
-                    <input className="input" placeholder="main" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!!repo.trim()} />
+                    <input className="input" dir="ltr" placeholder="main" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!!repo.trim()} />
                   </div>
                 )}
               </Field>
-              <Field label="Name" hint={plan ? <>Will be <b>{plan.name}</b> · database <code>{plan.database}</code></> : "Empty: repository and branch"}>
-                <input className="input" placeholder={plan?.name ?? "sales-demo"} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
+              <Field label={t.name} hint={plan ? <>{t.willBe(<b key="n" dir="ltr">{plan.name}</b>, <code key="d">{plan.database}</code>)}</> : t.emptyRepository}>
+                <input className="input" dir="ltr" placeholder={plan?.name ?? "sales-demo"} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
               </Field>
               {access && (
                 <div className="full stack-sm">
                   {access.repositories.map((r) => (
                     <div key={r.url} className="row small" style={{ flexWrap: "wrap" }}>
                       {r.ok ? <CircleCheck size={16} color="var(--positive)" /> : <CircleX size={16} color="var(--negative)" />}
-                      <span className="truncate">{r.url}</span>
+                      <bdi className="truncate" dir="ltr">{r.url}</bdi>
                       <Tag>{r.role}</Tag>
                       {!r.ok && r.problem !== repoError && <span style={{ color: "var(--negative)" }}>{r.problem}</span>}
                       {!r.ok && r.fix?.url && (r.fix.url.startsWith("/") ? (
                         <Link className="btn sm" to={r.fix.url} viewTransition>{r.fix.label}</Link>
                       ) : (
-                        <a className="btn sm" href={r.fix.url} target="_blank" rel="noreferrer">{r.fix.label} <ArrowUpRight /></a>
+                        <a className="btn sm" href={r.fix.url} target="_blank" rel="noreferrer">{r.fix.label} <ArrowUpRight className="flip-rtl" /></a>
                       ))}
                     </div>
                   ))}
                   {!access.all_ok && !access.repositories.some((r) => r.fix) && (
                     <Callout tone="warning">
-                      The server cannot read every repository. For private ones, connect the GitHub App (or add a deploy key) under <Link to="/github" viewTransition>GitHub access</Link>.
+                      {t.cannotRead(<Link key="l" to="/github" viewTransition>{t.githubAccess}</Link>)}
                     </Callout>
                   )}
                 </div>
@@ -326,28 +331,28 @@ export function NewInstancePage() {
               <h2>Odoo</h2>
             </div>
             <div className="card-body stack">
-              <Field label="Version">
+              <Field label={t.version}>
                 {versions ? (
                   <div className="segmented" style={{ alignSelf: "flex-start", flexWrap: "wrap" }}>
                     {versions.map((v) => (
                       <button key={v.version} type="button" aria-pressed={v.version === version} onClick={() => setVersion(v.version)}
-                        title={v.enterprise ? "Community and Enterprise" : "Community"}>
+                        title={v.enterprise ? t.communityAndEnterprise : "Community"}>
                         <span className="mono">{v.version}</span>
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <span className="faint">Loading versions</span>
+                  <span className="faint">{t.loadingVersions}</span>
                 )}
               </Field>
               <div className="grid-2">
                 <button type="button" className="choice" aria-pressed={edition === "community"} onClick={() => setEdition("community")}>
                   <Package />
-                  <span><span className="t">Community</span><br /><span className="d">Odoo's free edition.</span></span>
+                  <span><span className="t">Community</span><br /><span className="d">{t.communityText}</span></span>
                 </button>
                 <button type="button" className="choice" aria-pressed={edition === "enterprise"} disabled={!enterpriseAvailable} onClick={() => setEdition("enterprise")}>
                   <Building2 />
-                  <span><span className="t">Enterprise</span><br /><span className="d">{enterpriseAvailable ? "With the Enterprise apps and interface." : `Not available for ${version || "this version"} on this server.`}</span></span>
+                  <span><span className="t">Enterprise</span><br /><span className="d">{enterpriseAvailable ? t.enterpriseText : version ? t.enterpriseMissing(version) : t.enterpriseMissing(t.thisVersion)}</span></span>
                 </button>
               </div>
             </div>
@@ -356,10 +361,10 @@ export function NewInstancePage() {
           <section className="card">
             <div className="card-head">
               <Layers />
-              <h2>Stage</h2>
+              <h2>{t.stage}</h2>
             </div>
             <div className="card-body stack">
-              <div className="grid-3" role="radiogroup" aria-label="Stage">
+              <div className="grid-3" role="radiogroup" aria-label={t.stage}>
                 {STAGES.map((st) => {
                   const Icon = STAGE_ICON[st.value];
                   return (
@@ -379,15 +384,15 @@ export function NewInstancePage() {
             <section className="card">
               <div className="card-head">
                 <Archive />
-                <h2>Start from a backup</h2>
-                <span className="sub">optional</span>
+                <h2>{t.fromBackup}</h2>
+                <span className="sub">{t.optional}</span>
                 <span className="spacer" />
-                <Switch checked={useBackup} onChange={setUseBackup} label="Use a backup" />
+                <Switch checked={useBackup} onChange={setUseBackup} label={t.useBackup} />
               </div>
               {useBackup && (
                 <div className="card-body stack">
                   <p className="small muted">
-                    The new instance starts with this backup's data instead of an empty database. Only backups of Odoo {version} fit. A backup of another instance is neutralised: no e-mail goes out and no scheduled actions run until you switch them back on in Odoo.
+                    {t.backupText(version)}
                   </p>
                   <BackupPicker version={version} edition={edition} value={fromBackup} onChange={setFromBackup} onlyCompatible />
                 </div>
@@ -398,20 +403,20 @@ export function NewInstancePage() {
 
         <aside className="stack">
           <section className="card">
-            <div className="card-head"><SlidersHorizontal /><h2>Options</h2></div>
+            <div className="card-head"><SlidersHorizontal /><h2>{t.options}</h2></div>
             <div className="card-body stack">
-              {!plain && <Switch checked={installModules} onChange={setInstallModules} label={useBackup ? "Install the repository's modules the backup lacks" : "Install the repository's modules"} />}
-              {!useBackup && <Switch checked={demo} onChange={setDemo} label="Load demo data" />}
-              {!plain && <Switch checked={autoUpdate} onChange={setAutoUpdate} label="Get new code automatically" />}
+              {!plain && <Switch checked={installModules} onChange={setInstallModules} label={useBackup ? t.installMissing : t.install} />}
+              {!useBackup && <Switch checked={demo} onChange={setDemo} label={t.demo} />}
+              {!plain && <Switch checked={autoUpdate} onChange={setAutoUpdate} label={t.autoUpdate} />}
               {production ? (
-                <p className="small muted">A production instance is never paused or deleted automatically, and is backed up every day.</p>
+                <p className="small muted">{t.productionNote}</p>
               ) : (
                 <>
-                  <Switch checked={autoPause} onChange={setAutoPause} label="Pause when nobody uses it" />
-                  <Field label="Lifetime" hint="Deleted after this, with a backup first.">
+                  <Switch checked={autoPause} onChange={setAutoPause} label={t.autoPause} />
+                  <Field label={t.lifetime} hint={t.lifetimeHint}>
                     <select className="select" value={lifetime ?? 30} onChange={(e) => setLifetime(Number(e.target.value))}>
-                      {[...new Set([...LIFETIMES, lifetime ?? 30])].filter((d) => d > 0).sort((a, b) => a - b).map((d) => <option key={d} value={d}>{d} days</option>)}
-                      <option value={0}>Keep until deleted by hand</option>
+                      {[...new Set([...LIFETIMES, lifetime ?? 30])].filter((d) => d > 0).sort((a, b) => a - b).map((d) => <option key={d} value={d}>{t.days(d)}</option>)}
+                      <option value={0}>{t.keep}</option>
                     </select>
                   </Field>
                 </>
@@ -419,16 +424,16 @@ export function NewInstancePage() {
             </div>
             <div className="card-foot">
               <Button variant="primary" size="lg" block loading={create.isPending} disabled={!canCreate} onClick={submit}>
-                Create instance
+                {t.create}
               </Button>
             </div>
           </section>
           <CapacityNote />
           {quota && (quota.max_instances || quota.max_instances_per_user) && (
             <p className="xsmall faint" style={{ textAlign: "center" }}>
-              {quota.max_instances ? `${quota.instances} of ${quota.max_instances} on this server` : ""}
+              {quota.max_instances ? t.onServer(quota.instances, quota.max_instances) : ""}
               {quota.max_instances && quota.max_instances_per_user ? " · " : ""}
-              {quota.max_instances_per_user ? `${quota.own_instances} of ${quota.max_instances_per_user} yours` : ""}
+              {quota.max_instances_per_user ? t.yours(quota.own_instances, quota.max_instances_per_user) : ""}
             </p>
           )}
         </aside>
@@ -441,12 +446,12 @@ export function NewInstancePage() {
  * blocks, unless MAX_RUNNING_INSTANCES is set and reached). Shown on New instance and before Start. */
 export function CapacityNote() {
   const capacity = useCapacity();
+  const t = useT(words).capacity;
   if (!capacity) return null;
   if (capacity.blocked)
     return (
       <Callout tone="danger">
-        This server runs at most {capacity.hard_limit} instances at once, and {capacity.running} are running or
-        starting. Pause one first.
+        {t.blocked(capacity.hard_limit ?? 0, capacity.running)}
       </Callout>
     );
   if (!capacity.warning || !capacity.message) return null;
@@ -454,7 +459,7 @@ export function CapacityNote() {
     <Callout tone="warning">
       {capacity.message}{" "}
       <Link to="/help/docs/ADMIN_GUIDE.md#how-many-instances-can-my-server-run" viewTransition>
-        Why
+        {t.why}
       </Link>
     </Callout>
   );

@@ -29,30 +29,11 @@ import { LinkForm, marketplaceProblem, PublisherBadge } from "@/components/Marke
 import { Page, PageHead, useCan } from "@/components/Shell";
 import { Button, Callout, Empty, Field, Segmented, Skeleton, Status, Tag } from "@/components/ui/basics";
 import { Menu, Modal, useToast } from "@/components/ui/overlay";
+import { useT, words } from "@/i18n";
+import common from "@/i18n/common";
+import dict from "@/i18n/plugins";
 import { ago, day, money, number } from "@/lib/format";
 import { waitForBackend } from "@/lib/restart";
-
-const TYPE_LABEL: Record<string, string> = {
-  auth: "Sign-in",
-  second_factor: "Second factor",
-  mailer: "E-mail",
-  exposure: "Exposure",
-  update_trigger: "Code updates",
-  addon_source: "Add-on source",
-  storage: "Storage",
-  rate_limiter: "Rate limits",
-  backup: "Backups",
-  notification: "Notifications",
-  instance_hook: "Instance hooks",
-  dashboard_widget: "Dashboard",
-  web_page: "Pages",
-  background_task: "Background work",
-  theme: "Themes",
-  api: "API",
-  mcp: "MCP",
-  extension: "Extensions",
-};
-const PLAN_NAME: Record<string, string> = { monthly: "Monthly", yearly: "Yearly", fixed_term: "Fixed term", one_time: "One time" };
 
 /** An amount without ".00" when it is whole: 10000, "usd" -> "$100". */
 function price(cents: number, currency: string) {
@@ -62,21 +43,25 @@ function price(cents: number, currency: string) {
 
 /** "$100/year · $8.33/month · save 17%", "$250 once, no renewal", "$30 for 90 days · $10.15/month". */
 export function planPrice(plan: PricePlan) {
+  const t = words(dict).price;
   const parts: string[] = [];
-  if (plan.kind === "one_time" || plan.perpetual) return `${price(plan.price_cents, plan.currency)} once, no renewal`;
-  if (plan.kind === "fixed_term") parts.push(`${price(plan.price_cents, plan.currency)} for ${plan.period_days ?? "?"} days`);
-  else parts.push(`${price(plan.price_cents, plan.currency)}/${plan.kind === "yearly" ? "year" : "month"}`);
-  if (plan.kind !== "monthly" && plan.monthly_equivalent_cents != null) parts.push(`${money(plan.monthly_equivalent_cents, plan.currency)}/month`);
-  if (plan.savings_percent) parts.push(`save ${plan.savings_percent}%`);
+  if (plan.kind === "one_time" || plan.perpetual) return t.onceNoRenewal(price(plan.price_cents, plan.currency));
+  if (plan.kind === "fixed_term") parts.push(t.forDays(price(plan.price_cents, plan.currency), String(plan.period_days ?? "?")));
+  else parts.push(plan.kind === "yearly" ? t.perYear(price(plan.price_cents, plan.currency)) : t.perMonth(price(plan.price_cents, plan.currency)));
+  if (plan.kind !== "monthly" && plan.monthly_equivalent_cents != null) parts.push(t.perMonth(money(plan.monthly_equivalent_cents, plan.currency)));
+  if (plan.savings_percent) parts.push(t.save(plan.savings_percent));
   return parts.join(" · ");
 }
 
 /** Free, or the cheapest plan (the hub lists plans cheapest first). */
 function priceOf(plugin: Pick<CatalogPlugin, "tier"> & { plans?: PricePlan[] }) {
-  if (plugin.tier === "free") return "Free";
+  const t = words(dict).price;
+  if (plugin.tier === "free") return t.free;
   const plan = plugin.plans?.[0];
-  if (!plan) return "Paid";
-  return plan.perpetual ? `${price(plan.price_cents, plan.currency)} once` : `${price(plan.price_cents, plan.currency)}/${plan.kind === "yearly" ? "year" : plan.kind === "fixed_term" ? `${plan.period_days ?? "?"} days` : "month"}`;
+  if (!plan) return t.paid;
+  const amount = price(plan.price_cents, plan.currency);
+  if (plan.perpetual) return t.once(amount);
+  return plan.kind === "yearly" ? t.perYear(amount) : plan.kind === "fixed_term" ? t.perDays(amount, String(plan.period_days ?? "?")) : t.perMonth(amount);
 }
 
 /** The plugin's icon (through the panel), or its monogram. */
@@ -88,7 +73,8 @@ function PluginIcon({ plugin, large }: { plugin: { name: string; icon_url?: stri
 
 /** "Made for your country", or the countries a plugin is made for. */
 function Countries({ plugin }: { plugin: { countries?: string[]; local?: boolean | null } }) {
-  if (plugin.local) return <Tag tone="accent" icon={<MapPin />}>Made for your country</Tag>;
+  const t = useT(dict);
+  if (plugin.local) return <Tag tone="accent" icon={<MapPin />}>{t.madeForYou}</Tag>;
   if (!plugin.countries?.length) return null;
   const shown = plugin.countries.slice(0, 3).join(", ") + (plugin.countries.length > 3 ? ` +${plugin.countries.length - 3}` : "");
   return <Tag icon={<MapPin />}>{shown}</Tag>;
@@ -100,43 +86,35 @@ function newIdempotencyKey() {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-const REASON: Record<string, string> = {
-  card_declined: "The card was declined",
-  insufficient_funds: "The card was declined (insufficient funds)",
-  expired_card: "The card has expired",
-  authentication_required: "The bank asked to confirm the payment",
-  checkout_expired: "The payment page expired",
-  checkout_failed: "The payment did not go through",
-  link_changed: "The server's account changed meanwhile",
-  payment_service_unreachable: "The payment service could not be reached",
-};
-const reasonText = (reason: string | null) => (reason ? REASON[reason] ?? reason.replace(/_/g, " ") : "");
+const reasonText = (reason: string | null) => (reason ? words(dict).reasons[reason] ?? reason.replace(/_/g, " ") : "");
 
 // ---------------------------------------------------------------- the running plugin job, then the restart
 
+type Verb = "installed" | "updated" | "uninstalled";
 interface Work {
   jobId: string;
   name: string;
-  verb: string;
+  verb: Verb;
 }
 
 function useInstaller() {
   const client = useQueryClient();
   const toast = useToast();
   const [work, setWork] = useState<Work | null>(null);
-  const start = (job: Job, name: string, verb = "installed") => setWork({ jobId: job.id, name, verb });
+  const t = useT(dict).work;
+  const start = (job: Job, name: string, verb: Verb = "installed") => setWork({ jobId: job.id, name, verb });
   const finish = async (job: Job) => {
     if (!work) return;
     if (job.status === "failed") {
-      toast("error", `${work.name} was not ${work.verb}`, job.error ?? "Open the details to see why.");
+      toast("error", t.notDone[work.verb](work.name), job.error ?? t.openDetails);
       return;
     }
-    toast("info", "Restarting the panel", "Instances keep running; this takes a few seconds");
+    toast("info", t.restarting, t.restartingText);
     const back = await waitForBackend();
     await client.invalidateQueries();
     setWork(null);
-    if (back) toast("success", `${work.name} is ${work.verb}`);
-    else toast("error", "The panel is slow to come back", "Reload the page in a minute.");
+    if (back) toast("success", t.done[work.verb](work.name));
+    else toast("error", t.slow, t.slowText);
   };
   return { work, start, finish, clear: () => setWork(null) };
 }
@@ -145,6 +123,7 @@ function WorkCard({ work, onFinished, onClear }: { work: Work; onFinished: (job:
   const { data: job } = useJob(work.jobId);
   const [details, setDetails] = useState(false);
   const reported = useRef<string | null>(null);
+  const t = useT(dict).work;
   useEffect(() => {
     if (job && (job.status === "success" || job.status === "failed") && reported.current !== job.status) {
       reported.current = job.status;
@@ -155,13 +134,13 @@ function WorkCard({ work, onFinished, onClear }: { work: Work; onFinished: (job:
     <div className="card pad rise stack-sm">
       <div className="row">
         <Puzzle className="faint" />
-        <b className="spacer truncate">{work.name}</b>
-        <Button size="sm" variant="ghost" onClick={() => setDetails(true)}>Details</Button>
-        {job?.status === "failed" && <Button size="sm" variant="ghost" onClick={onClear}>Dismiss</Button>}
+        <bdi className="spacer truncate" style={{ fontWeight: 600 }}>{work.name}</bdi>
+        <Button size="sm" variant="ghost" onClick={() => setDetails(true)}>{t.details}</Button>
+        {job?.status === "failed" && <Button size="sm" variant="ghost" onClick={onClear}>{t.dismiss}</Button>}
       </div>
       {job ? (
         job.status === "success" ? (
-          <div className="row small muted"><span className="spinner" /> Restarting the panel to load it</div>
+          <div className="row small muted"><span className="spinner" /> {t.loading}</div>
         ) : (
           <JobLine job={job} />
         )
@@ -176,23 +155,23 @@ function WorkCard({ work, onFinished, onClear }: { work: Work; onFinished: (job:
 
 // ---------------------------------------------------------------- catalogue
 
-const ACTION_TAG: Record<CatalogPlugin["action"], [string, "positive" | "accent" | "caution" | undefined]> = {
-  install: ["", undefined],
-  update: ["Update available", "accent"],
-  installed: ["Installed", "positive"],
-  buy: ["", undefined],
-  renew: ["Licence ended", "caution"],
-  incompatible: ["Needs a newer Sudoo.sh", "caution"],
+const ACTION_TONE: Partial<Record<CatalogPlugin["action"], "positive" | "accent" | "caution">> = {
+  update: "accent",
+  installed: "positive",
+  renew: "caution",
+  incompatible: "caution",
 };
 
 function PluginCard({ plugin, onOpen }: { plugin: CatalogPlugin; onOpen: () => void }) {
-  const [label, tone] = ACTION_TAG[plugin.action] ?? ["", undefined];
+  const t = useT(dict);
+  const label = t.actionTags[plugin.action] ?? "";
+  const tone = ACTION_TONE[plugin.action];
   return (
     <button type="button" className="card link plugin-card" onClick={onOpen}>
       <div className="pc-head">
         <PluginIcon plugin={plugin} />
         <div className="pc-titles">
-          <span className="pc-name truncate">{plugin.name}</span>
+          <bdi className="pc-name truncate">{plugin.name}</bdi>
           <PublisherBadge publisher={plugin.publisher} />
         </div>
       </div>
@@ -200,9 +179,9 @@ function PluginCard({ plugin, onOpen }: { plugin: CatalogPlugin; onOpen: () => v
       <div className="pc-foot">
         <Tag tone={plugin.tier === "free" ? "positive" : undefined}>{priceOf(plugin)}</Tag>
         <span className="row xsmall faint">
-          <Star /> {plugin.rating_count ? plugin.avg_rating.toFixed(1) : "—"}
+          <Star /> {plugin.rating_count ? number(plugin.avg_rating, 1) : "—"}
         </span>
-        <span className="xsmall faint">{number(plugin.install_count)} {plugin.install_count === 1 ? "install" : "installs"}</span>
+        <span className="xsmall faint">{t.installs(plugin.install_count, number(plugin.install_count))}</span>
         <span className="spacer" />
         {label ? <Tag tone={tone}>{label}</Tag> : <Countries plugin={plugin} />}
       </div>
@@ -221,9 +200,12 @@ function PluginSheet({
   installed?: InstalledPlugin;
   busy: boolean;
   onClose: () => void;
-  onStarted: (job: Job, name: string, verb?: string) => void;
+  onStarted: (job: Job, name: string, verb?: Verb) => void;
 }) {
   const { data: detail } = useCatalogPlugin(plugin.id);
+  const all = useT(dict);
+  const t = all.sheet;
+  const c = useT(common).common;
   const can = useCan();
   const manage = can("settings.manage");
   const paid = plugin.tier === "paid" && (plugin.action === "buy" || plugin.action === "renew");
@@ -239,7 +221,7 @@ function PluginSheet({
   const repair = installed?.status === "modified";
   const action = repair ? "install" : plugin.action;
 
-  const install = async (verb = "installed") => {
+  const install = async (verb: Verb = "installed") => {
     const job = await api.post<Job>("/plugins", { id: plugin.id });
     onStarted(job, plugin.name, verb);
     onClose();
@@ -260,29 +242,29 @@ function PluginSheet({
         setSession(current);
         if (current.status === "succeeded") {
           stop = true;
-          toast("success", "Payment received", `Installing ${plugin.name}`);
+          toast("success", t.paymentReceived, t.installing(plugin.name));
           void client.invalidateQueries({ queryKey: keys.purchases });
           try {
             await install();
           } catch (err) {
-            toast("error", `Paid, but ${plugin.name} is not installed yet`, `${errorText(err)} Install it from the Marketplace.`);
+            toast("error", t.paidNotInstalled(plugin.name), `${errorText(err)}${t.installFromMarketplace}`);
             setStep("idle");
           }
         } else if (current.status === "expired" || current.status === "cancelled" || current.status === "failed") {
           stop = true;
           setEnded(
             current.status === "expired"
-              ? "The payment page expired before it was paid. Nothing was charged."
+              ? t.expired
               : current.status === "cancelled"
-                ? "The purchase was cancelled on app.sudoo.sh. Nothing was charged."
-                : `The payment did not go through${current.reason ? `: ${reasonText(current.reason).toLowerCase()}` : ""}.`,
+                ? t.cancelled
+                : t.failed(reasonText(current.reason)),
           );
           setStep("idle");
         }
       } catch (err) {
         if (!(err instanceof ApiError && err.status === 503)) {
           stop = true;
-          toast("error", "Lost track of the payment", errorText(err));
+          toast("error", t.lostTrack, errorText(err));
           setStep("idle");
         }
       } finally {
@@ -306,7 +288,7 @@ function PluginSheet({
     try {
       await install(action === "update" ? "updated" : "installed");
     } catch (err) {
-      toast("error", `${plugin.name} was not installed`, errorText(err));
+      toast("error", t.notInstalled(plugin.name), errorText(err));
       setStep("idle");
     }
   };
@@ -327,7 +309,7 @@ function PluginSheet({
         setStep("paying");
         return;
       }
-      if (!opened.url) throw new Error("The marketplace did not send a payment page.");
+      if (!opened.url) throw new Error(t.noPaymentPage);
       if (tab) {
         tab.opener = null;
         tab.location.href = opened.url;
@@ -338,45 +320,45 @@ function PluginSheet({
       setStep("paying");
     } catch (err) {
       tab?.close();
-      toast("error", "Not bought", errorText(err));
+      toast("error", t.notBought, errorText(err));
       setStep("idle");
     }
   };
 
   const button = () => {
     if (!manage) return null;
-    if (action === "installed") return <Tag tone="positive">Installed · v{installed?.version ?? plugin.installed_version}</Tag>;
-    if (action === "incompatible") return <Button disabled>Needs a newer Sudoo.sh</Button>;
+    if (action === "installed") return <Tag tone="positive">{t.installedVersion(installed?.version ?? plugin.installed_version ?? "")}</Tag>;
+    if (action === "incompatible") return <Button disabled>{t.needsNewer}</Button>;
     if (action === "install" || action === "update")
       return (
         <Button variant="primary" icon={<Download />} loading={step === "working"} disabled={busy} onClick={installNow}>
-          {repair ? "Install again" : action === "update" ? `Update to v${plugin.compatible_version?.version ?? ""}` : "Install"}
+          {repair ? t.installAgain : action === "update" ? t.updateTo(plugin.compatible_version?.version ?? "") : t.install}
         </Button>
       );
     return (
       <Button variant="primary" icon={<ShoppingBag />} loading={step === "working"} disabled={busy || !billing?.can_buy || !chosen || step === "paying"} onClick={buy}>
-        {action === "renew" ? "Renew on app.sudoo.sh" : "Buy on app.sudoo.sh"}
+        {action === "renew" ? t.renew : t.buy}
       </Button>
     );
   };
 
   const waiting =
     session?.status === "processing"
-      ? "The payment is being processed."
+      ? t.processing
       : session?.status === "open" && session.reason
-        ? `${reasonText(session.reason)}. Try another card in the other tab.`
-        : "Waiting for payment in the other tab.";
+        ? t.tryAnotherCard(reasonText(session.reason))
+        : t.waiting;
 
   const version = plugin.compatible_version ?? plugin.latest_version;
   return (
     <Modal
       wide
-      title={<span className="row"><PluginIcon plugin={plugin} large /> {plugin.name}</span>}
+      title={<span className="row"><PluginIcon plugin={plugin} large /> <bdi>{plugin.name}</bdi></span>}
       description={<PublisherBadge publisher={plugin.publisher} />}
       onClose={onClose}
       footer={
         <>
-          <Button onClick={onClose}>Close</Button>
+          <Button onClick={onClose}>{c.close}</Button>
           {button()}
         </>
       }
@@ -384,37 +366,37 @@ function PluginSheet({
       <div className="stack">
         <p>{plugin.description}</p>
         <div className="row-wrap">
-          <Tag>{TYPE_LABEL[plugin.type] ?? plugin.type}</Tag>
-          {version && <Tag mono>v{version.version}</Tag>}
-          {version?.min_sudoo_version && <Tag mono>Sudoo.sh {version.min_sudoo_version}+</Tag>}
+          <Tag>{all.types[plugin.type] ?? plugin.type}</Tag>
+          {version && <Tag mono><span dir="ltr">v{version.version}</span></Tag>}
+          {version?.min_sudoo_version && <Tag mono><span dir="ltr">Sudoo.sh {version.min_sudoo_version}+</span></Tag>}
           <Tag tone={plugin.tier === "free" ? "positive" : undefined}>{priceOf({ ...plugin, plans })}</Tag>
           <Countries plugin={plugin} />
         </div>
         {(detail?.permissions?.length ?? 0) > 0 && (
-          <Field label="It asks to">
-            <div className="row-wrap">{detail!.permissions.map((p) => <Tag key={p} mono>{p}</Tag>)}</div>
+          <Field label={t.asksTo}>
+            <div className="row-wrap">{detail!.permissions.map((p) => <Tag key={p} mono><span dir="ltr">{p}</span></Tag>)}</div>
           </Field>
         )}
         {(plugin.requires?.length ?? 0) > 0 && (
-          <Field label="It needs">
-            <div className="row-wrap">{plugin.requires.map((r) => <Tag key={r.id} mono>{r.id} {r.version ?? ""}</Tag>)}</div>
+          <Field label={t.needs}>
+            <div className="row-wrap">{plugin.requires.map((r) => <Tag key={r.id} mono><span dir="ltr">{r.id} {r.version ?? ""}</span></Tag>)}</div>
           </Field>
         )}
         {plugin.license?.perpetual ? (
-          <p className="small muted">Licence {plugin.license.state}, perpetual.</p>
+          <p className="small muted">{t.licencePerpetual(all.licenceStates[plugin.license.state] ?? plugin.license.state)}</p>
         ) : plugin.license?.expires_at ? (
-          <p className="small muted">Licence {plugin.license.state}, ends {day(plugin.license.expires_at)}.</p>
+          <p className="small muted">{t.licenceEnds(all.licenceStates[plugin.license.state] ?? plugin.license.state, day(plugin.license.expires_at))}</p>
         ) : null}
         {paid && manage && (
           <>
             {plans.length > 0 && (
-              <Field label="Plan">
+              <Field label={t.plan}>
                 <div className="plan-list" role="radiogroup">
                   {plans.map((p) => (
                     <label key={p.id} className="plan">
                       <input type="radio" name="plan" value={p.id} checked={chosen?.id === p.id} onChange={() => setPlan(p.id)} disabled={step === "paying"} />
                       <span className="stack-sm" style={{ gap: 0 }}>
-                        <span className="plan-price">{PLAN_NAME[p.kind] ?? p.kind}</span>
+                        <span className="plan-price">{all.plans[p.kind] ?? p.kind}</span>
                         <span className="small muted">{planPrice(p)}</span>
                       </span>
                     </label>
@@ -425,36 +407,36 @@ function PluginSheet({
             {chosen && (
               <p className="small muted">
                 {chosen.perpetual
-                  ? "Paid once, a licence that does not expire."
+                  ? t.paidOnce
                   : chosen.kind === "fixed_term"
-                    ? "Paid once, for the term."
-                    : "Renewed until it is cancelled on app.sudoo.sh."}{" "}
-                The account owner pays on app.sudoo.sh, in a new tab; this panel never charges anything.
+                    ? t.paidForTerm
+                    : t.renewed}{" "}
+                {t.ownerPays}
               </p>
             )}
             {billingError && <Callout tone="warning">{errorText(billingError)}</Callout>}
             {billing?.reason === "link_required" && (
               <Callout tone="info">
                 <div className="stack-sm">
-                  <span>Paid plugins belong to an account on app.sudoo.sh. Link this panel to yours first.</span>
+                  <span>{t.linkFirst}</span>
                   <LinkForm onLinked={() => void client.invalidateQueries({ queryKey: ["marketplace", "billing"] })} />
                 </div>
               </Callout>
             )}
             {billing?.reason === "fingerprint_mismatch" && (
               <Callout tone="danger">
-                This server is flagged (it reported from another machine), so it cannot buy plugins.{" "}
-                {billing.manage_url && <a href={billing.manage_url} target="_blank" rel="noreferrer noopener">Accept this machine on app.sudoo.sh <ExternalLink /></a>}
+                {t.flagged}{" "}
+                {billing.manage_url && <a href={billing.manage_url} target="_blank" rel="noreferrer noopener">{t.acceptMachine} <ExternalLink className="flip-rtl" /></a>}
               </Callout>
             )}
-            {billing?.reason === "payments_disabled" && <Callout tone="warning">Payments are switched off on the marketplace right now.</Callout>}
-            {billing?.reason === "installation_suspended" && <Callout tone="danger">This panel is suspended on the marketplace. Contact Sudoo.sh support.</Callout>}
+            {billing?.reason === "payments_disabled" && <Callout tone="warning">{t.paymentsOff}</Callout>}
+            {billing?.reason === "installation_suspended" && <Callout tone="danger">{t.suspended}</Callout>}
             {step === "paying" && session && (
               <Callout tone={session.status === "open" && session.reason ? "warning" : "info"}>
                 <div className="stack-sm">
-                  <div className="row"><span className="spinner" /> {waiting} The plugin installs as soon as it is paid.</div>
+                  <div className="row"><span className="spinner" /> {waiting}{t.installsWhenPaid}</div>
                   {session.url && (
-                    <a href={session.url} target="_blank" rel="noreferrer noopener">Open the payment page again <ExternalLink /></a>
+                    <a href={session.url} target="_blank" rel="noreferrer noopener">{t.openAgain} <ExternalLink className="flip-rtl" /></a>
                   )}
                 </div>
               </Callout>
@@ -463,21 +445,23 @@ function PluginSheet({
               <Callout tone="warning">
                 <div className="stack-sm">
                   <span>{ended}</span>
-                  <span className="small">Press the button again to start a new purchase.</span>
+                  <span className="small">{t.pressAgain}</span>
                 </div>
               </Callout>
             )}
           </>
         )}
-        {!manage && <p className="small muted">Only a super admin can install or buy plugins.</p>}
-        <p className="xsmall faint">Every package is signed by the marketplace and checked by this panel before it is installed. The plugin's code stays on the server and is never shown.</p>
+        {!manage && <p className="small muted">{t.superAdminOnly}</p>}
+        <p className="xsmall faint">{t.signed}</p>
       </div>
     </Modal>
   );
 }
 
-function Catalogue({ installed, busy, onStarted }: { installed: InstalledPlugin[]; busy: boolean; onStarted: (job: Job, name: string, verb?: string) => void }) {
+function Catalogue({ installed, busy, onStarted }: { installed: InstalledPlugin[]; busy: boolean; onStarted: (job: Job, name: string, verb?: Verb) => void }) {
   const { data: status } = useMarketplace();
+  const all = useT(dict);
+  const t = all.catalogue;
   const usable = !!status?.enabled;
   const [typed, setTyped] = useState("");
   const [q, setQ] = useState("");
@@ -523,40 +507,36 @@ function Catalogue({ installed, busy, onStarted }: { installed: InstalledPlugin[
       <div className="toolbar">
         <div className="input-group">
           <Search />
-          <input className="input" placeholder="Search plugins" aria-label="Search plugins" value={typed} onChange={(e) => setTyped(e.target.value)} />
+          <input className="input" placeholder={t.search} aria-label={t.search} value={typed} onChange={(e) => setTyped(e.target.value)} />
         </div>
-        <select className="select" style={{ width: "auto" }} aria-label="Category" value={type} onChange={(e) => setType(e.target.value)}>
-          <option value="">All categories</option>
+        <select className="select" style={{ width: "auto" }} aria-label={t.category} value={type} onChange={(e) => setType(e.target.value)}>
+          <option value="">{t.allCategories}</option>
           {(categories ?? []).map((c) => (
-            <option key={c.type} value={c.type}>{TYPE_LABEL[c.type] ?? c.type} ({c.count})</option>
+            <option key={c.type} value={c.type}>{all.types[c.type] ?? c.type} ({number(c.count)})</option>
           ))}
         </select>
-        <Segmented value={tier} onChange={setTier} options={[{ value: "", label: "All" }, { value: "free", label: "Free" }, { value: "paid", label: "Paid" }]} />
+        <Segmented value={tier} onChange={setTier} options={[{ value: "", label: t.all }, { value: "free", label: all.price.free }, { value: "paid", label: all.price.paid }]} />
         <span className="spacer" />
-        <select className="select" style={{ width: "auto" }} aria-label="Order" value={sort} onChange={(e) => setSort(e.target.value)}>
-          <option value="trusted">Official and verified first</option>
-          <option value="popular">Most installed</option>
-          <option value="rating">Best rated</option>
-          <option value="newest">Newest</option>
-          <option value="name">Name</option>
+        <select className="select" style={{ width: "auto" }} aria-label={t.order} value={sort} onChange={(e) => setSort(e.target.value)}>
+          {(Object.keys(t.sort) as (keyof typeof t.sort)[]).map((key) => <option key={key} value={key}>{t.sort[key]}</option>)}
         </select>
       </div>
       {browsing && !!recommended?.length && (
         <section className="stack-sm rise" aria-labelledby="recommended">
-          <h2 id="recommended" className="row small"><Sparkles className="faint" /> Recommended</h2>
+          <h2 id="recommended" className="row small"><Sparkles className="faint" /> {t.recommended}</h2>
           <div className="reco-row">
             {recommended.map((pick) => (
               <button key={pick.plugin.id} type="button" className="card link plugin-card" onClick={() => openSuggestion(pick)}>
                 <div className="pc-head">
                   <PluginIcon plugin={pick.plugin} />
                   <div className="pc-titles">
-                    <span className="pc-name truncate">{pick.plugin.name}</span>
+                    <bdi className="pc-name truncate">{pick.plugin.name}</bdi>
                     <PublisherBadge publisher={pick.plugin.publisher} />
                   </div>
                 </div>
-                <span className="reco-why">{pick.reasons[0] ?? "Suggested for this server"}</span>
+                <span className="reco-why">{pick.reasons[0] ?? t.suggested}</span>
                 <div className="pc-foot">
-                  <Tag tone={pick.plugin.tier === "free" ? "positive" : undefined}>{pick.plugin.tier === "free" ? "Free" : "Paid"}</Tag>
+                  <Tag tone={pick.plugin.tier === "free" ? "positive" : undefined}>{pick.plugin.tier === "free" ? all.price.free : all.price.paid}</Tag>
                   <span className="spacer" />
                   <Countries plugin={pick.plugin} />
                 </div>
@@ -570,7 +550,7 @@ function Catalogue({ installed, busy, onStarted }: { installed: InstalledPlugin[
       ) : error ? (
         <Callout tone="warning">{errorText(error)}</Callout>
       ) : !plugins?.length ? (
-        <div className="card"><Empty icon={<Puzzle />} title="No plugins found">Try another word or category.</Empty></div>
+        <div className="card"><Empty icon={<Puzzle />} title={t.noneFound}>{t.noneFoundText}</Empty></div>
       ) : (
         <div className="plugin-grid rise">
           {plugins.map((plugin) => (
@@ -585,28 +565,30 @@ function Catalogue({ installed, busy, onStarted }: { installed: InstalledPlugin[
 
 // ---------------------------------------------------------------- installed
 
-const STATUS: Record<InstalledPlugin["status"], [string, string]> = {
-  active: ["online", "Running"],
-  disabled: ["stopped", "Switched off"],
-  modified: ["failed", "Files changed"],
-  blocked: ["failed", "Refused by the marketplace"],
-  withheld: ["failed", "Withheld (server flagged)"],
-  switched_off: ["paused", "Stopped (licence)"],
-  unlicensed: ["paused", "No licence"],
+const STATUS: Record<InstalledPlugin["status"], string> = {
+  active: "online",
+  disabled: "stopped",
+  modified: "failed",
+  blocked: "failed",
+  withheld: "failed",
+  switched_off: "paused",
+  unlicensed: "paused",
 };
-const PHASE: Record<string, [string, "positive" | "caution" | "negative" | undefined]> = {
-  active: ["Licensed", "positive"],
-  perpetual: ["Licensed for good", "positive"],
-  withheld: ["Withheld", "negative"],
-  expiring: ["Ends soon", "caution"],
-  grace: ["In grace period", "caution"],
-  ended: ["Licence ended", "negative"],
-  no_lease: ["Marketplace unreachable", "negative"],
-  unlicensed: ["No licence", "negative"],
+const PHASE: Record<string, "positive" | "caution" | "negative"> = {
+  active: "positive",
+  perpetual: "positive",
+  withheld: "negative",
+  expiring: "caution",
+  grace: "caution",
+  ended: "negative",
+  no_lease: "negative",
+  unlicensed: "negative",
 };
 
-function Installed({ plugins, busy, onStarted }: { plugins: InstalledPlugin[]; busy: boolean; onStarted: (job: Job, name: string, verb?: string) => void }) {
+function Installed({ plugins, busy, onStarted }: { plugins: InstalledPlugin[]; busy: boolean; onStarted: (job: Job, name: string, verb?: Verb) => void }) {
   const can = useCan();
+  const t = useT(dict).installed;
+  const c = useT(common).common;
   const toast = useToast();
   const client = useQueryClient();
   const [removing, setRemoving] = useState<InstalledPlugin | null>(null);
@@ -616,18 +598,18 @@ function Installed({ plugins, busy, onStarted }: { plugins: InstalledPlugin[]; b
   const switchTo = async (plugin: InstalledPlugin, on: boolean) => {
     try {
       await api.post(`/plugins/${plugin.id}/${on ? "enable" : "disable"}`);
-      toast("info", `${plugin.name} is switched ${on ? "on" : "off"}`, "The panel restarts to apply it");
+      toast("info", t.switched(plugin.name, on), t.restartsToApply);
       await waitForBackend();
       await client.invalidateQueries();
     } catch (error) {
-      toast("error", "Not changed", errorText(error));
+      toast("error", t.notChanged, errorText(error));
     }
   };
   const update = async (plugin: InstalledPlugin) => {
     try {
       onStarted(await api.post<Job>(`/plugins/${plugin.id}/update`), plugin.name, "updated");
     } catch (error) {
-      toast("error", "Not updated", errorText(error));
+      toast("error", t.notUpdated, errorText(error));
     }
   };
   const uninstall = async () => {
@@ -637,14 +619,14 @@ function Installed({ plugins, busy, onStarted }: { plugins: InstalledPlugin[]; b
       setRemoving(null);
       setConfirm("");
     } catch (error) {
-      toast("error", "Not uninstalled", errorText(error));
+      toast("error", t.notUninstalled, errorText(error));
     }
   };
 
   if (!plugins.length)
     return (
       <div className="card">
-        <Empty icon={<Puzzle />} title="No plugins yet">Plugins from the marketplace add features to the panel: sign-in methods, mailers, backup destinations and more.</Empty>
+        <Empty icon={<Puzzle />} title={t.none}>{t.noneText}</Empty>
       </div>
     );
   return (
@@ -652,19 +634,20 @@ function Installed({ plugins, busy, onStarted }: { plugins: InstalledPlugin[]; b
       <div className="table-wrap">
         <table className="table">
           <thead>
-            <tr><th>Plugin</th><th>Version</th><th>Status</th><th>Licence</th><th /></tr>
+            <tr><th>{t.columns.plugin}</th><th>{t.columns.version}</th><th>{t.columns.status}</th><th>{t.columns.licence}</th><th /></tr>
           </thead>
           <tbody>
             {plugins.map((p) => {
-              const [cls, label] = STATUS[p.status] ?? ["unknown", p.status];
-              const phase = p.licence?.phase ? PHASE[p.licence.phase] : null;
+              const cls = STATUS[p.status] ?? "unknown";
+              const label = t.status[p.status] ?? p.status;
+              const phase = p.licence?.phase ? [t.phase[p.licence.phase] ?? p.licence.phase, PHASE[p.licence.phase]] as const : null;
               return (
                 <tr key={p.id}>
                   <td>
                     <div className="row">
                       <PluginIcon plugin={p} />
                       <div style={{ minWidth: 0 }}>
-                        <div className="truncate">{p.name}</div>
+                        <div className="truncate"><bdi>{p.name}</bdi></div>
                         <div className="xsmall faint"><PublisherBadge publisher={p.publisher} /></div>
                       </div>
                     </div>
@@ -672,36 +655,36 @@ function Installed({ plugins, busy, onStarted }: { plugins: InstalledPlugin[]; b
                   <td className="nowrap">
                     <span className="mono small">v{p.version}</span>
                     {p.update_available && manage && (
-                      <> <Button size="sm" variant="soft" disabled={busy} onClick={() => update(p)}>Update to v{p.latest_version}</Button></>
+                      <> <Button size="sm" variant="soft" disabled={busy} onClick={() => update(p)}>{t.updateTo(p.latest_version ?? "")}</Button></>
                     )}
                   </td>
                   <td>
-                    <Status status={p.restart_pending ? "starting" : cls} label={p.restart_pending ? "Waiting for a restart" : label} />
+                    <Status status={p.restart_pending ? "starting" : cls} label={p.restart_pending ? t.waitingRestart : label} />
                   </td>
                   <td className="small">
                     {p.tier === "free" ? (
-                      <span className="faint">Free</span>
+                      <span className="faint">{t.free}</span>
                     ) : (
                       <div className="stack-sm" style={{ gap: 2, alignItems: "flex-start" }}>
                         {phase && <Tag tone={phase[1]}>{phase[0]}</Tag>}
-                        {p.licence?.expires_at && <span className="xsmall faint">Ends {day(p.licence.expires_at)}{p.licence.grace_until ? ` · stops ${day(p.licence.grace_until)}` : ""}</span>}
-                        {p.licence?.perpetual && <span className="xsmall faint">One-time licence, no renewal</span>}
+                        {p.licence?.expires_at && <span className="xsmall faint">{t.ends(day(p.licence.expires_at))}{p.licence.grace_until ? t.stops(day(p.licence.grace_until)) : ""}</span>}
+                        {p.licence?.perpetual && <span className="xsmall faint">{t.oneTime}</span>}
                       </div>
                     )}
                   </td>
                   <td className="actions">
                     {manage && (
-                      <Menu trigger={(toggle) => <Button size="sm" variant="ghost" onClick={toggle} disabled={busy}>Manage</Button>}>
+                      <Menu trigger={(toggle) => <Button size="sm" variant="ghost" onClick={toggle} disabled={busy}>{t.manage}</Button>}>
                         {(close) => (
                           <>
                             {p.enabled ? (
-                              <button onClick={() => { close(); void switchTo(p, false); }}>Switch off</button>
+                              <button onClick={() => { close(); void switchTo(p, false); }}>{t.switchOff}</button>
                             ) : (
-                              <button disabled={p.status === "modified"} onClick={() => { close(); void switchTo(p, true); }}>Switch on</button>
+                              <button disabled={p.status === "modified"} onClick={() => { close(); void switchTo(p, true); }}>{t.switchOn}</button>
                             )}
                             <hr />
                             <button className="danger" onClick={() => { close(); setRemoving(p); }}>
-                              <Trash2 /> Uninstall
+                              <Trash2 /> {t.uninstall}
                             </button>
                           </>
                         )}
@@ -716,20 +699,20 @@ function Installed({ plugins, busy, onStarted }: { plugins: InstalledPlugin[]; b
       </div>
       {removing && (
         <Modal
-          title={`Uninstall ${removing.name}`}
-          description="The panel's data is backed up first; then the plugin's files are removed and the panel restarts."
+          title={t.uninstallTitle(removing.name)}
+          description={t.uninstallText}
           onClose={() => setRemoving(null)}
           footer={
             <>
-              <Button onClick={() => setRemoving(null)}>Cancel</Button>
-              <Button variant="danger" icon={<Trash2 />} disabled={confirm !== removing.id} onClick={uninstall}>Uninstall</Button>
+              <Button onClick={() => setRemoving(null)}>{c.cancel}</Button>
+              <Button variant="danger" icon={<Trash2 />} disabled={confirm !== removing.id} onClick={uninstall}>{t.uninstall}</Button>
             </>
           }
         >
-          <Field label={<>Type <code>{removing.id}</code> to confirm</>}>
-            <input className="input mono" autoFocus value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+          <Field label={<>{t.typeToConfirm(<code key="id">{removing.id}</code>)}</>}>
+            <input className="input mono" dir="ltr" autoFocus value={confirm} onChange={(e) => setConfirm(e.target.value)} />
           </Field>
-          {removing.tier === "paid" && <p className="small muted" style={{ marginTop: 12 }}>Uninstalling does not cancel its subscription: do that on app.sudoo.sh.</p>}
+          {removing.tier === "paid" && <p className="small muted" style={{ marginTop: 12 }}>{t.subscriptionStays}</p>}
         </Modal>
       )}
     </div>
@@ -738,14 +721,12 @@ function Installed({ plugins, busy, onStarted }: { plugins: InstalledPlugin[]; b
 
 // ---------------------------------------------------------------- purchases
 
-const PURCHASE_STATUS: Record<string, [string, "positive" | "caution" | "negative" | undefined]> = {
-  succeeded: ["Paid", "positive"],
-  open: ["Waiting for payment", "caution"],
-  processing: ["Processing", "caution"],
-  checkout_required: ["Paying on Stripe", "caution"],
-  failed: ["Failed", "negative"],
-  cancelled: ["Cancelled", undefined],
-  expired: ["Expired", undefined],
+const PURCHASE_TONE: Record<string, "positive" | "caution" | "negative"> = {
+  succeeded: "positive",
+  open: "caution",
+  processing: "caution",
+  checkout_required: "caution",
+  failed: "negative",
 };
 
 function Purchases() {
@@ -754,6 +735,8 @@ function Purchases() {
   const { data: receipts, error: receiptsError, isPending: receiptsPending } = useReceipts(usable);
   const { data: purchases, error, isPending } = usePurchases(usable);
   const { data: billing } = useBilling(usable);
+  const all = useT(dict);
+  const t = all.purchases;
   if (!usable) return null;
   return (
     <div className="stack">
@@ -761,17 +744,17 @@ function Purchases() {
         <div className="card-head">
           <Receipt />
           <div className="spacer">
-            <h2>Receipts</h2>
-            <div className="sub">Payments and renewals of this server's plugins, and credit notes for refunds</div>
+            <h2>{t.receipts}</h2>
+            <div className="sub">{t.receiptsText}</div>
           </div>
           {billing?.manage_url && (
             <a className="btn sm ghost" href={billing.manage_url} target="_blank" rel="noreferrer noopener">
-              app.sudoo.sh <ExternalLink />
+              app.sudoo.sh <ExternalLink className="flip-rtl" />
             </a>
           )}
           {!!receipts?.length && (
             <a className="btn sm" href="/api/v1/marketplace/receipts?format=csv" download>
-              <FileDown /> Export CSV
+              <FileDown /> {t.exportCsv}
             </a>
           )}
         </div>
@@ -780,21 +763,21 @@ function Purchases() {
         ) : receiptsError ? (
           <div className="card-body"><Callout tone="warning">{errorText(receiptsError)}</Callout></div>
         ) : !receipts?.length ? (
-          <Empty icon={<Receipt />} title="No receipts yet">Paid plugins bought for this server appear here.</Empty>
+          <Empty icon={<Receipt />} title={t.noReceipts}>{t.noReceiptsText}</Empty>
         ) : (
           <div className="table-wrap">
             <table className="table">
               <thead>
-                <tr><th>Number</th><th>Date</th><th>Plugin</th><th>Plan</th><th>Asked by</th><th className="num">Total</th></tr>
+                <tr><th>{t.columns.number}</th><th>{t.columns.date}</th><th>{t.columns.plugin}</th><th>{t.columns.plan}</th><th>{t.columns.askedBy}</th><th className="num">{t.columns.total}</th></tr>
               </thead>
               <tbody>
                 {receipts.map((r) => (
                   <tr key={r.id}>
-                    <td className="mono small nowrap">{r.number}{r.kind === "credit_note" && <span className="faint"> · credit note</span>}</td>
+                    <td className="small nowrap"><span className="mono">{r.number}</span>{r.kind === "credit_note" && <span className="faint">{t.creditNote}</span>}</td>
                     <td className="small nowrap">{day(r.issued_at)}</td>
-                    <td>{r.plugin_name ?? r.plugin_id}{r.payment_kind === "renewal" && <span className="faint small"> · renewal</span>}</td>
-                    <td className="small">{r.plan_kind ? PLAN_NAME[r.plan_kind] ?? r.plan_kind : "—"}</td>
-                    <td className="small muted">{r.requested_by_name ?? "—"}</td>
+                    <td><bdi>{r.plugin_name ?? r.plugin_id}</bdi>{r.payment_kind === "renewal" && <span className="faint small">{t.renewal}</span>}</td>
+                    <td className="small">{r.plan_kind ? all.plans[r.plan_kind] ?? r.plan_kind : "—"}</td>
+                    <td className="small muted"><bdi>{r.requested_by_name ?? "—"}</bdi></td>
                     <td className="num">{money(r.kind === "credit_note" ? -Math.abs(r.total_cents) : r.total_cents, r.currency)}</td>
                   </tr>
                 ))}
@@ -807,12 +790,12 @@ function Purchases() {
         <div className="card-head">
           <ShoppingBag />
           <div className="spacer">
-            <h2>Purchases</h2>
-            <div className="sub">Every purchase asked for from this server (paid by the account owner on app.sudoo.sh), and how it ended</div>
+            <h2>{t.title}</h2>
+            <div className="sub">{t.text}</div>
           </div>
           {!!purchases?.length && (
             <a className="btn sm" href="/api/v1/marketplace/checkout-sessions?format=csv" download>
-              <FileDown /> Export CSV
+              <FileDown /> {t.exportCsv}
             </a>
           )}
         </div>
@@ -821,28 +804,29 @@ function Purchases() {
         ) : error ? (
           <div className="card-body"><Callout tone="warning">{errorText(error)}</Callout></div>
         ) : !purchases?.length ? (
-          <Empty icon={<ShoppingBag />} title="No purchases yet">Buy a paid plugin from the Marketplace tab.</Empty>
+          <Empty icon={<ShoppingBag />} title={t.none}>{t.noneText}</Empty>
         ) : (
           <div className="table-wrap">
             <table className="table">
               <thead>
-                <tr><th>Date</th><th>Plugin</th><th>Plan</th><th>Asked by</th><th>Status</th><th className="num">Amount</th></tr>
+                <tr><th>{t.columns.date}</th><th>{t.columns.plugin}</th><th>{t.columns.plan}</th><th>{t.columns.askedBy}</th><th>{t.columns.status}</th><th className="num">{t.columns.amount}</th></tr>
               </thead>
               <tbody>
                 {purchases.map((p) => {
-                  const [label, tone] = PURCHASE_STATUS[p.status ?? ""] ?? [p.status ?? "—", undefined];
+                  const label = t.status[p.status ?? ""] ?? p.status ?? "—";
+                  const tone = PURCHASE_TONE[p.status ?? ""];
                   return (
                     <tr key={p.id}>
                       <td className="small nowrap">{day(p.created_at)} <span className="faint">· {ago(p.created_at)}</span></td>
-                      <td>{p.plugin_name}</td>
-                      <td className="small">{p.plan_kind ? PLAN_NAME[p.plan_kind] ?? p.plan_kind : "—"}</td>
-                      <td className="small muted">{p.requested_by?.name ?? "—"}</td>
+                      <td><bdi>{p.plugin_name}</bdi></td>
+                      <td className="small">{p.plan_kind ? all.plans[p.plan_kind] ?? p.plan_kind : "—"}</td>
+                      <td className="small muted"><bdi>{p.requested_by?.name ?? "—"}</bdi></td>
                       <td>
                         <div className="stack-sm" style={{ gap: 2, alignItems: "flex-start" }}>
                           <Tag tone={tone}>{label}</Tag>
                           {p.reason && p.status !== "succeeded" && <span className="xsmall faint">{reasonText(p.reason)}</span>}
                           {p.receipt_number && <span className="xsmall faint mono">{p.receipt_number}</span>}
-                          {p.url && <a className="xsmall" href={p.url} target="_blank" rel="noreferrer noopener">Payment page <ExternalLink /></a>}
+                          {p.url && <a className="xsmall" href={p.url} target="_blank" rel="noreferrer noopener">{t.paymentPage} <ExternalLink className="flip-rtl" /></a>}
                         </div>
                       </td>
                       <td className="num">{money(p.amount_cents, p.currency)}</td>
@@ -860,11 +844,7 @@ function Purchases() {
 
 // ---------------------------------------------------------------- the page
 
-const TABS = [
-  { id: "", label: "Marketplace" },
-  { id: "installed", label: "Installed" },
-  { id: "purchases", label: "Purchases" },
-];
+const TABS = ["", "installed", "purchases"];
 
 export function PluginsPage() {
   const { tab = "" } = useParams();
@@ -872,25 +852,26 @@ export function PluginsPage() {
   const { data: status } = useMarketplace();
   const { data: installed, isPending } = usePlugins();
   const installer = useInstaller();
+  const t = useT(dict).page;
   const problem = marketplaceProblem(status);
   const updates = installed?.filter((p) => p.update_available).length ?? 0;
-  const started = (job: Job, name: string, verb?: string) => {
+  const started = (job: Job, name: string, verb?: Verb) => {
     installer.start(job, name, verb);
     if (tab !== "installed") navigate("/plugins/installed", { viewTransition: true });
   };
   return (
     <Page>
-      <PageHead title="Plugins">
-        Add features from the Sudoo.sh marketplace. Every package is signed by the marketplace and checked here before it is installed.
+      <PageHead title={t.title}>
+        {t.text}
       </PageHead>
       {problem && <Callout tone={problem.tone}>{problem.text}</Callout>}
       {installer.work && <WorkCard work={installer.work} onFinished={installer.finish} onClear={installer.clear} />}
       <nav className="tabs">
-        {TABS.map((t) => (
-          <NavLink key={t.id} to={`/plugins${t.id ? `/${t.id}` : ""}`} end viewTransition className={({ isActive }) => (isActive ? "active" : "")}>
-            {t.label}
-            {t.id === "installed" && !!installed?.length && <span className="faint tabular">{installed.length}</span>}
-            {t.id === "installed" && updates > 0 && <Tag tone="accent">{updates} {updates === 1 ? "update" : "updates"}</Tag>}
+        {TABS.map((id) => (
+          <NavLink key={id} to={`/plugins${id ? `/${id}` : ""}`} end viewTransition className={({ isActive }) => (isActive ? "active" : "")}>
+            {t.tabs[id]}
+            {id === "installed" && !!installed?.length && <span className="faint tabular">{number(installed.length)}</span>}
+            {id === "installed" && updates > 0 && <Tag tone="accent">{t.updates(updates)}</Tag>}
           </NavLink>
         ))}
       </nav>

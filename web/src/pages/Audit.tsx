@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useAudit } from "@/api/queries";
 import { Page, PageHead } from "@/components/Shell";
 import { Tag, Button, Empty, Skeleton } from "@/components/ui/basics";
+import { useT } from "@/i18n";
+import words from "@/i18n/operations";
 import { ago, dateTime } from "@/lib/format";
 
 export function AuditPage() {
@@ -10,42 +12,43 @@ export function AuditPage() {
   const [query, setQuery] = useState("");
   const [onlyRefused, setOnlyRefused] = useState(false);
   const { data: entries, isPending, isFetching } = useAudit(limit);
+  const t = useT(words).audit;
   const shown = (entries ?? []).filter(
     (e) => (!onlyRefused || !e.ok) && (!query || `${e.user} ${e.event} ${e.instance ?? ""} ${e.ip ?? ""} ${e.detail ?? ""}`.toLowerCase().includes(query.toLowerCase())),
   );
   return (
     <Page>
-      <PageHead title="Audit log">
-        Who did what, from where, and whether it was allowed: sign-ins, refusals, every action on an instance, account and key changes.
+      <PageHead title={t.title}>
+        {t.text}
       </PageHead>
       <div className="toolbar rise">
         <div className="input-group">
           <Search />
-          <input className="input" placeholder="Search user, event, instance, address…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className="input" placeholder={t.search} value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
-        <Button variant={onlyRefused ? "soft" : "default"} icon={<CircleX />} onClick={() => setOnlyRefused(!onlyRefused)}>Refused only</Button>
+        <Button variant={onlyRefused ? "soft" : "default"} icon={<CircleX />} onClick={() => setOnlyRefused(!onlyRefused)}>{t.refusedOnly}</Button>
       </div>
       <div className="card rise">
         {isPending ? <div className="card-body"><Skeleton height={300} /></div> : !shown.length ? (
-          <Empty icon={<ScrollText />} title="Nothing to show" />
+          <Empty icon={<ScrollText />} title={t.nothing} />
         ) : (
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>When</th><th>Who</th><th>What</th><th>Instance</th><th>Address</th></tr></thead>
+              <thead><tr><th>{t.when}</th><th>{t.who}</th><th>{t.what}</th><th>{t.instance}</th><th>{t.address}</th></tr></thead>
               <tbody>
                 {shown.map((e, i) => (
                   <tr key={`${e.ts}-${i}`}>
                     <td className="small nowrap" title={dateTime(e.ts)}>{ago(e.ts)}</td>
-                    <td className="small">{e.user}</td>
+                    <td className="small"><bdi>{e.user}</bdi></td>
                     <td>
                       <div className="row">
-                        {e.ok ? <CircleCheck size={15} color="var(--positive)" /> : <CircleX size={15} color="var(--negative)" />}
-                        <span>{e.event}</span>
+                        {e.ok ? <CircleCheck size={15} color="var(--positive)" aria-label={t.allowed} /> : <CircleX size={15} color="var(--negative)" aria-label={t.refused} />}
+                        <bdi>{e.event}</bdi>
                       </div>
-                      {e.detail && <div className="xsmall faint" style={{ marginLeft: 23 }}>{e.detail}</div>}
+                      {e.detail && <div className="xsmall faint" dir="auto" style={{ marginInlineStart: 23 }}>{e.detail}</div>}
                     </td>
-                    <td>{e.instance && <Tag>{e.instance}</Tag>}</td>
-                    <td className="mono xsmall faint">{e.ip}</td>
+                    <td>{e.instance && <Tag><bdi>{e.instance}</bdi></Tag>}</td>
+                    <td className="xsmall faint"><span className="mono">{e.ip}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -54,7 +57,7 @@ export function AuditPage() {
         )}
         {entries && entries.length >= limit && (
           <div className="card-foot" style={{ textAlign: "center" }}>
-            <Button loading={isFetching} onClick={() => setLimit(limit + 300)}>Show older entries</Button>
+            <Button loading={isFetching} onClick={() => setLimit(limit + 300)}>{t.older}</Button>
           </div>
         )}
       </div>

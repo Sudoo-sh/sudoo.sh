@@ -6,6 +6,9 @@ import { useState } from "react";
 import { api, errorText } from "@/api/client";
 import { keys, useMarketplace, usePlugins } from "@/api/queries";
 import type { MarketplaceStatus, Publisher } from "@/api/types";
+import { useT, words } from "@/i18n";
+import common from "@/i18n/common";
+import plugins from "@/i18n/plugins";
 import { ago, dateTime } from "@/lib/format";
 import { useCan } from "./Shell";
 import { Mark } from "./ui/Brand";
@@ -14,14 +17,15 @@ import { Modal, useToast } from "./ui/overlay";
 
 /** Official (Sudoo.sh's own plugins) or Verified (Sudoo.sh checked who the publisher is). */
 export function PublisherBadge({ publisher }: { publisher: Publisher | null }) {
-  if (!publisher) return <span className="faint">Unknown publisher</span>;
+  const t = useT(plugins).marketplace;
+  if (!publisher) return <span className="faint">{t.unknownPublisher}</span>;
   return (
     <span className="publisher">
-      <span className="truncate">{publisher.name}</span>
+      <bdi className="truncate">{publisher.name}</bdi>
       {publisher.official ? (
-        <Tag tone="accent" icon={<Mark size={12} />}>Official</Tag>
+        <Tag tone="accent" icon={<Mark size={12} />}>{t.official}</Tag>
       ) : publisher.verified ? (
-        <span className="verified" title="Verified publisher: Sudoo.sh checked who they are" aria-label="Verified publisher">
+        <span className="verified" title={t.verifiedTitle} aria-label={t.verified}>
           <BadgeCheck />
         </span>
       ) : null}
@@ -32,26 +36,18 @@ export function PublisherBadge({ publisher }: { publisher: Publisher | null }) {
 /** Why the marketplace cannot be used right now, in the person's words; null when it can. */
 export function marketplaceProblem(status: MarketplaceStatus | undefined): { tone: "warning" | "danger"; text: string } | null {
   if (!status) return null;
-  if (!status.enabled) return { tone: "warning", text: "The marketplace is switched off on this panel. A super admin can switch it on in Settings, Marketplace." };
+  const t = words(plugins).marketplace;
+  if (!status.enabled) return { tone: "warning", text: t.off };
   if (status.hub_status === "integrity_violation")
-    return { tone: "danger", text: "The marketplace refuses this panel: its core files differ from the released version. Every plugin is switched off until the panel is reinstalled." };
+    return { tone: "danger", text: t.integrity };
   if (status.hub_status === "installation_suspended")
-    return { tone: "danger", text: "This panel is suspended on the marketplace, so every plugin is switched off. Contact Sudoo.sh support." };
+    return { tone: "danger", text: t.suspended };
   if (status.error_code === "unverified")
-    return {
-      tone: "danger",
-      text: "The marketplace's last answer was not signed by a key this panel trusts, so it was ignored. Installed plugins keep working; the panel tries again on its own. If this lasts, tell Sudoo.sh support.",
-    };
+    return { tone: "danger", text: t.unverified };
   if (status.flags?.includes("fingerprint_mismatch"))
-    return {
-      tone: "danger",
-      text: "This server is flagged: it reported from another machine than the one it was registered on, so its paid plugins are withheld. The account owner must accept this machine on app.sudoo.sh (Servers), or revoke its key if it is a copy.",
-    };
+    return { tone: "danger", text: t.flagged };
   if (status.reachable === false)
-    return {
-      tone: "warning",
-      text: `The marketplace cannot be reached right now${status.lease_valid ? "" : ", and the panel's last lease has ended: paid plugins stop when their offline time runs out"}. Instances and installed plugins keep working; the panel tries again every few minutes.`,
-    };
+    return { tone: "warning", text: t.unreachable(!!status.lease_valid) };
   return null;
 }
 
@@ -60,25 +56,27 @@ export function LinkForm({ onLinked }: { onLinked?: () => void }) {
   const toast = useToast();
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
+  const t = useT(plugins).marketplace;
   const link = async () => {
     setBusy(true);
     try {
       const linked = await api.post<{ account_name: string }>("/marketplace/link", { code: code.trim() });
-      toast("success", "Panel linked", `It now belongs to ${linked.account_name} on app.sudoo.sh`);
+      toast("success", t.linked, t.linkedText(linked.account_name));
       setCode("");
       await client.invalidateQueries({ queryKey: keys.marketplace });
       onLinked?.();
     } catch (error) {
-      toast("error", "Not linked", errorText(error));
+      toast("error", t.notLinked, errorText(error));
     } finally {
       setBusy(false);
     }
   };
   return (
-    <Field label="Link code" hint="On app.sudoo.sh, open Servers and choose Link a server. The code works once, for 15 minutes.">
+    <Field label={t.linkCode} hint={t.linkHint}>
       <div className="row">
         <input
           className="input mono"
+          dir="ltr"
           autoComplete="one-time-code"
           spellCheck={false}
           placeholder="ABCD-1234"
@@ -88,7 +86,7 @@ export function LinkForm({ onLinked }: { onLinked?: () => void }) {
           onKeyDown={(e) => e.key === "Enter" && code.trim().length >= 8 && link()}
         />
         <Button variant="primary" icon={<Link2 />} loading={busy} disabled={code.trim().length < 8} onClick={link}>
-          Link
+          {t.link}
         </Button>
       </div>
     </Field>
@@ -105,6 +103,8 @@ export function MarketplaceSettings() {
   const [leaving, setLeaving] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const { data: installed } = usePlugins();
+  const t = useT(plugins).marketplace;
+  const c = useT(common).common;
   if (isPending) return <div className="card-body"><Skeleton height={120} /></div>;
   if (!status) return null;
   const problem = marketplaceProblem(status);
@@ -112,9 +112,9 @@ export function MarketplaceSettings() {
     setSending(true);
     try {
       await api.post("/marketplace/heartbeat");
-      toast("success", "The marketplace answered");
+      toast("success", t.answered);
     } catch (error) {
-      toast("error", "No answer", errorText(error));
+      toast("error", t.noAnswer, errorText(error));
     } finally {
       await client.invalidateQueries({ queryKey: keys.marketplace });
       setSending(false);
@@ -125,10 +125,10 @@ export function MarketplaceSettings() {
     setLoggingOut(true);
     try {
       await api.post("/marketplace/unlink", { confirm: true });
-      toast("success", "Logged out of the account", paid.length ? "The paid plugins are being removed after a backup" : undefined);
+      toast("success", t.loggedOut, paid.length ? t.paidRemoving : undefined);
       setLeaving(false);
     } catch (error) {
-      toast("error", "Still logged in", errorText(error));
+      toast("error", t.stillLoggedIn, errorText(error));
     } finally {
       await client.invalidateQueries({ queryKey: keys.marketplace });
       await client.invalidateQueries({ queryKey: keys.plugins });
@@ -139,42 +139,42 @@ export function MarketplaceSettings() {
     <div className="card-body stack">
       {problem && <Callout tone={problem.tone}>{problem.text}</Callout>}
       {status.key_revoked_at && !status.linked?.account_name && (
-        <Callout tone="warning">This server's key was revoked on app.sudoo.sh, so the panel registered again with a new identity. Link it to your account again to use paid plugins.</Callout>
+        <Callout tone="warning">{t.keyRevoked}</Callout>
       )}
-      {status.removing_paid_plugins && <Callout tone="info">The panel is removing this server's paid plugins (it was logged out of its account). A backup is taken first.</Callout>}
+      {status.removing_paid_plugins && <Callout tone="info">{t.removingPaid}</Callout>}
       <dl className="dl">
-        <dt>Hub</dt>
-        <dd className="mono small">{status.hub_url}</dd>
-        <dt>This installation</dt>
-        <dd className="mono small">{status.installation_id ?? "—"}</dd>
-        <dt>Last heartbeat</dt>
+        <dt>{t.hub}</dt>
+        <dd><span className="mono small">{status.hub_url}</span></dd>
+        <dt>{t.installation}</dt>
+        <dd><span className="mono small">{status.installation_id ?? "—"}</span></dd>
+        <dt>{t.lastHeartbeat}</dt>
         <dd>
-          {status.last_heartbeat_at ? `${ago(status.last_heartbeat_at)} · ${dateTime(status.last_heartbeat_at)}` : "None yet"}
+          {status.last_heartbeat_at ? `${ago(status.last_heartbeat_at)} · ${dateTime(status.last_heartbeat_at)}` : t.noneYet}
         </dd>
-        <dt>Lease</dt>
+        <dt>{t.lease}</dt>
         <dd>
           {status.lease_valid ? (
             <>
-              Valid until {dateTime(status.lease_expires_at)}
-              {status.lease_ending_soon && <> <Tag tone="caution">ends soon</Tag></>}
+              {t.validUntil(dateTime(status.lease_expires_at))}
+              {status.lease_ending_soon && <> <Tag tone="caution">{t.endsSoon}</Tag></>}
             </>
           ) : (
-            <span className="muted">None: paid plugins cannot run until the next heartbeat passes</span>
+            <span className="muted">{t.noLease}</span>
           )}
         </dd>
-        <dt>Account</dt>
-        <dd>{status.linked?.account_name ? <>Linked to <b>{status.linked.account_name}</b></> : <span className="muted">Not linked. Free plugins need no account; paid ones do</span>}</dd>
+        <dt>{t.account}</dt>
+        <dd>{status.linked?.account_name ? <>{t.linkedTo(<b key="a"><bdi>{status.linked.account_name}</bdi></b>)}</> : <span className="muted">{t.notLinkedText}</span>}</dd>
       </dl>
       {can("settings.manage") && status.enabled && (
         <>
           {!status.linked?.account_name && <LinkForm />}
           <div className="row">
             <Button size="sm" icon={<RefreshCcw />} loading={sending} onClick={heartbeat}>
-              Send a heartbeat now
+              {t.heartbeat}
             </Button>
             {status.linked?.account_name && (
               <Button size="sm" variant="ghost" icon={<LogOut />} onClick={() => setLeaving(true)}>
-                Log out of the account
+                {t.logOut}
               </Button>
             )}
           </div>
@@ -182,27 +182,26 @@ export function MarketplaceSettings() {
       )}
       {leaving && (
         <Modal
-          title="Log out of the account?"
-          description={`This server stops belonging to ${status.linked?.account_name ?? "its account"} on app.sudoo.sh.`}
+          title={t.logOutTitle}
+          description={t.logOutText(status.linked?.account_name ?? null)}
           onClose={() => setLeaving(false)}
           footer={
             <>
-              <Button onClick={() => setLeaving(false)}>Cancel</Button>
-              <Button variant="danger" icon={<LogOut />} loading={loggingOut} onClick={logOut}>Log out and remove paid plugins</Button>
+              <Button onClick={() => setLeaving(false)}>{c.cancel}</Button>
+              <Button variant="danger" icon={<LogOut />} loading={loggingOut} onClick={logOut}>{t.logOutRemove}</Button>
             </>
           }
         >
           <div className="stack-sm">
             <p>
-              <b>Paid plugins are removed.</b> Their licences for this server are revoked at once and subscriptions end without a refund.
-              The panel backs up its data (and the instances those plugins can change) first.
+              <b>{t.paidRemoved}</b>{t.paidRemovedText}
             </p>
             {paid.length > 0 ? (
               <div className="row-wrap">{paid.map((p) => <Tag key={p.id}>{p.name}</Tag>)}</div>
             ) : (
-              <p className="small muted">No paid plugin is installed.</p>
+              <p className="small muted">{t.noPaid}</p>
             )}
-            <p className="small muted">The panel, free plugins and every instance keep running. You can link the server to an account again later.</p>
+            <p className="small muted">{t.keepRunning}</p>
           </div>
         </Modal>
       )}

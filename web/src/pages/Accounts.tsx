@@ -9,14 +9,18 @@ import { Button, Callout, CopyField, Empty, Field, Segmented, Skeleton, Switch, 
 import { Menu, Modal, useToast } from "@/components/ui/overlay";
 import { ago } from "@/lib/format";
 import { generatePassword, type Person } from "@/lib/password";
+import { useT } from "@/i18n";
+import words from "@/i18n/admin";
+import common from "@/i18n/common";
 
 function Secret({ title, value, mustChange, onClose }: { title: string; value: string; mustChange: boolean; onClose: () => void }) {
+  const t = useT(words).secret;
   return (
-    <Modal title={title} description={mustChange ? "They choose their own password the first time they sign in with it" : "They sign in with it"} onClose={onClose}
-      footer={<Button variant="primary" onClick={onClose}>Done</Button>}>
+    <Modal title={title} description={mustChange ? t.mustChange : t.signIn} onClose={onClose}
+      footer={<Button variant="primary" onClick={onClose}>{t.done}</Button>}>
       <div className="stack">
         <CopyField value={value} block />
-        <Callout tone="warning">Shown once. Give it to the person through a safe channel.</Callout>
+        <Callout tone="warning">{t.once}</Callout>
       </div>
     </Modal>
   );
@@ -27,14 +31,15 @@ const GENERATE: PasswordChoice = { mode: "generate", value: ["", ""], mustChange
 
 /** Generate a password, or type one that follows the rules; and whether its owner must replace it. */
 function PasswordChoiceFields({ choice, onChange, person }: { choice: PasswordChoice; onChange: (choice: PasswordChoice) => void; person: Person }) {
+  const t = useT(words).passwordChoice;
   return (
     <div className="stack">
       <Segmented<PasswordChoice["mode"]>
         value={choice.mode}
         onChange={(mode) => onChange({ ...choice, mode })}
         options={[
-          { value: "generate", label: <><Sparkles size={14} /> Generate</> },
-          { value: "type", label: <><KeyRound size={14} /> Type a password</> },
+          { value: "generate", label: <><Sparkles size={14} /> {t.generate}</> },
+          { value: "type", label: <><KeyRound size={14} /> {t.type}</> },
         ]}
       />
       {choice.mode === "type" && (
@@ -42,14 +47,14 @@ function PasswordChoiceFields({ choice, onChange, person }: { choice: PasswordCh
           <PasswordFields value={choice.value} onChange={(value) => onChange({ ...choice, value })} person={person} />
           <div className="full row" style={{ gap: 8 }}>
             <Button size="sm" variant="ghost" icon={<Sparkles />} onClick={() => { const made = generatePassword(); onChange({ ...choice, value: [made, made] }); }}>
-              Suggest a strong one
+              {t.suggest}
             </Button>
             {choice.value[0] && choice.value[0] === choice.value[1] && <CopyField value={choice.value[0]} />}
           </div>
         </div>
       )}
       {choice.mode === "type" && (
-        <Switch checked={choice.mustChange} onChange={(mustChange) => onChange({ ...choice, mustChange })} label="Ask them to choose their own password when they first sign in" />
+        <Switch checked={choice.mustChange} onChange={(mustChange) => onChange({ ...choice, mustChange })} label={t.mustChange} />
       )}
     </div>
   );
@@ -72,51 +77,53 @@ function AccountForm({ user, onClose, onDone }: { user?: User; onClose: () => vo
   );
   const [password, setPassword] = useState<PasswordChoice>(GENERATE);
   const [busy, setBusy] = useState(false);
+  const t = useT(words);
+  const all = useT(common);
   const set = (key: keyof Form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: e.target.value });
   const roles = (data?.roles ?? []).filter((r) => r.name !== "super_admin" || me.role === "super_admin");
   const self = user?.name === me.user;
   const person: Person = { username: user?.name, email: form.email, names: [form.first_name, form.last_name] };
   const ready = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email.trim()) && (!!user || choiceReady(password, person));
   const save = async () => {
-    if (self && form.role !== user!.role && !confirm("Change your own role? You are signed out and sign in again with the new role.")) return;
+    if (self && form.role !== user!.role && !confirm(t.form.confirmOwnRole)) return;
     setBusy(true);
     try {
       const body = { ...form, email: form.email.trim() };
       if (user) {
         await api.patch(`/users/${user.name}`, body);
-        toast("success", `${user.name} saved`);
+        toast("success", t.form.saved(user.name));
         onDone();
       } else {
         const made = await api.post<User & { password: string }>("/users", { ...body, ...choiceBody(password) });
-        onDone({ title: `Password for ${made.email}`, password: made.password, mustChange: made.must_change_password });
+        onDone({ title: t.form.passwordFor(made.email ?? made.name), password: made.password, mustChange: made.must_change_password });
       }
     } catch (error) {
-      toast("error", "Not saved", errorText(error));
+      toast("error", t.form.notSaved, errorText(error));
     } finally {
       setBusy(false);
     }
   };
   return (
-    <Modal wide title={user ? `Edit ${user.display_name}` : "New account"} description={user ? <span className="mono">{user.name}</span> : "They sign in with their e-mail address"} onClose={onClose}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} disabled={!ready} onClick={save}>{user ? "Save" : "Create"}</Button></>}>
+    <Modal wide title={user ? t.form.editTitle(user.display_name) : t.form.newTitle} description={user ? <span className="mono">{user.name}</span> : t.form.newText} onClose={onClose}
+      footer={<><Button onClick={onClose}>{all.common.cancel}</Button><Button variant="primary" loading={busy} disabled={!ready} onClick={save}>{user ? all.common.save : all.common.create}</Button></>}>
       <div className="stack">
         <div className="form-grid">
-          <Field label="First name"><input className="input" autoFocus value={form.first_name} onChange={set("first_name")} /></Field>
-          <Field label="Last name"><input className="input" value={form.last_name} onChange={set("last_name")} /></Field>
-          <Field label="E-mail" hint={user ? "They sign in with it" : "They sign in with it; the user name is made from it"}>
-            <input className="input" type="email" autoComplete="off" value={form.email} onChange={set("email")} />
+          <Field label={t.form.firstName}><input className="input" autoFocus value={form.first_name} onChange={set("first_name")} /></Field>
+          <Field label={t.form.lastName}><input className="input" value={form.last_name} onChange={set("last_name")} /></Field>
+          <Field label={t.form.email} hint={user ? t.form.emailHintEdit : t.form.emailHintNew}>
+            <input className="input" type="email" dir="ltr" autoComplete="off" value={form.email} onChange={set("email")} />
           </Field>
-          <Field label="Phone" hint="Optional"><input className="input" type="tel" value={form.phone} onChange={set("phone")} /></Field>
+          <Field label={t.form.phone} hint={t.form.optional}><input className="input" type="tel" dir="ltr" value={form.phone} onChange={set("phone")} /></Field>
         </div>
         <div className="field">
-          <span className="label">Role</span>
+          <span className="label">{t.form.role}</span>
           <div className="grid-2">
             {roles.map((role) => (
               <button key={role.name} type="button" className="choice" aria-pressed={form.role === role.name} onClick={() => setForm({ ...form, role: role.name })}>
                 <span>
-                  <span className="t">{role.label}</span>
+                  <span className="t">{all.roles[role.name] ?? role.label}</span>
                   <br />
-                  <span className="d">{role.description}</span>
+                  <span className="d">{t.accounts.roleDescriptions[role.name] ?? role.description}</span>
                 </span>
               </button>
             ))}
@@ -124,7 +131,7 @@ function AccountForm({ user, onClose, onDone }: { user?: User; onClose: () => vo
         </div>
         {!user && (
           <div className="field">
-            <span className="label">Password</span>
+            <span className="label">{t.form.password}</span>
             <PasswordChoiceFields choice={password} onChange={setPassword} person={person} />
           </div>
         )}
@@ -137,21 +144,23 @@ function ResetPassword({ user, onClose, onDone }: { user: User; onClose: () => v
   const toast = useToast();
   const [choice, setChoice] = useState<PasswordChoice>(GENERATE);
   const [busy, setBusy] = useState(false);
+  const t = useT(words).reset;
+  const c = useT(common).common;
   const person: Person = { username: user.name, email: user.email ?? undefined, names: [user.first_name ?? "", user.last_name ?? ""] };
   const submit = async () => {
     setBusy(true);
     try {
       const answer = await api.post<{ password: string }>(`/users/${user.name}/password`, choiceBody(choice));
-      onDone({ title: `New password for ${user.display_name}`, password: answer.password, mustChange: choice.mode === "generate" || choice.mustChange });
+      onDone({ title: t.title(user.display_name), password: answer.password, mustChange: choice.mode === "generate" || choice.mustChange });
     } catch (error) {
-      toast("error", "Not reset", errorText(error));
+      toast("error", t.notReset, errorText(error));
     } finally {
       setBusy(false);
     }
   };
   return (
-    <Modal wide title={`New password for ${user.display_name}`} description="Their current sessions end" onClose={onClose}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} disabled={!choiceReady(choice, person)} onClick={submit}>Set password</Button></>}>
+    <Modal wide title={t.title(user.display_name)} description={t.text} onClose={onClose}
+      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" loading={busy} disabled={!choiceReady(choice, person)} onClick={submit}>{t.submit}</Button></>}>
       <PasswordChoiceFields choice={choice} onChange={setChoice} person={person} />
     </Modal>
   );
@@ -168,22 +177,24 @@ export function AccountsPage() {
   const resetFactors = useCall((user: string) => api.del(`/users/${user}/second-factors`), refresh);
   const remove = useCall((user: string) => api.del(`/users/${user}`), refresh);
   const fail = (title: string) => (error: unknown) => toast("error", title, errorText(error));
+  const all = useT(common);
+  const t = useT(words).accounts;
   const manageable = (u: User) => u.role !== "super_admin" || me.role === "super_admin";
 
   return (
     <Page>
-      <PageHead title="Accounts" actions={<Button variant="primary" icon={<UserPlus />} onClick={() => setEditing("new")}>New account</Button>}>
-        Each account has a role that decides what it can do. Super admins can do everything, viewers can only look.
+      <PageHead title={t.title} actions={<Button variant="primary" icon={<UserPlus />} onClick={() => setEditing("new")}>{t.new}</Button>}>
+        {t.lead}
       </PageHead>
       <div className="card">
         {isPending ? (
           <div className="card-body"><Skeleton height={160} /></div>
         ) : !users?.length ? (
-          <Empty icon={<Users />} title="No accounts" />
+          <Empty icon={<Users />} title={t.none} />
         ) : (
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>Account</th><th>Role</th><th>Second factor</th><th>Last sign-in</th><th /></tr></thead>
+              <thead><tr><th>{t.columns.account}</th><th>{t.columns.role}</th><th>{t.columns.factor}</th><th>{t.columns.lastSignIn}</th><th /></tr></thead>
               <tbody>
                 {users.map((u) => (
                   <tr key={u.name}>
@@ -191,32 +202,32 @@ export function AccountsPage() {
                       <div className="row" style={{ gap: 12 }}>
                         <span className="avatar">{(u.first_name?.[0] ?? u.name[0]) + (u.last_name?.[0] ?? "")}</span>
                         <div style={{ minWidth: 0 }}>
-                          <div className="truncate">{u.display_name}{u.name === me.user && <span className="faint"> (you)</span>}</div>
-                          <div className="xsmall faint truncate">{u.email ?? <span className="mono">{u.name}</span>}</div>
+                          <div className="truncate"><bdi>{u.display_name}</bdi>{u.name === me.user && <span className="faint">{t.you}</span>}</div>
+                          <div className="xsmall faint truncate">{u.email ? <bdi dir="ltr">{u.email}</bdi> : <span className="mono">{u.name}</span>}</div>
                         </div>
                       </div>
                     </td>
                     <td>
-                      <Tag tone={u.role === "super_admin" ? "accent" : undefined}>{u.role_label}</Tag>
-                      {u.must_change_password && <span className="xsmall faint"> · new password pending</span>}
+                      <Tag tone={u.role === "super_admin" ? "accent" : undefined}>{all.roles[u.role] ?? u.role_label}</Tag>
+                      {u.must_change_password && <span className="xsmall faint">{t.pendingPassword}</span>}
                     </td>
-                    <td className="small">{u.second_factors.length ? u.second_factors.map((f) => (f === "totp" ? "App" : "E-mail")).join(", ") : <span className="faint">None</span>}</td>
+                    <td className="small">{u.second_factors.length ? u.second_factors.map((f) => t.factors[f] ?? f).join(t.separator) : <span className="faint">{t.noFactor}</span>}</td>
                     <td className="small muted">{ago(u.last_sign_in_at)}</td>
                     <td className="actions">
                       {manageable(u) && (
-                        <Menu trigger={(toggle) => <Button size="sm" variant="ghost" icon={<MoreHorizontal />} onClick={toggle} aria-label={`Actions for ${u.name}`} />}>
+                        <Menu trigger={(toggle) => <Button size="sm" variant="ghost" icon={<MoreHorizontal />} onClick={toggle} aria-label={t.actionsFor(u.name)} />}>
                           {(close) => (
                             <>
-                              <button onClick={() => { close(); setEditing(u); }}><Pencil /> Edit</button>
+                              <button onClick={() => { close(); setEditing(u); }}><Pencil /> {t.edit}</button>
                               {u.name !== me.user && (
                                 <>
-                                  <button onClick={() => { close(); setResetting(u); }}><KeyRound /> Set a new password</button>
-                                  <button disabled={!u.second_factors.length} onClick={() => { close(); resetFactors.mutate(u.name, { onSuccess: () => toast("success", `${u.name}'s second factors removed`), onError: fail("Not removed") }); }}>
-                                    <ShieldOff /> Remove second factors
+                                  <button onClick={() => { close(); setResetting(u); }}><KeyRound /> {t.setPassword}</button>
+                                  <button disabled={!u.second_factors.length} onClick={() => { close(); resetFactors.mutate(u.name, { onSuccess: () => toast("success", t.factorsRemoved(u.name)), onError: fail(t.notRemoved) }); }}>
+                                    <ShieldOff /> {t.removeFactors}
                                   </button>
                                   <hr />
-                                  <button className="danger" onClick={() => { close(); if (confirm(`Delete the account of ${u.display_name}?`)) remove.mutate(u.name, { onSuccess: () => toast("success", `${u.name} deleted`), onError: fail("Not deleted") }); }}>
-                                    <Trash2 /> Delete
+                                  <button className="danger" onClick={() => { close(); if (confirm(t.confirmDelete(u.display_name))) remove.mutate(u.name, { onSuccess: () => toast("success", t.deleted(u.name)), onError: fail(t.notDeleted) }); }}>
+                                    <Trash2 /> {t.delete}
                                   </button>
                                 </>
                               )}

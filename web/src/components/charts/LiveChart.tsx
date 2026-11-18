@@ -15,6 +15,9 @@ import {
   type ScriptableContext,
 } from "chart.js";
 import { useEffect, useRef } from "react";
+import { getLocale, useT } from "@/i18n";
+import charts from "@/i18n/charts";
+import { time } from "@/lib/format";
 import { alpha, token, useThemeVersion } from "./theme";
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, Filler, Tooltip, Decimation);
@@ -27,12 +30,8 @@ export interface Series {
   fill?: boolean;
 }
 
-const clock = (seconds: number, withSeconds = false) =>
-  new Date(seconds * 1000).toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    ...(withSeconds ? { second: "2-digit" } : {}),
-  });
+// the time axis reads left to right, oldest first, in Arabic too (as on the account site); only the words change
+const clock = (seconds: number, withSeconds = false) => time(new Date(seconds * 1000), withSeconds);
 
 /** Seconds on the axis while the chart covers only a few minutes, so the labels differ. */
 const short = (t: number[]) => t.length > 1 && t[t.length - 1]! - t[0]! < 600;
@@ -56,6 +55,7 @@ export function LiveChart({
   const latest = useRef({ t, series, format });
   latest.current = { t, series, format };
   const drawn = useRef<unknown[]>([]); // the data the chart was created with: not drawn a second time
+  const words = useT(charts);
 
   const datasets = (): ChartDataset<"line">[] =>
     latest.current.series.map((s, index) => {
@@ -144,6 +144,8 @@ export function LiveChart({
             cornerRadius: 8,
             boxWidth: 8,
             boxHeight: 2,
+            rtl: getLocale() === "ar",
+            textDirection: getLocale() === "ar" ? "rtl" : "ltr",
             callbacks: {
               title: (items) => clock(Number(items[0]?.parsed.x ?? 0), true),
               label: (item) =>
@@ -181,7 +183,7 @@ export function LiveChart({
   return (
     <div style={{ position: "relative", height }}>
       <canvas ref={canvas} role="img" aria-label={series.map((s) => s.label).join(", ")} />
-      {t.length < 2 && <div className="chart-empty">Collecting the first figures</div>}
+      {t.length < 2 && <div className="chart-empty">{words.collecting}</div>}
     </div>
   );
 }

@@ -2,6 +2,8 @@
 
 import { ArcElement, Chart, DoughnutController, Tooltip } from "chart.js";
 import { useEffect, useRef } from "react";
+import { getLocale, useT } from "@/i18n";
+import charts from "@/i18n/charts";
 import { token, useThemeVersion } from "./theme";
 
 Chart.register(DoughnutController, ArcElement, Tooltip);
@@ -17,7 +19,8 @@ export function Ring({ parts, total, caption }: { parts: Part[]; total: number; 
   const canvas = useRef<HTMLCanvasElement>(null);
   const chart = useRef<Chart<"doughnut"> | null>(null);
   const theme = useThemeVersion();
-  const shown = parts.some((p) => p.value > 0) ? parts : [{ label: "None", value: 1, color: "--hairline" }];
+  const none = useT(charts).none;
+  const shown = parts.some((p) => p.value > 0) ? parts : [{ label: none, value: 1, color: "--hairline" }];
 
   useEffect(() => {
     if (!canvas.current) return;
@@ -31,7 +34,7 @@ export function Ring({ parts, total, caption }: { parts: Part[]; total: number; 
         animation: { duration: 400, easing: "easeOutQuart" },
         plugins: {
           legend: { display: false },
-          tooltip: { backgroundColor: token("--text"), titleColor: token("--bg"), bodyColor: token("--bg"), padding: 10, cornerRadius: 8, displayColors: false },
+          tooltip: { backgroundColor: token("--text"), titleColor: token("--bg"), bodyColor: token("--bg"), padding: 10, cornerRadius: 8, displayColors: false, rtl: getLocale() === "ar", textDirection: getLocale() === "ar" ? "rtl" : "ltr" },
         },
       },
     });

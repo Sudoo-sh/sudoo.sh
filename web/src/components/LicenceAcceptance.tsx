@@ -29,8 +29,6 @@ export function LicenceDocument({ text, open: startOpen = false }: { text: Licen
         </a>
       </div>
       <section className="licence-summary" aria-label={t.summary}>
-        <h3>{t.summary}</h3>
-        <p className="faint small">{t.summaryNote}</p>
         <div className="prose" dangerouslySetInnerHTML={{ __html: locale === "ar" ? text.summary_ar_html : text.summary_html }} />
       </section>
       <div>

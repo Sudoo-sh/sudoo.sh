@@ -101,8 +101,18 @@ def bundled() -> Agreement:
     )
 
 
+_LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+\.)\s")
+
+
 def _html(text: str) -> str:
-    return markdown.markdown(text, extensions=["tables", "sane_lists", "toc"])
+    # as on GitHub (CommonMark), a list may start right under a paragraph: Python-Markdown needs a blank line first
+    lines: list[str] = []
+    for line in text.splitlines():
+        if _LIST_ITEM.match(line) and lines and lines[-1].strip() and not _LIST_ITEM.match(lines[-1]):
+            if not lines[-1].startswith((" ", ">")):
+                lines.append("")
+        lines.append(line)
+    return markdown.markdown("\n".join(lines), extensions=["tables", "sane_lists", "toc"])
 
 
 def _summary(text: str) -> str:

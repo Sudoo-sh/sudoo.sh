@@ -67,7 +67,7 @@ export function SetupPage() {
               <p>{l.setupText}</p>
             </header>
             {licenceText.data ? (
-              <LicenceAcceptance text={licenceText.data} onAccept={setLicence} submitLabel={l.submit} />
+              <LicenceAcceptance text={licenceText.data} onAccept={(accepted) => { setLicence(accepted); window.scrollTo({ top: 0 }); }} submitLabel={l.submit} />
             ) : licenceText.isError ? (
               <Callout tone="danger">{l.loadFailed}</Callout>
             ) : (

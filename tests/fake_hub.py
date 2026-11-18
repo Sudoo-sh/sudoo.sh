@@ -586,7 +586,11 @@ class FakeHub:
                         return None
                     usage = data.get("usage")
                     if usage is not None:  # the hub's UsageIn is strict: only these fields, names as BranchName
-                        allowed = {"servers", "projects", "production_branches", "production_branch_names"}
+                        allowed = {"servers", "projects", "production_branches", "production_branch_names",
+                                   "instances_by_stage"}  # fmt: skip
+                        stages = usage.get("instances_by_stage") or {}
+                        if set(stages) - {"production", "staging", "development"}:
+                            return self._problem(422, "usage.instances_by_stage: an unknown stage.")
                         names_ok = all(re.match(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$", n)
                                        for n in usage.get("production_branch_names") or [])  # fmt: skip
                         if set(usage) - allowed or not names_ok:

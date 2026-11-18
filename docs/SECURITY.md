@@ -517,7 +517,7 @@ trusted clock (`trusted_now`: turning the clock back does not extend it). A pane
 from the hub, or has `MARKETPLACE` off has the Free plan; a lease that cannot be verified changes nothing. When the
 entitlements expire, only new production branches are refused: nothing that runs is ever stopped or deleted, and a
 `production_keep` after a downgrade only changes stages. Self-hosted code can be patched; the hub compares what each
-server reports (`usage`: servers, projects, production branches and their names) with the plan and flags mismatches.
+server reports (`usage`: servers, projects, production branches and their names, instances by stage) with the plan and flags mismatches.
 
 ---
 

@@ -8,6 +8,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Instances by stage in the heartbeat:** the `usage` the panel reports to Sudoo.sh now carries
+  `instances_by_stage` (production, staging and development counts, as Settings › Plan shows them). Needs a hub that
+  takes it (sudoo-hub with migration 0018): update the hub first.
 - **The plan from the hub's signed licence:** the panel reads the entitlements of the lease each heartbeat brings
   (production branches with extra branches and privileges, servers, projects, teams, `per_project_access`,
   `custom_domains`, `offsite_backups`, support level, withheld production, ban) and enforces them: one more production

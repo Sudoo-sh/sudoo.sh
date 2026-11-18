@@ -573,7 +573,7 @@ Servers run prebuilt images; nobody builds or downloads the source code to insta
 | :--- | :--- |
 | Images `ghcr.io/sudoo-sh/sudoo-panel` and `ghcr.io/sudoo-sh/sudoo-web` | Built by GitHub Actions (`.github/workflows/images.yml`) from the tagged commit, for linux/amd64 and linux/arm64, with an SBOM and a provenance attestation, and signed by digest with Sigstore keyless signing (cosign): the certificate names the workflow and the tag. |
 | `compose.yaml` of a release | Names both images by digest, so a tag that moves later cannot change what a server runs. Signed by the release workflow (`compose.yaml.sigstore.json`) and listed in `SHA256SUMS`. |
-| `sudoo-install.sh` | Pins the same digests. Checked (shellcheck, tests, a dry run against the release's images) and attached to the release with its SHA-256 in `SHA256SUMS`, and a Sigstore bundle (`sudoo-install.sh.sigstore.json`) when it is signed. When it updates to another version it downloads that release's installer and runs it only if the SHA-256 matches. |
+| `sudoo-install.sh` | Pins the same digests. Built by the release workflow (`.github/workflows/release.yml`) from a pinned commit of the installer's repository, after its shellcheck, tests and a dry run against the release's images, and signed there with Sigstore keyless signing (`sudoo-install.sh.sigstore.json`); no maintainer login signs it. Listed in `SHA256SUMS`. When it updates to another version it downloads that release's installer, checks the SHA-256 and, when `cosign` is installed, the signature for exactly that release's workflow and tag; a missing or failing signature stops the update. Without `cosign` only the SHA-256 is checked, and it says so. Installers of releases before 3.0.0 are not signed by the workflow. |
 
 Check an image yourself with [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) 3 or newer (the
 digest is in the release's `compose.yaml`):
@@ -597,3 +597,14 @@ cosign verify-blob compose.yaml --bundle compose.yaml.sigstore.json \
   --certificate-identity https://github.com/Sudoo-sh/sudoo.sh/.github/workflows/release.yml@refs/tags/v<version> \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
+
+Check the release's installer before running it (both files from the release page; the identity names the tag):
+
+```bash
+cosign verify-blob sudoo-install.sh --bundle sudoo-install.sh.sigstore.json \
+  --certificate-identity https://github.com/Sudoo-sh/sudoo.sh/.github/workflows/release.yml@refs/tags/v<version> \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+A signature shows who built the file: the release workflow of this repository, run for that tag. `SHA256SUMS` alone
+shows only that the file is the one the release lists.

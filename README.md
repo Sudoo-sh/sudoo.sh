@@ -64,6 +64,9 @@ less sudoo-install.sh                              # read it
 sudo bash sudoo-install.sh
 ```
 
+The release workflow also signs it (`sudoo-install.sh.sigstore.json`); [docs/SECURITY.md](docs/SECURITY.md#13-releases-and-signatures)
+shows the `cosign verify-blob` command.
+
 It prints the panel's link and a **setup code**. Open the link, enter the code, and create your own account with
 your name, e-mail and password; you sign in with your e-mail address. Everything else, including the e-mail account that sends sign-in codes, is set up
 in the website. Without the installer: [Manual installation](#manual-installation). Details in

@@ -1030,6 +1030,7 @@ anything; a ! is a warning. `sudo sudoo-install check` runs them all without cha
 | Message after the checks | What to do |
 | :--- | :--- |
 | "There is no terminal to ask, so nothing was changed." | Run the printed command (the same, with `--yes`). |
+| "The licence agreement must be accepted, and there is no terminal to ask" | Read the agreement at the printed address, then run the same command with `--accept-licence` ([section 22](#the-installer)). |
 | "Could not download ghcr.io/sudoo-sh/..." | Check access to `ghcr.io`; `docker pull` the image by hand to see Docker's message. |
 | "The signature of ... could not be verified" | Do not install it; report it ([Security](SECURITY.md#13-releases-and-signatures)). |
 | "Sudoo.sh did not become healthy." | `docker logs sudoo-panel` names the problem (usually `.env`); fix it and run `sudo sudoo-install update`, or go back with `sudo sudoo-install update --rollback`. |

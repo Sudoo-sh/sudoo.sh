@@ -366,6 +366,41 @@ export interface MailPreview {
   problems: string[];
 }
 
+/** A pending (or expired) invitation, as Accounts lists it: GET /invitations. */
+export interface Invitation {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  role: Role;
+  role_label: string;
+  invited_by: string;
+  sent_count: number;
+  expired: boolean;
+  invited_at: string;
+  sent_at: string;
+  expires_at: string;
+  /** only in the demo, where no e-mail is sent: the invitation's link */
+  link?: string;
+}
+export interface InvitationPolicy {
+  mail_ready: boolean;
+  /** whether a password may be set instead of inviting (INVITATION_PASSWORD_FALLBACK) */
+  password_allowed: boolean;
+  invitation_hours: number;
+}
+/** What an invitee sees before accepting: POST /invitation. */
+export interface InvitationPreview {
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  role: Role;
+  role_label: string;
+  invited_by: string;
+  expires_at: string;
+  second_factor_required: boolean;
+}
+
 export interface User extends Profile {
   name: string;
   display_name: string;

@@ -8,6 +8,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Invitations:** new people are invited by e-mail instead of being given a password. **Accounts, Invite** takes
+  the e-mail address and role (name optional) and e-mails a link (new e-mail "Invitation" on the E-mail templates
+  page) that works once and for `INVITATION_HOURS` (72 by default); only a hash of it is stored. The invitee chooses
+  a password and name on `/invite` (English and Arabic), is signed in and offered a second factor (required first
+  when `REQUIRE_SECOND_FACTOR` applies). The list shows **Invited, expires in ...** with **Send again** (the old link
+  stops working) and **Revoke**; everything is in the audit log. New settings: `INVITATION_HOURS`,
+  `INVITATION_PASSWORD_FALLBACK` (when a password may still be set directly: `no_mail` by default, only while e-mail
+  is not set up; `always`, `never`) and `INVITATIONS_PER_HOUR` (20). Wrong links are throttled like wrong passwords.
+  API: `GET/POST /invitations`, `POST /invitations/<id>/resend`, `DELETE /invitations/<id>`, `POST /invitation`,
+  `POST /invitation/accept`; `POST /users` follows `INVITATION_PASSWORD_FALLBACK`.
+
 - **Log viewer:** the Odoo log, job logs (job drawer, instance creation) colour each line by level (errors red,
   warnings amber, steps done and other success green, debug muted), read from the standard Odoo log format and the
   jobs' markers; tracebacks keep their error's colour. A level filter with counts, search with highlighted matches and

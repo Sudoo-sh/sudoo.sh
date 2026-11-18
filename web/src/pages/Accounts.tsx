@@ -1,13 +1,14 @@
-import { KeyRound, MoreHorizontal, Pencil, ShieldOff, Sparkles, Trash2, UserPlus, Users } from "lucide-react";
+import { ExternalLink, KeyRound, MailPlus, MoreHorizontal, Pencil, Send, ShieldOff, Sparkles, Trash2, UserPlus, Users, XCircle } from "lucide-react";
 import { useState } from "react";
 import { api, errorText } from "@/api/client";
-import { useCall, useRoles, useUsers } from "@/api/queries";
-import type { Role, User } from "@/api/types";
+import { useCall, useInvitations, useRoles, useUsers } from "@/api/queries";
+import { Link } from "react-router";
+import type { Invitation, InvitationPolicy, Role, User } from "@/api/types";
 import { Page, PageHead, useMe } from "@/components/Shell";
 import { PasswordFields, passwordReady } from "@/components/PasswordFields";
 import { Button, Callout, CopyField, Empty, Field, Segmented, Skeleton, Switch, Tag } from "@/components/ui/basics";
 import { Menu, Modal, useToast } from "@/components/ui/overlay";
-import { ago } from "@/lib/format";
+import { ago, fullDateTime } from "@/lib/format";
 import { generatePassword, type Person } from "@/lib/password";
 import { useT } from "@/i18n";
 import words from "@/i18n/admin";
@@ -68,7 +69,9 @@ type Form = { role: Role; first_name: string; last_name: string; email: string; 
 const EMPTY: Form = { role: "developer", first_name: "", last_name: "", email: "", phone: "" };
 type Made = { title: string; password: string; mustChange: boolean };
 
-function AccountForm({ user, onClose, onDone }: { user?: User; onClose: () => void; onDone: (made?: Made) => void }) {
+/** Edit an account, or add one: by invitation (the person chooses their own password from the e-mailed link), or,
+ *  when the Invitations settings allow it (by default only while e-mail is not set up), with a password set here. */
+function AccountForm({ user, policy, onClose, onDone }: { user?: User; policy?: InvitationPolicy; onClose: () => void; onDone: (made?: Made) => void }) {
   const me = useMe();
   const toast = useToast();
   const { data } = useRoles();
@@ -76,14 +79,18 @@ function AccountForm({ user, onClose, onDone }: { user?: User; onClose: () => vo
     user ? { role: user.role, first_name: user.first_name ?? "", last_name: user.last_name ?? "", email: user.email ?? "", phone: user.phone ?? "" } : EMPTY,
   );
   const [password, setPassword] = useState<PasswordChoice>(GENERATE);
+  const canInvite = !!policy?.mail_ready;
+  const [mode, setMode] = useState<"invite" | "password">(canInvite || !policy?.password_allowed ? "invite" : "password");
   const [busy, setBusy] = useState(false);
   const t = useT(words);
   const all = useT(common);
   const set = (key: keyof Form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: e.target.value });
   const roles = (data?.roles ?? []).filter((r) => r.name !== "super_admin" || me.role === "super_admin");
   const self = user?.name === me.user;
+  const inviting = !user && mode === "invite";
   const person: Person = { username: user?.name, email: form.email, names: [form.first_name, form.last_name] };
-  const ready = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email.trim()) && (!!user || choiceReady(password, person));
+  const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email.trim());
+  const ready = emailOk && (!!user || (inviting ? canInvite : choiceReady(password, person)));
   const save = async () => {
     if (self && form.role !== user!.role && !confirm(t.form.confirmOwnRole)) return;
     setBusy(true);
@@ -93,27 +100,54 @@ function AccountForm({ user, onClose, onDone }: { user?: User; onClose: () => vo
         await api.patch(`/users/${user.name}`, body);
         toast("success", t.form.saved(user.name));
         onDone();
+      } else if (inviting) {
+        await api.post<Invitation>("/invitations", { email: body.email, role: body.role, first_name: body.first_name, last_name: body.last_name });
+        toast("success", t.invite.sent(body.email));
+        onDone();
       } else {
         const made = await api.post<User & { password: string }>("/users", { ...body, ...choiceBody(password) });
         onDone({ title: t.form.passwordFor(made.email ?? made.name), password: made.password, mustChange: made.must_change_password });
       }
     } catch (error) {
-      toast("error", t.form.notSaved, errorText(error));
+      toast("error", inviting ? t.invite.notSent : t.form.notSaved, errorText(error));
     } finally {
       setBusy(false);
     }
   };
+  const title = user ? t.form.editTitle(user.display_name) : inviting ? t.invite.title : t.form.newTitle;
+  const description = user ? <span className="mono">{user.name}</span> : inviting ? t.invite.text : t.form.newText;
+  const submit = user ? all.common.save : inviting ? t.invite.send : all.common.create;
   return (
-    <Modal wide title={user ? t.form.editTitle(user.display_name) : t.form.newTitle} description={user ? <span className="mono">{user.name}</span> : t.form.newText} onClose={onClose}
-      footer={<><Button onClick={onClose}>{all.common.cancel}</Button><Button variant="primary" loading={busy} disabled={!ready} onClick={save}>{user ? all.common.save : all.common.create}</Button></>}>
+    <Modal wide title={title} description={description} onClose={onClose}
+      footer={<><Button onClick={onClose}>{all.common.cancel}</Button><Button variant="primary" icon={inviting ? <Send /> : undefined} loading={busy} disabled={!ready} onClick={save}>{submit}</Button></>}>
       <div className="stack">
+        {!user && policy?.password_allowed && canInvite && (
+          <div className="field">
+            <span className="label">{t.invite.how}</span>
+            <Segmented<"invite" | "password">
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: "invite", label: <><MailPlus size={14} /> {t.invite.byEmail}</> },
+                { value: "password", label: <><KeyRound size={14} /> {t.invite.byPassword}</> },
+              ]}
+            />
+          </div>
+        )}
+        {!user && !canInvite && (
+          <Callout tone={policy?.password_allowed ? "info" : "warning"}>
+            {policy?.password_allowed ? t.invite.passwordNote : t.invite.noMail}{" "}
+            <Link to="/settings?tab=email" viewTransition>{t.invite.setUpMail}</Link>
+          </Callout>
+        )}
+        {!user && canInvite && mode === "password" && <Callout tone="info">{t.invite.passwordAlways}</Callout>}
         <div className="form-grid">
-          <Field label={t.form.firstName}><input className="input" autoFocus value={form.first_name} onChange={set("first_name")} /></Field>
-          <Field label={t.form.lastName}><input className="input" value={form.last_name} onChange={set("last_name")} /></Field>
-          <Field label={t.form.email} hint={user ? t.form.emailHintEdit : t.form.emailHintNew}>
-            <input className="input" type="email" dir="ltr" autoComplete="off" value={form.email} onChange={set("email")} />
+          <Field label={t.form.email} hint={user ? t.form.emailHintEdit : inviting && policy ? t.invite.expiresIn(policy.invitation_hours) : t.form.emailHintNew} className={inviting ? "full" : undefined}>
+            <input className="input" type="email" dir="ltr" autoComplete="off" autoFocus={!user} value={form.email} onChange={set("email")} />
           </Field>
-          <Field label={t.form.phone} hint={t.form.optional}><input className="input" type="tel" dir="ltr" value={form.phone} onChange={set("phone")} /></Field>
+          {!inviting && <Field label={t.form.phone} hint={t.form.optional}><input className="input" type="tel" dir="ltr" value={form.phone} onChange={set("phone")} /></Field>}
+          <Field label={t.form.firstName} hint={inviting ? t.invite.namesOptional : undefined}><input className="input" autoFocus={!!user} value={form.first_name} onChange={set("first_name")} /></Field>
+          <Field label={t.form.lastName} hint={inviting ? t.invite.namesOptional : undefined}><input className="input" value={form.last_name} onChange={set("last_name")} /></Field>
         </div>
         <div className="field">
           <span className="label">{t.form.role}</span>
@@ -129,7 +163,7 @@ function AccountForm({ user, onClose, onDone }: { user?: User; onClose: () => vo
             ))}
           </div>
         </div>
-        {!user && (
+        {!user && !inviting && (
           <div className="field">
             <span className="label">{t.form.password}</span>
             <PasswordChoiceFields choice={password} onChange={setPassword} person={person} />
@@ -166,9 +200,58 @@ function ResetPassword({ user, onClose, onDone }: { user: User; onClose: () => v
   );
 }
 
+/** An invitation not accepted yet, among the accounts: who, as what, until when; send again or revoke. */
+function InvitationRow({ invitation: v, manageable, onResend, onRevoke }: { invitation: Invitation; manageable: boolean; onResend: () => void; onRevoke: () => void }) {
+  const all = useT(common);
+  const t = useT(words).accounts;
+  const i = useT(words).invite;
+  const name = [v.first_name, v.last_name].filter(Boolean).join(" ");
+  return (
+    <tr className="invited">
+      <td>
+        <div className="row" style={{ gap: 12 }}>
+          <span className="avatar invited-avatar" aria-hidden="true"><MailPlus size={15} /></span>
+          <div style={{ minWidth: 0 }}>
+            <div className="truncate">{name ? <bdi>{name}</bdi> : <bdi dir="ltr">{v.email}</bdi>}</div>
+            {name && <div className="xsmall faint truncate"><bdi dir="ltr">{v.email}</bdi></div>}
+          </div>
+        </div>
+      </td>
+      <td><Tag tone={v.role === "super_admin" ? "accent" : undefined}>{all.roles[v.role] ?? v.role_label}</Tag></td>
+      <td className="small faint">—</td>
+      <td className="small">
+        {v.expired ? (
+          <Tag tone="negative">{i.expired}</Tag>
+        ) : (
+          <span className="invited-state">
+            <Tag tone="caution">{i.invited}</Tag>{" "}
+            <time className="muted" dateTime={v.expires_at} title={fullDateTime(v.expires_at)}>{i.expiresAt(ago(v.expires_at))}</time>
+          </span>
+        )}
+        {v.sent_count > 1 && <div className="xsmall faint">{i.sentTimes(v.sent_count)}</div>}
+      </td>
+      <td className="actions">
+        {manageable && (
+          <Menu trigger={(toggle) => <Button size="sm" variant="ghost" icon={<MoreHorizontal />} onClick={toggle} aria-label={t.actionsFor(v.email)} />}>
+            {(close) => (
+              <>
+                <button onClick={() => { close(); onResend(); }}><Send /> {i.resend}</button>
+                {v.link && <Link to={v.link} onClick={close}><ExternalLink /> {i.openLink}</Link>}
+                <hr />
+                <button className="danger" onClick={() => { close(); onRevoke(); }}><XCircle /> {i.revoke}</button>
+              </>
+            )}
+          </Menu>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 export function AccountsPage() {
   const me = useMe();
   const { data: users, isPending, refetch } = useUsers();
+  const { data: invited, refetch: refetchInvitations } = useInvitations();
   const toast = useToast();
   const [editing, setEditing] = useState<User | "new" | null>(null);
   const [secret, setSecret] = useState<Made | null>(null);
@@ -176,6 +259,9 @@ export function AccountsPage() {
   const refresh = [["users"]] as const;
   const resetFactors = useCall((user: string) => api.del(`/users/${user}/second-factors`), refresh);
   const remove = useCall((user: string) => api.del(`/users/${user}`), refresh);
+  const resend = useCall((id: string) => api.post<Invitation>(`/invitations/${id}/resend`), [["invitations"]]);
+  const revoke = useCall((id: string) => api.del(`/invitations/${id}`), [["invitations"]]);
+  const i = useT(words).invite;
   const fail = (title: string) => (error: unknown) => toast("error", title, errorText(error));
   const all = useT(common);
   const t = useT(words).accounts;
@@ -183,7 +269,7 @@ export function AccountsPage() {
 
   return (
     <Page>
-      <PageHead title={t.title} actions={<Button variant="primary" icon={<UserPlus />} onClick={() => setEditing("new")}>{t.new}</Button>}>
+      <PageHead title={t.title} actions={<Button variant="primary" icon={<UserPlus />} onClick={() => setEditing("new")}>{invited?.policy.mail_ready || !invited?.policy.password_allowed ? i.open : t.new}</Button>}>
         {t.lead}
       </PageHead>
       <div className="card">
@@ -238,6 +324,11 @@ export function AccountsPage() {
                     </td>
                   </tr>
                 ))}
+                {invited?.invitations.map((v) => (
+                  <InvitationRow key={v.id} invitation={v} manageable={v.role !== "super_admin" || me.role === "super_admin"}
+                    onResend={() => resend.mutate(v.id, { onSuccess: () => toast("success", i.resent(v.email), i.resendNote), onError: fail(i.notSent) })}
+                    onRevoke={() => confirm(i.confirmRevoke(v.email)) && revoke.mutate(v.id, { onSuccess: () => toast("success", i.revoked(v.email)), onError: fail(i.notRevoked) })} />
+                ))}
               </tbody>
             </table>
           </div>
@@ -246,10 +337,12 @@ export function AccountsPage() {
       {editing && (
         <AccountForm
           user={editing === "new" ? undefined : editing}
+          policy={invited?.policy}
           onClose={() => setEditing(null)}
           onDone={(made) => {
             setEditing(null);
             refetch();
+            refetchInvitations();
             if (made) setSecret(made);
           }}
         />

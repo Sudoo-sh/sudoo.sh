@@ -52,6 +52,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
     groups: [
       { id: "signIn", keys: ["require_second_factor", "second_factors", "session_idle_minutes", "session_max_hours", "auth"] },
       { id: "signInEmail", keys: ["sign_in_email", "sign_in_email_opt_out", "recovery_codes_count"] },
+      { id: "invitations", keys: ["invitation_hours", "invitation_password_fallback", "invitations_per_hour"] },
       { id: "requests", keys: ["rate_limit_reads_per_minute", "rate_limit_changes_per_minute", "rate_limiter"] },
     ],
   },

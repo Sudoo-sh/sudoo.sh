@@ -1195,6 +1195,7 @@ overwrites a text you changed.
 | Sign-in code | Signing in with the e-mail code | The person signing in |
 | E-mail address confirmation | Setting up the e-mail code | The address being set up |
 | New sign-in | After every sign-in ([section 18](#18-sign-in-e-mails-and-recovery-codes)) | The account that signed in |
+| Invitation | **Invite** and **Send again** on the Accounts page: the link that accepts it (works once, `INVITATION_HOURS`) | The person invited |
 | Alert | An alert as it happens, and its recovery ([Alerts](#16-alerts)) | Alert recipients |
 | Daily summary of alerts | Once a day with `ALERT_DIGEST` | Alert recipients |
 | Plugin notice | A plugin's licence ends soon or ended, a plugin was switched off | Every super admin with an address |

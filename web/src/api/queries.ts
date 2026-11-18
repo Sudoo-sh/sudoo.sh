@@ -4,6 +4,8 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./client";
 import type {
+  Invitation,
+  InvitationPolicy,
   Alert,
   Billing,
   Receipt,
@@ -166,6 +168,15 @@ export const useCredentials = (name: string, enabled: boolean) =>
     queryFn: () => api.get<Credentials>(`/instances/${name}/credentials`),
     enabled,
     staleTime: Infinity,
+  });
+/** Pending and expired invitations, and what the Invite form may offer (e-mail ready, password allowed). */
+export const useInvitations = () =>
+  useQuery({
+    queryKey: ["invitations"],
+    queryFn: async () => {
+      const page = await api.page<Invitation[]>("/invitations");
+      return { invitations: page.data, policy: page.meta as unknown as InvitationPolicy };
+    },
   });
 export const useOdooLog = (name: string, lines: number) =>
   useQuery({

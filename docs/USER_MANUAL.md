@@ -610,7 +610,9 @@ has none), role, whether it has a second factor and its last sign-in. Your own a
 
 | Action | What happens |
 | :--- | :--- |
-| **New account** | Enter first name, last name, **e-mail** (required: the person signs in with it, and no other account may use it), phone (optional) and a **role**, then choose the password (below). The user name is made from the e-mail address. |
+| **Invite** | Enter the person's **e-mail** (no other account may use it) and **role**; their name is optional. They receive an e-mail with a link that works **once** and for `INVITATION_HOURS` (72 hours by default): they choose their password (the [password rules](#password-rules)) and their name, are signed in, and are offered a second factor (asked to set one up first when the panel requires it). Until then the list shows **Invited** and when the link expires. |
+| **Send again**, **Revoke invitation** (row menu of an invitation) | Sending again e-mails a new link with a new expiry; the previous link stops working. Revoking makes the link stop working. |
+| **New account** (only while e-mail is not set up, or when `INVITATION_PASSWORD_FALLBACK` allows it) | Enter first name, last name, **e-mail** (required: the person signs in with it, and no other account may use it), phone (optional) and a **role**, then choose the password (below). The user name is made from the e-mail address. |
 | **Edit** (row menu) | Change the first and last name, the e-mail address, the phone and the role. |
 | **Set a new password** (row menu) | Choose a new password the same way as for a new account. The account's current sessions end. |
 | **Remove second factors** (row menu) | For a person who lost their phone or mailbox. They sign in with the password only, and set up a new second factor if one is required. |

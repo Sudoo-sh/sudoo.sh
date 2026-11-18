@@ -123,7 +123,7 @@ function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: (recovery
   );
 }
 
-function Factors({ onChange }: { onChange?: () => void }) {
+export function Factors({ onChange }: { onChange?: () => void }) {
   const { data: account, refetch } = useAccount();
   const toast = useToast();
   const [setting, setSetting] = useState<Factor | null>(null);

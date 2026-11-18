@@ -7,6 +7,7 @@ below stay as they are, so "Reset to default" only forgets the change. Texts are
     sign_in_code         the 6-digit code that finishes a sign-in (second factor "email")
     email_confirmation   the code that confirms an address for e-mail codes
     sign_in_notice       "new sign-in to your account", after each sign-in (SIGN_IN_EMAIL)
+    invitation           an invitation to the panel, with a link to choose a password (invitations.py)
     alert                one alert: a failed job, an instance down, a full disk, ... or that it is over
     alert_digest         the daily summary of alerts (ALERT_DIGEST)
     certificate_failed   a custom domain's certificate could not be issued or renewed (an alert of type certificate)
@@ -283,6 +284,38 @@ MESSAGES: dict[str, Message] = {
                     "You receive this e-mail at each sign-in. You can turn it off on your account page.",
                 ),
             ),
+        ),
+        Message(
+            key="invitation",
+            name="Invitation",
+            description="Invites a new person: they open the link, choose their password and sign in.",
+            recipients="The person invited (Accounts, Invite)",
+            kicker="Invitation",
+            preheader="{{ inviter }} invited you to Sudoo.sh as {{ role }}",
+            subject="{{ inviter }} invited you to Sudoo.sh",
+            title="You are invited to Sudoo.sh",
+            body=(
+                "Hello {{ name }},\n\n"
+                "{{ inviter }} invited you to their Sudoo.sh panel as **{{ role }}**.\n\n"
+                "Open the link to choose your password and sign in.\n\n"
+                "[Accept the invitation]({{ link }})\n\n"
+                "The link works once and until {{ expires }}. If it has expired, ask {{ inviter }} to send it again.\n\n"
+                "> Not expecting this? You can ignore this e-mail: nothing happens unless the link is opened."
+            ),
+            placeholders=(
+                Placeholder("name", "The person's first name, or their e-mail address", "Huda"),
+                Placeholder("inviter", "Who sent the invitation", "Sara Nassar"),
+                Placeholder("role", "The role the person will have", "Developer"),
+                Placeholder("expires", "When the link stops working", "Friday 21 November 2026, 09:41 UTC"),
+                Placeholder("hours", "How many hours the link works", 72),
+                Placeholder(
+                    "link",
+                    "The link that accepts the invitation (works once)",
+                    "https://panel.example.com/invite#sample-link",
+                    LINK,
+                ),
+            ),
+            required=("link",),
         ),
         Message(
             key="alert",

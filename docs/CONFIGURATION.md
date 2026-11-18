@@ -150,6 +150,9 @@ there.
 | `SESSION_IDLE_MINUTES` | float | `60` | **live** | Panel sign-out after this long without activity. |
 | `SESSION_MAX_HOURS` | float | `12` | **live** | Longest panel session. |
 | `RECOVERY_CODES_COUNT` | int | `10` | **live** | How many recovery codes an account gets when it sets up the authenticator app, or makes new ones (4 to 20). Each works once, in place of the app's code. |
+| `INVITATION_HOURS` | int | `72` | **live** | How long an invitation link works (1 to 720 hours). New people are invited by e-mail from **Accounts** and choose their own password; the link works once, and sending it again makes the old one stop working. |
+| `INVITATION_PASSWORD_FALLBACK` | `no_mail`, `always`, `never` | `no_mail` | **live** | When administrators may still type or generate a new account's password instead of inviting: only while e-mail is not set up (`no_mail`), `always`, or `never`. |
+| `INVITATIONS_PER_HOUR` | int | `20` | **live** | Invitations one administrator may send, new or again, per hour. |
 | `SIGN_IN_EMAIL` | bool | `true` | **live** | E-mail people each time their account signs in: when, from which address and device, and how. Sent only when e-mail is set up and the account has an address. |
 | `SIGN_IN_EMAIL_OPT_OUT` | bool | `true` | **live** | People may turn the sign-in e-mail off for their own account (Account, Security). Off: everyone gets it while `SIGN_IN_EMAIL` is on. |
 | `MAILER` | str | `smtp` | **restart** | How the panel sends e-mail: `smtp` or `none`. |

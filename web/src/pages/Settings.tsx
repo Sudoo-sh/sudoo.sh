@@ -28,7 +28,13 @@ const webhookGroup = (n: 1 | 2 | 3): Group => ({
 /** The tabs of the page and the groups of settings in each (their words are in i18n/settings.ts). Every setting that
  *  can be changed is in one group only; one the page does not know yet shows under Advanced, Other. */
 const TABS: { id: TabId; groups: Group[] }[] = [
-  { id: "general", groups: [{ id: "contact", keys: ["admin_contact_name", "admin_contact_email", "admin_contact_phone", "brand_color", "default_language"] }] },
+  {
+    id: "general",
+    groups: [
+      { id: "contact", keys: ["admin_contact_name", "admin_contact_email", "admin_contact_phone", "brand_color", "default_language"] },
+      { id: "help", keys: ["support_url", "hub_support_url", "docs_url"] },
+    ],
+  },
   {
     id: "instances",
     groups: [
@@ -79,7 +85,13 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       { id: "checks", keys: ["domain_dns_timeout_seconds", "domain_http_probe", "domain_http_port", "domain_https_port"] },
     ],
   },
-  { id: "email", groups: [{ id: "email", keys: ["mailer", "mail_from", "smtp_host", "smtp_port", "smtp_security", "smtp_username", "smtp_password", "mail_templates_dir"] }] },
+  {
+    id: "email",
+    groups: [
+      { id: "email", keys: ["mailer", "mail_from", "smtp_host", "smtp_port", "smtp_security", "smtp_username", "smtp_password", "mail_templates_dir"] },
+      { id: "mailCatcher", keys: ["mail_catcher_retention_days", "mail_catcher_max_messages", "mail_catcher_max_mb", "mail_catcher_max_message_mb", "mail_catcher_release"] },
+    ],
+  },
   {
     id: "alerts",
     groups: [

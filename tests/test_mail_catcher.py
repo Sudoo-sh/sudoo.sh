@@ -435,3 +435,21 @@ def test_help_tells_the_version_and_where_support_is(developer: Client, monkeypa
         live.change({"support_url": "javascript:alert(1)"})
     with pytest.raises(ValueError):
         live.change({"docs_url": "http://docs.example.com"})
+
+
+def test_every_help_topic_links_to_a_page_and_anchor_that_exist(developer: Client) -> None:
+    """web/src/lib/help-topics.ts: each page's documentation link (in the panel and on the documentation site)."""
+    import re
+    from pathlib import Path
+
+    client, _ = developer
+    source = (Path(__file__).resolve().parent.parent / "web/src/lib/help-topics.ts").read_text()
+    links = re.findall(r'^\s+(\w+): \["([^"]+)", "([^"]+)"\],$', source, re.MULTILINE)
+    topics = re.search(r"export type Topic =([^;]+);", source)
+    assert topics and len(links) == len(re.findall(r'"(\w+)"', topics.group(1)))
+    broken = []
+    for topic, path, anchor in links:
+        page = client.get(f"/api/v1/docs/{path}")
+        if page.status_code != 200 or f'id="{anchor}"' not in page.get_json()["data"]["html"]:
+            broken.append(f"{topic}: {path}#{anchor}")
+    assert not broken

@@ -17,6 +17,7 @@ const en = {
     domains: "Domains",
     settings: "Settings",
     access: "Access",
+    mail: "Mail",
     shell: "Shell",
   },
   head: {
@@ -396,6 +397,7 @@ const ar: typeof en = {
     domains: "النطاقات",
     settings: "الإعدادات",
     access: "الوصول",
+    mail: "البريد",
     shell: "الطرفية",
   },
   head: {

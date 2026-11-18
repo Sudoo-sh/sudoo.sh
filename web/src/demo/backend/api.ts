@@ -11,6 +11,7 @@ import { announce, full, reference, startJob } from "./jobs";
 import { capacity, currentMetrics, history, listed, newProfile } from "./metrics";
 import { applied, cleanLimits, markPending, resourcesOf, setOwn } from "./resources";
 import * as mail from "./mail";
+import * as caught from "./caught-mail";
 import * as offsite from "./offsite";
 import { catalog, categories, marketplace, recommendations } from "./marketplace";
 import { endShell, issueTicket, recordingOf, shellOptions, shellSessions } from "./shell";
@@ -877,6 +878,77 @@ route("GET", "/jobs/:id/log", ({ params, query }) => {
 });
 
 // ---------------------------------------------------------------- server, metrics, settings, alerts
+
+// ---------------------------------------------------------------- the help panel and the mail catcher
+
+route("GET", "/help", () => {
+  need("instances.view");
+  const email = String(setting("admin_contact_email") ?? "");
+  const own = String(setting("support_url") ?? "");
+  const support = own
+    ? { kind: own.startsWith("mailto:") ? "email" : "link", url: own }
+    : email
+      ? { kind: "email", url: `mailto:${email}` }
+      : { kind: "none", url: null, name: String(setting("admin_contact_name") ?? "the administrator") };
+  return ok({ version: "3.0.0", docs_url: String(setting("docs_url") ?? "https://docs.sudoo.sh"), support });
+});
+
+function catching(name: string) {
+  const instance = instanceOf(name);
+  if (instance.stage === "production") throw new Problem(409, "A production instance sends its own e-mail: the mail catcher keeps nothing for it.");
+  return instance;
+}
+
+route("GET", "/instances/:name/mail", ({ params, query }) => {
+  need("caught_mail.view", `/api/v1/instances/${params.name}/mail`);
+  const instance = catching(params.name!);
+  const limit = Math.min(200, Number(query.get("limit") ?? 50));
+  const found = caught.list(instance.name, query.get("q") ?? "", limit);
+  return ok(found.items, {
+    total: found.total,
+    count: found.items.length,
+    limit,
+    offset: 0,
+    catcher: { running: true, exists: true },
+    usage: found.usage,
+    limits: {
+      retention_days: Number(setting("mail_catcher_retention_days") ?? 7),
+      max_messages: Number(setting("mail_catcher_max_messages") ?? 500),
+      max_mb: Number(setting("mail_catcher_max_mb") ?? 200),
+      max_message_mb: Number(setting("mail_catcher_max_message_mb") ?? 25),
+    },
+    release: setting("mail_catcher_release") !== false,
+  });
+});
+route("GET", "/instances/:name/mail/:id", ({ params }) => {
+  need("caught_mail.view", `/api/v1/instances/${params.name}/mail`);
+  const found = caught.detail(catching(params.name!).name, params.id!);
+  if (!found) throw new Problem(404, "This e-mail does not exist (it may have been deleted, or removed after the retention period).");
+  return ok(found);
+});
+route("DELETE", "/instances/:name/mail/:id", ({ params }) => {
+  need("caught_mail.manage", `/api/v1/instances/${params.name}/mail/${params.id}`);
+  const instance = catching(params.name!);
+  const subject = caught.detail(instance.name, params.id!)?.subject ?? "";
+  if (!caught.remove(instance.name, params.id!)) throw new Problem(404, "This e-mail does not exist.");
+  record(ME, "caught e-mail deleted", { instance: instance.name, detail: `${params.id}: ${subject}` });
+  return none();
+});
+route("DELETE", "/instances/:name/mail", ({ params }) => {
+  need("caught_mail.manage", `/api/v1/instances/${params.name}/mail`);
+  const instance = catching(params.name!);
+  record(ME, "caught e-mails deleted", { instance: instance.name, detail: `${caught.removeAll(instance.name)} e-mails` });
+  return none();
+});
+route("POST", "/instances/:name/mail/:id/release", ({ params, body }) => {
+  need("caught_mail.manage", `/api/v1/instances/${params.name}/mail/${params.id}/release`);
+  const instance = catching(params.name!);
+  const to = String(body.to ?? "").trim();
+  if (!/^[^@\s]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}$/.test(to)) throw new Problem(400, "Type one e-mail address to send the copy to.");
+  if (setting("mail_catcher_release") === false) throw new Problem(403, "Releasing caught e-mails is switched off on this panel (Settings, E-mail).");
+  if (!caught.detail(instance.name, params.id!)) throw new Problem(404, "This e-mail does not exist.");
+  throw offline("Sending a copy of a caught e-mail");
+});
 
 route("GET", "/server", () => {
   need("instances.view");

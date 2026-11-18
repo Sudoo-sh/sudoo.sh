@@ -888,3 +888,119 @@
   font-size: var(--text-15, 15px);
   &.rank-1 { color: var(--accent-ink); }
 }
+
+// ---------------------------------------------------------------- an instance's Mail tab (components/MailTab.tsx)
+.mail-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--hairline);
+  .mail-search { flex: 1 1 260px; max-width: 420px; }
+}
+.mail-split {
+  display: grid;
+  grid-template-columns: minmax(240px, 340px) minmax(0, 1fr);
+  min-height: 420px;
+  @media (max-width: 860px) {
+    grid-template-columns: minmax(0, 1fr);
+    // on a phone the list and the e-mail take turns
+    &:not([data-open]) .mail-view { display: none; }
+    &[data-open] .mail-list-wrap { display: none; }
+  }
+}
+.mail-list-wrap { border-inline-end: 1px solid var(--hairline); min-width: 0; @media (max-width: 860px) { border-inline-end: 0; } }
+.mail-list { list-style: none; margin: 0; padding: 0; max-height: 640px; overflow: auto; }
+.mail-row {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: var(--s3) var(--s4);
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--quick, 150ms) var(--ease, ease-out);
+  @include hover { background: var(--raised); }
+  &.active { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+  [dir="rtl"] &.active { box-shadow: inset -3px 0 0 var(--accent); }
+  &:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: -2px; }
+  // a new e-mail settles in at the top of the list
+  @starting-style { opacity: 0; }
+}
+.mail-row-top { display: flex; align-items: baseline; gap: var(--s2); justify-content: space-between; }
+.mail-from { font-weight: 600; font-size: var(--text-13); min-width: 0; }
+.mail-subject {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-13);
+  min-width: 0;
+  svg { width: 13px; height: 13px; flex: none; color: var(--text-3); }
+}
+.mail-view { min-width: 0; }
+.mail-pick { display: grid; place-items: center; align-content: center; gap: var(--s2); height: 100%; min-height: 240px; svg { width: 28px; height: 28px; color: var(--text-3); stroke-width: 1.25; } }
+.mail-detail {
+  display: grid;
+  gap: var(--s4);
+  padding: var(--s5);
+  min-width: 0;
+  h3 { margin: 0; font-size: var(--text-17, 17px); overflow-wrap: anywhere; }
+}
+.mail-detail-head { display: grid; gap: var(--s3); }
+.mail-back { justify-self: start; @media (min-width: 861px) { display: none; } }
+.mail-meta {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font-size: var(--text-13);
+  > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: var(--s3); }
+  dt { color: var(--text-3); }
+  dd { margin: 0; overflow-wrap: anywhere; }
+}
+.mail-actions { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.mail-attachments { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.mail-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-control);
+  font-size: var(--text-13);
+  color: var(--text);
+  text-decoration: none;
+  @include press;
+  @include hover { background: var(--raised); }
+  svg { width: 14px; height: 14px; flex: none; color: var(--text-3); }
+}
+.mail-body { min-width: 0; }
+.mail-frame {
+  display: block;
+  width: 100%;
+  height: 560px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  // e-mails are designed for a white page, whatever the panel's theme
+  background: #fff;
+  color-scheme: light;
+}
+.mail-text {
+  margin: 0;
+  padding: var(--s4);
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  font-size: var(--text-13);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 560px;
+  overflow: auto;
+}
+.mail-headers {
+  th { width: 1%; white-space: nowrap; vertical-align: top; color: var(--text-2); font-weight: 500; }
+  td { overflow-wrap: anywhere; word-break: break-word; }
+}

@@ -1,6 +1,6 @@
 /** The Instances page (the dashboard): the server's figures, the charts, the filters and the instance cards. */
 const en = {
-  title: "Instances",
+  title: "All instances",
   text: "Every branch you run, with the server they share. Paused instances start again when someone opens them.",
   howMany: "How many instances can this server run?",
   measures: { cpu: "Processor", memory: "Memory", disk: "Disk" },
@@ -78,7 +78,7 @@ const en = {
 };
 
 const ar: typeof en = {
-  title: "البيئات",
+  title: "كل البيئات",
   text: "كل فرع تشغّله، مع الخادم الذي تتشاركه. تعود البيئات المتوقفة مؤقتًا إلى العمل حين يفتحها أحد.",
   howMany: "كم بيئة يستطيع هذا الخادم تشغيلها؟",
   measures: { cpu: "المعالج", memory: "الذاكرة", disk: "القرص" },

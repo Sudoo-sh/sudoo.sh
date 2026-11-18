@@ -46,6 +46,9 @@ export const router = createBrowserRouter([
         lazy: async () => ({ Component: (await import("./components/Shell")).Shell }),
         children: [
           { path: "/", lazy: page(() => import("./pages/Dashboard"), (m) => m.DashboardPage) },
+          { path: "/projects", lazy: page(() => import("./pages/Projects"), (m) => m.ProjectsPage) },
+          { path: "/projects/new", lazy: page(() => import("./pages/Projects"), (m) => m.NewProjectPage, "projects.manage") },
+          { path: "/projects/:id/:tab?", lazy: page(() => import("./pages/Projects"), (m) => m.ProjectPage) },
           { path: "/i/:name/:tab?", lazy: page(() => import("./pages/Instance"), (m) => m.InstancePage) },
           { path: "/new", lazy: page(() => import("./pages/NewInstance"), (m) => m.NewInstancePage, "instances.create") },
           { path: "/settings", lazy: page(() => import("./pages/Settings"), (m) => m.SettingsPage, "settings.manage") },

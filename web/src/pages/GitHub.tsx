@@ -5,7 +5,7 @@ import { api, errorText } from "@/api/client";
 import { useCall, useDeployKeys, useGitHubApp } from "@/api/queries";
 import type { GitHubApp, GitHubInstallation } from "@/api/types";
 import { Page, PageHead } from "@/components/Shell";
-import { Button, Callout, CopyField, Empty, Field, Skeleton, Spinner, Tag } from "@/components/ui/basics";
+import { Button, Callout, CopyField, Empty, Field, Skeleton, Spinner, Switch, Tag } from "@/components/ui/basics";
 import { Modal, useToast } from "@/components/ui/overlay";
 import { ago } from "@/lib/format";
 import { useT } from "@/i18n";
@@ -32,6 +32,7 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
   const toast = useToast();
   const [kind, setKind] = useState<"personal" | "organization" | null>(null);
   const [organization, setOrganization] = useState("");
+  const [createRepositories, setCreateRepositories] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const t = useT(words).connect;
   const c = useT(common).common;
@@ -40,6 +41,7 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
     try {
       const made = await api.post<{ action: string; manifest: unknown }>("/github/app/manifest", {
         organization: kind === "organization" ? organization.trim() : "",
+        create_repositories: kind === "organization" && createRepositories,
       });
       postToGitHub(made.action, made.manifest);
     } catch (error) {
@@ -80,6 +82,12 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
           <Field label={t.organisationField} hint={t.organisationHint}>
             <input className="input" dir="ltr" autoFocus value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder="acme" />
           </Field>
+        )}
+        {kind === "organization" && (
+          <div className="stack-xs">
+            <Switch checked={createRepositories} onChange={setCreateRepositories} label={t.createRepositories} />
+            <span className="xsmall faint">{t.createRepositoriesText}</span>
+          </div>
         )}
         <p className="small muted">
           {t.then(<b key="b" dir="ltr">{t.createButton}</b>)}

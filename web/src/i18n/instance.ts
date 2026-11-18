@@ -21,6 +21,7 @@ const en = {
     shell: "Shell",
   },
   head: {
+    project: "Project",
     plain: "Plain Odoo, no repository",
     openOdoo: "Open Odoo",
     start: "Start",
@@ -367,6 +368,7 @@ const en = {
     "before-rollback": "Before a rollback",
     "before-repair": "Before a repair",
     "before-update": "Before an update",
+    "staging-copy": "Copy for staging",
   } as Record<string, string>,
   picker: {
     unknownVersion: "Its Odoo version is unknown",
@@ -401,6 +403,7 @@ const ar: typeof en = {
     shell: "الطرفية",
   },
   head: {
+    project: "المشروع",
     plain: "Odoo مجرد، دون مستودع",
     openOdoo: "افتح Odoo",
     start: "شغّل",
@@ -746,6 +749,7 @@ const ar: typeof en = {
     "before-rollback": "قبل تراجع",
     "before-repair": "قبل إصلاح",
     "before-update": "قبل تحديث",
+    "staging-copy": "نسخة للتجهيز",
   },
   picker: {
     unknownVersion: "إصدار Odoo فيها غير معروف",

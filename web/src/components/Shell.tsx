@@ -9,6 +9,7 @@ import {
   ChevronsUpDown,
   DatabaseBackup,
   FolderGit2,
+  FolderKanban,
   KeyRound,
   LayoutGrid,
   LogOut,
@@ -29,7 +30,7 @@ import { flushSync } from "react-dom";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { api } from "@/api/client";
 import { useLiveEvents, type Sync } from "@/api/live";
-import { keys, useAlerts, useInstances, useMetrics, usePluginNotices } from "@/api/queries";
+import { keys, useAlerts, useInstances, useMetrics, usePluginNotices, useProjects } from "@/api/queries";
 import type { Alert } from "@/api/types";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
@@ -100,6 +101,7 @@ function Sidebar({ open }: { open: boolean }) {
   const me = useMe();
   const can = useCan();
   const { data: instances } = useInstances();
+  const { data: projects } = useProjects();
   const signOut = useSignOut();
   const all = useT(common);
   const t = all.nav;
@@ -111,6 +113,9 @@ function Sidebar({ open }: { open: boolean }) {
       <Brand />
       <div className="nav-group">{t.workspace}</div>
       <nav>
+        <NavItem to="/projects" icon={<FolderKanban />} count={projects?.projects.length}>
+          {t.projects}
+        </NavItem>
         <NavItem to="/" end icon={<LayoutGrid />} count={instances?.length}>
           {t.instances}
         </NavItem>
@@ -238,6 +243,7 @@ function Reconnecting({ sync }: { sync: Sync }) {
 
 const CRUMBS: Record<string, keyof (typeof common)["en"]["nav"]> = {
   "": "instances",
+  projects: "projects",
   new: "newInstance",
   settings: "settings",
   "email-templates": "emailTemplates",

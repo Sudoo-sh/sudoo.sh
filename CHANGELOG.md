@@ -8,6 +8,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Projects in the web app:** **Projects** is the first entry of the sidebar (the Instances page is now **All
+  instances**). The Projects page shows one card per project (repository, Odoo version and edition, branches per
+  stage, instances running, paused or working, a needs-attention mark) and the plain Odoo instances **Without a
+  project**. A project's page lists every branch of its repository grouped by stage, with its latest commit,
+  instance and status, and per branch: **Create instance**, **Open**, **Details**, **Logs**, **Move to** another
+  stage (with the production confirmations), **Rebuild from production** (staging) and **Delete instance**; a warning
+  when the server runs as many instances as it takes comfortably; and a **Settings** tab (name, Odoo version and
+  edition, what happens on new, pushed and deleted branches, lifetimes, delete). **New project** links a repository
+  or creates a new, empty one, and says what to grant on GitHub when the app may not. **Connect GitHub** can ask
+  for repository creation; the Settings page has a **Projects** group; instances link to their project; every text
+  in English and Arabic; the demo has projects too. Docs: User manual section 2 (Projects); the sections after it are
+  renumbered.
 - **New projects with a new, empty repository:** creating a project can make a new, totally empty repository (no
   README, no branch; private by default) in an organisation the GitHub App is installed on, instead of linking an
   existing one. It needs the app's **Administration: write** permission: **Connect GitHub** can ask for it ("Also

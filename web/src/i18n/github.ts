@@ -20,6 +20,8 @@ const en = {
     organisationHint: "As in github.com/acme: acme",
     then: (button: ReactNode) => ["On GitHub, check the name and press ", button, ". GitHub brings you back here; then install the app and choose its repositories."],
     createButton: "Create GitHub App",
+    createRepositories: "Also allow creating repositories",
+    createRepositoriesText: "Adds Administration: write, so a new project can start from a new, empty repository in the organisation. The code stays read-only.",
   },
   installations: {
     title: "Installed on",
@@ -114,6 +116,8 @@ const ar: typeof en = {
     organisationHint: "كما في github.com/acme: ‏acme",
     then: (button) => ["على GitHub، تحقّق من الاسم واضغط ", button, ". يعيدك GitHub إلى هنا؛ ثم ثبّت التطبيق واختر مستودعاته."],
     createButton: "Create GitHub App",
+    createRepositories: "السماح بإنشاء المستودعات أيضًا",
+    createRepositoriesText: "يضيف صلاحية Administration: write، ليبدأ المشروع الجديد من مستودع جديد فارغ في المؤسسة. وتبقى الشيفرة للقراءة فقط.",
   },
   installations: {
     title: "مثبّت على",

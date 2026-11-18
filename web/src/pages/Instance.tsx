@@ -5,6 +5,7 @@ import {
   Check,
   Code2,
   FolderGit2,
+  FolderKanban,
   Container,
   Copy,
   Database,
@@ -33,7 +34,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { NavLink, useNavigate, useParams } from "react-router";
+import { Link, NavLink, useNavigate, useParams } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useCapacity, useCredentials, useHistory, useInstance, useJobs, useOdooLog } from "@/api/queries";
 import type { Instance, InstanceBackup, Job, Permission, Stage } from "@/api/types";
@@ -137,6 +138,11 @@ export function InstancePage() {
               <Status status={instance.status} />
             </div>
             <div className="row-wrap small muted">
+              {instance.project && (
+                <Link to={`/projects/${instance.project.id}`} viewTransition className="row xsmall" style={{ gap: 4 }} title={t.project}>
+                  <FolderKanban size={14} strokeWidth={1.5} /> <bdi>{instance.project.name}</bdi>
+                </Link>
+              )}
               <Tag mono>{instance.odoo.version}</Tag>
               <Tag>{instance.odoo.edition === "enterprise" ? "Enterprise" : "Community"}</Tag>
               {plain ? (

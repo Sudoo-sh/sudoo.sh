@@ -6,7 +6,7 @@
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { keys, type JobLog } from "./queries";
-import type { Alert, Columns, Domains, Instance, Job, Metrics, MetricsHistory } from "./types";
+import type { Alert, Columns, Domains, Instance, Job, Metrics, MetricsHistory, Project } from "./types";
 
 export type LiveState = "connecting" | "open" | "closed";
 
@@ -39,6 +39,12 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
   switch (topic) {
     case "instance": {
       const instance = data as Instance;
+      const known = client.getQueryData<Instance[]>(keys.instances)?.some((i) => i.name === instance.name);
+      if (instance.project && known === false) {
+        // a new instance of a project: its branches and counts change (statuses come from the instances list)
+        client.invalidateQueries({ queryKey: keys.project(instance.project.id) });
+        client.invalidateQueries({ queryKey: keys.projects });
+      }
       client.setQueryData<Instance[]>(keys.instances, (list) =>
         upsert(list, instance, (i) => i.name === instance.name)?.sort((a, b) => a.name.localeCompare(b.name)),
       );
@@ -50,11 +56,28 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
       }
       break;
     }
+    case "project": {
+      const project = data as Project | { id: string; deleted: true };
+      if ("deleted" in project) {
+        client.setQueryData<{ projects: Project[]; standalone: string[] }>(keys.projects, (old) =>
+          old ? { ...old, projects: old.projects.filter((p) => p.id !== key) } : old,
+        );
+        client.removeQueries({ queryKey: keys.project(key) });
+      } else {
+        client.setQueryData<{ projects: Project[]; standalone: string[] }>(keys.projects, (old) =>
+          old ? { ...old, projects: upsert(old.projects, project, (p) => p.id === project.id)!.sort((a, b) => a.name.localeCompare(b.name)) } : old,
+        );
+        client.invalidateQueries({ queryKey: keys.project(key) });
+      }
+      break;
+    }
     case "domains":
       client.setQueryData<Domains>(keys.domains(key), data as Domains);
       break;
     case "instance.deleted":
       client.setQueryData<Instance[]>(keys.instances, (list) => list?.filter((i) => i.name !== key));
+      client.invalidateQueries({ queryKey: keys.projects });
+      client.invalidateQueries({ queryKey: ["project"] });
       client.removeQueries({ queryKey: keys.instance(key) });
       break;
     case "job": {
@@ -125,7 +148,7 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
   }
 }
 
-const TOPICS = ["instance", "instance.deleted", "domains", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "alert", "offsite", "reset"];
+const TOPICS = ["instance", "instance.deleted", "project", "domains", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "alert", "offsite", "reset"];
 
 export interface Sync {
   state: LiveState;

@@ -13,7 +13,7 @@ in about two minutes. Instances nobody is using pause themselves, so one ordinar
 `sudo` + `Odoo`: full control of your Odoo instances, on a server you own.
 
 [![CI](https://github.com/Sudoo-sh/sudoo.sh/actions/workflows/ci.yml/badge.svg)](https://github.com/Sudoo-sh/sudoo.sh/actions/workflows/ci.yml)
-[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)](LICENSE.md)
+[![License: Sudoo.sh Licence Agreement 1.0](https://img.shields.io/badge/license-Sudoo.sh%20Licence%20Agreement%201.0-blue)](LICENSE.md)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
 <br>
 ![Odoo 16+](https://img.shields.io/badge/Odoo-16%2B%20any%20version-714B67?logo=odoo&logoColor=white)
@@ -112,7 +112,7 @@ instances. It is an independent project, not affiliated with Odoo S.A.
 | | Odoo.sh | Sudoo.sh |
 | :--- | :--- | :--- |
 | Where it runs | Odoo's cloud | your server (one Docker host) |
-| Cost | per worker, per GB of storage and per staging environment | your server; free for noncommercial use, a [commercial licence](#commercial-licences) for companies |
+| Cost | per worker, per GB of storage and per staging environment | your server, plus a plan counted by production branches (one free); development and staging unlimited ([licence](#licensing--terms)) |
 | A running Odoo per branch | yes | yes, Community or Enterprise, any version |
 | Updates on push | yes | yes: GitHub App, GitHub webhook or polling ([plugins](docs/PLUGINS.md)) |
 | Instances that pause and expire | staging builds expire | pause when unused, wake on the next visit; lifetime with a backup |
@@ -516,14 +516,9 @@ registered with your own Odoo subscription or partner code.
 
 ## Licensing & Terms
 
-Licensed under the **[PolyForm Noncommercial License 1.0.0](LICENSE.md)**: the source is open to read, use, change
-and share, for any **noncommercial** purpose.
-
-| Allowed | Not allowed |
-| :--- | :--- |
-| Personal use, study, research, testing | Selling it, or selling a service built on it |
-| Use by charities, schools, public bodies | Using it to make money for a company without permission |
-| Changing it and sharing your changes under the same licence | Removing the licence or the copyright notice |
+Licensed under the **[Sudoo.sh Licence Agreement 1.0](LICENSE.md)** — use is limited to the plans described at
+https://sudoo.sh/pricing; see [LICENSE.md](LICENSE.md). The source is public so that you can review it; it may be used
+only as the agreement allows.
 
 ### Name and logo
 
@@ -531,15 +526,13 @@ and share, for any **noncommercial** purpose.
 author, and the licence does not cover them: a changed copy may not use the name or logo, and only plugins
 published on marketplace.sudoo.sh may show the badges. See [TRADEMARKS.md](TRADEMARKS.md).
 
-### Commercial licences
+### Questions and signed agreements
 
-Sudoo.sh is owned by its author (named in [LICENSE.md](LICENSE.md)). Companies that want to use it for their
-business, offer it as a hosted service, or build a product on it can get a **commercial licence**, a hosted plan or
-support: write to support@sudoo.sh. Contributions are accepted under the terms in
-[CONTRIBUTING](CONTRIBUTING.md#licence-of-contributions), which keep commercial licensing possible.
+Sudoo.sh is owned by its author, Yousef M. Y. Al Sabbah, trading as Sudoo.sh. For questions about the licence, or
+for a separate signed agreement, write to support@sudoo.sh. Contributions are accepted under the terms in
+[CONTRIBUTING](CONTRIBUTING.md#licence-of-contributions).
 
-For commercial use, ask for a separate licence at support@sudoo.sh. Odoo and Odoo.sh are trademarks of Odoo S.A.; this project is not
-affiliated with or endorsed by Odoo S.A.
+Odoo and Odoo.sh are trademarks of Odoo S.A.; this project is not affiliated with or endorsed by Odoo S.A.
 
 ---
 

@@ -197,6 +197,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Licence:** the panel is now licensed under the Sudoo.sh Licence Agreement 1.0 (LICENSE.md, also at
+  https://sudoo.sh/legal/license) instead of the PolyForm Noncommercial License 1.0.0. Use is limited to the plans at
+  https://sudoo.sh/pricing; contributions are licensed to the author as described in CONTRIBUTING.md.
 - `MAIL_TEMPLATES_DIR` now replaces only the frame of the e-mails (`layout.html`); the per-e-mail template files
   (`code.html`, `alert.html`, ...) are gone, and their texts are changed on the E-mail templates page instead.
 - **Settings page in tabs:** General, Instances, Odoo, Backups, Sign-in and security, E-mail, GitHub and updates,

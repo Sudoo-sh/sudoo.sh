@@ -20,6 +20,7 @@ import type {
   Backup,
   Credentials,
   DeployKey,
+  Domains,
   DocPage,
   DocsContents,
   GitHubAppState,
@@ -43,6 +44,7 @@ export const keys = {
   alerts: ["alerts"] as const,
   instances: ["instances"] as const,
   instance: (name: string) => ["instance", name] as const,
+  domains: (name: string) => ["domains", name] as const,
   jobs: (instance?: string) => ["jobs", instance ?? null] as const,
   job: (id: string) => ["job", id] as const,
   jobLog: (id: string) => ["job-log", id] as const,
@@ -155,6 +157,9 @@ export const useAudit = (limit: number) =>
     queryFn: () => api.get<AuditEntry[]>(`/audit?limit=${limit}`),
     placeholderData: keepPreviousData,
   });
+export const useDomains = (name: string) =>
+  useQuery({ queryKey: keys.domains(name), queryFn: () => api.get<Domains>(`/instances/${name}/domains`) });
+
 export const useCredentials = (name: string, enabled: boolean) =>
   useQuery({
     queryKey: ["credentials", name],

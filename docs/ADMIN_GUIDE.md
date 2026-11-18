@@ -1263,7 +1263,7 @@ sign-in.
 ## 19. Custom domains and certificates
 
 An instance (usually a production instance) can answer on your client's own names, such as `erp.client.com`, over
-https. Administrators add the domains on the instance's **Domains** tab ([User Manual](USER_MANUAL.md)); this
+https. Administrators add the domains on the instance's **Domains** tab ([User Manual](USER_MANUAL.md#custom-domains)); this
 section is about what the server needs. Custom domains are off until you choose how https is handled, with
 `CUSTOM_DOMAINS` on **Settings, Custom domains** ([Configuration](CONFIGURATION.md#custom-domains)).
 

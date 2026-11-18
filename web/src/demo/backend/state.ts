@@ -31,7 +31,7 @@ const DEVELOP: Permission[] = [...VIEW, "instances.update"];
 const MAINTAIN: Permission[] = [...DEVELOP, "instances.operate", "instances.restore", "instances.create", "instances.credentials", "github.manage"];
 const ALL: Permission[] = [
   "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "instances.restore",
-  "instances.delete", "instances.credentials", "backups.manage", "github.manage", "accounts.manage", "tokens.manage",
+  "instances.delete", "instances.credentials", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
   "audit.view", "plugins.view", "settings.manage", "mail.manage",
 ];
 
@@ -45,6 +45,7 @@ export const PERMISSIONS: Record<Permission, string> = {
   "instances.delete": "Delete instances",
   "instances.credentials": "See Odoo passwords and ports",
   "backups.manage": "Download and delete backups",
+  "domains.manage": "Add and remove instances' custom domains (seeing them needs instances.view)",
   "github.manage": "Manage deploy keys; see the GitHub App's state",
   "accounts.manage": "Create, change and delete accounts",
   "tokens.manage": "Create and revoke API tokens",
@@ -511,6 +512,14 @@ function seedAlerts() {
       hint: "Fix the view in nile_wms, push, and get the latest code again.", details: [], instance: "nile-logistics-upgrade-18",
       link: "/i/nile-logistics-upgrade-18/activity", at: at(3 * HOUR), last_at: at(3 * HOUR), count: 1, resolved_at: null,
       delivery: ["e-mailed to 2 of 2 addresses", "webhook 1: delivered (HTTP 200)"],
+    },
+    {
+      id: hex(12), key: "certificate:portal.nile-logistics.com", type: "certificate", severity: "problem",
+      title: "Certificate of portal.nile-logistics.com could not be issued",
+      text: "The ACME authority could not reach portal.nile-logistics.com over http: Timeout during connect (likely firewall problem)",
+      hint: null, details: [], instance: "nile-logistics-main",
+      link: "/i/nile-logistics-main/domains", at: at(5 * HOUR), last_at: at(20 * MINUTE), count: 4, resolved_at: null,
+      delivery: ["e-mailed to 2 of 2 addresses"],
     },
     {
       id: hex(12), key: "instance_down:acme-retail-staging", type: "instance_down", severity: "recovered",

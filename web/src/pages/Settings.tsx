@@ -12,7 +12,7 @@ import { Modal, useToast } from "@/components/ui/overlay";
 
 /** `test`: the group has a "Send a test alert" button, by e-mail or to that webhook. */
 type Group = { title: string; text: string; keys: string[]; test?: "email" | 1 | 2 | 3 };
-type TabId = "general" | "instances" | "odoo" | "backups" | "security" | "email" | "alerts" | "github" | "marketplace" | "advanced";
+type TabId = "general" | "instances" | "odoo" | "backups" | "security" | "domains" | "email" | "alerts" | "github" | "marketplace" | "advanced";
 
 const webhookGroup = (n: 1 | 2 | 3): Group => ({
   title: `Webhook ${n}`,
@@ -70,6 +70,15 @@ const TABS: { id: TabId; label: string; groups: Group[] }[] = [
     ],
   },
   {
+    id: "domains",
+    label: "Custom domains",
+    groups: [
+      { title: "Custom domains", text: "Instances answering on your clients' own domains over https. acme: ports 80 and 443 of this server must be open, and choosing it agrees to the certificate authority's terms. external: your own Cloudflare tunnel or proxy handles https", keys: ["custom_domains", "domain_dns_target", "domains_per_instance"] },
+      { title: "Certificates", text: "Where certificates come from and when they are renewed. staging gives certificates browsers do not trust, for trying things out", keys: ["acme_directory", "acme_email", "certificate_renew_days", "certificate_retry_max_hours"] },
+      { title: "Checks", text: "How a domain is checked before its certificate is asked for", keys: ["domain_dns_timeout_seconds", "domain_http_probe", "domain_http_port", "domain_https_port"] },
+    ],
+  },
+  {
     id: "email",
     label: "E-mail",
     groups: [
@@ -83,6 +92,7 @@ const TABS: { id: TabId; label: string; groups: Group[] }[] = [
       { title: "Who receives alerts", text: "Alerts by e-mail, through the mail settings of the E-mail tab. The bell at the top lists them for everyone who may read the audit log", keys: ["alerts", "alert_super_admins", "alert_emails"], test: "email" },
       { title: "Jobs and backups", text: "Alerted as soon as they happen, with the plain explanation and a link to the job", keys: ["alert_job_failed", "alert_update_failed", "alert_backup_failed", "alert_drift"] },
       { title: "Instances and server", text: "Problems that last are alerted after their minutes, and a notice follows when they are over", keys: ["alert_instance_down", "alert_instance_down_minutes", "alert_public_link", "alert_public_link_minutes", "alert_memory", "alert_memory_minutes", "alert_disk", "alert_disk_free_percent"] },
+      { title: "Certificates", text: "A custom domain's certificate could not be issued or renewed, or expires soon", keys: ["alert_certificate", "alert_certificate_days"] },
       { title: "How often", text: "The same alert is sent once per quiet period; repeats only count up in the bell", keys: ["alert_recovery", "alert_quiet_minutes", "alert_digest", "alert_digest_time", "alert_webhook_timeout_seconds"] },
       webhookGroup(1),
       webhookGroup(2),
@@ -196,6 +206,19 @@ const TITLES: Record<string, string> = {
   alert_disk: "Disk almost full",
   alert_disk_free_percent: "Alert below, % free",
   alert_recovery: "Say when a problem is over",
+  alert_certificate: "A certificate could not be issued or renewed",
+  alert_certificate_days: "Expires soon from, days before",
+  custom_domains: "Custom domains",
+  domain_dns_target: "Server's public name (DNS target)",
+  domains_per_instance: "Domains per instance",
+  acme_directory: "Certificate authority",
+  acme_email: "Contact e-mail for the authority",
+  certificate_renew_days: "Renew before expiry, days",
+  certificate_retry_max_hours: "Longest wait between attempts, hours",
+  domain_dns_timeout_seconds: "DNS lookup timeout, seconds",
+  domain_http_probe: "Check over http first",
+  domain_http_port: "http port",
+  domain_https_port: "https port",
   alert_quiet_minutes: "Same alert at most every, minutes",
   alert_digest: "One e-mail a day instead",
   alert_digest_time: "Daily e-mail at (HH:MM)",
@@ -213,6 +236,7 @@ const CHOICES: Record<string, [string, string][]> = {
   require_second_factor: [["none", "Nobody"], ["admins", "Super admins and administrators"], ["everyone", "Everyone"]],
   smtp_security: [["starttls", "STARTTLS (port 587)"], ["ssl", "SSL (port 465)"], ["none", "None"]],
   mailer: [["smtp", "SMTP"], ["none", "No e-mail"]],
+  custom_domains: [["off", "Off"], ["acme", "On: this server gets certificates (ports 80 and 443)"], ["external", "On: https handled by my own proxy or tunnel"]],
   drift_action: [["restore", "Report it and restore the panel's configuration"], ["warn", "Only report it"]],
   enterprise_source: [["folder", "Folder"], ["git", "Git repository"], ["none", "None (Community only)"]],
   ...Object.fromEntries(

@@ -24,6 +24,7 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { api } from "@/api/client";
 import { useLiveEvents, type Sync } from "@/api/live";
@@ -31,6 +32,7 @@ import { keys, useAlerts, useInstances, useMetrics, usePluginNotices } from "@/a
 import type { Alert } from "@/api/types";
 import { ago, percent } from "@/lib/format";
 import { applyTheme, storedTheme, type ThemeChoice } from "@/lib/theme";
+import { revealTheme } from "@/lib/theme-reveal";
 import { Brand } from "./ui/Brand";
 import { Button, Callout } from "./ui/basics";
 import { PageMotion } from "./PageMotion";
@@ -75,9 +77,13 @@ function ThemeButton() {
       icon={icon}
       title={label}
       aria-label={label}
-      onClick={() => {
-        applyTheme(next[theme]);
-        setTheme(next[theme]);
+      onClick={(event) => {
+        const choice = next[theme];
+        // the new theme grows in a circle from this button; with reduced motion or an older browser it fades
+        void revealTheme(event.currentTarget, (revealed) => {
+          flushSync(() => setTheme(choice));
+          applyTheme(choice, !revealed);
+        });
       }}
     />
   );

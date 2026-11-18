@@ -11,11 +11,14 @@ export function storedTheme(): ThemeChoice {
   }
 }
 
-export function applyTheme(choice: ThemeChoice) {
+export function applyTheme(choice: ThemeChoice, fade = true) {
   const root = document.documentElement;
-  // fade between light and dark instead of a sudden flash (styles/_base.scss, .theme-changing)
-  root.classList.add("theme-changing");
-  setTimeout(() => root.classList.remove("theme-changing"), 350);
+  // fade between light and dark instead of a sudden flash (styles/_base.scss, .theme-changing); off when the change
+  // is revealed in a circle instead (lib/theme-reveal.ts)
+  if (fade) {
+    root.classList.add("theme-changing");
+    setTimeout(() => root.classList.remove("theme-changing"), 350);
+  }
   if (choice === "system") root.removeAttribute("data-theme");
   else root.setAttribute("data-theme", choice);
   try {

@@ -84,6 +84,25 @@
 
   .demo-language { height: 28px; flex: none; }
 
+  .demo-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: none;
+    height: 28px;
+    padding: 0 var(--s2);
+    border-radius: 14px;
+    color: var(--text-2);
+    font-weight: 500;
+    text-decoration: none !important;
+    touch-action: manipulation;
+    transition: color var(--quick) var(--ease), background-color var(--quick) var(--ease);
+    @include press(0.97);
+    @include hover { color: var(--text); background: var(--raised); }
+    &:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 1px; }
+    svg { width: 14px; height: 14px; }
+  }
+
   .demo-install {
     display: inline-flex;
     align-items: center;
@@ -107,6 +126,8 @@
     gap: var(--s2);
     .demo-long { display: none; }
     .demo-short { display: inline; }
+    // on a phone "Back to website" is its arrow only (named by its label)
+    .demo-back { padding: 0 6px; }
   }
 }
 

@@ -214,6 +214,33 @@
 
 .hero { display: flex; align-items: center; gap: var(--s4); min-width: 0; }
 
+// a commit in Recent commits: the message, then hash · author · when on one quiet line
+.timeline .commit {
+  .commit-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  .commit-message { font-weight: 500; line-height: 20px; }
+  .commit-meta { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-3); }
+  .commit-sha {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex: none;
+    height: 20px;
+    padding: 0 6px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-tag);
+    background: var(--raised);
+    color: var(--text-2);
+    font: 500 11.5px/1 var(--mono);
+    text-decoration: none;
+    cursor: pointer;
+    transition: color var(--quick) var(--ease), border-color var(--quick) var(--ease);
+    svg { width: 11px; height: 11px; color: var(--text-3); }
+    @include hover { color: var(--accent-ink); border-color: var(--hairline-strong); }
+    &:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 1px; }
+  }
+  time { cursor: default; }
+}
+
 .timeline {
   list-style: none;
   margin: 0;

@@ -133,7 +133,8 @@ export interface Instance {
   created_by: string | null;
   // only on GET /instances/<name>
   disk?: { database_bytes: number | null; files_bytes: number | null };
-  recent_commits?: { sha: string; subject: string; when: string; author: string }[];
+  /** `when`: ISO 8601 in UTC; `full_sha`: the whole hash (missing from panels older than this web app) */
+  recent_commits?: { sha: string; full_sha?: string; subject: string; when: string; author: string }[];
   submodules?: { path: string; sha: string; url: string }[];
   recent_jobs?: JobRef[];
   backups?: InstanceBackup[];

@@ -24,7 +24,7 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { api } from "@/api/client";
@@ -39,6 +39,7 @@ import { revealTheme } from "@/lib/theme-reveal";
 import { LanguageSwitch } from "./LanguageSwitch";
 import { Brand } from "./ui/Brand";
 import { Button, Callout } from "./ui/basics";
+import { BackToTop } from "./BackToTop";
 import { PageMotion } from "./PageMotion";
 import { Menu, useToast } from "./ui/overlay";
 
@@ -249,6 +250,27 @@ const CRUMBS: Record<string, keyof (typeof common)["en"]["nav"]> = {
   help: "help",
 };
 
+// A page's own last crumb, after the page's name (Settings › E-mail): the page sets it, the top bar shows it. The top
+// bar stays still while the page changes it (moving between the tabs of Settings).
+let subCrumb: string | null = null;
+const crumbListeners = new Set<() => void>();
+const setSubCrumb = (label: string | null) => {
+  subCrumb = label;
+  crumbListeners.forEach((listener) => listener());
+};
+const followSubCrumb = (listener: () => void) => {
+  crumbListeners.add(listener);
+  return () => crumbListeners.delete(listener);
+};
+
+/** Shows `label` after the page's name in the top bar's breadcrumb while the page is open. */
+export function useSubCrumb(label: string | null) {
+  useEffect(() => {
+    setSubCrumb(label);
+    return () => setSubCrumb(null);
+  }, [label]);
+}
+
 const SEEN_KEY = "sudoo.alerts.seen";
 
 function readSeen(): number {
@@ -337,11 +359,21 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
   const server = metrics?.server;
   const all = useT(common);
   const t = all.shell;
+  const sub = useSyncExternalStore(followSubCrumb, () => subCrumb);
+  const page = CRUMBS[parts[0] ?? ""];
   return (
     <header className="topbar">
       <Button className="menu-button" variant="ghost" icon={<MenuIcon />} onClick={onMenu} aria-label={all.common.menu} />
-      <div className="crumbs">
-        {parts[0] === "i" && parts[1] ? (
+      <nav className="crumbs" aria-label={t.breadcrumb}>
+        {page && sub ? (
+          <>
+            <Link to={`/${parts[0]}`} viewTransition>
+              {all.nav[page]}
+            </Link>
+            <ChevronRight className="flip-rtl" aria-hidden="true" />
+            <span className="current truncate" aria-current="page">{sub}</span>
+          </>
+        ) : parts[0] === "i" && parts[1] ? (
           <>
             <Link to="/" viewTransition>
               {all.nav.instances}
@@ -350,9 +382,9 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
             <bdi className="current truncate">{parts[1]}</bdi>
           </>
         ) : (
-          <span className="current">{CRUMBS[parts[0] ?? ""] ? all.nav[CRUMBS[parts[0] ?? ""]!] : "Sudoo.sh"}</span>
+          <span className="current">{page ? all.nav[page] : "Sudoo.sh"}</span>
         )}
-      </div>
+      </nav>
       <span className="spacer" />
       {server?.cpu_percent != null && (
         <span className="meter hide-sm" title={t.meterTitle}>
@@ -424,13 +456,14 @@ export function Shell() {
         <RecoveryCodesNotice />
         <Outlet />
       </div>
+      <BackToTop />
     </div>
   );
 }
 
 export function Page({ children, wide }: { children: ReactNode; wide?: boolean }) {
   return (
-    <main className="page" style={wide ? { maxWidth: 1600 } : undefined}>
+    <main className="page" tabIndex={-1} style={wide ? { maxWidth: 1600 } : undefined}>
       {children}
     </main>
   );

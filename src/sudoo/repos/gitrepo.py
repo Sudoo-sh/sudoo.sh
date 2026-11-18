@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sudoo.core.cache import VersionedMemo, settled, signature
@@ -55,12 +56,22 @@ def head(addons: Path) -> str:
 
 
 def commits(addons: Path, count: int = 8) -> list[dict[str, str]]:
-    """Recent commits: [{"sha", "subject", "when", "author"}]."""
+    """Recent commits: [{"sha" (short), "full_sha", "subject", "when" (ISO 8601, UTC), "author"}]. The fields are
+    split by the unit separator, which a subject or a name never contains (a "|" may)."""
     result: list[dict[str, str]] = []
-    for line in capture(git(addons, "log", f"-{count}", "--format=%h|%s|%cr|%an")).splitlines():
-        sha, subject, when, author = (line.split("|", 3) + ["", "", ""])[:4]
-        result.append({"sha": sha, "subject": subject, "when": when, "author": author})
+    output = capture(git(addons, "log", f"-{count}", "--format=%h%x1f%H%x1f%cI%x1f%an%x1f%s"))
+    for line in output.splitlines():
+        sha, full, when, author, subject = (line.split("\x1f", 4) + ["", "", "", ""])[:5]
+        result.append({"sha": sha, "full_sha": full, "subject": subject, "when": _utc(when), "author": author})
     return result
+
+
+def _utc(when: str) -> str:
+    """git's ISO 8601 date in UTC (2026-11-18T06:34:19Z), or as given when git wrote something else."""
+    try:
+        return datetime.fromisoformat(when).astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return when
 
 
 def submodules(addons: Path) -> list[dict[str, str]]:

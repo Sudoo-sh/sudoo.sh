@@ -157,6 +157,8 @@ const en = {
     signedOut: "Signed out",
   },
   shell: {
+    breadcrumb: "Where you are",
+    backToTop: "Back to top",
     opening: "Opening the page",
     reconnecting: "Reconnecting",
     signedOutReload: "Signed out. Reload to sign in again",
@@ -290,6 +292,8 @@ const ar: Common = {
     signedOut: "سُجّل الخروج",
   },
   shell: {
+    breadcrumb: "موقعك في اللوحة",
+    backToTop: "العودة إلى الأعلى",
     opening: "جارٍ فتح الصفحة",
     reconnecting: "جارٍ إعادة الاتصال",
     signedOutReload: "سُجّل خروجك. أعد تحميل الصفحة لتسجيل الدخول مجددًا",

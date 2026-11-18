@@ -144,6 +144,10 @@
   to { background-position: -200% 0; }
 }
 
+// a tab's content coming in where the page itself does not change (Settings): the same short rise as a page, on the
+// content only; the title, the breadcrumb and the tabs stay still
+.tab-enter { animation: page-in var(--page-in) var(--ease) both; }
+
 // only rare screens (sign-in, first run) bring their blocks in one after the other
 .auth .stagger > * {
   animation: rise 320ms var(--ease) both;
@@ -163,7 +167,7 @@
     transition-property: opacity, color, background-color, border-color !important;
     transition-duration: 150ms !important;
   }
-  .rise, .auth .stagger > *, .modal, .drawer, .menu, .toast { animation: fade 150ms ease both !important; transform: none !important; }
+  .rise, .tab-enter, .auth .stagger > *, .modal, .drawer, .menu, .toast { animation: fade 150ms ease both !important; transform: none !important; }
   // the page transition stays a fade, quicker and without the rise
   :root { --page-out: 80ms; --page-in: 120ms; --page-rise: 0px; }
   // loading placeholders keep their delay: it avoids a flash, it is not movement

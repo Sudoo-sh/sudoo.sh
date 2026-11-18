@@ -240,3 +240,38 @@
   .topbar { padding: 0 var(--s4); .menu-button { display: inline-flex; } .hide-sm { display: none; } }
   .page { padding: var(--s6) var(--s4); }
 }
+
+// ---------------------------------------------------------------- back to top (components/BackToTop.tsx)
+main.page:focus { outline: none; } // focused only to move the keyboard back to the top
+.back-to-top {
+  position: fixed;
+  z-index: 25; // over the page, under the sidebar drawer (30), dialogs and drawers (50) and toasts (60)
+  inset-inline-end: max(var(--s5), env(safe-area-inset-right, 0px));
+  bottom: max(var(--s5), env(safe-area-inset-bottom, 0px));
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--raised) 88%, transparent);
+  backdrop-filter: var(--material-blur);
+  -webkit-backdrop-filter: var(--material-blur);
+  box-shadow: var(--shadow-float);
+  color: var(--text-2);
+  cursor: pointer;
+  touch-action: manipulation;
+  opacity: 0;
+  transform: translateY(8px) scale(0.96);
+  pointer-events: none;
+  transition: opacity var(--enter) var(--ease), transform var(--enter) var(--ease), color var(--quick) var(--ease);
+  svg { width: 18px; height: 18px; stroke-width: 1.75; }
+  &[data-shown] { opacity: 1; transform: none; pointer-events: auto; }
+  @include hover { color: var(--accent-ink); border-color: color-mix(in oklab, var(--accent) 35%, var(--hairline-strong)); }
+  &[data-shown]:active { transform: scale(0.94); transition-duration: var(--press); }
+  &:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; }
+}
+// out of the way: above the Settings save bar, and hidden while toasts, a dialog, a drawer or a full-screen view are open
+body:has(.save-bar) .back-to-top { bottom: calc(max(var(--s5), env(safe-area-inset-bottom, 0px)) + 64px); }
+body:has(.toast, .overlay, .log-fullscreen) .back-to-top { opacity: 0; transform: translateY(8px) scale(0.96); pointer-events: none; }

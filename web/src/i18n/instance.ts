@@ -146,6 +146,8 @@ const en = {
   },
   code: {
     commits: "Recent commits",
+    openCommit: "Open this commit on the repository's site",
+    copyCommit: "Copy the commit hash",
     noCommits: "No commits",
     noCommitsText: "This instance has no code from GitHub.",
     submodules: "Submodules",
@@ -429,6 +431,8 @@ const ar: typeof en = {
   },
   code: {
     commits: "أحدث الإيداعات",
+    openCommit: "افتح هذا الإيداع على موقع المستودع",
+    copyCommit: "انسخ معرّف الإيداع",
     noCommits: "لا إيداعات",
     noCommitsText: "ليس لهذه البيئة شيفرة من GitHub.",
     submodules: "الوحدات الفرعية",

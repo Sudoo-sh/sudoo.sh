@@ -40,8 +40,14 @@ export function ago(value: string | number | null | undefined): string {
   const abs = Math.abs(seconds);
   if (abs < 45) return seconds <= 0 ? t().time.justNow : t().time.soon;
   const [amount, unit]: [number, Intl.RelativeTimeFormatUnit] =
-    abs < 3600 ? [seconds / 60, "minute"] : abs < 86400 ? [seconds / 3600, "hour"] : abs < 2592000 ? [seconds / 86400, "day"] : [seconds / 2592000, "month"];
+    abs < 3600 ? [seconds / 60, "minute"] : abs < 86400 ? [seconds / 3600, "hour"] : abs < 2592000 ? [seconds / 86400, "day"] : abs < 31536000 ? [seconds / 2592000, "month"] : [seconds / 31536000, "year"];
   return new Intl.RelativeTimeFormat(tag(), { numeric: "auto" }).format(Math.round(amount), unit);
+}
+
+/** The date and time in full, for a tooltip next to a relative time: "Wednesday 18 November 2026 at 06:34". */
+export function fullDateTime(value: string | number | null | undefined): string {
+  const date = toDate(value);
+  return date && !Number.isNaN(date.getTime()) ? date.toLocaleString(tag(), { dateStyle: "full", timeStyle: "short" }) : "";
 }
 
 export function dateTime(value: string | number | null | undefined): string {

@@ -535,6 +535,8 @@
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+  --scrollbar-thumb: rgb(255 255 255 / 0.22);
+  --scrollbar-thumb-hover: rgb(255 255 255 / 0.38);
   .step { color: #e6c1dc; }
   .cmd { color: #7dd3c8; }
   .warn { color: #f3c969; }

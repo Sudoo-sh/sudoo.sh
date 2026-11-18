@@ -23,6 +23,8 @@ export type Topic =
   | "plugins"
   | "accounts"
   | "tokens"
+  | "teams"
+  | "projectAccess"
   | "backups"
   | "audit"
   | "github"
@@ -50,6 +52,8 @@ export const TOPIC_DOCS: Record<Topic, [string, string]> = {
   plugins: ["docs/MARKETPLACE.md", "3-the-plugins-page"],
   accounts: ["docs/USER_MANUAL.md", "9-accounts-and-roles"],
   tokens: ["docs/USER_MANUAL.md", "api-tokens"],
+  teams: ["docs/USER_MANUAL.md", "teams"],
+  projectAccess: ["docs/USER_MANUAL.md", "project-access-and-locked-branches"],
   backups: ["docs/USER_MANUAL.md", "11-backups-and-audit-log"],
   audit: ["docs/USER_MANUAL.md", "audit-log"],
   github: ["docs/USER_MANUAL.md", "8-github-access-private-repositories"],
@@ -66,6 +70,7 @@ const PAGES: Record<string, Topic> = {
   plugins: "plugins",
   accounts: "accounts",
   tokens: "tokens",
+  teams: "teams",
   backups: "backups",
   activity: "audit",
   github: "github",
@@ -89,7 +94,7 @@ const INSTANCE_TABS: Record<string, Topic> = {
 export function topicOf(pathname: string): Topic {
   const parts = pathname.split("/").filter(Boolean);
   if (parts[0] === "i") return INSTANCE_TABS[parts[2] ?? ""] ?? "overview";
-  if (parts[0] === "projects") return parts[1] === "new" ? "newProject" : parts[1] ? "project" : "projects";
+  if (parts[0] === "projects") return parts[1] === "new" ? "newProject" : parts[2] === "access" ? "projectAccess" : parts[1] ? "project" : "projects";
   return PAGES[parts[0] ?? ""] ?? "other";
 }
 

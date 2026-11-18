@@ -424,6 +424,8 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `instances.operate` | Pause, switch off, upgrade modules, switch branch, back up, remove submodules, change automation, make the lifetime longer | yes | yes | yes | | |
 | `instances.create` | Create instances | yes | yes | yes | | |
 | `projects.manage` | Create and link projects (one GitHub repository each), change their settings and the stages of their branches | yes | yes | yes | | |
+| `projects.access` | Choose who may see and work in a project and its branches (grants, restricted projects and branches); lock and unlock branches | yes | yes | | | |
+| `teams.manage` | Create, change and delete teams | yes | yes | | | |
 | `instances.restore` | Restore an instance from a backup (replaces its database and files) | yes | yes | yes | | |
 | `instances.delete` | Delete instances, also by giving one a shorter lifetime | yes | yes | | | |
 | `instances.credentials` | See Odoo passwords and ports | yes | yes | yes | | |
@@ -457,12 +459,55 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
   `instances.update`, `instances.operate` and `instances.delete`, further limited to the calls a connected app
   needs: listing, creating (not from a backup), starting, pausing, restarting, backing up, extending and deleting
   instances ([Panel API](PANEL_API.md#the-instances-scope)).
+* A token **belongs to the account that created it** (its owner): its permissions are its scope's role ∩ the owner's
+  current role, and the owner's teams, project access and locks apply to it (below). A token whose owner was deleted
+  keeps its scope's role but has no grants and no teams: restricted projects and locked branches are closed to it.
 * Roles without `instances.credentials` never receive passwords, master passwords or ports, even in API answers.
 * Accounts of earlier versions were renamed once, when the panel started: `admin` became Super admin, the sync
   operator became Developer.
 * The audit log (in `/opt/odoo/manager/sudoo.db`, shown under **Audit log**) records sign-ins, failed sign-ins,
   lockouts, wrong setup codes, refused actions, every action on an instance, viewed credentials, settings changes,
   and account and key changes, with time, account, address and result. Passwords are never written to it.
+
+### Teams, project access and locked branches
+
+Inside a project, every check goes through one function (`projects/access.py`): the permission must be in the
+caller's **role** and in the **level** the project gives them (role ∩ grant), and the branch must not be **locked**
+against them. Permissions about the whole panel (accounts, tokens, settings, the audit log, plugins, GitHub, off-site
+storage, teams) depend on the role alone.
+
+| Level | Project permissions it can give (never beyond the role) |
+| :--- | :--- |
+| none | nothing; the project or branch is hidden (404, left out of every list and live event) |
+| view | `instances.view`, `instances.logs` |
+| developer | view + `instances.update`, `caught_mail.view`, `instances.shell` |
+| maintainer | developer + `instances.create`, `instances.operate`, `instances.restore`, `instances.credentials`, `projects.manage` |
+| admin | every project permission, `projects.access` included |
+
+* **Which level applies.** The branch's grants first, then the project's; among them the person's own grant (also a
+  `none`), else the highest level of their teams; with no grant, the role decides in a project open to everyone
+  (`panel_roles`, the mode of every project made before teams existed, so an upgrade locks nobody out) and nothing in
+  a `restricted` project or branch. An access mode the panel does not know gives nothing.
+* **Super admins** have the level admin everywhere: grants never hide a project from them.
+* **Locked branches.** A lock takes every project permission except `instances.view` from whoever it does not allow,
+  super admins included: credentials, logs, caught e-mails, shells, actions, settings, stages, new instances, backups
+  and restores (local and off-site, also a backup used for another instance), deletion, and copying a locked
+  production into staging. The checks are made in the API, when a shell ticket is issued and again on the shell's
+  WebSocket (and every few seconds while it is open), by the gateway (a visit never starts a paused instance of a
+  locked branch), and before automatic work (pushes, expiry, deleted branches, new branches). Locking needs
+  `projects.access` in the branch; changing or removing a lock also needs to be allowed by it, except for super
+  admins, who can always unlock (audited). Daily backups, monitoring and certificate renewals continue, and a
+  locked production branch keeps serving.
+* **Lists and live events** leave out the projects, branches, instances, jobs, backups and off-site copies the caller
+  may not see, and the live stream filters each event per caller (metrics included); a project the caller lost
+  access to is sent as deleted.
+* **No lockout.** A change of a project's access that would leave the person making it without `projects.access`
+  there is refused.
+* **Audit.** Team changes (with members added and removed), access changes, locks, changed locks, unlocks, skipped
+  automatic updates of locked branches and every refusal are in the audit log.
+* The public addresses of instances stay reachable for visitors: access and locks govern the panel's ways in (and
+  waking a paused instance), while Odoo's own sign-in protects the database. A locked or hidden branch's running
+  instance still answers at its link.
 
 ---
 

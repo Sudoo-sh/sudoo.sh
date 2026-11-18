@@ -1837,8 +1837,7 @@ The rules of [Instance stages](#instance-stages) apply to every instance; projec
 
 Changing a branch's stage moves every instance of the branch to that stage, with the same checks as changing one
 instance's stage: making a branch production needs a confirmation and is refused beyond `PROJECT_PRODUCTION_BRANCHES`
-production branches in the project and beyond `MAX_PRODUCTION_INSTANCES` production instances on the server (later,
-the plan's production branches); leaving production needs a confirmation too. Changing one instance's stage on its
+production branches in the project and beyond `MAX_PRODUCTION_INSTANCES` production instances on the server; leaving production needs a confirmation too. Changing one instance's stage on its
 own page records that stage for its branch.
 
 ### Staging from production
@@ -1892,5 +1891,29 @@ the number down. `MAX_RUNNING_INSTANCES` turns the warning into a limit.
 Seeing projects needs `instances.view`; creating and linking projects, changing their options and the stages of
 their branches need `projects.manage` (maintainers, administrators, super admins); creating an instance of a branch
 needs `instances.create`, a staging one and a rebuild also `instances.restore` (they replace data with production's).
-Projects are documents in the panel's storage (collection `projects`); each records an access mode, today
-"panel roles": the roles apply in every project. Teams and per-project access will attach to that scope later.
+Projects are documents in the panel's storage (collection `projects`); each records its access (below).
+
+### Teams, project access and locked branches
+
+Teams (**Teams** in the sidebar, `teams.manage`), each project's **Access** tab and branch locks (`projects.access`)
+are for administrators and super admins. What people see is in the
+[User manual](USER_MANUAL.md#project-access-and-locked-branches); the rules are in
+[Security](SECURITY.md#teams-project-access-and-locked-branches). For the server:
+
+* **Upgrading locks nobody out.** Every project made before teams existed has the mode "panel roles": everyone keeps
+  the access their role gives, until an administrator adds grants, restricts the project, restricts a branch or
+  locks one.
+* **Super admins** see every project and branch whatever its grants, so a project nobody else can reach can always be
+  repaired. A lock applies to them too, until they unlock the branch (always allowed, audited).
+* **Production.** A locked production branch keeps serving, never pauses and keeps its daily backup; only people
+  are kept out. Restricting the production branch to a team ("production for the leads") hides it from everyone
+  else, its instances included.
+* **Automatic work on a locked branch stops:** no update or staging rebuild on a push (the audit log has "automatic
+  update skipped (branch locked)"), no deletion when its lifetime ends, nothing when it is deleted on GitHub, no new
+  instance for it, and a visit to a paused instance shows a "Locked" page instead of starting it. Data of a locked
+  production branch is not copied into staging, by hand or on a push (a push then only brings new code).
+* **API tokens** act for the account that created them; tokens made with `sudoo.sh create-token` belong to no
+  account and are kept out of restricted projects and locked branches. Give a CI pipeline a token created by an
+  account that has the access it needs.
+* **Data.** Teams are documents in the collection `teams`; a project's grants, branch rules and locks are in its
+  `access`. Deleting an account or a team removes it from every team, grant and lock.

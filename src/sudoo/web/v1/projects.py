@@ -25,10 +25,20 @@
     POST   /api/v1/projects/<id>/branches/<branch>/rebuild
                                                      rebuild the branch's staging instance from a new copy of
                                                      production -> 202, Location: job
+    GET    /api/v1/projects/<id>/access              who may see and work in the project: mode, grants, branches'
+                                                     grants and locks, with names            (projects.access)
+    PUT    /api/v1/projects/<id>/access              {"mode", "grants", "branches"}: replaces them (locks stay)
+    PUT    /api/v1/projects/<id>/branches/<branch>/lock
+                                                     lock the branch, or change who its lock allows: {"reason"?,
+                                                     "allow": [{"type": "team"|"user", "id"}]}
+    DELETE /api/v1/projects/<id>/branches/<branch>/lock
+                                                     unlock it -> 204
 
 Seeing projects needs instances.view; creating, linking, changing and deleting them and changing a branch's stage
-need projects.manage; a new instance needs instances.create, a rebuild instances.restore (it replaces data). The
-checks go through projects/access.py, where per-project access will be added. Production asks for more: making a
+need projects.manage; a new instance needs instances.create, a rebuild instances.restore (it replaces data); access
+and locks need projects.access. Every check goes through projects/access.py: role ∩ the caller's level in the project
+and branch (teams, grants, restricted projects and branches), and locked branches; projects and branches hidden from
+the caller answer 404 and are left out of lists. Production asks for more: making a
 branch production, or moving it out of production, needs "confirm_production": true; a project has at most
 PROJECT_PRODUCTION_BRANCHES production branches, and the server at most MAX_PRODUCTION_INSTANCES production
 instances (409 beyond).
@@ -42,7 +52,7 @@ from typing import Any
 
 from flask import Blueprint, Response, abort, g, request
 
-from sudoo import addons, projects
+from sudoo import accounts, addons, projects, teams
 from sudoo.core import events, jobs
 from sudoo.instances import capacity, monitor, odoo, stages, store
 from sudoo.limits import quotas
@@ -67,12 +77,16 @@ OPTION_FLAGS = ("auto_development", "development_demo_data")
 OPTION_NUMBERS = {"max_auto_development": 100, "development_lifetime_days": 3650, "staging_lifetime_days": 3650}
 
 
-def _refuse_unless(permission: str, project: Mapping[str, Any] | None, what: str) -> None:
-    """403 unless the caller has `permission` in `project` (projects/access.py), audit-logged."""
-    if not access.allowed(g.user, permission, project):
+def _refuse_unless(permission: str, project: Mapping[str, Any] | None, what: str, branch: str | None = None) -> None:
+    """403 unless the caller has `permission` in `project` (and `branch`; projects/access.py), audit-logged; 404 when
+    the project or branch is hidden from them."""
+    found = access.refusal(g.user, permission, project, branch)
+    if found is None:
+        return
+    if permission not in access.role_permissions(g.user):
         refuse_unless(permission, what)  # the role lacks it: the usual refusal
-        log(f"refused: {what}", ok=False)
-        abort(403, "You have no access to this project.")
+    log(f"refused: {what}", ok=False, detail=found[1])
+    abort(*found)
 
 
 def _project(project_id: str, permission: str = "instances.view") -> dict[str, Any]:
@@ -82,7 +96,11 @@ def _project(project_id: str, permission: str = "instances.view") -> dict[str, A
     found = projects.get(project_id)
     if found is None:
         abort(404, "This project does not exist.")
-    _refuse_unless(permission, found, f"{permission} in project {project_id}")
+    if not access.sees_project(g.user, found):
+        log(f"refused: {permission} in project {project_id}", ok=False, detail="not visible")
+        abort(404, "This project does not exist.")
+    if permission != "instances.view":
+        _refuse_unless(permission, found, f"{permission} in project {project_id}")
     return found
 
 
@@ -115,16 +133,27 @@ def _attention(names: list[str]) -> list[str]:
     return found
 
 
-def project_resource(project: Mapping[str, Any]) -> dict[str, Any]:
+def _hidden_branches(project: Mapping[str, Any], branches_known: set[str], user: Mapping[str, Any] | None) -> set[str]:
+    """The branches of `branches_known` hidden from `user` (none when no user is given: the shared resource)."""
+    if user is None or access.sees_everything(user):
+        return set()
+    return {branch for branch in branches_known if not access.sees_branch(user, project, branch)}
+
+
+def project_resource(project: Mapping[str, Any], user: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """A project as lists show it: no branches from GitHub (those are on its own page), only the branches it knows
-    (seen on GitHub, recorded, or followed by an instance) counted by stage."""
-    names = projects.instances(project["id"])
+    (seen on GitHub, recorded, or followed by an instance) counted by stage. With `user`: what that user may see
+    (branches hidden from them, and their instances, are left out)."""
     grouped = projects.by_branch(project["id"])
     known = set(project.get("seen") or []) | set(project.get("branches") or {}) | {b for b in grouped if b}
+    hidden = _hidden_branches(project, known | set(grouped), user)
+    known -= hidden
+    names = sorted(name for branch, members in grouped.items() if branch not in hidden for name in members)
     by_stage = dict.fromkeys(stages.STAGES, 0)
     for branch in known:
         by_stage[projects.branch_stage(project, branch, grouped.get(branch, []))] += 1
     repository = str(project["repository"])
+    found_access = access.access_of(project)
     return {
         "id": project["id"],
         "name": project["name"],
@@ -136,10 +165,17 @@ def project_resource(project: Mapping[str, Any]) -> dict[str, Any]:
         "branches": {"total": len(known), **by_stage},
         "instances": {"total": len(names), "by_status": _status(names), "names": names},
         "attention": _attention(names),
-        "production_branches": projects.production_branches(project),
+        "production_branches": [b for b in projects.production_branches(project) if b not in hidden],
         "options": projects.options(project),
         "own_options": {k: v for k, v in (project.get("options") or {}).items() if v is not None},
-        "access": {"mode": (project.get("access") or {}).get("mode", "panel_roles")},
+        "access": {
+            "mode": access.mode(project),
+            "grants": len(found_access.get("grants") or ()),
+            "restricted_branches": sorted(
+                b for b, v in (found_access.get("branches") or {}).items() if v.get("restricted") and b not in hidden
+            ),
+            "locked_branches": sorted(b for b in found_access.get("locks") or {} if b not in hidden),
+        },
         "links": {"self": f"{PREFIX}/projects/{project['id']}"},
     }
 
@@ -152,9 +188,21 @@ def _capacity() -> dict[str, Any] | None:
     return {key: found.get(key) for key in ("comfortable", "running", "headroom", "warning", "message", "overloaded")}
 
 
-def full_resource(project: Mapping[str, Any], refresh: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
+def full_resource(
+    project: Mapping[str, Any], refresh: bool = False, user: Mapping[str, Any] | None = None
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The project's own page: its branches with their lock and, for `user`, what they may do in each."""
     listed, facts = branches.listing(project, refresh)
-    resource = project_resource(project) | {"branches_list": listed}
+    if user is not None:
+        listed = [b for b in listed if access.sees_branch(user, project, b["name"])]
+    for branch in listed:
+        branch["lock"] = access.describe_lock(access.lock_of(project, branch["name"]))
+        branch["restricted"] = bool(access.branch_access(project, branch["name"]).get("restricted"))
+        if user is not None:
+            branch["permissions"] = sorted(
+                access.permissions(user, project, branch["name"]) & access.PROJECT_PERMISSIONS
+            )
+    resource = project_resource(project, user) | {"branches_list": listed}
     meta = {
         "default_branch": facts["default"],
         "branches_error": facts["error"],
@@ -163,6 +211,8 @@ def full_resource(project: Mapping[str, Any], refresh: bool = False) -> tuple[di
         "production_limit": projects.production_limit() or None,
         "server_production_limit": stages.production_limit() or None,
     }
+    if user is not None:
+        meta["permissions"] = sorted(access.permissions(user, project) & access.PROJECT_PERMISSIONS)
     return resource, meta
 
 
@@ -175,7 +225,7 @@ def list_projects() -> Response:
     adopt.adopt_once()
     shown = access.visible(g.user, projects.all_projects())
     standalone = [name for name in sorted(set(store.names()) | set(jobs.being_created())) if not _project_id_of(name)]
-    return ok([project_resource(p) for p in shown], meta={"standalone": standalone, "total": len(shown)})
+    return ok([project_resource(p, g.user) for p in shown], meta={"standalone": standalone, "total": len(shown)})
 
 
 def _project_id_of(name: str) -> str | None:
@@ -188,7 +238,7 @@ def _project_id_of(name: str) -> str | None:
 @blueprint.get("/projects/<project_id>")
 def project(project_id: str) -> Response:
     found = _project(project_id)
-    resource, meta = full_resource(found, refresh=request.args.get("refresh") in ("1", "true"))
+    resource, meta = full_resource(found, refresh=request.args.get("refresh") in ("1", "true"), user=g.user)
     return ok(resource, meta=meta)
 
 
@@ -342,7 +392,7 @@ def change_project(project_id: str) -> Response:
     changed = sorted(values) + [f"options.{k}={v}" for k, v in sorted(options.items())]
     log("project changed", detail=f"{project_id}: {', '.join(changed)}"[:300])
     events.publish("project", project_id)
-    return ok(project_resource(projects.get(project_id) or found))
+    return ok(project_resource(projects.get(project_id) or found, g.user))
 
 
 @blueprint.delete("/projects/<project_id>")
@@ -380,8 +430,9 @@ LEAVING_PRODUCTION = (
 @blueprint.put("/projects/<project_id>/branches/<path:branch>/stage")
 def change_stage(project_id: str, branch: str) -> Response:
     """Move a branch, and every instance of it, to another stage."""
-    found = _project(project_id, "projects.manage")
+    found = _project(project_id)
     branch = _branch(branch)
+    _refuse_unless("projects.manage", found, f"change the stage of {project_id} {branch}", branch)
     data = check.body()
     stage = check.one_of(check.text(data, "stage", max_length=20), stages.STAGES, instances_api.STAGE_MESSAGE)
     with quotas.LOCK, projects.LOCK:
@@ -419,11 +470,24 @@ def change_stage(project_id: str, branch: str) -> Response:
     return ok(shown or {"name": branch, "stage": stage, "instances": members}, meta={"notes": notes} if notes else None)
 
 
+def _refuse_locked_production(project: Mapping[str, Any], production: str | None) -> None:
+    """Staging copies production's data: refused when production's branch is locked against the caller."""
+    if not production:
+        return
+    branch = projects.branch_of(production)
+    lock = access.lock_of(project, branch)
+    if lock is not None and not access.lock_allows(g.user, lock):
+        log("refused: copy of a locked production branch", instance=production, ok=False)
+        abort(403, f"The production branch {branch} is locked: only the people and teams its lock allows may copy its "
+                   "data into staging.")  # fmt: skip
+
+
 @blueprint.post("/projects/<project_id>/branches/<path:branch>/instances")
 def create_instance(project_id: str, branch: str) -> Response:
     """A new instance of the branch, in the branch's stage, with the project's Odoo version and edition."""
-    found = _project(project_id, "instances.create")
+    found = _project(project_id)
     branch = _branch(branch)
+    _refuse_unless("instances.create", found, f"create an instance of {project_id} {branch}", branch)
     data = check.body()
     heads, _, error = branches.heads(found, refresh=True)
     if error:
@@ -436,8 +500,11 @@ def create_instance(project_id: str, branch: str) -> Response:
         abort(409, f"Odoo {version} Enterprise is not available on this server.")
     from_production = None
     if stage == stages.STAGING:
-        _refuse_unless("instances.restore", found, f"create a staging instance of {project_id} from production data")
+        _refuse_unless(
+            "instances.restore", found, f"create a staging instance of {project_id} from production data", branch
+        )
         from_production = staging.production_instance(found)
+        _refuse_locked_production(found, from_production)
         problem = staging.copy_problem(from_production, version, edition)
         if problem:
             abort(409, problem)
@@ -468,8 +535,9 @@ def create_instance(project_id: str, branch: str) -> Response:
 @blueprint.post("/projects/<project_id>/branches/<path:branch>/rebuild")
 def rebuild(project_id: str, branch: str) -> Response:
     """Rebuild the branch's staging instance (the first one when it has several) from a new copy of production."""
-    _project(project_id, "instances.restore")
+    found = _project(project_id)
     branch = _branch(branch)
+    _refuse_unless("instances.restore", found, f"rebuild {project_id} {branch}", branch)
     members = [name for name in projects.by_branch(project_id).get(branch, []) if store.exists(name)]
     if not members:
         abort(404, f"{branch} has no instance to rebuild.")
@@ -479,6 +547,7 @@ def rebuild(project_id: str, branch: str) -> Response:
     refused = staging.rebuild_refusal(name)
     if refused:
         abort(409, refused)
+    _refuse_locked_production(found, staging.production_instance(found))
     if jobs.busy(name):
         abort(409, f"{name} is busy with another job. Try again when it has finished.")
     job = jobs.start(name, "Rebuild from production", "restore", staging.rebuild, name, user=g.user["name"])
@@ -486,3 +555,185 @@ def rebuild(project_id: str, branch: str) -> Response:
     response = ok(job_resource(job), status=202)
     response.headers["Location"] = f"{PREFIX}/jobs/{job.id}"
     return response
+
+
+# ---------------------------------------------------------------- access and locks
+
+MAX_GRANTS = 200
+MAX_BRANCH_RULES = 100
+LOCK_REASON_MAX = 200
+
+
+def _subject_name(kind: str, value: str) -> str | None:
+    """The name people read for a grant's team or account, None when it does not exist (any more)."""
+    if kind == "team":
+        team = teams.get(value)
+        return str(team["name"]) if team else None
+    account = accounts.get(value)
+    return accounts.display_name(value, account) if account else None
+
+
+def _subjects(raw: Any, what: str, with_level: bool) -> list[dict[str, str]]:
+    """Checked grants ({"type", "id", "level"}) or lock entries ({"type", "id"}): known teams and accounts, once each."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or len(raw) > MAX_GRANTS:
+        abort(400, f"{what}: a list of at most {MAX_GRANTS} entries.")
+    found: dict[tuple[str, str], dict[str, str]] = {}
+    for entry in raw:
+        if not isinstance(entry, dict):
+            abort(400, f'{what}: each entry is {{"type": "team" or "user", "id"}}.')
+        kind = check.one_of(
+            check.text(entry, "type", max_length=10), access.GRANT_TYPES, f"{what}: type is team or user."
+        )
+        value = check.text(entry, "id", max_length=120)
+        if _subject_name(kind, value) is None:
+            abort(400, f"{what}: there is no {'team' if kind == 'team' else 'account'} {value[:60]!r}.")
+        item = {"type": kind, "id": value}
+        if with_level:
+            item["level"] = check.one_of(
+                check.text(entry, "level", max_length=20),
+                access.LEVELS,
+                f"{what}: level is {', '.join(access.LEVELS)}.",
+            )
+        found[(kind, value)] = item
+    return sorted(found.values(), key=lambda e: (e["type"], e["id"]))
+
+
+def _described(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [e | {"name": _subject_name(str(e["type"]), str(e["id"]))} for e in entries]
+
+
+def access_resource(project: Mapping[str, Any]) -> dict[str, Any]:
+    found = access.access_of(project)
+    locks = {
+        branch: (access.describe_lock(lock) or {}) | {"allow": _described(list(lock.get("allow") or []))}
+        for branch, lock in (found.get("locks") or {}).items()
+    }
+    return {
+        "mode": access.mode(project),
+        "grants": _described(list(found.get("grants") or [])),
+        "branches": {
+            branch: {"restricted": bool(rule.get("restricted")), "grants": _described(list(rule.get("grants") or []))}
+            for branch, rule in sorted((found.get("branches") or {}).items())
+        },
+        "locks": dict(sorted(locks.items())),
+        "levels": list(access.LEVELS),
+    }
+
+
+@blueprint.get("/projects/<project_id>/access")
+def read_access(project_id: str) -> Response:
+    found = _project(project_id, "projects.access")
+    return ok(access_resource(found), meta={"permissions": sorted(access.permissions(g.user, found))})
+
+
+@blueprint.put("/projects/<project_id>/access")
+def change_access(project_id: str) -> Response:
+    """Replace the project's mode, grants and branches' rules (its locks stay as they are)."""
+    found = _project(project_id, "projects.access")
+    data = check.body()
+    mode = check.one_of(check.text(data, "mode", max_length=20, default="panel_roles"), access.MODES,
+                        "mode: panel_roles (everyone's role applies) or restricted (only those granted).")  # fmt: skip
+    grants = _subjects(data.get("grants"), "grants", with_level=True)
+    rules_in = data.get("branches") or {}
+    if not isinstance(rules_in, dict) or len(rules_in) > MAX_BRANCH_RULES:
+        abort(400, f'branches: {{"<branch>": {{"restricted", "grants"}}}}, at most {MAX_BRANCH_RULES} branches.')
+    rules: dict[str, Any] = {}
+    for branch, rule in rules_in.items():
+        if not github.valid_branch(str(branch)) or not isinstance(rule, dict):
+            abort(400, f"branches: {str(branch)[:60]!r} is not a branch name with its rules.")
+        own = _subjects(rule.get("grants"), f"branches.{branch}.grants", with_level=True)
+        restricted = check.flag(rule, "restricted") is True
+        if own or restricted:
+            rules[str(branch)] = {"restricted": restricted, "grants": own}
+    with projects.LOCK:
+        current = projects.get(project_id) or found
+        after = {**current, "access": {**access.access_of(current), "mode": mode, "grants": grants, "branches": rules}}
+        if not access.allowed(g.user, "projects.access", after):  # nobody locks themselves out of a project
+            abort(409, "After this change you could no longer manage this project's access. Grant yourself (or one of "
+                       "your teams) the admin level first.")  # fmt: skip
+        projects.change(project_id, lambda p: {**p, "access": after["access"]})
+    access.forget_restrictions()
+    restricted_branches = sorted(b for b, v in rules.items() if v["restricted"])
+    log("project access changed", detail=f"{project_id}: mode {mode}, {len(grants)} grants, branch rules "
+        f"{', '.join(sorted(rules)) or 'none'}" + (f", restricted {', '.join(restricted_branches)}" if restricted_branches
+        else ""))  # fmt: skip
+    events.publish("project", project_id)
+    return ok(access_resource(projects.get(project_id) or found))
+
+
+def _known_branch(project: Mapping[str, Any], branch: str) -> None:
+    known = set(projects.by_branch(project["id"])) | set(project.get("branches") or {}) | set(project.get("seen") or [])
+    if branch not in known:
+        found, _, _ = branches.heads(project)
+        if branch not in found:
+            abort(404, "There is no such branch.")
+
+
+@blueprint.put("/projects/<project_id>/branches/<path:branch>/lock")
+def lock_branch(project_id: str, branch: str) -> Response:
+    """Lock a branch, or change its lock's reason and who it allows (the caller always stays allowed)."""
+    found = _project(project_id)
+    branch = _branch(branch)
+    _refuse_unless(
+        "projects.access", found, f"lock {project_id} {branch}", branch if not access.lock_of(found, branch) else None
+    )
+    _known_branch(found, branch)
+    data = check.body()
+    reason = check.text(data, "reason", max_length=LOCK_REASON_MAX)
+    allow = _subjects(data.get("allow"), "allow", with_level=False)
+    with projects.LOCK:
+        current = projects.get(project_id) or found
+        before = access.lock_of(current, branch)
+        if before is not None and not access.may_unlock(g.user, current, branch):
+            log(f"refused: change the lock of {project_id} {branch}", ok=False)
+            abort(403, f"The branch {branch} is locked by {before.get('by')}: only the people and teams its lock allows "
+                       "(and super admins) may change or remove it.")  # fmt: skip
+        me = access.person(g.user)
+        lock = {"by": g.user["name"], "at": int(time.time()), "reason": reason, "allow": allow}
+        if before is not None:
+            lock |= {"by": before.get("by"), "at": before.get("at"), "changed_by": g.user["name"],
+                     "changed_at": int(time.time())}  # fmt: skip
+        if me and not access.lock_allows(g.user, lock):
+            lock["allow"] = sorted([*allow, {"type": "user", "id": me}], key=lambda e: (e["type"], e["id"]))
+
+        def update(project: dict[str, Any]) -> dict[str, Any]:
+            current_access = dict(access.access_of(project))
+            current_access["locks"] = {**(current_access.get("locks") or {}), branch: lock}
+            return {**project, "access": current_access}
+
+        projects.change(project_id, update)
+    allowed = ", ".join(f"{e['type']} {e['id']}" for e in lock["allow"])
+    log("branch locked" if before is None else "branch lock changed", detail=f"{project_id} {branch}: allows {allowed}"
+        + (f"; {reason}" if reason else ""))  # fmt: skip
+    for name in projects.by_branch(project_id).get(branch, []):
+        events.publish("instance", name)
+    events.publish("project", project_id)
+    return ok((access.describe_lock(lock) or {}) | {"allow": _described(lock["allow"])})
+
+
+@blueprint.delete("/projects/<project_id>/branches/<path:branch>/lock")
+def unlock_branch(project_id: str, branch: str) -> Response:
+    found = _project(project_id)
+    branch = _branch(branch)
+    lock = access.lock_of(found, branch)
+    if lock is None:
+        abort(404, f"{branch} is not locked.")
+    if not access.may_unlock(g.user, found, branch):
+        refuse_unless("projects.access", f"unlock {project_id} {branch}")
+        log(f"refused: unlock {project_id} {branch}", ok=False)
+        abort(403, f"The branch {branch} is locked by {lock.get('by')}: only the people and teams its lock allows (and "
+                   "super admins) may unlock it.")  # fmt: skip
+
+    def update(project: dict[str, Any]) -> dict[str, Any]:
+        current_access = dict(access.access_of(project))
+        current_access["locks"] = {k: v for k, v in (current_access.get("locks") or {}).items() if k != branch}
+        return {**project, "access": current_access}
+
+    projects.change(project_id, update)
+    log("branch unlocked", detail=f"{project_id} {branch} (locked by {lock.get('by')})")
+    for name in projects.by_branch(project_id).get(branch, []):
+        events.publish("instance", name)
+    events.publish("project", project_id)
+    return no_content()

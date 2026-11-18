@@ -7,31 +7,39 @@ import {
   Boxes,
   ChevronRight,
   Ellipsis,
+  EyeOff,
   FolderGit2,
   FolderPlus,
   GitBranch,
   Hammer,
+  Lock,
+  LockOpen,
   Plus,
   RefreshCw,
   RotateCcw,
   ScrollText,
   Search,
+  ShieldCheck,
   Trash2,
 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api, ApiError, errorText } from "@/api/client";
 import { keys, useCall, useInstances, useProject, useProjects, useRepositoryOwners, useVersions } from "@/api/queries";
-import type { Instance, Job, Project, ProjectBranch, ProjectDetail, ProjectMeta, ProjectOptions, Stage } from "@/api/types";
+import type { Instance, Job, Permission, Project, ProjectBranch, ProjectDetail, ProjectMeta, ProjectOptions, Stage } from "@/api/types";
+import { LockTag } from "@/components/LockTag";
+import { AccessTab, LockDialog, UnlockDialog } from "@/components/ProjectAccess";
 import { InstanceCard } from "@/components/InstanceCard";
 import { JobDrawer } from "@/components/JobDrawer";
 import { Page, PageHead, useCan, useSubCrumb } from "@/components/Shell";
+import { useMe } from "@/components/Session";
 import { STAGE_ICON, STAGE_LABEL, StageTag } from "@/components/StageTag";
 import { Button, Callout, Empty, Field, Skeleton, Status, Switch, Tag } from "@/components/ui/basics";
 import { Menu, Modal, useToast } from "@/components/ui/overlay";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/projects";
+import teamWords from "@/i18n/teams";
 import { ago, count } from "@/lib/format";
 import { RepositoryPicker } from "./NewInstance";
 
@@ -176,6 +184,8 @@ function BranchCommit({ branch }: { branch: ProjectBranch }) {
 }
 
 type Dialog =
+  | { kind: "lock"; branch: ProjectBranch }
+  | { kind: "unlock"; branch: ProjectBranch }
   | { kind: "stage"; branch: ProjectBranch; stage: Stage }
   | { kind: "create"; branch: ProjectBranch }
   | { kind: "rebuild"; branch: ProjectBranch; instance: string }
@@ -190,10 +200,16 @@ function BranchRow({
   instances: Map<string, Instance>;
   onDialog: (dialog: Dialog) => void;
 }) {
-  const can = useCan();
+  const roleCan = useCan();
+  const can = (permission: Permission) => (branch.permissions ? branch.permissions.includes(permission) : roleCan(permission));
   const t = useT(words).page;
+  const l = useT(teamWords);
   const members = branch.instances.map((n) => instances.get(n)).filter((i): i is Instance => !!i);
   const first = members[0];
+  const lockedOut = !!branch.lock && !can("instances.logs");
+  const me = useMe();
+  // changing or removing a lock: whoever it allows (they keep projects.access in the branch) and super admins
+  const mayUnlock = can("projects.access") || me.role === "super_admin";
   const others = STAGES.filter((s) => s !== branch.stage);
   return (
     <div className="branch-row" role="row">
@@ -203,6 +219,8 @@ function BranchRow({
           <bdi className="br-name truncate" dir="ltr">{branch.name}</bdi>
           <div className="row-wrap xsmall">
             {branch.default && <Tag>{t.defaultBranch}</Tag>}
+            {branch.lock && <LockTag lock={branch.lock} branch={branch.name} />}
+            {branch.restricted && <span title={l.lock.restrictedHint}><Tag icon={<EyeOff />}>{l.lock.restricted}</Tag></span>}
             {branch.on_github === false && <Tag tone="negative">{t.deletedOnGitHub}</Tag>}
             {branch.auto_created && branch.instances.includes(branch.auto_created) && <span className="faint">{t.autoCreated}</span>}
           </div>
@@ -226,7 +244,7 @@ function BranchRow({
       </div>
       <div className="br-actions" role="cell">
         {first ? (
-          first.url && first.status !== "switched_off" ? (
+          first.url && first.status !== "switched_off" && !lockedOut ? (
             <a className="btn sm" href={first.url} target="_blank" rel="noreferrer">{t.open} <ArrowUpRight className="flip-rtl" /></a>
           ) : (
             <Link className="btn sm" to={`/i/${first.name}`} viewTransition>{t.details}</Link>
@@ -269,6 +287,25 @@ function BranchRow({
                 <button type="button" className="menu-item" onClick={() => { close(); onDialog({ kind: "create", branch }); }}>
                   <Plus /> {t.createInstance}
                 </button>
+              )}
+              {roleCan("projects.access") && (branch.lock ? mayUnlock : can("projects.access")) && (
+                <>
+                  <hr />
+                  {branch.lock ? (
+                    <>
+                      <button type="button" className="menu-item" onClick={() => { close(); onDialog({ kind: "lock", branch }); }}>
+                        <Lock /> {l.lock.changeLock}
+                      </button>
+                      <button type="button" className="menu-item" onClick={() => { close(); onDialog({ kind: "unlock", branch }); }}>
+                        <LockOpen /> {l.lock.unlock}
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" className="menu-item" onClick={() => { close(); onDialog({ kind: "lock", branch }); }}>
+                      <Lock /> {l.lock.lock}
+                    </button>
+                  )}
+                </>
               )}
               {first && can("instances.delete") && (
                 <button type="button" className="menu-item danger" onClick={() => { close(); onDialog({ kind: "delete", instance: first }); }}>
@@ -488,6 +525,8 @@ function BranchesTab({ project, meta, onRefresh, refreshing }: { project: Projec
           );
         })
       )}
+      {dialog?.kind === "lock" && <LockDialog project={project} branch={dialog.branch} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "unlock" && <UnlockDialog project={project} branch={dialog.branch} onClose={() => setDialog(null)} />}
       {dialog?.kind === "stage" && <StageDialog project={project} meta={meta} branch={dialog.branch} stage={dialog.stage} onClose={() => setDialog(null)} />}
       {dialog?.kind === "create" && <CreateDialog project={project} branch={dialog.branch} production={production} onClose={() => setDialog(null)} onJob={setJobId} />}
       {dialog?.kind === "rebuild" && <RebuildDialog project={project} branch={dialog.branch} instance={dialog.instance} production={production} onClose={() => setDialog(null)} onJob={setJobId} />}
@@ -601,8 +640,10 @@ function SettingsTab({ project }: { project: ProjectDetail }) {
         </div>
       </section>
       <section className="card">
-        <div className="card-head"><h2>{s.access}</h2></div>
-        <div className="card-body"><p className="small muted">{s.accessText}</p></div>
+        <div className="card-head"><h2 className="spacer">{s.access}</h2>
+          {can("projects.access") && <Link className="btn sm" to={`/projects/${project.id}/access`} viewTransition><ShieldCheck /> {s.manageAccess}</Link>}
+        </div>
+        <div className="card-body"><p className="small muted">{project.access.mode === "restricted" ? s.accessRestricted : s.accessText}</p></div>
       </section>
       {editable && (
         <section className="card danger-zone">
@@ -635,6 +676,7 @@ function SettingsTab({ project }: { project: ProjectDetail }) {
 
 export function ProjectPage() {
   const { id = "", tab = "" } = useParams();
+  const can = useCan();
   const { data, isPending, error, refetch } = useProject(id);
   const t = useT(words).page;
   const [refreshing, setRefreshing] = useState(false);
@@ -657,6 +699,7 @@ export function ProjectPage() {
       </Page>
     );
   const { project, meta } = data;
+  const mayManageAccess = meta.permissions ? meta.permissions.includes("projects.access") : can("projects.access");
   const refresh = async () => {
     setRefreshing(true);
     try {
@@ -689,8 +732,15 @@ export function ProjectPage() {
         <Link to={`/projects/${project.id}/settings`} viewTransition className={`tab ${tab === "settings" ? "active" : ""}`} aria-current={tab === "settings" ? "page" : undefined}>
           <Hammer /> {t.settingsTab}
         </Link>
+        {mayManageAccess && (
+          <Link to={`/projects/${project.id}/access`} viewTransition className={`tab ${tab === "access" ? "active" : ""}`} aria-current={tab === "access" ? "page" : undefined}>
+            <ShieldCheck /> {t.accessTab}
+          </Link>
+        )}
       </nav>
-      {tab === "settings" ? (
+      {tab === "access" ? (
+        <AccessTab key={project.id} project={project} permitted={mayManageAccess} />
+      ) : tab === "settings" ? (
         <SettingsTab key={project.id} project={project} />
       ) : (
         <BranchesTab project={project} meta={meta} onRefresh={refresh} refreshing={refreshing} />

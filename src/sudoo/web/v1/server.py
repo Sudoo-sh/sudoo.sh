@@ -13,12 +13,13 @@ import time
 from functools import cache
 from importlib.metadata import version
 
-from flask import Blueprint, Response, abort, request
+from flask import Blueprint, Response, abort, g, request
 
 from sudoo import exposure
 from sudoo.config import settings
 from sudoo.core import events, jobs
 from sudoo.instances import capacity, metrics
+from sudoo.projects import access
 
 from .. import validation as check
 from ..security import log, require
@@ -58,7 +59,10 @@ def _minutes() -> int:
 @blueprint.get("/metrics")
 @require("instances.view")
 def current() -> Response:
-    return ok(capacity.snapshot())
+    found = capacity.snapshot()
+    if not access.sees_everything(g.user):  # instances of hidden projects and branches are left out
+        found = {**found, "instances": access.visible_map(g.user, found.get("instances") or {})}
+    return ok(found)
 
 
 @blueprint.get("/server/capacity")
@@ -78,6 +82,10 @@ def history() -> Response:
     measurement, so it is built once per measurement for every caller."""
     minutes = _minutes()
     interval = settings.metrics_interval_seconds
+    if not access.sees_everything(g.user):  # built for this caller alone: hidden instances are left out
+        found = metrics.history(minutes)
+        found["instances"] = access.visible_map(g.user, found.get("instances") or {})
+        return ok(found, meta={"minutes": minutes, "interval_seconds": interval})
     return ok_shared(
         ("history", minutes),
         (metrics.version(), interval),

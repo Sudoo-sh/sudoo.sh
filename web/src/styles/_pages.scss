@@ -1116,3 +1116,75 @@
     .br-actions { grid-row: 1; grid-column: 2; }
   }
 }
+
+// ---------------------------------------------------------------- teams and project access
+
+.pick-list { display: flex; flex-direction: column; gap: var(--s2); }
+.pick-search { svg { width: 15px; height: 15px; color: var(--text-3); } }
+.pick-items {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+}
+.pick-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  cursor: pointer;
+  min-width: 0;
+  & + & { border-top: 1px solid var(--hairline); }
+  &:hover { background: var(--raised); }
+  input { flex: none; }
+}
+.grant-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+}
+.grant-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  min-width: 0;
+  & + & { border-top: 1px solid var(--hairline); }
+  svg { width: 15px; height: 15px; color: var(--text-3); flex: none; }
+  .select { width: auto; min-width: 140px; }
+}
+.grant-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  .select { width: auto; min-width: 160px; flex: 1 1 160px; }
+}
+.branch-rule {
+  padding: var(--s3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  > .row-wrap > svg { width: 15px; height: 15px; color: var(--text-3); }
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: 2px var(--s2);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-13);
+  cursor: pointer;
+  svg { width: 13px; height: 13px; color: var(--text-3); }
+  &:hover svg:last-child { color: var(--negative); }
+}
+@media (max-width: 520px) {
+  .grant-row { flex-wrap: wrap; .select { flex: 1 1 auto; } }
+}
+.teams-table td:first-child { min-width: 200px; }

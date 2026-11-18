@@ -1,4 +1,5 @@
-"""Small pages the gateway shows a visitor while an instance is not available (starting, updating, switched off;
+"""Small pages the gateway shows a visitor while an instance is not available (starting, updating, switched off,
+paused on a locked branch;
 "waiting": a paused instance while the panel, which starts it, is not reachable from the gateway service).
 
 Browsers get an HTML page that refreshes itself; API clients get plain text. Both use HTTP 503 with Retry-After,
@@ -37,6 +38,11 @@ _PAGES = {
         "automatically.",
     ),
     "off": ("Switched off", "This Odoo has been switched off by the administrator."),
+    "locked": (
+        "Locked",
+        "This Odoo is paused and its branch is locked, so it is not started by a visit. Someone the lock allows can "
+        "start it from the control panel.",
+    ),
     "gone": ("Not found", "This Odoo instance does not exist."),
 }
 
@@ -68,7 +74,7 @@ def render(request: web.Request, name: str, kind: str, since: float | None = Non
     waiting = kind in ("waking", "waiting", "busy")
     elapsed = int(time.time() - since) if since else 0
     contact = ""
-    if kind in ("off", "gone") or elapsed > 180:
+    if kind in ("off", "gone", "locked") or elapsed > 180:
         lead = "This is taking longer than usual. " if waiting else ""
         contact = f'<p class="contact">{html.escape(lead + settings.contact_sentence())}</p>'
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">

@@ -6,6 +6,7 @@ import { ago, monogram, number, percent } from "@/lib/format";
 import { useT } from "@/i18n";
 import dashboard from "@/i18n/dashboard";
 import { jobTitle, stepTitle } from "@/i18n/jobs";
+import { LockTag } from "./LockTag";
 import { StageTag } from "./StageTag";
 import { Progress, Status, Tag } from "./ui/basics";
 
@@ -53,6 +54,7 @@ export function InstanceCard({ instance }: { instance: Instance }) {
       <div className="ic-body">
         <div className="row-wrap">
           <StageTag stage={instance.stage} />
+          {instance.lock && instance.git.branch && <LockTag lock={instance.lock} branch={instance.git.branch} />}
           <Tag mono>{instance.odoo.version}</Tag>
           <Tag>{instance.odoo.edition === "enterprise" ? "Enterprise" : "Community"}</Tag>
           {instance.git.branch_deleted_on_github && <Tag tone="negative">{t.branchDeleted}</Tag>}

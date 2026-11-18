@@ -126,6 +126,14 @@ def project_reference(project_id: str | None) -> dict[str, Any] | None:
     return {"id": found["id"], "name": found["name"], "links": {"self": f"{PREFIX}/projects/{found['id']}"}}
 
 
+def branch_lock(project_id: str | None, branch: str | None) -> dict[str, Any] | None:
+    """The lock of the branch an instance follows: {"locked_by", "locked_at", "reason", "allow"}, or None."""
+    from sudoo.projects import access
+
+    found = projects.get(project_id or "")
+    return access.describe_lock(access.lock_of(found, branch)) if found and branch else None
+
+
 def creating_resource(job: jobs.Job, full: bool = False) -> dict[str, Any]:
     """An instance whose creation is queued or running and whose files do not exist yet: the instance resource with
     what the creation's plan says (job.details), status "creating" and the job as current_job; the rest is empty."""
@@ -136,6 +144,7 @@ def creating_resource(job: jobs.Job, full: bool = False) -> dict[str, Any]:
         "status": "creating",
         "stage": plan.get("stage") or stages.DEFAULT,
         "project": project_reference(plan.get("project")),
+        "lock": branch_lock(plan.get("project"), plan.get("branch")),
         "url": None,
         "odoo": {
             "version": plan.get("version", ""),
@@ -198,6 +207,7 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
         "status": status,  # creating, online, starting, busy, paused, switched_off, stopped, unknown
         "stage": stages.of(env),  # production, staging, development (instances/stages.py)
         "project": project_reference(env.get("PROJECT")),  # None: standalone (plain Odoo)
+        "lock": branch_lock(env.get("PROJECT"), env.get("GIT_BRANCH")),  # the branch's lock (projects/access.py)
         "url": exposure.address(name),
         "odoo": {"version": env["ODOO_VERSION"], "edition": env["EDITION"], "database": env["DB_NAME"]},
         # "plain": Odoo without a repository (store.plain; instances made before SOURCE was recorded: no remote)

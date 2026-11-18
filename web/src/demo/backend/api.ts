@@ -14,6 +14,7 @@ import * as mail from "./mail";
 import * as caught from "./caught-mail";
 import * as offsite from "./offsite";
 import { branchList, membersOf, productionInstance, projectResource, projects, stageOf, type DemoProject } from "./projects";
+import { described, levelIn, LEVELS, mayUnlock, needIn, openAccess, permissionsIn, seesProject, setLocks, teamResource, teams, type DemoAccess } from "./access";
 import { acceptLicence, LICENCE, licencePending, licenceStatus } from "./licence";
 import { catalog, categories, marketplace, recommendations } from "./marketplace";
 import { endShell, issueTicket, recordingOf, shellOptions, shellSessions } from "./shell";
@@ -96,6 +97,28 @@ function need(permission: Permission, path = "") {
     record(ME, `refused: ${path}`, { ok: false });
     throw new Problem(403, `Your role cannot do this (${PERMISSIONS[permission].toLowerCase()}). ${CONTACT}`);
   }
+}
+
+/** `permission` in an instance: the role, then the access of its project and branch (src/sudoo/projects/access.py). */
+function needOn(name: string, permission: Permission, path = "", role = true) {
+  if (role) need(permission, path);
+  const instance = instances.get(name);
+  const project = instance?.project ? projects.get(instance.project.id) : undefined;
+  if (instance && project) {
+    try {
+      needIn(project.access, permission, instance.name, instance.git.branch);
+    } catch (error) {
+      record(ME, `refused: ${path || permission}`, { ok: false, instance: name });
+      if (error instanceof Problem && error.status === 404) throw new Problem(404, "This instance does not exist.");
+      throw error;
+    }
+  }
+}
+
+/** The instances the visitor may see (a restricted project or branch hides its own). */
+function visible(instance: Instance): boolean {
+  const project = instance.project ? projects.get(instance.project.id) : undefined;
+  return !project || levelIn(project.access, instance.git.branch) !== "none";
 }
 
 /** Things that would leave the demo or touch the real world are refused with a short explanation. */
@@ -315,16 +338,18 @@ function instanceOf(name: string): Instance {
 
 route("GET", "/instances", ({ query }) => {
   need("instances.view", "/api/v1/instances");
-  const list = [...instances.values()].sort((a, b) => a.name.localeCompare(b.name)).map(listed);
+  const list = [...instances.values()].filter(visible).sort((a, b) => a.name.localeCompare(b.name)).map(listed);
   const limit = Number(query.get("limit") ?? 100);
   return ok(list.slice(0, limit), { total: list.length, count: Math.min(limit, list.length), limit, offset: 0 });
 });
 route("GET", "/instances/:name", ({ params }) => {
-  need("instances.view");
-  return ok(full(instanceOf(params.name!)));
+  needOn(params.name!, "instances.view");
+  const instance = instanceOf(params.name!);
+  const project = instance.project ? projects.get(instance.project.id) : undefined;
+  return ok(full(instance), { permissions: (project ? permissionsIn(project.access, instance.git.branch) : roleInfo(session.role).permissions).slice().sort() });
 });
 route("GET", "/instances/:name/credentials", ({ params }) => {
-  need("instances.credentials", `/api/v1/instances/${params.name}/credentials`);
+  needOn(params.name!, "instances.credentials", `/api/v1/instances/${params.name}/credentials`);
   const instance = instanceOf(params.name!);
   record(ME, "credentials viewed", { instance: instance.name });
   const n = hash(instance.name);
@@ -335,7 +360,7 @@ route("GET", "/instances/:name/resources", ({ params }) => {
   return ok(resourcesOf(instanceOf(params.name!)));
 });
 route("PUT", "/instances/:name/resources", ({ params, body }) => {
-  need("instances.resources", `/api/v1/instances/${params.name}/resources`);
+  needOn(params.name!, "instances.resources", `/api/v1/instances/${params.name}/resources`);
   const instance = instanceOf(params.name!);
   if (instance.status === "creating") throw new Problem(409, "This instance is still being created. Try again when its creation has finished.");
   if (instance.current_job) throw new Problem(409, `${instance.name} is busy with "${instance.current_job.action}". Try again when it has finished.`);
@@ -362,7 +387,7 @@ route("PUT", "/instances/:name/resources", ({ params, body }) => {
   );
 });
 route("GET", "/instances/:name/logs", ({ params, query }) => {
-  need("instances.logs");
+  needOn(params.name!, "instances.logs");
   const instance = instanceOf(params.name!);
   return ok({ text: odooLog(instance, Math.min(Number(query.get("lines") ?? 300), 3000)) });
 });
@@ -551,7 +576,7 @@ function createInstance(body: Record<string, unknown>, extra: { project?: string
 }
 
 route("PATCH", "/instances/:name", ({ params, body }) => {
-  need("instances.operate");
+  needOn(params.name!, "instances.operate");
   const instance = instanceOf(params.name!);
   if (instance.status === "creating") throw new Problem(409, "This instance is still being created. Try again when its creation has finished.");
   const s = instance.settings;
@@ -637,7 +662,7 @@ function sleep(instance: Instance, status: "paused" | "switched_off") {
 function runAction(instance: Instance, action: string, body: Record<string, unknown>): Job {
   const [title, kind, permission] = ACTIONS[action] ?? [];
   if (!title) throw new Problem(404, `Unknown action ${action}.`);
-  need(permission!, `/api/v1/instances/${instance.name}/actions/${action}`);
+  needOn(instance.name, permission!, `/api/v1/instances/${instance.name}/actions/${action}`);
   if (instance.status === "creating") throw new Problem(409, "This instance is still being created. Try again when its creation has finished.");
   if (instance.current_job) throw new Problem(409, `${instance.name} is busy with "${instance.current_job.action}". Try again when it has finished.`);
   if (instance.source === "plain" && REPOSITORY_ACTIONS.includes(action))
@@ -792,7 +817,7 @@ function runAction(instance: Instance, action: string, body: Record<string, unkn
 const contextFor = (instance: Instance) => ({ name: instance.name, database: instance.odoo.database, version: instance.odoo.version, edition: instance.odoo.edition, repository: instance.git.repository, branch: instance.git.branch });
 
 function deleteInstance(instance: Instance, body: Record<string, unknown>): Job {
-  need("instances.delete", `/api/v1/instances/${instance.name}`);
+  needOn(instance.name, "instances.delete", `/api/v1/instances/${instance.name}`);
   if (body.without_backup) need("backups.manage");
   if (body.confirm !== instance.name) throw new Problem(400, `Type the instance's name (${instance.name}) to confirm.`);
   if (instance.stage === "production" && body.confirm_stage !== "production") throw new Problem(400, 'This is a production instance: confirm with "confirm_stage": "production" as well.');
@@ -837,6 +862,7 @@ route("GET", "/instances/:name/shell", ({ params }) => {
 });
 route("POST", "/instances/:name/shell/tickets", ({ params, body }) => {
   const instance = instanceOf(params.name!);
+  needOn(instance.name, body.target === "psql" ? "instances.database_shell" : "instances.shell", `/api/v1/instances/${instance.name}/shell/tickets`, false);
   try {
     return created(issueTicket(instance, body));
   } catch (error) {
@@ -864,7 +890,7 @@ route("GET", "/instances/:name/domains", ({ params }) => {
   return ok(domainsOf(instanceOf(params.name!)));
 });
 route("POST", "/instances/:name/domains", ({ params, body }) => {
-  need("domains.manage", `/api/v1/instances/${params.name}/domains`);
+  needOn(params.name!, "domains.manage", `/api/v1/instances/${params.name}/domains`);
   const instance = instanceOf(params.name!);
   const value = String(body.domain ?? "");
   if (!value.trim()) throw new Problem(400, "Enter the domain, such as erp.example.com.");
@@ -878,7 +904,7 @@ route("POST", "/instances/:name/domains", ({ params, body }) => {
   return created(added);
 });
 route("PATCH", "/instances/:name/domains/:domain", ({ params, body }) => {
-  need("domains.manage", `/api/v1/instances/${params.name}/domains/${params.domain}`);
+  needOn(params.name!, "domains.manage", `/api/v1/instances/${params.name}/domains/${params.domain}`);
   const instance = instanceOf(params.name!);
   const found = ownDomain(instance, params.domain!);
   if (body.primary !== true) throw new Problem(400, 'Send {"primary": true} to make this the primary domain.');
@@ -890,13 +916,13 @@ route("PATCH", "/instances/:name/domains/:domain", ({ params, body }) => {
   return ok(found);
 });
 route("POST", "/instances/:name/domains/:domain/check", ({ params }) => {
-  need("domains.manage", `/api/v1/instances/${params.name}/domains/${params.domain}/check`);
+  needOn(params.name!, "domains.manage", `/api/v1/instances/${params.name}/domains/${params.domain}/check`);
   const instance = instanceOf(params.name!);
   ownDomain(instance, params.domain!);
   return ok(checkNow(instance, params.domain!));
 });
 route("DELETE", "/instances/:name/domains/:domain", ({ params, body }) => {
-  need("domains.manage", `/api/v1/instances/${params.name}/domains/${params.domain}`);
+  needOn(params.name!, "domains.manage", `/api/v1/instances/${params.name}/domains/${params.domain}`);
   const instance = instanceOf(params.name!);
   const found = ownDomain(instance, params.domain!);
   confirmProduction(instance, body, `remove ${found.domain}`);
@@ -952,7 +978,7 @@ function catching(name: string) {
 }
 
 route("GET", "/instances/:name/mail", ({ params, query }) => {
-  need("caught_mail.view", `/api/v1/instances/${params.name}/mail`);
+  needOn(params.name!, "caught_mail.view", `/api/v1/instances/${params.name}/mail`);
   const instance = catching(params.name!);
   const limit = Math.min(200, Number(query.get("limit") ?? 50));
   const found = caught.list(instance.name, query.get("q") ?? "", limit);
@@ -973,13 +999,13 @@ route("GET", "/instances/:name/mail", ({ params, query }) => {
   });
 });
 route("GET", "/instances/:name/mail/:id", ({ params }) => {
-  need("caught_mail.view", `/api/v1/instances/${params.name}/mail`);
+  needOn(params.name!, "caught_mail.view", `/api/v1/instances/${params.name}/mail`);
   const found = caught.detail(catching(params.name!).name, params.id!);
   if (!found) throw new Problem(404, "This e-mail does not exist (it may have been deleted, or removed after the retention period).");
   return ok(found);
 });
 route("DELETE", "/instances/:name/mail/:id", ({ params }) => {
-  need("caught_mail.manage", `/api/v1/instances/${params.name}/mail/${params.id}`);
+  needOn(params.name!, "caught_mail.manage", `/api/v1/instances/${params.name}/mail/${params.id}`);
   const instance = catching(params.name!);
   const subject = caught.detail(instance.name, params.id!)?.subject ?? "";
   if (!caught.remove(instance.name, params.id!)) throw new Problem(404, "This e-mail does not exist.");
@@ -987,13 +1013,13 @@ route("DELETE", "/instances/:name/mail/:id", ({ params }) => {
   return none();
 });
 route("DELETE", "/instances/:name/mail", ({ params }) => {
-  need("caught_mail.manage", `/api/v1/instances/${params.name}/mail`);
+  needOn(params.name!, "caught_mail.manage", `/api/v1/instances/${params.name}/mail`);
   const instance = catching(params.name!);
   record(ME, "caught e-mails deleted", { instance: instance.name, detail: `${caught.removeAll(instance.name)} e-mails` });
   return none();
 });
 route("POST", "/instances/:name/mail/:id/release", ({ params, body }) => {
-  need("caught_mail.manage", `/api/v1/instances/${params.name}/mail/${params.id}/release`);
+  needOn(params.name!, "caught_mail.manage", `/api/v1/instances/${params.name}/mail/${params.id}/release`);
   const instance = catching(params.name!);
   const to = String(body.to ?? "").trim();
   if (!/^[^@\s]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}$/.test(to)) throw new Problem(400, "Type one e-mail address to send the copy to.");
@@ -1179,6 +1205,13 @@ route("DELETE", "/users/:name", ({ params }) => {
   if (user.name === ME) throw new Problem(400, "You cannot delete your own account.");
   if (user.role === "super_admin" && superAdmins().length === 1) throw new Problem(400, "The last super admin cannot be deleted.");
   users.splice(users.indexOf(user), 1);
+  for (const team of teams.values()) team.members = team.members.filter((m) => m !== user.name);
+  const keep = <T extends { type: string; id: string }>(entries: T[]) => entries.filter((e) => !(e.type === "user" && e.id === user.name));
+  for (const project of projects.values()) {
+    project.access.grants = keep(project.access.grants);
+    for (const rule of Object.values(project.access.branches)) rule.grants = keep(rule.grants);
+    for (const lock of Object.values(project.access.locks)) lock.allow = keep(lock.allow);
+  }
   record(ME, "account deleted", { detail: user.name });
   return none();
 });
@@ -1585,8 +1618,19 @@ route("GET", "/marketplace/receipts", () => ok([]));
 
 function projectOf(id: string): DemoProject {
   const found = projects.get(id);
-  if (!found) throw new Problem(404, "This project does not exist.");
+  if (!found || !seesProject(found.access)) throw new Problem(404, "This project does not exist.");
   return found;
+}
+
+/** `permission` in a project (and branch): the role, then the project's access and the branch's lock. */
+function needInProject(project: DemoProject, permission: Permission, branch?: string, path = "") {
+  need(permission, path);
+  try {
+    needIn(project.access, permission, project.name, branch);
+  } catch (error) {
+    record(ME, `refused: ${path || permission}`, { ok: false, detail: `${project.id}${branch ? ` ${branch}` : ""}` });
+    throw error;
+  }
 }
 
 function projectMeta(project: DemoProject) {
@@ -1598,14 +1642,22 @@ function projectMeta(project: DemoProject) {
     capacity: { comfortable: c.comfortable, running: c.running, headroom: c.headroom, warning: c.warning, message: c.message, overloaded: c.overloaded },
     production_limit: Number(setting("project_production_branches") ?? 1) || null,
     server_production_limit: Number(setting("max_production_instances") ?? 0) || null,
+    permissions: permissionsIn(project.access).filter((p) => (PROJECT_SCOPED as string[]).includes(p)),
   };
 }
+
+const PROJECT_SCOPED: Permission[] = [
+  "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "instances.restore",
+  "instances.delete", "instances.credentials", "instances.resources", "instances.shell", "instances.database_shell",
+  "caught_mail.view", "caught_mail.manage", "backups.manage", "offsite.restore", "offsite.delete", "domains.manage",
+  "projects.manage", "projects.access",
+];
 
 const publishProject = (project: DemoProject) => publish("project", project.id, projectResource(project));
 
 route("GET", "/projects", () => {
   need("instances.view");
-  const list = [...projects.values()].sort((a, b) => a.name.localeCompare(b.name)).map(projectResource);
+  const list = [...projects.values()].filter((p) => seesProject(p.access)).sort((a, b) => a.name.localeCompare(b.name)).map(projectResource);
   const standalone = [...instances.values()].filter((i) => !i.project).map((i) => i.name).sort();
   return ok(list, { standalone, total: list.length });
 });
@@ -1656,7 +1708,7 @@ route("POST", "/projects", ({ body }) => {
   const shown = String(body.name ?? "").trim() || repository.split("/")[1]!;
   let id = slug(shown).slice(0, 36) || "project";
   for (let n = 2; projects.has(id); n++) id = `${slug(shown).slice(0, 33)}-${n}`;
-  const project: DemoProject = { id, name: shown, repository, repo, version, edition, origin: create ? "created" : "linked", created_at: Date.now(), created_by: ME, own: {}, stages: {}, autoCreated: {} };
+  const project: DemoProject = { id, name: shown, repository, repo, version, edition, origin: create ? "created" : "linked", created_at: Date.now(), created_by: ME, own: {}, stages: {}, autoCreated: {}, access: openAccess() };
   projects.set(id, project);
   PROJECT_NAMES[id] = shown;
   if (create) record(ME, "repository created on GitHub", { detail: repository });
@@ -1668,8 +1720,8 @@ route("POST", "/projects", ({ body }) => {
 const OPTION_CHOICES: Partial<Record<keyof ProjectOptions, string[]>> = { staging_on_push: ["rebuild", "keep_data"], branch_deleted: ["keep", "archive", "delete"] };
 
 route("PATCH", "/projects/:id", ({ params, body }) => {
-  need("projects.manage");
   const project = projectOf(params.id!);
+  needInProject(project, "projects.manage");
   if ("name" in body) {
     const name = String(body.name ?? "").trim();
     if (!name) throw new Problem(400, "Give the project a name.");
@@ -1697,8 +1749,8 @@ route("PATCH", "/projects/:id", ({ params, body }) => {
 });
 
 route("DELETE", "/projects/:id", ({ params, body }) => {
-  need("projects.manage");
   const project = projectOf(params.id!);
+  needInProject(project, "projects.manage");
   if (body.confirm !== project.id) throw new Problem(400, "Type the project's id exactly to confirm.");
   const members = membersOf(project.id);
   if (members.length) throw new Problem(409, `${project.name} still has ${members.length} instances. Delete them first; the repository on GitHub is never touched.`);
@@ -1709,9 +1761,9 @@ route("DELETE", "/projects/:id", ({ params, body }) => {
 });
 
 route("PUT", "/projects/:id/branches/:*branch/stage", ({ params, body }) => {
-  need("projects.manage");
   const project = projectOf(params.id!);
   const branch = params.branch!.replace(/\/stage$/, "");
+  needInProject(project, "projects.manage", branch);
   const stage = body.stage as Stage;
   if (!["production", "staging", "development"].includes(stage)) throw new Problem(400, "Choose a stage: production, staging or development.");
   const before = stageOf(project, branch);
@@ -1745,9 +1797,9 @@ route("PUT", "/projects/:id/branches/:*branch/stage", ({ params, body }) => {
 });
 
 route("POST", "/projects/:id/branches/:*branch/instances", ({ params, body }) => {
-  need("instances.create");
   const project = projectOf(params.id!);
   const branch = params.branch!.replace(/\/instances$/, "");
+  needInProject(project, "instances.create", branch);
   if (!branchList(project).some((b) => b.name === branch && b.on_github !== false)) throw new Problem(404, `${project.repository} has no branch ${branch} on GitHub.`);
   const stage = stageOf(project, branch);
   let fromProduction: Instance | null = null;
@@ -1774,9 +1826,9 @@ route("POST", "/projects/:id/branches/:*branch/instances", ({ params, body }) =>
 });
 
 route("POST", "/projects/:id/branches/:*branch/rebuild", ({ params, body }) => {
-  need("instances.restore");
   const project = projectOf(params.id!);
   const branch = params.branch!.replace(/\/rebuild$/, "");
+  needInProject(project, "instances.restore", branch);
   const members = membersOf(project.id).filter((i) => i.git.branch === branch);
   const instance = members.find((i) => i.name === body.instance) ?? members[0];
   if (!instance) throw new Problem(404, `${branch} has no instance to rebuild.`);
@@ -1800,6 +1852,173 @@ route("POST", "/projects/:id/branches/:*branch/rebuild", ({ params, body }) => {
   });
   record(ME, "Rebuild from production", { instance: instance.name, detail: `${project.id} ${branch}` });
   return accepted(job);
+});
+
+
+// ---------------------------------------------------------------- teams, access and locks (projects/access.py)
+
+const usedIn = (teamId: string) =>
+  [...projects.values()]
+    .filter((p) => {
+      const lists = [p.access.grants, ...Object.values(p.access.branches).map((b) => b.grants), ...Object.values(p.access.locks).map((l) => l.allow)];
+      return lists.some((entries) => entries.some((e) => e.type === "team" && e.id === teamId));
+    })
+    .map((p) => ({ id: p.id, name: p.name }));
+
+function teamOf(id: string) {
+  const team = teams.get(id);
+  if (!team) throw new Problem(404, "This team does not exist.");
+  return team;
+}
+
+function cleanMembers(raw: unknown): string[] {
+  if (!Array.isArray(raw)) throw new Problem(400, 'members: a list of account names, for example ["ada", "omar"].');
+  const found = [...new Set(raw.map(String))].sort();
+  const unknown = found.find((m) => !users.some((u) => u.name === m));
+  if (unknown) throw new Problem(400, `There is no account ${unknown}.`);
+  return found;
+}
+
+function cleanTeamName(raw: unknown, other?: string): string {
+  const name = String(raw ?? "").trim().replace(/\s+/g, " ");
+  if (!name) throw new Problem(400, "Give the team a name.");
+  if (name.length > 60) throw new Problem(400, "A team's name is at most 60 characters.");
+  if ([...teams.values()].some((t) => t.id !== other && t.name.toLowerCase() === name.toLowerCase())) throw new Problem(409, `There is a team called ${name} already.`);
+  return name;
+}
+
+route("GET", "/teams", () => {
+  if (!can("teams.manage")) need("projects.access", "/api/v1/teams");
+  return ok([...teams.values()].sort((a, b) => a.name.localeCompare(b.name)).map((t) => teamResource(t, usedIn(t.id))));
+});
+route("POST", "/teams", ({ body }) => {
+  need("teams.manage", "/api/v1/teams");
+  const name = cleanTeamName(body.name);
+  let id = slug(name).slice(0, 36) || "team";
+  for (let n = 2; teams.has(id); n++) id = `${slug(name).slice(0, 33)}-${n}`;
+  const team = { id, name, description: String(body.description ?? "").trim().slice(0, 200), members: "members" in body ? cleanMembers(body.members) : [], created_at: Date.now(), created_by: ME, changed_at: Date.now(), changed_by: ME };
+  teams.set(id, team);
+  record(ME, "team created", { detail: `${id} (${name}): members ${team.members.join(", ") || "none"}` });
+  return created(teamResource(team, []));
+});
+route("PATCH", "/teams/:id", ({ params, body }) => {
+  need("teams.manage", `/api/v1/teams/${params.id}`);
+  const team = teamOf(params.id!);
+  const before = [...team.members];
+  if ("name" in body) team.name = cleanTeamName(body.name, team.id);
+  if ("description" in body) team.description = String(body.description ?? "").trim().slice(0, 200);
+  if ("members" in body) team.members = cleanMembers(body.members);
+  Object.assign(team, { changed_at: Date.now(), changed_by: ME });
+  const added = team.members.filter((m) => !before.includes(m));
+  const removed = before.filter((m) => !team.members.includes(m));
+  record(ME, "team changed", { detail: `${team.id}: ${[added.length ? `added ${added.join(", ")}` : "", removed.length ? `removed ${removed.join(", ")}` : ""].filter(Boolean).join(", ") || "name or description changed"}` });
+  for (const project of projects.values()) publishProject(project);
+  return ok(teamResource(team, usedIn(team.id)));
+});
+route("DELETE", "/teams/:id", ({ params }) => {
+  need("teams.manage", `/api/v1/teams/${params.id}`);
+  const team = teamOf(params.id!);
+  teams.delete(team.id);
+  const keep = <T extends { type: string; id: string }>(entries: T[]) => entries.filter((e) => !(e.type === "team" && e.id === team.id));
+  for (const project of projects.values()) {
+    project.access.grants = keep(project.access.grants);
+    for (const rule of Object.values(project.access.branches)) rule.grants = keep(rule.grants);
+    for (const lock of Object.values(project.access.locks)) lock.allow = keep(lock.allow);
+    setLocks(project.id, project.access, announce);
+    publishProject(project);
+  }
+  record(ME, "team deleted", { detail: `${team.id} (${team.name})` });
+  return none();
+});
+
+function accessResource(project: DemoProject) {
+  const a = project.access;
+  return {
+    mode: a.mode,
+    grants: described(a.grants),
+    branches: Object.fromEntries(Object.entries(a.branches).map(([b, v]) => [b, { restricted: v.restricted, grants: described(v.grants) }])),
+    locks: Object.fromEntries(Object.entries(a.locks).map(([b, v]) => [b, { ...v, allow: described(v.allow) }])),
+    levels: LEVELS,
+  };
+}
+
+function cleanSubjects<T extends boolean>(raw: unknown, what: string, withLevel: T): T extends true ? DemoAccess["grants"] : DemoAccess["locks"][string]["allow"] {
+  if (raw == null) return [] as never;
+  if (!Array.isArray(raw)) throw new Problem(400, `${what}: a list of entries.`);
+  const found = new Map<string, Record<string, string>>();
+  for (const entry of raw as Record<string, unknown>[]) {
+    const type = entry.type === "team" || entry.type === "user" ? entry.type : null;
+    if (!type) throw new Problem(400, `${what}: type is team or user.`);
+    const id = String(entry.id ?? "");
+    const known = type === "team" ? teams.has(id) : users.some((u) => u.name === id);
+    if (!known) throw new Problem(400, `${what}: there is no ${type === "team" ? "team" : "account"} '${id}'.`);
+    const item: Record<string, string> = { type, id };
+    if (withLevel) {
+      if (!LEVELS.includes(entry.level as never)) throw new Problem(400, `${what}: level is ${LEVELS.join(", ")}.`);
+      item.level = String(entry.level);
+    }
+    found.set(`${type}:${id}`, item);
+  }
+  return [...found.values()] as never;
+}
+
+route("GET", "/projects/:id/access", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.access");
+  return ok(accessResource(project), { permissions: permissionsIn(project.access) });
+});
+route("PUT", "/projects/:id/access", ({ params, body }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.access");
+  const mode = body.mode === "restricted" ? "restricted" : "panel_roles";
+  const grants = cleanSubjects(body.grants, "grants", true);
+  const branches: DemoAccess["branches"] = {};
+  for (const [branch, rule] of Object.entries((body.branches ?? {}) as Record<string, Record<string, unknown>>)) {
+    const own = cleanSubjects(rule.grants, `branches.${branch}.grants`, true);
+    if (own.length || rule.restricted === true) branches[branch] = { restricted: rule.restricted === true, grants: own };
+  }
+  const after: DemoAccess = { ...project.access, mode, grants, branches };
+  if (!permissionsIn(after).includes("projects.access"))
+    throw new Problem(409, "After this change you could no longer manage this project's access. Grant yourself (or one of your teams) the admin level first.");
+  project.access = after;
+  record(ME, "project access changed", { detail: `${project.id}: mode ${mode}, ${grants.length} grants, branch rules ${Object.keys(branches).join(", ") || "none"}` });
+  publishProject(project);
+  return ok(accessResource(project));
+});
+route("PUT", "/projects/:id/branches/:*branch/lock", ({ params, body }) => {
+  const project = projectOf(params.id!);
+  const branch = params.branch!.replace(/\/lock$/, "");
+  const before = project.access.locks[branch];
+  if (before) {
+    need("projects.access");
+    if (!mayUnlock(project.access, branch))
+      throw new Problem(403, `The branch ${branch} is locked by ${before.locked_by}: only the people and teams its lock allows (and super admins) may change or remove it.`);
+  } else needInProject(project, "projects.access", branch, `lock ${project.id} ${branch}`);
+  if (!branchList(project, true).some((b) => b.name === branch)) throw new Problem(404, "There is no such branch.");
+  const allow = cleanSubjects(body.allow, "allow", false);
+  if (!allow.some((e) => e.type === "user" && e.id === ME) && !allow.some((e) => e.type === "team" && teams.get(e.id)?.members.includes(ME))) allow.push({ type: "user", id: ME });
+  const lock = { locked_by: before?.locked_by ?? ME, locked_at: before?.locked_at ?? Math.round(Date.now() / 1000), reason: String(body.reason ?? "").trim().slice(0, 200), allow };
+  project.access.locks[branch] = lock;
+  record(ME, before ? "branch lock changed" : "branch locked", { detail: `${project.id} ${branch}: allows ${allow.map((e) => `${e.type} ${e.id}`).join(", ")}` });
+  setLocks(project.id, project.access, announce);
+  publishProject(project);
+  return ok({ ...lock, allow: described(allow) });
+});
+route("DELETE", "/projects/:id/branches/:*branch/lock", ({ params }) => {
+  const project = projectOf(params.id!);
+  const branch = params.branch!.replace(/\/lock$/, "");
+  const lock = project.access.locks[branch];
+  if (!lock) throw new Problem(404, `${branch} is not locked.`);
+  need("projects.access", `unlock ${project.id} ${branch}`);
+  if (!mayUnlock(project.access, branch)) {
+    record(ME, `refused: unlock ${project.id} ${branch}`, { ok: false });
+    throw new Problem(403, `The branch ${branch} is locked by ${lock.locked_by}: only the people and teams its lock allows (and super admins) may unlock it.`);
+  }
+  delete project.access.locks[branch];
+  record(ME, "branch unlocked", { detail: `${project.id} ${branch} (locked by ${lock.locked_by})` });
+  setLocks(project.id, project.access, announce);
+  publishProject(project);
+  return none();
 });
 
 // ---------------------------------------------------------------- dispatching

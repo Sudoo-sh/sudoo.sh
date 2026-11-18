@@ -8,6 +8,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Teams, per-project and per-branch access, locked branches:** administrators make **Teams** (named groups of
+  accounts; new page in the sidebar) and give a team or a person a level in a project or one of its branches on the
+  project's new **Access** tab: no access, view, developer, maintainer or admin. What someone may do in a project is
+  their role ∩ their level there (a grant never adds to a role); their own grant comes first, else their teams'
+  highest. A project is open to everyone with their role (every existing project: nobody is locked out by the
+  upgrade) or **restricted** to those granted; a branch can have its own levels or be restricted (production for the
+  leads). A branch can be **locked**: nobody but the people and teams the lock allows may open (credentials, logs,
+  caught e-mails, the shell), change, update, deploy, back up, restore or delete its instances, change its stage or
+  copy its production data into staging; super admins must unlock first (always allowed). Automatic updates,
+  staging rebuilds, expiry, deleted-branch handling and new-branch instances skip locked branches, and a visit does
+  not start a paused one; a locked production branch keeps serving and keeps its daily backups. Locks show as a
+  **Locked** tag on branches and instances and a banner on the instance's page. Everything is enforced on the server
+  (`projects/access.py`) for the API, jobs, backups, off-site copies, shell tickets and WebSockets, the gateway and
+  the live events, with hidden projects, branches and instances left out of every list (404 when asked for), and
+  audited. New permissions `teams.manage` and `projects.access` (administrators and super admins). API:
+  `GET`/`POST /teams`, `GET`/`PATCH`/`DELETE /teams/<id>`, `GET`/`PUT /projects/<id>/access`,
+  `PUT`/`DELETE /projects/<id>/branches/<branch>/lock`; `lock` on instances and branches, `permissions` on branches
+  and in `meta` of `GET /instances/<name>` and `GET /projects/<id>`. English and Arabic; the demo has teams, an
+  access setup and a locked production branch. Docs: User manual (Teams, Project access and locked branches), Admin
+  guide, Security, Panel API.
+
 - **Projects in the web app:** **Projects** is the first entry of the sidebar (the Instances page is now **All
   instances**). The Projects page shows one card per project (repository, Odoo version and edition, branches per
   stage, instances running, paused or working, a needs-attention mark) and the plain Odoo instances **Without a
@@ -291,6 +312,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **API tokens act for their owner:** a token's permissions are now its scope's role ∩ the role of the account that
+  created it, and that account's teams, project access and locked branches apply to it. Tokens created with
+  `sudoo.sh create-token`, or whose creator was deleted, keep their scope's role but are kept out of restricted
+  projects and branches and cannot act on locked branches. Nothing changes while no project has access rules.
 - **Licence:** the panel is now licensed under the Sudoo.sh Licence Agreement 1.0 (LICENSE.md, also at
   https://sudoo.sh/legal/license) instead of the PolyForm Noncommercial License 1.0.0. Use is limited to the plans at
   https://sudoo.sh/pricing; contributions are licensed to the author as described in CONTRIBUTING.md.

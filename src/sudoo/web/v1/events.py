@@ -12,7 +12,9 @@ another step or ended), "job.output" (new log text of a job), "metrics" (resourc
 "settings", "plugins" (an installed plugin changed), "marketplace" (the connection to the hub changed); the last
 two carry no details, only that something changed; and "alert" (a new or changed alert, as GET /api/v1/alerts shows
 it; only for callers that may read the audit log), "offsite" (an off-site copy changed; its id, no details; only
-for callers that may manage backups). `?topics=job,instance` limits the stream to some topics. A
+for callers that may manage backups). Instances, jobs and projects hidden from the caller by project access
+(projects/access.py) are left out, and so are their figures in "metrics"; a project the caller can no longer see is
+sent as deleted. `?topics=job,instance` limits the stream to some topics. A
 comment line is sent every 20 seconds so proxies keep the connection open.
 
 After a lost connection, the browser's EventSource reconnects by itself and sends Last-Event-ID; the stream then
@@ -42,9 +44,10 @@ from flask import Flask
 
 from sudoo import api_tokens
 from sudoo.config import settings
+from sudoo.core import jobs
 from sudoo.core.events import BUS, Event
 from sudoo.instances import gateway
-from sudoo.roles import permissions
+from sudoo.projects import access
 
 from ..security import api_caller, client_ip_of, user_of_session
 from . import shell_socket
@@ -168,11 +171,43 @@ def _published_frame(event: Event) -> bytes:
 def _topics(request: web.Request, user: dict[str, str]) -> frozenset[str] | None:
     """The topics asked for (None: all), without those the caller may not receive (RESTRICTED)."""
     asked = {t.strip() for t in request.query.get("topics", "").split(",") if t.strip()}
-    allowed = permissions(user["role"])
+    allowed = access.role_permissions(user)
     hidden = {topic for topic, permission in RESTRICTED.items() if permission not in allowed}
     if not hidden:
         return frozenset(asked & TOPICS) if asked else None
     return frozenset((asked or TOPICS) & TOPICS - hidden)
+
+
+def _sees_everything(user: dict[str, str]) -> bool:
+    return access.sees_everything(user)
+
+
+def for_caller(user: dict[str, str], event: Event, data: Any) -> Any:
+    """The event's data as `user` may receive it (projects/access.py): None for an instance, job or project hidden
+    from them (a project they lost access to is sent as deleted), metrics without the hidden instances."""
+    if data is None or access.sees_everything(user):
+        return data
+    topic, key = event.topic, event.key
+    if topic in ("instance", "instance.deleted", "domains"):
+        return data if access.sees_instance(user, key) else None
+    if topic in ("job", "job.output"):
+        job = jobs.JOBS.get(key)
+        instance = job.instance if job is not None else (data.get("instance") if isinstance(data, dict) else None)
+        if instance and not jobs.is_panel_job(str(instance)) and not access.sees_instance(user, str(instance)):
+            return None
+        return data
+    if topic == "metrics" and isinstance(data, dict):
+        return {**data, "instances": access.visible_map(user, data.get("instances") or {})}
+    if topic == "project" and isinstance(data, dict) and not data.get("deleted"):
+        from sudoo import projects as model
+
+        from .projects import project_resource
+
+        found = model.get(key)
+        if found is None or not access.sees_project(user, found):
+            return {"id": key, "deleted": True}
+        return project_resource(found, user)
+    return data
 
 
 def _last_id(request: web.Request) -> int | None:
@@ -243,6 +278,7 @@ async def _send(request: web.Request, user: dict[str, str], session: dict[str, A
             else:
                 for old in missed:
                     data = await loop.run_in_executor(None, BUS.data_of, old)
+                    data = await loop.run_in_executor(None, for_caller, user, old, data)
                     if data is not None:
                         await response.write(_frame(old, data))
         checked = loop.time()
@@ -254,10 +290,13 @@ async def _send(request: web.Request, user: dict[str, str], session: dict[str, A
             else:
                 if event is None:  # too slow: closed; the browser reconnects with Last-Event-ID
                     break
-                if event.data is not None:
+                if event.data is not None and await loop.run_in_executor(None, _sees_everything, user):
                     await response.write(_published_frame(event))
                 else:
-                    data = await loop.run_in_executor(None, BUS.data_of, event)
+                    data = (
+                        event.data if event.data is not None else await loop.run_in_executor(None, BUS.data_of, event)
+                    )
+                    data = await loop.run_in_executor(None, for_caller, user, event, data)
                     if data is not None:
                         await response.write(_frame(event, data))
             if loop.time() - checked > _RECHECK_SECONDS:

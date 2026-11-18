@@ -16,6 +16,7 @@ import words from "@/i18n/demo";
 import { me, remember, switchRole } from "./backend/api";
 import { seedDomains } from "./backend/domains";
 import { seedProjects } from "./backend/projects";
+import { seedTeams } from "./backend/access";
 import { startMetrics } from "./backend/metrics";
 import { startScenario } from "./backend/scenario";
 import { roleInfo, seedAll, session } from "./backend/state";
@@ -33,6 +34,7 @@ export function start() {
     /* no sessionStorage: start signed in as an administrator */
   }
   seedAll();
+  seedTeams();
   seedProjects();
   seedDomains();
   installTransport();

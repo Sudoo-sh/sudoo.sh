@@ -13,7 +13,9 @@
 
 Permissions: backups.manage to see, check and copy again; offsite.configure to test the storage (its settings are
 changed with PATCH /api/v1/settings, which also needs it); offsite.restore and instances.restore to restore;
-offsite.delete to delete. "public_key" is a key kept off the server, used for this check only (after the server was
+offsite.delete to delete. A copy of an instance that exists needs these in that instance's project and branch too
+(projects/access.py): copies of hidden projects and branches are not listed, locked branches' copies are handled only
+by the people the lock allows, and restoring into an instance needs instances.restore in it. "public_key" is a key kept off the server, used for this check only (after the server was
 rebuilt, its own key is a new one). Restoring, deleting, testing and every check someone asks for are audit-logged.
 """
 
@@ -27,6 +29,7 @@ from sudoo.core import jobs
 from sudoo.instances import stages, store
 from sudoo.offsite import keys
 from sudoo.offsite.s3 import S3Error
+from sudoo.projects import access
 
 from .. import validation as check
 from ..security import log, refuse_unless, require
@@ -42,10 +45,20 @@ def _accepted(job: jobs.Job) -> Response:
     return response
 
 
-def _copy(copy_id: str) -> dict[str, object]:
+def _copy(copy_id: str, permission: str = "backups.manage") -> dict[str, object]:
+    """The copy, when the caller has `permission` in the instance it was taken from (when that instance exists)."""
     if not offsite.ID_RE.match(copy_id or ""):
         abort(404, "No such off-site copy.")
-    return offsite.get(copy_id) or abort(404, "No such off-site copy.")
+    found = offsite.get(copy_id) or abort(404, "No such off-site copy.")
+    owner = str(found.get("instance") or "")
+    if owner and store.exists(owner):
+        refusal = access.instance_refusal(g.user, permission, owner)
+        if refusal is not None:
+            log(f"refused: {permission} on the off-site copy {copy_id}", instance=owner, ok=False)
+            if refusal[0] == 404:
+                abort(404, "No such off-site copy.")
+            abort(*refusal)
+    return found
 
 
 def _public_key() -> str | None:
@@ -125,7 +138,10 @@ def scan() -> Response:
 @blueprint.get("/offsite/copies")
 @require("backups.manage")
 def list_copies() -> Response:
-    return ok([offsite.resource(record) for record in offsite.copies()])
+    found = offsite.copies()
+    existing = {str(r.get("instance") or "") for r in found if store.exists(str(r.get("instance") or ""))}
+    hidden = existing - set(access.visible_instances(g.user, existing))
+    return ok([offsite.resource(record) for record in found if str(record.get("instance") or "") not in hidden])
 
 
 @blueprint.post("/offsite/copies/<copy_id>/verify")
@@ -159,13 +175,14 @@ def retry(copy_id: str) -> Response:
 @blueprint.post("/offsite/copies/<copy_id>/restore")
 @require("offsite.restore")
 def restore(copy_id: str) -> Response:
-    record = _copy(copy_id)
+    record = _copy(copy_id, "offsite.restore")
     _need_storage()
     refuse_unless("instances.restore", f"restore the off-site copy {copy_id}")
     data = check.body()
     name = check.instance_name(check.text(data, "instance", max_length=40) or str(record["instance"]))
     if not store.exists(name):
         abort(404, f"There is no instance {name}. Create one of the same Odoo version first, then restore into it.")
+    refuse_unless("instances.restore", f"restore the off-site copy {copy_id} into {name}", instance=name)
     if record["status"] in ("uploading", "verifying"):
         abort(409, "This copy is being uploaded or checked right now.")
     if stages.is_production(store.read_env(name)) and check.flag(data, "confirm_production") is not True:
@@ -182,7 +199,7 @@ def restore(copy_id: str) -> Response:
 @blueprint.delete("/offsite/copies/<copy_id>")
 @require("offsite.delete")
 def delete(copy_id: str) -> Response:
-    record = _copy(copy_id)
+    record = _copy(copy_id, "offsite.delete")
     _need_storage()
     if record["status"] in ("uploading", "verifying"):
         abort(409, "This copy is being uploaded or checked right now.")

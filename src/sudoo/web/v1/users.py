@@ -25,9 +25,10 @@ from typing import Any
 
 from flask import Blueprint, Response, abort, g, request
 
-from sudoo import accounts, invitations, roles
+from sudoo import accounts, invitations, roles, teams
 from sudoo.core import audit
 from sudoo.mail import mailer
+from sudoo.projects import access
 
 from .. import validation as check
 from ..security import log, require
@@ -199,7 +200,11 @@ def delete_user(name: str) -> Response:
         accounts.delete(name)
     except ValueError as error:
         abort(400, str(error))
-    log("account deleted", detail=name)
+    in_teams = teams.forget_member(name)  # out of every team, grant and lock (projects/access.py)
+    in_projects = access.forget_user(name)
+    access.forget_restrictions()
+    log("account deleted", detail=name + (f"; removed from teams {', '.join(in_teams)}" if in_teams else "")
+        + (f"; removed from the access of {', '.join(in_projects)}" if in_projects else ""))  # fmt: skip
     return no_content()
 
 

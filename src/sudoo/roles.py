@@ -7,7 +7,8 @@ only a named set of permissions:
                                   go, and the other super admins
     admin         Administrator   everything except the panel's settings, the e-mail texts and where off-site copies
                                   go (sees plugins, cannot install them); adds and removes instances' custom domains;
-                                  restores from and deletes off-site copies
+                                  restores from and deletes off-site copies; manages teams, project access and
+                                  locked branches
     maintainer    Maintainer      creates projects and instances and does everything on them except deleting
                                   (restoring backups too); GitHub access
     developer     Developer       follows instances: gets new code, restarts, starts, adds submodules; reads the
@@ -19,6 +20,9 @@ Shells (webshell/): super admins and administrators open terminals in instances'
 instances.database_shell); the SHELL_ROLES setting adds maintainers, or maintainers and developers, for the Odoo
 container only (permissions() adds it); viewers never. Only super admins supervise shells (shells.supervise).
 SHELL_ENABLED off takes the shell permissions from everyone.
+
+Inside a project, a role's permissions are limited by the level the person has there (teams and grants, locked
+branches): projects/access.py. A role is the most anyone can do; a grant never adds to it.
 
 Accounts of earlier versions are renamed once when the panel starts (storage/migrate.py): "admin" becomes a super
 admin, "operator" (the sync operator) a developer. API tokens act as an administrator (write scope), a viewer
@@ -47,6 +51,9 @@ PERMISSIONS: dict[str, str] = {
     "instances.create": "Create instances",
     "projects.manage": "Create and link projects (one GitHub repository each), change their settings and the stages "
     "of their branches",
+    "projects.access": "Choose who may see and work in a project and its branches (grants, restricted projects and "
+    "branches) and lock or unlock branches",
+    "teams.manage": "Create, change and delete teams (named groups of accounts that project access is given to)",
     "instances.restore": "Restore an instance from a backup (replaces its database and files)",
     "instances.delete": "Delete instances",
     "instances.credentials": "See Odoo passwords and ports",

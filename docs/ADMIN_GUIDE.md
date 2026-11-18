@@ -34,6 +34,7 @@ domains and certificates, off-site copies of backups.
 22. [The licence agreement](#22-the-licence-agreement)
 23. [Mail catcher](#23-mail-catcher)
 24. [Projects and branches](#24-projects-and-branches)
+25. [Support access](#25-support-access)
 
 ---
 
@@ -1939,3 +1940,51 @@ plan comes from Sudoo.sh in the signed licence (`entitlements.py`); what people 
   toward it; past it the hub answers 429 until midnight UTC, and the panel stops sending them until then (Plugins
   says when they work again). Heartbeats, registration, licence checks, licence acceptances and command
   acknowledgements never count, so licences and plans keep working.
+
+---
+
+## 25. Support access
+
+A super admin or administrator can let Sudoo.sh support into the panel for a while, to look into a problem with
+them: **Settings › Support access** (super admins) or **Support access** in the side bar (administrators; the
+permission `support_access.manage`). It needs the panel connected to Sudoo.sh (`MARKETPLACE` on) and
+`SUPPORT_ACCESS` on (the default).
+
+### Granting
+
+A grant says:
+
+| Choice | What it means |
+| :--- | :--- |
+| **View** | See instances, their activity and logs (the viewer role). |
+| **Panel admin** | What an administrator does to instances: restart, update, back up, change, restore, delete. Never accounts, API tokens, teams, project access and locks, GitHub, the panel's settings, plugins or support access itself, and no shells. |
+| **Panel admin + shell** | The same with terminals in instances' containers (never as root). Every support shell is recorded, whatever `SHELL_RECORDING` says; production shells follow `SHELL_PRODUCTION`. |
+| **For how long** | 1 hour, 1 day or 3 days, up to `SUPPORT_ACCESS_MAX_HOURS`. It ends on its own then. |
+| **Where** | All projects and instances (restricted projects and branches stay closed), or chosen projects and instances (a chosen project's restricted branches stay closed; a chosen instance is open whatever restricts it). **Locked branches stay locked** in every case: support is never allowed by a lock and cannot unlock one. |
+| **Ticket** | Optional: the Sudoo.sh support ticket it is for. |
+
+**Withdraw** ends one grant at once; **End now** (on the banner every page shows while support is connected) ends
+every grant and every support session. Switching `SUPPORT_ACCESS` off ends them all too. At most 20 grants are active
+at once.
+
+### How support reaches the panel
+
+Nothing on the server is opened. While a grant is active, the panel keeps asking the Sudoo.sh hub for work over the
+connection it already has (the same signed link as the heartbeat: every call signed with the installation key, every
+answer checked against the hub's keys), about every 20 seconds while nothing happens. A support person at Sudoo.sh
+opens a **session** on the grant with a fresh code from their authenticator app; their requests come to the panel
+through that call, and the panel carries each out against its own API as **"Sudoo.sh support (their name)"** with
+exactly the grant's level and scope, then sends the answer back. Before each request it checks again that the grant
+is active and the session open; withdrawing works at once on the panel, and the hub hears of it within a second or
+two. When no grant is active the panel does not call for support at all.
+
+### What you see
+
+* **The banner** "Sudoo.sh support is connected (name)" on every page while a session is open, with **End now** for
+  those who manage support access.
+* **The activity log**: every request support makes that changes something or is refused, sessions starting and
+  ending, shells opened and closed, all under "Sudoo.sh support (name)" with a **Support** tag; granting, withdrawing
+  and "End now" under the admin's name; expiry under `system`.
+* **Shells**: support's are in the list of past shells and recorded like any other (super admins play them).
+
+Support access runs inside the panel: when the panel itself is down, it cannot help.

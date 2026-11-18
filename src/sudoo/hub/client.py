@@ -22,7 +22,7 @@ Answers
 A 429 `api_quota_exceeded` (the account used its daily hub API requests, sudoo-hub docs/PLANS.md) is remembered
 until its Retry-After (midnight UTC): until then the counted calls are refused without being sent, with a sentence
 that says when they work again; heartbeats, registration, keys, licence acceptances and command acknowledgements
-are never counted and always sent. Any other 429 carries its Retry-After in HubRefused.retry_after.
+and the support channel are never counted and always sent. Any other 429 carries its Retry-After in HubRefused.retry_after.
 
 A 401 `key_revoked` (the account owner revoked this server's key on app.sudoo.sh) makes the panel stop using its
 id and key: it makes a new identity, which registers again and must be linked again.
@@ -91,7 +91,8 @@ class HubRefused(Exception):
 
 
 QUOTA_EXEMPT = ("/api/v1/heartbeat", "/api/v1/register", "/api/v1/keys", "/api/v1/licenses/validate",
-                "/api/v1/installations/licence-acceptances", "/api/v1/commands/")  # fmt: skip
+                "/api/v1/installations/licence-acceptances", "/api/v1/commands/",
+                "/api/v1/installations/support/")  # fmt: skip
 """Calls the hub never counts toward the account's daily API quota (its licence never stops on the quota; the hub's
 api_quota.PANEL_FREE), and the hub's keys: they are sent even while the quota is used up."""
 QUOTA_KEY = "api_quota"

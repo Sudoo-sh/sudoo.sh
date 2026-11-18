@@ -8,6 +8,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Support access:** super admins and administrators let Sudoo.sh support into the panel for a while (Settings ›
+  Support access, or Support access in the side bar; permission `support_access.manage`): view, panel admin, or panel
+  admin with shells; 1 hour, 1 day or 3 days (`SUPPORT_ACCESS_MAX_HOURS`); all projects and instances or chosen ones
+  (restricted projects and branches stay closed unless chosen; locked branches always stay locked); an optional ticket.
+  Support reaches the panel only through its own signed connection to the Sudoo.sh hub (no inbound port): while a
+  grant is active the panel asks the hub for work and runs each request against its own API as
+  "Sudoo.sh support (staff name)" with exactly the grant's level and scope, never accounts, tokens, teams, access,
+  settings, plugins or support access itself. Every page shows "Sudoo.sh support is connected" with **End now**;
+  withdrawing takes effect at once. Everything support does is in the activity log, marked **Support**; support shells
+  are always recorded. Settings `SUPPORT_ACCESS` and `SUPPORT_ACCESS_MAX_HOURS`. Needs a hub with support access
+  (sudoo-hub migration 0019).
 - **Instances by stage in the heartbeat:** the `usage` the panel reports to Sudoo.sh now carries
   `instances_by_stage` (production, staging and development counts, as Settings › Plan shows them). Needs a hub that
   takes it (sudoo-hub with migration 0018): update the hub first.

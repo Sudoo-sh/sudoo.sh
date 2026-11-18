@@ -255,6 +255,21 @@ beyond clearing it, `POST /instances/<name>/domains`, `PATCH /settings` turning 
 expired answers 409 with the reason. While the hub answers 429 for the account's daily API quota, the marketplace
 endpoints answer **429** with `Retry-After` (seconds to midnight UTC) and say when they work again.
 
+### Support access
+
+Letting Sudoo.sh support into the panel for a while ([Admin guide](ADMIN_GUIDE.md#25-support-access)). Granting,
+withdrawing and ending are for people only: an API token is refused with 403.
+
+| Request | Permission | Body | Answer |
+| :--- | :--- | :--- | :--- |
+| `GET /support-access/status` | signed in | | 200, `connected`, `sessions` (`id`, `grant_id`, `staff_name`, `opened_at`, `expires_at`), `active_grants`, `can_end` |
+| `GET /support-access` | `support_access.manage` | | 200, `enabled`, `unavailable` (`off`, `not_connected` or `null`), `max_hours`, `durations`, `levels`, `shell_enabled`, `grants` (active first, then the last 20: `id`, `level`, `scope`, `ticket`, `hours`, `created_by`, `created_at`, `expires_at`, `revoked_at`, `revoked_by`, `state`, `sessions`), `sessions`, `channel` (`last_ok`, `error`) |
+| `POST /support-access/grants` | `support_access.manage` | `{"level": "view" \| "admin" \| "admin_shell", "hours": 1, "scope": {"all": true} or {"projects": [ids], "instances": [names]}, "ticket": "T-1042"}` | **201**, the grant; 400 for a choice that is not offered or a project or instance you do not see; 409 when support access is off or the panel is not connected to Sudoo.sh |
+| `DELETE /support-access/grants/<id>` | `support_access.manage` | | **204**: withdrawn at once |
+| `POST /support-access/end` | `support_access.manage` | | **204**: every grant withdrawn, every support session ended ("End now") |
+
+Audit entries (`GET /audit`) carry `support: true` when Sudoo.sh support made them.
+
 ### Teams
 
 | Method and path | Permission | Body | Answer |

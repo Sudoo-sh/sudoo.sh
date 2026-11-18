@@ -4,6 +4,8 @@ The backend answers:
     /api/v1/*   the API: an API token and signature (other systems), or the web app's session (the browser)
     /hooks/*    webhooks of update triggers, each checking its sender's own signature
     /docs/*     the documentation's images, for signed-in people
+Requests of Sudoo.sh support come from inside the process (support/channel.py), with their user in the WSGI
+environment (SUPPORT_ENVIRON) and checked against an active grant.
     /healthz    a health check
 A browser session must be valid:
     - a signed session cookie (HttpOnly, SameSite=Strict, Secure)
@@ -168,7 +170,16 @@ RESTRICTED_PREFIXES = ("/api/v1/session", "/api/v1/account", "/api/v1/contact") 
 LICENCE_PREFIXES = (*RESTRICTED_PREFIXES, "/api/v1/licence")  # all a super admin can open before accepting it
 
 
+SUPPORT_ENVIRON = "sudoo.support"
+"""The WSGI environment key that carries Sudoo.sh support's user for a request the support channel runs in this
+process (support/channel.py). Keys from the network never look like this (HTTP headers become HTTP_*)."""
+
+
 def _check_request() -> ResponseReturnValue | None:
+    support_user = request.environ.get(SUPPORT_ENVIRON)
+    if support_user is not None:
+        _authenticate_support_call(support_user)
+        return None
     if request.path.startswith(HOOKS_PREFIX) or request.path in PUBLIC_PATHS:
         return None
     if request.path.startswith(API_PREFIX):
@@ -184,6 +195,17 @@ def _check_request() -> ResponseReturnValue | None:
     if not g.user:
         return redirect("/login")
     return None
+
+
+def _authenticate_support_call(user: Any) -> None:
+    """A request Sudoo.sh support makes through the support channel: only /api/v1, only while its grant is active."""
+    from sudoo import support
+
+    if not isinstance(user, dict) or not request.path.startswith(API_PREFIX):
+        abort(404)
+    if support.grant_of(user) is None:
+        abort(403, "Support access to this panel was withdrawn or has ended.")
+    g.user = user
 
 
 def _authenticate_browser_call() -> None:

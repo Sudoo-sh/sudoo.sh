@@ -33,7 +33,7 @@ const ALL: Permission[] = [
   "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "projects.manage", "projects.access", "teams.manage", "instances.restore",
   "instances.delete", "instances.credentials", "instances.resources", "caught_mail.view", "caught_mail.manage", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
   "audit.view", "plugins.view", "settings.manage", "mail.manage", "offsite.configure", "offsite.restore", "offsite.delete",
-  "instances.shell", "instances.database_shell", "shells.supervise",
+  "instances.shell", "instances.database_shell", "shells.supervise", "support_access.manage",
 ];
 const SHELL: Permission[] = ["instances.shell", "instances.database_shell"];
 
@@ -67,6 +67,7 @@ export const PERMISSIONS: Record<Permission, string> = {
   "instances.shell": "Open a terminal in instances' Odoo containers (odoo shell too)",
   "instances.database_shell": "Open psql in instances' database containers",
   "shells.supervise": "See open and past shells, end them and play their recordings",
+  "support_access.manage": "Grant Sudoo.sh support temporary access to the panel, see it and withdraw it",
 };
 
 export const ROLES: RoleInfo[] = [

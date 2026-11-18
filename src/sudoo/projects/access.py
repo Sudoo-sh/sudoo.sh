@@ -29,6 +29,10 @@ A project's access (its "access" document)
     "none"), else the highest level of their teams' grants; the branch's grants first, then the project's; with no
     grant at all, "admin" (role decides) in a panel_roles project and "none" in a restricted project or branch.
 
+Sudoo.sh support
+    acts as a synthetic user (support/): its grant decides its level (support.level_in: "admin" inside the grant's
+    scope, "none" outside), it is in no team and no lock allows it, so locked branches stay locked to it.
+
 Super admins
     always have the level "admin" in every project and branch: grants and restricted modes never hide anything from
     them (they could give themselves access anyway, and they must be able to repair a project nobody can see). Locks
@@ -112,7 +116,10 @@ LOCKED_PERMISSIONS = PROJECT_PERMISSIONS - {"instances.view"}
 
 
 def person(user: Mapping[str, Any]) -> str | None:
-    """The account behind `user`: the account itself, or a token's owner (None when the owner no longer exists)."""
+    """The account behind `user`: the account itself, or a token's owner (None when the owner no longer exists, and
+    for Sudoo.sh support: no account, no team, never allowed by a lock)."""
+    if user.get("support"):
+        return None
     if user.get("token_id"):
         owner = user.get("owner")
         return str(owner) if owner and accounts.get(str(owner)) is not None else None
@@ -126,14 +133,21 @@ def _person_role(user: Mapping[str, Any]) -> str | None:
 
 
 def is_super_admin(user: Mapping[str, Any]) -> bool:
-    """A super admin, or a token whose owner is one."""
+    """A super admin, or a token whose owner is one (never Sudoo.sh support)."""
+    if user.get("support"):
+        return False
     if user.get("token_id"):
         return _person_role(user) == "super_admin"
     return user.get("role") == "super_admin"
 
 
 def role_permissions(user: Mapping[str, Any]) -> frozenset[str]:
-    """The role's permissions; for a token, its scope's role ∩ its owner's role (when the owner exists)."""
+    """The role's permissions; for a token, its scope's role ∩ its owner's role (when the owner exists); for
+    Sudoo.sh support, what its grant allows while it is active (support.permissions)."""
+    if user.get("support"):
+        from sudoo import support
+
+        return support.permissions(user)
     found = roles.permissions(str(user["role"]))
     if user.get("token_id"):
         owner_role = _person_role(user)
@@ -178,6 +192,10 @@ def branch_access(project: Mapping[str, Any] | None, branch: str | None) -> dict
 
 def level(user: Mapping[str, Any], project: Mapping[str, Any] | None, branch: str | None = None) -> str:
     """The level `user` has in `project` (and `branch`): see the module's description."""
+    if user.get("support"):
+        from sudoo import support
+
+        return support.level_in(user, project, branch)
     if project is None or is_super_admin(user):
         return "admin"
     if mode(project) not in MODES:  # an access mode this panel does not know: nothing rather than everything
@@ -309,13 +327,40 @@ def _project_id_of(name: str) -> str | None:
     return str(job.details.get("project") or "") or None if job else None
 
 
-def allowed_instance(user: Mapping[str, Any], permission: str, name: str) -> bool:
+def _support_scope(user: Mapping[str, Any], name: str) -> tuple[Mapping[str, Any] | None, str | None, bool]:
+    """(project, branch, chosen): an instance support's grant names itself is open to it whatever restricts its
+    project or branch (locks still apply)."""
     project, branch = scope_of_instance(name)
+    if user.get("support"):
+        from sudoo import support
+
+        return project, branch, support.chosen_instance(user, name)
+    return project, branch, False
+
+
+def _chosen_permissions(
+    user: Mapping[str, Any], project: Mapping[str, Any] | None, branch: str | None
+) -> frozenset[str]:
+    found = role_permissions(user)
+    lock = lock_of(project, branch)
+    return found - LOCKED_PERMISSIONS if lock is not None else found
+
+
+def allowed_instance(user: Mapping[str, Any], permission: str, name: str) -> bool:
+    project, branch, chosen = _support_scope(user, name)
+    if chosen:
+        return permission in _chosen_permissions(user, project, branch)
     return allowed(user, permission, project, branch)
 
 
 def instance_refusal(user: Mapping[str, Any], permission: str, name: str) -> tuple[int, str] | None:
-    project, branch = scope_of_instance(name)
+    project, branch, chosen = _support_scope(user, name)
+    if chosen:
+        if permission in _chosen_permissions(user, project, branch):
+            return None
+        if permission not in role_permissions(user):
+            return 403, f"Your role cannot do this ({roles.PERMISSIONS[permission].lower()})."
+        return 403, f"The branch {branch} is locked: support access does not open locked branches."
     found = refusal(user, permission, project, branch)
     if found and found[0] == 404:
         return 404, "This instance does not exist."
@@ -370,6 +415,8 @@ def forget_restrictions() -> None:
 
 def sees_everything(user: Mapping[str, Any]) -> bool:
     """Whether nothing is hidden from `user` (the fast path of lists and live events)."""
+    if user.get("support"):
+        return False
     return "instances.view" in role_permissions(user) and (is_super_admin(user) or not any_restriction())
 
 

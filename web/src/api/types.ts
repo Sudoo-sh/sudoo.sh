@@ -30,7 +30,8 @@ export type Permission =
   | "offsite.delete"
   | "instances.shell"
   | "instances.database_shell"
-  | "shells.supervise";
+  | "shells.supervise"
+  | "support_access.manage";
 
 export interface Profile {
   first_name: string | null;
@@ -755,6 +756,8 @@ export interface AuditEntry {
   ok: boolean;
   instance?: string;
   detail?: string;
+  /** done by Sudoo.sh support through support access */
+  support?: boolean;
 }
 
 export interface GitHubInstallation {
@@ -1169,4 +1172,45 @@ export interface PlanStatus {
   leaving_production: string[];
   links: { pricing: string; account: string; keep: string };
   checked_at: string | null;
+}
+
+/** Support access (GET /support-access, src/sudoo/web/v1/support_access.py). */
+export type SupportLevel = "view" | "admin" | "admin_shell";
+export interface SupportSession {
+  id: string;
+  grant_id: string;
+  staff_name: string;
+  opened_at: string | null;
+  expires_at: string | null;
+}
+export interface SupportGrant {
+  id: string;
+  level: SupportLevel;
+  scope: { all: boolean; projects: { id: string; name: string }[]; instances: string[] };
+  ticket: string | null;
+  hours: number | null;
+  created_by: string | null;
+  created_at: string | null;
+  expires_at: string | null;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  state: "active" | "withdrawn" | "expired";
+  sessions: SupportSession[];
+}
+export interface SupportOverview {
+  enabled: boolean;
+  unavailable: "off" | "not_connected" | null;
+  max_hours: number;
+  durations: number[];
+  levels: SupportLevel[];
+  shell_enabled: boolean;
+  grants: SupportGrant[];
+  sessions: SupportSession[];
+  channel: { last_ok: string | null; error: string | null };
+}
+export interface SupportStatus {
+  connected: boolean;
+  sessions: SupportSession[];
+  active_grants: number;
+  can_end: boolean;
 }

@@ -36,8 +36,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Sudoo-sh/sudoo-installer, main after Sudoo-sh/sudoo-installer#3
-  INSTALLER_REF: 695bf818febcf12b912d498effac743f8ec70ad3
+  # Sudoo-sh/sudoo-installer, main after Sudoo-sh/sudoo-installer#6
+  INSTALLER_REF: 2c6db116dd0856722dc2cad1244311ce10c33cdf
 
 jobs:
   version:
@@ -105,7 +105,11 @@ jobs:
             -e "s#^(    image: )\\$\\{SUDOO_PANEL_IMAGE:-[^}]*\\}\$#\\1$PANEL#" \
             -e "s#^(    image: )\\$\\{SUDOO_WEB_IMAGE:-[^}]*\\}\$#\\1$WEB#" \
             -e '/^    build: /d' compose.yaml > dist/compose.yaml
-          [ "$(grep -c '^    image: ghcr.io/sudoo-sh/sudoo-[a-z]*@sha256:[0-9a-f]\{64\}$' dist/compose.yaml)" = 3 ]
+          # four services: manager, gateway and mail on the panel's image (one digest), web on the web image
+          [ "$(grep -c '^    image: ghcr.io/sudoo-sh/sudoo-[a-z]*@sha256:[0-9a-f]\{64\}$' dist/compose.yaml)" = 4 ]
+          [ "$(grep -cxF "    image: $PANEL" dist/compose.yaml)" = 3 ]
+          [ "$(grep -cxF "    image: $WEB" dist/compose.yaml)" = 1 ]
+          grep -qx '    container_name: sudoo-mail' dist/compose.yaml
           if grep -q '^    build:' dist/compose.yaml; then exit 1; fi
           cp .env.example dist/env.example
           (cd dist && cp env.example .env && docker compose config --quiet && rm .env)
@@ -130,7 +134,7 @@ jobs:
           installer/build.sh "$VERSION" dist/compose.yaml dist/env.example LICENSE.md > dist/sudoo-install.sh
           grep -qx "SUDOO_RELEASE=\"$VERSION\"" dist/sudoo-install.sh
           grep -qx "SUDOO_LICENCE_SHA256=\"$(sha256sum LICENSE.md | cut -d' ' -f1)\"" dist/sudoo-install.sh
-          grep -qxF "    image: $PANEL" dist/sudoo-install.sh
+          [ "$(grep -cxF "    image: $PANEL" dist/sudoo-install.sh)" = 3 ]
           grep -qxF "    image: $WEB" dist/sudoo-install.sh
           docker run --rm -v "$PWD/dist:/dist:ro" sudoo-installer-tests shellcheck /dist/sudoo-install.sh
       - name: Both images exist for linux/amd64 and linux/arm64
@@ -148,6 +152,7 @@ jobs:
           grep -qF "$PANEL" dry-run.log
           grep -qF "$WEB" dry-run.log
           grep -qF "image: $PANEL" "$root/opt/odoo/manager/compose.yaml"
+          grep -qx '    container_name: sudoo-mail' "$root/opt/odoo/manager/compose.yaml"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-files

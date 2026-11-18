@@ -40,7 +40,8 @@ import { LiveChart } from "@/components/charts/LiveChart";
 import { JobLine, Monogram } from "@/components/InstanceCard";
 import { StageTag } from "@/components/StageTag";
 import { DomainsTab } from "@/components/DomainsTab";
-import { JobDrawer, Terminal } from "@/components/JobDrawer";
+import { JobDrawer } from "@/components/JobDrawer";
+import { LogView } from "@/components/LogView";
 import { Page, useCan } from "@/components/Shell";
 import { StatCard } from "@/components/StatCard";
 import { Button, Callout, CopyField, Empty, Field, Progress, Segmented, Skeleton, Status, Switch, Tag } from "@/components/ui/basics";
@@ -719,17 +720,15 @@ function LogsTab({ name }: { name: string }) {
   const [lines, setLines] = useState(300);
   const { data, isFetching, refetch } = useOdooLog(name, lines);
   const t = useT(words).logs;
-  return (
-    <div className="stack">
-      <div className="row">
-        <select className="select" style={{ width: 180 }} value={lines} onChange={(e) => setLines(Number(e.target.value))}>
-          {[100, 300, 1000, 3000].map((n) => <option key={n} value={n}>{t.lastLines(n)}</option>)}
-        </select>
-        <Button icon={<RefreshCw />} loading={isFetching} onClick={() => refetch()}>{t.refresh}</Button>
-      </div>
-      {data ? <Terminal text={data.text || t.empty} /> : <Skeleton height={300} />}
+  const tools = (
+    <div className="row">
+      <select className="select sm" aria-label={t.lines} value={lines} onChange={(e) => setLines(Number(e.target.value))}>
+        {[100, 300, 1000, 3000].map((n) => <option key={n} value={n}>{t.lastLines(n)}</option>)}
+      </select>
+      <Button size="sm" icon={<RefreshCw />} loading={isFetching} onClick={() => refetch()}>{t.refresh}</Button>
     </div>
   );
+  return data ? <LogView text={data.text} empty={t.empty} tools={tools} /> : <Skeleton height={300} />;
 }
 
 // ---------------------------------------------------------------- settings

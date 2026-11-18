@@ -1696,4 +1696,3 @@ make sure nothing caught can ever leave the server.
 | It is on the instance's network | `docker inspect sudoo-mail --format '{{json .NetworkSettings.Networks}}'` lists `odoo-<name>_default` (the panel adds it within 30 seconds). |
 | Odoo sends to it | The instance was restarted since it left production; in Odoo, Settings, Technical, Emails, the e-mail's state and its failure reason. |
 | Code that opens its own SMTP connection | Not caught: only Odoo's own mail sending goes through `odoo.conf` and `ir.mail_server`. A module that connects to an SMTP server by itself is not stopped (the instances can reach the Internet). |
-

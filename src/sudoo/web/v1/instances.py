@@ -63,8 +63,8 @@ from sudoo.config import settings
 from sudoo.core import events, jobs, vault
 from sudoo.core.state import STATE
 from sudoo.instances import backups, capacity, metrics, odoo, operations, resources, stages, store
-from sudoo.mailcatcher import panel as mail_catcher
 from sudoo.limits import quotas
+from sudoo.mailcatcher import panel as mail_catcher
 from sudoo.repos import github
 from sudoo.repos.gitrepo import origin_url
 

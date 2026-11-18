@@ -100,9 +100,10 @@ def _parts(message: EmailMessage) -> tuple[str, str, list[dict[str, Any]]]:
         kind = part.get_content_type()
         disposition = part.get_content_disposition()
         try:
-            payload = part.get_payload(decode=True) or b""
+            decoded = part.get_payload(decode=True)
         except (ValueError, TypeError, AssertionError):
-            payload = b""
+            decoded = b""
+        payload = decoded if isinstance(decoded, bytes) else b""
         if disposition != "attachment" and kind == "text/plain" and not text:
             text = _decode(part, payload)
         elif disposition != "attachment" and kind == "text/html" and not html:

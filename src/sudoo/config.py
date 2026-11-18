@@ -813,7 +813,10 @@ class Settings(BaseSettings):
         500, ge=10, le=100000, description="E-mails kept per instance in the mail catcher; the oldest go first."
     )
     mail_catcher_max_mb: int = Field(
-        200, ge=10, le=100000, description="Space the caught e-mails of one instance may take, in MB; the oldest go first."
+        200,
+        ge=10,
+        le=100000,
+        description="Space the caught e-mails of one instance may take, in MB; the oldest go first.",
     )
     mail_catcher_max_message_mb: int = Field(
         25, ge=1, le=100, description="Largest e-mail the mail catcher accepts, in MB; a larger one is refused."

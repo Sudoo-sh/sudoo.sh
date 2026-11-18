@@ -264,16 +264,16 @@ def maintain_forever() -> None:
                 clean()
                 for name in store.names():
                     running = monitor.STATUS.get(name, {}).get("running")
-                    if running and not jobs.busy(name) and catches(store.read_env(name)):
-                        if switch_off_mail_servers(name):
-                            from sudoo.core import audit
+                    skip = not running or jobs.busy(name) or not catches(store.read_env(name))
+                    if not skip and switch_off_mail_servers(name):
+                        from sudoo.core import audit
 
-                            audit.record(
-                                "system",
-                                None,
-                                "outgoing mail servers switched off (staging or development instance)",
-                                instance=name,
-                            )
+                        audit.record(
+                            "system",
+                            None,
+                            "outgoing mail servers switched off (staging or development instance)",
+                            instance=name,
+                        )
         except Exception as error:  # noqa: BLE001 - one bad round must not end the loop
             print(f"mailcatcher: maintenance failed: {error!r}", flush=True)
         time.sleep(MAINTAIN_SECONDS)

@@ -298,6 +298,7 @@ sudoo.sh/
     │   ├── operations.py          #   create, delete, back up, restore, restart, pause, updates, submodules
     │   ├── backups.py             #   Odoo-format backups, kinds, daily schedule, restore
     │   ├── gateway.py, status_pages.py, monitor.py
+    ├── mailcatcher/               # the mail catcher (container sudoo-mail): SMTP server, mailboxes, panel side
     ├── repos/                     # git and GitHub: the GitHub App, deploy keys, access checks, git helpers
     ├── exposure/                  # PLUGIN TYPE: how instances are reached
     │   ├── base.py                #   the interface

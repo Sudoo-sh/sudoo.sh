@@ -300,7 +300,7 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> 
     except TooLong:
         with contextlib.suppress(OSError):
             await session.reply("500 5.5.6 Line too long, closing")
-    except (TimeoutError, asyncio.TimeoutError):
+    except TimeoutError:
         with contextlib.suppress(OSError):
             await session.reply("421 4.4.2 Timeout, closing")
     except (ConnectionError, OSError):

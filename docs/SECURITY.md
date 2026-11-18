@@ -427,6 +427,8 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `instances.delete` | Delete instances, also by giving one a shorter lifetime | yes | yes | | | |
 | `instances.credentials` | See Odoo passwords and ports | yes | yes | yes | | |
 | `instances.resources` | Set an instance's resources: Odoo workers, time and memory limits, container limits | yes | yes | | | |
+| `caught_mail.view` | Read the e-mails caught from staging and development instances (the Mail tab) | yes | yes | yes | yes | |
+| `caught_mail.manage` | Delete caught e-mails and release them (send a copy to an address) | yes | yes | | | |
 | `backups.manage` | Download and delete backups; see, check and copy again off-site copies | yes | yes | | | |
 | `offsite.configure` | Set up where off-site copies go (the `OFFSITE_*` settings), and test it | yes | | | | |
 | `offsite.restore` | Restore an instance from an off-site copy (with `instances.restore`) | yes | yes | | | |
@@ -740,4 +742,3 @@ Staging and development instances send their e-mail to the mail catcher, `sudoo-
 | An e-mail's HTML attacks the person reading it | It is never put into the panel's page: it is served on its own address with `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src data:; ...; sandbox` (no scripts, no forms, no remote images or fonts, so no tracking pixel tells the sender it was opened) and shown in an `<iframe sandbox>` of the panel only (`frame-ancestors 'self'`). Inline images (`cid:`) are turned into `data:` addresses on the server. Attachments and the `.eml` always download as `application/octet-stream`. |
 | Caught e-mail leaves the server | Only by **Release**: administrators (`caught_mail.manage`), one typed address at a time, through the panel's own mailer, audit-logged with the address; `MAIL_CATCHER_RELEASE=false` switches it off. |
 | Caught e-mail piles up | Kept `MAIL_CATCHER_RETENTION_DAYS` (7), at most `MAIL_CATCHER_MAX_MESSAGES` (500) and `MAIL_CATCHER_MAX_MB` (200) per instance; a mailbox is deleted with its instance or when the instance moves to production. Files are mode 600 in a folder only root can open. |
-

@@ -936,4 +936,3 @@ export interface CaughtMailMeta {
   limits: { retention_days: number; max_messages: number; max_mb: number; max_message_mb: number };
   release: boolean;
 }
-

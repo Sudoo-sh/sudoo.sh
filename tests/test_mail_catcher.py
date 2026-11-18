@@ -293,7 +293,11 @@ def test_list_search_and_read_a_caught_e_mail(developer: Client) -> None:
     assert download.status_code == 200 and download.data == b"%PDF-1.4"
     assert download.mimetype == "application/octet-stream" and "attachment" in download.headers["Content-Disposition"]
     raw = client.get(f"/api/v1/instances/mc-dev/mail/{first}/raw")
-    assert raw.status_code == 200 and b"Quotation S00012" in raw.data and "attachment" in raw.headers["Content-Disposition"]
+    assert (
+        raw.status_code == 200
+        and b"Quotation S00012" in raw.data
+        and "attachment" in raw.headers["Content-Disposition"]
+    )
 
 
 def test_the_html_is_served_sandboxed_without_scripts_or_remote_content(developer: Client) -> None:
@@ -349,7 +353,9 @@ def test_who_may_read_delete_and_release(admin: Client, developer: Client, viewe
     assert not list(mailbox.summaries("mc-dev"))
 
 
-def test_release_sends_a_copy_from_the_panel_and_is_audit_logged(admin: Client, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_release_sends_a_copy_from_the_panel_and_is_audit_logged(
+    admin: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
     sent: list[EmailMessage] = []
 
     class FakeMailer:

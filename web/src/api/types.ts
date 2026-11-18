@@ -11,6 +11,8 @@ export type Permission =
   | "instances.delete"
   | "instances.credentials"
   | "instances.resources"
+  | "caught_mail.view"
+  | "caught_mail.manage"
   | "backups.manage"
   | "domains.manage"
   | "github.manage"
@@ -883,3 +885,55 @@ export interface ShellRecording {
   header: { version: number; width: number; height: number; timestamp: number; title?: string };
   events: ShellEvent[];
 }
+
+/** GET /help: what the help panel shows besides its own texts. */
+export interface HelpInfo {
+  version: string;
+  docs_url: string;
+  support: { kind: "hub" | "link" | "email" | "none"; url: string | null; name?: string };
+}
+
+/** One e-mail caught from a staging or development instance (GET /instances/<name>/mail). */
+export interface CaughtMail {
+  id: string;
+  /** seconds since 1970 */
+  received_at: number;
+  subject: string;
+  from: string;
+  to: string[];
+  cc: string[];
+  mail_from: string;
+  rcpt_to: string[];
+  date: string;
+  size: number;
+  has_html: boolean;
+  attachments: number;
+  snippet: string;
+}
+
+export interface CaughtMailAttachment {
+  index: number;
+  filename: string;
+  content_type: string;
+  size: number;
+}
+
+export interface CaughtMailDetail extends CaughtMail {
+  headers: [string, string][];
+  text: string;
+  attachment_list: CaughtMailAttachment[];
+  /** the demo only: the HTML itself (the real panel serves it on its own address, for a sandboxed frame) */
+  html?: string;
+}
+
+export interface CaughtMailMeta {
+  total: number;
+  count: number;
+  limit: number;
+  offset: number;
+  catcher: { running: boolean; exists: boolean };
+  usage: { messages: number; bytes: number };
+  limits: { retention_days: number; max_messages: number; max_mb: number; max_message_mb: number };
+  release: boolean;
+}
+

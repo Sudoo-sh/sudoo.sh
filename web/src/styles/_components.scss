@@ -878,3 +878,47 @@
 @media (prefers-reduced-motion: reduce) {
   .shell-frame[data-phase="connecting"] .shell-state .dot { animation: none; }
 }
+
+// ---------------------------------------------------------------- the help panel (components/HelpPanel.tsx)
+.drawer:focus { outline: none; }
+.drawer.help-panel {
+  width: min(420px, 100vw);
+  h2 { font-size: 17px; }
+  h3 { font-size: 13px; font-weight: 600; margin: 0 0 var(--s2); }
+  p { margin: 0; }
+}
+.help-sections {
+  gap: var(--s6);
+  section + section { padding-top: var(--s5); border-top: 1px solid var(--hairline); }
+}
+.help-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3); margin-bottom: var(--s1); }
+.help-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  margin-top: var(--s3);
+  font-size: 13px;
+  a { display: inline-flex; align-items: center; gap: 6px; }
+  svg { width: 14px; height: 14px; flex: none; }
+}
+.help-keys {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  > div { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: var(--s3); align-items: center; }
+  dt { display: flex; gap: 4px; justify-content: flex-start; }
+  dd { margin: 0; font-size: 13px; color: var(--text-2); }
+}
+// in Arabic the keys keep their left-to-right order but sit at the start of the line like the text
+:root[dir="rtl"] .help-keys dt { justify-content: flex-end; }
+.help-support { align-self: flex-start; text-decoration: none; }
+.help-version h3 { margin: 0; }
+.help-diagnostics {
+  margin: 0;
+  padding: var(--s3);
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  font-size: 11px;
+  white-space: pre-wrap;
+  user-select: all;
+}

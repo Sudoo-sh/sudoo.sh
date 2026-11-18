@@ -42,6 +42,10 @@ import type {
   InstanceResources,
   Setting,
   Token,
+  CaughtMail,
+  CaughtMailDetail,
+  CaughtMailMeta,
+  HelpInfo,
   User,
   Version,
 } from "./types";
@@ -52,6 +56,7 @@ export const keys = {
   instances: ["instances"] as const,
   instance: (name: string) => ["instance", name] as const,
   domains: (name: string) => ["domains", name] as const,
+  mail: (name: string) => ["caught-mail", name] as const,
   resources: (name: string) => ["resources", name] as const,
   jobs: (instance?: string) => ["jobs", instance ?? null] as const,
   job: (id: string) => ["job", id] as const,
@@ -268,6 +273,29 @@ export const useRecommendations = (enabled: boolean) =>
     enabled,
     retry: false,
     staleTime: 600_000,
+  });
+
+export const useHelpInfo = (enabled = true) =>
+  useQuery({ queryKey: ["help"], queryFn: () => api.get<HelpInfo>("/help"), enabled, staleTime: 300_000 });
+
+/** An instance's caught e-mails, newest first; asked again every 10 seconds while the tab is open. */
+export const useCaughtMail = (name: string, query: string, limit: number) =>
+  useQuery({
+    queryKey: [...keys.mail(name), query, limit],
+    queryFn: async () => {
+      const answer = await api.page<CaughtMail[]>(`/instances/${name}/mail?limit=${limit}&q=${encodeURIComponent(query)}`);
+      return { items: answer.data, meta: answer.meta as unknown as CaughtMailMeta };
+    },
+    placeholderData: keepPreviousData,
+    refetchInterval: 10_000,
+  });
+
+export const useCaughtMailDetail = (name: string, id: string | null) =>
+  useQuery({
+    queryKey: [...keys.mail(name), "detail", id],
+    queryFn: () => api.get<CaughtMailDetail>(`/instances/${name}/mail/${id}`),
+    enabled: !!id,
+    staleTime: Infinity,
   });
 
 /** A mutation that refreshes the given queries afterwards. */

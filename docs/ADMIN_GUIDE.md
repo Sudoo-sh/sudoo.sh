@@ -31,6 +31,7 @@ domains and certificates, off-site copies of backups.
 19. [Custom domains and certificates](#19-custom-domains-and-certificates)
 20. [Off-site copies](#20-off-site-copies)
 21. [Web shell](#21-web-shell)
+22. [Mail catcher](#22-mail-catcher)
 
 ---
 
@@ -517,6 +518,7 @@ then open `http://localhost:9000`. How public links work is explained in
 | `sudoo-web` | The web app (React, served by Caddy) on `PANEL_PORT` (9000). Forwards `/api`, `/hooks` and `/docs` to the backend and `/api/v1/events` to the live events. |
 | `sudoo-panel` | The backend: the API on `127.0.0.1:API_PORT` (9002), live events on `127.0.0.1:EVENTS_PORT` (9001), the monitor and the jobs; it starts, stops and changes the instances through the server's Docker. |
 | `sudoo-gateway` | The gateways in front of the instances: every instance's `GATEWAY_PORT`, where its connector points. Same image as `sudoo-panel`, without Docker access or the panel's data ([Gateway](concepts/GATEWAY.md#5-where-it-runs-its-own-container)). |
+| `sudoo-mail` | The mail catcher: the e-mail of staging and development instances ends here, never at real addresses ([Mail catcher](#22-mail-catcher)). Same image as `sudoo-panel`, without Docker access, `.env` or a published port. |
 | `sudoo-connector-panel` | The panel's Cloudflare connector. |
 | `sudoo-connector-<name>` | One connector per instance. |
 | `odoo-<name>-odoo-1`, `odoo-<name>-db-1` | The instance's Odoo and PostgreSQL. |
@@ -530,7 +532,7 @@ Do not restart or recreate the connector containers by hand: their links would c
 /opt/odoo/                                   root only
 ├── manager/
 │   ├── .env                                 settings (mode 600)
-│   ├── compose.yaml                         sudoo-panel, sudoo-gateway and sudoo-web, images pinned (written by
+│   ├── compose.yaml                         sudoo-panel, sudoo-gateway, sudoo-mail and sudoo-web, images pinned (written by
 │   │                                        the installer)
 │   ├── installer/                           sudoo-install.sh (the sudoo-install command), the running and the
 │   │                                        previous version (release, previous-release)
@@ -552,6 +554,9 @@ Do not restart or recreate the connector containers by hand: their links would c
 │   ├── routes.json                          the instances and their ports, written by the panel
 │   ├── visits.json                          the last visit of every instance, written by the gateway
 │   └── gateway.sock, panel.sock             how the two talk to each other
+├── mail/                                    shared by sudoo-panel and sudoo-mail (mode 700):
+│   ├── catcher.json                         the mailboxes (SHA-256 of each instance's SMTP password) and limits
+│   └── boxes/<name>/<id>.eml, <id>.json     the caught e-mails of a staging or development instance
 ├── manager-backup-<date>.tgz                /opt/odoo/manager before an update or rollback (mode 600)
 ├── enterprise/<version>/                    Enterprise add-ons (folder source, default ENTERPRISE_PATH)
 ├── enterprise-git/<version>/                Enterprise add-ons downloaded by the git source
@@ -574,6 +579,7 @@ Do not restart or recreate the connector containers by hand: their links would c
 | Web app log | `docker logs -f sudoo-web` |
 | Gateway log | `docker logs -f sudoo-gateway` |
 | Is the gateway service answering? | `docker exec sudoo-gateway sudoo.sh gateway --check && echo yes` |
+| Mail catcher log, and is it answering? | `docker logs -f sudoo-mail`, `docker exec sudoo-mail sudoo.sh mailcatcher --check && echo yes` |
 | Odoo log of an instance | `cd /opt/odoo/instances/<name> && docker compose logs -f odoo` |
 | Current links | `docker exec sudoo-panel sudoo.sh urls` |
 | Effective settings | `docker exec sudoo-panel sudoo.sh config` |
@@ -1622,3 +1628,72 @@ in the audit log. **Download (.cast)** saves a recording for `asciinema play`.
 The terminal is a WebSocket on the same server as the live events (`127.0.0.1:EVENTS_PORT`); the web service
 forwards `/api/v1/instances/<name>/shell/socket` there. A proxy of your own in front of the panel must pass
 WebSocket upgrades (`Upgrade` and `Connection` headers) on that path; Cloudflare tunnels do.
+
+## 22. Mail catcher
+
+Like Odoo.sh, staging and development instances never send real e-mail: a test that confirms an order, resets a
+password or runs a mass mailing must not reach customers. Their e-mail goes to the **mail catcher**, a small SMTP
+service in its own container, `sudoo-mail`, and each instance's **Mail** tab shows what it sent
+([User manual](USER_MANUAL.md#the-mail-tab)). Production instances keep their own mail settings and are never
+touched. How it is protected: [Security](SECURITY.md#16-mail-catcher).
+
+### How e-mail reaches it
+
+* **The service.** `sudoo-mail` runs the panel's own image (`sudoo.sh mailcatcher`), started with the others by
+  `docker compose up -d`. It has no Docker access, no `.env`, no published port, read-only system files and every
+  capability dropped, and its own network has no way out. It writes only `/opt/odoo/mail`.
+* **The network.** The panel connects `sudoo-mail` to the network of each staging and development instance's Odoo
+  container (`odoo-<name>_default`; the database is on another network) and disconnects it from production
+  instances, within 30 seconds of a change and at once when an instance starts.
+* **odoo.conf.** For staging and development the panel writes `smtp_server = sudoo-mail`, `smtp_port = 2525`,
+  `smtp_user = <instance>` and a password of the instance's own (`.env`, `MAIL_CATCHER_PASSWORD`); production's
+  `odoo.conf` has none of these.
+* **Odoo's own mail servers.** Odoo uses an outgoing mail server set up in its database (Settings, Technical,
+  Outgoing Mail Servers) before `odoo.conf`'s, so the panel switches every one of them off in staging and
+  development instances when they start, when they leave production, and every 5 minutes while they run. The
+  instance's job notes say when it did. Restoring another instance's data still neutralises it (no scheduled
+  actions, no mail servers), as before.
+
+An instance knows only its own SMTP password, and the catcher files each e-mail in the mailbox of the instance whose
+password was given: no instance can put e-mail in another's mailbox, and the panel shows each instance only its own.
+
+**Changing the stage.** Out of production: the instance's mail servers are switched off at once, so nothing goes
+out; Odoo sends to the catcher after its next start (Restart). Into production: `odoo.conf` loses the catcher's
+settings and its caught e-mails are deleted; switch its own mail server back on in Odoo (Settings, Technical,
+Outgoing Mail Servers) and restart it.
+
+### Settings
+
+**Settings, E-mail, Mail catcher** ([Configuration](CONFIGURATION.md#mail-catcher)):
+
+| Setting | Default | What it does |
+| :--- | :--- | :--- |
+| `MAIL_CATCHER_RETENTION_DAYS` | `7` | Caught e-mails older than this are deleted (checked every 5 minutes). |
+| `MAIL_CATCHER_MAX_MESSAGES` | `500` | E-mails kept per instance; the oldest go first. |
+| `MAIL_CATCHER_MAX_MB` | `200` | Space per instance; the oldest go first. |
+| `MAIL_CATCHER_MAX_MESSAGE_MB` | `25` | A larger e-mail is refused: Odoo shows it as not sent, with the catcher's answer. |
+| `MAIL_CATCHER_RELEASE` | `true` | Administrators may **Release** a caught e-mail (below). |
+
+### Who sees what
+
+| Permission | Roles | What it allows |
+| :--- | :--- | :--- |
+| `caught_mail.view` | developers, maintainers, administrators, super admins | The Mail tab: list, search, read, download the `.eml` and attachments. |
+| `caught_mail.manage` | administrators, super admins | Delete caught e-mails (one or all) and release them. |
+
+**Releasing** sends a copy of a caught e-mail to one address typed in the panel, for example to check how an
+invoice looks in a real mailbox. The copy keeps the content and attachments; it is sent through the panel's own
+e-mail settings (**Settings, E-mail**), from `MAIL_FROM` (sending as the original sender would fail SPF and DKIM),
+with the original sender as Reply-To, `[<instance>]` before the subject and an `X-Sudoo-Released-From` header.
+Every release, and every refused one, is in the audit log with the address. Set `MAIL_CATCHER_RELEASE=false` to
+make sure nothing caught can ever leave the server.
+
+### When the Mail tab stays empty
+
+| Check | How |
+| :--- | :--- |
+| The catcher runs | `docker ps` lists `sudoo-mail` as healthy; else `cd /opt/odoo/manager && docker compose up -d mail`. A `compose.yaml` from before 3.0 has no `mail` service: take the release's one. The Mail tab says when the catcher is not running. |
+| It is on the instance's network | `docker inspect sudoo-mail --format '{{json .NetworkSettings.Networks}}'` lists `odoo-<name>_default` (the panel adds it within 30 seconds). |
+| Odoo sends to it | The instance was restarted since it left production; in Odoo, Settings, Technical, Emails, the e-mail's state and its failure reason. |
+| Code that opens its own SMTP connection | Not caught: only Odoo's own mail sending goes through `odoo.conf` and `ir.mail_server`. A module that connects to an SMTP server by itself is not stopped (the instances can reach the Internet). |
+

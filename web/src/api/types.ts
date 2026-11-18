@@ -21,7 +21,10 @@ export type Permission =
   | "mail.manage"
   | "offsite.configure"
   | "offsite.restore"
-  | "offsite.delete";
+  | "offsite.delete"
+  | "instances.shell"
+  | "instances.database_shell"
+  | "shells.supervise";
 
 export interface Profile {
   first_name: string | null;
@@ -791,4 +794,58 @@ export interface Domains {
   listener_error: string | null;
   authority: "production" | "staging" | "custom";
   domains: CustomDomain[];
+}
+
+// ---------------------------------------------------------------- web shell (GET /api/v1/instances/<name>/shell)
+
+export type ShellTarget = "shell" | "odoo-shell" | "psql";
+export type ShellChoice = { allowed: true; user: string; recorded: boolean } | { allowed: false; code: string; reason: string };
+export interface ShellOptions {
+  enabled: boolean;
+  production: boolean;
+  running: boolean;
+  status: string;
+  targets: Record<ShellTarget, ShellChoice>;
+  root: { allowed: true; recorded: boolean } | { allowed: false; code: string; reason: string };
+  limits: { idle_minutes: number; max_minutes: number; per_user: number; per_instance: number };
+  open: number;
+  open_mine: number;
+}
+export interface ShellTicket {
+  ticket: string;
+  expires_in: number;
+  socket: string;
+  protocol: string;
+  target: ShellTarget;
+  container: string;
+  container_user: string;
+  root: boolean;
+  production: boolean;
+  recorded: boolean;
+}
+/** An open or past shell (GET /api/v1/shells, super admins) */
+export interface ShellSession {
+  id: string;
+  instance: string;
+  target: ShellTarget;
+  container_user: string;
+  root: boolean;
+  production: boolean;
+  user: string;
+  ip: string | null;
+  started_at: string;
+  ended_at: string | null;
+  duration_seconds: number | null;
+  reason: string | null;
+  recorded: boolean;
+  /** a recording can be played */
+  recording: boolean;
+  open: boolean;
+}
+/** asciicast v2: seconds since the start, "o" output, "i" input, "r" new size, "m" a note */
+export type ShellEvent = [number, "o" | "i" | "r" | "m", string];
+export interface ShellRecording {
+  session: ShellSession | null;
+  header: { version: number; width: number; height: number; timestamp: number; title?: string };
+  events: ShellEvent[];
 }

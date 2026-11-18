@@ -776,3 +776,105 @@
   &[data-level="3"] i:nth-child(-n + 3) { background: var(--positive); }
   &[data-level="4"] i { background: var(--positive); }
 }
+
+// ---------------------------------------------------------------- web shell (components/shell/)
+.shell-tab { display: flex; flex-direction: column; gap: var(--s5); }
+.shell-start {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+  p { margin: 0; }
+}
+.shell-root { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); }
+.shell-open { gap: var(--s3); align-items: center; }
+.shell-phone { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s2); }
+.shell-frame {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  overflow: hidden;
+}
+.shell-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 44px;
+  padding: var(--s1) var(--s2) var(--s1) var(--s4);
+  border-bottom: 1px solid var(--hairline);
+  font-size: var(--text-13);
+  .tag svg { width: 12px; height: 12px; }
+}
+.shell-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  color: var(--text-2);
+  b { color: var(--text); font-weight: 600; }
+  .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--idle); transition: background var(--quick) var(--ease); }
+}
+.shell-frame[data-phase="open"] .shell-state .dot { background: var(--positive); }
+.shell-frame[data-phase="connecting"] .shell-state .dot { background: var(--working); animation: blink 1s steps(1) infinite; }
+.shell-actions { display: inline-flex; align-items: center; gap: 2px; }
+.shell-notice {
+  padding: var(--s2) var(--s4);
+  border-bottom: 1px solid var(--hairline);
+  background: color-mix(in oklab, var(--caution) 10%, var(--surface));
+  color: var(--text);
+  font-size: var(--text-13);
+  animation: fade var(--quick) var(--ease) both;
+}
+.shell-screen {
+  position: relative;
+  height: clamp(360px, 62vh, 760px);
+  padding: var(--s2) 0 var(--s2) var(--s3);
+  background: var(--shell-bg);
+  .xterm { height: 100%; }
+  // the terminal's own background follows the theme at once (xterm.js paints the cells; these are behind them)
+  .xterm,
+  .xterm-viewport,
+  .xterm-scrollable-element { background-color: var(--shell-bg) !important; }
+  .xterm-viewport { scrollbar-color: var(--hairline-strong) transparent; }
+}
+.shell-host { width: 100%; height: 100%; }
+.shell-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, var(--shell-bg) 70%, transparent);
+}
+.shell-closed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  border-top: 1px solid var(--hairline);
+  font-size: var(--text-13);
+  animation: fade var(--quick) var(--ease) both;
+}
+// full screen: the browser's own full-screen mode (:fullscreen), or the whole window where there is none
+.shell-frame:fullscreen,
+.shell-full {
+  border: 0;
+  border-radius: 0;
+  .shell-screen { flex: 1; height: auto; min-height: 0; }
+}
+.shell-full {
+  position: fixed;
+  z-index: 70;
+  inset: 0;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+.shell-player {
+  height: min(60vh, 460px);
+  border-radius: var(--radius-control);
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell-frame[data-phase="connecting"] .shell-state .dot { animation: none; }
+}

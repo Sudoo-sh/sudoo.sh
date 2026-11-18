@@ -4,6 +4,8 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./client";
 import type {
+  ShellOptions,
+  ShellSession,
   Invitation,
   InvitationPolicy,
   Alert,
@@ -184,6 +186,20 @@ export const useInvitations = () =>
       const page = await api.page<Invitation[]>("/invitations");
       return { invitations: page.data, policy: page.meta as unknown as InvitationPolicy };
     },
+  });
+/** What the caller may open in the instance's Shell tab, and why not (web shell). */
+export const useShellOptions = (name: string) =>
+  useQuery({
+    queryKey: ["shell", name],
+    queryFn: () => api.get<ShellOptions>(`/instances/${name}/shell`),
+  });
+/** Open and past shells of an instance (super admins). */
+export const useShells = (instance: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ["shells", instance],
+    queryFn: () => api.get<ShellSession[]>(`/shells?instance=${encodeURIComponent(instance)}`),
+    enabled,
+    refetchInterval: 15_000,
   });
 export const useOdooLog = (name: string, lines: number) =>
   useQuery({

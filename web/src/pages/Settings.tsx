@@ -65,6 +65,8 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       { id: "signInEmail", keys: ["sign_in_email", "sign_in_email_opt_out", "recovery_codes_count"] },
       { id: "invitations", keys: ["invitation_hours", "invitation_password_fallback", "invitations_per_hour"] },
       { id: "requests", keys: ["rate_limit_reads_per_minute", "rate_limit_changes_per_minute", "rate_limiter"] },
+      { id: "webShell", keys: ["shell_enabled", "shell_roles", "shell_production", "shell_root", "shell_idle_minutes", "shell_max_minutes", "shell_max_per_user", "shell_max_per_instance", "shell_ticket_seconds"] },
+      { id: "shellRecordings", keys: ["shell_recording", "shell_recording_days", "shell_recording_max_mb", "shell_recordings_total_mb"] },
     ],
   },
   {

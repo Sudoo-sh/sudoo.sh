@@ -32,7 +32,7 @@ const MAINTAIN: Permission[] = [...DEVELOP, "instances.operate", "instances.rest
 const ALL: Permission[] = [
   "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "instances.restore",
   "instances.delete", "instances.credentials", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
-  "audit.view", "plugins.view", "settings.manage", "mail.manage",
+  "audit.view", "plugins.view", "settings.manage", "mail.manage", "offsite.configure", "offsite.restore", "offsite.delete",
 ];
 
 export const PERMISSIONS: Record<Permission, string> = {
@@ -44,7 +44,7 @@ export const PERMISSIONS: Record<Permission, string> = {
   "instances.restore": "Restore an instance from a backup (replaces its database and files)",
   "instances.delete": "Delete instances",
   "instances.credentials": "See Odoo passwords and ports",
-  "backups.manage": "Download and delete backups",
+  "backups.manage": "Download and delete backups; see, check and copy again off-site copies",
   "domains.manage": "Add and remove instances' custom domains (seeing them needs instances.view)",
   "github.manage": "Manage deploy keys; see the GitHub App's state",
   "accounts.manage": "Create, change and delete accounts",
@@ -53,11 +53,14 @@ export const PERMISSIONS: Record<Permission, string> = {
   "plugins.view": "See installed plugins, the marketplace and purchases",
   "settings.manage": "Change the panel's settings, install and buy plugins, and restart it",
   "mail.manage": "Change the texts of the e-mails the panel sends",
+  "offsite.configure": "Set up where off-site copies go, and test it",
+  "offsite.restore": "Restore an instance from an off-site copy (it is downloaded and verified first)",
+  "offsite.delete": "Delete off-site copies",
 };
 
 export const ROLES: RoleInfo[] = [
   { name: "super_admin", label: "Super admin", description: "Everything, including the panel's settings.", permissions: ALL },
-  { name: "admin", label: "Administrator", description: "Everything except the panel's settings and e-mail texts.", permissions: ALL.filter((p) => p !== "settings.manage" && p !== "mail.manage") },
+  { name: "admin", label: "Administrator", description: "Everything except the panel's settings and e-mail texts.", permissions: ALL.filter((p) => p !== "settings.manage" && p !== "mail.manage" && p !== "offsite.configure") },
   { name: "maintainer", label: "Maintainer", description: "Creates instances and runs every action on them except deleting.", permissions: MAINTAIN },
   { name: "developer", label: "Developer", description: "Gets new code, restarts and starts instances, adds submodules.", permissions: DEVELOP },
   { name: "viewer", label: "Viewer", description: "Sees instances, their activity and logs.", permissions: VIEW },

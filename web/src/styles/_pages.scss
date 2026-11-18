@@ -834,3 +834,17 @@
   .invited-avatar { background: transparent; border: 1px dashed var(--hairline-strong); color: var(--text-3); }
   .invited-state { display: inline-flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
 }
+
+// ---------------------------------------------------------------- backups: where each backup is, off-site copies
+.backup-reason {
+  display: block;
+  max-width: 48ch;
+  line-height: 1.4;
+  &.negative { color: var(--negative); }
+}
+.backup-key {
+  font-size: var(--text-12);
+  min-height: 88px;
+  resize: vertical;
+}
+.backup-key-label { font-weight: 600; }

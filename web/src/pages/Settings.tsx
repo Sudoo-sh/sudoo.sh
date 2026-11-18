@@ -1,13 +1,13 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell, Mail, Plug, Puzzle, RefreshCcw, RotateCcw, Send, ServerCog, Webhook } from "lucide-react";
+import { Bell, CloudUpload, Download, KeyRound, Mail, Plug, PlugZap, Puzzle, RefreshCcw, RotateCcw, Send, ServerCog, Webhook } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, errorText } from "@/api/client";
-import { keys, useCall, useSettings } from "@/api/queries";
+import { keys, useCall, useOffsite, useSettings } from "@/api/queries";
 import type { Setting } from "@/api/types";
 import { MarketplaceSettings } from "@/components/Marketplace";
 import { Page, PageHead, useMe, useSubCrumb } from "@/components/Shell";
-import { Button, Callout, Skeleton, Switch, Tag } from "@/components/ui/basics";
+import { Button, Callout, CopyField, Skeleton, Switch, Tag } from "@/components/ui/basics";
 import { Modal, useToast } from "@/components/ui/overlay";
 import { useLocale, useT } from "@/i18n";
 import common from "@/i18n/common";
@@ -46,7 +46,18 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       { id: "enterprise", keys: ["enterprise_source", "enterprise_path", "enterprise_git_url", "enterprise_git_branch", "enterprise_marker"] },
     ],
   },
-  { id: "backups", groups: [{ id: "backups", keys: ["daily_backups", "staging_daily_backups", "daily_backup_time", "timezone", "rollback_hours", "safe_updates"] }] },
+  {
+    id: "backups",
+    groups: [
+      { id: "backups", keys: ["daily_backups", "staging_daily_backups", "daily_backup_time", "timezone", "rollback_hours", "safe_updates"] },
+      {
+        id: "offsiteStorage",
+        keys: ["offsite_backups", "offsite_endpoint", "offsite_region", "offsite_bucket", "offsite_prefix", "offsite_addressing", "offsite_access_key_id", "offsite_secret_access_key"],
+      },
+      { id: "offsiteRules", keys: ["offsite_other_stages", "offsite_kinds", "offsite_verify_days", "offsite_timeout_seconds"] },
+      { id: "offsiteRetention", keys: ["offsite_keep_daily_production", "offsite_keep_monthly_production", "offsite_keep_daily_other", "offsite_keep_monthly_other"] },
+    ],
+  },
   {
     id: "security",
     groups: [
@@ -72,6 +83,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       { id: "jobs", keys: ["alert_job_failed", "alert_update_failed", "alert_backup_failed", "alert_drift"] },
       { id: "instancesServer", keys: ["alert_instance_down", "alert_instance_down_minutes", "alert_public_link", "alert_public_link_minutes", "alert_memory", "alert_memory_minutes", "alert_disk", "alert_disk_free_percent"] },
       { id: "certificateAlerts", keys: ["alert_certificate", "alert_certificate_days"] },
+      { id: "offsiteAlerts", keys: ["alert_offsite_failed", "alert_offsite_missing", "alert_offsite_missing_hours"] },
       { id: "howOften", keys: ["alert_recovery", "alert_quiet_minutes", "alert_digest", "alert_digest_time", "alert_webhook_timeout_seconds"] },
       webhookGroup(1),
       webhookGroup(2),
@@ -204,6 +216,54 @@ function useTestAlert() {
   return { busy, send };
 }
 
+/** Writes, reads back, lists and deletes a test file with the saved off-site settings. */
+function useOffsiteTest() {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const t = useT(words).offsite;
+  const run = async (unsaved: boolean) => {
+    setBusy(true);
+    try {
+      const result = await api.post<{ location: string }>("/offsite/test");
+      toast("success", t.tested, t.testedText(result.location) + (unsaved ? `. ${t.unsaved}` : ""));
+    } catch (error) {
+      toast("error", t.notTested, errorText(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { busy, run };
+}
+
+/** The panel's signing key: the public half and its fingerprint, to keep off the server, and what it protects. */
+function SigningKey() {
+  const { data } = useOffsite();
+  const t = useT(words).offsite;
+  return (
+    <Section title={t.keyTitle} text={t.keyText} icon={<KeyRound />}
+      actions={data?.public_key ? <a className="btn sm" href="/api/v1/offsite/public-key" download><Download /> {t.download}</a> : undefined}>
+      <div className="card-body stack">
+        {data?.public_key ? (
+          <>
+            <div className="stack-sm">
+              <div className="small muted">{t.fingerprint}</div>
+              <CopyField value={data.fingerprint ?? ""} />
+            </div>
+            <div className="stack-sm">
+              <div className="small muted">{t.publicKey}</div>
+              <CopyField value={data.public_key.trim()} block />
+            </div>
+            <Callout tone="warning">{t.keepOff}</Callout>
+          </>
+        ) : (
+          <p className="small muted">{t.noKey}</p>
+        )}
+        <p className="small muted">{t.trust}</p>
+      </div>
+    </Section>
+  );
+}
+
 /** The tabs as an accessible tablist: arrow keys, Home and End move between tabs and open them; the chosen tab is
  *  the only one in the Tab order. A dot marks a tab with unsaved changes, or one waiting for a restart. */
 function TabList({ tab, onSelect, marks }: { tab: TabId; onSelect: (id: TabId) => void; marks: Record<string, { unsaved: number; restart: boolean }> }) {
@@ -274,6 +334,7 @@ export function SettingsPage() {
   const [draft, setDraft] = useState<Record<string, Value>>({});
   const [testing, setTesting] = useState(false);
   const testAlert = useTestAlert();
+  const offsiteTest = useOffsiteTest();
   const [restarting, setRestarting] = useState(false);
   const t = useT(words);
   const all = useT(common);
@@ -389,9 +450,16 @@ export function SettingsPage() {
               <Section
                 key={group.id}
                 {...groupWords(t, group)}
-                icon={group.id === "email" ? <Mail /> : group.test === "email" ? <Bell /> : group.test ? <Webhook /> : undefined}
+                icon={group.id === "email" ? <Mail /> : group.id === "offsiteStorage" ? <CloudUpload /> : group.test === "email" ? <Bell /> : group.test ? <Webhook /> : undefined}
                 actions={
-                  group.id === "email" ? (
+                  group.id === "offsiteStorage" ? (
+                    me.permissions.includes("offsite.configure") ? (
+                      <Button size="sm" icon={<PlugZap />} loading={offsiteTest.busy} disabled={!byKey.offsite_endpoint?.value || !byKey.offsite_bucket?.value}
+                        onClick={() => offsiteTest.run(group.keys.some((k) => dirty.includes(k)))}>
+                        {t.offsite.test}
+                      </Button>
+                    ) : undefined
+                  ) : group.id === "email" ? (
                     <div className="row">
                       {me.permissions.includes("mail.manage") && <Link className="btn sm ghost" to="/email-templates" viewTransition>{t.testEmail.texts}</Link>}
                       <Button size="sm" icon={<Send />} onClick={() => setTesting(true)}>{t.testEmail.open}</Button>
@@ -407,6 +475,7 @@ export function SettingsPage() {
                 {rows(group.keys)}
               </Section>
             ))}
+            {tab === "backups" && <SigningKey />}
             {tab === "marketplace" && (
               <Section title={t.marketplace.title} text={t.marketplace.text} icon={<Puzzle />}
                 actions={<Link className="btn sm" to="/plugins" viewTransition>{t.marketplace.open}</Link>}>

@@ -44,7 +44,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       { id: "stages", keys: ["max_production_instances", "production_auto_update", "staging_delete_after_days"] },
       {
         id: "projects",
-        keys: ["project_production_branches", "project_auto_development", "project_max_auto_development", "project_development_demo_data", "project_staging_on_push", "project_branch_deleted"],
+        keys: ["project_production_branches", "project_auto_development", "project_max_auto_development", "project_development_demo_data", "project_staging_on_push", "project_branch_deleted", "project_upgrade_test_on_push"],
       },
       { id: "howMany", keys: ["max_instances", "max_instances_per_user", "create_cooldown_minutes"] },
       { id: "capacity", keys: ["capacity_reserve_mb", "capacity_reserve_percent", "capacity_instance_memory_mb", "capacity_warning_percent", "max_running_instances"] },
@@ -58,6 +58,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
     groups: [
       { id: "versions", keys: ["odoo_versions", "odoo_min_version", "prepull_images", "odoo_image", "postgres_image"] },
       { id: "enterprise", keys: ["enterprise_source", "enterprise_path", "enterprise_git_url", "enterprise_git_branch", "enterprise_marker"] },
+      { id: "upgrades", keys: ["upgrade_methods", "openupgrade_repository", "openupgrade_refs", "openupgrade_lib", "upgrade_rollback_minutes", "upgrade_max_hours", "upgrade_service_url"] },
     ],
   },
   {

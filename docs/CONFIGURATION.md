@@ -47,13 +47,14 @@ reset with **Use .env**.
 10. [Custom domains](#custom-domains)
 11. [Ports](#ports)
 12. [Behaviour](#behaviour)
-13. [Off-site copies](#off-site-copies)
-14. [Alerts](#alerts)
-15. [Web shell](#web-shell)
-16. [Mail catcher](#mail-catcher)
-17. [Help panel](#help-panel)
-18. [Marketplace](#marketplace)
-19. [Locations](#locations)
+13. [Database upgrades](#database-upgrades)
+14. [Off-site copies](#off-site-copies)
+15. [Alerts](#alerts)
+16. [Web shell](#web-shell)
+17. [Mail catcher](#mail-catcher)
+18. [Help panel](#help-panel)
+19. [Marketplace](#marketplace)
+20. [Locations](#locations)
 
 ---
 
@@ -407,6 +408,23 @@ its own.
 | `PROJECT_DEVELOPMENT_DEMO_DATA` | bool | `true` | **live** | Development instances of projects start with Odoo's demo data. Staging and production never get demo data. |
 | `PROJECT_STAGING_ON_PUSH` | text | `rebuild` | **live** | A push to a staging branch: `rebuild` replaces the staging instance's data with a new neutralised copy of production, then takes the new code; `keep_data` only takes the new code (like a development instance). |
 | `PROJECT_BRANCH_DELETED` | text | `archive` | **live** | A branch deleted on GitHub: its development instance is kept (`keep`), backed up and switched off (`archive`), or deleted after a backup (`delete`). A staging instance is archived at most, a production instance only shows that its branch is gone. |
+| `PROJECT_UPGRADE_TEST_ON_PUSH` | bool | `true` | **live** | A push to a project's upgrade branch (named after the next Odoo version, such as `19.0`) runs its database upgrade test again on the test instance: a fresh backup of the instance being upgraded, OpenUpgrade, neutralised. With Odoo's upgrade service (Enterprise) the push only gives the test instance the new code, because the subscription code is never kept. See [Database upgrades](ADMIN_GUIDE.md#25-database-upgrades). |
+
+## Database upgrades
+
+How databases move to a newer Odoo version ([User Manual](USER_MANUAL.md#upgrading-to-a-newer-odoo-version),
+[Admin Guide](ADMIN_GUIDE.md#25-database-upgrades)). Only administrators and super admins upgrade (permission
+`instances.upgrade`).
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `UPGRADE_METHODS` | text | `enterprise,openupgrade` | **live** | The methods allowed, comma-separated: `enterprise` (Enterprise databases: Odoo S.A.'s upgrade service, with the customer's own Enterprise subscription code, under Odoo's terms) and `openupgrade` (Community databases: OCA OpenUpgrade). Empty: no upgrades. |
+| `UPGRADE_SERVICE_URL` | text | `https://upgrade.odoo.com` | `.env` only | Odoo's upgrade service. Its upgrade script is downloaded from `<address>/upgrade` each time an upgrade runs. Only in `.env`, because the subscription code is sent there. |
+| `OPENUPGRADE_REPOSITORY` | text | `https://github.com/OCA/OpenUpgrade` | **live** | The GitHub repository of OpenUpgrade. The temporary container that runs an upgrade downloads its sources from here, at the pinned commit. |
+| `OPENUPGRADE_REFS` | text | the 16.0 to 20.0 branches, pinned | **live** | The OpenUpgrade commit used to reach each version: `version=commit` pairs (full 40-character commits), comma-separated, for example `19.0=bdae60ef5cece7c0a5e02ef87bc5834ddb310d35`. A version without one cannot be reached with OpenUpgrade. Move a pin forward after checking OpenUpgrade's changes. |
+| `OPENUPGRADE_LIB` | text | `openupgradelib==3.13.7` | **live** | The openupgradelib package installed in the temporary container (a pip requirement). |
+| `UPGRADE_ROLLBACK_MINUTES` | int | `60` | **live** | After production was upgraded: how long **Cancel the upgrade** is offered (back to the backup taken just before it), and how long the panel watches Odoo, putting the instance back by itself when Odoo stops answering for two minutes. 0 to 10080; 0: neither. |
+| `UPGRADE_MAX_HOURS` | float | `8` | **live** | Longest time one upgrade (Odoo's service, or OpenUpgrade) may take before it is stopped (up to 72). |
 
 ---
 
@@ -429,7 +447,7 @@ the permission `offsite.configure` (super admins).
 | `OFFSITE_ACCESS_KEY_ID` | text | empty | **live** | Access key ID of a key that may read, write, list and delete in the bucket (that bucket only). |
 | `OFFSITE_SECRET_ACCESS_KEY` | text | empty | **live** | Its secret. Secret: write-only on the Settings page, stored encrypted with the vault key. |
 | `OFFSITE_OTHER_STAGES` | bool | `false` | **live** | Copy the backups of staging and development instances too. Production instances' backups are always copied while `OFFSITE_BACKUPS` is on. |
-| `OFFSITE_KINDS` | text | `manual,daily,deletion` | **live** | Which backups are copied, comma-separated: `manual`, `daily`, `deletion`, `before-update`, `before-restore`, `before-rollback`, `before-repair`, `staging-copy`. |
+| `OFFSITE_KINDS` | text | `manual,daily,deletion` | **live** | Which backups are copied, comma-separated: `manual`, `daily`, `deletion`, `before-update`, `before-restore`, `before-rollback`, `before-repair`, `staging-copy`, `before-upgrade`. |
 | `OFFSITE_KEEP_DAILY_PRODUCTION` | int | `30` | **live** | Production: keep the newest copy of each of this many most recent days that have a copy (1 to 3650). |
 | `OFFSITE_KEEP_MONTHLY_PRODUCTION` | int | `12` | **live** | Production: also keep the newest copy of each of this many most recent months (0 to 600). |
 | `OFFSITE_KEEP_DAILY_OTHER` | int | `7` | **live** | Staging and development: days kept, as above. |

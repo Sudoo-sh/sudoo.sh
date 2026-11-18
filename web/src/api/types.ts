@@ -11,6 +11,7 @@ export type Permission =
   | "projects.access"
   | "teams.manage"
   | "instances.restore"
+  | "instances.upgrade"
   | "instances.delete"
   | "instances.credentials"
   | "instances.resources"
@@ -259,6 +260,7 @@ export interface ProjectOptions {
   development_demo_data: boolean;
   staging_on_push: "rebuild" | "keep_data";
   branch_deleted: "keep" | "archive" | "delete";
+  upgrade_test_on_push: boolean;
   development_lifetime_days: number;
   staging_lifetime_days: number;
 }
@@ -668,7 +670,8 @@ export type BackupKind =
   | "before-rollback"
   | "before-repair"
   | "before-update"
-  | "staging-copy";
+  | "staging-copy"
+  | "before-upgrade";
 /** GET /offsite: where off-site copies go, and the panel's signing key (never the storage's secret) */
 export interface OffsiteState {
   enabled: boolean;
@@ -1183,4 +1186,66 @@ export interface LinkDeadline {
   days_left: number;
   /** the deadline passed while unlinked: no new instances, no moves to production, no updates */
   restricted: boolean;
+}
+
+export type UpgradeMethod = "enterprise" | "openupgrade";
+export type UpgradeState = "checked" | "testing" | "tested" | "test_failed" | "promoting" | "promoted" | "promotion_failed" | "rolled_back";
+export type UpgradeModuleStatus = "ready" | "version_mismatch" | "unknown_version" | "not_installable" | "missing";
+export interface UpgradeFinding {
+  code: string;
+  text: string;
+}
+/** The pre-check of an upgrade (POST /instances/<name>/upgrade/check) */
+export interface UpgradeReport {
+  instance: string;
+  from_version: string;
+  target: string;
+  edition: "community" | "enterprise";
+  method: UpgradeMethod;
+  repository: string | null;
+  branch: string | null;
+  branch_exists: boolean | null;
+  installed: string[];
+  installed_count: number;
+  modules: { name: string; version: string; target_version: string | null; status: UpgradeModuleStatus }[];
+  warnings: UpgradeFinding[];
+  blocking: UpgradeFinding[];
+  checked_at: string | null;
+}
+/** GET /instances/<name>/upgrade: the database upgrade of an instance to a newer Odoo version */
+export interface Upgrade {
+  instance: string;
+  from_version: string;
+  edition: "community" | "enterprise";
+  method: UpgradeMethod;
+  allowed: boolean;
+  targets: string[];
+  next: string | null;
+  skips_versions: boolean;
+  terms_url: string | null;
+  openupgrade_source: string | null;
+  refusal: string | null;
+  state: UpgradeState | null;
+  target: string | null;
+  branch: string | null;
+  report: UpgradeReport | null;
+  checked_at: string | null;
+  staging: string | null;
+  tested_at: string | null;
+  test_job: string | null;
+  promotion: {
+    job?: string;
+    at?: string | null;
+    by?: string;
+    target?: string;
+    backup?: string[];
+    rollback_until?: string | null;
+    finished_at?: string | null;
+    rolled_back_at?: string | null;
+    rolled_back_by?: string;
+    reason?: string | null;
+  } | null;
+  rollback_open: boolean;
+  rollback_minutes: number;
+  history: { at: string | null; user: string; event: string; detail: string }[];
 }

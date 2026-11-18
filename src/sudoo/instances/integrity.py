@@ -410,6 +410,28 @@ def apply(job: Job, name: str, pull: bool = False) -> None:
     job.write(f"Configuration {odoo.config_hash(spec)[:12]} written (hardened containers, pinned images).\n")
 
 
+def retarget(job: Job, name: str, odoo_image: str, enterprise_folder: str) -> None:
+    """Move the instance to another Odoo image (a database upgrade to a newer version, or putting it back), with the
+    Enterprise add-ons of that version ("" for Community): the record's inputs change, then the instance's files are
+    written again (apply). `odoo_image`: a reference pinned by digest (pinned_reference)."""
+    with _LOCK:
+        found = record(name)
+        if found is not None:
+            inputs = {**found.get("inputs", {}), "ODOO_IMAGE_REF": odoo_image, "ENTERPRISE_FOLDER": enterprise_folder}
+            storage().put(COLLECTION, name, {**found, "inputs": inputs})
+        store.update_env(name, ODOO_IMAGE_REF=odoo_image, ENTERPRISE_FOLDER=enterprise_folder)
+    apply(job, name)
+
+
+def pinned_reference(job: Job, reference: str) -> str:
+    """`reference` (an image name and tag) downloaded and pinned by digest."""
+    pull_image(job, reference)
+    image = _image(reference)
+    if image is None:
+        raise JobError(f"The image {reference} is not available.")
+    return pinned(reference, image)
+
+
 def protect(name: str, odoo_owner: str) -> None:
     """Instance folder 0700, .env and the compose file 0600; config/ and odoo.conf 0700/0600 owned by the Odoo
     image's user, so Odoo (which gets the folder read-only) reads its configuration and nobody else on the server

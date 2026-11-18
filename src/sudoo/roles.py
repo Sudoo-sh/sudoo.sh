@@ -8,9 +8,9 @@ only a named set of permissions:
     admin         Administrator   everything except the panel's settings, the e-mail texts and where off-site copies
                                   go (sees plugins, cannot install them); adds and removes instances' custom domains;
                                   restores from and deletes off-site copies; manages teams, project access and
-                                  locked branches
+                                  locked branches; upgrades databases to newer Odoo versions (instances.upgrade)
     maintainer    Maintainer      creates projects and instances and does everything on them except deleting
-                                  (restoring backups too); GitHub access
+                                  and database upgrades (restoring backups too); GitHub access
     developer     Developer       follows instances: gets new code, restarts, starts, adds submodules; reads the
                                   e-mails caught from staging and development instances (deleting and releasing
                                   them is for administrators)
@@ -60,6 +60,8 @@ PERMISSIONS: dict[str, str] = {
     "branches) and lock or unlock branches",
     "teams.manage": "Create, change and delete teams (named groups of accounts that project access is given to)",
     "instances.restore": "Restore an instance from a backup (replaces its database and files)",
+    "instances.upgrade": "Upgrade an instance's database to a newer Odoo version: test it on a new staging instance, "
+    "then upgrade production (with its backup and rollback)",
     "instances.delete": "Delete instances",
     "instances.credentials": "See Odoo passwords and ports",
     "instances.resources": "Set an instance's resources: Odoo workers, time and memory limits, container limits",

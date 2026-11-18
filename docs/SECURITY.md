@@ -427,6 +427,7 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `projects.access` | Choose who may see and work in a project and its branches (grants, restricted projects and branches); lock and unlock branches | yes | yes | | | |
 | `teams.manage` | Create, change and delete teams | yes | yes | | | |
 | `instances.restore` | Restore an instance from a backup (replaces its database and files) | yes | yes | yes | | |
+| `instances.upgrade` | Upgrade an instance's database to a newer Odoo version: the pre-check, the test on a new staging instance, upgrading production (with `"confirm_production": true`) and cancelling it | yes | yes | | | |
 | `instances.delete` | Delete instances, also by giving one a shorter lifetime | yes | yes | | | |
 | `instances.credentials` | See Odoo passwords and ports | yes | yes | yes | | |
 | `instances.resources` | Set an instance's resources: Odoo workers, time and memory limits, container limits | yes | yes | | | |

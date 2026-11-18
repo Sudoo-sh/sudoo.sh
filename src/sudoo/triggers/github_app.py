@@ -6,7 +6,9 @@ created from the panel's manifest, and receives the events of every repository t
     push                       updates every instance that follows the pushed repository and branch
                                (and has "Update automatically" on), like the github-webhook trigger
     create / delete            a branch was created or deleted: instances following it show or clear the
-                               "branch deleted on GitHub" warning
+                               "branch deleted on GitHub" warning, and the repository's project creates a
+                               development instance for a new branch or archives the instances of a deleted one
+                               (projects/automation.py)
     installation               the app was installed, removed, suspended or given back on an account: the panel's
                                list of installations follows
     installation_repositories  repositories were added to or removed from an installation
@@ -53,11 +55,16 @@ class GitHubAppWebhook(GitHubWebhook):
         if event == "push":
             return self.push(payload)
         if event in ("create", "delete") and payload.get("ref_type") == "branch":
+            from sudoo.projects import automation  # late: projects/ imports the instances package
+
             repository = str((payload.get("repository") or {}).get("full_name", "")).lower()
-            following = self.instances_following(repository, str(payload.get("ref", "")))
+            branch = str(payload.get("ref", ""))
+            following = self.instances_following(repository, branch)
             for name in following:
                 STATE.update(name, branch_missing=event == "delete")
-            return jsonify(ok=True, instances=following)
+            if event == "create":
+                return jsonify(ok=True, instances=following, created=automation.branch_created(repository, branch))
+            return jsonify(ok=True, instances=following, branch_deleted=automation.branch_deleted(repository, branch))
         if event == "installation":
             return self.installation(payload)
         if event == "installation_repositories":

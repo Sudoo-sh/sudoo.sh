@@ -9,7 +9,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from sudoo import exposure
+from sudoo import exposure, projects
 from sudoo.config import settings
 from sudoo.core import jobs
 from sudoo.core.cache import VersionedMemo
@@ -118,6 +118,14 @@ def backup_resource(backup: dict[str, Any]) -> dict[str, Any]:
     return backup | backups.details(backup["file"])
 
 
+def project_reference(project_id: str | None) -> dict[str, Any] | None:
+    """{"id", "name", "links"} of the project an instance belongs to, or None."""
+    found = projects.get(project_id or "")
+    if found is None:
+        return None
+    return {"id": found["id"], "name": found["name"], "links": {"self": f"{PREFIX}/projects/{found['id']}"}}
+
+
 def creating_resource(job: jobs.Job, full: bool = False) -> dict[str, Any]:
     """An instance whose creation is queued or running and whose files do not exist yet: the instance resource with
     what the creation's plan says (job.details), status "creating" and the job as current_job; the rest is empty."""
@@ -127,6 +135,7 @@ def creating_resource(job: jobs.Job, full: bool = False) -> dict[str, Any]:
         "name": job.instance,
         "status": "creating",
         "stage": plan.get("stage") or stages.DEFAULT,
+        "project": project_reference(plan.get("project")),
         "url": None,
         "odoo": {
             "version": plan.get("version", ""),
@@ -188,6 +197,7 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
         "name": name,
         "status": status,  # creating, online, starting, busy, paused, switched_off, stopped, unknown
         "stage": stages.of(env),  # production, staging, development (instances/stages.py)
+        "project": project_reference(env.get("PROJECT")),  # None: standalone (plain Odoo)
         "url": exposure.address(name),
         "odoo": {"version": env["ODOO_VERSION"], "edition": env["EDITION"], "database": env["DB_NAME"]},
         # "plain": Odoo without a repository (store.plain; instances made before SOURCE was recorded: no remote)

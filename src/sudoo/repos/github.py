@@ -228,6 +228,33 @@ def branches(address: str) -> tuple[list[str], str | None, str | None]:
     return sorted(names), default, None
 
 
+def heads(address: str) -> tuple[dict[str, str], str | None, str | None]:
+    """({branch: commit sha}, default branch, error) of a repository, with git (`ls-remote`): it reads through the
+    GitHub App's token, a deploy key or anonymously, whichever applies (configure_git). An empty repository has
+    no branches and no default branch."""
+    github_app.sync_if_stale()
+    try:
+        result = subprocess.run(
+            ["git", "ls-remote", "--symref", "--", address, "HEAD", "refs/heads/*"],
+            capture_output=True,
+            text=True,
+            timeout=40,
+        )
+    except subprocess.TimeoutExpired:
+        return {}, None, "GitHub did not answer in time."
+    if result.returncode != 0:
+        return {}, None, _problem(address, result.stderr)
+    found: dict[str, str] = {}
+    default: str | None = None
+    for line in result.stdout.splitlines():
+        if line.startswith("ref: refs/heads/") and line.endswith("\tHEAD"):
+            default = line[len("ref: refs/heads/") :].split("\t")[0]
+        elif "\trefs/heads/" in line:
+            sha, name = line.split("\trefs/heads/", 1)
+            found[name] = sha.strip()
+    return found, default, None
+
+
 def _readable(address: str) -> tuple[bool, str]:
     result = subprocess.run(["git", "ls-remote", "--heads", "--", address], capture_output=True, text=True, timeout=40)
     return result.returncode == 0, ("" if result.returncode == 0 else _problem(address, result.stderr))

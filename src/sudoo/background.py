@@ -46,6 +46,28 @@ def start() -> None:
     live.on_change(_domain_settings_changed)
     threading.Thread(target=exposure.ensure_all, daemon=True, name="connectors").start()
     triggers.start_all()
+    threading.Thread(target=_adopt_instances, daemon=True, name="projects").start()
+    threading.Thread(target=_check_project_branches, daemon=True, name="project-branches").start()
+
+
+def _check_project_branches() -> None:
+    """Every POLL_MINUTES: new and deleted branches of every project (projects/automation.py)."""
+    from sudoo.projects import automation
+
+    automation.sync_forever()
+
+
+def _adopt_instances() -> None:
+    """Existing instances join their repository's project (projects/adopt.py), once at start."""
+    from sudoo.projects import adopt
+
+    try:
+        report = adopt.adopt()
+    except Exception as error:  # noqa: BLE001 - the panel works without it; it is tried again on the next start
+        print(f"projects: existing instances not adopted: {error!r}", flush=True)
+        return
+    if report["joined"]:
+        print(f"projects: {len(report['joined'])} instances joined {len(report['created'])} new projects", flush=True)
 
 
 _DOMAIN_SETTINGS = {"custom_domains", "domain_http_probe", "acme_directory", "domain_dns_target"}

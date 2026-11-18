@@ -33,6 +33,7 @@ domains and certificates, off-site copies of backups.
 21. [Web shell](#21-web-shell)
 22. [The licence agreement](#22-the-licence-agreement)
 23. [Mail catcher](#23-mail-catcher)
+24. [Projects and branches](#24-projects-and-branches)
 
 ---
 
@@ -1770,3 +1771,99 @@ make sure nothing caught can ever leave the server.
 | It is on the instance's network | `docker inspect sudoo-mail --format '{{json .NetworkSettings.Networks}}'` lists `odoo-<name>_default` (the panel adds it within 30 seconds). |
 | Odoo sends to it | The instance was restarted since it left production; in Odoo, Settings, Technical, Emails, the e-mail's state and its failure reason. |
 | Code that opens its own SMTP connection | Not caught: only Odoo's own mail sending goes through `odoo.conf` and `ir.mail_server`. A module that connects to an SMTP server by itself is not stopped (the instances can reach the Internet). |
+
+---
+
+## 24. Projects and branches
+
+A **project** is one GitHub repository, as on Odoo.sh: its page lists every branch of the repository with the
+branch's stage (production, staging or development), its instances and its latest commit. Every instance of a
+repository belongs to that repository's project. What people do with projects is in the
+[User manual](USER_MANUAL.md#4-creating-an-instance); this section is for the server.
+
+### Existing instances
+
+When the panel starts, every instance that is in no project joins its repository's project, and a project is
+created for each repository that has none ("adopted"; its Odoo version and edition are those of its production
+instance, else its staging instance, else its newest instance). Only `PROJECT=<id>` is added to the instance's
+`.env`: its name, stage, address, backups, containers and settings stay as they are, and **nothing restarts**. The
+stage of each branch is recorded from its instances (the highest when several instances follow one branch; each
+instance keeps its own stage). Running it again changes nothing. The audit log has "project created from existing
+instances" and "instance joined a project" for each.
+
+**Plain Odoo stays standalone.** An instance created without a repository has no branch and no code, and a project
+is one repository, so it joins no project: the Projects page lists such instances under **Without a project**, and
+the All instances page shows them as before. When someone gives one a repository (**Connect a repository**), it joins
+that repository's project. A made-up "Plain Odoo" project was not chosen: it would have branches that do not exist,
+and its rules (one production branch, staging from production) would mean nothing.
+
+### What each stage does
+
+The rules of [Instance stages](#instance-stages) apply to every instance; projects add:
+
+| | Development | Staging | Production |
+| :--- | :--- | :--- | :--- |
+| New instance of the branch | a fresh database (with demo data when `PROJECT_DEVELOPMENT_DEMO_DATA`) | a neutralised copy of the project's production instance | a fresh database, without demo data |
+| A push to the branch | new code (`AUTO_UPDATE`) | with `PROJECT_STAGING_ON_PUSH=rebuild`: a new neutralised copy of production, then the new code; `keep_data`: new code only | new code only when asked, or with its automatic updates switched on; always backup + automatic rollback |
+| The branch deleted on GitHub | `PROJECT_BRANCH_DELETED` (keep, archive, delete) | archived at most | marked only |
+| How many per project | any | any | `PROJECT_PRODUCTION_BRANCHES` (1) |
+
+Changing a branch's stage moves every instance of the branch to that stage, with the same checks as changing one
+instance's stage: making a branch production needs a confirmation and is refused beyond `PROJECT_PRODUCTION_BRANCHES`
+production branches in the project and beyond `MAX_PRODUCTION_INSTANCES` production instances on the server (later,
+the plan's production branches); leaving production needs a confirmation too. Changing one instance's stage on its
+own page records that stage for its branch.
+
+### Staging from production
+
+A staging instance never starts from an empty database: creating it, and rebuilding it, start from a new backup of
+the project's production instance (kind `staging-copy`; each production instance keeps only its latest one, and
+the production instance keeps serving while it is taken; no update or restore runs on it meanwhile). The copy is then
+neutralised:
+
+* **E-mail:** Odoo's mail servers are switched off and the instance sends to the [mail catcher](#23-mail-catcher)
+  (every instance that is not production does).
+* **Scheduled actions:** switched off (except Odoo's own database clean-up).
+* **Payment providers, IAP and other services that act on the outside world:** Odoo's `neutralize` (Odoo 16 and
+  later) puts them in test mode or switches them off and marks the database as neutralised; older versions get the
+  same for mail servers, scheduled actions and payment providers in SQL.
+* **Identity and address:** a new database identity (`database.uuid`, `database.secret`), the instance's own admin
+  password, and `web.base.url` set to the staging instance's address.
+
+On a rebuild the branch's latest code is downloaded first, then the repository's modules that are installed in the
+copy are upgraded, so staging shows production's data with the branch's code. A rebuild replaces the staging
+instance's database and files without a backup of them: staging data is meant to be thrown away. Use
+`PROJECT_STAGING_ON_PUSH=keep_data` (or a project's own option) when testers keep work in staging.
+
+### New and deleted branches
+
+A project learns that a branch was created or deleted from the GitHub App's webhook (create, delete and push events)
+or the `github-webhook` trigger (push events) within seconds, and, as a safety net that needs nothing from GitHub,
+from a look at every project's branches every `POLL_MINUTES` (`git ls-remote`, through the app, a deploy key or
+anonymously). Each branch is handled once, whichever tells first. A project made from existing instances records its
+branches at its first look without creating anything, so turning projects on never creates an instance for every
+existing branch.
+
+* **New branch:** with `PROJECT_AUTO_DEVELOPMENT` (or the project's own option) a development instance is created,
+  as the user `system`, unless the branch has an instance or another stage recorded, the project has
+  `PROJECT_MAX_AUTO_DEVELOPMENT` instances it created this way already, or the server is at `MAX_INSTANCES` or
+  `MAX_RUNNING_INSTANCES`. A refusal is in the audit log ("no instance for a new branch") with the reason; the
+  project page still offers **Create instance**.
+* **Deleted branch:** its instances show that the branch is gone. With `archive` a development instance is backed
+  up and switched off (it can be started again, and its lifetime still ends it); with `delete` it is deleted after a
+  backup. Staging is archived at most and production is never touched. A busy instance is left as it is.
+
+### Many branches at once
+
+Every running instance takes memory and processor time, so many branches running in parallel slow every instance.
+The project page shows the server's capacity estimate ([How many instances can my server run?](#how-many-instances-can-my-server-run))
+and warns when one more running instance would go beyond it; development instances pause when idle, which keeps
+the number down. `MAX_RUNNING_INSTANCES` turns the warning into a limit.
+
+### Permissions and data
+
+Seeing projects needs `instances.view`; creating and linking projects, changing their options and the stages of
+their branches need `projects.manage` (maintainers, administrators, super admins); creating an instance of a branch
+needs `instances.create`, a staging one and a rebuild also `instances.restore` (they replace data with production's).
+Projects are documents in the panel's storage (collection `projects`); each records an access mode, today
+"panel roles": the roles apply in every project. Teams and per-project access will attach to that scope later.

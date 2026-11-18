@@ -509,6 +509,39 @@ class Settings(BaseSettings):
         True, description="Staging instances get the daily backup too (when daily_backups is on)."
     )
     poll_minutes: float = Field(2, gt=0, description="polling: check GitHub for new commits this often.")
+
+    # ------------------------------------------------------------------ projects (projects/)
+    project_production_branches: int = Field(
+        1,
+        ge=0,
+        description="Production branches one project may have; 0: no limit (MAX_PRODUCTION_INSTANCES still limits "
+        "the whole server).",
+    )
+    project_auto_development: bool = Field(
+        True,
+        description="New projects create a development instance for every new branch pushed to their repository "
+        "(each project can change it).",
+    )
+    project_max_auto_development: int = Field(
+        3,
+        ge=0,
+        description="Development instances a project creates by itself for new branches, at most at the same time "
+        "(each project can change it); 0: no limit.",
+    )
+    project_development_demo_data: bool = Field(
+        True, description="Development instances of projects start with Odoo's demo data (each project can change it)."
+    )
+    project_staging_on_push: Literal["rebuild", "keep_data"] = Field(
+        "rebuild",
+        description='A push to a staging branch: "rebuild" (a new neutralised copy of production, then the new '
+        'code) or "keep_data" (only the new code, like a development instance). Each project can change it.',
+    )
+    project_branch_deleted: Literal["keep", "archive", "delete"] = Field(
+        "archive",
+        description='A branch deleted on GitHub: its development instance is kept ("keep"), backed up and switched '
+        'off ("archive") or deleted after a backup ("delete"); staging is archived at most, production only '
+        "marked. Each project can change it.",
+    )
     session_idle_minutes: float = Field(60, gt=0, description="Panel sign-out after this long without activity.")
     session_max_hours: float = Field(12, gt=0, description="Longest panel session.")
     admin_contact_name: str = Field("the administrator", description="Who users are told to contact.")
@@ -572,7 +605,7 @@ class Settings(BaseSettings):
     offsite_kinds: str = Field(
         "manual,daily,deletion",
         description="Which backups are copied, comma-separated: manual, daily, deletion, before-update, "
-        "before-restore, before-rollback, before-repair.",
+        "before-restore, before-rollback, before-repair, staging-copy.",
     )
     offsite_keep_daily_production: int = Field(
         30, ge=1, le=3650, description="Production: keep the newest copy of each of this many most recent days."
@@ -660,7 +693,16 @@ class Settings(BaseSettings):
     @field_validator("offsite_kinds")
     @classmethod
     def _offsite_kinds(cls, value: str) -> str:
-        known = ("manual", "daily", "deletion", "before-update", "before-restore", "before-rollback", "before-repair")
+        known = (
+            "manual",
+            "daily",
+            "deletion",
+            "before-update",
+            "before-restore",
+            "before-rollback",
+            "before-repair",
+            "staging-copy",
+        )
         kinds = [part.strip() for part in value.split(",") if part.strip()]
         unknown = [kind for kind in kinds if kind not in known]
         if unknown:
@@ -1067,6 +1109,9 @@ OFFSITE_SETTINGS = tuple(name for name in Settings.model_fields if name.startswi
 SHELL_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("shell_"))
 """Every web shell setting (webshell/); all of them can be changed in the panel."""
 
+PROJECT_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("project_"))
+"""Every setting of projects (projects/); all of them can be changed in the panel."""
+
 MAIL_CATCHER_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("mail_catcher_"))
 """Every setting of the mail catcher (mailcatcher/); all of them can be changed in the panel."""
 
@@ -1100,6 +1145,7 @@ EDITABLE = (
     "production_auto_update",
     "staging_delete_after_days",
     "staging_daily_backups",
+    *PROJECT_SETTINGS,
     "poll_minutes",
     "metrics_interval_seconds",
     "daily_backups",

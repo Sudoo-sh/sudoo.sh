@@ -389,6 +389,24 @@ above exactly. A production instance is never paused or deleted automatically, i
 | `STAGING_DELETE_AFTER_DAYS` | int | `90` | **live** | Lifetime offered for new staging instances, in days; 0: keep. |
 | `STAGING_DAILY_BACKUPS` | bool | `true` | **live** | Staging instances get the daily backup too (while `DAILY_BACKUPS` is on). `false`: only their manual and safety backups. |
 
+### Projects
+
+A project is one GitHub repository; each of its branches can run as an instance, in the branch's stage (see
+[Projects and branches](ADMIN_GUIDE.md#24-projects-and-branches)). The settings
+below apply to every project; all but `PROJECT_PRODUCTION_BRANCHES` are defaults that a project can change on its
+**Settings** tab (a project's own value wins; reset it to follow the panel again). The lifetimes of new development and
+staging instances of a project follow `DELETE_AFTER_DAYS` and `STAGING_DELETE_AFTER_DAYS` unless the project sets
+its own.
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `PROJECT_PRODUCTION_BRANCHES` | int | `1` | **live** | Production branches one project may have. Making one more branch production (or creating one more production instance of the project) is refused with 409. 0: no limit; `MAX_PRODUCTION_INSTANCES` still limits the whole server. |
+| `PROJECT_AUTO_DEVELOPMENT` | bool | `true` | **live** | A new branch pushed to a project's repository gets a development instance by itself (through the GitHub App's webhook, the `github-webhook` trigger, or the branch check every `POLL_MINUTES`). |
+| `PROJECT_MAX_AUTO_DEVELOPMENT` | int | `3` | **live** | Development instances a project creates by itself for new branches, at most at the same time; one more new branch then waits until one of them is deleted (the project page offers **Create instance**). 0: no limit. Instances created by people do not count. |
+| `PROJECT_DEVELOPMENT_DEMO_DATA` | bool | `true` | **live** | Development instances of projects start with Odoo's demo data. Staging and production never get demo data. |
+| `PROJECT_STAGING_ON_PUSH` | text | `rebuild` | **live** | A push to a staging branch: `rebuild` replaces the staging instance's data with a new neutralised copy of production, then takes the new code; `keep_data` only takes the new code (like a development instance). |
+| `PROJECT_BRANCH_DELETED` | text | `archive` | **live** | A branch deleted on GitHub: its development instance is kept (`keep`), backed up and switched off (`archive`), or deleted after a backup (`delete`). A staging instance is archived at most, a production instance only shows that its branch is gone. |
+
 ---
 
 ## Off-site copies
@@ -410,7 +428,7 @@ the permission `offsite.configure` (super admins).
 | `OFFSITE_ACCESS_KEY_ID` | text | empty | **live** | Access key ID of a key that may read, write, list and delete in the bucket (that bucket only). |
 | `OFFSITE_SECRET_ACCESS_KEY` | text | empty | **live** | Its secret. Secret: write-only on the Settings page, stored encrypted with the vault key. |
 | `OFFSITE_OTHER_STAGES` | bool | `false` | **live** | Copy the backups of staging and development instances too. Production instances' backups are always copied while `OFFSITE_BACKUPS` is on. |
-| `OFFSITE_KINDS` | text | `manual,daily,deletion` | **live** | Which backups are copied, comma-separated: `manual`, `daily`, `deletion`, `before-update`, `before-restore`, `before-rollback`, `before-repair`. |
+| `OFFSITE_KINDS` | text | `manual,daily,deletion` | **live** | Which backups are copied, comma-separated: `manual`, `daily`, `deletion`, `before-update`, `before-restore`, `before-rollback`, `before-repair`, `staging-copy`. |
 | `OFFSITE_KEEP_DAILY_PRODUCTION` | int | `30` | **live** | Production: keep the newest copy of each of this many most recent days that have a copy (1 to 3650). |
 | `OFFSITE_KEEP_MONTHLY_PRODUCTION` | int | `12` | **live** | Production: also keep the newest copy of each of this many most recent months (0 to 600). |
 | `OFFSITE_KEEP_DAILY_OTHER` | int | `7` | **live** | Staging and development: days kept, as above. |

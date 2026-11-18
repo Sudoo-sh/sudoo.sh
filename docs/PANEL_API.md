@@ -209,6 +209,22 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `DELETE /instances/<name>/mail` | `caught_mail.manage` | | **204**, every caught e-mail of the instance deleted; audit-logged |
 | `POST /instances/<name>/mail/<id>/release` | `caught_mail.manage` | `{"to": "qa@example.com"}` | 200, `{"released", "to", "id"}`: a copy was sent from the panel's own address (`MAIL_FROM`), audit-logged; 400 for an address, **403** when `MAIL_CATCHER_RELEASE` is off, 503 when the panel cannot send e-mail |
 
+### Projects
+
+A project is one GitHub repository; every instance of a repository belongs to its project (`project` of an
+instance; `null` for plain Odoo). See [Projects and branches](ADMIN_GUIDE.md#24-projects-and-branches).
+
+| Method and path | Permission | Body | Answer |
+| :--- | :--- | :--- | :--- |
+| `GET /projects` | `instances.view` | | 200, every project: `id`, `name`, `repository` (`full_name`, `url`), `odoo` (`version`, `edition`), `origin` (`linked`, `created`, `adopted`), `created_at`, `created_by`, `branches` (`total` and the count per stage of the branches it knows), `instances` (`total`, `by_status`, `names`), `attention` (instances with a failed update, changes made by hand or a deleted branch), `production_branches`, `options` (what applies), `own_options` (set for the project), `access` (`mode`: `panel_roles`); `meta.standalone`: the instances in no project (plain Odoo) |
+| `POST /projects` | `projects.manage` | `{"repository": "https://github.com/acme/erp", "odoo_version": "19.0", "edition": "community", "name"?}` | **201**, the project and `default_branch`, `Location`; 400 when the server cannot read the repository (the GitHub App's explanation), 409 when it has a project already |
+| `GET /projects/<id>?refresh=1` | `instances.view` | | 200, the project with `branches_list`: each branch's `name`, `stage`, `default`, `on_github` (`null` when GitHub could not be read), `commit` (`sha`, `full_sha`, `subject`, `when`, `author`), `instances`, `auto_created`; production first. `meta`: `default_branch`, `branches_error`, `branches_read_at` (GitHub is read at most every 30 seconds; `refresh=1` reads it now), `capacity` (`comfortable`, `running`, `headroom`, `warning`, `message`, `overloaded`), `production_limit`, `server_production_limit` |
+| `PATCH /projects/<id>` | `projects.manage` | any of `name`, `odoo_version` and `edition` (for new instances), `options`: `{"auto_development": false, "max_auto_development": 5, "development_demo_data": true, "staging_on_push": "rebuild" or "keep_data", "branch_deleted": "keep", "archive" or "delete", "development_lifetime_days": 7, "staging_lifetime_days": 30}`; `null` follows the panel's setting again | 200, the project |
+| `DELETE /projects/<id>` | `projects.manage` | `{"confirm": "<id>"}` | **204**; 409 while it has instances. The repository on GitHub is never touched |
+| `PUT /projects/<id>/branches/<branch>/stage` | `projects.manage` | `{"stage": "production", "confirm_production": true}` | 200, the branch; every instance of it moves to the stage (the checks of `PATCH /instances/<name>`). Making a branch production, or moving it out of production, needs `"confirm_production": true` (400); **409** beyond `PROJECT_PRODUCTION_BRANCHES` in the project or `MAX_PRODUCTION_INSTANCES` on the server. A branch name may contain `/` |
+| `POST /projects/<id>/branches/<branch>/instances` | `instances.create`; staging also `instances.restore` | `{"name"?, "demo"? (development only; the project's option by default), "install_modules"? (true)}` | **202**, the creation's job: an instance of the branch in the branch's stage, with the project's Odoo version and edition and lifetime. Staging starts from a neutralised copy of the project's production instance (**409** when it has none, or another Odoo version or edition). 404 when GitHub has no such branch |
+| `POST /projects/<id>/branches/<branch>/rebuild` | `instances.restore` | `{"instance"?}` (the branch's first instance by default) | **202**, the job "Rebuild from production"; 409 for an instance that is not staging, or a project without a production instance |
+
 ### Server, metrics and settings
 
 | Method and path | Permission | Body | Answer |
@@ -523,6 +539,7 @@ An instance:
     "name": "sales-main",
     "status": "online",
     "stage": "development",
+    "project": {"id": "sales", "name": "sales", "links": {"self": "/api/v1/projects/sales"}},
     "url": "https://river-stone-apple.example.com",
     "odoo": {"version": "19.0", "edition": "enterprise", "database": "sales_main"},
     "source": "repository",
@@ -932,6 +949,7 @@ data: {"key": "", "data": {"server": {"cpu": 12.5, ...}, "instances": {"sales-ma
 | :--- | :--- | :--- |
 | `instance` | An instance changed: status, code, address, settings, a job started or ended | The instance, as `GET /instances/<name>` |
 | `instance.deleted` | An instance was deleted | `{"name"}` |
+| `project` | A project changed: created, changed, deleted, a branch's stage changed (key: the project's id) | The project, as `GET /projects` lists it, or `{"id", "deleted": true}` |
 | `domains` | An instance's custom domains changed: added, removed, checked, issued, renewed (key: the instance) | As `GET /instances/<name>/domains` |
 | `job` | A job started, moved to another step, added a note or ended | The job, as `GET /jobs/<id>` |
 | `job.output` | New log text of a running job (at most twice a second) | `{"job", "offset", "text"}` |

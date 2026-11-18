@@ -25,6 +25,8 @@ Kinds (files of earlier versions have no kind and count as "manual"):
                     SAFE_UPDATES is on); put back automatically when the update fails after it may have changed the
                     database. Each instance keeps only its latest one, except one kept for a manual restore after
                     an automatic rollback failed (STATE "keep_backups")
+    staging-copy    taken from a production instance to build (or rebuild) a staging instance of its project from
+                    its data (projects/staging.py); each production instance keeps only its latest one
 
 The database container is started for a backup if the instance is paused; the instance's state is not changed
 otherwise. restore() puts a backup back: the database is replaced and so is the filestore. A backup can be put into
@@ -62,16 +64,26 @@ from sudoo.instances import odoo, store
 
 FILE_RE = re.compile(
     r"^(?P<instance>[a-z0-9][a-z0-9-]{0,30})__(?P<db>[a-z0-9_]{1,63})__(?P<stamp>\d{8}-\d{6})"
-    r"(?:__(?P<kind>manual|daily|deletion|before-restore|before-rollback|before-repair|before-update))?\.zip$"
+    r"(?:__(?P<kind>manual|daily|deletion|before-restore|before-rollback|before-repair|before-update|staging-copy))?\.zip$"
 )
 DB_NAME_RE = re.compile(r"[a-z0-9_]{1,63}")  # the database names the panel gives (and FILE_RE accepts)
-KINDS = ("manual", "daily", "deletion", "before-restore", "before-rollback", "before-repair", "before-update")
+KINDS = (
+    "manual",
+    "daily",
+    "deletion",
+    "before-restore",
+    "before-rollback",
+    "before-repair",
+    "before-update",
+    "staging-copy",
+)
 RESTORABLE = ("manual", "daily", "deletion")  # what "Restore the latest backup" chooses from
 SNAPSHOTS = ("before-restore", "before-rollback")  # safety copies, removed ROLLBACK_HOURS after they were taken
 _KEEP_ONE = (
     "daily",
     "before-repair",
     "before-update",
+    "staging-copy",
     *SNAPSHOTS,
 )  # kinds of which each instance keeps only the latest
 PG_DUMP_LOCK_WAIT = "300s"  # a lock held inside the instance makes the dump fail after this, rather than wait for ever
@@ -262,8 +274,8 @@ def latest(name: str) -> dict[str, Any] | None:
 
 
 def remove_daily(name: str) -> None:
-    """Delete the instance's daily and safety (before-restore, before-rollback, before-repair, before-update)
-    backups (when it is deleted)."""
+    """Delete the instance's daily and safety (before-restore, before-rollback, before-repair, before-update,
+    staging-copy) backups (when it is deleted)."""
     for backup in of_instance(name, _KEEP_ONE):
         (settings.backups_dir / backup["file"]).unlink(missing_ok=True)
 
@@ -432,12 +444,18 @@ def restore(job: Job, name: str, backup: dict[str, Any], db: str | None = None) 
 
 _NEUTRALIZE_SQL = (
     # what Odoo's own "neutralize" does for the base modules, for when that command is not there (Odoo 15 and
-    # earlier) or fails: no outgoing or incoming mail servers, no scheduled actions except the database cleanup
+    # earlier) or fails: no outgoing or incoming mail servers, no scheduled actions except the database cleanup, no
+    # payment provider taking real payments
     "UPDATE ir_mail_server SET active = false;"
     "UPDATE ir_cron SET active = false WHERE id NOT IN (SELECT res_id FROM ir_model_data "
     "WHERE model = 'ir.cron' AND module = 'base' AND name = 'autovacuum_job');"
     "DO $$ BEGIN IF to_regclass('fetchmail_server') IS NOT NULL THEN "
     "UPDATE fetchmail_server SET active = false; END IF; END $$;"
+    # payment providers (payment_acquirer before Odoo 15) stop taking real payments
+    "DO $$ BEGIN IF to_regclass('payment_provider') IS NOT NULL THEN "
+    "UPDATE payment_provider SET state = 'disabled' WHERE state = 'enabled'; END IF; "
+    "IF to_regclass('payment_acquirer') IS NOT NULL THEN "
+    "UPDATE payment_acquirer SET state = 'disabled' WHERE state = 'enabled'; END IF; END $$;"
 )
 
 

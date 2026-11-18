@@ -13,7 +13,7 @@ each part was chosen.
 3. [Life of an instance](#3-life-of-an-instance)
 4. [Creating an instance](#4-creating-an-instance)
 5. [Code from GitHub](#5-code-from-github)
-6. [Why we chose this](#6-why-we-chose-this)
+6. [Design decisions](#6-design-decisions)
 7. [Conventions in the code](#7-conventions-in-the-code)
 
 ---
@@ -32,7 +32,7 @@ each part was chosen.
 | **Background work** | Threads in the panel's process: resource monitor (every `METRICS_INTERVAL_SECONDS`, 5 s, reading a continuous `docker stats` stream), automatic pause (every 2 min), automatic deletion (every 10 min), daily backups (checked every minute, run once `DAILY_BACKUP_TIME` has passed in `TIMEZONE`), GitHub polling (every `POLL_MINUTES`), alerts (the end of every job, and the server and instances every `METRICS_INTERVAL_SECONDS`; e-mail, webhooks, the bell). | `sudoo/background.py`, `instances/monitor.py`, `sudoo/alerts/` |
 | **Backups** | Odoo-format zips (`dump.sql`, `filestore/`, `manifest.json`) in `BACKUPS_DIR`, named `<instance>__<database>__<YYYYMMDD-HHMMSS>__<kind>.zip`. Seven kinds: `manual`, `daily`, `deletion`, `before-restore`, `before-rollback`, `before-repair`, `before-update`; each instance keeps only its latest `daily`, `before-restore`, `before-rollback`, `before-repair` and `before-update` (taken before a code update, put back when it fails: `SAFE_UPDATES`), `before-restore` and `before-rollback` for `ROLLBACK_HOURS`. Restoring replaces an instance's database and filestore in place; a backup of another instance of the same Odoo series is loaded under the target's database name and neutralised. | `sudoo/instances/backups.py`, `instances/operations.py` |
 | **Jobs** | Every action (create, update, restart...) runs as a job in its own thread, with steps, notes and a log. One job at a time per instance; others wait. | `sudoo/core/jobs.py`, `instances/operations.py` |
-| **Exposure plugin** | Makes the panel and each gateway reachable from outside. Default `cloudflare-quick`: one `cloudflared` container per target, opening an outgoing connection to Cloudflare. Alternative `host-ports`: the ports are opened on the server. | `sudoo/exposure/` |
+| **Exposure plugin** | Makes the panel and each gateway reachable from outside. Default `cloudflare-quick`, the default public-link extension: one `cloudflared` connector container per target, opening an outgoing connection to the public-link service. Alternative `host-ports`: the ports are opened on the server. | `sudoo/exposure/` |
 | **Add-on source plugin** | Provides the Enterprise add-ons of a version: an existing folder (`folder`) or a branch of a git repository (`git`). | `sudoo/addons/` |
 | **Settings** | Every setting, typed and checked (pydantic-settings). Almost all can be changed on the Settings page while the panel runs, kept on top of `.env` with secrets encrypted. | `sudoo/config.py` |
 | **Instances** | One Docker Compose project per instance: an `odoo` container (official image) and a `db` container (PostgreSQL 16), two volumes. | `/opt/odoo/instances/<name>/` |
@@ -97,7 +97,7 @@ and webhook pages) are right:
 | :--- | :--- | :--- |
 | `web.base.url` | the instance's current link | links in e-mails, portal, payments, webhooks |
 | `web.base.url.freeze` | `True` | otherwise Odoo replaces it with the address an administrator signs in from |
-| `report.url` | `http://localhost:8069` | PDF reports load their styles from Odoo itself, not through the tunnel |
+| `report.url` | `http://localhost:8069` | PDF reports load their styles from Odoo itself, not through the public link |
 
 When a link changes (after a restart), the monitor sees it within 15 seconds and updates `web.base.url`.
 
@@ -165,16 +165,16 @@ Both `https://github.com/owner/repo` and `git@github.com:owner/repo` addresses, 
 
 ---
 
-## 6. Why we chose this
+## 6. Design decisions
 
-Each decision lists what we chose, why, what it costs, and the alternatives we considered.
+Each decision lists what was chosen, why, what it costs, and the alternatives that were considered.
 
 ### Docker with the official Odoo image
 - **Chosen:** the official `odoo:<version>` and `postgres:16` images, unchanged.
 - **Why:** nothing to build or maintain; every version behaves exactly as Odoo publishes it; a new Odoo version is a
   new tag; instances cannot affect the server's own software.
 - **Cost:** Python libraries that custom modules need (`requirements.txt`) are not included.
-- **Considered:** our own image per project (more to maintain, slower to start an instance); installing Odoo directly on
+- **Considered:** a custom image per project (more to maintain, slower to start an instance); installing Odoo directly on
   the server (versions would conflict with each other).
 
 ### One Docker Compose project per instance
@@ -207,17 +207,18 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
   shared secret (a Unix socket in a root-only folder is unreachable from the network and the instances' containers,
   with nothing to leak).
 
-### Cloudflare quick tunnels for public access
-- **Chosen:** each destination (panel, every instance) has a `cloudflared` connector that connects out to Cloudflare
-  and receives a free https address. See [Tunneling](concepts/TUNNELING.md).
-- **Why:** the server is a container behind its provider's machine; only SSH is forwarded to it and the provider will
-  not forward more. Outgoing connections are allowed, and a tunnel only needs outgoing connections. Quick tunnels
-  need no account and no domain, cost nothing and include https.
-- **Cost:** links change when the server or a connector restarts. The panel always shows the current links and
-  updates each Odoo's own address automatically.
-- **Considered:** opening ports (not available); SSH tunnels (every user, client and webhook sender would need SSH
-  access); Tailscale Funnel (free and permanent, but account, expiring keys and one device per address); a Cloudflare
-  named tunnel with our own domain (permanent links, needs a domain: the natural next step).
+### Public links through exposure plugins, outgoing connections by default
+- **Chosen:** how the panel and the instances are reached is an exposure plugin. The default, `cloudflare-quick`,
+  gives each destination (panel, every instance) a connector that connects out to the public-link service and
+  receives an https address. See [Public links](concepts/TUNNELING.md).
+- **Why:** many servers accept no incoming connections (cloud containers, office networks, providers that forward
+  only SSH), but almost all allow outgoing ones. The default needs no account, no domain and no open port, and
+  includes https.
+- **Cost:** with the default, links change when the server or a connector restarts. The panel always shows the
+  current links and updates each Odoo's own address automatically.
+- **Considered:** opening ports (kept as the `host-ports` plugin, for servers that allow it); SSH tunnels (every
+  user, client and webhook sender would need SSH access); private networks such as Tailscale (every visitor would
+  need the software); a plugin for a fixed domain (permanent links, needs a domain: possible as a plugin).
 
 ### One link per instance
 - **Chosen:** every instance has its own link and Odoo runs at its normal paths.
@@ -233,7 +234,7 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
   [Administrator guide](ADMIN_GUIDE.md#15-the-github-app) and [Deploy keys](concepts/DEPLOY_KEYS.md).
 - **Why:** an app belongs to no person (no personal token whose owner might leave), is read-only, covers every
   repository and submodule of an account in a few clicks, and brings one webhook for all of them, whose address the
-  panel can update itself when a quick tunnel changes. The manifest flow means no key or secret is ever copied by hand.
+  panel can update itself when the panel's public link changes. The manifest flow means no key or secret is ever copied by hand.
 - **Cost:** a few minutes of setup per panel; the app is shown on GitHub under the account that created it.
 - **Considered:** a personal access token (gives access to everything that person can see, expires, belongs to a
   person); deploy keys only (one key per private repository and submodule, a webhook per repository).
@@ -243,7 +244,7 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
   branch every 2 minutes; `github-app` receives the panel's GitHub App events, `github-webhook` per-repository push
   events, both checked with GitHub's HMAC signature.
 - **Why:** a webhook is immediate but needs a panel address that never changes; polling needs nothing from GitHub
-  and nothing reachable from outside, so it works behind quick tunnels. Each server enables what fits it, or both.
+  and nothing reachable from outside, so it works with links that change. Each server enables what fits it, or both.
 - **Cost:** with polling only, an update starts up to 2 minutes after a push.
 
 ### An API for other systems: token and signature
@@ -254,7 +255,7 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
 - **Why:** a token alone can leak through logs and proxies; the signature means a leaked token is not enough, and
   the timestamp and nonce stop replays. Reusing the panel's views keeps one set of input checks, roles and audit.
 - **Considered:** OAuth (an authorization server is more than a self-hosted panel needs); mutual TLS (hard to set up
-  behind tunnels).
+  behind public-link services and proxies).
 
 ### A separate web app on top of the API
 - **Chosen:** the browser part is its own service (`web/`, container `sudoo-web`): React with TypeScript, data
@@ -279,7 +280,7 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
 - **Chosen:** `GET /api/v1/events` streams every change as Server-Sent Events; the data of each event is the same
   document a `GET` returns. Recent events are kept so a reconnecting client receives only what it missed.
 - **Why:** pages update the moment something happens, without asking every few seconds; one connection per tab
-  instead of many requests. SSE is plain HTTP: it passes through Cloudflare tunnels and proxies, browsers
+  instead of many requests. SSE is plain HTTP: it passes through public-link services and proxies, browsers
   reconnect by themselves, and it needs no library. The stream runs on the asyncio loop, so open tabs cost almost
   nothing.
 - **Considered:** polling (slow to show changes, constant load); WebSockets (two-way, which the panel does not
@@ -398,14 +399,14 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
 ### Pausing after 6 hours without visits
 - **Chosen:** on by default for new instances (`AUTO_PAUSE`), after `IDLE_HOURS`; both can be changed on the
   Settings page, and each instance has its own switch.
-- **Why:** the server has 3 GB of memory, enough for about two running instances. Paused instances use none and start
+- **Why:** a server with 3 GB of memory runs about two instances at once. Paused instances use none and start
   again on the next visit in a few seconds.
 
 ### Hashing panel passwords, encrypting other secrets
 - **Chosen:** panel passwords are hashed with scrypt and a pepper; deploy keys and Odoo master passwords are
   encrypted with AES-256-GCM; Odoo receives only a hash of its master password. See
   [Passwords and encryption](concepts/PASSWORDS_AND_ENCRYPTION.md).
-- **Why:** a password only has to be checked, so it should never be readable, even by us; a deploy key has to be used,
+- **Why:** a password only has to be checked, so it should never be readable, not even by the panel; a deploy key has to be used,
   so it must be readable by the panel, but only by the panel. Keeping the key (`vault.key`) apart from the data means
   a copy of the data alone reveals nothing.
 - **Cost:** `vault.key` must be backed up on its own. Losing it means recreating deploy keys and resetting panel
@@ -445,11 +446,10 @@ Each decision lists what we chose, why, what it costs, and the alternatives we c
   pages loaded only when opened; Caddy as the only web server. Dependabot keeps them current.
 - **Why:** few moving parts, nothing extra to run, and a first page that downloads about 130 KB of compressed code.
 
-### A calm interface in Apple's manner
+### A calm interface
 - **Chosen:** graphite neutrals with Odoo's plum as the single accent; the platform's system font; translucent
-  sidebar and top bar; motion only where it explains something, following Apple's *Designing Fluid Interfaces* and
-  Emil Kowalski's animation standards (press feedback, origin-aware menus, sheets that leave the way they came,
-  a quick fade out and in between pages); status shown only when it matters. Details in [Design](DESIGN.md).
+  sidebar and top bar; motion only where it explains something (press feedback, origin-aware menus, sheets that
+  leave the way they came, a quick fade out and in between pages); status shown only when it matters. Details in [Design](DESIGN.md).
 - **Why:** people keep the panel open for hours; quiet chrome lets the instances and their figures read first, and
   motion that is fast and consistent makes the panel feel responsive rather than busy.
 

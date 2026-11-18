@@ -9,11 +9,11 @@ Odoo, and because it sees every visit, it can notice when an instance is unused 
 
 1. [An everyday comparison](#1-an-everyday-comparison)
 2. [What a reverse proxy is](#2-what-a-reverse-proxy-is)
-3. [What our gateway does](#3-what-our-gateway-does)
+3. [What the gateway does](#3-what-the-gateway-does)
 4. [Example: a visit to a paused instance](#4-example-a-visit-to-a-paused-instance)
 5. [Where it runs: its own container](#5-where-it-runs-its-own-container)
 6. [Why Odoo needs proxy_mode](#6-why-odoo-needs-proxy_mode)
-7. [Why we wrote our own](#7-why-we-wrote-our-own)
+7. [Why the panel has its own](#7-why-the-panel-has-its-own)
 
 ---
 
@@ -39,10 +39,10 @@ on aiohttp), because it needs to do things those do not do on their own.
 
 ---
 
-## 3. What our gateway does
+## 3. What the gateway does
 
 There is one gateway port per instance, on `127.0.0.1` (on every interface with the `host-ports` exposure). The
-instance's tunnel connector points at it. For every request:
+instance's public-link connector points at it. For every request:
 
 | Step | Why |
 | :--- | :--- |
@@ -64,7 +64,7 @@ instance's tunnel connector points at it. For every request:
 ## 4. Example: a visit to a paused instance
 
 ```
- 09:00:00  Visitor opens https://river-stone-apple.trycloudflare.com/odoo
+ 09:00:00  Visitor opens https://river-stone-apple.example.com/odoo
  09:00:00  Gateway: Odoo is not answering, instance is paused → start it (once), answer "Starting up"
  09:00:04  Browser reloads the page by itself → still starting → "Starting up, waiting for 4 seconds"
  09:00:08  ...
@@ -118,12 +118,12 @@ over plain http. With `proxy_mode = True` in `odoo.conf`, Odoo reads the forward
 
 ---
 
-## 7. Why we wrote our own
+## 7. Why the panel has its own
 
 | Option | Why not |
 | :--- | :--- |
-| nginx or Caddy | Cannot start a stopped Docker container by themselves, and do not tell us when an instance was last visited. |
+| nginx or Caddy | Cannot start a stopped Docker container by themselves, and do not report when an instance was last visited. |
 | Keep every instance running | Not enough memory: about 1 to 1.5 GB per instance on a 3 GB server. |
-| Odoo directly behind the tunnel | Same problem: a stopped Odoo cannot wake itself. |
+| Odoo directly behind the public link | Same problem: a stopped Odoo cannot wake itself. |
 
 Writing it with aiohttp keeps it small, streaming and able to hold many open WebSocket connections at once.

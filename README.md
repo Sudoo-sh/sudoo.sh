@@ -22,7 +22,6 @@ in about two minutes. Instances nobody is using pause themselves, so one ordinar
 ![Code style: black](https://img.shields.io/badge/code%20style-black-000000)
 ![Checked with mypy](https://img.shields.io/badge/types-mypy-2A6DB2)
 ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
-![Cloudflare Tunnel](https://img.shields.io/badge/Cloudflare-Tunnel-F38020?logo=cloudflare&logoColor=white)
 
 Community and Enterprise · Any Odoo version · GitHub sync · Live metrics · Five roles · Second factors · Auto-pause · Daily backups and one-click restore · One-command install
 
@@ -41,8 +40,8 @@ Community and Enterprise · Any Odoo version · GitHub sync · Live metrics · F
 > [!IMPORTANT]
 > **Instances are for showing Odoo, not for real data.**
 > Every instance opens with the Odoo login `admin` / `admin`, and
-> anyone who has an instance's link can sign in with it. With the default exposure plugin the public links are free
-> Cloudflare links: they **change when the server restarts**, and the panel always shows the current ones. Panel accounts are different: their
+> anyone who has an instance's link can sign in with it. With the default public-link extension the links
+> **change when the server restarts**, and the panel always shows the current ones. Panel accounts are different: their
 > passwords are stored only as hashes, and a second factor can be required.
 
 ## Quick start
@@ -117,7 +116,7 @@ instances. It is an independent project, not affiliated with Odoo S.A.
 | A running Odoo per branch | yes | yes, Community or Enterprise, any version |
 | Updates on push | yes | yes: GitHub App, GitHub webhook or polling ([plugins](docs/PLUGINS.md)) |
 | Instances that pause and expire | staging builds expire | pause when unused, wake on the next visit; lifetime with a backup |
-| How instances are reached | `*.odoo.com` | free Cloudflare tunnels, open ports, or your own exposure plugin |
+| How instances are reached | `*.odoo.com` | a public https link per instance, open ports, or your own exposure plugin |
 | API for automation | | signed REST API ([Panel API](docs/PANEL_API.md)) |
 | Production hosting | yes | no: Sudoo.sh is for development, demos, tests and training |
 
@@ -131,9 +130,9 @@ command to use it: people receive a link.
 1. **Create an instance in a few clicks**: choose a GitHub repository, a branch, the Odoo version (any published version) and the
    edition (Community or Enterprise). The name, the database, the ports and the passwords are generated. Two minutes
    later the panel shows the instance's own https link and its login. See [Creating an instance](docs/USER_MANUAL.md#4-creating-an-instance).
-2. **One https link per instance**: every instance is reachable from anywhere through its own link, even though the server
-   accepts no incoming connections. Browsers, API clients and webhook senders use it like any Odoo address. See
-   [Tunneling](docs/concepts/TUNNELING.md).
+2. **One https link per instance**: every instance is reachable from anywhere through its own public link, provided
+   through extensions, so the server needs no open port. Browsers, API clients and webhook senders use it like any
+   Odoo address. See [Public links](docs/concepts/TUNNELING.md).
 3. **Stays in sync with GitHub**: by polling GitHub every 2 minutes, or instantly through a GitHub webhook (both are
    plugins, use either or both); when a developer pushes, the instance pulls
    the code, upgrades only the modules whose files changed and restarts. Submodules (for example OCA repositories)
@@ -182,20 +181,20 @@ command to use it: people receive a link.
 
 ![How the parts of Sudoo.sh fit together](docs/images/architecture.svg)
 
-Everything on the server listens on `127.0.0.1` only. The only ways in are the Cloudflare connectors (which the
-server itself opened) and SSH for administrators. The full picture is in [Architecture](docs/ARCHITECTURE.md).
+Everything on the server listens on `127.0.0.1` only. With the default exposure plugin, the only ways in are the
+public-link connectors (connections the server itself opened) and SSH for administrators. The full picture is in [Architecture](docs/ARCHITECTURE.md).
 
 ---
 
-## Technologies and What We Gain From Them
+## Technologies and What They Bring
 
-| Technology | What it does here | What we gain |
+| Technology | What it does here | What it brings |
 | :--- | :--- | :--- |
 | **Docker Engine** | Runs every Odoo, every PostgreSQL, the panel and the connectors as containers. | Instances are isolated from each other and from the server: one can break or be deleted without touching the others. See [Docker](docs/concepts/DOCKER.md). |
 | **Docker Compose** | Describes each instance (Odoo + PostgreSQL + volumes) as one project. | One command starts, stops or removes a whole instance, and deleting leaves nothing behind. |
 | **Official Odoo images** (`odoo:<version>`) | The Odoo program itself. | Nothing to build or maintain; every version behaves exactly as Odoo publishes it; new versions appear in the panel by themselves (`ODOO_VERSIONS=auto`). |
 | **PostgreSQL 16** | The database of each instance. | Odoo's own database; one per instance, so instances never share data. |
-| **Cloudflare Tunnel** (`cloudflared`, quick tunnels) | Gives the panel and every instance a public https address. | Works without any open port, free, https included, no domain needed. See [Tunneling](docs/concepts/TUNNELING.md). |
+| **Exposure plugins** (default `cloudflare-quick`) | Give the panel and every instance a public https address. | The default works without any open port, account or domain, https included. See [Public links](docs/concepts/TUNNELING.md). |
 | **Python 3.12+** with type hints | The panel's language. | Same language as Odoo, so every Odoo developer can read and fix it; type hints checked by mypy catch mistakes before they run. |
 | **uv** | Installs the dependencies, from a lock file. | Fast, and every installation (servers, CI, developers) gets exactly the same versions. |
 | **pydantic-settings** | Reads and checks the settings. | Every setting typed and documented in one class; a wrong value stops the panel at start-up with a clear message. |
@@ -208,7 +207,7 @@ server itself opened) and SSH for administrators. The full picture is in [Archit
 | **Git and SSH deploy keys** | Fetch code; read-only access to one repository per key. | No personal account or token whose owner might leave; each key can be revoked on its own. See [Git submodules](docs/concepts/GIT_SUBMODULES.md). |
 | **React 19 + TypeScript + Vite** | The web app (`web/`), a separate service on top of the API. | Typed end to end; pages load only when opened; fast rebuilds; any front-end developer can work on it. |
 | **TanStack Query + Server-Sent Events** | Data in the web app, kept current by the live event stream. | Pages update the moment something happens, with no polling; data is cached between pages. |
-| **SCSS design tokens** | Every colour, size, material and motion defined once (`web/src/styles/_tokens.scss`), light and dark themes; the system font, translucent chrome and motion in Apple's manner ([Design](docs/DESIGN.md)). | Restyling Sudoo.sh is one file; the accent colour follows `BRAND_COLOR`. |
+| **SCSS design tokens** | Every colour, size, material and motion defined once (`web/src/styles/_tokens.scss`), light and dark themes; the system font, translucent chrome and purposeful motion ([Design](docs/DESIGN.md)). | Restyling Sudoo.sh is one file; the accent colour follows `BRAND_COLOR`. |
 | **Chart.js** | The live charts: an hour of figures, updated in place as each sample arrives. | Smooth, accessible canvas charts in a small, tree-shaken bundle. |
 | **Caddy** | Serves the web app and forwards `/api` to the backend (container `sudoo-web`). | One small binary, compression, strict security headers, no configuration beyond one file. |
 | **SQLite** | The panel's own data (accounts, tokens, audit log). | Transactions and queries without a database server. |
@@ -216,7 +215,7 @@ server itself opened) and SSH for administrators. The full picture is in [Archit
 | **Alpine Linux** (`python:3.15-alpine`) | The panel's container. | Small image; the Docker command line is copied in from the official Docker image. |
 | **black, ruff, mypy, pre-commit** | Formatting, lint, type checks on every commit and in CI. | One style, mistakes caught before review, enforced for everyone. |
 
-Why each of these was chosen over the alternatives is explained in [Architecture: why we chose this](docs/ARCHITECTURE.md#6-why-we-chose-this).
+Why each of these was chosen over the alternatives is explained in [Architecture: design decisions](docs/ARCHITECTURE.md#6-design-decisions).
 
 ---
 
@@ -233,10 +232,10 @@ All documents are in [`docs/`](docs/README.md) and are also shown inside the pan
 | [Plugins](docs/PLUGINS.md) | administrators, developers | Choosing how instances are reached, where Enterprise comes from and what starts updates; writing your own |
 | [Panel API](docs/PANEL_API.md) | developers | Managing instances from other systems with signed API calls |
 | [API and webhooks](docs/API.md) | developers | Calling an instance's Odoo from other systems |
-| [Architecture](docs/ARCHITECTURE.md) | developers | How the parts work together, and why we chose each of them |
+| [Architecture](docs/ARCHITECTURE.md) | developers | How the parts work together, and why each was chosen |
 | [Design](docs/DESIGN.md) | developers, designers | The design system: tokens, type, materials, motion, charts; restyling Sudoo.sh |
 | [Security](docs/SECURITY.md) | administrators, reviewers | Passwords, encryption, sessions, input checks, what is and is not protected |
-| [Concepts](docs/README.md#concepts-explained-with-examples) | anyone curious | Tunneling, Docker, the gateway, deploy keys, submodules, passwords and encryption, web attacks; each with examples |
+| [Concepts](docs/README.md#concepts-explained-with-examples) | anyone curious | Public links, Docker, the gateway, deploy keys, submodules, passwords and encryption, web attacks; each with examples |
 
 ---
 
@@ -244,7 +243,7 @@ All documents are in [`docs/`](docs/README.md) and are also shown inside the pan
 
 | Topic | How it is handled |
 | :--- | :--- |
-| Reachability | Nothing listens on a public address. The web app, the backend, the gateway and Odoo listen on `127.0.0.1`; the way in is the Cloudflare connectors. |
+| Reachability | Nothing listens on a public address. The web app, the backend, the gateway and Odoo listen on `127.0.0.1`; the way in is the public-link connectors of the default exposure plugin. |
 | First run | No default accounts: the first account is created with a one-time setup code printed on the server. |
 | Panel passwords | Never stored. Only a salted, peppered **scrypt hash** is kept; the pepper comes from a key outside the accounts file. Rules follow NIST SP 800-63B: 12 to 128 characters, common passwords and sequences refused. Sign-in is locked after repeated failures. |
 | Stored secrets | The GitHub App's private key, GitHub deploy keys and Odoo master passwords are **encrypted with AES-256-GCM**. Odoo itself only receives a hash of its master password. |
@@ -401,7 +400,7 @@ the ones most people change:
 
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
-| `EXPOSURE` | `cloudflare-quick` | How instances are reached: a free Cloudflare tunnel each, or `host-ports` |
+| `EXPOSURE` | `cloudflare-quick` | How instances are reached: the default public-link extension, or `host-ports` |
 | `ENTERPRISE_SOURCE` | `folder` | Where Enterprise comes from: `folder`, `git` or `none` |
 | `ENTERPRISE_PATH` | `/opt/odoo/enterprise/{version}` | Folder of a version's Enterprise add-ons, any naming |
 | `ODOO_VERSIONS` | `auto` | Every published Odoo version from `ODOO_MIN_VERSION` (`16.0`), or a fixed list |
@@ -464,10 +463,10 @@ How to repeat these checks is described in the [Administrator guide](docs/ADMIN_
 
 ## Known Limitations
 
-* **With `cloudflare-quick`, links change after a restart** of the server or of a connector. For links that never
-  change, use `EXPOSURE=host-ports` on a server that can accept connections, or write an exposure plugin for a
-  Cloudflare named tunnel with your own domain ([Plugins](docs/PLUGINS.md#6-writing-a-plugin)).
-* **Cloudflare quick tunnels** carry at most 100 MB per request, end requests that take longer than about 100
+* **With the default public-link extension (`cloudflare-quick`), links change after a restart** of the server or of
+  a connector. For links that never change, use `EXPOSURE=host-ports` on a server that can accept connections, or
+  write an exposure plugin that serves links from your own domain ([Plugins](docs/PLUGINS.md#6-writing-a-plugin)).
+* **Default public links** carry at most 100 MB per request, end requests that take longer than about 100
   seconds, and have no uptime guarantee.
 * **Memory**: about 1 to 1.5 GB per running instance. On a 3 GB server, keep one or two instances running; the
   others pause by themselves.
@@ -539,7 +538,7 @@ business, offer it as a hosted service, or build a product on it can get a **com
 support: write to support@sudoo.sh. Contributions are accepted under the terms in
 [CONTRIBUTING](CONTRIBUTING.md#licence-of-contributions), which keep commercial licensing possible.
 
-For commercial use, ask the author for a separate licence. Odoo and Odoo.sh are trademarks of Odoo S.A.; this project is not
+For commercial use, ask for a separate licence at support@sudoo.sh. Odoo and Odoo.sh are trademarks of Odoo S.A.; this project is not
 affiliated with or endorsed by Odoo S.A.
 
 ---

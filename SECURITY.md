@@ -36,7 +36,7 @@ In scope: the panel, its gateway service, the release images and the installer (
 Out of scope, because they are documented on purpose in [docs/SECURITY.md](docs/SECURITY.md) and the README's *Known Limitations*:
 
 - Odoo instances open with the login `admin` / `admin`; they are for demonstrations, not real data.
-- Cloudflare quick-tunnel links are public to anyone who has them and change on restart.
+- Public links of the default exposure plugin (`cloudflare-quick`) are public to anyone who has them and change on restart.
 - The vault key is on the same server as the secrets it protects.
 - Problems in Odoo itself, Docker, PostgreSQL or Cloudflare. Please report those to their own projects.
 

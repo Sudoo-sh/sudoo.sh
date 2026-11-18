@@ -41,23 +41,23 @@ Everything about Sudoo.sh, in one place. The same pages are on GitHub and inside
 | Call an instance from Python or Postman | [API and webhooks](API.md) |
 | Create or restart instances from a CI pipeline or a script | [Panel API](PANEL_API.md) |
 | Update instances the moment code is pushed | [Plugins: update triggers](PLUGINS.md#5-update-triggers-what-starts-a-code-update) |
-| Use open ports instead of Cloudflare, or keep Enterprise in git | [Plugins](PLUGINS.md) |
+| Use open ports instead of the default public links, or keep Enterprise in git | [Plugins](PLUGINS.md) |
 | Install or buy a plugin from the marketplace, or link the panel to an account | [Marketplace](MARKETPLACE.md) |
 | Look up a setting | [Configuration](CONFIGURATION.md) |
 | Send sign-in codes from Gmail | [Administrator guide: E-mail](ADMIN_GUIDE.md#6-e-mail) |
 | Change the look (colours, fonts, motion) | [Design](DESIGN.md#9-restyling-sudoosh) |
-| Know why something was built this way | [Architecture: Why we chose this](ARCHITECTURE.md#6-why-we-chose-this) |
+| Know why something was built this way | [Architecture: Design decisions](ARCHITECTURE.md#6-design-decisions) |
 
 ---
 
 ## Concepts explained with examples
 
 Short explanations of the ideas the panel is built on, written for people who have not met them before. Each one
-starts with an everyday comparison, then shows what it looks like on our server.
+starts with an everyday comparison, then shows what it looks like on a Sudoo.sh server.
 
 | Concept | In one sentence |
 | :--- | :--- |
-| [Tunneling](concepts/TUNNELING.md) | How a server that accepts no incoming connections can still have a public https link. |
+| [Public links](concepts/TUNNELING.md) | How every instance gets a public https link, even on a server that accepts no incoming connections. |
 | [Docker and containers](concepts/DOCKER.md) | How many Odoo versions run side by side on one server without disturbing each other. |
 | [The gateway (reverse proxy)](concepts/GATEWAY.md) | The small program in front of every instance that records visits and wakes paused instances. |
 | [Deploy keys](concepts/DEPLOY_KEYS.md) | How the server reads a private GitHub repository without anyone's password or token. |
@@ -71,7 +71,7 @@ starts with an everyday comparison, then shows what it looks like on our server.
 
 | Document | Contents |
 | :--- | :--- |
-| [Project overview](../README.md) | What the panel does, technologies and what we gain from them, components, installation |
+| [Project overview](../README.md) | What the panel does, technologies and what they bring, components, installation |
 | [User manual](USER_MANUAL.md) | Every page and button, step by step |
 | [Administrator guide](ADMIN_GUIDE.md) | Server, installation, settings, files, links, backups, Enterprise, troubleshooting |
 | [API and webhooks](API.md) | Odoo's APIs through an instance's link, with examples |

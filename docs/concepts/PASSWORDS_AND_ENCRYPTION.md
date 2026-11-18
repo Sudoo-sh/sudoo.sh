@@ -1,7 +1,7 @@
 # Passwords and Encryption
 
-**In one sentence:** a secret we only need to *check* (a password) is hashed, so it can never be read back; a secret
-we need to *use* (a deploy key) is encrypted, so only the holder of the key can read it.
+**In one sentence:** a secret that only needs to be *checked* (a password) is hashed, so it can never be read back; a secret
+that has to be *used* (a deploy key) is encrypted, so only the holder of the key can read it.
 
 ---
 

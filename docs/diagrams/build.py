@@ -162,8 +162,8 @@ def architecture():
     x, w = 150, 470
     mid = x + w / 2
     c.box(x, 20, w, 58, "People and systems on the internet", ["browsers, API clients, webhook senders"], "outside")
-    c.arrow((mid, 78), (mid, 124), label="https://<words>.trycloudflare.com, one link per instance", at=(mid, 104))
-    c.box(x, 124, w, 58, "Cloudflare", ["one public https address per connector"], "cloud")
+    c.arrow((mid, 78), (mid, 124), label="https://<instance-link>, one public link per instance", at=(mid, 104))
+    c.box(x, 124, w, 58, "Public-link service", ["one public https address per connector"], "cloud")
     c.group(100, 212, 570, 410, "Server: only SSH reaches it from outside")
     c.arrow(
         (mid, 252), (mid, 182), label="connections opened outwards by the server", at=(mid + 12, 200), anchor="start"
@@ -173,7 +173,7 @@ def architecture():
         252,
         w,
         58,
-        "Connectors (cloudflared)",
+        "Connectors (exposure plugin)",
         ["sudoo-connector-panel  •  sudoo-connector-<name>, one each"],
         "cloud",
     )
@@ -210,13 +210,13 @@ def visit_flow():
     c = Canvas(900, 250, "How a visit reaches Odoo")
     names = [
         ("Browser or", "API client", "outside"),
-        ("Cloudflare", "edge", "cloud"),
+        ("Public-link", "service", "cloud"),
         ("Connector", "per instance", "cloud"),
         ("Gateway", "port 8070", "panel"),
         ("Odoo", "port 28070", "instance"),
         ("PostgreSQL", "database", "instance"),
     ]
-    labels = ["https", "tunnel", "127.0.0.1:8070", "127.0.0.1:28070", "SQL"]
+    labels = ["https", "outbound", "127.0.0.1:8070", "127.0.0.1:28070", "SQL"]
     w, gap, y = 118, 34, 30
     for i, (title, line, kind) in enumerate(names):
         x = 20 + i * (w + gap)
@@ -367,36 +367,23 @@ def code_update():
     c.save("code-update")
 
 
-def tunnel_problem():
-    c = Canvas(860, 300, "Why the server cannot be reached directly")
-    c.box(20, 70, 150, 160, "Internet", ["anyone, anywhere"], "outside")
-    c.box(300, 40, 230, 220, "Provider's machine", ["public address", "203.0.113.10"], "default")
-    c.box(660, 40, 180, 220, "Our server", ["a container,", "private address", "10.x.x.x"], "instance")
-    c.arrow((170, 110), (660, 110), label="ssh -p 2222: forwarded to SSH", at=(415, 100), style="bold")
-    c.arrow((170, 200), (380, 200), label="https on port 9000", at=(255, 190), style="bad")
-    c.text(398, 206, "✗", "bad-text")
-    c.text(470, 206, "dropped", "lab")
+def public_link_how():
+    c = Canvas(860, 330, "How a public link reaches an instance")
     c.text(
-        430,
-        284,
-        "Only the SSH port is forwarded. The provider will not forward more, so a web panel "
-        "on the server cannot be opened directly.",
-        "m",
+        20,
+        30,
+        "1. The connector on the server calls OUT to the public-link service and keeps the line open",
+        "t",
+        "start",
     )
-    c.save("tunnel-problem")
-
-
-def tunnel_how():
-    c = Canvas(860, 330, "How a tunnel works")
-    c.text(20, 30, "1. The connector on our server calls OUT to Cloudflare and keeps the line open", "t", "start")
-    c.box(20, 50, 220, 60, "Our server", ["connector (cloudflared)"], "instance")
-    c.box(600, 50, 240, 60, "Cloudflare", ["gives the line a public address"], "cloud")
+    c.box(20, 50, 220, 60, "The server", ["connector (exposure plugin)"], "instance")
+    c.box(600, 50, 240, 60, "Public-link service", ["gives the line a public address"], "cloud")
     c.arrow((240, 80), (600, 80), label="outgoing connection: allowed", at=(420, 70), style="bold")
-    c.text(20, 170, "2. Visitors use the address; Cloudflare sends them down the open line", "t", "start")
+    c.text(20, 170, "2. Visitors use the address; the service sends them down the open line", "t", "start")
     c.box(20, 190, 140, 60, "Visitor", ["opens the link"], "outside")
-    c.box(240, 190, 170, 60, "Cloudflare", [], "cloud")
+    c.box(240, 190, 170, 60, "Public-link service", [], "cloud")
     c.box(490, 190, 150, 60, "Connector", [], "instance")
-    c.box(700, 190, 140, 60, "Our program", ["on 127.0.0.1"], "panel")
+    c.box(700, 190, 140, 60, "Gateway", ["on 127.0.0.1"], "panel")
     c.arrow((160, 212), (240, 212))
     c.arrow((410, 212), (490, 212), style="bold")
     c.arrow((640, 212), (700, 212))
@@ -407,10 +394,10 @@ def tunnel_how():
         430,
         300,
         "The visit travels inside a connection the server started, so nothing has to be opened "
-        "on the server or the provider.",
+        "on the server or the network in front of it.",
         "m",
     )
-    c.save("tunnel-how")
+    c.save("public-link-how")
 
 
 def deploy_key_flow():
@@ -460,7 +447,7 @@ def docker_server():
 def reverse_proxy():
     c = Canvas(700, 130, "A reverse proxy")
     c.box(20, 30, 170, 60, "Visitor", [], "outside")
-    c.box(265, 30, 170, 60, "Reverse proxy", ["(our gateway)"], "panel")
+    c.box(265, 30, 170, 60, "Reverse proxy", ["(the gateway)"], "panel")
     c.box(510, 30, 170, 60, "Odoo", [], "instance")
     for x1, x2 in ((190, 265), (435, 510)):
         c.arrow((x1, 52), (x2, 52))
@@ -511,7 +498,7 @@ def instance_page():
     c.raw('<line class="life" x1="10" y1="112" x2="810" y2="112"/>')
     c.text(40, 150, "sales-main", "t", "start")
     c.box(140, 136, 70, 20, None, ["Running"], "ok", radius=10)
-    c.text(40, 176, "https://river-stone-apple.trycloudflare.com", "mono", "start")
+    c.text(40, 176, "https://river-stone-apple.example.com", "mono", "start")
     fields = [
         ("Status", "Running and ready"),
         ("Odoo", "20.0 Enterprise"),
@@ -548,8 +535,7 @@ if __name__ == "__main__":
         lifecycle,
         create_flow,
         code_update,
-        tunnel_problem,
-        tunnel_how,
+        public_link_how,
         deploy_key_flow,
         docker_server,
         reverse_proxy,

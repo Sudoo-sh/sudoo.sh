@@ -33,17 +33,21 @@ import { NavLink, useNavigate, useParams } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useCapacity, useCredentials, useHistory, useInstance, useJobs, useOdooLog } from "@/api/queries";
 import type { Instance, InstanceBackup, Job, Permission, Stage } from "@/api/types";
-import { BACKUP_KIND as KIND_LABEL, BackupPicker } from "@/components/BackupPicker";
+import { BackupPicker } from "@/components/BackupPicker";
 import { LiveChart } from "@/components/charts/LiveChart";
 import { JobLine, Monogram } from "@/components/InstanceCard";
-import { STAGE_LABEL, STAGES, StageTag } from "@/components/StageTag";
+import { StageTag } from "@/components/StageTag";
 import { DomainsTab } from "@/components/DomainsTab";
 import { JobDrawer, Terminal } from "@/components/JobDrawer";
 import { Page, useCan } from "@/components/Shell";
 import { StatCard } from "@/components/StatCard";
 import { Button, Callout, CopyField, Empty, Field, Progress, Segmented, Skeleton, Status, Switch, Tag } from "@/components/ui/basics";
 import { Menu, Modal, useToast } from "@/components/ui/overlay";
-import { ago, bytes, dateTime, duration, elapsed, ms, percent } from "@/lib/format";
+import { useT } from "@/i18n";
+import common from "@/i18n/common";
+import words from "@/i18n/instance";
+import { jobTitle } from "@/i18n/jobs";
+import { ago, bytes, count, dateTime, duration, elapsed, ms, number, percent } from "@/lib/format";
 import { CreatingInstance, MissingInstance } from "./InstanceCreating";
 import { CapacityNote, RepositoryPicker, useDebounced } from "./NewInstance";
 
@@ -51,15 +55,16 @@ type Action = { action: string; body?: Record<string, unknown>; title: string };
 
 function useRun(name: string, openJob: (id: string) => void) {
   const toast = useToast();
+  const t = useT(words).run;
   return useCall(
     async ({ action, body, title }: Action) => {
       try {
         const job = await api.post<Job>(`/instances/${name}/actions/${action}`, body ?? {});
-        toast("success", `${title} started`, "Follow it in Activity.");
+        toast("success", t.started(title), t.startedText);
         openJob(job.id);
         return job;
       } catch (error) {
-        toast("error", `${title} did not start`, errorText(error));
+        toast("error", t.notStarted(title), errorText(error));
         throw error;
       }
     },
@@ -67,14 +72,14 @@ function useRun(name: string, openJob: (id: string) => void) {
   );
 }
 
-const TABS: { id: string; label: string; icon: React.ReactNode; permission?: Permission }[] = [
-  { id: "", label: "Overview", icon: <Activity /> },
-  { id: "activity", label: "Activity", icon: <Layers /> },
-  { id: "code", label: "Code", icon: <Code2 /> },
-  { id: "logs", label: "Odoo log", icon: <ScrollText />, permission: "instances.logs" },
-  { id: "domains", label: "Domains", icon: <Globe /> },
-  { id: "settings", label: "Settings", icon: <Settings2 />, permission: "instances.operate" },
-  { id: "access", label: "Access", icon: <KeyRound />, permission: "instances.credentials" },
+const TABS: { id: string; label: keyof (typeof words)["en"]["tabs"]; icon: React.ReactNode; permission?: Permission }[] = [
+  { id: "", label: "overview", icon: <Activity /> },
+  { id: "activity", label: "activity", icon: <Layers /> },
+  { id: "code", label: "code", icon: <Code2 /> },
+  { id: "logs", label: "logs", icon: <ScrollText />, permission: "instances.logs" },
+  { id: "domains", label: "domains", icon: <Globe /> },
+  { id: "settings", label: "settings", icon: <Settings2 />, permission: "instances.operate" },
+  { id: "access", label: "access", icon: <KeyRound />, permission: "instances.credentials" },
 ];
 
 export function InstancePage() {
@@ -85,6 +90,10 @@ export function InstancePage() {
   const [jobId, setJobId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("job"));
   const run = useRun(name, setJobId);
   const capacity = useCapacity();
+  const all = useT(words);
+  const t = all.head;
+  const j = all.jobs;
+  const b = all.banners;
   const [dialog, setDialog] = useState<null | "upgrade" | "branch" | "delete" | "submodule" | "rollback" | "connect" | "pause" | "switch-off">(null);
 
   if (error && !instance) return <MissingInstance name={name} error={error} />;
@@ -112,7 +121,7 @@ export function InstancePage() {
           <Monogram name={instance.name} large />
           <div className="titles" style={{ minWidth: 0 }}>
             <div className="row-wrap" style={{ gap: 12 }}>
-              <h1 className="truncate">{instance.name}</h1>
+              <h1 className="truncate"><bdi>{instance.name}</bdi></h1>
               <StageTag stage={instance.stage} />
               <Status status={instance.status} />
             </div>
@@ -121,16 +130,16 @@ export function InstancePage() {
               <Tag>{instance.odoo.edition === "enterprise" ? "Enterprise" : "Community"}</Tag>
               {plain ? (
                 <span className="row xsmall" style={{ gap: 4 }}>
-                  <Box size={14} strokeWidth={1.5} /> Plain Odoo, no repository
+                  <Box size={14} strokeWidth={1.5} /> {t.plain}
                 </span>
               ) : (
                 <span className="row mono xsmall" style={{ gap: 4 }}>
-                  <GitBranch size={14} strokeWidth={1.5} /> {instance.git.branch}
+                  <GitBranch size={14} strokeWidth={1.5} /> <bdi dir="ltr">{instance.git.branch}</bdi>
                 </span>
               )}
               {instance.url && (
                 <a href={instance.url} target="_blank" rel="noreferrer" className="row truncate mono xsmall" style={{ gap: 4 }}>
-                  <Globe size={14} strokeWidth={1.5} /> {instance.url.replace(/^https?:\/\//, "")}
+                  <Globe size={14} strokeWidth={1.5} /> <bdi dir="ltr">{instance.url.replace(/^https?:\/\//, "")}</bdi>
                 </a>
               )}
             </div>
@@ -139,26 +148,26 @@ export function InstancePage() {
         <div className="actions">
           {instance.url && !asleep && (
             <a className="btn primary" href={instance.url} target="_blank" rel="noreferrer">
-              Open Odoo <ArrowUpRight />
+              {t.openOdoo} <ArrowUpRight className="flip-rtl" />
             </a>
           )}
           {can("instances.update") &&
             (asleep ? (
-              <Button variant="primary" icon={<Play />} disabled={busy || !!capacity?.blocked} onClick={() => act("start", "Start")}>
-                Start
+              <Button variant="primary" icon={<Play />} disabled={busy || !!capacity?.blocked} onClick={() => act("start", j.start)}>
+                {t.start}
               </Button>
             ) : (
-              <Button icon={<RotateCw />} disabled={busy} onClick={() => act("restart", "Restart")}>
-                Restart
+              <Button icon={<RotateCw />} disabled={busy} onClick={() => act("restart", j.restart)}>
+                {t.restart}
               </Button>
             ))}
           {can("instances.update") && !plain && (
-            <Button icon={<DownloadCloud />} disabled={busy || !instance.git.repository} onClick={() => act("update", "Get latest code")}>
-              Get latest code
+            <Button icon={<DownloadCloud />} disabled={busy || !instance.git.repository} onClick={() => act("update", j.update)}>
+              {t.getLatest}
             </Button>
           )}
           {(can("instances.update") || can("instances.operate")) && (
-          <Menu trigger={(toggle) => <Button icon={<MoreHorizontal />} onClick={toggle} aria-label="More actions" />}>
+          <Menu trigger={(toggle) => <Button icon={<MoreHorizontal />} onClick={toggle} aria-label={t.moreActions} />}>
             {(close) => {
               const item = (fn: () => void) => () => {
                 close();
@@ -167,43 +176,43 @@ export function InstancePage() {
               return (
                 <>
                   {!plain && (
-                    <button disabled={busy || !instance.git.repository} onClick={item(() => act("update-submodules", "Update submodules"))}>
-                      <RefreshCw /> Update submodules
+                    <button disabled={busy || !instance.git.repository} onClick={item(() => act("update-submodules", j.updateSubmodules))}>
+                      <RefreshCw /> {t.updateSubmodules}
                     </button>
                   )}
                   {can("instances.operate") && (
                     <>
                       <button disabled={busy} onClick={item(() => setDialog("upgrade"))}>
-                        <Zap /> Upgrade modules…
+                        <Zap /> {t.upgradeModules}
                       </button>
                       {plain ? (
                         <button disabled={busy} onClick={item(() => setDialog("connect"))}>
-                          <FolderGit2 /> Connect a repository…
+                          <FolderGit2 /> {t.connectRepository}
                         </button>
                       ) : (
                         <button disabled={busy || !instance.git.repository} onClick={item(() => setDialog("branch"))}>
-                          <GitBranch /> Switch branch…
+                          <GitBranch /> {t.switchBranch}
                         </button>
                       )}
-                      <button disabled={busy} onClick={item(() => act("update-images", "Update Odoo and PostgreSQL images"))}>
-                        <Container /> Update Odoo and PostgreSQL images
+                      <button disabled={busy} onClick={item(() => act("update-images", j.updateImages))}>
+                        <Container /> {t.updateImages}
                       </button>
                       <hr />
                       {!asleep && (
-                        <button disabled={busy} onClick={item(() => (production ? setDialog("pause") : act("pause", "Pause")))}>
-                          <Pause /> Pause
+                        <button disabled={busy} onClick={item(() => (production ? setDialog("pause") : act("pause", j.pause)))}>
+                          <Pause /> {t.pause}
                         </button>
                       )}
                       {instance.status !== "switched_off" && (
-                        <button disabled={busy} onClick={item(() => (production ? setDialog("switch-off") : act("switch-off", "Switch off")))}>
-                          <Power /> Switch off
+                        <button disabled={busy} onClick={item(() => (production ? setDialog("switch-off") : act("switch-off", j.switchOff)))}>
+                          <Power /> {t.switchOff}
                         </button>
                       )}
                     </>
                   )}
                   {can("instances.delete") && (
                     <button className="danger" disabled={busy} onClick={item(() => setDialog("delete"))}>
-                      <Trash2 /> Delete…
+                      <Trash2 /> {t.delete}
                     </button>
                   )}
                 </>
@@ -215,7 +224,7 @@ export function InstancePage() {
       </div>
 
       {instance.current_job && (
-        <button className="card pad" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => setJobId(instance.current_job!.id)}>
+        <button className="card pad" style={{ textAlign: "start", cursor: "pointer" }} onClick={() => setJobId(instance.current_job!.id)}>
           <JobLine job={instance.current_job} />
         </button>
       )}
@@ -223,27 +232,27 @@ export function InstancePage() {
         <div className="rollback-banner" role="status">
           <Undo2 />
           <div className="text small">
-            <b>Restored {ago(instance.rollback.taken_at)}.</b> The state before the restore is kept until {dateTime(instance.rollback.until)}; you can go back to it until then.
+            <b>{b.restored(ago(instance.rollback.taken_at))}</b>{b.keptUntil(dateTime(instance.rollback.until))}
           </div>
           <Button variant="primary" icon={<Undo2 />} disabled={busy} onClick={() => setDialog("rollback")}>
-            Rollback to before the restore
+            {b.rollback}
           </Button>
         </div>
       )}
       {asleep && !busy && can("instances.update") && <CapacityNote />}
       {instance.git.branch_deleted_on_github && (
         <Callout tone="warning">
-          The branch <b>{instance.git.branch}</b> no longer exists on GitHub, so this instance gets no updates. Switch it to another branch, or delete it.
+          {b.branchGone(<b key="b"><bdi dir="ltr">{instance.git.branch}</bdi></b>)}
         </Callout>
       )}
       {instance.update_failure && (
         <Callout tone={instance.update_failure.rolled_back ? "warning" : "danger"}>
-          <b>{instance.update_failure.rolled_back ? "The last update failed and was undone" : "The last update failed and could not be undone"}{instance.update_failure.failed_at ? ` ${ago(instance.update_failure.failed_at)}` : ""}.</b>{" "}
+          <b>{instance.update_failure.rolled_back ? b.updateUndone : b.updateNotUndone}{instance.update_failure.failed_at ? ` ${ago(instance.update_failure.failed_at)}` : ""}.</b>{" "}
           {instance.update_failure.message}
           {instance.update_failure.job && (
             <div>
               <Button size="sm" variant="ghost" onClick={() => setJobId(instance.update_failure!.job!.split("/").pop()!)}>
-                Show the job
+                {b.showJob}
               </Button>
             </div>
           )}
@@ -252,18 +261,16 @@ export function InstancePage() {
       {instance.gateway_error && <Callout tone="danger">{instance.gateway_error}</Callout>}
       {instance.drift && (
         <Callout tone="danger">
-          <b>Changed outside the panel {instance.drift.detected_at ? ago(instance.drift.detected_at) : ""}.</b>{" "}
-          {instance.drift.action === "restore"
-            ? "The panel puts its own configuration back as soon as nothing else runs here, backing the database up first when its container is affected."
-            : "The panel only reports this. Undo the change, or restore the panel's configuration."}
-          <ul className="drift-list mono xsmall">
+          <b>{b.drift(instance.drift.detected_at ? ago(instance.drift.detected_at) : "")}</b>{" "}
+          {instance.drift.action === "restore" ? b.driftRestore : b.driftWarn}
+          <ul className="drift-list mono xsmall" dir="ltr">
             {instance.drift.items.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>
           {instance.drift.action === "warn" && can("instances.operate") && (
-            <Button icon={<ShieldCheck />} disabled={busy} onClick={() => act("repair", "Restore the panel's configuration")}>
-              Restore the panel's configuration
+            <Button icon={<ShieldCheck />} disabled={busy} onClick={() => act("repair", j.repair)}>
+              {b.restoreConfig}
             </Button>
           )}
         </Callout>
@@ -272,7 +279,7 @@ export function InstancePage() {
       <nav className="tabs">
         {TABS.filter((t) => (!t.permission || can(t.permission)) && !(plain && t.id === "code")).map((t) => (
           <NavLink key={t.id} to={`/i/${name}${t.id ? `/${t.id}` : ""}`} end viewTransition className={({ isActive }) => (isActive ? "active" : "")}>
-            {t.icon} {t.label}
+            {t.icon} {all.tabs[t.label]}
           </NavLink>
         ))}
       </nav>
@@ -288,17 +295,17 @@ export function InstancePage() {
       </div>
 
       {jobId && <JobDrawer id={jobId} onClose={() => setJobId(null)} />}
-      {dialog === "upgrade" && <UpgradeDialog onClose={() => setDialog(null)} onRun={(modules) => act("upgrade", "Upgrade modules", { modules })} />}
-      {dialog === "branch" && <BranchDialog instance={instance} onClose={() => setDialog(null)} onRun={(branch) => act("switch-branch", "Switch branch", { branch })} />}
-      {dialog === "connect" && <ConnectDialog onClose={() => setDialog(null)} onRun={(body) => act("connect-repository", "Connect a repository", body)} />}
-      {dialog === "submodule" && <SubmoduleDialog version={instance.odoo.version} onClose={() => setDialog(null)} onRun={(body) => act("add-submodule", "Add submodule", body)} />}
+      {dialog === "upgrade" && <UpgradeDialog onClose={() => setDialog(null)} onRun={(modules) => act("upgrade", j.upgrade, { modules })} />}
+      {dialog === "branch" && <BranchDialog instance={instance} onClose={() => setDialog(null)} onRun={(branch) => act("switch-branch", j.switchBranch, { branch })} />}
+      {dialog === "connect" && <ConnectDialog onClose={() => setDialog(null)} onRun={(body) => act("connect-repository", j.connect, body)} />}
+      {dialog === "submodule" && <SubmoduleDialog version={instance.odoo.version} onClose={() => setDialog(null)} onRun={(body) => act("add-submodule", j.addSubmodule, body)} />}
       {dialog === "delete" && <DeleteDialog name={name} production={production} onClose={() => setDialog(null)} />}
       {(dialog === "pause" || dialog === "switch-off") && (
         <StopProductionDialog name={name} action={dialog} onClose={() => setDialog(null)}
-          onRun={() => act(dialog, dialog === "pause" ? "Pause" : "Switch off")} />
+          onRun={() => act(dialog, dialog === "pause" ? j.pause : j.switchOff)} />
       )}
       {dialog === "rollback" && instance.rollback && (
-        <RollbackDialog instance={instance} onClose={() => setDialog(null)} onRun={() => act("rollback", "Rollback")} />
+        <RollbackDialog instance={instance} onClose={() => setDialog(null)} onRun={() => act("rollback", j.rollback)} />
       )}
     </Page>
   );
@@ -308,14 +315,15 @@ const PRODUCTION_CONFIRMED = ["pause", "switch-off", "restore", "rollback"];
 
 /** Pausing or switching off a production instance takes its users offline: asked once more. */
 function StopProductionDialog({ name, action, onClose, onRun }: { name: string; action: "pause" | "switch-off"; onClose: () => void; onRun: () => void }) {
-  const verb = action === "pause" ? "Pause" : "Switch off";
+  const all = useT(words);
+  const t = all.stop;
+  const c = useT(common).common;
+  const verb = action === "pause" ? all.head.pause : all.head.switchOff;
   return (
-    <Modal title={`${verb} ${name}?`} description="This is a production instance" onClose={onClose}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" icon={action === "pause" ? <Pause /> : <Power />} onClick={() => { onRun(); onClose(); }}>{verb}</Button></>}>
+    <Modal title={action === "pause" ? t.pauseTitle(name) : t.switchOffTitle(name)} description={t.production} onClose={onClose}
+      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="danger" icon={action === "pause" ? <Pause /> : <Power />} onClick={() => { onRun(); onClose(); }}>{verb}</Button></>}>
       <Callout tone="warning">
-        {action === "pause"
-          ? "Its users lose access until the next visit starts it again, which takes a minute or two."
-          : "Its users lose access until someone clicks Start: visits do not start it."}
+        {action === "pause" ? t.pauseText : t.switchOffText}
       </Callout>
     </Modal>
   );
@@ -323,12 +331,10 @@ function StopProductionDialog({ name, action, onClose, onRun }: { name: string; 
 
 /** What the production stage changes, shown on a production instance's overview. */
 function ProductionNote() {
+  const t = useT(words).productionNote;
   return (
     <Callout tone="info">
-      <b>What changes in production.</b> This instance is never paused or deleted automatically. It is backed up every
-      day, used or not, and every update backs it up first and is undone if it fails. It gets new code only when
-      someone asks, unless automatic updates are switched on. Pausing, switching off, restoring and deleting ask for
-      a confirmation.
+      <b>{t.title}</b>{t.text}
     </Callout>
   );
 }
@@ -336,10 +342,10 @@ function ProductionNote() {
 // ---------------------------------------------------------------- overview
 
 const METRICS = {
-  cpu_percent: { label: "Processor", format: (v: number) => `${v.toFixed(1)}%` },
-  memory_percent: { label: "Memory", format: (v: number) => `${Math.round(v)}%`, max: 100 },
-  requests_per_minute: { label: "Requests per minute", format: (v: number) => v.toFixed(0) },
-  response_ms_p95: { label: "Response time, 95th percentile", format: (v: number) => `${Math.round(v)} ms` },
+  cpu_percent: { label: "processor", format: (v: number) => percent(v, 1) },
+  memory_percent: { label: "memory", format: (v: number) => percent(v), max: 100 },
+  requests_per_minute: { label: "requestsPerMinute", format: (v: number) => number(v) },
+  response_ms_p95: { label: "responseP95", format: (v: number) => ms(v) },
 } as const;
 type Metric = keyof typeof METRICS;
 
@@ -349,36 +355,38 @@ function Overview({ instance, busy, act }: { instance: Instance; busy: boolean; 
   const series = history?.instances[instance.name];
   const u = instance.usage;
   const chosen = METRICS[metric];
+  const t = useT(words).overview;
+  const label = t[chosen.label];
   return (
     <div className="stack">
       {instance.stage === "production" && <ProductionNote />}
       <div className="grid-4 stagger">
-        <StatCard label="Processor" value={u.cpu_percent ?? null} unit="%" decimals={1} detail="of the whole server"
+        <StatCard label={t.processor} value={u.cpu_percent ?? null} unit="%" decimals={1} detail={t.ofServer}
           trend={{ t: series?.t ?? [], values: series?.cpu_percent ?? [] }} />
-        <StatCard label="Memory" value={u.memory_percent != null ? Math.round(u.memory_percent) : null} unit="%"
-          detail={`${bytes(u.memory_bytes)} of ${bytes(u.memory_limit_bytes)}`}
+        <StatCard label={t.memory} value={u.memory_percent != null ? Math.round(u.memory_percent) : null} unit="%"
+          detail={t.memoryOf(bytes(u.memory_bytes), bytes(u.memory_limit_bytes))}
           trend={{ t: series?.t ?? [], values: series?.memory_percent ?? [], max: 100 }} />
-        <StatCard label="Requests" value={u.requests_per_minute != null ? Math.round(u.requests_per_minute) : null} unit="/min"
-          detail={u.error_rate_percent ? `${percent(u.error_rate_percent, 1)} answered with an error` : "no errors"}
+        <StatCard label={t.requests} value={u.requests_per_minute != null ? Math.round(u.requests_per_minute) : null} unit={t.perMinute}
+          detail={u.error_rate_percent ? t.errors(percent(u.error_rate_percent, 1)) : t.noErrors}
           trend={{ t: series?.t ?? [], values: series?.requests_per_minute ?? [] }} />
-        <StatCard label="Response time" value={u.response_ms_p95 != null ? Math.round(u.response_ms_p95) : null} unit="ms"
-          detail={`95% of requests faster · average ${ms(u.response_ms_avg)}`}
+        <StatCard label={t.responseTime} value={u.response_ms_p95 != null ? Math.round(u.response_ms_p95) : null} unit="ms"
+          detail={t.responseDetail(ms(u.response_ms_avg))}
           trend={{ t: series?.t ?? [], values: series?.response_ms_p95 ?? [] }} />
       </div>
 
       <div className="overview">
         <section className="card chart-card">
           <div className="chart-head">
-            <h2>{chosen.label}</h2>
+            <h2>{label}</h2>
             <span className="spacer" />
             <Segmented<Metric>
               value={metric}
               onChange={setMetric}
               options={[
-                { value: "cpu_percent", label: "CPU" },
-                { value: "memory_percent", label: "Memory" },
-                { value: "requests_per_minute", label: "Requests" },
-                { value: "response_ms_p95", label: "Response" },
+                { value: "cpu_percent", label: t.cpu },
+                { value: "memory_percent", label: t.memory },
+                { value: "requests_per_minute", label: t.requests },
+                { value: "response_ms_p95", label: t.response },
               ]}
             />
           </div>
@@ -387,30 +395,30 @@ function Overview({ instance, busy, act }: { instance: Instance; busy: boolean; 
               t={series?.t ?? []}
               max={"max" in chosen ? chosen.max : undefined}
               format={chosen.format}
-              series={[{ label: chosen.label, values: series?.[metric] ?? [], color: "--accent", fill: true }]}
+              series={[{ label, values: series?.[metric] ?? [], color: "--accent", fill: true }]}
             />
           </div>
         </section>
         <section className="card">
-          <div className="card-head"><h2>Details</h2></div>
+          <div className="card-head"><h2>{t.details}</h2></div>
           <div className="card-body">
             <dl className="dl small">
-              <dt>Database</dt>
-              <dd className="mono">{instance.odoo.database}</dd>
-              <dt>Repository</dt>
-              <dd className="truncate">{instance.git.repository ? <a href={instance.git.repository} target="_blank" rel="noreferrer">{instance.git.repository.replace(/^https:\/\/github\.com\//, "")}</a> : <span className="faint">{instance.source === "plain" ? "None: plain Odoo" : "None"}</span>}</dd>
-              <dt>Running for</dt>
+              <dt>{t.database}</dt>
+              <dd className="mono" dir="ltr">{instance.odoo.database}</dd>
+              <dt>{t.repository}</dt>
+              <dd className="truncate">{instance.git.repository ? <a href={instance.git.repository} target="_blank" rel="noreferrer" dir="ltr">{instance.git.repository.replace(/^https:\/\/github\.com\//, "")}</a> : <span className="faint">{instance.source === "plain" ? t.nonePlain : t.none}</span>}</dd>
+              <dt>{t.runningFor}</dt>
               <dd>{duration(u.uptime_seconds)}</dd>
-              <dt>Disk</dt>
-              <dd>{instance.disk ? `${bytes(instance.disk.database_bytes)} database, ${bytes(instance.disk.files_bytes)} files` : bytes(u.disk_bytes)}</dd>
-              <dt>Last visit</dt>
+              <dt>{t.disk}</dt>
+              <dd>{instance.disk ? t.diskSplit(bytes(instance.disk.database_bytes), bytes(instance.disk.files_bytes)) : bytes(u.disk_bytes)}</dd>
+              <dt>{t.lastVisit}</dt>
               <dd>{ago(instance.last_visit_at)}</dd>
-              <dt>Pauses</dt>
-              <dd>{instance.pauses_at ? `${ago(instance.pauses_at)} if nobody visits` : instance.settings.auto_pause ? "When idle" : "Never"}</dd>
-              <dt>Created</dt>
-              <dd>{dateTime(instance.created_at)}{instance.created_by ? ` by ${instance.created_by}` : ""}</dd>
-              <dt>Deleted</dt>
-              <dd>{instance.expires_at ? `${dateTime(instance.expires_at)}, after a backup` : "Kept until deleted by hand"}</dd>
+              <dt>{t.pauses}</dt>
+              <dd>{instance.pauses_at ? t.pausesAt(ago(instance.pauses_at)) : instance.settings.auto_pause ? t.whenIdle : t.never}</dd>
+              <dt>{t.created}</dt>
+              <dd>{dateTime(instance.created_at)}{instance.created_by ? t.createdBy(instance.created_by) : ""}</dd>
+              <dt>{t.deleted}</dt>
+              <dd>{instance.expires_at ? t.deletedAt(dateTime(instance.expires_at)) : t.keptByHand}</dd>
             </dl>
           </div>
         </section>
@@ -428,55 +436,58 @@ function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolea
   const [picking, setPicking] = useState(false);
   const list = instance.backups ?? [];
   const latest = list.find((b) => b.file === instance.restorable_backup);
+  const all = useT(words);
+  const t = all.backups;
+  const KIND_LABEL = all.backupKinds;
   return (
     <section className="card">
       <div className="card-head">
-        <h2>Backups</h2>
-        <span className="sub">{list.length ? `${list.length} kept` : "None yet"}</span>
+        <h2>{t.title}</h2>
+        <span className="sub">{list.length ? t.kept(count(list.length, "backup")) : t.noneYet}</span>
         <span className="spacer" />
         {can("instances.operate") && (
-          <Button size="sm" icon={<Database />} disabled={busy} onClick={() => act("backup", "Back up")}>Back up now</Button>
+          <Button size="sm" icon={<Database />} disabled={busy} onClick={() => act("backup", all.jobs.backup)}>{t.backUpNow}</Button>
         )}
         {can("instances.restore") && (
           <Button size="sm" icon={<History />} disabled={busy || !latest} onClick={() => latest && setRestoring(latest)}>
-            Restore the latest
+            {t.restoreLatest}
           </Button>
         )}
         {can("instances.restore") && can("backups.manage") && (
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => setPicking(true)}>
-            Restore another backup…
+            {t.restoreAnother}
           </Button>
         )}
       </div>
       {latest ? (
         <div className="backup-latest">
           <div>
-            <div className="small muted">Latest backup</div>
+            <div className="small muted">{t.latest}</div>
             <div className="when">{dateTime(latest.created_at)}</div>
-            <div className="xsmall faint">{KIND_LABEL[latest.kind]} · {bytes(latest.size_bytes)} · {ago(latest.created_at)}</div>
+            <div className="xsmall faint">{KIND_LABEL[latest.kind] ?? latest.kind} · {bytes(latest.size_bytes)} · {ago(latest.created_at)}</div>
           </div>
         </div>
       ) : (
         <p className="card-body small muted">
-          A daily backup is taken each night after a day the instance was used. Back up now to have one right away.
+          {t.nightly}
         </p>
       )}
       {list.length > 0 && (
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Taken</th><th>Kind</th><th>Size</th><th /></tr></thead>
+            <thead><tr><th>{t.taken}</th><th>{t.kind}</th><th>{t.size}</th><th /></tr></thead>
             <tbody>
               {list.map((b) => (
                 <tr key={b.file}>
                   <td>{dateTime(b.created_at)} <span className="faint xsmall">· {ago(b.created_at)}</span></td>
-                  <td><Tag tone={b.kind === "daily" ? "accent" : undefined}>{KIND_LABEL[b.kind]}</Tag></td>
+                  <td><Tag tone={b.kind === "daily" ? "accent" : undefined}>{KIND_LABEL[b.kind] ?? b.kind}</Tag></td>
                   <td className="mono small">{bytes(b.size_bytes)}</td>
                   <td className="actions">
                     {can("backups.manage") && (
-                      <a className="btn sm ghost" href={`/api/v1/backups/${b.file}`} download aria-label={`Download ${b.file}`}><Download /></a>
+                      <a className="btn sm ghost" href={`/api/v1/backups/${b.file}`} download aria-label={t.download(b.file)}><Download /></a>
                     )}
                     {can("instances.restore") && (
-                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => setRestoring(b)}>Restore</Button>
+                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => setRestoring(b)}>{t.restore}</Button>
                     )}
                   </td>
                 </tr>
@@ -487,27 +498,30 @@ function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolea
       )}
       {restoring && (
         <RestoreDialog instance={instance} backup={restoring} onClose={() => setRestoring(null)}
-          onRun={() => act("restore", "Restore", { file: restoring.file })} />
+          onRun={() => act("restore", all.jobs.restore, { file: restoring.file })} />
       )}
       {picking && (
         <AnotherBackupDialog instance={instance} onClose={() => setPicking(false)}
-          onRun={(file) => act("restore", "Restore", { file })} />
+          onRun={(file) => act("restore", all.jobs.restore, { file })} />
       )}
     </section>
   );
 }
 
 function RestoreDialog({ instance, backup, onClose, onRun }: { instance: Instance; backup: InstanceBackup; onClose: () => void; onRun: () => void }) {
+  const all = useT(words);
+  const t = all.backups;
+  const c = useT(common).common;
   return (
-    <Modal title={`Restore the backup of ${dateTime(backup.created_at)}?`} description={`${KIND_LABEL[backup.kind]} · ${bytes(backup.size_bytes)}`} onClose={onClose}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" onClick={() => { onRun(); onClose(); }}>Restore</Button></>}>
+    <Modal title={t.restoreTitle(dateTime(backup.created_at))} description={`${all.backupKinds[backup.kind] ?? backup.kind} · ${bytes(backup.size_bytes)}`} onClose={onClose}
+      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="danger" onClick={() => { onRun(); onClose(); }}>{t.restore}</Button></>}>
       <div className="stack">
         <Callout tone="warning">
-          {instance.stage === "production" && <><b>This is the production instance.</b> </>}
-          The database <b className="mono">{backup.database}</b> and its files go back to how they were on {dateTime(backup.created_at)}. Changes made since then are replaced.
+          {instance.stage === "production" && <><b>{t.productionWarning}</b> </>}
+          {t.restoreText(<b key="db" className="mono">{backup.database}</b>, dateTime(backup.created_at))}
         </Callout>
         <p className="small muted">
-          The current state is backed up first and kept as "Before a restore": the instance offers <b>Rollback</b> for a while afterwards. {instance.name} restarts and is back in a minute or two.
+          {t.restoreAfter(<b key="r">{t.rollbackWord}</b>, <bdi key="n">{instance.name}</bdi>)}
         </p>
       </div>
     </Modal>
@@ -517,16 +531,18 @@ function RestoreDialog({ instance, backup, onClose, onRun }: { instance: Instanc
 function AnotherBackupDialog({ instance, onClose, onRun }: { instance: Instance; onClose: () => void; onRun: (file: string) => void }) {
   const [file, setFile] = useState<string | null>(null);
   const foreign = !!file && !file.startsWith(`${instance.name}__`);
+  const t = useT(words).backups;
+  const c = useT(common).common;
   return (
-    <Modal wide title="Restore another backup" description={`Any backup of Odoo ${instance.odoo.version} can go into ${instance.name}, also one of another instance.`} onClose={onClose}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" disabled={!file} onClick={() => { if (file) { onRun(file); onClose(); } }}>Restore</Button></>}>
+    <Modal wide title={t.anotherTitle} description={t.anotherText(instance.odoo.version, instance.name)} onClose={onClose}
+      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="danger" disabled={!file} onClick={() => { if (file) { onRun(file); onClose(); } }}>{t.restore}</Button></>}>
       <div className="stack">
         <BackupPicker version={instance.odoo.version} edition={instance.odoo.edition} value={file} onChange={setFile} />
         {file && (
           <Callout tone="warning">
-            {instance.stage === "production" && <><b>This is the production instance.</b> </>}
-            The database <b className="mono">{instance.odoo.database}</b> and its files are replaced by the backup's. The current state is backed up first and offered as <b>Rollback</b> for a while.
-            {foreign && <> The data comes from another instance, so it is neutralised: it sends no e-mail and runs no scheduled actions until you switch them back on in Odoo.</>}
+            {instance.stage === "production" && <><b>{t.productionWarning}</b> </>}
+            {t.anotherReplace(<b key="db" className="mono">{instance.odoo.database}</b>, <b key="r">{t.rollbackWord}</b>)}
+            {foreign && t.neutralised}
           </Callout>
         )}
       </div>
@@ -536,16 +552,18 @@ function AnotherBackupDialog({ instance, onClose, onRun }: { instance: Instance;
 
 function RollbackDialog({ instance, onClose, onRun }: { instance: Instance; onClose: () => void; onRun: () => void }) {
   const rollback = instance.rollback!;
+  const t = useT(words).backups;
+  const c = useT(common).common;
   return (
-    <Modal title="Rollback to before the restore?" description={`To the state of ${dateTime(rollback.taken_at)}`} onClose={onClose}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" icon={<Undo2 />} onClick={() => { onRun(); onClose(); }}>Rollback</Button></>}>
+    <Modal title={t.rollbackTitle} description={t.rollbackTo(dateTime(rollback.taken_at))} onClose={onClose}
+      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="danger" icon={<Undo2 />} onClick={() => { onRun(); onClose(); }}>{t.rollbackWord}</Button></>}>
       <div className="stack">
         <Callout tone="warning">
-          {instance.stage === "production" && <><b>This is the production instance.</b> </>}
-          The database and its files go back to how they were just before the restore of {dateTime(rollback.taken_at)}. Changes made since the restore are replaced.
+          {instance.stage === "production" && <><b>{t.productionWarning}</b> </>}
+          {t.rollbackText(dateTime(rollback.taken_at))}
         </Callout>
         <p className="small muted">
-          The current state is backed up first and kept as "Before a rollback" until {dateTime(rollback.until)}. {instance.name} restarts and is back in a minute or two.
+          {t.rollbackAfter(dateTime(rollback.until), <bdi key="n">{instance.name}</bdi>)}
         </p>
       </div>
     </Modal>
@@ -555,14 +573,15 @@ function RollbackDialog({ instance, onClose, onRun }: { instance: Instance; onCl
 // ---------------------------------------------------------------- activity
 
 function JobRow({ job, onOpen }: { job: Job; onOpen: (id: string) => void }) {
+  const t = useT(words).activity;
   return (
     <button className="job-row" onClick={() => onOpen(job.id)}>
       <Status status={job.status} />
       <div style={{ minWidth: 0 }}>
-        <div className="truncate">{job.action}</div>
+        <div className="truncate">{jobTitle(job.action)}</div>
         <div className="xsmall faint">
-          {job.instance} · {job.requested_by} · {ago(job.started_at)}
-          {job.finished_at && ` · took ${elapsed(job.started_at, job.finished_at)}`}
+          <bdi>{job.instance}</bdi> · <bdi>{job.requested_by}</bdi> · {ago(job.started_at)}
+          {job.finished_at && t.took(elapsed(job.started_at, job.finished_at))}
         </div>
         {job.error && <div className="xsmall" style={{ color: "var(--negative)" }}>{job.error}</div>}
       </div>
@@ -572,8 +591,9 @@ function JobRow({ job, onOpen }: { job: Job; onOpen: (id: string) => void }) {
 }
 
 export function JobList({ jobs, onOpen }: { jobs: Job[] | undefined; onOpen: (id: string) => void }) {
+  const t = useT(words).activity;
   if (!jobs) return <div className="card-body"><Skeleton height={120} /></div>;
-  if (!jobs.length) return <Empty icon={<Layers />} title="No activity yet">Actions on this instance appear here, with their progress.</Empty>;
+  if (!jobs.length) return <Empty icon={<Layers />} title={t.emptyTitle}>{t.emptyText}</Empty>;
   return <>{jobs.map((job) => <JobRow key={job.id} job={job} onOpen={onOpen} />)}</>;
 }
 
@@ -589,12 +609,14 @@ function ActivityTab({ name, onOpen }: { name: string; onOpen: (id: string) => v
 // ---------------------------------------------------------------- code
 
 function CodeTab({ instance, canAdd, canRemove, busy, onAdd, act }: { instance: Instance; canAdd: boolean; canRemove: boolean; busy: boolean; onAdd: () => void; act: (action: string, title: string, body?: Record<string, unknown>) => void }) {
+  const all = useT(words);
+  const t = all.code;
   return (
     <div className="grid-2" style={{ alignItems: "start" }}>
       <div className="card">
         <div className="card-head">
-          <h2>Recent commits</h2>
-          <span className="sub">{instance.git.branch}</span>
+          <h2>{t.commits}</h2>
+          <span className="sub mono">{instance.git.branch}</span>
         </div>
         {instance.recent_commits?.length ? (
           <ol className="timeline card-body">
@@ -602,21 +624,21 @@ function CodeTab({ instance, canAdd, canRemove, busy, onAdd, act }: { instance: 
               <li key={c.sha}>
                 <span className={`node ${i === 0 ? "done" : ""}`}><GitCommitHorizontal /></span>
                 <div style={{ minWidth: 0 }}>
-                  <div className="truncate">{c.subject}</div>
-                  <div className="xsmall faint"><span className="mono">{c.sha}</span> · {c.author} · {c.when}</div>
+                  <div className="truncate"><bdi>{c.subject}</bdi></div>
+                  <div className="xsmall faint"><span className="mono">{c.sha}</span> · <bdi>{c.author}</bdi> · {/^\d{4}-\d\d-\d\dT/.test(c.when) ? ago(c.when) : c.when}</div>
                 </div>
               </li>
             ))}
           </ol>
         ) : (
-          <Empty icon={<GitCommitHorizontal />} title="No commits">This instance has no code from GitHub.</Empty>
+          <Empty icon={<GitCommitHorizontal />} title={t.noCommits}>{t.noCommitsText}</Empty>
         )}
       </div>
       <div className="card">
         <div className="card-head">
-          <h2>Submodules</h2>
+          <h2>{t.submodules}</h2>
           <span className="spacer" />
-          {canAdd && <Button size="sm" icon={<Plus />} disabled={busy || !instance.git.repository} onClick={onAdd}>Add</Button>}
+          {canAdd && <Button size="sm" icon={<Plus />} disabled={busy || !instance.git.repository} onClick={onAdd}>{t.add}</Button>}
         </div>
         {instance.submodules?.length ? (
           <div className="table-wrap">
@@ -625,13 +647,13 @@ function CodeTab({ instance, canAdd, canRemove, busy, onAdd, act }: { instance: 
                 {instance.submodules.map((s) => (
                   <tr key={s.path}>
                     <td>
-                      <div>{s.path}</div>
-                      <div className="xsmall faint truncate">{s.url}</div>
+                      <div className="mono" dir="ltr">{s.path}</div>
+                      <div className="xsmall faint truncate" dir="ltr">{s.url}</div>
                     </td>
                     <td className="mono xsmall">{s.sha}</td>
                     <td className="actions">
                       {canRemove && (
-                        <Button size="sm" variant="ghost" icon={<Trash2 />} disabled={busy} aria-label="Remove" onClick={() => confirm(`Remove submodule ${s.path}? The change is pushed to GitHub.`) && act("remove-submodule", "Remove submodule", { path: s.path })} />
+                        <Button size="sm" variant="ghost" icon={<Trash2 />} disabled={busy} aria-label={t.remove} onClick={() => confirm(t.removeConfirm(s.path)) && act("remove-submodule", all.jobs.removeSubmodule, { path: s.path })} />
                       )}
                     </td>
                   </tr>
@@ -640,7 +662,7 @@ function CodeTab({ instance, canAdd, canRemove, busy, onAdd, act }: { instance: 
             </table>
           </div>
         ) : (
-          <Empty icon={<Layers />} title="No submodules">Add other repositories (OCA modules, shared add-ons) to this branch.</Empty>
+          <Empty icon={<Layers />} title={t.noSubmodules}>{t.noSubmodulesText}</Empty>
         )}
       </div>
     </div>
@@ -652,15 +674,16 @@ function CodeTab({ instance, canAdd, canRemove, busy, onAdd, act }: { instance: 
 function LogsTab({ name }: { name: string }) {
   const [lines, setLines] = useState(300);
   const { data, isFetching, refetch } = useOdooLog(name, lines);
+  const t = useT(words).logs;
   return (
     <div className="stack">
       <div className="row">
         <select className="select" style={{ width: 180 }} value={lines} onChange={(e) => setLines(Number(e.target.value))}>
-          {[100, 300, 1000, 3000].map((n) => <option key={n} value={n}>Last {n} lines</option>)}
+          {[100, 300, 1000, 3000].map((n) => <option key={n} value={n}>{t.lastLines(n)}</option>)}
         </select>
-        <Button icon={<RefreshCw />} loading={isFetching} onClick={() => refetch()}>Refresh</Button>
+        <Button icon={<RefreshCw />} loading={isFetching} onClick={() => refetch()}>{t.refresh}</Button>
       </div>
-      {data ? <Terminal text={data.text || "No log output yet."} /> : <Skeleton height={300} />}
+      {data ? <Terminal text={data.text || t.empty} /> : <Skeleton height={300} />}
     </div>
   );
 }
@@ -670,9 +693,12 @@ function LogsTab({ name }: { name: string }) {
 function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }) {
   const toast = useToast();
   const can = useCan();
+  const t = useT(words).settings;
+  const c = useT(common);
+  const stageLabel = (stage: Stage) => c.stages[stage]?.label ?? stage;
   const save = useCall((body: Record<string, unknown>) => api.patch<Instance>(`/instances/${instance.name}`, body), [keys.instance(instance.name), keys.instances]);
   const set = (body: Record<string, unknown>) =>
-    save.mutate(body, { onSuccess: () => toast("success", "Saved"), onError: (e) => toast("error", "Not saved", errorText(e)) });
+    save.mutate(body, { onSuccess: () => toast("success", t.saved), onError: (e) => toast("error", t.notSaved, errorText(e)) });
   const s = instance.settings;
   const production = instance.stage === "production";
   const [leaving, setLeaving] = useState<Stage | null>(null);
@@ -688,22 +714,22 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
     ...(plain
       ? []
       : ([
-          ["auto_update", "Get new code automatically", "When the branch on GitHub has new commits, update this instance."],
-          ["auto_upgrade", "Upgrade changed modules", "After an update, upgrade the modules whose code changed."],
+          ["auto_update", t.autoUpdate, t.autoUpdateText],
+          ["auto_upgrade", t.autoUpgrade, t.autoUpgradeText],
         ] as [keyof typeof s, string, string][])),
     ...(production
       ? []
-      : ([["auto_pause", "Pause when idle", "Free the server's memory when nobody has opened it for a while; the next visit starts it again."]] as [keyof typeof s, string, string][])),
+      : ([["auto_pause", t.autoPause, t.autoPauseText]] as [keyof typeof s, string, string][])),
   ];
   return (
     <div className="card">
       <div className="settings-row">
         <div>
-          <div className="name">Stage</div>
-          <div className="desc">{STAGES.find((st) => st.value === instance.stage)?.text}</div>
+          <div className="name">{t.stage}</div>
+          <div className="desc">{c.stages[instance.stage]?.text}</div>
         </div>
-        <select className="select" aria-label="Stage" value={instance.stage} disabled={save.isPending} onChange={(e) => changeStage(e.target.value as Stage)}>
-          {STAGES.map((st) => <option key={st.value} value={st.value}>{st.label}</option>)}
+        <select className="select" aria-label={t.stage} value={instance.stage} disabled={save.isPending} onChange={(e) => changeStage(e.target.value as Stage)}>
+          {(["production", "staging", "development"] as Stage[]).map((st) => <option key={st} value={st}>{stageLabel(st)}</option>)}
         </select>
       </div>
       {rows.map(([key, title, text]) => (
@@ -715,37 +741,37 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
       {production ? (
         <div className="settings-row">
           <div>
-            <div className="name">Lifetime</div>
-            <div className="desc">A production instance is kept until someone deletes it, and never paused automatically.</div>
+            <div className="name">{t.lifetime}</div>
+            <div className="desc">{t.productionLifetime}</div>
           </div>
-          <span className="small muted" style={{ justifySelf: "end" }}>Kept</span>
+          <span className="small muted" style={{ justifySelf: "end" }}>{t.kept}</span>
         </div>
       ) : (
       <div className="settings-row">
         <div>
-          <div className="name">Lifetime</div>
+          <div className="name">{t.lifetime}</div>
           <div className="desc">
-            Deleted automatically this many days after it was created, after a backup.
-            {!mayShorten && " Your role can make it longer, not shorter."}
+            {t.lifetimeText}
+            {!mayShorten && t.longerOnly}
           </div>
         </div>
         <select className="select" value={s.delete_after_days} onChange={(e) => set({ delete_after_days: Number(e.target.value) })}>
           {[...new Set([7, 14, 30, 60, 90, 180, s.delete_after_days])].filter((d) => d > 0).sort((a, b) => a - b).map((d) => (
-            <option key={d} value={d} disabled={!mayShorten && sooner(d)}>{d} days</option>
+            <option key={d} value={d} disabled={!mayShorten && sooner(d)}>{count(d, "day")}</option>
           ))}
-          <option value={0}>Keep until deleted by hand</option>
+          <option value={0}>{t.keepByHand}</option>
         </select>
       </div>
       )}
       {leaving && (
-        <Modal title={`Move ${instance.name} to ${STAGE_LABEL[leaving].toLowerCase()}?`} description="It leaves production" onClose={() => setLeaving(null)}
-          footer={<><Button onClick={() => setLeaving(null)}>Cancel</Button><Button variant="danger" loading={save.isPending}
+        <Modal title={t.moveTitle(instance.name, stageLabel(leaving))} description={t.leavesProduction} onClose={() => setLeaving(null)}
+          footer={<><Button onClick={() => setLeaving(null)}>{c.common.cancel}</Button><Button variant="danger" loading={save.isPending}
             onClick={() => save.mutate({ stage: leaving, confirm_production: true }, {
-              onSuccess: () => { toast("success", `Moved to ${STAGE_LABEL[leaving].toLowerCase()}`); setLeaving(null); },
-              onError: (e) => toast("error", "Not moved", errorText(e)),
-            })}>Leave production</Button></>}>
+              onSuccess: () => { toast("success", t.moved(stageLabel(leaving))); setLeaving(null); },
+              onError: (e) => toast("error", t.notMoved, errorText(e)),
+            })}>{t.leave}</Button></>}>
           <Callout tone="warning">
-            It then follows the panel's rules again: it can be paused, given a lifetime, and its daily backup is taken only after a day it was used. Its settings stay as they are until you change them.
+            {t.leaveText}
           </Callout>
         </Modal>
       )}
@@ -758,21 +784,22 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
 function AccessTab({ instance }: { instance: Instance }) {
   const [shown, setShown] = useState(false);
   const { data, isFetching } = useCredentials(instance.name, shown);
+  const t = useT(words).access;
   return (
     <div className="card">
-      <div className="card-head"><h2>Odoo sign-in</h2><span className="spacer" /><span className="sub">viewing is recorded in the audit log</span></div>
+      <div className="card-head"><h2>{t.title}</h2><span className="spacer" /><span className="sub">{t.recorded}</span></div>
       <div className="card-body">
         {!shown ? (
-          <Button icon={<KeyRound />} onClick={() => setShown(true)}>Show the passwords</Button>
+          <Button icon={<KeyRound />} onClick={() => setShown(true)}>{t.show}</Button>
         ) : !data ? (
           isFetching && <Skeleton height={100} />
         ) : (
           <dl className="dl">
-            <dt>Address</dt><dd>{instance.url ? <CopyField value={instance.url} /> : "—"}</dd>
-            <dt>Login</dt><dd><CopyField value={data.login} /></dd>
-            <dt>Password</dt><dd><CopyField value={data.admin_password} secret /></dd>
-            <dt>Master password</dt><dd><CopyField value={data.master_password} secret /> <span className="xsmall faint">for the database manager</span></dd>
-            <dt>Ports</dt><dd className="mono small">{Object.entries(data.ports).map(([k, v]) => `${k} ${v}`).join(" · ")}</dd>
+            <dt>{t.address}</dt><dd>{instance.url ? <CopyField value={instance.url} /> : "—"}</dd>
+            <dt>{t.login}</dt><dd><CopyField value={data.login} /></dd>
+            <dt>{t.password}</dt><dd><CopyField value={data.admin_password} secret /></dd>
+            <dt>{t.master}</dt><dd><CopyField value={data.master_password} secret /> <span className="xsmall faint">{t.forManager}</span></dd>
+            <dt>{t.ports}</dt><dd className="mono small" dir="ltr">{Object.entries(data.ports).map(([k, v]) => `${k} ${v}`).join(" · ")}</dd>
           </dl>
         )}
       </div>
@@ -784,11 +811,13 @@ function AccessTab({ instance }: { instance: Instance }) {
 
 function UpgradeDialog({ onClose, onRun }: { onClose: () => void; onRun: (modules: string) => void }) {
   const [modules, setModules] = useState("");
+  const t = useT(words).upgrade;
+  const c = useT(common).common;
   return (
-    <Modal title="Upgrade modules" description="Runs Odoo's upgrade for these modules, then restarts the instance." onClose={onClose}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={!modules.trim()} onClick={() => { onRun(modules.trim()); onClose(); }}>Upgrade</Button></>}>
-      <Field label="Modules" hint={<>Technical names separated by commas, or <code>all</code>.</>}>
-        <input className="input mono" autoFocus placeholder="sale_custom,stock_custom" value={modules} onChange={(e) => setModules(e.target.value)} />
+    <Modal title={t.title} description={t.text} onClose={onClose}
+      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" disabled={!modules.trim()} onClick={() => { onRun(modules.trim()); onClose(); }}>{t.run}</Button></>}>
+      <Field label={t.modules} hint={<>{t.hint(<code key="all">all</code>)}</>}>
+        <input className="input mono" dir="ltr" autoFocus placeholder="sale_custom,stock_custom" value={modules} onChange={(e) => setModules(e.target.value)} />
       </Field>
     </Modal>
   );
@@ -798,15 +827,17 @@ function BranchDialog({ instance, onClose, onRun }: { instance: Instance; onClos
   const [branch, setBranch] = useState("");
   const [branches, setBranches] = useState<string[] | null>(null);
   const [error, setError] = useState("");
+  const t = useT(words).branch;
+  const c = useT(common).common;
   if (branches === null && !error && instance.git.repository)
     api.get<{ branches: string[] }>(`/repositories/branches?url=${encodeURIComponent(instance.git.repository)}`).then((r) => setBranches(r.branches), (e) => setError(errorText(e)));
   return (
-    <Modal title="Switch branch" description="The instance restarts with the code of the other branch, and upgrades its modules." onClose={onClose}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={!branch} onClick={() => { onRun(branch); onClose(); }}>Switch</Button></>}>
+    <Modal title={t.title} description={t.text} onClose={onClose}
+      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" disabled={!branch} onClick={() => { onRun(branch); onClose(); }}>{t.run}</Button></>}>
       {error ? <Callout tone="danger">{error}</Callout> : (
-        <Field label="Branch">
+        <Field label={t.branch}>
           <select className="select" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!branches}>
-            <option value="">{branches ? "Choose a branch" : "Loading branches…"}</option>
+            <option value="">{branches ? t.choose : t.loading}</option>
             {branches?.filter((b) => b !== instance.git.branch).map((b) => <option key={b}>{b}</option>)}
           </select>
         </Field>
@@ -825,6 +856,8 @@ function ConnectDialog({ onClose, onRun }: { onClose: () => void; onRun: (body: 
   const [branches, setBranches] = useState<string[] | null>(null);
   const [error, setError] = useState("");
   const [install, setInstall] = useState(true);
+  const t = useT(words).connect;
+  const c = useT(common).common;
   const address = useDebounced(repo.trim());
   useEffect(() => {
     setBranches(null);
@@ -838,23 +871,23 @@ function ConnectDialog({ onClose, onRun }: { onClose: () => void; onRun: (body: 
     return () => { current = false; };
   }, [address]);
   return (
-    <Modal title="Connect a repository" description="The instance gets the code of a GitHub branch and restarts. Its database and files stay as they are." onClose={onClose}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={!branches || !branch} onClick={() => { onRun({ repo: repo.trim(), branch, install_modules: install }); onClose(); }}>Connect</Button></>}>
+    <Modal title={t.title} description={t.text} onClose={onClose}
+      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" disabled={!branches || !branch} onClick={() => { onRun({ repo: repo.trim(), branch, install_modules: install }); onClose(); }}>{t.run}</Button></>}>
       <div className="stack">
-        <Field label="GitHub repository" error={error} hint={branches ? `${branches.length} branches found` : "Search your repositories, or paste https://github.com/owner/repository"}>
+        <Field label={t.repository} error={error} hint={branches ? t.found(branches.length) : t.hint}>
           <div className="stack-sm">
-            <input className="input" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repo} aria-invalid={!!error}
+            <input className="input" dir="ltr" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repo} aria-invalid={!!error}
               onChange={(e) => setRepo(e.target.value)} onFocus={() => setPicking(true)} onBlur={() => setPicking(false)} />
             {picking && <RepositoryPicker typed={repo.trim()} onPick={(r) => { setRepo(r.url); setBranch(r.default_branch); setPicking(false); }} />}
           </div>
         </Field>
-        <Field label="Branch">
+        <Field label={t.branch}>
           <select className="select" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!branches}>
-            {!branches && <option value="">{REPOSITORY_ADDRESS.test(address) && !error ? "Loading branches…" : "Choose the repository first"}</option>}
+            {!branches && <option value="">{REPOSITORY_ADDRESS.test(address) && !error ? t.loading : t.first}</option>}
             {branches?.map((b) => <option key={b}>{b}</option>)}
           </select>
         </Field>
-        <Switch checked={install} onChange={setInstall} label="Install the repository's modules" />
+        <Switch checked={install} onChange={setInstall} label={t.install} />
       </div>
     </Modal>
   );
@@ -864,14 +897,16 @@ function SubmoduleDialog({ version, onClose, onRun }: { version: string; onClose
   const [url, setUrl] = useState("");
   const [path, setPath] = useState("");
   const [branch, setBranch] = useState(version);
+  const t = useT(words).submodule;
+  const c = useT(common).common;
   return (
-    <Modal title="Add a submodule" description="Adds the repository to this branch and pushes the change to GitHub." onClose={onClose}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={!url} onClick={() => { onRun({ url, path, branch }); onClose(); }}>Add</Button></>}>
+    <Modal title={t.title} description={t.text} onClose={onClose}
+      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" disabled={!url} onClick={() => { onRun({ url, path, branch }); onClose(); }}>{t.add}</Button></>}>
       <div className="stack">
-        <Field label="Repository"><input className="input" autoFocus placeholder="https://github.com/OCA/web" value={url} onChange={(e) => setUrl(e.target.value)} /></Field>
+        <Field label={t.repository}><input className="input" dir="ltr" autoFocus placeholder="https://github.com/OCA/web" value={url} onChange={(e) => setUrl(e.target.value)} /></Field>
         <div className="grid-2">
-          <Field label="Folder" hint="Empty: the repository's name"><input className="input" placeholder="oca/web" value={path} onChange={(e) => setPath(e.target.value)} /></Field>
-          <Field label="Branch"><input className="input" value={branch} onChange={(e) => setBranch(e.target.value)} /></Field>
+          <Field label={t.folder} hint={t.folderHint}><input className="input" dir="ltr" placeholder="oca/web" value={path} onChange={(e) => setPath(e.target.value)} /></Field>
+          <Field label={t.branch}><input className="input" dir="ltr" value={branch} onChange={(e) => setBranch(e.target.value)} /></Field>
         </div>
       </div>
     </Modal>
@@ -886,6 +921,8 @@ function DeleteDialog({ name, production, onClose }: { name: string; production:
   const can = useCan();
   const navigate = useNavigate();
   const toast = useToast();
+  const t = useT(words).remove;
+  const c = useT(common).common;
   const remove = useCall(
     () =>
       api.del<Job>(`/instances/${name}`, {
@@ -896,29 +933,29 @@ function DeleteDialog({ name, production, onClose }: { name: string; production:
     [keys.jobs()],
   );
   return (
-    <Modal title={`Delete ${name}?`} onClose={onClose}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" icon={<Trash2 />} loading={remove.isPending} disabled={!confirmed}
-        onClick={() => remove.mutate(undefined, { onSuccess: () => { toast("success", "Deletion started", "A backup is taken first"); navigate("/", { viewTransition: true }); }, onError: (e) => toast("error", "Not deleted", errorText(e)) })}>Delete</Button></>}>
+    <Modal title={t.title(name)} onClose={onClose}
+      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="danger" icon={<Trash2 />} loading={remove.isPending} disabled={!confirmed}
+        onClick={() => remove.mutate(undefined, { onSuccess: () => { toast("success", t.started, t.startedText); navigate("/", { viewTransition: true }); }, onError: (e) => toast("error", t.notDeleted, errorText(e)) })}>{t.delete}</Button></>}>
       <div className="stack">
         <Callout tone="danger">
-          <b>Odoo, its database and its files are removed.</b> A backup is taken first and kept under Backups
-          {withoutBackup ? "; if it fails, the instance is removed anyway and its data is lost." : "; if it fails, nothing is removed."}
+          <b>{t.removed}</b>{t.backupFirst}
+          {withoutBackup ? t.evenIfFails : t.nothingIfFails}
         </Callout>
         {production && (
           <Callout tone="danger">
-            <b>This is the production instance.</b> Its users lose it, and it is not created again by itself.
+            <b>{t.productionWarning}</b>{t.productionText}
           </Callout>
         )}
-        <Field label={<>Type <code>{name}</code> to confirm</>}>
-          <input className="input" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} />
+        <Field label={<>{t.typeName(<code key="n">{name}</code>)}</>}>
+          <input className="input" dir="ltr" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} />
         </Field>
         {production && (
-          <Field label={<>Type <code>production</code> as well</>}>
-            <input className="input" value={typedStage} onChange={(e) => setTypedStage(e.target.value)} />
+          <Field label={<>{t.typeProduction(<code key="p">production</code>)}</>}>
+            <input className="input" dir="ltr" value={typedStage} onChange={(e) => setTypedStage(e.target.value)} />
           </Field>
         )}
         {can("backups.manage") && (
-          <Switch checked={withoutBackup} onChange={setWithoutBackup} label="Delete even if the backup fails" />
+          <Switch checked={withoutBackup} onChange={setWithoutBackup} label={t.withoutBackup} />
         )}
       </div>
     </Modal>

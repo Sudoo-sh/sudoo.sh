@@ -8,6 +8,9 @@ import { Page, PageHead } from "@/components/Shell";
 import { Button, Callout, CopyField, Empty, Field, Skeleton, Spinner, Tag } from "@/components/ui/basics";
 import { Modal, useToast } from "@/components/ui/overlay";
 import { ago } from "@/lib/format";
+import { useT } from "@/i18n";
+import common from "@/i18n/common";
+import words from "@/i18n/github";
 
 const APP_KEY = [["github-app"]] as const;
 
@@ -30,6 +33,8 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
   const [kind, setKind] = useState<"personal" | "organization" | null>(null);
   const [organization, setOrganization] = useState("");
   const [leaving, setLeaving] = useState(false);
+  const t = useT(words).connect;
+  const c = useT(common).common;
   const start = async () => {
     setLeaving(true);
     try {
@@ -39,47 +44,45 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
       postToGitHub(made.action, made.manifest);
     } catch (error) {
       setLeaving(false);
-      toast("error", "Cannot connect", errorText(error));
+      toast("error", t.cannot, errorText(error));
     }
   };
   return (
     <Modal
-      title="Connect GitHub"
-      description="GitHub creates a private app for this panel that can only read code. You then choose which repositories it may read."
+      title={t.title}
+      description={t.text}
       onClose={onClose}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" icon={<ArrowUpRight />} loading={leaving} disabled={!kind || (kind === "organization" && !organization.trim())} onClick={start}>
-            Continue on GitHub
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button variant="primary" icon={<ArrowUpRight className="flip-rtl" />} loading={leaving} disabled={!kind || (kind === "organization" && !organization.trim())} onClick={start}>
+            {t.continue}
           </Button>
         </>
       }
     >
       <div className="stack">
         <div className="stack-sm">
-          <h3>Whose repositories will the instances use?</h3>
-          <p className="small muted">
-            A private GitHub App works only on the account that owns it. For a company's repositories, create it under the company's organisation: you need to be an owner of that organisation on GitHub.
-          </p>
+          <h3>{t.whose}</h3>
+          <p className="small muted">{t.whoseText}</p>
         </div>
         <div className="grid-2">
           <button type="button" className="choice" aria-pressed={kind === "organization"} onClick={() => setKind("organization")}>
             <Building2 />
-            <span><span className="t">An organisation</span><br /><span className="d">A company's repositories. The app belongs to the organisation.</span></span>
+            <span><span className="t">{t.organisation}</span><br /><span className="d">{t.organisationText}</span></span>
           </button>
           <button type="button" className="choice" aria-pressed={kind === "personal"} onClick={() => setKind("personal")}>
             <User />
-            <span><span className="t">My personal account</span><br /><span className="d">Only repositories of your own GitHub account.</span></span>
+            <span><span className="t">{t.personal}</span><br /><span className="d">{t.personalText}</span></span>
           </button>
         </div>
         {kind === "organization" && (
-          <Field label="Organisation" hint="As in github.com/acme: acme">
-            <input className="input" autoFocus value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder="acme" />
+          <Field label={t.organisationField} hint={t.organisationHint}>
+            <input className="input" dir="ltr" autoFocus value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder="acme" />
           </Field>
         )}
         <p className="small muted">
-          On GitHub, check the name and press <b>Create GitHub App</b>. GitHub brings you back here; then install the app and choose its repositories.
+          {t.then(<b key="b" dir="ltr">{t.createButton}</b>)}
         </p>
       </div>
     </Modal>
@@ -90,37 +93,39 @@ function Installations({ app, canManage }: { app: GitHubApp; canManage: boolean 
   const toast = useToast();
   const sync = useCall(() => api.post<GitHubInstallation[]>("/github/app/installations/sync"), APP_KEY);
   const forget = useCall((id: number) => api.del(`/github/app/installations/${id}`), APP_KEY);
+  const t = useT(words).installations;
+  const refresh = useT(common).common.refresh;
   return (
     <div className="stack-sm">
       <div className="row" style={{ flexWrap: "wrap" }}>
-        <h3 className="spacer">Installed on</h3>
+        <h3 className="spacer">{t.title}</h3>
         {canManage && (
           <Button size="sm" variant="ghost" icon={<RefreshCw />} loading={sync.isPending}
-            onClick={() => sync.mutate(undefined, { onSuccess: () => toast("success", "Read from GitHub"), onError: (e) => toast("error", "Not read", errorText(e)) })}>
-            Refresh
+            onClick={() => sync.mutate(undefined, { onSuccess: () => toast("success", t.read), onError: (e) => toast("error", t.notRead, errorText(e)) })}>
+            {refresh}
           </Button>
         )}
-        {canManage && <a className="btn sm primary" href={app.install_url} target="_blank" rel="noreferrer"><Plus /> Install on GitHub</a>}
+        {canManage && <a className="btn sm primary" href={app.install_url} target="_blank" rel="noreferrer"><Plus /> {t.install}</a>}
       </div>
       {!app.installations.length ? (
         <Callout tone="warning">
-          Not installed yet: press <b>Install on GitHub</b> and choose the repositories (all, or selected ones). Installations made on GitHub show up here within a minute.
+          {t.notInstalled(<b key="b">{t.install}</b>)}
         </Callout>
       ) : (
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Account</th><th>Repositories</th><th>Since</th><th /></tr></thead>
+            <thead><tr><th>{t.columns.account}</th><th>{t.columns.repositories}</th><th>{t.columns.since}</th><th /></tr></thead>
             <tbody>
               {app.installations.map((i) => (
                 <tr key={i.id}>
-                  <td>{i.account_type === "Organization" ? <Building2 size={14} /> : <User size={14} />} {i.account} {i.suspended && <Tag tone="caution">suspended</Tag>}</td>
-                  <td>{i.repository_selection === "all" ? "All" : "Selected"}</td>
+                  <td>{i.account_type === "Organization" ? <Building2 size={14} /> : <User size={14} />} <bdi>{i.account}</bdi> {i.suspended && <Tag tone="caution">{t.suspended}</Tag>}</td>
+                  <td>{i.repository_selection === "all" ? t.all : t.selected}</td>
                   <td className="small muted">{ago(i.added)}</td>
                   <td className="actions">
-                    {i.settings_url && <a className="btn sm ghost" href={i.settings_url} target="_blank" rel="noreferrer">Choose repositories <ArrowUpRight /></a>}
+                    {i.settings_url && <a className="btn sm ghost" href={i.settings_url} target="_blank" rel="noreferrer">{t.choose} <ArrowUpRight className="flip-rtl" /></a>}
                     {canManage && (
-                      <Button size="sm" variant="ghost" icon={<Trash2 />} aria-label="Forget"
-                        onClick={() => confirm(`Forget the installation on ${i.account}? Uninstall the app there on GitHub too.`) && forget.mutate(i.id)} />
+                      <Button size="sm" variant="ghost" icon={<Trash2 />} aria-label={t.forget}
+                        onClick={() => confirm(t.confirmForget(i.account)) && forget.mutate(i.id)} />
                     )}
                   </td>
                 </tr>
@@ -138,6 +143,8 @@ function AppCard() {
   const toast = useToast();
   const [connecting, setConnecting] = useState(false);
   const [removed, setRemoved] = useState<{ settings_url: string; installations: { account: string; settings_url: string }[] } | null>(null);
+  const t = useT(words).app;
+  const done = useT(common).common.done;
   const disconnect = useCall(() => api.del<{ settings_url: string; installations: { account: string; settings_url: string }[] }>("/github/app"), APP_KEY);
   if (isPending || !state) return <div className="card"><div className="card-body"><Skeleton height={120} /></div></div>;
   const app = state.app;
@@ -145,43 +152,39 @@ function AppCard() {
     <section className="card rise">
       <div className="card-head">
         <Plug />
-        <h2>GitHub App</h2>
-        <span className="sub">{app ? "connected" : "read-only access to whole accounts"}</span>
+        <h2>{t.title}</h2>
+        <span className="sub">{app ? t.connected : t.readOnly}</span>
       </div>
       <div className="card-body stack">
         {!app ? (
           <>
-            <p className="small muted">
-              Connect your GitHub account or your company's organisation once, and the panel reads every repository you allow, submodules included: no key per repository. Access is read-only and can be limited to selected repositories.
-            </p>
+            <p className="small muted">{t.intro}</p>
             {state.can_manage ? (
-              <div><Button variant="primary" icon={<Plug />} onClick={() => setConnecting(true)}>Connect GitHub</Button></div>
+              <div><Button variant="primary" icon={<Plug />} onClick={() => setConnecting(true)}>{t.connect}</Button></div>
             ) : (
-              <Callout>A super admin connects the GitHub App.</Callout>
+              <Callout>{t.superAdmin}</Callout>
             )}
           </>
         ) : (
           <>
             <div className="row" style={{ flexWrap: "wrap" }}>
               <span className="small spacer">
-                <b>{app.name}</b>{" "}
-                <span className="muted">
-                  · owned by {app.owner.login} ({app.owner.type === "Organization" ? "organisation" : "personal account"}); it can be installed only there
-                </span>
+                <b><bdi>{app.name}</bdi></b>{" "}
+                <span className="muted">{t.owned(app.owner.login, app.owner.type === "Organization")}</span>
               </span>
-              <a className="btn sm ghost" href={app.settings_url} target="_blank" rel="noreferrer">App settings <ArrowUpRight /></a>
+              <a className="btn sm ghost" href={app.settings_url} target="_blank" rel="noreferrer">{t.settings} <ArrowUpRight className="flip-rtl" /></a>
               {state.can_manage && (
                 <Button size="sm" variant="ghost" icon={<Unplug />} loading={disconnect.isPending}
-                  onClick={() => confirm("Disconnect the GitHub App? The panel forgets its keys; instances of private repositories cannot get new code until it is connected again.") &&
-                    disconnect.mutate(undefined, { onSuccess: setRemoved, onError: (e) => toast("error", "Not disconnected", errorText(e)) })}>
-                  Disconnect
+                  onClick={() => confirm(t.confirmDisconnect) &&
+                    disconnect.mutate(undefined, { onSuccess: setRemoved, onError: (e) => toast("error", t.notDisconnected, errorText(e)) })}>
+                  {t.disconnect}
                 </Button>
               )}
             </div>
             <Installations app={app} canManage={state.can_manage} />
             {!state.trigger_running && (
               <Callout>
-                New code arrives through polling. For updates seconds after a push, add <code>github-app</code> to the update triggers (<Link to="/settings?tab=github" viewTransition>Settings</Link>, GitHub and updates) and restart the panel.
+                {t.polling(<code key="c">github-app</code>, <Link key="l" to="/settings?tab=github" viewTransition>{t.settingsLink}</Link>)}
               </Callout>
             )}
           </>
@@ -189,13 +192,13 @@ function AppCard() {
       </div>
       {connecting && <ConnectModal onClose={() => setConnecting(false)} />}
       {removed && (
-        <Modal title="Remove the app on GitHub too" description="The panel no longer holds its keys. To end its access completely, uninstall it and delete it on GitHub." onClose={() => setRemoved(null)}
-          footer={<><Button onClick={() => setRemoved(null)}>Done</Button><a className="btn primary" href={removed.settings_url} target="_blank" rel="noreferrer">Delete the app <ArrowUpRight /></a></>}>
+        <Modal title={t.removeTitle} description={t.removeText} onClose={() => setRemoved(null)}
+          footer={<><Button onClick={() => setRemoved(null)}>{done}</Button><a className="btn primary" href={removed.settings_url} target="_blank" rel="noreferrer">{t.deleteApp} <ArrowUpRight className="flip-rtl" /></a></>}>
           <div className="stack-sm">
             {removed.installations.map((i) => (
-              <a key={i.account} className="row small" href={i.settings_url} target="_blank" rel="noreferrer">Uninstall from {i.account} <ArrowUpRight size={14} /></a>
+              <a key={i.account} className="row small" href={i.settings_url} target="_blank" rel="noreferrer">{t.uninstallFrom(i.account)} <ArrowUpRight size={14} className="flip-rtl" /></a>
             ))}
-            <p className="small muted">On the app's page: Advanced, Delete GitHub App.</p>
+            <p className="small muted">{t.where}</p>
           </div>
         </Modal>
       )}
@@ -213,42 +216,43 @@ export function GitHubPage() {
   const create = useCall(() => api.post<{ repo: string; public_key: string; github_url: string }>("/deploy-keys", { repo: repo.trim() }), [["deploy-keys"]]);
   const remove = useCall((rid: string) => api.del(`/deploy-keys/${rid}`), [["deploy-keys"]]);
   const appConnected = !!appState?.connected;
+  const all = useT(words);
+  const t = all.keys;
+  const c = useT(common).common;
   return (
     <Page>
-      <PageHead title="GitHub access">
-        Public repositories need nothing. For private ones, connect the GitHub App; deploy keys (one per repository) remain for servers without it.
-      </PageHead>
+      <PageHead title={all.title}>{all.lead}</PageHead>
       <AppCard />
       <section className="card rise">
         <div className="card-head">
           <KeyRound />
-          <h2>Deploy keys</h2>
-          <span className="sub">{appConnected ? "fallback" : "one per repository"}</span>
+          <h2>{t.title}</h2>
+          <span className="sub">{appConnected ? t.fallback : t.perRepository}</span>
           <span className="spacer" />
-          <Button size="sm" icon={<Plus />} onClick={() => setAdding(true)}>Add</Button>
+          <Button size="sm" icon={<Plus />} onClick={() => setAdding(true)}>{c.add}</Button>
         </div>
         {appConnected && !!keysList?.length && (
           <div className="card-body">
             <Callout>
-              Switch to the GitHub App: once it is installed on a repository's owner, delete that repository's deploy key here and on GitHub. A repository with a deploy key keeps using the key; instances go on working either way.
+              {t.switch}
             </Callout>
           </div>
         )}
         {isPending ? <div className="card-body"><Skeleton height={120} /></div> : !keysList?.length ? (
-          <Empty icon={<FolderGit2 />} title="No deploy keys">{appConnected ? "Not needed while the GitHub App covers your repositories." : "Add one for every private repository the instances use, or connect the GitHub App."}</Empty>
+          <Empty icon={<FolderGit2 />} title={t.none}>{appConnected ? t.notNeeded : t.addOne}</Empty>
         ) : (
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>Repository</th><th>Key</th><th>Created</th><th /></tr></thead>
+              <thead><tr><th>{t.columns.repository}</th><th>{t.columns.key}</th><th>{t.columns.created}</th><th /></tr></thead>
               <tbody>
                 {keysList.map((k) => (
                   <tr key={k.repo}>
-                    <td>{k.spelling || k.repo}</td>
+                    <td><span className="mono">{k.spelling || k.repo}</span></td>
                     <td style={{ maxWidth: 320 }}><CopyField value={k.public_key} /></td>
                     <td className="small muted">{ago(k.created)}</td>
                     <td className="actions">
-                      <a className="btn sm ghost" href={k.github_url} target="_blank" rel="noreferrer">GitHub <ArrowUpRight /></a>
-                      <Button size="sm" variant="ghost" icon={<Trash2 />} aria-label="Delete" onClick={() => confirm(`Delete the key of ${k.repo}? Remove it on GitHub too.`) && remove.mutate(k.repo, { onSuccess: () => toast("success", "Key deleted") })} />
+                      <a className="btn sm ghost" href={k.github_url} target="_blank" rel="noreferrer">GitHub <ArrowUpRight className="flip-rtl" /></a>
+                      <Button size="sm" variant="ghost" icon={<Trash2 />} aria-label={c.delete} onClick={() => confirm(t.confirmDelete(k.repo)) && remove.mutate(k.repo, { onSuccess: () => toast("success", t.deleted) })} />
                     </td>
                   </tr>
                 ))}
@@ -258,20 +262,20 @@ export function GitHubPage() {
         )}
       </section>
       {adding && (
-        <Modal title="Add a private repository" onClose={() => setAdding(false)}
-          footer={<><Button onClick={() => setAdding(false)}>Cancel</Button><Button variant="primary" icon={<KeyRound />} loading={create.isPending} disabled={!repo.trim()}
-            onClick={() => create.mutate(undefined, { onSuccess: (m) => { setAdding(false); setRepo(""); setMade(m); }, onError: (e) => toast("error", "No key created", errorText(e)) })}>Create key</Button></>}>
-          <Field label="Repository" hint="https://github.com/owner/repository, or owner/repository">
-            <input className="input" autoFocus value={repo} onChange={(e) => setRepo(e.target.value)} />
+        <Modal title={t.addTitle} onClose={() => setAdding(false)}
+          footer={<><Button onClick={() => setAdding(false)}>{c.cancel}</Button><Button variant="primary" icon={<KeyRound />} loading={create.isPending} disabled={!repo.trim()}
+            onClick={() => create.mutate(undefined, { onSuccess: (m) => { setAdding(false); setRepo(""); setMade(m); }, onError: (e) => toast("error", t.notCreated, errorText(e)) })}>{t.create}</Button></>}>
+          <Field label={t.repository} hint={<span dir="ltr">{t.repositoryHint}</span>}>
+            <input className="input" dir="ltr" autoFocus value={repo} onChange={(e) => setRepo(e.target.value)} />
           </Field>
         </Modal>
       )}
       {made && (
-        <Modal title="Add this key on GitHub" description={`In ${made.repo}: Settings, Deploy keys, Add deploy key. Leave "Allow write access" off.`} onClose={() => setMade(null)}
-          footer={<><Button onClick={() => setMade(null)}>Done</Button><a className="btn primary" href={made.github_url} target="_blank" rel="noreferrer">Open GitHub <ArrowUpRight /></a></>}>
+        <Modal title={t.addOnGitHub} description={t.addOnGitHubText(made.repo)} onClose={() => setMade(null)}
+          footer={<><Button onClick={() => setMade(null)}>{c.done}</Button><a className="btn primary" href={made.github_url} target="_blank" rel="noreferrer">{t.openGitHub} <ArrowUpRight className="flip-rtl" /></a></>}>
           <div className="stack">
             <CopyField value={made.public_key} block />
-            <Callout>Only the public part leaves the server; the private key is stored encrypted.</Callout>
+            <Callout>{t.privateStays}</Callout>
           </div>
         </Modal>
       )}
@@ -288,19 +292,21 @@ export function GitHubReturnPage() {
   const toast = useToast();
   const [problem, setProblem] = useState("");
   const done = useRef(false);
+  const all = useT(words);
+  const t = all.return;
   const finish = useCall(async () => {
     if (step === "created") {
       await api.post("/github/app", { code: params.get("code") ?? "", state: params.get("state") ?? "" });
-      return { title: "GitHub App created", detail: "Now install it on your account or organisation." };
+      return { title: t.created, detail: t.createdText };
     }
     const id = params.get("installation_id");
     if (!id) {
       return params.get("setup_action") === "request"
-        ? { title: "Installation requested", detail: "An owner of the organisation must approve it on GitHub; then press Refresh." }
-        : { title: "Nothing to record", detail: "" };
+        ? { title: t.requested, detail: t.requestedText }
+        : { title: t.nothing, detail: "" };
     }
     await api.post("/github/app/installations", { installation_id: id });
-    return { title: "Installed", detail: "The panel can now read the repositories you allowed." };
+    return { title: t.installed, detail: t.installedText };
   }, APP_KEY);
   useEffect(() => {
     if (done.current) return;
@@ -315,15 +321,15 @@ export function GitHubReturnPage() {
   }, []);
   return (
     <Page>
-      <PageHead title="GitHub access" />
+      <PageHead title={all.title} />
       <div className="card"><div className="card-body stack">
         {problem ? (
           <>
             <Callout tone="danger">{problem}</Callout>
-            <div><Link className="btn" to="/github" viewTransition>Back to GitHub access</Link></div>
+            <div><Link className="btn" to="/github" viewTransition>{t.back}</Link></div>
           </>
         ) : (
-          <div className="row"><Spinner /> <span className="muted">Finishing with GitHub…</span></div>
+          <div className="row"><Spinner /> <span className="muted">{t.finishing}</span></div>
         )}
       </div></div>
     </Page>

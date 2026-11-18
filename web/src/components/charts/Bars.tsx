@@ -2,6 +2,7 @@
 
 import { BarController, BarElement, CategoryScale, Chart, LinearScale, Tooltip } from "chart.js";
 import { useEffect, useRef } from "react";
+import { getLocale } from "@/i18n";
 import { token, useThemeVersion } from "./theme";
 
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip);
@@ -61,6 +62,8 @@ export function Bars({ bars, format, max, onPick }: { bars: Bar[]; format: (valu
             padding: 10,
             cornerRadius: 8,
             displayColors: false,
+            rtl: getLocale() === "ar",
+            textDirection: getLocale() === "ar" ? "rtl" : "ltr",
             callbacks: { label: (item) => latest.current.format(Number(item.parsed.x)) },
           },
         },

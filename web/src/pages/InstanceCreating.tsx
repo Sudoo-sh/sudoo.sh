@@ -13,7 +13,10 @@ import { Monogram } from "@/components/InstanceCard";
 import { JobSteps, Terminal } from "@/components/JobDrawer";
 import { Page, useCan } from "@/components/Shell";
 import { Callout, Progress, Skeleton, Status, Tag } from "@/components/ui/basics";
-import { elapsed } from "@/lib/format";
+import { useT } from "@/i18n";
+import instanceWords from "@/i18n/instance";
+import { jobTitle } from "@/i18n/jobs";
+import { elapsed, percent as asPercent } from "@/lib/format";
 import { NotFoundPage } from "./NotFound";
 
 /** Re-render every `ms` while `on`, so a running time keeps counting between events. */
@@ -27,13 +30,14 @@ function useTick(ms: number, on: boolean) {
 }
 
 function Head({ name, status, instance }: { name: string; status: ReactNode; instance?: Instance }) {
+  const plain = useT(instanceWords).head.plain;
   return (
     <div className="page-head">
       <div className="hero spacer">
         <Monogram name={name} large />
         <div className="titles" style={{ minWidth: 0 }}>
           <div className="row-wrap" style={{ gap: 12 }}>
-            <h1 className="truncate">{name}</h1>
+            <h1 className="truncate"><bdi>{name}</bdi></h1>
             {status}
           </div>
           {instance && (
@@ -42,11 +46,11 @@ function Head({ name, status, instance }: { name: string; status: ReactNode; ins
               <Tag>{instance.odoo.edition === "enterprise" ? "Enterprise" : "Community"}</Tag>
               {instance.source === "plain" ? (
                 <span className="row xsmall" style={{ gap: 4 }}>
-                  <Box size={14} strokeWidth={1.5} /> Plain Odoo, no repository
+                  <Box size={14} strokeWidth={1.5} /> {plain}
                 </span>
               ) : (
                 <span className="row mono xsmall" style={{ gap: 4 }}>
-                  <GitBranch size={14} strokeWidth={1.5} /> {instance.git.branch}
+                  <GitBranch size={14} strokeWidth={1.5} /> <bdi dir="ltr">{instance.git.branch}</bdi>
                 </span>
               )}
             </div>
@@ -60,11 +64,12 @@ function Head({ name, status, instance }: { name: string; status: ReactNode; ins
 function TechnicalLog({ id, live }: { id: string; live: boolean }) {
   const can = useCan();
   const { data: log } = useJobLog(can("instances.logs") ? id : null);
+  const t = useT(instanceWords).job;
   if (!can("instances.logs")) return null;
   return (
     <section className="card">
       <div className="card-head">
-        <h2>Technical log</h2>
+        <h2>{t.technicalLog}</h2>
       </div>
       <div className="card-body">
         <Terminal text={log?.text ?? ""} live={live} />
@@ -83,28 +88,27 @@ export function CreatingInstance({ instance }: { instance: Instance }) {
   if (job?.status === "failed") return <CreationFailed name={instance.name} job={job} instance={instance} />;
   const percent = job?.progress_percent ?? reference.progress_percent;
   const steps = job?.steps ?? reference.steps;
+  const t = useT(instanceWords).creating;
   return (
     <Page>
       <Head
         name={instance.name}
         instance={instance}
-        status={queued ? <Status status="queued" label="Waiting to start" /> : <Status status="creating" />}
+        status={queued ? <Status status="queued" label={t.waiting} /> : <Status status="creating" />}
       />
       <section className="card" aria-live="polite">
         <div className="card-head">
-          <h2>{queued ? "Waiting to start" : "Creating the instance"}</h2>
+          <h2>{queued ? t.waiting : t.creating}</h2>
           <span className="spacer" />
           <span className="mono faint xsmall">
-            {percent != null && !queued ? `${percent}% · ` : ""}
+            {percent != null && !queued ? `${asPercent(percent)} · ` : ""}
             {elapsed(job?.started_at ?? instance.created_at)}
           </span>
         </div>
         <div className="card-body stack">
           <Progress value={queued ? null : percent} status={status} />
           <p className="small muted">
-            {queued
-              ? "Another job on this name has to finish first; the creation starts right after it."
-              : "This page follows the creation and opens the instance when it is ready. You can leave it: the creation goes on."}
+            {queued ? t.queuedText : t.runningText}
           </p>
           <JobSteps job={{ steps }} />
           {job?.notes.map((note, i) => (
@@ -122,15 +126,16 @@ export function CreatingInstance({ instance }: { instance: Instance }) {
 /** A creation that failed: why (the job's hint), the step where it stopped, its log, and a way back. */
 export function CreationFailed({ name, job, instance }: { name: string; job: Job; instance?: Instance }) {
   const can = useCan();
+  const t = useT(instanceWords).creating;
   return (
     <Page>
-      <Head name={name} instance={instance} status={<Status status="failed" label="Not created" />} />
+      <Head name={name} instance={instance} status={<Status status="failed" label={t.notCreated} />} />
       <Callout tone="danger">
-        <b>The instance could not be created.</b> {job.error ?? "The technical log says why."}
+        <b>{t.failed}</b> {job.error ?? t.logSays}
       </Callout>
       <section className="card">
         <div className="card-head">
-          <h2>{job.action}</h2>
+          <h2>{jobTitle(job.action)}</h2>
           <span className="spacer" />
           <span className="mono faint xsmall">{elapsed(job.started_at, job.finished_at)}</span>
         </div>
@@ -138,11 +143,11 @@ export function CreationFailed({ name, job, instance }: { name: string; job: Job
           <JobSteps job={job} />
           <div className="row-wrap">
             <Link className="btn" to="/" viewTransition>
-              Back to instances
+              {t.back}
             </Link>
             {can("instances.create") && (
               <Link className="btn primary" to="/new" viewTransition>
-                <Plus /> Try again
+                <Plus /> {t.retry}
               </Link>
             )}
           </div>

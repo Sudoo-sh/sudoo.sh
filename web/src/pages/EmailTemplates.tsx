@@ -13,6 +13,9 @@ import { Page, PageHead, useMe } from "@/components/Shell";
 import { Button, Callout, Field, Segmented, Skeleton, Tag } from "@/components/ui/basics";
 import { Modal, useToast } from "@/components/ui/overlay";
 import { ago } from "@/lib/format";
+import { useT } from "@/i18n";
+import words from "@/i18n/admin";
+import common from "@/i18n/common";
 
 type Text = { subject: string; title: string; body: string };
 type Part = keyof Text;
@@ -33,6 +36,7 @@ function useSettled<T>(value: T, ms: number): T {
 function Preview({ template, text }: { template: MailTemplate; text: Text }) {
   const [view, setView] = useState<"html" | "text">("html");
   const settled = useSettled(text, 350);
+  const t = useT(words).mail;
   const { data, isPending } = useQuery({
     queryKey: ["mail-preview", template.key, settled],
     queryFn: () => api.post<MailPreview>(`/mail-templates/${template.key}/preview`, settled),
@@ -43,30 +47,30 @@ function Preview({ template, text }: { template: MailTemplate; text: Text }) {
     <section className="card mail-preview">
       <div className="card-head">
         <div className="spacer">
-          <h2>Preview</h2>
-          <div className="sub">With sample values</div>
+          <h2>{t.preview}</h2>
+          <div className="sub">{t.sample}</div>
         </div>
-        <Segmented value={view} onChange={setView} options={[{ value: "html", label: "E-mail" }, { value: "text", label: "Text only" }]} />
+        <Segmented value={view} onChange={setView} options={[{ value: "html", label: t.html }, { value: "text", label: t.text }]} />
       </div>
       {isPending ? (
         <div className="card-body"><Skeleton height={420} /></div>
       ) : data?.problems.length ? (
         <div className="card-body">
           <Callout tone="danger">
-            <ul className="problems">{data.problems.map((p) => <li key={p}>{p}</li>)}</ul>
+            <ul className="problems" dir="ltr">{data.problems.map((p) => <li key={p}>{p}</li>)}</ul>
           </Callout>
         </div>
       ) : (
         <>
           <div className="mail-subject">
-            <span className="faint">Subject</span>
-            <span className="truncate">{data?.subject}</span>
+            <span className="faint">{t.subject}</span>
+            <bdi className="truncate">{data?.subject}</bdi>
           </div>
           {view === "html" ? (
             // the e-mail is drawn in an iframe that may run nothing (no scripts, no forms, no navigation)
-            <iframe className="mail-frame" title={`Preview of ${template.name}`} sandbox="" srcDoc={data?.html ?? ""} />
+            <iframe className="mail-frame" title={t.previewOf(template.name)} sandbox="" srcDoc={data?.html ?? ""} />
           ) : (
-            <pre className="mail-text">{data?.text}</pre>
+            <pre className="mail-text" dir="ltr">{data?.text}</pre>
           )}
         </>
       )}
@@ -83,6 +87,8 @@ function Editor({ template, draft, onChange, mailReady }: { template: MailTempla
   const [busy, setBusy] = useState<"save" | "test" | "reset" | null>(null);
   const [resetting, setResetting] = useState(false);
   const dirty = !same(draft, textOf(template));
+  const t = useT(words).mail;
+  const c = useT(common).common;
 
   /** Insert a placeholder where the cursor is, in the field used last; a block goes on a line of its own. */
   const insert = (name: string, block: boolean) => {
@@ -108,9 +114,9 @@ function Editor({ template, draft, onChange, mailReady }: { template: MailTempla
     try {
       await api.put(`/mail-templates/${template.key}`, draft);
       await client.invalidateQueries({ queryKey: keys.mailTemplates });
-      toast("success", `${template.name} saved`, "The panel sends this text from now on");
+      toast("success", t.saved(template.name), t.savedText);
     } catch (e) {
-      toast("error", "Not saved", errorText(e));
+      toast("error", t.notSaved, errorText(e));
     } finally {
       setBusy(null);
     }
@@ -119,9 +125,9 @@ function Editor({ template, draft, onChange, mailReady }: { template: MailTempla
     setBusy("test");
     try {
       const sent = await api.post<{ sent_to: string }>(`/mail-templates/${template.key}/test`, draft);
-      toast("success", "Test e-mail sent", `To ${sent.sent_to}, with sample values${dirty ? " and your unsaved text" : ""}`);
+      toast("success", t.testSent, t.testTo(sent.sent_to, dirty));
     } catch (e) {
-      toast("error", "Not sent", errorText(e));
+      toast("error", t.notSent, errorText(e));
     } finally {
       setBusy(null);
     }
@@ -133,9 +139,9 @@ function Editor({ template, draft, onChange, mailReady }: { template: MailTempla
       await client.invalidateQueries({ queryKey: keys.mailTemplates });
       onChange(template.default);
       setResetting(false);
-      toast("success", `${template.name} is back to the built-in text`);
+      toast("success", t.backToDefault(template.name));
     } catch (e) {
-      toast("error", "Not reset", errorText(e));
+      toast("error", t.notReset, errorText(e));
     } finally {
       setBusy(null);
     }
@@ -157,46 +163,46 @@ function Editor({ template, draft, onChange, mailReady }: { template: MailTempla
         <div className="spacer">
           <h2>{template.name}</h2>
           <div className="sub">{template.description}</div>
-          <div className="sub">Sent to: {template.recipients}</div>
+          <div className="sub">{t.sentTo(template.recipients)}</div>
         </div>
-        {template.customized && <Tag tone="accent">changed</Tag>}
+        {template.customized && <Tag tone="accent">{t.changed}</Tag>}
       </div>
       <div className="card-body stack">
-        <Field label="Subject" htmlFor="mail-subject"><input id="mail-subject" className="input" spellCheck {...bind("subject")} /></Field>
-        <Field label="Title" htmlFor="mail-title" hint="The large line at the top of the e-mail"><input id="mail-title" className="input" spellCheck {...bind("title")} /></Field>
-        <Field label="Text" htmlFor="mail-body" hint="**bold** · - list item · > highlighted note · [label](link): a button when alone on its line · blank line: new paragraph">
-          <textarea id="mail-body" className="input mail-body" rows={14} spellCheck {...bind("body")} />
+        <Field label={t.subject} htmlFor="mail-subject"><input id="mail-subject" className="input" dir="ltr" spellCheck {...bind("subject")} /></Field>
+        <Field label={t.title2} htmlFor="mail-title" hint={t.titleHint}><input id="mail-title" className="input" dir="ltr" spellCheck {...bind("title")} /></Field>
+        <Field label={t.body} htmlFor="mail-body" hint={t.bodyHint}>
+          <textarea id="mail-body" dir="ltr" className="input mail-body" rows={14} spellCheck {...bind("body")} />
         </Field>
         <div className="stack-sm">
-          <span className="small muted row"><Braces size={14} /> Placeholders: click one to insert it where the cursor is</span>
+          <span className="small muted row"><Braces size={14} /> {t.placeholders}</span>
           <div className="placeholders">
             {template.placeholders.map((p) => (
               <button key={p.name} type="button" className="placeholder" onClick={() => insert(p.name, p.kind === "block")} title={p.description}>
                 <span className="mono">{`{{ ${p.name} }}`}</span>
-                <span className="d">{p.description}{p.kind === "block" ? " (on its own line)" : p.kind === "link" ? " (a link)" : ""}</span>
+                <span className="d">{p.description}{p.kind === "block" ? t.ownLine : p.kind === "link" ? t.aLink : ""}</span>
               </button>
             ))}
           </div>
           {template.required.length > 0 && (
-            <span className="xsmall faint">Keep {template.required.map((r) => `{{ ${r} }}`).join(" or ")}: the e-mail is useless without it.</span>
+            <span className="xsmall faint">{t.keep(template.required.map((r) => `{{ ${r} }}`).join(t.or))}</span>
           )}
         </div>
       </div>
       <div className="card-foot row-wrap">
         <span className="xsmall faint">
-          {template.customized ? `Changed ${ago(template.changed_at)}${template.changed_by ? ` by ${template.changed_by}` : ""}` : "Built-in text"}
+          {template.customized ? t.changedAgo(ago(template.changed_at)) + (template.changed_by ? t.by(template.changed_by) : "") : t.builtIn}
         </span>
         <span className="spacer" />
-        {template.customized && <Button variant="ghost" icon={<RotateCcw />} onClick={() => setResetting(true)}>Reset to default</Button>}
-        <Button icon={<Send />} loading={busy === "test"} disabled={!mailReady || !me.email} title={!me.email ? "Your account has no e-mail address" : undefined} onClick={test}>
-          Send me a test
+        {template.customized && <Button variant="ghost" icon={<RotateCcw />} onClick={() => setResetting(true)}>{t.resetDefault}</Button>}
+        <Button icon={<Send />} loading={busy === "test"} disabled={!mailReady || !me.email} title={!me.email ? t.noEmail : undefined} onClick={test}>
+          {t.sendTest}
         </Button>
-        {dirty && <Button variant="ghost" onClick={() => onChange(textOf(template))}>Discard</Button>}
-        <Button variant="primary" loading={busy === "save"} disabled={!dirty} onClick={save}>Save</Button>
+        {dirty && <Button variant="ghost" onClick={() => onChange(textOf(template))}>{t.discard}</Button>}
+        <Button variant="primary" loading={busy === "save"} disabled={!dirty} onClick={save}>{c.save}</Button>
       </div>
       {resetting && (
-        <Modal title={`Reset ${template.name}?`} description="The built-in subject, title and text come back. Your changes to this e-mail are lost." onClose={() => setResetting(false)}
-          footer={<><Button onClick={() => setResetting(false)}>Cancel</Button><Button variant="danger" loading={busy === "reset"} onClick={reset}>Reset</Button></>} />
+        <Modal title={t.resetTitle(template.name)} description={t.resetText} onClose={() => setResetting(false)}
+          footer={<><Button onClick={() => setResetting(false)}>{c.cancel}</Button><Button variant="danger" loading={busy === "reset"} onClick={reset}>{t.reset}</Button></>} />
       )}
     </section>
   );
@@ -223,11 +229,12 @@ export function EmailTemplatesPage() {
       return Object.keys(kept).length === Object.keys(current).length ? current : kept;
     });
   }, [templates]);
+  const t = useT(words).mail;
   const select = (key: string) => setParams({ e: key }, { preventScrollReset: true, replace: true });
   return (
     <Page wide>
-      <PageHead title="E-mail templates">
-        Every e-mail the panel sends. Change a subject or a text here; the built-in text stays, and Reset to default brings it back.
+      <PageHead title={t.title}>
+        {t.lead}
       </PageHead>
       {isPending || !chosen || !draft ? (
         <Skeleton height={480} />
@@ -235,21 +242,21 @@ export function EmailTemplatesPage() {
         <>
           {!data?.mailReady && (
             <Callout tone="warning">
-              E-mail is not set up yet, so nothing is sent and tests are off. <Link to="/settings?tab=email" viewTransition>Set it up in Settings</Link>
+              {t.notReady} <Link to="/settings?tab=email" viewTransition>{t.setUp}</Link>
             </Callout>
           )}
           <div className="mail-templates">
-            <nav className="mail-list" aria-label="E-mails">
-              <select className="select mail-select" aria-label="E-mail" value={chosen.key} onChange={(e) => select(e.target.value)}>
-                {templates.map((t) => <option key={t.key} value={t.key}>{t.name}{unsaved.has(t.key) ? " (unsaved)" : t.customized ? " (changed)" : ""}</option>)}
+            <nav className="mail-list" aria-label={t.list}>
+              <select className="select mail-select" aria-label={t.choose} value={chosen.key} onChange={(e) => select(e.target.value)}>
+                {templates.map((item) => <option key={item.key} value={item.key}>{item.name}{unsaved.has(item.key) ? t.unsavedSuffix : item.customized ? t.changedSuffix : ""}</option>)}
               </select>
-              {templates.map((t) => (
-                <button key={t.key} type="button" className="mail-item" aria-current={t.key === chosen.key || undefined} onClick={() => select(t.key)}>
+              {templates.map((item) => (
+                <button key={item.key} type="button" className="mail-item" aria-current={item.key === chosen.key || undefined} onClick={() => select(item.key)}>
                   <span className="t">
-                    {t.name}
-                    {unsaved.has(t.key) ? <span className="dot unsaved" title="Unsaved changes" /> : t.customized && <Tag>changed</Tag>}
+                    {item.name}
+                    {unsaved.has(item.key) ? <span className="dot unsaved" title={t.unsaved} /> : item.customized && <Tag>{t.changed}</Tag>}
                   </span>
-                  <span className="d">{t.recipients}</span>
+                  <span className="d">{item.recipients}</span>
                 </button>
               ))}
             </nav>

@@ -2,6 +2,9 @@ import { Check, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useJob, useJobLog } from "@/api/queries";
 import type { Job } from "@/api/types";
+import { useT } from "@/i18n";
+import instanceWords from "@/i18n/instance";
+import { jobTitle, stepTitle } from "@/i18n/jobs";
 import { ago, elapsed } from "@/lib/format";
 import { Callout, Progress, Spinner, Status } from "./ui/basics";
 import { Drawer } from "./ui/overlay";
@@ -38,6 +41,7 @@ export function Terminal({ text, live }: { text: string; live?: boolean }) {
 
 /** A job's steps as a timeline: done, failed, or the one running now. */
 export function JobSteps({ job }: { job: Pick<Job, "steps"> }) {
+  const t = useT(instanceWords).job;
   return (
     <ol className="timeline">
       {job.steps.map((step, i) => (
@@ -46,11 +50,11 @@ export function JobSteps({ job }: { job: Pick<Job, "steps"> }) {
             {step.status === "done" ? <Check /> : step.status === "failed" ? <X /> : <span className="spinner" />}
           </span>
           <span className={step.status === "running" ? "" : "muted"}>
-            {step.title}
+            {stepTitle(step.title)}
           </span>
         </li>
       ))}
-      {!job.steps.length && <li className="faint">Waiting to start…</li>}
+      {!job.steps.length && <li className="faint">{t.waiting}</li>}
     </ol>
   );
 }
@@ -60,18 +64,19 @@ export function JobDrawer({ id, onClose }: { id: string; onClose: () => void }) 
   const { data: job } = useJob(id);
   const { data: log } = useJobLog(id);
   const running = job?.status === "running" || job?.status === "queued";
+  const t = useT(instanceWords).job;
   return (
     <Drawer
       onClose={onClose}
       title={
         <div className="stack-sm" style={{ gap: 4 }}>
           <div className="row">
-            <h2>{job?.action ?? "Activity"}</h2>
+            <h2>{job ? jobTitle(job.action) : t.activity}</h2>
             {job && <Status status={job.status} />}
           </div>
           {job && (
             <span className="small muted">
-              {job.instance} · by {job.requested_by} · started {ago(job.started_at)}
+              {t.meta(job.instance, job.requested_by, ago(job.started_at))}
               {job.started_at && ` · ${elapsed(job.started_at, job.finished_at)}`}
             </span>
           )}
@@ -90,7 +95,7 @@ export function JobDrawer({ id, onClose }: { id: string; onClose: () => void }) 
             </Callout>
           ))}
           <JobSteps job={job} />
-          <h2 className="small muted">Technical log</h2>
+          <h2 className="small muted">{t.technicalLog}</h2>
           <Terminal text={log?.text ?? ""} live={running} />
         </div>
       )}

@@ -1,5 +1,6 @@
 import {
   Activity,
+  ArrowUpCircle,
   ArrowUpRight,
   Box,
   Check,
@@ -44,6 +45,7 @@ import { JobLine, Monogram } from "@/components/InstanceCard";
 import { StageTag } from "@/components/StageTag";
 import { DomainsTab } from "@/components/DomainsTab";
 import { ShellTab } from "@/components/shell/ShellTab";
+import { UpgradeTab } from "@/components/UpgradeTab";
 import { MailTab } from "@/components/MailTab";
 import { LockBanner } from "@/components/ProjectAccess";
 import { ResourcesCard } from "@/components/ResourcesCard";
@@ -93,6 +95,7 @@ const TABS: { id: string; label: keyof (typeof words)["en"]["tabs"]; icon: React
   { id: "access", label: "access", icon: <KeyRound />, permission: "instances.credentials" },
   { id: "mail", label: "mail", icon: <Mail />, permission: "caught_mail.view" },
   { id: "shell", label: "shell", icon: <SquareTerminal />, permission: "instances.shell" },
+  { id: "upgrade", label: "upgrade", icon: <ArrowUpCircle />, permission: "instances.upgrade" },
 ];
 
 /** What the caller may do in this instance: their role, narrowed by the project's access and the branch's lock. */
@@ -320,6 +323,7 @@ export function InstancePage() {
         {tab === "access" && can("instances.credentials") && <AccessTab instance={instance} />}
         {tab === "mail" && can("caught_mail.view") && !production && <MailTab instance={instance} />}
         {tab === "shell" && can("instances.shell") && <ShellTab instance={instance} />}
+        {tab === "upgrade" && can("instances.upgrade") && <UpgradeTab instance={instance} onJob={setJobId} />}
       </div>
 
       {jobId && <JobDrawer id={jobId} onClose={() => setJobId(null)} />}

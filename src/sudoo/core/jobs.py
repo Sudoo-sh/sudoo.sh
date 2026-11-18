@@ -58,6 +58,7 @@ class Job:
         self._published_lines = 0  # log lines already sent as "job.output" events
         self.expected_steps: int | None = None  # set by operations that know how many steps they take
         self.details: dict[str, Any] = {}  # what the caller knows in advance (a creation's plan, without secrets)
+        self._masked: list[str] = []  # secrets never written to the log (mask)
 
     def expect(self, steps: int) -> None:
         """Announce how many steps this job will take, so its progress can be shown as a percentage."""
@@ -90,8 +91,16 @@ class Job:
             )
             self._published_lines = end
 
+    def mask(self, secret: str) -> None:
+        """Never write `secret` into the log (a subscription code a command might print): it shows as ********."""
+        if secret and secret not in self._masked:
+            self._masked.append(secret)
+
     def write(self, text: str) -> None:
-        """Add `text` to the log, with the user name and password of any address in it masked."""
+        """Add `text` to the log, with the user name and password of any address in it masked, and every secret
+        given to mask()."""
+        for secret in self._masked:
+            text = text.replace(secret, "********")
         self.log.append(redact(text))
 
     def step(self, title: str) -> None:

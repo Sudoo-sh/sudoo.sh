@@ -52,6 +52,7 @@ import type {
   Setting,
   Team,
   Token,
+  Upgrade,
   CaughtMail,
   CaughtMailDetail,
   CaughtMailMeta,
@@ -155,6 +156,13 @@ export const useInstancePermissions = (name: string, lock: string) =>
     queryFn: async () => ((await api.page<Instance>(`/instances/${name}`)).meta?.permissions ?? null) as Permission[] | null,
     enabled: !!name,
     staleTime: 30_000,
+  });
+
+export const useUpgrade = (name: string) =>
+  useQuery({
+    queryKey: [...keys.instance(name), "upgrade"] as const,
+    queryFn: () => api.get<Upgrade>(`/instances/${name}/upgrade`),
+    refetchInterval: (query) => (["testing", "promoting"].includes(query.state.data?.state ?? "") || query.state.data?.rollback_open ? 5_000 : 30_000),
   });
 
 export const useInstanceResources = (name: string) =>

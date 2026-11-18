@@ -338,6 +338,7 @@ wait: one job per instance at a time.
 | **Access** | The Odoo sign-in: address, login, password, and the master password (for Odoo's database manager). Click **Show the passwords**; each viewing is recorded in the audit log. |
 | **Mail** | Staging and development only: the e-mails the instance sent, caught before they reached anyone ([The Mail tab](#the-mail-tab)). Developers and up. |
 | **Shell** | A terminal in the browser, inside the instance's own containers: a command line in the Odoo container, `odoo shell`, or `psql` on its database ([The Shell tab](#the-shell-tab)). Only for the roles allowed to. |
+| **Upgrade** | Administrators: move the database to a newer Odoo version: the pre-check, a test on a new staging instance, then the upgrade itself with its backup and rollback ([Upgrading to a newer Odoo version](#upgrading-to-a-newer-odoo-version)). |
 
 ### Resources
 
@@ -647,6 +648,46 @@ branch was merged and deleted on GitHub, or to show other work in the same datab
 Changes on this tab are saved at once. A lifetime that ends sooner than the current one (also any number of days
 instead of **Keep until deleted by hand**) deletes the instance sooner, so only roles that may delete instances can
 choose one; a maintainer can make the lifetime longer, not shorter.
+
+### Upgrading to a newer Odoo version
+
+An instance's database can be moved to the next Odoo version, the way Odoo.sh does it: you check, you test on a
+copy, then you upgrade production. Open the instance, tab **Upgrade**, which offers **Upgrade to Odoo <next>**
+(administrators and super admins).
+
+1. **Check.** **Run the pre-check** reads the modules installed in the database and, for the modules of the
+   instance's repository, looks for them in the **upgrade branch**: the branch named after the new version, for
+   example `19.0`. Each module is **Ready** (its manifest version starts with `19.0.`), **Not ported** (another
+   version, such as `18.0.1.2.0`), **No version series**, **Not installable** or **Missing**. Nothing is changed. If
+   the repository has no upgrade branch, the test runs on plain Odoo with standard modules only, so your own modules
+   are missing from it.
+2. **Test.** **Test the upgrade** backs up the instance, upgrades that copy and puts it into a **new staging
+   instance** on the new version (with the upgrade branch's code when there is one). The copy is neutralised like
+   every staging copy: no e-mail goes out (it goes to the Mail tab), no scheduled actions run. Open it and test your
+   processes. **Run the test again** repeats everything from a fresh backup. When the project's option **A push to
+   the upgrade branch runs the test again** is on, a push to the upgrade branch does it for you (with OpenUpgrade;
+   with Odoo's upgrade service a push only brings the new code, because the subscription code is never kept).
+3. **Upgrade production.** When the test went well, **Upgrade production** asks you to confirm, then: Odoo is put
+   into maintenance (visitors see an **Upgrading** page), a final backup is taken, the same upgrade runs on the
+   latest data, the instance switches to the new version and the upgrade branch, and Odoo starts. If Odoo does not
+   come up, everything is put back from that backup at once.
+4. **After the upgrade.** For a while (60 minutes by default) **Cancel the upgrade** puts the instance back on the
+   backup taken just before it; the panel also does that by itself if Odoo stops answering. Anything changed in
+   Odoo after the upgrade is lost by cancelling (the upgraded state is kept as a backup, kind **Before a rollback**).
+   **Keep the upgrade** ends that time early. Delete the test instance when you no longer need it.
+
+**How the database is upgraded.**
+
+* **Enterprise databases** use Odoo S.A.'s official upgrade service, under your Odoo Enterprise subscription and
+  Odoo's terms (the page links to them, and you tick that you accept them each time). You type the database's
+  **Enterprise subscription code**; it is used for that one job, never stored and never written to a log. The
+  database's own code is used when it has one, as Odoo's script decides. The upgrade takes the time Odoo's platform
+  needs, often an hour or more.
+* **Community databases** use OpenUpgrade, the Odoo Community Association's open-source upgrade project. It goes one
+  version at a time, and its coverage varies by module and version: a module it does not cover stops the upgrade.
+
+**What no method does for you.** Your own modules must be ported to the new version by developers, in the upgrade
+branch. The upgrade moves your data; the code that runs on it is yours.
 
 ---
 

@@ -27,7 +27,7 @@ interface DemoTeam {
 export const LEVELS: AccessLevel[] = ["none", "view", "developer", "maintainer", "admin"];
 export const PROJECT_PERMISSIONS: Permission[] = [
   "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "instances.restore",
-  "instances.delete", "instances.credentials", "instances.resources", "instances.shell", "instances.database_shell",
+  "instances.upgrade", "instances.delete", "instances.credentials", "instances.resources", "instances.shell", "instances.database_shell",
   "caught_mail.view", "caught_mail.manage", "backups.manage", "offsite.restore", "offsite.delete", "domains.manage",
   "projects.manage", "projects.access",
 ];

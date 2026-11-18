@@ -8,6 +8,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Database upgrades to a newer Odoo version (Odoo.sh-like):** a new **Upgrade** tab on instances (permission
+  `instances.upgrade`, administrators and super admins) offers **Upgrade to Odoo <next>**. The pre-check lists the
+  installed modules and flags the repository's modules whose manifest version is not of the target series, or that
+  are missing from the upgrade branch (named after the target, such as `19.0`). **Test the upgrade** backs up the
+  instance and loads the upgraded copy into a new, neutralised staging instance on the target version (the upgrade
+  branch's code, or plain Odoo with standard modules when there is none); **Run the test again** repeats it from a
+  fresh backup, also on each push to the upgrade branch (project option `upgrade_test_on_push`, OpenUpgrade). **Upgrade
+  production** (confirmed) puts Odoo into maintenance (the gateway shows **Upgrading**), takes a `before-upgrade`
+  backup, upgrades the latest data, switches the instance to the target version and branch and starts Odoo; any
+  failure puts everything back. For `UPGRADE_ROLLBACK_MINUTES` the upgrade can be cancelled, and is rolled back by
+  itself if Odoo stops answering. Enterprise databases use Odoo S.A.'s upgrade service through Odoo's own upgrade
+  script, downloaded when the upgrade runs, with the customer's subscription code (never stored, masked in logs) and
+  Odoo's terms accepted each time; Community databases use OCA OpenUpgrade (AGPL-3.0), downloaded unmodified at a
+  pinned commit by a temporary container. Nothing third-party is bundled. New settings `UPGRADE_METHODS`,
+  `UPGRADE_SERVICE_URL` (`.env` only), `OPENUPGRADE_REPOSITORY`, `OPENUPGRADE_REFS`, `OPENUPGRADE_LIB`,
+  `UPGRADE_ROLLBACK_MINUTES`, `UPGRADE_MAX_HOURS`, `PROJECT_UPGRADE_TEST_ON_PUSH`; API under
+  `/api/v1/instances/<name>/upgrade`; the demo simulates the whole flow.
 - **The plan from the hub's signed licence:** the panel reads the entitlements of the lease each heartbeat brings
   (production branches with extra branches and privileges, servers, projects, teams, `per_project_access`,
   `custom_domains`, `offsite_backups`, support level, withheld production, ban) and enforces them: one more production

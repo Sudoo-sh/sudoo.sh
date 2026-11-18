@@ -572,7 +572,7 @@ function SettingsTab({ project }: { project: ProjectDetail }) {
   const setOption = (key: keyof ProjectOptions, value: Own[keyof ProjectOptions]) => send({ options: { [key]: value } });
   const own = project.own_options;
   const value = <K extends keyof ProjectOptions>(key: K) => project.options[key];
-  const flag = (key: "auto_development" | "development_demo_data") => (
+  const flag = (key: "auto_development" | "development_demo_data" | "upgrade_test_on_push") => (
     <OptionRow label={s[key]} own={key in own} onReset={() => setOption(key, null)}>
       <Switch checked={Boolean(value(key))} disabled={!editable} onChange={(v) => setOption(key, v)} label="" />
     </OptionRow>
@@ -626,6 +626,7 @@ function SettingsTab({ project }: { project: ProjectDetail }) {
             {flag("development_demo_data")}
             {choice("staging_on_push", ["rebuild", "keep_data"])}
             {choice("branch_deleted", ["keep", "archive", "delete"])}
+            {flag("upgrade_test_on_push")}
           </div>
         </div>
       </section>

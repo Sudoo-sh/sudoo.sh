@@ -73,7 +73,7 @@ OPTION_CHOICES = {
     "staging_on_push": ("rebuild", "keep_data"),
     "branch_deleted": ("keep", "archive", "delete"),
 }
-OPTION_FLAGS = ("auto_development", "development_demo_data")
+OPTION_FLAGS = ("auto_development", "development_demo_data", "upgrade_test_on_push")
 OPTION_NUMBERS = {"max_auto_development": 100, "development_lifetime_days": 3650, "staging_lifetime_days": 3650}
 
 

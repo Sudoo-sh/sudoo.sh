@@ -19,6 +19,7 @@ const en = {
     access: "Access",
     mail: "Mail",
     shell: "Shell",
+    upgrade: "Upgrade",
   },
   head: {
     project: "Project",
@@ -369,6 +370,7 @@ const en = {
     "before-repair": "Before a repair",
     "before-update": "Before an update",
     "staging-copy": "Copy for staging",
+    "before-upgrade": "Before an Odoo upgrade",
   } as Record<string, string>,
   picker: {
     unknownVersion: "Its Odoo version is unknown",
@@ -401,6 +403,7 @@ const ar: typeof en = {
     access: "الوصول",
     mail: "البريد",
     shell: "الطرفية",
+    upgrade: "الترقية",
   },
   head: {
     project: "المشروع",
@@ -750,6 +753,7 @@ const ar: typeof en = {
     "before-repair": "قبل إصلاح",
     "before-update": "قبل تحديث",
     "staging-copy": "نسخة للتجهيز",
+    "before-upgrade": "قبل ترقية Odoo",
   },
   picker: {
     unknownVersion: "إصدار Odoo فيها غير معروف",

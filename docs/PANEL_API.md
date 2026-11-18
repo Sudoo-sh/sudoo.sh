@@ -214,6 +214,25 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `DELETE /instances/<name>/mail` | `caught_mail.manage` | | **204**, every caught e-mail of the instance deleted; audit-logged |
 | `POST /instances/<name>/mail/<id>/release` | `caught_mail.manage` | `{"to": "qa@example.com"}` | 200, `{"released", "to", "id"}`: a copy was sent from the panel's own address (`MAIL_FROM`), audit-logged; 400 for an address, **403** when `MAIL_CATCHER_RELEASE` is off, 503 when the panel cannot send e-mail |
 
+### Database upgrades
+
+An instance's database moved to a newer Odoo version ([Database upgrades](ADMIN_GUIDE.md#25-database-upgrades)).
+Reading needs `instances.view`; everything else `instances.upgrade`. A production instance also needs
+`"confirm_production": true` to be upgraded or to cancel its upgrade. For an Enterprise database (Odoo S.A.'s upgrade
+service) the test and the upgrade also need `"subscription_code"` (the database's Odoo Enterprise subscription code,
+passed to the job only: never stored, never logged) and `"accept_odoo_terms": true` (the service is used under the
+customer's subscription and Odoo's terms, `terms_url`).
+
+| Method and path | Permission | Body | Answer |
+| :--- | :--- | :--- | :--- |
+| `GET /instances/<name>/upgrade` | `instances.view` | | 200: `from_version`, `edition`, `method` (`enterprise` or `openupgrade`), `allowed`, `targets` (the next version first), `skips_versions`, `terms_url`, `refusal`, `state` (`checked`, `testing`, `tested`, `test_failed`, `promoting`, `promoted`, `promotion_failed`, `rolled_back`), `target`, `branch` (the upgrade branch, when the repository has it), `report` (the pre-check), `staging` (the test instance), `tested_at`, `promotion` (`job`, `at`, `by`, `backup`, `rollback_until`, ...), `rollback_open`, `rollback_minutes`, `history` |
+| `POST /instances/<name>/upgrade/check` | `instances.upgrade` | `{"target": "19.0"}` (the next version when left out) | 200, the upgrade with its `report`: `installed`, `modules` (each `name`, `version`, `target_version`, `status`: `ready`, `version_mismatch`, `unknown_version`, `not_installable`, `missing`), `branch_exists`, `warnings` and `blocking` (each `code`, `text`) |
+| `POST /instances/<name>/upgrade/test` | `instances.upgrade` | `{"target"}` and, for Enterprise, `subscription_code`, `accept_odoo_terms` | **202**, the job: a new staging instance on the target version, or the test run again on the one there is; 409 without a pre-check of that target or with a blocking finding |
+| `POST /instances/<name>/upgrade/promote` | `instances.upgrade` | `confirm_production` (production), and for Enterprise `subscription_code`, `accept_odoo_terms` | **202**, the job "Upgrade to Odoo <version>"; 409 before a successful test, or when the repository has no upgrade branch |
+| `POST /instances/<name>/upgrade/cancel` | `instances.upgrade` | `confirm_production` (production) | **202**, the job: back to the backup taken before the upgrade; 409 after `UPGRADE_ROLLBACK_MINUTES` |
+| `POST /instances/<name>/upgrade/keep` | `instances.upgrade` | | 200: the rollback window ends now |
+| `DELETE /instances/<name>/upgrade` | `instances.upgrade` | | **204**: the upgrade is forgotten (its test instance stays); 409 while it runs or can be cancelled |
+
 ### Projects
 
 A project is one GitHub repository; every instance of a repository belongs to its project (`project` of an

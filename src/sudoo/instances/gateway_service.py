@@ -292,7 +292,7 @@ class ServiceHost:
                 answer.raise_for_status()
                 data = await answer.json()
             page, since = data["page"], float(data["since"])
-            if page not in ("waking", "busy", "off", "locked"):
+            if page not in ("waking", "busy", "upgrading", "off", "locked"):
                 raise ValueError(page)
             self.waiting_since.pop(name, None)
         except (aiohttp.ClientError, OSError, TimeoutError, ValueError, KeyError, TypeError):

@@ -28,7 +28,10 @@ def test_values_come_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> No
     assert settings.exposure == "host-ports"
 
 
-@pytest.mark.parametrize(("name", "value"), [("idle_hours", "soon"), ("delete_after_days", -1), ("poll_minutes", 0)])
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [("default_language", "fr"), ("idle_hours", "soon"), ("delete_after_days", -1), ("poll_minutes", 0)],
+)
 def test_wrong_values_are_refused(name: str, value: object) -> None:
     with pytest.raises(ValidationError):
         Settings(**{name: value})

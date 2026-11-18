@@ -39,7 +39,7 @@
   --series-grid: rgb(23 23 23 / 0.06);
 
   // type: the platform's own face first (SF on Apple devices, with its optical sizes), Inter elsewhere
-  --font: -apple-system, BlinkMacSystemFont, "Inter Variable", "Inter", "Segoe UI", system-ui, sans-serif;
+  --font: "IBM Plex Sans Arabic", -apple-system, BlinkMacSystemFont, "Inter Variable", "Inter", "Segoe UI", system-ui, sans-serif;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono Variable", Menlo, Consolas, monospace;
   --text-12: 0.75rem;
   --text-13: 0.8125rem;

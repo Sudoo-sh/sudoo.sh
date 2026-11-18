@@ -120,3 +120,19 @@ button, input, select, textarea {
 @media (max-width: 520px) {
   .grid-4 { grid-template-columns: minmax(0, 1fr); }
 }
+
+// ---------------------------------------------------------------- right to left (Arabic)
+// --dir turns a horizontal movement around in Arabic: translateX(calc(16px * var(--dir))).
+:root { --dir: 1; }
+:root[dir="rtl"] { --dir: -1; }
+// arrows and chevrons that point the way of reading are mirrored; clocks, logos and play buttons are not
+[dir="rtl"] .flip-rtl { transform: scaleX(-1); }
+// code, branches, commit hashes, addresses and logs read left to right in every language, isolated from the Arabic
+// around them; an e-mail, password or code field still starts on the side its label is on
+code, kbd, :is(span, b, small, a, bdi).mono { direction: ltr; unicode-bidi: isolate; }
+pre, .terminal { direction: ltr; text-align: left; }
+[dir="rtl"] :is(input, textarea)[dir="ltr"],
+[dir="rtl"] :is(input, textarea):is([type="email"], [type="password"], [type="url"], [inputmode="email"], [inputmode="numeric"]) { direction: ltr; text-align: right; }
+[dir="rtl"] :is(input, textarea)[dir="ltr"]:placeholder-shown { text-align: right; }
+// an icon inside a left-to-right field of an Arabic page sits on the right: the room for it is on the right too
+[dir="rtl"] .input-group > .input:is([dir="ltr"], [type="email"], [type="password"], [inputmode="email"]) { padding-left: var(--s3); padding-right: 36px; }

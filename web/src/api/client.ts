@@ -1,6 +1,8 @@
 // Calls to /api/v1 with the browser's session: JSON in and out, the CSRF token on every change, and errors as
 // ApiError built from the RFC 9457 problem details the API answers with.
 
+import { words } from "@/i18n";
+import common from "@/i18n/common";
 import type { Envelope } from "./types";
 
 export class ApiError extends Error {
@@ -34,7 +36,7 @@ export async function call<T>(method: Method, path: string, body?: unknown): Pro
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
-    throw new ApiError(0, "The panel cannot be reached. Check the connection and try again.");
+    throw new ApiError(0, words(common).common.unreachable);
   }
   if (response.status === 204) return { data: undefined as T };
   const json = await response.json().catch(() => ({}));
@@ -55,4 +57,4 @@ export const api = {
 };
 
 export const errorText = (error: unknown) =>
-  error instanceof ApiError ? error.detail : error instanceof Error ? error.message : "Something went wrong.";
+  error instanceof ApiError ? error.detail : error instanceof Error ? error.message : words(common).common.error;

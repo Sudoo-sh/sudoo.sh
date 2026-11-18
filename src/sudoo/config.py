@@ -148,6 +148,9 @@ class Settings(BaseSettings):
     brand_color: str = Field(
         "#714B67", pattern=r"^#[0-9A-Fa-f]{6}$", description="Accent colour of e-mails, as #RRGGBB."
     )
+    default_language: Literal["en", "ar"] = Field(
+        "en", description='Language of the web app for accounts that have not chosen one: "en" or "ar".'
+    )
 
     # ------------------------------------------------------------------ limits
     rate_limiter: str = Field("memory", description='Where request counts are kept: "memory".')
@@ -626,6 +629,7 @@ ALERT_SETTINGS = tuple(name for name in Settings.model_fields if name == "alerts
 EDITABLE = (
     # take effect at once
     "brand_color",
+    "default_language",
     "require_second_factor",
     "session_idle_minutes",
     "session_max_hours",

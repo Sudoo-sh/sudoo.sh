@@ -1,8 +1,11 @@
 import { useEffect, useRef } from "react";
+import { useT } from "@/i18n";
+import auth from "@/i18n/auth";
 
 /** Six boxes for a one-time code: typing moves on, backspace moves back, pasting fills them all. */
 export function OtpInput({ value, onChange, onComplete, shake }: { value: string; onChange: (value: string) => void; onComplete?: (value: string) => void; shake?: boolean }) {
   const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const digit = useT(auth).login.digit;
   useEffect(() => refs.current[0]?.focus(), []);
   const set = (next: string) => {
     const clean = next.replace(/\D/g, "").slice(0, 6);
@@ -11,7 +14,7 @@ export function OtpInput({ value, onChange, onComplete, shake }: { value: string
     if (clean.length === 6) onComplete?.(clean);
   };
   return (
-    <div className={`otp ${shake ? "shake" : ""}`}>
+    <div className={`otp ${shake ? "shake" : ""}`} dir="ltr">
       {Array.from({ length: 6 }, (_, i) => (
         <span key={i} style={{ display: "contents" }}>
           {i === 3 && <span className="gap" />}
@@ -21,7 +24,7 @@ export function OtpInput({ value, onChange, onComplete, shake }: { value: string
             }}
             inputMode="numeric"
             autoComplete={i === 0 ? "one-time-code" : "off"}
-            aria-label={`Digit ${i + 1}`}
+            aria-label={digit(i + 1)}
             placeholder=" "
             maxLength={1}
             value={value[i] ?? ""}

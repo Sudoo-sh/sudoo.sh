@@ -1,9 +1,11 @@
 """The browser's session: first-run setup, sign in, sign out, who is signed in, own password.
 
-    GET    /api/v1/setup                           whether the panel still needs its first account (public)
+    GET    /api/v1/setup                           whether the panel still needs its first account, and the server's
+                                                   default language (public)
     POST   /api/v1/setup                           create the first account, a super admin, with the setup code
                                                    printed by the installer, and sign in -> 201 (public)
-    GET    /api/v1/contact                         who to contact (public: shown on the sign-in page)
+    GET    /api/v1/contact                         who to contact and the server's default language (public: shown
+                                                   on the sign-in page)
     POST   /api/v1/session                         sign in: {"username", "password"}, where "username" may be the
                                                    e-mail address -> 201 signed in, or 200
                                                    with "second_factor" when a code is needed (public)
@@ -49,6 +51,7 @@ def me() -> dict[str, Any]:
         "must_set_up_second_factor": session.get("restricted") == "second_factor",
         "recovery_codes_needed": recovery.needed(account),
         "brand_color": settings.brand_color,
+        "language": accounts.language(account),
     }
 
 
@@ -63,7 +66,13 @@ def _signed_in_answer() -> Response:
 
 @blueprint.get("/setup")
 def setup_state() -> Response:
-    return ok({"needed": accounts.setup_needed(), "contact": settings.contact_sentence()})
+    return ok(
+        {
+            "needed": accounts.setup_needed(),
+            "contact": settings.contact_sentence(),
+            "default_language": settings.default_language,
+        }
+    )
 
 
 @blueprint.post("/setup")
@@ -101,7 +110,13 @@ def setup() -> Response:
 
 @blueprint.get("/contact")
 def contact() -> Response:
-    return ok({"sentence": settings.contact_sentence(), **settings.admin_contact})
+    return ok(
+        {
+            "sentence": settings.contact_sentence(),
+            **settings.admin_contact,
+            "default_language": settings.default_language,
+        }
+    )
 
 
 @blueprint.post("/session")

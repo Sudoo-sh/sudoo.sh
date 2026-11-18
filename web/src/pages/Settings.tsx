@@ -30,7 +30,7 @@ const TABS: { id: TabId; label: string; groups: Group[] }[] = [
     id: "general",
     label: "General",
     groups: [
-      { title: "Contact and appearance", text: "Who people are told to contact, and the accent colour of the panel and its e-mails", keys: ["admin_contact_name", "admin_contact_email", "admin_contact_phone", "brand_color"] },
+      { title: "Contact and appearance", text: "Who people are told to contact, and the accent colour of the panel and its e-mails", keys: ["admin_contact_name", "admin_contact_email", "admin_contact_phone", "brand_color", "default_language"] },
     ],
   },
   {
@@ -183,6 +183,7 @@ const TITLES: Record<string, string> = {
   admin_contact_email: "Contact e-mail",
   admin_contact_phone: "Contact phone",
   brand_color: "Accent colour",
+  default_language: "Default language",
   marketplace: "Use the marketplace",
   mailer: "Mailer",
   second_factors: "Second factors offered",
@@ -233,6 +234,7 @@ const TITLES: Record<string, string> = {
 };
 
 const CHOICES: Record<string, [string, string][]> = {
+  default_language: [["en", "English"], ["ar", "العربية"]],
   require_second_factor: [["none", "Nobody"], ["admins", "Super admins and administrators"], ["everyone", "Everyone"]],
   smtp_security: [["starttls", "STARTTLS (port 587)"], ["ssl", "SSL (port 465)"], ["none", "None"]],
   mailer: [["smtp", "SMTP"], ["none", "No e-mail"]],

@@ -10,6 +10,10 @@ import { Brand } from "@/components/ui/Brand";
 import { Button, Callout, Field, Spinner } from "@/components/ui/basics";
 import { PasswordFields, passwordReady } from "@/components/PasswordFields";
 import type { Person } from "@/lib/password";
+import { useT } from "@/i18n";
+import auth from "@/i18n/auth";
+import common from "@/i18n/common";
+import { LanguageSwitch } from "@/components/LanguageSwitch";
 import { Preview } from "./Login";
 
 /** First run: no account exists yet. Whoever has the setup code printed by the installer creates the first one. */
@@ -21,6 +25,7 @@ export function SetupPage() {
   const [password, setPassword] = useState<[string, string]>(["", ""]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const t = useT(auth).setup;
   if (isPending) return <div style={{ display: "grid", placeItems: "center", height: "100vh" }}><Spinner /></div>;
   if (!setup?.needed) return <Navigate to="/login" replace />;
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: e.target.value });
@@ -34,7 +39,7 @@ export function SetupPage() {
     try {
       const me = await api.post<Session>("/setup", { ...form, email: form.email.trim(), password: password[0] });
       setCsrfToken(me.csrf_token);
-      client.setQueryData(["setup"], { needed: false, contact: setup.contact });
+      client.setQueryData(["setup"], { ...setup, needed: false });
       client.setQueryData(keys.session, me);
       navigate("/", { replace: true, viewTransition: true });
     } catch (err) {
@@ -48,27 +53,27 @@ export function SetupPage() {
     <div className="auth">
       <section className="auth-panel">
         <form className="auth-card wide" onSubmit={submit}>
-          <Brand to="/setup" />
+          <div className="row"><Brand to="/setup" /><span className="spacer" /><LanguageSwitch /></div>
           <header>
-            <h1>Set up Sudoo.sh</h1>
-            <p>Create the first account. It can do everything, including adding the other accounts.</p>
+            <h1>{t.title}</h1>
+            <p>{t.text}</p>
           </header>
-          <Field label="Setup code" hint={<>Printed by the installer. Show it again on the server with <code>docker exec sudoo-panel sudoo.sh setup-code</code></>}>
+          <Field label={t.code} hint={<>{t.codeHint(<code key="c">docker exec sudoo-panel sudoo.sh setup-code</code>)}</>}>
             <div className="input-group">
               <KeyRound />
-              <input className="input mono" autoFocus placeholder="XXXX-XXXX-XXXX" value={form.setup_code} onChange={set("setup_code")} autoComplete="off" />
+              <input className="input mono" dir="ltr" autoFocus placeholder="XXXX-XXXX-XXXX" value={form.setup_code} onChange={set("setup_code")} autoComplete="off" />
             </div>
           </Field>
           <div className="form-grid">
-            <Field label="First name"><input className="input" autoComplete="given-name" value={form.first_name} onChange={set("first_name")} /></Field>
-            <Field label="Last name"><input className="input" autoComplete="family-name" value={form.last_name} onChange={set("last_name")} /></Field>
-            <Field label="E-mail" hint="You sign in with it"><input className="input" type="email" autoComplete="username email" value={form.email} onChange={set("email")} /></Field>
-            <Field label="Phone" hint="Optional"><input className="input" type="tel" autoComplete="tel" value={form.phone} onChange={set("phone")} /></Field>
+            <Field label={t.firstName}><input className="input" autoComplete="given-name" value={form.first_name} onChange={set("first_name")} /></Field>
+            <Field label={t.lastName}><input className="input" autoComplete="family-name" value={form.last_name} onChange={set("last_name")} /></Field>
+            <Field label={t.email} hint={t.emailHint}><input className="input" type="email" autoComplete="username email" value={form.email} onChange={set("email")} /></Field>
+            <Field label={t.phone} hint={t.optional}><input className="input" type="tel" dir="ltr" autoComplete="tel" value={form.phone} onChange={set("phone")} /></Field>
             <PasswordFields value={password} onChange={setPassword} person={person} />
           </div>
           {error && <Callout tone="danger">{error}</Callout>}
           <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={!ready}>
-            Create the account
+            {t.submit}
           </Button>
         </form>
       </section>
@@ -88,6 +93,8 @@ export function ChangePasswordPage() {
   const [password, setPassword] = useState<[string, string]>(["", ""]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const t = useT(auth).changePassword;
+  const signOutLabel = useT(common).nav.signOut;
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
@@ -108,18 +115,18 @@ export function ChangePasswordPage() {
       <form className="auth-card" onSubmit={submit}>
         <Brand />
         <header>
-          <h1>Choose your password</h1>
-          <p>The password you signed in with was made for you. Replace it with one only you know.</p>
+          <h1>{t.title}</h1>
+          <p>{t.text}</p>
         </header>
-        <Field label="Current password">
+        <Field label={t.current}>
           <input className="input" type="password" autoComplete="current-password" autoFocus value={current} onChange={(e) => setCurrent(e.target.value)} />
         </Field>
         <PasswordFields value={password} onChange={setPassword} person={person} />
         {error && <Callout tone="danger">{error}</Callout>}
         <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={!current || !passwordReady(password, person)}>
-          Save and continue
+          {t.submit}
         </Button>
-        <Button variant="ghost" icon={<LogOut />} onClick={signOut} style={{ alignSelf: "flex-start" }}>Sign out</Button>
+        <Button variant="ghost" icon={<LogOut />} onClick={signOut} style={{ alignSelf: "flex-start" }}>{signOutLabel}</Button>
       </form>
     </div>
   );

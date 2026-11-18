@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Arabic in the web app (3.0.0):** the panel can be used in Arabic, right to left, as well as English. Each person
+  chooses on **My account** or with the switch at the bottom of the sidebar; the choice is kept on the account
+  (`PATCH /api/v1/account` `language`: `en`, `ar` or `null`; `GET /session` and `GET /account` return it), so it
+  follows them to every browser. New setting `DEFAULT_LANGUAGE` (`en` by default, **Settings, General**) for accounts
+  that have not chosen; `GET /setup` and `GET /contact` return it. Before signing in, the browser's language (or a
+  `sudoo_lang` cookie) decides, and the sign-in and setup pages have the switch too. The page's language and
+  direction are set before it is drawn (`boot.js`, no inline script), Arabic letters use IBM Plex Sans Arabic served
+  by the panel itself, digits stay 0-9, and code, branches, addresses, logs and e-mail addresses stay left to right.
+  Messages written by the server and the e-mails stay in English for now. The demo has the switch too.
+
 - **Custom domains with certificates (3.0.0):** an instance can answer on your own domains, such as
   `erp.client.com`, over https (`CUSTOM_DOMAINS`, off by default). With `acme` the gateway answers them on ports 80
   and 443, routes each by its name, redirects http to https and gets a certificate for each from Let's Encrypt

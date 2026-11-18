@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { BellRing, CircleCheck, KeyRound, LogOut, Mail, MonitorSmartphone, RefreshCw, ShieldCheck, Smartphone, Trash2, UserRound } from "lucide-react";
+import { BellRing, CircleCheck, Languages, KeyRound, LogOut, Mail, MonitorSmartphone, RefreshCw, ShieldCheck, Smartphone, Trash2, UserRound } from "lucide-react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
@@ -13,14 +13,14 @@ import { RecoveryCodesRow, RecoveryCodesSheet } from "@/components/RecoveryCodes
 import { Tag, Button, Callout, CopyField, Field, Skeleton, Switch } from "@/components/ui/basics";
 import { OtpInput } from "@/components/ui/OtpInput";
 import { Modal, useToast } from "@/components/ui/overlay";
+import { LOCALES, useT, type Locale } from "@/i18n";
+import accountWords from "@/i18n/account";
+import common from "@/i18n/common";
+import { useSaveLanguage } from "@/components/LanguageSwitch";
 import { ago } from "@/lib/format";
 import type { Person } from "@/lib/password";
 
 const ICON: Record<string, React.ReactNode> = { totp: <Smartphone />, email: <Mail /> };
-const TEXT: Record<string, string> = {
-  totp: "A code from an app on your phone: Google Authenticator, Microsoft Authenticator, 1Password… Works offline.",
-  email: "A code sent to your e-mail address each time you sign in.",
-};
 
 function Qr({ value }: { value: string }) {
   const [svg, setSvg] = useState("");
@@ -41,6 +41,9 @@ function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: (recovery
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const t = useT(accountWords).factors;
+  const c = useT(common).common;
+  const label = t.labels[factor.name] ?? factor.label;
   const begin = async (body: Record<string, unknown> = {}) => {
     setBusy(true);
     setError("");
@@ -60,8 +63,8 @@ function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: (recovery
     setError("");
     try {
       const answer = await call<Factor[]>("PUT", `/account/second-factors/${factor.name}`, { code: value });
-      if (replacing) toast("success", `${factor.label} replaced`, "Your other sessions were signed out.");
-      else toast("success", `${factor.label} is set up`, "You will be asked for a code when you sign in.");
+      if (replacing) toast("success", t.replaced(label), t.replacedText);
+      else toast("success", t.isSetUp(label), t.isSetUpText);
       const codes = answer.meta?.recovery_codes;
       onDone(Array.isArray(codes) ? (codes as string[]) : undefined);
     } catch (e) {
@@ -72,27 +75,27 @@ function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: (recovery
     }
   };
   const passwordField = (
-    <Field label="Your password" className="spacer">
+    <Field label={t.yourPassword} className="spacer">
       <input className="input" type="password" autoComplete="current-password" autoFocus={factor.name === "totp"} value={password} onChange={(e) => setPassword(e.target.value)} />
     </Field>
   );
   return (
     <div className="stack">
-      {replacing && !started && <span className="small muted">Replacing it ends your other sessions. Type your password to continue.</span>}
+      {replacing && !started && <span className="small muted">{t.replacingText}</span>}
       {factor.name === "totp" && replacing && !started ? (
         <form className="row" style={{ alignItems: "flex-end" }} onSubmit={(e) => { e.preventDefault(); begin({ password }); }}>
           {passwordField}
-          <Button type="submit" variant="primary" loading={busy} disabled={!password}>Continue</Button>
+          <Button type="submit" variant="primary" loading={busy} disabled={!password}>{t.continue}</Button>
         </form>
       ) : factor.name === "totp" ? (
         started?.otpauth_uri ? (
           <div className="row" style={{ alignItems: "flex-start", gap: 20, flexWrap: "wrap" }}>
             <Qr value={started.otpauth_uri} />
             <div className="stack-sm" style={{ flex: 1, minWidth: 220 }}>
-              <b>1. Scan this code with your authenticator app.</b>
-              <span className="small muted">Or type the key by hand:</span>
+              <b>{t.scan}</b>
+              <span className="small muted">{t.byHand}</span>
               <CopyField value={started.secret ?? ""} />
-              <b style={{ marginTop: 10 }}>2. Type the 6-digit code it shows.</b>
+              <b style={{ marginTop: 10 }}>{t.typeCode}</b>
             </div>
           </div>
         ) : (
@@ -100,21 +103,21 @@ function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: (recovery
         )
       ) : !started ? (
         <form className="row" style={{ alignItems: "flex-end", flexWrap: "wrap" }} onSubmit={(e) => { e.preventDefault(); begin(replacing ? { email, password } : { email }); }}>
-          <Field label="E-mail address" className="spacer">
+          <Field label={t.emailAddress} className="spacer">
             <input className="input" type="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
           </Field>
           {replacing && passwordField}
-          <Button type="submit" variant="primary" loading={busy} disabled={!email || (replacing && !password)}>Send a code</Button>
+          <Button type="submit" variant="primary" loading={busy} disabled={!email || (replacing && !password)}>{t.sendCode}</Button>
         </form>
       ) : (
-        <Callout tone="success">We sent a code to {started.sent_to}. Type it below to confirm the address.</Callout>
+        <Callout tone="success">{t.sentTo(started.sent_to ?? "")}</Callout>
       )}
       {started && <OtpInput value={code} onChange={setCode} onComplete={finish} />}
       {error && <Callout tone="danger">{error}</Callout>}
       <div className="row">
-        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+        <Button variant="ghost" onClick={onCancel}>{c.cancel}</Button>
         <span className="spacer" />
-        {started && <Button variant="primary" loading={busy} disabled={code.length !== 6} onClick={() => finish()}>Confirm</Button>}
+        {started && <Button variant="primary" loading={busy} disabled={code.length !== 6} onClick={() => finish()}>{t.confirm}</Button>}
       </div>
     </div>
   );
@@ -127,6 +130,8 @@ function Factors({ onChange }: { onChange?: () => void }) {
   const [removing, setRemoving] = useState<Factor | null>(null);
   const [password, setPassword] = useState("");
   const [newCodes, setNewCodes] = useState<string[] | null>(null);
+  const t = useT(accountWords).factors;
+  const c = useT(common).common;
   if (!account) return <Skeleton height={150} />;
   const done = async (codes?: string[]) => {
     setSetting(null);
@@ -136,7 +141,7 @@ function Factors({ onChange }: { onChange?: () => void }) {
   };
   return (
     <div className="stack">
-      {!account.second_factors.length && <Callout tone="warning">No second factor can be used on this server. Ask the administrator to enable one.</Callout>}
+      {!account.second_factors.length && <Callout tone="warning">{t.none}</Callout>}
       {account.second_factors.map((f) =>
         setting?.name === f.name ? (
           <div key={f.name} className="card pad"><Setup factor={f} onDone={done} onCancel={() => setSetting(null)} /></div>
@@ -144,16 +149,16 @@ function Factors({ onChange }: { onChange?: () => void }) {
           <div key={f.name} className="choice" style={{ cursor: "default" }}>
             {ICON[f.name] ?? <KeyRound />}
             <span style={{ flex: 1 }}>
-              <span className="t row">{f.label} {f.enrolled && <Tag tone="positive" icon={<CircleCheck />}>on since {ago(f.added_at)}</Tag>}</span>
-              <span className="d">{f.name === "email" && account.email && f.enrolled ? `Codes go to ${account.email}.` : TEXT[f.name]}</span>
+              <span className="t row">{t.labels[f.name] ?? f.label} {f.enrolled && <Tag tone="positive" icon={<CircleCheck />}>{t.onSince(ago(f.added_at))}</Tag>}</span>
+              <span className="d">{f.name === "email" && account.email && f.enrolled ? t.codesGoTo(account.email) : t.text[f.name]}</span>
             </span>
             {f.enrolled ? (
               <>
-                <Button size="sm" variant="ghost" icon={<RefreshCw />} onClick={() => setSetting(f)}>Replace</Button>
-                <Button size="sm" variant="ghost" icon={<Trash2 />} onClick={() => setRemoving(f)}>Remove</Button>
+                <Button size="sm" variant="ghost" icon={<RefreshCw />} onClick={() => setSetting(f)}>{t.replace}</Button>
+                <Button size="sm" variant="ghost" icon={<Trash2 />} onClick={() => setRemoving(f)}>{t.remove}</Button>
               </>
             ) : (
-              <Button size="sm" variant="soft" onClick={() => setSetting(f)}>Set up</Button>
+              <Button size="sm" variant="soft" onClick={() => setSetting(f)}>{t.setUp}</Button>
             )}
           </div>
         ),
@@ -163,19 +168,19 @@ function Factors({ onChange }: { onChange?: () => void }) {
       )}
       {newCodes && <RecoveryCodesSheet codes={newCodes} onClose={() => { setNewCodes(null); onChange?.(); }} />}
       {removing && (
-        <Modal title={`Remove ${removing.label}?`} description="Your other sessions end. Type your password to confirm." onClose={() => setRemoving(null)}
-          footer={<><Button onClick={() => setRemoving(null)}>Cancel</Button><Button variant="danger" disabled={!password} onClick={async () => {
+        <Modal title={t.removeTitle(t.labels[removing.name] ?? removing.label)} description={t.removeText} onClose={() => setRemoving(null)}
+          footer={<><Button onClick={() => setRemoving(null)}>{c.cancel}</Button><Button variant="danger" disabled={!password} onClick={async () => {
             try {
               await api.del(`/account/second-factors/${removing.name}`, { password });
-              toast("success", `${removing.label} removed`);
+              toast("success", t.removed(t.labels[removing.name] ?? removing.label));
               setRemoving(null);
               setPassword("");
               refetch();
             } catch (e) {
-              toast("error", "Not removed", errorText(e));
+              toast("error", t.notRemoved, errorText(e));
             }
-          }}>Remove</Button></>}>
-          <Field label="Password"><input className="input" type="password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+          }}>{t.remove}</Button></>}>
+          <Field label={t.password}><input className="input" type="password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
         </Modal>
       )}
     </div>
@@ -189,30 +194,31 @@ function PasswordCard() {
   const [current, setCurrent] = useState("");
   const [password, setPassword] = useState<[string, string]>(["", ""]);
   const [busy, setBusy] = useState(false);
+  const t = useT(accountWords).password;
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true);
     try {
       await api.put("/session/password", { current, new: password[0] });
-      toast("success", "Password changed", "Your other sessions were signed out");
+      toast("success", t.changed, t.changedText);
       setCurrent("");
       setPassword(["", ""]);
     } catch (e) {
-      toast("error", "Not changed", errorText(e));
+      toast("error", t.notChanged, errorText(e));
     } finally {
       setBusy(false);
     }
   };
   return (
     <form className="card" onSubmit={submit}>
-      <div className="card-head"><KeyRound size={18} /><h2>Password</h2></div>
+      <div className="card-head"><KeyRound size={18} /><h2>{t.title}</h2></div>
       <div className="card-body stack">
-        <Field label="Current password"><input className="input" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} /></Field>
-        <PasswordFields label="New password" value={password} onChange={setPassword} person={person} />
+        <Field label={t.current}><input className="input" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} /></Field>
+        <PasswordFields label={t.new} value={password} onChange={setPassword} person={person} />
       </div>
       <div className="card-foot row">
         <span className="spacer" />
-        <Button type="submit" variant="primary" loading={busy} disabled={!current || !passwordReady(password, person)}>Change password</Button>
+        <Button type="submit" variant="primary" loading={busy} disabled={!current || !passwordReady(password, person)}>{t.change}</Button>
       </div>
     </form>
   );
@@ -224,6 +230,8 @@ function ProfileCard() {
   const toast = useToast();
   const [form, setForm] = useState<Record<string, string> | null>(null);
   const [busy, setBusy] = useState(false);
+  const t = useT(accountWords).profile;
+  const all = useT(common);
   if (!account) return <Skeleton height={200} />;
   const values = form ?? { first_name: account.first_name ?? "", last_name: account.last_name ?? "", email: account.email ?? "", phone: account.phone ?? "" };
   const emailLocked = account.second_factors.some((f) => f.name === "email" && f.enrolled);
@@ -236,28 +244,28 @@ function ProfileCard() {
       await refetch();
       await client.invalidateQueries({ queryKey: keys.session });
       setForm(null);
-      toast("success", "Profile saved");
+      toast("success", t.saved);
     } catch (e) {
-      toast("error", "Not saved", errorText(e));
+      toast("error", t.notSaved, errorText(e));
     } finally {
       setBusy(false);
     }
   };
   return (
     <section className="card">
-      <div className="card-head"><UserRound /><h2>Profile</h2></div>
+      <div className="card-head"><UserRound /><h2>{t.title}</h2></div>
       <div className="card-body form-grid">
-        <Field label="First name"><input className="input" value={values.first_name} onChange={set("first_name")} /></Field>
-        <Field label="Last name"><input className="input" value={values.last_name} onChange={set("last_name")} /></Field>
-        <Field label="E-mail" hint={emailLocked ? "Receives your sign-in codes. Set up the e-mail code again to change it" : undefined}>
+        <Field label={t.firstName}><input className="input" value={values.first_name} onChange={set("first_name")} /></Field>
+        <Field label={t.lastName}><input className="input" value={values.last_name} onChange={set("last_name")} /></Field>
+        <Field label={t.email} hint={emailLocked ? t.emailLocked : undefined}>
           <input className="input" type="email" value={values.email} disabled={emailLocked} onChange={set("email")} />
         </Field>
-        <Field label="Phone"><input className="input" type="tel" value={values.phone} onChange={set("phone")} /></Field>
+        <Field label={t.phone}><input className="input" type="tel" dir="ltr" value={values.phone} onChange={set("phone")} /></Field>
       </div>
       <div className="card-foot">
-        <span className="xsmall faint mono">{account.name} · {account.role_label}</span>
+        <span className="xsmall faint"><span className="mono">{account.name}</span> · {all.roles[account.role] ?? account.role_label}</span>
         <span className="spacer" />
-        <Button variant="primary" loading={busy} disabled={!form} onClick={save}>Save</Button>
+        <Button variant="primary" loading={busy} disabled={!form} onClick={save}>{all.common.save}</Button>
       </div>
     </section>
   );
@@ -269,6 +277,7 @@ function SecurityCard() {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [ending, setEnding] = useState(false);
+  const t = useT(accountWords).security;
   if (!account) return <Skeleton height={160} />;
   const mail = account.sign_in_email;
   const locked = mail.enabled && !mail.can_turn_off;
@@ -277,9 +286,9 @@ function SecurityCard() {
     try {
       await api.patch("/account", { sign_in_email: on === mail.default ? null : on });
       await refetch();
-      toast("success", on ? "Sign-in e-mail on" : "Sign-in e-mail off");
+      toast("success", on ? t.on : t.off);
     } catch (e) {
-      toast("error", "Not changed", errorText(e));
+      toast("error", t.notChanged, errorText(e));
     } finally {
       setBusy(false);
     }
@@ -288,27 +297,27 @@ function SecurityCard() {
     setEnding(true);
     try {
       await api.del("/account/sessions");
-      toast("success", "Signed out everywhere else", "Only this browser is still signed in");
+      toast("success", t.signedOutElsewhere, t.signedOutElsewhereText);
     } catch (e) {
-      toast("error", "Not signed out", errorText(e));
+      toast("error", t.notSignedOut, errorText(e));
     } finally {
       setEnding(false);
     }
   };
   const hint = !mail.mail_ready
-    ? "E-mail is not set up on this panel yet, so nothing is sent."
+    ? t.mailNotReady
     : !account.email
-      ? "Add an e-mail address to your profile to receive it."
+      ? t.noEmail
       : locked
-        ? "Your administrator keeps it on for every account."
-        : `When, from where and from which device. ${mail.default ? "On" : "Off"} by default on this panel.`;
+        ? t.locked
+        : t.hint(mail.default);
   return (
     <section className="card">
-      <div className="card-head"><BellRing size={18} /><h2>Sign-in alerts</h2></div>
+      <div className="card-head"><BellRing size={18} /><h2>{t.title}</h2></div>
       <div className="card-body stack">
         <div className="row" style={{ alignItems: "flex-start" }}>
           <span className="spacer">
-            <span className="t" style={{ fontWeight: 500 }}>E-mail me at each sign-in</span>
+            <span className="t" style={{ fontWeight: 500 }}>{t.emailMe}</span>
             <br />
             <span className="small muted">{hint}</span>
           </span>
@@ -316,12 +325,35 @@ function SecurityCard() {
         </div>
         <div className="row" style={{ alignItems: "flex-start" }}>
           <span className="spacer">
-            <span className="t" style={{ fontWeight: 500 }}>Sign out everywhere else</span>
+            <span className="t" style={{ fontWeight: 500 }}>{t.elsewhere}</span>
             <br />
-            <span className="small muted">Ends every other session of your account, for example a browser you left signed in. Change your password too if a sign-in was not yours.</span>
+            <span className="small muted">{t.elsewhereText}</span>
           </span>
-          <Button size="sm" icon={<MonitorSmartphone />} loading={ending} onClick={endOthers}>Sign out others</Button>
+          <Button size="sm" icon={<MonitorSmartphone />} loading={ending} onClick={endOthers}>{t.signOutOthers}</Button>
         </div>
+      </div>
+    </section>
+  );
+}
+
+/** The panel's language for this account, kept on the server so it follows the person to every browser. */
+function LanguageCard() {
+  const { data: account } = useAccount();
+  const save = useSaveLanguage();
+  const t = useT(accountWords).language;
+  if (!account) return <Skeleton height={120} />;
+  const language = account.language;
+  return (
+    <section className="card">
+      <div className="card-head"><Languages size={18} /><div className="spacer"><h2>{t.title}</h2><div className="sub">{t.text}</div></div></div>
+      <div className="card-body">
+        <select className="select" aria-label={t.choice} value={language.own_choice ?? ""} style={{ maxWidth: 320 }}
+          onChange={(e) => save((e.target.value || null) as Locale | null)}>
+          <option value="">{t.default(LOCALES[language.default].name)}</option>
+          {(Object.keys(LOCALES) as Locale[]).map((code) => (
+            <option key={code} value={code} lang={code}>{LOCALES[code].name}</option>
+          ))}
+        </select>
       </div>
     </section>
   );
@@ -329,15 +361,18 @@ function SecurityCard() {
 
 export function AccountPage() {
   const me = useMe();
+  const all = useT(common);
+  const t = useT(accountWords).factors;
   return (
     <Page>
-      <PageHead title={me.display_name}>{me.role_label}</PageHead>
+      <PageHead title={<bdi>{me.display_name}</bdi>}>{all.roles[me.role] ?? me.role_label}</PageHead>
       <ProfileCard />
+      <LanguageCard />
       <div className="grid-2 stagger" style={{ alignItems: "start" }}>
         <section className="card">
           <div className="card-head">
             <ShieldCheck size={18} />
-            <h2>Second factor</h2>
+            <h2>{t.title}</h2>
           </div>
           <div className="card-body"><Factors /></div>
         </section>
@@ -359,20 +394,22 @@ export function SetupSecondFactorPage() {
     client.setQueryData(keys.session, null);
     navigate("/login");
   };
+  const t = useT(accountWords).setupFactor;
+  const signOutLabel = useT(common).nav.signOut;
   return (
     <div className="auth-panel" style={{ minHeight: "100vh" }}>
       <div className="auth-card" style={{ width: "min(560px, 100%)" }}>
         <Brand />
         <header>
-          <h1>Set up a second factor</h1>
-          <p>This panel asks for a code after the password, so a leaked password is not enough to sign in. Setting it up takes a minute.</p>
+          <h1>{t.title}</h1>
+          <p>{t.text}</p>
         </header>
         <Factors onChange={async () => {
           const session = await api.get<{ must_set_up_second_factor: boolean }>("/session");
           client.setQueryData(keys.session, session);
           if (!session.must_set_up_second_factor) navigate("/", { replace: true, viewTransition: true });
         }} />
-        <Button variant="ghost" icon={<LogOut />} onClick={signOut} style={{ alignSelf: "flex-start" }}>Sign out</Button>
+        <Button variant="ghost" icon={<LogOut />} onClick={signOut} style={{ alignSelf: "flex-start" }}>{signOutLabel}</Button>
       </div>
     </div>
   );

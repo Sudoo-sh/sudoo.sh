@@ -14,7 +14,8 @@
     "dev:demo": "vite --mode demo",
     "build:demo": "tsc -b && vite build --mode demo",
     "preview:demo": "vite preview --mode demo",
-    "check": "tsc -b --noEmit",
+    "check": "tsc -b --noEmit && node scripts/check-i18n.mjs",
+    "check:i18n": "node scripts/check-i18n.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -1,6 +1,9 @@
 // The password rules, the same as the server's (accounts.password_problem, NIST SP 800-63B): length over forced
 // character classes, and no passwords that are guessed first. The server checks again; this only answers sooner.
 
+import { words } from "@/i18n";
+import auth from "@/i18n/auth";
+
 const COMMON = [
   "password", "passw0rd", "123456", "qwerty", "azerty", "letmein", "welcome", "admin", "administrator", "iloveyou",
   "monkey", "dragon", "football", "baseball", "sunshine", "princess", "trustno1", "abc123", "odoo", "changeme",
@@ -9,6 +12,7 @@ const COMMON = [
 ];
 const SEQUENCES = ["abcdefghijklmnopqrstuvwxyz", "0123456789", "qwertyuiop", "asdfghjkl", "zxcvbnm", "1qaz2wsx3edc", "qazwsxedc"];
 export const MIN_LENGTH = 12;
+const t = () => words(auth).password;
 
 export interface Person {
   username?: string;
@@ -28,14 +32,14 @@ function hasSequence(lowered: string): boolean {
 /** Why the password is not accepted, or null. */
 export function passwordProblem(password: string, person: Person = {}): string | null {
   const lowered = password.toLowerCase();
-  if (password.length < MIN_LENGTH) return `At least ${MIN_LENGTH} characters (${password.length} so far)`;
-  if (password.length > 128) return "At most 128 characters";
+  if (password.length < MIN_LENGTH) return t().tooShort(MIN_LENGTH, password.length);
+  if (password.length > 128) return t().tooLong;
   const personal = [person.username, person.email?.split("@")[0], ...(person.names ?? [])].filter((p): p is string => !!p && p.length >= 3);
-  if (personal.some((part) => lowered.includes(part.toLowerCase()))) return "Must not contain your name, user name or e-mail address";
-  if (COMMON.some((word) => lowered.includes(word))) return "Contains a common word that is guessed first";
-  if (hasSequence(lowered)) return "Contains a sequence such as 12345 or qwerty";
-  if (/(.)\1\1\1/.test(password)) return "Repeats a character four times in a row";
-  if (new Set(password).size < 6) return "Too simple: use at least 6 different characters";
+  if (personal.some((part) => lowered.includes(part.toLowerCase()))) return t().personal;
+  if (COMMON.some((word) => lowered.includes(word))) return t().common;
+  if (hasSequence(lowered)) return t().sequence;
+  if (/(.)\1\1\1/.test(password)) return t().repeats;
+  if (new Set(password).size < 6) return t().simple;
   return null;
 }
 
@@ -47,7 +51,6 @@ export function strength(password: string, person: Person = {}): 0 | 1 | 2 | 3 |
   return Math.min(4, 1 + points) as 1 | 2 | 3 | 4;
 }
 
-export const STRENGTH_LABELS = ["Not accepted", "Acceptable", "Good", "Strong", "Very strong"] as const;
 
 /** A random password of 20 characters from an alphabet without look-alikes (0/O, 1/l/I). */
 export function generatePassword(): string {

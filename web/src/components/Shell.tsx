@@ -31,9 +31,12 @@ import { api } from "@/api/client";
 import { useLiveEvents, type Sync } from "@/api/live";
 import { keys, useAlerts, useInstances, useMetrics, usePluginNotices } from "@/api/queries";
 import type { Alert } from "@/api/types";
+import { useT } from "@/i18n";
+import common from "@/i18n/common";
 import { ago, percent } from "@/lib/format";
 import { applyTheme, storedTheme, type ThemeChoice } from "@/lib/theme";
 import { revealTheme } from "@/lib/theme-reveal";
+import { LanguageSwitch } from "./LanguageSwitch";
 import { Brand } from "./ui/Brand";
 import { Button, Callout } from "./ui/basics";
 import { PageMotion } from "./PageMotion";
@@ -47,12 +50,13 @@ export function useSignOut() {
   const client = useQueryClient();
   const navigate = useNavigate();
   const toast = useToast();
+  const t = useT(common).nav;
   return async () => {
     await api.del("/session").catch(() => undefined);
     client.setQueryData(keys.session, null);
     client.clear();
     navigate("/login");
-    toast("info", "Signed out");
+    toast("info", t.signedOut);
   };
 }
 
@@ -70,7 +74,7 @@ function ThemeButton() {
   const [theme, setTheme] = useState<ThemeChoice>(storedTheme);
   const next: Record<ThemeChoice, ThemeChoice> = { system: "light", light: "dark", dark: "system" };
   const icon = { system: <Monitor />, light: <Sun />, dark: <Moon /> }[theme];
-  const label = { system: "System theme", light: "Light theme", dark: "Dark theme" }[theme];
+  const label = useT(common).theme[theme];
   return (
     <Button
       variant="ghost"
@@ -95,43 +99,45 @@ function Sidebar({ open }: { open: boolean }) {
   const can = useCan();
   const { data: instances } = useInstances();
   const signOut = useSignOut();
+  const all = useT(common);
+  const t = all.nav;
   const operations = can("backups.manage") || can("audit.view") || can("github.manage");
   const administration =
     can("settings.manage") || can("mail.manage") || can("accounts.manage") || can("tokens.manage") || can("plugins.view");
   return (
     <aside className={`sidebar ${open ? "open" : ""}`}>
       <Brand />
-      <div className="nav-group">Workspace</div>
+      <div className="nav-group">{t.workspace}</div>
       <nav>
         <NavItem to="/" end icon={<LayoutGrid />} count={instances?.length}>
-          Instances
+          {t.instances}
         </NavItem>
         {can("instances.create") && (
           <NavItem to="/new" icon={<Plus />}>
-            New instance
+            {t.newInstance}
           </NavItem>
         )}
         <NavItem to="/help" icon={<BookOpen />}>
-          Help
+          {t.help}
         </NavItem>
       </nav>
       {operations && (
         <>
-          <div className="nav-group">Operations</div>
+          <div className="nav-group">{t.operations}</div>
           <nav>
             {can("backups.manage") && (
               <NavItem to="/backups" icon={<DatabaseBackup />}>
-                Backups
+                {t.backups}
               </NavItem>
             )}
             {can("github.manage") && (
               <NavItem to="/github" icon={<FolderGit2 />}>
-                GitHub access
+                {t.github}
               </NavItem>
             )}
             {can("audit.view") && (
               <NavItem to="/activity" icon={<ScrollText />}>
-                Audit log
+                {t.audit}
               </NavItem>
             )}
           </nav>
@@ -139,31 +145,31 @@ function Sidebar({ open }: { open: boolean }) {
       )}
       {administration && (
         <>
-          <div className="nav-group">Administration</div>
+          <div className="nav-group">{t.administration}</div>
           <nav>
             {can("settings.manage") && (
               <NavItem to="/settings" icon={<Settings2 />}>
-                Settings
+                {t.settings}
               </NavItem>
             )}
             {can("mail.manage") && (
               <NavItem to="/email-templates" icon={<Mail />}>
-                E-mail templates
+                {t.emailTemplates}
               </NavItem>
             )}
             {can("plugins.view") && (
               <NavItem to="/plugins" icon={<Puzzle />}>
-                Plugins
+                {t.plugins}
               </NavItem>
             )}
             {can("accounts.manage") && (
               <NavItem to="/accounts" icon={<Users />}>
-                Accounts
+                {t.accounts}
               </NavItem>
             )}
             {can("tokens.manage") && (
               <NavItem to="/tokens" icon={<KeyRound />}>
-                API tokens
+                {t.tokens}
               </NavItem>
             )}
           </nav>
@@ -178,7 +184,7 @@ function Sidebar({ open }: { open: boolean }) {
               <span className="who">
                 <span className="name truncate">{me.display_name}</span>
                 <br />
-                <span className="role">{me.role_label}</span>
+                <span className="role">{all.roles[me.role] ?? me.role_label}</span>
               </span>
               <ChevronsUpDown />
             </button>
@@ -187,11 +193,11 @@ function Sidebar({ open }: { open: boolean }) {
           {(close) => (
             <>
               <Link to="/account" viewTransition onClick={close}>
-                <UserRound /> My account
+                <UserRound /> {t.myAccount}
               </Link>
               <hr />
               <button className="danger" onClick={signOut}>
-                <LogOut /> Sign out
+                <LogOut /> {t.signOut}
               </button>
             </>
           )}
@@ -199,6 +205,7 @@ function Sidebar({ open }: { open: boolean }) {
         <div className="row" style={{ padding: "0 8px" }}>
           <span className="xsmall faint">Sudoo.sh</span>
           <span className="spacer" />
+          <LanguageSwitch signedIn />
           <ThemeButton />
         </div>
       </div>
@@ -209,6 +216,7 @@ function Sidebar({ open }: { open: boolean }) {
 /** Nothing while connected; a small notice only while the connection to the server is lost. */
 function Reconnecting({ sync }: { sync: Sync }) {
   const [lost, setLost] = useState(false);
+  const t = useT(common).shell;
   useEffect(() => {
     if (sync.state === "open") {
       setLost(false);
@@ -221,24 +229,24 @@ function Reconnecting({ sync }: { sync: Sync }) {
   return (
     <div className="reconnecting" role="status">
       <span className="spinner" />
-      {sync.state === "closed" ? "Signed out. Reload to sign in again" : "Reconnecting"}
+      {sync.state === "closed" ? t.signedOutReload : t.reconnecting}
     </div>
   );
 }
 
-const CRUMBS: Record<string, string> = {
-  "": "Instances",
-  new: "New instance",
-  settings: "Settings",
-  "email-templates": "E-mail templates",
-  plugins: "Plugins",
-  accounts: "Accounts",
-  tokens: "API tokens",
-  backups: "Backups",
-  activity: "Audit log",
-  github: "GitHub access",
-  account: "My account",
-  help: "Help",
+const CRUMBS: Record<string, keyof (typeof common)["en"]["nav"]> = {
+  "": "instances",
+  new: "newInstance",
+  settings: "settings",
+  "email-templates": "emailTemplates",
+  plugins: "plugins",
+  accounts: "accounts",
+  tokens: "tokens",
+  backups: "backups",
+  activity: "audit",
+  github: "github",
+  account: "myAccount",
+  help: "help",
 };
 
 const SEEN_KEY = "sudoo.alerts.seen";
@@ -264,6 +272,8 @@ function Alerts() {
   const allowed = can("audit.view");
   const { data: alerts } = useAlerts(allowed);
   const [seen, setSeen] = useState(readSeen);
+  const t = useT(common).shell;
+  const nav = useT(common).nav;
   if (!allowed) return null;
   const list = alerts ?? [];
   const unseen = list.filter((a) => a.last_at > seen && a.severity !== "info").length;
@@ -276,7 +286,7 @@ function Alerts() {
       /* private window: the dot comes back after a reload */
     }
   };
-  const label = unseen ? `Alerts, ${unseen} new` : "Alerts";
+  const label = unseen ? t.alertsNew(unseen) : t.alerts;
   return (
     <Menu
       trigger={(toggle) => (
@@ -290,12 +300,12 @@ function Alerts() {
       {(close) => (
         <div className="bell-menu">
           <div className="bell-head">
-            <b>Alerts</b>
+            <b>{t.alerts}</b>
             <span className="spacer" />
-            {can("settings.manage") && <Link to="/settings?tab=alerts" viewTransition onClick={close}>Settings</Link>}
+            {can("settings.manage") && <Link to="/settings?tab=alerts" viewTransition onClick={close}>{nav.settings}</Link>}
           </div>
           {list.length === 0 ? (
-            <p className="bell-empty">Nothing needed attention. Failed jobs, instances that are down and a full disk show here.</p>
+            <p className="bell-empty">{t.alertsEmpty}</p>
           ) : (
             <div className="bell-list">
               {list.map((alert) => (
@@ -306,8 +316,8 @@ function Alerts() {
                     <span className="bell-text">{alert.text}</span>
                     <span className="bell-when">
                       {ago(alert.last_at)}
-                      {alert.count > 1 && ` · ${alert.count} times`}
-                      {alert.severity === "problem" && alert.resolved_at && " · resolved"}
+                      {alert.count > 1 && t.times(alert.count)}
+                      {alert.severity === "problem" && alert.resolved_at && t.resolved}
                     </span>
                   </span>
                 </Link>
@@ -325,26 +335,28 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
   const { data: metrics } = useMetrics();
   const parts = location.pathname.split("/").filter(Boolean);
   const server = metrics?.server;
+  const all = useT(common);
+  const t = all.shell;
   return (
     <header className="topbar">
-      <Button className="menu-button" variant="ghost" icon={<MenuIcon />} onClick={onMenu} aria-label="Menu" />
+      <Button className="menu-button" variant="ghost" icon={<MenuIcon />} onClick={onMenu} aria-label={all.common.menu} />
       <div className="crumbs">
         {parts[0] === "i" && parts[1] ? (
           <>
             <Link to="/" viewTransition>
-              Instances
+              {all.nav.instances}
             </Link>
-            <ChevronRight />
-            <span className="current truncate">{parts[1]}</span>
+            <ChevronRight className="flip-rtl" />
+            <bdi className="current truncate">{parts[1]}</bdi>
           </>
         ) : (
-          <span className="current">{CRUMBS[parts[0] ?? ""] ?? "Sudoo.sh"}</span>
+          <span className="current">{CRUMBS[parts[0] ?? ""] ? all.nav[CRUMBS[parts[0] ?? ""]!] : "Sudoo.sh"}</span>
         )}
       </div>
       <span className="spacer" />
       {server?.cpu_percent != null && (
-        <span className="meter hide-sm" title="The server's processor and memory, now">
-          CPU <b>{percent(server.cpu_percent)}</b> &nbsp; Memory <b>{percent(server.memory_percent)}</b>
+        <span className="meter hide-sm" title={t.meterTitle}>
+          {t.cpu} <b>{percent(server.cpu_percent)}</b> &nbsp; {t.memory} <b>{percent(server.memory_percent)}</b>
         </span>
       )}
       <Alerts />
@@ -357,6 +369,7 @@ function PluginNotices() {
   const can = useCan();
   const { pathname } = useLocation();
   const { data: notices } = usePluginNotices(can("plugins.view"));
+  const t = useT(common).shell;
   if (!notices?.length) return null;
   const tone = (level: string) => (level === "danger" ? "danger" : level === "warning" ? "warning" : "info");
   return (
@@ -367,7 +380,7 @@ function PluginNotices() {
           {!pathname.startsWith("/plugins") && (
             <>
               {" "}
-              <Link to="/plugins/installed" viewTransition>Open Plugins</Link>
+              <Link to="/plugins/installed" viewTransition>{t.openPlugins}</Link>
             </>
           )}
         </Callout>
@@ -381,12 +394,13 @@ function PluginNotices() {
 function RecoveryCodesNotice() {
   const me = useMe();
   const { pathname } = useLocation();
+  const t = useT(common).shell;
   if (!me.recovery_codes_needed || pathname === "/account") return null;
   return (
     <div className="notices" role="status">
       <Callout tone="warning">
-        Your account has no recovery codes: losing the phone with your authenticator app would lock you out.{" "}
-        <Link to="/account" viewTransition>Make recovery codes</Link>
+        {t.noRecoveryCodes}{" "}
+        <Link to="/account" viewTransition>{t.makeRecoveryCodes}</Link>
       </Callout>
     </div>
   );

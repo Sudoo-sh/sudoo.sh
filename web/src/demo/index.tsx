@@ -68,7 +68,11 @@ export function DemoBanner({ router }: { router: Pick<DataRouter, "state" | "sub
       <p className="demo-text">
         {path === "/login" ? (
           <>
-            <b>{t.demo}.</b> <span className="demo-long">{t.signInAny}</span>
+            <b>{t.demo}.</b> <span className="demo-long">{t.signInAny} <a href="/setup">{t.firstRun}</a></span>
+          </>
+        ) : path === "/setup" ? (
+          <>
+            <b>{t.demo}.</b> <span className="demo-long">{t.setupAny}</span>
           </>
         ) : (
           <>

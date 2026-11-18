@@ -15,7 +15,7 @@ const USES: { value: LicenceUse; icon: ReactNode }[] = [
 ];
 
 /** The agreement's facts, its summary in the page's language and the full text (English) in a scrolling box. */
-export function LicenceText({ text, open: startOpen = false }: { text: LicenceText; open?: boolean }) {
+export function LicenceDocument({ text, open: startOpen = false }: { text: LicenceText; open?: boolean }) {
   const t = useT(words);
   const locale = useLocale();
   const [open, setOpen] = useState(startOpen);
@@ -82,7 +82,7 @@ export function LicenceAcceptance({
 
   return (
     <form className="stack" onSubmit={submit}>
-      <LicenceText text={text} />
+      <LicenceDocument text={text} />
       <fieldset className="licence-uses">
         <legend>{t.use}</legend>
         <div className="stack-sm" role="radiogroup" aria-label={t.use}>

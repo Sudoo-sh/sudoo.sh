@@ -2,8 +2,9 @@
 
 GET    /api/v1/account                          the account, its e-mail, second factors, recovery codes left and
                                                 whether it gets the sign-in e-mail
-PATCH  /api/v1/account                          change the profile (names, e-mail, phone) and {"sign_in_email":
-                                                true|false|null} (null: the server's default)
+PATCH  /api/v1/account                          change the profile (names, e-mail, phone), {"sign_in_email":
+                                                true|false|null} and {"language": "en"|"ar"|null} (null: the
+                                                server's default)
 POST   /api/v1/account/second-factors/<name>    start setting one up: e-mail {"email"}; app {} -> the secret;
                                                 replacing one already set up also takes {"password"}
 PUT    /api/v1/account/second-factors/<name>    confirm with {"code"}; setting up the app also makes recovery
@@ -79,6 +80,11 @@ def read() -> Response:
             "recovery_codes": recovery_resource(account),
             "recovery_codes_needed": recovery.needed(account),
             "sign_in_email": sign_in_notice.preference(account),
+            "language": {
+                "value": accounts.language(account),
+                "own_choice": accounts.own_language(account),
+                "default": settings.default_language,
+            },
         }
     )
 
@@ -93,6 +99,8 @@ def change_profile() -> Response:
     data = check.body()
     if "sign_in_email" in data:
         _sign_in_email(data["sign_in_email"])
+    if "language" in data:
+        _language(data["language"])
     values = {key: check.text(data, key, max_length=120) for key in accounts.PROFILE_FIELDS if key in data}
     if not values:
         return read()
@@ -119,6 +127,14 @@ def _sign_in_email(choice: Any) -> None:
         abort(403, "The sign-in e-mail cannot be turned off on this panel. " + settings.contact_sentence())
     accounts.update(g.user["name"], **{sign_in_notice.FIELD: choice})
     log("sign-in e-mail " + ("turned on" if choice else "turned off" if choice is False else "back to the default"))
+
+
+def _language(choice: Any) -> None:
+    """The person's own language for the web app; null goes back to the server's default."""
+    if choice is not None and choice not in accounts.LANGUAGES:
+        abort(400, "language must be one of " + ", ".join(accounts.LANGUAGES) + ", or null.")
+    accounts.update(g.user["name"], **{accounts.LANGUAGE_FIELD: choice})
+    log("language " + (f"set to {choice}" if choice else "back to the default"))
 
 
 def account_factor_names() -> list[str]:

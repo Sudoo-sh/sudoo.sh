@@ -166,17 +166,18 @@
 .textarea { height: auto; min-height: 88px; padding: var(--s2) var(--s3); resize: vertical; }
 .select {
   appearance: none;
-  padding-right: 32px;
+  padding-inline-end: 32px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23737373' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
+  [dir="rtl"] & { background-position: left 10px center; }
 }
 .input-group {
   position: relative;
   display: flex;
   align-items: center;
-  > svg { position: absolute; left: 12px; width: 16px; height: 16px; color: var(--text-3); pointer-events: none; stroke-width: 1.5; }
-  > .input { padding-left: 36px; }
+  > svg { position: absolute; inset-inline-start: 12px; width: 16px; height: 16px; color: var(--text-3); pointer-events: none; stroke-width: 1.5; }
+  > .input { padding-inline-start: 36px; }
 }
 
 .switch {
@@ -198,7 +199,7 @@
       content: "";
       position: absolute;
       top: 2px;
-      left: 2px;
+      inset-inline-start: 2px;
       width: 16px;
       height: 16px;
       border-radius: 50%;
@@ -209,8 +210,8 @@
   }
   &:active .track::after { width: 20px; }
   input:checked + .track { background: var(--accent); }
-  input:checked + .track::after { transform: translateX(16px); }
-  &:active input:checked + .track::after { transform: translateX(12px); }
+  input:checked + .track::after { transform: translateX(calc(16px * var(--dir))); }
+  &:active input:checked + .track::after { transform: translateX(calc(12px * var(--dir))); }
   input:focus-visible + .track { box-shadow: 0 0 0 3px var(--accent-ring); }
   input:disabled + .track { opacity: 0.45; }
 }
@@ -284,8 +285,7 @@
     &::after {
       content: "";
       position: absolute;
-      left: var(--s3);
-      right: var(--s3);
+      inset-inline: var(--s3);
       bottom: -1px;
       height: 2px;
       background: var(--text);
@@ -303,7 +303,7 @@
   width: 100%;
   border-collapse: collapse;
   th {
-    text-align: left;
+    text-align: start;
     font-size: var(--text-12);
     font-weight: 500;
     color: var(--text-3);
@@ -323,8 +323,8 @@
     @include hover { background: color-mix(in oklab, var(--raised) 60%, transparent); }
     &:last-child td { border-bottom: 0; }
   }
-  .actions { text-align: right; white-space: nowrap; }
-  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .actions { text-align: end; white-space: nowrap; }
+  .num { text-align: end; font-variant-numeric: tabular-nums; }
 }
 
 // ---------------------------------------------------------------- overlays
@@ -379,11 +379,11 @@
   display: flex;
   flex-direction: column;
   background: var(--surface);
-  border-left: 1px solid var(--hairline);
-  // in from the right edge, and back out the same way, on the iOS sheet curve
+  border-inline-start: 1px solid var(--hairline);
+  // in from the inline-end edge (the right; the left in Arabic), and back out the same way, on the iOS sheet curve
   transition: transform var(--sheet) var(--ease-drawer);
-  @starting-style { transform: translateX(100%); }
-  [data-closing] > & { transform: translateX(100%); transition-duration: 280ms; }
+  @starting-style { transform: translateX(calc(100% * var(--dir))); }
+  [data-closing] > & { transform: translateX(calc(100% * var(--dir))); transition-duration: 280ms; }
   .drawer-head { display: flex; align-items: center; gap: var(--s3); padding: var(--s5) var(--s6); border-bottom: 1px solid var(--hairline); }
   .drawer-body { flex: 1; overflow: auto; padding: var(--s5) var(--s6); }
 }
@@ -414,7 +414,7 @@
     background: none;
     color: var(--text);
     font-size: var(--text-14);
-    text-align: left;
+    text-align: start;
     cursor: pointer;
     text-decoration: none !important;
     svg { width: 16px; height: 16px; color: var(--text-3); stroke-width: 1.5; }
@@ -428,7 +428,7 @@
 .toasts {
   position: fixed;
   z-index: 60;
-  right: var(--s5);
+  inset-inline-end: var(--s5);
   bottom: var(--s5);
   display: flex;
   flex-direction: column;
@@ -471,7 +471,7 @@
   border-radius: 2px;
   background: var(--raised);
   overflow: hidden;
-  .bar { height: 100%; border-radius: inherit; background: var(--accent); transition: transform 600ms linear; transform-origin: left; }
+  .bar { height: 100%; border-radius: inherit; background: var(--accent); transition: transform 600ms linear; transform-origin: left; [dir="rtl"] & { transform-origin: right; } }
   &.indeterminate .bar { width: 40%; animation: sweep 1.4s var(--ease) infinite; }
   &.failed .bar { background: var(--negative); }
   &.success .bar { background: var(--positive); }

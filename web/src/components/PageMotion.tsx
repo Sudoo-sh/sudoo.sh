@@ -3,13 +3,16 @@
 // that loads quickly shows nothing at all, so nothing flashes).
 
 import { ScrollRestoration, useNavigation } from "react-router";
+import { useT } from "@/i18n";
+import common from "@/i18n/common";
 
 export function PageMotion() {
   const loading = useNavigation().state === "loading";
+  const opening = useT(common).shell.opening;
   return (
     <>
       <ScrollRestoration />
-      {loading && <div className="nav-progress" role="progressbar" aria-label="Opening the page" />}
+      {loading && <div className="nav-progress" role="progressbar" aria-label={opening} />}
     </>
   );
 }

@@ -7,7 +7,9 @@ import {
   type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
-import { STATUS_LABEL } from "@/lib/format";
+import { useT } from "@/i18n";
+import common from "@/i18n/common";
+import { statusLabel } from "@/lib/format";
 
 type Variant = "primary" | "danger" | "ghost" | "soft" | "default";
 
@@ -38,7 +40,7 @@ export function Button({
   );
 }
 
-export const Spinner = () => <span className="spinner" role="status" aria-label="Loading" />;
+export const Spinner = () => <span className="spinner" role="status" aria-label={useT(common).common.loading} />;
 
 /** A quiet label: versions, roles, counts. */
 export function Tag({ tone, mono, children, icon }: { tone?: "accent" | "positive" | "caution" | "negative"; mono?: boolean; children: ReactNode; icon?: ReactNode }) {
@@ -55,7 +57,7 @@ export function Status({ status, label }: { status: string; label?: string }) {
   return (
     <span className={`status ${status}`}>
       <span className="dot" />
-      {label ?? STATUS_LABEL[status] ?? status}
+      {label ?? statusLabel(status)}
     </span>
   );
 }
@@ -178,6 +180,7 @@ export function Callout({ tone = "info", children }: { tone?: keyof typeof CALLO
 }
 
 export function CopyField({ value, block, secret }: { value: string; block?: boolean; secret?: boolean }) {
+  const t = useT(common).common;
   const [copied, setCopied] = useState(false);
   const [shown, setShown] = useState(!secret);
   const copy = async () => {
@@ -187,13 +190,13 @@ export function CopyField({ value, block, secret }: { value: string; block?: boo
   };
   return (
     <span className={`copy ${block ? "block" : ""}`}>
-      <span className="value">{shown ? value : "••••••••••••"}</span>
+      <span className="value" dir="ltr">{shown ? value : "••••••••••••"}</span>
       {secret && (
         <Button size="sm" variant="ghost" onClick={() => setShown(!shown)}>
-          {shown ? "Hide" : "Show"}
+          {shown ? t.hide : t.show}
         </Button>
       )}
-      <Button size="sm" variant="ghost" icon={copied ? <Check /> : <CopyIcon />} onClick={copy} aria-label="Copy" title="Copy" />
+      <Button size="sm" variant="ghost" icon={copied ? <Check /> : <CopyIcon />} onClick={copy} aria-label={t.copy} title={t.copy} />
     </span>
   );
 }

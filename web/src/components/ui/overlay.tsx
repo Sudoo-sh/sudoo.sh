@@ -11,6 +11,8 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { useT } from "@/i18n";
+import common from "@/i18n/common";
 import { Button } from "./basics";
 
 /** Close after the exit transition: the element gets data-closing, then onClose runs once it has left. */
@@ -56,6 +58,7 @@ export function Modal({
   wide?: boolean;
 }) {
   const [closing, close] = useClosing(onClose, 200);
+  const closeLabel = useT(common).common.close;
   useEscape(close);
   const ref = useFocusFirst<HTMLDivElement>();
   return createPortal(
@@ -66,7 +69,7 @@ export function Modal({
             <h2>{title}</h2>
             {description && <p>{description}</p>}
           </div>
-          <Button variant="ghost" size="sm" icon={<X />} onClick={close} aria-label="Close" />
+          <Button variant="ghost" size="sm" icon={<X />} onClick={close} aria-label={closeLabel} />
         </div>
         {children && <div className="modal-body">{children}</div>}
         {footer && <div className="modal-foot">{footer}</div>}
@@ -78,6 +81,7 @@ export function Modal({
 
 export function Drawer({ title, onClose, children, actions }: { title: ReactNode; onClose: () => void; children: ReactNode; actions?: ReactNode }) {
   const [closing, close] = useClosing(onClose, 280);
+  const closeLabel = useT(common).common.close;
   useEscape(close);
   return createPortal(
     <div className="overlay drawer-overlay" data-closing={closing || undefined} onMouseDown={(e) => e.target === e.currentTarget && close()}>
@@ -85,7 +89,7 @@ export function Drawer({ title, onClose, children, actions }: { title: ReactNode
         <div className="drawer-head">
           <div className="spacer">{title}</div>
           {actions}
-          <Button variant="ghost" size="sm" icon={<X />} onClick={close} aria-label="Close" />
+          <Button variant="ghost" size="sm" icon={<X />} onClick={close} aria-label={closeLabel} />
         </div>
         <div className="drawer-body">{children}</div>
       </aside>
@@ -121,9 +125,11 @@ export function Menu({ trigger, children, align = "right" }: { trigger: (open: (
     const height = menu.current?.offsetHeight ?? 0;
     const gap = 6;
     const below = align === "right" && button.bottom + gap + height <= window.innerHeight - 8;
-    const horizontal = align === "right" ? { right: Math.max(8, window.innerWidth - button.right) } : { left: Math.max(8, button.left) };
+    // "left" and "right" are for left-to-right pages; in Arabic the menu lines up with the mirrored side
+    const side = document.documentElement.dir === "rtl" ? (align === "right" ? "left" : "right") : align;
+    const horizontal = side === "right" ? { right: Math.max(8, window.innerWidth - button.right) } : { left: Math.max(8, button.left) };
     const vertical = below ? { top: button.bottom + gap } : { bottom: window.innerHeight - button.top + gap };
-    const origin = `${below ? "top" : "bottom"} ${align === "right" ? "right" : "left"}`;
+    const origin = `${below ? "top" : "bottom"} ${side}`;
     setPlace({ position: "fixed", ...horizontal, ...vertical, ["--origin" as string]: origin });
   }, [open, align]);
 

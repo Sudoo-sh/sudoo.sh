@@ -630,6 +630,20 @@
   "description": "Accent colour of e-mails, as #RRGGBB."
  },
  {
+  "key": "default_language",
+  "env": "DEFAULT_LANGUAGE",
+  "value": "en",
+  "env_value": "en",
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "string",
+  "minimum": null,
+  "description": "Language of the web app for accounts that have not chosen one: \"en\" or \"ar\"."
+ },
+ {
   "key": "rate_limiter",
   "env": "RATE_LIMITER",
   "value": "memory",

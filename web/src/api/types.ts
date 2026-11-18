@@ -47,6 +47,8 @@ export interface Session extends Profile {
   /** the account uses the authenticator app but has no recovery codes: it is asked to make them */
   recovery_codes_needed: boolean;
   brand_color: string;
+  /** the web app's language: the account's own choice, or the server's DEFAULT_LANGUAGE */
+  language: "en" | "ar";
 }
 
 export interface RoleInfo {
@@ -312,6 +314,8 @@ export interface Account extends Profile {
   recovery_codes: RecoveryCodes | null;
   recovery_codes_needed: boolean;
   sign_in_email: SignInEmail;
+  /** the web app's language: in use, the person's own choice (null: the server's default) and that default */
+  language: { value: "en" | "ar"; own_choice: "en" | "ar" | null; default: "en" | "ar" };
 }
 
 /** The account's recovery codes: how many are left of how many made, and when */

@@ -125,7 +125,7 @@ export const useAccount = () => useQuery({ queryKey: keys.account, queryFn: () =
 export const useRoles = () =>
   useQuery({ queryKey: ["roles"], queryFn: () => api.get<{ roles: RoleInfo[] }>("/roles"), staleTime: Infinity });
 export const useSetup = () =>
-  useQuery({ queryKey: ["setup"], queryFn: () => api.get<{ needed: boolean; contact: string }>("/setup"), retry: false });
+  useQuery({ queryKey: ["setup"], queryFn: () => api.get<{ needed: boolean; contact: string; default_language?: string }>("/setup"), retry: false });
 export const useDocs = () =>
   useQuery({ queryKey: ["docs"], queryFn: () => api.get<DocsContents>("/docs"), staleTime: Infinity });
 export const useDocPage = (path: string) =>

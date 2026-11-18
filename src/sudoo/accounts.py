@@ -301,6 +301,20 @@ def new_session_version(current: int | None = None) -> int:
             return version
 
 
+LANGUAGES = ("en", "ar")
+LANGUAGE_FIELD = "language"  # the account's own choice of the web app's language, or absent (the server's default)
+
+
+def own_language(account: dict[str, Any]) -> str | None:
+    choice = account.get(LANGUAGE_FIELD)
+    return choice if choice in LANGUAGES else None
+
+
+def language(account: dict[str, Any]) -> str:
+    """The web app's language for this account: its own choice, otherwise the server's default (DEFAULT_LANGUAGE)."""
+    return own_language(account) or settings.default_language
+
+
 def display_name(username: str, account: dict[str, Any]) -> str:
     full = " ".join(part for part in (account.get("first_name"), account.get("last_name")) if part)
     return full or username

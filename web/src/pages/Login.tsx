@@ -8,32 +8,36 @@ import type { SecondFactorChallenge, Session } from "@/api/types";
 import { Brand } from "@/components/ui/Brand";
 import { Button, Callout, Field } from "@/components/ui/basics";
 import { OtpInput } from "@/components/ui/OtpInput";
+import { LanguageSwitch } from "@/components/LanguageSwitch";
+import { useT } from "@/i18n";
+import auth from "@/i18n/auth";
 
 const PREVIEW = [
   { name: "sales-main", branch: "main", version: "19.0", status: "var(--positive)", when: "now" },
   { name: "crm-lead-scoring", branch: "feature/lead-scoring", version: "19.0", status: "var(--working)", when: "updating" },
-  { name: "pos-restaurant", branch: "17.0-restaurant", version: "17.0", status: "var(--positive)", when: "2 min ago" },
+  { name: "pos-restaurant", branch: "17.0-restaurant", version: "17.0", status: "var(--positive)", when: "minutesAgo" },
   { name: "invoicing-demo", branch: "demo/customer-a", version: "18.0", status: "var(--caution)", when: "paused" },
-];
+] as const;
 
 /** The sign-in page's one rich moment: the product itself, branches running as Odoo instances. */
 export function Preview() {
+  const t = useT(auth).preview;
   return (
     <section className="auth-preview" aria-hidden="true">
       <div className="pitch">
-        <h1>Every Odoo branch, running on your own server</h1>
-        <p>Create an instance from any GitHub branch, share its link, and let it follow every push.</p>
+        <h1>{t.title}</h1>
+        <p>{t.text}</p>
       </div>
       <div className="window">
-        <div className="bar">sudoo.sh · 4 instances</div>
+        <div className="bar"><span dir="ltr">sudoo.sh</span> · {t.instances}</div>
         {PREVIEW.map((item, i) => (
           <div className="item" key={item.name} style={{ animationDelay: `${150 + i * 60}ms` }}>
             <span className="dot" style={{ background: item.status }} />
             <span className="truncate">
-              <span className="name">{item.name}</span> <span className="branch">{item.branch}</span>
+              <bdi className="name">{item.name}</bdi> <bdi className="branch">{item.branch}</bdi>
             </span>
             <span className="ver">{item.version}</span>
-            <span className="when">{item.when}</span>
+            <span className="when">{t[item.when]}</span>
           </div>
         ))}
       </div>
@@ -60,6 +64,7 @@ export function LoginPage() {
   const [error, setError] = useState("");
   const [shake, setShake] = useState(false);
   const [resendIn, setResendIn] = useState(0);
+  const t = useT(auth).login;
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -131,21 +136,21 @@ export function LoginPage() {
     <div className="auth">
       <section className="auth-panel">
         <div className="auth-card" key={challenge ? "code" : "password"}>
-          <Brand to="/login" />
+          <div className="row"><Brand to="/login" /><span className="spacer" /><LanguageSwitch /></div>
           {!challenge ? (
             <>
               <header>
-                <h1>Sign in</h1>
-                <p>Manage the Odoo instances on this server</p>
+                <h1>{t.title}</h1>
+                <p>{t.text}</p>
               </header>
               <form className="stack" onSubmit={submitPassword}>
-                <Field label="E-mail" htmlFor="username">
+                <Field label={t.email} htmlFor="username">
                   <div className="input-group">
                     <Mail />
-                    <input id="username" className="input" type="text" inputMode="email" autoCapitalize="none" spellCheck={false} placeholder="you@example.com" autoComplete="username" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} required />
+                    <input id="username" className="input" type="text" inputMode="email" dir="ltr" autoCapitalize="none" spellCheck={false} placeholder="you@example.com" autoComplete="username" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} required />
                   </div>
                 </Field>
-                <Field label="Password" htmlFor="password">
+                <Field label={t.password} htmlFor="password">
                   <div className="input-group">
                     <Lock />
                     <input id="password" className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
@@ -153,40 +158,40 @@ export function LoginPage() {
                 </Field>
                 {error && <Callout tone="danger">{error}</Callout>}
                 <Button type="submit" variant="primary" size="lg" block loading={busy} className={shake ? "shake" : ""}>
-                  Sign in
+                  {t.submit}
                 </Button>
               </form>
-              {setup?.contact && <p className="faint small">Forgot your password? {setup.contact}</p>}
+              {setup?.contact && <p className="faint small">{t.forgot} {setup.contact}</p>}
             </>
           ) : (
             <>
               <header>
-                <h1>Enter your code</h1>
+                <h1>{t.codeTitle}</h1>
                 <p>
                   {recovering
-                    ? "Type one of the recovery codes you saved when you set up the authenticator app. Each works once"
+                    ? t.recoveryText
                     : method === "email"
                     ? challenge.sent_to
-                      ? `We sent a 6-digit code to ${challenge.sent_to}`
-                      : "We can send a 6-digit code to your e-mail address"
-                    : "Open your authenticator app and type the code for Sudoo.sh"}
+                      ? t.emailSent(challenge.sent_to)
+                      : t.emailCanSend
+                    : t.appText}
                 </p>
               </header>
               {!recovering && challenge.methods.filter((m) => m.name !== "recovery").length > 1 && (
                 <div className="segmented" style={{ alignSelf: "flex-start" }}>
                   {challenge.methods.filter((m) => m.name !== "recovery").map((m) => (
                     <button key={m.name} type="button" aria-pressed={m.name === method} onClick={() => { setMethod(m.name); setCode(""); setError(""); }}>
-                      {FACTOR_ICON[m.name]} {m.label}
+                      {FACTOR_ICON[m.name]} {t.factors[m.name] ?? m.label}
                     </button>
                   ))}
                 </div>
               )}
               {recovering ? (
                 <form onSubmit={(e) => { e.preventDefault(); submitCode(); }}>
-                  <Field label="Recovery code" htmlFor="recovery-code">
+                  <Field label={t.recoveryCode} htmlFor="recovery-code">
                     <div className="input-group">
                       <LifeBuoy />
-                      <input id="recovery-code" className={`input mono ${shake ? "shake" : ""}`} autoComplete="one-time-code" autoCapitalize="none" spellCheck={false}
+                      <input id="recovery-code" dir="ltr" className={`input mono ${shake ? "shake" : ""}`} autoComplete="one-time-code" autoCapitalize="none" spellCheck={false}
                         placeholder="xxxxx-xxxxx" maxLength={24} autoFocus value={code} onChange={(e) => setCode(e.target.value)} />
                     </div>
                   </Field>
@@ -196,21 +201,21 @@ export function LoginPage() {
               )}
               {error && <Callout tone="danger">{error}</Callout>}
               <Button variant="primary" size="lg" block loading={busy} disabled={!codeReady(code)} onClick={() => submitCode()}>
-                Verify and sign in
+                {t.verify}
               </Button>
               <div className="row small">
-                <Button variant="ghost" size="sm" icon={<ArrowLeft />} onClick={() => { setChallenge(null); setCode(""); setError(""); }}>
-                  Back
+                <Button variant="ghost" size="sm" icon={<ArrowLeft className="flip-rtl" />} onClick={() => { setChallenge(null); setCode(""); setError(""); }}>
+                  {t.back}
                 </Button>
                 <span className="spacer" />
                 {challenge.methods.some((m) => m.name === "recovery") && (method === "totp" || recovering) && (
                   <Button variant="ghost" size="sm" onClick={() => { setMethod(recovering ? "totp" : "recovery"); setCode(""); setError(""); }}>
-                    {recovering ? "Use the app instead" : "Lost your phone?"}
+                    {recovering ? t.useApp : t.lostPhone}
                   </Button>
                 )}
                 {method === "email" && (
                   <Button variant="ghost" size="sm" disabled={resendIn > 0} onClick={sendEmail}>
-                    {resendIn > 0 ? `Send again in ${resendIn}s` : challenge.sent_to ? "Send a new code" : "Send the code"}
+                    {resendIn > 0 ? t.sendAgainIn(resendIn) : challenge.sent_to ? t.sendNew : t.send}
                   </Button>
                 )}
               </div>

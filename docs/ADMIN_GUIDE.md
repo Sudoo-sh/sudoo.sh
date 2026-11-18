@@ -335,6 +335,15 @@ The two choices that shape a server are plugins ([Plugins](PLUGINS.md)):
 Per instance, the **Settings** tab of the instance's page changes the stage, automation and lifetime (stored as
 `STAGE`, `AUTO_UPDATE`, `AUTO_UPGRADE`, `AUTO_PAUSE`, `DELETE_AFTER_DAYS` in the instance's `.env`).
 
+### Language of the web app
+
+The web app is in English and Arabic (right to left). `DEFAULT_LANGUAGE` (`en` or `ar`; **Settings, General**,
+applies at once) is the language of every account that has not chosen one; each person can choose their own on
+**My account** or with the switch at the bottom of the sidebar, and the choice is kept on the account, so it follows
+them to every browser. Before signing in, the sign-in and setup pages use the browser's language (or a `sudoo_lang`
+cookie, which the other Sudoo.sh sites set), and the default when the browser asks for neither. Messages written by
+the server (problem details, job logs, Odoo's logs) and the e-mails the panel sends stay in English.
+
 ### Instance stages
 
 Each instance is in a stage: `production`, `staging` or `development` (`STAGE` in its `.env`; an instance without

@@ -61,6 +61,7 @@ reset with **Use .env**.
 | `ADMIN_CONTACT_PHONE` | str | empty | **live** | Phone number added to that message. |
 | `ADMIN_CONTACT_EMAIL` | str | empty | **live** | E-mail address added to that message. |
 | `BRAND_COLOR` | str | `#714B67` | **live** | Accent colour of the web app and of e-mails (title mark, buttons), as `#RRGGBB`. |
+| `DEFAULT_LANGUAGE` | str | `en` | **live** | Language of the web app for accounts that have not chosen one: `en` (English) or `ar` (Arabic, right to left). Each person can choose their own on the Account page; before signing in, the browser's language decides. E-mails stay in English. |
 
 ---
 

@@ -3,6 +3,7 @@
 // for errors, and the same permission checks per role. It changes the in-memory state and starts simulated jobs.
 
 import type { Account, Backup, CatalogPlugin, Instance, Job, Permission, Session, Stage, User } from "@/api/types";
+import { browserLocale, isLocale, storedLocale, type Locale } from "@/i18n";
 import { publish } from "./bus";
 import { docPage, DOCS } from "./docs";
 import { addDomain, checkName, checkNow, domainsOf, findDomain, makePrimary, removeDomain } from "./domains";
@@ -112,6 +113,7 @@ export function me(): Session {
     must_set_up_second_factor: false,
     recovery_codes_needed: users.find((u) => u.name === ME)!.second_factors.includes("totp") && recovery.left === 0,
     brand_color: String(setting("brand_color") ?? "#714B67"),
+    language: language(),
   };
 }
 
@@ -130,6 +132,11 @@ function signedIn() {
 /** The visitor's recovery codes (made 41 days ago with the app; three used since) and sign-in e-mail choice. */
 const recovery = { left: 7, total: 10, created_at: iso(OPENED - 41 * DAY) };
 let signInEmail: boolean | null = null;
+/** The visitor's own language, kept in this browser like the panel's own; none: the visitor's browser, then the
+ *  demo's DEFAULT_LANGUAGE. */
+let ownLanguage: Locale | null = storedLocale();
+const defaultLanguage = (): Locale => (isLocale(setting("default_language")) ? (setting("default_language") as Locale) : "en");
+const language = (): Locale => ownLanguage ?? browserLocale() ?? defaultLanguage();
 const RECOVERY_ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz";
 const newRecoveryCodes = () => {
   const codes = Array.from({ length: 10 }, () => {
@@ -172,11 +179,12 @@ function account(): Account {
       can_turn_off: Boolean(setting("sign_in_email_opt_out") ?? true),
       mail_ready: true,
     },
+    language: { value: language(), own_choice: ownLanguage, default: defaultLanguage() },
   };
 }
 
-route("GET", "/setup", () => ok({ needed: false, contact: CONTACT }));
-route("GET", "/contact", () => ok({ sentence: CONTACT, name: "Operations team", phone: "", email: "ops@example.com" }));
+route("GET", "/setup", () => ok({ needed: false, contact: CONTACT, default_language: defaultLanguage() }));
+route("GET", "/contact", () => ok({ sentence: CONTACT, name: "Operations team", phone: "", email: "ops@example.com", default_language: defaultLanguage() }));
 route("POST", "/setup", () => {
   throw new Problem(409, "This panel is set up already.");
 });
@@ -219,6 +227,12 @@ route("PATCH", "/account", ({ body }) => {
     if (choice === false && !setting("sign_in_email_opt_out")) throw new Problem(403, `The sign-in e-mail cannot be turned off on this panel. ${CONTACT}`);
     signInEmail = typeof choice === "boolean" ? choice : null;
     record(ME, `sign-in e-mail ${choice ? "turned on" : choice === false ? "turned off" : "back to the default"}`);
+  }
+  if ("language" in body) {
+    const choice = body.language;
+    if (choice !== null && !isLocale(choice)) throw new Problem(400, "language must be one of en, ar, or null.");
+    ownLanguage = choice;
+    record(ME, choice ? `language set to ${choice}` : "language back to the default");
   }
   for (const key of ["first_name", "last_name", "email", "phone"] as const) {
     if (key in body) user[key] = String(body[key] ?? "") || null;

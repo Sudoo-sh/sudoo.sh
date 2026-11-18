@@ -838,6 +838,14 @@ as in the repository.
 **Light** and **Dark**. The choice is kept in your browser. The accent colour is chosen by a super admin
 (**Settings, General**).
 
+**Language.** The panel is in English and Arabic (right to left). The button next to the theme button at the bottom
+of the sidebar switches to the other language, and **My account, Language** chooses one, or the panel's default
+(**Settings, General, Default language**). The choice is kept on your account, so every browser you sign in with
+shows the panel in it. Before you sign in, the sign-in page uses your browser's language, and has the same switch.
+Code, branches, addresses, logs and e-mail addresses stay left to right in Arabic, digits are 0-9, and messages
+written by the server itself (a job's log, an error's explanation, Odoo's logs) are shown as the server wrote them,
+in English. E-mails the panel sends are in English for now.
+
 ---
 
 ## 13. When something goes wrong

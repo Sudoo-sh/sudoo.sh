@@ -234,6 +234,51 @@ def test_who_gets_the_sign_in_e_mail(app: Flask, mailbox: FakeMailer) -> None:
     assert client.patch("/api/v1/account", json={"sign_in_email": "yes"}, headers=headers).status_code == 400
 
 
+def test_each_person_chooses_the_language_and_the_server_has_a_default(app: Flask) -> None:
+    name = _user("viewer")
+    client, signed_in = _sign_in(app, name)
+    headers = _headers(client)
+    assert signed_in.get_json()["data"]["language"] == "en"  # nothing chosen: the server's default
+    assert client.get("/api/v1/account").get_json()["data"]["language"] == {
+        "value": "en",
+        "own_choice": None,
+        "default": "en",
+    }
+
+    chosen = client.patch("/api/v1/account", json={"language": "ar"}, headers=headers)
+    assert chosen.status_code == 200
+    assert chosen.get_json()["data"]["language"] == {"value": "ar", "own_choice": "ar", "default": "en"}
+    assert accounts.get(name)["language"] == "ar"  # kept on the account: it follows the person to any browser
+    assert (
+        app.test_client()
+        .post("/api/v1/session", json={"username": name, "password": PASSWORD}, headers=ORIGIN)
+        .get_json()["data"]["language"]
+        == "ar"
+    )
+
+    live.change({"default_language": "ar"})  # the administrator's default, for those who have not chosen
+    assert client.get("/api/v1/setup").get_json()["data"]["default_language"] == "ar"
+    assert client.get("/api/v1/contact").get_json()["data"]["default_language"] == "ar"
+    client.patch("/api/v1/account", json={"language": "en"}, headers=headers)
+    assert client.get("/api/v1/session").get_json()["data"]["language"] == "en"  # an own choice wins
+    back = client.patch("/api/v1/account", json={"language": None}, headers=headers)
+    assert back.get_json()["data"]["language"] == {"value": "ar", "own_choice": None, "default": "ar"}
+    assert client.get("/api/v1/session").get_json()["data"]["language"] == "ar"
+
+    for wrong in ("fr", "AR", 1, ["ar"], {"x": 1}):
+        assert client.patch("/api/v1/account", json={"language": wrong}, headers=headers).status_code == 400
+    assert accounts.get(name).get("language") is None
+
+
+def test_the_default_language_is_a_setting_changed_in_the_panel() -> None:
+    from sudoo.web.v1 import settings as settings_api
+
+    found = {s["key"]: s for s in settings_api.resource()}
+    assert found["default_language"]["value"] == "en" and found["default_language"]["applies"] == "now"
+    live.change({"default_language": "ar"})
+    assert {s["key"]: s for s in settings_api.resource()}["default_language"]["value"] == "ar"
+
+
 def test_no_e_mail_without_mail_or_an_address_and_a_failure_never_blocks(
     app: Flask, mailbox: FakeMailer, monkeypatch: pytest.MonkeyPatch
 ) -> None:

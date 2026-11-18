@@ -7,6 +7,7 @@ import { Link } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useDomains } from "@/api/queries";
 import type { CustomDomain, DnsRecord, Domains, DomainStatus, Instance } from "@/api/types";
+import { FeatureUpsell } from "./PlanSettings";
 import { useCan } from "@/components/Shell";
 import { Button, Callout, CopyField, Empty, Field, Skeleton, Status, Tag } from "@/components/ui/basics";
 import { Menu, Modal, useToast } from "@/components/ui/overlay";
@@ -56,6 +57,7 @@ export function DomainsTab({ instance }: { instance: Instance }) {
   const full = data.domains.length >= data.limit;
   return (
     <div className="domains">
+      {manage && <FeatureUpsell feature="custom_domains" />}
       {data.listener_error && data.mode === "acme" && (
         <Callout tone="danger">
           {t.listenerError(data.listener_error)}

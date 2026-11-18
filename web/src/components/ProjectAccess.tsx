@@ -13,6 +13,7 @@ import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/teams";
 import { allowedNames } from "./LockTag";
+import { FeatureUpsell } from "./PlanSettings";
 import { useCan } from "./Shell";
 
 const LEVELS: AccessLevel[] = ["none", "view", "developer", "maintainer", "admin"];
@@ -143,6 +144,7 @@ export function AccessTab({ project, permitted }: { project: ProjectDetail; perm
   const locks = Object.entries(data.locks);
   return (
     <div className="stack tab-panel">
+      <FeatureUpsell feature="per_project_access" />
       <section className="card">
         <div className="card-head">
           <h2 className="spacer">{t.access.title}</h2>

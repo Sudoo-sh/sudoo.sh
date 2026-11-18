@@ -44,6 +44,7 @@ import { Button, Callout } from "./ui/basics";
 import { BackToTop } from "./BackToTop";
 import { HelpButton } from "./HelpPanel";
 import { PageMotion } from "./PageMotion";
+import { PlanBanner } from "./PlanSettings";
 import { Menu, useToast } from "./ui/overlay";
 
 import { useCan, useMe } from "./Session";
@@ -469,6 +470,7 @@ export function Shell() {
         <Reconnecting sync={sync} />
         <PluginNotices />
         <RecoveryCodesNotice />
+        <PlanBanner />
         <Outlet />
       </div>
       <BackToTop />

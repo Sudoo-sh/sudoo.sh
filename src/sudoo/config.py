@@ -889,8 +889,18 @@ class Settings(BaseSettings):
         "https://app.sudoo.sh/support",
         description="The help desk Contact support opens when the panel is linked to a Sudoo.sh account (https).",
     )
+    plan_pricing_url: str = Field(
+        "https://sudoo.sh/pricing",
+        description="Where the panel sends people to compare the Sudoo.sh plans (Settings, Plan, and every message "
+        "about a plan's limit) (https).",
+    )
+    plan_account_url: str = Field(
+        "https://app.sudoo.sh",
+        description="The account site where the plan of the linked account is managed and, after a downgrade, the "
+        "production branches to keep are chosen (https).",
+    )
 
-    @field_validator("docs_url", "hub_support_url")
+    @field_validator("docs_url", "hub_support_url", "plan_pricing_url", "plan_account_url")
     @classmethod
     def _help_url(cls, value: str) -> str:
         return _plain_https(value, required=True)
@@ -1202,6 +1212,8 @@ EDITABLE = (
     "docs_url",
     "support_url",
     "hub_support_url",
+    "plan_pricing_url",
+    "plan_account_url",
     *SHELL_SETTINGS,
 )
 """Settings that can be changed in the panel, taking effect at once."""

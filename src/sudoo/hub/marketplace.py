@@ -4,10 +4,12 @@ checkout sessions (the hub's "Panel contract", sudoo-hub README).
 Heartbeat
     Every 15 minutes (the hub's `next_heartbeat_seconds`) the panel sends its version, the hash of its core files,
     its hardware fingerprint and the installed plugins, with coarse server figures (CPU, memory and disk use, how
-    many instances run, their Odoo versions and edition), signed with the installation key. The hub answers with a
+    many instances run, their Odoo versions and edition) and what the plan counts (`usage`: servers, projects,
+    production branches and their names; entitlements.py), signed with the installation key. The hub answers with a
     lease (crypto.Lease, 72 hours): the standing of each plugin and the licence dates of the paid ones, including
     `run_until`, when a paid plugin must stop unless a newer lease arrives. The lease is verified with the trusted
-    hub keys and kept in storage, so the panel acts on it while offline.
+    hub keys and kept in storage, so the panel acts on it while offline. Its `entitlements` claim (what the plan
+    allows) is kept with its dates (entitlements.remember), and its `production_keep` applied.
 
 Commands
     The heartbeat's answer also carries the hub's commands not acknowledged yet, each signed on its own. The one
@@ -36,6 +38,7 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlencode
 
+from sudoo import entitlements
 from sudoo.config import settings
 from sudoo.storage import storage
 
@@ -195,6 +198,15 @@ def server_report() -> dict[str, Any]:
         return {}
 
 
+def _usage_report() -> dict[str, Any] | None:
+    """What the panel counts for the plan (entitlements.usage_report); None when it cannot be counted."""
+    try:
+        return entitlements.usage_report()
+    except Exception:  # noqa: BLE001 - the counts are optional; the heartbeat goes without them
+        log.exception("marketplace: could not count the plan's usage")
+        return None
+
+
 def _forget_link(**values: Any) -> None:
     _save(linked=None, lease=None, lease_iat=None, lease_exp=None, flags=[], **values)
 
@@ -241,6 +253,9 @@ def _heartbeat_once() -> dict[str, Any]:
         "plugins": installed_report(),
         **server_report(),
     }
+    usage = _usage_report()
+    if usage is not None:
+        body["usage"] = usage
     answer = client.request("POST", "/api/v1/heartbeat", body).data or {}
     token = answer.get("lease") if isinstance(answer, dict) else None
     if not isinstance(token, str):
@@ -264,7 +279,12 @@ def _heartbeat_once() -> dict[str, Any]:
         error=None,
         error_code=None,
         high_water=max(float(state().get("high_water") or 0), float(verified.issued_at)),
+        **(entitlements.remember(verified.claims, float(verified.expires_at), time.time()) or {}),
     )
+    try:  # after a downgrade: the production branches the account does not keep become development branches
+        entitlements.apply_production_keep()
+    except Exception:  # noqa: BLE001 - tried again at the next heartbeat
+        log.exception("marketplace: the production branches to keep could not be applied")
     from sudoo import plugin_manager
 
     plugin_manager.apply_lease(verified)
@@ -571,4 +591,6 @@ def status() -> dict[str, Any]:
         "lease_expires_at": lease_exp,
         "lease_valid": held is not None,
         "lease_ending_soon": bool(lease_exp and lease_exp - trusted_now() < LEASE_WARNING_HOURS * 3600),
+        # seconds until the account's daily hub API quota allows counted calls again (0: it does)
+        "api_quota_wait": client.quota_wait(f"{PANEL}/catalog"),
     }

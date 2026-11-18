@@ -32,7 +32,7 @@ from sudoo.offsite.s3 import S3Error
 from sudoo.projects import access
 
 from .. import validation as check
-from ..security import log, refuse_unless, require
+from ..security import log, refuse_unless, refuse_without_feature, require
 from .resources import job_resource
 from .responses import PREFIX, no_content, ok
 
@@ -114,6 +114,7 @@ def public_key() -> Response:
 @blueprint.post("/offsite/test")
 @require("offsite.configure")
 def test() -> Response:
+    refuse_without_feature("offsite_backups", "test the off-site storage")
     _need_storage()
     try:
         done = offsite.test_connection()

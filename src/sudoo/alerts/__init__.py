@@ -53,6 +53,7 @@ TYPES: dict[str, str | None] = {
     "certificate": "alert_certificate",
     "offsite_failed": "alert_offsite_failed",
     "offsite_missing": "alert_offsite_missing",
+    "plan": None,  # a production branch left production after the plan's downgrade (entitlements.py): always told
     "test": None,
 }
 """Kind of alert -> the setting that turns it on (a test alert is always sent)."""

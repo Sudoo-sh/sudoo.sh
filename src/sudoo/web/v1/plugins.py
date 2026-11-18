@@ -62,6 +62,8 @@ def _hub_error(error: Exception) -> NoReturn:
         abort(503, UNREACHABLE)
     if isinstance(error, HubRefused):
         status = {404: 404, 422: 400, 429: 429, 503: 503}.get(error.status, 409)
+        if status == 429 and error.retry_after:  # the hub's Retry-After (its daily API quota: midnight UTC)
+            g.retry_after = error.retry_after
         abort(status, plugin_manager._hub_message(error))
     raise error
 

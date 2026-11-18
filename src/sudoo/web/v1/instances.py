@@ -57,7 +57,7 @@ from typing import Any, cast
 
 from flask import Blueprint, Response, abort, g, request
 
-from sudoo import addons, projects, roles
+from sudoo import addons, entitlements, projects, roles
 from sudoo.config import settings
 from sudoo.core import events, jobs, vault
 from sudoo.core.state import STATE
@@ -433,11 +433,14 @@ PRODUCTION_LIFETIME = "A production instance is never deleted automatically: its
 PRODUCTION_PAUSE = "A production instance is never paused automatically."
 
 
-def _project_production_refusal(project_id: str | None, repo: str, branch: str) -> str | None:
+def _project_production_refusal(project_id: str | None, repo: str, branch: str, name: str = "") -> str | None:
     """Why `branch` of the project (`project_id`, else the project of `repo`) may not be one more production branch
-    of it (PROJECT_PRODUCTION_BRANCHES), or None; None too for an instance outside every project."""
+    (PROJECT_PRODUCTION_BRANCHES, then the plan: entitlements.py), or None. An instance outside every project (plain
+    Odoo, `name`; "" for one not created yet) counts as one production branch of the plan."""
     found = projects.get(project_id or "") or (projects.by_repository(github.repo_name(repo) or "") if repo else None)
-    return projects.production_refusal(found, branch) if found and branch else None
+    if found and branch:
+        return projects.production_refusal(found, branch)
+    return entitlements.production_refusal(name or "\0new")
 
 
 def _check_stage_change(name: str, before: str, after: str, data: Mapping[str, Any]) -> None:
@@ -446,7 +449,7 @@ def _check_stage_change(name: str, before: str, after: str, data: Mapping[str, A
     if after == stages.PRODUCTION:
         env = store.read_env(name)
         refused = stages.production_refusal(exclude=name) or _project_production_refusal(
-            env.get("PROJECT"), "", env.get("GIT_BRANCH", "")
+            env.get("PROJECT"), "", env.get("GIT_BRANCH", ""), name
         )
         if refused:
             log(f"stage change of {name} refused (production instances)", ok=False, detail=refused)

@@ -1917,3 +1917,25 @@ are for administrators and super admins. What people see is in the
   account that has the access it needs.
 * **Data.** Teams are documents in the collection `teams`; a project's grants, branch rules and locks are in its
   `access`. Deleting an account or a team removes it from every team, grant and lock.
+
+### The plan's limits
+
+Teams and access per project are features of the Pro and Business plans; locked branches are on every plan. The
+plan comes from Sudoo.sh in the signed licence (`entitlements.py`); what people see is in the
+[User manual](USER_MANUAL.md#plans-and-limits). For the server:
+
+* **Production branches** are counted on the whole panel: each project's production branches (`<project>/<branch>`)
+  and each production instance outside a project (`<instance>`), the names the heartbeat reports to Sudoo.sh
+  (`usage.production_branch_names`). The plan's number applies on top of `PROJECT_PRODUCTION_BRANCHES` (per project)
+  and `MAX_PRODUCTION_INSTANCES` (per server).
+* **Not linked** (or `MARKETPLACE` off): the Free plan of the licence. **Linked:** the licence's entitlements, trusted
+  until their `valid_until` (24 hours after the last heartbeat by default) while the hub cannot be reached; after
+  that the features stay as they were and only new production branches wait.
+* **After a downgrade** the licence's `production_keep` names the production branches this server keeps; at the
+  heartbeat that brings it, the panel moves every instance of the other production branches to development (its
+  `STAGE`, the branch's recorded stage; lifetime "keep", automation and data unchanged; a busy instance waits for the
+  next heartbeat), with an audit entry "production branch left production (plan)" and an alert of kind `plan`.
+* **The hub's daily API quota.** Calls the panel makes for the account (the catalogue, installs, checkout) count
+  toward it; past it the hub answers 429 until midnight UTC, and the panel stops sending them until then (Plugins
+  says when they work again). Heartbeats, registration, licence checks, licence acceptances and command
+  acknowledgements never count, so licences and plans keep working.

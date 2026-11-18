@@ -1077,6 +1077,7 @@ the browser, in tabs:
 | **Alerts** | Who is told when something needs attention (super admins, more addresses, up to three webhooks for Slack, Discord, Teams or your own system), which alerts are sent, their thresholds, how often the same alert may repeat, and a daily summary, with **Send a test alert** ([Administrator guide: Alerts](ADMIN_GUIDE.md#16-alerts)). |
 | **GitHub and updates** | How often GitHub is checked, the update triggers, and the webhook secret. |
 | **Marketplace** | The connection to the Sudoo.sh marketplace, and linking this panel to an account ([Marketplace](MARKETPLACE.md)). |
+| **Plan** | The panel's Sudoo.sh plan, as the signed licence from Sudoo.sh says: what it allows (production branches, servers, projects, teams and access per project, custom domains, off-site backups, support), what the panel uses (production branches by name, instances by stage), whether new production branches are withheld, which production branches leave production after a downgrade, and **Manage the plan** and **Compare plans** ([Plans and limits](#plans-and-limits)). |
 | **Advanced** | How often figures are measured, the Cloudflare connector image, **Restart the panel**, and **Server**: read only, the folders, ports and how the panel is reached, which stay in the server's `.env`. |
 | **About** | The licence agreement: the version this release bundles, the **Required licence version** (a newer one asks super admins to accept again), who accepted it, when and for which use, every acceptance (in the panel and by the installer, and whether your Sudoo.sh account has it), the full text, and **Review and accept again** (super admins) ([Administrator guide: The licence agreement](ADMIN_GUIDE.md#22-the-licence-agreement)). |
 
@@ -1084,6 +1085,30 @@ The chosen tab is part of the address (for example `/settings?tab=backups`), so 
 reload. Changes can be made in several tabs and saved together: the bar at the bottom counts them and names the tabs,
 and a dot after a tab's name marks unsaved changes in it (accent) or a change waiting for a restart (amber). The
 arrow keys move between tabs; on a narrow screen the tabs scroll sideways.
+
+### Plans and limits
+
+What the panel may run is its **Sudoo.sh plan**. A panel linked to a Sudoo.sh account (Settings, Marketplace) gets
+its plan from Sudoo.sh with every heartbeat, signed, so it cannot be changed in the panel; a panel that is not linked
+has the **Free** plan of the licence: one production branch on one server, the paid features off. A banner tells
+super admins so, with a link to link the panel.
+
+* **Production branches.** Every production branch of every project, and every production instance outside a project,
+  counts. One more (a branch made production, a new production instance) is refused beyond the plan's number, with a
+  sentence that says how to get more; extra branches bought and privileges granted by Sudoo.sh are in that number.
+  Development and staging branches are never limited by the plan.
+* **Paid features.** Teams, access per project and per branch, adding custom domains and turning off-site backups on
+  come with Pro and Business. On a plan without them the page says so (**Compare plans**), and what was set up before
+  keeps working: domains keep serving and renewing, off-site copies already on keep going, access rules and locks stay
+  (and can always be removed). Locked branches are on every plan.
+* **Withheld production.** While the Sudoo.sh account must still declare its use, verify its company or accept the
+  current licence, new production branches are withheld; the production branches you have keep serving.
+* **When Sudoo.sh cannot be reached,** the last plan applies for its validity (24 hours by default); after that new
+  production branches wait until the panel hears from Sudoo.sh again. Nothing that runs is ever stopped.
+* **After a downgrade** that left more production branches than the new plan allows, choose which to keep on the
+  account site (**Choose the branches to keep**). When the downgrade applies, the others become **development**
+  branches: their instances keep their data, keep running and are never deleted, and an alert and the audit log say
+  which. Settings, Plan lists them beforehand.
 
 How changes apply:
 

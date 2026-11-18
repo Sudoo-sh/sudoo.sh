@@ -242,6 +242,19 @@ locked branch takes every project permission but `instances.view` from whoever i
 answers 404 like one that does not exist, a refused permission 403 with the reason, and lists leave hidden ones out.
 `GET /instances/<name>` has `meta.permissions`, what the caller may do in it, and every instance has `lock`.
 
+### The plan
+
+| Method and path | Permission | Body | Answer |
+| :--- | :--- | :--- | :--- |
+| `GET /plan` | `instances.view` | | 200, `plan`, `source` (`hub`, `grace`: the hub cannot be reached and the last licence applies, `expired`: no new production branches until it is heard again, `unlinked`, `default`: the Free plan), `linked`, `account_name`, `received_at`, `valid_until`, `entitlements` (`max_production_branches`, `max_servers`, `max_projects` (`null`: unlimited), `teams`, `features` (`per_project_access`, `custom_domains`, `offsite_backups`), `support_level`, `addons`, and `period`, `renews_at`, `trial_plan` when the hub says them), `production_withheld`, `banned`, `over_limit`, `usage` (`servers`, `projects`, `production_branches`, `production_branch_names`, `instances_by_stage`), `production_refusal` (why one more production branch would be refused, or `null`), `production_keep`, `leaving_production`, `links` (`pricing`, `account`, `keep`) |
+
+A request the plan does not allow answers 403 with a sentence naming the plans that have it and the addresses of the
+pricing page and the account site (`POST /teams`, `PATCH /teams/<id>` beyond taking members out, `PUT /projects/<id>/access`
+beyond clearing it, `POST /instances/<name>/domains`, `PATCH /settings` turning `offsite_backups` on, `POST
+/offsite/test`); one more production branch beyond the plan, while production is withheld or once the licence
+expired answers 409 with the reason. While the hub answers 429 for the account's daily API quota, the marketplace
+endpoints answer **429** with `Retry-After` (seconds to midnight UTC) and say when they work again.
+
 ### Teams
 
 | Method and path | Permission | Body | Answer |

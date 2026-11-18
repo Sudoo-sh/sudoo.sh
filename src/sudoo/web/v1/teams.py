@@ -21,7 +21,7 @@ from sudoo import accounts, projects, teams
 from sudoo.projects import access
 
 from .. import validation as check
-from ..security import can, log, refuse_unless, require
+from ..security import can, log, refuse_unless, refuse_without_feature, require
 from .responses import PREFIX, created, iso, no_content, ok
 
 blueprint = Blueprint("teams", __name__)
@@ -94,6 +94,7 @@ def read_team(team_id: str) -> Response:
 @blueprint.post("/teams")
 @require("teams.manage")
 def create_team() -> Response:
+    refuse_without_feature("teams", "create a team")
     data = check.body()
     members = _members(data) if "members" in data else []
     try:
@@ -124,6 +125,8 @@ def change_team(team_id: str) -> Response:
         values["members"] = _members(data)
     if not values:
         abort(400, "Send at least one of: name, description, members.")
+    if set(values) != {"members"} or not set(values["members"]) <= set(before.get("members") or []):
+        refuse_without_feature("teams", f"change the team {team_id}")  # taking members out is always possible
     try:
         team = teams.change(team_id, g.user["name"], accounts.all_users(), **values)
     except teams.TeamError as error:

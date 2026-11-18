@@ -1129,3 +1129,44 @@ export interface CaughtMailMeta {
   limits: { retention_days: number; max_messages: number; max_mb: number; max_message_mb: number };
   release: boolean;
 }
+
+/** GET /plan: the panel's Sudoo.sh plan from the hub's signed licence (src/sudoo/entitlements.py) */
+export interface PlanStatus {
+  plan: string;
+  /** hub: heard recently; grace: the hub cannot be reached, the last licence still applies; expired: no new
+   *  production until the hub is heard again; unlinked / default: the Free plan of the licence */
+  source: "hub" | "grace" | "expired" | "unlinked" | "default";
+  linked: boolean;
+  account_name: string | null;
+  received_at: string | null;
+  valid_until: string | null;
+  entitlements: {
+    max_production_branches: number | null;
+    max_servers: number | null;
+    max_projects: number | null;
+    teams: boolean;
+    features: { per_project_access: boolean; custom_domains: boolean; offsite_backups: boolean };
+    support_level: string;
+    addons: Record<string, number>;
+    period?: string;
+    renews_at?: string | number;
+    trial_plan?: string | null;
+  };
+  production_withheld: string | null;
+  banned: boolean;
+  over_limit: string[];
+  usage: {
+    servers: number;
+    projects: number;
+    production_branches: number;
+    production_branch_names: string[];
+    instances_by_stage: Record<Stage, number>;
+  };
+  production_refusal: string | null;
+  /** after a downgrade: the production branches the account keeps (null: no choice to apply) */
+  production_keep: string[] | null;
+  /** the production branches that are not kept and become development branches */
+  leaving_production: string[];
+  links: { pricing: string; account: string; keep: string };
+  checked_at: string | null;
+}

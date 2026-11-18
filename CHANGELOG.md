@@ -8,6 +8,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **The plan from the hub's signed licence:** the panel reads the entitlements of the lease each heartbeat brings
+  (production branches with extra branches and privileges, servers, projects, teams, `per_project_access`,
+  `custom_domains`, `offsite_backups`, support level, withheld production, ban) and enforces them: one more production
+  branch beyond the plan (counted on the whole panel, with plain production instances), while production is withheld
+  or once the licence expired is refused with how to get more; teams, access per project, adding custom domains and
+  turning off-site backups on need a plan that has them (what was set up keeps working; locks are on every plan).
+  When the hub cannot be reached the last entitlements apply until their `valid_until`, then only new production
+  waits; nothing that runs ever stops. Unlinked panels have the Free plan of the licence (one production branch),
+  with a banner saying how to link. After a downgrade, the licence's `production_keep` is applied: the other
+  production branches become development branches (never deleted), with an alert (kind `plan`) and an audit entry.
+  The heartbeat reports `usage` as the hub expects it (`servers`, `projects`, `production_branches`,
+  `production_branch_names`). The hub's 429 `api_quota_exceeded` is respected: counted calls wait until its
+  `Retry-After` (heartbeats and licence calls never count), with a clear message. New **Settings, Plan** tab (plan,
+  entitlements, usage, withheld state, branches leaving production, **Manage the plan**, **Compare plans**) and
+  upsell notes on the Teams page, the Access tab and the Domains tab. New settings `PLAN_PRICING_URL` and
+  `PLAN_ACCOUNT_URL`; API `GET /plan`. English and Arabic; the demo has a Pro plan.
 - **Teams, per-project and per-branch access, locked branches:** administrators make **Teams** (named groups of
   accounts; new page in the sidebar) and give a team or a person a level in a project or one of its branches on the
   project's new **Access** tab: no access, view, developer, maintainer or admin. What someone may do in a project is
@@ -312,6 +328,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Panels not linked to a Sudoo.sh account have the Free plan:** one production branch on the whole panel (on top
+  of `PROJECT_PRODUCTION_BRANCHES` and `MAX_PRODUCTION_INSTANCES`), and no new teams, access rules, custom domains or
+  off-site backups. Nothing that exists stops: production branches above the limit keep serving, domains keep
+  renewing, off-site copies already on keep going. Link the panel (Settings, Marketplace) to get its plan.
 - **API tokens act for their owner:** a token's permissions are now its scope's role ∩ the role of the account that
   created it, and that account's teams, project access and locked branches apply to it. Tokens created with
   `sudoo.sh create-token`, or whose creator was deleted, keep their scope's role but are kept out of restricted

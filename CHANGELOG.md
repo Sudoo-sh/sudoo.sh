@@ -20,7 +20,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   expires soon" on the E-mail templates page). The primary domain becomes the instance's address and Odoo's
   `web.base.url`. Administrators manage domains (new permission `domains.manage`, `DOMAINS_PER_INSTANCE`), production
   instances ask for a confirmation, and every change is audited. API: `/api/v1/instances/<name>/domains`; live event
-  `domains`. The `sudoo-gateway` service gets the `NET_BIND_SERVICE` capability (update `compose.yaml`).
+  `domains`. The `sudoo-gateway` service gets the `NET_BIND_SERVICE` capability (update `compose.yaml`). In the
+  web app, an instance's new **Domains** tab adds a domain, shows the DNS record to create, follows its state live
+  (waiting for DNS, getting a certificate, active, renewing, expires soon, failed with the reason), its certificate's
+  expiry, **Check now**, **Make primary** and **Remove**; Settings has a **Custom domains** tab. The demo shows sample
+  domains in each state.
 
 - **Recovery codes for the authenticator app:** setting up the app now shows 10 single-use recovery codes
   (`RECOVERY_CODES_COUNT`) to copy or download; each signs in once in place of the app's code ("Lost your phone?"

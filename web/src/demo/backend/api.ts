@@ -5,6 +5,7 @@
 import type { Account, Backup, CatalogPlugin, Instance, Job, Permission, Session, Stage, User } from "@/api/types";
 import { publish } from "./bus";
 import { docPage, DOCS } from "./docs";
+import { addDomain, checkName, checkNow, domainsOf, findDomain, makePrimary, removeDomain } from "./domains";
 import { announce, full, reference, startJob } from "./jobs";
 import { capacity, currentMetrics, history, listed, newProfile } from "./metrics";
 import * as mail from "./mail";
@@ -703,6 +704,64 @@ function deleteInstance(instance: Instance, body: Record<string, unknown>): Job 
 
 route("POST", "/instances/:name/actions/:action", ({ params, body }) => accepted(runAction(instanceOf(params.name!), params.action!, body)));
 route("DELETE", "/instances/:name", ({ params, body }) => accepted(deleteInstance(instanceOf(params.name!), body)));
+
+// ---------------------------------------------------------------- custom domains
+
+function confirmProduction(instance: Instance, body: Record<string, unknown>, what: string) {
+  if (instance.stage === "production" && body.confirm_production !== true)
+    throw new Problem(400, `${instance.name} is a production instance: confirm that you want to ${what} ("confirm_production": true). Its users reach it through its domains.`);
+}
+function ownDomain(instance: Instance, name: string) {
+  const found = findDomain(instance.name, name);
+  if (!found) throw new Problem(404, "This instance has no such domain.");
+  return found;
+}
+
+route("GET", "/instances/:name/domains", ({ params }) => {
+  need("instances.view");
+  return ok(domainsOf(instanceOf(params.name!)));
+});
+route("POST", "/instances/:name/domains", ({ params, body }) => {
+  need("domains.manage", `/api/v1/instances/${params.name}/domains`);
+  const instance = instanceOf(params.name!);
+  const value = String(body.domain ?? "");
+  if (!value.trim()) throw new Problem(400, "Enter the domain, such as erp.example.com.");
+  confirmProduction(instance, body, "add a domain to it");
+  const limit = domainsOf(instance).limit;
+  if (domainsOf(instance).domains.length >= limit) throw new Problem(409, `An instance may have ${limit} custom domains at most (DOMAINS_PER_INSTANCE).`);
+  const checked = checkName(value, instance.name);
+  if (typeof checked !== "string") throw new Problem(typeof checked.error === "string" && checked.error.includes("already") ? 409 : 400, checked.error);
+  const added = addDomain(instance, checked, ME);
+  record(ME, "custom domain added", { instance: instance.name, detail: checked });
+  return created(added);
+});
+route("PATCH", "/instances/:name/domains/:domain", ({ params, body }) => {
+  need("domains.manage", `/api/v1/instances/${params.name}/domains/${params.domain}`);
+  const instance = instanceOf(params.name!);
+  const found = ownDomain(instance, params.domain!);
+  if (body.primary !== true) throw new Problem(400, 'Send {"primary": true} to make this the primary domain.');
+  if (!found.primary) {
+    confirmProduction(instance, body, "change its primary domain");
+    makePrimary(instance, found.domain);
+    record(ME, "primary custom domain changed", { instance: instance.name, detail: found.domain });
+  }
+  return ok(found);
+});
+route("POST", "/instances/:name/domains/:domain/check", ({ params }) => {
+  need("domains.manage", `/api/v1/instances/${params.name}/domains/${params.domain}/check`);
+  const instance = instanceOf(params.name!);
+  ownDomain(instance, params.domain!);
+  return ok(checkNow(instance, params.domain!));
+});
+route("DELETE", "/instances/:name/domains/:domain", ({ params, body }) => {
+  need("domains.manage", `/api/v1/instances/${params.name}/domains/${params.domain}`);
+  const instance = instanceOf(params.name!);
+  const found = ownDomain(instance, params.domain!);
+  confirmProduction(instance, body, `remove ${found.domain}`);
+  removeDomain(instance, found.domain);
+  record(ME, "custom domain removed", { instance: instance.name, detail: found.domain });
+  return none();
+});
 
 // ---------------------------------------------------------------- jobs
 

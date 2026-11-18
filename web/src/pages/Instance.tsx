@@ -37,6 +37,7 @@ import { BACKUP_KIND as KIND_LABEL, BackupPicker } from "@/components/BackupPick
 import { LiveChart } from "@/components/charts/LiveChart";
 import { JobLine, Monogram } from "@/components/InstanceCard";
 import { STAGE_LABEL, STAGES, StageTag } from "@/components/StageTag";
+import { DomainsTab } from "@/components/DomainsTab";
 import { JobDrawer, Terminal } from "@/components/JobDrawer";
 import { Page, useCan } from "@/components/Shell";
 import { StatCard } from "@/components/StatCard";
@@ -71,6 +72,7 @@ const TABS: { id: string; label: string; icon: React.ReactNode; permission?: Per
   { id: "activity", label: "Activity", icon: <Layers /> },
   { id: "code", label: "Code", icon: <Code2 /> },
   { id: "logs", label: "Odoo log", icon: <ScrollText />, permission: "instances.logs" },
+  { id: "domains", label: "Domains", icon: <Globe /> },
   { id: "settings", label: "Settings", icon: <Settings2 />, permission: "instances.operate" },
   { id: "access", label: "Access", icon: <KeyRound />, permission: "instances.credentials" },
 ];
@@ -280,6 +282,7 @@ export function InstancePage() {
         {tab === "activity" && <ActivityTab name={name} onOpen={setJobId} />}
         {tab === "code" && !plain && <CodeTab instance={instance} canAdd={can("instances.update")} canRemove={can("instances.operate")} busy={busy} onAdd={() => setDialog("submodule")} act={act} />}
         {tab === "logs" && can("instances.logs") && <LogsTab name={name} />}
+        {tab === "domains" && <DomainsTab instance={instance} />}
         {tab === "settings" && can("instances.operate") && <SettingsTab instance={instance} plain={plain} />}
         {tab === "access" && can("instances.credentials") && <AccessTab instance={instance} />}
       </div>

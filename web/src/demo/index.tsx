@@ -11,6 +11,7 @@ import { keys } from "@/api/queries";
 import type { Role } from "@/api/types";
 import { useToast } from "@/components/ui/overlay";
 import { me, remember, switchRole } from "./backend/api";
+import { seedDomains } from "./backend/domains";
 import { startMetrics } from "./backend/metrics";
 import { startScenario } from "./backend/scenario";
 import { roleInfo, seedAll, session } from "./backend/state";
@@ -26,6 +27,7 @@ export function start() {
     /* no sessionStorage: start signed in as an administrator */
   }
   seedAll();
+  seedDomains();
   installTransport();
   startMetrics();
   startScenario();

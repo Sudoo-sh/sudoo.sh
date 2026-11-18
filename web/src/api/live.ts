@@ -6,7 +6,7 @@
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { keys, type JobLog } from "./queries";
-import type { Alert, Columns, Instance, Job, Metrics, MetricsHistory } from "./types";
+import type { Alert, Columns, Domains, Instance, Job, Metrics, MetricsHistory } from "./types";
 
 export type LiveState = "connecting" | "open" | "closed";
 
@@ -50,6 +50,9 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
       }
       break;
     }
+    case "domains":
+      client.setQueryData<Domains>(keys.domains(key), data as Domains);
+      break;
     case "instance.deleted":
       client.setQueryData<Instance[]>(keys.instances, (list) => list?.filter((i) => i.name !== key));
       client.removeQueries({ queryKey: keys.instance(key) });
@@ -117,7 +120,7 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
   }
 }
 
-const TOPICS = ["instance", "instance.deleted", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "alert", "reset"];
+const TOPICS = ["instance", "instance.deleted", "domains", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "alert", "reset"];
 
 export interface Sync {
   state: LiveState;

@@ -11,6 +11,7 @@ export type Permission =
   | "instances.delete"
   | "instances.credentials"
   | "backups.manage"
+  | "domains.manage"
   | "github.manage"
   | "accounts.manage"
   | "tokens.manage"
@@ -248,7 +249,7 @@ export interface Setting {
 export interface Alert {
   id: string;
   key: string;
-  type: "job_failed" | "update_failed" | "backup_failed" | "instance_down" | "disk" | "memory" | "drift" | "public_link" | "test";
+  type: "job_failed" | "update_failed" | "backup_failed" | "instance_down" | "disk" | "memory" | "drift" | "public_link" | "certificate" | "test";
   severity: "problem" | "recovered" | "info";
   title: string;
   text: string;
@@ -663,4 +664,42 @@ export interface Receipt {
   total_cents: number;
   currency: string;
   requested_by_name: string | null;
+}
+
+// ---------------------------------------------------------------- custom domains (GET /instances/<name>/domains)
+
+export type DomainStatus = "waiting_dns" | "issuing" | "active" | "renewing" | "expiring" | "failed";
+
+export interface DnsRecord {
+  type: "CNAME" | "A" | "AAAA";
+  name: string;
+  value: string;
+}
+
+export interface CustomDomain {
+  domain: string;
+  primary: boolean;
+  status: DomainStatus;
+  reason: string | null;
+  tls: "acme" | "external";
+  dns_records: DnsRecord[];
+  addresses: string[];
+  added_at: string | null;
+  added_by: string | null;
+  checked_at: string | null;
+  next_check_at: string | null;
+  renews_at: string | null;
+  certificate: { issued_at: string | null; expires_at: string | null; issuer: string | null; staging: boolean } | null;
+  url: string | null;
+}
+
+export interface Domains {
+  mode: "off" | "acme" | "external";
+  limit: number;
+  default_url: string | null;
+  target: { host: string; record_type: "CNAME" | "A" | "AAAA" } | null;
+  exposure: string;
+  listener_error: string | null;
+  authority: "production" | "staging" | "custom";
+  domains: CustomDomain[];
 }

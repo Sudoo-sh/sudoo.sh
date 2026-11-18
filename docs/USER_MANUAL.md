@@ -234,6 +234,7 @@ wait: one job per instance at a time.
 | **Activity** | Every job on this instance, newest first. Click one to open a panel with its steps, notes, the reason it failed (if it did) and the technical log, which follows live while the job runs. |
 | **Code** | The repository and branch, the recent commits, and the submodules, with **Add submodule** and **Remove** ([section 6](#6-submodules)). |
 | **Odoo log** | The latest lines Odoo wrote (100 to 3000), with **Refresh**. Lines with `ERROR` or `Traceback` usually explain a problem. |
+| **Domains** | The instance's own domains, such as `erp.client.com`: their state, the DNS record to create, the certificate and its expiry ([Custom domains](#custom-domains)). Everyone sees them; administrators add and remove them. |
 | **Settings** | The stage ([Stages](#stages-production-staging-and-development)), the automation switches and the lifetime ([section 5](#5-keeping-the-code-up-to-date)). Changes are saved at once. |
 | **Access** | The Odoo sign-in: address, login, password, and the master password (for Odoo's database manager). Click **Show the passwords**; each viewing is recorded in the audit log. |
 
@@ -282,6 +283,42 @@ current state first as a **Before a rollback** backup, kept as long, and never r
 Once you have rolled back, the banner goes; to go back to that state again, restore the **Before a restore**
 backup from the Backups card. After that time the **Before a restore** backup is removed and the banner goes. A second restore within that time
 replaces it: Rollback always goes back to just before the last restore.
+
+### Custom domains
+
+An instance, usually a production one, can answer on your client's own domain, such as `erp.client.com`, over
+https. The **Domains** tab shows its domains; administrators add and remove them. Your administrator first turns
+custom domains on for the server ([Administrator Guide](ADMIN_GUIDE.md#19-custom-domains-and-certificates)); until
+then the tab says so, and why (a server reached only through Cloudflare quick tunnels cannot carry your own domain
+without your own Cloudflare tunnel or proxy).
+
+To add one:
+
+1. On the instance's page, open **Domains** and click **Add domain**.
+2. Type the domain: only the name, such as `erp.client.com` (no `https://`, no path). On a production instance the
+   button says **Add to production**: adding confirms that its address may change.
+3. The panel shows the DNS record to create at the domain's DNS provider, for example a **CNAME** record named
+   `erp.client.com` with the value the panel shows. For a bare domain (`client.com`) it shows **A** (and **AAAA**)
+   records instead. Copy each value with its copy button. Behind Cloudflare, set the record to **DNS only** (grey
+   cloud).
+4. Wait. The panel checks DNS on its own, every minute at first and then less often; DNS changes usually show
+   within minutes, sometimes hours. **Check now** checks at once.
+
+What the states mean:
+
+| State | Meaning |
+| :--- | :--- |
+| **Waiting for DNS** | The domain does not point at this server yet; the reason says what was found. Create or fix the record shown. |
+| **Getting a certificate** | DNS is right; the certificate is being issued, usually in under a minute. |
+| **Active** | The instance answers at `https://<domain>` with a valid certificate (the lock next to the name opens it). Visits over http are sent to https. |
+| **Renewing** | The certificate is being renewed (30 days before it expires, on its own). The current one keeps working. |
+| **Expires soon** | The certificate expires within two weeks and could not be renewed yet: the reason says why. Administrators get an alert. |
+| **Failed** | The certificate could not be issued; the reason says why (often port 80 closed, or the record points elsewhere). The panel tries again later, waiting longer each time; fix the cause and click **Check now**. |
+
+The first domain you add is the **primary** one. Once it is active it becomes the instance's address: **Open Odoo**,
+the address in the header, and the links in Odoo's e-mails and portal (`web.base.url`) use it. The instance's own
+link (shown as **Default address**) keeps working too. To make another domain primary, open its **⋯** menu and
+choose **Make primary**; **Remove** in the same menu removes a domain and deletes its certificate.
 
 ---
 
@@ -551,6 +588,7 @@ Every account has one role. The role decides which pages, buttons and menu items
 | GitHub access (deploy keys; see the GitHub App's state) | yes | yes | yes | no | no |
 | Connect, install and disconnect the GitHub App | yes | no | no | no | no |
 | Delete instances | yes | yes | no | no | no |
+| Add and remove an instance's custom domains, choose the primary one | yes | yes | no | no | no |
 | Backups page (download, delete) | yes | yes | no | no | no |
 | Accounts, API tokens, audit log | yes | yes | no | no | no |
 | Create, change and delete super admins | yes | no | no | no | no |

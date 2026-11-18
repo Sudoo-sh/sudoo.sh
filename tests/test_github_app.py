@@ -58,6 +58,8 @@ class FakeGitHub(BaseHTTPRequestHandler):
     tokens_issued = 0
     selection = "all"  # the installation's repository_selection
     suspended_at: str | None = None
+    permissions: dict[str, str] = {"contents": "read", "metadata": "read"}  # the installation's permissions
+    account_type = "Organization"
 
     def log_message(self, *args: Any) -> None:  # quiet
         pass
@@ -90,8 +92,9 @@ class FakeGitHub(BaseHTTPRequestHandler):
         FakeGitHub.calls.append((method, path, body))
         installation = {
             "id": INSTALLATION,
-            "account": {"login": "Acme", "type": "Organization"},
+            "account": {"login": "Acme", "type": FakeGitHub.account_type},
             "repository_selection": FakeGitHub.selection,
+            "permissions": FakeGitHub.permissions,
             "html_url": "https://github.com/organizations/Acme/settings/installations/77",
             "suspended_at": FakeGitHub.suspended_at,
         }
@@ -134,6 +137,13 @@ class FakeGitHub(BaseHTTPRequestHandler):
                 {"full_name": "Acme/hr-addons", "private": True, "default_branch": "17.0", "pushed_at": "2026-11-12T10:00:00Z"},
             ]  # fmt: skip
             return self._send(200, {"total_count": 2, "repositories": repos})
+        if method == "POST" and path == "/orgs/Acme/repos":
+            if FakeGitHub.permissions.get("administration") != "write":
+                return self._send(403, {"message": "Resource not accessible by integration"})
+            if body["name"] == "taken":
+                return self._send(422, {"message": "Repository creation failed."})
+            full = f"Acme/{body['name']}"
+            return self._send(201, {"full_name": full, "private": body["private"], "default_branch": "main"})
         if path == "/repos/Acme/shop":
             return self._send(200, {"default_branch": "main"})
         if path.startswith("/repos/Acme/shop/branches"):
@@ -169,6 +179,8 @@ def no_app(fake_github: type[FakeGitHub]) -> Iterator[type[FakeGitHub]]:
     yield fake_github
     github_app.disconnect()
     FakeGitHub.selection, FakeGitHub.suspended_at = "all", None
+    FakeGitHub.permissions = {"contents": "read", "metadata": "read"}
+    FakeGitHub.account_type = "Organization"
 
 
 @pytest.fixture
@@ -540,3 +552,62 @@ def test_disconnect_forgets_everything(admin: Client, connected: type[FakeGitHub
     )
     assert not (settings.keys_dir / "github-app.json").exists() and not github_app._token_file().exists()
     assert client.get("/api/v1/github/app").get_json()["data"]["connected"] is False
+
+
+# ---------------------------------------------------------------- creating repositories (projects)
+
+
+def test_manifest_can_ask_for_repository_creation() -> None:
+    assert "administration" not in github_app.manifest("https://p", "https://p", "p")["default_permissions"]
+    asked = github_app.manifest("https://p", "https://p", "p", create_repositories=True)["default_permissions"]
+    assert asked == {"contents": "read", "metadata": "read", "administration": "write"}
+
+
+def test_repository_creation_says_what_is_missing(no_app: type[FakeGitHub]) -> None:
+    assert github_app.repository_creation("Acme")["reason"] == "no_app"
+    github_app.convert(CODE)
+    assert github_app.repository_creation("Acme")["reason"] == "not_installed"
+    github_app.add_installation(INSTALLATION)
+    missing = github_app.repository_creation("Acme")
+    assert missing["reason"] == "permission_missing" and missing["url"].endswith("/permissions")
+    assert "Administration" in missing["message"] and missing["accept_url"]
+    with pytest.raises(github_app.GitHubError) as refused:
+        github_app.create_repository("Acme", "erp")
+    assert refused.value.status == 409
+    FakeGitHub.permissions = {**FakeGitHub.permissions, "administration": "write"}  # granted and accepted on GitHub
+    github_app.sync_installations()
+    assert github_app.repository_creation("Acme")["possible"] is True
+    FakeGitHub.account_type = "User"
+    github_app.sync_installations()
+    assert github_app.repository_creation("Acme")["reason"] == "personal_account"
+
+
+def test_create_an_empty_repository(admin: Client, operator: Client, connected: type[FakeGitHub]) -> None:
+    from sudoo import projects
+
+    FakeGitHub.permissions = {**FakeGitHub.permissions, "administration": "write"}
+    github_app.sync_installations()
+    client, headers = admin
+    owners = client.get("/api/v1/projects/repository-owners").get_json()
+    assert owners["data"][0]["account"] == "Acme" and owners["data"][0]["possible"] is True
+    body = {"odoo_version": "18.0", "edition": "community", "create": {"owner": "Acme", "name": "new-erp"}}
+    op_client, op_headers = operator
+    assert op_client.post("/api/v1/projects", json=body, headers=op_headers).status_code == 403
+    FakeGitHub.calls.clear()
+    answer = client.post("/api/v1/projects", json=body, headers=headers)
+    assert answer.status_code == 201, answer.get_json()
+    made = answer.get_json()["data"]
+    assert made["origin"] == "created" and made["repository"]["full_name"] == "Acme/new-erp"
+    token_call = next(c for c in FakeGitHub.calls if c[1].endswith("/access_tokens"))
+    assert token_call[2] == {"permissions": {"administration": "write", "metadata": "read"}}
+    create_call = next(c for c in FakeGitHub.calls if c[1] == "/orgs/Acme/repos")
+    assert create_call[2]["auto_init"] is False and create_call[2]["private"] is True  # empty and private
+    assert projects.get(made["id"])["seen"] == []  # type: ignore[index]
+    # the read-only token cache was not given the stronger token
+    assert all("administration" not in str(v) for v in github_app._cached_tokens().values())
+    taken = {**body, "create": {"owner": "Acme", "name": "taken"}}
+    answer = client.post("/api/v1/projects", json=taken, headers=headers)
+    assert answer.status_code == 409 and "already" in answer.get_json()["detail"]
+    bad = {**body, "create": {"owner": "Acme", "name": "../x"}}
+    assert client.post("/api/v1/projects", json=bad, headers=headers).status_code == 400
+    projects.remove(made["id"])

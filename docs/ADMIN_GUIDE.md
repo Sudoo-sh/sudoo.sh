@@ -1080,7 +1080,7 @@ What the app may do, and nothing more:
 
 | | |
 | :--- | :--- |
-| Repository permissions | **Contents: read**, **Metadata: read** (no write, no issues, no pull requests) |
+| Repository permissions | **Contents: read**, **Metadata: read** (no write, no issues, no pull requests); **Administration: write** only when you allow it, to create empty repositories for new projects ([below](#creating-repositories-for-new-projects)) |
 | Events | **Push**, **Create**, **Delete** (branches), plus the installation events GitHub always sends |
 | Visibility | Private: only the account that owns it can install it |
 | Webhook | `<panel address>/hooks/github-app`, signed with a secret GitHub creates |
@@ -1163,6 +1163,25 @@ Without a connected app, the message advises a deploy key instead.
   public-link extension gave the panel a new address, updates the webhook on GitHub (an audit-log entry says so).
 
 A repository that still has a deploy key keeps using it. Delete the key to switch that repository to the app.
+
+### Creating repositories for new projects
+
+A new project can start from a **new, totally empty repository** that the panel creates in an organisation
+([Projects and branches](#24-projects-and-branches)). That needs one more permission, **Administration: Read and
+write** (creating repositories), which the app does not have unless you give it:
+
+* **When connecting:** tick **Also allow creating repositories** on the GitHub access page before **Connect
+  GitHub**; the app is created with the permission.
+* **For an app connected earlier:** on GitHub open the app's settings, **Permissions and events**, **Repository
+  permissions**, set **Administration** to **Read and write** and save. GitHub then asks an owner of each
+  organisation to accept the new permission (an e-mail, and a banner on the installation's page). The new-project
+  wizard shows both links and **Check again** once it is accepted.
+
+The panel uses the permission only for creating a repository: it asks GitHub for a separate token with
+Administration: write and Metadata: read, valid one hour, used for that one call and never kept; the tokens git uses
+stay read-only. A repository is created private (unless chosen otherwise), with no README and no branch. GitHub lets
+an app create repositories only in **organisations**: for a personal account, create an empty repository on GitHub
+and link it. Each creation is in the audit log ("repository created on GitHub").
 
 ### Disconnecting
 
@@ -1782,7 +1801,9 @@ make sure nothing caught can ever leave the server.
 
 ## 24. Projects and branches
 
-A **project** is one GitHub repository, as on Odoo.sh: its page lists every branch of the repository with the
+A **project** is one GitHub repository, as on Odoo.sh: it links an existing repository, or the panel creates a
+new, totally empty one in an organisation ([Creating repositories for new projects](#creating-repositories-for-new-projects)).
+Its page lists every branch of the repository with the
 branch's stage (production, staging or development), its instances and its latest commit. Every instance of a
 repository belongs to that repository's project. What people do with projects is in the
 [User manual](USER_MANUAL.md#4-creating-an-instance); this section is for the server.

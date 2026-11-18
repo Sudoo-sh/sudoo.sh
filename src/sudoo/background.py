@@ -1,14 +1,14 @@
 """Work that runs on its own inside the panel process: monitor, automatic pause, automatic deletion, daily backups,
 downloading images ahead of time (PREPULL_IMAGES), removal of expired rollback snapshots, GitHub polling, the GitHub
 App's webhook address, gateway, connectors, alerts, the marketplace heartbeat, the plugin watchdog (files,
-licences) and custom domains (DNS checks, certificates and their renewal)."""
+licences), custom domains (DNS checks, certificates and their renewal) and off-site copies of backups."""
 
 from __future__ import annotations
 
 import threading
 import time
 
-from sudoo import accounts, alerts, domains, exposure, plugin_manager, triggers
+from sudoo import accounts, alerts, domains, exposure, offsite, plugin_manager, triggers
 from sudoo.config import live, settings
 from sudoo.core import audit, jobs
 from sudoo.core.shell import succeeds
@@ -38,6 +38,7 @@ def start() -> None:
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     alerts.start()
+    offsite.start(live.on_change)
     gateway.start(wake=start_wake_job)
     live.on_change(_domain_settings_changed)
     threading.Thread(target=exposure.ensure_all, daemon=True, name="connectors").start()

@@ -48,7 +48,7 @@ import tempfile
 import time
 import uuid
 import zipfile
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import IO, Any, cast
@@ -75,6 +75,14 @@ _KEEP_ONE = (
     *SNAPSHOTS,
 )  # kinds of which each instance keeps only the latest
 PG_DUMP_LOCK_WAIT = "300s"  # a lock held inside the instance makes the dump fail after this, rather than wait for ever
+_CREATED: list[Callable[[str, str, list[Path]], None]] = []
+
+
+def on_created(listener: Callable[[str, str, list[Path]], None]) -> None:
+    """Call `listener(instance, kind, paths)` after every backup that was written completely (offsite/ uses it to
+    copy it off-site). A listener's failure never fails the backup."""
+    if listener not in _CREATED:
+        _CREATED.append(listener)
 
 
 def create(job: Job, name: str, kind: str = "manual") -> list[Path]:
@@ -95,6 +103,11 @@ def create(job: Job, name: str, kind: str = "manual") -> list[Path]:
             if older["file"] not in kept:
                 (settings.backups_dir / older["file"]).unlink(missing_ok=True)
                 job.write(f"Removed the previous {kind} backup {older['file']}\n")
+    for listener in list(_CREATED):
+        try:
+            listener(name, kind, saved)
+        except Exception as error:  # noqa: BLE001 - the backup itself is done; the listener reports its own trouble
+            job.write(f"Could not queue the off-site copy: {error!r}\n")
     return saved
 
 

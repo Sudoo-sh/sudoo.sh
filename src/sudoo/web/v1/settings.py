@@ -8,7 +8,8 @@
 "applies" says when a change takes effect: "now", "restart" (it chooses a plugin; restart the panel with
 POST /api/v1/server/restart) or "env" (only in .env: folders, ports, exposure, storage). Changes are kept on top of
 .env (config.py, LiveSettings); secrets are stored encrypted and never shown, only whether they are set. The audit
-log names every changed setting with its new value, except secrets: "SMTP_PASSWORD=(set)".
+log names every changed setting with its new value, except secrets: "SMTP_PASSWORD=(set)". Changing an off-site
+setting (OFFSITE_*) also needs the permission offsite.configure.
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from sudoo.config import Settings, live, settings
 from sudoo.core import events
 
 from .. import validation as check
-from ..security import log, require
+from ..security import log, refuse_unless, require
 from .responses import no_content, ok
 
 blueprint = Blueprint("settings", __name__)
@@ -87,6 +88,9 @@ def audit_value(key: str, value: Any) -> str:
 
 
 def _change(values: dict[str, Any]) -> None:
+    offsite = sorted(set(values) & set(config.OFFSITE_SETTINGS))
+    if offsite:  # where backups go off the server: its own permission, besides settings.manage
+        refuse_unless("offsite.configure", f"change {', '.join(k.upper() for k in offsite)}")
     try:
         live.change(values)
     except ValidationError as error:

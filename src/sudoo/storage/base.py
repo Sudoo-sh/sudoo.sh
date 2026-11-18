@@ -6,7 +6,7 @@ Built in: "sqlite" (sqlite.py). A plugin for another database implements this Pr
 entry-point group "sudoo.storage" (docs/PLUGINS.md).
 
 Collections used by the panel: users, api_tokens, instance_state, creations, ended_sessions, alerts, alert_meta,
-mail_templates.
+mail_templates, offsite_copies, offsite_meta.
 """
 
 from __future__ import annotations

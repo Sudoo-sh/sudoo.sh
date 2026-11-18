@@ -12,6 +12,8 @@ below stay as they are, so "Reset to default" only forgets the change. Texts are
     alert_digest         the daily summary of alerts (ALERT_DIGEST)
     certificate_failed   a custom domain's certificate could not be issued or renewed (an alert of type certificate)
     certificate_expiring a custom domain's certificate expires soon and was not renewed yet
+    offsite_failed       a backup could not be copied off-site, or an off-site copy failed its check (an alert)
+    offsite_missing      a production instance has had no successful off-site copy for too long (an alert)
     plugin_notice        a notice for the super admins about a plugin (licence ending, switched off, ...)
     test                 the test e-mail of Settings, E-mail and `sudoo.sh test-email`
 
@@ -439,6 +441,66 @@ MESSAGES: dict[str, Message] = {
                 ),
             ),
             required=("domain",),
+        ),
+        Message(
+            key="offsite_failed",
+            name="Off-site copy failed",
+            description="A backup could not be copied off-site, or an off-site copy failed its check (an alert).",
+            recipients="Alert recipients (Settings, Alerts)",
+            kicker="Off-site copies",
+            preheader="{{ reason }}",
+            subject="Sudoo.sh alert: off-site copy of {{ instance }} failed",
+            title="Off-site copy of {{ instance }} failed",
+            body=(
+                "Hello,\n\n"
+                "An off-site copy of **{{ instance }}** ({{ copy }}) failed:\n\n"
+                "{{ reason }}\n\n"
+                "The backup on the server is not affected. If the storage refused the copy, check the off-site "
+                "settings and choose Test connection (Settings, Backups); if a copy failed its check, it was changed "
+                "or removed in the bucket ({{ storage }}): do not restore it, and look at who can write to the "
+                "bucket.\n\n"
+                "[Open the backups]({{ link }})\n\n"
+                "You receive this because alerts are sent to you (Settings, Alerts)."
+            ),
+            placeholders=(
+                Placeholder("instance", "The instance the backup is of", "shop-main"),
+                Placeholder("copy", "The copy, as the Backups page names it", "shop-main__20261118-000000__daily"),
+                Placeholder(
+                    "reason",
+                    "What went wrong, in a sentence",
+                    "The storage refused PUT shop-main/20261118-000000__daily/manifest.json: the access key may not "
+                    "do this in this bucket (AccessDenied).",
+                ),
+                Placeholder("storage", "The bucket and folder of the copies", "acme-backups/sudoo"),
+                Placeholder("link", "The Backups page", "https://panel.example.com/backups?view=offsite", LINK),
+            ),
+            required=("instance",),
+        ),
+        Message(
+            key="offsite_missing",
+            name="No recent off-site copy",
+            description="A production instance has had no successful off-site copy for too long (an alert).",
+            recipients="Alert recipients (Settings, Alerts)",
+            kicker="Off-site copies",
+            preheader="Last copy: {{ last_copy }}",
+            subject="Sudoo.sh alert: no off-site copy of {{ instance }} for {{ hours }} hours",
+            title="No off-site copy of {{ instance }} for {{ hours }} hours",
+            body=(
+                "Hello,\n\n"
+                "Production instance **{{ instance }}** has had no successful off-site copy for {{ hours }} hours "
+                "(last copy: {{ last_copy }}).\n\n"
+                "If the server were lost now, its newest backups would be lost with it. Check that its daily backup "
+                "works and that the storage accepts copies (Settings, Backups, Test connection).\n\n"
+                "[Open the backups]({{ link }})\n\n"
+                "You receive this because alerts are sent to you (Settings, Alerts)."
+            ),
+            placeholders=(
+                Placeholder("instance", "The production instance", "shop-main"),
+                Placeholder("hours", "Hours without a copy that start the alert", "26"),
+                Placeholder("last_copy", "When the last successful copy was made, or never", "2026-11-16 00:04"),
+                Placeholder("link", "The Backups page", "https://panel.example.com/backups?view=offsite", LINK),
+            ),
+            required=("instance",),
         ),
         Message(
             key="plugin_notice",

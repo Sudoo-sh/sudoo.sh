@@ -16,6 +16,7 @@ role (roles.py), and the same permission checks apply.
     invitations.py invitations of new people by e-mail, and accepting one
     tokens.py      API tokens
     backups.py     backups
+    offsite.py     off-site copies of backups: where they go, the signing key, checking and restoring copies
     github.py      deploy keys and repository checks
     docs.py        the documentation, for the web app's Help pages
     plugins.py     installed plugins and the marketplace (catalogue, purchases, linking)
@@ -41,6 +42,7 @@ from . import (
     instances,
     invitations,
     mail_templates,
+    offsite,
     plugins,
     server,
     session,
@@ -71,6 +73,7 @@ def register(app: Flask) -> None:
         invitations,
         tokens,
         backups,
+        offsite,
         github,
         docs,
         plugins,

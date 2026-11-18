@@ -10,7 +10,8 @@ Topics: "instance" (an instance changed; data is the instance), "instance.delete
 another step or ended), "job.output" (new log text of a job), "metrics" (resource use, every METRICS_INTERVAL_SECONDS),
 "settings", "plugins" (an installed plugin changed), "marketplace" (the connection to the hub changed); the last
 two carry no details, only that something changed; and "alert" (a new or changed alert, as GET /api/v1/alerts shows
-it; only for callers that may read the audit log). `?topics=job,instance` limits the stream to some topics. A
+it; only for callers that may read the audit log), "offsite" (an off-site copy changed; its id, no details; only
+for callers that may manage backups). `?topics=job,instance` limits the stream to some topics. A
 comment line is sent every 20 seconds so proxies keep the connection open.
 
 After a lost connection, the browser's EventSource reconnects by itself and sends Last-Event-ID; the stream then
@@ -60,9 +61,13 @@ TOPICS = frozenset(
         "plugins",
         "marketplace",
         "alert",
+        "offsite",
     }
 )
-RESTRICTED = {"alert": "audit.view"}  # topic -> the permission a caller needs to receive it
+RESTRICTED = {
+    "alert": "audit.view",
+    "offsite": "backups.manage",
+}  # topic -> the permission a caller needs to receive it
 HEARTBEAT_SECONDS = 20
 MAX_CLIENTS = 500
 MAX_PER_CALLER = 8  # streams one account or token may hold at once: one caller cannot take every slot

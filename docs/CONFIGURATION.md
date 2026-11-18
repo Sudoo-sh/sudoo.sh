@@ -47,9 +47,10 @@ reset with **Use .env**.
 10. [Custom domains](#custom-domains)
 11. [Ports](#ports)
 12. [Behaviour](#behaviour)
-13. [Alerts](#alerts)
-14. [Marketplace](#marketplace)
-15. [Locations](#locations)
+13. [Off-site copies](#off-site-copies)
+14. [Alerts](#alerts)
+15. [Marketplace](#marketplace)
+16. [Locations](#locations)
 
 ---
 
@@ -345,6 +346,38 @@ above exactly. A production instance is never paused or deleted automatically, i
 
 ---
 
+## Off-site copies
+
+Backups copied to S3-compatible storage off this server, each with a manifest of SHA-256 checksums signed with the
+panel's Ed25519 key, and checked before they are used. How it works, what to set up and the trust model:
+[Admin guide, Off-site copies](ADMIN_GUIDE.md#20-off-site-copies) and [Security](SECURITY.md#14-off-site-copies). All
+of them are on the Settings page, **Backups** tab (with **Test connection** and the signing key); changing them needs
+the permission `offsite.configure` (super admins).
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `OFFSITE_BACKUPS` | bool | `false` | **live** | Copy backups off-site. The first time it is switched on, the panel makes its signing key. |
+| `OFFSITE_ENDPOINT` | text | empty | **live** | Address of the storage's S3 API, for example `https://<account-id>.r2.cloudflarestorage.com`, `https://s3.eu-central-1.amazonaws.com`, `https://s3.us-west-004.backblazeb2.com`. `https://` only (`http://` only for `localhost`); no path. |
+| `OFFSITE_REGION` | text | `auto` | **live** | Region of the bucket: `auto` for Cloudflare R2, the bucket's region otherwise (`eu-central-1`, `us-west-004`, `us-east-1` for MinIO). |
+| `OFFSITE_BUCKET` | text | empty | **live** | The bucket. Create it first, private, ideally with object versioning or a lock (see the admin guide). |
+| `OFFSITE_PREFIX` | text | `sudoo` | **live** | Folder inside the bucket for this panel's copies; several panels can share a bucket with different folders. |
+| `OFFSITE_ADDRESSING` | text | `path` | **live** | `path` (`endpoint/bucket/file`, works with R2, B2, MinIO and S3) or `virtual` (`bucket.endpoint/file`). |
+| `OFFSITE_ACCESS_KEY_ID` | text | empty | **live** | Access key ID of a key that may read, write, list and delete in the bucket (that bucket only). |
+| `OFFSITE_SECRET_ACCESS_KEY` | text | empty | **live** | Its secret. Secret: write-only on the Settings page, stored encrypted with the vault key. |
+| `OFFSITE_OTHER_STAGES` | bool | `false` | **live** | Copy the backups of staging and development instances too. Production instances' backups are always copied while `OFFSITE_BACKUPS` is on. |
+| `OFFSITE_KINDS` | text | `manual,daily,deletion` | **live** | Which backups are copied, comma-separated: `manual`, `daily`, `deletion`, `before-update`, `before-restore`, `before-rollback`, `before-repair`. |
+| `OFFSITE_KEEP_DAILY_PRODUCTION` | int | `30` | **live** | Production: keep the newest copy of each of this many most recent days that have a copy (1 to 3650). |
+| `OFFSITE_KEEP_MONTHLY_PRODUCTION` | int | `12` | **live** | Production: also keep the newest copy of each of this many most recent months (0 to 600). |
+| `OFFSITE_KEEP_DAILY_OTHER` | int | `7` | **live** | Staging and development: days kept, as above. |
+| `OFFSITE_KEEP_MONTHLY_OTHER` | int | `0` | **live** | Staging and development: months kept, as above. |
+| `OFFSITE_VERIFY_DAYS` | float | `7` | **live** | When an instance's newest verified copy is older than this, download its newest copy and check it (signature and every checksum). `0`: only when someone chooses **Verify now**. |
+| `OFFSITE_TIMEOUT_SECONDS` | float | `60` | **live** | Seconds one request to the storage may wait for an answer (5 to 600). |
+
+The newest verified copy of an instance (before any check: its newest stored copy) is never removed by the retention
+rules, whatever they say.
+
+---
+
 ## Alerts
 
 Who is told when something needs attention, about what, and how often. How alerts work, their e-mails, webhooks
@@ -366,6 +399,9 @@ with **Send a test alert** for the e-mail and each webhook.
 | `ALERT_MEMORY` | bool | `true` | **live** | Server memory stays at or above `CAPACITY_WARNING_PERCENT` for `ALERT_MEMORY_MINUTES`. |
 | `ALERT_MEMORY_MINUTES` | float | `10` | **live** | Minutes memory must stay high before the alert (1 to 1440). |
 | `ALERT_DRIFT` | bool | `true` | **live** | An instance's containers or files were changed outside the panel (`DRIFT_ACTION`). |
+| `ALERT_OFFSITE_FAILED` | bool | `true` | **live** | A backup could not be copied off-site, or an off-site copy failed its check (e-mail "Off-site copy failed"); a notice follows when copies of that instance work again. |
+| `ALERT_OFFSITE_MISSING` | bool | `true` | **live** | A production instance has had no successful off-site copy for `ALERT_OFFSITE_MISSING_HOURS` while off-site copies are on (e-mail "No recent off-site copy"). |
+| `ALERT_OFFSITE_MISSING_HOURS` | float | `26` | **live** | Hours without a successful off-site copy of a production instance before the alert (1 to 720). |
 | `ALERT_PUBLIC_LINK` | bool | `true` | **live** | The panel, or an instance that is online, has had no public link for `ALERT_PUBLIC_LINK_MINUTES` (its connector stopped, say). |
 | `ALERT_PUBLIC_LINK_MINUTES` | float | `10` | **live** | Minutes without a public link before the alert (1 to 1440). |
 | `ALERT_CERTIFICATE` | bool | `true` | **live** | A custom domain's certificate could not be issued or renewed, or expires within `ALERT_CERTIFICATE_DAYS` and was not renewed yet (e-mails "Certificate not issued" and "Certificate expires soon"). |

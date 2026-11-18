@@ -1,7 +1,8 @@
 """Alerts: telling the right people when something needs attention.
 
 What raises an alert (watch.py): a job failed, an update failed and was rolled back (or its rollback failed too), a
-backup failed, an instance that should run does not answer, the disk is almost full, memory stays above the capacity
+backup failed, a backup could not be copied off-site or a copy failed its check, a production instance has had no
+off-site copy for too long (offsite/), an instance that should run does not answer, the disk is almost full, memory stays above the capacity
 warning, an instance was changed outside the panel (drift), the panel or an instance has no public link. When a
 condition is over (back online, disk freed), a recovery notice follows, if its alert was sent.
 
@@ -50,6 +51,8 @@ TYPES: dict[str, str | None] = {
     "drift": "alert_drift",
     "public_link": "alert_public_link",
     "certificate": "alert_certificate",
+    "offsite_failed": "alert_offsite_failed",
+    "offsite_missing": "alert_offsite_missing",
     "test": None,
 }
 """Kind of alert -> the setting that turns it on (a test alert is always sent)."""
@@ -338,8 +341,15 @@ def _mail_values(record: dict[str, Any], base: str | None) -> dict[str, Any]:
     }
 
 
+_OWN_TEMPLATES = {"offsite_failed": "offsite_failed", "offsite_missing": "offsite_missing"}
+"""Kinds of alert whose problem has an e-mail of its own (mail/catalog.py)."""
+
+
 def template(record: dict[str, Any]) -> str:
-    """The e-mail (mail/catalog.py) an alert is sent with: a certificate problem has its own, the rest "alert"."""
+    """The e-mail (mail/catalog.py) an alert is sent with: a certificate problem and an off-site copy problem have
+    their own, the rest "alert"."""
+    if record.get("type") in _OWN_TEMPLATES and record.get("severity") == "problem":
+        return _OWN_TEMPLATES[record["type"]]
     if record.get("type") == "certificate" and record.get("severity") == "problem":
         return (
             "certificate_expiring"
@@ -354,6 +364,18 @@ def _template_values(record: dict[str, Any], base: str | None) -> dict[str, Any]
     if key == "alert":
         return _mail_values(record, base)
     facts = record.get("facts") or {}
+    if key in ("offsite_failed", "offsite_missing"):
+        return {
+            "instance": record.get("instance") or "",
+            "reason": facts.get("reason") or record.get("text") or "",
+            "copy": facts.get("copy", ""),
+            "hours": facts.get("hours", ""),
+            "last_copy": facts.get("last_copy", ""),
+            "storage": next(
+                (d.split(": ", 1)[1] for d in record.get("details") or [] if d.startswith("Storage: ")), ""
+            ),
+            "link": link(record, base) or "",
+        }
     return {
         "domain": facts.get("domain", ""),
         "instance": record.get("instance") or "",

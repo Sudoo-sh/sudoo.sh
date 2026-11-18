@@ -7,8 +7,10 @@
   }
 }
 
-// pressable things answer on press, before the click (Apple: respond on pointer-down)
+// pressable things answer on press, before the click (Apple: respond on pointer-down); on touch screens without the
+// double-tap-to-zoom wait (touch-action), so the press shows at once
 @mixin press($scale: 0.97) {
+  touch-action: manipulation;
   transition-property: transform, background-color, border-color, color, box-shadow;
   transition-duration: var(--press);
   transition-timing-function: var(--ease);

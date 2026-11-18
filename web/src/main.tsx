@@ -13,6 +13,11 @@ import { followNavigationKind } from "./lib/navigation";
 import { applyTheme, storedTheme } from "./lib/theme";
 import { router } from "./router";
 
+// The demo build (npm run build:demo) answers every request in the browser, with sample data. In every other build
+// this condition is false when the code is built, so the demo's module is left out entirely.
+const demo = import.meta.env.MODE === "demo" ? await import("./demo") : null;
+demo?.start();
+
 applyTheme(storedTheme());
 followNavigationKind(router);
 
@@ -35,6 +40,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={client}>
       <ToastProvider>
+        {demo && <demo.DemoBanner router={router} />}
         <RouterProvider router={router} />
       </ToastProvider>
     </QueryClientProvider>

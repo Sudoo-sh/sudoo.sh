@@ -411,6 +411,30 @@ the ones most people change:
 Every setting, with its type and default: [Configuration](docs/CONFIGURATION.md). Choosing and writing plugins:
 [Plugins](docs/PLUGINS.md). Running the server (files, backups, troubleshooting): [Administrator guide](docs/ADMIN_GUIDE.md).
 
+### Demo build
+
+`npm run build:demo` (in `web/`) builds the web app as a static demo with sample data: an in-browser backend
+(`web/src/demo/`) answers every `/api/v1` request and the live events, so visitors can click through the real panel
+without a server, an account or an instance being created. Nothing leaves the browser tab. The normal build
+(`npm run build`) contains none of this code. A banner at the top says it is a demo and lets visitors switch
+between the Super admin, Admin, Developer and Viewer roles.
+
+The output, `web/dist-demo/`, is ready for Cloudflare Pages: `_headers` (security headers and a strict Content
+Security Policy) and `_redirects` (every path serves the app) are written next to `index.html`, and the page names
+`https://sudoo.sh/` as its canonical address. Settings of the Pages project:
+
+| Setting | Value |
+| :--- | :--- |
+| Framework preset | None |
+| Root directory | `web` |
+| Build command | `npm run build:demo` |
+| Build output directory | `dist-demo` |
+| Environment variable | `NODE_VERSION` = `26` |
+| Custom domain | `demo.sudoo.sh` |
+
+Leave Cloudflare Web Analytics off for the project: its injected script is not allowed by the Content Security
+Policy. To try the demo locally: `npm run build:demo && npm run preview:demo`.
+
 ---
 
 ## Testing

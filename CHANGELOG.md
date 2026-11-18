@@ -8,6 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Demo build:** `npm run build:demo` builds the web app as a static, fully client-side demo with sample data (an
+  integrator's client projects, live metrics, simulated jobs, backups, accounts, audit log and alerts) and a banner
+  to view it as a super admin, admin, developer or viewer; ready for Cloudflare Pages (README, Demo build). The
+  normal build contains none of it. Buttons and other pressable controls no longer wait for a double tap on touch
+  screens.
 - **Instances keep serving without the panel:** a separate `sudoo-gateway` container now owns every instance's
   gateway port, so visitors keep reaching running instances while the panel restarts or is down (a paused instance
   shows "Starting soon" until the panel is back). It has no Docker socket and no `.env`; while it is not running the

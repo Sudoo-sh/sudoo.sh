@@ -1,0 +1,118 @@
+@use "../styles/mixins" as *;
+
+// The demo's banner: one calm line above the panel, always visible. It takes its height from the page (body padding)
+// and the panel's sticky frame starts below it. Only in the demo build (this file is imported by src/demo/).
+
+:root[data-demo] {
+  --demo-bar: 40px;
+}
+
+.demo-bar {
+  position: fixed;
+  z-index: 35; // above the frame (sidebar 30, top bar 20), under menus, sheets and dialogs
+  inset: 0 0 auto 0;
+  height: calc(var(--demo-bar) + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) max(var(--s4), env(safe-area-inset-right, 0px)) 0 max(var(--s4), env(safe-area-inset-left, 0px));
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  background: var(--material);
+  backdrop-filter: var(--material-blur);
+  -webkit-backdrop-filter: var(--material-blur);
+  border-bottom: 1px solid var(--hairline);
+  font-size: var(--text-13);
+  color: var(--text-2);
+  white-space: nowrap;
+
+  .demo-dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .demo-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    b { color: var(--text); font-weight: 600; }
+  }
+  .demo-spacer { flex: 1; }
+  .demo-short { display: none; }
+
+  .demo-role {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    color: var(--text-3);
+  }
+  .demo-select {
+    position: relative;
+    display: inline-flex;
+    select {
+      appearance: none;
+      -webkit-appearance: none;
+      height: 28px;
+      padding: 0 28px 0 12px;
+      border: 1px solid var(--hairline);
+      border-radius: 14px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-weight: 500;
+      cursor: pointer;
+      touch-action: manipulation;
+      @include press(0.97);
+      @include hover { border-color: var(--hairline-strong); }
+      &:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 1px; }
+    }
+    svg {
+      position: absolute;
+      right: 9px;
+      top: 50%;
+      width: 14px;
+      height: 14px;
+      color: var(--text-3);
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+  }
+
+  .demo-install {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 28px;
+    padding: 0 var(--s3);
+    border-radius: 14px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: 500;
+    text-decoration: none !important;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    @include press(0.97);
+    @include hover { background: color-mix(in oklab, var(--accent) 88%, var(--text)); }
+    svg { width: 14px; height: 14px; }
+  }
+
+  @media (max-width: 640px) {
+    gap: var(--s2);
+    .demo-long { display: none; }
+    .demo-short { display: inline; }
+  }
+}
+
+// the panel's frame starts below the banner
+:root[data-demo] {
+  body { padding-top: calc(var(--demo-bar) + env(safe-area-inset-top, 0px)); }
+  .shell, .auth { min-height: calc(100vh - var(--demo-bar)); }
+  .sidebar { top: var(--demo-bar); height: calc(100vh - var(--demo-bar)); }
+  .topbar { top: var(--demo-bar); }
+  .reconnecting { top: calc(var(--demo-bar) + var(--s3)); }
+  @media (max-width: 960px) {
+    .sidebar { top: var(--demo-bar); bottom: 0; height: auto; }
+  }
+}

@@ -5,6 +5,7 @@ import { Link, useSearchParams } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useCapacity, useOffsite, useSettings } from "@/api/queries";
 import { RESOURCE_KNOBS, type Setting, type Stage } from "@/api/types";
+import { LicenceSettings } from "@/components/LicenceSettings";
 import { MarketplaceSettings } from "@/components/Marketplace";
 import { Page, PageHead, useMe, useSubCrumb } from "@/components/Shell";
 import { Button, Callout, CopyField, Skeleton, Switch, Tag } from "@/components/ui/basics";
@@ -17,7 +18,7 @@ import words from "@/i18n/settings";
 /** `test`: the group has a "Send a test alert" button, by e-mail or to that webhook. */
 type GroupId = Exclude<keyof (typeof words)["en"]["groups"], never>;
 type Group = { id: GroupId | `webhook${1 | 2 | 3}`; keys: string[]; test?: "email" | 1 | 2 | 3 };
-type TabId = "general" | "instances" | "resources" | "odoo" | "backups" | "security" | "domains" | "email" | "alerts" | "github" | "marketplace" | "advanced";
+type TabId = "general" | "instances" | "resources" | "odoo" | "backups" | "security" | "domains" | "email" | "alerts" | "github" | "marketplace" | "advanced" | "about";
 
 const webhookGroup = (n: 1 | 2 | 3): Group => ({
   id: `webhook${n}`,
@@ -109,6 +110,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
   { id: "github", groups: [{ id: "codeUpdates", keys: ["poll_minutes", "update_triggers", "github_webhook_secret"] }] },
   { id: "marketplace", groups: [] },
   { id: "advanced", groups: [{ id: "monitoring", keys: ["metrics_interval_seconds", "cloudflared_image"] }] },
+  { id: "about", groups: [] },
 ];
 const STAGES: Stage[] = ["production", "staging", "development"];
 /** The Resources tab: two tables, a row per setting and a column per stage (setting `<row>_<stage>` for the
@@ -121,12 +123,13 @@ const RESOURCE_KEYS = [
   ...RESOURCE_KNOBS.flatMap((row) => STAGES.map((stage) => limitKey(row, stage))),
 ];
 const TAB_IDS = new Set<string>(TABS.map((t) => t.id));
-const KNOWN = new Set<string>([...TABS.flatMap((t) => t.groups.flatMap((g) => g.keys)), "marketplace", ...RESOURCE_KEYS]);
+const KNOWN = new Set<string>([...TABS.flatMap((t) => t.groups.flatMap((g) => g.keys)), "marketplace", "licence_required_version", ...RESOURCE_KEYS]);
 const keysOfTab = (tab: (typeof TABS)[number], other: string[]) => [
   ...tab.groups.flatMap((g) => g.keys),
   ...(tab.id === "marketplace" ? ["marketplace"] : []),
   ...(tab.id === "resources" ? RESOURCE_KEYS : []),
   ...(tab.id === "advanced" ? other : []),
+  ...(tab.id === "about" ? ["licence_required_version"] : []),
 ];
 
 /** A group's title and explanation, in the language shown. */
@@ -583,6 +586,7 @@ export function SettingsPage() {
                 <MarketplaceSettings />
               </Section>
             )}
+            {tab === "about" && <LicenceSettings>{rows(["licence_required_version"])}</LicenceSettings>}
             {tab === "advanced" && (
               <>
                 {other.length > 0 && <Section title={t.other.title} text={t.other.text}>{rows(other)}</Section>}

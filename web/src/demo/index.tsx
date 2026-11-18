@@ -49,6 +49,7 @@ export function DemoBanner({ router }: { router: Pick<DataRouter, "state" | "sub
   const t = useT(words);
   const [path, setPath] = useState(router.state.location.pathname);
   useEffect(() => router.subscribe((state) => setPath(state.location.pathname)), [router]);
+  useEffect(() => setRole(session.role), [path]); // first-run setup signs in as a super admin
   useEffect(() => setNotifier((title, text) => toast("info", title, text)), [toast]);
 
   const choose = (next: Role) => {
@@ -68,7 +69,11 @@ export function DemoBanner({ router }: { router: Pick<DataRouter, "state" | "sub
       <p className="demo-text">
         {path === "/login" ? (
           <>
-            <b>{t.demo}.</b> <span className="demo-long">{t.signInAny}</span>
+            <b>{t.demo}.</b> <span className="demo-long">{t.signInAny} <a href="/setup">{t.firstRun}</a></span>
+          </>
+        ) : path === "/setup" ? (
+          <>
+            <b>{t.demo}.</b> <span className="demo-long">{t.setupAny}</span>
           </>
         ) : (
           <>

@@ -226,6 +226,13 @@ class Settings(BaseSettings):
     default_language: Literal["en", "ar"] = Field(
         "en", description='Language of the web app for accounts that have not chosen one: "en" or "ar".'
     )
+    licence_required_version: str = Field(
+        "1.0",
+        pattern=r"^\d{1,3}\.\d{1,3}$",
+        description="Oldest version of the Sudoo.sh Licence Agreement that counts: while no super admin has accepted "
+        "it (or a later one), the next super admin to sign in must accept it before anything else. Instances keep "
+        "running. It cannot be newer than the version this release bundles.",
+    )
 
     # ------------------------------------------------------------------ limits
     rate_limiter: str = Field("memory", description='Where request counts are kept: "memory".')
@@ -1067,6 +1074,7 @@ EDITABLE = (
     # take effect at once
     "brand_color",
     "default_language",
+    "licence_required_version",
     "require_second_factor",
     "session_idle_minutes",
     "session_max_hours",

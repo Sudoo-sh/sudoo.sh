@@ -41,6 +41,7 @@ export const router = createBrowserRouter([
     children: [
       { path: "/change-password", lazy: page(() => import("./pages/Setup"), (m) => m.ChangePasswordPage) },
       { path: "/setup-second-factor", lazy: page(() => import("./pages/Account"), (m) => m.SetupSecondFactorPage) },
+      { path: "/licence", lazy: page(() => import("./pages/Licence"), (m) => m.LicencePage) },
       {
         lazy: async () => ({ Component: (await import("./components/Shell")).Shell }),
         children: [

@@ -4,6 +4,8 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./client";
 import type {
+  LicenceStatus,
+  LicenceText,
   ShellOptions,
   ShellSession,
   Invitation,
@@ -71,7 +73,14 @@ export const keys = {
   marketplace: ["marketplace"] as const,
   catalog: (query: string) => ["marketplace", "catalog", query] as const,
   purchases: ["marketplace", "checkout-sessions"] as const,
+  licence: ["licence"] as const,
+  licenceText: ["licence", "text"] as const,
 };
+
+/** The licence agreement this release bundles; the same for the whole visit. */
+export const useLicenceText = () =>
+  useQuery({ queryKey: keys.licenceText, queryFn: () => api.get<LicenceText>("/licence/text"), staleTime: Infinity, retry: false });
+export const useLicence = () => useQuery({ queryKey: keys.licence, queryFn: () => api.get<LicenceStatus>("/licence") });
 
 export const useSession = () =>
   useQuery({

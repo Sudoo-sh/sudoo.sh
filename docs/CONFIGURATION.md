@@ -66,6 +66,7 @@ reset with **Use .env**.
 | `ADMIN_CONTACT_EMAIL` | str | empty | **live** | E-mail address added to that message. |
 | `BRAND_COLOR` | str | `#714B67` | **live** | Accent colour of the web app and of e-mails (title mark, buttons), as `#RRGGBB`. |
 | `DEFAULT_LANGUAGE` | str | `en` | **live** | Language of the web app for accounts that have not chosen one: `en` (English) or `ar` (Arabic, right to left). Each person can choose their own on the Account page; before signing in, the browser's language decides. E-mails stay in English. |
+| `LICENCE_REQUIRED_VERSION` | str | `1.0` | **live** | Oldest version of the Sudoo.sh Licence Agreement that counts. While no super admin has accepted that version (or a later one), the next super admin to sign in sees the acceptance step before anything else; other people, API tokens and the instances are not affected. It cannot be newer than the version this release bundles (**Settings, About**). |
 
 ---
 
@@ -495,7 +496,7 @@ groups **Web shell** and **Shell recordings**. How it works and is protected: [A
 
 Staging and development instances never send real e-mail: their e-mail goes to the mail catcher and is shown on
 their **Mail** tab. Settings page, **E-mail**, group **Mail catcher**. How it works: [Admin guide, Mail
-catcher](ADMIN_GUIDE.md#22-mail-catcher), [Security, Mail catcher](SECURITY.md#16-mail-catcher).
+catcher](ADMIN_GUIDE.md#23-mail-catcher), [Security, Mail catcher](SECURITY.md#16-mail-catcher).
 
 | Setting | Type | Default | Applies | Meaning |
 | :--- | :--- | :--- | :--- | :--- |

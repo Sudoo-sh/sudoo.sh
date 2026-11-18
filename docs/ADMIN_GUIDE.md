@@ -31,7 +31,8 @@ domains and certificates, off-site copies of backups.
 19. [Custom domains and certificates](#19-custom-domains-and-certificates)
 20. [Off-site copies](#20-off-site-copies)
 21. [Web shell](#21-web-shell)
-22. [Mail catcher](#22-mail-catcher)
+22. [The licence agreement](#22-the-licence-agreement)
+23. [Mail catcher](#23-mail-catcher)
 
 ---
 
@@ -182,6 +183,10 @@ workflow signs it ([Security](SECURITY.md#13-releases-and-signatures)).
 
 What it does, in order:
 
+0. **Asks you to accept the licence agreement**: it prints a short summary of the
+   [Sudoo.sh Licence Agreement](https://sudoo.sh/legal/license) and the address of the exact version, and you type `accept`. Without a
+   terminal it stops unless `--accept-licence` is given ([section 22](#the-installer)). Nothing is checked or
+   installed before.
 1. **Checks the server** (read only): root, operating system, architecture, systemd, processor, memory, disk, clock,
    the panel's ports, the tools it needs, internet access, Docker. When a check fails it stops, with the fix, before
    changing anything.
@@ -202,6 +207,7 @@ It keeps a copy of itself as `/opt/odoo/manager/installer/sudoo-install.sh`, on 
 | :--- | :--- |
 | `--version 1.0.0` | Install that release instead of the latest. `edge` follows `main` ([section 4](#following-main-edge)). |
 | `--yes`, `--allow-all` | Answer yes to every question (for scripts). |
+| `--accept-licence` | Accept the licence agreement without the prompt (for scripts). `--yes` does not accept it. |
 | `--dry-run` | Show what would be done; change nothing. |
 | `--docker-source official` or `distro` | Where a missing Docker comes from. |
 | `--force` | Continue although a check failed (not recommended). |
@@ -245,7 +251,11 @@ Open the panel's address above and create your account with this setup code:
     ABCD-EFGH-JKLM
 ```
 
-Open the panel's address in a browser. The **Set up Sudoo.sh** page asks for the setup code, first name, last name,
+Open the panel's address in a browser. The first step shows the **licence agreement**: its summary, the full text
+and a link to the published version. Choose how you will use Sudoo.sh (**Personal projects**, **My company** or
+**Service provider**), tick **I have read and accept**, and for a company also **I accept it on behalf of my
+company, and I am authorised to bind it**, then **Accept and continue** ([section 22](#22-the-licence-agreement)).
+The **Set up Sudoo.sh** page then asks for the setup code, first name, last name,
 e-mail (required), phone (optional) and a password twice (12 to 128 characters, following the
 [password rules](USER_MANUAL.md#password-rules)). There is no user name field: the user name is made from the
 e-mail address (`jane.doe@example.com` becomes `jane.doe`, then `-2`, `-3` when taken) and stays the
@@ -518,7 +528,7 @@ then open `http://localhost:9000`. How public links work is explained in
 | `sudoo-web` | The web app (React, served by Caddy) on `PANEL_PORT` (9000). Forwards `/api`, `/hooks` and `/docs` to the backend and `/api/v1/events` to the live events. |
 | `sudoo-panel` | The backend: the API on `127.0.0.1:API_PORT` (9002), live events on `127.0.0.1:EVENTS_PORT` (9001), the monitor and the jobs; it starts, stops and changes the instances through the server's Docker. |
 | `sudoo-gateway` | The gateways in front of the instances: every instance's `GATEWAY_PORT`, where its connector points. Same image as `sudoo-panel`, without Docker access or the panel's data ([Gateway](concepts/GATEWAY.md#5-where-it-runs-its-own-container)). |
-| `sudoo-mail` | The mail catcher: the e-mail of staging and development instances ends here, never at real addresses ([Mail catcher](#22-mail-catcher)). Same image as `sudoo-panel`, without Docker access, `.env` or a published port. |
+| `sudoo-mail` | The mail catcher: the e-mail of staging and development instances ends here, never at real addresses ([Mail catcher](#23-mail-catcher)). Same image as `sudoo-panel`, without Docker access, `.env` or a published port. |
 | `sudoo-connector-panel` | The panel's Cloudflare connector. |
 | `sudoo-connector-<name>` | One connector per instance. |
 | `odoo-<name>-odoo-1`, `odoo-<name>-db-1` | The instance's Odoo and PostgreSQL. |
@@ -1026,6 +1036,7 @@ anything; a ! is a warning. `sudo sudoo-install check` runs them all without cha
 | Message after the checks | What to do |
 | :--- | :--- |
 | "There is no terminal to ask, so nothing was changed." | Run the printed command (the same, with `--yes`). |
+| "The licence agreement must be accepted, and there is no terminal to ask" | Read the agreement at the printed address, then run the same command with `--accept-licence` ([section 22](#the-installer)). |
 | "Could not download ghcr.io/sudoo-sh/..." | Check access to `ghcr.io`; `docker pull` the image by hand to see Docker's message. |
 | "The signature of ... could not be verified" | Do not install it; report it ([Security](SECURITY.md#13-releases-and-signatures)). |
 | "Sudoo.sh did not become healthy." | `docker logs sudoo-panel` names the problem (usually `.env`); fix it and run `sudo sudoo-install update`, or go back with `sudo sudoo-install update --rollback`. |
@@ -1629,7 +1640,70 @@ The terminal is a WebSocket on the same server as the live events (`127.0.0.1:EV
 forwards `/api/v1/instances/<name>/shell/socket` there. A proxy of your own in front of the panel must pass
 WebSocket upgrades (`Upgrade` and `Connection` headers) on that path; Cloudflare tunnels do.
 
-## 22. Mail catcher
+---
+
+## 22. The licence agreement
+
+Sudoo.sh is licensed under the [Sudoo.sh Licence Agreement](https://sudoo.sh/legal/license) (published at
+<https://sudoo.sh/legal/license>; each version keeps its own address, such as <https://sudoo.sh/legal/license/v1.0>).
+Each release bundles the text of the version current when it was made, and asks for it to be accepted in two places:
+the installer, and the panel.
+
+### In the panel
+
+- **First-run setup:** accepting is the first step, before the first account is created ([section 3](#3-the-first-account)).
+- **A server installed before 3.0:** after the update, the first super admin to sign in sees **Accept the licence
+  agreement** before anything else. Until a super admin accepts, super admins can open only that step, their own
+  account and sign out. Other people, API tokens and every instance carry on: instances keep running and serving,
+  backups and updates keep their schedule.
+- **A new version:** `LICENCE_REQUIRED_VERSION` (**Settings, About**, default `1.0`) is the oldest version that
+  counts. When it names a newer version than the last one accepted, super admins see the same step again. It cannot
+  name a version newer than the one the running release bundles (update the panel first); one set that way in `.env`
+  stops nobody and **Settings, About** says to update.
+- **Accepting again** is possible at any time from **Settings, About, Review and accept again**, for example when the
+  way you use Sudoo.sh changed. Every acceptance is added; none is replaced.
+
+**Settings, About** shows the version this release bundles, the required version, who accepted, when and the declared
+use, every acceptance (the installer's too) with the address and browser it came from, and the full text.
+
+### What is recorded
+
+Each acceptance in the panel is kept in the panel's database (collection `licence_acceptances`), append-only: nothing
+in the panel changes or deletes one. It holds the version, the SHA-256 of the exact text shown, the time (UTC), the
+address and browser (user agent), the account (user name, e-mail, name, role), the declared use (`personal`,
+`company` or `service_provider`), for a company the statement that the person may bind it, the sentences ticked, the
+language of the screen, where it was given (`panel_setup` or `panel`) and the panel's version. The audit log also
+says **accepted the Sudoo.sh Licence Agreement**. `GET /api/v1/licence` reads them ([Panel API](PANEL_API.md)).
+
+### The installer
+
+Before a fresh installation, and before an update to a release whose bundled agreement differs from the last one
+accepted on this server (a different SHA-256), the installer prints a short summary and the address of the exact
+version, then asks you to type `accept`. A run without a terminal (a script, CI, `curl ... | sudo bash` without a
+terminal) stops with a message unless it is given `--accept-licence` (or `SUDOO_ACCEPT_LICENCE=<version>`, for
+example `1.0`). `--yes` never accepts the agreement for you. A rollback asks nothing.
+
+Each acceptance is appended to `/opt/odoo/manager/licence-acceptance.log` (mode 600, root only), one line each:
+
+```
+2026-11-18T10:00:00Z version=1.0 sha256=<64 hex> host=<host name> user=<who ran sudo> via=prompt installer=3.0.0 command=install
+```
+
+`via` is `prompt`, `flag` or `env`. The panel reads this file and lists its lines under **Settings, About**.
+
+### Sent to your Sudoo.sh account
+
+When the panel is linked to a Sudoo.sh account (**Plugins**, marketplace), it sends every acceptance, the
+installer's too, to the hub once: right after linking, after each acceptance and with each heartbeat until they are
+taken. Which ones were sent is kept apart (collection `licence_sync`), so the records themselves never change.
+
+**To do:** the hub does not take acceptances yet (`POST /api/v1/installations/licence-acceptances` answers 404).
+Until it does, the panel keeps them and tries again with every heartbeat; **Settings, About** shows them as
+**Waiting**. Nothing else depends on it.
+
+---
+
+## 23. Mail catcher
 
 Like Odoo.sh, staging and development instances never send real e-mail: a test that confirms an order, resets a
 password or runs a mass mailing must not reach customers. Their e-mail goes to the **mail catcher**, a small SMTP

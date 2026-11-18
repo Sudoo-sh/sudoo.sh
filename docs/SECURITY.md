@@ -732,7 +732,7 @@ That is as much power over the instance as the panel itself has, so it is guarde
 ## 16. Mail catcher
 
 Staging and development instances send their e-mail to the mail catcher, `sudoo-mail`, never to real addresses
-([Admin guide](ADMIN_GUIDE.md#22-mail-catcher)).
+([Admin guide](ADMIN_GUIDE.md#23-mail-catcher)).
 
 | Threat | Protection |
 | :--- | :--- |

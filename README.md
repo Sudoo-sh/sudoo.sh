@@ -341,8 +341,9 @@ Hub and Cloudflare. With the default exposure plugin no incoming port is needed.
 curl -fsSL https://github.com/Sudoo-sh/sudoo.sh/releases/latest/download/sudoo-install.sh | sudo bash
 ```
 
-The installer checks the server first and prints every problem with its fix; it installs nothing without asking
-(**[y]es**, **[n]o** or **[a]ll**; `--yes` answers yes for scripts). It downloads the two prebuilt, signed images of the
+The installer first asks you to accept the [Sudoo.sh Licence Agreement](LICENSE.md) (type `accept`; for scripts
+`--accept-licence`, which `--yes` does not imply), then checks the server and prints every problem with its fix; it
+installs nothing without asking (**[y]es**, **[n]o** or **[a]ll**; `--yes` answers yes for scripts). It downloads the two prebuilt, signed images of the
 release (`ghcr.io/sudoo-sh/sudoo-panel` and `sudoo-web`, pinned by digest), writes `/opt/odoo/manager/.env` and
 `compose.yaml`, and starts them. It stays on the server as `sudoo-install`:
 

@@ -58,6 +58,62 @@ export interface Session extends Profile {
   brand_color: string;
   /** the web app's language: the account's own choice, or the server's DEFAULT_LANGUAGE */
   language: "en" | "ar";
+  /** a super admin must accept the Sudoo.sh Licence Agreement before anything else (/licence) */
+  licence_required: boolean;
+}
+
+export type LicenceUse = "personal" | "company" | "service_provider";
+
+/** The licence agreement this release bundles (GET /licence/text). */
+export interface LicenceText {
+  version: string;
+  effective: string;
+  sha256: string;
+  url: string;
+  version_url: string;
+  statements: { accept: string; company: string };
+  summary_html: string;
+  summary_ar_html: string;
+  html: string;
+}
+
+/** What the web app sends to accept it (POST /licence/acceptances, or "licence" in POST /setup). */
+export interface LicenceAcceptance {
+  accepted: true;
+  version: string;
+  sha256: string;
+  use: LicenceUse;
+  on_behalf: boolean;
+  language: "en" | "ar";
+}
+
+export interface LicenceRecord {
+  id?: string;
+  version: string;
+  sha256: string;
+  accepted_at: string;
+  user: string;
+  user_name?: string;
+  user_email?: string;
+  use?: LicenceUse;
+  on_behalf?: boolean;
+  surface: "panel_setup" | "panel" | "installer";
+  ip?: string;
+  user_agent?: string;
+  host?: string;
+  via?: string;
+  installer_version?: string;
+  synced_at?: string | null;
+}
+
+/** GET /licence: what is required and who accepted; `history` for those who manage settings. */
+export interface LicenceStatus {
+  bundled_version: string;
+  required_version: string;
+  pending: boolean;
+  update_needed: boolean;
+  accepted: LicenceRecord | null;
+  history?: LicenceRecord[];
 }
 
 export interface RoleInfo {

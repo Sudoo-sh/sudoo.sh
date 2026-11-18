@@ -9,6 +9,10 @@ Scopes:
     read        list and read instances, jobs and versions (acts as a viewer)
     instances   for connected apps such as the Odoo module: list, create, start, pause, restart, back up, extend and
                 delete instances; nothing else (roles.CONNECTED_APP, security.CONNECTED_APP_ENDPOINTS)
+    developer   for developers' tools and CI: list and read projects, branches and instances, logs, jobs and caught
+                e-mails; start, pause, restart, get new code, update submodules; create and delete development
+                instances; never settings, accounts, teams, access, production, restores, domains, off-site copies
+                or shells (roles.DEVELOPER_TOKEN, security.DEVELOPER_ENDPOINTS)
     write       everything read allows, plus create, change, run actions on and delete instances (acts as an
                 administrator)
 
@@ -37,7 +41,12 @@ from typing import Any
 from sudoo.core import vault
 from sudoo.storage import storage
 
-SCOPES = {"read": "Read only", "instances": "Instances (connected apps)", "write": "Read and write"}
+SCOPES = {
+    "read": "Read only",
+    "instances": "Instances (connected apps)",
+    "developer": "Developer",
+    "write": "Read and write",
+}
 ACTING_FOR_RE = re.compile(r"^[A-Za-z0-9._@+-]{1,120}$")
 TOKEN_RE = re.compile(r"^sudoo_([0-9a-f]{12})_([A-Za-z0-9_-]{43})$")
 NAME_RE = re.compile(r"^[A-Za-z0-9 ._-]{3,40}$")
@@ -65,7 +74,7 @@ def create(name: str, scope: str, created_by: str) -> tuple[str, str]:
     if not NAME_RE.match(name):
         raise ValueError("Token names are 3 to 40 letters, digits, spaces, dots, dashes or underscores.")
     if scope not in SCOPES:
-        raise ValueError("Choose the scope read, instances or write.")
+        raise ValueError("Choose the scope read, instances, developer or write.")
     token_id, secret, signing_secret = secrets.token_hex(6), secrets.token_urlsafe(32), secrets.token_urlsafe(32)
     with _LOCK:
         if any(record["name"] == name for record in storage().all(TOKENS).values()):

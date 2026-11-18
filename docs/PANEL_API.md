@@ -48,6 +48,7 @@ Someone with the permission `tokens.manage` (super admins and administrators) cr
 | :--- | :--- | :--- |
 | `read` | Viewer | Read instances, their figures, activity and logs, jobs and versions. Every change is refused with 403. |
 | `instances` | Connected app | For connected apps such as the Odoo module: list, create, start, pause, restart, back up, extend and delete instances; nothing else ([below](#the-instances-scope)). |
+| `developer` | Developer (API) | For developers' tools and CI: list and read projects, branches and instances, their logs, jobs and caught e-mails; start, pause, restart, get latest code, update submodules; create and delete development instances. Never settings, accounts, teams, access, stages, production, restores, domains, off-site copies or shells ([below](#the-developer-scope)). |
 | `write` | Administrator | Everything an Administrator may do: create, change, run actions on and delete instances, read Odoo passwords, manage accounts, tokens, backups and deploy keys. Not the panel's settings. |
 
 The panel shows two values **once**: the **token** (`sudoo_...`) and the **signing secret**. Store both where the other
@@ -85,6 +86,34 @@ source at [Sudoo-sh/sudoo-odoo](https://github.com/Sudoo-sh/sudoo-odoo)) needs. 
 Every other call is refused with 403 and written to the audit log, among them Odoo passwords
 (`/instances/<name>/credentials`), logs, restores, backups, GitHub, accounts, tokens, settings, plugins, metrics and
 the [live event stream](#8-live-events) (follow jobs with `GET /jobs/<id>` instead).
+
+### The developer scope
+
+A `developer` token is for developers' own tools and CI. It acts as the role **Developer (API)**, which only a token
+can have, with the permissions `instances.view`, `instances.logs`, `instances.update`, `instances.operate` (for
+pausing only), `instances.create` and `instances.delete` (development instances only) and `caught_mail.view`. As every
+token, it never does more than the account that created it: its rights are the scope's ∩ that account's role, and
+that account's teams, project access and locked branches apply (a project or branch hidden from the account is
+hidden from the token, 404). It may call these endpoints and nothing else:
+
+| Call | What it may do |
+| :--- | :--- |
+| `GET /versions` | The Odoo versions |
+| `GET /projects`, `GET /projects/<id>` | List and read the projects it may see, with their branches |
+| `GET /instances`, `GET /instances/<name>`, `GET /instances/<name>/resources` | List and read instances |
+| `GET /instances/<name>/logs` | Odoo's log |
+| `GET /instances/<name>/mail...` | Caught e-mails (reading only) |
+| `GET /jobs`, `GET /jobs/<id>`, `GET /jobs/<id>/log` | Jobs and their technical logs |
+| `GET /instance-quota`, `GET /instance-plan` | How many it may still create, and the name a new one would get |
+| `GET /events` | The [live event stream](#8-live-events) |
+| `POST /instances` | Create a **development** instance; another `stage` or `from_backup` is refused with 403 |
+| `POST /projects/<id>/branches/<branch>/instances` | Create an instance of a **development** branch; staging and production branches are refused with 403 |
+| `POST /instances/<name>/actions/<action>` | Only `start`, `pause`, `restart`, `update` and `update-submodules`; every other action (`backup`, `upgrade`, `switch-branch`, `restore`, `rollback`, `repair`, `update-images`, submodules added or removed, ...) is refused with 403 |
+| `DELETE /instances/<name>` | Delete a **development** instance after a backup; staging and production are refused with 403 |
+
+Every other call is refused with 403 and written to the audit log: changing an instance (`PATCH`, its settings,
+lifetime or stage), resources, Odoo passwords, settings, accounts, tokens, teams, project settings, access, locks and
+branch stages, backups, restores, custom domains, off-site copies, shells, the audit log and plugins.
 
 ---
 
@@ -246,7 +275,7 @@ answers 404 like one that does not exist, a refused permission 403 with the reas
 
 | Method and path | Permission | Body | Answer |
 | :--- | :--- | :--- | :--- |
-| `GET /plan` | `instances.view` | | 200, `plan`, `source` (`hub`, `grace`: the hub cannot be reached and the last licence applies, `expired`: no new production branches until it is heard again, `unlinked`, `default`: the Free plan), `linked`, `account_name`, `received_at`, `valid_until`, `entitlements` (`max_production_branches`, `max_servers`, `max_projects` (`null`: unlimited), `teams`, `features` (`per_project_access`, `custom_domains`, `offsite_backups`), `support_level`, `addons`, and `period`, `renews_at`, `trial_plan` when the hub says them), `production_withheld`, `banned`, `over_limit`, `usage` (`servers`, `projects`, `production_branches`, `production_branch_names`, `instances_by_stage`), `production_refusal` (why one more production branch would be refused, or `null`), `production_keep`, `leaving_production`, `links` (`pricing`, `account`, `keep`) |
+| `GET /plan` | `instances.view` | | 200, `plan`, `source` (`hub`, `grace`: the hub cannot be reached and the last licence applies, `expired`: no new production branches until it is heard again, `unlinked`, `default`: the Free plan), `linked`, `account_name`, `received_at`, `valid_until`, `entitlements` (`max_production_branches`, `max_servers`, `max_projects` (`null`: unlimited), `teams`, `features` (`per_project_access`, `custom_domains`, `offsite_backups`), `support_level`, `addons`, and `period`, `renews_at`, `trial_plan` when the hub says them), `production_withheld`, `banned`, `over_limit`, `usage` (`servers`, `projects`, `production_branches`, `production_branch_names`, `instances_by_stage`), `production_refusal` (why one more production branch would be refused, or `null`), `production_keep`, `leaving_production`, `links` (`pricing`, `account`, `keep`), `link_deadline` (for super admins and administrators, `null` for everyone else: `linked`, `first_run`, `deadline_days`, `deadline`, `days_left`, `restricted`: the panel was not linked to a Sudoo.sh account within `LINK_DEADLINE_DAYS` of its first run, so new instances, moves into production and updates are refused until it is) |
 
 A request the plan does not allow answers 403 with a sentence naming the plans that have it and the addresses of the
 pricing page and the account site (`POST /teams`, `PATCH /teams/<id>` beyond taking members out, `PUT /projects/<id>/access`
@@ -384,7 +413,7 @@ An account:
 | Method and path | Permission | Body | Answer |
 | :--- | :--- | :--- | :--- |
 | `GET /tokens` | `tokens.manage` | | 200, API tokens (never their secrets) |
-| `POST /tokens` | `tokens.manage` | `{"name", "scope"}` (`read`, `instances` or `write`) | **201**, with `token` and `signing_secret`, shown once |
+| `POST /tokens` | `tokens.manage` | `{"name", "scope"}` (`read`, `instances`, `developer` or `write`) | **201**, with `token` and `signing_secret`, shown once |
 | `DELETE /tokens/<id>` | `tokens.manage` | | **204**, revoked |
 | `GET /backups` | `backups.manage` | | 200, backups, newest first (below) |
 | `GET /backups/<file>` | `backups.manage` | | the zip (`dump.sql`, the filestore, `manifest.json`) |
@@ -888,7 +917,7 @@ Errors follow [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) ("problem detai
 | :--- | :--- |
 | 400 | A field is missing or not valid (also `X-Sudoo-Acting-For`); `detail` says which and what to send |
 | 401 | Token, timestamp, nonce or signature not accepted, the session has ended, or a wrong e-mail address or password at `POST /session`; `detail` says which |
-| 403 | The caller's role lacks the permission; `detail` names what is missing, for example "Your role cannot do this (delete instances)." A `read` token sending a change, an `instances` token calling anything [outside its scope](#the-instances-scope), a restricted session, a wrong setup code, and a reached instance limit (`MAX_INSTANCES`, `MAX_INSTANCES_PER_USER`, `MAX_RUNNING_INSTANCES`) are also 403, each with its own `detail` |
+| 403 | The caller's role lacks the permission; `detail` names what is missing, for example "Your role cannot do this (delete instances)." A `read` token sending a change, an `instances` token calling anything [outside its scope](#the-instances-scope), a `developer` token calling anything [outside its scope](#the-developer-scope), a call refused because the panel was not linked to a Sudoo.sh account within `LINK_DEADLINE_DAYS` (new instances, moves into production, updates), a restricted session, a wrong setup code, and a reached instance limit (`MAX_INSTANCES`, `MAX_INSTANCES_PER_USER`, `MAX_RUNNING_INSTANCES`) are also 403, each with its own `detail` |
 | 404 | No such instance, job, account, action or documentation page |
 | 405 | The method is not allowed on this path |
 | 409 | `POST /server/restart` while jobs are running |

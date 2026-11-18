@@ -45,6 +45,9 @@ A token with the instances scope (a connected app, roles.CONNECTED_APP) is narro
 only the actions in CONNECTED_APP_ACTIONS, and PATCH only for a later end of the lifetime (_refuse_connected_app);
 it has no instances.restore, so it cannot create from a backup either.
 
+A token with the developer scope (roles.DEVELOPER_TOKEN) is narrowed too: only the actions in DEVELOPER_ACTIONS,
+creating and deleting development instances only, never PATCH (settings, lifetime, stage).
+
 A production instance (instances/stages.py) asks for more: pausing, switching off, restoring and rolling back need
 "confirm_production": true in the body, deleting needs "confirm_stage": "production" besides its name.
 """
@@ -57,7 +60,7 @@ from typing import Any, cast
 
 from flask import Blueprint, Response, abort, g, request
 
-from sudoo import addons, entitlements, projects, roles
+from sudoo import addons, entitlements, link_deadline, projects, roles
 from sudoo.config import settings
 from sudoo.core import events, jobs, vault
 from sudoo.core.state import STATE
@@ -101,8 +104,28 @@ CONNECTED_APP_ACTIONS = frozenset({"start", "pause", "restart", "backup", "delet
 """The only actions a connected app (instances scope) may run, whatever its permissions would allow."""
 
 
+DEVELOPER_ACTIONS = frozenset({"start", "pause", "restart", "update", "update-submodules"})
+"""The only actions a developer token (developer scope) may run, whatever its permissions would allow."""
+
+DEVELOPER_SCOPE = (
+    "This API token has the developer scope: it can start, pause, restart and update instances and create and "
+    "delete development instances; "
+)
+
+
 def _connected_app() -> bool:
     return g.user["role"] == roles.CONNECTED_APP
+
+
+def developer_token() -> bool:
+    """A token with the developer scope (roles.DEVELOPER_TOKEN)."""
+    return g.user["role"] == roles.DEVELOPER_TOKEN
+
+
+def refuse_developer_token(what: str, rest: str) -> None:
+    """403 for a developer token, audit-logged."""
+    log(f"refused: {what}", ok=False)
+    abort(403, DEVELOPER_SCOPE + rest)
 
 
 def _refuse_connected_app(what: str, message: str) -> None:
@@ -267,6 +290,8 @@ def create() -> Response:
         abort(400, f"Odoo {version} Enterprise is not available on this server.")
     stage = check.one_of(check.text(data, "stage", default=stages.DEFAULT, max_length=20), stages.STAGES, STAGE_MESSAGE)
     from_backup = check.text(data, "from_backup", max_length=200) or None
+    if developer_token() and (stage != stages.DEVELOPMENT or from_backup):
+        refuse_developer_token(f"create a {stage} instance", "only development instances, without a backup.")
     found = projects.by_repository(github.repo_name(repo) or "") if repo else None
     if found is not None:  # an instance of a project's branch: the caller's access in that branch
         _refuse_in_branch("instances.create", found, branch, f"create an instance of {found['id']} {branch}")
@@ -302,6 +327,7 @@ def _start_creation(
 ) -> Response:
     """Check the limits and start the creation (the caller holds quotas.LOCK). `project`: the project's id when the
     instance is made for one of its branches (web/v1/projects.py); `from_production`: see planning.build."""
+    refuse_unlinked("creating instances", "instance creation refused (panel not linked)")
     _refuse_over_capacity("instance creation refused (running instances)")
     defaults = stages.defaults(stage)
     if stage == stages.PRODUCTION:
@@ -374,6 +400,8 @@ def change(name: str) -> Response:
     pause."""
     existing(name)
     data = check.body()
+    if developer_token():
+        refuse_developer_token(f"change settings of {name}", "it cannot change an instance's settings or stage.")
     if _connected_app():
         _check_connected_app_change(name, data)
     with quotas.LOCK:  # moving into production counts like a creation: the check and the change happen together
@@ -443,9 +471,20 @@ def _project_production_refusal(project_id: str | None, repo: str, branch: str, 
     return entitlements.production_refusal(name or "\0new")
 
 
+def refuse_unlinked(what: str, logged: str) -> None:
+    """403 once the days to link the panel to a Sudoo.sh account have passed while it is unlinked
+    (link_deadline.py), audit-logged."""
+    refused = link_deadline.refusal(what)
+    if refused:
+        log(logged, ok=False, detail=refused)
+        abort(403, refused)
+
+
 def _check_stage_change(name: str, before: str, after: str, data: Mapping[str, Any]) -> None:
-    """Into production: within the limits (the server's, and the project's for its branch). Out of production: only
-    when confirmed."""
+    """Into production: within the limits (the server's, and the project's for its branch), and not while the panel
+    waits for its link (link_deadline.py). Out of production: only when confirmed."""
+    if after == stages.PRODUCTION and before != stages.PRODUCTION:
+        refuse_unlinked("moving instances into production", f"stage change of {name} refused (panel not linked)")
     if after == stages.PRODUCTION:
         env = store.read_env(name)
         refused = stages.production_refusal(exclude=name) or _project_production_refusal(
@@ -599,6 +638,12 @@ def run(name: str, action: str) -> Response:
     if action not in ACTIONS:
         abort(404, "Unknown action.")
     title, kind, permission = ACTIONS[action]
+    if developer_token() and action not in DEVELOPER_ACTIONS | {"delete"}:
+        refuse_developer_token(
+            f"{action} on {name}", "of the actions only start, pause, restart, update and update-submodules."
+        )
+    if developer_token() and action == "delete" and stages.of(store.read_env(name)) != stages.DEVELOPMENT:
+        refuse_developer_token(f"delete {name}", "it deletes development instances only.")
     if _connected_app() and action not in CONNECTED_APP_ACTIONS:
         _refuse_connected_app(
             f"{action} on {name}",
@@ -606,6 +651,8 @@ def run(name: str, action: str) -> Response:
             "and delete.",
         )
     refuse_unless(permission, f"{action} on {name}")
+    if action in link_deadline.DEPLOY_ACTIONS:
+        refuse_unlinked("updating and deploying instances", f"{action} on {name} refused (panel not linked)")
     fn, args = _job_for(action, name, check.body())
     if action == "start" and not _running(name):
         _refuse_over_capacity(f"start of {name} refused (running instances)")

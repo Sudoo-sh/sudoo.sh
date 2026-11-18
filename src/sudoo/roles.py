@@ -26,7 +26,7 @@ branches): projects/access.py. A role is the most anyone can do; a grant never a
 
 Accounts of earlier versions are renamed once when the panel starts (storage/migrate.py): "admin" becomes a super
 admin, "operator" (the sync operator) a developer. API tokens act as an administrator (write scope), a viewer
-(read scope) or a connected app (instances scope).
+(read scope), a connected app (instances scope) or a developer token (developer scope).
 
 TOKEN_ROLES are roles only an API token can have, never an account (users cannot be given them, and an account's
 stored role is checked against ROLES alone):
@@ -35,6 +35,11 @@ stored role is checked against ROLES alone):
                                   instances; nothing else (no passwords, logs, restores, backups, GitHub, accounts,
                                   tokens or settings). The API narrows it further: security.CONNECTED_APP_ENDPOINTS
                                   and web/v1/instances.CONNECTED_APP_ACTIONS.
+    developer_token Developer (API) lists and reads projects, branches and instances, their logs, jobs and caught
+                                  e-mails; starts, pauses, restarts, gets new code, updates submodules; creates
+                                  and deletes development instances. Never settings, accounts, teams, access,
+                                  stages, production, restores, domains, off-site copies or shells. The API
+                                  narrows it: security.DEVELOPER_ENDPOINTS and web/v1/instances.DEVELOPER_ACTIONS.
 """
 
 from __future__ import annotations
@@ -108,11 +113,29 @@ CONNECTED_APP = "connected_app"
 _CONNECTED_APP = frozenset(
     {"instances.view", "instances.create", "instances.update", "instances.operate", "instances.delete"}
 )
+DEVELOPER_TOKEN = "developer_token"
+_DEVELOPER_TOKEN = frozenset(
+    {
+        "instances.view",
+        "instances.logs",
+        "instances.update",
+        "instances.operate",  # only for pause (web/v1/instances.DEVELOPER_ACTIONS)
+        "instances.create",  # only development instances
+        "instances.delete",  # only development instances
+        "caught_mail.view",
+    }
+)
 TOKEN_ROLES: dict[str, Role] = {
     CONNECTED_APP: Role(
         "Connected app",
         "Lists, creates, starts, pauses, restarts, backs up, extends and deletes instances; nothing else.",
         _CONNECTED_APP,
+    ),
+    DEVELOPER_TOKEN: Role(
+        "Developer (API)",
+        "Reads projects, branches, instances, logs, jobs and caught e-mails; starts, pauses, restarts and updates "
+        "instances; creates and deletes development instances. No settings, access, production or restores.",
+        _DEVELOPER_TOKEN,
     ),
 }
 LABELS = {name: role.label for name, role in ROLES.items()}

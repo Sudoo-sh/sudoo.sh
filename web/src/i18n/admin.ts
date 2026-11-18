@@ -120,6 +120,7 @@ const en = {
     scopes: {
       read: { label: "Read only", hint: "Reads instances, jobs and versions; changes nothing." },
       instances: { label: "Instances", hint: "For connected apps such as the Odoo module: list, create, start, pause, restart, back up, extend and delete instances; nothing else." },
+      developer: { label: "Developer", hint: "For developers' tools and CI: reads projects, branches, instances, logs, jobs and caught e-mails; starts, pauses, restarts and gets the latest code; creates development instances. Never settings, users, teams, access, production, restores, domains, off-site copies or shells. Never more than your own role allows." },
       write: { label: "Read and write", hint: "Acts as an administrator: everything except the panel's settings." },
     },
     odooTitle: "Use this panel from your company's Odoo",
@@ -310,6 +311,7 @@ const ar: typeof en = {
     scopes: {
       read: { label: "قراءة فقط", hint: "يقرأ البيئات والمهام والإصدارات؛ ولا يغيّر شيئًا." },
       instances: { label: "البيئات", hint: "للتطبيقات المتصلة مثل وحدة Odoo: عرض البيئات وإنشاؤها وتشغيلها وإيقافها مؤقتًا وإعادة تشغيلها ونسخها احتياطيًا وتمديدها وحذفها؛ ولا شيء غير ذلك." },
+      developer: { label: "مطوّر", hint: "لأدوات المطورين وCI: يقرأ المشاريع والفروع والبيئات والسجلات والمهام والرسائل الملتقطة؛ ويشغّل البيئات ويوقفها مؤقتًا ويعيد تشغيلها ويجلب أحدث الشيفرة؛ وينشئ بيئات تطوير. لا يصل أبدًا إلى الإعدادات أو المستخدمين أو الفرق أو الصلاحيات أو الإنتاج أو الاستعادة أو النطاقات أو النسخ خارج الخادم أو الطرفيات. ولا يتجاوز أبدًا ما يسمح به دورك." },
       write: { label: "قراءة وكتابة", hint: "يعمل بصلاحيات مسؤول: كل شيء عدا إعدادات اللوحة." },
     },
     odooTitle: "استخدم هذه اللوحة من Odoo الخاص بشركتك",

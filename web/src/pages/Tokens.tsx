@@ -14,7 +14,7 @@ import common from "@/i18n/common";
 type Scope = Token["scope"];
 
 /** The scopes in the order the page offers them (their names and explanations are in i18n/admin.ts). */
-const SCOPES: Scope[] = ["read", "instances", "write"];
+const SCOPES: Scope[] = ["read", "instances", "developer", "write"];
 
 /** The Sudoo.sh apps for Odoo on the Odoo Apps store: free, for Odoo 17.0 to 20.0; each page switches versions. */
 const ODOO_STORE = "https://apps.odoo.com/apps/modules";

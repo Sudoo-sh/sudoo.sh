@@ -5,7 +5,8 @@
     DELETE /api/v1/tokens/<id>    revoke -> 204
 
 A "write" token acts as an administrator, a "read" token as a viewer, an "instances" token as a connected app
-(roles.py; it may call only security.CONNECTED_APP_ENDPOINTS).
+(roles.py; it may call only security.CONNECTED_APP_ENDPOINTS), a "developer" token as a developer token (only
+security.DEVELOPER_ENDPOINTS).
 """
 
 from __future__ import annotations
@@ -32,7 +33,9 @@ def list_tokens() -> Response:
 def create_token() -> Response:
     data = check.body()
     name = check.text(data, "name", max_length=40)
-    scope = check.one_of(check.text(data, "scope"), api_tokens.SCOPES, "Choose the scope read, instances or write.")
+    scope = check.one_of(
+        check.text(data, "scope"), api_tokens.SCOPES, "Choose the scope read, instances, developer or write."
+    )
     try:
         token, signing_secret = api_tokens.create(name, scope, g.user["name"])
     except ValueError as error:

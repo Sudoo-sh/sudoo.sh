@@ -252,6 +252,7 @@ wait: one job per instance at a time.
 | **Domains** | The instance's own domains, such as `erp.client.com`: their state, the DNS record to create, the certificate and its expiry ([Custom domains](#custom-domains)). Everyone sees them; administrators add and remove them. |
 | **Settings** | The stage ([Stages](#stages-production-staging-and-development)), the automation switches and the lifetime ([section 5](#5-keeping-the-code-up-to-date)), saved at once; and **Resources** ([Resources](#resources)). |
 | **Access** | The Odoo sign-in: address, login, password, and the master password (for Odoo's database manager). Click **Show the passwords**; each viewing is recorded in the audit log. |
+| **Mail** | Staging and development only: the e-mails the instance sent, caught before they reached anyone ([The Mail tab](#the-mail-tab)). Developers and up. |
 | **Shell** | A terminal in the browser, inside the instance's own containers: a command line in the Odoo container, `odoo shell`, or `psql` on its database ([The Shell tab](#the-shell-tab)). Only for the roles allowed to. |
 
 ### Resources
@@ -355,6 +356,25 @@ link (shown as **Default address**) keeps working too. To make another domain pr
 choose **Make primary**; **Remove** in the same menu removes a domain and deletes its certificate.
 
 ---
+
+### The Mail tab
+
+Staging and development instances never send real e-mail. Everything Odoo sends there (quotations, invoices,
+password resets, mass mailings) is caught by the panel's mail catcher and shown on the instance's **Mail** tab,
+like the mail catcher of Odoo.sh. Production instances send their e-mail as usual and have no Mail tab.
+
+* The list shows the newest e-mails first: subject, sender, recipients, when, size and a paper clip for
+  attachments. **Search** looks in the subject, the addresses and the start of the text.
+* Click an e-mail to read it: **HTML** (as a mail program shows it; scripts, forms and remote images are blocked),
+  **Text**, **Headers** (every header as received), and its attachments to download. **Download .eml** saves the
+  whole message, to open in a mail program.
+* Administrators can **Delete** one e-mail or **Delete all**, and **Release** one: send a copy to an address they
+  type, to check it in a real mailbox. The copy comes from the panel's own address, with the original sender as
+  Reply-To. Releasing can be switched off by the administrator, and every release is recorded in the audit log.
+
+Each instance shows only its own e-mails. They are kept 7 days and up to 500 per instance by default (the oldest go
+first). When an instance moves out of production, Odoo sends to the catcher after its next **Restart**; until then
+its mail servers are switched off, so nothing goes out.
 
 ### The Shell tab
 
@@ -675,6 +695,8 @@ Every account has one role. The role decides which pages, buttons and menu items
 | Settings, restart the panel | yes | no | no | no | no |
 | E-mail templates (the texts of the e-mails the panel sends) | yes | no | no | no | no |
 | Shell tab: a terminal in the Odoo container, `odoo shell` ([The Shell tab](#the-shell-tab)) | yes | yes | if allowed | if allowed | no |
+| Mail tab: read the e-mails caught from staging and development instances ([The Mail tab](#the-mail-tab)) | yes | yes | yes | yes | no |
+| Delete and release caught e-mails | yes | yes | no | no | no |
 | Shell tab: `psql` in the database container | yes | yes | no | no | no |
 | Shells in production instances; root shells (when switched on) | yes | if allowed | if allowed | if allowed | no |
 | See open and past shells, end them, play recordings | yes | no | no | no | no |
@@ -946,6 +968,20 @@ Every setting is described in [Configuration](CONFIGURATION.md).
 **Help** (sidebar) shows this documentation inside the panel: the same pages as in the project's `docs` folder,
 with a table of contents and an **On this page** list of the current page's sections. Links between the pages work
 as in the repository.
+
+### The help button
+
+The **?** button at the top right of every page opens the help panel at the side (press **?** on the keyboard
+anywhere but in a text field; **Esc** closes it). It has:
+
+* **On this page**: a few sentences about the page you are on, and links to the matching part of these pages, in
+  the panel and on the documentation site.
+* **Keyboard shortcuts** the panel knows.
+* **Contact support**: the Sudoo.sh help desk when the panel is linked to a Sudoo.sh account, otherwise the help
+  address or e-mail your administrator set (**Settings, General, Help**).
+* The panel's **version**, and **Copy diagnostics**: the version, your browser, the page, the time and the request
+  id of the last error the panel showed you, to paste into a message to support. It holds no password, address of
+  an instance or other secret.
 
 **Theme.** The button at the bottom of the sidebar switches between **System** (follows your computer's setting),
 **Light** and **Dark**. The choice is kept in your browser. The accent colour is chosen by a super admin

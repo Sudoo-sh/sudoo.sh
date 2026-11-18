@@ -22,6 +22,7 @@
 13. [Releases and signatures](#13-releases-and-signatures)
 14. [Off-site copies](#14-off-site-copies)
 15. [Web shell](#15-web-shell)
+16. [Mail catcher](#16-mail-catcher)
 
 ---
 
@@ -426,6 +427,8 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `instances.delete` | Delete instances, also by giving one a shorter lifetime | yes | yes | | | |
 | `instances.credentials` | See Odoo passwords and ports | yes | yes | yes | | |
 | `instances.resources` | Set an instance's resources: Odoo workers, time and memory limits, container limits | yes | yes | | | |
+| `caught_mail.view` | Read the e-mails caught from staging and development instances (the Mail tab) | yes | yes | yes | yes | |
+| `caught_mail.manage` | Delete caught e-mails and release them (send a copy to an address) | yes | yes | | | |
 | `backups.manage` | Download and delete backups; see, check and copy again off-site copies | yes | yes | | | |
 | `offsite.configure` | Set up where off-site copies go (the `OFFSITE_*` settings), and test it | yes | | | | |
 | `offsite.restore` | Restore an instance from an off-site copy (with `instances.restore`) | yes | yes | | | |
@@ -725,3 +728,17 @@ That is as much power over the instance as the panel itself has, so it is guarde
 - Commands typed in a shell take effect at once; there is no undo. Back up first (or rely on the daily backup).
 - A program started in a shell can use the instance's resources up to its container's limits and so slow or restart
   that instance (never the others or the panel).
+
+## 16. Mail catcher
+
+Staging and development instances send their e-mail to the mail catcher, `sudoo-mail`, never to real addresses
+([Admin guide](ADMIN_GUIDE.md#23-mail-catcher)).
+
+| Threat | Protection |
+| :--- | :--- |
+| A test instance e-mails real customers | Odoo's `odoo.conf` points at the catcher, and every outgoing mail server in the instance's databases is switched off when it starts, when it leaves production and every 5 minutes. Code that opens its own SMTP connection is not covered (the instances can reach the Internet). |
+| One instance reads or fills another's mailbox | The catcher accepts e-mail only after SMTP authentication and files it under the instance whose password was given (a random password per instance; the catcher keeps only its SHA-256). The panel serves each instance's Mail tab from that instance's mailbox only, and checks the e-mail id's form so no path can be given. |
+| The catcher as a way into the server or between instances | Its container has no Docker socket, no `.env`, no published port, read-only system files, no capabilities, a process and memory limit, and an internal network of its own. It joins only the Odoo-side network of staging and development instances (never the database network) and forwards nothing. It speaks plain SMTP only on those networks. Lines are limited to 64 KB, e-mails to `MAIL_CATCHER_MAX_MESSAGE_MB`, connections to 64, wrong passwords to 3 per connection. |
+| An e-mail's HTML attacks the person reading it | It is never put into the panel's page: it is served on its own address with `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src data:; ...; sandbox` (no scripts, no forms, no remote images or fonts, so no tracking pixel tells the sender it was opened) and shown in an `<iframe sandbox>` of the panel only (`frame-ancestors 'self'`). Inline images (`cid:`) are turned into `data:` addresses on the server. Attachments and the `.eml` always download as `application/octet-stream`. |
+| Caught e-mail leaves the server | Only by **Release**: administrators (`caught_mail.manage`), one typed address at a time, through the panel's own mailer, audit-logged with the address; `MAIL_CATCHER_RELEASE=false` switches it off. |
+| Caught e-mail piles up | Kept `MAIL_CATCHER_RETENTION_DAYS` (7), at most `MAIL_CATCHER_MAX_MESSAGES` (500) and `MAIL_CATCHER_MAX_MB` (200) per instance; a mailbox is deleted with its instance or when the instance moves to production. Files are mode 600 in a folder only root can open. |

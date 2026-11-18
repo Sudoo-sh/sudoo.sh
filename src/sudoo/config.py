@@ -84,6 +84,27 @@ def _reservation(stage: str, container: str) -> str:
     )
 
 
+def _plain_https(value: str, required: bool) -> str:
+    """An https:// address without a user name, password or #fragment (http:// only for localhost); "" when not
+    `required` and empty."""
+    from urllib.parse import urlsplit
+
+    value = value.strip()
+    if not value and not required:
+        return ""
+    try:
+        parts = urlsplit(value)
+        host = parts.hostname
+    except ValueError:
+        raise ValueError("must be an https:// address") from None
+    local = host in ("localhost", "127.0.0.1", "::1")
+    if parts.scheme not in ("https", "http") or not host or (parts.scheme == "http" and not local):
+        raise ValueError("must be an https:// address (http:// only for localhost)")
+    if parts.username or parts.password or parts.fragment or len(value) > 500:
+        raise ValueError("must be a plain address, without a user name, password or #fragment")
+    return value.rstrip("/")
+
+
 class Settings(BaseSettings):
     """The panel's configuration. See .env.example for every setting with an explanation."""
 
@@ -791,6 +812,59 @@ class Settings(BaseSettings):
         500, ge=10, le=100000, description="Space all shell recordings may take together, in MB; the oldest go first."
     )
 
+    # ------------------------------------------------------------------ mail catcher (mailcatcher/, docs/ADMIN_GUIDE.md "Mail catcher")
+    mail_catcher_retention_days: int = Field(
+        7, ge=1, le=365, description="Days the e-mails caught from staging and development instances are kept."
+    )
+    mail_catcher_max_messages: int = Field(
+        500, ge=10, le=100000, description="E-mails kept per instance in the mail catcher; the oldest go first."
+    )
+    mail_catcher_max_mb: int = Field(
+        200,
+        ge=10,
+        le=100000,
+        description="Space the caught e-mails of one instance may take, in MB; the oldest go first.",
+    )
+    mail_catcher_max_message_mb: int = Field(
+        25, ge=1, le=100, description="Largest e-mail the mail catcher accepts, in MB; a larger one is refused."
+    )
+    mail_catcher_release: bool = Field(
+        True,
+        description="Administrators may release a caught e-mail: send a copy of it, from the panel's own address, "
+        "to an address they type (audit-logged); off: nobody can.",
+    )
+
+    # ------------------------------------------------------------------ help (the "?" button)
+    docs_url: str = Field(
+        "https://docs.sudoo.sh", description="Where the documentation links of the help panel go (https)."
+    )
+    support_url: str = Field(
+        "",
+        description="Where Contact support goes when the panel is not linked to a Sudoo.sh account: an https:// "
+        "address or a mailto: address; empty: an e-mail to ADMIN_CONTACT_EMAIL.",
+    )
+    hub_support_url: str = Field(
+        "https://app.sudoo.sh/support",
+        description="The help desk Contact support opens when the panel is linked to a Sudoo.sh account (https).",
+    )
+
+    @field_validator("docs_url", "hub_support_url")
+    @classmethod
+    def _help_url(cls, value: str) -> str:
+        return _plain_https(value, required=True)
+
+    @field_validator("support_url")
+    @classmethod
+    def _support_url(cls, value: str) -> str:
+        import re
+
+        value = value.strip()
+        if value.lower().startswith("mailto:"):
+            if not re.fullmatch(r"mailto:[^@\s,?]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}", value, re.IGNORECASE):
+                raise ValueError("must be mailto: followed by one e-mail address")
+            return value
+        return _plain_https(value, required=False)
+
     @field_validator("alert_emails")
     @classmethod
     def _alert_emails(cls, value: str) -> str:
@@ -924,6 +998,12 @@ class Settings(BaseSettings):
         return self.odoo_root / "gateway"
 
     @property
+    def mail_catcher_dir(self) -> Path:
+        """Shared by the panel and the mail catcher service (mailcatcher/): the caught e-mails of every staging and
+        development instance and the catcher's settings, readable by root only."""
+        return self.odoo_root / "mail"
+
+    @property
     def keys_dir(self) -> Path:
         return self.manager_dir / "keys"
 
@@ -986,6 +1066,9 @@ OFFSITE_SETTINGS = tuple(name for name in Settings.model_fields if name.startswi
 
 SHELL_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("shell_"))
 """Every web shell setting (webshell/); all of them can be changed in the panel."""
+
+MAIL_CATCHER_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("mail_catcher_"))
+"""Every setting of the mail catcher (mailcatcher/); all of them can be changed in the panel."""
 
 EDITABLE = (
     # take effect at once
@@ -1069,6 +1152,10 @@ EDITABLE = (
     "domain_http_probe",
     *OFFSITE_SETTINGS,
     *ALERT_SETTINGS,
+    *MAIL_CATCHER_SETTINGS,
+    "docs_url",
+    "support_url",
+    "hub_support_url",
     *SHELL_SETTINGS,
 )
 """Settings that can be changed in the panel, taking effect at once."""

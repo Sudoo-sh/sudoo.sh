@@ -3,6 +3,7 @@
 
 import { words } from "@/i18n";
 import common from "@/i18n/common";
+import { noteError } from "@/lib/diagnostics";
 import type { Envelope } from "./types";
 
 export class ApiError extends Error {
@@ -44,6 +45,8 @@ export async function call<T>(method: Method, path: string, body?: unknown, sign
   const json = await response.json().catch(() => ({}));
   if (!response.ok) {
     const retry = Number(response.headers.get("Retry-After")) || undefined;
+    // signed out (401) is not an error to report
+    if (response.status !== 401) noteError(json.request_id ?? response.headers.get("X-Request-ID") ?? undefined, response.status);
     throw new ApiError(response.status, json.detail ?? response.statusText, json.request_id, retry);
   }
   return json as Envelope<T>;

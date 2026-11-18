@@ -15,6 +15,7 @@ import {
   Globe,
   History,
   KeyRound,
+  Mail,
   Undo2,
   Layers,
   MoreHorizontal,
@@ -42,6 +43,7 @@ import { JobLine, Monogram } from "@/components/InstanceCard";
 import { StageTag } from "@/components/StageTag";
 import { DomainsTab } from "@/components/DomainsTab";
 import { ShellTab } from "@/components/shell/ShellTab";
+import { MailTab } from "@/components/MailTab";
 import { ResourcesCard } from "@/components/ResourcesCard";
 import { JobDrawer } from "@/components/JobDrawer";
 import { LogView } from "@/components/LogView";
@@ -87,6 +89,7 @@ const TABS: { id: string; label: keyof (typeof words)["en"]["tabs"]; icon: React
   { id: "domains", label: "domains", icon: <Globe /> },
   { id: "settings", label: "settings", icon: <Settings2 />, permission: "instances.operate" },
   { id: "access", label: "access", icon: <KeyRound />, permission: "instances.credentials" },
+  { id: "mail", label: "mail", icon: <Mail />, permission: "caught_mail.view" },
   { id: "shell", label: "shell", icon: <SquareTerminal />, permission: "instances.shell" },
 ];
 
@@ -285,7 +288,7 @@ export function InstancePage() {
       )}
 
       <nav className="tabs">
-        {TABS.filter((t) => (!t.permission || can(t.permission)) && !(plain && t.id === "code")).map((t) => (
+        {TABS.filter((t) => (!t.permission || can(t.permission)) && !(plain && t.id === "code") && !(production && t.id === "mail")).map((t) => (
           <NavLink key={t.id} to={`/i/${name}${t.id ? `/${t.id}` : ""}`} end viewTransition className={({ isActive }) => (isActive ? "active" : "")}>
             {t.icon} {all.tabs[t.label]}
           </NavLink>
@@ -300,6 +303,7 @@ export function InstancePage() {
         {tab === "domains" && <DomainsTab instance={instance} />}
         {tab === "settings" && can("instances.operate") && <SettingsTab instance={instance} plain={plain} />}
         {tab === "access" && can("instances.credentials") && <AccessTab instance={instance} />}
+        {tab === "mail" && can("caught_mail.view") && !production && <MailTab instance={instance} />}
         {tab === "shell" && can("instances.shell") && <ShellTab instance={instance} />}
       </div>
 

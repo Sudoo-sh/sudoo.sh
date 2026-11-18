@@ -50,8 +50,10 @@ reset with **Use .env**.
 13. [Off-site copies](#off-site-copies)
 14. [Alerts](#alerts)
 15. [Web shell](#web-shell)
-16. [Marketplace](#marketplace)
-17. [Locations](#locations)
+16. [Mail catcher](#mail-catcher)
+17. [Help panel](#help-panel)
+18. [Marketplace](#marketplace)
+19. [Locations](#locations)
 
 ---
 
@@ -487,6 +489,34 @@ groups **Web shell** and **Shell recordings**. How it works and is protected: [A
 | `SHELL_RECORDING_DAYS` | int | `30` | **live** | Days recordings and the list of past shells are kept (1 to 3650). |
 | `SHELL_RECORDING_MAX_MB` | float | `5` | **live** | Largest recording of one shell, in MB (0.1 to 50); beyond it only typing is recorded, and the shell closes when typing alone reaches the size again. |
 | `SHELL_RECORDINGS_TOTAL_MB` | int | `500` | **live** | Space all recordings may take together, in MB (10 to 100000); the oldest are deleted first. |
+
+---
+
+## Mail catcher
+
+Staging and development instances never send real e-mail: their e-mail goes to the mail catcher and is shown on
+their **Mail** tab. Settings page, **E-mail**, group **Mail catcher**. How it works: [Admin guide, Mail
+catcher](ADMIN_GUIDE.md#23-mail-catcher), [Security, Mail catcher](SECURITY.md#16-mail-catcher).
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `MAIL_CATCHER_RETENTION_DAYS` | int | `7` | **live** | Days caught e-mails are kept (1 to 365); older ones are deleted every 5 minutes. |
+| `MAIL_CATCHER_MAX_MESSAGES` | int | `500` | **live** | E-mails kept per instance (10 to 100000); beyond it the oldest are deleted. |
+| `MAIL_CATCHER_MAX_MB` | int | `200` | **live** | Space the caught e-mails of one instance may take, in MB (10 to 100000); beyond it the oldest are deleted. |
+| `MAIL_CATCHER_MAX_MESSAGE_MB` | int | `25` | **live** | Largest e-mail the catcher accepts, in MB (1 to 100); a larger one is refused, and Odoo shows it as not sent. |
+| `MAIL_CATCHER_RELEASE` | bool | `true` | **live** | Administrators may **Release** a caught e-mail: send a copy, from the panel's own address (`MAIL_FROM`), to one address they type. Every release is audit-logged. `false`: nobody can. |
+
+---
+
+## Help panel
+
+The **?** button at the top of every page opens the help panel. Settings page, **General**, group **Help**.
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `DOCS_URL` | text | `https://docs.sudoo.sh` | **live** | Where the panel's links to the documentation site go (`https://`; `http://` only for `localhost`). |
+| `SUPPORT_URL` | text | empty | **live** | Where **Contact support** goes while the panel is not linked to a Sudoo.sh account: an `https://` address (your own help desk) or `mailto:` and one address. Empty: an e-mail to `ADMIN_CONTACT_EMAIL`; when that is empty too, the panel names `ADMIN_CONTACT_NAME`. |
+| `HUB_SUPPORT_URL` | text | `https://app.sudoo.sh/support` | **live** | The help desk **Contact support** opens while the panel is linked to a Sudoo.sh account (Settings, Marketplace). |
 
 ---
 

@@ -78,6 +78,37 @@ services:
       retries: 3
       start_period: 10s
 
+  mail:
+    # the mail catcher (`sudoo.sh mailcatcher`, docs/ADMIN_GUIDE.md "Mail catcher"): staging and development instances
+    # send their e-mail here and nothing goes out. Same image as the backend, without the Docker socket, without .env
+    # and without a published port: it reads and writes only /opt/odoo/mail, where the backend hands it the
+    # instances' mailboxes and reads the caught e-mails back. The backend connects it to each staging and
+    # development instance's own network; its own network has no way out.
+    image: ${SUDOO_PANEL_IMAGE:-sudoo-panel:local}
+    container_name: sudoo-mail
+    command: ["sudoo.sh", "mailcatcher"]
+    restart: unless-stopped
+    init: true
+    networks:
+      - mail
+    volumes:
+      - /opt/odoo/mail:/opt/odoo/mail
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "sudoo.sh", "mailcatcher", "--check"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   web:
     # the web app (web/): the React front end, served by Caddy, which forwards /api, /hooks and /docs to the
     # backend on 127.0.0.1:API_PORT and the live events to 127.0.0.1:EVENTS_PORT
@@ -100,3 +131,9 @@ services:
       start_period: 20s
     depends_on:
       - manager
+
+networks:
+  # the mail catcher's own network: internal, so the catcher has no way out
+  mail:
+    name: sudoo-mail
+    internal: true

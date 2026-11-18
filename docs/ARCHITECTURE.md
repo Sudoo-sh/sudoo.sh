@@ -26,6 +26,7 @@ each part was chosen.
 | **Backend** | The API, `/api/v1` (Flask, served by Gunicorn, container `sudoo-panel`) on `127.0.0.1:API_PORT` (9002). | `sudoo/web/` |
 | **Live events** | `/api/v1/events`: every change (jobs, instances, resource figures, settings) pushed to connected clients as Server-Sent Events, on the backend's asyncio loop (the one `gateway.py` runs), `127.0.0.1:9001`. Always in the backend. | `sudoo/core/events.py`, `web/v1/events.py` |
 | **Gateway** | One small web server per instance (aiohttp) on `127.0.0.1:<gateway port>`. Forwards every request to that instance's Odoo. Runs in its own container, `sudoo-gateway` (`GATEWAY_MODE=service`, the default), or inside the backend (`embedded`). | `sudoo/instances/gateway.py`, `gateway_service.py`, `gateway_link.py` |
+| **Mail catcher** | A small SMTP server in its own container, `sudoo-mail` (the panel's image, `sudoo.sh mailcatcher`), that staging and development instances send their e-mail to: nothing reaches real addresses. The backend connects it to those instances' networks, points their `odoo.conf` at it, switches off their own mail servers and reads the caught e-mails from `/opt/odoo/mail` for the Mail tab ([Admin guide](ADMIN_GUIDE.md#23-mail-catcher)). | `sudoo/mailcatcher/` |
 | **Metrics** | Figures of the server and every instance (CPU, memory, requests, errors, response times, uptime, disk) with one hour of history, from the monitor and the gateway. | `sudoo/instances/metrics.py` |
 | **Roles** | Five roles, each a set of named permissions; every endpoint and action checks a permission, never a role. | `sudoo/roles.py` |
 | **Storage** | The panel's own data (accounts, tokens, audit log, instance state) in SQLite, behind a storage plugin. | `sudoo/storage/` |
@@ -42,7 +43,8 @@ The backend (API, live events, background work, jobs) runs in **one container** 
 container (`sudoo-web`) that holds no state. The gateways run in a third container, `sudoo-gateway`, so that
 visitors keep reaching the instances while the backend restarts or is down (next section). All three use the
 server's network (`network_mode: host`), so `127.0.0.1` means the same inside and outside them; only the backend
-uses the server's Docker, through `/var/run/docker.sock`.
+uses the server's Docker, through `/var/run/docker.sock`. A fourth, the mail catcher (`sudoo-mail`), is on no
+network of the server: only on its own internal one and those of the staging and development instances.
 
 Each instance uses three ports on `127.0.0.1`, chosen when it is created and stored in its `.env`:
 

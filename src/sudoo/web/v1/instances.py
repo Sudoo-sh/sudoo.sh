@@ -64,6 +64,7 @@ from sudoo.core import events, jobs, vault
 from sudoo.core.state import STATE
 from sudoo.instances import backups, capacity, metrics, odoo, operations, resources, stages, store
 from sudoo.limits import quotas
+from sudoo.mailcatcher import panel as mail_catcher
 from sudoo.repos import github
 from sudoo.repos.gitrepo import origin_url
 
@@ -414,6 +415,7 @@ def _change(name: str, data: Mapping[str, Any]) -> Response:
         STATE.update(name, expiry_failures=0, expiry_stopped=False)
     if "STAGE" in values:
         log("instance stage changed", instance=name, detail=f"{stage_before} -> {stage}")
+        mail_catcher.stage_changed(name)  # production sends its own e-mail; the other stages to the mail catcher
     log("instance settings changed", instance=name, detail=", ".join(sorted(values)))
     events.publish("instance", name)
     return ok(instance_resource(name, full=True))

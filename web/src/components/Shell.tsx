@@ -40,6 +40,7 @@ import { LanguageSwitch } from "./LanguageSwitch";
 import { Brand } from "./ui/Brand";
 import { Button, Callout } from "./ui/basics";
 import { BackToTop } from "./BackToTop";
+import { HelpButton } from "./HelpPanel";
 import { PageMotion } from "./PageMotion";
 import { Menu, useToast } from "./ui/overlay";
 
@@ -391,6 +392,7 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
           {t.cpu} <b>{percent(server.cpu_percent)}</b> &nbsp; {t.memory} <b>{percent(server.memory_percent)}</b>
         </span>
       )}
+      <HelpButton />
       <Alerts />
     </header>
   );

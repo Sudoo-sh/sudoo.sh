@@ -200,6 +200,14 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `PATCH /instances/<name>/domains/<domain>` | `domains.manage` | `{"primary": true}` (production: also `"confirm_production": true`) | 200, the domain: it is the primary one now |
 | `POST /instances/<name>/domains/<domain>/check` | `domains.manage` | | 200, the domain: checked (and issued) now instead of at its next attempt |
 | `DELETE /instances/<name>/domains/<domain>` | `domains.manage` | production: `{"confirm_production": true}` | **204**; its certificate and key are deleted, the next domain becomes primary |
+| `GET /instances/<name>/mail?q=&limit=50&offset=0` | `caught_mail.view` | | 200, the e-mails the mail catcher caught from this staging or development instance, newest first: `id`, `received_at` (seconds), `subject`, `from`, `to`, `cc`, `mail_from`, `rcpt_to`, `date`, `size`, `has_html`, `attachments`, `snippet`; `q` searches subject, addresses and text; `meta`: `total`, `count`, `limit` (1 to 200), `offset`, `catcher` (`running`, `exists`), `usage` (`messages`, `bytes`), `limits`, `release`; **409** for a production instance ([Admin guide](ADMIN_GUIDE.md#23-mail-catcher)) |
+| `GET /instances/<name>/mail/<id>` | `caught_mail.view` | | 200, the e-mail with `headers` (`[[name, value]]`), `text` and `attachment_list` (`index`, `filename`, `content_type`, `size`) |
+| `GET /instances/<name>/mail/<id>/html` | `caught_mail.view` | | 200, its HTML (`text/html`) with its own Content-Security-Policy (no scripts, forms or remote content; `sandbox`), for a sandboxed frame of the panel; 404 when it has none |
+| `GET /instances/<name>/mail/<id>/raw` | `caught_mail.view` | | 200, the message as received, as a download (`.eml`) |
+| `GET /instances/<name>/mail/<id>/attachments/<index>` | `caught_mail.view` | | 200, one attachment, as a download (`application/octet-stream`) |
+| `DELETE /instances/<name>/mail/<id>` | `caught_mail.manage` | | **204**; audit-logged |
+| `DELETE /instances/<name>/mail` | `caught_mail.manage` | | **204**, every caught e-mail of the instance deleted; audit-logged |
+| `POST /instances/<name>/mail/<id>/release` | `caught_mail.manage` | `{"to": "qa@example.com"}` | 200, `{"released", "to", "id"}`: a copy was sent from the panel's own address (`MAIL_FROM`), audit-logged; 400 for an address, **403** when `MAIL_CATCHER_RELEASE` is off, 503 when the panel cannot send e-mail |
 
 ### Server, metrics and settings
 
@@ -456,6 +464,7 @@ No endpoint returns a plugin's files or its package.
 | :--- | :--- | :--- | :--- |
 | `GET /docs` | `instances.view` | | 200, `{"index", "sections": [{"title", "pages": [{"path", "title"}]}]}`: the table of contents |
 | `GET /docs/<path>` | `instances.view` | | 200, `{"path", "title", "html", "headings": [{"level", "id", "text"}]}`, for example `GET /docs/docs/PANEL_API.md` |
+| `GET /help` | `instances.view` | | 200, what the help panel (the **?** button) shows: `version`, `docs_url`, `support` (`kind`: `hub`, `link`, `email` or `none`; `url`; `name` with `none`) |
 
 These are the same Markdown files as in the repository's `docs/`, rendered on the server. Links between pages point
 to `/help/<path>`, the web app's Help pages.

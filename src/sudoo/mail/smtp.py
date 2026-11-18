@@ -43,6 +43,14 @@ class Smtp:
         message.set_content(text)
         if html:
             message.add_alternative(html, subtype="html")
+        self.send_message(message)
+
+    def send_message(self, message: EmailMessage) -> None:
+        """Send a message that is already composed (a released copy of a caught e-mail, mailcatcher/panel.py) to
+        its To address, or raise MailError."""
+        s = self.settings
+        if not self.ready:
+            raise MailError("E-mail is not set up on this panel (SMTP_HOST is empty).")
         context = ssl.create_default_context()
         try:
             if s.smtp_security == "ssl":

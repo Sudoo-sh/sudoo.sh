@@ -79,13 +79,35 @@ export function Modal({
   );
 }
 
-export function Drawer({ title, onClose, children, actions }: { title: ReactNode; onClose: () => void; children: ReactNode; actions?: ReactNode }) {
+export function Drawer({
+  title,
+  onClose,
+  children,
+  actions,
+  className,
+  label,
+}: {
+  title: ReactNode;
+  onClose: () => void;
+  children: ReactNode;
+  actions?: ReactNode;
+  className?: string;
+  /** the dialog's name for screen readers, when the title is not plain text */
+  label?: string;
+}) {
   const [closing, close] = useClosing(onClose, 280);
   const closeLabel = useT(common).common.close;
   useEscape(close);
+  const panel = useRef<HTMLElement>(null);
+  // focus moves into the panel when it opens and goes back to what had it (the button that opened it) when it closes
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    panel.current?.focus({ preventScroll: true });
+    return () => before?.focus?.({ preventScroll: true });
+  }, []);
   return createPortal(
     <div className="overlay drawer-overlay" data-closing={closing || undefined} onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <aside className="drawer" role="dialog" aria-modal="true">
+      <aside className={`drawer ${className ?? ""}`} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} ref={panel}>
         <div className="drawer-head">
           <div className="spacer">{title}</div>
           {actions}

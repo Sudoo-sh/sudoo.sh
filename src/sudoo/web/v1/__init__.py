@@ -9,6 +9,8 @@ role (roles.py), and the same permission checks apply.
     account.py     own account and second factors
     instances.py   instances, jobs, versions
     domains.py     instances' custom domains
+    caught_mail.py the e-mails of staging and development instances, caught by the mail catcher
+    help_panel.py  what the help panel needs: version, documentation and support addresses
     settings.py    the panel's settings, changed while it runs
     licence.py     the Sudoo.sh Licence Agreement: its text, acceptances
     mail_templates.py  the texts of the e-mails the panel sends
@@ -39,9 +41,11 @@ from . import (
     account,
     alerts,
     backups,
+    caught_mail,
     docs,
     domains,
     github,
+    help_panel,
     instances,
     invitations,
     licence,
@@ -70,6 +74,7 @@ def register(app: Flask) -> None:
         account,
         instances,
         domains,
+        caught_mail,
         settings,
         licence,
         mail_templates,
@@ -82,6 +87,7 @@ def register(app: Flask) -> None:
         offsite,
         github,
         docs,
+        help_panel,
         plugins,
         shell,
     ):

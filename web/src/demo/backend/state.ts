@@ -27,11 +27,11 @@ import { backupFile, DAY, hash, hex, HOUR, iso, MINUTE, OPENED, seeded, SECOND }
 // ---------------------------------------------------------------- roles (as src/sudoo/roles.py)
 
 const VIEW: Permission[] = ["instances.view", "instances.logs"];
-const DEVELOP: Permission[] = [...VIEW, "instances.update"];
+const DEVELOP: Permission[] = [...VIEW, "instances.update", "caught_mail.view"];
 const MAINTAIN: Permission[] = [...DEVELOP, "instances.operate", "instances.restore", "instances.create", "instances.credentials", "github.manage"];
 const ALL: Permission[] = [
   "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "instances.restore",
-  "instances.delete", "instances.credentials", "instances.resources", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
+  "instances.delete", "instances.credentials", "instances.resources", "caught_mail.view", "caught_mail.manage", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
   "audit.view", "plugins.view", "settings.manage", "mail.manage", "offsite.configure", "offsite.restore", "offsite.delete",
   "instances.shell", "instances.database_shell", "shells.supervise",
 ];
@@ -47,6 +47,8 @@ export const PERMISSIONS: Record<Permission, string> = {
   "instances.delete": "Delete instances",
   "instances.credentials": "See Odoo passwords and ports",
   "instances.resources": "Set an instance's resources: Odoo workers, time and memory limits, container limits",
+  "caught_mail.view": "Read the e-mails caught from staging and development instances (the Mail tab)",
+  "caught_mail.manage": "Delete caught e-mails and release them (send a copy to an address)",
   "backups.manage": "Download and delete backups; see, check and copy again off-site copies",
   "domains.manage": "Add and remove instances' custom domains (seeing them needs instances.view)",
   "github.manage": "Manage deploy keys; see the GitHub App's state",

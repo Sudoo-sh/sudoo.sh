@@ -8,6 +8,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Mail catcher for staging and development:** like Odoo.sh, staging and development instances never send real
+  e-mail. A new service in `compose.yaml`, `sudoo-mail` (`sudoo.sh mailcatcher`: the panel's own image, a small
+  built-in SMTP server; no Docker socket, no `.env`, no published port, read-only, no capabilities, its own internal
+  network), catches it. The panel connects it to each staging and development instance's Odoo network (never the
+  database network) and disconnects it from production; writes `smtp_server = sudoo-mail`, port 2525 and a password
+  of the instance's own into their `odoo.conf` (production keeps none); and switches off the instances' own outgoing
+  mail servers (`ir.mail_server`) when they start, leave production, and every 5 minutes. Each e-mail is filed in
+  the mailbox of the instance that authenticated, so no instance can read or fill another's. New **Mail** tab on
+  staging and development instances: list with search, viewer with the HTML (served on its own address with a
+  strict Content-Security-Policy and shown in a sandboxed frame: no scripts, forms or remote images; inline `cid:`
+  images shown), the text, every header and the attachments, **Download .eml**, **Delete**, **Delete all** and
+  **Release** (a copy, with its attachments, from the panel's own address to one typed address; audit-logged).
+  New permissions `caught_mail.view` (developers and up) and `caught_mail.manage` (administrators and super
+  admins). Settings (**Settings, E-mail, Mail catcher**): `MAIL_CATCHER_RETENTION_DAYS` (7),
+  `MAIL_CATCHER_MAX_MESSAGES` (500 per instance), `MAIL_CATCHER_MAX_MB` (200 per instance),
+  `MAIL_CATCHER_MAX_MESSAGE_MB` (25) and `MAIL_CATCHER_RELEASE` (on). API: `GET /instances/<name>/mail` and
+  `/mail/<id>` (`/html`, `/raw`, `/attachments/<n>`), `DELETE` and `POST /mail/<id>/release`. The mail plugin
+  `smtp` gained `send_message` for an already composed message.
+- **Help button:** a **?** button in the top bar of every page (or the **?** key, not while typing; **Esc**
+  closes) opens a help panel at the side: a short text about the page shown (every page and instance tab, English
+  and Arabic), links to its documentation in the panel and on docs.sudoo.sh, the keyboard shortcuts, **Contact
+  support** (the Sudoo.sh help desk when the panel is linked to an account, otherwise `SUPPORT_URL` or an e-mail to
+  `ADMIN_CONTACT_EMAIL`), the panel's version and **Copy diagnostics** (version, browser, page, time and the
+  request id of the last error; nothing secret). New settings `DOCS_URL`, `SUPPORT_URL` and `HUB_SUPPORT_URL`
+  (**Settings, General, Help**) and `GET /api/v1/help`. Side panels now take the focus when they open and give it
+  back when they close.
 - **Licence acceptance:** the panel asks for the Sudoo.sh Licence Agreement to be accepted. First-run setup starts
   with a **Licence agreement** step: the agreement's summary (in Arabic, its Annex A), the full text of the copy this
   release bundles (identical to `LICENSE.md`, a test checks it), a link to the published version, the declared use

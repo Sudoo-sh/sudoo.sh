@@ -114,6 +114,9 @@ less sudoo-install.sh
 sudo bash sudoo-install.sh
 ```
 
+With [cosign](https://docs.sigstore.dev/cosign/system_config/installation/), also check who built it: the release
+workflow signs it ([Security](SECURITY.md#13-releases-and-signatures)).
+
 What it does, in order:
 
 1. **Checks the server** (read only): root, operating system, architecture, systemd, processor, memory, disk, clock,
@@ -205,12 +208,15 @@ sudo sudoo-install update
 ```
 
 (or, on a server without the `sudoo-install` command, the install command with `-s -- update`). It runs the checks,
-downloads the latest release's installer and checks it against that release's `SHA256SUMS`, then:
+downloads the latest release's installer and checks it against that release's `SHA256SUMS` and, when `cosign` is
+installed, its signature by that release's workflow (a missing or failing signature stops the update), then:
 
 1. backs up `/opt/odoo/manager` to `/opt/odoo/manager-backup-<date>.tgz`;
 2. keeps the running images under a name, for a rollback;
 3. adds the new settings to `.env` with their defaults (every value already set is kept) and writes the new
-   `compose.yaml`;
+   `compose.yaml`. The one exception: an `ODOO_ADMIN_PASSWORD` still set to the well-known `admin` is replaced by a
+   random value (the old `.env` is in the backup of step 1). New instances get the new password; existing instances
+   keep theirs until it is changed in the panel, and a password set on the Settings page still applies;
 4. recreates **only `sudoo-panel` and `sudoo-web`**, waits until both are healthy, and checks that every instance
    and connector container is still the same container with the same start time.
 

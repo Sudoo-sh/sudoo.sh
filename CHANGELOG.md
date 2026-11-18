@@ -157,6 +157,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Security
 
+- **Signed installer:** the release workflow now builds `sudoo-install.sh` from a pinned commit of the installer's
+  repository and signs it keylessly with Sigstore (`sudoo-install.sh.sigstore.json`), as it already did for
+  `compose.yaml`; no maintainer login signs anything. `sudoo-install update` verifies a newer release's installer
+  against exactly `https://github.com/Sudoo-sh/sudoo.sh/.github/workflows/release.yml@refs/tags/v<version>` when
+  `cosign` is installed and stops on a missing or failing signature. Every GitHub Action in the workflows is pinned
+  by commit.
+- **No default Odoo admin password after an update:** when `/opt/odoo/manager/.env` still has
+  `ODOO_ADMIN_PASSWORD=admin`, the update replaces it with a random value (the old `.env` is in the update's backup).
+  Existing instances keep their password until it is changed in the panel.
 - **Least privilege for connected apps:** an `instances` token acts as the new role Connected app, which only a
   token can have (`instances.view`, `instances.create`, `instances.update`, `instances.operate`,
   `instances.delete`), and may call only the endpoints a connected app needs; other actions, `from_backup`,

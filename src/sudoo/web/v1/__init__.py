@@ -8,6 +8,7 @@ role (roles.py), and the same permission checks apply.
     session.py     sign in (password, then a second factor when needed) and out, own password, contact
     account.py     own account and second factors
     instances.py   instances, jobs, versions
+    projects.py    projects (one GitHub repository each), their branches and stages
     domains.py     instances' custom domains
     caught_mail.py the e-mails of staging and development instances, caught by the mail catcher
     help_panel.py  what the help panel needs: version, documentation and support addresses
@@ -52,6 +53,7 @@ from . import (
     mail_templates,
     offsite,
     plugins,
+    projects,
     server,
     session,
     settings,
@@ -63,6 +65,15 @@ from . import events as stream
 from .resources import instance_resource, job_resource
 from .responses import PREFIX, add_request_id, problem
 
+
+def _project_event(project_id: str) -> dict[str, object]:
+    """A project's live event: its list resource, or {"id", "deleted": true} once it is gone."""
+    from sudoo import projects as model
+
+    found = model.get(project_id)
+    return projects.project_resource(found) if found else {"id": project_id, "deleted": True}
+
+
 __all__ = ["PREFIX", "add_request_id", "problem", "register", "stream"]
 
 
@@ -73,6 +84,7 @@ def register(app: Flask) -> None:
         session,
         account,
         instances,
+        projects,
         domains,
         caught_mail,
         settings,
@@ -96,4 +108,5 @@ def register(app: Flask) -> None:
     bus.present("instance", instance_resource)
     bus.present("job", lambda job_id: job_resource(jobs.JOBS[job_id]))
     bus.present("domains", domains.domains_resource)
+    bus.present("project", _project_event)
     live.on_change(settings.publish_changes)

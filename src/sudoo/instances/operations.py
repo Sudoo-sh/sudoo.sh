@@ -163,17 +163,17 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     name, db, version = plan["name"], plan["db_name"], plan["version"]
     enterprise = plan["edition"] == "enterprise"
     addons = store.addons_dir(name)
-    source = _backup_to_start_from(plan)
-    foreign = source is not None and source["instance"] != name
-
     job.expect(
         7  # Odoo image, preparing, database container, Odoo database, public link, starting Odoo, waiting
         + bool(plan["repo"])
         + enterprise
         + bool(plan["install_modules"] and plan["repo"])
-        + (settings.odoo_admin_password != "admin" or bool(source))
-        + foreign
+        + (settings.odoo_admin_password != "admin" or bool(plan.get("from_backup") or plan.get("from_production")))
+        + bool(plan.get("from_backup") or plan.get("from_production"))  # neutralising another instance's data
+        + bool(plan.get("from_production"))  # copying production
     )
+    source = _backup_to_start_from(job, plan)
+    foreign = source is not None and source["instance"] != name
     _download_images(job, version)
     job.step("Preparing the instance")
     (store.folder(name) / "config").mkdir()
@@ -220,6 +220,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
             "INSTANCE_ID": secrets.token_hex(16),  # tells this instance's backups from those of an earlier one
             "ENTERPRISE_FOLDER": str(enterprise_folder or ""),
             "STAGE": plan.get("stage") or stages.DEFAULT,
+            **({"PROJECT": plan["project"]} if plan.get("project") else {}),  # projects/: its repository's project
         },
     )
     odoo.write_config(name, db, db_password, master_password)
@@ -309,8 +310,17 @@ def _download_images(job: Job, version: str) -> None:
     job.write(f"Images ready in {round(time.monotonic() - started)} s.\n")
 
 
-def _backup_to_start_from(plan: dict[str, Any]) -> dict[str, Any] | None:
-    """The backup a new instance starts from (plan["from_backup"]), checked again; None for an empty database."""
+def _backup_to_start_from(job: Job, plan: dict[str, Any]) -> dict[str, Any] | None:
+    """The backup a new instance starts from, checked again: plan["from_backup"], or for a staging instance a new
+    copy of its project's production instance (plan["from_production"], projects/staging.py); None for an empty
+    database."""
+    if plan.get("from_production"):
+        from sudoo.projects import staging  # late: projects/ uses this module
+
+        problem = staging.copy_problem(plan["from_production"], plan["version"], plan["edition"])
+        if problem:
+            raise JobError(problem)
+        return staging.copy_of_production(job, plan["from_production"])
     if not plan.get("from_backup"):
         return None
     source = next((b for b in backups.all_backups() if b["file"] == plan["from_backup"]), None)
@@ -943,7 +953,13 @@ def connect_repository(job: Job, name: str, repo: str, branch: str, install_modu
     env = store.read_env(name)
     env.pop("SOURCE", None)
     env["GIT_BRANCH"] = branch
+    from sudoo import projects  # late: projects/ reads instances' files through this package
+
+    project = projects.for_repository(str(github.repo_name(repo)), env["ODOO_VERSION"], env["EDITION"], job.user)
+    env["PROJECT"] = project["id"]  # it joins its repository's project
     store.write_env(name, env)
+    if not (project.get("branches") or {}).get(branch, {}).get("stage"):
+        projects.record_branch(project["id"], branch, stage=stages.of(env), changed_by=job.user)
     STATE.update(name, branch_missing=False)
     events.publish("instance", name)
     modules = own_modules(addons) if install_modules else []

@@ -543,11 +543,14 @@ def test_create_from_backup_plan(admin: Client, maintainer: Client, started: lis
     store.release_ports(plan["ports"])
 
     # the job checks again: the backup may be gone by the time it runs
-    assert operations._backup_to_start_from({**plan, "from_backup": None}) is None
-    assert operations._backup_to_start_from(plan)["file"] == source  # type: ignore[index]
+    assert (
+        operations._backup_to_start_from(jobs.Job("lab-copy", "Create", "create", "t"), {**plan, "from_backup": None})
+        is None
+    )
+    assert operations._backup_to_start_from(jobs.Job("lab-copy", "Create", "create", "t"), plan)["file"] == source  # type: ignore[index]
     (settings.backups_dir / source).unlink()
     with pytest.raises(jobs.JobError):
-        operations._backup_to_start_from(plan)
+        operations._backup_to_start_from(jobs.Job("lab-copy", "Create", "create", "t"), plan)
 
 
 def test_filestore_files_are_copied_into_the_backup_piece_by_piece(monkeypatch: pytest.MonkeyPatch) -> None:

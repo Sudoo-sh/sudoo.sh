@@ -68,14 +68,25 @@ class GitHubWebhook:
         return self.push(request.get_json(silent=True) or {})
 
     def push(self, payload: dict[str, Any]) -> Response:
-        """Update the instances that follow the pushed repository and branch."""
+        """Update the instances that follow the pushed repository and branch. A push that creates or deletes a
+        branch tells its project (projects/automation.py: a development instance for a new branch, archiving for a
+        deleted one); a deleted branch has no code to update."""
+        from sudoo.projects import automation  # late: projects/ imports the instances package
+
         repository = str((payload.get("repository") or {}).get("full_name", "")).lower()
-        branch = str(payload.get("ref", "")).removeprefix("refs/heads/")
+        ref = str(payload.get("ref", ""))
+        branch = ref.removeprefix("refs/heads/")
+        if not ref.startswith("refs/heads/"):
+            return jsonify(ok=True, instances=[])  # a tag
+        if payload.get("deleted"):
+            return jsonify(ok=True, instances=[], branch_deleted=automation.branch_deleted(repository, branch))
+        created = automation.branch_created(repository, branch) if payload.get("created") else None
         updated = self.instances_following(repository, branch)
         assert self._request_update is not None
         for name in updated:
-            self._request_update(name, f"push to {repository} {branch}")
-        return jsonify(ok=True, instances=updated)
+            if name != created:
+                self._request_update(name, f"push to {repository} {branch}")
+        return jsonify(ok=True, instances=updated, created=created)
 
     @staticmethod
     def instances_following(repository: str, branch: str) -> list[str]:

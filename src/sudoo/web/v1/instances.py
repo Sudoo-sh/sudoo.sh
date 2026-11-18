@@ -51,18 +51,17 @@ A production instance (instances/stages.py) asks for more: pausing, switching of
 
 from __future__ import annotations
 
-import re
-import secrets
+import time
 from collections.abc import Callable, Mapping
 from typing import Any, cast
 
 from flask import Blueprint, Response, abort, g, request
 
-from sudoo import addons, exposure, roles
+from sudoo import addons, projects, roles
 from sudoo.config import settings
 from sudoo.core import events, jobs, vault
 from sudoo.core.state import STATE
-from sudoo.instances import backups, capacity, metrics, odoo, operations, resources, stages, store
+from sudoo.instances import backups, capacity, metrics, naming, odoo, operations, planning, resources, stages, store
 from sudoo.limits import quotas
 from sudoo.mailcatcher import panel as mail_catcher
 from sudoo.repos import github
@@ -182,25 +181,8 @@ def odoo_log(name: str) -> Response:
 # ---------------------------------------------------------------- creating
 
 
-def _slug(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-
-
 def _plan_name(repo: str, branch: str, custom_name: str, version: str = "", edition: str = "") -> tuple[str, str]:
-    """Instance name (from the custom name, repository + branch, or for plain Odoo "odoo-<version>-<edition>-<4
-    random characters>"), made unique, and its database name."""
-    if custom_name:
-        base = _slug(custom_name)
-    elif not repo and version:  # plain Odoo
-        base = "-".join(part for part in ("odoo", _slug(version), _slug(edition), secrets.token_hex(2)) if part)
-    else:
-        repository = (github.repo_name(repo) or "").split("/")[-1]
-        base = "-".join(part for part in (_slug(repository), _slug(branch)) if part)
-    base = base[:28].strip("-") or "odoo"
-    name, counter = base, 2
-    while store.folder(name).exists():
-        name, counter = f"{base[:26].strip('-')}-{counter}", counter + 1
-    return name, name.replace("-", "_")
+    return naming.plan_name(repo, branch, custom_name, version, edition)
 
 
 def _usable_backup(file_name: str, version: str, edition: str, instance: str | None = None) -> str:
@@ -294,11 +276,15 @@ def _start_creation(
     custom_name: str,
     from_backup: str | None,
     stage: str,
+    project: str | None = None,
+    from_production: str | None = None,
 ) -> Response:
+    """Check the limits and start the creation (the caller holds quotas.LOCK). `project`: the project's id when the
+    instance is made for one of its branches (web/v1/projects.py); `from_production`: see planning.build."""
     _refuse_over_capacity("instance creation refused (running instances)")
     defaults = stages.defaults(stage)
     if stage == stages.PRODUCTION:
-        refused = stages.production_refusal()
+        refused = stages.production_refusal() or _project_production_refusal(project, repo, branch)
         if refused:
             log("instance creation refused (production instances)", ok=False, detail=refused)
             abort(409, refused)
@@ -312,42 +298,38 @@ def _start_creation(
         g.retry_after = error.retry_after
         log("instance creation refused (limit)", ok=False, detail=error.message)
         abort(error.status, error.message)
-    name, db_name = _plan_name(repo, branch, custom_name, version, edition)
-    plan_data = {
-        "name": name,
-        "db_name": db_name,
-        "repo": repo,
-        "branch": branch,
-        "version": version,
-        "edition": edition,
-        "demo": check.flag(data, "demo"),
-        "install_modules": check.flag(data, "install_modules"),
+    switches = {
         "delete_after_days": (
             check.days(data, "delete_after_days") if "delete_after_days" in data else defaults["delete_after_days"]
         ),
         # automation switches: the stage's defaults (stages.defaults: the panel's AUTO_PAUSE, AUTO_UPDATE,
         # AUTO_UPGRADE; production never pauses and gets new code only when PRODUCTION_AUTO_UPDATE says) unless sent
         **{key: check.flag(data, key, bool(defaults[key])) for key in ("auto_update", "auto_upgrade", "auto_pause")},
-        "stage": stage,
-        **({} if repo else {"branch": "", "auto_update": False, "auto_upgrade": False}),  # plain Odoo: no code
-        "ports": store.reserve_ports(exposure.provider().instance_ports()),
-        "created_by": g.user["name"],
-        "from_backup": from_backup,
     }
-    # what the instance looks like until its files exist (web/v1/resources.creating_resource): no ports, no secrets
-    shown = ("version", "edition", "db_name", "repo", "branch", "created_by", "stage")
-    details = {
-        key: plan_data[key] for key in (*shown, "auto_update", "auto_upgrade", "auto_pause", "delete_after_days")
-    }
-    job = jobs.start(
-        name, "Create instance", "create", operations.create, plan_data, user=g.user["name"], details=details
+    plan_data = planning.build(
+        repo=repo,
+        branch=branch,
+        version=version,
+        edition=edition,
+        stage=stage,
+        user=g.user["name"],
+        switches=switches,
+        custom_name=custom_name,
+        demo=check.flag(data, "demo"),
+        install_modules=check.flag(data, "install_modules"),
+        from_backup=from_backup,
+        from_production=from_production,
+        project=project,
     )
+    name = plan_data["name"]
+    job = planning.start(plan_data, g.user["name"])
     log(
         "Create instance",
         instance=name,
         detail=f"Odoo {version} {edition}, {stage}"
         + ("" if repo else " (plain, no repository)")
-        + (f" from {from_backup}" if from_backup else ""),
+        + (f" from {from_backup}" if from_backup else "")
+        + (f" from a copy of {from_production}" if from_production else ""),
     )
     response = _accepted(job)
     response.headers["Content-Location"] = f"{PREFIX}/instances/{name}"
@@ -415,6 +397,11 @@ def _change(name: str, data: Mapping[str, Any]) -> Response:
         STATE.update(name, expiry_failures=0, expiry_stopped=False)
     if "STAGE" in values:
         log("instance stage changed", instance=name, detail=f"{stage_before} -> {stage}")
+        if env.get("PROJECT") and env.get("GIT_BRANCH") and projects.get(env["PROJECT"]):
+            # the branch takes the stage its instance was given (projects/: a branch's stage is recorded)
+            projects.record_branch(
+                env["PROJECT"], env["GIT_BRANCH"], stage=stage, changed_by=g.user["name"], changed_at=int(time.time())
+            )
         mail_catcher.stage_changed(name)  # production sends its own e-mail; the other stages to the mail catcher
     log("instance settings changed", instance=name, detail=", ".join(sorted(values)))
     events.publish("instance", name)
@@ -425,10 +412,21 @@ PRODUCTION_LIFETIME = "A production instance is never deleted automatically: its
 PRODUCTION_PAUSE = "A production instance is never paused automatically."
 
 
+def _project_production_refusal(project_id: str | None, repo: str, branch: str) -> str | None:
+    """Why `branch` of the project (`project_id`, else the project of `repo`) may not be one more production branch
+    of it (PROJECT_PRODUCTION_BRANCHES), or None; None too for an instance outside every project."""
+    found = projects.get(project_id or "") or (projects.by_repository(github.repo_name(repo) or "") if repo else None)
+    return projects.production_refusal(found, branch) if found and branch else None
+
+
 def _check_stage_change(name: str, before: str, after: str, data: Mapping[str, Any]) -> None:
-    """Into production: within the limit. Out of production: only when confirmed."""
+    """Into production: within the limits (the server's, and the project's for its branch). Out of production: only
+    when confirmed."""
     if after == stages.PRODUCTION:
-        refused = stages.production_refusal(exclude=name)
+        env = store.read_env(name)
+        refused = stages.production_refusal(exclude=name) or _project_production_refusal(
+            env.get("PROJECT"), "", env.get("GIT_BRANCH", "")
+        )
         if refused:
             log(f"stage change of {name} refused (production instances)", ok=False, detail=refused)
             abort(409, refused)

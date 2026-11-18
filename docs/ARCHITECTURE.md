@@ -241,6 +241,22 @@ Each decision lists what was chosen, why, what it costs, and the alternatives th
 - **Considered:** a personal access token (gives access to everything that person can see, expires, belongs to a
   person); deploy keys only (one key per private repository and submodule, a webhook per repository).
 
+### Projects: one repository each, membership in the instance's own files
+- **Chosen:** a project is one GitHub repository (as on Odoo.sh), kept as a document in the panel's storage
+  (collection `projects`) with the stage chosen for each branch and the project's own options; an instance belongs
+  to it through `PROJECT=<id>` in its `.env`. Existing instances join their repository's project when the panel
+  starts (only that line is added: nothing restarts); plain Odoo, which has no repository, stays standalone. Branch
+  stages decide how instances of the branch are made: development from a fresh database, staging from a neutralised
+  copy of production, production from a fresh database with the production rules. Access to a project goes through
+  one function (`projects/access.py`), today the panel-wide roles.
+- **Why:** the instance's files stay the truth about the instance (a panel database restored from an older backup
+  cannot move instances between projects); the project only adds what concerns several instances. One access check
+  is the place where teams and per-project access attach later without touching the callers.
+- **Cost:** listing a project's branches asks GitHub (`git ls-remote`, cached 30 seconds); staging copies of large
+  production databases take time and disk while they are made.
+- **Considered:** a project per instance group chosen by hand (no link to the repository, so pushes could not be
+  routed); a "Plain Odoo" project for instances without a repository (branches that do not exist).
+
 ### Update triggers as plugins: polling by default, webhooks where possible
 - **Chosen:** what starts a code update is a list of trigger plugins (`UPDATE_TRIGGERS`). `polling` checks each
   branch every 2 minutes; `github-app` receives the panel's GitHub App events, `github-webhook` per-repository push

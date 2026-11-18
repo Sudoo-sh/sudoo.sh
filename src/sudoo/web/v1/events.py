@@ -6,7 +6,8 @@ A client opens one long-lived request and receives every change as it happens:
     event: job
     data: {"key": "a12fff66a05d", "data": {<the job, as GET /api/v1/jobs/<id> shows it>}}
 
-Topics: "instance" (an instance changed; data is the instance), "instance.deleted", "job" (a job started, moved to
+Topics: "instance" (an instance changed; data is the instance), "instance.deleted", "project" (a project changed;
+data is the project as GET /api/v1/projects lists it, or {"id", "deleted": true}), "job" (a job started, moved to
 another step or ended), "job.output" (new log text of a job), "metrics" (resource use, every METRICS_INTERVAL_SECONDS),
 "settings", "plugins" (an installed plugin changed), "marketplace" (the connection to the hub changed); the last
 two carry no details, only that something changed; and "alert" (a new or changed alert, as GET /api/v1/alerts shows
@@ -54,6 +55,7 @@ TOPICS = frozenset(
     {
         "instance",
         "instance.deleted",
+        "project",
         "domains",
         "job",
         "job.output",

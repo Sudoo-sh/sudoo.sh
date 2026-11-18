@@ -8,8 +8,8 @@ only a named set of permissions:
     admin         Administrator   everything except the panel's settings, the e-mail texts and where off-site copies
                                   go (sees plugins, cannot install them); adds and removes instances' custom domains;
                                   restores from and deletes off-site copies
-    maintainer    Maintainer      creates instances and does everything on them except deleting (restoring backups
-                                  too); GitHub access
+    maintainer    Maintainer      creates projects and instances and does everything on them except deleting
+                                  (restoring backups too); GitHub access
     developer     Developer       follows instances: gets new code, restarts, starts, adds submodules; reads the
                                   e-mails caught from staging and development instances (deleting and releasing
                                   them is for administrators)
@@ -45,6 +45,8 @@ PERMISSIONS: dict[str, str] = {
     "instances.update": "Get new code, restart, start, add submodules",
     "instances.operate": "Pause, switch off, upgrade, switch branch, back up, change automation",
     "instances.create": "Create instances",
+    "projects.manage": "Create and link projects (one GitHub repository each), change their settings and the stages "
+    "of their branches",
     "instances.restore": "Restore an instance from a backup (replaces its database and files)",
     "instances.delete": "Delete instances",
     "instances.credentials": "See Odoo passwords and ports",
@@ -84,6 +86,7 @@ _MAINTAIN = _DEVELOP | {
     "instances.create",
     "instances.credentials",
     "github.manage",
+    "projects.manage",
 }
 _ADMIN = frozenset(PERMISSIONS) - {"settings.manage", "mail.manage", "offsite.configure", "shells.supervise"}
 

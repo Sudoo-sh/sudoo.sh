@@ -8,6 +8,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Projects (the Odoo.sh model):** a project is one GitHub repository, and each of its branches has a stage:
+  production, staging or development. Every instance of a repository now belongs to its project; existing instances
+  join theirs when the panel starts (one project per repository; only `PROJECT=<id>` is added to their `.env`, so
+  names, stages, addresses and backups stay and nothing restarts); plain Odoo instances stay standalone. A branch's
+  stage decides how its instances are made: development from a fresh database (with demo data by default), staging
+  from a **neutralised copy of the project's production instance** (new backup kind `staging-copy`; mail to the mail
+  catcher, scheduled actions, payment providers and IAP off, new database identity, its own address), production
+  with the production rules. A push to a staging branch rebuilds it from a new copy of production, then the branch's
+  code (or only takes the code). A new branch pushed to GitHub gets a development instance by itself, up to a limit
+  per project; a branch deleted on GitHub archives (backup, switched off) or deletes its development instance;
+  production is never touched. Changing a branch's stage moves its instances, with confirmations for production and
+  one production branch per project by default. New settings (**Settings, Instances, Projects**):
+  `PROJECT_PRODUCTION_BRANCHES` (1), `PROJECT_AUTO_DEVELOPMENT` (on), `PROJECT_MAX_AUTO_DEVELOPMENT` (3),
+  `PROJECT_DEVELOPMENT_DEMO_DATA` (on), `PROJECT_STAGING_ON_PUSH` (`rebuild`), `PROJECT_BRANCH_DELETED`
+  (`archive`); each project can change all but the first, and its own lifetimes. New permission `projects.manage`
+  (maintainers and up). API: `GET`/`POST /projects`, `GET`/`PATCH`/`DELETE /projects/<id>`,
+  `PUT /projects/<id>/branches/<branch>/stage`, `POST /projects/<id>/branches/<branch>/instances` and `/rebuild`;
+  instances gained `project`; live event `project`. The SQL neutralisation used before Odoo 16 now also switches off
+  payment providers.
 - **Mail catcher for staging and development:** like Odoo.sh, staging and development instances never send real
   e-mail. A new service in `compose.yaml`, `sudoo-mail` (`sudoo.sh mailcatcher`: the panel's own image, a small
   built-in SMTP server; no Docker socket, no `.env`, no published port, read-only, no capabilities, its own internal

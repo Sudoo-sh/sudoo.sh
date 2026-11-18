@@ -27,8 +27,16 @@ def enabled() -> list[UpdateTrigger]:
 
 
 def request_update(name: str, reason: str) -> None:
-    """Update instance `name` now, if it takes automatic updates and is not busy with something else."""
+    """Update instance `name` now, if it takes automatic updates and is not busy with something else. A staging
+    instance of a project that rebuilds staging on push is rebuilt from production instead (projects/automation.py)."""
     if not store.exists(name) or store.read_env(name)["AUTO_UPDATE"] != "true" or jobs.busy(name):
+        return
+    from sudoo.projects import automation  # late: projects/ imports the instances package, as this module does
+
+    special = automation.update_for(name)
+    if special is not None:
+        title, kind, fn, args = special
+        jobs.start(name, f"{title}: {reason}", kind, fn, *args)
         return
     jobs.start(name, f"Automatic update: {reason}", "update", operations.update_code, name)
 

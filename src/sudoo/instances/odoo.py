@@ -11,6 +11,7 @@ import secrets
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,7 @@ ODOO_CAPABILITIES: tuple[str, ...] = ()
 DB_CAPABILITIES = ("CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID", "KILL")
 FILESTORE_CAPABILITIES = ("CHOWN", "DAC_OVERRIDE", "FOWNER")  # the short-lived root container of a restore
 ODOO_HTTP_PORT = 8069
+ODOO_GEVENT_PORT = 8072  # Odoo's WebSocket server, when it runs with workers
 
 LABEL_MANAGED = "sh.sudoo.managed"
 LABEL_INSTANCE = "sh.sudoo.instance"
@@ -38,7 +40,7 @@ LABEL_HASH = "sh.sudoo.config-hash"
 SERVICE_KEYS = frozenset(
     {
         "image", "restart", "init", "read_only", "security_opt", "cap_drop", "cap_add", "pids_limit", "mem_limit",
-        "cpus", "tmpfs", "logging", "labels", "environment", "volumes", "networks", "ports", "depends_on",
+        "cpus", "cpu_shares", "mem_reservation", "oom_score_adj", "tmpfs", "logging", "labels", "environment", "volumes", "networks", "ports", "depends_on",
     }
 )  # fmt: skip
 """The only keys a service of an instance may have; anything else is refused (render_spec)."""
@@ -60,6 +62,8 @@ def compose_spec(
     enterprise_folder: Path | None,
     isolated_network: bool,
     enterprise_recorded: bool = False,
+    resources: Mapping[str, Mapping[str, Any]] | None = None,
+    websocket_port: int | str | None = None,
 ) -> dict[str, Any]:
     """The instance's two containers as a Compose document (a dict), hardened:
 
@@ -67,7 +71,10 @@ def compose_spec(
     - read-only system files: only the data volumes and small in-memory /tmp folders can be written;
     - the database is only on the instance's internal network: no published port, no way out, no other instance;
     - Odoo is published on 127.0.0.1 only and reaches the database over that internal network;
-    - process, memory and processor limits, rotated logs, an init process, a restart policy the panel sets;
+    - a process limit, the stage's priority under load and any memory and processor limits an admin set
+      (`resources`: the keys of each service, resources.compose_keys), rotated logs, an init process, a restart
+      policy the panel sets;
+    - with Odoo workers, Odoo's WebSocket server published on 127.0.0.1 too (`websocket_port`);
     - images pinned by digest, labels that say which instance and which rendering a container belongs to.
     Values are written literally: the file does not depend on the .env next to it.
 
@@ -88,13 +95,8 @@ def compose_spec(
         "pids_limit": settings.container_pids_limit,
     }
 
-    def limits(memory: str, cpus: float) -> dict[str, Any]:
-        found: dict[str, Any] = {}
-        if memory not in ("", "0"):
-            found["mem_limit"] = memory
-        if cpus > 0:
-            found["cpus"] = cpus
-        return found
+    def limits(service: str) -> dict[str, Any]:
+        return dict((resources or {}).get(service, {}))
 
     def labels(service: str) -> dict[str, str]:
         return {LABEL_MANAGED: "true", LABEL_INSTANCE: name, LABEL_SERVICE: service}
@@ -116,7 +118,7 @@ def compose_spec(
                 "image": db_image,
                 **common,
                 "cap_add": list(DB_CAPABILITIES),
-                **limits(settings.db_memory_limit, settings.db_cpu_limit),
+                **limits("db"),
                 "tmpfs": ["/var/run/postgresql", "/tmp"],
                 "labels": labels("db"),
                 "environment": {"POSTGRES_USER": "odoo", "POSTGRES_PASSWORD": db_password, "POSTGRES_DB": "postgres"},
@@ -127,13 +129,14 @@ def compose_spec(
             "odoo": {
                 "image": odoo_image,
                 **common,
-                **limits(settings.odoo_memory_limit, settings.odoo_cpu_limit),
+                **limits("odoo"),
                 "tmpfs": ["/tmp"],
                 "labels": labels("odoo"),
                 "environment": {"HOST": "db", "USER": "odoo", "PASSWORD": db_password},
                 "volumes": odoo_volumes,
                 "networks": ["backend", "default"],
-                "ports": [f"127.0.0.1:{odoo_port}:{ODOO_HTTP_PORT}"],
+                "ports": [f"127.0.0.1:{odoo_port}:{ODOO_HTTP_PORT}"]
+                + ([f"127.0.0.1:{websocket_port}:{ODOO_GEVENT_PORT}"] if websocket_port else []),
                 "depends_on": ["db"],
                 "logging": logging,
             },
@@ -189,6 +192,8 @@ def check_spec(spec: dict[str, Any], recorded_enterprise: Path | None = None) ->
             raise UnsafeCompose(f"{service_name}: keys that are not allowed: {sorted(extra)}")
         if service.get("cap_drop") != ["ALL"] or not set(service.get("cap_add", [])) <= allowed_caps[service_name]:
             raise UnsafeCompose(f"{service_name}: capabilities beyond what the image needs")
+        if int(service.get("oom_score_adj", 0)) <= -1000:
+            raise UnsafeCompose(f"{service_name}: the out-of-memory killer cannot be switched off (oom_score_adj)")
         if service.get("security_opt") != ["no-new-privileges:true"] or service.get("read_only") is not True:
             raise UnsafeCompose(f"{service_name}: must be read-only and without new privileges")
         for port in service.get("ports", []):

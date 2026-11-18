@@ -42,6 +42,7 @@ import { JobLine, Monogram } from "@/components/InstanceCard";
 import { StageTag } from "@/components/StageTag";
 import { DomainsTab } from "@/components/DomainsTab";
 import { ShellTab } from "@/components/shell/ShellTab";
+import { ResourcesCard } from "@/components/ResourcesCard";
 import { JobDrawer } from "@/components/JobDrawer";
 import { LogView } from "@/components/LogView";
 import { Page, useCan } from "@/components/Shell";
@@ -743,7 +744,7 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
   const t = useT(words).settings;
   const c = useT(common);
   const stageLabel = (stage: Stage) => c.stages[stage]?.label ?? stage;
-  const save = useCall((body: Record<string, unknown>) => api.patch<Instance>(`/instances/${instance.name}`, body), [keys.instance(instance.name), keys.instances]);
+  const save = useCall((body: Record<string, unknown>) => api.patch<Instance>(`/instances/${instance.name}`, body), [keys.instance(instance.name), keys.instances, keys.resources(instance.name)]);
   const set = (body: Record<string, unknown>) =>
     save.mutate(body, { onSuccess: () => toast("success", t.saved), onError: (e) => toast("error", t.notSaved, errorText(e)) });
   const s = instance.settings;
@@ -769,59 +770,62 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
       : ([["auto_pause", t.autoPause, t.autoPauseText]] as [keyof typeof s, string, string][])),
   ];
   return (
-    <div className="card">
-      <div className="settings-row">
-        <div>
-          <div className="name">{t.stage}</div>
-          <div className="desc">{c.stages[instance.stage]?.text}</div>
+    <div className="stack">
+      <div className="card">
+        <div className="settings-row">
+          <div>
+            <div className="name">{t.stage}</div>
+            <div className="desc">{c.stages[instance.stage]?.text}</div>
+          </div>
+          <select className="select" aria-label={t.stage} value={instance.stage} disabled={save.isPending} onChange={(e) => changeStage(e.target.value as Stage)}>
+            {(["production", "staging", "development"] as Stage[]).map((st) => <option key={st} value={st}>{stageLabel(st)}</option>)}
+          </select>
         </div>
-        <select className="select" aria-label={t.stage} value={instance.stage} disabled={save.isPending} onChange={(e) => changeStage(e.target.value as Stage)}>
-          {(["production", "staging", "development"] as Stage[]).map((st) => <option key={st} value={st}>{stageLabel(st)}</option>)}
-        </select>
-      </div>
-      {rows.map(([key, title, text]) => (
-        <div className="settings-row" key={key}>
-          <div><div className="name">{title}</div><div className="desc">{text}</div></div>
-          <div style={{ justifySelf: "end" }}><Switch checked={s[key] as boolean} onChange={(v) => set({ [key]: v })} /></div>
-        </div>
-      ))}
-      {production ? (
+        {rows.map(([key, title, text]) => (
+          <div className="settings-row" key={key}>
+            <div><div className="name">{title}</div><div className="desc">{text}</div></div>
+            <div style={{ justifySelf: "end" }}><Switch checked={s[key] as boolean} onChange={(v) => set({ [key]: v })} /></div>
+          </div>
+        ))}
+        {production ? (
+          <div className="settings-row">
+            <div>
+              <div className="name">{t.lifetime}</div>
+              <div className="desc">{t.productionLifetime}</div>
+            </div>
+            <span className="small muted" style={{ justifySelf: "end" }}>{t.kept}</span>
+          </div>
+        ) : (
         <div className="settings-row">
           <div>
             <div className="name">{t.lifetime}</div>
-            <div className="desc">{t.productionLifetime}</div>
+            <div className="desc">
+              {t.lifetimeText}
+              {!mayShorten && t.longerOnly}
+            </div>
           </div>
-          <span className="small muted" style={{ justifySelf: "end" }}>{t.kept}</span>
+          <select className="select" value={s.delete_after_days} onChange={(e) => set({ delete_after_days: Number(e.target.value) })}>
+            {[...new Set([7, 14, 30, 60, 90, 180, s.delete_after_days])].filter((d) => d > 0).sort((a, b) => a - b).map((d) => (
+              <option key={d} value={d} disabled={!mayShorten && sooner(d)}>{count(d, "day")}</option>
+            ))}
+            <option value={0}>{t.keepByHand}</option>
+          </select>
         </div>
-      ) : (
-      <div className="settings-row">
-        <div>
-          <div className="name">{t.lifetime}</div>
-          <div className="desc">
-            {t.lifetimeText}
-            {!mayShorten && t.longerOnly}
-          </div>
-        </div>
-        <select className="select" value={s.delete_after_days} onChange={(e) => set({ delete_after_days: Number(e.target.value) })}>
-          {[...new Set([7, 14, 30, 60, 90, 180, s.delete_after_days])].filter((d) => d > 0).sort((a, b) => a - b).map((d) => (
-            <option key={d} value={d} disabled={!mayShorten && sooner(d)}>{count(d, "day")}</option>
-          ))}
-          <option value={0}>{t.keepByHand}</option>
-        </select>
+        )}
+        {leaving && (
+          <Modal title={t.moveTitle(instance.name, stageLabel(leaving))} description={t.leavesProduction} onClose={() => setLeaving(null)}
+            footer={<><Button onClick={() => setLeaving(null)}>{c.common.cancel}</Button><Button variant="danger" loading={save.isPending}
+              onClick={() => save.mutate({ stage: leaving, confirm_production: true }, {
+                onSuccess: () => { toast("success", t.moved(stageLabel(leaving))); setLeaving(null); },
+                onError: (e) => toast("error", t.notMoved, errorText(e)),
+              })}>{t.leave}</Button></>}>
+            <Callout tone="warning">
+              {t.leaveText}
+            </Callout>
+          </Modal>
+        )}
       </div>
-      )}
-      {leaving && (
-        <Modal title={t.moveTitle(instance.name, stageLabel(leaving))} description={t.leavesProduction} onClose={() => setLeaving(null)}
-          footer={<><Button onClick={() => setLeaving(null)}>{c.common.cancel}</Button><Button variant="danger" loading={save.isPending}
-            onClick={() => save.mutate({ stage: leaving, confirm_production: true }, {
-              onSuccess: () => { toast("success", t.moved(stageLabel(leaving))); setLeaving(null); },
-              onError: (e) => toast("error", t.notMoved, errorText(e)),
-            })}>{t.leave}</Button></>}>
-          <Callout tone="warning">
-            {t.leaveText}
-          </Callout>
-        </Modal>
-      )}
+      <ResourcesCard instance={instance} />
     </div>
   );
 }

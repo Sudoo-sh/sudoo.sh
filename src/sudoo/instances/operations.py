@@ -21,7 +21,7 @@ from sudoo.core.hints import panel_hint, specific_hint
 from sudoo.core.jobs import Job, JobError
 from sudoo.core.shell import capture
 from sudoo.core.state import STATE
-from sudoo.instances import backups, gateway, integrity, monitor, odoo, stages, store
+from sudoo.instances import backups, gateway, integrity, monitor, odoo, resources, stages, store
 from sudoo.instances.store import compose
 from sudoo.repos import github
 from sudoo.repos.gitrepo import branch_on_github, changed_modules, git, module_folders, own_modules, snapshot
@@ -82,6 +82,7 @@ def _start_odoo(job: Job, name: str, restart: bool = False, strict: bool = False
     Its connector is started too, in case it was stopped, so the instance keeps its public link.
     """
     refresh_addons_path(job, name)
+    resources.write_conf(name)  # workers and limits in odoo.conf, as the compose file gets them
     integrity.apply(job, name)  # current settings and hardening; Compose recreates what changed
     exposure.ensure(name)
     job.run(compose(name, "up", "-d", "--remove-orphans"), timeout=900)
@@ -359,6 +360,7 @@ def delete(job: Job, name: str, without_backup: bool = False) -> None:
     shutil.rmtree(store.folder(name))
     STATE.remove(name)
     integrity.forget(name)
+    resources.forget(name)
     backups.remove_daily(name)  # the backup above is newer
 
 
@@ -612,6 +614,40 @@ def repair(job: Job, name: str) -> None:
 
     audit.record("system", None, "configuration restored", name, ok=not left,
                  detail="; ".join([*put_back, *stopped, *sorted(services)]))  # fmt: skip
+
+
+def apply_resources(job: Job, name: str, previous: dict[str, Any]) -> None:
+    """Apply the instance's resources (resources.py): write odoo.conf and the compose file, and recreate or restart
+    Odoo with them. A paused instance gets them when it next starts.
+
+    Production is changed safely, as an update is: a backup first, and when Odoo does not answer with the new
+    limits, `previous` (the instance's own limits before the change) is put back and Odoo started with them."""
+    production = stages.is_production(store.read_env(name))
+    paused = _paused(name)
+    job.expect(1 if paused else 2 + production)
+    if paused:
+        job.step("Writing the new resources")
+        resources.write_conf(name)
+        integrity.apply(job, name)
+        job.note("The instance is paused: it uses the new resources when it next starts.")
+        return
+    if production:
+        job.step("Backing up the database and files before the change")
+        saved = backups.create(job, name, "before-update")
+        job.note(f"Backup taken before the change: {', '.join(path.name for path in saved)}")
+    job.step("Applying the new resources")
+    try:
+        _start_odoo(job, name, restart=True, strict=production)
+    except JobError:
+        if not production:
+            raise
+        job.step("Putting the previous resources back")
+        resources.save_overrides(name, previous, job.user)
+        _start_odoo(job, name, restart=True)
+        raise JobError(
+            "Odoo did not answer with the new resources, so the previous ones were put back. Check Odoo's log: "
+            "a memory limit may be too low for its workers."
+        ) from None
 
 
 def update_images(job: Job, name: str) -> None:

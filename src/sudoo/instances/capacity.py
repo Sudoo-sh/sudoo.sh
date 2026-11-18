@@ -215,7 +215,7 @@ def current() -> dict[str, Any] | None:
     running = _running()
     key = (metrics.version(), rules, running)
     if _CACHE["key"] == key:
-        return dict(_CACHE["value"])
+        return dict(_CACHE["value"]) | _reservations()
     measured = [
         Measured(
             name,
@@ -237,7 +237,15 @@ def current() -> dict[str, Any] | None:
         "parts": {part: dict(figures) for part, figures in metrics.PANEL.items()},
     }
     _CACHE.update(key=key, value=value)
-    return dict(value)
+    return dict(value) | _reservations()
+
+
+def _reservations() -> dict[str, Any]:
+    """The memory all instances reserve under load (resources.py), by stage: it changes with settings and stages,
+    so it is never cached with the estimate."""
+    from sudoo.instances import resources
+
+    return {"reservations": resources.reservations()}
 
 
 def snapshot() -> dict[str, Any]:

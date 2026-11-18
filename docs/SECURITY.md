@@ -425,6 +425,7 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `instances.restore` | Restore an instance from a backup (replaces its database and files) | yes | yes | yes | | |
 | `instances.delete` | Delete instances, also by giving one a shorter lifetime | yes | yes | | | |
 | `instances.credentials` | See Odoo passwords and ports | yes | yes | yes | | |
+| `instances.resources` | Set an instance's resources: Odoo workers, time and memory limits, container limits | yes | yes | | | |
 | `backups.manage` | Download and delete backups; see, check and copy again off-site copies | yes | yes | | | |
 | `offsite.configure` | Set up where off-site copies go (the `OFFSITE_*` settings), and test it | yes | | | | |
 | `offsite.restore` | Restore an instance from an off-site copy (with `instances.restore`) | yes | yes | | | |
@@ -477,8 +478,8 @@ panel, and a change made to them by hand is found, reported and undone.
 | Read-only system files | yes; writable: the `odoo-data` volume (`/var/lib/odoo`) and an in-memory `/tmp` | yes; writable: the `db-data` volume and in-memory `/var/run/postgresql` and `/tmp` | yes, with an in-memory `/tmp` |
 | Folders from the server | `config/` (odoo.conf), `addons/` (the repository) and the Enterprise add-ons, all read-only | none | none |
 | Network | the instance's own network (way out to the internet, for Odoo's own services) and its internal network to the database | the internal network only: no published port, no way out, unreachable from other instances and (Docker 28 and later) from the server | the server's network (it reaches the gateway on `127.0.0.1`) |
-| Published ports | `127.0.0.1:<ODOO_PORT>` only | none | none |
-| Limits | processes (`CONTAINER_PIDS_LIMIT`), memory (`ODOO_MEMORY_LIMIT`), processors (`ODOO_CPU_LIMIT`) | `CONTAINER_PIDS_LIMIT`, `DB_MEMORY_LIMIT`, `DB_CPU_LIMIT` | 256 processes, 256 MB |
+| Published ports | `127.0.0.1:<ODOO_PORT>` only, and `127.0.0.1:<ODOO_GEVENT_PORT>` (WebSockets) when it runs with Odoo workers | none | none |
+| Limits | processes (`CONTAINER_PIDS_LIMIT`); the stage's priority weights (`cpu_shares`, `mem_reservation`, `oom_score_adj`, never `-1000`); memory and processors only when an admin sets them (`<STAGE>_ODOO_MEMORY_LIMIT`, `<STAGE>_ODOO_CPU_LIMIT` or the instance's own) | the same, with `<STAGE>_DB_MEMORY_LIMIT`, `<STAGE>_DB_CPU_LIMIT` | 256 processes, 256 MB |
 | Logs | rotated (`CONTAINER_LOG_MAX_SIZE`, `CONTAINER_LOG_MAX_FILES`) | rotated | rotated (10 MB, 3 files) |
 | Init process, restart policy | yes, `unless-stopped`, set by the panel | the same | the same |
 | Image | pinned by digest when the instance is created; changes only with **Update Odoo and PostgreSQL images** | the same | `CLOUDFLARED_IMAGE` |

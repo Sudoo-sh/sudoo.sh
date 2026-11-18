@@ -1,22 +1,23 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell, CloudUpload, Download, KeyRound, Mail, Plug, PlugZap, Puzzle, RefreshCcw, RotateCcw, Send, ServerCog, Webhook } from "lucide-react";
+import { Bell, CloudUpload, Download, Gauge, KeyRound, SlidersHorizontal, Mail, Plug, PlugZap, Puzzle, RefreshCcw, RotateCcw, Send, ServerCog, Webhook } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, errorText } from "@/api/client";
-import { keys, useCall, useOffsite, useSettings } from "@/api/queries";
-import type { Setting } from "@/api/types";
+import { keys, useCall, useCapacity, useOffsite, useSettings } from "@/api/queries";
+import { RESOURCE_KNOBS, type Setting, type Stage } from "@/api/types";
 import { MarketplaceSettings } from "@/components/Marketplace";
 import { Page, PageHead, useMe, useSubCrumb } from "@/components/Shell";
 import { Button, Callout, CopyField, Skeleton, Switch, Tag } from "@/components/ui/basics";
 import { Modal, useToast } from "@/components/ui/overlay";
 import { useLocale, useT } from "@/i18n";
+import { bytes } from "@/lib/format";
 import common from "@/i18n/common";
 import words from "@/i18n/settings";
 
 /** `test`: the group has a "Send a test alert" button, by e-mail or to that webhook. */
 type GroupId = Exclude<keyof (typeof words)["en"]["groups"], never>;
 type Group = { id: GroupId | `webhook${1 | 2 | 3}`; keys: string[]; test?: "email" | 1 | 2 | 3 };
-type TabId = "general" | "instances" | "odoo" | "backups" | "security" | "domains" | "email" | "alerts" | "github" | "marketplace" | "advanced";
+type TabId = "general" | "instances" | "resources" | "odoo" | "backups" | "security" | "domains" | "email" | "alerts" | "github" | "marketplace" | "advanced";
 
 const webhookGroup = (n: 1 | 2 | 3): Group => ({
   id: `webhook${n}`,
@@ -39,6 +40,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       { id: "gateway", keys: ["gateway_max_upload_mb", "gateway_idle_timeout_seconds", "gateway_websocket_max_message_mb"] },
     ],
   },
+  { id: "resources", groups: [] },
   {
     id: "odoo",
     groups: [
@@ -96,10 +98,24 @@ const TABS: { id: TabId; groups: Group[] }[] = [
   { id: "marketplace", groups: [] },
   { id: "advanced", groups: [{ id: "monitoring", keys: ["metrics_interval_seconds", "cloudflared_image"] }] },
 ];
+const STAGES: Stage[] = ["production", "staging", "development"];
+/** The Resources tab: two tables, a row per setting and a column per stage (setting `<row>_<stage>` for the
+ *  priority weights, `<stage>_<row>` for the default limits). */
+const PRIORITY_ROWS = ["priority_cpu_weight", "priority_memory_reservation", "priority_db_memory_reservation", "priority_oom_score"] as const;
+const priorityKey = (row: string, stage: Stage) => `${row}_${stage}`;
+const limitKey = (row: string, stage: Stage) => `${stage}_${row}`;
+const RESOURCE_KEYS = [
+  ...PRIORITY_ROWS.flatMap((row) => STAGES.map((stage) => priorityKey(row, stage))),
+  ...RESOURCE_KNOBS.flatMap((row) => STAGES.map((stage) => limitKey(row, stage))),
+];
 const TAB_IDS = new Set<string>(TABS.map((t) => t.id));
-const KNOWN = new Set<string>([...TABS.flatMap((t) => t.groups.flatMap((g) => g.keys)), "marketplace"]);
-const keysOfTab = (tab: (typeof TABS)[number], other: string[]) =>
-  [...tab.groups.flatMap((g) => g.keys), ...(tab.id === "marketplace" ? ["marketplace"] : []), ...(tab.id === "advanced" ? other : [])];
+const KNOWN = new Set<string>([...TABS.flatMap((t) => t.groups.flatMap((g) => g.keys)), "marketplace", ...RESOURCE_KEYS]);
+const keysOfTab = (tab: (typeof TABS)[number], other: string[]) => [
+  ...tab.groups.flatMap((g) => g.keys),
+  ...(tab.id === "marketplace" ? ["marketplace"] : []),
+  ...(tab.id === "resources" ? RESOURCE_KEYS : []),
+  ...(tab.id === "advanced" ? other : []),
+];
 
 /** A group's title and explanation, in the language shown. */
 function groupWords(t: (typeof words)["en"], group: Group): { title: string; text: string } {
@@ -325,6 +341,75 @@ function TabList({ tab, onSelect, marks }: { tab: TabId; onSelect: (id: TabId) =
   );
 }
 
+/** One cell of a resources table: the setting's editor, named for screen readers by its row and its stage. */
+function Cell({ setting, value, label, onChange }: { setting: Setting | undefined; value: Value; label: string; onChange: (value: Value) => void }) {
+  if (!setting) return <td />;
+  const number = setting.type === "integer" || setting.type === "number";
+  return (
+    <td>
+      <input className="input tabular" dir="ltr" aria-label={label} type={number ? "number" : "text"} min={setting.minimum ?? undefined}
+        step={setting.type === "integer" ? 1 : "any"} value={String(value)}
+        onChange={(e) => onChange(number ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)} />
+    </td>
+  );
+}
+
+/** Settings, Resources: the priority weights of each stage and the default limits of each stage, as two tables. */
+function ResourceSettings({ byKey, draft, onChange }: { byKey: Record<string, Setting>; draft: Record<string, Value>; onChange: (key: string, value: Value) => void }) {
+  const t = useT(words);
+  const r = t.resources;
+  const c = useT(common);
+  const capacity = useCapacity();
+  const valueOf = (key: string): Value => (key in draft ? draft[key]! : (byKey[key]?.value as Value) ?? "");
+  const table = (rows: readonly string[], keyOf: (row: string, stage: Stage) => string) => (
+    <div className="table-wrap">
+      <table className="table resources-table">
+        <thead>
+          <tr>
+            <th>{r.knob}</th>
+            {STAGES.map((stage) => <th key={stage}>{c.stages[stage]?.label ?? stage}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const words = r.rows[row as keyof typeof r.rows];
+            return (
+              <tr key={row}>
+                <th scope="row">
+                  <div>{words.label}</div>
+                  <div className="small faint">{words.hint}</div>
+                </th>
+                {STAGES.map((stage) => {
+                  const key = keyOf(row, stage);
+                  return <Cell key={stage} setting={byKey[key]} value={valueOf(key)} label={r.cell(words.label, c.stages[stage]?.label ?? stage)} onChange={(v) => onChange(key, v)} />;
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+  const reserved = capacity?.reservations?.total_bytes;
+  const usable = capacity?.memory.usable_bytes;
+  return (
+    <>
+      <Section title={r.priorityTitle} text={r.priorityText} icon={<Gauge />}>
+        {table(PRIORITY_ROWS, priorityKey)}
+        {reserved != null && usable != null && (
+          <div className="card-body stack-sm">
+            <p className="small muted">{r.reserved(bytes(reserved), bytes(usable))}</p>
+            {reserved > usable && <Callout tone="warning">{r.overReserved}</Callout>}
+          </div>
+        )}
+      </Section>
+      <Section title={r.defaultsTitle} text={r.defaultsText} icon={<SlidersHorizontal />}>
+        {table(RESOURCE_KNOBS, limitKey)}
+      </Section>
+    </>
+  );
+}
+
 export function SettingsPage() {
   const me = useMe();
   const { data: settings, isPending } = useSettings();
@@ -477,6 +562,7 @@ export function SettingsPage() {
                 {rows(group.keys)}
               </Section>
             ))}
+            {tab === "resources" && <ResourceSettings byKey={byKey} draft={draft} onChange={(key, v) => setDraft((d) => ({ ...d, [key]: v }))} />}
             {tab === "backups" && <SigningKey />}
             {tab === "marketplace" && (
               <Section title={t.marketplace.title} text={t.marketplace.text} icon={<Puzzle />}

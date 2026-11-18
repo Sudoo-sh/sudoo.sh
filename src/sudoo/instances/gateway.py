@@ -105,6 +105,7 @@ class Route:
 
     odoo_port: int
     switched_off: bool = False
+    websocket_port: int | None = None  # Odoo's gevent server, when it runs with workers (resources.py)
 
 
 class Edge(Protocol):
@@ -176,13 +177,22 @@ class Host(Protocol):
         ...
 
 
+def websocket_port(env: Mapping[str, str]) -> int | None:
+    """Where the instance's WebSockets go when its containers run with Odoo workers (ODOO_WORKERS, written by the
+    panel when it starts them): Odoo's gevent server (ODOO_GEVENT_PORT); None: to the Odoo port, threaded mode."""
+    if env.get("ODOO_WORKERS", "0") in ("", "0") or not env.get("ODOO_GEVENT_PORT", "").isdigit():
+        return None
+    return int(env["ODOO_GEVENT_PORT"])
+
+
 class PanelHost:
     """The gateway inside the panel process: instances from their folders, state, jobs and metrics in memory."""
 
     def route(self, name: str) -> Route | None:
         if not store.exists(name):
             return None
-        return Route(int(store.read_env(name)["ODOO_PORT"]), bool(STATE.get(name).get("switched_off")))
+        env = store.read_env(name)
+        return Route(int(env["ODOO_PORT"]), bool(STATE.get(name).get("switched_off")), websocket_port(env))
 
     def edge(self) -> Edge:
         return exposure.provider()
@@ -438,6 +448,8 @@ async def _to_instance(request: web.Request, name: str, edge: Edge) -> web.Strea
     odoo_url = f"http://127.0.0.1:{route.odoo_port}"
     try:
         if request.headers.get("Upgrade", "").lower() == "websocket":
+            if route.websocket_port:  # Odoo with workers serves WebSockets on its gevent port only
+                odoo_url = f"http://127.0.0.1:{route.websocket_port}"
             return await _forward_websocket(request, odoo_url, edge)
         return await _forward_http(request, odoo_url, name, edge)
     except _OdooDown:

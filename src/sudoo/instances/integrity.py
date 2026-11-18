@@ -47,7 +47,7 @@ from sudoo.core import audit, events, jobs
 from sudoo.core.jobs import Job, JobError
 from sudoo.core.shell import capture
 from sudoo.core.state import STATE
-from sudoo.instances import odoo, store
+from sudoo.instances import odoo, resources, store
 from sudoo.storage import storage
 
 COLLECTION = "instance_integrity"
@@ -57,7 +57,11 @@ ENV = ".env"
 RESTORABLE_FILES = (COMPOSE, CONF)  # the panel can write these again; .env holds data only the panel knows
 
 # .env keys that shape the containers; taken from the record once there is one
-_INPUTS = ("ODOO_IMAGE_REF", "DB_IMAGE_REF", "ODOO_PORT", "DB_PASSWORD", "ENTERPRISE_FOLDER", "ODOO_USER", "EDITION")
+_INPUTS = (
+    "ODOO_IMAGE_REF", "DB_IMAGE_REF", "ODOO_PORT", "DB_PASSWORD", "ENTERPRISE_FOLDER", "ODOO_USER", "EDITION",
+    "ODOO_GEVENT_PORT",
+)  # fmt: skip
+_LATE_INPUTS = ("ODOO_GEVENT_PORT",)  # reserved after creation: recorded empty until then
 
 _LOCK = threading.RLock()  # writing an instance's files and comparing them never overlap
 _SEEN: dict[str, tuple[str, ...]] = {}  # instance -> differences found by the previous check, not yet confirmed
@@ -328,12 +332,18 @@ def inputs(name: str) -> dict[str, str]:
     .env changes nothing), else from .env."""
     env = store.read_env(name)
     kept = (record(name) or {}).get("inputs", {})
-    return {key: str(kept.get(key, env.get(key, ""))) for key in _INPUTS}
+    found = {key: str(kept.get(key, env.get(key, ""))) for key in _INPUTS}
+    for key in _LATE_INPUTS:
+        found[key] = found[key] or env.get(key, "")
+    return found
 
 
 def render(name: str, values: dict[str, str], recorded: bool = False) -> dict[str, Any]:
     """The compose document for `values`; `recorded`: the Enterprise folder comes from the panel's record."""
     enterprise = values.get("ENTERPRISE_FOLDER")
+    stage = resources.stage_of(name)
+    limits = resources.effective(name, stage)
+    gevent = values.get("ODOO_GEVENT_PORT") if resources.workers(limits) else None
     return odoo.compose_spec(
         name,
         odoo_image=values["ODOO_IMAGE_REF"],
@@ -343,14 +353,17 @@ def render(name: str, values: dict[str, str], recorded: bool = False) -> dict[st
         enterprise_folder=Path(enterprise) if enterprise else None,
         isolated_network=isolated_networks(),
         enterprise_recorded=recorded,
+        resources=resources.compose_keys(stage, limits),
+        websocket_port=gevent or None,
     )
 
 
 def apply(job: Job, name: str, pull: bool = False) -> None:
     """Render the instance's hardened compose file with the current settings and write it, protect the instance's
     files and record all of it. Containers change when Compose next starts them (the caller does that)."""
-    env = store.read_env(name)
     refs = pin_images(job, name, pull)
+    resources.websocket_port(name, resources.effective(name))  # reserved the first time the instance has workers
+    env = store.read_env(name)
     with _LOCK:
         values = inputs(name) | refs
         found = record(name)
@@ -367,6 +380,10 @@ def apply(job: Job, name: str, pull: bool = False) -> None:
             values["ODOO_USER"] = odoo_user(values["ODOO_IMAGE_REF"]) or values.get("ODOO_USER", "")
         store.update_env(name, **{k: v for k, v in values.items() if env.get(k) != v})
         spec = render(name, values, recorded)
+        published = any(str(p).endswith(f":{odoo.ODOO_GEVENT_PORT}") for p in spec["services"]["odoo"]["ports"])
+        applied_workers = str(resources.workers(resources.effective(name)) if published else 0)
+        if store.read_env(name).get("ODOO_WORKERS", "0") != applied_workers:
+            store.update_env(name, ODOO_WORKERS=applied_workers)  # the gateway sends WebSockets to the gevent port
         text = odoo.compose_text(spec)
         folder = store.folder(name)
         (folder / COMPOSE).write_text(text)
@@ -483,6 +500,9 @@ def compare(name: str, service: str, spec: dict[str, Any], kept: dict[str, Any],
     differs("process limit", host.get("PidsLimit") or 0, want["pids_limit"])
     differs("memory limit", host.get("Memory") or 0, _memory(want.get("mem_limit")))
     differs("processor limit", host.get("NanoCpus") or 0, int(float(want.get("cpus", 0)) * 1e9))
+    differs("processor weight", host.get("CpuShares") or 0, int(want.get("cpu_shares", 0)))
+    differs("memory reservation", host.get("MemoryReservation") or 0, _memory(want.get("mem_reservation")))
+    differs("out-of-memory score", host.get("OomScoreAdj") or 0, int(want.get("oom_score_adj", 0)))
     differs("restart policy", (host.get("RestartPolicy") or {}).get("Name"), want["restart"])
     differs("init process", bool(host.get("Init")), True)
     differs("devices", host.get("Devices") or [], [])

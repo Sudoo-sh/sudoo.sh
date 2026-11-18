@@ -3,6 +3,7 @@
 
 import type { Capacity, Columns, Instance, Metrics, MetricsHistory, ServerFigures, Usage } from "@/api/types";
 import { publish } from "./bus";
+import { memoryLimit, reservations } from "./resources";
 import { ASLEEP, instances, MEMORY_LIMIT, profiles, type Profile } from "./state";
 import { clamp, DAY, hash, HOUR, noise, OPENED, round, SECOND } from "./util";
 
@@ -18,7 +19,7 @@ const BOOT = OPENED - 23 * DAY - 7 * HOUR;
 type Sample = Usage & { running: boolean };
 
 /** One instance's figures at second `t`, or null while it was not running. */
-function sample(profile: Profile, t: number): Sample | null {
+function sample(profile: Profile, t: number, limit = MEMORY_LIMIT): Sample | null {
   if (t * 1000 < profile.since) return null;
   const s = profile.seed;
   const busy = t * 1000 >= profile.boostFrom && t * 1000 < profile.boostUntil ? 1 : 0;
@@ -35,8 +36,8 @@ function sample(profile: Profile, t: number): Sample | null {
     running: true,
     cpu_percent: round(cpu, 2),
     memory_bytes: Math.round(memory),
-    memory_limit_bytes: MEMORY_LIMIT,
-    memory_percent: round((100 * memory) / MEMORY_LIMIT, 1),
+    memory_limit_bytes: limit,
+    memory_percent: round((100 * memory) / limit, 1),
     requests_per_minute: round(rpm, 1),
     error_rate_percent: rpm > 0 ? round(errors, 2) : null,
     response_ms_avg: rpm > 0 ? round(avg, 1) : null,
@@ -84,7 +85,7 @@ function at(t: number) {
   let running = 0;
   for (const [name, instance] of instances) {
     const profile = profiles.get(name);
-    const figures = profile && runs(instance) ? sample(profile, t) : null;
+    const figures = profile && runs(instance) ? sample(profile, t, memoryLimit(instance)) : null;
     if (figures) running += 1;
     samples[name] = figures ?? { running: false, cpu_percent: 0, memory_bytes: 0, memory_limit_bytes: MEMORY_LIMIT, memory_percent: 0, requests_per_minute: 0, error_rate_percent: null, response_ms_avg: null, response_ms_p95: null, uptime_seconds: null, disk_bytes: null };
   }
@@ -131,6 +132,7 @@ export function capacity(running = [...instances.values()].filter(runs).length):
     },
     processor: { cores: CORES, panel_percent: 0.6, per_instance_percent: 2.3, instances: 36 },
     disk: { free_bytes: DISK_TOTAL - 175 * 1000 ** 3, instance_average_bytes: Math.round(2.6 * GIB), more_instances: 109 },
+    reservations: reservations(),
     by_version: [...byVersion].sort().map(([version, list]) => ({
       version,
       instances: list.length,

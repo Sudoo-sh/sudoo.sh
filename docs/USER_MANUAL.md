@@ -235,9 +235,27 @@ wait: one job per instance at a time.
 | **Code** | The repository and branch, the recent commits, and the submodules, with **Add submodule** and **Remove** ([section 6](#6-submodules)). |
 | **Odoo log** | The latest lines Odoo wrote (100 to 3000), with **Refresh**. Lines with `ERROR` or `Traceback` usually explain a problem. |
 | **Domains** | The instance's own domains, such as `erp.client.com`: their state, the DNS record to create, the certificate and its expiry ([Custom domains](#custom-domains)). Everyone sees them; administrators add and remove them. |
-| **Settings** | The stage ([Stages](#stages-production-staging-and-development)), the automation switches and the lifetime ([section 5](#5-keeping-the-code-up-to-date)). Changes are saved at once. |
+| **Settings** | The stage ([Stages](#stages-production-staging-and-development)), the automation switches and the lifetime ([section 5](#5-keeping-the-code-up-to-date)), saved at once; and **Resources** ([Resources](#resources)). |
 | **Access** | The Odoo sign-in: address, login, password, and the master password (for Odoo's database manager). Click **Show the passwords**; each viewing is recorded in the audit log. |
 | **Shell** | A terminal in the browser, inside the instance's own containers: a command line in the Odoo container, `odoo shell`, or `psql` on its database ([The Shell tab](#the-shell-tab)). Only for the roles allowed to. |
+
+### Resources
+
+The **Settings** tab ends with **Resources**: how much of the server this instance may use, and how it is treated
+when the server is busy.
+
+* **Priority.** The instance's stage decides it: **Production, first priority under load**, then staging, then
+  development. When the server's processor or memory is fully used, production gets them first and development
+  gives them up first. On a quiet server this changes nothing: every instance gets what it asks for.
+* **Usage.** The processor and memory this instance uses now, against its limits ("no limit" by default).
+* **Limits.** By default there are none. An administrator can set, for this instance only, the Odoo workers and
+  cron workers, the memory per worker, the time a request may take, and the processor and memory of its Odoo and
+  database containers. An empty field follows the stage's default, shown under it. Warnings appear when the values
+  look risky for this server; they never stop you.
+* **Apply** restarts Odoo with the new values (a production instance asks first and is backed up before). A notice
+  says when the instance runs with older values, for example after a change of stage, until it is restarted.
+
+Everyone who can open the tab sees the resources; only administrators change them.
 
 ### The Backups card
 
@@ -629,6 +647,7 @@ Every account has one role. The role decides which pages, buttons and menu items
 | Pause, switch off, upgrade modules, switch branch, back up now, remove a submodule | yes | yes | yes | no | no |
 | Restore a backup of an instance (replaces its database and files) | yes | yes | yes | no | no |
 | Change an instance's settings tab (automation, a longer lifetime) | yes | yes | yes | no | no |
+| Set an instance's resources (workers, limits) | yes | yes | no | no | no |
 | Give an instance a shorter lifetime | yes | yes | no | no | no |
 | See the Odoo passwords (Access tab) | yes | yes | yes | no | no |
 | GitHub access (deploy keys; see the GitHub App's state) | yes | yes | yes | no | no |
@@ -870,7 +889,8 @@ the browser, in tabs:
 | Tab | What it holds |
 | :--- | :--- |
 | **General** | Contact and appearance: who people are told to contact, and the accent colour of the panel and its e-mails. |
-| **Instances** | What a new instance starts with (pause when idle and after how many hours, automatic updates, upgrades, lifetime, Odoo login); how many instances in total and per person, and how often a new one can be created; the limits of each instance's containers; what visitors may send through the gateway. 0 turns a limit off. |
+| **Instances** | What a new instance starts with (pause when idle and after how many hours, automatic updates, upgrades, lifetime, Odoo login); how many instances in total and per person, and how often a new one can be created; the process limit and logs of each instance's containers; what visitors may send through the gateway. 0 turns a limit off. |
+| **Resources** | How instances share the server when it is busy (production first, then staging, then development) and the default limits of each stage, all off by default ([Administrator guide: Resources and priority](ADMIN_GUIDE.md#resources-and-priority)). |
 | **Odoo** | Which versions are offered, where Odoo and PostgreSQL come from, and where the Enterprise add-ons are (including the Enterprise source plugin). |
 | **Backups** | Whether daily backups are taken, at what time (`HH:MM`, 24-hour clock) and in which time zone (for example `Africa/Cairo`; UTC by default), and how long a restore can be rolled back. Changes apply at once. |
 | **Sign-in and security** | Who must use a second factor (none, administrators, everyone), which second factors are offered, the authenticator, how long a session lasts, the sign-in e-mail (on for everyone by default, and whether each person may turn it off), how many recovery codes an authenticator app comes with, and requests per minute with the rate limiter. |

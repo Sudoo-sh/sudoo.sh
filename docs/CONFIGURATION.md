@@ -85,16 +85,13 @@ page refreshes them (same names and tags). See [Administrator guide](ADMIN_GUIDE
 
 ## Instance containers
 
-Limits of each instance's `odoo` and `db` containers, and what happens when they are changed outside the panel.
-Changed limits reach an instance the next time it starts or restarts through the panel; running instances are not
-restarted for them. What the containers are allowed to do: [Security](SECURITY.md#10-instance-containers).
+Process limit and log rotation of each instance's `odoo` and `db` containers, and what happens when they are changed
+outside the panel. Processor and memory limits and the priority under load are under
+[Resources and priority](#resources-and-priority). Changed settings reach an instance the next time it starts or
+restarts through the panel; running instances are not restarted for them. What the containers are allowed to do: [Security](SECURITY.md#10-instance-containers).
 
 | Setting | Type | Default | Applies | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
-| `ODOO_MEMORY_LIMIT` | str | `2g` | **live** | Memory one instance's Odoo container may use, in Docker units (`512m`, `2g`); `0`: no limit. |
-| `ODOO_CPU_LIMIT` | float | `2` | **live** | Processor cores one instance's Odoo may use; `0`: no limit. |
-| `DB_MEMORY_LIMIT` | str | `1g` | **live** | Memory one instance's database container may use, in Docker units; `0`: no limit. |
-| `DB_CPU_LIMIT` | float | `2` | **live** | Processor cores one instance's database may use; `0`: no limit. |
 | `CONTAINER_PIDS_LIMIT` | int | `1024` | **live** | Processes and threads one instance container may run at the same time (at least 64). |
 | `CONTAINER_LOG_MAX_SIZE` | str | `10m` | **live** | Size of a container's log file before it is rotated (`k`, `m` or `g`). |
 | `CONTAINER_LOG_MAX_FILES` | int | `3` | **live** | Rotated log files kept per container (1 to 20). |
@@ -102,6 +99,50 @@ restarted for them. What the containers are allowed to do: [Security](SECURITY.m
 
 The memory of an in-memory `/tmp` counts towards the container's memory limit; very large uploads to Odoo need room
 there.
+
+### Resources and priority
+
+Instances have **no processor or memory limit by default**. When the server is busy, production comes first, then
+staging, then development: each instance's two containers get its stage's weights. The weights only act under
+contention; on a quiet server every instance gets all the processor and memory it asks for. How it works:
+[Administrator guide](ADMIN_GUIDE.md#resources-and-priority).
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `PRIORITY_CPU_WEIGHT_PRODUCTION` | int | `4096` | **live** | Processor weight of production instances (Docker `cpu_shares`, 2 to 262144; Docker's default is 1024). |
+| `PRIORITY_CPU_WEIGHT_STAGING` | int | `2048` | **live** | Processor weight of staging instances (Docker `cpu_shares`, 2 to 262144; Docker's default is 1024). |
+| `PRIORITY_CPU_WEIGHT_DEVELOPMENT` | int | `1024` | **live** | Processor weight of development instances (Docker `cpu_shares`, 2 to 262144; Docker's default is 1024). |
+| `PRIORITY_OOM_SCORE_PRODUCTION` | int | `0` | **live** | Out-of-memory score adjustment of production instances (`oom_score_adj`, -999 to 1000). |
+| `PRIORITY_OOM_SCORE_STAGING` | int | `300` | **live** | Out-of-memory score adjustment of staging instances (`oom_score_adj`, -999 to 1000). |
+| `PRIORITY_OOM_SCORE_DEVELOPMENT` | int | `600` | **live** | Out-of-memory score adjustment of development instances (`oom_score_adj`, -999 to 1000). |
+| `PRIORITY_MEMORY_RESERVATION_PRODUCTION` | str | `1g` | **live** | Memory reservation (soft limit) of the Odoo container of production instances, Docker units; `0`: none. |
+| `PRIORITY_DB_MEMORY_RESERVATION_PRODUCTION` | str | `512m` | **live** | The same for their database container. |
+| `PRIORITY_MEMORY_RESERVATION_STAGING` | str | `0` | **live** | Memory reservation (soft limit) of the Odoo container of staging instances, Docker units; `0`: none. |
+| `PRIORITY_DB_MEMORY_RESERVATION_STAGING` | str | `0` | **live** | The same for their database container. |
+| `PRIORITY_MEMORY_RESERVATION_DEVELOPMENT` | str | `0` | **live** | Memory reservation (soft limit) of the Odoo container of development instances, Docker units; `0`: none. |
+| `PRIORITY_DB_MEMORY_RESERVATION_DEVELOPMENT` | str | `0` | **live** | The same for their database container. |
+
+Default limits of each stage. `0` means "not set": no container limit, and Odoo's own default in `odoo.conf`. An
+admin can set any of them for one instance on its **Settings** tab, which wins over the stage's default. With
+workers, Odoo serves WebSockets on its own port; the panel publishes it on `127.0.0.1` and the gateway sends them
+there.
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `PRODUCTION_ODOO_WORKERS`, `STAGING_ODOO_WORKERS`, `DEVELOPMENT_ODOO_WORKERS` | int | `0` | **live** | Odoo HTTP workers (`workers`); `0`: threaded mode, Odoo's default. |
+| `PRODUCTION_ODOO_CRON_THREADS`, `STAGING_ODOO_CRON_THREADS`, `DEVELOPMENT_ODOO_CRON_THREADS` | int | `0` | **live** | Odoo cron workers (`max_cron_threads`); `0`: Odoo's default (2). |
+| `PRODUCTION_ODOO_LIMIT_MEMORY_SOFT_MB`, `STAGING_ODOO_LIMIT_MEMORY_SOFT_MB`, `DEVELOPMENT_ODOO_LIMIT_MEMORY_SOFT_MB` | int | `0` | **live** | Memory per worker before Odoo recycles it, MB (`limit_memory_soft`); `0`: Odoo's default (2048). |
+| `PRODUCTION_ODOO_LIMIT_MEMORY_HARD_MB`, `STAGING_ODOO_LIMIT_MEMORY_HARD_MB`, `DEVELOPMENT_ODOO_LIMIT_MEMORY_HARD_MB` | int | `0` | **live** | Memory per worker before Odoo stops the request, MB (`limit_memory_hard`); `0`: Odoo's default (2560). |
+| `PRODUCTION_ODOO_LIMIT_TIME_CPU`, `STAGING_ODOO_LIMIT_TIME_CPU`, `DEVELOPMENT_ODOO_LIMIT_TIME_CPU` | int | `0` | **live** | Processor seconds per request (`limit_time_cpu`); `0`: Odoo's default (60). |
+| `PRODUCTION_ODOO_LIMIT_TIME_REAL`, `STAGING_ODOO_LIMIT_TIME_REAL`, `DEVELOPMENT_ODOO_LIMIT_TIME_REAL` | int | `0` | **live** | Seconds per request (`limit_time_real`); `0`: Odoo's default (120). |
+| `PRODUCTION_ODOO_MEMORY_LIMIT`, `STAGING_ODOO_MEMORY_LIMIT`, `DEVELOPMENT_ODOO_MEMORY_LIMIT` | str | `0` | **live** | Memory of the Odoo container, Docker units (`512m`, `2g`, at least `128m`); `0`: no limit. |
+| `PRODUCTION_ODOO_CPU_LIMIT`, `STAGING_ODOO_CPU_LIMIT`, `DEVELOPMENT_ODOO_CPU_LIMIT` | float | `0` | **live** | Processor cores of the Odoo container; `0`: no limit. |
+| `PRODUCTION_DB_MEMORY_LIMIT`, `STAGING_DB_MEMORY_LIMIT`, `DEVELOPMENT_DB_MEMORY_LIMIT` | str | `0` | **live** | Memory of the database container, Docker units; `0`: no limit. |
+| `PRODUCTION_DB_CPU_LIMIT`, `STAGING_DB_CPU_LIMIT`, `DEVELOPMENT_DB_CPU_LIMIT` | float | `0` | **live** | Processor cores of the database container; `0`: no limit. |
+
+`ODOO_MEMORY_LIMIT`, `ODOO_CPU_LIMIT`, `DB_MEMORY_LIMIT` and `DB_CPU_LIMIT` (one limit for every instance, before
+3.0) are no longer read: a value changed in the panel became the default of every stage; a value in `.env` is
+ignored.
 
 ---
 

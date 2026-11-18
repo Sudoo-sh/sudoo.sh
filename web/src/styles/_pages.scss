@@ -848,3 +848,43 @@
   resize: vertical;
 }
 .backup-key-label { font-weight: 600; }
+
+// an instance's Resources section (components/ResourcesCard.tsx)
+.resources-card {
+  .resources-priority {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: var(--s5);
+    align-items: start;
+    p { margin: 0; }
+    @media (max-width: 720px) { grid-template-columns: minmax(0, 1fr); }
+  }
+  .resources-usage {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s4);
+    padding: var(--s4);
+    border-radius: var(--radius-control);
+    background: var(--raised);
+  }
+  .resources-warnings { margin: 0; padding-inline-start: var(--s4); display: grid; gap: var(--s1); }
+  .resources-limits-head { border-top: 1px solid var(--hairline); }
+  .resources-group {
+    padding: var(--s3) var(--s5) var(--s1);
+    color: var(--text-3);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+}
+
+// Settings, Resources: a row per setting, a column per stage
+.resources-table {
+  th[scope="row"] { font-weight: 500; text-align: start; min-width: 200px; max-width: 320px; white-space: normal; .small { font-weight: 400; } }
+  td { min-width: 110px; }
+  .input { width: 100%; }
+}
+.resources-card .resources-rank {
+  font-size: var(--text-15, 15px);
+  &.rank-1 { color: var(--accent-ink); }
+}

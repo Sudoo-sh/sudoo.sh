@@ -9,6 +9,7 @@ import { docPage, DOCS } from "./docs";
 import { addDomain, checkName, checkNow, domainsOf, findDomain, makePrimary, removeDomain } from "./domains";
 import { announce, full, reference, startJob } from "./jobs";
 import { capacity, currentMetrics, history, listed, newProfile } from "./metrics";
+import { applied, cleanLimits, markPending, resourcesOf, setOwn } from "./resources";
 import * as mail from "./mail";
 import * as offsite from "./offsite";
 import { catalog, categories, marketplace, recommendations } from "./marketplace";
@@ -298,6 +299,37 @@ route("GET", "/instances/:name/credentials", ({ params }) => {
   const n = hash(instance.name);
   return ok({ login: "admin", admin_password: `demo-${n.toString(36)}-not-real`, master_password: `demo-master-${(n >>> 7).toString(36)}`, ports: { gateway: 8069 + (n % 40), odoo: 28069 + (n % 40) } });
 });
+route("GET", "/instances/:name/resources", ({ params }) => {
+  need("instances.view");
+  return ok(resourcesOf(instanceOf(params.name!)));
+});
+route("PUT", "/instances/:name/resources", ({ params, body }) => {
+  need("instances.resources", `/api/v1/instances/${params.name}/resources`);
+  const instance = instanceOf(params.name!);
+  if (instance.status === "creating") throw new Problem(409, "This instance is still being created. Try again when its creation has finished.");
+  if (instance.current_job) throw new Problem(409, `${instance.name} is busy with "${instance.current_job.action}". Try again when it has finished.`);
+  const limits = cleanLimits(body.limits);
+  const production = instance.stage === "production";
+  if (production && body.confirm_production !== true)
+    throw new Problem(400, `${instance.name} is a production instance: applying resources restarts it. Confirm ("confirm_production": true).`);
+  setOwn(instance, limits);
+  record(ME, "instance resources changed", { instance: instance.name, detail: Object.entries(limits).map(([k, v]) => `${k}=${v}`).join(", ") || "stage defaults" });
+  if (ASLEEP.includes(instance.status)) {
+    applied(instance.name);
+    return accepted(startJob({ instance: instance.name, action: "Apply resources", kind: "restart", steps: ["Writing the new resources"], seconds: 1.5 }));
+  }
+  return accepted(
+    startJob({
+      instance: instance.name,
+      action: "Apply resources",
+      kind: "restart",
+      steps: [...(production ? ["Backing up the database and files before the change"] : []), "Applying the new resources", "Waiting for Odoo to be ready"],
+      status: "starting",
+      onStart: production ? () => addBackup(instance, "before-update", Date.now()) : undefined,
+      onDone: () => wake(instance),
+    }),
+  );
+});
 route("GET", "/instances/:name/logs", ({ params, query }) => {
   need("instances.logs");
   const instance = instanceOf(params.name!);
@@ -483,6 +515,7 @@ route("PATCH", "/instances/:name", ({ params, body }) => {
     }
     record(ME, "instance stage changed", { instance: instance.name, detail: `${instance.stage} -> ${stage}` });
     instance.stage = stage;
+    markPending(instance.name); // its containers keep the old weights until it restarts
   }
   for (const key of ["auto_update", "auto_upgrade", "auto_pause"] as const) {
     if (typeof body[key] === "boolean") {
@@ -534,6 +567,7 @@ function newCommit(instance: Instance) {
 }
 
 function wake(instance: Instance) {
+  applied(instance.name);
   instance.status = "online";
   instance.last_visit_at = iso(Date.now());
   instance.pauses_at = instance.settings.auto_pause ? iso(Date.now() + Number(setting("idle_hours")) * HOUR) : null;

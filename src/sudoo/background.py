@@ -1,7 +1,8 @@
 """Work that runs on its own inside the panel process: monitor, automatic pause, automatic deletion, daily backups,
 downloading images ahead of time (PREPULL_IMAGES), removal of expired rollback snapshots, GitHub polling, the GitHub
 App's webhook address, gateway, connectors, alerts, the marketplace heartbeat, the plugin watchdog (files,
-licences), custom domains (DNS checks, certificates and their renewal) and off-site copies of backups."""
+licences), custom domains (DNS checks, certificates and their renewal), off-site copies of backups and the mail
+catcher (its settings, network connections and retention)."""
 
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ from sudoo.core.state import STATE
 from sudoo.domains import worker as domain_worker
 from sudoo.hub import marketplace
 from sudoo.instances import backups, gateway, integrity, monitor, odoo, operations, stages, store
+from sudoo.mailcatcher import panel as mail_catcher
 from sudoo.repos import github, github_app
 
 
@@ -35,6 +37,7 @@ def start() -> None:
         marketplace.heartbeat_forever,
         plugin_manager.watch_forever,
         domain_worker.run_forever,
+        mail_catcher.maintain_forever,
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     alerts.start()

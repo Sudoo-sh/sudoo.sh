@@ -11,6 +11,7 @@ docker exec sudoo-panel sudoo.sh test-email ADDRESS       send a test e-mail, to
 docker exec sudoo-panel sudoo.sh marketplace [status|heartbeat|repin]   the connection to the Sudoo.sh hub
 sudoo.sh serve                                       start the web panel (the container does this)
 sudoo.sh gateway [--check]                           start the gateway service (container sudoo-gateway)
+sudoo.sh mailcatcher [--check]                       start the mail catcher (container sudoo-mail)
 """
 
 from __future__ import annotations
@@ -137,6 +138,13 @@ def gateway(args: argparse.Namespace) -> None:
     gateway_service.main(health_check=args.check)
 
 
+def mailcatcher(args: argparse.Namespace) -> None:
+    """Run the mail catcher (mailcatcher/server.py): the SMTP service staging and development instances send to."""
+    from sudoo.mailcatcher import server
+
+    server.main(health_check=args.check)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="sudoo.sh", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)  # fmt: skip
@@ -166,6 +174,9 @@ def main(argv: list[str] | None = None) -> None:
     service = commands.add_parser("gateway", help="start the gateway service (every instance's gateway port)")
     service.add_argument("--check", action="store_true", help="exit 0 when a running gateway service answers")
     service.set_defaults(run=gateway)
+    catcher = commands.add_parser("mailcatcher", help="start the mail catcher (staging and development e-mail)")
+    catcher.add_argument("--check", action="store_true", help="exit 0 when a running mail catcher answers")
+    catcher.set_defaults(run=mailcatcher)
     args = parser.parse_args(argv)
     try:
         args.run(args)

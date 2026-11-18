@@ -316,6 +316,12 @@ def _add_headers(response: Response) -> Response:
     )
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
+    if response.headers.pop("X-Sudoo-Frame", None) == "caught-mail" and response.mimetype == "text/html":
+        # a caught e-mail's HTML (web/v1/caught_mail.py): shown only in a sandboxed frame of the panel itself
+        from .v1.caught_mail import HTML_POLICY
+
+        response.headers["Content-Security-Policy"] = HTML_POLICY
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     response.headers["Cross-Origin-Resource-Policy"] = "same-origin"

@@ -23,6 +23,7 @@ from sudoo.core.shell import capture
 from sudoo.core.state import STATE
 from sudoo.instances import backups, gateway, integrity, monitor, odoo, resources, stages, store
 from sudoo.instances.store import compose
+from sudoo.mailcatcher import panel as mail_catcher
 from sudoo.repos import github
 from sudoo.repos.gitrepo import branch_on_github, changed_modules, git, module_folders, own_modules, snapshot
 
@@ -83,15 +84,33 @@ def _start_odoo(job: Job, name: str, restart: bool = False, strict: bool = False
     """
     refresh_addons_path(job, name)
     resources.write_conf(name)  # workers and limits in odoo.conf, as the compose file gets them
+    mail_catcher.prepare(name)  # staging and development: e-mail goes to the mail catcher
     integrity.apply(job, name)  # current settings and hardening; Compose recreates what changed
     exposure.ensure(name)
     job.run(compose(name, "up", "-d", "--remove-orphans"), timeout=900)
     if restart:
         job.run(compose(name, "restart", "odoo"), timeout=300)
+    _catch_mail(job, name)
     STATE.update(name, paused=False, switched_off=False)
     STATE.record_visit(name)
     job.step("Waiting for Odoo to be ready")
     _wait_until_ready(job, name, strict)
+
+
+def _catch_mail(job: Job, name: str) -> None:
+    """Staging and development: the mail catcher on the instance's network, its own mail servers switched off."""
+    if not mail_catcher.catches(store.read_env(name)):
+        mail_catcher.detach(name)
+        return
+    odoo.wait_for_database(name)
+    switched_off = mail_catcher.after_start(name)
+    if switched_off:
+        job.note(
+            f"{switched_off} outgoing mail {'server was' if switched_off == 1 else 'servers were'} switched off: a "
+            "staging or development instance sends its e-mail to the mail catcher (the Mail tab), never to real "
+            "addresses.",
+            "warning",
+        )
 
 
 # --------------------------------------------------------------------------- create and delete
@@ -113,6 +132,7 @@ def create(job: Job, plan: dict[str, Any]) -> None:
 
         def containers() -> None:
             if compose_file.exists():
+                mail_catcher.detach(name)  # Docker keeps a network something is connected to
                 job.run_unchecked(compose(name, "down", "-v", "--remove-orphans"), timeout=300)
 
         def link() -> None:
@@ -126,6 +146,7 @@ def create(job: Job, plan: dict[str, Any]) -> None:
             ("remove its folder", lambda: shutil.rmtree(folder, ignore_errors=True)),
             ("forget its state", lambda: STATE.remove(name)),
             ("forget its configuration", lambda: integrity.forget(name)),
+            ("remove its caught e-mails", lambda: mail_catcher.forget(name)),
         ]
         for what, step in undo:  # each one on its own: a failing one must not keep the others or the error away
             try:
@@ -203,6 +224,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     )
     odoo.write_config(name, db, db_password, master_password)
     refresh_addons_path(job, name)
+    mail_catcher.prepare(name)  # staging and development: e-mail goes to the mail catcher
     STATE.update(name, last_visit=time.time(), paused=False, switched_off=False)
 
     integrity.apply(job, name)  # the images just downloaded, pinned by digest; hardened compose file; protected files
@@ -266,6 +288,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
 
     job.step("Starting Odoo")
     job.run(compose(name, "up", "-d"), timeout=600)
+    _catch_mail(job, name)
     _wait_until_ready(job, name)
     job.result = {"name": name, "url": url, "login": login, "password": settings.odoo_admin_password, "db": db}
     if source:
@@ -352,6 +375,7 @@ def delete(job: Job, name: str, without_backup: bool = False) -> None:
     else:
         job.note(f"Backup kept: {', '.join(path.name for path in saved)}")
     job.step("Removing Odoo, its database and its files")
+    mail_catcher.detach(name)  # Docker keeps a network something is connected to
     job.run(compose(name, "down", "-v", "--remove-orphans"), timeout=600)
     gateway.remove(name)
     exposure.remove(name)
@@ -361,6 +385,7 @@ def delete(job: Job, name: str, without_backup: bool = False) -> None:
     STATE.remove(name)
     integrity.forget(name)
     resources.forget(name)
+    mail_catcher.forget(name)
     backups.remove_daily(name)  # the backup above is newer
 
 

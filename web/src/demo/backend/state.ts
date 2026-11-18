@@ -31,7 +31,7 @@ const DEVELOP: Permission[] = [...VIEW, "instances.update"];
 const MAINTAIN: Permission[] = [...DEVELOP, "instances.operate", "instances.restore", "instances.create", "instances.credentials", "github.manage"];
 const ALL: Permission[] = [
   "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "instances.restore",
-  "instances.delete", "instances.credentials", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
+  "instances.delete", "instances.credentials", "instances.resources", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
   "audit.view", "plugins.view", "settings.manage", "mail.manage", "offsite.configure", "offsite.restore", "offsite.delete",
   "instances.shell", "instances.database_shell", "shells.supervise",
 ];
@@ -46,6 +46,7 @@ export const PERMISSIONS: Record<Permission, string> = {
   "instances.restore": "Restore an instance from a backup (replaces its database and files)",
   "instances.delete": "Delete instances",
   "instances.credentials": "See Odoo passwords and ports",
+  "instances.resources": "Set an instance's resources: Odoo workers, time and memory limits, container limits",
   "backups.manage": "Download and delete backups; see, check and copy again off-site copies",
   "domains.manage": "Add and remove instances' custom domains (seeing them needs instances.view)",
   "github.manage": "Manage deploy keys; see the GitHub App's state",
@@ -215,7 +216,7 @@ export const backups: Backup[] = []; // newest first
 
 const GIB = 1024 ** 3;
 const MIB = 1024 ** 2;
-export const MEMORY_LIMIT = 3 * GIB; // odoo_memory_limit 2g + db_memory_limit 1g
+export const MEMORY_LIMIT = 32 * GIB; // no container limit (the default): Docker reports the server's memory
 
 const sha = (seed: string) => hash(seed).toString(16).padStart(8, "0").slice(0, 7);
 

@@ -28,6 +28,61 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 
+STAGES = ("production", "staging", "development")
+
+MEMORY_PATTERN = r"^(0|\d+(\.\d+)?[bkmg])$"
+"""A quantity of memory in Docker units (512m, 2g); 0: none."""
+
+MIN_CONTAINER_MEMORY = 128 * 1024**2
+
+
+def memory_bytes(text: str) -> int:
+    """Bytes of a quantity in Docker units ("512m", "2g", "0")."""
+    text = text.strip().lower()
+    if not text or text == "0":
+        return 0
+    units = {"b": 1, "k": 1024, "m": 1024**2, "g": 1024**3}
+    return int(float(text[:-1]) * units[text[-1]])
+
+
+_LIMIT_TEXT = {
+    "workers": "Odoo HTTP workers (odoo.conf workers); 0: threaded mode, Odoo's default.",
+    "cron_threads": "Odoo cron workers (odoo.conf max_cron_threads); 0: Odoo's default (2).",
+    "memory_soft": "Memory per Odoo worker before it is recycled, in MB (limit_memory_soft); 0: Odoo's default.",
+    "memory_hard": "Memory per Odoo worker before a request is stopped, in MB (limit_memory_hard); 0: Odoo's default.",
+    "time_cpu": "Processor seconds one request may use (limit_time_cpu); 0: Odoo's default.",
+    "time_real": "Seconds one request may take (limit_time_real); 0: Odoo's default.",
+    "odoo_memory": "Memory the Odoo container may use, in Docker units (512m, 2g); 0: no limit.",
+    "odoo_cpu": "Processor cores the Odoo container may use; 0: no limit.",
+    "db_memory": "Memory the database container may use, in Docker units (512m, 2g); 0: no limit.",
+    "db_cpu": "Processor cores the database container may use; 0: no limit.",
+}
+
+
+def _limit(stage: str, what: str) -> str:
+    return f"Default for {stage} instances. {_LIMIT_TEXT[what]}"
+
+
+def _cpu_weight(stage: str) -> str:
+    return (
+        f"Processor weight of {stage} instances (Docker cpu_shares; 1024 is Docker's default). Only acts when the "
+        "processor is busy: a container gets processor time in proportion to its weight."
+    )
+
+
+def _oom_score(stage: str) -> str:
+    return (
+        f"Out-of-memory score adjustment of {stage} instances (-999 to 1000): when the server runs out of memory, "
+        "the kernel stops processes with the highest score first. -1000 (never stopped) is not allowed."
+    )
+
+
+def _reservation(stage: str, container: str) -> str:
+    return (
+        f"Memory reservation of the {container} container of {stage} instances (Docker mem_reservation, a soft "
+        "limit): under memory pressure the kernel takes memory back from other containers first. 0: none."
+    )
+
 
 class Settings(BaseSettings):
     """The panel's configuration. See .env.example for every setting with an explanation."""
@@ -58,18 +113,6 @@ class Settings(BaseSettings):
     odoo_admin_password: str = Field("admin", description='Password of the Odoo user "admin" in new instances.')
 
     # ------------------------------------------------------------------ instance containers (applied at their next start)
-    odoo_memory_limit: str = Field(
-        "2g",
-        pattern=r"^(0|\d+(\.\d+)?[bkmg])$",
-        description="Memory one instance's Odoo container may use, in Docker units (512m, 2g); 0: no limit.",
-    )
-    db_memory_limit: str = Field(
-        "1g",
-        pattern=r"^(0|\d+(\.\d+)?[bkmg])$",
-        description="Memory one instance's database container may use, in Docker units (512m, 1g); 0: no limit.",
-    )
-    odoo_cpu_limit: float = Field(2, ge=0, description="Processor cores one instance's Odoo may use; 0: no limit.")
-    db_cpu_limit: float = Field(2, ge=0, description="Processor cores one instance's database may use; 0: no limit.")
     container_pids_limit: int = Field(
         1024, ge=64, description="Processes and threads one instance container may run at the same time."
     )
@@ -205,6 +248,80 @@ class Settings(BaseSettings):
         "only warned.",
     )
 
+    # ------------------------------------------------------------------ resources (instances/resources.py)
+    # Priority under load, by stage: weights that only act when instances compete for the processor or memory.
+    # Applied to an instance's Odoo and database containers when it next starts (or when its resources are applied).
+    priority_cpu_weight_production: int = Field(4096, ge=2, le=262144, description=_cpu_weight("production"))
+    priority_cpu_weight_staging: int = Field(2048, ge=2, le=262144, description=_cpu_weight("staging"))
+    priority_cpu_weight_development: int = Field(1024, ge=2, le=262144, description=_cpu_weight("development"))
+    priority_oom_score_production: int = Field(0, ge=-999, le=1000, description=_oom_score("production"))
+    priority_oom_score_staging: int = Field(300, ge=-999, le=1000, description=_oom_score("staging"))
+    priority_oom_score_development: int = Field(600, ge=-999, le=1000, description=_oom_score("development"))
+    priority_memory_reservation_production: str = Field(
+        "1g", pattern=MEMORY_PATTERN, description=_reservation("production", "Odoo")
+    )
+    priority_db_memory_reservation_production: str = Field(
+        "512m", pattern=MEMORY_PATTERN, description=_reservation("production", "database")
+    )
+    priority_memory_reservation_staging: str = Field(
+        "0", pattern=MEMORY_PATTERN, description=_reservation("staging", "Odoo")
+    )
+    priority_db_memory_reservation_staging: str = Field(
+        "0", pattern=MEMORY_PATTERN, description=_reservation("staging", "database")
+    )
+    priority_memory_reservation_development: str = Field(
+        "0", pattern=MEMORY_PATTERN, description=_reservation("development", "Odoo")
+    )
+    priority_db_memory_reservation_development: str = Field(
+        "0", pattern=MEMORY_PATTERN, description=_reservation("development", "database")
+    )
+    # Default limits of each stage (an admin can override them per instance). 0 everywhere: not set, so no limit
+    # (containers) or Odoo's own default (odoo.conf). Unlimited by default.
+    production_odoo_workers: int = Field(0, ge=0, le=256, description=_limit("production", "workers"))
+    production_odoo_cron_threads: int = Field(0, ge=0, le=64, description=_limit("production", "cron_threads"))
+    production_odoo_limit_memory_soft_mb: int = Field(
+        0, ge=0, le=1048576, description=_limit("production", "memory_soft")
+    )
+    production_odoo_limit_memory_hard_mb: int = Field(
+        0, ge=0, le=1048576, description=_limit("production", "memory_hard")
+    )
+    production_odoo_limit_time_cpu: int = Field(0, ge=0, le=86400, description=_limit("production", "time_cpu"))
+    production_odoo_limit_time_real: int = Field(0, ge=0, le=86400, description=_limit("production", "time_real"))
+    production_odoo_memory_limit: str = Field(
+        "0", pattern=MEMORY_PATTERN, description=_limit("production", "odoo_memory")
+    )
+    production_odoo_cpu_limit: float = Field(0, ge=0, le=1024, description=_limit("production", "odoo_cpu"))
+    production_db_memory_limit: str = Field("0", pattern=MEMORY_PATTERN, description=_limit("production", "db_memory"))
+    production_db_cpu_limit: float = Field(0, ge=0, le=1024, description=_limit("production", "db_cpu"))
+    staging_odoo_workers: int = Field(0, ge=0, le=256, description=_limit("staging", "workers"))
+    staging_odoo_cron_threads: int = Field(0, ge=0, le=64, description=_limit("staging", "cron_threads"))
+    staging_odoo_limit_memory_soft_mb: int = Field(0, ge=0, le=1048576, description=_limit("staging", "memory_soft"))
+    staging_odoo_limit_memory_hard_mb: int = Field(0, ge=0, le=1048576, description=_limit("staging", "memory_hard"))
+    staging_odoo_limit_time_cpu: int = Field(0, ge=0, le=86400, description=_limit("staging", "time_cpu"))
+    staging_odoo_limit_time_real: int = Field(0, ge=0, le=86400, description=_limit("staging", "time_real"))
+    staging_odoo_memory_limit: str = Field("0", pattern=MEMORY_PATTERN, description=_limit("staging", "odoo_memory"))
+    staging_odoo_cpu_limit: float = Field(0, ge=0, le=1024, description=_limit("staging", "odoo_cpu"))
+    staging_db_memory_limit: str = Field("0", pattern=MEMORY_PATTERN, description=_limit("staging", "db_memory"))
+    staging_db_cpu_limit: float = Field(0, ge=0, le=1024, description=_limit("staging", "db_cpu"))
+    development_odoo_workers: int = Field(0, ge=0, le=256, description=_limit("development", "workers"))
+    development_odoo_cron_threads: int = Field(0, ge=0, le=64, description=_limit("development", "cron_threads"))
+    development_odoo_limit_memory_soft_mb: int = Field(
+        0, ge=0, le=1048576, description=_limit("development", "memory_soft")
+    )
+    development_odoo_limit_memory_hard_mb: int = Field(
+        0, ge=0, le=1048576, description=_limit("development", "memory_hard")
+    )
+    development_odoo_limit_time_cpu: int = Field(0, ge=0, le=86400, description=_limit("development", "time_cpu"))
+    development_odoo_limit_time_real: int = Field(0, ge=0, le=86400, description=_limit("development", "time_real"))
+    development_odoo_memory_limit: str = Field(
+        "0", pattern=MEMORY_PATTERN, description=_limit("development", "odoo_memory")
+    )
+    development_odoo_cpu_limit: float = Field(0, ge=0, le=1024, description=_limit("development", "odoo_cpu"))
+    development_db_memory_limit: str = Field(
+        "0", pattern=MEMORY_PATTERN, description=_limit("development", "db_memory")
+    )
+    development_db_cpu_limit: float = Field(0, ge=0, le=1024, description=_limit("development", "db_cpu"))
+
     # ------------------------------------------------------------------ gateway (instances/gateway.py)
     gateway_mode: Literal["service", "embedded"] = Field(
         "service",
@@ -282,6 +399,13 @@ class Settings(BaseSettings):
     )
     domain_http_port: int = Field(80, description="Port the gateway answers custom domains on over http.")
     domain_https_port: int = Field(443, description="Port the gateway answers custom domains on over https.")
+
+    @field_validator(*(f"{stage}_{part}_memory_limit" for stage in STAGES for part in ("odoo", "db")))
+    @classmethod
+    def _container_memory(cls, value: str) -> str:
+        if value != "0" and memory_bytes(value) < MIN_CONTAINER_MEMORY:
+            raise ValueError("is less than 128m: a container needs more to start (0 for no limit)")
+        return value
 
     @field_validator("acme_directory")
     @classmethod
@@ -829,6 +953,27 @@ class Settings(BaseSettings):
 ALERT_SETTINGS = tuple(name for name in Settings.model_fields if name == "alerts" or name.startswith("alert_"))
 """Every alert setting (alerts/); all of them can be changed in the panel."""
 
+RESOURCE_KNOBS = (
+    "odoo_workers",
+    "odoo_cron_threads",
+    "odoo_limit_memory_soft_mb",
+    "odoo_limit_memory_hard_mb",
+    "odoo_limit_time_cpu",
+    "odoo_limit_time_real",
+    "odoo_memory_limit",
+    "odoo_cpu_limit",
+    "db_memory_limit",
+    "db_cpu_limit",
+)
+"""The limits an admin can set per stage (setting <stage>_<knob>) and per instance (instances/resources.py)."""
+
+RESOURCE_SETTINGS = tuple(
+    name
+    for name in Settings.model_fields
+    if name.startswith("priority_") or any(name == f"{stage}_{knob}" for stage in STAGES for knob in RESOURCE_KNOBS)
+)
+"""Priority weights and default limits of each stage (instances/resources.py)."""
+
 OFFSITE_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("offsite_"))
 """Every setting of off-site copies (offsite/); changing them also needs the permission offsite.configure."""
 
@@ -877,10 +1022,7 @@ EDITABLE = (
     "odoo_image",
     "postgres_image",
     "odoo_admin_password",
-    "odoo_memory_limit",
-    "db_memory_limit",
-    "odoo_cpu_limit",
-    "db_cpu_limit",
+    *RESOURCE_SETTINGS,
     "container_pids_limit",
     "container_log_max_size",
     "container_log_max_files",
@@ -938,6 +1080,30 @@ SECRET = (
 _CHANGEABLE = frozenset(EDITABLE + RESTART)
 
 
+_REPLACED_LIMITS = {
+    "odoo_memory_limit": "odoo_memory_limit",
+    "odoo_cpu_limit": "odoo_cpu_limit",
+    "db_memory_limit": "db_memory_limit",
+    "db_cpu_limit": "db_cpu_limit",
+}
+"""Container limits for every instance, before 3.0 (ODOO_MEMORY_LIMIT...) -> the per-stage defaults that replaced
+them (<stage>_odoo_memory_limit...)."""
+
+
+def _migrated(saved: dict[str, Any]) -> dict[str, Any]:
+    """settings.json of an earlier panel: a container limit an admin set in the panel for every instance becomes the
+    default of every stage (unless one is set already). The values of the template .env are not carried over: the
+    limits are off by default since 3.0."""
+    saved = dict(saved)
+    for old, knob in _REPLACED_LIMITS.items():
+        if old not in saved:
+            continue
+        value = saved.pop(old)
+        for stage in STAGES:
+            saved.setdefault(f"{stage}_{knob}", value)
+    return saved
+
+
 class LiveSettings:
     """The current settings: `.env`, with the changes made in the panel on top.
 
@@ -955,7 +1121,7 @@ class LiveSettings:
         self._current = self._env
         self._listeners: list[Callable[[dict[str, Any]], None]] = []
         try:
-            saved = json.loads(self._file.read_text())
+            saved = _migrated(json.loads(self._file.read_text()))
             self._encrypted = {
                 k: v["encrypted"] for k, v in saved.items() if k in SECRET and isinstance(v, dict) and "encrypted" in v
             }

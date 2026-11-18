@@ -8,6 +8,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Resources per instance, production first under load:** instances have no processor or memory limit by
+  default. Each instance's Odoo and database containers carry its stage's weights, which only act when the server is
+  busy: processor weight (`cpu_shares` 4096 production, 2048 staging, 1024 development), a memory reservation for
+  production (1 GB Odoo, 512 MB database: the kernel takes memory back from the others first) and an out-of-memory
+  score (0, 300, 600: development is stopped first, production last; `-1000` is refused). All are settings
+  (`PRIORITY_*`, **Settings, Resources**). Optional limits per stage and per instance, all off by default: Odoo
+  workers and cron workers, `limit_memory_soft`/`_hard`, `limit_time_cpu`/`_real`, and the memory and processors of
+  the Odoo and database containers (`<STAGE>_ODOO_WORKERS`...). The instance's **Settings** tab has a
+  **Resources** section: its priority, usage against limits, the limits with the stage's defaults, warnings (memory
+  reserved beyond the server's, workers too many for the processor or the memory limit; never refused), and
+  **Apply**, a job that rewrites `odoo.conf` and the compose file and restarts Odoo (production: confirmation, a
+  backup first, the previous limits put back if Odoo does not answer). With workers, Odoo's WebSocket port is
+  published on `127.0.0.1` and the gateway sends WebSockets there. New permission `instances.resources`
+  (administrators and super admins). API: `GET`/`PUT /instances/<name>/resources`. The integrity check compares
+  the weights too.
 - **Off-site copies of backups:** backups can be copied to S3-compatible storage (Cloudflare R2, AWS S3, Backblaze
   B2, MinIO), set up by a super admin under **Settings, Backups** (address, region, bucket, folder, access key; the
   secret stored encrypted and never shown again) with **Test connection**. Every backup of a production instance is
@@ -200,6 +215,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Licence:** the panel is now licensed under the Sudoo.sh Licence Agreement 1.0 (LICENSE.md, also at
   https://sudoo.sh/legal/license) instead of the PolyForm Noncommercial License 1.0.0. Use is limited to the plans at
   https://sudoo.sh/pricing; contributions are licensed to the author as described in CONTRIBUTING.md.
+- **No container limits by default:** `ODOO_MEMORY_LIMIT`, `ODOO_CPU_LIMIT`, `DB_MEMORY_LIMIT` and `DB_CPU_LIMIT`
+  (2 GB, 2 cores, 1 GB, 2 cores for every instance) are replaced by the per-stage defaults, all off. A value changed
+  on the Settings page becomes the default of every stage; a value in `.env` is no longer read. Instances get the
+  change at their next start or restart.
 - `MAIL_TEMPLATES_DIR` now replaces only the frame of the e-mails (`layout.html`); the per-e-mail template files
   (`code.html`, `alert.html`, ...) are gone, and their texts are changed on the E-mail templates page instead.
 - **Settings page in tabs:** General, Instances, Odoo, Backups, Sign-in and security, E-mail, GitHub and updates,

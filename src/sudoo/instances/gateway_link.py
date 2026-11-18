@@ -103,6 +103,9 @@ def build_routes(mode: str) -> str:
             continue  # still being created
         switched_off = bool(STATE.get(name).get("switched_off"))
         instances[name] = {"gateway_port": ports[0], "odoo_port": ports[1], "switched_off": switched_off}
+        websocket = gateway.websocket_port(env)
+        if websocket:
+            instances[name]["websocket_port"] = websocket
     return routes_document(mode, edge, values, instances, domain_routes(set(instances)))
 
 

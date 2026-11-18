@@ -11,6 +11,7 @@ An instance lives in INSTANCES_DIR/<name>/:
 Each instance gets three ports on 127.0.0.1, allocated together when it is created:
     GATEWAY_PORT          the gateway listens here; the instance's Cloudflare connector points at it
     ODOO_PORT             Odoo itself, reached only by the gateway
+    ODOO_GEVENT_PORT      (only once the instance runs with workers) Odoo's WebSocket server, reached by the gateway
     CONNECTOR_METRICS_PORT  the connector reports its public address here
 """
 
@@ -188,10 +189,11 @@ def _next_free(start: int, used: set[int]) -> int:
     return port
 
 
-def reserve_ports(extra: dict[str, int]) -> dict[str, int]:
+def reserve_ports(extra: dict[str, int], only: dict[str, int] | None = None) -> dict[str, int]:
     """Reserve ports for a new instance: GATEWAY_PORT, ODOO_PORT and the `extra` ones the exposure plugin needs,
-    given as {.env key: first port}. Returns {.env key: port}."""
-    wanted = {"GATEWAY_PORT": settings.gateway_port_start, "ODOO_PORT": settings.odoo_port_start, **extra}
+    given as {.env key: first port}; or `only` those given (a port an existing instance needs later, such as
+    ODOO_GEVENT_PORT). Returns {.env key: port}."""
+    wanted = only or {"GATEWAY_PORT": settings.gateway_port_start, "ODOO_PORT": settings.odoo_port_start, **extra}
     with _PORT_LOCK:
         used = _used_ports()
         ports: dict[str, int] = {}

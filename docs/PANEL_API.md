@@ -183,6 +183,8 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `GET /instances/<name>` | `instances.view` | | 200, the instance with `disk`, `recent_commits`, `submodules`, `backups`, `restorable_backup` and `recent_jobs` ([below](#instances-jobs-and-actions-in-detail)); also while it is being created (status `creating`) |
 | `GET /instances/<name>/credentials` | `instances.credentials` | | 200, Odoo `login`, `admin_password`, `master_password`, `ports`; written to the audit log |
 | `GET /instances/<name>/logs?lines=300` | `instances.logs` | | 200, `{"text"}`: the end of Odoo's log (1 to 5000 lines) |
+| `GET /instances/<name>/resources` | `instances.view` | | 200, `stage`, `priority` (`rank` 1 production to 3 development, `cpu_weight`, `oom_score_adj`, `memory_reservation`, `db_memory_reservation`), `limits` (what applies), `own` (set for this instance), `stage_defaults`, `odoo_defaults`, `unlimited`, `pending` (the containers run with older values until a restart), `warnings` (each `code`, `text`, `values`; they never refuse anything), `server` (`cores`, `memory_bytes`, `usable_bytes`, `reserved_bytes`) ([Resources and priority](ADMIN_GUIDE.md#resources-and-priority)) |
+| `PUT /instances/<name>/resources` | `instances.resources` | `{"limits": {"odoo_workers": 2, "odoo_memory_limit": "4g"}}`: the instance's own limits, each of `odoo_workers`, `odoo_cron_threads`, `odoo_limit_memory_soft_mb`, `odoo_limit_memory_hard_mb`, `odoo_limit_time_cpu`, `odoo_limit_time_real`, `odoo_memory_limit`, `odoo_cpu_limit`, `db_memory_limit`, `db_cpu_limit` (a missing one or `null` follows the stage); a production instance also `"confirm_production": true` | **202**, the job "Apply resources"; 400 for a value Docker or Odoo cannot use |
 | `POST /instances` | `instances.create` | as below | **202**, the job; `Content-Location` names the new instance |
 | `PATCH /instances/<name>` | `instances.operate`; also `instances.delete` for a `delete_after_days` that ends the lifetime sooner (403 otherwise) | any of `auto_update`, `auto_upgrade`, `auto_pause` (true or false), `delete_after_days` (0 keeps it), `stage` ([Stages](#stages)) | 200, the instance |
 | `POST /instances/<name>/actions/<action>` | depends on the action (below) | `{}`, or the action's fields | **202**, the job |
@@ -1047,6 +1049,7 @@ can check before it creates or starts one. How the figures are made, in plain la
 | `disk` | Free disk, the average size of an instance (database and files) and how many more of that size fit |
 | `by_version` | Per Odoo version, once instances of it were measured: `{"version": "18.0", "instances": 3, "average_bytes", "peak_bytes"}` |
 | `panel` | The panel's own use: now, the highest over the history, and by part |
+| `reservations` | The memory all instances reserve under load (their stage's `PRIORITY_*MEMORY_RESERVATION_*`): `total_bytes` and `by_stage` ([Resources and priority](ADMIN_GUIDE.md#resources-and-priority)) |
 
 The estimate is never a refusal unless `MAX_RUNNING_INSTANCES` is set: then `POST /instances` and the `start` action
 answer 403 with `detail` "This server runs at most 9 instances at once and 9 are running or starting. Pause one

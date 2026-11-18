@@ -99,6 +99,62 @@ more instances run than the estimate. To refuse creating and starting instances 
 The figures cover the last hour and start again when the panel restarts, so right after a restart the panel counts
 the default until it has measured again.
 
+### Resources and priority
+
+**No limits by default.** An instance has no processor or memory cap and Odoo runs with its own defaults
+(threaded mode, no `workers`). It may use the whole server when nothing else needs it.
+
+**Production first under load.** Each instance's Odoo and database containers carry its stage's weights:
+
+| | Production | Staging | Development |
+| :--- | ---: | ---: | ---: |
+| Processor weight (Docker `cpu_shares`; Docker's default is 1024) | 4096 | 2048 | 1024 |
+| Memory reservation, Odoo / database (Docker `mem_reservation`) | 1 GB / 512 MB | none | none |
+| Out-of-memory score (`oom_score_adj`) | 0 | 300 | 600 |
+
+What each one does:
+
+1. **Processor weight.** When the processor is fully busy, the kernel shares it in proportion to the weights: a
+   production instance gets four times the share of a development one, twice that of a staging one. A heavy import
+   on a development branch then slows the development branch, not the client's live system.
+2. **Memory reservation.** A soft limit: when the server runs short of memory, the kernel takes memory back from
+   containers above their reservation first, so production keeps up to its reservation longest. It reserves
+   nothing in advance and caps nothing.
+3. **Out-of-memory score.** When memory runs out completely, the kernel stops the process with the highest score
+   first: development first, then staging, production last. Docker restarts the stopped container. The panel
+   never switches the out-of-memory killer off (`-1000` is refused).
+
+Be honest with yourself about what this does: **the weights only act under contention.** On a quiet server they
+change nothing. They do not make a slow instance faster, they do not stop a production instance from using all the
+memory itself, and they cannot help if the server simply has too little memory: then add memory, pause instances,
+or set limits.
+
+The weights are settings (**Settings**, **Resources**, or `PRIORITY_*` in `.env`, see
+[Configuration](CONFIGURATION.md#resources-and-priority)). An instance gets its stage's weights when it next starts;
+after moving an instance to another stage, its **Settings** tab says when a restart is needed.
+
+**Limits, when you want them.** On **Settings**, **Resources**, each stage has default limits, all off: Odoo
+workers and cron workers, memory per worker (`limit_memory_soft`, `limit_memory_hard`), time per request
+(`limit_time_cpu`, `limit_time_real`), and the processor and memory of the Odoo and database containers. An
+administrator (permission `instances.resources`) can override any of them for one instance on its **Settings** tab,
+**Resources**. The page shows what applies, where it comes from, and warns (without refusing) when:
+
+- the memory reserved by all instances is more than the server has, or than it can spare for instances;
+- the Odoo container's memory limit looks too small for its workers;
+- there are more workers than Odoo suggests for the processor (cores × 2 + 1).
+
+**Apply** writes `odoo.conf` and the compose file and restarts Odoo (its container is recreated when its limits
+change; the data stays). On a production instance it asks for confirmation, takes a backup first, and puts the
+previous limits back if Odoo does not answer with the new ones. A paused instance gets them when it next starts.
+
+**Workers.** With workers, Odoo serves WebSockets (live chat, notifications) on a second port. The panel reserves
+it the first time (`ODOO_GEVENT_PORT` in the instance's `.env`), publishes it on `127.0.0.1` only, and the gateway
+sends WebSocket traffic there. A rule of thumb: one worker for about six people using Odoo at the same time.
+
+**Upgrading from 2.x.** `ODOO_MEMORY_LIMIT`, `ODOO_CPU_LIMIT`, `DB_MEMORY_LIMIT` and `DB_CPU_LIMIT` are no longer
+read, so the 2 GB / 2 cores of the old template no longer cap anything. A value you had changed on the Settings page
+becomes the default of every stage. Instances get the new rules at their next start or restart.
+
 ---
 
 ## 2. Installing
@@ -573,14 +629,11 @@ Each instance's `odoo` and `db` containers run with no extra privileges, read-on
 capabilities as the images need, limits, rotated logs, images pinned by digest, and the database on an internal
 network only. What exactly, and what cannot be protected: [Security](SECURITY.md#10-instance-containers).
 
-**Limits.** Set on the Settings page (**Instances**, **Instance containers**) or in `.env`:
+**Limits.** Processor and memory have no limit by default (see [Resources and priority](#resources-and-priority)).
+The others are set on the Settings page (**Instances**, **Instance containers**) or in `.env`:
 
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
-| `ODOO_MEMORY_LIMIT` | `2g` | Memory of each instance's Odoo; `0` for no limit |
-| `ODOO_CPU_LIMIT` | `2` | Processor cores of each instance's Odoo; `0` for no limit |
-| `DB_MEMORY_LIMIT` | `1g` | Memory of each instance's PostgreSQL; `0` for no limit |
-| `DB_CPU_LIMIT` | `2` | Processor cores of each instance's PostgreSQL; `0` for no limit |
 | `CONTAINER_PIDS_LIMIT` | `1024` | Processes and threads per container |
 | `CONTAINER_LOG_MAX_SIZE`, `CONTAINER_LOG_MAX_FILES` | `10m`, `3` | Log rotation per container |
 

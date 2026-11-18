@@ -23,6 +23,11 @@
                                                      (production: also "confirm_stage": "production");
                                                      "without_backup": true also when the backup fails (needs
                                                      backups.manage too; audit-logged)
+    GET    /api/v1/instances/<name>/resources        priority under load and limits: its own, its stage's
+                                                     defaults, what applies, warnings (resources.py)
+    PUT    /api/v1/instances/<name>/resources        {"limits": {knob: value or null}} sets the instance's own
+                                                     limits (null: the stage's default) and applies them in a job
+                                                     -> 202; production needs "confirm_production": true
     GET    /api/v1/instance-plan?repo=&branch=&name=&version=&edition=
                                                      the name and database a new instance would get
     GET    /api/v1/instance-quota                    how many instances the caller may still create, and when
@@ -57,7 +62,7 @@ from sudoo import addons, exposure, roles
 from sudoo.config import settings
 from sudoo.core import events, jobs, vault
 from sudoo.core.state import STATE
-from sudoo.instances import backups, capacity, metrics, odoo, operations, stages, store
+from sudoo.instances import backups, capacity, metrics, odoo, operations, resources, stages, store
 from sudoo.limits import quotas
 from sudoo.repos import github
 from sudoo.repos.gitrepo import origin_url
@@ -593,6 +598,48 @@ def action(name: str, action: str) -> Response:
 @blueprint.delete("/instances/<name>")
 def delete(name: str) -> Response:
     return run(name, "delete")
+
+
+# ---------------------------------------------------------------- resources
+
+
+@blueprint.get("/instances/<name>/resources")
+@require("instances.view")
+def read_resources(name: str) -> Response:
+    return ok(resources.resource(existing(name)))
+
+
+@blueprint.put("/instances/<name>/resources")
+@require("instances.resources")
+def change_resources(name: str) -> Response:
+    """Set the instance's own limits and apply them (a job): Odoo is restarted, or recreated when its container
+    changes. On production: only when confirmed, after a backup, and put back when Odoo does not answer."""
+    existing(name)
+    data = check.body()
+    raw = data.get("limits")
+    if not isinstance(raw, dict):
+        abort(400, 'Send the limits to set: {"limits": {"odoo_workers": 2, "odoo_memory_limit": "4g"}}.')
+    try:
+        limits = resources.clean(raw)
+    except resources.Invalid as error:
+        abort(400, str(error))
+    if stages.is_production(store.read_env(name)) and check.flag(data, "confirm_production") is not True:
+        abort(
+            400,
+            f"{name} is a production instance: applying resources restarts it. Confirm "
+            '("confirm_production": true).',
+        )
+    previous = resources.overrides(name)
+    resources.save_overrides(name, limits, g.user["name"])
+    job = jobs.start(
+        name, "Apply resources", "restart", operations.apply_resources, name, previous, user=g.user["name"]
+    )
+    log(
+        "instance resources changed",
+        instance=name,
+        detail=", ".join(f"{k}={v}" for k, v in sorted(limits.items())) or "stage defaults",
+    )
+    return _accepted(job)
 
 
 # ---------------------------------------------------------------- jobs

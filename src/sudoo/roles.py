@@ -46,6 +46,7 @@ PERMISSIONS: dict[str, str] = {
     "instances.restore": "Restore an instance from a backup (replaces its database and files)",
     "instances.delete": "Delete instances",
     "instances.credentials": "See Odoo passwords and ports",
+    "instances.resources": "Set an instance's resources: Odoo workers, time and memory limits, container limits",
     "backups.manage": "Download and delete backups; see, check and copy again off-site copies",
     "offsite.configure": "Set up where off-site copies go, and test it",
     "offsite.restore": "Restore an instance from an off-site copy (it is downloaded and verified first)",

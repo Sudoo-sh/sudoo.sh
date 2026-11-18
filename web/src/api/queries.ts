@@ -39,6 +39,7 @@ import type {
   RoleInfo,
   Server,
   Session,
+  InstanceResources,
   Setting,
   Token,
   User,
@@ -51,6 +52,7 @@ export const keys = {
   instances: ["instances"] as const,
   instance: (name: string) => ["instance", name] as const,
   domains: (name: string) => ["domains", name] as const,
+  resources: (name: string) => ["resources", name] as const,
   jobs: (instance?: string) => ["jobs", instance ?? null] as const,
   job: (id: string) => ["job", id] as const,
   jobLog: (id: string) => ["job-log", id] as const,
@@ -86,6 +88,9 @@ export const useInstances = () =>
 
 export const useInstance = (name: string) =>
   useQuery({ queryKey: keys.instance(name), queryFn: () => api.get<Instance>(`/instances/${name}`) });
+
+export const useInstanceResources = (name: string) =>
+  useQuery({ queryKey: keys.resources(name), queryFn: () => api.get<InstanceResources>(`/instances/${name}/resources`) });
 
 export const useJobs = (instance?: string, enabled = true) =>
   useQuery({

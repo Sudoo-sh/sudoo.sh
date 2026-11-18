@@ -10,6 +10,7 @@ export type Permission =
   | "instances.restore"
   | "instances.delete"
   | "instances.credentials"
+  | "instances.resources"
   | "backups.manage"
   | "domains.manage"
   | "github.manage"
@@ -103,6 +104,37 @@ export interface Usage {
   response_ms_p95?: number | null;
   uptime_seconds?: number | null;
   disk_bytes?: number | null;
+}
+
+/** The limits an admin can set per stage and per instance (instances/resources.py); 0 is "not set". */
+export const RESOURCE_KNOBS = [
+  "odoo_workers",
+  "odoo_cron_threads",
+  "odoo_limit_memory_soft_mb",
+  "odoo_limit_memory_hard_mb",
+  "odoo_limit_time_cpu",
+  "odoo_limit_time_real",
+  "odoo_memory_limit",
+  "odoo_cpu_limit",
+  "db_memory_limit",
+  "db_cpu_limit",
+] as const;
+export type ResourceKnob = (typeof RESOURCE_KNOBS)[number];
+export type ResourceLimits = Record<ResourceKnob, number | string>;
+
+/** GET /instances/<name>/resources: priority under load, the limits that apply and where they come from. */
+export interface InstanceResources {
+  stage: Stage;
+  priority: { rank: 1 | 2 | 3; cpu_weight: number; oom_score_adj: number; memory_reservation: string; db_memory_reservation: string };
+  limits: ResourceLimits;
+  own: Partial<ResourceLimits>;
+  stage_defaults: ResourceLimits;
+  odoo_defaults: Partial<Record<ResourceKnob, number>>;
+  unlimited: boolean;
+  /** the containers run with older values until the instance restarts */
+  pending: boolean;
+  warnings: { code: string; text: string; values: Record<string, number> }[];
+  server: { cores: number; memory_bytes: number | null; usable_bytes: number | null; reserved_bytes: number };
 }
 
 /** production: never paused or deleted automatically, backed up every day, updated safely; staging and development:
@@ -207,6 +239,8 @@ export interface Capacity {
   processor: { cores: number; panel_percent: number; per_instance_percent: number | null; instances: number | null };
   disk: { free_bytes: number; instance_average_bytes: number | null; more_instances: number | null };
   by_version: { version: string; instances: number; average_bytes: number; peak_bytes: number }[];
+  /** memory reserved under load by all instances (their stage's mem_reservation), by stage */
+  reservations?: { total_bytes: number; by_stage: Record<Stage, number> };
   panel: {
     cpu_percent: number | null;
     cpu_peak_percent: number | null;

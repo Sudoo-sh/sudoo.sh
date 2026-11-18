@@ -155,7 +155,15 @@ def parse_routes(data: Any) -> Routes:
         if port in ports:
             raise ValueError(f"gateway port {port} given twice")
         ports.add(port)
-        instances[name] = (port, gateway.Route(_port(entry.get("odoo_port")), entry.get("switched_off") is True))
+        websocket = entry.get("websocket_port")  # absent in files of earlier panels, and in threaded mode
+        instances[name] = (
+            port,
+            gateway.Route(
+                _port(entry.get("odoo_port")),
+                entry.get("switched_off") is True,
+                None if websocket is None else _port(websocket),
+            ),
+        )
     return Routes(mode, edge, dict(values), instances, _parse_domains(data.get("domains"), instances, ports))
 
 

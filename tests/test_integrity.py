@@ -98,6 +98,9 @@ def _inspect(service: str, spec: dict[str, Any]) -> dict[str, Any]:
             "PidsLimit": want["pids_limit"],
             "Memory": integrity._memory(want.get("mem_limit")),
             "NanoCpus": int(want.get("cpus", 0) * 1e9),
+            "CpuShares": want.get("cpu_shares", 0),
+            "MemoryReservation": integrity._memory(want.get("mem_reservation")),
+            "OomScoreAdj": want.get("oom_score_adj", 0),
             "RestartPolicy": {"Name": "unless-stopped"},
             "Init": True,
             "Tmpfs": dict.fromkeys(want["tmpfs"], ""),
@@ -211,12 +214,13 @@ def test_plain_odoo_is_rendered_and_checked_the_same() -> None:
 
 
 def test_resource_settings_are_rendered() -> None:
-    live.change({"odoo_memory_limit": "0", "db_cpu_limit": 0, "container_pids_limit": 300})
+    live.change({"development_odoo_memory_limit": "3g", "development_db_cpu_limit": 1, "container_pids_limit": 300})
     spec = _apply()["spec"]
-    assert "mem_limit" not in spec["services"]["odoo"] and "cpus" not in spec["services"]["db"]
+    assert spec["services"]["odoo"]["mem_limit"] == "3g" and spec["services"]["db"]["cpus"] == 1
+    assert "cpus" not in spec["services"]["odoo"] and "mem_limit" not in spec["services"]["db"]
     assert spec["services"]["db"]["pids_limit"] == 300
     with pytest.raises(ValueError):
-        live.change({"odoo_memory_limit": "lots"})
+        live.change({"development_odoo_memory_limit": "lots"})
 
 
 def test_compose_commands_of_a_hardened_instance_ignore_its_env() -> None:
@@ -271,6 +275,9 @@ def test_matching_containers_have_no_findings() -> None:
     [
         (lambda c: c["HostConfig"].update(Memory=8 * 1024**3), "odoo: memory limit"),
         (lambda c: c["HostConfig"].update(Privileged=True), "odoo: privileged"),
+        (lambda c: c["HostConfig"].update(CpuShares=262144), "odoo: processor weight"),
+        (lambda c: c["HostConfig"].update(OomScoreAdj=-1000), "odoo: out-of-memory score"),
+        (lambda c: c["HostConfig"].update(MemoryReservation=1), "odoo: memory reservation"),
         (lambda c: c["HostConfig"].update(CapAdd=["CAP_SYS_ADMIN"]), "odoo: added capabilities"),
         (lambda c: c["HostConfig"].update(ReadonlyRootfs=False), "odoo: read-only system files"),
         (lambda c: c["HostConfig"].update(RestartPolicy={"Name": "always"}), "odoo: restart policy"),
@@ -310,7 +317,7 @@ def test_connectors_are_only_reported() -> None:
 
 def test_settings_changed_since_are_not_drift() -> None:
     kept = _apply()
-    live.change({"odoo_memory_limit": "3g"})
+    live.change({"development_odoo_memory_limit": "3g", "priority_cpu_weight_development": 512})
     assert integrity.findings(NAME, _containers(kept["spec"])) == []
 
 

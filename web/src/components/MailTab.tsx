@@ -44,7 +44,7 @@ export function MailTab({ instance }: { instance: Instance }) {
   }, [data, items, selected, search]);
 
   return (
-    <div className="mail-tab stack">
+    <div className="caught-mail-tab stack">
       {meta && !meta.catcher.running && <Callout tone="warning">{meta.catcher.exists ? t.catcherStopped : t.catcherMissing}</Callout>}
       <div className="card">
         <div className="card-head">
@@ -58,8 +58,8 @@ export function MailTab({ instance }: { instance: Instance }) {
             </Button>
           )}
         </div>
-        <div className="card-body mail-toolbar">
-          <label className="input-group mail-search">
+        <div className="card-body caught-mail-toolbar">
+          <label className="input-group caught-mail-search">
             <Search aria-hidden="true" />
             <input className="input" type="search" value={query} placeholder={t.search} aria-label={t.searchLabel} onChange={(e) => setQuery(e.target.value)} />
           </label>
@@ -70,9 +70,9 @@ export function MailTab({ instance }: { instance: Instance }) {
         ) : items.length === 0 ? (
           <Empty icon={<Inbox />} title={search ? t.noMatch : t.emptyTitle}>{search ? null : t.empty}</Empty>
         ) : (
-          <div className="mail-split" data-open={selected ? "" : undefined}>
-            <div className="mail-list-wrap">
-              <ul className="mail-list" aria-label={t.title}>
+          <div className="caught-mail-split" data-open={selected ? "" : undefined}>
+            <div className="caught-mail-list-wrap">
+              <ul className="caught-mail-list" aria-label={t.title}>
                 {items.map((mail) => (
                   <MailRow key={mail.id} mail={mail} active={mail.id === selected} onOpen={() => setSelected(mail.id)} />
                 ))}
@@ -81,11 +81,11 @@ export function MailTab({ instance }: { instance: Instance }) {
                 <div className="card-body"><Button size="sm" block onClick={() => setLimit(limit + PAGE)}>{t.more}</Button></div>
               )}
             </div>
-            <div className="mail-view">
+            <div className="caught-mail-view">
               {selected ? (
                 <Viewer name={name} id={selected} manage={manage} release={!!meta?.release} onBack={() => setSelected(null)} />
               ) : (
-                <div className="mail-pick"><Mail aria-hidden="true" /><span className="muted small">{t.pick}</span></div>
+                <div className="caught-mail-pick"><Mail aria-hidden="true" /><span className="muted small">{t.pick}</span></div>
               )}
             </div>
           </div>
@@ -101,12 +101,12 @@ function MailRow({ mail, active, onOpen }: { mail: CaughtMail; active: boolean; 
   const recipients = mail.to.length ? mail.to : mail.rcpt_to;
   return (
     <li>
-      <button type="button" className={`mail-row ${active ? "active" : ""}`} aria-current={active || undefined} onClick={onOpen}>
-        <span className="mail-row-top">
-          <bdi className="mail-from truncate">{mail.from || mail.mail_from}</bdi>
+      <button type="button" className={`caught-mail-row ${active ? "active" : ""}`} aria-current={active || undefined} onClick={onOpen}>
+        <span className="caught-mail-row-top">
+          <bdi className="caught-mail-from truncate">{mail.from || mail.mail_from}</bdi>
           <span className="xsmall faint" title={fullDateTime(mail.received_at)}>{ago(mail.received_at)}</span>
         </span>
-        <span className="mail-subject truncate">
+        <span className="caught-mail-subject truncate">
           {mail.attachments > 0 && <Paperclip aria-hidden="true" />}
           <bdi>{mail.subject || t.noSubject}</bdi>
         </span>
@@ -124,14 +124,18 @@ function Viewer({ name, id, manage, release, onBack }: { name: string; id: strin
   const [view, setView] = useState<View>("html");
   const [dialog, setDialog] = useState<null | "delete" | "release">(null);
   useEffect(() => setView("html"), [id]);
+  // on a phone the e-mail replaces the list: start reading at its top
+  useEffect(() => {
+    if (matchMedia("(max-width: 860px)").matches) document.querySelector(".caught-mail-view")?.scrollIntoView({ block: "start" });
+  }, [id]);
   if (!mail) return <div className="card-body stack-sm"><Skeleton height={28} width="70%" /><Skeleton height={240} /></div>;
   const shown: View = view === "html" && !mail.has_html ? "text" : view;
   return (
-    <article className="mail-detail" aria-labelledby="mail-subject">
-      <div className="mail-detail-head">
-        <Button className="mail-back" size="sm" variant="ghost" icon={<ArrowLeft className="flip-rtl" />} onClick={onBack}>{t.back}</Button>
-        <h3 id="mail-subject"><bdi>{mail.subject || t.noSubject}</bdi></h3>
-        <dl className="mail-meta">
+    <article className="caught-mail-detail" aria-labelledby="caught-mail-subject">
+      <div className="caught-mail-detail-head">
+        <Button className="caught-mail-back" size="sm" variant="ghost" icon={<ArrowLeft className="flip-rtl" />} onClick={onBack}>{t.back}</Button>
+        <h3 id="caught-mail-subject"><bdi>{mail.subject || t.noSubject}</bdi></h3>
+        <dl className="caught-mail-meta">
           <div><dt>{t.from}</dt><dd><bdi>{mail.from || mail.mail_from}</bdi></dd></div>
           {mail.to.length > 0 && <div><dt>{t.to}</dt><dd dir="ltr">{mail.to.join(", ")}</dd></div>}
           {mail.cc.length > 0 && <div><dt>{t.cc}</dt><dd dir="ltr">{mail.cc.join(", ")}</dd></div>}
@@ -139,16 +143,16 @@ function Viewer({ name, id, manage, release, onBack }: { name: string; id: strin
           <div><dt>{t.received}</dt><dd>{fullDateTime(mail.received_at)}</dd></div>
           <div><dt>{t.size}</dt><dd>{bytes(mail.size)}</dd></div>
         </dl>
-        <div className="mail-actions">
+        <div className="caught-mail-actions">
           <a className="btn sm" href={`${base(name, id)}/raw`} download><Download aria-hidden="true" /> {t.download}</a>
           {manage && release && <Button size="sm" icon={<Send className="flip-rtl" />} onClick={() => setDialog("release")}>{t.release}</Button>}
           {manage && <Button size="sm" icon={<Trash2 />} onClick={() => setDialog("delete")}>{t.delete}</Button>}
         </div>
       </div>
       {mail.attachment_list.length > 0 && (
-        <div className="mail-attachments" aria-label={t.attachments}>
+        <div className="caught-mail-attachments" aria-label={t.attachments}>
           {mail.attachment_list.map((a) => (
-            <a key={a.index} className="mail-attachment" href={`${base(name, id)}/attachments/${a.index}`} download={a.filename}>
+            <a key={a.index} className="caught-mail-attachment" href={`${base(name, id)}/attachments/${a.index}`} download={a.filename}>
               <Paperclip aria-hidden="true" />
               <bdi className="truncate">{a.filename}</bdi>
               <span className="xsmall faint">{bytes(a.size)}</span>
@@ -165,12 +169,12 @@ function Viewer({ name, id, manage, release, onBack }: { name: string; id: strin
           { value: "headers", label: t.headers },
         ]}
       />
-      <div className="mail-body">
+      <div className="caught-mail-body">
         {shown === "html" && <HtmlBody name={name} mail={mail} />}
-        {shown === "text" && (mail.text ? <pre className="mail-text" dir="auto">{mail.text}</pre> : <p className="muted small">{t.noText}</p>)}
+        {shown === "text" && (mail.text ? <pre className="caught-mail-text" dir="auto">{mail.text}</pre> : <p className="muted small">{t.noText}</p>)}
         {shown === "headers" && (
           <div className="table-wrap">
-            <table className="table compact mail-headers" dir="ltr">
+            <table className="table compact caught-mail-headers" dir="ltr">
               <tbody>
                 {mail.headers.map(([key, value], i) => (
                   <tr key={`${key}${i}`}><th className="mono">{key}</th><td className="mono">{value}</td></tr>
@@ -195,9 +199,9 @@ function HtmlBody({ name, mail }: { name: string; mail: CaughtMailDetail }) {
   return (
     <div className="stack-sm">
       {DEMO ? (
-        <iframe className="mail-frame" title={title} sandbox="" referrerPolicy="no-referrer" srcDoc={mail.html ?? ""} />
+        <iframe className="caught-mail-frame" title={title} sandbox="" referrerPolicy="no-referrer" srcDoc={mail.html ?? ""} />
       ) : (
-        <iframe className="mail-frame" title={title} sandbox="" referrerPolicy="no-referrer" src={`${base(name, mail.id)}/html`} />
+        <iframe className="caught-mail-frame" title={title} sandbox="" referrerPolicy="no-referrer" src={`${base(name, mail.id)}/html`} />
       )}
       <span className="xsmall faint">{t.blocked}</span>
     </div>

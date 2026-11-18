@@ -35,6 +35,7 @@ Every endpoint needs a **permission** (for example `instances.create`). A person
 9. [Metrics](#9-metrics)
 10. [Signing in from a web app](#10-signing-in-from-a-web-app)
 11. [Limits](#11-limits)
+12. [Web shell](#12-web-shell)
 
 ---
 
@@ -1145,3 +1146,44 @@ With [`X-Sudoo-Acting-For`](#acting-for-someone) the caller is `api:<token name>
 `next_creation_at` (Unix time) is set while the caller has to wait. A creation that breaks a limit is refused with
 403 (a number is reached) or 429 with `Retry-After` (wait). Creations that are queued or running count as instances
 (of whoever started them), in `instances` and `own_instances` too, so creations started together cannot pass a limit.
+
+---
+
+## 12. Web shell
+
+The Shell tab of the web app ([User manual](USER_MANUAL.md#the-shell-tab)) uses these calls. They are for a person
+signed in to the panel: **no API token can obtain a ticket**, whatever its scope (403).
+
+| Method and path | Permission | Body | Answer |
+| :--- | :--- | :--- | :--- |
+| `GET /instances/<name>/shell` | `instances.view` | | What the caller may open here, and why not: `{"enabled", "production", "running", "status", "targets": {"shell" \| "odoo-shell" \| "psql": {"allowed": true, "user", "recorded"} or {"allowed": false, "code", "reason"}}, "root": {...}, "limits": {"idle_minutes", "max_minutes", "per_user", "per_instance"}, "open", "open_mine"}` |
+| `POST /instances/<name>/shell/tickets` | `instances.shell` (`psql`: `instances.database_shell`) | `{"target": "shell", "as_root": false, "confirm_production": false}` | **201** `{"ticket", "expires_in", "socket", "protocol": "sudoo.shell.v1", "target", "container", "container_user", "root", "production", "recorded"}` |
+| `GET /instances/<name>/shell/socket` | the ticket | WebSocket, see below | 101 Switching Protocols |
+| `GET /shells?instance=<name>` | `shells.supervise` | | Open shells, then past ones (newest first): `id`, `instance`, `target`, `container_user`, `root`, `production`, `user`, `ip`, `started_at`, `ended_at`, `duration_seconds`, `reason`, `recorded`, `recording` (can be played), `open` |
+| `DELETE /shells/<id>` | `shells.supervise` | | **204**; the shell closes with reason `ended` |
+| `GET /shells/<id>/recording` | `shells.supervise` | | `{"session", "header", "events"}`: an [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/) recording, `events` as `[seconds, "o" \| "i" \| "r" \| "m", text]` (output, input, new size `COLSxROWS`, note). Audit-logged. |
+
+Refusals of a ticket: 400 (unknown target; production not confirmed: `"confirm_production": true` is needed every
+time; `as_root` for another target than `shell`), 403 (shells off, no permission, an API token, production or root
+rules), 404 (no such instance), 409 (the instance is not running), 429 (the person or the instance has as many
+shells as allowed, counting tickets not used yet; or five tickets are waiting).
+
+**The socket.** Open `wss://<panel>/api/v1/instances/<name>/shell/socket?cols=120&rows=32` from the panel's page
+(the `Origin` header must be the panel's address) within `expires_in` seconds, offering two subprotocols:
+`sudoo.shell.v1` and `ticket.<ticket>`. The panel session cookie must be the one the ticket was issued to. Before
+the upgrade, a refusal is a plain HTTP answer: 400 (subprotocols missing), 401 (ticket unknown, used or expired; or
+no session), 403 (wrong origin, another session or instance, rules), 409 (container not running or not the
+panel's), 429 (limits). A ticket works once, refused or not.
+
+| Direction | Frame | Meaning |
+| :--- | :--- | :--- |
+| browser to panel | binary | What is typed, as bytes (at most 64 KB per message) |
+| browser to panel | text | `{"type": "resize", "cols": 120, "rows": 32}` |
+| panel to browser | binary | What the terminal shows |
+| panel to browser | text | `{"type": "ready", "session", "instance", "target", "container", "container_user", "user", "root", "production", "recorded", "idle_seconds", "max_seconds", "started"}` |
+| panel to browser | text | `{"type": "notice", "code": "idle" \| "ending", "seconds": 60}`: the shell closes soon |
+| panel to browser | text | `{"type": "closed", "reason", "detail"}`, then the socket closes (1000 when the process ended or the browser closed, 4000 otherwise) |
+
+Reasons: `exit` (the program ended), `closed` (the browser closed), `idle`, `max-length`, `not-allowed` (session
+ended or rules changed; checked every 15 seconds), `ended` (by a super admin), `stopping` (the panel stopped),
+`recording-full`, `error`. Whatever the reason, every process of the shell is then ended.

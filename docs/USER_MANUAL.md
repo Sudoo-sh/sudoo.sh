@@ -237,6 +237,7 @@ wait: one job per instance at a time.
 | **Domains** | The instance's own domains, such as `erp.client.com`: their state, the DNS record to create, the certificate and its expiry ([Custom domains](#custom-domains)). Everyone sees them; administrators add and remove them. |
 | **Settings** | The stage ([Stages](#stages-production-staging-and-development)), the automation switches and the lifetime ([section 5](#5-keeping-the-code-up-to-date)). Changes are saved at once. |
 | **Access** | The Odoo sign-in: address, login, password, and the master password (for Odoo's database manager). Click **Show the passwords**; each viewing is recorded in the audit log. |
+| **Shell** | A terminal in the browser, inside the instance's own containers: a command line in the Odoo container, `odoo shell`, or `psql` on its database ([The Shell tab](#the-shell-tab)). Only for the roles allowed to. |
 
 ### The Backups card
 
@@ -321,6 +322,51 @@ link (shown as **Default address**) keeps working too. To make another domain pr
 choose **Make primary**; **Remove** in the same menu removes a domain and deletes its certificate.
 
 ---
+
+### The Shell tab
+
+The **Shell** tab opens a terminal in your browser, connected to one of the instance's own containers, like the
+shell of Odoo.sh. It is for people who know the command line: what you type runs at once, on the instance itself.
+
+1. Choose what to open:
+   - **Terminal**: a command line (bash) in the instance's Odoo container, as its own user `odoo`, in the folder of
+     the instance's add-ons (`/mnt/extra-addons`, read-only). `odoo --version`, `ls`, `python3` and the like work.
+   - **odoo shell**: Odoo's Python shell, already connected to the instance's database (`env`, `self`).
+   - **psql**: SQL on the instance's database, in its database container. Only super admins and administrators
+     see it.
+   - **As root** (super admins, only when an administrator switched root shells on): the terminal runs as root
+     inside the container. The container keeps its limits: root there is not root on the server.
+2. Click **Open shell**. On a **production** instance, the panel asks you to confirm every time.
+3. The bar above the terminal says **Connected to** *instance* **as** *user*. **Recorded** means that what you type
+   and see is recorded and super admins can play it back (by default: production instances and root shells).
+
+Using it:
+
+| What | How |
+| :--- | :--- |
+| Copy | Select text, then the **Copy** button, Ctrl+Shift+C, or ⌘C on a Mac. Ctrl+C stays an interrupt for the program running. |
+| Paste | The **Paste** button, Ctrl+Shift+V, or ⌘V on a Mac. |
+| Clear the screen | The eraser button (or `clear`). |
+| Full screen | The full-screen button; Esc leaves it. |
+| Close | `exit`, or the **×** button. Leaving the page closes the shell too. |
+| Reconnect | After a shell closed: **Reconnect** opens a new one (the old one's programs were ended). |
+
+A shell closes by itself after a while without typing (15 minutes by default; a notice comes a minute before), and
+after its longest time (60 minutes by default). When it closes, **every program started in it ends**, also those
+started in the background: use the panel's own buttons (or a job) for long work, not a shell. How many shells one
+person and one instance may have open at once is limited too (2 and 3 by default).
+
+Good to know:
+
+- The instance must be running: start it first.
+- A shell reaches only that instance's containers, never the server or the panel.
+- Every shell is in the audit log: who opened it, where, for how long, and why it closed.
+- The terminal always reads left to right, also when the panel is in Arabic.
+- On a phone the panel suggests using a computer; **Open anyway** opens the terminal to read it.
+
+Super admins also see **Shells in this instance** under the terminal: who opened one, when, for how long and how it
+ended. **End** closes a shell someone has open; **Play** shows a recording, and **Download (.cast)** saves it in the
+asciinema format.
 
 ## 4. Creating an instance
 
@@ -594,8 +640,17 @@ Every account has one role. The role decides which pages, buttons and menu items
 | Create, change and delete super admins | yes | no | no | no | no |
 | Settings, restart the panel | yes | no | no | no | no |
 | E-mail templates (the texts of the e-mails the panel sends) | yes | no | no | no | no |
+| Shell tab: a terminal in the Odoo container, `odoo shell` ([The Shell tab](#the-shell-tab)) | yes | yes | if allowed | if allowed | no |
+| Shell tab: `psql` in the database container | yes | yes | no | no | no |
+| Shells in production instances; root shells (when switched on) | yes | if allowed | if allowed | if allowed | no |
+| See open and past shells, end them, play recordings | yes | no | no | no | no |
 
-API tokens act with a role too: a **write** token as an Administrator, a **read** token as a Viewer.
+"If allowed": a super admin decides on the Settings page (**Sign-in and security, Web shell**) whether maintainers, or
+maintainers and developers, may open shells too, and whether shells in production instances are for super admins
+only (the default), for everyone allowed elsewhere, or for nobody. Root shells are always for super admins only.
+
+API tokens act with a role too: a **write** token as an Administrator, a **read** token as a Viewer. No API token can
+open a shell.
 
 When you try something your role does not allow, the panel says which permission is missing. Ask an administrator.
 

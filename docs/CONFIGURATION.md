@@ -49,8 +49,9 @@ reset with **Use .env**.
 12. [Behaviour](#behaviour)
 13. [Off-site copies](#off-site-copies)
 14. [Alerts](#alerts)
-15. [Marketplace](#marketplace)
-16. [Locations](#locations)
+15. [Web shell](#web-shell)
+16. [Marketplace](#marketplace)
+17. [Locations](#locations)
 
 ---
 
@@ -420,6 +421,30 @@ with **Send a test alert** for the e-mail and each webhook.
 | `ALERT_WEBHOOK_3_URL` | text | empty | **live** | Webhook 3: as webhook 1. Secret. |
 | `ALERT_WEBHOOK_3_SECRET` | text | empty | **live** | Webhook 3: as webhook 1. Secret. |
 | `ALERT_WEBHOOK_3_FORMAT` | text | `json` | **live** | Webhook 3: as webhook 1. |
+
+---
+
+## Web shell
+
+A terminal in the browser inside an instance's containers (the Shell tab). Settings page, **Sign-in and security**,
+groups **Web shell** and **Shell recordings**. How it works and is protected: [Admin guide, Web shell](ADMIN_GUIDE.md#21-web-shell),
+[Security, Web shell](SECURITY.md#15-web-shell).
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `SHELL_ENABLED` | bool | `true` | **live** | Shells can be opened (by the roles allowed). `false`: nobody can, the Shell tab disappears, and open shells close within 15 seconds. |
+| `SHELL_ROLES` | text | `admins` | **live** | Who may open the Odoo container's terminal and `odoo shell`: `admins` (super admins and administrators), `maintainers` (and maintainers), `developers` (and maintainers and developers). Viewers never can; `psql` stays with super admins and administrators. |
+| `SHELL_PRODUCTION` | text | `super_admins` | **live** | Shells in production instances: `off` (nobody), `super_admins`, or `allowed` (whoever may open shells in other instances). Every production shell is confirmed when it is opened. |
+| `SHELL_ROOT` | bool | `false` | **live** | Super admins may open the Odoo container's terminal as root (the container's capabilities stay dropped). |
+| `SHELL_IDLE_MINUTES` | float | `15` | **live** | A shell nobody types in for this long closes (1 to 1440). |
+| `SHELL_MAX_MINUTES` | float | `60` | **live** | Longest a shell stays open (1 to 1440). |
+| `SHELL_MAX_PER_USER` | int | `2` | **live** | Shells one person may have open at once (1 to 20). |
+| `SHELL_MAX_PER_INSTANCE` | int | `3` | **live** | Shells open in one instance at once (1 to 50). |
+| `SHELL_TICKET_SECONDS` | int | `15` | **live** | Seconds the one-time ticket that connects a new shell stays valid (5 to 60). |
+| `SHELL_RECORDING` | text | `production` | **live** | Record what is typed and shown: `off`, `production` (production instances and root shells) or `all`. Encrypted; only super admins play recordings. |
+| `SHELL_RECORDING_DAYS` | int | `30` | **live** | Days recordings and the list of past shells are kept (1 to 3650). |
+| `SHELL_RECORDING_MAX_MB` | float | `5` | **live** | Largest recording of one shell, in MB (0.1 to 50); beyond it only typing is recorded, and the shell closes when typing alone reaches the size again. |
+| `SHELL_RECORDINGS_TOTAL_MB` | int | `500` | **live** | Space all recordings may take together, in MB (10 to 100000); the oldest are deleted first. |
 
 ---
 

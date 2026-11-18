@@ -302,7 +302,9 @@ def test_values_and_typed_html_are_escaped(admin: tuple[FlaskClient, dict[str, s
     saved = client.put("/api/v1/mail-templates/sign_in_code",
                        json={"subject": "Code {{ code }}", "title": "T", "body": body}, headers=headers)  # fmt: skip
     assert saved.status_code == 200
-    sent = compose("sign_in_code", {"name": '<img src=x onerror="alert(1)">', "code": "1", "panel_link": "javascript:x"})
+    sent = compose(
+        "sign_in_code", {"name": '<img src=x onerror="alert(1)">', "code": "1", "panel_link": "javascript:x"}
+    )
     assert "<img" not in sent.html and "&lt;img" in sent.html and "javascript:" not in sent.html
     bad = client.post("/api/v1/mail-templates/sign_in_code/preview", json={"body": "{{ nope }}"}, headers=headers)
     assert bad.status_code == 200 and bad.get_json()["data"]["problems"] and bad.get_json()["data"]["html"] is None

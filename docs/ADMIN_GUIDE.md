@@ -1475,8 +1475,17 @@ when it is deleted its name is released. A name Sudoo.sh could not release at on
 The plan sets how many names the account may hold; a lower limit after a change of plan removes none, it only refuses
 new ones. **Settings, Custom domains, Managed subdomains** shows whether Sudoo.sh offers them, the end of the names,
 the company label, how many are used and the addresses sent, with **Check now**. `MANAGED_SUBDOMAINS` turns them off
-on this panel ([Configuration](CONFIGURATION.md#custom-domains)). Instances on other servers of a panel with several
-servers do not get one yet.
+on this panel ([Configuration](CONFIGURATION.md#custom-domains)).
+
+With several servers ([Servers](#27-servers)), instances on the other servers get their names too. Only the main panel
+talks to Sudoo.sh, for every server: it asks for the name with the public addresses of the server the instance runs
+on (each agent reports its own, from that server's `PUBLIC_IPV4` / `PUBLIC_IPV6` or the address it sends from), and
+Sudoo.sh points the DNS records there. No server ever holds a DNS token. The panel tells each agent the names its
+server serves: that server's gateway answers them on its ports 80 and 443, and its agent gets and renews their
+certificates (ACME, HTTP-01) on that server. When an instance moves, its name stays the same: it is pointed at the new
+server, its certificate goes with it (so it is served at once, without asking for a new one), and the old server stops
+serving it. When a server's addresses change, the names of its instances follow at the next check. An instance whose
+server reported no public address gets no name until it does (the state says so).
 
 ---
 
@@ -2184,11 +2193,13 @@ asks again). The move is a job:
 3. the backup is copied to the other server through the panel and checked (size and SHA-256);
 4. the instance is created there from the backup: same name, stage, project, branch, version, database and admin
    password; the data is not neutralised;
-5. it is deleted on its old server (which keeps the deletion backup).
+5. its managed name (if it has one, [Managed subdomains](#managed-subdomains)) is pointed at the new server, with its
+   certificate, and it is deleted on its old server (which keeps the deletion backup).
 
 The downtime lasts about as long as a backup, the copy and a restore of that instance. When a step fails, the move is
-rolled back: what was made on the target is removed and the instance starts again where it was. Its public address
-changes; add its custom domains again on the new server and point their DNS at it. Limits: `MOVE_MAX_BACKUP_GB`,
+rolled back: what was made on the target is removed and the instance starts again where it was. Its managed name stays
+its address; an address given by the exposure (a tunnel link or a port of the server) changes with the server. Add its
+custom domains again on the new server and point their DNS at it. Limits: `MOVE_MAX_BACKUP_GB`,
 `MOVE_AT_ONCE`, `MOVE_CHUNK_MB` ([Configuration](CONFIGURATION.md#servers)).
 
 ### When the main panel is down

@@ -34,7 +34,10 @@ In a server's agent (premium/agent.py, premium/servers.py)
     (`build_for_agent` there, `install_for_agent` here). Each is checked as above, except that its binding must name
     the main panel (its installation id and hardware fingerprint, recorded in <ODOO_ROOT>/agent/premium.json when the
     agent joined) instead of this server, and that the panel, not the plan, decides what runs: the panel renews the
-    bindings and sends them along (`update_agent_binding`).
+    bindings and sends them along (`update_agent_binding`). Over its signed channel the joined panel states its
+    identity (`confirm_agent_identity`): a package bound to any other panel does not load. Bindings are checked
+    against this server's clock, never earlier than the latest time the panel signed (`agent_time_seen`): setting
+    the clock back does not keep an ended binding running.
 """
 
 from __future__ import annotations
@@ -188,6 +191,37 @@ def agent_identity() -> dict[str, Any]:
     return found if isinstance(found, dict) else {}
 
 
+def _write_agent_identity(changes: dict[str, Any]) -> None:
+    from sudoo.core import vault
+
+    agent_identity_file().parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    vault.write_private(agent_identity_file(), json.dumps({**agent_identity(), **changes}))
+
+
+def confirm_agent_identity(installation: str, hardware_fingerprint: str) -> bool:
+    """In an agent: the identity the joined panel stated over its signed channel. False (and recorded, so no package
+    loads) when the packages here are bound to another panel."""
+    found = agent_identity()
+    stated = [str(installation), str(hardware_fingerprint)]
+    if not found.get("server_id") or not all(stated):
+        return True
+    if found.get("stated") != stated:
+        _write_agent_identity({"stated": stated})
+    return [str(found.get("server_id")), str(found.get("hardware_fingerprint"))] == stated
+
+
+def agent_time_seen(at: Any) -> None:
+    """In an agent: a time the panel signed (its welcome, its pushes). Bindings are never checked against a clock
+    earlier than the latest one (a clock set back does not keep an ended binding running)."""
+    try:
+        value = float(at)
+    except (TypeError, ValueError):
+        return
+    found = agent_identity()
+    if found.get("server_id") and value > float(found.get("clock_floor") or 0):
+        _write_agent_identity({"clock_floor": value})
+
+
 def _expected_identity() -> tuple[str, str] | None:
     """(installation id, hardware fingerprint) a binding must name here: this panel's, or in an agent its panel's."""
     if not _agent():
@@ -214,6 +248,9 @@ def binding_problem(rec: dict[str, Any], now: float | None = None) -> str | None
     expected = _expected_identity()
     if expected is None:
         return "this server's agent has not joined a panel"
+    stated = agent_identity().get("stated") if _agent() else None
+    if stated and list(stated) != [binding["server_id"], binding["hardware_fingerprint"]]:
+        return "it is bound to another panel than the one this server joined"
     if binding["server_id"] != expected[0]:
         return "it was installed for another server"
     if binding["hardware_fingerprint"] != expected[1]:
@@ -226,8 +263,11 @@ def binding_problem(rec: dict[str, Any], now: float | None = None) -> str | None
 
 
 def _now() -> float:
-    """The time bindings are checked against: the hub's trusted time in the panel, the clock in an agent."""
-    return time.time() if _agent() else marketplace.trusted_now()
+    """The time bindings are checked against: the hub's trusted time in the panel; in an agent its clock, never
+    earlier than the latest time the panel signed (agent_time_seen)."""
+    if _agent():
+        return max(time.time(), float(agent_identity().get("clock_floor") or 0))
+    return marketplace.trusted_now()
 
 
 def signature_problem(rec: dict[str, Any]) -> str | None:

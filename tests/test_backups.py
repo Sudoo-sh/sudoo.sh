@@ -710,3 +710,27 @@ def test_filestore_files_are_copied_into_the_backup_piece_by_piece(monkeypatch: 
             assert json.loads(archive.read("manifest.json"))["db_name"] == "streamed"
     finally:
         target.unlink()
+
+
+def test_the_database_is_ready_only_once_it_listens_on_tcp(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A new database volume: the image's temporary server (socket only) answers first, then stops; restoring into it
+    then fails. Ready means the real server, which also listens on TCP."""
+    from sudoo.instances import odoo
+
+    asked: list[list[str]] = []
+
+    def fake(command: list[str], *args: Any, **kwargs: Any) -> bool:
+        asked.append(command)
+        return len(asked) > 1
+
+    monkeypatch.setattr(odoo, "succeeds", fake)
+    monkeypatch.setattr(odoo.time, "sleep", lambda seconds: None)
+    assert odoo.wait_for_database("shop", timeout=30)
+    assert len(asked) == 2
+    assert "pg_isready" in asked[0] and "-h" in asked[0] and asked[0][asked[0].index("-h") + 1] == "127.0.0.1"
+
+
+def test_a_moved_instance_keeps_the_id_the_panel_planned_never_a_manifests() -> None:
+    assert operations.planned_instance_id({"instance_id": "a" * 32, "moved": True}) == "a" * 32
+    assert operations.planned_instance_id({"moved": True, "from_backup": "x"}) is None  # a new one, not the manifest's
+    assert operations.planned_instance_id({"instance_id": "../etc"}) is None

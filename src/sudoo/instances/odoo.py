@@ -321,10 +321,13 @@ def databases(name: str) -> list[str]:
 
 
 def wait_for_database(name: str, timeout: float = 30) -> bool:
-    """Wait until the instance's PostgreSQL accepts connections."""
+    """Wait until the instance's PostgreSQL accepts connections. Asked over TCP inside the container: on a new
+    database volume the image first runs a temporary server on the socket only (to initialise it), which answers and
+    then stops; the real one is the one that also listens on TCP."""
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if succeeds(["docker", "exec", store.container(name, "db"), "pg_isready", "-q", "-U", "odoo"]):
+        if succeeds(["docker", "exec", store.container(name, "db"), "pg_isready", "-q", "-h", "127.0.0.1", "-U",
+                     "odoo"]):  # fmt: skip
             return True
         time.sleep(1)
     return False

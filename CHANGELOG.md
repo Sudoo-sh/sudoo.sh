@@ -31,6 +31,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `MANAGED_SUBDOMAINS_CHECK_MINUTES`; API `GET /api/v1/server/managed-subdomains`,
   `POST /api/v1/server/managed-subdomains/sync`, and `managed_name` on every instance. Requests for premium packages
   and managed names no longer wait for the account's daily API quota.
+- **Managed subdomains for instances on other servers:** with several servers, instances on the other servers get
+  their managed name too. Only the main panel asks Sudoo.sh for names, for every server: for an instance of another
+  server it sends that server's public addresses (`ipv4`, `ipv6` in the request), which its agent reports from its own
+  `PUBLIC_IPV4` / `PUBLIC_IPV6` (no longer taken from the main panel), and Sudoo.sh points the name there. Agents
+  never talk to the hub and no server holds a DNS token. The panel tells each agent the names its server serves;
+  that server's gateway answers them on ports 80 and 443 and its agent gets and renews their certificates (ACME,
+  HTTP-01). A name follows its instance: a move points it at the new server with its certificate (served there at
+  once) and the old server stops serving it, a branch or stage change gives the new name, a deletion releases it,
+  and a change of a server's addresses moves its names. A name is never released while its instance is being moved.
+  `GET /api/v1/server/managed-subdomains` has `other_servers`.
 
 - **A project's backups:** a project's page has a **Backups** tab with the backups of all its branches, grouped by
   branch with its stage, newest first, each with **Download**, **Restore** (into the instance it was taken from) and
@@ -483,6 +493,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Restoring into a new instance right after its database starts:** on a new database volume, PostgreSQL's image
+  first runs a temporary server that answers on its socket and then stops, so loading a backup into a new instance
+  (an instance made from a backup, a move to another server) could fail with "No such file or directory" at random.
+  The panel now waits until the database answers over TCP inside its container (the real server).
+- **Several servers:** a move that fails and is rolled back says so in the job's error ("runs on <server> again")
+  instead of the general hint; `GET /api/v1/backups?instance=<name>` lists the backups of an instance of another
+  server from that server.
 - **Web app dependencies:** `minimatch`, used only by the shadcn command line tool, is held at 11.0.1 or later
   (GHSA-g3hv-75wg-m249, a denial of service through crafted patterns).
 
@@ -523,6 +540,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Security
 
+- **Several servers:** a backup of an instance on another server is deleted, downloaded or restored (also into
+  another instance) only by those who may manage backups in that instance's project and branch, as on one server;
+  the panel checks it before passing the request on, and the other server refuses a backup of a project's instance
+  the panel did not check. An instance moved to another server keeps the identity the panel has on record for it
+  (its `INSTANCE_ID` and project), never what a backup's manifest or the other server says; the panel names it when
+  it plans the instance. Another server gets GitHub App tokens only for the repositories of the instances the panel
+  itself placed or moved there. A server's agent loads only premium packages bound to the panel it joined, as that
+  panel states over its signed channel, and checks bindings against its clock but never earlier than the latest time
+  the panel signed.
 - **Project and branch access:** creating or rebuilding a staging instance from production needs the right to
   restore production's instance, so a restricted production branch keeps its data from people it does not name; a
   push rebuilds staging from production only when everyone who may open the staging instance may also do so in

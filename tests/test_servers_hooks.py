@@ -170,6 +170,11 @@ def _panel_runs_servers() -> None:
     assert loader.activate() == {"servers"}
 
 
+def rec_binding_end(rec: dict[str, Any]) -> float:
+    key = keys.trusted(role=keys.BINDING)[rec["binding_key_id"]]
+    return float(crypto.read_binding(rec["binding"], rec["binding_signature"], key)["exp"])
+
+
 def test_an_agent_gets_the_panels_packages_bound_to_that_panel(hub: FakeHub, tmp_path: Path) -> None:
     _panel_runs_servers()
     package, headers = loader.build_for_agent("servers", "cp315", "aarch64-linux-musl")
@@ -195,6 +200,24 @@ def test_an_agent_gets_the_panels_packages_bound_to_that_panel(hub: FakeHub, tmp
         assert loader.agent_identity() == {"server_id": panel_id, "hardware_fingerprint": panel_fingerprint}
         loader.LOADED = None
         assert loader.activate() == {"servers"}  # the panel decides, not a plan of the agent's own
+        # the joined panel states its identity over its signed channel: the same one, then another one
+        assert loader.confirm_agent_identity(panel_id, panel_fingerprint) and loader.binding_problem(rec) is None
+        assert not loader.confirm_agent_identity("other", "e" * 64)
+        assert loader.binding_problem(rec) == "it is bound to another panel than the one this server joined"
+        assert loader.confirm_agent_identity(panel_id, panel_fingerprint) and loader.binding_problem(rec) is None
+        # a clock set back does not keep an ended binding running: never earlier than the panel's latest signed time
+        import time
+
+        ends = rec_binding_end(rec)
+        loader.agent_time_seen(ends + 60)
+        assert loader.binding_problem(rec) is not None and "ended" in str(loader.binding_problem(rec))
+        loader.agent_time_seen("not a time")
+        loader.agent_time_seen(time.time())  # never moves back
+        assert "ended" in str(loader.binding_problem(rec))
+        identity = loader.agent_identity()
+        identity.pop("clock_floor")
+        loader.agent_identity_file().write_text(json.dumps(identity))
+        assert loader.binding_problem(rec) is None
         # bound to another panel: refused
         loader.agent_identity_file().write_text(json.dumps({"server_id": "other", "hardware_fingerprint": "f" * 64}))
         assert loader.binding_problem(rec) == "it was installed for another server"

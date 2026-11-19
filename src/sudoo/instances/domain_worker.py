@@ -285,8 +285,8 @@ def due(record: dict[str, Any], now: float) -> bool:
     if record.get("managed"):
         from sudoo.instances import managed_names
 
-        if not managed_names.on():
-            return False
+        if not managed_names.on() or managed_names.server_of(record) != managed_names.MAIN:
+            return False  # off, or another server's name (its agent gets and renews the certificate)
     elif not enabled() or (record.get("tls") == tls_mode() and is_new(record) and _dns() is None):
         return False
     if status == "active":

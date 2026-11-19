@@ -5,6 +5,7 @@ Each function is one straight sequence of steps; a failing step raises JobError 
 
 from __future__ import annotations
 
+import re
 import secrets
 import shutil
 import time
@@ -160,6 +161,16 @@ def create(job: Job, plan: dict[str, Any]) -> None:
     managed_names.wake()  # its managed name (every plan): asked for now
 
 
+INSTANCE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
+def planned_instance_id(plan: dict[str, Any]) -> str | None:
+    """The INSTANCE_ID the panel planned for the instance (a move: the one the panel has on record for it), or None
+    for a new one. Never taken from a backup: its manifest comes from wherever the backup was made."""
+    found = str(plan.get("instance_id") or "")
+    return found if INSTANCE_ID_RE.match(found) else None
+
+
 def _create(job: Job, plan: dict[str, Any]) -> None:
     name, db, version = plan["name"], plan["db_name"], plan["version"]
     enterprise = plan["edition"] == "enterprise"
@@ -220,9 +231,9 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
             "DELETE_AFTER_DAYS": plan["delete_after_days"],  # 0: keep until deleted by hand
             "CREATED_AT": int(time.time()),
             "CREATED_BY": plan.get("created_by", ""),
-            # tells this instance's backups from those of an earlier one; a moved instance keeps its own
-            "INSTANCE_ID": (plan.get("moved") and source and backups.instance_id(source["file"]))
-            or secrets.token_hex(16),
+            # tells this instance's backups from those of an earlier one; a moved instance keeps its own, as the
+            # panel recorded it (the plan), never the one a backup's manifest says
+            "INSTANCE_ID": planned_instance_id(plan) or secrets.token_hex(16),
             "ENTERPRISE_FOLDER": str(enterprise_folder or ""),
             "STAGE": plan.get("stage") or stages.DEFAULT,
             **({"PROJECT": plan["project"]} if plan.get("project") else {}),  # projects/: its repository's project

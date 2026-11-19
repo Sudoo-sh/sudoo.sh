@@ -12,6 +12,8 @@ calls it at these points:
     creating                    choose(requested, project), start_remote(server_id, plan, user),
                                 start_planned(plan, user, server_id)
     automatic updates           request_update(name, reason) (an instance of another server)
+    managed names               addresses(server_id), serve_names(server_id, certificates), certificate(server_id,
+                                domain) (instances/managed_names.py: names of instances of other servers)
     the web app                 install(app) (requests about another server's instances go to its agent; live
                                 events of servers), add_routes(aiohttp app) (the agents' channels)
 
@@ -216,6 +218,43 @@ def request_update(name: str, reason: str) -> None:
     found = provider()
     if found is not None:
         found.request_update(name, reason)
+
+
+# ---------------------------------------------------------------- managed names of other servers
+
+
+def addresses(server_id: str = MAIN) -> dict[str, str]:
+    """{"public_ipv4", "public_ipv6"} of a server, the global ones only: this server's own (hub/marketplace.py), or
+    what another server's agent reported ({} while it reported none, or without the package)."""
+    if server_id == MAIN:
+        from sudoo.hub import marketplace
+
+        return marketplace.public_addresses()
+    found = provider()
+    hook = getattr(found, "addresses", None)
+    return dict(hook(server_id) or {}) if hook is not None else {}
+
+
+def serve_names(server_id: str, certificates: Mapping[str, str] | None = None) -> None:
+    """Tell another server's agent now which managed names it serves (managed_names.for_server), with certificates
+    to start with (a name that moved there keeps its certificate); nothing for this server or without the package.
+    Raises when the agent could not be told (it also takes the names from the panel's next push)."""
+    found = provider()
+    hook = getattr(found, "serve_names", None)
+    if server_id != MAIN and hook is not None:
+        hook(server_id, dict(certificates or {}))
+
+
+def certificate(server_id: str, domain: str) -> str | None:
+    """The certificate (key and chain, PEM) another server serves a managed name with, or None."""
+    found = provider()
+    hook = getattr(found, "certificate", None)
+    if server_id == MAIN or hook is None:
+        return None
+    try:
+        return hook(server_id, domain) or None
+    except Exception:  # noqa: BLE001 - offline or no certificate: the new server gets its own
+        return None
 
 
 # ---------------------------------------------------------------- the web app

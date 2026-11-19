@@ -16,7 +16,6 @@ import pytest
 from flask import Flask
 from flask.testing import FlaskClient
 
-from conftest import RESTARTS
 from fake_hub import FakeHub, PremiumBuild, make_package, make_premium_package
 from sudoo import entitlements, plugin_manager, premium
 from sudoo.config import live
@@ -85,14 +84,12 @@ def test_a_package_the_plan_includes_installs_binds_and_loads(hub: FakeHub, admi
     marketplace.heartbeat()
     assert premium.included_ids() == {"teams"}
     assert loader.needs_sync()
-    before = len(RESTARTS)
     job = _sync()
     assert job.status == "success", "".join(job.log)
     rec = loader.record("teams")
     assert rec and rec["version"] == "1.0.0" and rec["python_tag"] == "py3" and not rec.get("problem")
     assert loader.problem(rec) is None
     assert plugin_manager.restart_pending()  # the backend restarts to load it
-    del before
     assert _restart() == {"teams"}
     # its extension points: a blueprint and a background job, nothing outside the premium groups
     found = dict(premium.hooks(premium.BLUEPRINTS))

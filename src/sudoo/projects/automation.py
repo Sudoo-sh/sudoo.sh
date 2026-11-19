@@ -6,7 +6,10 @@
                     0: no limit), and the server's limits allow one more (MAX_INSTANCES, MAX_RUNNING_INSTANCES)
     push            the instances following the branch get the new code as before (triggers/); a staging instance of
                     a project whose staging_on_push is "rebuild" (PROJECT_STAGING_ON_PUSH) is rebuilt from a new
-                    copy of production instead (projects/staging.py)
+                    copy of production instead (projects/staging.py); the test instance of a database upgrade (its
+                    upgrade branch) runs the upgrade test again when the project's upgrade_test_on_push is on
+                    (PROJECT_UPGRADE_TEST_ON_PUSH) and the upgrade uses OpenUpgrade (Odoo's service needs the
+                    subscription code, never kept: that test instance only gets the new code)
     deleted branch  its instances show that the branch is gone; then, by the project's branch_deleted option
                     (PROJECT_BRANCH_DELETED): "keep" nothing more, "archive" a backup and the instance switched off,
                     "delete" a backup and the instance deleted. Staging is archived at most; production is never
@@ -26,7 +29,7 @@ import time
 from collections.abc import Mapping
 from typing import Any
 
-from sudoo import link_deadline, projects
+from sudoo import link_deadline, projects, upgrades
 from sudoo.config import settings
 from sudoo.core import audit, jobs
 from sudoo.core.jobs import Job
@@ -194,6 +197,16 @@ def update_for(name: str) -> tuple[str, str, Any, tuple[Any, ...]] | None:
         return None
     if access.lock_of(project, projects.branch_of(name)) is not None:
         return None  # a locked branch: triggers.request_update skips it anyway
+    tested = upgrades.source_of(name)
+    if tested is not None:  # the test instance of a database upgrade (its upgrade branch)
+        rerun = projects.option(project, "upgrade_test_on_push") and upgrades.method_for(store.read_env(tested)) == (
+            "openupgrade"  # Odoo's service needs the subscription code, which is never kept: the code only
+        )
+        if not rerun or not store.exists(tested) or link_deadline.restricted():
+            return None
+        from sudoo.upgrades import run as upgrade_run
+
+        return "Automatic upgrade test", "upgrade-test", upgrade_run.rerun, (name, tested, None)
     production = staging.production_instance(project)
     if production and access.lock_of(project, projects.branch_of(production)) is not None:
         return None  # production is locked: its data is not copied automatically, the usual update instead

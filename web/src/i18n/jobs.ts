@@ -44,6 +44,10 @@ const AR_EXACT: Record<string, string> = {
   "Daily backup": "النسخ الاحتياطي اليومي",
   "Back up before paid plugins are removed": "نسخ احتياطي قبل إزالة الإضافات المدفوعة",
   "Remove paid plugins (logged out of the account)": "إزالة الإضافات المدفوعة (فُصل الحساب)",
+  "Cancel the Odoo upgrade": "إلغاء ترقية Odoo",
+  "Cancel the Odoo upgrade (automatic)": "إلغاء ترقية Odoo (تلقائيًا)",
+  "Putting Odoo into maintenance": "وضع Odoo في الصيانة",
+  "Putting the instance back": "إعادة البيئة كما كانت",
   // steps (instances/operations.py, plugin_manager.py, and the demo's)
   "Asking the marketplace about the plugin": "الاستعلام عن الإضافة من متجر الإضافات",
   "Backing up the database and files": "نسخ قاعدة البيانات والملفات احتياطيًا",
@@ -100,6 +104,16 @@ const AR_EXACT: Record<string, string> = {
 
 /** Arabic for titles with values: the English pattern and the Arabic sentence made from its groups. */
 const AR_PATTERNS: Pattern[] = [
+  [/^Upgrade to Odoo (\S+)$/, (version) => `الترقية إلى Odoo ${ltr(version!)}`],
+  [/^Run the Odoo (\S+) upgrade test again$/, (version) => `إعادة اختبار الترقية إلى Odoo ${ltr(version!)}`],
+  [/^Automatic upgrade test: (.+)$/, (reason) => `اختبار ترقية تلقائي: ${reason}`],
+  [/^Backing up (\S+)$/, (name) => `نسخ ${ltr(name!)} احتياطيًا`],
+  [/^Upgrading the copy to Odoo (\S+) \(Odoo's upgrade service\)$/, (v) => `ترقية النسخة إلى Odoo ${ltr(v!)} (خدمة الترقية من Odoo)`],
+  [/^Upgrading the copy to Odoo (\S+) \(OpenUpgrade\)$/, (v) => `ترقية النسخة إلى Odoo ${ltr(v!)} (OpenUpgrade)`],
+  [/^Upgrading the database to Odoo (\S+) with Odoo's upgrade service$/, (v) => `ترقية قاعدة البيانات إلى Odoo ${ltr(v!)} بخدمة الترقية من Odoo`],
+  [/^Upgrading the database to Odoo (\S+) with OpenUpgrade$/, (v) => `ترقية قاعدة البيانات إلى Odoo ${ltr(v!)} باستخدام OpenUpgrade`],
+  [/^Switching to Odoo (\S+) and branch (\S+)$/, (v, b) => `التحويل إلى Odoo ${ltr(v!)} والفرع ${ltr(b!)}`],
+  [/^Switching to Odoo (\S+)$/, (v) => `التحويل إلى Odoo ${ltr(v!)}`],
   [/^Automatic update: new code on GitHub$/, () => "تحديث تلقائي: شيفرة جديدة على GitHub"],
   [/^Automatic update: push to (\S+) (\S+)$/, (repo, branch) => `تحديث تلقائي: دفع إلى ${ltr(repo!)} ${ltr(branch!)}`],
   [/^Automatic update: (.+)$/, (reason) => `تحديث تلقائي: ${reason}`],

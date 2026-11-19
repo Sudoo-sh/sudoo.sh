@@ -23,6 +23,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `SERVERS_REQUEST_SECONDS`, `SERVERS_WAIT_MINUTES`, `MOVE_MAX_BACKUP_GB`, `MOVE_CHUNK_MB`, `MOVE_AT_ONCE`,
   `MOVE_HEALTH_SECONDS`; new permissions `servers.manage` and `instances.move`.
 
+- **Support access:** super admins and administrators let Sudoo.sh support into the panel for a while (Settings ›
+  Support access, or Support access in the side bar; permission `support_access.manage`): view, panel admin, or panel
+  admin with shells; 1 hour, 1 day or 3 days (`SUPPORT_ACCESS_MAX_HOURS`); all projects and instances or chosen ones
+  (restricted projects and branches stay closed unless chosen; locked branches always stay locked); an optional ticket.
+  Support reaches the panel only through its own signed connection to the Sudoo.sh hub (no inbound port): while a
+  grant is active the panel asks the hub for work and runs each request against its own API as
+  "Sudoo.sh support (staff name)" with exactly the grant's level and scope, never accounts, tokens, teams, access,
+  settings, plugins or support access itself. Every page shows "Sudoo.sh support is connected" with **End now**;
+  withdrawing takes effect at once. Everything support does is in the activity log, marked **Support**; support shells
+  are always recorded. Settings `SUPPORT_ACCESS` and `SUPPORT_ACCESS_MAX_HOURS`. Needs a hub with support access
+  (sudoo-hub migration 0019).
+- **Instances by stage in the heartbeat:** the `usage` the panel reports to Sudoo.sh now carries
+  `instances_by_stage` (production, staging and development counts, as Settings › Plan shows them). Needs a hub that
+  takes it (sudoo-hub with migration 0018): update the hub first.
+- **Database upgrades to a newer Odoo version (Odoo.sh-like):** a new **Upgrade** tab on instances (permission
+  `instances.upgrade`, administrators and super admins) offers **Upgrade to Odoo <next>**. The pre-check lists the
+  installed modules and flags the repository's modules whose manifest version is not of the target series, or that
+  are missing from the upgrade branch (named after the target, such as `19.0`). **Test the upgrade** backs up the
+  instance and loads the upgraded copy into a new, neutralised staging instance on the target version (the upgrade
+  branch's code, or plain Odoo with standard modules when there is none); **Run the test again** repeats it from a
+  fresh backup, also on each push to the upgrade branch (project option `upgrade_test_on_push`, OpenUpgrade). **Upgrade
+  production** (confirmed) puts Odoo into maintenance (the gateway shows **Upgrading**), takes a `before-upgrade`
+  backup, upgrades the latest data, switches the instance to the target version and branch and starts Odoo; any
+  failure puts everything back. For `UPGRADE_ROLLBACK_MINUTES` the upgrade can be cancelled, and is rolled back by
+  itself if Odoo stops answering. Enterprise databases use Odoo S.A.'s upgrade service through Odoo's own upgrade
+  script, downloaded when the upgrade runs, with the customer's subscription code (never stored, masked in logs) and
+  Odoo's terms accepted each time; Community databases use OCA OpenUpgrade (AGPL-3.0), downloaded unmodified at a
+  pinned commit by a temporary container. Nothing third-party is bundled. New settings `UPGRADE_METHODS`,
+  `UPGRADE_SERVICE_URL` (`.env` only), `OPENUPGRADE_REPOSITORY`, `OPENUPGRADE_REFS`, `OPENUPGRADE_LIB`,
+  `UPGRADE_ROLLBACK_MINUTES`, `UPGRADE_MAX_HOURS`, `PROJECT_UPGRADE_TEST_ON_PUSH`; API under
+  `/api/v1/instances/<name>/upgrade`; the demo simulates the whole flow.
 - **Developer API tokens:** a new `developer` scope for developers' tools and CI. Such a token lists and reads the
   projects, branches and instances it may see, their logs, jobs and caught e-mails; starts, pauses, restarts, gets the
   latest code and updates submodules; creates development instances (also for a project's development branch) and

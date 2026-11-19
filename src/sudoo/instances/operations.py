@@ -171,6 +171,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
         + (settings.odoo_admin_password != "admin" or bool(plan.get("from_backup") or plan.get("from_production")))
         + bool(plan.get("from_backup") or plan.get("from_production"))  # neutralising another instance's data
         + bool(plan.get("from_production"))  # copying production
+        + 2 * bool(plan.get("upgrade"))  # backing up the instance upgraded, upgrading the copy
     )
     source = _backup_to_start_from(job, plan)
     foreign = source is not None and source["instance"] != name
@@ -240,6 +241,10 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
         taken = datetime.fromtimestamp(source["created"], settings.zone).strftime("%Y-%m-%d %H:%M")
         job.step(f"Loading the backup of {source['instance']} of {taken} into database {db}")
         backups.restore(job, name, source, db)
+        if plan.get("upgrade"):
+            from sudoo.upgrades import run as upgrade_run
+
+            upgrade_run.migrate_copy(job, name, db, plan["upgrade"])
         if foreign:
             job.step("Neutralising the copied data")
             job.note(backups.neutralize(job, name, db))
@@ -319,6 +324,10 @@ def _backup_to_start_from(job: Job, plan: dict[str, Any]) -> dict[str, Any] | No
     """The backup a new instance starts from, checked again: plan["from_backup"], or for a staging instance a new
     copy of its project's production instance (plan["from_production"], projects/staging.py); None for an empty
     database."""
+    if plan.get("upgrade"):  # the test of a database upgrade: a copy of an instance of the earlier version
+        from sudoo.upgrades import run as upgrade_run  # late: upgrades/ uses this module
+
+        return upgrade_run.fresh_copy(job, plan["upgrade"]["source"])
     if plan.get("from_production"):
         from sudoo.projects import staging  # late: projects/ uses this module
 

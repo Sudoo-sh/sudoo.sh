@@ -49,6 +49,10 @@ def app() -> Flask:
     from sudoo.web.v1 import stream
 
     stream.start = lambda app: None  # the live event stream is tested on its own (test_events.py)
+    from sudoo.support import channel
+
+    channel.start = lambda app: setattr(channel, "APP", app)  # no loop: tests call the channel themselves
+    channel.wake = lambda: None
 
     application = create_app()
     application.config.update(TESTING=True, SESSION_COOKIE_SECURE=False)

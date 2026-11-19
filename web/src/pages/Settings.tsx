@@ -8,6 +8,7 @@ import { RESOURCE_KNOBS, type Setting, type Stage } from "@/api/types";
 import { LicenceSettings } from "@/components/LicenceSettings";
 import { MarketplaceSettings } from "@/components/Marketplace";
 import { PlanSettings } from "@/components/PlanSettings";
+import { SupportAccessSettings } from "@/components/SupportAccess";
 import { Page, PageHead, useMe, useSubCrumb } from "@/components/Shell";
 import { Button, Callout, CopyField, Skeleton, Switch, Tag } from "@/components/ui/basics";
 import { Modal, useToast } from "@/components/ui/overlay";
@@ -19,7 +20,7 @@ import words from "@/i18n/settings";
 /** `test`: the group has a "Send a test alert" button, by e-mail or to that webhook. */
 type GroupId = Exclude<keyof (typeof words)["en"]["groups"], never>;
 type Group = { id: GroupId | `webhook${1 | 2 | 3}`; keys: string[]; test?: "email" | 1 | 2 | 3 };
-type TabId = "plan" | "general" | "instances" | "resources" | "odoo" | "backups" | "security" | "domains" | "email" | "alerts" | "github" | "marketplace" | "advanced" | "about";
+type TabId = "plan" | "support" | "general" | "instances" | "resources" | "odoo" | "backups" | "security" | "domains" | "email" | "alerts" | "github" | "marketplace" | "advanced" | "about";
 
 const webhookGroup = (n: 1 | 2 | 3): Group => ({
   id: `webhook${n}`,
@@ -44,7 +45,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       { id: "stages", keys: ["max_production_instances", "production_auto_update", "staging_delete_after_days"] },
       {
         id: "projects",
-        keys: ["project_production_branches", "project_auto_development", "project_max_auto_development", "project_development_demo_data", "project_staging_on_push", "project_branch_deleted"],
+        keys: ["project_production_branches", "project_auto_development", "project_max_auto_development", "project_development_demo_data", "project_staging_on_push", "project_branch_deleted", "project_upgrade_test_on_push"],
       },
       { id: "howMany", keys: ["max_instances", "max_instances_per_user", "create_cooldown_minutes"] },
       { id: "capacity", keys: ["capacity_reserve_mb", "capacity_reserve_percent", "capacity_instance_memory_mb", "capacity_warning_percent", "max_running_instances"] },
@@ -58,6 +59,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
     groups: [
       { id: "versions", keys: ["odoo_versions", "odoo_min_version", "prepull_images", "odoo_image", "postgres_image"] },
       { id: "enterprise", keys: ["enterprise_source", "enterprise_path", "enterprise_git_url", "enterprise_git_branch", "enterprise_marker"] },
+      { id: "upgrades", keys: ["upgrade_methods", "openupgrade_repository", "openupgrade_refs", "openupgrade_lib", "upgrade_rollback_minutes", "upgrade_max_hours", "upgrade_service_url"] },
     ],
   },
   {
@@ -115,6 +117,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
   { id: "github", groups: [{ id: "codeUpdates", keys: ["poll_minutes", "update_triggers", "github_webhook_secret"] }] },
   { id: "marketplace", groups: [] },
   { id: "plan", groups: [] },
+  { id: "support", groups: [{ id: "supportAccess", keys: ["support_access", "support_access_max_hours"] }] },
   { id: "advanced", groups: [{ id: "monitoring", keys: ["metrics_interval_seconds", "cloudflared_image"] }] },
   { id: "about", groups: [] },
 ];
@@ -593,6 +596,7 @@ export function SettingsPage() {
               </Section>
             )}
             {tab === "plan" && <PlanSettings />}
+            {tab === "support" && <SupportAccessSettings />}
             {tab === "about" && <LicenceSettings>{rows(["licence_required_version", "link_deadline_days"])}</LicenceSettings>}
             {tab === "advanced" && (
               <>

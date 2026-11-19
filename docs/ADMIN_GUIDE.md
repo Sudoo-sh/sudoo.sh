@@ -34,7 +34,9 @@ domains and certificates, off-site copies of backups.
 22. [The licence agreement](#22-the-licence-agreement)
 23. [Mail catcher](#23-mail-catcher)
 24. [Projects and branches](#24-projects-and-branches)
-25. [Servers](#25-servers)
+25. [Database upgrades](#25-database-upgrades)
+26. [Support access](#26-support-access)
+27. [Servers](#27-servers)
 
 ---
 
@@ -1965,7 +1967,125 @@ plan comes from Sudoo.sh in the signed licence (`entitlements.py`); what people 
 
 ---
 
-## 25. Servers
+## 25. Database upgrades
+
+People's side: [User Manual](USER_MANUAL.md#upgrading-to-a-newer-odoo-version). Settings:
+[Configuration](CONFIGURATION.md#database-upgrades). Permission: `instances.upgrade` (administrators and super
+admins); upgrading or cancelling on a production instance also needs `"confirm_production": true` in the API.
+
+### How it works
+
+* **Targets.** The next major version this panel offers (`ODOO_VERSIONS`), for example 18.0 to 19.0. Odoo's service
+  can skip versions, so an Enterprise database may also go further; OpenUpgrade goes one version at a time.
+* **The test** creates a staging instance named `<instance>-odoo<version>` from a new backup of the instance (kind
+  `staging-copy`), on the target version, with the repository's upgrade branch (named after the target) or plain
+  Odoo when there is none. It belongs to the project and follows that branch. **Run the test again** reuses it.
+* **The promotion** runs as one job on the instance itself (kind `db-upgrade`): Odoo stopped (the gateway shows
+  **Upgrading**), backup kind `before-upgrade` (the instance keeps its latest one), the method on the live data, the
+  code switched to the upgrade branch, the image switched to the target version (pinned by digest; Enterprise
+  add-ons of the target prepared by the Enterprise source), the database's version checked, Odoo started and waited
+  for. Any failure puts back the image, the add-ons, the commit and the backup, and starts Odoo again. The project
+  records the upgrade branch as its production branch.
+* **The rollback window.** For `UPGRADE_ROLLBACK_MINUTES` the instance offers **Cancel the upgrade**, and the panel
+  checks Odoo every 30 seconds: after two minutes without an answer (not while a job runs, not when paused or
+  switched off) it rolls back by itself and audit-logs it. A cancel saves the upgraded state first (`before-rollback`).
+* **Audit.** Every pre-check, test, promotion, failure, cancel and automatic rollback is in the audit log
+  (`database upgrade: ...`) and in the upgrade's own history on the Upgrade tab.
+
+### The methods and what the server needs
+
+* **Odoo's upgrade service (Enterprise databases).** A temporary container of the instance's PostgreSQL image, on the
+  instance's database network and with Internet access, installs python3, rsync and ssh, downloads Odoo's upgrade
+  script from `UPGRADE_SERVICE_URL/upgrade` at that moment and runs it as Odoo documents it (`test` or `production`,
+  `--no-restore`). The script dumps the database, sends it to Odoo's platform with the customer's subscription code
+  and downloads the upgraded dump; the panel loads it and merges the new filestore files. The server must reach
+  Odoo's platform on port 443 and on a TCP port between 32768 and 60999. The code is passed in a file the container
+  deletes when it has read it, masked in the job's log, and never stored. Using the service needs a valid Odoo
+  Enterprise subscription for the database, and it is subject to Odoo S.A.'s terms (Enterprise Subscription
+  Agreement, Upgrade Services); the panel asks people to accept that each time.
+* **OpenUpgrade (Community databases).** A temporary container of the instance's own Odoo image of the target version
+  downloads OpenUpgrade's sources from `OPENUPGRADE_REPOSITORY` at the commit pinned in `OPENUPGRADE_REFS`, installs
+  `OPENUPGRADE_LIB` in its own `/tmp`, and runs Odoo with OpenUpgrade's framework and migration scripts (`-u all`).
+  It needs Internet access to GitHub and PyPI. Move a pinned commit forward only after reading OpenUpgrade's changes
+  for that version.
+* **Disk.** An upgrade needs room for a backup and, with Odoo's service, a dump and the upgraded dump at once (in
+  `<ODOO_ROOT>/upgrades/work`, removed after the job).
+
+### Honest limits
+
+* Custom modules must be ported by developers, in the upgrade branch. The pre-check only reads manifests: a module
+  marked **Ready** may still fail its upgrade.
+* Enterprise upgrades need a valid subscription and follow Odoo's terms; Odoo's platform decides how long it takes,
+  and a failed request is explained on Odoo's side (its report is in the job's log).
+* OpenUpgrade's coverage varies by version and module (see its documentation); Enterprise modules are not covered,
+  which is why Enterprise databases use Odoo's service.
+* Data changed in production after the final backup is part of the upgrade; data changed after the upgrade is lost
+  by cancelling it (the upgraded state is kept as a `before-rollback` backup).
+* With Odoo's service, a push to the upgrade branch does not run the test again by itself (the code is not kept).
+
+### Third-party software (notice)
+
+The panel bundles, copies and imports none of the following; it starts them as separate, unmodified programs in
+temporary containers that download them when an upgrade runs:
+
+* **OpenUpgrade** by the Odoo Community Association (OCA), licensed under the GNU Affero General Public License
+  v3.0 (AGPL-3.0); source: https://github.com/OCA/OpenUpgrade. Run unmodified, at the commit pinned in
+  `OPENUPGRADE_REFS`.
+* **openupgradelib** by the OCA, AGPL-3.0; source: https://github.com/OCA/openupgradelib (installed from PyPI).
+* **Odoo's upgrade script and upgrade service** by Odoo S.A., downloaded from Odoo's own address at run time and
+  used under the customer's Odoo Enterprise subscription and Odoo S.A.'s terms.
+
+---
+
+## 26. Support access
+
+A super admin or administrator can let Sudoo.sh support into the panel for a while, to look into a problem with
+them: **Settings › Support access** (super admins) or **Support access** in the side bar (administrators; the
+permission `support_access.manage`). It needs the panel connected to Sudoo.sh (`MARKETPLACE` on) and
+`SUPPORT_ACCESS` on (the default).
+
+### Granting
+
+A grant says:
+
+| Choice | What it means |
+| :--- | :--- |
+| **View** | See instances, their activity and logs (the viewer role). |
+| **Panel admin** | What an administrator does to instances: restart, update, back up, change, restore, delete. Never accounts, API tokens, teams, project access and locks, GitHub, the panel's settings, plugins or support access itself, and no shells. |
+| **Panel admin + shell** | The same with terminals in instances' containers (never as root). Every support shell is recorded, whatever `SHELL_RECORDING` says; production shells follow `SHELL_PRODUCTION`. |
+| **For how long** | 1 hour, 1 day or 3 days, up to `SUPPORT_ACCESS_MAX_HOURS`. It ends on its own then. |
+| **Where** | All projects and instances (restricted projects and branches stay closed), or chosen projects and instances (a chosen project's restricted branches stay closed; a chosen instance is open whatever restricts it). **Locked branches stay locked** in every case: support is never allowed by a lock and cannot unlock one. |
+| **Ticket** | Optional: the Sudoo.sh support ticket it is for. |
+
+**Withdraw** ends one grant at once; **End now** (on the banner every page shows while support is connected) ends
+every grant and every support session. Switching `SUPPORT_ACCESS` off ends them all too. At most 20 grants are active
+at once.
+
+### How support reaches the panel
+
+Nothing on the server is opened. While a grant is active, the panel keeps asking the Sudoo.sh hub for work over the
+connection it already has (the same signed link as the heartbeat: every call signed with the installation key, every
+answer checked against the hub's keys), about every 20 seconds while nothing happens. A support person at Sudoo.sh
+opens a **session** on the grant with a fresh code from their authenticator app; their requests come to the panel
+through that call, and the panel carries each out against its own API as **"Sudoo.sh support (their name)"** with
+exactly the grant's level and scope, then sends the answer back. Before each request it checks again that the grant
+is active and the session open; withdrawing works at once on the panel, and the hub hears of it within a second or
+two. When no grant is active the panel does not call for support at all.
+
+### What you see
+
+* **The banner** "Sudoo.sh support is connected (name)" on every page while a session is open, with **End now** for
+  those who manage support access.
+* **The activity log**: every request support makes that changes something or is refused, sessions starting and
+  ending, shells opened and closed, all under "Sudoo.sh support (name)" with a **Support** tag; granting, withdrawing
+  and "End now" under the admin's name; expiry under `system`.
+* **Shells**: support's are in the list of past shells and recorded like any other (super admins play them).
+
+Support access runs inside the panel: when the panel itself is down, it cannot help.
+
+---
+
+## 27. Servers
 
 One panel can manage instances on several servers: the **main server** (where the panel runs) and **other
 servers**, for example one in another region, closer to a customer. Each other server runs a small agent

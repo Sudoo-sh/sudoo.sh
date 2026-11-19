@@ -258,6 +258,22 @@ Each decision lists what was chosen, why, what it costs, and the alternatives th
 - **Considered:** a project per instance group chosen by hand (no link to the repository, so pushes could not be
   routed); a "Plain Odoo" project for instances without a repository (branches that do not exist).
 
+### Database upgrades run third-party upgraders in temporary containers
+- **Chosen:** an upgrade to a newer Odoo version (`upgrades/`) is tested on a new staging instance of the target
+  version before production is upgraded in place, like Odoo.sh. Enterprise databases go through Odoo S.A.'s upgrade
+  service with Odoo's own upgrade script, which a temporary PostgreSQL-image container downloads and runs when the
+  upgrade starts; Community databases go through OCA OpenUpgrade, whose sources a temporary container of the
+  instance's target Odoo image downloads at a pinned commit. Production keeps a `before-upgrade` backup and the
+  previous image, add-ons and commit, so a failure or a cancel puts everything back.
+- **Why:** neither upgrader is bundled, copied or imported (OpenUpgrade and openupgradelib are AGPL-3.0; Odoo's
+  script and service are Odoo S.A.'s, used under the customer's subscription); the panel only starts them and reads
+  their results. Testing on a separate instance keeps production serving while people check the result.
+- **Cost:** an upgrade needs Internet access from the server (GitHub and PyPI, or Odoo's platform), and disk for a
+  backup and the dumps; Odoo's service needs the subscription code each time, so a push to the upgrade branch only
+  re-runs the test automatically with OpenUpgrade.
+- **Considered:** vendoring OpenUpgrade or Odoo's script in the image (licences, and pinned copies going stale);
+  upgrading production without a test instance (no chance to look before users do).
+
 ### Update triggers as plugins: polling by default, webhooks where possible
 - **Chosen:** what starts a code update is a list of trigger plugins (`UPDATE_TRIGGERS`). `polling` checks each
   branch every 2 minutes; `github-app` receives the panel's GitHub App events, `github-webhook` per-repository push
@@ -554,7 +570,7 @@ decisions. A job that needs the panel (a GitHub App token for private code: git'
 which asks the panel) waits up to `SERVERS_WAIT_MINUTES` and then fails clearly. The agent opens the channel again
 and again (1 s, doubling, at most a minute); its next report brings the panel up to date.
 
-**Trust** (details in [Security](SECURITY.md#17-servers)): a join code is single-use and expires; it carries the
+**Trust** (details in [Security](SECURITY.md#18-servers)): a join code is single-use and expires; it carries the
 SHA-256 of the panel's key, so the agent pins the panel's key from the start; the agent's key pair is made on its
 server and never leaves it; an admin approves the server by typing the fingerprint the server printed; revoking
 closes the channel and refuses the key.

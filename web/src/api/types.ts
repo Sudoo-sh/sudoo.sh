@@ -11,6 +11,7 @@ export type Permission =
   | "projects.access"
   | "teams.manage"
   | "instances.restore"
+  | "instances.upgrade"
   | "instances.delete"
   | "instances.credentials"
   | "instances.resources"
@@ -30,7 +31,8 @@ export type Permission =
   | "offsite.delete"
   | "instances.shell"
   | "instances.database_shell"
-  | "shells.supervise";
+  | "shells.supervise"
+  | "support_access.manage";
 
 export interface Profile {
   first_name: string | null;
@@ -259,6 +261,7 @@ export interface ProjectOptions {
   development_demo_data: boolean;
   staging_on_push: "rebuild" | "keep_data";
   branch_deleted: "keep" | "archive" | "delete";
+  upgrade_test_on_push: boolean;
   development_lifetime_days: number;
   staging_lifetime_days: number;
 }
@@ -668,7 +671,8 @@ export type BackupKind =
   | "before-rollback"
   | "before-repair"
   | "before-update"
-  | "staging-copy";
+  | "staging-copy"
+  | "before-upgrade";
 /** GET /offsite: where off-site copies go, and the panel's signing key (never the storage's secret) */
 export interface OffsiteState {
   enabled: boolean;
@@ -755,6 +759,8 @@ export interface AuditEntry {
   ok: boolean;
   instance?: string;
   detail?: string;
+  /** done by Sudoo.sh support through support access */
+  support?: boolean;
 }
 
 export interface GitHubInstallation {
@@ -1183,4 +1189,107 @@ export interface LinkDeadline {
   days_left: number;
   /** the deadline passed while unlinked: no new instances, no moves to production, no updates */
   restricted: boolean;
+}
+
+export type UpgradeMethod = "enterprise" | "openupgrade";
+export type UpgradeState = "checked" | "testing" | "tested" | "test_failed" | "promoting" | "promoted" | "promotion_failed" | "rolled_back";
+export type UpgradeModuleStatus = "ready" | "version_mismatch" | "unknown_version" | "not_installable" | "missing";
+export interface UpgradeFinding {
+  code: string;
+  text: string;
+}
+/** The pre-check of an upgrade (POST /instances/<name>/upgrade/check) */
+export interface UpgradeReport {
+  instance: string;
+  from_version: string;
+  target: string;
+  edition: "community" | "enterprise";
+  method: UpgradeMethod;
+  repository: string | null;
+  branch: string | null;
+  branch_exists: boolean | null;
+  installed: string[];
+  installed_count: number;
+  modules: { name: string; version: string; target_version: string | null; status: UpgradeModuleStatus }[];
+  warnings: UpgradeFinding[];
+  blocking: UpgradeFinding[];
+  checked_at: string | null;
+}
+/** GET /instances/<name>/upgrade: the database upgrade of an instance to a newer Odoo version */
+export interface Upgrade {
+  instance: string;
+  from_version: string;
+  edition: "community" | "enterprise";
+  method: UpgradeMethod;
+  allowed: boolean;
+  targets: string[];
+  next: string | null;
+  skips_versions: boolean;
+  terms_url: string | null;
+  openupgrade_source: string | null;
+  refusal: string | null;
+  state: UpgradeState | null;
+  target: string | null;
+  branch: string | null;
+  report: UpgradeReport | null;
+  checked_at: string | null;
+  staging: string | null;
+  tested_at: string | null;
+  test_job: string | null;
+  promotion: {
+    job?: string;
+    at?: string | null;
+    by?: string;
+    target?: string;
+    backup?: string[];
+    rollback_until?: string | null;
+    finished_at?: string | null;
+    rolled_back_at?: string | null;
+    rolled_back_by?: string;
+    reason?: string | null;
+  } | null;
+  rollback_open: boolean;
+  rollback_minutes: number;
+  history: { at: string | null; user: string; event: string; detail: string }[];
+}
+
+/** Support access (GET /support-access, src/sudoo/web/v1/support_access.py). */
+export type SupportLevel = "view" | "admin" | "admin_shell";
+export interface SupportSession {
+  id: string;
+  grant_id: string;
+  staff_name: string;
+  opened_at: string | null;
+  expires_at: string | null;
+}
+export interface SupportGrant {
+  id: string;
+  level: SupportLevel;
+  scope: { all: boolean; projects: { id: string; name: string }[]; instances: string[] };
+  ticket: string | null;
+  hours: number | null;
+  created_by: string | null;
+  created_at: string | null;
+  expires_at: string | null;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  state: "active" | "withdrawn" | "expired";
+  sessions: SupportSession[];
+}
+export interface SupportOverview {
+  enabled: boolean;
+  unavailable: "off" | "not_connected" | null;
+  max_hours: number;
+  durations: number[];
+  levels: SupportLevel[];
+  shell_enabled: boolean;
+  grants: SupportGrant[];
+  sessions: SupportSession[];
+  channel: { last_ok: string | null; error: string | null };
+}
+export interface SupportStatus {
+  connected: boolean;
+  sessions: SupportSession[];
+  active_grants: number;
+  can_end: boolean;
 }

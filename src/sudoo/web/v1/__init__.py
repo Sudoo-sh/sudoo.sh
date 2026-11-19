@@ -9,6 +9,7 @@ role (roles.py), and the same permission checks apply.
     account.py     own account and second factors
     instances.py   instances, jobs, versions
     projects.py    projects (one GitHub repository each), their branches and stages, access and locked branches
+    upgrades.py    database upgrades of instances to a newer Odoo version: pre-check, test, production, rollback
     teams.py       teams: named groups of accounts that project access is given to
     domains.py     instances' custom domains
     caught_mail.py the e-mails of staging and development instances, caught by the mail catcher
@@ -28,6 +29,7 @@ role (roles.py), and the same permission checks apply.
     plan.py        the panel's Sudoo.sh plan: entitlements, usage, where to manage it
     plugins.py     installed plugins and the marketplace (catalogue, purchases, linking)
     shell.py       the web shell: tickets, open and past shells, recordings
+    support_access.py  letting Sudoo.sh support in for a while: grants, the banner, "End now"
     events.py      the live event stream (Server-Sent Events), served on the asyncio loop
     shell_socket.py  the web shell's WebSocket, served on the same loop
 Answers follow the conventions in responses.py.
@@ -63,8 +65,10 @@ from . import (
     session,
     settings,
     shell,
+    support_access,
     teams,
     tokens,
+    upgrades,
     users,
 )
 from . import events as stream
@@ -120,6 +124,8 @@ def register(app: Flask) -> None:
         plugins,
         shell,
         teams,
+        support_access,
+        upgrades,
     ):
         api.register_blueprint(module.blueprint)
     app.register_blueprint(api)

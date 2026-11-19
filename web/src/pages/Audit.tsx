@@ -5,6 +5,7 @@ import { Page, PageHead } from "@/components/Shell";
 import { Tag, Button, Empty, Skeleton } from "@/components/ui/basics";
 import { useT } from "@/i18n";
 import words from "@/i18n/operations";
+import supportWords from "@/i18n/support";
 import { ago, dateTime } from "@/lib/format";
 
 export function AuditPage() {
@@ -13,6 +14,7 @@ export function AuditPage() {
   const [onlyRefused, setOnlyRefused] = useState(false);
   const { data: entries, isPending, isFetching } = useAudit(limit);
   const t = useT(words).audit;
+  const sw = useT(supportWords);
   const shown = (entries ?? []).filter(
     (e) => (!onlyRefused || !e.ok) && (!query || `${e.user} ${e.event} ${e.instance ?? ""} ${e.ip ?? ""} ${e.detail ?? ""}`.toLowerCase().includes(query.toLowerCase())),
   );
@@ -39,7 +41,7 @@ export function AuditPage() {
                 {shown.map((e, i) => (
                   <tr key={`${e.ts}-${i}`}>
                     <td className="small nowrap" title={dateTime(e.ts)}>{ago(e.ts)}</td>
-                    <td className="small"><bdi>{e.user}</bdi></td>
+                    <td className="small"><bdi>{e.user}</bdi>{e.support && <> <Tag tone="caution">{sw.supportTag}</Tag></>}</td>
                     <td>
                       <div className="row">
                         {e.ok ? <CircleCheck size={15} color="var(--positive)" aria-label={t.allowed} /> : <CircleX size={15} color="var(--negative)" aria-label={t.refused} />}

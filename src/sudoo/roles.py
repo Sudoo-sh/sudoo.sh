@@ -8,9 +8,10 @@ only a named set of permissions:
     admin         Administrator   everything except the panel's settings, the e-mail texts and where off-site copies
                                   go (sees plugins, cannot install them); adds and removes instances' custom domains;
                                   restores from and deletes off-site copies; manages teams, project access and
-                                  locked branches
+                                  locked branches; upgrades databases to newer Odoo versions
+                                  (instances.upgrade); grants and withdraws Sudoo.sh support access
     maintainer    Maintainer      creates projects and instances and does everything on them except deleting
-                                  (restoring backups too); GitHub access
+                                  and database upgrades (restoring backups too); GitHub access
     developer     Developer       follows instances: gets new code, restarts, starts, adds submodules; reads the
                                   e-mails caught from staging and development instances (deleting and releasing
                                   them is for administrators)
@@ -27,6 +28,9 @@ branches): projects/access.py. A role is the most anyone can do; a grant never a
 Accounts of earlier versions are renamed once when the panel starts (storage/migrate.py): "admin" becomes a super
 admin, "operator" (the sync operator) a developer. API tokens act as an administrator (write scope), a viewer
 (read scope), a connected app (instances scope) or a developer token (developer scope).
+
+Sudoo.sh support (support/) acts as a synthetic user with the viewer or admin role, narrowed by its grant
+(support.permissions): never accounts, tokens, teams, access, settings or support access itself.
 
 TOKEN_ROLES are roles only an API token can have, never an account (users cannot be given them, and an account's
 stored role is checked against ROLES alone):
@@ -60,6 +64,8 @@ PERMISSIONS: dict[str, str] = {
     "branches) and lock or unlock branches",
     "teams.manage": "Create, change and delete teams (named groups of accounts that project access is given to)",
     "instances.restore": "Restore an instance from a backup (replaces its database and files)",
+    "instances.upgrade": "Upgrade an instance's database to a newer Odoo version: test it on a new staging instance, "
+    "then upgrade production (with its backup and rollback)",
     "instances.delete": "Delete instances",
     "instances.credentials": "See Odoo passwords and ports",
     "instances.resources": "Set an instance's resources: Odoo workers, time and memory limits, container limits",
@@ -82,6 +88,7 @@ PERMISSIONS: dict[str, str] = {
     "shells.supervise": "See open and past shells, end them and play their recordings",
     "servers.manage": "Add, approve, revoke and remove servers; change their name, region and room",
     "instances.move": "Move instances to another server",
+    "support_access.manage": "Grant Sudoo.sh support temporary access to the panel, see it and withdraw it",
 }
 
 

@@ -7,7 +7,7 @@ is the repository's first instance (projects/), and the branch's stage is record
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from sudoo import exposure
@@ -68,11 +68,14 @@ def build(
     }
 
 
-def start(plan: dict[str, Any], user: str) -> jobs.Job:
-    """Start the creation's job; record the branch's stage in its project when the branch has none yet."""
+def start(plan: dict[str, Any], user: str, fn: Callable[..., object] | None = None, *args: Any) -> jobs.Job:
+    """Start the creation's job; record the branch's stage in its project when the branch has none yet. `fn`: what
+    the job runs instead of operations.create, fn(job, plan, *args) (a database upgrade's test instance)."""
     details = {key: plan[key] for key in (*SHOWN, "auto_update", "auto_upgrade", "auto_pause", "delete_after_days")}
     record_stage(plan, user)
-    return jobs.start(plan["name"], "Create instance", "create", operations.create, plan, user=user, details=details)
+    return jobs.start(
+        plan["name"], "Create instance", "create", fn or operations.create, plan, *args, user=user, details=details
+    )
 
 
 def record_stage(plan: Mapping[str, Any], user: str) -> None:

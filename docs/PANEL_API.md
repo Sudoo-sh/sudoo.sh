@@ -243,6 +243,25 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `DELETE /instances/<name>/mail` | `caught_mail.manage` | | **204**, every caught e-mail of the instance deleted; audit-logged |
 | `POST /instances/<name>/mail/<id>/release` | `caught_mail.manage` | `{"to": "qa@example.com"}` | 200, `{"released", "to", "id"}`: a copy was sent from the panel's own address (`MAIL_FROM`), audit-logged; 400 for an address, **403** when `MAIL_CATCHER_RELEASE` is off, 503 when the panel cannot send e-mail |
 
+### Database upgrades
+
+An instance's database moved to a newer Odoo version ([Database upgrades](ADMIN_GUIDE.md#25-database-upgrades)).
+Reading needs `instances.view`; everything else `instances.upgrade`. A production instance also needs
+`"confirm_production": true` to be upgraded or to cancel its upgrade. For an Enterprise database (Odoo S.A.'s upgrade
+service) the test and the upgrade also need `"subscription_code"` (the database's Odoo Enterprise subscription code,
+passed to the job only: never stored, never logged) and `"accept_odoo_terms": true` (the service is used under the
+customer's subscription and Odoo's terms, `terms_url`).
+
+| Method and path | Permission | Body | Answer |
+| :--- | :--- | :--- | :--- |
+| `GET /instances/<name>/upgrade` | `instances.view` | | 200: `from_version`, `edition`, `method` (`enterprise` or `openupgrade`), `allowed`, `targets` (the next version first), `skips_versions`, `terms_url`, `refusal`, `state` (`checked`, `testing`, `tested`, `test_failed`, `promoting`, `promoted`, `promotion_failed`, `rolled_back`), `target`, `branch` (the upgrade branch, when the repository has it), `report` (the pre-check), `staging` (the test instance), `tested_at`, `promotion` (`job`, `at`, `by`, `backup`, `rollback_until`, ...), `rollback_open`, `rollback_minutes`, `history` |
+| `POST /instances/<name>/upgrade/check` | `instances.upgrade` | `{"target": "19.0"}` (the next version when left out) | 200, the upgrade with its `report`: `installed`, `modules` (each `name`, `version`, `target_version`, `status`: `ready`, `version_mismatch`, `unknown_version`, `not_installable`, `missing`), `branch_exists`, `warnings` and `blocking` (each `code`, `text`) |
+| `POST /instances/<name>/upgrade/test` | `instances.upgrade` | `{"target"}` and, for Enterprise, `subscription_code`, `accept_odoo_terms` | **202**, the job: a new staging instance on the target version, or the test run again on the one there is; 409 without a pre-check of that target or with a blocking finding |
+| `POST /instances/<name>/upgrade/promote` | `instances.upgrade` | `confirm_production` (production), and for Enterprise `subscription_code`, `accept_odoo_terms` | **202**, the job "Upgrade to Odoo <version>"; 409 before a successful test, or when the repository has no upgrade branch |
+| `POST /instances/<name>/upgrade/cancel` | `instances.upgrade` | `confirm_production` (production) | **202**, the job: back to the backup taken before the upgrade; 409 after `UPGRADE_ROLLBACK_MINUTES` |
+| `POST /instances/<name>/upgrade/keep` | `instances.upgrade` | | 200: the rollback window ends now |
+| `DELETE /instances/<name>/upgrade` | `instances.upgrade` | | **204**: the upgrade is forgotten (its test instance stays); 409 while it runs or can be cancelled |
+
 ### Projects
 
 A project is one GitHub repository; every instance of a repository belongs to its project (`project` of an
@@ -284,6 +303,21 @@ beyond clearing it, `POST /instances/<name>/domains`, `PATCH /settings` turning 
 expired answers 409 with the reason. While the hub answers 429 for the account's daily API quota, the marketplace
 endpoints answer **429** with `Retry-After` (seconds to midnight UTC) and say when they work again.
 
+### Support access
+
+Letting Sudoo.sh support into the panel for a while ([Admin guide](ADMIN_GUIDE.md#26-support-access)). Granting,
+withdrawing and ending are for people only: an API token is refused with 403.
+
+| Request | Permission | Body | Answer |
+| :--- | :--- | :--- | :--- |
+| `GET /support-access/status` | signed in | | 200, `connected`, `sessions` (`id`, `grant_id`, `staff_name`, `opened_at`, `expires_at`), `active_grants`, `can_end` |
+| `GET /support-access` | `support_access.manage` | | 200, `enabled`, `unavailable` (`off`, `not_connected` or `null`), `max_hours`, `durations`, `levels`, `shell_enabled`, `grants` (active first, then the last 20: `id`, `level`, `scope`, `ticket`, `hours`, `created_by`, `created_at`, `expires_at`, `revoked_at`, `revoked_by`, `state`, `sessions`), `sessions`, `channel` (`last_ok`, `error`) |
+| `POST /support-access/grants` | `support_access.manage` | `{"level": "view" \| "admin" \| "admin_shell", "hours": 1, "scope": {"all": true} or {"projects": [ids], "instances": [names]}, "ticket": "T-1042"}` | **201**, the grant; 400 for a choice that is not offered or a project or instance you do not see; 409 when support access is off or the panel is not connected to Sudoo.sh |
+| `DELETE /support-access/grants/<id>` | `support_access.manage` | | **204**: withdrawn at once |
+| `POST /support-access/end` | `support_access.manage` | | **204**: every grant withdrawn, every support session ended ("End now") |
+
+Audit entries (`GET /audit`) carry `support: true` when Sudoo.sh support made them.
+
 ### Teams
 
 | Method and path | Permission | Body | Answer |
@@ -296,7 +330,7 @@ endpoints answer **429** with `Retry-After` (seconds to midnight UTC) and say wh
 
 ### Servers
 
-Several servers managed from one panel ([Admin guide](ADMIN_GUIDE.md#25-servers)). `main` is the main server's id.
+Several servers managed from one panel ([Admin guide](ADMIN_GUIDE.md#27-servers)). `main` is the main server's id.
 Requests about an instance of another server (`/instances/<name>/...`, its jobs) are answered by that server's agent
 with the same shapes; every instance has `server` (`id`, `name`, `region`, `online`), and an instance whose server is
 offline has the status `unreachable`.

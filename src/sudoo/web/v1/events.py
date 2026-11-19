@@ -69,6 +69,7 @@ TOPICS = frozenset(
         "alert",
         "offsite",
         "server",
+        "support",
     }
 )
 RESTRICTED = {

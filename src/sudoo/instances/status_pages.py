@@ -1,4 +1,5 @@
-"""Small pages the gateway shows a visitor while an instance is not available (starting, updating, switched off,
+"""Small pages the gateway shows a visitor while an instance is not available (starting, updating, upgrading to a
+newer Odoo version, switched off,
 paused on a locked branch;
 "waiting": a paused instance while the panel, which starts it, is not reachable from the gateway service).
 
@@ -37,6 +38,11 @@ _PAGES = {
         "This Odoo is being updated. It will be available again in a minute or two. This page refreshes "
         "automatically.",
     ),
+    "upgrading": (
+        "Upgrading",
+        "This Odoo is being upgraded to a newer version. It is back as soon as the upgrade has finished, which can "
+        "take a while for a large database. This page refreshes automatically.",
+    ),
     "off": ("Switched off", "This Odoo has been switched off by the administrator."),
     "locked": (
         "Locked",
@@ -71,10 +77,10 @@ def render(request: web.Request, name: str, kind: str, since: float | None = Non
     title, text = _PAGES[kind]
     if not (request.method == "GET" and "text/html" in request.headers.get("Accept", "")):
         return web.Response(status=503, text=f"{title}. {text}", headers={"Retry-After": "4"})
-    waiting = kind in ("waking", "waiting", "busy")
+    waiting = kind in ("waking", "waiting", "busy", "upgrading")
     elapsed = int(time.time() - since) if since else 0
     contact = ""
-    if kind in ("off", "gone", "locked") or elapsed > 180:
+    if kind in ("off", "gone", "locked") or (elapsed > 180 and kind != "upgrading"):
         lead = "This is taking longer than usual. " if waiting else ""
         contact = f'<p class="contact">{html.escape(lead + settings.contact_sentence())}</p>'
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">

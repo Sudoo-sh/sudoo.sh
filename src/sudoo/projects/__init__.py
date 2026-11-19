@@ -33,7 +33,7 @@ from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
 from sudoo.config import settings
-from sudoo.instances import stages, store
+from sudoo.instances import stages
 from sudoo.instances.naming import slug
 from sudoo.storage import Document, storage
 
@@ -84,14 +84,17 @@ def by_repository(repository: str) -> Document | None:
 
 def project_of(name: str) -> str | None:
     """The id of the project instance `name` belongs to, or None (standalone)."""
-    return store.read_env(name).get("PROJECT") or None
+    from sudoo.servers import inventory
+
+    return inventory.env(name).get("PROJECT") or None
 
 
 def instances(project_id: str) -> list[str]:
     """The instances of a project, those being created included, sorted."""
     from sudoo.core import jobs  # late: core/jobs.py is imported by most of the panel
+    from sudoo.servers import inventory
 
-    found = {name for name in store.names() if store.read_env(name).get("PROJECT") == project_id}
+    found = {name for name in inventory.names() if inventory.env(name).get("PROJECT") == project_id}
     for name in jobs.being_created():
         job = jobs.creating(name)
         if job is not None and job.details.get("project") == project_id:
@@ -102,18 +105,20 @@ def instances(project_id: str) -> list[str]:
 def branch_of(name: str) -> str:
     """The branch an instance follows ("" for plain Odoo; the plan's branch while it is being created)."""
     from sudoo.core import jobs
+    from sudoo.servers import inventory
 
-    if store.exists(name):
-        return store.read_env(name).get("GIT_BRANCH", "")
+    if inventory.exists(name):
+        return inventory.env(name).get("GIT_BRANCH", "")
     job = jobs.creating(name)
     return str(job.details.get("branch") or "") if job else ""
 
 
 def stage_of_instance(name: str) -> str:
     from sudoo.core import jobs
+    from sudoo.servers import inventory
 
-    if store.exists(name):
-        return stages.of(store.read_env(name))
+    if inventory.exists(name):
+        return stages.of(inventory.env(name))
     job = jobs.creating(name)
     return str(job.details.get("stage") or stages.DEFAULT) if job else stages.DEFAULT
 

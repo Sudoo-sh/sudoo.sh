@@ -169,8 +169,14 @@ def remember(claims: Mapping[str, Any], lease_expires_at: float, now: float) -> 
 
 def current() -> Current:
     """The entitlements that apply now (see the module's description)."""
+    from sudoo import servers
     from sudoo.hub import marketplace
 
+    if servers.is_agent():  # a server's agent: the plan the main panel last pushed (servers/agent.py)
+        pushed = servers.PANEL.get("entitlements") or {}
+        raw = pushed.get("values")
+        values: dict[str, Any] = raw if isinstance(raw, dict) else {}
+        return Current({**FREE, **values}, str(pushed.get("source") or "unlinked"), linked=bool(pushed.get("linked")))
     if not settings.marketplace:
         return Current(dict(FREE), "unlinked", linked=False)
     state = marketplace.state()
@@ -208,10 +214,12 @@ def production_keys() -> list[str]:
     """What the plan counts as production branches, named as the heartbeat reports them (the hub's
     usage.production_branch_names, and its lease's production_keep): "<project>/<branch>" for every production branch
     of a project, and "<instance>" for every production instance outside a project (being created ones included)."""
-    from sudoo import projects
+    from sudoo import projects, servers
     from sudoo.instances import stages
 
     keys = {f"{p['id']}/{branch}" for p in projects.all_projects() for branch in projects.production_branches(p)}
+    if servers.is_agent():  # every server's, as the main panel last counted them
+        keys |= {str(key) for key in servers.PANEL.get("production_keys") or ()}
     for name in stages.production_instances():
         if not projects.project_of(name) and not _creating_in_project(name):
             keys.add(name)
@@ -291,14 +299,15 @@ def feature_refusal(feature: str) -> str | None:
 def usage() -> dict[str, Any]:
     """What the panel counts: servers, projects, production branches, instances by stage."""
     from sudoo import projects
-    from sudoo.instances import stages, store
+    from sudoo.instances import stages
+    from sudoo.servers import inventory, registry
 
     by_stage = dict.fromkeys(stages.STAGES, 0)
-    for name in store.names():
-        by_stage[stages.of(store.read_env(name))] += 1
+    for name in inventory.names():
+        by_stage[stages.of(inventory.env(name))] += 1
     keys = production_keys()
     return {
-        "servers": 1,
+        "servers": registry.counted(),
         "projects": len(projects.all_projects()),
         "production_branches": len(keys),
         "production_branch_names": keys,

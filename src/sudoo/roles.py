@@ -80,6 +80,8 @@ PERMISSIONS: dict[str, str] = {
     "instances.shell": "Open a terminal in instances' Odoo containers (odoo shell too)",
     "instances.database_shell": "Open psql in instances' database containers",
     "shells.supervise": "See open and past shells, end them and play their recordings",
+    "servers.manage": "Add, approve, revoke and remove servers; change their name, region and room",
+    "instances.move": "Move instances to another server",
 }
 
 

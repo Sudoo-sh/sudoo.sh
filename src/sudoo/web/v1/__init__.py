@@ -17,6 +17,7 @@ role (roles.py), and the same permission checks apply.
     licence.py     the Sudoo.sh Licence Agreement: its text, acceptances
     mail_templates.py  the texts of the e-mails the panel sends
     server.py      the server's resource use, the panel's address and plugins
+    servers.py     the main server and the other servers (their agents): adding, approving, revoking, joining
     users.py       roles, accounts and the audit log
     invitations.py invitations of new people by e-mail, and accepting one
     tokens.py      API tokens
@@ -58,6 +59,7 @@ from . import (
     plugins,
     projects,
     server,
+    servers,
     session,
     settings,
     shell,
@@ -78,6 +80,15 @@ def _project_event(project_id: str) -> dict[str, object]:
     return projects.project_resource(found) if found else {"id": project_id, "deleted": True}
 
 
+def _server_event(server_id: str) -> dict[str, object]:
+    """A server's live event: its list resource, or {"id", "deleted": true} once it is gone."""
+    from sudoo import servers as model
+    from sudoo.servers import registry
+
+    found = registry.main_record() if server_id == model.MAIN else registry.get(server_id)
+    return servers.server_resource(found) if found else {"id": server_id, "deleted": True}
+
+
 __all__ = ["PREFIX", "add_request_id", "problem", "register", "stream"]
 
 
@@ -96,6 +107,7 @@ def register(app: Flask) -> None:
         mail_templates,
         alerts,
         server,
+        servers,
         users,
         invitations,
         tokens,
@@ -115,4 +127,5 @@ def register(app: Flask) -> None:
     bus.present("job", lambda job_id: job_resource(jobs.JOBS[job_id]))
     bus.present("domains", domains.domains_resource)
     bus.present("project", _project_event)
+    bus.present("server", _server_event)
     live.on_change(settings.publish_changes)

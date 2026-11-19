@@ -29,6 +29,13 @@ http://:{$PANEL_PORT} {
 		}
 	}
 
+	# the channels of other servers' agents: WebSockets, signed frame by frame (servers/links.py)
+	handle /api/v1/servers/channel {
+		reverse_proxy 127.0.0.1:{$EVENTS_PORT} {
+			flush_interval -1
+		}
+	}
+
 	# web shells: WebSockets, served next to the live events (the backend checks Origin, ticket and session)
 	@shell path_regexp ^/api/v1/instances/[a-z0-9-]+/shell/socket$
 	handle @shell {

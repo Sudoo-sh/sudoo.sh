@@ -26,9 +26,16 @@ def plan_name(repo: str, branch: str, custom_name: str, version: str = "", editi
         base = "-".join(part for part in (slug(repository), slug(branch)) if part)
     base = base[:28].strip("-") or "odoo"
     name, counter = base, 2
-    while store.folder(name).exists() or name in _being_created():
+    while store.folder(name).exists() or name in _being_created() or _elsewhere(name):
         name, counter = f"{base[:26].strip('-')}-{counter}", counter + 1
     return name, name.replace("-", "_")
+
+
+def _elsewhere(name: str) -> bool:
+    """An instance of that name on another server (servers/inventory.py)."""
+    from sudoo.servers import inventory
+
+    return inventory.remote(name) is not None
 
 
 def _being_created() -> set[str]:

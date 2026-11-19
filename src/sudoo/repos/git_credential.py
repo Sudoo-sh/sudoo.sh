@@ -35,6 +35,17 @@ def answer(action: str, values: dict[str, str]) -> str:
     owner = values.get("path", "").lstrip("/").split("/")[0]
     if not owner:
         return ""
+    import os
+
+    if os.environ.get("SUDOO_AGENT_SOCKET"):  # on a server's agent: the main panel gives the token (servers/agent.py)
+        from sudoo.servers import agent
+
+        try:
+            given = agent.token_from_agent(owner)
+        except OSError as error:
+            print(f"Sudoo.sh: no token from the main panel ({error.__class__.__name__}).", file=sys.stderr)
+            return ""
+        return f"username=x-access-token\npassword={given}\n" if given else ""
     from sudoo.repos import github_app
 
     try:

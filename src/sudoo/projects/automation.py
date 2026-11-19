@@ -122,7 +122,9 @@ def branch_created(repository: str, branch: str, user: str = "system") -> str | 
             install_modules=True,
             project=project["id"],
         )
-        planning.start(plan, user)
+        from sudoo.servers import placement
+
+        placement.start_planned(plan, user, str(project.get("default_server") or ""))
         projects.record_branch(project["id"], branch, stage=stage, auto_created=plan["name"], changed_by=user)
     audit.record(user, None, "instance created for a new branch", plan["name"], detail=f"{project['id']} {branch}")
     return str(plan["name"])

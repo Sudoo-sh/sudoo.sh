@@ -32,7 +32,10 @@ def request_update(name: str, reason: str) -> None:
     An instance of a locked branch is never updated automatically (projects/access.py), nor any instance once the days
     to link the panel to a Sudoo.sh account have passed while it is unlinked (link_deadline.py): the skip is
     audit-logged."""
-    if not store.exists(name) or store.read_env(name)["AUTO_UPDATE"] != "true" or jobs.busy(name):
+    if not store.exists(name):
+        _request_remote_update(name, reason)
+        return
+    if store.read_env(name)["AUTO_UPDATE"] != "true" or jobs.busy(name):
         return
     from sudoo.projects import access, automation  # late: projects/ imports the instances package, as this does
 
@@ -55,6 +58,27 @@ def request_update(name: str, reason: str) -> None:
         jobs.start(name, f"{title}: {reason}", kind, fn, *args)
         return
     jobs.start(name, f"Automatic update: {reason}", "update", operations.update_code, name)
+
+
+def _request_remote_update(name: str, reason: str) -> None:
+    """An instance of another server (servers/): its agent gets the new code, if it takes automatic updates and its
+    branch is not locked; nothing happens while that server is offline (the next push or poll asks again)."""
+    from sudoo.servers import inventory, links
+
+    found = inventory.remote(name)
+    if found is None or found["env"].get("AUTO_UPDATE") != "true" or not links.connected(found["server"]):
+        return
+    from sudoo.projects import access
+
+    if access.instance_lock(name) is not None:
+        return
+    try:
+        links.call(found["server"], "http", {"method": "POST", "path": f"/api/v1/instances/{name}/actions/update",
+                                             "query": "", "body": "{}", "user": {
+                                                 "name": "system", "role": "super_admin", "via": "panel",
+                                                 "permissions": ["instances.view", "instances.update"]}})  # fmt: skip
+    except Exception as error:  # noqa: BLE001 - the next trigger asks again
+        print(f"triggers: {name} on another server not updated: {error!r}", flush=True)
 
 
 def start_all() -> None:

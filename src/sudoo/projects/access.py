@@ -74,6 +74,7 @@ PROJECT_PERMISSIONS = frozenset(
         "instances.delete",
         "instances.credentials",
         "instances.resources",
+        "instances.move",
         "instances.shell",
         "instances.database_shell",
         "caught_mail.view",
@@ -133,7 +134,11 @@ def is_super_admin(user: Mapping[str, Any]) -> bool:
 
 
 def role_permissions(user: Mapping[str, Any]) -> frozenset[str]:
-    """The role's permissions; for a token, its scope's role ∩ its owner's role (when the owner exists)."""
+    """The role's permissions; for a token, its scope's role ∩ its owner's role (when the owner exists). In a
+    server's agent, a request the main panel passes on carries exactly what the panel allows (servers/forward.py)."""
+    forwarded = user.get("permissions")
+    if isinstance(forwarded, list | tuple | frozenset) and user.get("via") == "panel":
+        return frozenset(str(p) for p in forwarded)
     found = roles.permissions(str(user["role"]))
     if user.get("token_id"):
         owner_role = _person_role(user)
@@ -302,9 +307,13 @@ def scope_of_instance(name: str) -> tuple[Mapping[str, Any] | None, str | None]:
 def _project_id_of(name: str) -> str | None:
     from sudoo.core import jobs
     from sudoo.instances import store
+    from sudoo.servers import inventory
 
     if store.exists(name):
         return store.read_env(name).get("PROJECT") or None
+    remote = inventory.remote(name)
+    if remote is not None:
+        return remote["env"].get("PROJECT") or None
     job = jobs.creating(name)
     return str(job.details.get("project") or "") or None if job else None
 
@@ -327,7 +336,12 @@ def sees_instance(user: Mapping[str, Any], name: str) -> bool:
 
 
 def instance_lock(name: str) -> dict[str, Any] | None:
-    """The lock of the branch an instance follows, or None (automatic work asks this before changing it)."""
+    """The lock of the branch an instance follows, or None (automatic work asks this before changing it). In a
+    server's agent: the locks the main panel pushed (servers/agent.py)."""
+    from sudoo import servers
+
+    if servers.is_agent():
+        return {"locked_by": "panel"} if name in (servers.PANEL.get("locked") or ()) else None
     project, branch = scope_of_instance(name)
     return lock_of(project, branch)
 

@@ -88,7 +88,13 @@ def _now() -> float:
 def status(now: float | None = None) -> dict[str, Any]:
     """{"linked", "first_run", "deadline_days", "deadline", "days_left", "restricted"} (times as Unix seconds).
     `days_left` counts started days (1 on the last day), 0 once the deadline has passed or the panel is linked."""
+    from sudoo import servers
+
     now = _now() if now is None else now
+    if servers.is_agent():  # a server's agent: the main panel decides (servers/agent.py)
+        restricted = bool(servers.PANEL.get("link_restricted"))
+        return {"linked": not restricted, "first_run": now, "deadline_days": int(settings.link_deadline_days),
+                "deadline": now, "days_left": 0, "restricted": restricted}  # fmt: skip
     first = first_run()
     days = int(settings.link_deadline_days)
     deadline = first + days * DAY

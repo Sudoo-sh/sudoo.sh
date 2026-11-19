@@ -68,6 +68,7 @@ TOPICS = frozenset(
         "marketplace",
         "alert",
         "offsite",
+        "server",
     }
 )
 RESTRICTED = {
@@ -98,6 +99,9 @@ def make_app(flask_app: Flask) -> web.Application:
     app[FLASK_APP] = flask_app
     app.router.add_get(PATH, stream)
     shell_socket.add_routes(app)  # the web shell's WebSockets (shell_socket.py) share this server
+    from sudoo.servers import links
+
+    links.add_routes(app)  # the channels of other servers' agents (servers/links.py)
     return app
 
 

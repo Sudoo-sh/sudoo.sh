@@ -294,6 +294,29 @@ endpoints answer **429** with `Retry-After` (seconds to midnight UTC) and say wh
 | `PATCH /teams/<id>` | `teams.manage` | any of `name`, `description`, `members` | 200, the team |
 | `DELETE /teams/<id>` | `teams.manage` | | **204**; the team leaves every grant and lock |
 
+### Servers
+
+Several servers managed from one panel ([Admin guide](ADMIN_GUIDE.md#25-servers)). `main` is the main server's id.
+Requests about an instance of another server (`/instances/<name>/...`, its jobs) are answered by that server's agent
+with the same shapes; every instance has `server` (`id`, `name`, `region`, `online`), and an instance whose server is
+offline has the status `unreachable`.
+
+| Method and path | Permission | Body | Answer |
+| :--- | :--- | :--- | :--- |
+| `GET /servers` | `instances.view` | | 200, every server: `id`, `name`, `region`, `main`, `status` (`waiting`, `joined`, `active`, `revoked`), `online`, `last_seen_at`, `version`, `instances`, `capacity` (`max_instances`), `room`, `metrics`; `meta`: `limit` (the plan's servers, the main one included; null: no limit), `counted`, `refusal`, `panel_url` |
+| `GET /servers/<id>` | `instances.view` | | 200, the server; with `servers.manage` also `fingerprint`, `facts`, who joined, approved or revoked it and when |
+| `POST /servers` | `servers.manage` | `{"name", "region"?, "capacity"?: {"max_instances": n or null}}` | **201**, the server with `join_code` and `install_command` (shown once); 403 beyond the plan's servers |
+| `PATCH /servers/<id>` | `servers.manage` | any of `name`, `region`, `capacity` (`main`: name and region) | 200, the server |
+| `POST /servers/<id>/join-code` | `servers.manage` | | 200, a new `join_code` for a server that has not joined |
+| `POST /servers/<id>/approve` | `servers.manage` | `{"fingerprint"}`: what the server printed | 200; 400 when it is not the fingerprint of the key that joined |
+| `POST /servers/<id>/revoke` | `servers.manage` | `{"confirm": "<name>"}` | 200; the agent's channel closes and its key is refused |
+| `DELETE /servers/<id>` | `servers.manage` | `{"forget_instances"?: true}` | **204** for a revoked server or one that never joined |
+| `POST /instances/<name>/move` | `instances.move` | `{"server", "confirm_production"?: true}` | **202**, the move's job ([Admin guide](ADMIN_GUIDE.md#moving-an-instance)) |
+
+`POST /instances` and `POST /projects/<id>/branches/<branch>/instances` take `"server"` (default: the project's
+`default_server`, else `main`); `GET /instance-plan` lists the servers a new instance may go to (`servers`); `PATCH
+/projects/<id>` takes `"default_server"`.
+
 ### Server, metrics and settings
 
 | Method and path | Permission | Body | Answer |

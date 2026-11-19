@@ -18,7 +18,7 @@ from collections.abc import Mapping
 
 from sudoo.config import settings
 from sudoo.core import jobs
-from sudoo.instances import backups, store
+from sudoo.instances import backups
 
 PRODUCTION, STAGING, DEVELOPMENT = "production", "staging", "development"
 STAGES = (PRODUCTION, STAGING, DEVELOPMENT)  # also the order lists show them in
@@ -46,8 +46,14 @@ def production_limit() -> int:
 
 
 def production_instances(exclude: str | None = None) -> list[str]:
-    """Instances in production, those whose creation as production is queued or running included."""
-    found = {name for name in store.names() if is_production(store.read_env(name))}
+    """Instances in production, those whose creation as production is queued or running included: of every server
+    (servers/inventory.py); in a server's agent, those the main panel last counted are added to its own."""
+    from sudoo import servers
+    from sudoo.servers import inventory
+
+    found = {name for name in inventory.names() if is_production(inventory.env(name))}
+    if servers.is_agent():
+        found |= {str(name) for name in servers.PANEL.get("production_instances") or ()}
     for name in jobs.being_created():
         job = jobs.creating(name)
         if job is not None and job.details.get("stage") == PRODUCTION:

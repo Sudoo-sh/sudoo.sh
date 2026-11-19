@@ -209,7 +209,8 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
             "DB_PASSWORD": db_password,
             "GIT_BRANCH": plan["branch"] if plan["repo"] else "",
             **({} if plan["repo"] else {"SOURCE": "plain"}),
-            "ODOO_ADMIN_PASSWORD": settings.odoo_admin_password,
+            # an instance moved from another server keeps its admin password (servers/move.py)
+            "ODOO_ADMIN_PASSWORD": plan.get("admin_password") or settings.odoo_admin_password,
             "MASTER_PASSWORD": vault.encrypt(master_password, store.master_password_label(name)),
             "AUTO_UPDATE": str(plan["auto_update"]).lower(),
             "AUTO_UPGRADE": str(plan["auto_upgrade"]).lower(),
@@ -217,7 +218,9 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
             "DELETE_AFTER_DAYS": plan["delete_after_days"],  # 0: keep until deleted by hand
             "CREATED_AT": int(time.time()),
             "CREATED_BY": plan.get("created_by", ""),
-            "INSTANCE_ID": secrets.token_hex(16),  # tells this instance's backups from those of an earlier one
+            # tells this instance's backups from those of an earlier one; a moved instance keeps its own
+            "INSTANCE_ID": (plan.get("moved") and source and backups.instance_id(source["file"]))
+            or secrets.token_hex(16),
             "ENTERPRISE_FOLDER": str(enterprise_folder or ""),
             "STAGE": plan.get("stage") or stages.DEFAULT,
             **({"PROJECT": plan["project"]} if plan.get("project") else {}),  # projects/: its repository's project
@@ -273,7 +276,9 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     login = "admin"
     if settings.odoo_admin_password != "admin" or source:
         job.step("Setting the admin password")
-        if source:
+        if source and plan.get("moved"):  # the same instance on another server: its people keep their passwords
+            login = _record_admin_login(name, db)
+        elif source:
             login = _adopt_admin(job, name, db)
         else:
             _set_admin_password(job, name, db)

@@ -23,6 +23,7 @@
 14. [Off-site copies](#14-off-site-copies)
 15. [Web shell](#15-web-shell)
 16. [Mail catcher](#16-mail-catcher)
+17. [Servers](#17-servers)
 
 ---
 
@@ -798,3 +799,22 @@ Staging and development instances send their e-mail to the mail catcher, `sudoo-
 | An e-mail's HTML attacks the person reading it | It is never put into the panel's page: it is served on its own address with `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src data:; ...; sandbox` (no scripts, no forms, no remote images or fonts, so no tracking pixel tells the sender it was opened) and shown in an `<iframe sandbox>` of the panel only (`frame-ancestors 'self'`). Inline images (`cid:`) are turned into `data:` addresses on the server. Attachments and the `.eml` always download as `application/octet-stream`. |
 | Caught e-mail leaves the server | Only by **Release**: administrators (`caught_mail.manage`), one typed address at a time, through the panel's own mailer, audit-logged with the address; `MAIL_CATCHER_RELEASE=false` switches it off. |
 | Caught e-mail piles up | Kept `MAIL_CATCHER_RETENTION_DAYS` (7), at most `MAIL_CATCHER_MAX_MESSAGES` (500) and `MAIL_CATCHER_MAX_MB` (200) per instance; a mailbox is deleted with its instance or when the instance moves to production. Files are mode 600 in a folder only root can open. |
+
+---
+
+## 17. Servers
+
+The main panel manages other servers through their agents ([Architecture](ARCHITECTURE.md#8-several-servers),
+[Admin guide](ADMIN_GUIDE.md#25-servers)).
+
+| Threat | Protection |
+| :--- | :--- |
+| Someone joins a server of their own to the panel | Joining needs a join code that an administrator with `servers.manage` created: 32 random bytes (the panel keeps only their SHA-256), single use, valid `SERVERS_JOIN_CODE_MINUTES` (30). Refused join requests are counted per address and audit-logged. A joined server can do nothing until an administrator approves it by typing the fingerprint the server printed (two-sided approval). |
+| A stolen join code is used before the real server | The thief's key has another fingerprint than the one the real server prints: the approval fails, and the admin revokes the server and adds it again. |
+| A fake panel takes over a server | The join code carries the SHA-256 of the panel's public key; the agent pins the key only when the join answer matches it, and from then on accepts only a welcome and frames signed with that key. |
+| Messages are read, changed, replayed or reordered on the way | The channel runs over the panel's https address. On top of TLS, every frame is Ed25519-signed by its sender over the session (both sides' random nonces), its direction and its sequence number; the receiver accepts only the next number with a valid signature from the pinned key, else it closes the channel. The connection request is signed, valid two minutes and accepted once. |
+| An agent asks the panel for more than its instances need | The panel never sends its secrets (session key, vault key, GitHub App key, SMTP, off-site and hub credentials, deploy keys). It sends its non-secret instance settings and decisions, and, when a job there asks, a GitHub App installation token (read-only, one hour) only for an account whose repositories that server's instances use. Enterprise add-ons, exposure and ports are set in each server's own `.env`. |
+| A request is run on a server with more rights than the person has | The panel computes the caller's permissions in that instance (role, project and branch access, locked branch) and sends exactly that list; the agent runs the endpoint with it and every check applies there. The agent listens on no port: it runs only requests that came over the signed channel. |
+| A compromised server attacks the others | Each agent has its own key and sees only its own instances; the panel answers its calls only about its own instances, and records its audit entries with the server's name. Revoking it closes its channel at once and refuses its key; its instances stay on it, out of the panel's reach. |
+| Moving an instance loses or changes data | The source is switched off before its backup; the copy is checked by size and SHA-256 read back from the target; the target is created from it under the same name and `INSTANCE_ID` without neutralising; the old copy is deleted (with its deletion backup) only after the target was created. Any failure removes what was made on the target and starts the source again. Production moves need confirmation. |
+| Too many servers for the plan | Adding and joining a server beyond the plan's servers (the main one included) are refused; the heartbeat reports the real number of servers to Sudoo.sh. |

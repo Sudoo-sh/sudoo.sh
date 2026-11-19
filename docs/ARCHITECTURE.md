@@ -15,6 +15,7 @@ each part was chosen.
 5. [Code from GitHub](#5-code-from-github)
 6. [Design decisions](#6-design-decisions)
 7. [Conventions in the code](#7-conventions-in-the-code)
+8. [Several servers](#8-several-servers)
 
 ---
 
@@ -502,3 +503,58 @@ Each decision lists what was chosen, why, what it costs, and the alternatives th
 | Every permission check names a permission. | `@require("instances.create")`, `refuse_unless("instances.delete", ...)` |
 
 The full file list is in the [project overview](../README.md#components).
+
+---
+
+## 8. Several servers
+
+One panel manages instances on several servers. The **main server** runs the panel (and its own instances, as
+before). Every **other server** runs `sudoo-agent`: the panel's image with the command `sudoo.sh agent`, next to its
+own `sudoo-gateway` and `sudoo-mail`. There is no Kubernetes and no shared storage: each server keeps its
+instances, backups and certificates on its own disk.
+
+```
+ browser ──https──▶ main server: sudoo-web ─▶ sudoo-panel ──(channel, opened by the agent)◀── sudoo-agent ─▶ Docker
+                                                    │                                             │
+ visitors ──▶ main server: sudoo-gateway ─▶ its instances        visitors ──▶ sudoo-gateway ─▶ its instances
+```
+
+**The agent** (`src/sudoo/servers/agent.py`) is the panel's backend without the web side: no page, no accounts, no
+listening port. It runs the work of its own instances (`background.start_agent`): monitor, automatic pause and
+deletion, daily backups, images ahead of time, expired snapshots, custom domains and certificate renewals, the mail
+catcher, the gateway link (waking paused instances) and the connectors. It connects **out** to the panel, so the
+other servers need no open port but 80/443 for their own visitors.
+
+**The channel** (`servers/links.py`, `GET /api/v1/servers/channel` on the panel's event loop) is a WebSocket the agent
+opens with a signed request; the panel answers with a signed welcome. From then on every message is a signed,
+numbered frame (`servers/trust.py`): calls and replies in both directions, the agent's report every
+`SERVERS_HEARTBEAT_SECONDS` (its instances as the API shows them, the facts of their `.env` that the panel needs,
+recent jobs, figures, room), its live events (instances, jobs, job output, domains) and its audit entries, and the
+panel's pushed decisions (its instance settings, the plan, every server's production instances and branches, locked
+branches, the link deadline).
+
+**Requests about another server's instance** (`servers/forward.py`): the panel authenticates the caller and works
+out what they may do in that instance (role, project and branch access, locks), then passes the request with exactly
+that list of permissions to the agent, which runs the same endpoint for that caller (`security._check_request`
+accepts only requests passed in-process by the agent; `access.role_permissions` takes the given list). Every check
+of the endpoint applies on that server; the panel adds the server, project and lock to the instance it returns.
+`servers/inventory.py` keeps what each agent reported, so lists, names, counts (production across servers, the
+plan's usage) and access checks see every server's instances, also while a server is offline.
+
+**Creating** (`web/v1/instances._start_creation`, `servers/placement.py`): the panel plans the instance as always
+(name unique across servers, project, branch stage) and sends the plan to the chosen server's agent, which reserves
+its own ports and runs the creation job. **Moving** (`servers/move.py`) is a job of the panel: switch off, back up,
+copy the backup through the panel (pieces of `MOVE_CHUNK_MB`, size and SHA-256 checked), create from it on the
+target (same name, `INSTANCE_ID`, admin password; not neutralised), delete on the old server; rolled back when a step
+fails.
+
+**When the main panel is down** every server keeps serving its instances (its own gateway), wakes paused ones, runs
+its backups, renews certificates and pauses or expires instances, with the panel's last pushed settings and
+decisions. A job that needs the panel (a GitHub App token for private code: git's credential helper asks the agent,
+which asks the panel) waits up to `SERVERS_WAIT_MINUTES` and then fails clearly. The agent opens the channel again
+and again (1 s, doubling, at most a minute); its next report brings the panel up to date.
+
+**Trust** (details in [Security](SECURITY.md#17-servers)): a join code is single-use and expires; it carries the
+SHA-256 of the panel's key, so the agent pins the panel's key from the start; the agent's key pair is made on its
+server and never leaves it; an admin approves the server by typing the fingerprint the server printed; revoking
+closes the channel and refuses the key.

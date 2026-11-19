@@ -71,13 +71,19 @@ def build(
 def start(plan: dict[str, Any], user: str) -> jobs.Job:
     """Start the creation's job; record the branch's stage in its project when the branch has none yet."""
     details = {key: plan[key] for key in (*SHOWN, "auto_update", "auto_upgrade", "auto_pause", "delete_after_days")}
+    record_stage(plan, user)
+    return jobs.start(plan["name"], "Create instance", "create", operations.create, plan, user=user, details=details)
+
+
+def record_stage(plan: Mapping[str, Any], user: str) -> None:
+    """Record the stage of the plan's branch in its project when the branch has none yet (also for an instance
+    created on another server: the panel keeps the projects)."""
     if plan["project"] and plan["branch"]:
         from sudoo import projects
 
         project = projects.get(plan["project"])
         if project is not None and not (project.get("branches") or {}).get(plan["branch"], {}).get("stage"):
             projects.record_branch(plan["project"], plan["branch"], stage=plan["stage"], changed_by=user)
-    return jobs.start(plan["name"], "Create instance", "create", operations.create, plan, user=user, details=details)
 
 
 def switches_for(stage: str, data: Mapping[str, Any] | None = None) -> dict[str, Any]:

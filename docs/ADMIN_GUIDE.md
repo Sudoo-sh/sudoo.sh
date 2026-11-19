@@ -34,6 +34,7 @@ domains and certificates, off-site copies of backups.
 22. [The licence agreement](#22-the-licence-agreement)
 23. [Mail catcher](#23-mail-catcher)
 24. [Projects and branches](#24-projects-and-branches)
+25. [Servers](#25-servers)
 
 ---
 
@@ -1961,3 +1962,97 @@ plan comes from Sudoo.sh in the signed licence (`entitlements.py`); what people 
   toward it; past it the hub answers 429 until midnight UTC, and the panel stops sending them until then (Plugins
   says when they work again). Heartbeats, registration, licence checks, licence acceptances and command
   acknowledgements never count, so licences and plans keep working.
+
+---
+
+## 25. Servers
+
+One panel can manage instances on several servers: the **main server** (where the panel runs) and **other
+servers**, for example one in another region, closer to a customer. Each other server runs a small agent
+(`sudoo-agent`) with its own gateway and mail catcher. How many servers you may have comes from your plan (Free: 1,
+Pro: 2, Business: no limit; the main server counts), shown on **Servers**.
+
+### Adding a server
+
+1. On the new server: Ubuntu or Debian with ports 80 and 443 open for its visitors. It needs no other open port: the
+   agent connects out to the panel.
+2. In the panel, **Servers**, **Add a server**: give it a name, a region (free text, for example `Riyadh` or
+   `me-central`) and, if you want, the most instances it may take. The panel shows a **join code** and the exact
+   command to run, once. The code works once and for `SERVERS_JOIN_CODE_MINUTES` (30); **New join code** makes another.
+3. On the new server, run the command as root:
+
+   ```bash
+   curl -fsSL https://github.com/Sudoo-sh/sudoo.sh/releases/latest/download/sudoo-install.sh \
+     | sudo bash -s -- agent --join '<join code>'
+   ```
+
+   The installer checks the server, installs Docker if you allow it, asks you to accept the licence agreement, starts
+   the agent and prints the server's **fingerprint** (for example `3F2A-91C0-7D4E-B812`).
+4. In the panel the server shows **Waiting for approval** with **Approve**. Type the fingerprint the server printed.
+   It must match the key that used the join code: if it does not, someone else may have used the code; revoke the
+   server and add it again. Once approved, the server is **Online** within seconds.
+
+The agents reach the panel at its public address. If they must use another address (a private network, a fixed
+domain), set **Address for other servers** (`SERVERS_PANEL_URL`) before you create the join code.
+
+### The Servers page
+
+Each server shows whether it is online, when it last reported, its region, version, instances, CPU, memory and disk,
+and its room: the instances it takes at most (if you set it) and how many it runs comfortably by the panel's
+estimate ([Capacity](CONFIGURATION.md#capacity)). Open a server for its fingerprint, its facts and its actions:
+rename, change the region or the room, **New join code**, **Approve**, **Revoke** and **Remove**.
+
+### Where new instances go
+
+**New instance** and a project's branch ask which server the instance goes to; without a choice it goes to the
+project's **Default server** (project settings), else to the main server. A server must be online and have room.
+Each instance shows its server. Automatic development instances for new branches go to the project's default server.
+
+Good to know:
+
+* Starting an instance from a backup works on the main server; to start on another server, create it on the main
+  server and move it.
+* A staging copy of production is made on the server of the production instance.
+* Each server needs its own Enterprise add-ons (`ENTERPRISE_SOURCE` in its `.env`) and its own exposure. Private
+  repositories are read through the panel's GitHub App: the server asks the panel for a short-lived token when it
+  needs one. Deploy keys stay on the main server.
+* The panel's instance settings (pausing, backups, time zone, stages, resources, images, shells, mail catcher)
+  apply on every server; its own secrets never leave it.
+
+### Moving an instance
+
+On the instance, **Move to another server**: choose the server and confirm (production asks again). The move is a job:
+
+1. the instance is switched off (its visitors see the "switched off" page: **the downtime starts**);
+2. it is backed up on its server;
+3. the backup is copied to the other server through the panel and checked (size and SHA-256);
+4. the instance is created there from the backup: same name, stage, project, branch, version, database and admin
+   password; the data is not neutralised;
+5. it is deleted on its old server (which keeps the deletion backup).
+
+The downtime lasts about as long as a backup, the copy and a restore of that instance. When a step fails, the move is
+rolled back: what was made on the target is removed and the instance starts again where it was. Its public address
+changes; add its custom domains again on the new server and point their DNS at it. Limits: `MOVE_MAX_BACKUP_GB`,
+`MOVE_AT_ONCE`, `MOVE_CHUNK_MB` ([Configuration](CONFIGURATION.md#servers)).
+
+### When the main panel is down
+
+Every other server keeps working on its own: its instances keep serving, paused instances wake when someone opens
+them, daily backups run, certificates are renewed, idle instances pause and expired ones are deleted, with the
+panel's last settings. Nothing can be changed on them meanwhile (there is no panel to ask), and a job that needs the
+panel (reading private code from GitHub) waits up to `SERVERS_WAIT_MINUTES`, then fails with a clear message. When
+the panel is back, the agents reconnect within a minute and the Servers page catches up.
+
+When another server is down, its instances stay listed with the status **Unreachable**; the panel refuses actions on
+them until the server is back.
+
+### Revoking and removing
+
+**Revoke** (type the server's name) closes its connection at once and refuses its key from then on; its instances
+keep running there but the panel can no longer reach them. On the server, `sudo sudoo-install agent leave` stops and
+removes the agent (and, if you ask, its instances). **Remove** takes a revoked server, or one that never joined, off
+the list; when the panel still knows instances on it, move or delete them first, or remove it with **Forget its
+instances**.
+
+On a server: `sudo sudoo-install agent status` shows whether it joined, whether it is approved and connected, its
+fingerprint and the panel's.

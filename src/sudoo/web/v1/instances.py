@@ -60,7 +60,7 @@ from typing import Any, cast
 
 from flask import Blueprint, Response, abort, g, request
 
-from sudoo import addons, entitlements, link_deadline, projects, roles
+from sudoo import addons, entitlements, link_deadline, projects, roles, servers
 from sudoo.config import settings
 from sudoo.core import events, jobs, vault
 from sudoo.core.state import STATE
@@ -70,6 +70,8 @@ from sudoo.mailcatcher import panel as mail_catcher
 from sudoo.projects import access
 from sudoo.repos import github
 from sudoo.repos.gitrepo import origin_url
+from sudoo.servers import forward, inventory, placement
+from sudoo.servers import registry as servers_registry
 
 from .. import validation as check
 from ..security import can, log, message_for_user, refuse_unless, require
@@ -170,8 +172,15 @@ def _limits(default: int = 100) -> tuple[int, int]:
 @require("instances.view")
 def list_instances() -> Response:
     limit, offset = _limits()
-    names = sorted(set(store.names()) | set(jobs.being_created()))  # those being created have status "creating"
-    return page(access.visible_instances(g.user, names), limit, offset, instance_resource)
+    # those being created have status "creating"; other servers' instances as their agents last reported them
+    names = sorted(set(store.names()) | set(jobs.being_created()) | set(inventory.remote_names()))
+    return page(access.visible_instances(g.user, names), limit, offset, any_resource)
+
+
+def any_resource(name: str) -> dict[str, Any]:
+    """An instance of the main server, or of another server (servers/forward.py)."""
+    found = None if store.exists(name) or jobs.creating(name) else forward.remote_resource(name)
+    return found if found is not None else instance_resource(name)
 
 
 @blueprint.get("/instances/<name>")
@@ -255,6 +264,7 @@ def plan() -> Response:
             "defaults": stages.defaults(stage),
             "stage_defaults": {each: stages.defaults(each) for each in stages.STAGES},
             "production": production_capacity(),
+            "servers": placement.choices(),
         }
     )
 
@@ -328,7 +338,9 @@ def _start_creation(
     """Check the limits and start the creation (the caller holds quotas.LOCK). `project`: the project's id when the
     instance is made for one of its branches (web/v1/projects.py); `from_production`: see planning.build."""
     refuse_unlinked("creating instances", "instance creation refused (panel not linked)")
-    _refuse_over_capacity("instance creation refused (running instances)")
+    server_id = _placement(data, project, repo, from_backup, from_production)
+    if server_id == servers.MAIN:  # another server's agent checks its own running instances
+        _refuse_over_capacity("instance creation refused (running instances)")
     defaults = stages.defaults(stage)
     if stage == stages.PRODUCTION:
         refused = stages.production_refusal() or _project_production_refusal(project, repo, branch)
@@ -369,6 +381,8 @@ def _start_creation(
         project=project,
     )
     name = plan_data["name"]
+    if server_id != servers.MAIN:
+        return _start_remote_creation(server_id, plan_data)
     job = planning.start(plan_data, g.user["name"])
     log(
         "Create instance",
@@ -379,6 +393,68 @@ def _start_creation(
         + (f" from a copy of {from_production}" if from_production else ""),
     )
     response = _accepted(job)
+    response.headers["Content-Location"] = f"{PREFIX}/instances/{name}"
+    return response
+
+
+def _placement(
+    data: Mapping[str, Any], project: str | None, repo: str, from_backup: str | None, from_production: str | None
+) -> str:
+    """The server the new instance goes to (servers/placement.py): the one asked for, else the project's default
+    server, else the main one. 400/409/503 when it cannot go there."""
+    requested = check.text(data, "server", max_length=20) or None
+    found = (
+        projects.get(project) if project else (projects.by_repository(github.repo_name(repo) or "") if repo else None)
+    )
+    try:
+        server_id = placement.choose(requested, found)
+    except placement.Refused as error:
+        log("instance creation refused (server)", ok=False, detail=error.message[:200])
+        abort(error.status, error.message)
+    if server_id == servers.MAIN:
+        return server_id
+    if from_backup:
+        abort(
+            409,
+            "A new instance starts from a backup on the main server only: create it there from the backup, then "
+            "move it to the other server (Move to another server).",
+        )
+    if from_production and inventory.server_of(from_production) != server_id:
+        abort(
+            409,
+            f"A staging copy is made on the server of its production instance ({from_production} runs on "
+            f"{servers_registry.name_of(inventory.server_of(from_production))}). Choose that server.",
+        )
+    return server_id
+
+
+def _start_remote_creation(server_id: str, plan_data: dict[str, Any]) -> Response:
+    """Pass a planned creation to the agent of another server: its job runs there (servers/agent.py)."""
+    from sudoo.servers import links
+
+    store.release_ports(plan_data.pop("ports"))  # the other server reserves its own
+    name = plan_data["name"]
+    links.expect_owner(server_id, plan_data.get("repo") or "")
+    try:
+        job = links.call(server_id, "create", {"plan": plan_data, "user": g.user["name"]})
+    except links.Offline:
+        abort(503, f"The server {servers_registry.name_of(server_id)} went offline. Choose another server.")
+    except links.RemoteError as error:
+        abort(error.status if 400 <= error.status < 600 else 502, error.message)
+    planning.record_stage(plan_data, g.user["name"])
+    inventory.instance_changed(server_id, name, {"name": name, "status": "creating"}, {
+        "STAGE": plan_data["stage"], "PROJECT": plan_data.get("project") or "", "GIT_BRANCH": plan_data["branch"],
+        "ODOO_VERSION": plan_data["version"], "EDITION": plan_data["edition"],
+    })  # fmt: skip
+    inventory.job_changed(server_id, job)
+    log(
+        "Create instance",
+        instance=name,
+        detail=f"Odoo {plan_data['version']} {plan_data['edition']}, {plan_data['stage']}, "
+        f"on {servers_registry.name_of(server_id)}",
+    )
+    response = ok(job, status=202)
+    response.headers["Location"] = f"{PREFIX}/jobs/{job['id']}"
     response.headers["Content-Location"] = f"{PREFIX}/instances/{name}"
     return response
 
@@ -723,10 +799,21 @@ def list_jobs() -> Response:
     instance_name = request.args.get("instance")
     if instance_name:
         check.instance_name(instance_name)
-    found = [j for j in reversed(jobs.JOBS.values()) if not instance_name or j.instance == instance_name]
-    shown = set(access.visible_instances(g.user, {j.instance for j in found if not jobs.is_panel_job(j.instance)}))
-    found = [j for j in found if jobs.is_panel_job(j.instance) or j.instance in shown]
-    return page(found, limit, offset, job_resource)
+    found: list[Any] = [j for j in reversed(jobs.JOBS.values()) if not instance_name or j.instance == instance_name]
+    remote = inventory.remote_jobs(instance_name or None)  # resources other servers reported (servers/)
+    if remote:  # one list, newest first: the main server's jobs as resources too
+        found = sorted(
+            [job_resource(j) for j in found] + remote, key=lambda j: str(j.get("started_at") or ""), reverse=True
+        )
+
+    def instance_of(job: Any) -> str:
+        return str(job["instance"] if isinstance(job, dict) else job.instance)
+
+    shown = set(
+        access.visible_instances(g.user, {instance_of(j) for j in found if not jobs.is_panel_job(instance_of(j))})
+    )
+    found = [j for j in found if jobs.is_panel_job(instance_of(j)) or instance_of(j) in shown]
+    return page(found, limit, offset, lambda j: j if isinstance(j, dict) else job_resource(j))
 
 
 def _job(job_id: str, permission: str = "instances.view") -> jobs.Job:

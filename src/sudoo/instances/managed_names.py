@@ -209,6 +209,11 @@ def _ask(record_label: str, stage: str, server_id: str = MAIN) -> dict[str, Any]
         from sudoo.hub import HubUnavailable
 
         raise HubUnavailable("Sudoo.sh answered without a valid name.")
+    base = str(state().get("base_domain") or "").lower().strip(".")
+    if not base or not hostname.endswith("." + base):
+        from sudoo.hub import HubUnavailable
+
+        raise HubUnavailable("Sudoo.sh answered with a name outside its own domain.")
     return data
 
 
@@ -270,7 +275,13 @@ def _create(
     record = _new_record(hostname, name, wanted_label, stage, now)
     if server_id != MAIN:
         record.update(server=server_id, points_to=target)
-    storage().put(custom_domains.COLLECTION, hostname, record)
+
+    def add(existing: dict[str, Any] | None) -> dict[str, Any]:
+        if existing is not None:  # a domain this server has already (a custom domain of an instance): never replaced
+            raise custom_domains.Refused(f"{hostname} is already a domain of this server.")
+        return record
+
+    storage().change(custom_domains.COLLECTION, hostname, add)
     custom_domains.forget_cache()
     audit.record("system", None, "managed name added", name, detail=hostname)
     if server_id != MAIN:
@@ -465,6 +476,8 @@ def sync(now: float | None = None) -> dict[str, Any]:
     from sudoo.hub import HubRefused, HubUnavailable
     from sudoo.premium import servers
 
+    from . import custom_domains
+
     if not settings.marketplace or servers.is_agent():
         return state()
     now = time.time() if now is None else now
@@ -526,7 +539,11 @@ def sync(now: float | None = None) -> dict[str, Any]:
                     continue  # the hub gave a name this server holds already (the same name): nothing to add
                 if given.get("company") and not state().get("company"):
                     _save(company=str(given["company"]))  # the account's first name fixed its company label
-                _create(name, given, goal[0], goal[1], now, server_id, target)
+                try:
+                    _create(name, given, goal[0], goal[1], now, server_id, target)
+                except custom_domains.Refused as error:
+                    problems.append(f"{name}: {error}")
+                    continue
                 told.add(server_id)
                 if current is not None:  # the old name (another branch or stage): released once the new one is there
                     pending.append(current["domain"])

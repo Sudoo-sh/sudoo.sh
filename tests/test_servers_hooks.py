@@ -134,6 +134,7 @@ def hub(monkeypatch: pytest.MonkeyPatch) -> Iterator[FakeHub]:
     fake = FakeHub().start()
     monkeypatch.setattr(client, "hub_url", lambda: fake.url)
     monkeypatch.setattr(keys, "SHIPPED_PREMIUM_KEYS", (fake.premium_key.public,))
+    monkeypatch.setattr(keys, "SHIPPED_PREMIUM_BINDING_KEYS", (fake.binding_key.public,))
     _clean()
     live.change({"marketplace": True})
     fake.entitlements = {"plan": "business", "max_servers": None, "premium": ["servers"]}
@@ -170,7 +171,7 @@ def _panel_runs_servers() -> None:
 
 
 def rec_binding_end(rec: dict[str, Any]) -> float:
-    key = keys.trusted()[rec["binding_key_id"]]
+    key = keys.trusted(role=keys.BINDING)[rec["binding_key_id"]]
     return float(crypto.read_binding(rec["binding"], rec["binding_signature"], key)["exp"])
 
 

@@ -166,16 +166,48 @@ def forget(source: str) -> None:
     storage().delete(COLLECTION, source)
 
 
+def test_identity(name: str) -> dict[str, str]:
+    """What tells the test instance `name` the upgrade's test job created from a later instance of the same name:
+    recorded with the upgrade (staging_created_at, staging_project) when the test instance is made."""
+    env = store.read_env(name)
+    return {"staging_created_at": str(env.get("CREATED_AT") or ""), "staging_project": env.get("PROJECT", "")}
+
+
+def _is_test_of(doc: Document, staging: str) -> bool:
+    """Whether the instance `staging` that exists now is the very test instance of the upgrade `doc`: same name,
+    same creation time and same project as recorded. An upgrade recorded before these were kept accepts an instance
+    created before its test finished. A deleted test instance's name never binds a new instance to the upgrade."""
+    if not staging or doc.get("staging") != staging or not store.exists(staging):
+        return False
+    env = store.read_env(staging)
+    recorded = doc.get("staging_created_at")
+    if recorded is None:  # recorded by an earlier version: the instance must be older than the test's result
+        try:
+            return float(env.get("CREATED_AT") or "inf") <= float(doc.get("tested_at") or 0)
+        except ValueError:
+            return False
+    return str(env.get("CREATED_AT") or "") == str(recorded) and env.get("PROJECT", "") == str(
+        doc.get("staging_project") or ""
+    )
+
+
 def staging_of(source: str) -> str | None:
-    """The staging instance the upgrade of `source` is tested on, when it still exists."""
-    found = get(source)
-    name = (found or {}).get("staging")
-    return str(name) if name and store.exists(str(name)) else None
+    """The staging instance the upgrade of `source` is tested on, when it still exists (that very instance)."""
+    found = get(source) or {}
+    name = str(found.get("staging") or "")
+    return name if _is_test_of(found, name) else None
 
 
 def source_of(staging: str) -> str | None:
     """The instance whose upgrade `staging` tests, or None."""
-    return next((str(u["source"]) for u in all_upgrades() if u.get("staging") == staging), None)
+    return next((str(u["source"]) for u in all_upgrades() if _is_test_of(u, staging)), None)
+
+
+def forget_staging(name: str) -> None:
+    """Instance `name` was deleted: no upgrade is tested on it any more (a new instance of that name is not)."""
+    for doc in all_upgrades():
+        if doc.get("staging") == name:
+            update(str(doc["source"]), staging=None, staging_created_at=None, staging_project=None)
 
 
 def rollback_open(doc: Document | None, now: float | None = None) -> bool:

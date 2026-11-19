@@ -623,6 +623,7 @@ install automatically from Sudoo.sh when your plan includes them. See [Premium f
 | `PREMIUM_BINDING_RENEW_DAYS` | number | `7` | **live** | Days before a premium feature's binding to this server ends that the panel asks Sudoo.sh for a new one (1 to 60). |
 | `PREMIUM_MAX_PACKAGE_MB` | number | `60` | **live** | The largest premium package the panel downloads, in MB (5 to 500). |
 | `PREMIUM_PUBLIC_KEYS` | text | empty | `.env` only | The premium signing keys the panel trusts (Ed25519, base64url, comma-separated). Empty: the keys this release ships. Set it only on a test panel. |
+| `PREMIUM_BINDING_PUBLIC_KEYS` | text | empty | `.env` only | The premium binding keys the panel trusts (Ed25519, base64url, comma-separated): they sign a download's binding to a server, never a package. Empty: the keys this release ships, and those a premium signing key endorsed. Set it only on a test panel. |
 
 ---
 

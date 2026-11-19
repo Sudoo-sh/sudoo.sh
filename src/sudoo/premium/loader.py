@@ -237,7 +237,7 @@ def _expected_identity() -> tuple[str, str] | None:
 
 def binding_problem(rec: dict[str, Any], now: float | None = None) -> str | None:
     """Why the package's binding does not allow it on this server now, or None."""
-    trusted = keys.trusted()
+    trusted = keys.trusted(role=keys.BINDING)  # never a key that signs packages
     key = trusted.get(str(rec.get("binding_key_id") or ""))
     if key is None:
         return "its binding is signed with a key this panel does not trust"
@@ -271,7 +271,7 @@ def _now() -> float:
 
 
 def signature_problem(rec: dict[str, Any]) -> str | None:
-    key = keys.trusted().get(str(rec.get("signing_key_id") or ""))
+    key = keys.trusted(role=keys.RELEASE).get(str(rec.get("signing_key_id") or ""))  # never a binding key
     if key is None:
         return "it is signed with a key this panel does not trust"
     ok = crypto.verify_premium_package(key, rec["id"], rec["version"], rec["sha256"], rec["python_tag"],
@@ -882,7 +882,7 @@ def install_for_agent(package: Path, headers: dict[str, str]) -> dict[str, Any]:
     if found:
         raise PremiumRefused(f"Not installed: {found}.")
     if not agent_identity().get("server_id"):
-        key = keys.trusted().get(got["binding_key_id"])
+        key = keys.trusted(role=keys.BINDING).get(got["binding_key_id"])
         if key is None:
             raise PremiumRefused("Not installed: its binding is signed with a key this panel does not trust.")
         try:

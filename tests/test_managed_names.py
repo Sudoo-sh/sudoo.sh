@@ -164,6 +164,34 @@ def test_a_refusal_is_kept_for_people(hub: FakeHub) -> None:
     assert not managed_names.records() and "used up" in str(found["error"])
 
 
+def test_a_name_from_the_hub_never_replaces_a_domain_of_this_server(hub: FakeHub) -> None:
+    hostname = "main.production.acme.sudoo.test"
+    _instance(DEMO, "demo", "development")
+    customer = {"domain": hostname, "instance": DEMO, "primary": True, "tls": "acme", "managed": False,
+                "status": "active", "added_by": "admin", "added_at": time.time()}  # fmt: skip
+    storage().put(custom_domains.COLLECTION, hostname, customer)
+    custom_domains.forget_cache()
+    found = managed_names.sync()
+    assert custom_domains.get(hostname) == customer  # still the customer's, on its own instance
+    assert managed_names.of_instance(SHOP) is None
+    assert any("already a domain of this server" in problem for problem in found["problems"])
+
+
+def test_a_name_outside_the_hubs_own_domain_is_refused(hub: FakeHub, monkeypatch: pytest.MonkeyPatch) -> None:
+    real = managed_names._hub
+
+    def answer(method: str, path: str, body: object = None) -> object:
+        found = real(method, path, body)
+        if method == "POST":
+            found.data["hostname"] = "shop.customer.example"
+        return found
+
+    monkeypatch.setattr(managed_names, "_hub", answer)
+    found = managed_names.sync()
+    assert custom_domains.get("shop.customer.example") is None and not managed_names.records()
+    assert "outside its own domain" in str(found["error"])
+
+
 def test_hub_calls_for_names_never_wait_for_the_daily_quota() -> None:
     storage().put(client.COLLECTION, client.QUOTA_KEY, {"until": time.time() + 3600})
     try:

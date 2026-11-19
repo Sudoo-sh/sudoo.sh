@@ -6,7 +6,7 @@ database manager produces and accepts under "Restore":
     dump.sql        the database, as SQL (pg_dump --no-owner)
     filestore/      attachments and images
     manifest.json   what the backup is (database, Odoo version, edition, and the instance it was taken from:
-                    its name and INSTANCE_ID)
+                    its name, INSTANCE_ID, project and branch)
 
 Kinds (files of earlier versions have no kind and count as "manual"):
 
@@ -111,6 +111,9 @@ def create(job: Job, name: str, kind: str = "manual") -> list[Path]:
         "version": env["ODOO_VERSION"],
         "edition": env.get("EDITION", "community"),
         "instance_id": env.get("INSTANCE_ID", ""),
+        # whose backup it is once the instance is gone: its project's and branch's access keep applying to it
+        "project": env.get("PROJECT", ""),
+        "branch": env.get("GIT_BRANCH", "") if env.get("PROJECT") else "",
     }
     saved = [_backup_database(job, name, db, facts, stamp, kind) for db in odoo.databases(name)]
     if kind in _KEEP_ONE:
@@ -135,7 +138,8 @@ def _database_up(job: Job, name: str) -> None:
 
 
 def _backup_database(job: Job, name: str, db: str, facts: dict[str, str], stamp: str, kind: str) -> Path:
-    """Back up database `db` of instance `name`; `facts`: its "version", "edition" and "instance_id"."""
+    """Back up database `db` of instance `name`; `facts`: its "version", "edition", "instance_id", "project" and
+    "branch"."""
     if not DB_NAME_RE.fullmatch(db):  # it becomes part of the backup's file name
         raise JobError(f"{db[:70]!r} is not a database name this panel uses")
     target = settings.backups_dir / f"{name}__{db}__{stamp}__{kind}.zip"
@@ -174,6 +178,8 @@ def _backup_database(job: Job, name: str, db: str, facts: dict[str, str], stamp:
                         "instance": name,
                         "edition": facts["edition"],
                         **({"instance_id": facts["instance_id"]} if facts.get("instance_id") else {}),
+                        "project": facts.get("project", ""),
+                        "branch": facts.get("branch", ""),
                     },
                     indent=2,
                 ),
@@ -305,10 +311,18 @@ def instance_id(file_name: str) -> str | None:
     return _manifest(file_name).get("instance_id")
 
 
+def scope(file_name: str) -> tuple[str, str] | None:
+    """(project id, branch) of the instance the backup was taken from ("" and "" outside every project), recorded in
+    its manifest; None for backups taken before they were recorded."""
+    found = _manifest(file_name)
+    project, branch = found.get("project"), found.get("branch")
+    return None if project is None else (project, branch or "")
+
+
 def _manifest(file_name: str) -> dict[str, str | None]:
     path = path_of(file_name)
     if path is None:
-        return {"version": None, "series": None, "edition": None, "instance_id": None}
+        return {"version": None, "series": None, "edition": None, "instance_id": None, "project": None, "branch": None}
     key = (path.name, path.stat().st_mtime)
     if key not in _DETAILS:
         manifest: dict[str, Any] = {}
@@ -326,6 +340,8 @@ def _manifest(file_name: str) -> dict[str, str | None]:
             "series": series(version),
             "edition": edition if edition in ("community", "enterprise") else None,
             "instance_id": manifest["instance_id"] if isinstance(manifest.get("instance_id"), str) else None,
+            "project": manifest["project"] if isinstance(manifest.get("project"), str) else None,
+            "branch": manifest["branch"] if isinstance(manifest.get("branch"), str) else None,
         }
     return _DETAILS[key]
 

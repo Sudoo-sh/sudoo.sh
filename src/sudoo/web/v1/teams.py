@@ -29,10 +29,36 @@ from .responses import PREFIX, iso, no_content, ok
 blueprint = Blueprint("teams", __name__)
 
 
+def _names(entries: Any, team_id: str) -> bool:
+    return any(isinstance(e, Mapping) and e.get("type") == "team" and e.get("id") == team_id for e in entries or ())
+
+
+def refuse_unless_may_add_members(team_id: str, added: set[str]) -> None:
+    """Adding someone to a team gives them what the team is given: every grant and lock that names it. So, except
+    for super admins, it needs projects.access wherever the team has a grant, and to be allowed by every lock that
+    lets the team through (as changing the grant or the lock would). 403 otherwise."""
+    if not added or access.is_super_admin(g.user):
+        return
+    for project in projects.all_projects():
+        current = access.access_of(project)
+        if _names(current.get("grants"), team_id) and not access.allowed(g.user, "projects.access", project):
+            abort(403, "This team has access to a project whose access you cannot change: you cannot add members.")
+        for branch, rules in (current.get("branches") or {}).items():
+            named = isinstance(rules, Mapping) and _names(rules.get("grants"), team_id)
+            if named and not access.allowed(g.user, "projects.access", project, branch):
+                abort(403, "This team has access to a branch whose access you cannot change: you cannot add members.")
+        for branch, lock in (current.get("locks") or {}).items():
+            named = isinstance(lock, Mapping) and _names(lock.get("allow"), team_id)
+            if named and not access.may_unlock(g.user, project, branch):
+                abort(403, "A branch lock lets this team through and does not allow you: you cannot add members.")
+
+
 def _used_in(team_id: str) -> list[dict[str, str]]:
-    """The projects whose grants or locks name the team: [{"id", "name"}]."""
+    """The projects whose grants or locks name the team and the caller may see: [{"id", "name"}]."""
     found = []
     for project in projects.all_projects():
+        if not access.sees_project(g.user, project):
+            continue
         current = access.access_of(project)
         lists = [current.get("grants") or ()]
         lists += [v.get("grants") or () for v in (current.get("branches") or {}).values()]
@@ -123,6 +149,8 @@ def change_team(team_id: str) -> Response:
         log("team changed", detail=f"{team_id}: removed {', '.join(removed) or 'nobody'}"[:300])
         access.forget_restrictions()
         return ok(team_resource(team))
+    if "members" in data:
+        refuse_unless_may_add_members(team_id, set(_members(data)) - set(before.get("members") or []))
     return cast(Response, _premium_view("change_team")(team_id))
 
 

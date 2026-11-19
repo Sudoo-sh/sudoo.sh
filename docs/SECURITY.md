@@ -271,7 +271,10 @@ Restoring a backup replaces an instance's database and files, so it has its own 
 random `INSTANCE_ID` when it is created, recorded in every backup's `manifest.json`, and a backup is its own only
 when the two match (a backup taken before the id was recorded counts when it was taken after the instance was
 created). A deleted instance's backups therefore need `backups.manage` even when its name is reused, are never
-picked by "Restore the latest backup", and are neutralised when they are put back.
+picked by "Restore the latest backup", and are neutralised when they are put back. The manifest also records the
+instance's project and branch, so their access keeps applying to its backups once it is deleted (listing,
+download, deletion, restore); a deleted instance's backup taken by an earlier version, which does not record them,
+is only for those from whom no project is hidden.
 Putting another instance's backup into an instance, or starting a new instance from a backup, copies one instance's
 data into another, so it also needs `backups.manage`, the permission that already lets a role see and download every
 backup (super admins and administrators): a maintainer cannot use it to read an instance's data through another one.
@@ -561,7 +564,8 @@ Enterprise folder or the project. The Enterprise folder and the edition are reco
 and come from that record from then on, an empty folder (Community) included.
 
 The panel writes `.env` one key per line: it refuses a key that is not an upper-case name and a value with a line
-break or another control character. Values it reads from an instance, such as the login of the Odoo administrator
+break or another control character (C1 controls and the Unicode line and paragraph separators included), and it
+reads lines split at line feeds only. Values it reads from an instance, such as the login of the Odoo administrator
 after a restore, are only recorded when they are a single short line.
 
 The instance folder is mode 700 and owned by root; `.env` and `docker-compose.yml` are mode 600; `config/` and

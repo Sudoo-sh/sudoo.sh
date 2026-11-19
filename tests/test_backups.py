@@ -65,6 +65,7 @@ def _backup(
     edition: str | None = None,
     stamp: str = "20261112-000000",
     instance_id: str | None = None,
+    project: str | None = None,
 ) -> str:
     settings.backups_dir.mkdir(parents=True, exist_ok=True)
     name = f"{instance}__{instance.replace('-', '_')}__{stamp}__{kind}.zip"
@@ -77,6 +78,8 @@ def _backup(
                 manifest["edition"] = edition
             if instance_id:
                 manifest["instance_id"] = instance_id
+            if project is not None:
+                manifest |= {"project": project, "branch": ""}
             archive.writestr("manifest.json", json.dumps(manifest))
     taken = time.time() - age_hours * 3600
     os.utime(path, (taken, taken))
@@ -317,6 +320,74 @@ def test_backups_record_the_instance_they_were_taken_from(monkeypatch: pytest.Mo
     assert f"--lock-wait-timeout={backups.PG_DUMP_LOCK_WAIT}" in commands[0]  # a held lock cannot stall the dump
 
 
+def test_a_deleted_instances_backups_keep_its_projects_access(
+    app: Flask, admin: Client, started: list[Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A backup records the project and branch of its instance: once the instance is deleted, someone the project
+    is closed to still cannot list, download, delete or restore it. A backup that recorded none (an earlier
+    version's) is only for those from whom nothing is hidden."""
+    from sudoo import projects
+    from sudoo.projects import access
+
+    if accounts.get("bkadmin") is None:
+        accounts.create("bkadmin", "admin", "amber-cinder-tulip-64")
+    outsider, o_headers = sign_in(app, "bkadmin", "amber-cinder-tulip-64")
+    project = projects.create(repository="Acme/Vault", odoo_version="18.0", edition="community", origin="linked",
+                              user="t")  # fmt: skip
+    pid = project["id"]
+    _instance("shop", instance_id="4" * 32)
+    store.update_env("shop", PROJECT=pid)
+    _instance("lab")
+    monkeypatch.setattr(backups, "_database_up", lambda job, name: None)
+
+    def fake_copy(cmd: list[str], path: Any, what: str) -> None:
+        if what == "file storage copy":
+            with tarfile.open(path, "w"):
+                pass
+        else:
+            path.write_text("-- dump\n")
+
+    monkeypatch.setattr(backups, "_run_to_file", fake_copy)
+    monkeypatch.setattr(operations.odoo, "databases", lambda name: [name.replace("-", "_")])
+    (saved,) = backups.create(jobs.Job("shop", "Delete", "delete", "test"), "shop", "deletion")
+    assert backups.scope(saved.name) == (pid, "main")
+    legacy = _backup("shop", "manual", stamp="20261101-000000")  # an earlier version's: no project recorded
+    loose = _backup("old", "manual", stamp="20261102-000000", project="")  # outside every project
+    assert backups.scope(legacy) is None
+    projects.change(pid, lambda p: {**p, "access": {"mode": "restricted", "grants": [
+        {"type": "user", "id": "admin1", "level": "admin"}]}})  # fmt: skip
+    access.forget_restrictions()
+    shutil.rmtree(store.folder("shop"))  # the instance is deleted; its deletion backup is kept
+    try:
+
+        def listed(client: FlaskClient) -> set[str]:
+            return {b["file"] for b in client.get("/api/v1/backups").get_json()["data"]}
+
+        assert listed(outsider) == {loose}  # neither the deleted instance's backup nor one that says nothing
+        for file_name in (saved.name, legacy):
+            assert outsider.get(f"/api/v1/backups/{file_name}").status_code == 404
+            assert outsider.delete(f"/api/v1/backups/{file_name}", headers=o_headers).status_code == 404
+            answer = outsider.post("/api/v1/instances/lab/actions/restore", json={"file": file_name},
+                                   headers=o_headers)  # fmt: skip
+            assert answer.status_code == 404
+        assert not started and saved.exists()
+
+        # the project's own people still may
+        client, headers = admin
+        assert {saved.name, legacy, loose} <= listed(client)
+        assert client.get(f"/api/v1/backups/{saved.name}").status_code == 200
+        answer = client.post("/api/v1/instances/lab/actions/restore", json={"file": saved.name}, headers=headers)
+        assert answer.status_code == 202, answer.get_json()
+
+        # with the project open to everyone again, the role decides as before
+        projects.change(pid, lambda p: {**p, "access": {}})
+        access.forget_restrictions()
+        assert listed(outsider) == {saved.name, legacy, loose}
+    finally:
+        projects.remove(pid)
+        access.forget_restrictions()
+
+
 # ---------------------------------------------------------------- deleting when the backup fails
 
 
@@ -500,6 +571,10 @@ def test_credentials_show_the_administrator_login_of_a_backup(admin: Client, mon
     [
         "admin\nODOO_PORT=2375\nGATEWAY_PORT=8000\nDELETE_AFTER_DAYS=1\nCREATED_AT=0\nCREATED_BY=someone-else",
         "admin\rEDITION=enterprise",
+        "x\u2028ODOO_PORT=8000\u2028CREATED_BY=mallory\u2028DELETE_AFTER_DAYS=1",  # Unicode line separator
+        "x\x85ODOO_PORT=8000\x85CREATED_BY=mallory",  # next line (C1)
+        "x\u2029ODOO_PORT=8000",  # paragraph separator
+        "x\x1cODOO_PORT=8000",  # file separator
         "admin\x00x",
         "a" * 201,
     ],
@@ -528,6 +603,23 @@ def test_env_writer_refuses_line_breaks_and_odd_keys() -> None:
     assert (store.folder("shop") / ".env").read_text() == raw
     store.update_env("shop", ODOO_ADMIN_LOGIN="boss@example.com")
     assert store.read_env("shop")["ODOO_ADMIN_LOGIN"] == "boss@example.com"
+
+
+def test_env_reader_ends_lines_only_at_line_feeds() -> None:
+    """Only a line feed ends a line of .env, as the panel writes it: other characters Python counts as line breaks
+    (U+2028, U+0085, ...) cannot make a value add or replace keys, and the writer refuses them anyway."""
+    _instance("shop")
+    store.update_env("shop", ODOO_PORT=8070)
+    path = store.folder("shop") / ".env"
+    path.write_text(path.read_text() + "ODOO_ADMIN_LOGIN=x\u2028ODOO_PORT=8000\x85CREATED_BY=mallory\n")
+    env = store.read_env("shop")
+    assert env["ODOO_PORT"] == "8070" and "CREATED_BY" not in env
+    assert env["ODOO_ADMIN_LOGIN"] == "x\u2028ODOO_PORT=8000\x85CREATED_BY=mallory"
+    for separator in ("\u2028", "\u2029", "\x85", "\x9f"):
+        assert store.unsafe_env_value(f"a{separator}B=1")
+        with pytest.raises(ValueError):
+            store.write_env("shop", {"ODOO_ADMIN_LOGIN": f"a{separator}ODOO_PORT=1"})
+    assert not store.unsafe_env_value("Zoë Ångström 管理者")  # other characters stay allowed
 
 
 def test_rollback_hours_is_a_documented_live_setting() -> None:

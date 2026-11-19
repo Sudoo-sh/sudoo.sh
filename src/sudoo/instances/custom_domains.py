@@ -16,7 +16,6 @@ instance (or when the instance's branch or stage changes).
 
 from __future__ import annotations
 
-import os
 import re
 import threading
 import time
@@ -24,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from sudoo.config import settings
-from sudoo.core import events
+from sudoo.core import events, vault
 from sudoo.storage import storage
 
 COLLECTION = "domains"
@@ -60,9 +59,8 @@ def tls_mode() -> str:
 
 
 def _private_dir(path: Path) -> Path:
-    path.mkdir(mode=0o700, parents=True, exist_ok=True)
-    os.chmod(path, 0o700)
-    return path
+    shared = path.is_relative_to(settings.gateway_dir)  # the gateway container writes there too
+    return vault.private_dir(path, within=settings.gateway_dir if shared else None)
 
 
 def certs_dir() -> Path:
@@ -241,7 +239,7 @@ def remove(domain: str, managed: bool = False) -> dict[str, Any]:
             )
         storage().delete(COLLECTION, domain)
         forget_cache()
-        cert_file(domain).unlink(missing_ok=True)
+        vault.remove_private(cert_file(domain), within=settings.gateway_dir)
         if record.get("primary"):
             rest = for_instance(record["instance"])
             if rest:
@@ -261,7 +259,7 @@ def forget_instance(name: str) -> None:
             if record.get("managed") and managed_names.kept_on_delete(record):
                 continue
             storage().delete(COLLECTION, record["domain"])
-            cert_file(record["domain"]).unlink(missing_ok=True)
+            vault.remove_private(cert_file(record["domain"]), within=settings.gateway_dir)
             if record.get("managed"):
                 released.append(record["domain"])
         forget_cache()

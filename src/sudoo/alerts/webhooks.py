@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 import time
 import urllib.error
 import urllib.request
@@ -74,6 +75,33 @@ def _iso(at: float | None) -> str | None:
     return datetime.fromtimestamp(at, UTC).isoformat(timespec="seconds") if at else None
 
 
+_ZERO_WIDTH = "\u200b"
+_MARKDOWN_LINK_RE = re.compile(r"\]\s*\(")
+_MENTION_RE = re.compile(r"@(?=everyone|here|channel)", re.IGNORECASE)
+
+
+def slack_safe(text: str) -> str:
+    """`text` shown as written in Slack: & < > escaped, so it forms no mention (<!channel>) and no link (<url|label>)."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def markdown_safe(text: str) -> str:
+    """`text` for Discord and Teams Markdown: a link with another label ([label](url)) and @everyone/@here are
+    broken up by a zero-width space, so they show as written."""
+    return _MENTION_RE.sub("@" + _ZERO_WIDTH, _MARKDOWN_LINK_RE.sub("]" + _ZERO_WIDTH + "(", text))
+
+
+def _safe(record: dict[str, Any], clean: Any) -> dict[str, Any]:
+    """The record with its words (which can come from a job's output) made safe for a chat service's markup."""
+    return {
+        **record,
+        "title": clean(str(record.get("title") or "")),
+        "text": clean(str(record.get("text") or "")),
+        "hint": clean(str(record["hint"])) if record.get("hint") else None,
+        "details": [clean(str(item)) for item in record.get("details") or []],
+    }
+
+
 def _lines(record: dict[str, Any], link: str | None, bold: tuple[str, str]) -> str:
     mark = {"recovered": "Resolved", "info": "Notice"}.get(record["severity"], "Alert")
     parts = [f"{bold[0]}{mark}: {record['title']}{bold[1]}", record["text"]]
@@ -87,7 +115,12 @@ def _lines(record: dict[str, Any], link: str | None, bold: tuple[str, str]) -> s
 
 
 def payload(record: dict[str, Any], form: str, link: str | None, now: float | None = None) -> dict[str, Any]:
-    """The JSON document sent for `record` in format `form`."""
+    """The JSON document sent for `record` in format `form`. For a chat service the alert's words are shown as
+    written: they never mention a channel or form a link (a failed job's hint comes from its output)."""
+    if form == "slack":
+        record = _safe(record, slack_safe)
+    elif form in ("discord", "teams"):
+        record = _safe(record, markdown_safe)
     if form == "slack":
         text = _lines(record, None, ("*", "*"))
         return {"text": text + (f"\n<{link}|Open Sudoo.sh>" if link else "")}

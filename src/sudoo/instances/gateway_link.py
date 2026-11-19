@@ -39,7 +39,7 @@ from sudoo import exposure
 from sudoo.config import settings
 from sudoo.core import audit
 from sudoo.core.state import STATE
-from sudoo.core.vault import write_private
+from sudoo.core.vault import chmod_private, write_private
 from sudoo.instances import gateway, metrics, store
 from sudoo.instances.gateway_service import (
     GATEWAY_SOCKET,
@@ -136,7 +136,7 @@ def refresh_domains() -> None:
 def write_routes(text: str) -> None:
     if text == LINK.written and path(ROUTES).exists():
         return
-    write_private(path(ROUTES), text)
+    write_private(path(ROUTES), text, within=settings.gateway_dir)
     LINK.written = text
 
 
@@ -151,6 +151,9 @@ class _UnixHTTPConnection(http.client.HTTPConnection):
     def connect(self) -> None:
         conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         conn.settimeout(self.timeout)
+        if os.path.islink(self.socket_path):  # the gateway's folder: a link there is not the gateway's socket
+            conn.close()
+            raise OSError(f"{self.socket_path} is a link")
         conn.connect(self.socket_path)
         self.sock = conn
 
@@ -284,7 +287,7 @@ async def serve_wake() -> web.AppRunner:
     sock = path(PANEL_SOCKET)
     sock.unlink(missing_ok=True)
     await web.UnixSite(runner, str(sock)).start()
-    os.chmod(sock, 0o600)
+    chmod_private(sock)  # never through a link the gateway swapped in
     return runner
 
 

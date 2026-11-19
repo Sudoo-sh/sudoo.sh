@@ -17,6 +17,7 @@ import os
 import re
 import secrets
 import shutil
+import stat
 import time
 from collections.abc import Iterator
 from email.message import EmailMessage, Message
@@ -25,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from sudoo.config import settings
+from sudoo.core import vault
 from sudoo.instances.store import NAME_RE
 
 from . import BOXES
@@ -174,14 +176,46 @@ def deliver(name: str, raw: bytes, envelope: dict[str, Any], limits: dict[str, i
 
 
 # --------------------------------------------------------------------------- the panel's side
+#
+# The catcher's container writes in MAIL_CATCHER_DIR too, so the panel reaches a mailbox and its files without
+# following links (and reads only plain files): nothing planted there makes it read, change or remove anything
+# outside the mailbox.
+
+
+def _open_box(name: str) -> int:
+    """The mailbox folder as an open directory (the caller closes it); OSError when it is missing or a link."""
+    return vault.open_dir(box(name), within=settings.mail_catcher_dir)
+
+
+def _read(name: str, filename: str) -> bytes:
+    """A file of the mailbox; OSError when it is missing, a link or not a plain file."""
+    folder = _open_box(name)
+    try:
+        flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0)
+        fd = os.open(filename, flags, dir_fd=folder)
+    finally:
+        os.close(folder)
+    with os.fdopen(fd, "rb") as fh:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise OSError(f"{filename} is not a plain file")
+        return fh.read()
+
+
+def _listing(name: str) -> list[str]:
+    folder = _open_box(name)
+    try:
+        return os.listdir(folder)
+    finally:
+        os.close(folder)
 
 
 def _ids(name: str) -> list[str]:
     """Ids in the mailbox, newest first."""
     try:
-        found = [entry.stem for entry in box(name).iterdir() if entry.suffix == ".json" and ID_RE.match(entry.stem)]
+        entries = _listing(name)
     except OSError:
         return []
+    found = [entry[:-5] for entry in entries if entry.endswith(".json") and ID_RE.match(entry[:-5])]
     return sorted(found, reverse=True)
 
 
@@ -189,7 +223,7 @@ def summaries(name: str) -> Iterator[dict[str, Any]]:
     """Every caught e-mail of the instance, newest first."""
     for message_id in _ids(name):
         try:
-            found = json.loads((box(name) / f"{message_id}.json").read_text())
+            found = json.loads(_read(name, f"{message_id}.json"))
         except (OSError, ValueError):
             continue  # removed meanwhile, or written by someone else
         if isinstance(found, dict):
@@ -212,7 +246,7 @@ def raw(name: str, message_id: str) -> bytes | None:
     if not ID_RE.match(message_id or ""):
         return None
     try:
-        return (box(name) / f"{message_id}.eml").read_bytes()
+        return _read(name, f"{message_id}.eml")
     except OSError:
         return None
 
@@ -222,7 +256,7 @@ def get(name: str, message_id: str) -> dict[str, Any] | None:
     if not ID_RE.match(message_id or ""):
         return None
     try:
-        found = json.loads((box(name) / f"{message_id}.json").read_text())
+        found = json.loads(_read(name, f"{message_id}.json"))
     except (OSError, ValueError):
         return None
     return found | {"id": message_id} if isinstance(found, dict) else None
@@ -295,12 +329,19 @@ def delete(name: str, message_id: str) -> bool:
     if not ID_RE.match(message_id or ""):
         return False
     found = False
-    for suffix in (".json", ".eml"):
-        try:
-            (box(name) / f"{message_id}{suffix}").unlink()
-            found = True
-        except OSError:
-            pass
+    try:
+        folder = _open_box(name)
+    except OSError:
+        return False
+    try:
+        for suffix in (".json", ".eml"):
+            try:
+                os.unlink(f"{message_id}{suffix}", dir_fd=folder)
+                found = True
+            except OSError:
+                pass
+    finally:
+        os.close(folder)
     return found
 
 
@@ -313,7 +354,22 @@ def delete_all(name: str) -> int:
 
 def remove_box(name: str) -> None:
     """Remove the instance's mailbox and everything in it (the instance was deleted)."""
-    shutil.rmtree(box(name), ignore_errors=True)
+    try:
+        boxes_fd = vault.open_dir(root(), within=settings.mail_catcher_dir)
+    except OSError:
+        return
+    try:
+        shutil.rmtree(box(name).name, dir_fd=boxes_fd, ignore_errors=True)  # never follows a link
+    finally:
+        os.close(boxes_fd)
+
+
+def _stat(name: str, filename: str) -> os.stat_result:
+    folder = _open_box(name)
+    try:
+        return os.stat(filename, dir_fd=folder, follow_symlinks=False)
+    finally:
+        os.close(folder)
 
 
 def usage(name: str) -> dict[str, int]:
@@ -321,7 +377,7 @@ def usage(name: str) -> dict[str, int]:
     count = size = 0
     for message_id in _ids(name):
         try:
-            size += (box(name) / f"{message_id}.eml").stat().st_size
+            size += _stat(name, f"{message_id}.eml").st_size
             count += 1
         except OSError:
             continue
@@ -331,12 +387,11 @@ def usage(name: str) -> dict[str, int]:
 def prune(name: str, *, max_messages: int = 0, max_bytes: int = 0, older_than: float | None = None) -> int:
     """Remove e-mails beyond `max_messages`, beyond `max_bytes` in all, and received before `older_than`, the
     oldest first; 0 or None: no such limit. Returns how many were removed. Also removes files left half-written."""
-    folder = box(name)
     removed = 0
     kept = size = 0
     for message_id in _ids(name):  # newest first
         try:
-            length = (folder / f"{message_id}.eml").stat().st_size
+            length = _stat(name, f"{message_id}.eml").st_size
         except OSError:
             length = 0
         received = int(message_id[:13]) / 1000
@@ -349,12 +404,25 @@ def prune(name: str, *, max_messages: int = 0, max_bytes: int = 0, older_than: f
         kept += 1
         size += length
     try:
-        for entry in folder.iterdir():
-            stem = entry.name.split(".")[0]
-            orphan = entry.suffix == ".eml" and not (folder / f"{stem}.json").exists()
-            stale = entry.name.startswith(".") and entry.stat().st_mtime < time.time() - 3600
-            if orphan and entry.stat().st_mtime < time.time() - 60 or stale:
-                entry.unlink(missing_ok=True)
+        folder = _open_box(name)
+    except OSError:
+        return removed
+    try:
+        entries = set(os.listdir(folder))
+        for entry in entries:
+            stem = entry.split(".")[0]
+            orphan = entry.endswith(".eml") and f"{stem}.json" not in entries
+            stale = entry.startswith(".")
+            if not (orphan or stale):
+                continue
+            try:
+                modified = os.stat(entry, dir_fd=folder, follow_symlinks=False).st_mtime
+                if orphan and modified < time.time() - 60 or stale and modified < time.time() - 3600:
+                    os.unlink(entry, dir_fd=folder)
+            except OSError:
+                continue
     except OSError:
         pass
+    finally:
+        os.close(folder)
     return removed

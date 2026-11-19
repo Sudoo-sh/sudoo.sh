@@ -369,6 +369,18 @@ def test_chat_formats() -> None:
     assert webhooks.payload({**RECORD, "severity": "recovered"}, "slack", None)["text"].startswith("*Resolved:")
 
 
+def test_chat_formats_show_job_output_as_written() -> None:
+    printed = "<!here> see <https://x.invalid/a|the panel> and [docs](https://x.invalid/b) @everyone & co"
+    record = {**RECORD, "title": "update of shop failed", "text": printed, "hint": printed, "details": [printed]}
+    slack = webhooks.payload(record, "slack", "https://p/i/shop")["text"]
+    assert "<!here>" not in slack and "<https://x.invalid" not in slack and "&lt;!here&gt;" in slack
+    assert "&amp; co" in slack and slack.endswith("<https://p/i/shop|Open Sudoo.sh>")  # the panel's own link stays
+    discord = webhooks.payload(record, "discord", "https://p/i/shop")["content"]
+    assert "](" not in discord and "@everyone" not in discord and discord.endswith("\nhttps://p/i/shop")
+    card = webhooks.payload(record, "teams", "https://p/i/shop")["attachments"][0]["content"]
+    assert all("](" not in block["text"] and "@everyone" not in block["text"] for block in card["body"])
+
+
 def test_body_size_is_limited() -> None:
     huge = {**RECORD, "details": ["y" * 300] * 20, "text": "z" * 2000, "hint": "h" * 2000}
     for form in webhooks.FORMATS:

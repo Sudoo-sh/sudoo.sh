@@ -48,12 +48,12 @@ ACCOUNTS = "acme-accounts.json"
 def publish_challenge(token: str, content: str) -> None:
     if not TOKEN_RE.match(token):
         raise acme.AcmeError("The ACME authority sent a token that is not valid.")
-    vault.write_private(challenges_dir() / token, content)
+    vault.write_private(challenges_dir() / token, content, within=settings.gateway_dir)
 
 
 def withdraw_challenge(token: str) -> None:
     if TOKEN_RE.match(token):
-        (settings.gateway_dir / CHALLENGES / token).unlink(missing_ok=True)
+        vault.remove_private(settings.gateway_dir / CHALLENGES / token, within=settings.gateway_dir)
 
 
 # ---------------------------------------------------------------- certificates
@@ -80,14 +80,14 @@ def facts(chain_pem: bytes) -> Facts:
 
 
 def remove(domain: str) -> None:
-    cert_file(domain).unlink(missing_ok=True)
+    vault.remove_private(cert_file(domain), within=settings.gateway_dir)
 
 
 def store(domain: str, key_pem: bytes, chain_pem: str) -> Facts:
     """Keep a new certificate where the gateway reads it; returns its facts."""
     found = facts(chain_pem.encode())
     certs_dir()
-    vault.write_private(cert_file(domain), key_pem.decode() + chain_pem)
+    vault.write_private(cert_file(domain), key_pem.decode() + chain_pem, within=settings.gateway_dir)
     return found
 
 

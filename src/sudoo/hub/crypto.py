@@ -34,8 +34,8 @@ Premium packages
     The first-party premium packages (premium/) are signed with a separate premium key, never a hub key, over
     "sudoo-premium-v1\\n<id>\\n<version>\\n<sha256>\\n<python tag>\\n<platform>", so a marketplace signature can never
     pass as a premium one. Each download carries a binding to this server: the canonical JSON of {v, kind, server_id,
-    hardware_fingerprint, package_id, version, sha256, iat, exp}, signed by the premium key over
-    "sudoo-premium-binding-v1\\n" + that JSON.
+    hardware_fingerprint, package_id, version, sha256, iat, exp}, signed by a premium binding key (never the key
+    that signs packages: premium/keys.py) over "sudoo-premium-binding-v1\\n" + that JSON.
 
 Leases
     A heartbeat answers with a lease: a JWT signed by the hub key (alg EdDSA, kid = key id), for this installation
@@ -82,6 +82,7 @@ PREMIUM_DOMAIN = b"sudoo-premium-v1"
 BINDING_DOMAIN = b"sudoo-premium-binding-v1"
 BINDING_KIND = "sudoo-premium-binding"
 PREMIUM_KEY_DOMAIN = "sudoo-premium-key-v1"
+PREMIUM_BINDING_KEY_DOMAIN = "sudoo-premium-binding-key-v1"
 LEASE_TYPE = "sudoo-lease+jwt"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -267,6 +268,11 @@ def endorsement_message(key_id: str, public_key: str, not_before: int) -> bytes:
 def premium_endorsement_message(key_id: str, public_key: str, not_before: int) -> bytes:
     """What the previous premium key signs to endorse a new one (GET /api/v1/premium/keys)."""
     return "\n".join((PREMIUM_KEY_DOMAIN, key_id, public_key, str(not_before))).encode()
+
+
+def premium_binding_endorsement_message(key_id: str, public_key: str, not_before: int) -> bytes:
+    """What a premium release key signs to endorse a binding key (listed with "role": "binding")."""
+    return "\n".join((PREMIUM_BINDING_KEY_DOMAIN, key_id, public_key, str(not_before))).encode()
 
 
 def fingerprint(public_key: str, machine_id: str, mac: str) -> str:

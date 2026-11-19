@@ -86,7 +86,9 @@ What was set up keeps working where the panel can do it on its own:
   signature is never accepted for one). Rotations of that key are accepted only when a key the panel already trusts
   endorsed the new one.
 - It must carry a binding to your server: your installation, your server's hardware fingerprint, the package and
-  version, and an end date. The panel renews the binding before it ends (`PREMIUM_BINDING_RENEW_DAYS`).
+  version, and an end date. The panel renews the binding before it ends (`PREMIUM_BINDING_RENEW_DAYS`). Bindings are
+  signed with a binding key, never with the premium key: a binding key is accepted for bindings only, and only when
+  the release ships it or a premium key endorsed it, so whoever holds it cannot sign a package.
 - It may contain compiled modules, built for the panel's own Python; marketplace plugins may not.
 - It may only use the extension points made for premium features.
 
@@ -107,7 +109,7 @@ press **Check now**; the panel downloads a fresh binding.
 
 ## 7. Settings
 
-All are on **Settings**, group **Premium features**, except `PREMIUM_PUBLIC_KEYS`
+All are on **Settings**, group **Premium features**, except `PREMIUM_PUBLIC_KEYS` and `PREMIUM_BINDING_PUBLIC_KEYS`
 ([Configuration](CONFIGURATION.md#premium-features)).
 
 | Setting | Default | Meaning |
@@ -119,6 +121,7 @@ All are on **Settings**, group **Premium features**, except `PREMIUM_PUBLIC_KEYS
 | `PREMIUM_BINDING_RENEW_DAYS` | 7 | Days before a binding ends that a new one is asked for. |
 | `PREMIUM_MAX_PACKAGE_MB` | 60 | The largest package downloaded. |
 | `PREMIUM_PUBLIC_KEYS` | empty | `.env` only, for test panels: the premium keys to trust instead of the shipped ones. |
+| `PREMIUM_BINDING_PUBLIC_KEYS` | empty | `.env` only, for test panels: the binding keys to trust instead of the shipped ones. |
 
 ## 8. Troubleshooting
 

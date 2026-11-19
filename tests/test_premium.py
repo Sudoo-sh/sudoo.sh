@@ -13,14 +13,15 @@ import zipfile
 from collections.abc import Iterator
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from flask import Flask
 from flask.testing import FlaskClient
 
-from fake_hub import FakeHub, PremiumBuild, make_package, make_premium_package
+from fake_hub import FakeHub, HubKey, PremiumBuild, make_package, make_premium_package
 from sudoo import entitlements, plugin_manager, premium
 from sudoo.config import live
 from sudoo.core import jobs
-from sudoo.hub import client, marketplace
+from sudoo.hub import client, crypto, marketplace
 from sudoo.premium import keys, loader
 from sudoo.storage import storage
 
@@ -160,6 +161,70 @@ def test_the_premium_key_is_separate_from_the_hub_key(hub: FakeHub) -> None:
     }
     assert loader.signature_problem(with_premium_key) == "its signature is not valid"
     assert len(package) == offer["size"]
+
+
+def test_a_binding_key_never_signs_a_package_and_a_release_key_never_a_binding(hub: FakeHub) -> None:
+    marketplace.heartbeat()
+    assert _sync().status == "success"  # the binding key is learned from the hub's list, endorsed by the premium key
+    rec = loader.record("teams") or {}
+    assert rec["binding_key_id"] == hub.binding_key.key_id and loader.problem(rec) is None
+    assert set(keys.trusted(role=keys.BINDING)) == {hub.binding_key.key_id}
+    assert set(keys.trusted()) == {hub.premium_key.key_id}
+    statement = crypto.premium_statement(rec["id"], rec["version"], rec["sha256"], rec["python_tag"], rec["platform"])
+    by_binding_key = {**rec, "signature": hub.binding_key.sign(statement), "signing_key_id": hub.binding_key.key_id}
+    assert loader.signature_problem(by_binding_key) == "it is signed with a key this panel does not trust"
+    binding = crypto.from_b64url(rec["binding"])
+    by_release_key = {**rec, "binding_signature": hub.premium_key.sign(crypto.binding_message(binding)),
+                      "binding_key_id": hub.premium_key.key_id}  # fmt: skip
+    assert loader.binding_problem(by_release_key) == "its binding is signed with a key this panel does not trust"
+
+
+def test_a_binding_key_is_trusted_only_when_a_release_key_endorsed_it() -> None:
+    release, binding, other = (HubKey(Ed25519PrivateKey.generate()) for _ in range(3))
+    now = time.time()
+
+    def listed(key: HubKey, endorser: HubKey, domain: str, role: str) -> dict[str, object]:
+        message = f"{domain}\n{key.key_id}\n{key.public}\n{key.not_before}".encode()
+        entry = client._listed({"key_id": key.key_id, "public_key": key.public, "state": "active",
+                                "not_before": key.not_before, "endorsed_by": endorser.key_id,
+                                "endorsement": endorser.sign(message)})  # fmt: skip
+        assert entry is not None
+        return {**entry, "role": role}
+
+    current = {release.key_id: {"public_key": release.public, "state": "active", "not_after": None,
+                                "source": "root", "role": keys.RELEASE}}  # fmt: skip
+    found = keys.applied(current, [listed(binding, release, "sudoo-premium-binding-key-v1", "binding")], now)
+    assert found[binding.key_id]["role"] == keys.BINDING
+    # endorsed as a release key (the other domain), or by a binding key: not a binding key
+    found = keys.applied(found, [listed(other, release, "sudoo-premium-key-v1", "binding"),
+                                 listed(other, binding, "sudoo-premium-binding-key-v1", "binding")], now)  # fmt: skip
+    assert other.key_id not in found
+    # a binding key listed as a release key never becomes one
+    found = keys.applied(found, [listed(binding, release, "sudoo-premium-key-v1", "release")], now)
+    assert found[binding.key_id]["role"] == keys.BINDING
+
+
+def test_a_revoked_root_stays_revoked_when_the_roots_change(monkeypatch: pytest.MonkeyPatch) -> None:
+    first, second = HubKey(Ed25519PrivateKey.generate()), HubKey(Ed25519PrivateKey.generate())
+    storage().delete(keys.STATE_COLLECTION, "keys")
+    monkeypatch.setattr(keys, "SHIPPED_PREMIUM_KEYS", (first.public,))
+    assert first.key_id in keys.trusted()
+    revoking = client._listed({"key_id": first.key_id, "public_key": first.public, "state": "revoked"})
+    assert revoking is not None
+    applied = keys.applied(keys.known(), [{**revoking, "role": keys.RELEASE}], time.time())
+    storage().put(keys.STATE_COLLECTION, "keys", {"keys": applied})
+    assert first.key_id not in keys.trusted()
+    monkeypatch.setattr(keys, "SHIPPED_PREMIUM_KEYS", (first.public, second.public))  # a release adds a root
+    assert set(keys.trusted()) == {second.key_id}
+    monkeypatch.setattr(keys, "SHIPPED_PREMIUM_KEYS", (second.public,))  # dropped, then shipped again
+    storage().put(keys.STATE_COLLECTION, "keys", {"keys": keys.known()})
+    monkeypatch.setattr(keys, "SHIPPED_PREMIUM_KEYS", (first.public, second.public))
+    assert set(keys.trusted()) == {second.key_id}
+    statement = crypto.premium_statement("teams", "9.9.9", "a" * 64, "py3", "any")
+    record = {"id": "teams", "version": "9.9.9", "sha256": "a" * 64, "python_tag": "py3", "platform": "any",
+              "signature": first.sign(statement), "signing_key_id": first.key_id}  # fmt: skip
+    assert loader.signature_problem(record) == "it is signed with a key this panel does not trust"
+    storage().delete(keys.STATE_COLLECTION, "keys")
 
 
 def test_compiled_modules_only_in_premium_packages_built_for_this_panel(hub: FakeHub) -> None:

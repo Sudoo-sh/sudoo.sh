@@ -597,6 +597,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   minutes, and refuses bodies over 1 MB for the backend before they reach it.
 - Sign-in throttling keeps only failures: a flood of sign-ins or API calls under made-up names or from many
   addresses can no longer fill the panel's memory.
+- **Folders shared with the gateway and the mail catcher:** the panel no longer follows a link placed in
+  `GATEWAY_DIR` or `MAIL_CATCHER_DIR`. Files there (routes, certificates, challenges, the catcher's settings) are
+  written to a temporary file with a random name, created only when nothing is at that name, and moved into place;
+  modes are set on the folder or socket itself; caught e-mails are read, pruned and removed only inside their own
+  mailbox, and only plain files are read. Private files elsewhere are written the same way.
+- **Releasing a caught e-mail** sends it only to the address typed: `Resent-*` headers written by the instance are
+  removed, and the SMTP envelope is set by the panel (its own address to the typed one) instead of being taken from
+  the message's headers.
+- **Managed subdomains:** a name Sudoo.sh answers with must end in its announced base domain, and it never replaces
+  a domain the server already has (an instance's custom domain); such an answer is shown as a problem instead.
+- **Premium keys:** a revoked premium key stays revoked when the keys a release ships change. Bindings and packages
+  are signed with separate keys: a package is accepted only with a premium signing key's signature, a binding only
+  with a binding key's (one the release ships, `PREMIUM_BINDING_PUBLIC_KEYS` on a test panel, or one a premium
+  signing key endorsed in Sudoo.sh's list with `"role": "binding"`), so a binding key cannot sign a package.
+- **Teams:** adding members to a team needs, except for super admins, the right to change the access of every
+  project and branch whose grants name the team, and to be allowed by every branch lock that lets it through. A
+  team shows only the projects the person reading it may see.
+- **Alert webhooks:** in Slack, Discord and Teams the alert's words (which can come from a failed job's output) are
+  shown as written: they no longer mention a channel (`<!channel>`, `@everyone`) or form a link with another label.
 
 ## [1.0.0] - 2026-11-14
 

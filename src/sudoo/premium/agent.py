@@ -16,8 +16,11 @@ The agent asks the panel GET <u>/api/v1/servers/agent-packages?python_tag=&platf
 this server's Python and platform), then each GET .../agent-packages/<id>?..., with the join code in
 X-Sudoo-Join-Code (later, the package signs these requests with the agent's key). Each answer carries the same
 headers as a download from Sudoo.sh: the SHA-256, the premium key's signature and the binding to the main panel.
-The agent installs a package only when that signature verifies with a trusted premium key and its binding names
-the panel it joined (premium/loader.py, agent mode): a package copied to a server without that panel is refused.
+The list also carries the hub's premium keys ("keys", as GET /api/v1/premium/keys gives them), applied first
+(premium/keys.py apply_listed): a binding key the hub rotated is trusted when a release key this agent already trusts
+endorsed it, and never otherwise. The agent installs a package only when that signature verifies with a trusted
+premium key and its binding names the panel it joined (premium/loader.py, agent mode): a package copied to a server
+without that panel is refused.
 """
 
 from __future__ import annotations
@@ -89,9 +92,14 @@ def fetch_packages(panel_url: str, headers: Callable[[], Mapping[str, str]]) -> 
     query = urlencode({"python_tag": loader.python_tag(), "platform": loader.platform_tag()})
     data, _ = _get(f"{panel_url}{PACKAGES_PATH}?{query}", headers())
     try:
-        listed = json.loads(data).get("data")
+        answer = json.loads(data)
+        listed = answer.get("data")
     except (ValueError, AttributeError):
-        listed = None
+        answer, listed = {}, None
+    if isinstance(listed, list):
+        from . import keys
+
+        keys.apply_listed(answer.get("keys"))  # before the packages: their bindings are checked with these
     if not isinstance(listed, list):
         raise AgentError("The panel's answer is not a list of packages.")
     installed = []

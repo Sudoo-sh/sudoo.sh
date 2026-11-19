@@ -8,6 +8,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Several servers:** one panel manages instances on other servers too, for example closer to a customer. Each
+  other server runs a small agent (`sudoo-agent`, the panel's image, with its own gateway and mail catcher), installed
+  with `sudoo-install agent --join <code>`; it connects out to the panel, so it needs no open port but 80/443. An
+  administrator adds a server on the new **Servers** page (a single-use, expiring join code and the exact command),
+  then approves it by typing the fingerprint the server printed. Every message between them is signed with keys
+  pinned on both sides; revoking closes the connection at once. The panel's requests about an instance on another
+  server run there for the same person with the same permissions. When the main panel is down, every server keeps
+  serving, waking, backing up, renewing certificates and pausing on its own. New instances and project branches
+  choose their server (a project can have a default server); **Move to another server** backs an instance up, copies
+  it, restores it there and rolls back on failure. The plan decides how many servers there may be (Free 1, Pro 2,
+  Business no limit), and the heartbeat reports the real number. New settings: `SERVER_NAME`, `SERVER_REGION`,
+  `SERVERS_PANEL_URL`, `SERVERS_JOIN_CODE_MINUTES`, `SERVERS_HEARTBEAT_SECONDS`, `SERVERS_OFFLINE_SECONDS`,
+  `SERVERS_REQUEST_SECONDS`, `SERVERS_WAIT_MINUTES`, `MOVE_MAX_BACKUP_GB`, `MOVE_CHUNK_MB`, `MOVE_AT_ONCE`,
+  `MOVE_HEALTH_SECONDS`; new permissions `servers.manage` and `instances.move`.
+
 - **Developer API tokens:** a new `developer` scope for developers' tools and CI. Such a token lists and reads the
   projects, branches and instances it may see, their logs, jobs and caught e-mails; starts, pauses, restarts, gets the
   latest code and updates submodules; creates development instances (also for a project's development branch) and

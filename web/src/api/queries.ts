@@ -24,8 +24,6 @@ import type {
   Recommendation,
   AuditEntry,
   Backup,
-  OffsiteCopy,
-  OffsiteState,
   Credentials,
   DeployKey,
   Domains,
@@ -58,8 +56,6 @@ import type {
   CaughtMailMeta,
   HelpInfo,
   User,
-  SupportOverview,
-  SupportStatus,
   Version,
 } from "./types";
 
@@ -72,8 +68,6 @@ export const keys = {
   projectAccess: (id: string) => ["project", id, "access"] as const,
   teams: ["teams"] as const,
   plan: ["plan"] as const,
-  support: ["support-access"] as const,
-  supportStatus: ["support-access", "status"] as const,
   instance: (name: string) => ["instance", name] as const,
   domains: (name: string) => ["domains", name] as const,
   mail: (name: string) => ["caught-mail", name] as const,
@@ -230,10 +224,6 @@ export const useMailTemplates = () =>
     },
   });
 /** The panel's Sudoo.sh plan (GET /plan); the live event "marketplace" (a heartbeat) refreshes it. */
-export const useSupportAccess = () => useQuery({ queryKey: keys.support, queryFn: () => api.get<SupportOverview>("/support-access") });
-/** The banner: polled, so a support session that starts shows within seconds even without live events. */
-export const useSupportStatus = () =>
-  useQuery({ queryKey: keys.supportStatus, queryFn: () => api.get<SupportStatus>("/support-access/status"), refetchInterval: 15_000 });
 export const useSudooPlan = () => useQuery({ queryKey: keys.plan, queryFn: () => api.get<PlanStatus>("/plan"), staleTime: 60_000 });
 export const useTeams = (enabled = true) => useQuery({ queryKey: keys.teams, queryFn: () => api.get<Team[]>("/teams"), enabled });
 export const useProjectAccess = (id: string, enabled = true) =>
@@ -241,11 +231,6 @@ export const useProjectAccess = (id: string, enabled = true) =>
 export const useUsers = () => useQuery({ queryKey: ["users"], queryFn: () => api.get<User[]>("/users") });
 export const useTokens = () => useQuery({ queryKey: ["tokens"], queryFn: () => api.get<Token[]>("/tokens") });
 export const useBackups = () => useQuery({ queryKey: ["backups"], queryFn: () => api.get<Backup[]>("/backups") });
-/** Off-site copies: the state (where they go, the signing key) and the copies; the live event "offsite" refreshes both. */
-export const useOffsite = (enabled = true) =>
-  useQuery({ queryKey: ["offsite", "state"], queryFn: () => api.get<OffsiteState>("/offsite"), enabled });
-export const useOffsiteCopies = (enabled = true) =>
-  useQuery({ queryKey: ["offsite", "copies"], queryFn: () => api.get<OffsiteCopy[]>("/offsite/copies"), enabled });
 export const useDeployKeys = () =>
   useQuery({ queryKey: ["deploy-keys"], queryFn: () => api.get<DeployKey[]>("/deploy-keys") });
 export const useGitHubApp = () =>

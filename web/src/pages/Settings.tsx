@@ -1,16 +1,17 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell, CloudUpload, Download, Gauge, KeyRound, SlidersHorizontal, Mail, Plug, PlugZap, Puzzle, RefreshCcw, RotateCcw, Send, ServerCog, Webhook } from "lucide-react";
+import { Bell, CloudUpload, Gauge, SlidersHorizontal, Mail, Plug, Puzzle, RefreshCcw, RotateCcw, Send, ServerCog, Webhook } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, errorText } from "@/api/client";
-import { keys, useCall, useCapacity, useOffsite, useSettings } from "@/api/queries";
+import { keys, useCall, useCapacity, useSettings } from "@/api/queries";
 import { RESOURCE_KNOBS, type Setting, type Stage } from "@/api/types";
 import { LicenceSettings } from "@/components/LicenceSettings";
 import { MarketplaceSettings } from "@/components/Marketplace";
 import { PlanSettings } from "@/components/PlanSettings";
-import { SupportAccessSettings } from "@/components/SupportAccess";
+import { PlanCard, PremiumFeaturesCard, PremiumSlot } from "@/premium/components";
+import { usePremium } from "@/premium/loader";
 import { Page, PageHead, useMe, useSubCrumb } from "@/components/Shell";
-import { Button, Callout, CopyField, Skeleton, Switch, Tag } from "@/components/ui/basics";
+import { Button, Callout, Skeleton, Switch, Tag } from "@/components/ui/basics";
 import { Modal, useToast } from "@/components/ui/overlay";
 import { useLocale, useT } from "@/i18n";
 import { bytes } from "@/lib/format";
@@ -116,7 +117,12 @@ const TABS: { id: TabId; groups: Group[] }[] = [
   },
   { id: "github", groups: [{ id: "codeUpdates", keys: ["poll_minutes", "update_triggers", "github_webhook_secret"] }] },
   { id: "marketplace", groups: [] },
-  { id: "plan", groups: [] },
+  {
+    id: "plan",
+    groups: [
+      { id: "premium", keys: ["premium_auto_install", "premium_check_hours", "premium_retry_minutes", "premium_watch_minutes", "premium_binding_renew_days", "premium_max_package_mb", "public_ipv4", "public_ipv6"] },
+    ],
+  },
   { id: "support", groups: [{ id: "supportAccess", keys: ["support_access", "support_access_max_hours"] }] },
   { id: "advanced", groups: [{ id: "monitoring", keys: ["metrics_interval_seconds", "cloudflared_image"] }] },
   { id: "about", groups: [] },
@@ -258,53 +264,6 @@ function useTestAlert() {
   return { busy, send };
 }
 
-/** Writes, reads back, lists and deletes a test file with the saved off-site settings. */
-function useOffsiteTest() {
-  const toast = useToast();
-  const [busy, setBusy] = useState(false);
-  const t = useT(words).offsite;
-  const run = async (unsaved: boolean) => {
-    setBusy(true);
-    try {
-      const result = await api.post<{ location: string }>("/offsite/test");
-      toast("success", t.tested, t.testedText(result.location) + (unsaved ? `. ${t.unsaved}` : ""));
-    } catch (error) {
-      toast("error", t.notTested, errorText(error));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return { busy, run };
-}
-
-/** The panel's signing key: the public half and its fingerprint, to keep off the server, and what it protects. */
-function SigningKey() {
-  const { data } = useOffsite();
-  const t = useT(words).offsite;
-  return (
-    <Section title={t.keyTitle} text={t.keyText} icon={<KeyRound />}
-      actions={data?.public_key ? <a className="btn sm" href="/api/v1/offsite/public-key" download><Download /> {t.download}</a> : undefined}>
-      <div className="card-body stack">
-        {data?.public_key ? (
-          <>
-            <div className="stack-sm">
-              <div className="small muted">{t.fingerprint}</div>
-              <CopyField value={data.fingerprint ?? ""} />
-            </div>
-            <div className="stack-sm">
-              <div className="small muted">{t.publicKey}</div>
-              <CopyField value={data.public_key.trim()} block />
-            </div>
-            <Callout tone="warning">{t.keepOff}</Callout>
-          </>
-        ) : (
-          <p className="small muted">{t.noKey}</p>
-        )}
-        <p className="small muted">{t.trust}</p>
-      </div>
-    </Section>
-  );
-}
 
 /** The tabs as an accessible tablist: arrow keys, Home and End move between tabs and open them; the chosen tab is
  *  the only one in the Tab order. A dot marks a tab with unsaved changes, or one waiting for a restart. */
@@ -445,11 +404,12 @@ export function SettingsPage() {
   const [draft, setDraft] = useState<Record<string, Value>>({});
   const [testing, setTesting] = useState(false);
   const testAlert = useTestAlert();
-  const offsiteTest = useOffsiteTest();
   const [restarting, setRestarting] = useState(false);
   const t = useT(words);
   const all = useT(common);
   const locale = useLocale();
+  // the settings of off-site copies show while the premium off-site package runs (they are kept either way)
+  const offsiteRuns = usePremium().data?.packages.some((p) => p.id === "offsite" && p.status === "active") ?? false;
   const byKey = useMemo(() => Object.fromEntries((settings ?? []).map((s) => [s.key, s])), [settings]);
   const dirty = Object.keys(draft).filter((k) => byKey[k] && (byKey[k]!.secret ? draft[k] !== "" : draft[k] !== byKey[k]!.value));
   const save = useCall((values: Record<string, Value>) => api.patch<Setting[]>("/settings", values), [keys.settings, keys.session]);
@@ -557,20 +517,13 @@ export function SettingsPage() {
           )}
           <TabList tab={tab} onSelect={select} marks={marks} />
           <div className={moved ? "tab-enter stack" : "stack"} key={tab} id={`settings-panel-${tab}`} role="tabpanel" aria-labelledby={`settings-tab-${tab}`}>
-            {current.groups.map((group) => (
+            {current.groups.filter((group) => !group.id.startsWith("offsite") || offsiteRuns).map((group) => (
               <Section
                 key={group.id}
                 {...groupWords(t, group)}
                 icon={group.id === "email" ? <Mail /> : group.id === "offsiteStorage" ? <CloudUpload /> : group.test === "email" ? <Bell /> : group.test ? <Webhook /> : undefined}
                 actions={
-                  group.id === "offsiteStorage" ? (
-                    me.permissions.includes("offsite.configure") ? (
-                      <Button size="sm" icon={<PlugZap />} loading={offsiteTest.busy} disabled={!byKey.offsite_endpoint?.value || !byKey.offsite_bucket?.value}
-                        onClick={() => offsiteTest.run(group.keys.some((k) => dirty.includes(k)))}>
-                        {t.offsite.test}
-                      </Button>
-                    ) : undefined
-                  ) : group.id === "email" ? (
+                  group.id === "email" ? (
                     <div className="row">
                       {me.permissions.includes("mail.manage") && <Link className="btn sm ghost" to="/email-templates" viewTransition>{t.testEmail.texts}</Link>}
                       <Button size="sm" icon={<Send />} onClick={() => setTesting(true)}>{t.testEmail.open}</Button>
@@ -587,7 +540,7 @@ export function SettingsPage() {
               </Section>
             ))}
             {tab === "resources" && <ResourceSettings byKey={byKey} draft={draft} onChange={(key, v) => setDraft((d) => ({ ...d, [key]: v }))} />}
-            {tab === "backups" && <SigningKey />}
+            {tab === "backups" && <PremiumSlot name="settings.offsite" props={{ dirty }} />}
             {tab === "marketplace" && (
               <Section title={t.marketplace.title} text={t.marketplace.text} icon={<Puzzle />}
                 actions={<Link className="btn sm" to="/plugins" viewTransition>{t.marketplace.open}</Link>}>
@@ -595,8 +548,13 @@ export function SettingsPage() {
                 <MarketplaceSettings />
               </Section>
             )}
-            {tab === "plan" && <PlanSettings />}
-            {tab === "support" && <SupportAccessSettings />}
+            {tab === "plan" && (
+              <>
+                <PlanSettings />
+                <PremiumFeaturesCard />
+              </>
+            )}
+            {tab === "support" && <PremiumSlot name="settings.support" fallback={<PlanCard id="support" />} />}
             {tab === "about" && <LicenceSettings>{rows(["licence_required_version", "link_deadline_days"])}</LicenceSettings>}
             {tab === "advanced" && (
               <>

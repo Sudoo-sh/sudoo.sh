@@ -1029,6 +1029,8 @@ export interface Domains {
   listener_error: string | null;
   authority: "production" | "staging" | "custom";
   domains: CustomDomain[];
+  managed?: boolean;
+  premium?: string | null;
 }
 
 // ---------------------------------------------------------------- web shell (GET /api/v1/instances/<name>/shell)

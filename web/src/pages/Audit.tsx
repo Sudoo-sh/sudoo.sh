@@ -5,7 +5,7 @@ import { Page, PageHead } from "@/components/Shell";
 import { Tag, Button, Empty, Skeleton } from "@/components/ui/basics";
 import { useT } from "@/i18n";
 import words from "@/i18n/operations";
-import supportWords from "@/i18n/support";
+import supportWords from "@/i18n/premium";
 import { ago, dateTime } from "@/lib/format";
 
 export function AuditPage() {

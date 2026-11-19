@@ -13,6 +13,7 @@ import {
   KeyRound,
   LayoutGrid,
   LifeBuoy,
+  ServerCog,
   LogOut,
   Mail,
   Menu as MenuIcon,
@@ -46,7 +47,7 @@ import { BackToTop } from "./BackToTop";
 import { HelpButton } from "./HelpPanel";
 import { PageMotion } from "./PageMotion";
 import { PlanBanner } from "./PlanSettings";
-import { SupportBanner } from "./SupportAccess";
+import { PremiumSlot, usePremiumRoutes } from "@/premium/components";
 import { Menu, useToast } from "./ui/overlay";
 
 import { useCan, useMe } from "./Session";
@@ -110,6 +111,8 @@ function Sidebar({ open }: { open: boolean }) {
   const all = useT(common);
   const t = all.nav;
   const operations = can("backups.manage") || can("audit.view") || can("github.manage");
+  // a page a premium feature adds to the menu (only Servers so far; Teams and Support access are always listed)
+  const servers = usePremiumRoutes().some(({ route }) => route.path === "/servers");
   const administration =
     can("settings.manage") || can("mail.manage") || can("accounts.manage") || can("teams.manage") || can("tokens.manage") || can("plugins.view") || can("support_access.manage");
   return (
@@ -193,6 +196,11 @@ function Sidebar({ open }: { open: boolean }) {
                 {t.supportAccess}
               </NavItem>
             )}
+            {servers && (
+              <NavItem to="/servers" icon={<ServerCog />}>
+                {t.servers}
+              </NavItem>
+            )}
           </nav>
         </>
       )}
@@ -266,6 +274,7 @@ const CRUMBS: Record<string, keyof (typeof common)["en"]["nav"]> = {
   teams: "teams",
   tokens: "tokens",
   "support-access": "supportAccess",
+  servers: "servers",
   backups: "backups",
   activity: "audit",
   github: "github",
@@ -478,7 +487,7 @@ export function Shell() {
         <Reconnecting sync={sync} />
         <PluginNotices />
         <RecoveryCodesNotice />
-        <SupportBanner />
+        <PremiumSlot name="shell.banner" />
         <PlanBanner />
         <Outlet />
       </div>

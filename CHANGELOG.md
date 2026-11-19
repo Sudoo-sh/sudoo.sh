@@ -459,6 +459,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Web app dependencies:** `minimatch`, used only by the shadcn command line tool, is held at 11.0.1 or later
+  (GHSA-g3hv-75wg-m249, a denial of service through crafted patterns).
+
 - **Panel polish:** recent commits show when they were made in the reader's language ("3 hours ago", in Arabic too),
   with the full date and time on hover, the short hash linked to the commit (or copied) and the author
   (`recent_commits[].when` is now an ISO time in UTC, with `full_sha`). Switching e-mail templates no longer flashes

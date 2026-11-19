@@ -8,12 +8,14 @@
 :root {
   color-scheme: light;
 
-  // brand: one accent, and the shade used for text and lines drawn in it
-  --accent: #714b67;
-  --accent-ink: #5f3d56;
-  --on-accent: #ffffff;
-  --accent-soft: color-mix(in oklab, var(--accent) 9%, var(--surface));
-  --accent-ring: color-mix(in oklab, var(--accent) 30%, transparent);
+  // brand: one accent, and the shade used for text and lines drawn in it. --primary (shadcn's name for it) is the
+  // value: the brand colour of the panel's settings (BRAND_COLOR, lib/theme.ts) replaces it on the page.
+  --primary: #714b67;
+  --brand: var(--primary);
+  --brand-ink: #5f3d56;
+  --on-brand: #ffffff;
+  --brand-soft: color-mix(in oklab, var(--brand) 9%, var(--surface));
+  --brand-ring: color-mix(in oklab, var(--brand) 30%, transparent);
 
   // graphite ramp
   --bg: #fafafa;
@@ -34,7 +36,7 @@
   --idle: #a3a3a3;
 
   // chart series: the accent leads, the rest are quiet
-  --series-1: var(--accent);
+  --series-1: var(--brand);
   --series-2: #0f766e;
   --series-grid: rgb(23 23 23 / 0.06);
 
@@ -106,7 +108,7 @@
   --s8: 32px;
   --s10: 40px;
   --s12: 48px;
-  --sidebar: 256px;
+  --sidebar-width: 256px;
   --topbar: 56px;
 
   // materials: translucent chrome over the content that scrolls under it
@@ -147,9 +149,9 @@
   --shell-bright-magenta: #f0c6e5;
   --shell-bright-cyan: #a8e6de;
   --shell-bright-white: #f4f4f5;
-  --accent: #c79bbd;
-  --accent-ink: #d9b6d0;
-  --on-accent: #1b1219;
+  --primary: #c79bbd;
+  --brand-ink: #d9b6d0;
+  --on-brand: #1b1219;
   --bg: #141415;
   --surface: #19191b;
   --raised: #232325;

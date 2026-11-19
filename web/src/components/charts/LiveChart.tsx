@@ -25,7 +25,7 @@ Chart.register(LineController, LineElement, PointElement, LinearScale, Filler, T
 export interface Series {
   label: string;
   values: (number | null)[];
-  /** a custom property of the design tokens, like "--accent" */
+  /** a custom property of the design tokens, like "--brand" */
   color: string;
   fill?: boolean;
 }

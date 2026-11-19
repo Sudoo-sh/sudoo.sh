@@ -10,15 +10,17 @@ import { useT } from "@/i18n";
 import words from "@/i18n/plan";
 import { ago, dateTime } from "@/lib/format";
 import { useMe } from "./Session";
-import { Callout, Skeleton, Tag } from "./ui/basics";
+import { Button, Callout, Skeleton, Tag } from "./app/basics";
 
 const FEATURES = ["per_project_access", "custom_domains", "offsite_backups"] as const;
 
 function External({ href, children, primary }: { href: string; children: string; primary?: boolean }) {
   return (
-    <a className={`btn sm ${primary ? "primary" : ""}`} href={href} target="_blank" rel="noreferrer">
-      {children} <ArrowUpRight className="flip-rtl" />
-    </a>
+    <Button asChild size="sm" variant={primary ? "primary" : "default"}>
+      <a href={href} target="_blank" rel="noreferrer">
+        {children} <ArrowUpRight className="flip-rtl" />
+      </a>
+    </Button>
   );
 }
 
@@ -129,7 +131,7 @@ export function PlanSettings() {
             <div className="sub">{t.text}</div>
           </div>
           <div className="row-wrap">
-            {plan.linked ? <External href={plan.links.account} primary>{t.managePlan}</External> : <Link className="btn sm primary" to="/settings?tab=marketplace">{t.linkPanel}</Link>}
+            {plan.linked ? <External href={plan.links.account} primary>{t.managePlan}</External> : <Button asChild variant="primary" size="sm"><Link to="/settings?tab=marketplace">{t.linkPanel}</Link></Button>}
             <External href={plan.links.pricing}>{t.comparePlans}</External>
           </div>
         </div>

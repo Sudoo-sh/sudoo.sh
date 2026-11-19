@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **A project's backups:** a project's page has a **Backups** tab with the backups of all its branches, grouped by
+  branch with its stage, newest first, each with **Download**, **Restore** (into the instance it was taken from) and
+  **Delete**, for those who manage backups (the project's access and branch locks apply). On the **Branches** tab an
+  instance with backups shows how many, linking to the instance's new **Backups** tab. API: `GET /api/v1/backups`
+  takes `?instance=<name>` and `?project=<id>`.
+
 - **Premium features install automatically:** teams and access per project and branch, custom domains, off-site
   copies of backups, support access and several servers are premium features that install automatically from
   Sudoo.sh when your plan includes them (after each signed lease; **Check now** in Settings › Plan › Premium features,
@@ -387,6 +393,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   [Marketplace](docs/MARKETPLACE.md).
 
 ### Changed
+
+- **The web app's controls are shadcn/ui components** (Radix, Tailwind CSS), with the panel's look kept: buttons,
+  fields, switches, tags, notes, tables, menus, dialogs and side panels. Every list to choose from opens a designed
+  list (rounded, with a check mark, right to left in Arabic) instead of the browser's own; on a phone a dialog comes
+  up from the bottom edge and the sidebar is a sheet. Keyboard use is kept. The design token `--accent` is now
+  `--brand` (shadcn uses `--accent` for hover fills), and `BRAND_COLOR` now colours the web app as documented.
 
 - The code of teams, adding custom domains, off-site copies and support access is no longer part of this
   repository: it comes with the premium packages. Serving and renewing the custom domains that exist stays in the

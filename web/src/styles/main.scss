@@ -1,6 +1,15 @@
-@use "tokens";
-@use "base";
-@use "motion";
-@use "components";
-@use "layout";
-@use "pages";
+// The panel's styles, in the "panel" cascade layer (styles/globals.css orders the layers): above the base the shadcn
+// components start from, below their utility classes. The Sudoo.sh look on those components (_look.scss) is outside
+// the layers, so it wins over the utilities.
+@use "sass:meta";
+
+@layer panel {
+  @include meta.load-css("tokens");
+  @include meta.load-css("base");
+  @include meta.load-css("motion");
+  @include meta.load-css("components");
+  @include meta.load-css("layout");
+  @include meta.load-css("pages");
+}
+
+@include meta.load-css("look");

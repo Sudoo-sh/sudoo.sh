@@ -27,6 +27,7 @@ const en = {
     branchesTab: "Branches",
     settingsTab: "Settings",
     accessTab: "Access",
+    backupsTab: "Backups",
     openOnGitHub: "Open on GitHub",
     refresh: "Read the branches again",
     readAt: (when: string) => `Branches read from GitHub ${when}`,
@@ -101,6 +102,13 @@ const en = {
     text: (production: string) => `The staging instance's database and files are replaced by a new, neutralised copy of ${production}. Then it takes the branch's latest code.`,
     lost: "Everything done in staging since its last rebuild is lost. Production keeps serving while it is copied.",
     rebuild: "Rebuild",
+  },
+  backups: {
+    text: "The backups of every branch of this project, newest first. Restore puts a backup back into the instance it was taken from; the Backups page has those of every project.",
+    none: "No backups yet",
+    noneText: "A branch's instance is backed up before it is deleted, every day it is used, and with Back up now on its page.",
+    instance: "Instance",
+    noInstance: "No instance now",
   },
   settings: {
     general: "Project",
@@ -200,6 +208,7 @@ const ar: typeof en = {
     branchesTab: "الفروع",
     settingsTab: "الإعدادات",
     accessTab: "الوصول",
+    backupsTab: "النسخ الاحتياطية",
     openOnGitHub: "فتح في GitHub",
     refresh: "قراءة الفروع من جديد",
     readAt: (when) => `قُرئت الفروع من GitHub ${when}`,
@@ -274,6 +283,13 @@ const ar: typeof en = {
     text: (production) => `تُستبدل قاعدة بيانات بيئة التجهيز وملفاتها بنسخة جديدة محيّدة من ${production}. ثم تأخذ أحدث شيفرة للفرع.`,
     lost: "يضيع كل ما أُنجز في التجهيز منذ آخر إعادة بناء. ويبقى الإنتاج يعمل أثناء نسخه.",
     rebuild: "إعادة البناء",
+  },
+  backups: {
+    text: "النسخ الاحتياطية لكل فروع هذا المشروع، الأحدث أولًا. «استعد» يعيد النسخة إلى البيئة التي أُخذت منها؛ وفي صفحة النسخ الاحتياطية نسخ كل المشاريع.",
+    none: "لا توجد نسخ احتياطية بعد",
+    noneText: "تُنسخ بيئة الفرع احتياطيًا قبل حذفها، وكل يوم تُستخدم فيه، وبزر «انسخ احتياطيًا الآن» في صفحتها.",
+    instance: "البيئة",
+    noInstance: "لا بيئة له الآن",
   },
   settings: {
     general: "المشروع",

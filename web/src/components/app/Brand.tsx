@@ -7,9 +7,9 @@ export function Mark({ size = 26 }: { size?: number }) {
   return (
     <svg viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
       <rect x="0.5" y="0.5" width="63" height="63" rx="14" fill="var(--surface)" stroke="var(--hairline-strong)" />
-      <circle cx="27.4" cy="35.6" r="10.6" fill="none" stroke="var(--accent)" strokeWidth="5.3" />
-      <circle cx="38.8" cy="21.3" r="2.65" fill="var(--accent)" />
-      <rect x="45.1" y="18.8" width="3.3" height="29.7" rx="0.4" fill="var(--accent)" />
+      <circle cx="27.4" cy="35.6" r="10.6" fill="none" stroke="var(--brand)" strokeWidth="5.3" />
+      <circle cx="38.8" cy="21.3" r="2.65" fill="var(--brand)" />
+      <rect x="45.1" y="18.8" width="3.3" height="29.7" rx="0.4" fill="var(--brand)" />
     </svg>
   );
 }

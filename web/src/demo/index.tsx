@@ -4,13 +4,14 @@
 import "./demo.scss";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowUpRight, ChevronDown } from "lucide-react";
+import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { DataRouter } from "react-router";
 import { keys } from "@/api/queries";
 import type { Role } from "@/api/types";
 import { LanguageSwitch } from "@/components/LanguageSwitch";
-import { useToast } from "@/components/ui/overlay";
+import { useToast } from "@/components/app/overlay";
+import { SelectBox } from "@/components/app/select";
 import { useT } from "@/i18n";
 import words from "@/i18n/demo";
 import { me, remember, switchRole } from "./backend/api";
@@ -88,16 +89,13 @@ export function DemoBanner({ router }: { router: Pick<DataRouter, "state" | "sub
       <span className="demo-spacer" />
       <label className="demo-role">
         <span className="demo-long">{t.viewingAs}</span>
-        <span className="demo-select">
-          <select value={role} onChange={(event) => choose(event.target.value as Role)} aria-label={t.viewingAs}>
-            {PERSPECTIVES.map((p) => (
-              <option key={p.role} value={p.role}>
-                {t.roles[p.role] ?? p.role}
-              </option>
-            ))}
-          </select>
-          <ChevronDown aria-hidden="true" />
-        </span>
+        <SelectBox className="demo-select" size="sm" value={role} onValueChange={(value) => choose(value as Role)} aria-label={t.viewingAs}>
+          {PERSPECTIVES.map((p) => (
+            <option key={p.role} value={p.role}>
+              {t.roles[p.role] ?? p.role}
+            </option>
+          ))}
+        </SelectBox>
       </label>
       <LanguageSwitch signedIn={session.signedIn && path !== "/login"} className="demo-language" />
       <a className="demo-back" href={websiteLink()} title={t.back} aria-label={t.back}>

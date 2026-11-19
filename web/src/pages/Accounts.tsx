@@ -6,8 +6,10 @@ import { Link } from "react-router";
 import type { Invitation, InvitationPolicy, Role, User } from "@/api/types";
 import { Page, PageHead, useMe } from "@/components/Shell";
 import { PasswordFields, passwordReady } from "@/components/PasswordFields";
-import { Button, Callout, CopyField, Empty, Field, Segmented, Skeleton, Switch, Tag } from "@/components/ui/basics";
-import { Menu, Modal, useToast } from "@/components/ui/overlay";
+import { Button, Callout, CopyField, Empty, Field, Segmented, Skeleton, Switch, Tag } from "@/components/app/basics";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Menu, MenuItem, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
 import { ago, fullDateTime } from "@/lib/format";
 import { generatePassword, type Person } from "@/lib/password";
 import { useT } from "@/i18n";
@@ -143,11 +145,11 @@ function AccountForm({ user, policy, onClose, onDone }: { user?: User; policy?: 
         {!user && canInvite && mode === "password" && <Callout tone="info">{t.invite.passwordAlways}</Callout>}
         <div className="form-grid">
           <Field label={t.form.email} hint={user ? t.form.emailHintEdit : inviting && policy ? t.invite.expiresIn(policy.invitation_hours) : t.form.emailHintNew} className={inviting ? "full" : undefined}>
-            <input className="input" type="email" dir="ltr" autoComplete="off" autoFocus={!user} value={form.email} onChange={set("email")} />
+            <Input type="email" dir="ltr" autoComplete="off" autoFocus={!user} value={form.email} onChange={set("email")} />
           </Field>
-          {!inviting && <Field label={t.form.phone} hint={t.form.optional}><input className="input" type="tel" dir="ltr" value={form.phone} onChange={set("phone")} /></Field>}
-          <Field label={t.form.firstName} hint={inviting ? t.invite.namesOptional : undefined}><input className="input" autoFocus={!!user} value={form.first_name} onChange={set("first_name")} /></Field>
-          <Field label={t.form.lastName} hint={inviting ? t.invite.namesOptional : undefined}><input className="input" value={form.last_name} onChange={set("last_name")} /></Field>
+          {!inviting && <Field label={t.form.phone} hint={t.form.optional}><Input type="tel" dir="ltr" value={form.phone} onChange={set("phone")} /></Field>}
+          <Field label={t.form.firstName} hint={inviting ? t.invite.namesOptional : undefined}><Input autoFocus={!!user} value={form.first_name} onChange={set("first_name")} /></Field>
+          <Field label={t.form.lastName} hint={inviting ? t.invite.namesOptional : undefined}><Input value={form.last_name} onChange={set("last_name")} /></Field>
         </div>
         <div className="field">
           <span className="label">{t.form.role}</span>
@@ -207,8 +209,8 @@ function InvitationRow({ invitation: v, manageable, onResend, onRevoke }: { invi
   const i = useT(words).invite;
   const name = [v.first_name, v.last_name].filter(Boolean).join(" ");
   return (
-    <tr className="invited">
-      <td>
+    <TableRow className="invited">
+      <TableCell>
         <div className="row" style={{ gap: 12 }}>
           <span className="avatar invited-avatar" aria-hidden="true"><MailPlus size={15} /></span>
           <div style={{ minWidth: 0 }}>
@@ -216,10 +218,10 @@ function InvitationRow({ invitation: v, manageable, onResend, onRevoke }: { invi
             {name && <div className="xsmall faint truncate"><bdi dir="ltr">{v.email}</bdi></div>}
           </div>
         </div>
-      </td>
-      <td><Tag tone={v.role === "super_admin" ? "accent" : undefined}>{all.roles[v.role] ?? v.role_label}</Tag></td>
-      <td className="small faint">—</td>
-      <td className="small">
+      </TableCell>
+      <TableCell><Tag tone={v.role === "super_admin" ? "accent" : undefined}>{all.roles[v.role] ?? v.role_label}</Tag></TableCell>
+      <TableCell className="small faint">—</TableCell>
+      <TableCell className="small">
         {v.expired ? (
           <Tag tone="negative">{i.expired}</Tag>
         ) : (
@@ -229,22 +231,22 @@ function InvitationRow({ invitation: v, manageable, onResend, onRevoke }: { invi
           </span>
         )}
         {v.sent_count > 1 && <div className="xsmall faint">{i.sentTimes(v.sent_count)}</div>}
-      </td>
-      <td className="actions">
+      </TableCell>
+      <TableCell className="actions">
         {manageable && (
           <Menu trigger={(toggle) => <Button size="sm" variant="ghost" icon={<MoreHorizontal />} onClick={toggle} aria-label={t.actionsFor(v.email)} />}>
             {(close) => (
               <>
-                <button onClick={() => { close(); onResend(); }}><Send /> {i.resend}</button>
-                {v.link && <Link to={v.link} onClick={close}><ExternalLink /> {i.openLink}</Link>}
-                <hr />
-                <button className="danger" onClick={() => { close(); onRevoke(); }}><XCircle /> {i.revoke}</button>
+                <MenuItem onSelect={() => { close(); onResend(); }}><Send /> {i.resend}</MenuItem>
+                {v.link && <MenuItem asChild><Link to={v.link} onClick={close}><ExternalLink /> {i.openLink}</Link></MenuItem>}
+                <MenuSeparator />
+                <MenuItem danger onSelect={() => { close(); onRevoke(); }}><XCircle /> {i.revoke}</MenuItem>
               </>
             )}
           </Menu>
         )}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -278,60 +280,58 @@ export function AccountsPage() {
         ) : !users?.length ? (
           <Empty icon={<Users />} title={t.none} />
         ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead><tr><th>{t.columns.account}</th><th>{t.columns.role}</th><th>{t.columns.factor}</th><th>{t.columns.lastSignIn}</th><th /></tr></thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.name}>
-                    <td>
-                      <div className="row" style={{ gap: 12 }}>
-                        <span className="avatar">{(u.first_name?.[0] ?? u.name[0]) + (u.last_name?.[0] ?? "")}</span>
-                        <div style={{ minWidth: 0 }}>
-                          <div className="truncate"><bdi>{u.display_name}</bdi>{u.name === me.user && <span className="faint">{t.you}</span>}</div>
-                          <div className="xsmall faint truncate">{u.email ? <bdi dir="ltr">{u.email}</bdi> : <span className="mono">{u.name}</span>}</div>
-                        </div>
+          <Table>
+            <TableHeader><TableRow><TableHead>{t.columns.account}</TableHead><TableHead>{t.columns.role}</TableHead><TableHead>{t.columns.factor}</TableHead><TableHead>{t.columns.lastSignIn}</TableHead><TableHead /></TableRow></TableHeader>
+            <TableBody>
+              {users.map((u) => (
+                <TableRow key={u.name}>
+                  <TableCell>
+                    <div className="row" style={{ gap: 12 }}>
+                      <span className="avatar">{(u.first_name?.[0] ?? u.name[0]) + (u.last_name?.[0] ?? "")}</span>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="truncate"><bdi>{u.display_name}</bdi>{u.name === me.user && <span className="faint">{t.you}</span>}</div>
+                        <div className="xsmall faint truncate">{u.email ? <bdi dir="ltr">{u.email}</bdi> : <span className="mono">{u.name}</span>}</div>
                       </div>
-                    </td>
-                    <td>
-                      <Tag tone={u.role === "super_admin" ? "accent" : undefined}>{all.roles[u.role] ?? u.role_label}</Tag>
-                      {u.must_change_password && <span className="xsmall faint">{t.pendingPassword}</span>}
-                    </td>
-                    <td className="small">{u.second_factors.length ? u.second_factors.map((f) => t.factors[f] ?? f).join(t.separator) : <span className="faint">{t.noFactor}</span>}</td>
-                    <td className="small muted">{ago(u.last_sign_in_at)}</td>
-                    <td className="actions">
-                      {manageable(u) && (
-                        <Menu trigger={(toggle) => <Button size="sm" variant="ghost" icon={<MoreHorizontal />} onClick={toggle} aria-label={t.actionsFor(u.name)} />}>
-                          {(close) => (
-                            <>
-                              <button onClick={() => { close(); setEditing(u); }}><Pencil /> {t.edit}</button>
-                              {u.name !== me.user && (
-                                <>
-                                  <button onClick={() => { close(); setResetting(u); }}><KeyRound /> {t.setPassword}</button>
-                                  <button disabled={!u.second_factors.length} onClick={() => { close(); resetFactors.mutate(u.name, { onSuccess: () => toast("success", t.factorsRemoved(u.name)), onError: fail(t.notRemoved) }); }}>
-                                    <ShieldOff /> {t.removeFactors}
-                                  </button>
-                                  <hr />
-                                  <button className="danger" onClick={() => { close(); if (confirm(t.confirmDelete(u.display_name))) remove.mutate(u.name, { onSuccess: () => toast("success", t.deleted(u.name)), onError: fail(t.notDeleted) }); }}>
-                                    <Trash2 /> {t.delete}
-                                  </button>
-                                </>
-                              )}
-                            </>
-                          )}
-                        </Menu>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {invited?.invitations.map((v) => (
-                  <InvitationRow key={v.id} invitation={v} manageable={v.role !== "super_admin" || me.role === "super_admin"}
-                    onResend={() => resend.mutate(v.id, { onSuccess: () => toast("success", i.resent(v.email), i.resendNote), onError: fail(i.notSent) })}
-                    onRevoke={() => confirm(i.confirmRevoke(v.email)) && revoke.mutate(v.id, { onSuccess: () => toast("success", i.revoked(v.email)), onError: fail(i.notRevoked) })} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Tag tone={u.role === "super_admin" ? "accent" : undefined}>{all.roles[u.role] ?? u.role_label}</Tag>
+                    {u.must_change_password && <span className="xsmall faint">{t.pendingPassword}</span>}
+                  </TableCell>
+                  <TableCell className="small">{u.second_factors.length ? u.second_factors.map((f) => t.factors[f] ?? f).join(t.separator) : <span className="faint">{t.noFactor}</span>}</TableCell>
+                  <TableCell className="small muted">{ago(u.last_sign_in_at)}</TableCell>
+                  <TableCell className="actions">
+                    {manageable(u) && (
+                      <Menu trigger={(toggle) => <Button size="sm" variant="ghost" icon={<MoreHorizontal />} onClick={toggle} aria-label={t.actionsFor(u.name)} />}>
+                        {(close) => (
+                          <>
+                            <MenuItem onSelect={() => { close(); setEditing(u); }}><Pencil /> {t.edit}</MenuItem>
+                            {u.name !== me.user && (
+                              <>
+                                <MenuItem onSelect={() => { close(); setResetting(u); }}><KeyRound /> {t.setPassword}</MenuItem>
+                                <MenuItem disabled={!u.second_factors.length} onSelect={() => { close(); resetFactors.mutate(u.name, { onSuccess: () => toast("success", t.factorsRemoved(u.name)), onError: fail(t.notRemoved) }); }}>
+                                  <ShieldOff /> {t.removeFactors}
+                                </MenuItem>
+                                <MenuSeparator />
+                                <MenuItem danger onSelect={() => { close(); if (confirm(t.confirmDelete(u.display_name))) remove.mutate(u.name, { onSuccess: () => toast("success", t.deleted(u.name)), onError: fail(t.notDeleted) }); }}>
+                                  <Trash2 /> {t.delete}
+                                </MenuItem>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </Menu>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {invited?.invitations.map((v) => (
+                <InvitationRow key={v.id} invitation={v} manageable={v.role !== "super_admin" || me.role === "super_admin"}
+                  onResend={() => resend.mutate(v.id, { onSuccess: () => toast("success", i.resent(v.email), i.resendNote), onError: fail(i.notSent) })}
+                  onRevoke={() => confirm(i.confirmRevoke(v.email)) && revoke.mutate(v.id, { onSuccess: () => toast("success", i.revoked(v.email)), onError: fail(i.notRevoked) })} />
+              ))}
+            </TableBody>
+          </Table>
         )}
       </div>
       {editing && (

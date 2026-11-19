@@ -185,6 +185,15 @@ What you may do in a branch also depends on the project's access: a branch hidde
 **Locked** tag marks a locked branch (its menu then offers only what the lock lets you do). **Restricted** marks a
 branch seen only by its own grants.
 
+For those who manage backups, an instance with backups shows how many next to its name (**3 backups**); the link
+opens the instance's **Backups** tab.
+
+**Backups** (administrators and super admins: those who manage backups) lists the backups of all the project's
+branches, one card per branch with its stage, the newest backups first. Each backup has **Download**, **Restore**
+(puts it back into the instance it was taken from, after a confirmation, as on the instance's page) and **Delete**.
+The project's access applies: a branch hidden from you is not listed, and in a locked branch only what the lock lets
+you do is offered. The **Backups** page in the sidebar has the backups of every project and instance.
+
 When the server runs as many instances as it takes comfortably, a warning above the branches says so: many branches
 running at once slow every instance down. Development instances pause when nobody uses them.
 
@@ -333,6 +342,7 @@ wait: one job per instance at a time.
 | **Activity** | Every job on this instance, newest first. Click one to open a panel with its steps, notes, the reason it failed (if it did) and the technical log, which follows live while the job runs. |
 | **Code** | The repository and branch, the recent commits, and the submodules, with **Add submodule** and **Remove** ([section 7](#7-submodules)). |
 | **Odoo log** | The latest lines Odoo wrote (100 to 3000), with **Refresh**. Lines with `ERROR` or `Traceback` usually explain a problem. |
+| **Backups** | The **Backups** card on its own ([The Backups card](#the-backups-card)): the instance's backups, **Back up now** and the restores. |
 | **Domains** | The instance's own domains, such as `erp.client.com`: their state, the DNS record to create, the certificate and its expiry ([Custom domains](#custom-domains)). Everyone sees them; administrators add and remove them. |
 | **Settings** | The stage ([Stages](#stages-production-staging-and-development)), the automation switches and the lifetime ([section 6](#6-keeping-the-code-up-to-date)), saved at once; and **Resources** ([Resources](#resources)). |
 | **Access** | The Odoo sign-in: address, login, password, and the master password (for Odoo's database manager). Click **Show the passwords**; each viewing is recorded in the audit log. |
@@ -360,7 +370,8 @@ Everyone who can open the tab sees the resources; only administrators change the
 
 ### The Backups card
 
-The **Backups** card on the **Overview** tab holds the instance's backups.
+The **Backups** card holds the instance's backups. It is on the **Overview** tab and has a tab of its own,
+**Backups** (the address ends in `/backups`, which the project's page links to).
 
 | Part | What it does |
 | :--- | :--- |

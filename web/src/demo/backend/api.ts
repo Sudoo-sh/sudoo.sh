@@ -1371,9 +1371,16 @@ route("DELETE", "/tokens/:id", ({ params }) => {
   if (index >= 0) tokens.splice(index, 1);
   return none();
 });
-route("GET", "/backups", () => {
+route("GET", "/backups", ({ query }) => {
   need("backups.manage", "/api/v1/backups");
-  return ok(backups);
+  // ?instance=<name>: those of one instance; ?project=<id>: those of the project's instances (as the server filters)
+  const instance = query.get("instance");
+  const project = query.get("project");
+  return ok(
+    backups.filter(
+      (b: Backup) => (!instance || b.instance === instance) && (!project || instances.get(b.instance)?.project?.id === project),
+    ),
+  );
 });
 route("GET", "/backups/:file", () => {
   throw offline("Downloading a backup");

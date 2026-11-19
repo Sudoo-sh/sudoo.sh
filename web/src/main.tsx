@@ -1,16 +1,18 @@
 import "@fontsource-variable/inter";
 import "@fontsource-variable/jetbrains-mono";
+import "./styles/globals.css";
 import "./styles/main.scss";
 import "./styles/fonts.scss";
 
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Fragment, StrictMode, type ReactNode } from "react";
+import { StrictMode, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router";
 import { ApiError } from "./api/client";
 import { keys } from "./api/queries";
-import { ToastProvider } from "./components/ui/overlay";
-import { isLocale, setLocale, signedOutChoice, useLocale } from "./i18n";
+import { ToastProvider } from "./components/app/overlay";
+import { DirectionProvider } from "./components/ui/direction";
+import { dirOf, isLocale, setLocale, signedOutChoice, useLocale } from "./i18n";
 import { followNavigationKind } from "./lib/navigation";
 import { applyTheme, storedTheme } from "./lib/theme";
 import { router } from "./router";
@@ -49,9 +51,15 @@ client.getQueryCache().subscribe((event) => {
     setLocale(data.default_language, false);
 });
 
-/** Every page drawn anew in the chosen language (state in the query cache and the toasts is kept). */
+/** Every page drawn anew in the chosen language (state in the query cache and the toasts is kept); the shadcn
+ *  components (Radix) told the reading direction, for their menus, lists, sheets and keyboard. */
 function LocaleRoot({ children }: { children: ReactNode }) {
-  return <Fragment key={useLocale()}>{children}</Fragment>;
+  const locale = useLocale();
+  return (
+    <DirectionProvider key={locale} dir={dirOf(locale)}>
+      {children}
+    </DirectionProvider>
+  );
 }
 
 createRoot(document.getElementById("root")!).render(

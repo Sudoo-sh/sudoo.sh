@@ -51,7 +51,7 @@ h3 {
 }
 
 a {
-  color: var(--accent-ink);
+  color: var(--brand-ink);
   text-decoration: none;
   &:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
@@ -72,11 +72,11 @@ button, input, select, textarea {
 }
 
 ::selection {
-  background: var(--accent-ring);
+  background: var(--brand-ring);
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
   border-radius: var(--radius-tag);
 }
@@ -143,7 +143,7 @@ pre, .terminal { direction: ltr; text-align: left; }
 // A dark surface in the light theme (the terminal) sets its own --scrollbar-thumb.
 :root {
   --scrollbar-thumb: color-mix(in oklab, var(--text-3) 45%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, var(--accent) 55%, var(--text-3));
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--brand) 55%, var(--text-3));
 }
 // Firefox (and any browser without the WebKit pseudo-elements): on every element, so each one reads its own colours.
 @supports not selector(::-webkit-scrollbar) {

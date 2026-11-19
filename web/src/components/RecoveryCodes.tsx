@@ -11,8 +11,9 @@ import { useT } from "@/i18n";
 import account from "@/i18n/account";
 import common from "@/i18n/common";
 import { ago } from "@/lib/format";
-import { Button, Callout, Field } from "./ui/basics";
-import { Modal, useToast } from "./ui/overlay";
+import { Button, Callout, Field } from "./app/basics";
+import { Input } from "@/components/ui/input";
+import { Modal, useToast } from "./app/overlay";
 
 /** The codes, once: copy them all, or save them as a text file, before closing. */
 export function RecoveryCodesSheet({ codes, onClose }: { codes: string[]; onClose: () => void }) {
@@ -113,7 +114,7 @@ export function RecoveryCodesRow({ state, needed, onChange }: { state: RecoveryC
           footer={<><Button onClick={() => { setAsking(false); setPassword(""); }}>{c.cancel}</Button><Button variant="primary" loading={busy} disabled={!password} onClick={make}>{t.makeCodes}</Button></>}
         >
           <form onSubmit={(e) => { e.preventDefault(); if (password) make(); }}>
-            <Field label={t.password}><input className="input" type="password" autoComplete="current-password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+            <Field label={t.password}><Input type="password" autoComplete="current-password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
           </form>
         </Modal>
       )}

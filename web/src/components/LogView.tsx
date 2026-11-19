@@ -10,7 +10,7 @@ import { useT } from "@/i18n";
 import words from "@/i18n/instance";
 import { number } from "@/lib/format";
 import { parseLog, shows, type Filter, type LogLine, type StepState } from "@/lib/logs";
-import { Button } from "./ui/basics";
+import { Button } from "./app/basics";
 
 const PAGE = 2000; // lines drawn at once; "Show earlier lines" draws this many more
 

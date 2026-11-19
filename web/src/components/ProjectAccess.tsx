@@ -7,8 +7,10 @@ import { useState } from "react";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useProjectAccess, useTeams, useUsers } from "@/api/queries";
 import type { AccessLevel, AccessSubject, BranchLock, Grant, ProjectAccess, ProjectBranch, ProjectDetail } from "@/api/types";
-import { Button, Callout, Field, Segmented, Skeleton } from "@/components/ui/basics";
-import { Modal, useToast } from "@/components/ui/overlay";
+import { Button, Callout, Field, Segmented, Skeleton } from "@/components/app/basics";
+import { Input } from "@/components/ui/input";
+import { SelectBox } from "@/components/app/select";
+import { Modal, useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/teams";
@@ -52,14 +54,14 @@ export function SubjectPicker({
           { value: "user", label: t.access.addPerson },
         ]}
       />
-      <select className="select" value={id} onChange={(e) => setId(e.target.value)} aria-label={kind === "team" ? t.access.team : t.access.person}>
+      <SelectBox value={id} onValueChange={(value) => setId(value)} aria-label={kind === "team" ? t.access.team : t.access.person}>
         <option value="">{t.access.choose}</option>
         {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-      </select>
+      </SelectBox>
       {withLevel && (
-        <select className="select" value={level} onChange={(e) => setLevel(e.target.value as AccessLevel)} aria-label={t.access.level}>
+        <SelectBox value={level} onValueChange={(value) => setLevel(value as AccessLevel)} aria-label={t.access.level}>
           {LEVELS.map((l) => <option key={l} value={l}>{t.levels[l]}</option>)}
-        </select>
+        </SelectBox>
       )}
       <Button size="sm" icon={<Plus />} disabled={!id}
         onClick={() => { onAdd({ type: kind, id, name: options.find((o) => o.id === id)?.label ?? id, ...(withLevel ? { level } : {}) }); setId(""); }}>
@@ -168,7 +170,7 @@ export function LockDialog({ project, branch, onClose }: { project: ProjectDetai
       <div className="stack">
         <p className="small muted">{t.text}</p>
         <Field label={t.reason} hint={t.reasonHint}>
-          <input className="input" dir="auto" maxLength={200} value={reason} onChange={(e) => setReason(e.target.value)} />
+          <Input dir="auto" maxLength={200} value={reason} onChange={(e) => setReason(e.target.value)} />
         </Field>
         <Field label={t.allow} hint={t.allowHint}>
           <div className="stack-sm">

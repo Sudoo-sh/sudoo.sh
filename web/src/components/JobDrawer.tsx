@@ -6,8 +6,8 @@ import instanceWords from "@/i18n/instance";
 import { jobTitle, stepTitle } from "@/i18n/jobs";
 import { ago, elapsed } from "@/lib/format";
 import { LogView } from "./LogView";
-import { Callout, Progress, Spinner, Status } from "./ui/basics";
-import { Drawer } from "./ui/overlay";
+import { Callout, Progress, Spinner, Status } from "./app/basics";
+import { Drawer } from "./app/overlay";
 
 /** A job's steps as a timeline: done, failed, or the one running now. */
 export function JobSteps({ job }: { job: Pick<Job, "steps"> }) {

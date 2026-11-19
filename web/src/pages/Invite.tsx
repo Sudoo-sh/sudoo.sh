@@ -11,8 +11,9 @@ import { keys } from "@/api/queries";
 import type { InvitationPreview, Session } from "@/api/types";
 import { LanguageSwitch } from "@/components/LanguageSwitch";
 import { PasswordFields, passwordReady } from "@/components/PasswordFields";
-import { Brand } from "@/components/ui/Brand";
-import { Button, Callout, Field, Spinner } from "@/components/ui/basics";
+import { Brand } from "@/components/app/Brand";
+import { Button, Callout, Field, Spinner } from "@/components/app/basics";
+import { Input } from "@/components/ui/input";
 import { useT } from "@/i18n";
 import auth from "@/i18n/auth";
 import common from "@/i18n/common";
@@ -86,7 +87,7 @@ export function InvitePage() {
           <h1>{t.brokenTitle}</h1>
           <p>{broken === "missing" ? t.noLink : broken === "broken" ? t.brokenText : broken}</p>
         </header>
-        <Link className="btn primary lg block" to="/login" viewTransition>{t.toSignIn}</Link>
+        <Button asChild variant="primary" size="lg" block><Link to="/login" viewTransition>{t.toSignIn}</Link></Button>
       </>,
     );
   if (joined)
@@ -118,12 +119,12 @@ export function InvitePage() {
         <p className="muted">{t.text(invitation.invited_by, roles[invitation.role] ?? invitation.role_label)}</p>
       </header>
       <Field label={t.email} hint={t.expires(dateTime(invitation.expires_at))}>
-        <input className="input" type="email" dir="ltr" autoComplete="username email" value={invitation.email} readOnly />
+        <Input type="email" dir="ltr" autoComplete="username email" value={invitation.email} readOnly />
       </Field>
       <div className="form-grid">
-        <Field label={t.firstName}><input className="input" autoComplete="given-name" autoFocus value={form.first_name} onChange={set("first_name")} /></Field>
-        <Field label={t.lastName}><input className="input" autoComplete="family-name" value={form.last_name} onChange={set("last_name")} /></Field>
-        <Field label={t.phone} hint={t.optional} className="full"><input className="input" type="tel" dir="ltr" autoComplete="tel" value={form.phone} onChange={set("phone")} /></Field>
+        <Field label={t.firstName}><Input autoComplete="given-name" autoFocus value={form.first_name} onChange={set("first_name")} /></Field>
+        <Field label={t.lastName}><Input autoComplete="family-name" value={form.last_name} onChange={set("last_name")} /></Field>
+        <Field label={t.phone} hint={t.optional} className="full"><Input type="tel" dir="ltr" autoComplete="tel" value={form.phone} onChange={set("phone")} /></Field>
         <PasswordFields value={password} onChange={setPassword} person={person} />
       </div>
       {invitation.second_factor_required && <Callout tone="info">{t.factorRequired}</Callout>}

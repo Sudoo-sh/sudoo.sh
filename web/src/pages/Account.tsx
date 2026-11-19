@@ -8,11 +8,13 @@ import { keys, useAccount } from "@/api/queries";
 import type { Factor } from "@/api/types";
 import { Page, PageHead, useMe } from "@/components/Shell";
 import { PasswordFields, passwordReady } from "@/components/PasswordFields";
-import { Brand } from "@/components/ui/Brand";
+import { Brand } from "@/components/app/Brand";
 import { RecoveryCodesRow, RecoveryCodesSheet } from "@/components/RecoveryCodes";
-import { Tag, Button, Callout, CopyField, Field, Skeleton, Switch } from "@/components/ui/basics";
-import { OtpInput } from "@/components/ui/OtpInput";
-import { Modal, useToast } from "@/components/ui/overlay";
+import { Tag, Button, Callout, CopyField, Field, Skeleton, Switch } from "@/components/app/basics";
+import { Input } from "@/components/ui/input";
+import { SelectBox } from "@/components/app/select";
+import { OtpInput } from "@/components/app/OtpInput";
+import { Modal, useToast } from "@/components/app/overlay";
 import { LOCALES, useT, type Locale } from "@/i18n";
 import accountWords from "@/i18n/account";
 import common from "@/i18n/common";
@@ -76,7 +78,7 @@ function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: (recovery
   };
   const passwordField = (
     <Field label={t.yourPassword} className="spacer">
-      <input className="input" type="password" autoComplete="current-password" autoFocus={factor.name === "totp"} value={password} onChange={(e) => setPassword(e.target.value)} />
+      <Input type="password" autoComplete="current-password" autoFocus={factor.name === "totp"} value={password} onChange={(e) => setPassword(e.target.value)} />
     </Field>
   );
   return (
@@ -104,7 +106,7 @@ function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: (recovery
       ) : !started ? (
         <form className="row" style={{ alignItems: "flex-end", flexWrap: "wrap" }} onSubmit={(e) => { e.preventDefault(); begin(replacing ? { email, password } : { email }); }}>
           <Field label={t.emailAddress} className="spacer">
-            <input className="input" type="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+            <Input type="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
           </Field>
           {replacing && passwordField}
           <Button type="submit" variant="primary" loading={busy} disabled={!email || (replacing && !password)}>{t.sendCode}</Button>
@@ -180,7 +182,7 @@ export function Factors({ onChange }: { onChange?: () => void }) {
               toast("error", t.notRemoved, errorText(e));
             }
           }}>{t.remove}</Button></>}>
-          <Field label={t.password}><input className="input" type="password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+          <Field label={t.password}><Input type="password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
         </Modal>
       )}
     </div>
@@ -213,7 +215,7 @@ function PasswordCard() {
     <form className="card" onSubmit={submit}>
       <div className="card-head"><KeyRound size={18} /><h2>{t.title}</h2></div>
       <div className="card-body stack">
-        <Field label={t.current}><input className="input" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} /></Field>
+        <Field label={t.current}><Input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} /></Field>
         <PasswordFields label={t.new} value={password} onChange={setPassword} person={person} />
       </div>
       <div className="card-foot row">
@@ -255,12 +257,12 @@ function ProfileCard() {
     <section className="card">
       <div className="card-head"><UserRound /><h2>{t.title}</h2></div>
       <div className="card-body form-grid">
-        <Field label={t.firstName}><input className="input" value={values.first_name} onChange={set("first_name")} /></Field>
-        <Field label={t.lastName}><input className="input" value={values.last_name} onChange={set("last_name")} /></Field>
+        <Field label={t.firstName}><Input value={values.first_name} onChange={set("first_name")} /></Field>
+        <Field label={t.lastName}><Input value={values.last_name} onChange={set("last_name")} /></Field>
         <Field label={t.email} hint={emailLocked ? t.emailLocked : undefined}>
-          <input className="input" type="email" value={values.email} disabled={emailLocked} onChange={set("email")} />
+          <Input type="email" value={values.email} disabled={emailLocked} onChange={set("email")} />
         </Field>
-        <Field label={t.phone}><input className="input" type="tel" dir="ltr" value={values.phone} onChange={set("phone")} /></Field>
+        <Field label={t.phone}><Input type="tel" dir="ltr" value={values.phone} onChange={set("phone")} /></Field>
       </div>
       <div className="card-foot">
         <span className="xsmall faint"><span className="mono">{account.name}</span> · {all.roles[account.role] ?? account.role_label}</span>
@@ -347,13 +349,13 @@ function LanguageCard() {
     <section className="card">
       <div className="card-head"><Languages size={18} /><div className="spacer"><h2>{t.title}</h2><div className="sub">{t.text}</div></div></div>
       <div className="card-body">
-        <select className="select" aria-label={t.choice} value={language.own_choice ?? ""} style={{ maxWidth: 320 }}
-          onChange={(e) => save((e.target.value || null) as Locale | null)}>
+        <SelectBox aria-label={t.choice} value={language.own_choice ?? ""} style={{ maxWidth: 320 }}
+          onValueChange={(value) => save((value || null) as Locale | null)}>
           <option value="">{t.default(LOCALES[language.default].name)}</option>
           {(Object.keys(LOCALES) as Locale[]).map((code) => (
             <option key={code} value={code} lang={code}>{LOCALES[code].name}</option>
           ))}
-        </select>
+        </SelectBox>
       </div>
     </section>
   );

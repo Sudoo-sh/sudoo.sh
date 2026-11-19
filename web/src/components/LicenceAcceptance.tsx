@@ -6,7 +6,8 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import type { LicenceAcceptance as Acceptance, LicenceText, LicenceUse } from "@/api/types";
 import { useLocale, useT } from "@/i18n";
 import words from "@/i18n/licence";
-import { Button, Callout } from "./ui/basics";
+import { Button, Callout } from "./app/basics";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const USES: { value: LicenceUse; icon: ReactNode }[] = [
   { value: "personal", icon: <User /> },
@@ -24,9 +25,9 @@ export function LicenceDocument({ text, open: startOpen = false }: { text: Licen
       <div className="row-wrap licence-facts">
         <span className="muted small">{t.version(text.version, text.effective)}</span>
         <span className="spacer" />
-        <a className="btn sm ghost" href={text.version_url} target="_blank" rel="noreferrer">
+        <Button asChild variant="ghost" size="sm"><a href={text.version_url} target="_blank" rel="noreferrer">
           {t.openPublished} <ArrowUpRight aria-hidden="true" className="flip-rtl" />
-        </a>
+        </a></Button>
       </div>
       <section className="licence-summary" aria-label={t.summary}>
         <div className="prose" dangerouslySetInnerHTML={{ __html: locale === "ar" ? text.summary_ar_html : text.summary_html }} />
@@ -94,12 +95,12 @@ export function LicenceAcceptance({
         </div>
       </fieldset>
       <label className="licence-check">
-        <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
+        <Checkbox checked={accepted} onCheckedChange={(value) => setAccepted(value === true)} />
         <span>{t.accept(text.version)}</span>
       </label>
       {forCompany && (
         <label className="licence-check">
-          <input type="checkbox" checked={onBehalf} onChange={(e) => setOnBehalf(e.target.checked)} />
+          <Checkbox checked={onBehalf} onCheckedChange={(value) => setOnBehalf(value === true)} />
           <span>{t.company}</span>
         </label>
       )}

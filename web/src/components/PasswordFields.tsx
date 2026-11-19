@@ -1,7 +1,8 @@
 import { useT } from "@/i18n";
 import auth from "@/i18n/auth";
 import { passwordProblem, strength, type Person } from "@/lib/password";
-import { Field } from "./ui/basics";
+import { Field } from "./app/basics";
+import { Input } from "@/components/ui/input";
 
 /** A new password, typed twice, checked against the same rules as the server's while it is typed. */
 export function PasswordFields({ value, onChange, person, label, autoFocus }: { value: [string, string]; onChange: (value: [string, string]) => void; person?: Person; label?: string; autoFocus?: boolean }) {
@@ -15,11 +16,11 @@ export function PasswordFields({ value, onChange, person, label, autoFocus }: { 
     <>
       <Field label={label} className="full" error={problem}
         hint={!problem && (first ? t.strength[level] : t.hint)}>
-        <input className="input" type="password" autoComplete="new-password" autoFocus={autoFocus} value={first} aria-invalid={!!problem} onChange={(e) => onChange([e.target.value, again])} />
+        <Input type="password" autoComplete="new-password" autoFocus={autoFocus} value={first} aria-invalid={!!problem} onChange={(e) => onChange([e.target.value, again])} />
         <span className="strength" data-level={level} aria-hidden="true"><i /><i /><i /><i /></span>
       </Field>
       <Field label={t.again(label)} className="full" error={mismatch && t.mismatch}>
-        <input className="input" type="password" autoComplete="new-password" value={again} aria-invalid={mismatch} onChange={(e) => onChange([first, e.target.value])} />
+        <Input type="password" autoComplete="new-password" value={again} aria-invalid={mismatch} onChange={(e) => onChange([first, e.target.value])} />
       </Field>
     </>
   );

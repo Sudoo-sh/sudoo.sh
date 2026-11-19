@@ -7,8 +7,9 @@ import { api } from "@/api/client";
 import { useBackups, useCall, useInstances } from "@/api/queries";
 import type { Backup } from "@/api/types";
 import { Page, PageHead } from "@/components/Shell";
-import { Button, Empty, Skeleton, Tag } from "@/components/ui/basics";
-import { useToast } from "@/components/ui/overlay";
+import { Button, Empty, Skeleton, Tag } from "@/components/app/basics";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import words from "@/i18n/operations";
 import { ago, bytes, count, dateTime } from "@/lib/format";
@@ -58,25 +59,23 @@ export function BackupsPage() {
                 <div className="sub">{t.local(group.rows.length)}</div>
               </div>
             </div>
-            <div className="table-wrap">
-              <table className="table">
-                <thead><tr><th>{t.kind}</th><th>{t.taken}</th><th>{t.size}</th><th>{t.details}</th><th /></tr></thead>
-                <tbody>
-                  {group.rows.map((backup) => (
-                    <tr key={backup.file}>
-                      <td><Tag tone={backup.kind === "daily" ? "accent" : undefined}>{t.kinds[backup.kind] ?? backup.kind}</Tag></td>
-                      <td className="small nowrap">{dateTime(backup.created)} <span className="faint">· {ago(backup.created)}</span></td>
-                      <td className="small tabular nowrap">{bytes(backup.size)}</td>
-                      <td className="small"><Details backup={backup} /></td>
-                      <td className="actions nowrap">
-                        <a className="btn sm soft" href={`/api/v1/backups/${encodeURIComponent(backup.file)}`} download><Download /> {t.download}</a>{" "}
-                        <Button size="sm" variant="ghost" icon={<Trash2 />} aria-label={t.delete} onClick={() => confirm(t.confirmDelete(backup.file)) && remove.mutate(backup.file, { onSuccess: () => toast("success", t.deleted) })} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table>
+              <TableHeader><TableRow><TableHead>{t.kind}</TableHead><TableHead>{t.taken}</TableHead><TableHead>{t.size}</TableHead><TableHead>{t.details}</TableHead><TableHead /></TableRow></TableHeader>
+              <TableBody>
+                {group.rows.map((backup) => (
+                  <TableRow key={backup.file}>
+                    <TableCell><Tag tone={backup.kind === "daily" ? "accent" : undefined}>{t.kinds[backup.kind] ?? backup.kind}</Tag></TableCell>
+                    <TableCell className="small nowrap">{dateTime(backup.created)} <span className="faint">· {ago(backup.created)}</span></TableCell>
+                    <TableCell className="small tabular nowrap">{bytes(backup.size)}</TableCell>
+                    <TableCell className="small"><Details backup={backup} /></TableCell>
+                    <TableCell className="actions nowrap">
+                      <Button asChild variant="soft" size="sm"><a href={`/api/v1/backups/${encodeURIComponent(backup.file)}`} download><Download /> {t.download}</a></Button>{" "}
+                      <Button size="sm" variant="ghost" icon={<Trash2 />} aria-label={t.delete} onClick={() => confirm(t.confirmDelete(backup.file)) && remove.mutate(backup.file, { onSuccess: () => toast("success", t.deleted) })} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </section>
         ))
       )}

@@ -143,6 +143,26 @@ def test_backup_listing_shows_version_and_edition(admin: Client) -> None:
     assert listed[0]["version"] == "18.0" and listed[0]["series"] == "18.0" and listed[0]["edition"] == "community"
 
 
+def test_backup_listing_filters_by_instance_and_project(admin: Client) -> None:
+    _instance("shop")
+    _instance("lab")
+    store.write_env("shop", store.read_env("shop") | {"PROJECT": "retail"})
+    shop, lab = _backup("shop"), _backup("lab", stamp="20261112-010000")
+    client, _ = admin
+
+    def files(query: str) -> set[str]:
+        answer = client.get(f"/api/v1/backups{query}")
+        assert answer.status_code == 200
+        return {b["file"] for b in answer.get_json()["data"]}
+
+    assert files("") == {shop, lab}
+    assert files("?instance=lab") == {lab}
+    assert files("?project=retail") == {shop}
+    assert files("?project=retail&instance=lab") == set()
+    assert files("?project=nothing-here") == set()
+    assert client.get("/api/v1/backups?instance=../etc").status_code == 404
+
+
 # ---------------------------------------------------------------- restoring another instance's backup
 
 

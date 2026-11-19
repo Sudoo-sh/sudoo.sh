@@ -1,6 +1,6 @@
 // The shared scope premium features load against (window.__SUDOO__). A premium package's web files are ES modules
 // built in Sudoo.sh's private repository with the libraries and the panel's own modules left out: each import of
-// "react", "react-router", "@tanstack/react-query", ... or of a panel module ("@/components/ui/basics", ...) reads
+// "react", "react-router", "@tanstack/react-query", ... or of a panel module ("@/components/app/basics", ...) reads
 // window.__SUDOO__.modules[<name>] instead, so a premium page uses the very same React, router, query cache, design
 // system and words as the panel. Only the modules listed here are shared; they are loaded once, before the first
 // premium file (the frame's modules load with the first signed-in page anyway).
@@ -23,8 +23,8 @@ const PANEL_MODULES: Record<string, Loader> = {
   "api/types": () => import("@/api/types"),
   "components/Session": () => import("@/components/Session"),
   "components/Shell": () => import("@/components/Shell"),
-  "components/ui/basics": () => import("@/components/ui/basics"),
-  "components/ui/overlay": () => import("@/components/ui/overlay"),
+  "components/ui/basics": () => import("@/components/app/basics"),
+  "components/ui/overlay": () => import("@/components/app/overlay"),
   "components/JobDrawer": () => import("@/components/JobDrawer"),
   "components/LockTag": () => import("@/components/LockTag"),
   "components/ProjectAccess": () => import("@/components/ProjectAccess"),

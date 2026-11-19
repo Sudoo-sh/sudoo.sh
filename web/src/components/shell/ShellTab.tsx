@@ -9,8 +9,9 @@ import { api } from "@/api/client";
 import { useCall, useShellOptions, useShells } from "@/api/queries";
 import type { Instance, ShellSession, ShellTarget } from "@/api/types";
 import { useCan } from "@/components/Shell";
-import { Button, Callout, Segmented, Skeleton, Switch, Tag } from "@/components/ui/basics";
-import { Modal } from "@/components/ui/overlay";
+import { Button, Callout, Segmented, Skeleton, Switch, Tag } from "@/components/app/basics";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Modal } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/shell";
@@ -159,43 +160,41 @@ function ShellSessions({ instance }: { instance: string }) {
       ) : !data.length ? (
         <div className="card-body faint">{t.noSessions}</div>
       ) : (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>{t.who}</th>
-                <th>{t.what}</th>
-                <th>{t.started}</th>
-                <th>{t.length}</th>
-                <th>{t.ending}</th>
-                <th aria-label={t.play} />
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((s) => (
-                <tr key={s.id}>
-                  <td><bdi>{s.user}</bdi></td>
-                  <td>
-                    <span className="small">{t.asUser(t.targets[s.target] ?? s.target, s.container_user)}</span>
-                    {s.root && <> <Tag tone="negative">{t.root}</Tag></>}
-                  </td>
-                  <td className="nowrap">{dateTime(s.started_at)}</td>
-                  <td className="nowrap">{s.open ? elapsed(s.started_at) : duration(s.duration_seconds)}</td>
-                  <td>{s.open ? <Tag tone="positive">{t.openNow}</Tag> : <span className="muted small">{t.reasons[s.reason ?? "closed"] ?? s.reason}</span>}</td>
-                  <td className="actions">
-                    {s.open ? (
-                      <Button size="sm" variant="danger" icon={<Square />} loading={end.isPending && end.variables === s.id} onClick={() => end.mutate(s.id)}>{t.end}</Button>
-                    ) : s.recording ? (
-                      <Button size="sm" icon={<Play />} onClick={() => setPlaying(s)}>{t.play}</Button>
-                    ) : (
-                      <span className="faint small">{s.recorded ? t.recordingRemoved : t.notRecorded}</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t.who}</TableHead>
+              <TableHead>{t.what}</TableHead>
+              <TableHead>{t.started}</TableHead>
+              <TableHead>{t.length}</TableHead>
+              <TableHead>{t.ending}</TableHead>
+              <TableHead aria-label={t.play} />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.map((s) => (
+              <TableRow key={s.id}>
+                <TableCell><bdi>{s.user}</bdi></TableCell>
+                <TableCell>
+                  <span className="small">{t.asUser(t.targets[s.target] ?? s.target, s.container_user)}</span>
+                  {s.root && <> <Tag tone="negative">{t.root}</Tag></>}
+                </TableCell>
+                <TableCell className="nowrap">{dateTime(s.started_at)}</TableCell>
+                <TableCell className="nowrap">{s.open ? elapsed(s.started_at) : duration(s.duration_seconds)}</TableCell>
+                <TableCell>{s.open ? <Tag tone="positive">{t.openNow}</Tag> : <span className="muted small">{t.reasons[s.reason ?? "closed"] ?? s.reason}</span>}</TableCell>
+                <TableCell className="actions">
+                  {s.open ? (
+                    <Button size="sm" variant="danger" icon={<Square />} loading={end.isPending && end.variables === s.id} onClick={() => end.mutate(s.id)}>{t.end}</Button>
+                  ) : s.recording ? (
+                    <Button size="sm" icon={<Play />} onClick={() => setPlaying(s)}>{t.play}</Button>
+                  ) : (
+                    <span className="faint small">{s.recorded ? t.recordingRemoved : t.notRecorded}</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
       {playing && <ShellPlayer session={playing} onClose={() => setPlaying(null)} />}
     </div>

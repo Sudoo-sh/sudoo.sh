@@ -3,6 +3,7 @@
 // create a new, empty one through the GitHub App).
 
 import {
+  Archive,
   ArrowUpRight,
   Boxes,
   ChevronRight,
@@ -30,12 +31,15 @@ import type { Instance, Job, Permission, Project, ProjectBranch, ProjectDetail, 
 import { LockTag } from "@/components/LockTag";
 import { AccessTab, LockDialog, UnlockDialog } from "@/components/ProjectAccess";
 import { InstanceCard } from "@/components/InstanceCard";
+import { ProjectBackups, useProjectBackups } from "@/components/ProjectBackups";
 import { JobDrawer } from "@/components/JobDrawer";
 import { Page, PageHead, useCan, useSubCrumb } from "@/components/Shell";
 import { useMe } from "@/components/Session";
 import { STAGE_ICON, STAGE_LABEL, StageTag } from "@/components/StageTag";
-import { Button, Callout, Empty, Field, Skeleton, Status, Switch, Tag } from "@/components/ui/basics";
-import { Menu, Modal, useToast } from "@/components/ui/overlay";
+import { Button, Callout, Empty, Field, Skeleton, Status, Switch, Tag } from "@/components/app/basics";
+import { Input } from "@/components/ui/input";
+import { SelectBox } from "@/components/app/select";
+import { Menu, MenuItem, MenuLabel, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/projects";
@@ -113,9 +117,9 @@ export function ProjectsPage() {
   );
   const standalone = (data?.standalone ?? []).map((n) => instances.get(n)).filter((i): i is Instance => !!i);
   const newProject = can("projects.manage") && (
-    <Link className="btn primary" to="/projects/new" viewTransition>
+    <Button asChild variant="primary"><Link to="/projects/new" viewTransition>
       <FolderPlus /> {t.newProject}
-    </Link>
+    </Link></Button>
   );
   return (
     <Page>
@@ -126,7 +130,7 @@ export function ProjectsPage() {
         <div className="toolbar">
           <div className="input-group">
             <Search />
-            <input className="input" placeholder={t.search} aria-label={t.search} value={query} onChange={(e) => setQuery(e.target.value)} />
+            <Input placeholder={t.search} aria-label={t.search} value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
         </div>
       )}
@@ -194,10 +198,13 @@ type Dialog =
 function BranchRow({
   branch,
   instances,
+  backups,
   onDialog,
 }: {
   branch: ProjectBranch;
   instances: Map<string, Instance>;
+  /** backups per instance; null when the caller may not manage backups */
+  backups: Map<string, number> | null;
   onDialog: (dialog: Dialog) => void;
 }) {
   const roleCan = useCan();
@@ -235,6 +242,11 @@ function BranchRow({
                 <Status status={instance.status} label="" />
                 <Link to={`/i/${instance.name}`} viewTransition className="truncate">{instance.name}</Link>
                 {instance.stage !== branch.stage && <StageTag stage={instance.stage} />}
+                {backups?.get(instance.name) ? (
+                  <Link to={`/i/${instance.name}/backups`} viewTransition className="xsmall nowrap br-backups">
+                    {count(backups.get(instance.name)!, "backup")}
+                  </Link>
+                ) : null}
               </div>
             ))}
           </div>
@@ -245,9 +257,9 @@ function BranchRow({
       <div className="br-actions" role="cell">
         {first ? (
           first.url && first.status !== "switched_off" && !lockedOut ? (
-            <a className="btn sm" href={first.url} target="_blank" rel="noreferrer">{t.open} <ArrowUpRight className="flip-rtl" /></a>
+            <Button asChild size="sm"><a href={first.url} target="_blank" rel="noreferrer">{t.open} <ArrowUpRight className="flip-rtl" /></a></Button>
           ) : (
-            <Link className="btn sm" to={`/i/${first.name}`} viewTransition>{t.details}</Link>
+            <Button asChild size="sm"><Link to={`/i/${first.name}`} viewTransition>{t.details}</Link></Button>
           )
         ) : (
           can("instances.create") && branch.on_github !== false && (
@@ -260,57 +272,57 @@ function BranchRow({
           {(close) => (
             <>
               {first && (
-                <Link className="menu-item" to={`/i/${first.name}`} viewTransition onClick={close}><Boxes /> {t.details}</Link>
+                <MenuItem asChild><Link to={`/i/${first.name}`} viewTransition onClick={close}><Boxes /> {t.details}</Link></MenuItem>
               )}
               {first && can("instances.logs") && (
-                <Link className="menu-item" to={`/i/${first.name}/logs`} viewTransition onClick={close}><ScrollText /> {t.logs}</Link>
+                <MenuItem asChild><Link to={`/i/${first.name}/logs`} viewTransition onClick={close}><ScrollText /> {t.logs}</Link></MenuItem>
               )}
               {first && branch.stage === "staging" && can("instances.restore") && (
-                <button type="button" className="menu-item" onClick={() => { close(); onDialog({ kind: "rebuild", branch, instance: first.name }); }}>
+                <MenuItem onSelect={() => { close(); onDialog({ kind: "rebuild", branch, instance: first.name }); }}>
                   <RotateCcw /> {t.rebuild}
-                </button>
+                </MenuItem>
               )}
               {can("projects.manage") && (
                 <>
-                  <hr /><div className="menu-label">{t.moveTo}</div>
+                  <MenuSeparator /><MenuLabel>{t.moveTo}</MenuLabel>
                   {others.map((stage) => {
                     const Icon = STAGE_ICON[stage];
                     return (
-                      <button key={stage} type="button" className="menu-item" onClick={() => { close(); onDialog({ kind: "stage", branch, stage }); }}>
+                      <MenuItem key={stage} onSelect={() => { close(); onDialog({ kind: "stage", branch, stage }); }}>
                         <Icon /> {STAGE_LABEL[stage]}
-                      </button>
+                      </MenuItem>
                     );
                   })}
                 </>
               )}
               {!first && can("instances.create") && branch.on_github !== false && (
-                <button type="button" className="menu-item" onClick={() => { close(); onDialog({ kind: "create", branch }); }}>
+                <MenuItem onSelect={() => { close(); onDialog({ kind: "create", branch }); }}>
                   <Plus /> {t.createInstance}
-                </button>
+                </MenuItem>
               )}
               {roleCan("projects.access") && (branch.lock ? mayUnlock : can("projects.access")) && (
                 <>
-                  <hr />
+                  <MenuSeparator />
                   {branch.lock ? (
                     <>
-                      <button type="button" className="menu-item" onClick={() => { close(); onDialog({ kind: "lock", branch }); }}>
+                      <MenuItem onSelect={() => { close(); onDialog({ kind: "lock", branch }); }}>
                         <Lock /> {l.lock.changeLock}
-                      </button>
-                      <button type="button" className="menu-item" onClick={() => { close(); onDialog({ kind: "unlock", branch }); }}>
+                      </MenuItem>
+                      <MenuItem onSelect={() => { close(); onDialog({ kind: "unlock", branch }); }}>
                         <LockOpen /> {l.lock.unlock}
-                      </button>
+                      </MenuItem>
                     </>
                   ) : (
-                    <button type="button" className="menu-item" onClick={() => { close(); onDialog({ kind: "lock", branch }); }}>
+                    <MenuItem onSelect={() => { close(); onDialog({ kind: "lock", branch }); }}>
                       <Lock /> {l.lock.lock}
-                    </button>
+                    </MenuItem>
                   )}
                 </>
               )}
               {first && can("instances.delete") && (
-                <button type="button" className="menu-item danger" onClick={() => { close(); onDialog({ kind: "delete", instance: first }); }}>
+                <MenuItem danger onSelect={() => { close(); onDialog({ kind: "delete", instance: first }); }}>
                   <Trash2 /> {t.deleteInstance}
-                </button>
+                </MenuItem>
               )}
             </>
           )}
@@ -388,7 +400,7 @@ function CreateDialog({ project, branch, production, onClose, onJob }: { project
         {branch.stage === "staging" && (production ? <Callout tone="info">{d.staging(production)}</Callout> : <Callout tone="warning">{d.stagingWithout}</Callout>)}
         {branch.stage === "development" && <p className="small muted">{d.development}</p>}
         <Field label={d.name} hint={d.nameHint}>
-          <input className="input" dir="ltr" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
+          <Input dir="ltr" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
         </Field>
         {branch.stage === "development" && <Switch checked={demo} onChange={setDemo} label={d.demo} />}
         <Switch checked={modules} onChange={setModules} label={d.modules} />
@@ -448,11 +460,11 @@ function DeleteInstanceDialog({ instance, onClose, onJob }: { instance: Instance
       <div className="stack">
         {production && <Callout tone="danger">{all.stageDialog.production}</Callout>}
         <Field label={<>{s.typeId(<code key="n">{instance.name}</code>)}</>}>
-          <input className="input" dir="ltr" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} />
+          <Input dir="ltr" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} />
         </Field>
         {production && (
           <Field label={<>{s.typeId(<code key="p">production</code>)}</>}>
-            <input className="input" dir="ltr" value={typedStage} onChange={(e) => setTypedStage(e.target.value)} />
+            <Input dir="ltr" value={typedStage} onChange={(e) => setTypedStage(e.target.value)} />
           </Field>
         )}
       </div>
@@ -460,9 +472,16 @@ function DeleteInstanceDialog({ instance, onClose, onJob }: { instance: Instance
   );
 }
 
-function BranchesTab({ project, meta, onRefresh, refreshing }: { project: ProjectDetail; meta: ProjectMeta; onRefresh: () => void; refreshing: boolean }) {
+function BranchesTab({ project, meta, onRefresh, refreshing, backups }: { project: ProjectDetail; meta: ProjectMeta; onRefresh: () => void; refreshing: boolean; backups: boolean }) {
   const t = useT(words).page;
   const instances = useInstanceMap();
+  // how many backups each instance has, for the "N backups" link on its branch's row
+  const { data: backupList } = useProjectBackups(project.id, backups);
+  const backupCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const b of backupList ?? []) counts.set(b.instance, (counts.get(b.instance) ?? 0) + 1);
+    return counts;
+  }, [backupList]);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const production = useMemo(() => {
@@ -515,7 +534,7 @@ function BranchesTab({ project, meta, onRefresh, refreshing }: { project: Projec
                     <div role="columnheader" className="br-actions">{t.actions}</div>
                   </div>
                   {listed.map((branch) => (
-                    <BranchRow key={branch.name} branch={branch} instances={instances} onDialog={setDialog} />
+                    <BranchRow key={branch.name} branch={branch} instances={instances} backups={backupList ? backupCounts : null} onDialog={setDialog} />
                   ))}
                 </div>
               ) : (
@@ -579,14 +598,14 @@ function SettingsTab({ project }: { project: ProjectDetail }) {
   );
   const choice = (key: "staging_on_push" | "branch_deleted", options: string[]) => (
     <OptionRow label={s[key]} own={key in own} onReset={() => setOption(key, null)}>
-      <select className="select" value={String(value(key))} disabled={!editable} onChange={(e) => setOption(key, e.target.value as ProjectOptions[typeof key])}>
+      <SelectBox value={String(value(key))} disabled={!editable} onValueChange={(value) => setOption(key, value as ProjectOptions[typeof key])}>
         {options.map((o) => <option key={o} value={o}>{s[o as "rebuild"]}</option>)}
-      </select>
+      </SelectBox>
     </OptionRow>
   );
   const days = (key: "max_auto_development" | "development_lifetime_days" | "staging_lifetime_days") => (
     <OptionRow label={s[key]} own={key in own} onReset={() => setOption(key, null)}>
-      <input className="input number" type="number" min={0} max={key === "max_auto_development" ? 100 : 3650} disabled={!editable}
+      <Input className="number" type="number" min={0} max={key === "max_auto_development" ? 100 : 3650} disabled={!editable}
         defaultValue={value(key)} key={`${key}-${value(key)}`}
         onBlur={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 0 && n !== value(key)) setOption(key, n); }} />
     </OptionRow>
@@ -599,19 +618,19 @@ function SettingsTab({ project }: { project: ProjectDetail }) {
           <p className="small muted">{s.generalText}</p>
           <div className="form-grid">
             <Field label={s.name}>
-              <input className="input" value={name} maxLength={60} disabled={!editable} onChange={(e) => setName(e.target.value)}
+              <Input  value={name} maxLength={60} disabled={!editable} onChange={(e) => setName(e.target.value)}
                 onBlur={() => name.trim() && name.trim() !== project.name && send({ name: name.trim() })} />
             </Field>
             <Field label={s.version}>
-              <select className="select" dir="ltr" value={project.odoo.version} disabled={!editable} onChange={(e) => send({ odoo_version: e.target.value })}>
+              <SelectBox dir="ltr" value={project.odoo.version} disabled={!editable} onValueChange={(value) => send({ odoo_version: value })}>
                 {(versions ?? [{ version: project.odoo.version, enterprise: true }]).map((v) => <option key={v.version}>{v.version}</option>)}
-              </select>
+              </SelectBox>
             </Field>
             <Field label={s.edition}>
-              <select className="select" value={project.odoo.edition} disabled={!editable} onChange={(e) => send({ edition: e.target.value })}>
+              <SelectBox value={project.odoo.edition} disabled={!editable} onValueChange={(value) => send({ edition: value })}>
                 <option value="community">Community</option>
                 <option value="enterprise">Enterprise</option>
-              </select>
+              </SelectBox>
             </Field>
           </div>
         </div>
@@ -642,7 +661,7 @@ function SettingsTab({ project }: { project: ProjectDetail }) {
       </section>
       <section className="card">
         <div className="card-head"><h2 className="spacer">{s.access}</h2>
-          {can("projects.access") && <Link className="btn sm" to={`/projects/${project.id}/access`} viewTransition><ShieldCheck /> {s.manageAccess}</Link>}
+          {can("projects.access") && <Button asChild size="sm"><Link to={`/projects/${project.id}/access`} viewTransition><ShieldCheck /> {s.manageAccess}</Link></Button>}
         </div>
         <div className="card-body"><p className="small muted">{project.access.mode === "restricted" ? s.accessRestricted : s.accessText}</p></div>
       </section>
@@ -666,7 +685,7 @@ function SettingsTab({ project }: { project: ProjectDetail }) {
           <div className="stack">
             <p className="small muted">{s.dangerText}</p>
             <Field label={<>{s.typeId(<code key="id">{project.id}</code>)}</>}>
-              <input className="input" dir="ltr" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} />
+              <Input dir="ltr" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} />
             </Field>
           </div>
         </Modal>
@@ -693,7 +712,7 @@ export function ProjectPage() {
     return (
       <Page>
         <div className="card">
-          <Empty icon={<FolderGit2 />} title={t.notFound} action={<Link className="btn" to="/projects" viewTransition>{t.allProjects}</Link>}>
+          <Empty icon={<FolderGit2 />} title={t.notFound} action={<Button asChild><Link to="/projects" viewTransition>{t.allProjects}</Link></Button>}>
             {t.notFoundText}
           </Empty>
         </div>
@@ -701,6 +720,7 @@ export function ProjectPage() {
     );
   const { project, meta } = data;
   const mayManageAccess = meta.permissions ? meta.permissions.includes("projects.access") : can("projects.access");
+  const mayManageBackups = meta.permissions ? meta.permissions.includes("backups.manage") : can("backups.manage");
   const refresh = async () => {
     setRefreshing(true);
     try {
@@ -715,9 +735,9 @@ export function ProjectPage() {
       <PageHead
         title={project.name}
         actions={
-          <a className="btn" href={project.repository.url} target="_blank" rel="noreferrer">
+          <Button asChild><a href={project.repository.url} target="_blank" rel="noreferrer">
             <FolderGit2 /> {t.openOnGitHub} <ArrowUpRight className="flip-rtl" />
-          </a>
+          </a></Button>
         }
       >
         <span className="row-wrap">
@@ -733,6 +753,11 @@ export function ProjectPage() {
         <Link to={`/projects/${project.id}/settings`} viewTransition className={`tab ${tab === "settings" ? "active" : ""}`} aria-current={tab === "settings" ? "page" : undefined}>
           <Hammer /> {t.settingsTab}
         </Link>
+        {mayManageBackups && (
+          <Link to={`/projects/${project.id}/backups`} viewTransition className={`tab ${tab === "backups" ? "active" : ""}`} aria-current={tab === "backups" ? "page" : undefined}>
+            <Archive /> {t.backupsTab}
+          </Link>
+        )}
         {mayManageAccess && (
           <Link to={`/projects/${project.id}/access`} viewTransition className={`tab ${tab === "access" ? "active" : ""}`} aria-current={tab === "access" ? "page" : undefined}>
             <ShieldCheck /> {t.accessTab}
@@ -741,10 +766,12 @@ export function ProjectPage() {
       </nav>
       {tab === "access" ? (
         <AccessTab key={project.id} project={project} permitted={mayManageAccess} />
+      ) : tab === "backups" && mayManageBackups ? (
+        <ProjectBackups key={project.id} project={project} />
       ) : tab === "settings" ? (
         <SettingsTab key={project.id} project={project} />
       ) : (
-        <BranchesTab project={project} meta={meta} onRefresh={refresh} refreshing={refreshing} />
+        <BranchesTab project={project} meta={meta} onRefresh={refresh} refreshing={refreshing} backups={mayManageBackups} />
       )}
     </Page>
   );
@@ -820,7 +847,7 @@ export function NewProjectPage() {
             {mode === "link" ? (
               <Field className="full" label={t.repository} hint={t.repositoryHint}>
                 <div className="stack-sm">
-                  <input className="input" dir="ltr" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repository}
+                  <Input  dir="ltr" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repository}
                     onChange={(e) => setRepository(e.target.value)} onFocus={() => setPicking(true)} onBlur={() => setPicking(false)} />
                   {picking && <RepositoryPicker typed={repository.trim()} onPick={(r) => { setRepository(r.url); setPicking(false); }} />}
                 </div>
@@ -834,12 +861,12 @@ export function NewProjectPage() {
             ) : (
               <>
                 <Field label={t.organisation}>
-                  <select className="select" dir="ltr" value={chosenOwner?.account ?? ""} onChange={(e) => setOwner(e.target.value)}>
+                  <SelectBox dir="ltr" value={chosenOwner?.account ?? ""} onValueChange={(value) => setOwner(value)}>
                     {owners.data.owners.map((o) => <option key={o.account} value={o.account}>{o.account}</option>)}
-                  </select>
+                  </SelectBox>
                 </Field>
                 <Field label={t.repositoryName} hint={t.repositoryNameHint}>
-                  <input className="input" dir="ltr" placeholder="client-erp" value={repoName} maxLength={100} onChange={(e) => setRepoName(e.target.value)} />
+                  <Input dir="ltr" placeholder="client-erp" value={repoName} maxLength={100} onChange={(e) => setRepoName(e.target.value)} />
                 </Field>
                 {chosenOwner && !chosenOwner.possible && (
                   <div className="full">
@@ -848,12 +875,12 @@ export function NewProjectPage() {
                         <span>{chosenOwner.message}</span>
                         <span className="row-wrap">
                           {chosenOwner.url && (chosenOwner.url.startsWith("/") ? (
-                            <Link className="btn sm" to={chosenOwner.url} viewTransition>{chosenOwner.label}</Link>
+                            <Button asChild size="sm"><Link to={chosenOwner.url} viewTransition>{chosenOwner.label}</Link></Button>
                           ) : (
-                            <a className="btn sm" href={chosenOwner.url} target="_blank" rel="noreferrer">{chosenOwner.label} <ArrowUpRight className="flip-rtl" /></a>
+                            <Button asChild size="sm"><a href={chosenOwner.url} target="_blank" rel="noreferrer">{chosenOwner.label} <ArrowUpRight className="flip-rtl" /></a></Button>
                           ))}
                           {chosenOwner.accept_url && (
-                            <a className="btn sm" href={chosenOwner.accept_url} target="_blank" rel="noreferrer">{t.acceptHere} <ArrowUpRight className="flip-rtl" /></a>
+                            <Button asChild size="sm"><a href={chosenOwner.accept_url} target="_blank" rel="noreferrer">{t.acceptHere} <ArrowUpRight className="flip-rtl" /></a></Button>
                           )}
                           <Button size="sm" variant="ghost" icon={<RefreshCw />} loading={checking} onClick={checkAgain}>{t.checkAgain}</Button>
                         </span>
@@ -862,7 +889,7 @@ export function NewProjectPage() {
                   </div>
                 )}
                 <Field className="full" label={t.description}>
-                  <input className="input" value={description} maxLength={350} onChange={(e) => setDescription(e.target.value)} />
+                  <Input value={description} maxLength={350} onChange={(e) => setDescription(e.target.value)} />
                 </Field>
                 <div className="full"><Switch checked={isPrivate} onChange={setPrivate} label={t.private} /></div>
               </>
@@ -873,18 +900,18 @@ export function NewProjectPage() {
           <div className="card-head"><Boxes /><h2>{t.steps[1]}</h2></div>
           <div className="card-body form-grid">
             <Field label={t.projectName} hint={t.projectNameHint}>
-              <input className="input" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
+              <Input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
             </Field>
             <Field label={t.version}>
-              <select className="select" dir="ltr" value={chosenVersion} onChange={(e) => setVersion(e.target.value)}>
+              <SelectBox dir="ltr" value={chosenVersion} onValueChange={(value) => setVersion(value)}>
                 {(versions ?? []).map((v) => <option key={v.version}>{v.version}</option>)}
-              </select>
+              </SelectBox>
             </Field>
             <Field label={t.edition}>
-              <select className="select" value={enterpriseAvailable ? edition : "community"} onChange={(e) => setEdition(e.target.value as "community" | "enterprise")}>
+              <SelectBox value={enterpriseAvailable ? edition : "community"} onValueChange={(value) => setEdition(value as "community" | "enterprise")}>
                 <option value="community">{t.community}</option>
                 <option value="enterprise" disabled={!enterpriseAvailable}>{t.enterprise}</option>
-              </select>
+              </SelectBox>
             </Field>
           </div>
         </section>

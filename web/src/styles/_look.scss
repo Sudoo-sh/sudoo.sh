@@ -1,0 +1,554 @@
+@use "mixins" as *;
+
+// The Sudoo.sh look on the shadcn components.
+//
+// The generated components in src/components/ui are used unchanged; these rules bring back the panel's own buttons,
+// fields, lists, menus, dialogs and sheets, keyed on the data-slot, data-variant, data-size and data-state attributes
+// the components carry. They are outside the cascade layers (styles/main.scss), so they win over the components'
+// utility classes; the values are the panel's design tokens (_tokens.scss), as in _components.scss.
+//
+// A page that places a component in a particular way does it here too (the end of this file), since a rule in the
+// panel's layer would lose to the utilities.
+
+// ---------------------------------------------------------------- buttons
+// 36px with 16px sides; small 32px, 12px sides and 13px words; large 44px, 20px sides and 15px words; square with an
+// icon and no words. They shrink a little when pressed.
+[data-slot="button"] {
+  flex-shrink: 1;
+  gap: var(--s2);
+  height: 36px;
+  padding: 0 var(--s4);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-small);
+  font-weight: 500;
+  font-size: var(--text-14);
+  line-height: inherit;
+  cursor: pointer;
+  text-decoration: none !important;
+  -webkit-user-select: none;
+  translate: none;
+  @include press;
+  svg { width: 16px; height: 16px; stroke-width: 1.75; }
+  @include hover { background: var(--raised); color: var(--text); }
+  &:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  &:disabled, &[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; pointer-events: auto; }
+  .spinner { width: 15px; height: 15px; }
+
+  &[data-variant="default"] {
+    background: var(--brand);
+    border-color: transparent;
+    color: var(--on-brand);
+    @include hover { background: color-mix(in oklab, var(--brand) 88%, var(--text)); color: var(--on-brand); }
+  }
+  &[data-variant="destructive"] {
+    background: var(--negative);
+    border-color: transparent;
+    color: #fff;
+    @include hover { background: color-mix(in oklab, var(--negative) 88%, black); color: #fff; }
+  }
+  &[data-variant="ghost"] {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    color: var(--text-2);
+    @include hover { background: var(--raised); color: var(--text); }
+  }
+  &[data-variant="secondary"] {
+    background: var(--raised);
+    border-color: transparent;
+    box-shadow: none;
+    @include hover { background: color-mix(in oklab, var(--raised) 80%, var(--text)); }
+  }
+
+  &:is([data-size="sm"], [data-size="icon-sm"]) {
+    height: 32px;
+    padding: 0 var(--s3);
+    font-size: var(--text-13);
+    svg { width: 15px; height: 15px; }
+  }
+  &[data-size="lg"] { height: 44px; padding: 0 var(--s5); font-size: var(--text-15); }
+  &[data-size="icon"] { width: 36px; padding: 0; }
+  &[data-size="icon-sm"] { width: 32px; padding: 0; }
+  &[data-size="icon-lg"] { width: 44px; height: 44px; padding: 0; }
+}
+
+// ---------------------------------------------------------------- fields
+[data-slot="input"],
+[data-slot="textarea"],
+[data-slot="select-trigger"] {
+  width: 100%;
+  height: 36px;
+  padding: 0 var(--s3);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: none;
+  // 14px words, and 16px on phones (below 768px: shadcn's own size there, which keeps iOS from zooming in)
+  transition: border-color var(--quick) var(--ease), box-shadow var(--quick) var(--ease);
+  &::placeholder { color: var(--text-3); }
+  &:focus, &:focus-visible { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-ring); }
+  &:disabled { opacity: 1; background: var(--raised); color: var(--text-3); }
+  &[aria-invalid="true"] { border-color: var(--negative); }
+  &[aria-invalid="true"]:not(:focus) { box-shadow: none; }
+}
+[data-slot="input"] { line-height: inherit; }
+// left-to-right values (codes, colours, keys) in the monospace face, a little smaller, as everywhere in the panel;
+// phones keep 16px
+@media (min-width: 768px) {
+  :is([data-slot="input"], [data-slot="textarea"]).mono { font-size: 0.92em; }
+}
+[data-slot="input"][type="file"] { padding-inline: var(--s2); }
+[data-slot="textarea"] {
+  height: auto;
+  min-height: 88px;
+  padding: var(--s2) var(--s3);
+  field-sizing: fixed;
+  resize: vertical;
+  line-height: inherit;
+}
+
+// a list to choose from (shadcn's Select): the field, a chevron at its end, and the list under it
+[data-slot="select-trigger"] {
+  gap: var(--s2);
+  padding-inline: var(--s3) var(--s2);
+  font-size: var(--text-14);
+  line-height: inherit;
+  cursor: pointer;
+  &[data-size="sm"] { height: 32px; font-size: var(--text-13); }
+  &[data-placeholder] { color: var(--text-3); }
+  > svg { width: 16px; height: 16px; color: var(--text-3); stroke-width: 1.5; opacity: 1; }
+  &:disabled { cursor: default; > svg { opacity: 0.6; } }
+  [data-slot="select-value"] { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: start; }
+  // as wide as its longest option, like a native <select> (components/app/select.tsx)
+  > .select-value { display: grid; flex: 1; min-width: 0; > * { grid-area: 1 / 1; } }
+  .select-sizer { visibility: hidden; white-space: nowrap; height: 0; }
+}
+[data-slot="select-content"],
+[data-slot="dropdown-menu-content"] {
+  padding: var(--s1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  // the floating shadow, in place of the components' ring
+  box-shadow: var(--shadow-float);
+  // grows from what opened it, and shrinks back into it
+  --tw-enter-scale: 0.97;
+  --tw-exit-scale: 0.97;
+  --tw-enter-translate-y: 0;
+  --tw-enter-translate-x: 0;
+  --tw-duration: var(--menu);
+  --tw-ease: var(--ease);
+  &[data-state="closed"] { --tw-duration: 120ms; }
+}
+[data-slot="select-content"] {
+  min-width: max(var(--radix-select-trigger-width, 0px), 160px);
+  max-height: min(360px, var(--radix-select-content-available-height, 360px));
+  [data-slot="select-viewport"], > div { padding: 0; }
+}
+[data-slot="select-item"] {
+  min-height: 34px;
+  padding-block: 6px;
+  padding-inline: var(--s2) 32px;
+  border-radius: 6px;
+  font-size: var(--text-14);
+  line-height: 1.43;
+  cursor: pointer;
+  &:focus, &[data-highlighted] { background: var(--raised); color: var(--text); }
+  &[data-state="checked"] { font-weight: 500; }
+  // the check mark of the chosen one
+  > span:first-child svg { width: 16px; height: 16px; color: var(--brand); stroke-width: 2; }
+  &[data-disabled] { opacity: 0.45; }
+}
+[data-slot="select-label"] { padding: var(--s1) var(--s2) 2px; font-size: var(--text-12); color: var(--text-3); }
+[data-slot="select-separator"] { margin: var(--s1) 0; background: var(--hairline); }
+
+// a field: the label over the control, 6px apart; a hint or an error under it
+[data-slot="field"] {
+  gap: 6px;
+  // what a field holds is as wide as the field unless it says otherwise (align-self), as before
+  &[data-orientation="vertical"] > * { width: auto; }
+  &[data-invalid="true"] { color: inherit; }
+  > [data-slot="field-label"] { font-size: var(--text-13); font-weight: 500; line-height: inherit; }
+  > [data-slot="field-description"] { margin: 0; font-size: var(--text-12); line-height: inherit; color: var(--text-3); text-wrap: wrap; }
+  > [data-slot="field-error"] { font-size: var(--text-12); line-height: inherit; color: var(--negative); }
+}
+
+// checkboxes and radios: 16px, plum when chosen
+[data-slot="checkbox"],
+[data-slot="radio-group-item"] {
+  border-color: var(--hairline-strong);
+  background: var(--surface);
+  box-shadow: none;
+  cursor: pointer;
+  &[data-state="checked"] { border-color: var(--brand); background: var(--brand); color: var(--on-brand); }
+  &:focus-visible { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-ring); }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+}
+
+// switches: 36 by 20 px, a white 16px thumb that travels 16px (the other way in Arabic) and stretches while pressed
+[data-slot="switch"] {
+  // a block, not a flex box: its baseline is its bottom edge, as the panel's own switch had, so a row keeps its height
+  display: block;
+  width: 36px;
+  height: 20px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--hairline-strong);
+  box-shadow: none;
+  cursor: pointer;
+  transition: background-color var(--quick) var(--ease);
+  &[data-state="checked"] { background: var(--brand); }
+  &:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--brand-ring); }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+  > [data-slot="switch-thumb"] {
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+    translate: 0 0;
+    transition: translate 250ms var(--ease), width 160ms var(--ease);
+    &[data-state="checked"] { translate: 16px 0; }
+  }
+  &:active:not(:disabled) > [data-slot="switch-thumb"] {
+    width: 20px;
+    &[data-state="checked"] { translate: 12px 0; }
+  }
+}
+[dir="rtl"] [data-slot="switch"] > [data-slot="switch-thumb"] {
+  &[data-state="checked"] { translate: -16px 0; }
+}
+[dir="rtl"] [data-slot="switch"]:active:not(:disabled) > [data-slot="switch-thumb"][data-state="checked"] { translate: -12px 0; }
+
+// segmented controls (components/app/basics.tsx Segmented): a grey rail, the chosen option on a white thumb that slides
+[data-slot="toggle-group"].segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  box-shadow: none;
+  > [data-slot="toggle-group-item"] {
+    position: relative;
+    gap: 6px;
+    min-width: 0;
+    height: 28px;
+    padding: 0 var(--s3);
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-2);
+    font-weight: 500;
+    font-size: var(--text-13);
+    line-height: inherit;
+    white-space: normal;
+    cursor: pointer;
+    transition: color var(--quick) var(--ease), transform var(--press) var(--ease);
+    &[data-state="on"] { color: var(--text); }
+    &:active:not(:disabled) { transform: scale(0.96); }
+    @include hover { background: transparent; color: var(--text); }
+    &:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; box-shadow: none; }
+    &:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: auto; }
+    svg { width: 14px; height: 14px; stroke-width: 1.5; }
+    .count { font-family: var(--mono); font-size: 11.5px; color: var(--text-3); }
+  }
+}
+
+// ---------------------------------------------------------------- tags, notes, progress, placeholders
+// a tag (shadcn's Badge): a quiet outlined label
+[data-slot="badge"] {
+  gap: var(--s1);
+  height: 22px;
+  padding: 0 var(--s2);
+  border-radius: var(--radius-tag);
+  border: 1px solid var(--hairline-strong);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--text-12);
+  font-weight: inherit;
+  line-height: inherit;
+  overflow: visible;
+  > svg { width: 12px !important; height: 12px !important; }
+  &.font-mono { font-size: 11.5px; }
+  &[data-tone="accent"] { border-color: color-mix(in oklab, var(--brand) 35%, transparent); color: var(--brand-ink); }
+  &[data-tone="positive"] { color: var(--positive); border-color: color-mix(in oklab, var(--positive) 30%, transparent); }
+  &[data-tone="caution"] { color: var(--caution); border-color: color-mix(in oklab, var(--caution) 30%, transparent); }
+  &[data-tone="negative"] { color: var(--negative); border-color: color-mix(in oklab, var(--negative) 30%, transparent); }
+}
+
+// a note (shadcn's Alert, components/app/basics.tsx Callout): a grey box with a hairline and 13px words in the body
+// colour; only the icon carries the tone
+[data-slot="alert"] {
+  display: flex;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  color: var(--text);
+  font-size: var(--text-13);
+  line-height: inherit;
+  > svg { flex: none; width: 16px; height: 16px; margin-top: 2px; translate: none; color: var(--c, var(--text-3)); stroke-width: 1.75; }
+  &[data-tone="warning"] { --c: var(--caution); }
+  &[data-tone="danger"] { --c: var(--negative); }
+  &[data-tone="success"] { --c: var(--positive); }
+  > [data-slot="alert-description"] {
+    display: block;
+    min-width: 0;
+    color: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    text-wrap: wrap;
+    p { margin: 0; }
+    a:not([data-slot], .callout-link) { text-decoration: none; color: var(--brand-ink); @include hover { text-decoration: underline; color: var(--brand-ink); } }
+  }
+}
+
+// A link inside a callout's sentence: underlined text in the accent shade, not a button.
+[data-slot="alert"] .callout-link {
+  color: var(--brand-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+  transition: color 150ms ease, text-decoration-thickness 150ms ease;
+  @include hover { text-decoration-thickness: 2px; }
+  &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 2px; border-radius: 2px; }
+}
+
+// progress (shadcn's Progress, components/app/basics.tsx): a 4px plum line, sweeping while the share is not known
+[data-slot="progress"] {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--raised);
+  > [data-slot="progress-indicator"] { background: var(--brand); transition: transform 600ms linear; }
+  &[data-state="indeterminate"] > [data-slot="progress-indicator"] { flex: none; width: 40%; animation: sweep 1.4s var(--ease) infinite; }
+  &[data-tone="failed"] > [data-slot="progress-indicator"] { background: var(--negative); }
+  &[data-tone="success"] > [data-slot="progress-indicator"] { background: var(--positive); }
+}
+[dir="rtl"] [data-slot="progress"] { scale: -1 1; }
+
+// a placeholder while something loads (shadcn's Skeleton): a soft shimmer, unseen for the first 150 ms
+[data-slot="skeleton"] {
+  border-radius: var(--radius-tag);
+  background: linear-gradient(90deg, var(--raised) 25%, color-mix(in oklab, var(--raised) 40%, var(--surface)) 37%, var(--raised) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite, fade var(--quick) var(--ease) 150ms both;
+}
+
+// ---------------------------------------------------------------- dialogs, drawers, sheets and menus
+[data-slot="dialog-overlay"],
+[data-slot="sheet-overlay"],
+[data-slot="drawer-overlay"] {
+  background: var(--overlay);
+  backdrop-filter: none;
+  --tw-duration: var(--enter);
+  --tw-ease: var(--ease);
+}
+
+// a dialog (components/app/overlay.tsx Modal) is not anchored to a button: it comes up in the centre (scale, opacity
+// and a little blur) and goes the same way
+[data-slot="dialog-content"] {
+  display: block;
+  width: min(520px, calc(100% - 32px));
+  max-width: none;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-float);
+  font-size: var(--text-14);
+  line-height: inherit;
+  --tw-enter-scale: 0.96;
+  --tw-enter-blur: 4px;
+  --tw-exit-scale: 0.97;
+  --tw-exit-blur: 2px;
+  --tw-duration: var(--enter);
+  --tw-ease: var(--ease);
+  &[data-state="closed"] { --tw-duration: 200ms; }
+  &[data-wide] { width: min(720px, calc(100% - 32px)); }
+}
+// the parts of a dialog, on a wider screen and in the phone's drawer alike
+.modal-head {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s6) var(--s6) 0;
+  text-align: start;
+  :is([data-slot="dialog-title"], [data-slot="drawer-title"]) { font-size: var(--text-18); font-weight: 600; line-height: inherit; letter-spacing: -0.01em; }
+  :is([data-slot="dialog-description"], [data-slot="drawer-description"]) { margin-top: var(--s1); color: var(--text-2); font-size: var(--text-14); }
+}
+.modal-body { padding: var(--s5) var(--s6); }
+.modal-foot {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s2);
+  margin: 0;
+  padding: var(--s4) var(--s6);
+  border-top: 1px solid var(--hairline);
+}
+// on a phone: from the bottom edge, at most 88% of the screen tall; its body scrolls
+[data-slot="drawer-content"].modal-sheet {
+  max-height: 88dvh;
+  margin-top: 0;
+  border-color: var(--hairline);
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-14);
+  > div:first-child { margin-top: var(--s2); background: var(--hairline-strong); }
+  .modal-head { padding: var(--s4) var(--s5) 0; }
+  .modal-body { flex: 1; min-height: 0; overflow: auto; padding: var(--s4) var(--s5); }
+  .modal-foot { padding: var(--s3) var(--s5) max(var(--s3), env(safe-area-inset-bottom, 0px)); }
+}
+
+// a side panel (components/app/overlay.tsx Drawer): in from the inline-end edge on the iOS sheet curve, and back out
+// the same way
+[data-slot="sheet-content"] {
+  gap: 0;
+  padding: 0;
+  border-color: var(--hairline);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: none;
+  font-size: var(--text-14);
+  --tw-enter-opacity: 1;
+  --tw-exit-opacity: 1;
+  --tw-duration: var(--sheet);
+  --tw-ease: var(--ease-drawer);
+  &[data-state="closed"] { --tw-duration: 280ms; }
+  &[data-side="right"] { --tw-enter-translate-x: 100%; --tw-exit-translate-x: 100%; }
+  &[data-side="left"] { --tw-enter-translate-x: -100%; --tw-exit-translate-x: -100%; }
+  &.drawer { width: min(680px, 100vw); max-width: none; }
+  &.drawer.help-panel { width: min(420px, 100vw); }
+  &:focus { outline: none; }
+}
+
+// the sidebar on a narrow screen (components/Shell.tsx): a sheet from the inline-start edge
+[data-slot="sheet-content"].sidebar-sheet {
+  width: min(288px, 86vw);
+  max-width: none;
+  border: 0;
+  box-shadow: var(--shadow-float);
+}
+
+// a menu (components/app/overlay.tsx Menu): 208px at least, its items 34px tall
+[data-slot="dropdown-menu-content"] {
+  width: auto;
+  min-width: 208px;
+}
+[data-slot="dropdown-menu-item"] {
+  gap: var(--s2);
+  min-height: 34px;
+  padding: 0 var(--s2);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: var(--text-14);
+  line-height: inherit;
+  text-decoration: none !important;
+  cursor: pointer;
+  svg { width: 16px; height: 16px; color: var(--text-3); stroke-width: 1.5; }
+  &:focus, &[data-highlighted] { background: var(--raised); color: var(--text); }
+  &[data-variant="destructive"] {
+    color: var(--negative);
+    svg { color: var(--negative); }
+    &:focus, &[data-highlighted] { background: var(--raised); color: var(--negative); }
+  }
+  &[data-disabled] { opacity: 0.45; cursor: not-allowed; background: none; }
+}
+[data-slot="dropdown-menu-separator"] { margin: var(--s1) 0; background: var(--hairline); }
+[data-slot="dropdown-menu-label"] { padding: var(--s1) var(--s2) 2px; font-size: var(--text-12); font-weight: 400; color: var(--text-3); }
+
+// ---------------------------------------------------------------- tables (shadcn's Table)
+// The table scrolls sideways inside its own box when it is wider than the screen.
+[data-slot="table"] {
+  font-size: var(--text-14);
+  line-height: inherit;
+}
+[data-slot="table-row"] {
+  border: 0;
+  transition: background-color var(--quick) var(--ease);
+  [data-slot="table-header"] & { @include hover { background: transparent; } }
+  [data-slot="table-body"] & {
+    @include hover { background: color-mix(in oklab, var(--raised) 60%, transparent); }
+    &:last-child > [data-slot="table-cell"] { border-bottom: 0; }
+  }
+}
+[data-slot="table-head"] {
+  height: 40px;
+  padding: 0 var(--s5);
+  border-bottom: 1px solid var(--hairline);
+  color: var(--text-3);
+  font-size: var(--text-12);
+  font-weight: 500;
+  text-align: start;
+}
+[data-slot="table-cell"] {
+  height: 52px;
+  padding: var(--s2) var(--s5);
+  border-bottom: 1px solid var(--hairline);
+  white-space: normal;
+  &.actions { text-align: end; white-space: nowrap; }
+  &.num { text-align: end; font-variant-numeric: tabular-nums; }
+  &.nowrap { white-space: nowrap; }
+}
+
+// ---------------------------------------------------------------- where the panel's pages place them
+// the top bar's menu button opens the sidebar's sheet, up to 960px only
+.topbar [data-slot="button"].menu-button { @media (min-width: 961px) { display: none; } }
+.caught-mail-back[data-slot="button"] { @media (min-width: 861px) { display: none; } }
+.menu:has(.bell-menu) { width: min(380px, calc(100vw - 32px)); padding: 0; }
+.bell-list [data-slot="dropdown-menu-item"] {
+  align-items: flex-start;
+  height: auto;
+  padding: var(--s2);
+  svg { flex: none; margin-top: 2px; }
+  svg.negative { color: var(--negative); }
+  svg.positive { color: var(--positive); }
+}
+.publisher [data-slot="badge"] { height: 18px; font-size: 11px; }
+.empty [data-slot="button"] { margin-top: var(--s3); }
+.copy [data-slot="button"]:is([data-size="sm"], [data-size="icon-sm"]) { height: 24px; }
+.toolbar [data-slot="select-trigger"].stage-filter { width: auto; min-width: 160px; }
+.mail-list [data-slot="select-trigger"].mail-select {
+  display: none;
+  @media (max-width: 860px) { display: flex; }
+}
+.log-toolbar [data-slot="select-trigger"] { width: auto; }
+.option-control {
+  [data-slot="select-trigger"], [data-slot="input"] { flex: 1; min-width: 0; }
+  [data-slot="input"].number { max-width: 120px; }
+}
+.grant-add [data-slot="select-trigger"] { width: auto; min-width: 160px; flex: 1 1 160px; }
+.grant-row [data-slot="select-trigger"] {
+  width: auto;
+  min-width: 140px;
+  @media (max-width: 520px) { flex: 1 1 auto; }
+}
+// a field with an icon at its start (.input-group): room for the icon; in Arabic a left-to-right field keeps the
+// icon on the right, the side its label is on
+.input-group > [data-slot="input"] { padding-inline-start: 36px; }
+[dir="rtl"] .input-group > [data-slot="input"]:is([dir="ltr"], [type="email"], [type="password"], [inputmode="email"]) { padding-left: var(--s3); padding-right: 36px; }
+[data-slot="textarea"].mail-body { min-height: 260px; padding-block: var(--s2); font-size: var(--text-13); line-height: 1.55; }
+.plan-list[data-slot="radio-group"] { display: flex; flex-direction: column; gap: var(--s2); }
+.licence-check > [data-slot="checkbox"] { margin-top: 3px; }
+.resources-table [data-slot="table-head"][scope="row"] { min-width: 200px; max-width: 320px; white-space: normal; }
+.licence-table [data-slot="table-cell"] { vertical-align: top; }
+.caught-mail-headers {
+  [data-slot="table-head"] { width: 1%; vertical-align: top; color: var(--text-2); }
+  [data-slot="table-cell"] { overflow-wrap: anywhere; word-break: break-word; }
+}

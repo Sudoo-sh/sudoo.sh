@@ -307,8 +307,21 @@
     line-height: inherit;
     text-wrap: wrap;
     p { margin: 0; }
-    a:not([data-slot]) { text-decoration: none; color: var(--brand-ink); @include hover { text-decoration: underline; color: var(--brand-ink); } }
+    a:not([data-slot], .callout-link) { text-decoration: none; color: var(--brand-ink); @include hover { text-decoration: underline; color: var(--brand-ink); } }
   }
+}
+
+// A link inside a callout's sentence: underlined text in the accent shade, not a button.
+[data-slot="alert"] .callout-link {
+  color: var(--brand-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+  transition: color 150ms ease, text-decoration-thickness 150ms ease;
+  @include hover { text-decoration-thickness: 2px; }
+  &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 2px; border-radius: 2px; }
 }
 
 // progress (shadcn's Progress, components/app/basics.tsx): a 4px plum line, sweeping while the share is not known

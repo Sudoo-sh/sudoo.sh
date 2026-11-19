@@ -16,9 +16,11 @@ const FEATURES = ["per_project_access", "custom_domains", "offsite_backups"] as 
 
 function External({ href, children, primary }: { href: string; children: string; primary?: boolean }) {
   return (
-    <a className={`btn sm ${primary ? "primary" : ""}`} href={href} target="_blank" rel="noreferrer">
-      {children} <ArrowUpRight className="flip-rtl" />
-    </a>
+    <Button asChild size="sm" variant={primary ? "primary" : "default"}>
+      <a href={href} target="_blank" rel="noreferrer">
+        {children} <ArrowUpRight className="flip-rtl" />
+      </a>
+    </Button>
   );
 }
 
@@ -53,7 +55,7 @@ export function PlanNotices({ plan }: { plan: PlanStatus }) {
 
 /** Link this panel to a Sudoo.sh account within LINK_DEADLINE_DAYS of its first run (src/sudoo/link_deadline.py):
  *  for super admins and administrators (the server sends link_deadline to them only), on every page, never closed.
- *  Super admins get the button to the link flow (Settings, Marketplace); administrators are told who links it. */
+ *  Super admins get a link to the link flow (Settings, Marketplace); administrators are told who links it. */
 function LinkBanner({ restricted, daysLeft, canLink }: { restricted: boolean; daysLeft: number; canLink: boolean }) {
   const t = useT(words);
   return (
@@ -61,7 +63,7 @@ function LinkBanner({ restricted, daysLeft, canLink }: { restricted: boolean; da
       <Callout tone={restricted ? "danger" : "warning"}>
         <b>{restricted ? t.linkOverdue : t.linkTitle(daysLeft)}</b> {restricted ? t.linkOverdueText : t.linkText}{" "}
         {canLink ? (
-          <Button asChild variant="primary" size="sm"><Link to="/settings?tab=marketplace" viewTransition>{t.linkButton}</Link></Button>
+          <Link className="callout-link" to="/settings?tab=marketplace" viewTransition>{t.linkButton}</Link>
         ) : (
           <span className="faint">{t.linkAskSuperAdmin}</span>
         )}

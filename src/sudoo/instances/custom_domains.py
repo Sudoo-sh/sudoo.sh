@@ -167,6 +167,7 @@ def gateway_hosts() -> dict[str, dict[str, Any]]:
         for domain, record in sorted(all_records().items())
         if record.get("tls") == "acme"
         and (managed if record.get("managed") else custom)
+        and managed_names.server_of(record) == managed_names.MAIN  # another server's name: that server serves it
         and store.exists(str(record.get("instance")))
     }
 
@@ -250,10 +251,15 @@ def remove(domain: str, managed: bool = False) -> dict[str, Any]:
 
 
 def forget_instance(name: str) -> None:
-    """The instance was deleted: remove its domains and certificates; its managed name is released at the hub soon."""
+    """The instance was deleted: remove its domains and certificates; its managed name is released at the hub soon,
+    unless the instance lives on another server now (a move: the name went or goes with it)."""
+    from . import managed_names
+
     released = []
     with _LOCK:
         for record in for_instance(name, managed=True):
+            if record.get("managed") and managed_names.kept_on_delete(record):
+                continue
             storage().delete(COLLECTION, record["domain"])
             cert_file(record["domain"]).unlink(missing_ok=True)
             if record.get("managed"):
@@ -261,6 +267,4 @@ def forget_instance(name: str) -> None:
         forget_cache()
     refresh_gateway()
     if released:
-        from . import managed_names
-
         managed_names.release_later(released)

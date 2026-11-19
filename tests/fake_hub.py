@@ -268,7 +268,7 @@ class FakeHub:
         self.subdomains_enabled = True
         self.subdomains_base = "sudoo.test"
         self.subdomains_company: str | None = None
-        self.subdomains: dict[str, dict[str, Any]] = {}  # hostname -> {branch, stage, company, server_id}
+        self.subdomains: dict[str, dict[str, Any]] = {}  # hostname -> {branch, stage, company, server_id, ipv4, ipv6}
         self.subdomain_limit: int | None = 5
         self.subdomains_foreign: set[str] = set()  # names another account holds
         self.subdomain_release_failures = 0  # the next releases answer 502 dns_failed
@@ -413,7 +413,8 @@ class FakeHub:
     def subdomain_out(self, hostname: str) -> dict[str, Any]:
         found = self.subdomains[hostname]
         return {"hostname": hostname, "branch": found["branch"], "stage": found["stage"], "company": found["company"],
-                "ipv4": "203.0.113.7", "ipv6": None, "proxied": False, "server_id": found["server_id"],
+                "ipv4": found.get("ipv4") or (None if found.get("ipv6") else "203.0.113.7"), "ipv6": found.get("ipv6"),
+                "proxied": False, "server_id": found["server_id"],
                 "created_at": "2026-11-19T10:00:00Z", "updated_at": "2026-11-19T10:00:00Z"}  # fmt: skip
 
     def premium_included(self) -> list[str]:
@@ -727,7 +728,11 @@ class FakeHub:
                 branch, stage, company = data.get("branch", ""), data.get("stage"), data.get("company")
                 if not label.match(branch) or stage not in ("production", "staging", "development"):
                     return self._problem(422, "Not a label.", "invalid_label")
-                if not any(h.get("public_ipv4") or h.get("public_ipv6") for h in hub.heartbeats):
+                if set(data) - {"branch", "stage", "company", "ipv4", "ipv6"}:
+                    return self._problem(422, "Unknown fields.", "invalid_request")
+                pointed = {"ipv4": data.get("ipv4"), "ipv6": data.get("ipv6")}  # another server's addresses
+                if not any(pointed.values()) and not any(h.get("public_ipv4") or h.get("public_ipv6")
+                                                         for h in hub.heartbeats):  # fmt: skip
                     return self._problem(409, "No public address yet.", "address_unknown")
                 if company and hub.subdomains_company and company != hub.subdomains_company:
                     return self._problem(409, "The company label is fixed.", "company_label_fixed")
@@ -736,12 +741,12 @@ class FakeHub:
                 if hostname in hub.subdomains_foreign:
                     return self._problem(409, "Taken.", "hostname_taken")
                 if hostname in hub.subdomains:
-                    hub.subdomains[hostname]["server_id"] = installation
+                    hub.subdomains[hostname].update(server_id=installation, **pointed)
                     return self._send(200, {"data": hub.subdomain_out(hostname)})
                 if hub.subdomain_limit is not None and len(hub.subdomains) >= hub.subdomain_limit:
                     return self._problem(403, "The plan's managed names are used up.", "subdomain_limit")
                 hub.subdomains[hostname] = {"branch": branch, "stage": stage, "company": hub.subdomains_company,
-                                            "server_id": installation}  # fmt: skip
+                                            "server_id": installation, **pointed}  # fmt: skip
                 return self._send(201, {"data": hub.subdomain_out(hostname)})
 
             def do_DELETE(self) -> None:  # noqa: N802

@@ -288,6 +288,9 @@ def _heartbeat_once() -> dict[str, Any]:
     from sudoo import plugin_manager
 
     plugin_manager.apply_lease(verified)
+    from sudoo.premium import loader as premium_loader
+
+    premium_loader.after_lease()  # installs or updates the premium features the plan includes (a job)
     commands = answer.get("commands")
     carry_out(commands if isinstance(commands, list) else [], verified)
     _changed()

@@ -146,9 +146,9 @@ def role_permissions(user: Mapping[str, Any]) -> frozenset[str]:
     """The role's permissions; for a token, its scope's role ∩ its owner's role (when the owner exists); for
     Sudoo.sh support, what its grant allows while it is active (support.permissions)."""
     if user.get("support"):
-        from sudoo import support
+        from sudoo.premium import stubs
 
-        return support.permissions(user)
+        return stubs.support_permissions(user)
     found = roles.permissions(str(user["role"]))
     if user.get("token_id"):
         owner_role = _person_role(user)
@@ -194,9 +194,9 @@ def branch_access(project: Mapping[str, Any] | None, branch: str | None) -> dict
 def level(user: Mapping[str, Any], project: Mapping[str, Any] | None, branch: str | None = None) -> str:
     """The level `user` has in `project` (and `branch`): see the module's description."""
     if user.get("support"):
-        from sudoo import support
+        from sudoo.premium import stubs
 
-        return support.level_in(user, project, branch)
+        return stubs.support_level(user, project, branch)
     if project is None or is_super_admin(user):
         return "admin"
     if mode(project) not in MODES:  # an access mode this panel does not know: nothing rather than everything
@@ -333,9 +333,9 @@ def _support_scope(user: Mapping[str, Any], name: str) -> tuple[Mapping[str, Any
     project or branch (locks still apply)."""
     project, branch = scope_of_instance(name)
     if user.get("support"):
-        from sudoo import support
+        from sudoo.premium import stubs
 
-        return project, branch, support.chosen_instance(user, name)
+        return project, branch, stubs.support_chosen_instance(user, name)
     return project, branch, False
 
 

@@ -1049,6 +1049,10 @@ class Settings(BaseSettings):
     premium_check_hours: float = Field(
         6, ge=0.25, le=168, description="Hours between checks for newer versions of the installed premium features."
     )
+    premium_retry_minutes: float = Field(
+        15, ge=1, le=1440, description="Minutes the panel waits before asking Sudoo.sh again after a check of the "
+        "premium features (when one failed, or a feature was not ready yet).",
+    )  # fmt: skip
     premium_watch_minutes: float = Field(
         10, ge=1, le=1440, description="Minutes between integrity passes over the installed premium features "
         "(their files, signature and binding to this server).",
@@ -1347,6 +1351,7 @@ EDITABLE = (
     "marketplace",
     "premium_auto_install",
     "premium_check_hours",
+    "premium_retry_minutes",
     "premium_watch_minutes",
     "premium_binding_renew_days",
     "premium_max_package_mb",

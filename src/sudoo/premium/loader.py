@@ -664,6 +664,9 @@ def needs_sync(now: float | None = None) -> bool:
     now = time.time() if now is None else now
     wanted = included_ids()
     installed = records()
+    last = float(state().get("last_checked_at") or 0)
+    if now - last < float(settings.premium_retry_minutes) * 60:
+        return False  # asked a moment ago (it failed, or there was nothing new): not again so soon
     if any(p not in installed or installed[p].get("switched_off") or installed[p].get("problem") for p in wanted):
         return True
     if any(p not in wanted and not rec.get("switched_off") for p, rec in installed.items()):
@@ -671,7 +674,6 @@ def needs_sync(now: float | None = None) -> bool:
     renew = float(settings.premium_binding_renew_days) * 86400
     if any(_binding_exp(rec) - now < renew for p, rec in installed.items() if p in wanted):
         return True
-    last = float(state().get("last_checked_at") or 0)
     return bool(wanted) and now - last > float(settings.premium_check_hours) * 3600
 
 

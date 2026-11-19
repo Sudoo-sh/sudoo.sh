@@ -110,8 +110,9 @@ def build_routes(mode: str) -> str:
 
 
 def domain_routes(instances: set[str] | None = None) -> gateway.DomainRoutes:
-    """The custom domains the gateway answers on ports 80/443 (domains.gateway_hosts), of instances routed now."""
-    from sudoo import domains
+    """The custom domains the gateway answers on ports 80/443 (custom_domains.gateway_hosts), of instances routed
+    now."""
+    from sudoo.instances import custom_domains as domains
 
     hosts = {
         domain: gateway.DomainHost(entry["instance"], bool(entry["certificate"]))

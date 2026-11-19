@@ -1,7 +1,7 @@
 """Work that runs on its own inside the panel process: monitor, automatic pause, automatic deletion, daily backups,
 downloading images ahead of time (PREPULL_IMAGES), removal of expired rollback snapshots, GitHub polling, the GitHub
 App's webhook address, gateway, connectors, alerts, the marketplace heartbeat, the plugin watchdog (files,
-licences), custom domains (DNS checks, certificates and their renewal), off-site copies of backups and the mail
+licences), the premium features' integrity pass and background work (premium/) and the mail
 catcher (its settings, network connections and retention), and the watch over production upgrades in their
 rollback window."""
 
@@ -10,15 +10,15 @@ from __future__ import annotations
 import threading
 import time
 
-from sudoo import accounts, alerts, domains, exposure, offsite, plugin_manager, triggers
+from sudoo import accounts, alerts, exposure, plugin_manager, premium, triggers
 from sudoo.config import live, settings
 from sudoo.core import audit, jobs
 from sudoo.core.shell import succeeds
 from sudoo.core.state import STATE
-from sudoo.domains import worker as domain_worker
 from sudoo.hub import marketplace
-from sudoo.instances import backups, gateway, integrity, monitor, odoo, operations, stages, store
+from sudoo.instances import backups, custom_domains, gateway, integrity, monitor, odoo, operations, stages, store
 from sudoo.mailcatcher import panel as mail_catcher
+from sudoo.premium import loader as premium_loader
 from sudoo.repos import github, github_app
 
 
@@ -37,19 +37,34 @@ def start() -> None:
         _keep_github_webhook_current,
         marketplace.heartbeat_forever,
         plugin_manager.watch_forever,
-        domain_worker.run_forever,
+        premium_loader.watch_forever,
         mail_catcher.maintain_forever,
         _watch_upgrades,
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     alerts.start()
-    offsite.start(live.on_change)
+    _start_premium_jobs()
     gateway.start(wake=start_wake_job)
     live.on_change(_domain_settings_changed)
     threading.Thread(target=exposure.ensure_all, daemon=True, name="connectors").start()
     triggers.start_all()
     threading.Thread(target=_adopt_instances, daemon=True, name="projects").start()
     threading.Thread(target=_check_project_branches, daemon=True, name="project-branches").start()
+
+
+def _start_premium_jobs() -> None:
+    """The background work of the premium features that run (premium/: custom domains' certificates, off-site
+    copies, the support channel, other servers): each package's sudoo.premium.jobs entry points, started once."""
+    try:
+        started = premium.hooks(premium.JOBS)
+    except Exception as error:  # noqa: BLE001 - the panel runs without them
+        print(f"premium: background work not started: {error!r}", flush=True)
+        return
+    for name, start_job in started:
+        try:
+            start_job()
+        except Exception as error:  # noqa: BLE001 - one package never stops the others
+            print(f"premium: {name} not started: {error!r}", flush=True)
 
 
 def _watch_upgrades() -> None:
@@ -86,7 +101,7 @@ _DOMAIN_SETTINGS = {"custom_domains", "domain_http_probe", "acme_directory", "do
 def _domain_settings_changed(changed: dict[str, object]) -> None:
     """Custom domains turned on or off, or their checks changed: serve accordingly, look at every domain now."""
     if _DOMAIN_SETTINGS & set(changed):
-        domains.WAKE.set()
+        custom_domains.WAKE.set()
         try:
             gateway.refresh_domains()
         except Exception as error:  # noqa: BLE001 - the gateway catches up at its next round

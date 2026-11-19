@@ -56,7 +56,7 @@ def remove(name: str) -> None:
 def address(name: str) -> str | None:
     """The public address: an instance's primary custom domain once it is served (domains/), else the plugin's."""
     if name != PANEL:
-        from sudoo import domains
+        from sudoo.instances import custom_domains as domains
 
         custom = domains.primary_url(name)
         if custom:

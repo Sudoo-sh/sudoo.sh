@@ -11,6 +11,10 @@ A team is a document in the storage (collection "teams", key: the team's id):
 A team gives nothing by itself: it is named in a project's or a branch's grants (projects/access.py), and a member's
 permissions there are their panel role's permissions, limited by the level the team has (role ∩ grant). Deleting an
 account takes it out of every team; deleting a team takes it out of every grant and lock.
+
+Making teams and adding members come with the premium "teams" package (premium/); this module keeps what the core
+needs whatever the plan: reading teams (the grants that name them stay enforced), taking members out and deleting a
+team.
 """
 
 from __future__ import annotations
@@ -19,9 +23,7 @@ import re
 import threading
 import time
 from collections.abc import Iterable
-from typing import Any
 
-from sudoo.instances.naming import slug
 from sudoo.storage import Document, storage
 
 COLLECTION = "teams"
@@ -56,67 +58,15 @@ def of_user(name: str | None) -> frozenset[str]:
     return frozenset(t["id"] for t in storage().all(COLLECTION).values() if name in (t.get("members") or ()))
 
 
-def _new_id(name: str) -> str:
-    base = slug(name)[:36].strip("-") or "team"
-    taken = set(storage().all(COLLECTION))
-    found, counter = base, 2
-    while found in taken:
-        found, counter = f"{base[:33].strip('-')}-{counter}", counter + 1
-    return found
-
-
-def _clean_name(name: str, other_than: str | None = None) -> str:
-    shown = " ".join(name.split())
-    if not shown:
-        raise TeamError("Give the team a name.", 400)
-    if len(shown) > NAME_MAX:
-        raise TeamError(f"A team's name is at most {NAME_MAX} characters.", 400)
-    if any(t["id"] != other_than and str(t.get("name", "")).lower() == shown.lower() for t in all_teams()):
-        raise TeamError(f"There is a team called {shown} already.")
-    return shown
-
-
-def _clean_members(members: Iterable[str], known: Iterable[str]) -> list[str]:
-    wanted = sorted({str(m) for m in members})
-    if len(wanted) > MAX_MEMBERS:
-        raise TeamError(f"A team has at most {MAX_MEMBERS} members.", 400)
-    unknown = sorted(set(wanted) - set(known))
-    if unknown:
-        raise TeamError(f"There is no account {unknown[0][:60]}.", 400)
-    return wanted
-
-
-def create(name: str, description: str, members: Iterable[str], known: Iterable[str], user: str) -> Document:
-    with _LOCK:
-        shown = _clean_name(name)
-        now = round(time.time())
-        team: Document = {
-            "id": _new_id(shown),
-            "name": shown,
-            "description": description.strip()[:DESCRIPTION_MAX],
-            "members": _clean_members(members, known),
-            "created_at": now,
-            "created_by": user,
-            "changed_at": now,
-            "changed_by": user,
-        }
-        storage().put(COLLECTION, team["id"], team)
-        return team
-
-
-def change(team_id: str, user: str, known: Iterable[str], **values: Any) -> Document:
-    """Change a team's name, description or members (only those given)."""
+def remove_members(team_id: str, names: Iterable[str], user: str) -> Document:
+    """Take accounts out of a team (always possible, whatever the plan)."""
+    gone = set(names)
     with _LOCK:
         found = get(team_id)
         if found is None:
             raise TeamError("This team does not exist.", 404)
         team = dict(found)
-        if "name" in values:
-            team["name"] = _clean_name(str(values["name"]), other_than=team_id)
-        if "description" in values:
-            team["description"] = str(values["description"] or "").strip()[:DESCRIPTION_MAX]
-        if "members" in values:
-            team["members"] = _clean_members(values["members"], known)
+        team["members"] = [m for m in team.get("members") or [] if m not in gone]
         team |= {"changed_at": round(time.time()), "changed_by": user}
         storage().put(COLLECTION, team_id, team)
         return team

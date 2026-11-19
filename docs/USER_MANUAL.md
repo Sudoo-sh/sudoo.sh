@@ -415,6 +415,15 @@ Once you have rolled back, the banner goes; to go back to that state again, rest
 backup from the Backups card. After that time the **Before a restore** backup is removed and the banner goes. A second restore within that time
 replaces it: Rollback always goes back to just before the last restore.
 
+### Managed address
+
+When your Sudoo.sh account offers managed subdomains, every instance also gets a name under Sudoo.sh's domain, made
+of its branch, its stage and your company, for example `main.production.acme.sudoo.cloud`. The **Overview** shows it
+under **Managed address**, with "its certificate is on the way" for the first minutes; once it is served it is the
+instance's address (unless the instance has a primary custom domain). It follows the instance: a new branch or stage
+gives it the new name, and deleting the instance releases it. Administrators find its state in **Settings, Custom
+domains** ([Administrator Guide](ADMIN_GUIDE.md#managed-subdomains)).
+
 ### Custom domains
 
 An instance, usually a production one, can answer on your client's own domain, such as `erp.client.com`, over

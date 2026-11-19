@@ -436,6 +436,33 @@ class Settings(BaseSettings):
     )
     domain_http_port: int = Field(80, description="Port the gateway answers custom domains on over http.")
     domain_https_port: int = Field(443, description="Port the gateway answers custom domains on over https.")
+    managed_subdomains: bool = Field(
+        True,
+        description="Give each instance a name under Sudoo.sh's domain (<branch>.<stage>.<company>.<base>) when the "
+        "linked account's hub offers them, served with the panel's own certificates (ports 80 and 443 must reach "
+        "this server). Off: no name is asked for and none is served; names held are released with their instance.",
+    )
+    managed_subdomain_company: str = Field(
+        "",
+        max_length=63,
+        description="The company label asked for with the account's first managed name; empty: Sudoo.sh makes it "
+        "from the company's name. It cannot change once the account has a name.",
+    )
+    managed_subdomains_check_minutes: int = Field(
+        15, ge=1, le=1440, description="Minutes between two comparisons of the instances with their managed names."
+    )
+
+    @field_validator("managed_subdomain_company")
+    @classmethod
+    def _company_label(cls, value: str) -> str:
+        import re
+
+        value = value.strip().lower()
+        if value and (
+            not re.fullmatch(r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?", value) or (len(value) >= 4 and value[2:4] == "--")
+        ):
+            raise ValueError("must be a DNS label: a-z, 0-9 and -, not at either end, at most 63 characters")
+        return value
 
     @field_validator(*(f"{stage}_{part}_memory_limit" for stage in STAGES for part in ("odoo", "db")))
     @classmethod
@@ -1393,6 +1420,9 @@ EDITABLE = (
     "domain_dns_target",
     "domain_dns_timeout_seconds",
     "domain_http_probe",
+    "managed_subdomains",
+    "managed_subdomain_company",
+    "managed_subdomains_check_minutes",
     *OFFSITE_SETTINGS,
     *ALERT_SETTINGS,
     *MAIL_CATCHER_SETTINGS,

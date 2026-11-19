@@ -21,7 +21,7 @@ from sudoo.core.hints import panel_hint, specific_hint
 from sudoo.core.jobs import Job, JobError
 from sudoo.core.shell import capture
 from sudoo.core.state import STATE
-from sudoo.instances import backups, gateway, integrity, monitor, odoo, resources, stages, store
+from sudoo.instances import backups, gateway, integrity, managed_names, monitor, odoo, resources, stages, store
 from sudoo.instances.store import compose
 from sudoo.mailcatcher import panel as mail_catcher
 from sudoo.repos import github
@@ -157,6 +157,7 @@ def create(job: Job, plan: dict[str, Any]) -> None:
         raise
     finally:
         store.release_ports(plan["ports"])
+    managed_names.wake()  # its managed name (every plan): asked for now
 
 
 def _create(job: Job, plan: dict[str, Any]) -> None:
@@ -930,6 +931,7 @@ def switch_branch(job: Job, name: str, branch: str) -> None:
     job.run(git(addons, "submodule", "update", "--init", "--recursive"), timeout=1800)
     store.update_env(name, GIT_BRANCH=branch)
     STATE.update(name, branch_missing=False)
+    managed_names.wake()  # its managed name follows the branch
     if not _paused(name):
         restart(job, name)
 

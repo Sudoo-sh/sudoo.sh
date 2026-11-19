@@ -348,6 +348,9 @@ value here can be changed on the Settings page except the two ports.
 | `DOMAIN_HTTP_PROBE` | bool | `true` | **live** | Before asking for a certificate, fetch a check answer through the domain over http (port 80), as the ACME authority will, so a closed port is reported clearly instead of costing a failed attempt. Turn it off when the server cannot reach its own public address (some networks do not allow it). |
 | `DOMAIN_HTTP_PORT` | int | `80` | `.env` only | Port the gateway answers custom domains on over http: ACME checks and the redirect to https. The ACME authority always connects to port 80: change this only when something forwards port 80 to it. |
 | `DOMAIN_HTTPS_PORT` | int | `443` | `.env` only | Port the gateway answers custom domains on over https. |
+| `MANAGED_SUBDOMAINS` | bool | `true` | **live** | Give each instance a name under Sudoo.sh's domain, `<branch>.<stage>.<company>.<base>`, when the linked Sudoo.sh account offers them (every plan; [Administrator Guide, Managed subdomains](ADMIN_GUIDE.md#managed-subdomains)). Sudoo.sh keeps the DNS records; the gateway answers the name on `DOMAIN_HTTP_PORT` / `DOMAIN_HTTPS_PORT` and the panel gets and renews its certificate itself, whatever `CUSTOM_DOMAINS` says (ports 80 and 443 must reach the server). `false`: no name is asked for and none is served; names held are released when their instance is deleted. |
+| `MANAGED_SUBDOMAIN_COMPANY` | text | empty | **live** | The company part of the names (a DNS label: `a`-`z`, `0`-`9`, `-`), asked for with the account's first name; empty: Sudoo.sh makes it from the company's name. It cannot change once the account has a name. |
+| `MANAGED_SUBDOMAINS_CHECK_MINUTES` | int | `15` | **live** | Minutes between two comparisons of the instances with their names (1 to 1440); new and deleted instances and branch or stage changes are handled at once. |
 
 ---
 

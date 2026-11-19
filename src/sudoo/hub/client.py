@@ -92,7 +92,8 @@ class HubRefused(Exception):
 
 QUOTA_EXEMPT = ("/api/v1/heartbeat", "/api/v1/register", "/api/v1/keys", "/api/v1/licenses/validate",
                 "/api/v1/installations/licence-acceptances", "/api/v1/commands/",
-                "/api/v1/installations/support/")  # fmt: skip
+                "/api/v1/installations/support/", "/api/v1/installations/premium",
+                "/api/v1/installations/subdomains")  # fmt: skip
 """Calls the hub never counts toward the account's daily API quota (its licence never stops on the quota; the hub's
 api_quota.PANEL_FREE), and the hub's keys: they are sent even while the quota is used up."""
 QUOTA_KEY = "api_quota"

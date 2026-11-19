@@ -73,7 +73,7 @@ function syncUrl(name: string) {
   const instance = instances.get(name);
   if (!instance) return;
   const primary = (byInstance.get(name) ?? []).find((d) => d.primary && d.url);
-  instance.url = primary?.url ?? instanceUrl(name);
+  instance.url = primary?.url ?? instance.managed_name?.url ?? instanceUrl(name);
 }
 
 export function domainsOf(instance: Instance): Domains {

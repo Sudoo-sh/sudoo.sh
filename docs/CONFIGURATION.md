@@ -570,6 +570,8 @@ How the panel talks to the Sudoo.sh hub, which lists plugins, sells paid ones an
 | :--- | :--- | :--- | :--- | :--- |
 | `MARKETPLACE` | bool | `off` | **live** | Off by default until the marketplace opens. `on`: register with the hub, send a signed heartbeat every 15 minutes (version, core hash, fingerprint, installed plugins and coarse server figures) and install plugins from the Plugins page. `off`: the panel never contacts the hub; installed free plugins keep working, paid ones stop at their `run_until` (the last lease's end plus 96 hours, about 7 days). |
 | `HUB_URL` | text | `https://hub.sudoo.sh` | `.env` only | The hub's address: `https://` (`http://` only for `localhost` while testing). The panel registers with each hub it is pointed at. |
+| `PUBLIC_IPV4` | text | empty | **live** | The server's public IPv4 address, sent with the heartbeat so Sudoo.sh can point managed subdomains at it. Empty: the address the server sends from, when it is a public one (behind NAT, set it). |
+| `PUBLIC_IPV6` | text | empty | **live** | The same for IPv6. |
 | `HUB_PUBLIC_KEYS` | text | empty | `.env` only | The hub's root public keys (Ed25519, base64url, comma-separated). Every answer, lease, command and package must be signed by one of them, or by a newer key one of them endorsed. Empty: the keys this release ships for `hub.sudoo.sh`; for another hub (while testing), the keys it lists the first time the panel reaches it. |
 
 ---

@@ -1041,6 +1041,33 @@ class Settings(BaseSettings):
         description="The premium signing keys the panel trusts (Ed25519, base64url, comma-separated); empty: the keys "
         "this release ships. Only for a test panel.",
     )
+    public_ipv4: str = Field(
+        "",
+        description="The server's public IPv4 address, sent to Sudoo.sh for managed subdomains; empty: the address "
+        "the server sends from, when it is public.",
+    )
+    public_ipv6: str = Field(
+        "",
+        description="The server's public IPv6 address, sent to Sudoo.sh for managed subdomains; empty: the address "
+        "the server sends from, when it is public.",
+    )
+
+    @field_validator("public_ipv4", "public_ipv6")
+    @classmethod
+    def _public_address(cls, value: str, info: Any) -> str:
+        import ipaddress
+
+        value = value.strip()
+        if not value:
+            return ""
+        try:
+            address = ipaddress.ip_address(value)
+        except ValueError:
+            raise ValueError("must be an IP address") from None
+        if address.version != (4 if info.field_name == "public_ipv4" else 6) or not address.is_global:
+            raise ValueError("must be a public address of that family")
+        return str(address)
+
     premium_auto_install: bool = Field(
         True,
         description="Install and update the premium features the plan includes automatically, after each signed "
@@ -1350,6 +1377,8 @@ EDITABLE = (
     "admin_contact_email",
     "marketplace",
     "premium_auto_install",
+    "public_ipv4",
+    "public_ipv6",
     "premium_check_hours",
     "premium_retry_minutes",
     "premium_watch_minutes",

@@ -69,7 +69,6 @@ MAX_UNPACKED_BYTES = 400 * 1024 * 1024
 MAX_RATIO = 100
 REFUSED_SUFFIXES = (".pyd", ".dll", ".dylib", ".exe", ".pyc", ".pyo")
 MODULE_PREFIX = "sudoo_premium_"
-PURE = ("py3", "any")
 UI_PATH_RE = re.compile(r"^ui/[A-Za-z0-9][A-Za-z0-9._/-]{0,150}\.(js|css|json)$")
 ROUTE_RE = re.compile(r"^/[a-z0-9][a-z0-9/-]{0,60}$")
 SLOT_RE = re.compile(r"^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*){1,3}$")
@@ -101,8 +100,13 @@ def ext_suffix() -> str:
     return str(sysconfig.get_config_var("EXT_SUFFIX") or ".so")
 
 
-def builds_accepted() -> list[tuple[str, str]]:
-    return [(python_tag(), platform_tag()), PURE]
+def is_pure(tag: Any, platform: Any) -> bool:
+    """A build without compiled modules: a py* tag (py3) and the platform "any"."""
+    return isinstance(tag, str) and tag.startswith("py") and platform == "any"
+
+
+def build_accepted(tag: Any, platform: Any) -> bool:
+    return (tag, platform) == (python_tag(), platform_tag()) or is_pure(tag, platform)
 
 
 # ---------------------------------------------------------------- records
@@ -192,7 +196,7 @@ def signature_problem(rec: dict[str, Any]) -> str | None:
 
 
 def build_problem(rec: dict[str, Any]) -> str | None:
-    if (rec.get("python_tag"), rec.get("platform")) not in builds_accepted():
+    if not build_accepted(rec.get("python_tag"), rec.get("platform")):
         return f"it was built for another Python ({rec.get('python_tag')}, {rec.get('platform')})"
     return None
 
@@ -369,7 +373,7 @@ def _check_ui(archive: zipfile.ZipFile, ui: Any) -> dict[str, Any]:
 
 def check_package(archive: zipfile.ZipFile, offer: dict[str, Any]) -> dict[str, Any]:
     """The manifest of a package this panel can install for `offer`; PremiumRefused otherwise."""
-    compiled_ok = (offer["python_tag"], offer["platform"]) != PURE
+    compiled_ok = not is_pure(offer["python_tag"], offer["platform"])
     infos = _members(archive, compiled_ok)
     try:
         manifest = json.loads(archive.read("manifest.json"))
@@ -430,7 +434,7 @@ def offers() -> list[dict[str, Any]]:
             continue
         if not path.startswith(f"{HUB_PATH}/{item['id']}/download") or "://" in path or ".." in path:
             continue
-        if (item.get("python_tag"), item.get("platform")) not in builds_accepted():
+        if not build_accepted(item.get("python_tag"), item.get("platform")):
             continue
         found.append({**item, "version": version, "download_path": path})
     return found
@@ -564,8 +568,15 @@ def sync(job: Job, user: str = "system") -> None:
     job.step("Asking Sudoo.sh which premium features the plan includes")
     changed = False
     problems: list[str] = []
+    if wanted and settings.marketplace:
+        try:
+            keys.refresh()  # rotations and revocations of the premium keys
+        except (HubRefused, HubUnavailable) as error:
+            job.note(
+                f"The premium keys could not be checked ({getattr(error, 'detail', error)}); the known ones apply."
+            )
     try:
-        offered = {o["id"]: o for o in offers()} if wanted else {}
+        offered = {o["id"]: o for o in offers()} if wanted and settings.marketplace else {}
     except (HubRefused, HubUnavailable) as error:
         _save_state(last_error=str(getattr(error, "detail", error)), last_checked_at=time.time())
         raise JobError(f"Sudoo.sh could not be asked: {getattr(error, 'detail', error)}") from None

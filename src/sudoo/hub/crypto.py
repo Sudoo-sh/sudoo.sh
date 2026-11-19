@@ -81,6 +81,7 @@ PACKAGE_DOMAIN = b"sudoo-plugin-v1"
 PREMIUM_DOMAIN = b"sudoo-premium-v1"
 BINDING_DOMAIN = b"sudoo-premium-binding-v1"
 BINDING_KIND = "sudoo-premium-binding"
+PREMIUM_KEY_DOMAIN = "sudoo-premium-key-v1"
 LEASE_TYPE = "sudoo-lease+jwt"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -261,6 +262,11 @@ def command_message(command_id: str, installation_id: str, kind: str, issued_at:
 
 def endorsement_message(key_id: str, public_key: str, not_before: int) -> bytes:
     return "\n".join((KEY_DOMAIN, key_id, public_key, str(not_before))).encode()
+
+
+def premium_endorsement_message(key_id: str, public_key: str, not_before: int) -> bytes:
+    """What the previous premium key signs to endorse a new one (GET /api/v1/premium/keys)."""
+    return "\n".join((PREMIUM_KEY_DOMAIN, key_id, public_key, str(not_before))).encode()
 
 
 def fingerprint(public_key: str, machine_id: str, mac: str) -> str:

@@ -75,7 +75,8 @@ What was set up keeps working where the panel can do it on its own:
 
 - restrictions and locks on projects and branches stay enforced, and you can always remove them;
 - teams stay named in the access they were given, and you can always take members out or delete a team;
-- custom domains keep being served with the certificates they have (they are not renewed while the feature is off);
+- custom domains set up before keep being served, and the panel keeps renewing their certificates on its own; adding
+  a new domain waits until your plan includes the feature again;
 - off-site copies already made stay where they are.
 
 ## 5. How a premium package is checked

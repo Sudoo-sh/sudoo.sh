@@ -17,15 +17,15 @@ Extension points (entry-point groups a premium package may declare in its manife
     sudoo.premium.blueprints  Flask blueprints added under /api/v1
     sudoo.premium.jobs        callables started once with the background work (no arguments)
     sudoo.premium.access      access hooks (projects/access.py): "grants" (adding grants and restricted branches)
-    sudoo.premium.domains     custom domains: "manager" (adding domains, certificates and their renewal)
+    sudoo.premium.domains     custom domains: "manager" (adding domains: DNS checks and first certificates)
     sudoo.premium.support     support access: "support" (grants of support sessions, its channel)
     sudoo.premium.servers     several servers: "servers" (placement, forwarding, moves)
 
 What stays in the core, whatever the plan
     The data of every feature (storage collections) and the enforcement of what was set up: restrictions and locks
     of projects and branches stay enforced (removing them is always possible), domains already served keep being
-    served with the certificates they have, teams already named in grants keep their meaning. Security never depends
-    on a premium package being present.
+    served and their certificates renewed (instances/domain_worker.py), teams already named in grants keep their
+    meaning. Security never depends on a premium package being present.
 """
 
 from __future__ import annotations

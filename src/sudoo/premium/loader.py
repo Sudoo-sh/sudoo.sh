@@ -656,7 +656,7 @@ def _plan_dropped(job: Job, rec: dict[str, Any]) -> None:
         f"{name} was switched off",
         f"The Sudoo.sh plan of this panel no longer includes {name}, so the panel switched it off. Its data and "
         "settings are kept, and what it set up keeps working where the panel can do so on its own (restrictions "
-        "stay enforced, domains keep their current certificates). When the plan includes it again it comes back "
+        "stay enforced, custom domains keep serving and renewing their certificates). When the plan includes it again it comes back "
         f"on by itself.{note}",
     )
     events.publish(TOPIC, rec["id"], {"changed": True})

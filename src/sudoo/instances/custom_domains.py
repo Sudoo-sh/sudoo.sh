@@ -1,5 +1,6 @@
-"""The custom domains that were set up, as the core serves them: with or without the premium package that manages
-them (premium "domains": adding domains, DNS checks, getting and renewing certificates).
+"""The custom domains that were set up, as the core serves them: with or without the premium package that adds
+them (premium "domains": adding domains, their DNS checks and first certificates). Certificates of the domains that
+exist are renewed by the core (domain_worker.py, acme.py, certificates.py), whatever the plan.
 
 Each domain is a record in the storage (collection "domains", key: the domain): its instance, whether it is the
 instance's primary domain, how https is handled ("acme": the gateway answers on DOMAIN_HTTP_PORT/DOMAIN_HTTPS_PORT

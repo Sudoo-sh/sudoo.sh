@@ -15,7 +15,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   for premium packages, tied to your server (installation and hardware fingerprint, renewed before it ends) and
   checked again every few minutes; a copy on another machine does not load. When a plan no longer includes a
   feature, the panel backs up its data, switches it off and keeps everything; restrictions and locks stay enforced and
-  can always be removed, and custom domains keep their current certificates. Without the package, its pages show the
+  can always be removed, and custom domains set up before keep serving and renewing their certificates (the panel
+  does that itself; adding new domains comes with the package). Without the package, its pages show the
   plans that include it and its API answers `402`. New settings `PREMIUM_AUTO_INSTALL`, `PREMIUM_CHECK_HOURS`,
   `PREMIUM_RETRY_MINUTES`, `PREMIUM_WATCH_MINUTES`, `PREMIUM_BINDING_RENEW_DAYS`, `PREMIUM_MAX_PACKAGE_MB`,
   `PREMIUM_PUBLIC_KEYS` (`.env` only), `PUBLIC_IPV4` and `PUBLIC_IPV6`; API `GET /api/v1/premium`,
@@ -387,14 +388,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
-- The code of teams, custom domains, off-site copies and support access is no longer part of this repository: it
-  comes with the premium packages. Their data stays where it was (nothing is migrated or lost), and the panel itself
+- The code of teams, adding custom domains, off-site copies and support access is no longer part of this
+  repository: it comes with the premium packages. Serving and renewing the custom domains that exist stays in the
+  panel. Their data stays where it was (nothing is migrated or lost), and the panel itself
   keeps serving existing custom domains, enforcing existing restrictions and locks, and removing them.
 
 - **Panels not linked to a Sudoo.sh account have the Free plan:** one production branch on the whole panel (on top
   of `PROJECT_PRODUCTION_BRANCHES` and `MAX_PRODUCTION_INSTANCES`), and no new teams, access rules, custom domains or
   off-site backups. Nothing that exists stops: production branches above the limit keep serving, domains keep
-  renewing, off-site copies already on keep going. Link the panel (Settings, Marketplace) to get its plan.
+  renewing, off-site copies already made stay. Link the panel (Settings, Marketplace) to get its plan.
 - **API tokens act for their owner:** a token's permissions are now its scope's role ∩ the role of the account that
   created it, and that account's teams, project access and locked branches apply to it. Tokens created with
   `sudoo.sh create-token`, or whose creator was deleted, keep their scope's role but are kept out of restricted

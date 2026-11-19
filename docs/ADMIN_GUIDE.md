@@ -1376,7 +1376,8 @@ sign-in.
 
 ## 19. Custom domains and certificates
 
-> Custom domains is a premium feature: it installs automatically from Sudoo.sh when your plan includes it. See
+> Adding custom domains is a premium feature: it installs automatically from Sudoo.sh when your plan includes it.
+> Domains set up before keep being served and renewed by the panel itself, whatever the plan. See
 > [Premium features](PREMIUM.md).
 
 An instance (usually a production instance) can answer on your client's own names, such as `erp.client.com`, over

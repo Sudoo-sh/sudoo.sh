@@ -1154,8 +1154,8 @@ once ([Administrator guide](ADMIN_GUIDE.md#linking-the-panel-within-7-days)).
   Development and staging branches are never limited by the plan.
 * **Paid features.** Teams, access per project and per branch, adding custom domains and turning off-site backups on
   come with Pro and Business. On a plan without them the page says so (**Compare plans**), and what was set up before
-  keeps working: domains keep serving and renewing, off-site copies already on keep going, access rules and locks stay
-  (and can always be removed). Locked branches are on every plan.
+  keeps working: domains keep serving and their certificates keep renewing, off-site copies already made stay where
+  they are, access rules and locks stay (and can always be removed). Locked branches are on every plan.
 * **Withheld production.** While the Sudoo.sh account must still declare its use, verify its company or accept the
   current licence, new production branches are withheld; the production branches you have keep serving.
 * **When Sudoo.sh cannot be reached,** the last plan applies for its validity (24 hours by default); after that new

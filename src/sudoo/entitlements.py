@@ -28,7 +28,7 @@ Features
     teams (Teams), per_project_access (a project's grants, restricted projects and branches), custom_domains (adding
     a custom domain) and offsite_backups (turning off-site copies on, testing the storage): refused with a sentence
     that names the plans that have them, the pricing page and the account site. What was set up before keeps working:
-    existing domains keep serving and renewing, off-site copies already on keep going, existing restrictions and
+    existing domains keep serving and renewing, off-site copies already made stay, existing restrictions and
     locks stay enforced (removing them is always possible).
 
 Usage

@@ -100,14 +100,27 @@ def trusted(now: float | None = None, role: str = RELEASE) -> dict[str, Ed25519P
 def refresh() -> dict[str, Ed25519PublicKey]:
     """Apply the hub's list of premium keys (a signed answer); returns the keys trusted afterwards."""
     answer = client.request("GET", KEYS_PATH)
-    items = answer.data if isinstance(answer.data, list) else []
+    apply_listed(answer.data, checked=True)
+    return trusted()
+
+
+def apply_listed(items: Any, checked: bool = False) -> bool:
+    """Apply a list of premium keys as the hub gives it (GET /api/v1/premium/keys), from the hub or passed on by the
+    main panel to its agents: what it may change is only what `applied` allows (a new key only with an endorsement by
+    a trusted release key, a revocation at once), so whoever passes it on cannot add a key. True when the keys
+    changed."""
     listed = []
-    for item in items:
+    for item in items[:64] if isinstance(items, list) else []:
         entry = client._listed(item)
         if entry is not None:
             listed.append({**entry, "role": BINDING if item.get("role") == BINDING else RELEASE})
-    storage().put(STATE_COLLECTION, "keys", {"keys": applied(known(), listed, time.time()), "checked_at": time.time()})
-    return trusted()
+    before = known()
+    after = applied(before, listed, time.time())
+    if checked:  # from the hub itself
+        storage().put(STATE_COLLECTION, "keys", {"keys": after, "checked_at": time.time()})
+    elif after != before:
+        storage().put(STATE_COLLECTION, "keys", {**(storage().get(STATE_COLLECTION, "keys") or {}), "keys": after})
+    return after != before
 
 
 def applied(current: dict[str, dict[str, Any]], listed: list[dict[str, Any]], now: float) -> dict[str, dict[str, Any]]:

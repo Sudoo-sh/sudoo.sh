@@ -226,3 +226,54 @@ def test_an_agent_gets_the_panels_packages_bound_to_that_panel(hub: FakeHub, tmp
         assert loader.forget_agent_packages() and not loader.records()
     finally:
         servers._ROLE[0] = "panel"
+
+
+def test_a_joining_agent_learns_a_rotated_binding_key_only_from_its_endorsement(
+    hub: FakeHub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The agent ships an older binding key (or none): the panel's list of packages carries the hub's premium keys,
+    and the agent takes the new binding key from it only because a release key it trusts endorsed it."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from fake_hub import HubKey
+    from sudoo.premium import agent
+
+    _panel_runs_servers()
+    package, headers = loader.build_for_agent("servers", "cp315", "aarch64-linux-musl")
+    body, sent = package.read_bytes(), {k.lower(): v for k, v in headers.items()}
+    listing: dict[str, Any] = {"data": [{"id": "servers"}]}
+
+    def answer(url: str, headers: Any, timeout: float = 120) -> tuple[bytes, dict[str, str]]:
+        if url.split("?")[0].endswith("/agent-packages"):
+            return json.dumps(listing).encode(), {}
+        return body, sent
+
+    monkeypatch.setattr(agent, "_get", answer)
+    # now on the agent's server: its own storage, the binding key it ships is not the hub's current one
+    for key in storage().all(loader.COLLECTION):
+        storage().delete(loader.COLLECTION, key)
+    shutil.rmtree(loader.premium_dir(), ignore_errors=True)
+    storage().delete(keys.STATE_COLLECTION, "keys")
+    monkeypatch.setattr(keys, "SHIPPED_PREMIUM_BINDING_KEYS", (HubKey(Ed25519PrivateKey.generate()).public,))
+    servers.become_agent()
+    try:
+        with pytest.raises(agent.AgentError, match="does not trust"):
+            agent.fetch_packages("https://panel.example.com", dict)
+        # passed on with an endorsement by a key that is not a trusted release key: still refused
+        stranger = HubKey(Ed25519PrivateKey.generate())
+        forged = [dict(item) for item in hub.premium_keys()]
+        statement = (f"sudoo-premium-binding-key-v1\n{hub.binding_key.key_id}\n{hub.binding_key.public}\n"
+                     f"{hub.binding_key.not_before}").encode()  # fmt: skip
+        forged[1].update(endorsed_by=forged[0]["key_id"], endorsement=stranger.sign(statement))
+        listing["keys"] = forged
+        with pytest.raises(agent.AgentError, match="does not trust"):
+            agent.fetch_packages("https://panel.example.com", dict)
+        assert hub.binding_key.key_id not in keys.trusted(role=keys.BINDING)
+        # the hub's list as it is: the endorsement verifies with the release key the agent ships
+        listing["keys"] = hub.premium_keys()
+        assert agent.fetch_packages("https://panel.example.com", dict) == ["servers"]
+        assert hub.binding_key.key_id in keys.trusted(role=keys.BINDING)
+        assert hub.binding_key.key_id not in keys.trusted(role=keys.RELEASE)  # it never signs a package
+    finally:
+        servers._ROLE[0] = "panel"
+        storage().delete(keys.STATE_COLLECTION, "keys")

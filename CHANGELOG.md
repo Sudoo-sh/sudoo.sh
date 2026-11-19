@@ -637,6 +637,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   are signed with separate keys: a package is accepted only with a premium signing key's signature, a binding only
   with a binding key's (one the release ships, `PREMIUM_BINDING_PUBLIC_KEYS` on a test panel, or one a premium
   signing key endorsed in Sudoo.sh's list with `"role": "binding"`), so a binding key cannot sign a package.
+  A server's agent that joins a panel learns the same way: the panel's list of packages for agents carries Sudoo.sh's
+  premium keys (`"keys"`), which the agent applies before installing, so a binding key Sudoo.sh rotated is trusted
+  when a premium signing key the agent already trusts endorsed it, and never on the panel's word alone.
 - **Teams:** adding members to a team needs, except for super admins, the right to change the access of every
   project and branch whose grants name the team, and to be allowed by every branch lock that lets it through. A
   team shows only the projects the person reading it may see.

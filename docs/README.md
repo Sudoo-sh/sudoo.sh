@@ -41,6 +41,8 @@ Everything about Sudoo.sh, in one place. The same pages are on GitHub and inside
 | Know how premium features install, or why one is not installed | [Premium features](PREMIUM.md) |
 | Call an instance from Python or Postman | [API and webhooks](API.md) |
 | Create or restart instances from a CI pipeline or a script | [Panel API](PANEL_API.md) |
+| Manage instances from a terminal (`pipx install sudoo-cli`) | [Command line guide](https://docs.sudoo.sh/cli), [sudoo-cli on PyPI](https://pypi.org/project/sudoo-cli/) |
+| Build a plugin (`pip install sudoo-plugin-sdk`) | [Plugins](PLUGINS.md), [sudoo-plugin-sdk on PyPI](https://pypi.org/project/sudoo-plugin-sdk/) |
 | Update instances the moment code is pushed | [Plugins: update triggers](PLUGINS.md#5-update-triggers-what-starts-a-code-update) |
 | Use open ports instead of the default public links, or keep Enterprise in git | [Plugins](PLUGINS.md) |
 | Install or buy a plugin from the marketplace, or link the panel to an account | [Marketplace](MARKETPLACE.md) |

@@ -7,6 +7,10 @@ and a ready-to-use client.
 This is the API of the **panel** (create, change, restart, delete instances). To talk to the **Odoo** inside an
 instance, see [API and webhooks](API.md).
 
+**Command line:** the `sudoo` command uses this API from a terminal or a CI job. Install it from PyPI with
+`pipx install sudoo-cli` (or `pip install sudoo-cli`; [sudoo-cli on PyPI](https://pypi.org/project/sudoo-cli/)), and see
+the [command line guide](https://docs.sudoo.sh/cli).
+
 It is the panel's only API: the panel's own web app uses it too (the internal API of earlier versions is removed).
 Two kinds of callers are accepted, with the same checks:
 

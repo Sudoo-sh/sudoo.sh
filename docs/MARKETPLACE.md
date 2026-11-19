@@ -235,6 +235,8 @@ Before anything is unpacked:
    that use only the Python standard library and what the panel already provides. The one exception is the plugin
    SDK (`sudoo-plugin-sdk`, which every plugin made with it declares): it is accepted when the panel has the SDK
    installed in a version the plugin accepts, and refused with "needs the Sudoo.sh plugin SDK" otherwise.
+   Publishers install the SDK from PyPI with `pip install sudoo-plugin-sdk`
+   ([sudoo-plugin-sdk on PyPI](https://pypi.org/project/sudoo-plugin-sdk/)).
 7. It must not contain compiled code (`.so`, `.pyd`, `.pyc` ...), Python package metadata (`*.dist-info`,
    `*.egg-info`, `*.egg-link`, `*.pth`: its entry points come from `manifest.json` only), links, special files,
    absolute paths or `..`, and must stay within 25 MB, 200 MB unpacked and 5,000 files (no archive bombs).

@@ -389,3 +389,8 @@ Rules for a marketplace plugin, on top of [Rules for plugins](#7-rules-for-plugi
   marketplace's reviewers.
 
 The plugin SDK (`sudoo-plugin-sdk`) builds, checks and packs plugins in this format.
+It is published on PyPI as [`sudoo-plugin-sdk`](https://pypi.org/project/sudoo-plugin-sdk/):
+
+```bash
+pip install sudoo-plugin-sdk
+```

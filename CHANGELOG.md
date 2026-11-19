@@ -394,6 +394,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Docs: install commands from PyPI:** the plugin pages show `pip install sudoo-plugin-sdk`, and the Panel API page
+  and the documentation index show `pipx install sudoo-cli`, with links to both packages on PyPI and to the command
+  line guide.
+
 - **The web app's controls are shadcn/ui components** (Radix, Tailwind CSS), with the panel's look kept: buttons,
   fields, switches, tags, notes, tables, menus, dialogs and side panels. Every list to choose from opens a designed
   list (rounded, with a check mark, right to left in Arabic) instead of the browser's own; on a phone a dialog comes

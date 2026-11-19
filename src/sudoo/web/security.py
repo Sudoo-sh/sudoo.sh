@@ -59,6 +59,10 @@ def _limit_rate() -> None:
     """Requests per minute, per signed-in user or token, else per address (limits/); 429 beyond."""
     if not request.path.startswith(("/api/", "/hooks/")):
         return
+    from sudoo.premium import servers
+
+    if servers.is_agent():  # the main panel counted the request already
+        return
     user = g.get("user")
     # per token, not per person a token acts for (X-Sudoo-Acting-For): a token cannot multiply its limit
     caller = (
@@ -165,8 +169,12 @@ PUBLIC_API = {
     ("POST", "/api/v1/invitation"),  # an invitee: who is invited, then accepting (web/v1/invitations.py)
     ("POST", "/api/v1/invitation/accept"),
     ("GET", "/api/v1/licence/text"),  # the agreement this release bundles, shown at first-run setup
+    ("POST", "/api/v1/servers/join"),  # a new server's agent with its join code (402 without several servers)
 }
 PUBLIC_API_PREFIXES = ("/api/v1/session/second-factor/",)  # sending a code, between the two sign-in steps
+PUBLIC_API_READ_PREFIXES = ("/api/v1/servers/agent-packages",)
+"""GET without a session: a server's agent fetching packages with its join code or its own signature (premium/agent.py;
+402 without several servers)."""
 RESTRICTED_PREFIXES = ("/api/v1/session", "/api/v1/account", "/api/v1/contact")  # all a restricted session opens
 LICENCE_PREFIXES = (*RESTRICTED_PREFIXES, "/api/v1/licence")  # all a super admin can open before accepting it
 
@@ -177,6 +185,16 @@ process (support/channel.py). Keys from the network never look like this (HTTP h
 
 
 def _check_request() -> ResponseReturnValue | None:
+    from sudoo.premium import servers
+
+    if servers.is_agent():
+        # a server's agent listens on no port: every request is one the main panel passed on over its signed
+        # channel, run here in-process for the person it names with the permissions it gives (premium/agent.py)
+        forwarded = request.environ.get(servers.FORWARDED_ENV)
+        if not isinstance(forwarded, dict) or forwarded.get("via") != "panel":
+            abort(404)
+        g.user = forwarded
+        return None
     support_user = request.environ.get(SUPPORT_ENVIRON)
     if support_user is not None:
         _authenticate_support_call(support_user)
@@ -216,8 +234,10 @@ def _authenticate_browser_call() -> None:
             abort(403, "Request blocked: it did not come from this panel.")
         if request.content_length and request.mimetype != "application/json":
             abort(415, "Requests must be sent as JSON.")
-    if (request.method, request.path) in PUBLIC_API or (
-        request.method == "POST" and request.path.startswith(PUBLIC_API_PREFIXES)
+    if (
+        (request.method, request.path) in PUBLIC_API
+        or (request.method == "POST" and request.path.startswith(PUBLIC_API_PREFIXES))
+        or (request.method == "GET" and request.path.startswith(PUBLIC_API_READ_PREFIXES))
     ):
         return
     g.user = current_user()

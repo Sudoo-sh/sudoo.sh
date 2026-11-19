@@ -67,6 +67,7 @@ from sudoo.core.state import STATE
 from sudoo.instances import backups, capacity, metrics, naming, odoo, operations, planning, resources, stages, store
 from sudoo.limits import quotas
 from sudoo.mailcatcher import panel as mail_catcher
+from sudoo.premium import servers
 from sudoo.projects import access
 from sudoo.repos import github
 from sudoo.repos.gitrepo import origin_url
@@ -170,8 +171,15 @@ def _limits(default: int = 100) -> tuple[int, int]:
 @require("instances.view")
 def list_instances() -> Response:
     limit, offset = _limits()
-    names = sorted(set(store.names()) | set(jobs.being_created()))  # those being created have status "creating"
-    return page(access.visible_instances(g.user, names), limit, offset, instance_resource)
+    # those being created have status "creating"; other servers' instances as their agents last reported them
+    names = sorted(set(store.names()) | set(jobs.being_created()) | set(servers.remote_names()))
+    return page(access.visible_instances(g.user, names), limit, offset, any_resource)
+
+
+def any_resource(name: str) -> dict[str, Any]:
+    """An instance of this server, or of another server (premium/servers.py)."""
+    found = None if store.exists(name) or jobs.creating(name) else servers.remote_resource(name)
+    return found if found is not None else instance_resource(name)
 
 
 @blueprint.get("/instances/<name>")
@@ -255,6 +263,7 @@ def plan() -> Response:
             "defaults": stages.defaults(stage),
             "stage_defaults": {each: stages.defaults(each) for each in stages.STAGES},
             "production": production_capacity(),
+            "servers": servers.choices(),  # where a new instance may go (the main server first)
         }
     )
 
@@ -328,7 +337,9 @@ def _start_creation(
     """Check the limits and start the creation (the caller holds quotas.LOCK). `project`: the project's id when the
     instance is made for one of its branches (web/v1/projects.py); `from_production`: see planning.build."""
     refuse_unlinked("creating instances", "instance creation refused (panel not linked)")
-    _refuse_over_capacity("instance creation refused (running instances)")
+    server_id = _placement(data, project, repo, from_backup, from_production)
+    if server_id == servers.MAIN:  # another server's agent checks its own running instances
+        _refuse_over_capacity("instance creation refused (running instances)")
     defaults = stages.defaults(stage)
     if stage == stages.PRODUCTION:
         refused = stages.production_refusal() or _project_production_refusal(project, repo, branch)
@@ -369,6 +380,8 @@ def _start_creation(
         project=project,
     )
     name = plan_data["name"]
+    if server_id != servers.MAIN:
+        return _start_remote_creation(server_id, plan_data)
     job = planning.start(plan_data, g.user["name"])
     log(
         "Create instance",
@@ -380,6 +393,41 @@ def _start_creation(
     )
     response = _accepted(job)
     response.headers["Content-Location"] = f"{PREFIX}/instances/{name}"
+    return response
+
+
+def _placement(
+    data: Mapping[str, Any], project: str | None, repo: str, from_backup: str | None, from_production: str | None
+) -> str:
+    """The server the new instance goes to (premium/servers.py): the one asked for ("server"), else the project's
+    default server, else this one. 400/409/503 when it cannot go there, 402 without several servers."""
+    requested = check.text(data, "server", max_length=20) or None
+    found = (
+        projects.get(project) if project else (projects.by_repository(github.repo_name(repo) or "") if repo else None)
+    )
+    try:
+        return servers.choose(requested, found, from_backup=from_backup, from_production=from_production)
+    except servers.Refused as error:
+        log("instance creation refused (server)", ok=False, detail=error.message[:200])
+        abort(error.status, error.message)
+
+
+def _start_remote_creation(server_id: str, plan_data: dict[str, Any]) -> Response:
+    """Pass a planned creation to the agent of another server: its job runs there."""
+    store.release_ports(plan_data.pop("ports"))  # the other server reserves its own
+    try:
+        job = servers.start_remote(server_id, plan_data, g.user["name"])
+    except servers.Refused as error:
+        abort(error.status, error.message)
+    log(
+        "Create instance",
+        instance=plan_data["name"],
+        detail=f"Odoo {plan_data['version']} {plan_data['edition']}, {plan_data['stage']}, "
+        f"on {servers.reference(server_id)['name']}",
+    )
+    response = ok(job, status=202)
+    response.headers["Location"] = f"{PREFIX}/jobs/{job['id']}"
+    response.headers["Content-Location"] = f"{PREFIX}/instances/{plan_data['name']}"
     return response
 
 
@@ -726,10 +774,21 @@ def list_jobs() -> Response:
     instance_name = request.args.get("instance")
     if instance_name:
         check.instance_name(instance_name)
-    found = [j for j in reversed(jobs.JOBS.values()) if not instance_name or j.instance == instance_name]
-    shown = set(access.visible_instances(g.user, {j.instance for j in found if not jobs.is_panel_job(j.instance)}))
-    found = [j for j in found if jobs.is_panel_job(j.instance) or j.instance in shown]
-    return page(found, limit, offset, job_resource)
+    found: list[Any] = [j for j in reversed(jobs.JOBS.values()) if not instance_name or j.instance == instance_name]
+    remote = servers.remote_jobs(instance_name or None)  # resources other servers' agents reported
+    if remote:  # one list, newest first: this server's jobs as resources too
+        found = sorted(
+            [job_resource(j) for j in found] + remote, key=lambda j: str(j.get("started_at") or ""), reverse=True
+        )
+
+    def instance_of(job: Any) -> str:
+        return str(job["instance"] if isinstance(job, dict) else job.instance)
+
+    shown = set(
+        access.visible_instances(g.user, {instance_of(j) for j in found if not jobs.is_panel_job(instance_of(j))})
+    )
+    found = [j for j in found if jobs.is_panel_job(instance_of(j)) or instance_of(j) in shown]
+    return page(found, limit, offset, lambda j: j if isinstance(j, dict) else job_resource(j))
 
 
 def _job(job_id: str, permission: str = "instances.view") -> jobs.Job:

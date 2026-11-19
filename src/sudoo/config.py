@@ -950,6 +950,52 @@ class Settings(BaseSettings):
         500, ge=10, le=100000, description="Space all shell recordings may take together, in MB; the oldest go first."
     )
 
+    # ------------------------------------------------------------------ servers (premium/servers.py, docs/ADMIN_GUIDE.md "Servers")
+    server_name: str = Field(
+        "Main", min_length=1, max_length=40, description="Name of this server, the main one, where instances show it."
+    )
+    server_region: str = Field(
+        "", max_length=40, description="Region of this server, the main one (for example Frankfurt or eu-central)."
+    )
+    servers_panel_url: str = Field(
+        "",
+        description="Address the agents of other servers reach this panel at (https://...); empty: the panel's own "
+        "public address. Several servers only.",
+    )
+    servers_join_code_minutes: int = Field(
+        30, ge=5, le=1440, description="Minutes a join code for a new server stays valid; it works once."
+    )
+    servers_heartbeat_seconds: int = Field(
+        15, ge=5, le=300, description="Seconds between two reports of each server's agent (status, instances, jobs)."
+    )
+    servers_offline_seconds: int = Field(
+        90, ge=15, le=3600, description="A server whose agent has not reported for this long is shown offline."
+    )
+    servers_request_seconds: int = Field(
+        30, ge=5, le=300, description="Seconds the panel waits for a server's agent to answer a request."
+    )
+    servers_wait_minutes: int = Field(
+        60,
+        ge=1,
+        le=10080,
+        description="Minutes a job on another server waits for the main panel when it needs it (a GitHub token), "
+        "before it fails.",
+    )
+    move_max_backup_gb: float = Field(
+        100, ge=1, le=10000, description="Largest backup an instance may have to be moved to another server, in GB."
+    )
+    move_chunk_mb: int = Field(8, ge=1, le=64, description="Size of each piece of a backup copied between servers.")
+    move_at_once: int = Field(1, ge=1, le=10, description="Moves between servers that may run at the same time.")
+    move_health_seconds: int = Field(
+        300, ge=30, le=3600, description="Seconds a moved instance has to answer on its new server before the move "
+        "is rolled back.",
+    )  # fmt: skip
+
+    @field_validator("servers_panel_url")
+    @classmethod
+    def _servers_panel_url(cls, value: str) -> str:
+        return _plain_https(value, required=False)
+
     # ------------------------------------------------------------------ mail catcher (mailcatcher/, docs/ADMIN_GUIDE.md "Mail catcher")
     mail_catcher_retention_days: int = Field(
         7, ge=1, le=365, description="Days the e-mails caught from staging and development instances are kept."
@@ -1318,6 +1364,9 @@ OFFSITE_SETTINGS = tuple(name for name in Settings.model_fields if name.startswi
 SHELL_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("shell_"))
 """Every web shell setting (webshell/); all of them can be changed in the panel."""
 
+SERVER_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith(("server_", "servers_", "move_")))
+"""Every setting of servers and moves between them (premium/servers.py); all of them can be changed in the panel."""
+
 PROJECT_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("project_"))
 """Every setting of projects (projects/); all of them can be changed in the panel."""
 
@@ -1434,6 +1483,7 @@ EDITABLE = (
     *SHELL_SETTINGS,
     "support_access",
     "support_access_max_hours",
+    *SERVER_SETTINGS,
 )
 """Settings that can be changed in the panel, taking effect at once."""
 
@@ -1570,6 +1620,14 @@ class LiveSettings:
             self._overrides = {k: getattr(current, k) for k in values}
             self._encrypted = {}
             self._current = current
+
+    def notify(self, changed: Mapping[str, Any]) -> None:
+        """Call the listeners as after a change (a server's agent took new values from the main panel: use())."""
+        for listener in self._listeners:
+            try:
+                listener(dict(changed))
+            except Exception as error:  # noqa: BLE001 - one listener never stops the others
+                print(f"settings listener: {error!r}", flush=True)
 
     def on_change(self, listener: Callable[[dict[str, Any]], None]) -> None:
         """Call `listener(changed values)` after every change."""

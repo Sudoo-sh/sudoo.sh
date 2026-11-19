@@ -90,6 +90,11 @@ What was set up keeps working where the panel can do it on its own:
 - It may contain compiled modules, built for the panel's own Python; marketplace plugins may not.
 - It may only use the extension points made for premium features.
 
+With several servers, each other server's agent gets the panel's premium packages from the panel (built for that
+server's Python and platform), checked the same way, except that their binding names your panel: a package copied to
+a server that did not join your panel is not loaded there. The panel renews those bindings too
+([Admin guide, Servers](ADMIN_GUIDE.md#27-servers)).
+
 The panel checks the files, the signature and the binding when it starts and every `PREMIUM_WATCH_MINUTES`. A
 package whose files changed, whose binding ended or that is on another machine is not loaded. Its web parts are
 served to the browser only while each file still has the hash its signed manifest states.

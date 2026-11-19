@@ -42,7 +42,8 @@ STUB_PATHS: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
     "support": (("/support-access", ("GET", "POST", "PUT", "PATCH", "DELETE")),
                 ("/support-access/<path:rest>", ("GET", "POST", "PUT", "PATCH", "DELETE"))),  # fmt: skip
     "servers": (("/servers", ("GET", "POST", "PUT", "PATCH", "DELETE")),
-                ("/servers/<path:rest>", ("GET", "POST", "PUT", "PATCH", "DELETE"))),  # fmt: skip
+                ("/servers/<path:rest>", ("GET", "POST", "PUT", "PATCH", "DELETE")),
+                ("/instances/<name>/move", ("POST",))),  # fmt: skip
 }
 
 

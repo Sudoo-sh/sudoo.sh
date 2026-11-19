@@ -32,6 +32,8 @@ export type Permission =
   | "instances.shell"
   | "instances.database_shell"
   | "shells.supervise"
+  | "servers.manage"
+  | "instances.move"
   | "support_access.manage";
 
 export interface Profile {
@@ -41,7 +43,8 @@ export interface Profile {
   phone: string | null;
 }
 /** "creating": its creation is queued or running (GET answers before its files exist, with the job as current_job) */
-export type InstanceStatus = "creating" | "online" | "starting" | "busy" | "paused" | "switched_off" | "stopped" | "unknown";
+/** "unreachable": an instance of another server whose agent is offline (several servers) */
+export type InstanceStatus = "creating" | "online" | "starting" | "busy" | "paused" | "switched_off" | "stopped" | "unknown" | "unreachable";
 export type JobStatus = "queued" | "running" | "success" | "failed";
 
 export interface Envelope<T> {
@@ -204,6 +207,21 @@ export interface InstanceResources {
  *  the panel's own rules (instances/stages.py) */
 export type Stage = "production" | "staging" | "development";
 
+/** The server an instance runs on: "main" (where the panel runs), or another server with several servers. */
+export interface ServerReference {
+  id: string;
+  name: string;
+  region: string;
+  online: boolean;
+}
+
+/** A server a new instance may go to (GET /instance-plan "servers"; the main one first). */
+export interface ServerChoice {
+  id: string;
+  name: string;
+  region: string;
+}
+
 /** An instance's name under Sudoo.sh's domain (managed subdomains, every plan): its address once served. */
 export interface ManagedName {
   hostname: string;
@@ -235,6 +253,8 @@ export interface ManagedSubdomains {
 export interface Instance {
   name: string;
   status: InstanceStatus;
+  /** the server it runs on (premium/servers.py) */
+  server?: ServerReference;
   stage: Stage;
   /** the project (GitHub repository) it belongs to; null: standalone (plain Odoo) */
   project: ProjectReference | null;
@@ -313,6 +333,8 @@ export interface Project {
   production_branches: string[];
   options: ProjectOptions;
   own_options: Partial<ProjectOptions>;
+  /** where its new instances go when nobody chooses ("main", or another server's id) */
+  default_server?: string;
   /** panel_roles: everyone's role applies; restricted: only the teams and people granted see it */
   access: { mode: AccessMode; grants: number; restricted_branches: string[]; locked_branches: string[] };
   links: { self: string };
@@ -542,6 +564,8 @@ export interface Plan {
   stage_defaults: Record<Stage, PlanDefaults>;
   /** how many production instances there may be (0: no limit) and are, and why one more is refused */
   production: { limit: number; instances: string[]; refusal: string | null };
+  /** where a new instance may go: the main server, and with several servers every online one with room */
+  servers?: ServerChoice[];
 }
 
 export type PlanDefaults = { delete_after_days: number; auto_update: boolean; auto_upgrade: boolean; auto_pause: boolean };

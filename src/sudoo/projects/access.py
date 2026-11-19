@@ -79,6 +79,7 @@ PROJECT_PERMISSIONS = frozenset(
         "instances.delete",
         "instances.credentials",
         "instances.resources",
+        "instances.move",
         "instances.shell",
         "instances.database_shell",
         "caught_mail.view",
@@ -144,11 +145,18 @@ def is_super_admin(user: Mapping[str, Any]) -> bool:
 
 def role_permissions(user: Mapping[str, Any]) -> frozenset[str]:
     """The role's permissions; for a token, its scope's role ∩ its owner's role (when the owner exists); for
-    Sudoo.sh support, what its grant allows while it is active (support.permissions)."""
+    Sudoo.sh support, what its grant allows while it is active (support.permissions). In a server's agent, a request
+    the main panel passes on carries exactly what the panel allows (premium/servers.py)."""
     if user.get("support"):
         from sudoo.premium import stubs
 
         return stubs.support_permissions(user)
+    forwarded = user.get("permissions")
+    if user.get("via") == "panel" and isinstance(forwarded, list | tuple | frozenset):
+        from sudoo.premium import servers
+
+        if servers.is_agent():
+            return frozenset(str(p) for p in forwarded)
     found = roles.permissions(str(user["role"]))
     if user.get("token_id"):
         owner_role = _person_role(user)
@@ -324,6 +332,11 @@ def _project_id_of(name: str) -> str | None:
 
     if store.exists(name):
         return store.read_env(name).get("PROJECT") or None
+    from sudoo.premium import servers
+
+    remote = servers.remote(name)
+    if remote is not None:
+        return (remote.get("env") or {}).get("PROJECT") or None
     job = jobs.creating(name)
     return str(job.details.get("project") or "") or None if job else None
 
@@ -373,7 +386,12 @@ def sees_instance(user: Mapping[str, Any], name: str) -> bool:
 
 
 def instance_lock(name: str) -> dict[str, Any] | None:
-    """The lock of the branch an instance follows, or None (automatic work asks this before changing it)."""
+    """The lock of the branch an instance follows, or None (automatic work asks this before changing it). In a
+    server's agent: the locks the main panel pushed (premium/servers.py)."""
+    from sudoo.premium import servers
+
+    if servers.is_agent():
+        return {"locked_by": "panel"} if name in (servers.PANEL.get("locked") or ()) else None
     project, branch = scope_of_instance(name)
     return lock_of(project, branch)
 

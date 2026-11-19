@@ -51,12 +51,13 @@ reset with **Use .env**.
 14. [Off-site copies](#off-site-copies)
 15. [Alerts](#alerts)
 16. [Web shell](#web-shell)
-17. [Mail catcher](#mail-catcher)
-18. [Help panel](#help-panel)
-19. [Marketplace](#marketplace)
-20. [Premium features](#premium-features)
-21. [Support access](#support-access)
-22. [Locations](#locations)
+17. [Servers](#servers)
+18. [Mail catcher](#mail-catcher)
+19. [Help panel](#help-panel)
+20. [Marketplace](#marketplace)
+21. [Premium features](#premium-features)
+22. [Support access](#support-access)
+23. [Locations](#locations)
 
 ---
 
@@ -531,6 +532,35 @@ groups **Web shell** and **Shell recordings**. How it works and is protected: [A
 | `SHELL_RECORDING_DAYS` | int | `30` | **live** | Days recordings and the list of past shells are kept (1 to 3650). |
 | `SHELL_RECORDING_MAX_MB` | float | `5` | **live** | Largest recording of one shell, in MB (0.1 to 50); beyond it only typing is recorded, and the shell closes when typing alone reaches the size again. |
 | `SHELL_RECORDINGS_TOTAL_MB` | int | `500` | **live** | Space all recordings may take together, in MB (10 to 100000); the oldest are deleted first. |
+
+---
+
+## Servers
+
+Several servers managed from this panel (a premium feature of Business plans, [Premium features](PREMIUM.md)): the
+main server, where the panel runs, and other servers, each running the agent (`sudoo-install agent --join <code>`).
+Settings page, **Servers**. How it works: [Admin guide, Servers](ADMIN_GUIDE.md#27-servers),
+[Security, Servers](SECURITY.md#18-servers). Without several servers, only `SERVER_NAME` and `SERVER_REGION` are
+used: instances show them as their server.
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `SERVER_NAME` | text | `Main` | **live** | Name of this server, the main one, on its instances and the Servers page (1 to 40 characters). |
+| `SERVER_REGION` | text | empty | **live** | Region of this server (for example `Frankfurt` or `eu-central`). |
+| `SERVERS_PANEL_URL` | text | empty | **live** | Address the other servers' agents reach this panel at (`https://...`). Empty: the panel's own public address. Set it when the agents reach the panel by another address (a private network, a fixed domain in front of a quick tunnel). It is written into every new join code. |
+| `SERVERS_JOIN_CODE_MINUTES` | int | `30` | **live** | Minutes a join code stays valid (5 to 1440); a code works once. |
+| `SERVERS_HEARTBEAT_SECONDS` | int | `15` | **live** | Seconds between two reports of each agent: its instances, jobs, figures and room (5 to 300). |
+| `SERVERS_OFFLINE_SECONDS` | int | `90` | **live** | A server whose agent has not reported for this long is shown offline (15 to 3600). |
+| `SERVERS_REQUEST_SECONDS` | int | `30` | **live** | Seconds the panel waits for an agent to answer a request (5 to 300). |
+| `SERVERS_WAIT_MINUTES` | int | `60` | **live** | Minutes a job on another server waits for the main panel when it needs it (a GitHub token to read private code), before it fails (1 to 10080). |
+| `MOVE_MAX_BACKUP_GB` | float | `100` | **live** | Largest backup an instance may have to be moved to another server, in GB (1 to 10000). |
+| `MOVE_CHUNK_MB` | int | `8` | **live** | Size of each piece of a backup copied between servers, in MB (1 to 64). |
+| `MOVE_AT_ONCE` | int | `1` | **live** | Moves between servers that may run at the same time (1 to 10). |
+| `MOVE_HEALTH_SECONDS` | int | `300` | **live** | Seconds a moved instance has to answer on its new server before the move is rolled back (30 to 3600). |
+
+Each agent takes the panel's instance settings (pausing, backups, time zone, stages, resources, images, capacity,
+gateway, domains, shells, mail catcher) from the panel; what belongs to its own server stays in its own `.env`
+(folders, ports, exposure, Enterprise add-ons). Secrets never leave the panel.
 
 ---
 

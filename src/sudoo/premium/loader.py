@@ -28,6 +28,13 @@ When the plan no longer includes a package
     working through the core (premium/__init__.py). A plan that includes it again switches it back on.
 
 Records are kept in the panel's storage, collection "premium", one document per package id.
+
+In a server's agent (premium/agent.py, premium/servers.py)
+    The agent has no link to Sudoo.sh: it runs the packages the main panel runs, fetched from the panel
+    (`build_for_agent` there, `install_for_agent` here). Each is checked as above, except that its binding must name
+    the main panel (its installation id and hardware fingerprint, recorded in <ODOO_ROOT>/agent/premium.json when the
+    agent joined) instead of this server, and that the panel, not the plan, decides what runs: the panel renews the
+    bindings and sends them along (`update_agent_binding`).
 """
 
 from __future__ import annotations
@@ -162,6 +169,35 @@ def fingerprint() -> str:
     return client.hardware_fingerprint(client.identity().public_key)
 
 
+def _agent() -> bool:
+    from .servers import is_agent
+
+    return is_agent()
+
+
+def agent_identity_file() -> Path:
+    return settings.odoo_root / "agent" / "premium.json"
+
+
+def agent_identity() -> dict[str, Any]:
+    """In an agent: {"server_id", "hardware_fingerprint", "panel_url"} of the main panel its packages are bound to."""
+    try:
+        found = json.loads(agent_identity_file().read_text())
+    except (OSError, ValueError):
+        return {}
+    return found if isinstance(found, dict) else {}
+
+
+def _expected_identity() -> tuple[str, str] | None:
+    """(installation id, hardware fingerprint) a binding must name here: this panel's, or in an agent its panel's."""
+    if not _agent():
+        return server_id(), fingerprint()
+    found = agent_identity()
+    if not found.get("server_id") or not found.get("hardware_fingerprint"):
+        return None
+    return str(found["server_id"]), str(found["hardware_fingerprint"])
+
+
 # ---------------------------------------------------------------- checks
 
 
@@ -175,15 +211,23 @@ def binding_problem(rec: dict[str, Any], now: float | None = None) -> str | None
         binding = crypto.read_binding(str(rec.get("binding") or ""), str(rec.get("binding_signature") or ""), key)
     except ValueError as error:
         return f"its binding is not valid ({error})"
-    if binding["server_id"] != server_id():
+    expected = _expected_identity()
+    if expected is None:
+        return "this server's agent has not joined a panel"
+    if binding["server_id"] != expected[0]:
         return "it was installed for another server"
-    if binding["hardware_fingerprint"] != fingerprint():
+    if binding["hardware_fingerprint"] != expected[1]:
         return "it was installed on another machine (the hardware fingerprint differs)"
     if (binding["package_id"], binding["version"], binding["sha256"]) != (rec["id"], rec["version"], rec["sha256"]):
         return "its binding names another package"
-    if binding["exp"] <= (marketplace.trusted_now() if now is None else now):
+    if binding["exp"] <= (_now() if now is None else now):
         return "its binding to this server has ended (the panel could not reach Sudoo.sh to renew it)"
     return None
+
+
+def _now() -> float:
+    """The time bindings are checked against: the hub's trusted time in the panel, the clock in an agent."""
+    return time.time() if _agent() else marketplace.trusted_now()
 
 
 def signature_problem(rec: dict[str, Any]) -> str | None:
@@ -696,6 +740,148 @@ def after_lease() -> None:
             start_sync()
     except Exception:  # noqa: BLE001 - tried again after the next lease
         log.exception("premium: could not start the sync")
+
+
+# ---------------------------------------------------------------- packages for the agents of other servers
+
+
+AGENT_HEADERS = {
+    "sha256": "X-Sudoo-Package-SHA256",
+    "id": "X-Sudoo-Premium-Id",
+    "version": "X-Sudoo-Premium-Version",
+    "python_tag": "X-Sudoo-Premium-Python-Tag",
+    "platform": "X-Sudoo-Premium-Platform",
+    "signature": "X-Sudoo-Signature",
+    "signing_key_id": "X-Sudoo-Signing-Key",
+    "binding": "X-Sudoo-Premium-Binding",
+    "binding_signature": "X-Sudoo-Premium-Binding-Signature",
+    "binding_key_id": "X-Sudoo-Premium-Binding-Key",
+}
+"""How a package travels from the panel to an agent: the values of its record, as headers (download names)."""
+
+
+def _agents_dir() -> Path:
+    found = premium_dir() / ".agents"
+    found.mkdir(parents=True, exist_ok=True, mode=0o700)
+    return found
+
+
+def _fresh_binding(package_id: str, version: str, sha256: str) -> dict[str, str]:
+    """A new binding of a published build (any platform's) to this panel, from the hub."""
+    query = urlencode({"version": version, "sha256": sha256, "fingerprint": fingerprint()})
+    answer = marketplace._for_panel("GET", f"{HUB_PATH}/{package_id}/binding?{query}")
+    data = answer.data if isinstance(answer.data, dict) else {}
+    return {"binding": str(data.get("binding") or ""), "binding_signature": str(data.get("signature") or ""),
+            "binding_key_id": str(data.get("key_id") or "")}  # fmt: skip
+
+
+def build_for_agent(package_id: str, tag: str, platform: str) -> tuple[Path, dict[str, str]]:
+    """In the panel: the build of a running package for an agent's Python and platform (a pure build when the
+    panel runs one), downloaded from the hub and kept, with a binding to this panel that is renewed when it nears
+    its end; (package file, headers to send). Raises PremiumRefused, HubRefused or HubUnavailable."""
+    rec = record(package_id)
+    if rec is None or package_id not in (LOADED or set()):
+        raise PremiumRefused(f"{package_id} does not run in this panel.")
+    if is_pure(rec.get("python_tag"), rec.get("platform")):
+        tag, platform = str(rec["python_tag"]), str(rec["platform"])
+    if not re.fullmatch(r"[a-z0-9]{2,12}", tag) or not re.fullmatch(r"[a-z0-9_-]{2,40}", platform):
+        raise PremiumRefused("Not a Python tag and platform.")
+    stem = f"{package_id}-{rec['version']}-{tag}-{platform}"
+    package, meta_file = _agents_dir() / f"{stem}.zip", _agents_dir() / f"{stem}.json"
+    try:
+        meta = stored = json.loads(meta_file.read_text())
+        seen = package.stat()
+        same = (seen.st_size, seen.st_mtime_ns) == (meta.get("file_size"), meta.get("file_mtime_ns"))
+        if not same:  # checked once more after any change, then known by its size and time
+            with package.open("rb") as fh:
+                same = hashlib.file_digest(fh, "sha256").hexdigest() == meta.get("sha256")
+    except (OSError, ValueError):
+        meta, stored, same = {}, {}, False
+    if not same:
+        for old in _agents_dir().glob(f"{package_id}-*"):
+            old.unlink(missing_ok=True)
+        query = urlencode({"version": rec["version"], "python_tag": tag, "platform": platform,
+                           "fingerprint": fingerprint()})  # fmt: skip
+        headers = client.download(f"{HUB_PATH}/{package_id}/download?{query}", package,
+                                  int(settings.premium_max_package_mb) * 1024 * 1024)  # fmt: skip
+        offer = {"id": package_id, "version": rec["version"], "python_tag": tag, "platform": platform,
+                 "package_sha256": headers.get("x-sudoo-package-sha256", "")}  # fmt: skip
+        try:
+            meta = _verify_download(package, offer, headers)
+        except PremiumRefused:
+            package.unlink(missing_ok=True)
+            raise
+    renew = float(settings.premium_binding_renew_days) * 86400
+    if _binding_exp(meta) - marketplace.trusted_now() < renew or binding_problem(meta):
+        fresh = _fresh_binding(package_id, meta["version"], meta["sha256"])
+        found = binding_problem({**meta, **fresh})
+        if found:
+            raise PremiumRefused(f"Sudoo.sh sent a binding the panel cannot use: {found}.")
+        meta = {**meta, **fresh}
+    from sudoo.core import vault
+
+    seen = package.stat()
+    meta = {**meta, "file_size": seen.st_size, "file_mtime_ns": seen.st_mtime_ns}
+    if meta != stored:
+        vault.write_private(meta_file, json.dumps(meta))
+    return package, {header: str(meta[key]) for key, header in AGENT_HEADERS.items()}
+
+
+def install_for_agent(package: Path, headers: dict[str, str]) -> dict[str, Any]:
+    """In an agent: install a package the main panel sent (headers as AGENT_HEADERS names them). The first one names
+    the panel the agent's packages are bound to; every later one must name the same. Raises PremiumRefused."""
+    got = {key: str(headers.get(header.lower()) or "") for key, header in AGENT_HEADERS.items()}
+    if got["id"] not in PACKAGES or not plugin_manager.SEMVER_RE.match(got["version"]):
+        raise PremiumRefused("The panel sent a package this agent does not know.")
+    if not build_accepted(got["python_tag"], got["platform"]):
+        raise PremiumRefused(f"The panel sent a build for another Python ({got['python_tag']}, {got['platform']}).")
+    with package.open("rb") as fh:
+        if hashlib.file_digest(fh, "sha256").hexdigest() != got["sha256"].lower():
+            raise PremiumRefused("The package's SHA-256 does not match the one stated.")
+    found = signature_problem(got)
+    if found:
+        raise PremiumRefused(f"Not installed: {found}.")
+    if not agent_identity().get("server_id"):
+        key = keys.trusted().get(got["binding_key_id"])
+        if key is None:
+            raise PremiumRefused("Not installed: its binding is signed with a key this panel does not trust.")
+        try:
+            binding = crypto.read_binding(got["binding"], got["binding_signature"], key)
+        except ValueError as error:
+            raise PremiumRefused(f"Not installed: its binding is not valid ({error}).") from None
+        agent_identity_file().parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        from sudoo.core import vault
+
+        vault.write_private(agent_identity_file(), json.dumps(
+            {"server_id": binding["server_id"], "hardware_fingerprint": binding["hardware_fingerprint"]}))  # fmt: skip
+    found = binding_problem(got)
+    if found:
+        raise PremiumRefused(f"Not installed: {found}.")
+    with zipfile.ZipFile(package) as archive:
+        manifest = check_package(archive, got)
+        return _unpack(archive, manifest, got)
+
+
+def update_agent_binding(package_id: str, values: dict[str, str]) -> bool:
+    """In an agent: a fresh binding the panel sent for an installed package; kept when it is valid here."""
+    rec = record(package_id)
+    if rec is None:
+        return False
+    fresh = {key: str(values.get(key) or "") for key in ("binding", "binding_signature", "binding_key_id")}
+    if binding_problem({**rec, **fresh}):
+        return False
+    _update(package_id, **fresh, problem=None, binding_renewed_at=time.time())
+    return True
+
+
+def forget_agent_packages() -> bool:
+    """In an agent leaving its panel: the packages, their records and the panel they were bound to."""
+    had = agent_identity_file().exists() or bool(records())
+    for package_id in list(records()):
+        storage().delete(COLLECTION, package_id)
+    shutil.rmtree(premium_dir(), ignore_errors=True)
+    agent_identity_file().unlink(missing_ok=True)
+    return had
 
 
 # ---------------------------------------------------------------- the integrity pass

@@ -25,7 +25,7 @@ import words from "@/i18n/settings";
 /** `test`: the group has a "Send a test alert" button, by e-mail or to that webhook. */
 type GroupId = Exclude<keyof (typeof words)["en"]["groups"], never>;
 type Group = { id: GroupId | `webhook${1 | 2 | 3}`; keys: string[]; test?: "email" | 1 | 2 | 3 };
-type TabId = "plan" | "support" | "general" | "instances" | "resources" | "odoo" | "backups" | "security" | "domains" | "email" | "alerts" | "github" | "marketplace" | "advanced" | "about";
+type TabId = "plan" | "support" | "general" | "instances" | "resources" | "odoo" | "backups" | "security" | "domains" | "email" | "servers" | "alerts" | "github" | "marketplace" | "advanced" | "about";
 
 const webhookGroup = (n: 1 | 2 | 3): Group => ({
   id: `webhook${n}`,
@@ -104,6 +104,13 @@ const TABS: { id: TabId; groups: Group[] }[] = [
     groups: [
       { id: "email", keys: ["mailer", "mail_from", "smtp_host", "smtp_port", "smtp_security", "smtp_username", "smtp_password", "mail_templates_dir"] },
       { id: "mailCatcher", keys: ["mail_catcher_retention_days", "mail_catcher_max_messages", "mail_catcher_max_mb", "mail_catcher_max_message_mb", "mail_catcher_release"] },
+    ],
+  },
+  {
+    id: "servers",
+    groups: [
+      { id: "servers", keys: ["server_name", "server_region", "servers_panel_url", "servers_join_code_minutes", "servers_heartbeat_seconds", "servers_offline_seconds", "servers_request_seconds", "servers_wait_minutes"] },
+      { id: "moves", keys: ["move_max_backup_gb", "move_chunk_mb", "move_at_once", "move_health_seconds"] },
     ],
   },
   {

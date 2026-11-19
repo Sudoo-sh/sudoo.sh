@@ -7,9 +7,13 @@ removed beyond 200,000.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from typing import Any
 
 from sudoo.storage import storage
+
+LISTENERS: list[Callable[[dict[str, Any]], None]] = []
+"""Called with every new entry (a server's agent passes its entries to the main panel: premium/servers.py)."""
 
 
 def record(
@@ -26,6 +30,11 @@ def record(
     if detail:
         entry["detail"] = str(detail)[:300]
     storage().log(entry)
+    for listener in LISTENERS:
+        try:
+            listener(entry)
+        except Exception as error:  # noqa: BLE001 - recording never fails because of a listener
+            print(f"audit listener: {error!r}", flush=True)
 
 
 def latest(

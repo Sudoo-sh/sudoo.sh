@@ -12,6 +12,7 @@ docker exec sudoo-panel sudoo.sh marketplace [status|heartbeat|repin]   the conn
 sudoo.sh serve                                       start the web panel (the container does this)
 sudoo.sh gateway [--check]                           start the gateway service (container sudoo-gateway)
 sudoo.sh mailcatcher [--check]                       start the mail catcher (container sudoo-mail)
+sudoo.sh agent [join CODE|status|leave] [--json]     a server's agent (container sudoo-agent; several servers)
 """
 
 from __future__ import annotations
@@ -145,6 +146,13 @@ def mailcatcher(args: argparse.Namespace) -> None:
     server.main(health_check=args.check)
 
 
+def agent(args: argparse.Namespace) -> None:
+    """A server's agent: join a panel, show the state, leave, or run (premium/agent.py)."""
+    from sudoo.premium import agent as server_agent
+
+    server_agent.main(args.action, args.code, args.json)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="sudoo.sh", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)  # fmt: skip
@@ -177,6 +185,11 @@ def main(argv: list[str] | None = None) -> None:
     catcher = commands.add_parser("mailcatcher", help="start the mail catcher (staging and development e-mail)")
     catcher.add_argument("--check", action="store_true", help="exit 0 when a running mail catcher answers")
     catcher.set_defaults(run=mailcatcher)
+    joined = commands.add_parser("agent", help="a server's agent: run, or join, status, leave (several servers)")
+    joined.add_argument("action", nargs="?", default="run", choices=("run", "join", "status", "leave"))
+    joined.add_argument("code", nargs="?", default="")
+    joined.add_argument("--json", action="store_true", help="status as JSON")
+    joined.set_defaults(run=agent)
     args = parser.parse_args(argv)
     try:
         args.run(args)

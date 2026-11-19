@@ -115,8 +115,12 @@ def _branch(value: str) -> str:
 
 def _status(names: list[str]) -> dict[str, int]:
     counts: dict[str, int] = {}
+    from sudoo.premium import servers
+
     for name in names:
-        state = "creating" if jobs.creating(name) else monitor.status(name)
+        remote = servers.remote_resource(name)  # an instance of another server: what its agent reported
+        state = "creating" if jobs.creating(name) else str(remote["status"]) if remote else monitor.status(name)
+        state = state if state in STATUS_ORDER else "unknown"
         counts[state] = counts.get(state, 0) + 1
     return dict(sorted(counts.items(), key=lambda item: STATUS_ORDER.index(item[0])))
 
@@ -167,6 +171,7 @@ def project_resource(project: Mapping[str, Any], user: Mapping[str, Any] | None 
         "attention": _attention(names),
         "production_branches": [b for b in projects.production_branches(project) if b not in hidden],
         "options": projects.options(project),
+        "default_server": project.get("default_server") or "main",  # where its new instances go (premium/servers.py)
         "own_options": {k: v for k, v in (project.get("options") or {}).items() if v is not None},
         "access": {
             "mode": access.mode(project),
@@ -381,8 +386,12 @@ def change_project(project_id: str) -> Response:
     if "odoo_version" in data or "edition" in data:
         values["odoo_version"], values["edition"] = _version_and_edition(data, found)
     options = _options(data["options"]) if "options" in data else {}
+    if "default_server" in data:  # where its new instances go when nobody chooses (402 without several servers)
+        from sudoo.premium import servers
+
+        values["default_server"] = servers.default_server(check.text(data, "default_server", max_length=20) or None)
     if not values and not options:
-        abort(400, "Send at least one of: name, odoo_version, edition, options.")
+        abort(400, "Send at least one of: name, odoo_version, edition, options, default_server.")
 
     def update(project: dict[str, Any]) -> dict[str, Any]:
         own = {**(project.get("options") or {}), **options}

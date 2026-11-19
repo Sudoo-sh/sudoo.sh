@@ -10,7 +10,9 @@ import { InstanceCard } from "@/components/InstanceCard";
 import { STAGE_ORDER, STAGES } from "@/components/StageTag";
 import { Page, PageHead, useCan } from "@/components/Shell";
 import { StatCard } from "@/components/StatCard";
-import { Callout, Empty, Segmented, Skeleton } from "@/components/ui/basics";
+import { Button, Callout, Empty, Segmented, Skeleton } from "@/components/app/basics";
+import { Input } from "@/components/ui/input";
+import { SelectBox } from "@/components/app/select";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import dashboard from "@/i18n/dashboard";
@@ -108,14 +110,14 @@ function Charts({ instances }: { instances: Instance[] | undefined }) {
           </div>
           <span className="spacer" />
           <div className="legend">
-            <span><i style={{ background: "var(--accent)" }} /> {t.requests}</span>
+            <span><i style={{ background: "var(--brand)" }} /> {t.requests}</span>
             <span><i style={{ background: "var(--negative)" }} /> {t.errors}</span>
           </div>
         </div>
         <div className="chart-body">
           <LiveChart t={traffic.t} height={220} format={(v) => number(v, v >= 10 ? 0 : 1)}
             series={[
-              { label: t.requests, values: traffic.requests, color: "--accent", fill: true },
+              { label: t.requests, values: traffic.requests, color: "--brand", fill: true },
               { label: t.errors, values: traffic.errors, color: "--negative" },
             ]} />
         </div>
@@ -132,14 +134,14 @@ function Charts({ instances }: { instances: Instance[] | undefined }) {
           </div>
           <span className="spacer" />
           <div className="legend">
-            <span><i style={{ background: "var(--accent)" }} /> {t.slowest}</span>
+            <span><i style={{ background: "var(--brand)" }} /> {t.slowest}</span>
             <span><i style={{ background: "var(--series-2)" }} /> {t.average}</span>
           </div>
         </div>
         <div className="chart-body">
           <LiveChart t={response.t} height={220} format={(v) => ms(v)}
             series={[
-              { label: t.percentile, values: response.slowest, color: "--accent", fill: true },
+              { label: t.percentile, values: response.slowest, color: "--brand", fill: true },
               { label: t.average, values: response.usual, color: "--series-2" },
             ]} />
         </div>
@@ -213,9 +215,9 @@ export function DashboardPage() {
         title={words.title}
         actions={
           can("instances.create") && (
-            <Link className="btn primary" to="/new" viewTransition>
+            <Button asChild variant="primary"><Link to="/new" viewTransition>
               <Plus /> {newInstance}
-            </Link>
+            </Link></Button>
           )
         }
       >
@@ -281,7 +283,7 @@ export function DashboardPage() {
       <div className="toolbar">
         <div className="input-group">
           <Search />
-          <input className="input" placeholder={tb.search} aria-label={tb.searchLabel} value={query} onChange={(e) => setQuery(e.target.value)} />
+          <Input placeholder={tb.search} aria-label={tb.searchLabel} value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
         <Segmented<Filter>
           value={filter}
@@ -293,12 +295,12 @@ export function DashboardPage() {
             { value: "busy", label: <>{tb.working} <span className="count">{counts.busy}</span></> },
           ]}
         />
-        <select className="select stage-filter" aria-label={tb.stage} value={stage} onChange={(e) => setStage(e.target.value as Stage | "all")}>
+        <SelectBox className="stage-filter" aria-label={tb.stage} value={stage} onValueChange={(value) => setStage(value as Stage | "all")}>
           <option value="all">{tb.allStages}</option>
           {STAGES.map((st) => (
             <option key={st.value} value={st.value}>{st.label} ({stageCounts[st.value]})</option>
           ))}
-        </select>
+        </SelectBox>
       </div>
 
       {isPending ? (
@@ -324,9 +326,9 @@ export function DashboardPage() {
             title={instances?.length ? words.empty.nothing : words.empty.none}
             action={
               !instances?.length && can("instances.create") ? (
-                <Link className="btn primary" to="/new" viewTransition>
+                <Button asChild variant="primary"><Link to="/new" viewTransition>
                   <Plus /> {newInstance}
-                </Link>
+                </Link></Button>
               ) : undefined
             }
           >

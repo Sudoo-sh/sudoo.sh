@@ -9,8 +9,8 @@ import { Check, ClipboardPaste, Copy, Download, Eraser, Maximize2, Minimize2, Pl
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, errorText } from "@/api/client";
 import type { ShellRecording, ShellSession, ShellTarget, ShellTicket } from "@/api/types";
-import { Button, Callout, Skeleton, Tag } from "@/components/ui/basics";
-import { Modal, useToast } from "@/components/ui/overlay";
+import { Button, Callout, Skeleton, Tag } from "@/components/app/basics";
+import { Modal, useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import words from "@/i18n/shell";
 import { dateTime } from "@/lib/format";

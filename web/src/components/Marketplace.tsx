@@ -11,9 +11,10 @@ import common from "@/i18n/common";
 import plugins from "@/i18n/plugins";
 import { ago, dateTime } from "@/lib/format";
 import { useCan } from "./Shell";
-import { Mark } from "./ui/Brand";
-import { Button, Callout, Field, Skeleton, Tag } from "./ui/basics";
-import { Modal, useToast } from "./ui/overlay";
+import { Mark } from "./app/Brand";
+import { Button, Callout, Field, Skeleton, Tag } from "./app/basics";
+import { Input } from "@/components/ui/input";
+import { Modal, useToast } from "./app/overlay";
 
 /** Official (Sudoo.sh's own plugins) or Verified (Sudoo.sh checked who the publisher is). */
 export function PublisherBadge({ publisher }: { publisher: Publisher | null }) {
@@ -74,8 +75,8 @@ export function LinkForm({ onLinked }: { onLinked?: () => void }) {
   return (
     <Field label={t.linkCode} hint={t.linkHint}>
       <div className="row">
-        <input
-          className="input mono"
+        <Input
+          className="mono"
           dir="ltr"
           autoComplete="one-time-code"
           spellCheck={false}

@@ -3,8 +3,10 @@ import { useState } from "react";
 import { api, errorText } from "@/api/client";
 import { useCall, useTokens } from "@/api/queries";
 import { Page, PageHead } from "@/components/Shell";
-import { Tag, Button, Callout, CopyField, Empty, Field, Segmented, Skeleton } from "@/components/ui/basics";
-import { Modal, useToast } from "@/components/ui/overlay";
+import { Tag, Button, Callout, CopyField, Empty, Field, Segmented, Skeleton } from "@/components/app/basics";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Modal, useToast } from "@/components/app/overlay";
 import { ago } from "@/lib/format";
 import type { Token } from "@/api/types";
 import { useT } from "@/i18n";
@@ -46,24 +48,22 @@ export function TokensPage() {
         {isPending ? <div className="card-body"><Skeleton height={120} /></div> : !tokens?.length ? (
           <Empty icon={<KeyRound />} title={t.none} action={<Button icon={<Plus />} onClick={() => setCreating(true)}>{t.createOne}</Button>}>{t.noneText}</Empty>
         ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead><tr><th>{t.columns.name}</th><th>{t.columns.scope}</th><th>{t.columns.created}</th><th>{t.columns.lastUsed}</th><th /></tr></thead>
-              <tbody>
-                {tokens.map((token) => (
-                  <tr key={token.id}>
-                    <td><div><bdi>{token.name}</bdi></div><div className="xsmall faint"><span className="mono">sudoo_{token.id}_…</span></div></td>
-                    <td><Tag>{scopeLabel(token.scope)}</Tag></td>
-                    <td className="small muted">{ago(token.created)} · <bdi>{token.created_by}</bdi></td>
-                    <td className="small muted">{ago(token.last_used)}</td>
-                    <td className="actions">
-                      <Button size="sm" variant="ghost" icon={<Trash2 />} onClick={() => confirm(t.confirmRevoke(token.name)) && revoke.mutate(token.id, { onSuccess: () => toast("success", t.revoked) })}>{t.revoke}</Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableHeader><TableRow><TableHead>{t.columns.name}</TableHead><TableHead>{t.columns.scope}</TableHead><TableHead>{t.columns.created}</TableHead><TableHead>{t.columns.lastUsed}</TableHead><TableHead /></TableRow></TableHeader>
+            <TableBody>
+              {tokens.map((token) => (
+                <TableRow key={token.id}>
+                  <TableCell><div><bdi>{token.name}</bdi></div><div className="xsmall faint"><span className="mono">sudoo_{token.id}_…</span></div></TableCell>
+                  <TableCell><Tag>{scopeLabel(token.scope)}</Tag></TableCell>
+                  <TableCell className="small muted">{ago(token.created)} · <bdi>{token.created_by}</bdi></TableCell>
+                  <TableCell className="small muted">{ago(token.last_used)}</TableCell>
+                  <TableCell className="actions">
+                    <Button size="sm" variant="ghost" icon={<Trash2 />} onClick={() => confirm(t.confirmRevoke(token.name)) && revoke.mutate(token.id, { onSuccess: () => toast("success", t.revoked) })}>{t.revoke}</Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </div>
       <section className="card rise" aria-labelledby="odoo-apps-title">
@@ -76,21 +76,19 @@ export function TokensPage() {
           <p className="small muted">
             {t.odooText(<b key="scope">{t.scopes.instances.label}</b>)}
           </p>
-          <div className="table-wrap">
-            <table className="table">
-              <tbody>
-                {ODOO_APPS.map((app) => (
-                  <tr key={app.module}>
-                    <td dir="ltr" style={{ textAlign: "start" }}>Sudoo.sh {app.name}</td>
-                    <td className="small muted">{t.apps[app.module]}</td>
-                    <td className="actions">
-                      <a className="btn sm ghost" href={`${ODOO_STORE}/20.0/${app.module}`} target="_blank" rel="noreferrer" aria-label={t.storeLabel(`Sudoo.sh ${app.name}`)}>{t.store} <ArrowUpRight className="flip-rtl" /></a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableBody>
+              {ODOO_APPS.map((app) => (
+                <TableRow key={app.module}>
+                  <TableCell dir="ltr" style={{ textAlign: "start" }}>Sudoo.sh {app.name}</TableCell>
+                  <TableCell className="small muted">{t.apps[app.module]}</TableCell>
+                  <TableCell className="actions">
+                    <Button asChild variant="ghost" size="sm"><a href={`${ODOO_STORE}/20.0/${app.module}`} target="_blank" rel="noreferrer" aria-label={t.storeLabel(`Sudoo.sh ${app.name}`)}>{t.store} <ArrowUpRight className="flip-rtl" /></a></Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       </section>
       {creating && (
@@ -98,7 +96,7 @@ export function TokensPage() {
           footer={<><Button onClick={() => setCreating(false)}>{c.cancel}</Button><Button variant="primary" loading={create.isPending} disabled={name.trim().length < 3}
             onClick={() => create.mutate(undefined, { onSuccess: (m) => { setCreating(false); setName(""); setMade(m); }, onError: (e) => toast("error", t.notCreated, errorText(e)) })}>{c.create}</Button></>}>
           <div className="stack">
-            <Field label={t.name} hint={t.nameHint}><input className="input" dir="auto" autoFocus value={name} onChange={(e) => setName(e.target.value)} /></Field>
+            <Field label={t.name} hint={t.nameHint}><Input dir="auto" autoFocus value={name} onChange={(e) => setName(e.target.value)} /></Field>
             <Field label={t.scope} hint={t.scopes[scope].hint}>
               <Segmented value={scope} onChange={setScope} options={SCOPES.map((value) => ({ value, label: t.scopes[value].label }))} />
             </Field>

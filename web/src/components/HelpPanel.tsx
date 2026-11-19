@@ -11,8 +11,8 @@ import { useLocale, useT } from "@/i18n";
 import words from "@/i18n/help";
 import { diagnostics } from "@/lib/diagnostics";
 import { siteAddress, TOPIC_DOCS, topicOf } from "@/lib/help-topics";
-import { Button, Callout } from "./ui/basics";
-import { Drawer, useToast } from "./ui/overlay";
+import { Button, Callout } from "./app/basics";
+import { Drawer, useToast } from "./app/overlay";
 
 /** True while the person is typing somewhere: "?" is then a character, not the shortcut. */
 function typing(target: EventTarget | null): boolean {
@@ -132,9 +132,9 @@ function Support({ info }: { info: HelpInfo | undefined }) {
   const explanation = kind === "hub" ? t.supportHub : kind === "link" ? t.supportLink : t.supportEmail;
   return (
     <div className="stack-sm">
-      <a className="btn primary help-support" href={url} target={kind === "email" ? undefined : "_blank"} rel="noreferrer noopener">
+      <Button asChild variant="primary" className="help-support"><a href={url} target={kind === "email" ? undefined : "_blank"} rel="noreferrer noopener">
         {kind === "email" ? <Mail aria-hidden="true" /> : <LifeBuoy aria-hidden="true" />} {t.contact}
-      </a>
+      </a></Button>
       <p className="muted small">{explanation}</p>
     </div>
   );

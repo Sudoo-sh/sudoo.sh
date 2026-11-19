@@ -8,8 +8,10 @@ import type { GitHubRepository, Job, RepoAccess, Stage } from "@/api/types";
 import { BackupPicker } from "@/components/BackupPicker";
 import { Page, PageHead, useCan } from "@/components/Shell";
 import { STAGE_ICON, STAGES } from "@/components/StageTag";
-import { Tag, Button, Callout, Field, Switch } from "@/components/ui/basics";
-import { useToast } from "@/components/ui/overlay";
+import { Tag, Button, Callout, Field, Switch } from "@/components/app/basics";
+import { Input } from "@/components/ui/input";
+import { SelectBox } from "@/components/app/select";
+import { useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import words from "@/i18n/new-instance";
 import { ago, number } from "@/lib/format";
@@ -265,7 +267,7 @@ export function NewInstancePage() {
               </div>
               {plain ? (
                 <Field className="full" label={t.name} hint={plan ? <>{t.willBe(<b key="n" dir="ltr">{plan.name}</b>, <code key="d">{plan.database}</code>)}</> : t.emptyPlain}>
-                  <input className="input" dir="ltr" placeholder={plan?.name ?? "sales-demo"} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
+                  <Input dir="ltr" placeholder={plan?.name ?? "sales-demo"} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
                 </Field>
               ) : (
               <>
@@ -276,7 +278,7 @@ export function NewInstancePage() {
                 hint={checking ? t.checking : branches ? t.branchesFound(branches.length) : t.repositoryHint}
               >
                 <div className="stack-sm">
-                  <input className="input" dir="ltr" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repo} aria-invalid={!!repoError}
+                  <Input  dir="ltr" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repo} aria-invalid={!!repoError}
                     onChange={(e) => setRepo(e.target.value)} onFocus={() => setPicking(true)} onBlur={() => setPicking(false)} />
                   {picking && (
                     <RepositoryPicker typed={repo.trim()} onPick={(r) => { setRepo(r.url); setBranch(r.default_branch); setPicking(false); }} />
@@ -285,18 +287,18 @@ export function NewInstancePage() {
               </Field>
               <Field label={t.branch}>
                 {branches ? (
-                  <select className="select" dir="ltr" value={branch} onChange={(e) => setBranch(e.target.value)}>
+                  <SelectBox dir="ltr" value={branch} onValueChange={(value) => setBranch(value)}>
                     {branches.map((b) => <option key={b}>{b}</option>)}
-                  </select>
+                  </SelectBox>
                 ) : (
                   <div className="input-group">
                     <GitBranch />
-                    <input className="input" dir="ltr" placeholder="main" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!!repo.trim()} />
+                    <Input dir="ltr" placeholder="main" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!!repo.trim()} />
                   </div>
                 )}
               </Field>
               <Field label={t.name} hint={plan ? <>{t.willBe(<b key="n" dir="ltr">{plan.name}</b>, <code key="d">{plan.database}</code>)}</> : t.emptyRepository}>
-                <input className="input" dir="ltr" placeholder={plan?.name ?? "sales-demo"} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
+                <Input dir="ltr" placeholder={plan?.name ?? "sales-demo"} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
               </Field>
               {access && (
                 <div className="full stack-sm">
@@ -307,9 +309,9 @@ export function NewInstancePage() {
                       <Tag>{r.role}</Tag>
                       {!r.ok && r.problem !== repoError && <span style={{ color: "var(--negative)" }}>{r.problem}</span>}
                       {!r.ok && r.fix?.url && (r.fix.url.startsWith("/") ? (
-                        <Link className="btn sm" to={r.fix.url} viewTransition>{r.fix.label}</Link>
+                        <Button asChild size="sm"><Link to={r.fix.url} viewTransition>{r.fix.label}</Link></Button>
                       ) : (
-                        <a className="btn sm" href={r.fix.url} target="_blank" rel="noreferrer">{r.fix.label} <ArrowUpRight className="flip-rtl" /></a>
+                        <Button asChild size="sm"><a href={r.fix.url} target="_blank" rel="noreferrer">{r.fix.label} <ArrowUpRight className="flip-rtl" /></a></Button>
                       ))}
                     </div>
                   ))}
@@ -414,10 +416,10 @@ export function NewInstancePage() {
                 <>
                   <Switch checked={autoPause} onChange={setAutoPause} label={t.autoPause} />
                   <Field label={t.lifetime} hint={t.lifetimeHint}>
-                    <select className="select" value={lifetime ?? 30} onChange={(e) => setLifetime(Number(e.target.value))}>
+                    <SelectBox value={lifetime ?? 30} onValueChange={(value) => setLifetime(Number(value))}>
                       {[...new Set([...LIFETIMES, lifetime ?? 30])].filter((d) => d > 0).sort((a, b) => a - b).map((d) => <option key={d} value={d}>{t.days(d)}</option>)}
                       <option value={0}>{t.keep}</option>
-                    </select>
+                    </SelectBox>
                   </Field>
                 </>
               )}

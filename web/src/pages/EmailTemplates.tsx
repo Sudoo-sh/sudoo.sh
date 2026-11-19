@@ -10,8 +10,11 @@ import { api, errorText } from "@/api/client";
 import { keys, useMailTemplates } from "@/api/queries";
 import type { MailPreview, MailTemplate } from "@/api/types";
 import { Page, PageHead, useMe } from "@/components/Shell";
-import { Button, Callout, Field, Segmented, Skeleton, Tag } from "@/components/ui/basics";
-import { Modal, useToast } from "@/components/ui/overlay";
+import { Button, Callout, Field, Segmented, Skeleton, Tag } from "@/components/app/basics";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { SelectBox } from "@/components/app/select";
+import { Modal, useToast } from "@/components/app/overlay";
 import { ago } from "@/lib/format";
 import { useT } from "@/i18n";
 import words from "@/i18n/admin";
@@ -173,10 +176,10 @@ function Editor({ template, draft, onChange, mailReady }: { template: MailTempla
         {template.customized && <Tag tone="accent">{t.changed}</Tag>}
       </div>
       <div className="card-body stack">
-        <Field label={t.subject} htmlFor="mail-subject"><input id="mail-subject" className="input" dir="ltr" spellCheck {...bind("subject")} /></Field>
-        <Field label={t.title2} htmlFor="mail-title" hint={t.titleHint}><input id="mail-title" className="input" dir="ltr" spellCheck {...bind("title")} /></Field>
+        <Field label={t.subject} htmlFor="mail-subject"><Input id="mail-subject" dir="ltr" spellCheck {...bind("subject")} /></Field>
+        <Field label={t.title2} htmlFor="mail-title" hint={t.titleHint}><Input id="mail-title" dir="ltr" spellCheck {...bind("title")} /></Field>
         <Field label={t.body} htmlFor="mail-body" hint={t.bodyHint}>
-          <textarea id="mail-body" dir="ltr" className="input mail-body" rows={14} spellCheck {...bind("body")} />
+          <Textarea id="mail-body" dir="ltr" className="mail-body" rows={14} spellCheck {...bind("body")} />
         </Field>
         <div className="stack-sm">
           <span className="small muted row"><Braces size={14} /> {t.placeholders}</span>
@@ -252,9 +255,9 @@ export function EmailTemplatesPage() {
           )}
           <div className="mail-templates">
             <nav className="mail-list" aria-label={t.list}>
-              <select className="select mail-select" aria-label={t.choose} value={chosen.key} onChange={(e) => select(e.target.value)}>
+              <SelectBox className="mail-select" aria-label={t.choose} value={chosen.key} onValueChange={(value) => select(value)}>
                 {templates.map((item) => <option key={item.key} value={item.key}>{item.name}{unsaved.has(item.key) ? t.unsavedSuffix : item.customized ? t.changedSuffix : ""}</option>)}
-              </select>
+              </SelectBox>
               {templates.map((item) => (
                 <button key={item.key} type="button" className="mail-item" aria-current={item.key === chosen.key || undefined} onClick={() => select(item.key)}>
                   <span className="t">

@@ -42,18 +42,31 @@ its own sake, and the screen works without any animation.
 
 ```
 web/src/styles/
+├── globals.css        Tailwind (theme and utilities) for the shadcn/ui components, shadcn's colour names read from the tokens
+├── vaul.css           the drawer library's own rules (it adds them at run time, which the Content-Security-Policy refuses)
+├── main.scss          the panel's styles below, in the "panel" cascade layer, then _look.scss
 ├── _tokens.scss       every colour, size, radius, shadow, material and motion value, light and dark
 ├── _mixins.scss       hover (only for real pointers) and press feedback
 ├── _base.scss         page, type, helpers
 ├── _motion.scss       page transitions, keyframes, reduced motion
-├── _components.scss   buttons, cards, tags, status, forms, segmented control, tabs, tables, sheets, menus, toasts
+├── _components.scss   cards, status, forms, tabs, tables, toasts, logs, the shell, and the classes premium pages use
 ├── _layout.scss       sidebar, top bar, page header
-└── _pages.scss        sign-in, figures, charts, instance cards, settings rows, help pages
-web/src/components/ui/  the React side of the same pieces (basics.tsx, overlay.tsx, OtpInput.tsx, Brand.tsx)
+├── _pages.scss        sign-in, figures, charts, instance cards, settings rows, help pages
+└── _look.scss         the Sudoo.sh look on the shadcn components (buttons, fields, lists, menus, dialogs, sheets, tables)
+web/src/components/ui/   shadcn/ui components, added with the shadcn CLI (components.json) and used unchanged
+web/src/components/app/  the panel's pieces built on them (basics.tsx, overlay.tsx, select.tsx, OtpInput.tsx, Brand.tsx)
 web/src/components/charts/LiveChart.tsx   the charts
 ```
 
 Components take their look only from tokens. A component never names a raw colour, so a theme is one file.
+
+The controls are [shadcn/ui](https://ui.shadcn.com) components (Radix, the "vega" preset, right to left on). The files
+in `components/ui` stay as the CLI writes them (`npx shadcn@latest add <name>` adds one); the panel's look comes from
+`_look.scss`, keyed on the `data-slot`, `data-variant`, `data-size` and `data-state` attributes the components carry.
+The cascade layers keep the two apart: the panel's own styles sit below the components' utility classes, and
+`_look.scss` sits outside the layers, above them. Tailwind's Preflight is left out; the components get the part of
+it they need in `globals.css`, so the rest of the panel keeps its own base. Dialogs are shadcn's Dialog, and its
+Drawer (from the bottom edge) below 640px; the sidebar is a Sheet up to 960px; every list to choose from is a Select.
 
 ---
 
@@ -61,7 +74,7 @@ Components take their look only from tokens. A component never names a raw colou
 
 | Group | Tokens | Notes |
 | :--- | :--- | :--- |
-| Accent | `--accent`, `--accent-ink`, `--on-accent`, `--accent-soft`, `--accent-ring` | `--accent` follows `BRAND_COLOR` (Settings, General) |
+| Accent | `--brand`, `--brand-ink`, `--on-brand`, `--brand-soft`, `--brand-ring` | `--brand` follows `BRAND_COLOR` (Settings, General) |
 | Neutrals | `--bg`, `--surface`, `--raised`, `--hairline`, `--hairline-strong`, `--text`, `--text-2`, `--text-3` | Graphite in both themes; three text roles only |
 | Meaning | `--positive`, `--negative`, `--caution`, `--working`, `--idle` | Used for status only, never for decoration |
 | Charts | `--series-1` (the accent), `--series-2`, `--series-grid` | The first series leads, others stay quiet |
@@ -127,9 +140,9 @@ short, purposeful animation. The first-run and sign-in screens, seen rarely, bri
 Implementation rules:
 
 - **Ease-out** for things entering and leaving, **ease-in-out** for things moving on screen, never ease-in.
-- **Transitions, not keyframes,** for anything that can be interrupted: entry uses `@starting-style`, exit sets
-  `data-closing` and removes the element after the transition (`components/ui/overlay.tsx`), so a menu closed while
-  opening reverses smoothly from where it is.
+- **Dialogs, sheets, menus and lists** come in and leave with the components' enter and exit animations, tuned in
+  `_look.scss` to the values above; the element is removed once the exit animation has played
+  (`components/app/overlay.tsx`). Toasts and the other pieces use transitions (`@starting-style`).
 - **Only `transform` and `opacity`** (and a small `filter: blur`) are animated; never width, height or position,
   except the segmented thumb's width.
 - **Nothing appears from `scale(0)`:** entries start at 0.96 to 0.97.
@@ -183,7 +196,7 @@ Implementation rules:
 | Fonts | `--font` and `--mono` in `_tokens.scss`; add the font files with `npm install @fontsource/<name>` and import them in `web/src/main.tsx` |
 | One component | Its block in `_components.scss` or `_pages.scss`, named after the component |
 | The e-mails | Their texts on the **E-mail templates** page ([Admin guide](ADMIN_GUIDE.md#17-e-mail-templates)); their frame is `src/sudoo/mail/templates/layout.html`, or your own `layout.html` in the folder named by `MAIL_TEMPLATES_DIR` ([Configuration](CONFIGURATION.md)) |
-| The logo mark | `web/public/favicon.svg` is the drawing; `web/src/components/ui/Brand.tsx`, `src/sudoo/instances/mark.svg` (status pages), `docs/images/brand/` and the e-mail header (`src/sudoo/mail/templates/layout.html`, drawn in HTML because Gmail removes SVG) repeat it. A test checks the copies match |
+| The logo mark | `web/public/favicon.svg` is the drawing; `web/src/components/app/Brand.tsx`, `src/sudoo/instances/mark.svg` (status pages), `docs/images/brand/` and the e-mail header (`src/sudoo/mail/templates/layout.html`, drawn in HTML because Gmail removes SVG) repeat it. A test checks the copies match |
 
 Working on the web app: `cd web && npm install && npm run dev` serves it with live reload on port 5173, using a
 backend on `127.0.0.1:9002` (see `web/vite.config.ts`; set `SUDOO_API` to use another one, for example through an

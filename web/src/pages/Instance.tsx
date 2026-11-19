@@ -54,8 +54,11 @@ import { JobDrawer } from "@/components/JobDrawer";
 import { LogView } from "@/components/LogView";
 import { Page, useCan } from "@/components/Shell";
 import { StatCard } from "@/components/StatCard";
-import { Button, Callout, CopyField, Empty, Field, Progress, Segmented, Skeleton, Status, Switch, Tag } from "@/components/ui/basics";
-import { Menu, Modal, useToast } from "@/components/ui/overlay";
+import { Button, Callout, CopyField, Empty, Field, Progress, Segmented, Skeleton, Status, Switch, Tag } from "@/components/app/basics";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { SelectBox } from "@/components/app/select";
+import { Menu, MenuItem, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/instance";
@@ -176,9 +179,9 @@ export function InstancePage() {
         </div>
         <div className="actions">
           {instance.url && !asleep && (!instance.lock || can("instances.logs")) && (
-            <a className="btn primary" href={instance.url} target="_blank" rel="noreferrer">
+            <Button asChild variant="primary"><a href={instance.url} target="_blank" rel="noreferrer">
               {t.openOdoo} <ArrowUpRight className="flip-rtl" />
-            </a>
+            </a></Button>
           )}
           {can("instances.update") &&
             (asleep ? (
@@ -205,44 +208,44 @@ export function InstancePage() {
               return (
                 <>
                   {!plain && (
-                    <button disabled={busy || !instance.git.repository} onClick={item(() => act("update-submodules", j.updateSubmodules))}>
+                    <MenuItem disabled={busy || !instance.git.repository} onSelect={item(() => act("update-submodules", j.updateSubmodules))}>
                       <RefreshCw /> {t.updateSubmodules}
-                    </button>
+                    </MenuItem>
                   )}
                   {can("instances.operate") && (
                     <>
-                      <button disabled={busy} onClick={item(() => setDialog("upgrade"))}>
+                      <MenuItem disabled={busy} onSelect={item(() => setDialog("upgrade"))}>
                         <Zap /> {t.upgradeModules}
-                      </button>
+                      </MenuItem>
                       {plain ? (
-                        <button disabled={busy} onClick={item(() => setDialog("connect"))}>
+                        <MenuItem disabled={busy} onSelect={item(() => setDialog("connect"))}>
                           <FolderGit2 /> {t.connectRepository}
-                        </button>
+                        </MenuItem>
                       ) : (
-                        <button disabled={busy || !instance.git.repository} onClick={item(() => setDialog("branch"))}>
+                        <MenuItem disabled={busy || !instance.git.repository} onSelect={item(() => setDialog("branch"))}>
                           <GitBranch /> {t.switchBranch}
-                        </button>
+                        </MenuItem>
                       )}
-                      <button disabled={busy} onClick={item(() => act("update-images", j.updateImages))}>
+                      <MenuItem disabled={busy} onSelect={item(() => act("update-images", j.updateImages))}>
                         <Container /> {t.updateImages}
-                      </button>
-                      <hr />
+                      </MenuItem>
+                      <MenuSeparator />
                       {!asleep && (
-                        <button disabled={busy} onClick={item(() => (production ? setDialog("pause") : act("pause", j.pause)))}>
+                        <MenuItem disabled={busy} onSelect={item(() => (production ? setDialog("pause") : act("pause", j.pause)))}>
                           <Pause /> {t.pause}
-                        </button>
+                        </MenuItem>
                       )}
                       {instance.status !== "switched_off" && (
-                        <button disabled={busy} onClick={item(() => (production ? setDialog("switch-off") : act("switch-off", j.switchOff)))}>
+                        <MenuItem disabled={busy} onSelect={item(() => (production ? setDialog("switch-off") : act("switch-off", j.switchOff)))}>
                           <Power /> {t.switchOff}
-                        </button>
+                        </MenuItem>
                       )}
                     </>
                   )}
                   {can("instances.delete") && (
-                    <button className="danger" disabled={busy} onClick={item(() => setDialog("delete"))}>
+                    <MenuItem danger disabled={busy} onSelect={item(() => setDialog("delete"))}>
                       <Trash2 /> {t.delete}
-                    </button>
+                    </MenuItem>
                   )}
                 </>
               );
@@ -428,7 +431,7 @@ function Overview({ instance, busy, act }: { instance: Instance; busy: boolean; 
               t={series?.t ?? []}
               max={"max" in chosen ? chosen.max : undefined}
               format={chosen.format}
-              series={[{ label, values: series?.[metric] ?? [], color: "--accent", fill: true }]}
+              series={[{ label, values: series?.[metric] ?? [], color: "--brand", fill: true }]}
             />
           </div>
         </section>
@@ -506,28 +509,26 @@ function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolea
         </p>
       )}
       {list.length > 0 && (
-        <div className="table-wrap">
-          <table className="table">
-            <thead><tr><th>{t.taken}</th><th>{t.kind}</th><th>{t.size}</th><th /></tr></thead>
-            <tbody>
-              {list.map((b) => (
-                <tr key={b.file}>
-                  <td>{dateTime(b.created_at)} <span className="faint xsmall">· {ago(b.created_at)}</span></td>
-                  <td><Tag tone={b.kind === "daily" ? "accent" : undefined}>{KIND_LABEL[b.kind] ?? b.kind}</Tag></td>
-                  <td className="mono small">{bytes(b.size_bytes)}</td>
-                  <td className="actions">
-                    {can("backups.manage") && (
-                      <a className="btn sm ghost" href={`/api/v1/backups/${b.file}`} download aria-label={t.download(b.file)}><Download /></a>
-                    )}
-                    {can("instances.restore") && (
-                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => setRestoring(b)}>{t.restore}</Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table>
+          <TableHeader><TableRow><TableHead>{t.taken}</TableHead><TableHead>{t.kind}</TableHead><TableHead>{t.size}</TableHead><TableHead /></TableRow></TableHeader>
+          <TableBody>
+            {list.map((b) => (
+              <TableRow key={b.file}>
+                <TableCell>{dateTime(b.created_at)} <span className="faint xsmall">· {ago(b.created_at)}</span></TableCell>
+                <TableCell><Tag tone={b.kind === "daily" ? "accent" : undefined}>{KIND_LABEL[b.kind] ?? b.kind}</Tag></TableCell>
+                <TableCell className="mono small">{bytes(b.size_bytes)}</TableCell>
+                <TableCell className="actions">
+                  {can("backups.manage") && (
+                    <Button asChild variant="ghost" size="sm"><a href={`/api/v1/backups/${b.file}`} download aria-label={t.download(b.file)}><Download /></a></Button>
+                  )}
+                  {can("instances.restore") && (
+                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => setRestoring(b)}>{t.restore}</Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
       {restoring && (
         <RestoreDialog instance={instance} backup={restoring} onClose={() => setRestoring(null)}
@@ -715,26 +716,24 @@ function CodeTab({ instance, canAdd, canRemove, busy, onAdd, act }: { instance: 
           {canAdd && <Button size="sm" icon={<Plus />} disabled={busy || !instance.git.repository} onClick={onAdd}>{t.add}</Button>}
         </div>
         {instance.submodules?.length ? (
-          <div className="table-wrap">
-            <table className="table">
-              <tbody>
-                {instance.submodules.map((s) => (
-                  <tr key={s.path}>
-                    <td>
-                      <div className="mono" dir="ltr">{s.path}</div>
-                      <div className="xsmall faint truncate" dir="ltr">{s.url}</div>
-                    </td>
-                    <td className="mono xsmall">{s.sha}</td>
-                    <td className="actions">
-                      {canRemove && (
-                        <Button size="sm" variant="ghost" icon={<Trash2 />} disabled={busy} aria-label={t.remove} onClick={() => confirm(t.removeConfirm(s.path)) && act("remove-submodule", all.jobs.removeSubmodule, { path: s.path })} />
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableBody>
+              {instance.submodules.map((s) => (
+                <TableRow key={s.path}>
+                  <TableCell>
+                    <div className="mono" dir="ltr">{s.path}</div>
+                    <div className="xsmall faint truncate" dir="ltr">{s.url}</div>
+                  </TableCell>
+                  <TableCell className="mono xsmall">{s.sha}</TableCell>
+                  <TableCell className="actions">
+                    {canRemove && (
+                      <Button size="sm" variant="ghost" icon={<Trash2 />} disabled={busy} aria-label={t.remove} onClick={() => confirm(t.removeConfirm(s.path)) && act("remove-submodule", all.jobs.removeSubmodule, { path: s.path })} />
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         ) : (
           <Empty icon={<Layers />} title={t.noSubmodules}>{t.noSubmodulesText}</Empty>
         )}
@@ -751,9 +750,9 @@ function LogsTab({ name }: { name: string }) {
   const t = useT(words).logs;
   const tools = (
     <div className="row">
-      <select className="select sm" aria-label={t.lines} value={lines} onChange={(e) => setLines(Number(e.target.value))}>
+      <SelectBox size="sm" aria-label={t.lines} value={lines} onValueChange={(value) => setLines(Number(value))}>
         {[100, 300, 1000, 3000].map((n) => <option key={n} value={n}>{t.lastLines(n)}</option>)}
-      </select>
+      </SelectBox>
       <Button size="sm" icon={<RefreshCw />} loading={isFetching} onClick={() => refetch()}>{t.refresh}</Button>
     </div>
   );
@@ -801,9 +800,9 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
             <div className="name">{t.stage}</div>
             <div className="desc">{c.stages[instance.stage]?.text}</div>
           </div>
-          <select className="select" aria-label={t.stage} value={instance.stage} disabled={save.isPending} onChange={(e) => changeStage(e.target.value as Stage)}>
+          <SelectBox aria-label={t.stage} value={instance.stage} disabled={save.isPending} onValueChange={(value) => changeStage(value as Stage)}>
             {(["production", "staging", "development"] as Stage[]).map((st) => <option key={st} value={st}>{stageLabel(st)}</option>)}
-          </select>
+          </SelectBox>
         </div>
         {rows.map(([key, title, text]) => (
           <div className="settings-row" key={key}>
@@ -828,12 +827,12 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
               {!mayShorten && t.longerOnly}
             </div>
           </div>
-          <select className="select" value={s.delete_after_days} onChange={(e) => set({ delete_after_days: Number(e.target.value) })}>
+          <SelectBox value={s.delete_after_days} onValueChange={(value) => set({ delete_after_days: Number(value) })}>
             {[...new Set([7, 14, 30, 60, 90, 180, s.delete_after_days])].filter((d) => d > 0).sort((a, b) => a - b).map((d) => (
               <option key={d} value={d} disabled={!mayShorten && sooner(d)}>{count(d, "day")}</option>
             ))}
             <option value={0}>{t.keepByHand}</option>
-          </select>
+          </SelectBox>
         </div>
         )}
         {leaving && (
@@ -892,7 +891,7 @@ function UpgradeDialog({ onClose, onRun }: { onClose: () => void; onRun: (module
     <Modal title={t.title} description={t.text} onClose={onClose}
       footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" disabled={!modules.trim()} onClick={() => { onRun(modules.trim()); onClose(); }}>{t.run}</Button></>}>
       <Field label={t.modules} hint={<>{t.hint(<code key="all">all</code>)}</>}>
-        <input className="input mono" dir="ltr" autoFocus placeholder="sale_custom,stock_custom" value={modules} onChange={(e) => setModules(e.target.value)} />
+        <Input className="mono" dir="ltr" autoFocus placeholder="sale_custom,stock_custom" value={modules} onChange={(e) => setModules(e.target.value)} />
       </Field>
     </Modal>
   );
@@ -911,10 +910,10 @@ function BranchDialog({ instance, onClose, onRun }: { instance: Instance; onClos
       footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" disabled={!branch} onClick={() => { onRun(branch); onClose(); }}>{t.run}</Button></>}>
       {error ? <Callout tone="danger">{error}</Callout> : (
         <Field label={t.branch}>
-          <select className="select" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!branches}>
+          <SelectBox value={branch} onValueChange={(value) => setBranch(value)} disabled={!branches}>
             <option value="">{branches ? t.choose : t.loading}</option>
             {branches?.filter((b) => b !== instance.git.branch).map((b) => <option key={b}>{b}</option>)}
-          </select>
+          </SelectBox>
         </Field>
       )}
     </Modal>
@@ -951,16 +950,16 @@ function ConnectDialog({ onClose, onRun }: { onClose: () => void; onRun: (body: 
       <div className="stack">
         <Field label={t.repository} error={error} hint={branches ? t.found(branches.length) : t.hint}>
           <div className="stack-sm">
-            <input className="input" dir="ltr" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repo} aria-invalid={!!error}
+            <Input  dir="ltr" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repo} aria-invalid={!!error}
               onChange={(e) => setRepo(e.target.value)} onFocus={() => setPicking(true)} onBlur={() => setPicking(false)} />
             {picking && <RepositoryPicker typed={repo.trim()} onPick={(r) => { setRepo(r.url); setBranch(r.default_branch); setPicking(false); }} />}
           </div>
         </Field>
         <Field label={t.branch}>
-          <select className="select" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!branches}>
+          <SelectBox value={branch} onValueChange={(value) => setBranch(value)} disabled={!branches}>
             {!branches && <option value="">{REPOSITORY_ADDRESS.test(address) && !error ? t.loading : t.first}</option>}
             {branches?.map((b) => <option key={b}>{b}</option>)}
-          </select>
+          </SelectBox>
         </Field>
         <Switch checked={install} onChange={setInstall} label={t.install} />
       </div>
@@ -978,10 +977,10 @@ function SubmoduleDialog({ version, onClose, onRun }: { version: string; onClose
     <Modal title={t.title} description={t.text} onClose={onClose}
       footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" disabled={!url} onClick={() => { onRun({ url, path, branch }); onClose(); }}>{t.add}</Button></>}>
       <div className="stack">
-        <Field label={t.repository}><input className="input" dir="ltr" autoFocus placeholder="https://github.com/OCA/web" value={url} onChange={(e) => setUrl(e.target.value)} /></Field>
+        <Field label={t.repository}><Input dir="ltr" autoFocus placeholder="https://github.com/OCA/web" value={url} onChange={(e) => setUrl(e.target.value)} /></Field>
         <div className="grid-2">
-          <Field label={t.folder} hint={t.folderHint}><input className="input" dir="ltr" placeholder="oca/web" value={path} onChange={(e) => setPath(e.target.value)} /></Field>
-          <Field label={t.branch}><input className="input" dir="ltr" value={branch} onChange={(e) => setBranch(e.target.value)} /></Field>
+          <Field label={t.folder} hint={t.folderHint}><Input dir="ltr" placeholder="oca/web" value={path} onChange={(e) => setPath(e.target.value)} /></Field>
+          <Field label={t.branch}><Input dir="ltr" value={branch} onChange={(e) => setBranch(e.target.value)} /></Field>
         </div>
       </div>
     </Modal>
@@ -1022,11 +1021,11 @@ function DeleteDialog({ name, production, onClose }: { name: string; production:
           </Callout>
         )}
         <Field label={<>{t.typeName(<code key="n">{name}</code>)}</>}>
-          <input className="input" dir="ltr" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} />
+          <Input dir="ltr" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} />
         </Field>
         {production && (
           <Field label={<>{t.typeProduction(<code key="p">production</code>)}</>}>
-            <input className="input" dir="ltr" value={typedStage} onChange={(e) => setTypedStage(e.target.value)} />
+            <Input dir="ltr" value={typedStage} onChange={(e) => setTypedStage(e.target.value)} />
           </Field>
         )}
         {can("backups.manage") && (

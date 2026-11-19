@@ -9,8 +9,10 @@ import { api, errorText } from "@/api/client";
 import { keys, useCall, useCaughtMail, useCaughtMailDetail } from "@/api/queries";
 import type { CaughtMail, CaughtMailDetail, Instance } from "@/api/types";
 import { useCan } from "@/components/Shell";
-import { Button, Callout, Empty, Field, Segmented, Skeleton } from "@/components/ui/basics";
-import { Modal, useToast } from "@/components/ui/overlay";
+import { Button, Callout, Empty, Field, Segmented, Skeleton } from "@/components/app/basics";
+import { Table, TableBody, TableCell, TableHead, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Modal, useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/mail";
@@ -61,7 +63,7 @@ export function MailTab({ instance }: { instance: Instance }) {
         <div className="card-body caught-mail-toolbar">
           <label className="input-group caught-mail-search">
             <Search aria-hidden="true" />
-            <input className="input" type="search" value={query} placeholder={t.search} aria-label={t.searchLabel} onChange={(e) => setQuery(e.target.value)} />
+            <Input type="search" value={query} placeholder={t.search} aria-label={t.searchLabel} onChange={(e) => setQuery(e.target.value)} />
           </label>
           {meta && <span className="xsmall faint">{t.usage(meta.usage.messages, bytes(meta.usage.bytes), meta.limits.retention_days)}</span>}
         </div>
@@ -144,7 +146,7 @@ function Viewer({ name, id, manage, release, onBack }: { name: string; id: strin
           <div><dt>{t.size}</dt><dd>{bytes(mail.size)}</dd></div>
         </dl>
         <div className="caught-mail-actions">
-          <a className="btn sm" href={`${base(name, id)}/raw`} download><Download aria-hidden="true" /> {t.download}</a>
+          <Button asChild size="sm"><a href={`${base(name, id)}/raw`} download><Download aria-hidden="true" /> {t.download}</a></Button>
           {manage && release && <Button size="sm" icon={<Send className="flip-rtl" />} onClick={() => setDialog("release")}>{t.release}</Button>}
           {manage && <Button size="sm" icon={<Trash2 />} onClick={() => setDialog("delete")}>{t.delete}</Button>}
         </div>
@@ -173,15 +175,13 @@ function Viewer({ name, id, manage, release, onBack }: { name: string; id: strin
         {shown === "html" && <HtmlBody name={name} mail={mail} />}
         {shown === "text" && (mail.text ? <pre className="caught-mail-text" dir="auto">{mail.text}</pre> : <p className="muted small">{t.noText}</p>)}
         {shown === "headers" && (
-          <div className="table-wrap">
-            <table className="table compact caught-mail-headers" dir="ltr">
-              <tbody>
-                {mail.headers.map(([key, value], i) => (
-                  <tr key={`${key}${i}`}><th className="mono">{key}</th><td className="mono">{value}</td></tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table className="compact caught-mail-headers" dir="ltr">
+            <TableBody>
+              {mail.headers.map(([key, value], i) => (
+                <TableRow key={`${key}${i}`}><TableHead className="mono">{key}</TableHead><TableCell className="mono">{value}</TableCell></TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </div>
       {dialog === "delete" && <DeleteOne name={name} mail={mail} onClose={() => setDialog(null)} onDone={onBack} />}
@@ -276,7 +276,7 @@ function Release({ name, mail, onClose }: { name: string; mail: CaughtMail; onCl
       }>
       <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <Field label={t.releaseTo} htmlFor="release-to" error={error}>
-          <input id="release-to" className="input" type="email" dir="ltr" autoComplete="email" value={to}
+          <Input id="release-to"  type="email" dir="ltr" autoComplete="email" value={to}
             onChange={(e) => { setTo(e.target.value); setError(""); }} autoFocus />
         </Field>
       </form>

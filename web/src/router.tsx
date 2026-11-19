@@ -6,7 +6,7 @@ import type { ComponentType } from "react";
 import { createBrowserRouter } from "react-router";
 import type { Permission } from "./api/types";
 import { RequirePermission, RequireSession } from "./components/Session";
-import { Spinner } from "./components/ui/basics";
+import { Spinner } from "./components/app/basics";
 import { LoginPage } from "./pages/Login";
 
 function page<M>(load: () => Promise<M>, pick: (module: M) => ComponentType, permission?: Permission) {

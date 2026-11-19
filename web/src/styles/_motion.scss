@@ -113,7 +113,7 @@
     position: absolute;
     inset: 0;
     width: 40%;
-    background: var(--accent);
+    background: var(--brand);
     animation: sweep 1.1s linear infinite;
   }
 }
@@ -167,12 +167,12 @@
     transition-property: opacity, color, background-color, border-color !important;
     transition-duration: 150ms !important;
   }
-  .rise, .tab-enter, .auth .stagger > *, .modal, .drawer, .menu, .toast { animation: fade 150ms ease both !important; transform: none !important; }
+  .rise, .tab-enter, .auth .stagger > *, [data-slot="dialog-content"], [data-slot="sheet-content"], .menu, [data-slot="select-content"], .toast { animation: fade 150ms ease both !important; transform: none !important; }
   // the page transition stays a fade, quicker and without the rise
   :root { --page-out: 80ms; --page-in: 120ms; --page-rise: 0px; }
   // loading placeholders keep their delay: it avoids a flash, it is not movement
   .nav-progress, .spinner[role="status"] { animation-delay: 150ms !important; }
-  .skeleton { animation-delay: 0ms, 150ms !important; }
+  [data-slot="skeleton"] { animation-delay: 0ms, 150ms !important; }
 }
 
 // ---------------------------------------------------------------- changing the theme

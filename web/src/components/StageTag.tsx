@@ -2,7 +2,7 @@ import { FlaskConical, ShieldCheck, Wrench } from "lucide-react";
 import type { Stage } from "@/api/types";
 import { useT, words } from "@/i18n";
 import common from "@/i18n/common";
-import { Tag } from "./ui/basics";
+import { Tag } from "./app/basics";
 
 const ORDER: Stage[] = ["production", "staging", "development"];
 const stageWords = (stage: Stage) => words(common).stages[stage];

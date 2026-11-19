@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useDocPage, useDocs } from "@/api/queries";
 import { Page } from "@/components/Shell";
-import { Empty, Skeleton } from "@/components/ui/basics";
+import { Empty, Skeleton } from "@/components/app/basics";
 import { useT } from "@/i18n";
 import words from "@/i18n/operations";
 

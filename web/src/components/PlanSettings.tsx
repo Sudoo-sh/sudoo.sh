@@ -10,7 +10,7 @@ import { useT } from "@/i18n";
 import words from "@/i18n/plan";
 import { ago, dateTime } from "@/lib/format";
 import { useMe } from "./Session";
-import { Callout, Skeleton, Tag } from "./ui/basics";
+import { Button, Callout, Skeleton, Tag } from "./app/basics";
 
 const FEATURES = ["per_project_access", "custom_domains", "offsite_backups"] as const;
 
@@ -61,7 +61,7 @@ function LinkBanner({ restricted, daysLeft, canLink }: { restricted: boolean; da
       <Callout tone={restricted ? "danger" : "warning"}>
         <b>{restricted ? t.linkOverdue : t.linkTitle(daysLeft)}</b> {restricted ? t.linkOverdueText : t.linkText}{" "}
         {canLink ? (
-          <Link className="btn sm primary" to="/settings?tab=marketplace" viewTransition>{t.linkButton}</Link>
+          <Button asChild variant="primary" size="sm"><Link to="/settings?tab=marketplace" viewTransition>{t.linkButton}</Link></Button>
         ) : (
           <span className="faint">{t.linkAskSuperAdmin}</span>
         )}
@@ -129,7 +129,7 @@ export function PlanSettings() {
             <div className="sub">{t.text}</div>
           </div>
           <div className="row-wrap">
-            {plan.linked ? <External href={plan.links.account} primary>{t.managePlan}</External> : <Link className="btn sm primary" to="/settings?tab=marketplace">{t.linkPanel}</Link>}
+            {plan.linked ? <External href={plan.links.account} primary>{t.managePlan}</External> : <Button asChild variant="primary" size="sm"><Link to="/settings?tab=marketplace">{t.linkPanel}</Link></Button>}
             <External href={plan.links.pricing}>{t.comparePlans}</External>
           </div>
         </div>

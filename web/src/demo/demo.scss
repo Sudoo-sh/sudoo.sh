@@ -1,5 +1,8 @@
 @use "../styles/mixins" as *;
 
+// in the panel's cascade layer, like the panel's own styles (styles/main.scss)
+@layer panel {
+
 // The demo's banner: one calm line above the panel, always visible. It takes its height from the page (body padding)
 // and the panel's sticky frame starts below it. Only in the demo build (this file is imported by src/demo/).
 
@@ -31,8 +34,8 @@
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
+    background: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-soft);
   }
   .demo-text {
     min-width: 0;
@@ -49,39 +52,6 @@
     gap: var(--s2);
     color: var(--text-3);
   }
-  .demo-select {
-    position: relative;
-    display: inline-flex;
-    select {
-      appearance: none;
-      -webkit-appearance: none;
-      height: 28px;
-      padding-block: 0;
-      padding-inline: 12px 28px;
-      border: 1px solid var(--hairline);
-      border-radius: 14px;
-      background: var(--surface);
-      color: var(--text);
-      font: inherit;
-      font-weight: 500;
-      cursor: pointer;
-      touch-action: manipulation;
-      @include press(0.97);
-      @include hover { border-color: var(--hairline-strong); }
-      &:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 1px; }
-    }
-    svg {
-      position: absolute;
-      inset-inline-end: 9px;
-      top: 50%;
-      width: 14px;
-      height: 14px;
-      color: var(--text-3);
-      transform: translateY(-50%);
-      pointer-events: none;
-    }
-  }
-
   .demo-language { height: 28px; flex: none; }
 
   .demo-back {
@@ -99,7 +69,7 @@
     transition: color var(--quick) var(--ease), background-color var(--quick) var(--ease);
     @include press(0.97);
     @include hover { color: var(--text); background: var(--raised); }
-    &:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 1px; }
+    &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 1px; }
     svg { width: 14px; height: 14px; }
   }
 
@@ -110,15 +80,15 @@
     height: 28px;
     padding: 0 var(--s3);
     border-radius: 14px;
-    background: var(--accent);
-    color: var(--on-accent);
+    background: var(--brand);
+    color: var(--on-brand);
     font-weight: 500;
     text-decoration: none !important;
     user-select: none;
     -webkit-user-select: none;
     touch-action: manipulation;
     @include press(0.97);
-    @include hover { background: color-mix(in oklab, var(--accent) 88%, var(--text)); }
+    @include hover { background: color-mix(in oklab, var(--brand) 88%, var(--text)); }
     svg { width: 14px; height: 14px; }
   }
 
@@ -141,4 +111,25 @@
   @media (max-width: 960px) {
     .sidebar { top: var(--demo-bar); bottom: 0; height: auto; }
   }
+}
+}
+
+// the role switcher (shadcn's Select, components/app/select.tsx): a small pill. Outside the layer, like the look of
+// the panel's own components (styles/_look.scss), so it wins over the component's utility classes.
+[data-slot="select-trigger"].demo-select {
+  width: auto;
+  height: 28px;
+  gap: 5px;
+  padding-block: 0;
+  padding-inline: 12px 9px;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-13);
+  font-weight: 500;
+  @include press(0.97);
+  @include hover { border-color: var(--hairline-strong); }
+  &:focus, &:focus-visible { border-color: var(--hairline); box-shadow: none; outline: 2px solid var(--brand-ring); outline-offset: 1px; }
+  > svg { width: 14px; height: 14px; }
 }

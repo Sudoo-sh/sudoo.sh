@@ -40,15 +40,18 @@ import common from "@/i18n/common";
 import { ago, percent } from "@/lib/format";
 import { applyTheme, storedTheme, type ThemeChoice } from "@/lib/theme";
 import { revealTheme } from "@/lib/theme-reveal";
+import { NARROW, useMedia } from "@/lib/media";
+import { useDirection } from "@/components/ui/direction";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { LanguageSwitch } from "./LanguageSwitch";
-import { Brand } from "./ui/Brand";
-import { Button, Callout } from "./ui/basics";
+import { Brand } from "./app/Brand";
+import { Button, Callout } from "./app/basics";
 import { BackToTop } from "./BackToTop";
 import { HelpButton } from "./HelpPanel";
 import { PageMotion } from "./PageMotion";
 import { PlanBanner } from "./PlanSettings";
 import { PremiumSlot, usePremiumRoutes } from "@/premium/components";
-import { Menu, useToast } from "./ui/overlay";
+import { Menu, MenuItem, MenuSeparator, useToast } from "./app/overlay";
 
 import { useCan, useMe } from "./Session";
 
@@ -102,7 +105,7 @@ function ThemeButton() {
   );
 }
 
-function Sidebar({ open }: { open: boolean }) {
+function Sidebar() {
   const me = useMe();
   const can = useCan();
   const { data: instances } = useInstances();
@@ -116,7 +119,7 @@ function Sidebar({ open }: { open: boolean }) {
   const administration =
     can("settings.manage") || can("mail.manage") || can("accounts.manage") || can("teams.manage") || can("tokens.manage") || can("plugins.view") || can("support_access.manage");
   return (
-    <aside className={`sidebar ${open ? "open" : ""}`}>
+    <aside className="sidebar">
       <Brand />
       <div className="nav-group">{t.workspace}</div>
       <nav>
@@ -221,13 +224,13 @@ function Sidebar({ open }: { open: boolean }) {
         >
           {(close) => (
             <>
-              <Link to="/account" viewTransition onClick={close}>
+              <MenuItem asChild><Link to="/account" viewTransition onClick={close}>
                 <UserRound /> {t.myAccount}
-              </Link>
-              <hr />
-              <button className="danger" onClick={signOut}>
+              </Link></MenuItem>
+              <MenuSeparator />
+              <MenuItem danger onSelect={signOut}>
                 <LogOut /> {t.signOut}
-              </button>
+              </MenuItem>
             </>
           )}
         </Menu>
@@ -363,7 +366,7 @@ function Alerts() {
           ) : (
             <div className="bell-list">
               {list.map((alert) => (
-                <Link key={alert.id} to={alert.link ?? "/"} viewTransition onClick={close} className={alert.resolved_at ? "resolved" : ""}>
+                <MenuItem key={alert.id} asChild><Link to={alert.link ?? "/"} viewTransition onClick={close} className={alert.resolved_at ? "resolved" : ""}>
                   <AlertIcon alert={alert} />
                   <span className="bell-item">
                     <span className="bell-title">{alert.title}</span>
@@ -374,7 +377,7 @@ function Alerts() {
                       {alert.severity === "problem" && alert.resolved_at && t.resolved}
                     </span>
                   </span>
-                </Link>
+                </Link></MenuItem>
               ))}
             </div>
           )}
@@ -475,13 +478,25 @@ function RecoveryCodesNotice() {
 export function Shell() {
   const sync = useLiveEvents(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const narrow = useMedia(NARROW);
+  const rtl = useDirection() === "rtl";
+  const menuLabel = useT(common).common.menu;
   const { pathname } = useLocation();
-  useEffect(() => setMenuOpen(false), [pathname]);
+  useEffect(() => setMenuOpen(false), [pathname, narrow]);
   return (
     <div className="shell">
       <PageMotion />
-      <Sidebar open={menuOpen} />
-      {menuOpen && <div className="sidebar-scrim" onClick={() => setMenuOpen(false)} />}
+      {narrow ? (
+        // up to 960px the sidebar is a sheet from the inline-start edge, opened from the top bar
+        <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+          <SheetContent side={rtl ? "right" : "left"} showCloseButton={false} className="sidebar-sheet" aria-describedby={undefined}>
+            <SheetTitle className="sr-only">{menuLabel}</SheetTitle>
+            <Sidebar />
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Sidebar />
+      )}
       <div className="main">
         <Topbar onMenu={() => setMenuOpen(true)} />
         <Reconnecting sync={sync} />

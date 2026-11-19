@@ -5,9 +5,10 @@ import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, errorText, setCsrfToken } from "@/api/client";
 import { keys, useSession, useSetup } from "@/api/queries";
 import type { SecondFactorChallenge, Session } from "@/api/types";
-import { Brand } from "@/components/ui/Brand";
-import { Button, Callout, Field } from "@/components/ui/basics";
-import { OtpInput } from "@/components/ui/OtpInput";
+import { Brand } from "@/components/app/Brand";
+import { Button, Callout, Field } from "@/components/app/basics";
+import { Input } from "@/components/ui/input";
+import { OtpInput } from "@/components/app/OtpInput";
 import { LanguageSwitch } from "@/components/LanguageSwitch";
 import { useT } from "@/i18n";
 import auth from "@/i18n/auth";
@@ -147,13 +148,13 @@ export function LoginPage() {
                 <Field label={t.email} htmlFor="username">
                   <div className="input-group">
                     <Mail />
-                    <input id="username" className="input" type="text" inputMode="email" dir="ltr" autoCapitalize="none" spellCheck={false} placeholder="you@example.com" autoComplete="username" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} required />
+                    <Input id="username" type="text" inputMode="email" dir="ltr" autoCapitalize="none" spellCheck={false} placeholder="you@example.com" autoComplete="username" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} required />
                   </div>
                 </Field>
                 <Field label={t.password} htmlFor="password">
                   <div className="input-group">
                     <Lock />
-                    <input id="password" className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                    <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
                   </div>
                 </Field>
                 {error && <Callout tone="danger">{error}</Callout>}
@@ -191,7 +192,7 @@ export function LoginPage() {
                   <Field label={t.recoveryCode} htmlFor="recovery-code">
                     <div className="input-group">
                       <LifeBuoy />
-                      <input id="recovery-code" dir="ltr" className={`input mono ${shake ? "shake" : ""}`} autoComplete="one-time-code" autoCapitalize="none" spellCheck={false}
+                      <Input id="recovery-code" dir="ltr" className={`mono ${shake ? "shake" : ""}`} autoComplete="one-time-code" autoCapitalize="none" spellCheck={false}
                         placeholder="xxxxx-xxxxx" maxLength={24} autoFocus value={code} onChange={(e) => setCode(e.target.value)} />
                     </div>
                   </Field>

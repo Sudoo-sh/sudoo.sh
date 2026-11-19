@@ -23,8 +23,8 @@ export {
   Status,
   Switch,
   Tag,
-} from "@/components/ui/basics";
-export { Drawer, Menu, Modal, useToast } from "@/components/ui/overlay";
+} from "@/components/app/basics";
+export { Drawer, Menu, Modal, useToast } from "@/components/app/overlay";
 export { JobDrawer } from "@/components/JobDrawer";
 export { countIn, getLocale, iso, ltr, useLocale, useT, words } from "@/i18n";
 export { ago, bytes, count, dateTime } from "@/lib/format";

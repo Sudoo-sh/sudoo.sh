@@ -2,7 +2,9 @@ import { CircleCheck, CircleX, ScrollText, Search } from "lucide-react";
 import { useState } from "react";
 import { useAudit } from "@/api/queries";
 import { Page, PageHead } from "@/components/Shell";
-import { Tag, Button, Empty, Skeleton } from "@/components/ui/basics";
+import { Tag, Button, Empty, Skeleton } from "@/components/app/basics";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 import { useT } from "@/i18n";
 import words from "@/i18n/operations";
 import supportWords from "@/i18n/premium";
@@ -26,7 +28,7 @@ export function AuditPage() {
       <div className="toolbar rise">
         <div className="input-group">
           <Search />
-          <input className="input" placeholder={t.search} value={query} onChange={(e) => setQuery(e.target.value)} />
+          <Input placeholder={t.search} value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
         <Button variant={onlyRefused ? "soft" : "default"} icon={<CircleX />} onClick={() => setOnlyRefused(!onlyRefused)}>{t.refusedOnly}</Button>
       </div>
@@ -34,28 +36,26 @@ export function AuditPage() {
         {isPending ? <div className="card-body"><Skeleton height={300} /></div> : !shown.length ? (
           <Empty icon={<ScrollText />} title={t.nothing} />
         ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead><tr><th>{t.when}</th><th>{t.who}</th><th>{t.what}</th><th>{t.instance}</th><th>{t.address}</th></tr></thead>
-              <tbody>
-                {shown.map((e, i) => (
-                  <tr key={`${e.ts}-${i}`}>
-                    <td className="small nowrap" title={dateTime(e.ts)}>{ago(e.ts)}</td>
-                    <td className="small"><bdi>{e.user}</bdi>{e.support && <> <Tag tone="caution">{sw.supportTag}</Tag></>}</td>
-                    <td>
-                      <div className="row">
-                        {e.ok ? <CircleCheck size={15} color="var(--positive)" aria-label={t.allowed} /> : <CircleX size={15} color="var(--negative)" aria-label={t.refused} />}
-                        <bdi>{e.event}</bdi>
-                      </div>
-                      {e.detail && <div className="xsmall faint" dir="auto" style={{ marginInlineStart: 23 }}>{e.detail}</div>}
-                    </td>
-                    <td>{e.instance && <Tag><bdi>{e.instance}</bdi></Tag>}</td>
-                    <td className="xsmall faint"><span className="mono">{e.ip}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableHeader><TableRow><TableHead>{t.when}</TableHead><TableHead>{t.who}</TableHead><TableHead>{t.what}</TableHead><TableHead>{t.instance}</TableHead><TableHead>{t.address}</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {shown.map((e, i) => (
+                <TableRow key={`${e.ts}-${i}`}>
+                  <TableCell className="small nowrap" title={dateTime(e.ts)}>{ago(e.ts)}</TableCell>
+                  <TableCell className="small"><bdi>{e.user}</bdi>{e.support && <> <Tag tone="caution">{sw.supportTag}</Tag></>}</TableCell>
+                  <TableCell>
+                    <div className="row">
+                      {e.ok ? <CircleCheck size={15} color="var(--positive)" aria-label={t.allowed} /> : <CircleX size={15} color="var(--negative)" aria-label={t.refused} />}
+                      <bdi>{e.event}</bdi>
+                    </div>
+                    {e.detail && <div className="xsmall faint" dir="auto" style={{ marginInlineStart: 23 }}>{e.detail}</div>}
+                  </TableCell>
+                  <TableCell>{e.instance && <Tag><bdi>{e.instance}</bdi></Tag>}</TableCell>
+                  <TableCell className="xsmall faint"><span className="mono">{e.ip}</span></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
         {entries && entries.length >= limit && (
           <div className="card-foot" style={{ textAlign: "center" }}>

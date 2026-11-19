@@ -8,8 +8,9 @@ import type { LicenceAcceptance as Acceptance, Session } from "@/api/types";
 import { LicenceAcceptance } from "@/components/LicenceAcceptance";
 import licenceWords from "@/i18n/licence";
 import { useSignOut } from "@/components/Shell";
-import { Brand } from "@/components/ui/Brand";
-import { Button, Callout, Field, Spinner } from "@/components/ui/basics";
+import { Brand } from "@/components/app/Brand";
+import { Button, Callout, Field, Spinner } from "@/components/app/basics";
+import { Input } from "@/components/ui/input";
 import { PasswordFields, passwordReady } from "@/components/PasswordFields";
 import type { Person } from "@/lib/password";
 import { useT } from "@/i18n";
@@ -92,14 +93,14 @@ export function SetupPage() {
           <Field label={t.code} hint={<>{t.codeHint(<code key="c">docker exec sudoo-panel sudoo.sh setup-code</code>)}</>}>
             <div className="input-group">
               <KeyRound />
-              <input className="input mono" dir="ltr" autoFocus placeholder="XXXX-XXXX-XXXX" value={form.setup_code} onChange={set("setup_code")} autoComplete="off" />
+              <Input className="mono" dir="ltr" autoFocus placeholder="XXXX-XXXX-XXXX" value={form.setup_code} onChange={set("setup_code")} autoComplete="off" />
             </div>
           </Field>
           <div className="form-grid">
-            <Field label={t.firstName}><input className="input" autoComplete="given-name" value={form.first_name} onChange={set("first_name")} /></Field>
-            <Field label={t.lastName}><input className="input" autoComplete="family-name" value={form.last_name} onChange={set("last_name")} /></Field>
-            <Field label={t.email} hint={t.emailHint}><input className="input" type="email" autoComplete="username email" value={form.email} onChange={set("email")} /></Field>
-            <Field label={t.phone} hint={t.optional}><input className="input" type="tel" dir="ltr" autoComplete="tel" value={form.phone} onChange={set("phone")} /></Field>
+            <Field label={t.firstName}><Input autoComplete="given-name" value={form.first_name} onChange={set("first_name")} /></Field>
+            <Field label={t.lastName}><Input autoComplete="family-name" value={form.last_name} onChange={set("last_name")} /></Field>
+            <Field label={t.email} hint={t.emailHint}><Input type="email" autoComplete="username email" value={form.email} onChange={set("email")} /></Field>
+            <Field label={t.phone} hint={t.optional}><Input type="tel" dir="ltr" autoComplete="tel" value={form.phone} onChange={set("phone")} /></Field>
             <PasswordFields value={password} onChange={setPassword} person={person} />
           </div>
           {error && <Callout tone="danger">{error}</Callout>}
@@ -151,7 +152,7 @@ export function ChangePasswordPage() {
           <p>{t.text}</p>
         </header>
         <Field label={t.current}>
-          <input className="input" type="password" autoComplete="current-password" autoFocus value={current} onChange={(e) => setCurrent(e.target.value)} />
+          <Input type="password" autoComplete="current-password" autoFocus value={current} onChange={(e) => setCurrent(e.target.value)} />
         </Field>
         <PasswordFields value={password} onChange={setPassword} person={person} />
         {error && <Callout tone="danger">{error}</Callout>}

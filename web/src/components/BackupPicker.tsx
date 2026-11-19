@@ -2,7 +2,8 @@ import { Archive, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useBackups } from "@/api/queries";
 import type { Backup, BackupKind } from "@/api/types";
-import { Empty, Skeleton, Tag } from "@/components/ui/basics";
+import { Empty, Skeleton, Tag } from "@/components/app/basics";
+import { Input } from "@/components/ui/input";
 import { useT, words } from "@/i18n";
 import instanceWords from "@/i18n/instance";
 import { ago, bytes, dateTime } from "@/lib/format";
@@ -65,7 +66,7 @@ export function BackupPicker({
       {backups.length > 6 && (
         <div className="input-group">
           <Search />
-          <input className="input" placeholder={t.filter} value={query} onChange={(e) => setQuery(e.target.value)} aria-label={t.filterLabel} />
+          <Input placeholder={t.filter} value={query} onChange={(e) => setQuery(e.target.value)} aria-label={t.filterLabel} />
         </div>
       )}
       <div className="backup-picker-list" role="listbox" aria-label={t.list}>

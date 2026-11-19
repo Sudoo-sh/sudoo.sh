@@ -13,7 +13,7 @@ import { Monogram } from "@/components/InstanceCard";
 import { JobSteps } from "@/components/JobDrawer";
 import { LogView } from "@/components/LogView";
 import { Page, useCan } from "@/components/Shell";
-import { Callout, Progress, Skeleton, Status, Tag } from "@/components/ui/basics";
+import { Button, Callout, Progress, Skeleton, Status, Tag } from "@/components/app/basics";
 import { useT } from "@/i18n";
 import instanceWords from "@/i18n/instance";
 import { jobTitle } from "@/i18n/jobs";
@@ -143,13 +143,13 @@ export function CreationFailed({ name, job, instance }: { name: string; job: Job
         <div className="card-body stack">
           <JobSteps job={job} />
           <div className="row-wrap">
-            <Link className="btn" to="/" viewTransition>
+            <Button asChild><Link to="/" viewTransition>
               {t.back}
-            </Link>
+            </Link></Button>
             {can("instances.create") && (
-              <Link className="btn primary" to="/new" viewTransition>
+              <Button asChild variant="primary"><Link to="/new" viewTransition>
                 <Plus /> {t.retry}
-              </Link>
+              </Link></Button>
             )}
           </div>
         </div>

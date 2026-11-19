@@ -9,8 +9,8 @@ import { keys } from "@/api/queries";
 import type { Account, Session } from "@/api/types";
 import { LOCALE_CODES, LOCALES, setLocale, useLocale, useT, type Locale } from "@/i18n";
 import common from "@/i18n/common";
-import { Button } from "./ui/basics";
-import { useToast } from "./ui/overlay";
+import { Button } from "./app/basics";
+import { useToast } from "./app/overlay";
 
 /** Saves the signed-in person's language (null: the server's default) and shows the panel in it. */
 export function useSaveLanguage() {

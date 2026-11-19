@@ -12,7 +12,8 @@ import words from "@/i18n/licence";
 import { fullDateTime } from "@/lib/format";
 import { LicenceDocument } from "./LicenceAcceptance";
 import { useMe } from "./Session";
-import { Callout, Skeleton, Tag } from "./ui/basics";
+import { Button, Callout, Skeleton, Tag } from "./app/basics";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 function Card({ title, text, icon, actions, children }: { title: string; text?: ReactNode; icon: ReactNode; actions?: ReactNode; children: ReactNode }) {
   return (
@@ -46,7 +47,7 @@ export function LicenceSettings({ children }: { children: ReactNode }) {
   return (
     <>
       <Card title={t.aboutTitle} text={t.aboutText(link)} icon={<ScrollText />}
-        actions={me.role === "super_admin" && <Link className="btn sm" to="/licence" viewTransition>{t.acceptAgain}</Link>}>
+        actions={me.role === "super_admin" && <Button asChild size="sm"><Link to="/licence" viewTransition>{t.acceptAgain}</Link></Button>}>
         <div className="card-body stack">
           {!status ? (
             <Skeleton height={96} />
@@ -79,34 +80,32 @@ export function LicenceSettings({ children }: { children: ReactNode }) {
       </Card>
       {status?.history && status.history.length > 0 && (
         <Card title={t.history} text={t.historyText} icon={<History />}>
-          <div className="table-wrap">
-            <table className="table licence-table">
-              <thead>
-                <tr>
-                  <th>{t.columns.when}</th>
-                  <th>{t.columns.version}</th>
-                  <th>{t.columns.who}</th>
-                  <th>{t.columns.where}</th>
-                  <th>{t.columns.use}</th>
-                  <th>{t.columns.from}</th>
-                  <th>{t.columns.hub}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {status.history.map((r) => (
-                  <tr key={r.id ?? r.accepted_at}>
-                    <td className="small nowrap">{fullDateTime(r.accepted_at)}</td>
-                    <td className="small tabular">{r.version}</td>
-                    <td className="small"><bdi>{r.surface === "installer" ? `${r.user}@${r.host ?? ""}` : who(r)}</bdi></td>
-                    <td className="small">{t.where[r.surface] ?? r.surface}</td>
-                    <td className="small">{r.surface === "installer" ? "—" : use(r)}</td>
-                    <td className="small mono" dir="ltr" title={r.user_agent ?? r.via ?? ""}>{r.ip ?? r.via ?? ""}</td>
-                    <td className="small">{r.synced_at ? <Tag tone="positive">{t.sent}</Tag> : <Tag>{t.waiting}</Tag>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table className="licence-table">
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t.columns.when}</TableHead>
+                <TableHead>{t.columns.version}</TableHead>
+                <TableHead>{t.columns.who}</TableHead>
+                <TableHead>{t.columns.where}</TableHead>
+                <TableHead>{t.columns.use}</TableHead>
+                <TableHead>{t.columns.from}</TableHead>
+                <TableHead>{t.columns.hub}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {status.history.map((r) => (
+                <TableRow key={r.id ?? r.accepted_at}>
+                  <TableCell className="small nowrap">{fullDateTime(r.accepted_at)}</TableCell>
+                  <TableCell className="small tabular">{r.version}</TableCell>
+                  <TableCell className="small"><bdi>{r.surface === "installer" ? `${r.user}@${r.host ?? ""}` : who(r)}</bdi></TableCell>
+                  <TableCell className="small">{t.where[r.surface] ?? r.surface}</TableCell>
+                  <TableCell className="small">{r.surface === "installer" ? "—" : use(r)}</TableCell>
+                  <TableCell className="small mono" dir="ltr" title={r.user_agent ?? r.via ?? ""}>{r.ip ?? r.via ?? ""}</TableCell>
+                  <TableCell className="small">{r.synced_at ? <Tag tone="positive">{t.sent}</Tag> : <Tag>{t.waiting}</Tag>}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </Card>
       )}
       <Card title={t.fullText} icon={<FileText />}>

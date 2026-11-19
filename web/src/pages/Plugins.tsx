@@ -27,8 +27,12 @@ import { JobLine, Monogram } from "@/components/InstanceCard";
 import { JobDrawer } from "@/components/JobDrawer";
 import { LinkForm, marketplaceProblem, PublisherBadge } from "@/components/Marketplace";
 import { Page, PageHead, useCan } from "@/components/Shell";
-import { Button, Callout, Empty, Field, Segmented, Skeleton, Status, Tag } from "@/components/ui/basics";
-import { Menu, Modal, useToast } from "@/components/ui/overlay";
+import { Button, Callout, Empty, Field, Segmented, Skeleton, Status, Tag } from "@/components/app/basics";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Input } from "@/components/ui/input";
+import { SelectBox } from "@/components/app/select";
+import { Menu, MenuItem, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
 import { useT, words } from "@/i18n";
 import common from "@/i18n/common";
 import dict from "@/i18n/plugins";
@@ -391,17 +395,17 @@ function PluginSheet({
           <>
             {plans.length > 0 && (
               <Field label={t.plan}>
-                <div className="plan-list" role="radiogroup">
+                <RadioGroup className="plan-list" value={chosen?.id ?? ""} onValueChange={setPlan} disabled={step === "paying"}>
                   {plans.map((p) => (
                     <label key={p.id} className="plan">
-                      <input type="radio" name="plan" value={p.id} checked={chosen?.id === p.id} onChange={() => setPlan(p.id)} disabled={step === "paying"} />
+                      <RadioGroupItem value={p.id} />
                       <span className="stack-sm" style={{ gap: 0 }}>
                         <span className="plan-price">{all.plans[p.kind] ?? p.kind}</span>
                         <span className="small muted">{planPrice(p)}</span>
                       </span>
                     </label>
                   ))}
-                </div>
+                </RadioGroup>
               </Field>
             )}
             {chosen && (
@@ -507,19 +511,19 @@ function Catalogue({ installed, busy, onStarted }: { installed: InstalledPlugin[
       <div className="toolbar">
         <div className="input-group">
           <Search />
-          <input className="input" placeholder={t.search} aria-label={t.search} value={typed} onChange={(e) => setTyped(e.target.value)} />
+          <Input placeholder={t.search} aria-label={t.search} value={typed} onChange={(e) => setTyped(e.target.value)} />
         </div>
-        <select className="select" style={{ width: "auto" }} aria-label={t.category} value={type} onChange={(e) => setType(e.target.value)}>
+        <SelectBox style={{ width: "auto" }} aria-label={t.category} value={type} onValueChange={(value) => setType(value)}>
           <option value="">{t.allCategories}</option>
           {(categories ?? []).map((c) => (
             <option key={c.type} value={c.type}>{all.types[c.type] ?? c.type} ({number(c.count)})</option>
           ))}
-        </select>
+        </SelectBox>
         <Segmented value={tier} onChange={setTier} options={[{ value: "", label: t.all }, { value: "free", label: all.price.free }, { value: "paid", label: all.price.paid }]} />
         <span className="spacer" />
-        <select className="select" style={{ width: "auto" }} aria-label={t.order} value={sort} onChange={(e) => setSort(e.target.value)}>
+        <SelectBox style={{ width: "auto" }} aria-label={t.order} value={sort} onValueChange={(value) => setSort(value)}>
           {(Object.keys(t.sort) as (keyof typeof t.sort)[]).map((key) => <option key={key} value={key}>{t.sort[key]}</option>)}
-        </select>
+        </SelectBox>
       </div>
       {browsing && !!recommended?.length && (
         <section className="stack-sm rise" aria-labelledby="recommended">
@@ -631,72 +635,70 @@ function Installed({ plugins, busy, onStarted }: { plugins: InstalledPlugin[]; b
     );
   return (
     <div className="card rise">
-      <div className="table-wrap">
-        <table className="table">
-          <thead>
-            <tr><th>{t.columns.plugin}</th><th>{t.columns.version}</th><th>{t.columns.status}</th><th>{t.columns.licence}</th><th /></tr>
-          </thead>
-          <tbody>
-            {plugins.map((p) => {
-              const cls = STATUS[p.status] ?? "unknown";
-              const label = t.status[p.status] ?? p.status;
-              const phase = p.licence?.phase ? [t.phase[p.licence.phase] ?? p.licence.phase, PHASE[p.licence.phase]] as const : null;
-              return (
-                <tr key={p.id}>
-                  <td>
-                    <div className="row">
-                      <PluginIcon plugin={p} />
-                      <div style={{ minWidth: 0 }}>
-                        <div className="truncate"><bdi>{p.name}</bdi></div>
-                        <div className="xsmall faint"><PublisherBadge publisher={p.publisher} /></div>
-                      </div>
+      <Table>
+        <TableHeader>
+          <TableRow><TableHead>{t.columns.plugin}</TableHead><TableHead>{t.columns.version}</TableHead><TableHead>{t.columns.status}</TableHead><TableHead>{t.columns.licence}</TableHead><TableHead /></TableRow>
+        </TableHeader>
+        <TableBody>
+          {plugins.map((p) => {
+            const cls = STATUS[p.status] ?? "unknown";
+            const label = t.status[p.status] ?? p.status;
+            const phase = p.licence?.phase ? [t.phase[p.licence.phase] ?? p.licence.phase, PHASE[p.licence.phase]] as const : null;
+            return (
+              <TableRow key={p.id}>
+                <TableCell>
+                  <div className="row">
+                    <PluginIcon plugin={p} />
+                    <div style={{ minWidth: 0 }}>
+                      <div className="truncate"><bdi>{p.name}</bdi></div>
+                      <div className="xsmall faint"><PublisherBadge publisher={p.publisher} /></div>
                     </div>
-                  </td>
-                  <td className="nowrap">
-                    <span className="mono small">v{p.version}</span>
-                    {p.update_available && manage && (
-                      <> <Button size="sm" variant="soft" disabled={busy} onClick={() => update(p)}>{t.updateTo(p.latest_version ?? "")}</Button></>
-                    )}
-                  </td>
-                  <td>
-                    <Status status={p.restart_pending ? "starting" : cls} label={p.restart_pending ? t.waitingRestart : label} />
-                  </td>
-                  <td className="small">
-                    {p.tier === "free" ? (
-                      <span className="faint">{t.free}</span>
-                    ) : (
-                      <div className="stack-sm" style={{ gap: 2, alignItems: "flex-start" }}>
-                        {phase && <Tag tone={phase[1]}>{phase[0]}</Tag>}
-                        {p.licence?.expires_at && <span className="xsmall faint">{t.ends(day(p.licence.expires_at))}{p.licence.grace_until ? t.stops(day(p.licence.grace_until)) : ""}</span>}
-                        {p.licence?.perpetual && <span className="xsmall faint">{t.oneTime}</span>}
-                      </div>
-                    )}
-                  </td>
-                  <td className="actions">
-                    {manage && (
-                      <Menu trigger={(toggle) => <Button size="sm" variant="ghost" onClick={toggle} disabled={busy}>{t.manage}</Button>}>
-                        {(close) => (
-                          <>
-                            {p.enabled ? (
-                              <button onClick={() => { close(); void switchTo(p, false); }}>{t.switchOff}</button>
-                            ) : (
-                              <button disabled={p.status === "modified"} onClick={() => { close(); void switchTo(p, true); }}>{t.switchOn}</button>
-                            )}
-                            <hr />
-                            <button className="danger" onClick={() => { close(); setRemoving(p); }}>
-                              <Trash2 /> {t.uninstall}
-                            </button>
-                          </>
-                        )}
-                      </Menu>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                  </div>
+                </TableCell>
+                <TableCell className="nowrap">
+                  <span className="mono small">v{p.version}</span>
+                  {p.update_available && manage && (
+                    <> <Button size="sm" variant="soft" disabled={busy} onClick={() => update(p)}>{t.updateTo(p.latest_version ?? "")}</Button></>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Status status={p.restart_pending ? "starting" : cls} label={p.restart_pending ? t.waitingRestart : label} />
+                </TableCell>
+                <TableCell className="small">
+                  {p.tier === "free" ? (
+                    <span className="faint">{t.free}</span>
+                  ) : (
+                    <div className="stack-sm" style={{ gap: 2, alignItems: "flex-start" }}>
+                      {phase && <Tag tone={phase[1]}>{phase[0]}</Tag>}
+                      {p.licence?.expires_at && <span className="xsmall faint">{t.ends(day(p.licence.expires_at))}{p.licence.grace_until ? t.stops(day(p.licence.grace_until)) : ""}</span>}
+                      {p.licence?.perpetual && <span className="xsmall faint">{t.oneTime}</span>}
+                    </div>
+                  )}
+                </TableCell>
+                <TableCell className="actions">
+                  {manage && (
+                    <Menu trigger={(toggle) => <Button size="sm" variant="ghost" onClick={toggle} disabled={busy}>{t.manage}</Button>}>
+                      {(close) => (
+                        <>
+                          {p.enabled ? (
+                            <MenuItem onSelect={() => { close(); void switchTo(p, false); }}>{t.switchOff}</MenuItem>
+                          ) : (
+                            <MenuItem disabled={p.status === "modified"} onSelect={() => { close(); void switchTo(p, true); }}>{t.switchOn}</MenuItem>
+                          )}
+                          <MenuSeparator />
+                          <MenuItem danger onSelect={() => { close(); setRemoving(p); }}>
+                            <Trash2 /> {t.uninstall}
+                          </MenuItem>
+                        </>
+                      )}
+                    </Menu>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
       {removing && (
         <Modal
           title={t.uninstallTitle(removing.name)}
@@ -710,7 +712,7 @@ function Installed({ plugins, busy, onStarted }: { plugins: InstalledPlugin[]; b
           }
         >
           <Field label={<>{t.typeToConfirm(<code key="id">{removing.id}</code>)}</>}>
-            <input className="input mono" dir="ltr" autoFocus value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+            <Input className="mono" dir="ltr" autoFocus value={confirm} onChange={(e) => setConfirm(e.target.value)} />
           </Field>
           {removing.tier === "paid" && <p className="small muted" style={{ marginTop: 12 }}>{t.subscriptionStays}</p>}
         </Modal>
@@ -748,14 +750,14 @@ function Purchases() {
             <div className="sub">{t.receiptsText}</div>
           </div>
           {billing?.manage_url && (
-            <a className="btn sm ghost" href={billing.manage_url} target="_blank" rel="noreferrer noopener">
+            <Button asChild variant="ghost" size="sm"><a href={billing.manage_url} target="_blank" rel="noreferrer noopener">
               app.sudoo.sh <ExternalLink className="flip-rtl" />
-            </a>
+            </a></Button>
           )}
           {!!receipts?.length && (
-            <a className="btn sm" href="/api/v1/marketplace/receipts?format=csv" download>
+            <Button asChild size="sm"><a href="/api/v1/marketplace/receipts?format=csv" download>
               <FileDown /> {t.exportCsv}
-            </a>
+            </a></Button>
           )}
         </div>
         {receiptsPending ? (
@@ -765,25 +767,23 @@ function Purchases() {
         ) : !receipts?.length ? (
           <Empty icon={<Receipt />} title={t.noReceipts}>{t.noReceiptsText}</Empty>
         ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr><th>{t.columns.number}</th><th>{t.columns.date}</th><th>{t.columns.plugin}</th><th>{t.columns.plan}</th><th>{t.columns.askedBy}</th><th className="num">{t.columns.total}</th></tr>
-              </thead>
-              <tbody>
-                {receipts.map((r) => (
-                  <tr key={r.id}>
-                    <td className="small nowrap"><span className="mono">{r.number}</span>{r.kind === "credit_note" && <span className="faint">{t.creditNote}</span>}</td>
-                    <td className="small nowrap">{day(r.issued_at)}</td>
-                    <td><bdi>{r.plugin_name ?? r.plugin_id}</bdi>{r.payment_kind === "renewal" && <span className="faint small">{t.renewal}</span>}</td>
-                    <td className="small">{r.plan_kind ? all.plans[r.plan_kind] ?? r.plan_kind : "—"}</td>
-                    <td className="small muted"><bdi>{r.requested_by_name ?? "—"}</bdi></td>
-                    <td className="num">{money(r.kind === "credit_note" ? -Math.abs(r.total_cents) : r.total_cents, r.currency)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow><TableHead>{t.columns.number}</TableHead><TableHead>{t.columns.date}</TableHead><TableHead>{t.columns.plugin}</TableHead><TableHead>{t.columns.plan}</TableHead><TableHead>{t.columns.askedBy}</TableHead><TableHead className="num">{t.columns.total}</TableHead></TableRow>
+            </TableHeader>
+            <TableBody>
+              {receipts.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="small nowrap"><span className="mono">{r.number}</span>{r.kind === "credit_note" && <span className="faint">{t.creditNote}</span>}</TableCell>
+                  <TableCell className="small nowrap">{day(r.issued_at)}</TableCell>
+                  <TableCell><bdi>{r.plugin_name ?? r.plugin_id}</bdi>{r.payment_kind === "renewal" && <span className="faint small">{t.renewal}</span>}</TableCell>
+                  <TableCell className="small">{r.plan_kind ? all.plans[r.plan_kind] ?? r.plan_kind : "—"}</TableCell>
+                  <TableCell className="small muted"><bdi>{r.requested_by_name ?? "—"}</bdi></TableCell>
+                  <TableCell className="num">{money(r.kind === "credit_note" ? -Math.abs(r.total_cents) : r.total_cents, r.currency)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </div>
       <div className="card rise">
@@ -794,9 +794,9 @@ function Purchases() {
             <div className="sub">{t.text}</div>
           </div>
           {!!purchases?.length && (
-            <a className="btn sm" href="/api/v1/marketplace/checkout-sessions?format=csv" download>
+            <Button asChild size="sm"><a href="/api/v1/marketplace/checkout-sessions?format=csv" download>
               <FileDown /> {t.exportCsv}
-            </a>
+            </a></Button>
           )}
         </div>
         {isPending ? (
@@ -806,36 +806,34 @@ function Purchases() {
         ) : !purchases?.length ? (
           <Empty icon={<ShoppingBag />} title={t.none}>{t.noneText}</Empty>
         ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr><th>{t.columns.date}</th><th>{t.columns.plugin}</th><th>{t.columns.plan}</th><th>{t.columns.askedBy}</th><th>{t.columns.status}</th><th className="num">{t.columns.amount}</th></tr>
-              </thead>
-              <tbody>
-                {purchases.map((p) => {
-                  const label = t.status[p.status ?? ""] ?? p.status ?? "—";
-                  const tone = PURCHASE_TONE[p.status ?? ""];
-                  return (
-                    <tr key={p.id}>
-                      <td className="small nowrap">{day(p.created_at)} <span className="faint">· {ago(p.created_at)}</span></td>
-                      <td><bdi>{p.plugin_name}</bdi></td>
-                      <td className="small">{p.plan_kind ? all.plans[p.plan_kind] ?? p.plan_kind : "—"}</td>
-                      <td className="small muted"><bdi>{p.requested_by?.name ?? "—"}</bdi></td>
-                      <td>
-                        <div className="stack-sm" style={{ gap: 2, alignItems: "flex-start" }}>
-                          <Tag tone={tone}>{label}</Tag>
-                          {p.reason && p.status !== "succeeded" && <span className="xsmall faint">{reasonText(p.reason)}</span>}
-                          {p.receipt_number && <span className="xsmall faint mono">{p.receipt_number}</span>}
-                          {p.url && <a className="xsmall" href={p.url} target="_blank" rel="noreferrer noopener">{t.paymentPage} <ExternalLink className="flip-rtl" /></a>}
-                        </div>
-                      </td>
-                      <td className="num">{money(p.amount_cents, p.currency)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow><TableHead>{t.columns.date}</TableHead><TableHead>{t.columns.plugin}</TableHead><TableHead>{t.columns.plan}</TableHead><TableHead>{t.columns.askedBy}</TableHead><TableHead>{t.columns.status}</TableHead><TableHead className="num">{t.columns.amount}</TableHead></TableRow>
+            </TableHeader>
+            <TableBody>
+              {purchases.map((p) => {
+                const label = t.status[p.status ?? ""] ?? p.status ?? "—";
+                const tone = PURCHASE_TONE[p.status ?? ""];
+                return (
+                  <TableRow key={p.id}>
+                    <TableCell className="small nowrap">{day(p.created_at)} <span className="faint">· {ago(p.created_at)}</span></TableCell>
+                    <TableCell><bdi>{p.plugin_name}</bdi></TableCell>
+                    <TableCell className="small">{p.plan_kind ? all.plans[p.plan_kind] ?? p.plan_kind : "—"}</TableCell>
+                    <TableCell className="small muted"><bdi>{p.requested_by?.name ?? "—"}</bdi></TableCell>
+                    <TableCell>
+                      <div className="stack-sm" style={{ gap: 2, alignItems: "flex-start" }}>
+                        <Tag tone={tone}>{label}</Tag>
+                        {p.reason && p.status !== "succeeded" && <span className="xsmall faint">{reasonText(p.reason)}</span>}
+                        {p.receipt_number && <span className="xsmall faint mono">{p.receipt_number}</span>}
+                        {p.url && <a className="xsmall" href={p.url} target="_blank" rel="noreferrer noopener">{t.paymentPage} <ExternalLink className="flip-rtl" /></a>}
+                      </div>
+                    </TableCell>
+                    <TableCell className="num">{money(p.amount_cents, p.currency)}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         )}
       </div>
     </div>

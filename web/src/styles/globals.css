@@ -1,0 +1,145 @@
+/* The shadcn/ui layer of the panel: Tailwind's theme and utilities for the components in src/components/ui (added
+   with the shadcn CLI, used unchanged), mapped onto the panel's design tokens (styles/_tokens.scss).
+
+   The cascade layers, lowest first: Tailwind's theme, a small base for the components, the panel's own styles
+   (styles/main.scss, in the "panel" layer), then the components' utility classes. The Sudoo.sh look on the
+   components (styles/_look.scss) comes after all of them, outside any layer.
+
+   Tailwind's Preflight is left out: the panel's own base (styles/_base.scss) stays what it was for everything that
+   is not a shadcn component, and the reset the components need is in the base layer below, for them only. */
+@layer theme, base, panel, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "./vaul.css";
+
+/* Dark follows the system, or the choice made in the panel: data-theme="dark" | "light" on <html> (lib/theme.ts). */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *) {
+      @slot;
+    }
+  }
+}
+
+/* Small text keeps the body's line height (1.43), as the panel's styles always did, instead of Tailwind's own. */
+@theme {
+  --text-xs--line-height: 1.43;
+  --text-sm--line-height: 1.43;
+}
+
+@theme inline {
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+  --font-heading: var(--font);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* shadcn's colour names, read from the panel's tokens: they follow the light and dark themes (and the brand colour,
+   --primary) by themselves. --radius 0.625rem gives 8px controls (rounded-md) and 14px cards (rounded-xl). */
+:root {
+  --radius: 0.625rem;
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface);
+  --popover-foreground: var(--text);
+  --primary-foreground: var(--on-brand);
+  --secondary: var(--raised);
+  --secondary-foreground: var(--text);
+  --muted: var(--raised);
+  --muted-foreground: var(--text-2);
+  --accent: var(--raised);
+  --accent-foreground: var(--text);
+  --destructive: var(--negative);
+  --border: var(--hairline);
+  --input: var(--hairline-strong);
+  --ring: var(--brand);
+}
+
+/* What Tailwind's Preflight would give the components, for the components only (an element with data-slot, and
+   what the generated markup puts inside it); utilities and the panel's own styles override it. */
+@layer base {
+  :where([data-slot]),
+  :where([data-slot])::before,
+  :where([data-slot])::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid;
+    border-color: var(--border);
+  }
+  :where(button, input, select, textarea)[data-slot] {
+    font: inherit;
+    letter-spacing: normal;
+    color: inherit;
+    background-color: transparent;
+    border-radius: 0;
+    appearance: none;
+  }
+  :where(button[data-slot]:not(:disabled)) {
+    cursor: pointer;
+  }
+  :where([data-slot]) :where(svg) {
+    display: block;
+    flex-shrink: 0;
+  }
+  :where(table[data-slot]) {
+    border-collapse: collapse;
+    text-indent: 0;
+  }
+}
+
+/* The Content-Security-Policy (style-src 'self') refuses the <style> elements some libraries add at run time:
+   - Radix hides the native input behind a checkbox, a radio or a switch with a style attribute (set through the
+     DOM, which the policy allows); these rules hide it the same way in any case, so a form still posts its value.
+   - Radix locks the page's scrolling while a dialog, a sheet, a menu or a list is open with a <style> element that
+     is refused: the same lock here, keyed on the attribute it sets on <body>, keeping the scrollbar's room so the
+     page does not move sideways.
+   - Vaul (the drawer) adds its stylesheet the same way: it is in styles/vaul.css instead. */
+[data-slot="checkbox"] + input[aria-hidden="true"],
+[data-slot="radio-group-item"] + input[aria-hidden="true"],
+[data-slot="switch"] + input[aria-hidden="true"] {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  margin: 0;
+  transform: translateX(-100%);
+}
+html:has(> body[data-scroll-locked]) {
+  scrollbar-gutter: stable;
+}
+body[data-scroll-locked] {
+  overflow: hidden !important;
+  overscroll-behavior: contain;
+}

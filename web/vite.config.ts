@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
@@ -29,7 +30,7 @@ function demoSite(): Plugin {
 }
 
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), ...(mode === "demo" ? [demoSite()] : [])],
+  plugins: [react(), tailwindcss(), ...(mode === "demo" ? [demoSite()] : [])],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   server: {
     proxy: {

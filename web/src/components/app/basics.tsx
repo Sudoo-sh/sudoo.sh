@@ -1,5 +1,7 @@
 import { Check, CircleAlert, Copy as CopyIcon, Info, TriangleAlert } from "lucide-react";
 import {
+  cloneElement,
+  isValidElement,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -7,20 +9,35 @@ import {
   type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button as UIButton } from "@/components/ui/button";
+import { FieldDescription, FieldError, FieldLabel, Field as UIField } from "@/components/ui/field";
+import { Progress as UIProgress } from "@/components/ui/progress";
+import { Skeleton as UISkeleton } from "@/components/ui/skeleton";
+import { Switch as UISwitch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import { statusLabel } from "@/lib/format";
 
 type Variant = "primary" | "danger" | "ghost" | "soft" | "default";
 
+// the panel's button names on shadcn's: the plain button is "outline", the plum one "default"
+const BUTTON_VARIANT = { default: "outline", primary: "default", ghost: "ghost", soft: "secondary", danger: "destructive" } as const;
+
+/** A button (shadcn's Button). `asChild` draws its one child (a link) as the button; `icon` comes before the words,
+ *  and a button with an icon and no words is square. */
 export function Button({
   variant = "default",
   size,
   icon,
   loading,
   block,
+  asChild,
   children,
-  className = "",
+  className,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: Variant;
@@ -28,27 +45,41 @@ export function Button({
   icon?: ReactNode;
   loading?: boolean;
   block?: boolean;
+  asChild?: boolean;
 }) {
-  const classes = ["btn", variant !== "default" && variant, size, block && "block", !children && "icon", className]
-    .filter(Boolean)
-    .join(" ");
+  const square = !children;
+  const shape = square ? (size ? (`icon-${size}` as const) : "icon") : (size ?? "default");
+  const classes = cn(block && "w-full", className);
+  if (asChild)
+    return (
+      <UIButton asChild variant={BUTTON_VARIANT[variant]} size={shape} className={classes} {...props}>
+        {/* the icon goes inside the child (a link), before its words */}
+        <SlotWithIcon icon={icon}>{children}</SlotWithIcon>
+      </UIButton>
+    );
   return (
-    <button type="button" className={classes} disabled={loading || props.disabled} {...props}>
+    <UIButton type="button" variant={BUTTON_VARIANT[variant]} size={shape} className={classes} disabled={loading || props.disabled} {...props}>
       {loading ? <span className="spinner" /> : icon}
       {children}
-    </button>
+    </UIButton>
   );
+}
+
+/** Renders its one child element with the button's props, the icon put before the child's own content. */
+function SlotWithIcon({ icon, children, ...props }: { icon?: ReactNode; children?: ReactNode }) {
+  if (!isValidElement<{ children?: ReactNode }>(children)) return null;
+  return cloneElement(children, props, icon, children.props.children);
 }
 
 export const Spinner = () => <span className="spinner" role="status" aria-label={useT(common).common.loading} />;
 
-/** A quiet label: versions, roles, counts. */
+/** A quiet label: versions, roles, counts (shadcn's Badge, outlined). */
 export function Tag({ tone, mono, children, icon }: { tone?: "accent" | "positive" | "caution" | "negative"; mono?: boolean; children: ReactNode; icon?: ReactNode }) {
   return (
-    <span className={["tag", tone, mono && "mono"].filter(Boolean).join(" ")}>
+    <Badge variant="outline" data-tone={tone} className={mono ? "font-mono" : undefined}>
       {icon}
       {children}
-    </span>
+    </Badge>
   );
 }
 
@@ -62,6 +93,7 @@ export function Status({ status, label }: { status: string; label?: string }) {
   );
 }
 
+/** An on/off switch (shadcn's Switch) with its words; clicking the words switches it too. */
 export function Switch({
   checked,
   onChange,
@@ -74,15 +106,18 @@ export function Switch({
   disabled?: boolean;
 }) {
   return (
-    <label className="switch">
-      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
-      <span className="track" />
+    <label className="switch-field" data-disabled={disabled || undefined}>
+      <UISwitch checked={checked} disabled={disabled} onCheckedChange={onChange} />
       {label && <span>{label}</span>}
     </label>
   );
 }
 
-/** A segmented control whose thumb slides to the chosen option, as on Apple platforms. */
+// Radix reads the empty value as nothing chosen: an option whose value is "" stands for it here
+const EMPTY = "__empty__";
+
+/** A segmented control (shadcn's ToggleGroup, one choice) whose thumb slides to the chosen option, as on Apple
+ *  platforms. The arrow keys move between the options. */
 export function Segmented<T extends string>({
   value,
   options,
@@ -95,28 +130,31 @@ export function Segmented<T extends string>({
   const group = useRef<HTMLDivElement>(null);
   const [thumb, setThumb] = useState<{ x: number; width: number } | null>(null);
   useLayoutEffect(() => {
-    const chosen = group.current?.querySelector<HTMLElement>('button[aria-pressed="true"]');
+    const chosen = group.current?.querySelector<HTMLElement>('[data-slot="toggle-group-item"][data-state="on"]');
     if (chosen) setThumb({ x: chosen.offsetLeft, width: chosen.offsetWidth });
   }, [value, options.length]);
   return (
-    <div className="segmented" role="group" ref={group}>
+    <ToggleGroup
+      type="single"
+      spacing={0}
+      className="segmented"
+      ref={group}
+      value={value === "" ? EMPTY : value}
+      // a click on the chosen option would clear the choice: it stays
+      onValueChange={(next) => next && onChange((next === EMPTY ? "" : next) as T)}
+    >
       {thumb && <span className="thumb" style={{ width: thumb.width, transform: `translateX(${thumb.x}px)` }} />}
       {options.map((option) => (
-        <button
-          type="button"
-          key={option.value}
-          aria-pressed={option.value === value}
-          disabled={option.disabled}
-          onClick={() => onChange(option.value)}
-        >
+        <ToggleGroupItem key={option.value} value={option.value === "" ? EMPTY : option.value} disabled={option.disabled}>
           {option.icon}
           {option.label}
-        </button>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }
 
+/** A form field (shadcn's Field): the label, the control, and a hint or an error under it. */
 export function Field({
   label,
   hint,
@@ -133,29 +171,24 @@ export function Field({
   htmlFor?: string;
 }) {
   return (
-    <div className={`field ${className ?? ""}`}>
-      {label && <label htmlFor={htmlFor}>{label}</label>}
+    <UIField className={className} data-invalid={error ? true : undefined}>
+      {label && <FieldLabel htmlFor={htmlFor}>{label}</FieldLabel>}
       {children}
-      {error ? <span className="error">{error}</span> : hint && <span className="hint">{hint}</span>}
-    </div>
+      {error ? <FieldError>{error}</FieldError> : hint && <FieldDescription>{hint}</FieldDescription>}
+    </UIField>
   );
 }
 
+/** Progress of a job (shadcn's Progress): sweeping while the share is not known, red when it failed, green when done. */
 export function Progress({ value, status }: { value: number | null | undefined; status?: string }) {
   const unknown = value == null && status !== "success" && status !== "failed";
   const share = status === "success" ? 100 : status === "failed" ? Math.max(value ?? 100, 8) : (value ?? 0);
-  const cls = ["progress", unknown && "indeterminate", status === "failed" && "failed", status === "success" && "success"]
-    .filter(Boolean)
-    .join(" ");
-  return (
-    <div className={cls} role="progressbar" aria-valuenow={value ?? undefined} aria-valuemin={0} aria-valuemax={100}>
-      <div className="bar" style={unknown ? undefined : { transform: `scaleX(${share / 100})` }} />
-    </div>
-  );
+  const tone = status === "failed" ? "failed" : status === "success" ? "success" : undefined;
+  return <UIProgress value={unknown ? null : share} data-tone={tone} />;
 }
 
 export const Skeleton = ({ height = 16, width = "100%" }: { height?: number; width?: number | string }) => (
-  <div className="skeleton" style={{ height, width }} />
+  <UISkeleton style={{ height, width }} />
 );
 
 export function Empty({ icon, title, children, action }: { icon: ReactNode; title: string; children?: ReactNode; action?: ReactNode }) {
@@ -170,12 +203,13 @@ export function Empty({ icon, title, children, action }: { icon: ReactNode; titl
 }
 
 const CALLOUT_ICON = { info: <Info />, warning: <TriangleAlert />, danger: <CircleAlert />, success: <Check /> };
+/** A note in a grey box (shadcn's Alert); only the icon carries the tone. */
 export function Callout({ tone = "info", children }: { tone?: keyof typeof CALLOUT_ICON; children: ReactNode }) {
   return (
-    <div className={`callout ${tone}`}>
+    <Alert data-tone={tone}>
       {CALLOUT_ICON[tone]}
-      <div>{children}</div>
-    </div>
+      <AlertDescription>{children}</AlertDescription>
+    </Alert>
   );
 }
 

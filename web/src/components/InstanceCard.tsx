@@ -8,7 +8,7 @@ import dashboard from "@/i18n/dashboard";
 import { jobTitle, stepTitle } from "@/i18n/jobs";
 import { LockTag } from "./LockTag";
 import { StageTag } from "./StageTag";
-import { Progress, Status, Tag } from "./ui/basics";
+import { Button, Progress, Status, Tag } from "./app/basics";
 
 export function Monogram({ name, large }: { name: string; large?: boolean }) {
   return <span className={`monogram ${large ? "lg" : ""}`}>{monogram(name).letters}</span>;
@@ -91,9 +91,9 @@ export function InstanceCard({ instance }: { instance: Instance }) {
         </span>
         <span className="spacer" />
         {instance.url && instance.status !== "switched_off" && (
-          <a className="btn sm ghost ic-external" href={instance.url} target="_blank" rel="noreferrer">
+          <Button asChild variant="ghost" size="sm" className="ic-external"><a href={instance.url} target="_blank" rel="noreferrer">
             {t.open} <ArrowUpRight className="flip-rtl" />
-          </a>
+          </a></Button>
         )}
       </div>
     </article>

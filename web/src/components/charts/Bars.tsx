@@ -21,7 +21,7 @@ export function Bars({ bars, format, max, onPick }: { bars: Bar[]; format: (valu
 
   useEffect(() => {
     if (!canvas.current) return;
-    const accent = token("--accent");
+    const accent = token("--brand");
     const quiet = token("--text-3");
     chart.current = new Chart<"bar">(canvas.current, {
       type: "bar",

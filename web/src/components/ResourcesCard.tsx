@@ -4,8 +4,9 @@ import { api, errorText } from "@/api/client";
 import { keys, useCall, useInstanceResources } from "@/api/queries";
 import { RESOURCE_KNOBS, type Instance, type InstanceResources, type Job, type ResourceKnob } from "@/api/types";
 import { useCan } from "@/components/Shell";
-import { Button, Callout, Skeleton } from "@/components/ui/basics";
-import { Modal, useToast } from "@/components/ui/overlay";
+import { Button, Callout, Skeleton } from "@/components/app/basics";
+import { Input } from "@/components/ui/input";
+import { Modal, useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/instance";
@@ -167,9 +168,9 @@ function Resources({ instance, data }: { instance: Instance; data: InstanceResou
                   <div className="desc">{words.hint}</div>
                 </div>
                 <div className="stack-sm">
-                  <input
+                  <Input
                     id={id}
-                    className="input tabular"
+                    className="tabular"
                     dir="ltr"
                     inputMode={MEMORY.has(knob) ? "text" : CORES.has(knob) ? "decimal" : "numeric"}
                     disabled={!editable || apply.isPending}

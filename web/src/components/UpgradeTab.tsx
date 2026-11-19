@@ -4,8 +4,12 @@ import { Link } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useUpgrade } from "@/api/queries";
 import type { Instance, Job, Upgrade, UpgradeModuleStatus } from "@/api/types";
-import { Button, Callout, Empty, Field, Skeleton, Tag } from "@/components/ui/basics";
-import { Modal, useToast } from "@/components/ui/overlay";
+import { Button, Callout, Empty, Field, Skeleton, Tag } from "@/components/app/basics";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { SelectBox } from "@/components/app/select";
+import { Modal, useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/upgrades";
@@ -83,9 +87,9 @@ function UpgradeView({ instance, data, onJob }: { instance: Instance; data: Upgr
             <Tag mono>{data.from_version}</Tag>
             <ArrowRight className="flip-rtl" size={16} strokeWidth={1.5} />
             {data.targets.length > 1 ? (
-              <select className="select" dir="ltr" aria-label={t.targetLabel} value={target ?? ""} onChange={(e) => setChosen(e.target.value)} disabled={busy}>
+              <SelectBox dir="ltr" aria-label={t.targetLabel} value={target ?? ""} onValueChange={(value) => setChosen(value)} disabled={busy}>
                 {data.targets.map((v) => <option key={v}>{v}</option>)}
-              </select>
+              </SelectBox>
             ) : (
               <Tag mono tone="accent">{target}</Tag>
             )}
@@ -150,21 +154,19 @@ function UpgradeView({ instance, data, onJob }: { instance: Instance; data: Upgr
                 {report.modules.length === 0 ? (
                   <p className="small muted">{t.noModules}</p>
                 ) : (
-                  <div className="table-wrap">
-                    <table className="table">
-                      <thead><tr><th>{t.module}</th><th>{t.current}</th><th>{t.inBranch}</th><th>{t.status}</th></tr></thead>
-                      <tbody>
-                        {report.modules.map((m) => (
-                          <tr key={m.name}>
-                            <td className="mono small" dir="ltr">{m.name}</td>
-                            <td className="mono small" dir="ltr">{m.version || "–"}</td>
-                            <td className="mono small" dir="ltr">{m.target_version || "–"}</td>
-                            <td><Tag tone={STATUS_TONE[m.status]}>{t.moduleStatus[m.status]}</Tag></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <Table>
+                    <TableHeader><TableRow><TableHead>{t.module}</TableHead><TableHead>{t.current}</TableHead><TableHead>{t.inBranch}</TableHead><TableHead>{t.status}</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {report.modules.map((m) => (
+                        <TableRow key={m.name}>
+                          <TableCell className="mono small" dir="ltr">{m.name}</TableCell>
+                          <TableCell className="mono small" dir="ltr">{m.version || "–"}</TableCell>
+                          <TableCell className="mono small" dir="ltr">{m.target_version || "–"}</TableCell>
+                          <TableCell><Tag tone={STATUS_TONE[m.status]}>{t.moduleStatus[m.status]}</Tag></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 )}
                 <p className="small muted">{t.portNote}</p>
               </>
@@ -267,11 +269,11 @@ function RunDialog({ instance, data, target, kind, onClose, onRun }: {
         {enterprise ? (
           <>
             <Field label={t.code} hint={t.codeHint}>
-              <input className="input mono" type="password" autoComplete="off" spellCheck={false} dir="ltr" maxLength={100}
+              <Input className="mono" type="password" autoComplete="off" spellCheck={false} dir="ltr" maxLength={100}
                 value={code} onChange={(e) => setCode(e.target.value)} />
             </Field>
             <label className="licence-check">
-              <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
+              <Checkbox checked={accepted} onCheckedChange={(value) => setAccepted(value === true)} />
               <span>
                 {t.terms(<a key="l" href={data.terms_url ?? "#"} target="_blank" rel="noreferrer">{t.termsLink}</a>)} {t.accept}
               </span>

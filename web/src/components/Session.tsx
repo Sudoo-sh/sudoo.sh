@@ -7,7 +7,7 @@ import { setCsrfToken } from "@/api/client";
 import { useSession } from "@/api/queries";
 import type { Permission, Session } from "@/api/types";
 import { applyBrandColor } from "@/lib/theme";
-import { Spinner } from "./ui/basics";
+import { Spinner } from "./app/basics";
 
 const SessionContext = createContext<Session | null>(null);
 export const useMe = () => useContext(SessionContext)!;

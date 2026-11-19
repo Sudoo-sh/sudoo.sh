@@ -11,8 +11,11 @@ import { PlanSettings } from "@/components/PlanSettings";
 import { PlanCard, PremiumFeaturesCard, PremiumSlot } from "@/premium/components";
 import { usePremium } from "@/premium/loader";
 import { Page, PageHead, useMe, useSubCrumb } from "@/components/Shell";
-import { Button, Callout, Skeleton, Switch, Tag } from "@/components/ui/basics";
-import { Modal, useToast } from "@/components/ui/overlay";
+import { Button, Callout, Skeleton, Switch, Tag } from "@/components/app/basics";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { SelectBox } from "@/components/app/select";
+import { Modal, useToast } from "@/components/app/overlay";
 import { useLocale, useT } from "@/i18n";
 import { bytes } from "@/lib/format";
 import common from "@/i18n/common";
@@ -166,8 +169,7 @@ function Editor({ setting, value, onChange }: { setting: Setting; value: Value; 
   const t = useT(words);
   if (setting.secret)
     return (
-      <input
-        className="input"
+      <Input
         type="password"
         autoComplete="new-password"
         placeholder={setting.value ? t.editor.secretSet : t.editor.secretNotSet}
@@ -178,25 +180,25 @@ function Editor({ setting, value, onChange }: { setting: Setting; value: Value; 
   const choices = t.choices[setting.key];
   if (choices)
     return (
-      <select className="select" value={String(value)} onChange={(e) => onChange(e.target.value)}>
+      <SelectBox value={String(value)} onValueChange={(value) => onChange(value)}>
         {Object.entries(choices).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
-      </select>
+      </SelectBox>
     );
   if (setting.key === "brand_color")
     return (
       <div className="row">
         <input type="color" aria-label={t.editor.pickColour} value={String(value)} onChange={(e) => onChange(e.target.value)}
           style={{ width: 40, height: 36, padding: 2, border: "1px solid var(--hairline-strong)", borderRadius: 8, background: "var(--surface)" }} />
-        <input className="input mono" dir="ltr" value={String(value)} onChange={(e) => onChange(e.target.value)} />
+        <Input className="mono" dir="ltr" value={String(value)} onChange={(e) => onChange(e.target.value)} />
       </div>
     );
   if (setting.type === "boolean") return <div style={{ justifySelf: "end" }}><Switch checked={Boolean(value)} onChange={onChange} /></div>;
   if (setting.type === "integer" || setting.type === "number")
     return (
-      <input className="input tabular" type="number" min={setting.minimum ?? undefined} step={setting.type === "integer" ? 1 : "any"} value={String(value)}
+      <Input className="tabular" type="number" min={setting.minimum ?? undefined} step={setting.type === "integer" ? 1 : "any"} value={String(value)}
         onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))} />
     );
-  return <input className="input" dir="auto" value={String(value)} onChange={(e) => onChange(e.target.value)} />;
+  return <Input dir="auto" value={String(value)} onChange={(e) => onChange(e.target.value)} />;
 }
 
 function Section({ title, text, icon, actions, children }: { title: string; text: ReactNode; icon?: ReactNode; actions?: ReactNode; children: ReactNode }) {
@@ -237,7 +239,7 @@ function TestEmail({ onClose }: { onClose: () => void }) {
   return (
     <Modal title={t.title} description={t.text} onClose={onClose}
       footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" icon={<Send />} loading={busy} disabled={!to} onClick={send}>{c.send}</Button></>}>
-      <input className="input" type="email" dir="ltr" autoFocus value={to} onChange={(e) => setTo(e.target.value)} />
+      <Input type="email" dir="ltr" autoFocus value={to} onChange={(e) => setTo(e.target.value)} />
     </Modal>
   );
 }
@@ -326,14 +328,14 @@ function TabList({ tab, onSelect, marks }: { tab: TabId; onSelect: (id: TabId) =
 
 /** One cell of a resources table: the setting's editor, named for screen readers by its row and its stage. */
 function Cell({ setting, value, label, onChange }: { setting: Setting | undefined; value: Value; label: string; onChange: (value: Value) => void }) {
-  if (!setting) return <td />;
+  if (!setting) return <TableCell />;
   const number = setting.type === "integer" || setting.type === "number";
   return (
-    <td>
-      <input className="input tabular" dir="ltr" aria-label={label} type={number ? "number" : "text"} min={setting.minimum ?? undefined}
+    <TableCell>
+      <Input className="tabular" dir="ltr" aria-label={label} type={number ? "number" : "text"} min={setting.minimum ?? undefined}
         step={setting.type === "integer" ? 1 : "any"} value={String(value)}
         onChange={(e) => onChange(number ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)} />
-    </td>
+    </TableCell>
   );
 }
 
@@ -345,33 +347,31 @@ function ResourceSettings({ byKey, draft, onChange }: { byKey: Record<string, Se
   const capacity = useCapacity();
   const valueOf = (key: string): Value => (key in draft ? draft[key]! : (byKey[key]?.value as Value) ?? "");
   const table = (rows: readonly string[], keyOf: (row: string, stage: Stage) => string) => (
-    <div className="table-wrap">
-      <table className="table resources-table">
-        <thead>
-          <tr>
-            <th>{r.knob}</th>
-            {STAGES.map((stage) => <th key={stage}>{c.stages[stage]?.label ?? stage}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const words = r.rows[row as keyof typeof r.rows];
-            return (
-              <tr key={row}>
-                <th scope="row">
-                  <div>{words.label}</div>
-                  <div className="small faint">{words.hint}</div>
-                </th>
-                {STAGES.map((stage) => {
-                  const key = keyOf(row, stage);
-                  return <Cell key={stage} setting={byKey[key]} value={valueOf(key)} label={r.cell(words.label, c.stages[stage]?.label ?? stage)} onChange={(v) => onChange(key, v)} />;
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <Table className="resources-table">
+      <TableHeader>
+        <TableRow>
+          <TableHead>{r.knob}</TableHead>
+          {STAGES.map((stage) => <TableHead key={stage}>{c.stages[stage]?.label ?? stage}</TableHead>)}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((row) => {
+          const words = r.rows[row as keyof typeof r.rows];
+          return (
+            <TableRow key={row}>
+              <TableHead scope="row">
+                <div>{words.label}</div>
+                <div className="small faint">{words.hint}</div>
+              </TableHead>
+              {STAGES.map((stage) => {
+                const key = keyOf(row, stage);
+                return <Cell key={stage} setting={byKey[key]} value={valueOf(key)} label={r.cell(words.label, c.stages[stage]?.label ?? stage)} onChange={(v) => onChange(key, v)} />;
+              })}
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
   );
   const reserved = capacity?.reservations?.total_bytes;
   const usable = capacity?.memory.usable_bytes;
@@ -525,7 +525,7 @@ export function SettingsPage() {
                 actions={
                   group.id === "email" ? (
                     <div className="row">
-                      {me.permissions.includes("mail.manage") && <Link className="btn sm ghost" to="/email-templates" viewTransition>{t.testEmail.texts}</Link>}
+                      {me.permissions.includes("mail.manage") && <Button asChild variant="ghost" size="sm"><Link to="/email-templates" viewTransition>{t.testEmail.texts}</Link></Button>}
                       <Button size="sm" icon={<Send />} onClick={() => setTesting(true)}>{t.testEmail.open}</Button>
                     </div>
                   ) : group.test ? (
@@ -543,7 +543,7 @@ export function SettingsPage() {
             {tab === "backups" && <PremiumSlot name="settings.offsite" props={{ dirty }} />}
             {tab === "marketplace" && (
               <Section title={t.marketplace.title} text={t.marketplace.text} icon={<Puzzle />}
-                actions={<Link className="btn sm" to="/plugins" viewTransition>{t.marketplace.open}</Link>}>
+                actions={<Button asChild size="sm"><Link to="/plugins" viewTransition>{t.marketplace.open}</Link></Button>}>
                 {rows(["marketplace"])}
                 <MarketplaceSettings />
               </Section>
@@ -565,19 +565,17 @@ export function SettingsPage() {
                   {null}
                 </Section>
                 <Section title={t.server.title} text={<>{t.server.text(<code key="p">/opt/odoo/manager/.env</code>)}</>} icon={<ServerCog />}>
-                  <div className="table-wrap">
-                    <table className="table">
-                      <tbody>
-                        {(settings ?? []).filter((s) => s.applies === "env").map((s) => (
-                          <tr key={s.key}>
-                            <td className="mono small nowrap" dir="ltr">{s.env}</td>
-                            <td className="mono small">{String(s.value) ? <bdi dir="ltr">{String(s.value)}</bdi> : <span className="faint">{t.env.empty}</span>}</td>
-                            <td className="small muted">{describe(t, locale, s)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <Table>
+                    <TableBody>
+                      {(settings ?? []).filter((s) => s.applies === "env").map((s) => (
+                        <TableRow key={s.key}>
+                          <TableCell className="mono small nowrap" dir="ltr">{s.env}</TableCell>
+                          <TableCell className="mono small">{String(s.value) ? <bdi dir="ltr">{String(s.value)}</bdi> : <span className="faint">{t.env.empty}</span>}</TableCell>
+                          <TableCell className="small muted">{describe(t, locale, s)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </Section>
               </>
             )}

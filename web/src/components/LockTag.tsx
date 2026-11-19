@@ -3,7 +3,7 @@
 
 import { Lock } from "lucide-react";
 import type { BranchLock } from "@/api/types";
-import { Tag } from "@/components/ui/basics";
+import { Tag } from "@/components/app/basics";
 import { useT } from "@/i18n";
 import words from "@/i18n/teams";
 

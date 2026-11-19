@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Sparkline } from "./charts/Sparkline";
-import { AnimatedNumber, Skeleton } from "./ui/basics";
+import { AnimatedNumber, Skeleton } from "./app/basics";
 
 /** A figure with its label, a line of how it moved over the last hour, and what it compares to. */
 export function StatCard({

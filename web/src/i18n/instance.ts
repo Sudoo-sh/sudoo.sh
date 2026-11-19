@@ -84,6 +84,8 @@ const en = {
     text: " This instance is never paused or deleted automatically. It is backed up every day, used or not, and every update backs it up first and is undone if it fails. It gets new code only when someone asks, unless automatic updates are switched on. Pausing, switching off, restoring and deleting ask for a confirmation.",
   },
   overview: {
+    managedName: "Managed address",
+    managedPending: "(its certificate is on the way)",
     processor: "Processor",
     memory: "Memory",
     requestsPerMinute: "Requests per minute",
@@ -469,6 +471,8 @@ const ar: typeof en = {
     text: " لا تتوقف هذه البيئة مؤقتًا ولا تُحذف تلقائيًا أبدًا. تُنسخ احتياطيًا كل يوم، استُخدمت أم لا، وكل تحديث ينسخها احتياطيًا أولًا ويُلغى إن فشل. ولا تصلها شيفرة جديدة إلا حين يطلبها أحد، ما لم تُفعَّل التحديثات التلقائية. ويُطلب تأكيد قبل الإيقاف المؤقت والإطفاء والاستعادة والحذف.",
   },
   overview: {
+    managedName: "العنوان المُدار",
+    managedPending: "(شهادته قيد الإصدار)",
     processor: "المعالج",
     memory: "الذاكرة",
     requestsPerMinute: "الطلبات في الدقيقة",

@@ -494,6 +494,9 @@ def _change(name: str, data: Mapping[str, Any]) -> Response:
         STATE.update(name, expiry_failures=0, expiry_stopped=False)
     if "STAGE" in values:
         log("instance stage changed", instance=name, detail=f"{stage_before} -> {stage}")
+        from sudoo.instances import managed_names
+
+        managed_names.wake()  # its managed name names the stage
         if env.get("PROJECT") and env.get("GIT_BRANCH") and projects.get(env["PROJECT"]):
             # the branch takes the stage its instance was given (projects/: a branch's stage is recorded)
             projects.record_branch(

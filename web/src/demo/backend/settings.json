@@ -1652,6 +1652,48 @@
   "description": "Port the gateway answers custom domains on over https."
  },
  {
+  "key": "managed_subdomains",
+  "env": "MANAGED_SUBDOMAINS",
+  "value": true,
+  "env_value": true,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "boolean",
+  "minimum": null,
+  "description": "Give each instance a name under Sudoo.sh's domain (<branch>.<stage>.<company>.<base>) when the linked account's hub offers them, served with the panel's own certificates (ports 80 and 443 must reach this server). Off: no name is asked for and none is served; names held are released with their instance."
+ },
+ {
+  "key": "managed_subdomain_company",
+  "env": "MANAGED_SUBDOMAIN_COMPANY",
+  "value": "",
+  "env_value": "",
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "string",
+  "minimum": null,
+  "description": "The company label asked for with the account's first managed name; empty: Sudoo.sh makes it from the company's name. It cannot change once the account has a name."
+ },
+ {
+  "key": "managed_subdomains_check_minutes",
+  "env": "MANAGED_SUBDOMAINS_CHECK_MINUTES",
+  "value": 15,
+  "env_value": 15,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "integer",
+  "minimum": 1,
+  "description": "Minutes between two comparisons of the instances with their managed names."
+ },
+ {
   "key": "panel_port",
   "env": "PANEL_PORT",
   "value": 9000,

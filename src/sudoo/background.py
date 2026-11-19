@@ -22,6 +22,7 @@ from sudoo.instances import (
     domain_worker,
     gateway,
     integrity,
+    managed_names,
     monitor,
     odoo,
     operations,
@@ -55,6 +56,7 @@ def start() -> None:
         plugin_manager.watch_forever,
         premium_loader.watch_forever,
         domain_worker.run_forever,
+        managed_names.run_forever,
         mail_catcher.maintain_forever,
         _watch_upgrades,
     ):

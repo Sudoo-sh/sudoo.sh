@@ -69,6 +69,7 @@ TOPICS = frozenset(
         "alert",
         "offsite",
         "server",
+        "managed_names",
         "support",
         "premium",
     }

@@ -36,6 +36,9 @@ import {
   instanceUrl,
   jobs,
   logs,
+  MANAGED_BASE,
+  MANAGED_COMPANY,
+  managedName,
   ME,
   OWNER,
   PERMISSIONS,
@@ -596,7 +599,8 @@ function createInstance(
       const commits = known ? commitsOf(known, known.branches.includes(branch) ? branch : known.defaultBranch) : [];
       const head = commits[0];
       instance.status = "online";
-      instance.url = instanceUrl(name);
+      instance.managed_name = managedName(name, repo ? branch : null, instance.stage);
+      instance.url = instance.managed_name?.url ?? instanceUrl(name);
       instance.git.commit = head ? { sha: head.sha, subject: head.subject, author: head.author, age: ageText(Date.parse(head.when)) } : repo ? { sha: hex(7), subject: "Initial commit", author: "you", age: "1 minute ago" } : null;
       instance.recent_commits = commits;
       instance.last_visit_at = iso(Date.now());
@@ -1070,6 +1074,20 @@ route("GET", "/server", () => {
   return ok({ version: "1.0.0", panel_url: "https://panel.demo.sudoo.sh", plugins: { exposure: "cloudflare-quick", enterprise_source: "folder", update_triggers: ["polling", "github-app"] }, metrics: currentMetrics().server, live_clients: 1 });
 });
 route("GET", "/server/capacity", () => ok(capacity()));
+
+function managedSubdomains() {
+  const held = [...instances.values()].filter((i) => i.managed_name).length;
+  return {
+    setting: setting("managed_subdomains") !== false, linked: true, enabled: true, active: setting("managed_subdomains") !== false,
+    base_domain: MANAGED_BASE, company: MANAGED_COMPANY, limit: 25, used: held, held, checked_at: Date.now() / 1000 - 4 * 60,
+    error: null, pending_release: [], addresses: { public_ipv4: "203.0.113.24" }, custom_domains: String(setting("custom_domains") ?? "off"),
+  };
+}
+route("GET", "/server/managed-subdomains", () => ok(managedSubdomains()));
+route("POST", "/server/managed-subdomains/sync", () => {
+  need("settings.manage");
+  return ok(managedSubdomains());
+});
 route("POST", "/server/restart", () => {
   need("settings.manage", "/api/v1/server/restart");
   if (jobs.some((j) => j.status === "running" || j.status === "queued")) throw new Problem(409, "Jobs are running. Restart the panel when they have finished.");

@@ -8,6 +8,7 @@ import { RESOURCE_KNOBS, type Setting, type Stage } from "@/api/types";
 import { LicenceSettings } from "@/components/LicenceSettings";
 import { MarketplaceSettings } from "@/components/Marketplace";
 import { PlanSettings } from "@/components/PlanSettings";
+import { ManagedSubdomainsCard } from "@/components/ManagedSubdomainsCard";
 import { PlanCard, PremiumFeaturesCard, PremiumSlot } from "@/premium/components";
 import { usePremium } from "@/premium/loader";
 import { Page, PageHead, useMe, useSubCrumb } from "@/components/Shell";
@@ -95,6 +96,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       { id: "customDomains", keys: ["custom_domains", "domain_dns_target", "domains_per_instance"] },
       { id: "certificates", keys: ["acme_directory", "acme_email", "certificate_renew_days", "certificate_retry_max_hours"] },
       { id: "checks", keys: ["domain_dns_timeout_seconds", "domain_http_probe", "domain_http_port", "domain_https_port"] },
+      { id: "managedSubdomains", keys: ["managed_subdomains", "managed_subdomain_company", "managed_subdomains_check_minutes"] },
     ],
   },
   {
@@ -548,6 +550,7 @@ export function SettingsPage() {
             ))}
             {tab === "resources" && <ResourceSettings byKey={byKey} draft={draft} onChange={(key, v) => setDraft((d) => ({ ...d, [key]: v }))} />}
             {tab === "backups" && <PremiumSlot name="settings.offsite" props={{ dirty }} />}
+            {tab === "domains" && <ManagedSubdomainsCard />}
             {tab === "marketplace" && (
               <Section title={t.marketplace.title} text={t.marketplace.text} icon={<Puzzle />}
                 actions={<Button asChild size="sm"><Link to="/plugins" viewTransition>{t.marketplace.open}</Link></Button>}>

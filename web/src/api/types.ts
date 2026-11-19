@@ -222,6 +222,34 @@ export interface ServerChoice {
   region: string;
 }
 
+/** An instance's name under Sudoo.sh's domain (managed subdomains, every plan): its address once served. */
+export interface ManagedName {
+  hostname: string;
+  /** waiting_dns, issuing, active, renewing, failed, expiring (as custom domains) */
+  status: string;
+  reason: string | null;
+  serving: boolean;
+  url: string | null;
+}
+
+/** GET /server/managed-subdomains */
+export interface ManagedSubdomains {
+  setting: boolean;
+  linked: boolean;
+  enabled: boolean;
+  active: boolean;
+  base_domain: string | null;
+  company: string | null;
+  limit: number | null;
+  used: number | null;
+  held: number;
+  checked_at: number | null;
+  error: string | null;
+  pending_release: string[];
+  addresses: { public_ipv4?: string; public_ipv6?: string };
+  custom_domains: string;
+}
+
 export interface Instance {
   name: string;
   status: InstanceStatus;
@@ -233,6 +261,8 @@ export interface Instance {
   /** its branch's lock (projects/access.py), or null */
   lock?: BranchLock | null;
   url: string | null;
+  /** its managed name (every plan), or null */
+  managed_name?: ManagedName | null;
   odoo: { version: string; edition: "community" | "enterprise"; database: string };
   /** "plain": the official Odoo only, created without a repository (no code to update, no branch, no submodules) */
   source: "repository" | "plain";

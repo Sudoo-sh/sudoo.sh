@@ -19,6 +19,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `SERVERS_WAIT_MINUTES`, `MOVE_MAX_BACKUP_GB`, `MOVE_CHUNK_MB`, `MOVE_AT_ONCE`, `MOVE_HEALTH_SECONDS`; new permissions
   `servers.manage` and `instances.move`. The web app shares more of its design system with premium pages (lists to
   choose from, text fields, tables, check boxes).
+- **Managed subdomains (every plan):** while the panel is linked to a Sudoo.sh account that offers them, each instance
+  gets a name under Sudoo.sh's domain, `<branch>.<stage>.<company>.<base>` (for example
+  `main.production.acme.sudoo.cloud`). Sudoo.sh keeps the DNS records from the server's public addresses; the gateway
+  answers the name on ports 80 and 443 and the panel gets and renews its certificate itself, whatever
+  `CUSTOM_DOMAINS` says. Once served it is the instance's address (a primary custom domain still comes first) and the
+  instance's **Overview** shows it; the name follows a branch or stage change and is released when the instance is
+  deleted (a release Sudoo.sh could not do at once is tried again). **Settings, Custom domains, Managed subdomains**
+  shows whether Sudoo.sh offers them, the end of the names, the company label, use, limit and the addresses sent, with
+  **Check now**. New settings `MANAGED_SUBDOMAINS` (on), `MANAGED_SUBDOMAIN_COMPANY`,
+  `MANAGED_SUBDOMAINS_CHECK_MINUTES`; API `GET /api/v1/server/managed-subdomains`,
+  `POST /api/v1/server/managed-subdomains/sync`, and `managed_name` on every instance. Requests for premium packages
+  and managed names no longer wait for the account's daily API quota.
 
 - **A project's backups:** a project's page has a **Backups** tab with the backups of all its branches, grouped by
   branch with its stage, newest first, each with **Download**, **Restore** (into the instance it was taken from) and

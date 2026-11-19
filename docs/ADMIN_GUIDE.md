@@ -1455,6 +1455,29 @@ Administrators and super admins add and remove domains and choose the primary on
 every change is in the audit log. Everyone who can see the instance can see its domains and their state. On a
 production instance every domain change must be confirmed, since it moves where the instance's users reach it.
 
+### Managed subdomains
+
+On every plan, while the panel is linked to a Sudoo.sh account that offers them, each instance gets a name under
+Sudoo.sh's domain: `<branch>.<stage>.<company>.<base>`, for example `main.production.acme.sudoo.cloud`. Nothing has
+to be set up on your side but the network:
+
+* Sudoo.sh creates and keeps the DNS records (A and AAAA) from the server's public addresses, which the panel sends
+  with its heartbeat. Behind NAT, set `PUBLIC_IPV4` / `PUBLIC_IPV6` (Settings, Plan).
+* Ports 80 and 443 of the server must reach the gateway: the panel gets each name's certificate itself (ACME,
+  HTTP-01) and renews it like a custom domain's, whatever `CUSTOM_DOMAINS` says.
+* The branch is the instance's branch (its name for plain Odoo), made a DNS label; the stage is its stage. The
+  company label is chosen with the account's first name (`MANAGED_SUBDOMAIN_COMPANY`, else Sudoo.sh makes it from the
+  company's name) and never changes. Two instances of the same branch and stage share one name: the first keeps it.
+
+Once its certificate is there, the managed name is the instance's address (shown on its **Overview**), unless it has a
+primary custom domain. When the instance switches branch or stage it gets the new name and the old one is released;
+when it is deleted its name is released. A name Sudoo.sh could not release at once is tried again at the next check.
+The plan sets how many names the account may hold; a lower limit after a change of plan removes none, it only refuses
+new ones. **Settings, Custom domains, Managed subdomains** shows whether Sudoo.sh offers them, the end of the names,
+the company label, how many are used and the addresses sent, with **Check now**. `MANAGED_SUBDOMAINS` turns them off
+on this panel ([Configuration](CONFIGURATION.md#custom-domains)). Instances on other servers of a panel with several
+servers do not get one yet.
+
 ---
 
 ## 20. Off-site copies

@@ -303,6 +303,15 @@ const SEEDS: Seed[] = [
 ];
 
 export const instanceUrl = (name: string) => `https://${name}.demo.sudoo.sh`;
+
+/** The demo's managed subdomains (every plan): <branch>.<stage>.<company>.<base>, as Sudoo.sh hands them out. */
+export const MANAGED_BASE = "sudoo.cloud";
+export const MANAGED_COMPANY = "acme";
+const managedLabel = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 63);
+export function managedName(name: string, branch: string | null | undefined, stage: string, serving = true): Instance["managed_name"] {
+  const hostname = `${managedLabel(branch || name)}.${stage}.${MANAGED_COMPANY}.${MANAGED_BASE}`;
+  return { hostname, status: serving ? "active" : "issuing", reason: null, serving, url: serving ? `https://${hostname}` : null };
+}
 export const ASLEEP = ["paused", "switched_off", "stopped"];
 
 function build(seed: Seed): Instance {
@@ -320,7 +329,8 @@ function build(seed: Seed): Instance {
     status: seed.status,
     stage: seed.stage,
     project: repo ? projectReference(repo.name) : null,
-    url: instanceUrl(name),
+    url: managedName(name, seed.branch, seed.stage)?.url ?? instanceUrl(name),
+    managed_name: managedName(name, seed.branch, seed.stage),
     odoo: { version: seed.version, edition: seed.edition, database: name.replace(/-/g, "_") },
     source: repo ? "repository" : "plain",
     git: {

@@ -2,6 +2,9 @@
 
 GET /api/v1/server            resource use of the server, the panel's address, version and plugins in use
 GET /api/v1/server/capacity   how many instances the server can run at once, the panel's own use, disk headroom
+GET /api/v1/server/managed-subdomains        managed names (instances/managed_names.py): the setting, whether
+                                             Sudoo.sh offers them, its base domain, the company label, use and limit
+POST /api/v1/server/managed-subdomains/sync  compare the instances with their names now (settings.manage)
 """
 
 from __future__ import annotations
@@ -125,3 +128,23 @@ def restart() -> Response:
 
     threading.Thread(target=stop, daemon=True).start()
     return ok({"restarting": True}, status=202)
+
+
+@blueprint.get("/server/managed-subdomains")
+@require("instances.view")
+def managed_subdomains() -> Response:
+    from sudoo.instances import managed_names
+
+    return ok(managed_names.overview())
+
+
+@blueprint.post("/server/managed-subdomains/sync")
+@require("settings.manage")
+def managed_subdomains_sync() -> Response:
+    from sudoo.instances import managed_names
+
+    if not settings.marketplace:
+        abort(409, "Managed subdomains come from Sudoo.sh: link this panel first (Settings, Marketplace).")
+    managed_names.sync()
+    log("managed subdomains: check now")
+    return ok(managed_names.overview())

@@ -1035,7 +1035,33 @@ class Settings(BaseSettings):
         "ships for hub.sudoo.sh, or the hub's keys as first seen for another hub.",
     )
 
-    @field_validator("hub_public_keys")
+    # ------------------------------------------------------------------ premium features (premium/, docs/PREMIUM.md)
+    premium_public_keys: str = Field(
+        "",
+        description="The premium signing keys the panel trusts (Ed25519, base64url, comma-separated); empty: the keys "
+        "this release ships. Only for a test panel.",
+    )
+    premium_auto_install: bool = Field(
+        True,
+        description="Install and update the premium features the plan includes automatically, after each signed "
+        "lease. Off: they install only when an administrator presses Check now in Settings.",
+    )
+    premium_check_hours: float = Field(
+        6, ge=0.25, le=168, description="Hours between checks for newer versions of the installed premium features."
+    )
+    premium_watch_minutes: float = Field(
+        10, ge=1, le=1440, description="Minutes between integrity passes over the installed premium features "
+        "(their files, signature and binding to this server).",
+    )  # fmt: skip
+    premium_binding_renew_days: float = Field(
+        7, ge=1, le=60, description="Days before a premium feature's binding to this server ends that the panel "
+        "asks Sudoo.sh for a new one.",
+    )  # fmt: skip
+    premium_max_package_mb: int = Field(
+        60, ge=5, le=500, description="Largest premium package the panel downloads, in MB."
+    )
+
+    @field_validator("hub_public_keys", "premium_public_keys")
     @classmethod
     def _hub_public_keys(cls, value: str) -> str:
         import base64
@@ -1319,6 +1345,11 @@ EDITABLE = (
     "admin_contact_phone",
     "admin_contact_email",
     "marketplace",
+    "premium_auto_install",
+    "premium_check_hours",
+    "premium_watch_minutes",
+    "premium_binding_renew_days",
+    "premium_max_package_mb",
     "custom_domains",
     "acme_directory",
     "acme_email",

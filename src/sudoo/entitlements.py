@@ -142,6 +142,9 @@ def normalize(raw: Mapping[str, Any]) -> dict[str, Any]:
     for key in ("period", "renews_at", "trial_plan", "api_requests_per_day"):  # newer hubs say more; kept as given
         if key in raw and isinstance(raw[key], str | int | float) and not isinstance(raw[key], bool):
             keep[key] = raw[key]
+    premium = raw.get("premium")  # the premium packages the plan includes (premium/), when the hub says
+    if isinstance(premium, list):
+        keep["premium"] = [str(p)[:40] for p in premium if isinstance(p, str)][:20]
     privileges = raw.get("privileges")
     if isinstance(privileges, list):
         keep["privileges"] = [p for p in privileges if isinstance(p, dict)][:50]

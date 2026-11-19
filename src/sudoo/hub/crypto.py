@@ -30,6 +30,13 @@ Package signatures
     The hub signs "sudoo-plugin-v1\\n<plugin id>\\n<version>\\n<sha256 of the package>" with its Ed25519 key, so a
     signature binds one package to one plugin and one version (an old release cannot be passed off as an update).
 
+Premium packages
+    The first-party premium packages (premium/) are signed with a separate premium key, never a hub key, over
+    "sudoo-premium-v1\\n<id>\\n<version>\\n<sha256>\\n<python tag>\\n<platform>", so a marketplace signature can never
+    pass as a premium one. Each download carries a binding to this server: the canonical JSON of {v, kind, server_id,
+    hardware_fingerprint, package_id, version, sha256, iat, exp}, signed by the premium key over
+    "sudoo-premium-binding-v1\\n" + that JSON.
+
 Leases
     A heartbeat answers with a lease: a JWT signed by the hub key (alg EdDSA, kid = key id), for this installation
     (aud "sudoo-panel:<id>"), valid 72 hours. It says the standing of each reported plugin, the licence dates of
@@ -71,6 +78,9 @@ FINGERPRINT_DOMAIN = "sudoo-fingerprint-v1"
 ANSWER_SKEW_SECONDS = 300  # an answer whose signed time is further from the panel's clock is refused
 RESPONSE_HEADER = "Sudoo-Signature"
 PACKAGE_DOMAIN = b"sudoo-plugin-v1"
+PREMIUM_DOMAIN = b"sudoo-premium-v1"
+BINDING_DOMAIN = b"sudoo-premium-binding-v1"
+BINDING_KIND = "sudoo-premium-binding"
 LEASE_TYPE = "sudoo-lease+jwt"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -279,6 +289,55 @@ def verify_package(key: Ed25519PublicKey, plugin_id: str, version: str, sha256: 
     except ValueError:
         return False
     return verify(key, raw, message)
+
+
+def premium_statement(package_id: str, version: str, sha256: str, python_tag: str, platform: str) -> bytes:
+    """What the premium key signs for a premium package: one package, one version, one build."""
+    if not SHA256_RE.match(sha256):
+        raise ValueError("sha256 must be 64 lower-case hex digits")
+    parts = (package_id, version, python_tag, platform)
+    if not all(parts) or any(c in "".join(parts) for c in "\n\r\0"):
+        raise ValueError("id, version, python tag and platform must be single-line and not empty")
+    return b"\n".join((PREMIUM_DOMAIN, *(p.encode() for p in (package_id, version, sha256, python_tag, platform))))
+
+
+def verify_premium_package(
+    key: Ed25519PublicKey, package_id: str, version: str, sha256: str, python_tag: str, platform: str, signature: str
+) -> bool:
+    """True only when `signature` is the premium key's signature of this package, version and build."""
+    try:
+        raw = from_b64url(signature)
+        message = premium_statement(package_id, version, sha256, python_tag, platform)
+    except ValueError:
+        return False
+    return verify(key, raw, message)
+
+
+def binding_message(binding_json: bytes) -> bytes:
+    return BINDING_DOMAIN + b"\n" + binding_json
+
+
+def read_binding(encoded: str, signature: str, key: Ed25519PublicKey) -> dict[str, Any]:
+    """The binding a premium download carries, once its signature verifies; ValueError otherwise. The JSON must be
+    canonical (what was signed is exactly what is read)."""
+    raw = from_b64url(encoded)
+    if not verify(key, from_b64url(signature), binding_message(raw)):
+        raise ValueError("the binding's signature is not valid")
+    try:
+        binding = json.loads(raw)
+    except ValueError:
+        raise ValueError("the binding is not JSON") from None
+    if not isinstance(binding, dict) or canonical_json(binding) != raw:
+        raise ValueError("the binding is not canonical JSON")
+    if binding.get("kind") != BINDING_KIND or binding.get("v") != 1:
+        raise ValueError("not a premium binding")
+    for name in ("server_id", "hardware_fingerprint", "package_id", "version", "sha256"):
+        if not isinstance(binding.get(name), str) or not binding[name]:
+            raise ValueError(f"the binding has no {name}")
+    for name in ("iat", "exp"):
+        if not isinstance(binding.get(name), int) or isinstance(binding.get(name), bool):
+            raise ValueError(f"the binding has no {name}")
+    return binding
 
 
 # ---------------------------------------------------------------- leases

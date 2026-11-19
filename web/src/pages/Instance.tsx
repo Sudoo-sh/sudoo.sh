@@ -1,5 +1,6 @@
 import {
   Activity,
+  Archive,
   ArrowUpCircle,
   ArrowUpRight,
   Box,
@@ -94,6 +95,7 @@ const TABS: { id: string; label: keyof (typeof words)["en"]["tabs"]; icon: React
   { id: "activity", label: "activity", icon: <Layers /> },
   { id: "code", label: "code", icon: <Code2 /> },
   { id: "logs", label: "logs", icon: <ScrollText />, permission: "instances.logs" },
+  { id: "backups", label: "backups", icon: <Archive /> },
   { id: "domains", label: "domains", icon: <Globe /> },
   { id: "settings", label: "settings", icon: <Settings2 />, permission: "instances.operate" },
   { id: "access", label: "access", icon: <KeyRound />, permission: "instances.credentials" },
@@ -328,6 +330,7 @@ export function InstancePage() {
         {tab === "mail" && can("caught_mail.view") && !production && <MailTab instance={instance} />}
         {tab === "shell" && can("instances.shell") && <ShellTab instance={instance} />}
         {tab === "upgrade" && can("instances.upgrade") && <UpgradeTab instance={instance} onJob={setJobId} />}
+        {tab === "backups" && <BackupsCard instance={instance} busy={busy} act={act} />}
       </div>
 
       {jobId && <JobDrawer id={jobId} onClose={() => setJobId(null)} />}

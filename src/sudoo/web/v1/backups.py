@@ -1,6 +1,8 @@
 """Backups: Odoo-format zips (dump.sql, the filestore and manifest.json), taken before deletions and on request.
 
-GET    /api/v1/backups          backups, newest first, with the Odoo version and edition they are of
+GET    /api/v1/backups          backups, newest first, with the Odoo version and edition they are of;
+                                ?instance=<name> those taken from that instance, ?project=<id> those of the
+                                project's instances (the ones it has now)
 GET    /api/v1/backups/<file>   download the zip
 DELETE /api/v1/backups/<file>   delete -> 204
 
@@ -13,8 +15,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from flask import Blueprint, Response, g, send_file
+from flask import Blueprint, Response, g, request, send_file
 
+from sudoo import projects
 from sudoo.instances import backups, store
 from sudoo.projects import access
 
@@ -30,6 +33,12 @@ blueprint = Blueprint("backups", __name__)
 @require("backups.manage")
 def list_backups() -> Response:
     found = backups.all_backups()
+    if request.args.get("instance"):
+        name = check.instance_name(request.args["instance"])
+        found = [b for b in found if b["instance"] == name]
+    if request.args.get("project"):
+        members = set(projects.instances(request.args["project"]))
+        found = [b for b in found if b["instance"] in members]
     existing = {b["instance"] for b in found if store.exists(b["instance"])}
     hidden = existing - set(access.visible_instances(g.user, existing))
     return ok([backup_resource(b) for b in found if b["instance"] not in hidden])

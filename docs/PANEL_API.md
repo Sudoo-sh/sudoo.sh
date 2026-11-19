@@ -449,7 +449,7 @@ An account:
 | `GET /tokens` | `tokens.manage` | | 200, API tokens (never their secrets) |
 | `POST /tokens` | `tokens.manage` | `{"name", "scope"}` (`read`, `instances`, `developer` or `write`) | **201**, with `token` and `signing_secret`, shown once |
 | `DELETE /tokens/<id>` | `tokens.manage` | | **204**, revoked |
-| `GET /backups` | `backups.manage` | | 200, backups, newest first (below) |
+| `GET /backups` | `backups.manage` | `?instance=<name>`, `?project=<id>` optional | 200, backups, newest first (below); `instance` keeps those taken from that instance, `project` those of the project's instances (the ones it has now). The project's access applies either way: those of a hidden project or branch are not listed |
 | `GET /backups/<file>` | `backups.manage` | | the zip (`dump.sql`, the filestore, `manifest.json`) |
 | `DELETE /backups/<file>` | `backups.manage` | | **204** |
 | `GET /offsite` | `backups.manage` | | 200, `{"enabled", "configured", "active", "location", "endpoint", "other_stages", "kinds", "public_key", "fingerprint", "last_scan"}` (never the secret) |

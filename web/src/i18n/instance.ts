@@ -20,6 +20,7 @@ const en = {
     mail: "Mail",
     shell: "Shell",
     upgrade: "Upgrade",
+    backups: "Backups",
   },
   head: {
     project: "Project",
@@ -404,6 +405,7 @@ const ar: typeof en = {
     mail: "البريد",
     shell: "الطرفية",
     upgrade: "الترقية",
+    backups: "النسخ الاحتياطية",
   },
   head: {
     project: "المشروع",

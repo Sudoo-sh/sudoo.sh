@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **A project's backups:** a project's page has a **Backups** tab with the backups of all its branches, grouped by
+  branch with its stage, newest first, each with **Download**, **Restore** (into the instance it was taken from) and
+  **Delete**, for those who manage backups (the project's access and branch locks apply). On the **Branches** tab an
+  instance with backups shows how many, linking to the instance's new **Backups** tab. API: `GET /api/v1/backups`
+  takes `?instance=<name>` and `?project=<id>`.
+
 - **Premium features install automatically:** teams and access per project and branch, custom domains, off-site
   copies of backups, support access and several servers are premium features that install automatically from
   Sudoo.sh when your plan includes them (after each signed lease; **Check now** in Settings › Plan › Premium features,

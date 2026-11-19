@@ -3,6 +3,7 @@
 // create a new, empty one through the GitHub App).
 
 import {
+  Archive,
   ArrowUpRight,
   Boxes,
   ChevronRight,
@@ -30,6 +31,7 @@ import type { Instance, Job, Permission, Project, ProjectBranch, ProjectDetail, 
 import { LockTag } from "@/components/LockTag";
 import { AccessTab, LockDialog, UnlockDialog } from "@/components/ProjectAccess";
 import { InstanceCard } from "@/components/InstanceCard";
+import { ProjectBackups, useProjectBackups } from "@/components/ProjectBackups";
 import { JobDrawer } from "@/components/JobDrawer";
 import { Page, PageHead, useCan, useSubCrumb } from "@/components/Shell";
 import { useMe } from "@/components/Session";
@@ -196,10 +198,13 @@ type Dialog =
 function BranchRow({
   branch,
   instances,
+  backups,
   onDialog,
 }: {
   branch: ProjectBranch;
   instances: Map<string, Instance>;
+  /** backups per instance; null when the caller may not manage backups */
+  backups: Map<string, number> | null;
   onDialog: (dialog: Dialog) => void;
 }) {
   const roleCan = useCan();
@@ -237,6 +242,11 @@ function BranchRow({
                 <Status status={instance.status} label="" />
                 <Link to={`/i/${instance.name}`} viewTransition className="truncate">{instance.name}</Link>
                 {instance.stage !== branch.stage && <StageTag stage={instance.stage} />}
+                {backups?.get(instance.name) ? (
+                  <Link to={`/i/${instance.name}/backups`} viewTransition className="xsmall nowrap br-backups">
+                    {count(backups.get(instance.name)!, "backup")}
+                  </Link>
+                ) : null}
               </div>
             ))}
           </div>
@@ -462,9 +472,16 @@ function DeleteInstanceDialog({ instance, onClose, onJob }: { instance: Instance
   );
 }
 
-function BranchesTab({ project, meta, onRefresh, refreshing }: { project: ProjectDetail; meta: ProjectMeta; onRefresh: () => void; refreshing: boolean }) {
+function BranchesTab({ project, meta, onRefresh, refreshing, backups }: { project: ProjectDetail; meta: ProjectMeta; onRefresh: () => void; refreshing: boolean; backups: boolean }) {
   const t = useT(words).page;
   const instances = useInstanceMap();
+  // how many backups each instance has, for the "N backups" link on its branch's row
+  const { data: backupList } = useProjectBackups(project.id, backups);
+  const backupCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const b of backupList ?? []) counts.set(b.instance, (counts.get(b.instance) ?? 0) + 1);
+    return counts;
+  }, [backupList]);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const production = useMemo(() => {
@@ -517,7 +534,7 @@ function BranchesTab({ project, meta, onRefresh, refreshing }: { project: Projec
                     <div role="columnheader" className="br-actions">{t.actions}</div>
                   </div>
                   {listed.map((branch) => (
-                    <BranchRow key={branch.name} branch={branch} instances={instances} onDialog={setDialog} />
+                    <BranchRow key={branch.name} branch={branch} instances={instances} backups={backupList ? backupCounts : null} onDialog={setDialog} />
                   ))}
                 </div>
               ) : (
@@ -703,6 +720,7 @@ export function ProjectPage() {
     );
   const { project, meta } = data;
   const mayManageAccess = meta.permissions ? meta.permissions.includes("projects.access") : can("projects.access");
+  const mayManageBackups = meta.permissions ? meta.permissions.includes("backups.manage") : can("backups.manage");
   const refresh = async () => {
     setRefreshing(true);
     try {
@@ -735,6 +753,11 @@ export function ProjectPage() {
         <Link to={`/projects/${project.id}/settings`} viewTransition className={`tab ${tab === "settings" ? "active" : ""}`} aria-current={tab === "settings" ? "page" : undefined}>
           <Hammer /> {t.settingsTab}
         </Link>
+        {mayManageBackups && (
+          <Link to={`/projects/${project.id}/backups`} viewTransition className={`tab ${tab === "backups" ? "active" : ""}`} aria-current={tab === "backups" ? "page" : undefined}>
+            <Archive /> {t.backupsTab}
+          </Link>
+        )}
         {mayManageAccess && (
           <Link to={`/projects/${project.id}/access`} viewTransition className={`tab ${tab === "access" ? "active" : ""}`} aria-current={tab === "access" ? "page" : undefined}>
             <ShieldCheck /> {t.accessTab}
@@ -743,10 +766,12 @@ export function ProjectPage() {
       </nav>
       {tab === "access" ? (
         <AccessTab key={project.id} project={project} permitted={mayManageAccess} />
+      ) : tab === "backups" && mayManageBackups ? (
+        <ProjectBackups key={project.id} project={project} />
       ) : tab === "settings" ? (
         <SettingsTab key={project.id} project={project} />
       ) : (
-        <BranchesTab project={project} meta={meta} onRefresh={refresh} refreshing={refreshing} />
+        <BranchesTab project={project} meta={meta} onRefresh={refresh} refreshing={refreshing} backups={mayManageBackups} />
       )}
     </Page>
   );

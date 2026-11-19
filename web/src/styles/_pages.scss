@@ -1104,6 +1104,7 @@ tr.invited {
     > svg { width: 15px; height: 15px; margin-top: 3px; color: var(--text-3); flex: none; stroke-width: 1.5; } }
   .br-name { font-family: var(--mono); font-size: var(--text-13); font-weight: 500; }
   .br-instance { min-width: 0; a { min-width: 0; } }
+  .br-backups { flex: none; color: var(--text-3); @include hover { color: var(--brand-ink); } }
   .br-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--s1); }
   .branch-commit { display: flex; align-items: baseline; gap: var(--s2); min-width: 0; font-size: var(--text-13); color: var(--text-2);
     .sha { font-family: var(--mono); font-size: var(--text-12); color: var(--text-3); flex: none; } }

@@ -43,7 +43,8 @@ import { BackupPicker } from "@/components/BackupPicker";
 import { LiveChart } from "@/components/charts/LiveChart";
 import { JobLine, Monogram } from "@/components/InstanceCard";
 import { StageTag } from "@/components/StageTag";
-import { DomainsTab } from "@/components/DomainsTab";
+import { DomainsCore } from "@/components/DomainsCore";
+import { PremiumSlot } from "@/premium/components";
 import { ShellTab } from "@/components/shell/ShellTab";
 import { UpgradeTab } from "@/components/UpgradeTab";
 import { MailTab } from "@/components/MailTab";
@@ -318,7 +319,7 @@ export function InstancePage() {
         {tab === "activity" && <ActivityTab name={name} onOpen={setJobId} />}
         {tab === "code" && !plain && <CodeTab instance={instance} canAdd={can("instances.update")} canRemove={can("instances.operate")} busy={busy} onAdd={() => setDialog("submodule")} act={act} />}
         {tab === "logs" && can("instances.logs") && <LogsTab name={name} />}
-        {tab === "domains" && <DomainsTab instance={instance} />}
+        {tab === "domains" && <PremiumSlot name="instance.domains" props={{ instance }} fallback={<DomainsCore instance={instance} />} />}
         {tab === "settings" && can("instances.operate") && <SettingsTab instance={instance} plain={plain} />}
         {tab === "access" && can("instances.credentials") && <AccessTab instance={instance} />}
         {tab === "mail" && can("caught_mail.view") && !production && <MailTab instance={instance} />}

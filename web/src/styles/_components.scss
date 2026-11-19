@@ -922,3 +922,31 @@
   white-space: pre-wrap;
   user-select: all;
 }
+
+// premium features: the list in Settings › Plan and the plan card shown while a feature is absent
+.premium-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  > li {
+    display: flex;
+    gap: var(--s3);
+    align-items: flex-start;
+    padding: var(--s3) 0;
+    border-top: 1px solid var(--hairline);
+    &:first-child { border-top: 0; padding-top: 0; }
+  }
+  .about { display: grid; gap: 2px; min-width: 0; }
+  .tags { display: flex; gap: var(--s2); margin-inline-start: auto; flex: none; }
+  .problem { color: var(--negative); }
+}
+
+.premium-card {
+  display: flex;
+  gap: var(--s3);
+  align-items: flex-start;
+  > svg { flex: none; width: 18px; height: 18px; margin-top: 2px; color: var(--accent); stroke-width: 1.75; }
+  .text { display: grid; gap: var(--s2); }
+  .links { display: flex; flex-wrap: wrap; gap: var(--s4); }
+}

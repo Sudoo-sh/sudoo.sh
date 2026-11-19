@@ -28,7 +28,7 @@ Features
     teams (Teams), per_project_access (a project's grants, restricted projects and branches), custom_domains (adding
     a custom domain) and offsite_backups (turning off-site copies on, testing the storage): refused with a sentence
     that names the plans that have them, the pricing page and the account site. What was set up before keeps working:
-    existing domains keep serving and renewing, off-site copies already on keep going, existing restrictions and
+    existing domains keep serving and renewing, off-site copies already made stay, existing restrictions and
     locks stay enforced (removing them is always possible).
 
 Usage
@@ -142,6 +142,9 @@ def normalize(raw: Mapping[str, Any]) -> dict[str, Any]:
     for key in ("period", "renews_at", "trial_plan", "api_requests_per_day"):  # newer hubs say more; kept as given
         if key in raw and isinstance(raw[key], str | int | float) and not isinstance(raw[key], bool):
             keep[key] = raw[key]
+    premium = raw.get("premium")  # the premium packages the plan includes (premium/), when the hub says
+    if isinstance(premium, list):
+        keep["premium"] = [str(p)[:40] for p in premium if isinstance(p, str)][:20]
     privileges = raw.get("privileges")
     if isinstance(privileges, list):
         keep["privileges"] = [p for p in privileges if isinstance(p, dict)][:50]

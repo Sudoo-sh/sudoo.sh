@@ -38,6 +38,7 @@ Everything about Sudoo.sh, in one place. The same pages are on GitHub and inside
 | Back up an instance or the panel | [Administrator guide: Backups](ADMIN_GUIDE.md#10-backups) |
 | Add a new Enterprise version | [Administrator guide: Enterprise add-ons](ADMIN_GUIDE.md#9-odoo-enterprise-add-ons) |
 | Fix a problem | [Administrator guide: Troubleshooting](ADMIN_GUIDE.md#13-troubleshooting) |
+| Know how premium features install, or why one is not installed | [Premium features](PREMIUM.md) |
 | Call an instance from Python or Postman | [API and webhooks](API.md) |
 | Create or restart instances from a CI pipeline or a script | [Panel API](PANEL_API.md) |
 | Update instances the moment code is pushed | [Plugins: update triggers](PLUGINS.md#5-update-triggers-what-starts-a-code-update) |

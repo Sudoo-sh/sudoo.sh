@@ -136,8 +136,11 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
       client.invalidateQueries({ queryKey: keys.plugins });
       client.invalidateQueries({ queryKey: keys.plan });
       break;
+    case "premium": // a premium feature was installed, updated or switched off
+      client.invalidateQueries({ queryKey: ["premium"] });
+      break;
     case "support": // support access changed: a grant, or a session starting or ending
-      client.invalidateQueries({ queryKey: keys.support });
+      client.invalidateQueries({ queryKey: ["support-access"] }); // the premium support package's queries
       break;
     case "alert": {
       const alert = data as Alert;
@@ -152,7 +155,7 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
   }
 }
 
-const TOPICS = ["instance", "instance.deleted", "project", "domains", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "support", "alert", "offsite", "reset"];
+const TOPICS = ["instance", "instance.deleted", "project", "domains", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "premium", "support", "alert", "offsite", "reset"];
 
 export interface Sync {
   state: LiveState;

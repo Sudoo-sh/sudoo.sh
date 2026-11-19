@@ -54,8 +54,9 @@ reset with **Use .env**.
 17. [Mail catcher](#mail-catcher)
 18. [Help panel](#help-panel)
 19. [Marketplace](#marketplace)
-20. [Support access](#support-access)
-21. [Locations](#locations)
+20. [Premium features](#premium-features)
+21. [Support access](#support-access)
+22. [Locations](#locations)
 
 ---
 
@@ -569,7 +570,26 @@ How the panel talks to the Sudoo.sh hub, which lists plugins, sells paid ones an
 | :--- | :--- | :--- | :--- | :--- |
 | `MARKETPLACE` | bool | `off` | **live** | Off by default until the marketplace opens. `on`: register with the hub, send a signed heartbeat every 15 minutes (version, core hash, fingerprint, installed plugins and coarse server figures) and install plugins from the Plugins page. `off`: the panel never contacts the hub; installed free plugins keep working, paid ones stop at their `run_until` (the last lease's end plus 96 hours, about 7 days). |
 | `HUB_URL` | text | `https://hub.sudoo.sh` | `.env` only | The hub's address: `https://` (`http://` only for `localhost` while testing). The panel registers with each hub it is pointed at. |
+| `PUBLIC_IPV4` | text | empty | **live** | The server's public IPv4 address, sent with the heartbeat so Sudoo.sh can point managed subdomains at it. Empty: the address the server sends from, when it is a public one (behind NAT, set it). |
+| `PUBLIC_IPV6` | text | empty | **live** | The same for IPv6. |
 | `HUB_PUBLIC_KEYS` | text | empty | `.env` only | The hub's root public keys (Ed25519, base64url, comma-separated). Every answer, lease, command and package must be signed by one of them, or by a newer key one of them endorsed. Empty: the keys this release ships for `hub.sudoo.sh`; for another hub (while testing), the keys it lists the first time the panel reaches it. |
+
+---
+
+## Premium features
+
+Premium features (teams and access per project, custom domains, off-site backups, support access, several servers)
+install automatically from Sudoo.sh when your plan includes them. See [Premium features](PREMIUM.md).
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `PREMIUM_AUTO_INSTALL` | bool | `on` | **live** | Install and update the premium features your plan includes after each signed lease. `off`: they install only when you press **Check now** in Settings, Premium features. |
+| `PREMIUM_CHECK_HOURS` | number | `6` | **live** | Hours between checks for newer versions of the installed premium features (0.25 to 168). |
+| `PREMIUM_RETRY_MINUTES` | number | `15` | **live** | Minutes the panel waits before asking Sudoo.sh again after a check, when the check failed or a feature was not ready yet (1 to 1440). |
+| `PREMIUM_WATCH_MINUTES` | number | `10` | **live** | Minutes between integrity passes over the installed premium features: their files, their signature and their binding to this server (1 to 1440). |
+| `PREMIUM_BINDING_RENEW_DAYS` | number | `7` | **live** | Days before a premium feature's binding to this server ends that the panel asks Sudoo.sh for a new one (1 to 60). |
+| `PREMIUM_MAX_PACKAGE_MB` | number | `60` | **live** | The largest premium package the panel downloads, in MB (5 to 500). |
+| `PREMIUM_PUBLIC_KEYS` | text | empty | `.env` only | The premium signing keys the panel trusts (Ed25519, base64url, comma-separated). Empty: the keys this release ships. Set it only on a test panel. |
 
 ---
 

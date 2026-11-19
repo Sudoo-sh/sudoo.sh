@@ -28,6 +28,7 @@ os.environ.update(
     REQUIRE_SECOND_FACTOR="none",  # test_auth.py turns it on where it is tested
     # the whole suite makes many changes from one address within a minute; test_auth.py tests the limits itself
     RATE_LIMIT_CHANGES_PER_MINUTE="100000",
+    PREMIUM_AUTO_INSTALL="false",  # test_premium.py turns it on where it is tested
 )
 
 from flask import Flask  # noqa: E402
@@ -49,10 +50,6 @@ def app() -> Flask:
     from sudoo.web.v1 import stream
 
     stream.start = lambda app: None  # the live event stream is tested on its own (test_events.py)
-    from sudoo.support import channel
-
-    channel.start = lambda app: setattr(channel, "APP", app)  # no loop: tests call the channel themselves
-    channel.wake = lambda: None
 
     application = create_app()
     application.config.update(TESTING=True, SESSION_COOKIE_SECURE=False)
@@ -109,7 +106,7 @@ def operator(app: Flask, passwords: dict[str, str]) -> Iterator[tuple[FlaskClien
 def unlimited_plan(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
     """The tests run without a hub, which would mean the Free plan (entitlements.py): every test but those of the
     plan itself runs as a panel whose plan allows everything, so the panel's own limits are what they test."""
-    if request.module.__name__ == "test_entitlements":
+    if request.module.__name__ in ("test_entitlements", "test_premium"):
         return
     from sudoo import entitlements
 

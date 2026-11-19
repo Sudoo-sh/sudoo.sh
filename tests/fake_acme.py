@@ -20,7 +20,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 from cryptography.x509.oid import NameOID
 
-from sudoo.domains import acme
+from sudoo.instances import acme
 
 BASE = "https://acme.test-authority.invalid"
 

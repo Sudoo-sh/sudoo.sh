@@ -141,11 +141,12 @@ def test_an_unlinked_panel_has_the_free_plan(world: str, admin: Client) -> None:
 
 def test_paid_features_are_refused_with_the_upsell(world: str, admin: Client, plain_admin: Client) -> None:
     client_, headers = admin
+    # without the premium package (it installs automatically once the plan includes it): 402 with the plans
     refused = client_.post("/api/v1/teams", json={"name": "Leads"}, headers=headers)
-    assert refused.status_code == 403 and "Pro and Business" in refused.get_json()["detail"]
-    assert "https://app.sudoo.sh" in refused.get_json()["detail"]
+    assert refused.status_code == 402 and "Pro and Business" in refused.get_json()["detail"]
+    assert "installs automatically" in refused.get_json()["detail"]
     grants = {"mode": "panel_roles", "grants": [{"type": "user", "id": "admin1", "level": "view"}]}
-    assert client_.put(f"/api/v1/projects/{world}/access", json=grants, headers=headers).status_code == 403
+    assert client_.put(f"/api/v1/projects/{world}/access", json=grants, headers=headers).status_code == 402
     # clearing a project's access is always possible
     assert (
         client_.put(f"/api/v1/projects/{world}/access", json={"mode": "panel_roles"}, headers=headers).status_code
@@ -155,10 +156,11 @@ def test_paid_features_are_refused_with_the_upsell(world: str, admin: Client, pl
     lock = client_.put(f"/api/v1/projects/{world}/branches/main/lock", json={"allow": []}, headers=headers)
     assert lock.status_code == 200
     answer = client_.post("/api/v1/instances/pl-main/domains", json={"domain": "erp.example.com"}, headers=headers)
-    assert answer.status_code == 403 and "Custom domains" in answer.get_json()["detail"]
+    assert answer.status_code == 402 and "Custom domains" in answer.get_json()["detail"]
     off = client_.patch("/api/v1/settings", json={"offsite_backups": True}, headers=headers)
     assert off.status_code == 403 and "Off-site backups" in off.get_json()["detail"]
     assert any(e["event"].endswith("(plan)") for e in audit.latest(50))
+    assert any(e["event"].endswith("(premium feature not installed)") for e in audit.latest(50))
 
 
 # ---------------------------------------------------------------- from the hub
@@ -188,7 +190,8 @@ def test_the_hubs_entitlements_apply_and_the_usage_is_reported(world: str, hub: 
     shown = client_.get("/api/v1/plan").get_json()["data"]
     assert shown["plan"] == "pro" and shown["entitlements"]["max_production_branches"] == 3
     assert shown["entitlements"]["features"]["custom_domains"] is True and shown["valid_until"]
-    assert client_.post("/api/v1/teams", json={"name": "Pro team"}, headers=headers).status_code == 201
+    pending = client_.post("/api/v1/teams", json={"name": "Pro team"}, headers=headers)
+    assert pending.status_code == 402 and "included in your plan" in pending.get_json()["detail"]
 
 
 def test_withheld_production_makes_none_and_keeps_what_runs(world: str, hub: FakeHub) -> None:

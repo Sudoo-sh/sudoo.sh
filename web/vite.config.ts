@@ -37,6 +37,7 @@ export default defineConfig(({ mode }) => ({
       "/api": { target: api, changeOrigin: false },
       "/docs": { target: api, changeOrigin: false },
       "/static": { target: api, changeOrigin: false },
+      "/premium": { target: api, changeOrigin: false },
     },
   },
   build: {

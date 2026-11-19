@@ -18,7 +18,6 @@ from flask.typing import ResponseReturnValue
 from werkzeug.exceptions import HTTPException
 
 from sudoo import accounts, background, exposure, link_deadline, triggers
-from sudoo.support import channel as support_channel
 
 from . import docs, security, v1
 
@@ -68,5 +67,14 @@ def create_app() -> Flask:
     link_deadline.first_run()  # recorded once, the first time the panel runs (link_deadline.py)
     background.start()
     v1.stream.start(app)
-    support_channel.start(app)  # Sudoo.sh support's requests, while a grant is active (support/channel.py)
+    _start_support_channel(app)
     return app
+
+
+def _start_support_channel(app: Flask) -> None:
+    """Sudoo.sh support's requests, while a grant is active: with the premium support package only."""
+    from sudoo.premium import stubs
+
+    found = stubs.support()
+    if found is not None:
+        found.start_channel(app)

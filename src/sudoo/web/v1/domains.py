@@ -1,10 +1,11 @@
-"""Custom domains of an instance (domains/).
+"""Custom domains of an instance (instances/custom_domains.py), as the core serves them.
 
     GET    /api/v1/instances/<name>/domains                    the instance's domains and how to set them up
-    POST   /api/v1/instances/<name>/domains                    add {"domain"} -> 201, Location: the domain
-    PATCH  /api/v1/instances/<name>/domains/<domain>           {"primary": true}: make it the primary domain
-    POST   /api/v1/instances/<name>/domains/<domain>/check     check DNS (and issue) now instead of later
     DELETE /api/v1/instances/<name>/domains/<domain>           remove it and its certificate -> 204
+
+Adding a domain, making one primary and checking one again come with the premium "domains" package (premium/),
+which installs automatically from Sudoo.sh when the plan includes it; without it those calls answer 402 with the
+plans that have it. Removing a domain is always possible, and domains set up before keep being served.
 
 Reading needs instances.view; changes need domains.manage (administrators) and are audit-logged. On a production
 instance every change also needs "confirm_production": true: a domain change moves where its users reach it.
@@ -24,17 +25,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from flask import Blueprint, Response, abort, g
+from flask import Blueprint, Response, abort
 
-from sudoo import domains, exposure
+from sudoo import exposure, premium
 from sudoo.config import settings
-from sudoo.domains import dns
+from sudoo.instances import custom_domains as domains
 from sudoo.instances import gateway, stages, store
 
 from .. import validation as check
-from ..security import log, refuse_without_feature, require
+from ..security import log, require
 from .instances import existing
-from .responses import PREFIX, iso, no_content, ok
+from .responses import iso, no_content, ok
 
 blueprint = Blueprint("domains", __name__)
 
@@ -48,7 +49,7 @@ def domain_resource(record: dict[str, Any]) -> dict[str, Any]:
         "status": status,
         "reason": record.get("reason"),
         "tls": record.get("tls"),
-        "dns_records": dns.instructions(record["domain"]) if record.get("tls") == "acme" else [],
+        "dns_records": _dns().instructions(record["domain"]) if record.get("tls") == "acme" and _dns() else [],
         "addresses": list(record.get("addresses") or []),
         "added_at": iso(record.get("added_at")),
         "added_by": record.get("added_by"),
@@ -71,13 +72,21 @@ def domain_resource(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _dns() -> Any:
+    """The domains package's DNS helper (instructions, target), or None without it."""
+    manager = premium.hook(premium.DOMAINS, "manager") if premium.loaded("domains") else None
+    return getattr(manager, "dns", None)
+
+
 def domains_resource(name: str) -> dict[str, Any]:
     """The instance's domains and how to set them up (also the live event "domains")."""
-    goal = dns.target()
+    goal = _dns().target() if _dns() else None
     errors = [gateway.LISTENER_ERRORS.get(key) for key in (gateway.HTTP_LISTENER, gateway.HTTPS_LISTENER)]
     directory = settings.acme_directory
     return {
-        "mode": domains.mode(),
+        "mode": str(settings.custom_domains),
+        "managed": premium.loaded("domains"),
+        "premium": None if premium.loaded("domains") else premium.refusal("domains"),
         "limit": settings.domains_per_instance,
         "default_url": exposure.default_address(name) if store.exists(name) else None,
         "target": {"host": goal.host, "record_type": goal.record_type()} if goal else None,
@@ -118,56 +127,6 @@ def _refused(error: Exception) -> Response:
 @require("instances.view")
 def read(name: str) -> Response:
     return ok(domains_resource(existing(name)))
-
-
-@blueprint.post("/instances/<name>/domains")
-@require("domains.manage")
-def add(name: str) -> Response:
-    existing(name)
-    refuse_without_feature("custom_domains", f"add a custom domain to {name}")  # those added before keep serving
-    value = check.text(check.body(), "domain", max_length=300)
-    if not value:
-        abort(400, "Enter the domain, such as erp.example.com.")
-    _confirm_production(name, "add a domain to it")
-    try:
-        record = domains.add(name, value, g.user["name"])
-    except (domains.InvalidDomain, domains.Refused) as error:
-        log("custom domain refused", instance=name, detail=f"{value[:100]}: {error}", ok=False)
-        return _refused(error)
-    log("custom domain added", instance=name, detail=record["domain"])
-    response = ok(domain_resource(record), status=201)
-    response.headers["Location"] = f"{PREFIX}/instances/{name}/domains/{record['domain']}"
-    return response
-
-
-@blueprint.patch("/instances/<name>/domains/<domain>")
-@require("domains.manage")
-def change(name: str, domain: str) -> Response:
-    existing(name)
-    record = _own(name, domain)
-    if check.flag(check.body(), "primary") is not True:
-        abort(400, 'Send {"primary": true} to make this the primary domain.')
-    if not record.get("primary"):
-        _confirm_production(name, "change its primary domain")
-        try:
-            record = domains.make_primary(record["domain"])
-        except domains.Refused as error:
-            return _refused(error)
-        log("primary custom domain changed", instance=name, detail=record["domain"])
-    return ok(domain_resource(record))
-
-
-@blueprint.post("/instances/<name>/domains/<domain>/check")
-@require("domains.manage")
-def check_now(name: str, domain: str) -> Response:
-    existing(name)
-    record = _own(name, domain)
-    try:
-        record = domains.retry(record["domain"])
-    except domains.Refused as error:
-        return _refused(error)
-    log("custom domain checked again", instance=name, detail=record["domain"])
-    return ok(domain_resource(record))
 
 
 @blueprint.delete("/instances/<name>/domains/<domain>")

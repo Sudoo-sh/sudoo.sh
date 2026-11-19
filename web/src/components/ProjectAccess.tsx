@@ -1,24 +1,25 @@
-// A project's Access tab (who sees it and at which level, per project and per branch) and the locks of its branches
+// A project's Access tab: who sees it (edited with the premium teams package; without it, shown read only with
+// "Remove all restrictions", which is always possible) and the locks of its branches (every plan)
 // (src/sudoo/projects/access.py). The server decides everything again; these controls only make it easy to say.
 
 import { GitBranch, Lock, LockOpen, Plus, ShieldCheck, Trash2, UsersRound } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
+import { useState } from "react";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useProjectAccess, useTeams, useUsers } from "@/api/queries";
-import type { AccessLevel, AccessMode, AccessSubject, BranchLock, Grant, Permission, ProjectAccess, ProjectBranch, ProjectDetail } from "@/api/types";
-import { Button, Callout, Field, Segmented, Skeleton, Switch } from "@/components/ui/basics";
+import type { AccessLevel, AccessSubject, BranchLock, Grant, ProjectAccess, ProjectBranch, ProjectDetail } from "@/api/types";
+import { Button, Callout, Field, Segmented, Skeleton } from "@/components/ui/basics";
 import { Modal, useToast } from "@/components/ui/overlay";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/teams";
 import { allowedNames } from "./LockTag";
-import { FeatureUpsell } from "./PlanSettings";
+import { PlanCard, PremiumSlot } from "@/premium/components";
 import { useCan } from "./Shell";
 
-const LEVELS: AccessLevel[] = ["none", "view", "developer", "maintainer", "admin"];
+export const LEVELS: AccessLevel[] = ["none", "view", "developer", "maintainer", "admin"];
 
-function SubjectPicker({
+/** Choose a team or a person (and a level): for locks here, and for grants in the teams package. */
+export function SubjectPicker({
   taken,
   onAdd,
   withLevel,
@@ -68,71 +69,55 @@ function SubjectPicker({
   );
 }
 
-function GrantList({ grants, onChange, empty }: { grants: Grant[]; onChange: (grants: Grant[]) => void; empty: string }) {
-  const t = useT(words);
+type Rules = ProjectAccess["branches"];
+
+/** Who has what, read only: with the teams package the editor (slot "project.access") takes its place. */
+function AccessSummary({ project, data }: { project: ProjectDetail; data: ProjectAccess }) {
+  const all = useT(words);
+  const t = all.access;
+  const toast = useToast();
+  const rules: [string, Rules[string]][] = Object.entries(data.branches);
+  const restricted = data.mode === "restricted" || data.grants.length > 0 || rules.length > 0;
+  const clear = useCall(
+    () => api.put<ProjectAccess>(`/projects/${project.id}/access`, { mode: "panel_roles", grants: [], branches: {} }),
+    [keys.projectAccess(project.id), keys.project(project.id), keys.projects, keys.instances],
+  );
+  const grantNames = (grants: Grant[]) => grants.map((g) => `${g.name ?? g.id} (${all.levels[g.level]})`).join(", ");
   return (
-    <div className="stack-sm">
-      {grants.length === 0 ? (
-        <p className="small faint">{empty}</p>
-      ) : (
-        <div className="grant-list">
-          {grants.map((grant) => (
-            <div key={`${grant.type}:${grant.id}`} className="grant-row">
-              <span className="row spacer">
-                {grant.type === "team" ? <UsersRound aria-label={t.access.team} /> : <ShieldCheck aria-label={t.access.person} />}
-                <bdi className="truncate">{grant.name ?? <span className="faint">{t.access.unknown}</span>}</bdi>
-                {grant.type === "user" && <span className="xsmall faint"><bdi dir="ltr">{grant.id}</bdi></span>}
-              </span>
-              <select className="select" value={grant.level} title={t.levelHints[grant.level]} aria-label={t.access.level}
-                onChange={(e) => onChange(grants.map((g) => (g === grant ? { ...g, level: e.target.value as AccessLevel } : g)))}>
-                {LEVELS.map((l) => <option key={l} value={l}>{t.levels[l]}</option>)}
-              </select>
-              <Button size="sm" variant="ghost" icon={<Trash2 />} aria-label={t.access.removeLabel(grant.name ?? grant.id)}
-                onClick={() => onChange(grants.filter((g) => g !== grant))} />
-            </div>
-          ))}
-        </div>
-      )}
-      <SubjectPicker taken={grants} withLevel onAdd={(s) => onChange([...grants, { type: s.type, id: s.id, name: s.name, level: s.level ?? "developer" }])} />
-    </div>
+    <section className="card">
+      <div className="card-head"><h2 className="spacer">{t.title}</h2></div>
+      <div className="card-body stack">
+        <p className="small">
+          <b>{data.mode === "restricted" ? t.restricted : t.open}.</b> {data.mode === "restricted" ? t.restrictedHint : t.openHint}
+        </p>
+        {data.grants.length > 0 && <p className="small"><span className="muted">{t.grants}:</span> <bdi>{grantNames(data.grants)}</bdi></p>}
+        {rules.map(([branch, rule]) => (
+          <p key={branch} className="small row-wrap">
+            <GitBranch /> <bdi dir="ltr" className="mono">{branch}</bdi>
+            {rule.restricted && <span className="faint">{t.restrictBranch}</span>}
+            {rule.grants.length > 0 && <bdi className="muted">{grantNames(rule.grants)}</bdi>}
+          </p>
+        ))}
+        {restricted && (
+          <div className="row-wrap">
+            <p className="xsmall faint spacer">{t.removeAllText}</p>
+            <Button size="sm" icon={<Trash2 />} loading={clear.isPending}
+              onClick={() => clear.mutate(undefined, {
+                onSuccess: () => toast("success", t.removedAll),
+                onError: (e) => toast("error", t.notSaved, errorText(e)),
+              })}>{t.removeAll}</Button>
+          </div>
+        )}
+        <PlanCard id="teams" compact />
+      </div>
+    </section>
   );
 }
 
-type Rules = ProjectAccess["branches"];
-
 export function AccessTab({ project, permitted }: { project: ProjectDetail; permitted: boolean }) {
   const t = useT(words);
-  const roleCan = useCan();
-  const can = (permission: Permission) => (permission === "projects.access" ? permitted : roleCan(permission));
-  const toast = useToast();
   const { data, isPending, error } = useProjectAccess(project.id, permitted);
-  const [mode, setMode] = useState<AccessMode>("panel_roles");
-  const [grants, setGrants] = useState<Grant[]>([]);
-  const [rules, setRules] = useState<Rules>({});
-  const [newBranch, setNewBranch] = useState("");
-  const reset = () => {
-    if (!data) return;
-    setMode(data.mode);
-    setGrants(data.grants);
-    setRules(data.branches);
-  };
-  useEffect(reset, [data]);
-  const dirty = useMemo(
-    () => !!data && JSON.stringify({ mode, grants, branches: rules }) !== JSON.stringify({ mode: data.mode, grants: data.grants, branches: data.branches }),
-    [data, mode, grants, rules],
-  );
-  const save = useCall(
-    () =>
-      api.put<ProjectAccess>(`/projects/${project.id}/access`, {
-        mode,
-        grants: grants.map(({ type, id, level }) => ({ type, id, level })),
-        branches: Object.fromEntries(
-          Object.entries(rules).map(([branch, rule]) => [branch, { restricted: rule.restricted, grants: rule.grants.map(({ type, id, level }) => ({ type, id, level })) }]),
-        ),
-      }),
-    [keys.projectAccess(project.id), keys.project(project.id), keys.projects, keys.teams, keys.instances],
-  );
-  if (!can("projects.access"))
+  if (!permitted)
     return (
       <div className="stack tab-panel">
         <Callout tone="info">{t.access.cannotManage}</Callout>
@@ -140,66 +125,10 @@ export function AccessTab({ project, permitted }: { project: ProjectDetail; perm
     );
   if (error) return <div className="stack tab-panel"><Callout tone="warning">{errorText(error)}</Callout></div>;
   if (isPending || !data) return <div className="stack tab-panel"><Skeleton height={220} /></div>;
-  const branchNames = project.branches_list.map((b) => b.name).filter((b) => !(b in rules));
   const locks = Object.entries(data.locks);
   return (
     <div className="stack tab-panel">
-      <FeatureUpsell feature="per_project_access" />
-      <section className="card">
-        <div className="card-head">
-          <h2 className="spacer">{t.access.title}</h2>
-          {can("teams.manage") && <Link className="btn sm ghost" to="/teams" viewTransition><UsersRound /> {t.access.manageTeams}</Link>}
-        </div>
-        <div className="card-body stack">
-          <p className="small muted">{t.access.text}</p>
-          <Segmented
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: "panel_roles", label: t.access.open },
-              { value: "restricted", label: t.access.restricted },
-            ]}
-          />
-          <p className="small muted">{mode === "restricted" ? t.access.restrictedHint : t.access.openHint}</p>
-          <h3 className="small">{t.access.grants}</h3>
-          <p className="xsmall faint">{t.access.grantsText}</p>
-          <GrantList grants={grants} onChange={setGrants} empty={mode === "restricted" ? t.access.noGrantsRestricted : t.access.noGrants} />
-        </div>
-      </section>
-      <section className="card">
-        <div className="card-head"><h2>{t.access.branchesTitle}</h2></div>
-        <div className="card-body stack">
-          <p className="small muted">{t.access.branchesText}</p>
-          {Object.keys(rules).length === 0 && <p className="small faint">{t.access.noBranchRules}</p>}
-          {Object.entries(rules).map(([branch, rule]) => (
-            <div key={branch} className="branch-rule stack-sm">
-              <div className="row-wrap">
-                <GitBranch />
-                <bdi dir="ltr" className="mono small">{branch}</bdi>
-                <span className="spacer" />
-                <Switch checked={rule.restricted} label={t.access.restrictBranch}
-                  onChange={(value) => setRules({ ...rules, [branch]: { ...rule, restricted: value } })} />
-                <Button size="sm" variant="ghost" icon={<Trash2 />} aria-label={t.access.removeBranch(branch)}
-                  onClick={() => setRules(Object.fromEntries(Object.entries(rules).filter(([b]) => b !== branch)))} />
-              </div>
-              {rule.restricted && <p className="xsmall faint">{t.access.restrictBranchHint}</p>}
-              <GrantList grants={rule.grants} empty={t.access.noGrants} onChange={(value) => setRules({ ...rules, [branch]: { ...rule, grants: value } })} />
-            </div>
-          ))}
-          {branchNames.length > 0 && (
-            <div className="row-wrap">
-              <select className="select" dir="ltr" value={newBranch} onChange={(e) => setNewBranch(e.target.value)} aria-label={t.access.branch}>
-                <option value="">{t.access.choose}</option>
-                {branchNames.map((b) => <option key={b} value={b}>{b}</option>)}
-              </select>
-              <Button size="sm" icon={<Plus />} disabled={!newBranch}
-                onClick={() => { setRules({ ...rules, [newBranch]: { restricted: false, grants: [] } }); setNewBranch(""); }}>
-                {t.access.addBranch}
-              </Button>
-            </div>
-          )}
-        </div>
-      </section>
+      <PremiumSlot name="project.access" props={{ project, permitted, access: data }} fallback={<AccessSummary project={project} data={data} />} />
       <section className="card">
         <div className="card-head"><h2>{t.access.locksTitle}</h2></div>
         <div className="card-body stack-sm">
@@ -214,17 +143,6 @@ export function AccessTab({ project, permitted }: { project: ProjectDetail; perm
           <p className="xsmall faint">{t.access.locksText}</p>
         </div>
       </section>
-      {dirty && (
-      <div className="save-bar">
-        <span className="small spacer">{t.access.unsaved}</span>
-        <Button onClick={reset} disabled={!dirty}>{t.access.discard}</Button>
-        <Button variant="primary" loading={save.isPending} disabled={!dirty}
-          onClick={() => save.mutate(undefined, {
-            onSuccess: () => toast("success", t.access.saved),
-            onError: (e) => toast("error", t.access.notSaved, errorText(e)),
-          })}>{t.access.save}</Button>
-      </div>
-      )}
     </div>
   );
 }

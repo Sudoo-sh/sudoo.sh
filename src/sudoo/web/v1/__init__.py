@@ -10,8 +10,11 @@ role (roles.py), and the same permission checks apply.
     instances.py   instances, jobs, versions
     projects.py    projects (one GitHub repository each), their branches and stages, access and locked branches
     upgrades.py    database upgrades of instances to a newer Odoo version: pre-check, test, production, rollback
-    teams.py       teams: named groups of accounts that project access is given to
-    domains.py     instances' custom domains
+    teams.py       teams: named groups of accounts that project access is given to (reading, removing; the rest
+                   comes with the premium teams package)
+    domains.py     instances' custom domains as the core serves them (reading, removing)
+    premium.py     premium features: what the plan includes and what is installed, their web files, and 402 stubs
+                   for the API of absent packages (each loaded package adds its own blueprint)
     caught_mail.py the e-mails of staging and development instances, caught by the mail catcher
     help_panel.py  what the help panel needs: version, documentation and support addresses
     settings.py    the panel's settings, changed while it runs
@@ -22,13 +25,11 @@ role (roles.py), and the same permission checks apply.
     invitations.py invitations of new people by e-mail, and accepting one
     tokens.py      API tokens
     backups.py     backups
-    offsite.py     off-site copies of backups: where they go, the signing key, checking and restoring copies
     github.py      deploy keys and repository checks
     docs.py        the documentation, for the web app's Help pages
     plan.py        the panel's Sudoo.sh plan: entitlements, usage, where to manage it
     plugins.py     installed plugins and the marketplace (catalogue, purchases, linking)
     shell.py       the web shell: tickets, open and past shells, recordings
-    support_access.py  letting Sudoo.sh support in for a while: grants, the banner, "End now"
     events.py      the live event stream (Server-Sent Events), served on the asyncio loop
     shell_socket.py  the web shell's WebSocket, served on the same loop
 Answers follow the conventions in responses.py.
@@ -55,15 +56,14 @@ from . import (
     invitations,
     licence,
     mail_templates,
-    offsite,
     plan,
     plugins,
+    premium,
     projects,
     server,
     session,
     settings,
     shell,
-    support_access,
     teams,
     tokens,
     upgrades,
@@ -104,7 +104,6 @@ def register(app: Flask) -> None:
         invitations,
         tokens,
         backups,
-        offsite,
         plan,
         github,
         docs,
@@ -112,11 +111,13 @@ def register(app: Flask) -> None:
         plugins,
         shell,
         teams,
-        support_access,
         upgrades,
+        premium,
     ):
         api.register_blueprint(module.blueprint)
+    premium.register_packages(api, app)
     app.register_blueprint(api)
+    app.register_blueprint(premium.files)
     bus.present("instance", instance_resource)
     bus.present("job", lambda job_id: job_resource(jobs.JOBS[job_id]))
     bus.present("domains", domains.domains_resource)

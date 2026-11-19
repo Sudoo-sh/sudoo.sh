@@ -43,7 +43,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
@@ -552,7 +552,10 @@ def _listed(item: Any) -> dict[str, Any] | None:
 
 
 def trusted_after(
-    known: dict[str, dict[str, Any]], listed: list[dict[str, Any]], now: float
+    known: dict[str, dict[str, Any]],
+    listed: list[dict[str, Any]],
+    now: float,
+    endorsement: Callable[[str, str, int], bytes] = crypto.endorsement_message,
 ) -> dict[str, dict[str, Any]]:
     """The trusted keys once the hub's list is applied: revocations and expiries first (at once), then states and
     dates of known keys, then new keys whose endorsement verifies with a trusted key that is not revoked (repeated,
@@ -580,7 +583,7 @@ def trusted_after(
                 signature = crypto.from_b64url(str(entry.get("endorsement") or ""))
             except ValueError:
                 continue
-            message = crypto.endorsement_message(kid, entry["public_key"], int(entry["not_before"]))
+            message = endorsement(kid, entry["public_key"], int(entry["not_before"]))
             if crypto.verify(crypto.public_key_from_b64url(endorser["public_key"]), signature, message):
                 trusted[kid] = {"public_key": entry["public_key"], "state": entry["state"],
                                 "not_after": entry["not_after"], "source": "endorsed"}  # fmt: skip

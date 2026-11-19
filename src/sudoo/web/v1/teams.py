@@ -7,22 +7,24 @@
     DELETE /api/v1/teams/<id>         -> 204; the team leaves every grant and lock
 
 Reading needs teams.manage or projects.access (who grants access chooses among the teams); changing needs
-teams.manage. Every change is audit-logged with the members added and removed.
+teams.manage. Every change is audit-logged with the members added and removed. Making a team, renaming it and adding
+members come with the premium "teams" package (402 without it, with the plans that have it); reading, taking members
+out and deleting a team are always possible.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 from flask import Blueprint, Response, abort, g
 
-from sudoo import accounts, projects, teams
+from sudoo import accounts, premium, projects, teams
 from sudoo.projects import access
 
 from .. import validation as check
-from ..security import can, log, refuse_unless, refuse_without_feature, require
-from .responses import PREFIX, created, iso, no_content, ok
+from ..security import PremiumRequired, can, log, refuse_unless, refuse_without_premium, require
+from .responses import PREFIX, iso, no_content, ok
 
 blueprint = Blueprint("teams", __name__)
 
@@ -91,61 +93,37 @@ def read_team(team_id: str) -> Response:
     return ok(team_resource(_team(team_id)))
 
 
+def _premium_view(name: str) -> Any:
+    """The teams package's view `name` (create_team, change_team), or a 402 with the plans that have it."""
+    refuse_without_premium("teams", name.replace("_", " "))
+    found = premium.hook(premium.ACCESS, "teams")
+    if found is None:
+        raise PremiumRequired(premium.refusal("teams"))
+    return getattr(found, name)
+
+
 @blueprint.post("/teams")
 @require("teams.manage")
 def create_team() -> Response:
-    refuse_without_feature("teams", "create a team")
-    data = check.body()
-    members = _members(data) if "members" in data else []
-    try:
-        team = teams.create(
-            check.text(data, "name", max_length=teams.NAME_MAX * 2),
-            check.text(data, "description", max_length=teams.DESCRIPTION_MAX * 2),
-            members,
-            accounts.all_users(),
-            g.user["name"],
-        )
-    except teams.TeamError as error:
-        abort(error.status, str(error))
-    log("team created", detail=f"{team['id']} ({team['name']}): members {', '.join(team['members']) or 'none'}")
-    return created(team_resource(team), f"{PREFIX}/teams/{team['id']}")
+    return cast(Response, _premium_view("create_team")())
 
 
 @blueprint.patch("/teams/<team_id>")
 @require("teams.manage")
 def change_team(team_id: str) -> Response:
+    """Taking members out is always possible; any other change comes with the teams package."""
     before = _team(team_id)
     data = check.body()
-    values: dict[str, Any] = {}
-    if "name" in data:
-        values["name"] = check.text(data, "name", max_length=teams.NAME_MAX * 2)
-    if "description" in data:
-        values["description"] = check.text(data, "description", max_length=teams.DESCRIPTION_MAX * 2)
-    if "members" in data:
-        values["members"] = _members(data)
-    if not values:
-        abort(400, "Send at least one of: name, description, members.")
-    if set(values) != {"members"} or not set(values["members"]) <= set(before.get("members") or []):
-        refuse_without_feature("teams", f"change the team {team_id}")  # taking members out is always possible
-    try:
-        team = teams.change(team_id, g.user["name"], accounts.all_users(), **values)
-    except teams.TeamError as error:
-        abort(error.status, str(error))
-    added = sorted(set(team["members"]) - set(before.get("members") or []))
-    removed = sorted(set(before.get("members") or []) - set(team["members"]))
-    changes = [k for k in ("name", "description") if k in values and values[k] != before.get(k)]
-    detail = ", ".join(
-        part
-        for part in (
-            f"{' and '.join(changes)} changed" if changes else "",
-            f"added {', '.join(added)}" if added else "",
-            f"removed {', '.join(removed)}" if removed else "",
-        )
-        if part
-    )
-    log("team changed", detail=f"{team_id}: {detail or 'nothing changed'}"[:300])
-    access.forget_restrictions()
-    return ok(team_resource(team))
+    if set(data) == {"members"} and set(_members(data)) <= set(before.get("members") or []):
+        removed = sorted(set(before.get("members") or []) - set(_members(data)))
+        try:
+            team = teams.remove_members(team_id, removed, g.user["name"])
+        except teams.TeamError as error:
+            abort(error.status, str(error))
+        log("team changed", detail=f"{team_id}: removed {', '.join(removed) or 'nobody'}"[:300])
+        access.forget_restrictions()
+        return ok(team_resource(team))
+    return cast(Response, _premium_view("change_team")(team_id))
 
 
 @blueprint.delete("/teams/<team_id>")

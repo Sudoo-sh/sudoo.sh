@@ -29,6 +29,7 @@ from urllib.parse import urlsplit
 
 from flask import Flask, Response, abort, g, redirect, request, session
 from flask.typing import ResponseReturnValue
+from werkzeug.exceptions import HTTPException
 
 from sudoo import accounts, api_tokens, exposure, licence, limits, roles
 from sudoo.config import settings
@@ -199,11 +200,11 @@ def _check_request() -> ResponseReturnValue | None:
 
 def _authenticate_support_call(user: Any) -> None:
     """A request Sudoo.sh support makes through the support channel: only /api/v1, only while its grant is active."""
-    from sudoo import support
+    from sudoo.premium import stubs
 
     if not isinstance(user, dict) or not request.path.startswith(API_PREFIX):
         abort(404)
-    if support.grant_of(user) is None:
+    if stubs.support_grant(user) is None:  # without the support package: never
         abort(403, "Support access to this panel was withdrawn or has ended.")
     g.user = user
 
@@ -479,6 +480,24 @@ def refuse_without_feature(feature: str, what: str) -> None:
     if refused:
         audit.record(g.user["name"], client_ip(), f"refused: {what} (plan)", ok=False, detail=refused[:300])
         abort(403, refused)
+
+
+class PremiumRequired(HTTPException):
+    """402: the call needs a premium package that is not installed (premium/); the description names the plans."""
+
+    code = 402
+
+
+def refuse_without_premium(package_id: str, what: str) -> None:
+    """402 when the premium package `package_id` does not run in this process, with which plans have it; logged."""
+    from sudoo import premium
+
+    if premium.loaded(package_id):
+        return
+    refused = premium.refusal(package_id)
+    audit.record(g.user["name"], client_ip(), f"refused: {what} (premium feature not installed)", ok=False,
+                 detail=refused[:300])  # fmt: skip
+    raise PremiumRequired(refused)
 
 
 def log(event: str, instance: str | None = None, detail: str | None = None, ok: bool = True) -> None:

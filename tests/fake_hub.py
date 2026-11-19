@@ -155,6 +155,70 @@ class HubKey:
         return b64url(self.private.sign(message))
 
 
+@dataclass
+class PremiumBuild:
+    """A premium package the hub offers (PREMIUM_DESIGN "Hub contract")."""
+
+    id: str
+    version: str
+    package: bytes
+    python_tag: str = "py3"
+    platform: str = "any"
+    features: list[str] = field(default_factory=list)
+
+
+def make_premium_package(
+    package_id: str,
+    version: str,
+    *,
+    python_tag: str = "py3",
+    platform: str = "any",
+    files: dict[str, bytes] | None = None,
+    entry_points: dict[str, dict[str, str]] | None = None,
+    ui: dict[str, Any] | None = None,
+    manifest: dict[str, Any] | None = None,
+) -> bytes:
+    """A premium package (zip): manifest.json, a module sudoo_premium_<id> with a blueprint, and optional web files."""
+    module = f"sudoo_premium_{package_id}"
+    sources = (
+        files
+        if files is not None
+        else {
+            f"src/{module}/__init__.py": (
+                b"from flask import Blueprint, jsonify\n"
+                b"blueprint = Blueprint('premium_" + package_id.encode() + b"', __name__)\n"
+                b"@blueprint.get('/premium-hello/" + package_id.encode() + b"')\n"
+                b"def hello():\n"
+                b"    return jsonify(data={'hello': '" + package_id.encode() + b"'})\n"
+                b"STARTED = []\n"
+                b"def start():\n"
+                b"    STARTED.append(1)\n"
+            ),
+            "ui/page.js": b"export function Page() { return null; }\n",
+        }
+    )
+    data = {
+        "id": package_id, "kind": "sudoo-premium", "name": f"Premium {package_id}", "version": version,
+        "features": [], "python_tag": python_tag, "platform": platform, "min_sudoo_version": "0.1.0",
+        "entry_points": entry_points if entry_points is not None else {
+            "sudoo.premium.blueprints": {package_id: f"{module}:blueprint"},
+            "sudoo.premium.jobs": {package_id: f"{module}:start"},
+        },
+    }  # fmt: skip
+    web = {name: hashlib.sha256(content).hexdigest() for name, content in sources.items() if name.startswith("ui/")}
+    data["ui"] = ui if ui is not None else {
+        "routes": [{"path": f"/{package_id}", "module": "ui/page.js", "export": "Page"}] if "ui/page.js" in web else [],
+        "files": web,
+    }  # fmt: skip
+    data.update(manifest or {})
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as archive:
+        archive.writestr("manifest.json", json.dumps(data))
+        for name, content in sources.items():
+            archive.writestr(name, content)
+    return out.getvalue()
+
+
 class FakeHub:
     def __init__(self) -> None:
         self.keys: list[HubKey] = [HubKey(Ed25519PrivateKey.generate())]
@@ -195,6 +259,11 @@ class FakeHub:
         self.entitlements: dict[str, Any] | None = None
         # past the account's daily API quota: counted panel calls answer 429 api_quota_exceeded with Retry-After
         self.quota_retry_after: int | None = None
+        # premium packages: the premium signing key (separate from the hub keys), the builds offered, the bindings
+        self.premium_key = HubKey(Ed25519PrivateKey.generate())
+        self.premium: dict[str, PremiumBuild] = {}
+        self.premium_binding_days = 30
+        self.premium_requests: list[str] = []
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
@@ -327,6 +396,28 @@ class FakeHub:
         sha = hashlib.sha256(package).hexdigest()
         message = b"\n".join((b"sudoo-plugin-v1", plugin_id.encode(), version.encode(), sha.encode()))
         return sha, self.key.sign(message)
+
+    def premium_included(self) -> list[str]:
+        return list((self.entitlements or {}).get("premium") or [])
+
+    def premium_offer(self, build: PremiumBuild) -> dict[str, Any]:
+        sha = hashlib.sha256(build.package).hexdigest()
+        statement = "\n".join(("sudoo-premium-v1", build.id, build.version, sha, build.python_tag, build.platform))
+        query = f"version={build.version}&python_tag={build.python_tag}&platform={build.platform}"
+        return {"id": build.id, "name": f"Premium {build.id}", "version": build.version, "features": build.features,
+                "python_tag": build.python_tag, "platform": build.platform, "package_sha256": sha,
+                "size": len(build.package), "signature": self.premium_key.sign(statement.encode()),
+                "signing_key_id": self.premium_key.key_id, "min_sudoo_version": "0.1.0", "max_sudoo_version": None,
+                "download_path": f"/api/v1/installations/premium/{build.id}/download?{query}"}  # fmt: skip
+
+    def premium_binding(self, installation: str, fingerprint: str, build: PremiumBuild) -> tuple[str, str]:
+        now = int(self._clock())
+        binding = {"v": 1, "kind": "sudoo-premium-binding", "server_id": installation,
+                   "hardware_fingerprint": fingerprint, "package_id": build.id, "version": build.version,
+                   "sha256": hashlib.sha256(build.package).hexdigest(), "iat": now,
+                   "exp": now + self.premium_binding_days * 86400}  # fmt: skip
+        raw = canonical(binding)
+        return b64url(raw), self.premium_key.sign(b"sudoo-premium-binding-v1\n" + raw)
 
     def install_info(self, listing: Listing, version: str) -> dict[str, Any]:
         sha, signature = self.sign_package(listing.id, version, listing.versions[version])
@@ -518,11 +609,20 @@ class FakeHub:
                               "reasons": ["Because you use Hello mailer", "From a verified publisher"]}
                              for listing in hub.listings.values() if listing.id not in hub.reported]  # fmt: skip
                     return self._send(200, {"data": picks[: int(query.get("limit", ["8"])[0])]})
+                if path == "/api/v1/premium/keys":
+                    key = hub.premium_key
+                    return self._send(200, {"data": [{"algorithm": "Ed25519", "key_id": key.key_id,
+                                                      "public_key": key.public, "state": key.state,
+                                                      "not_before": iso(key.not_before), "not_after": None,
+                                                      "revoked_at": None, "endorsed_by": None,
+                                                      "endorsement": None}]})  # fmt: skip
                 if parts[:3] != ["api", "v1", "installations"]:
                     return self._problem(404, "Not found.")
                 installation = self._signed(b"", lease=True)
                 if installation is None:
                     return None
+                if path == "/api/v1/installations/premium" or path.startswith("/api/v1/installations/premium/"):
+                    return self._premium(installation, parts, query)
                 if path == "/api/v1/installations/catalog":
                     items = [self._panel_item(listing) for listing in hub.listings.values()]
                     if "q" in query:
@@ -546,6 +646,34 @@ class FakeHub:
                     found = hub.sessions.get(parts[4])
                     return self._send(200, {"data": self._session_out(found)}) if found else self._problem(404, "No such session.")  # fmt: skip
                 return self._problem(404, "Not found.")
+
+            def _premium(self, installation: str, parts: list[str], query: dict[str, list[str]]) -> None:
+                hub.premium_requests.append("/".join(parts[4:]) or "list")
+                if installation in hub.flagged:
+                    return self._problem(403, "This server reported from another machine.", "fingerprint_mismatch")
+                included = hub.premium_included()
+                if len(parts) == 4:
+                    return self._send(200, {"data": [hub.premium_offer(b) for b in hub.premium.values()
+                                                     if b.id in included]})  # fmt: skip
+                build = hub.premium.get(parts[4])
+                if build is None:
+                    return self._problem(404, "No such premium package.", "unknown_package")
+                if build.id not in included:
+                    return self._problem(403, "The plan does not include this package.", "premium_not_included")
+                fingerprint = (query.get("fingerprint") or [""])[0]
+                if fingerprint != hub.fingerprints.get(installation):
+                    return self._problem(403, "Another machine.", "fingerprint_mismatch")
+                binding, signature = hub.premium_binding(installation, fingerprint, build)
+                if parts[5] == "binding":
+                    return self._send(200, {"data": {"binding": binding, "signature": signature,
+                                                     "key_id": hub.premium_key.key_id}})  # fmt: skip
+                offer = hub.premium_offer(build)
+                headers = {"X-Sudoo-Package-SHA256": offer["package_sha256"], "X-Sudoo-Premium-Id": build.id,
+                           "X-Sudoo-Premium-Version": build.version, "X-Sudoo-Signature": offer["signature"],
+                           "X-Sudoo-Signing-Key": hub.premium_key.key_id, "X-Sudoo-Premium-Binding": binding,
+                           "X-Sudoo-Premium-Binding-Signature": signature,
+                           "X-Sudoo-Premium-Binding-Key": hub.premium_key.key_id}  # fmt: skip
+                return self._send(200, raw=build.package, headers=headers)
 
             def _bytes(self, listing: Listing, version: str) -> bytes:
                 package = listing.versions[version]

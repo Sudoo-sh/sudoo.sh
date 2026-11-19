@@ -461,9 +461,9 @@ async def _to_instance(request: web.Request, name: str, edge: Edge) -> web.Strea
 
 def _challenge(request: web.Request) -> web.Response | None:
     """The answer to an HTTP-01 check (or the panel's own probe) while one runs, else None."""
-    from sudoo.domains import certificates
+    from sudoo.instances import custom_domains
 
-    answer = certificates.challenge_answer(request.path[len(CHALLENGE_PATH) :])
+    answer = custom_domains.challenge_answer(request.path[len(CHALLENGE_PATH) :])
     return None if answer is None else web.Response(body=answer, content_type="text/plain")
 
 
@@ -513,9 +513,9 @@ def _new_context() -> ssl.SSLContext:
 
 def _domain_context(domain: str) -> ssl.SSLContext | None:
     """The TLS context with the domain's certificate, loaded again when its file changed (a renewal)."""
-    from sudoo.domains import certificates
+    from sudoo.instances import custom_domains
 
-    file = certificates.cert_file(domain)
+    file = custom_domains.cert_file(domain)
     try:
         stat = file.stat()
     except OSError:

@@ -38,8 +38,9 @@ http://:{$PANEL_PORT} {
 	}
 
 	# the backend: API, webhooks, documentation pages and their files, health check. Its requests are small JSON
-	# documents (the backend refuses more than 64 KB); a much larger body is refused here already
-	@backend path /api/* /hooks/* /docs /docs/* /static/* /healthz
+	# documents (the backend refuses more than 64 KB); a much larger body is refused here already. /premium/* are the
+	# web files of premium features, served by the backend only while their hash matches their signed manifest
+	@backend path /api/* /hooks/* /docs /docs/* /static/* /premium/* /healthz
 	handle @backend {
 		request_body {
 			max_size 1MB

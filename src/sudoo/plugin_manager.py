@@ -304,6 +304,11 @@ def entry_allowed(entry: Any, group: str) -> bool:
         root = Path(str(dist.locate_file(""))).resolve()
     except (OSError, NotImplementedError):
         return False
+    premium = (settings.manager_dir / "premium").resolve()
+    if root.is_relative_to(premium):  # a premium package: only its own premium groups (premium/loader.py)
+        from sudoo.premium import loader as premium_loader
+
+        return premium_loader.entry_allowed(entry, group)
     if not root.is_relative_to(plugins_dir().resolve()):
         return True  # installed with the panel (its own package, or one added to its environment)
     name = dist.metadata.get("Name", None)
@@ -530,7 +535,7 @@ def check_package(archive: zipfile.ZipFile, plugin_id: str, version: str) -> dic
     for group, entries in groups.items():
         if not isinstance(group, str) or not group.startswith("sudoo.") or not isinstance(entries, dict):
             raise PluginRefused(f"The entry point group {str(group)[:60]!r} is not a Sudoo.sh group.")
-        if group in RESERVED_GROUPS:
+        if group in RESERVED_GROUPS or group.startswith("sudoo.premium."):
             raise PluginRefused(f"Plugins for {group} cannot be installed from the marketplace.")
         # names of other plugins of the group: built in, loaded, and those of every other installed plugin
         taken = {e.name for e in entry_points(group=group) if not _belongs_to(e, plugin_id)}
@@ -546,7 +551,11 @@ def check_package(archive: zipfile.ZipFile, plugin_id: str, version: str) -> dic
             if name in taken:
                 raise PluginRefused(f"Another plugin already provides {name!r} in {group}.")
     for top in _top_level_modules(infos):
-        if top == "sudoo" or (top not in _own_modules(plugin_id) and find_spec(top) is not None):
+        if (
+            top == "sudoo"
+            or top.startswith("sudoo_premium")
+            or (top not in _own_modules(plugin_id) and find_spec(top) is not None)
+        ):
             raise PluginRefused(f"The package's module {top!r} would clash with one the panel already has.")
     return manifest
 

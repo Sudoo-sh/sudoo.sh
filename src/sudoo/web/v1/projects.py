@@ -60,7 +60,7 @@ from sudoo.projects import access, adopt, branches, staging
 from sudoo.repos import github, github_app
 
 from .. import validation as check
-from ..security import log, refuse_unless, refuse_without_feature
+from ..security import log, refuse_unless, refuse_without_feature, refuse_without_premium
 from . import instances as instances_api
 from .resources import job_resource
 from .responses import PREFIX, created, iso, no_content, ok
@@ -656,7 +656,8 @@ def change_access(project_id: str) -> Response:
         restricted = check.flag(rule, "restricted") is True
         if own or restricted:
             rules[str(branch)] = {"restricted": restricted, "grants": own}
-    if mode != "panel_roles" or grants or rules:  # clearing a project's access is always possible
+    if not _only_removes(access.access_of(found), mode, grants, rules):  # removing restrictions is always possible
+        refuse_without_premium("teams", f"change the access of {project_id}")
         refuse_without_feature("per_project_access", f"change the access of {project_id}")
     with projects.LOCK:
         current = projects.get(project_id) or found
@@ -672,6 +673,27 @@ def change_access(project_id: str) -> Response:
         else ""))  # fmt: skip
     events.publish("project", project_id)
     return ok(access_resource(projects.get(project_id) or found))
+
+
+def _entries(items: Any) -> set[tuple[str, str, str]]:
+    return {(str(e.get("type")), str(e.get("id")), str(e.get("level", ""))) for e in items or ()}
+
+
+def _only_removes(before: Mapping[str, Any], mode: str, grants: list[Any], rules: dict[str, Any]) -> bool:
+    """Whether the new access only takes away restrictions: no new grant, no higher level, no newly restricted project
+    or branch (always allowed, with or without the teams package)."""
+    if mode == "restricted" and before.get("mode") != "restricted":
+        return False
+    if not _entries(grants) <= _entries(before.get("grants")):
+        return False
+    old_rules = before.get("branches") or {}
+    for branch, rule in rules.items():
+        old = old_rules.get(branch) or {}
+        if rule["restricted"] and not old.get("restricted"):
+            return False
+        if not _entries(rule["grants"]) <= _entries(old.get("grants")):
+            return False
+    return True
 
 
 def _known_branch(project: Mapping[str, Any], branch: str) -> None:

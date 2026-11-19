@@ -1,17 +1,25 @@
-"""The background work of custom domains: check DNS, get certificates, renew them, alert when that fails.
+"""The background work of custom domains in the core: renew the certificates of the domains that exist, alert when
+that fails, and (with the premium "domains" package) move new domains along: DNS check, http probe, first
+certificate.
+
+Renewal never depends on the package: a domain set up before keeps being served and renewed whatever the plan. A
+new domain (one without a certificate yet, or an "external" one not active yet) waits until the package runs: the
+DNS checks and the first issuance of new domains come with it (its sudoo.premium.domains "manager" gives the DNS
+check, `dns`).
 
 One thread (run_forever) looks at every domain whose next attempt is due, every LOOP_SECONDS, and at once when a
-domain is added or retried (domains.WAKE). One domain at a time: ACME authorities limit how fast one may ask, and a
-check waits for the authority anyway.
+domain is added or retried (custom_domains.WAKE). One domain at a time: ACME authorities limit how fast one may ask,
+and a check waits for the authority anyway.
 
-    waiting_dns / failed   DNS check (dns.py); then, with DOMAIN_HTTP_PROBE (acme) or always (external), an http
+    waiting_dns / failed   (package) DNS check; then, with DOMAIN_HTTP_PROBE (acme) or always (external), an http
                            probe: a random answer the gateway serves at /.well-known/acme-challenge/<token>, fetched
                            through the domain the way the ACME authority will. Then:
                              acme      issuing -> ACME order (acme.py) -> active, or failed with the reason
                              external  active
     active                 renewing once renew_at has passed (CERTIFICATE_RENEW_DAYS before expiry, at the latest a
                            third of the certificate's lifetime before it)
-    renewing               a new certificate replaces the old one -> active; on failure it stays renewing (the old
+    renewing               (core) the DNS check when the package runs, the http probe with DOMAIN_HTTP_PROBE, then a
+                           new certificate replaces the old one -> active; on failure it stays renewing (the old
                            certificate is still served) with the reason, and becomes failed once it expired
 
 Waiting and failing wait longer each time: DNS checks 1, 2, 4 ... minutes up to an hour; failed issuances 5, 10,
@@ -31,8 +39,10 @@ from typing import Any
 from sudoo import alerts
 from sudoo.config import settings
 from sudoo.core import audit
-
-from . import COLLECTION, WAKE, _publish, _set, acme, all_records, certificates, changed, dns, enabled, tls_mode
+from sudoo.instances import acme, certificates
+from sudoo.instances.custom_domains import COLLECTION, WAKE, all_records, changed, enabled, tls_mode
+from sudoo.instances.custom_domains import publish as _publish
+from sudoo.instances.custom_domains import set_fields as _set
 
 LOOP_SECONDS = 30.0
 DNS_FIRST_SECONDS, DNS_MAX_SECONDS = 60.0, 3600.0
@@ -171,12 +181,39 @@ def _issue(record: dict[str, Any], now: float) -> None:
     _recover(record)
 
 
+class _Passed:
+    """A DNS check that is not made (the domains package does not run): renewals go on with the http-01 check."""
+
+    ok = True
+    reason = ""
+    addresses: tuple[str, ...] = ()
+
+
+def _dns() -> Any:
+    """The domains package's DNS check (check, Check), or None while the package does not run."""
+    from sudoo import premium
+
+    if not premium.loaded("domains"):
+        return None
+    return getattr(premium.hook(premium.DOMAINS, "manager"), "dns", None)
+
+
+def is_new(record: dict[str, Any]) -> bool:
+    """A domain that never had a certificate (or an external one not active yet): it needs the domains package."""
+    if record.get("tls") == "external":
+        return record.get("status") != "active"
+    return not record.get("certificate") and record.get("status") != "active"
+
+
 def process(record: dict[str, Any], now: float | None = None) -> None:
     """Move one domain along (see the module's description)."""
     now = time.time() if now is None else now
     domain, status = record["domain"], record.get("status")
     if record.get("tls") != tls_mode():
         return  # recorded for the other mode: kept, not served, until the mode changes back
+    dns = _dns()
+    if is_new(record) and dns is None:
+        return  # adding domains comes with the premium domains package: a new one waits for it
     if status == "active":
         if record.get("tls") == "acme" and record.get("renew_at") and now >= record["renew_at"]:
             record = _set(domain, status="renewing", reason=None, attempts=0) or record
@@ -184,7 +221,7 @@ def process(record: dict[str, Any], now: float | None = None) -> None:
         else:
             _expiry_alert(record, now)
             return
-    checked = dns.check(domain) if record.get("tls") == "acme" else dns.Check(True, "")
+    checked = dns.check(domain) if dns is not None and record.get("tls") == "acme" else _Passed()
     if not checked.ok:
         if status == "renewing":
             _failed(record, checked.reason, now)
@@ -241,6 +278,8 @@ def _expiring(record: dict[str, Any], now: float) -> bool:
 
 def due(record: dict[str, Any], now: float) -> bool:
     status = record.get("status")
+    if record.get("tls") == tls_mode() and is_new(record) and _dns() is None:
+        return False
     if status == "active":
         return bool(record.get("renew_at") and now >= record["renew_at"]) or _expiring(record, now)
     if status == "issuing":  # left half-way (the panel restarted): start again
@@ -277,4 +316,4 @@ def run_forever() -> None:
             print(f"domains: {error!r}", flush=True)
 
 
-__all__ = ["COLLECTION", "backoff", "process", "renew_at", "round_", "run_forever"]
+__all__ = ["COLLECTION", "backoff", "due", "is_new", "process", "renew_at", "round_", "run_forever"]

@@ -29,9 +29,11 @@ Clock
 from __future__ import annotations
 
 import contextlib
+import ipaddress
 import json
 import logging
 import re
+import socket
 import threading
 import time
 from datetime import UTC, datetime
@@ -159,6 +161,44 @@ def installed_report() -> list[dict[str, str]]:
     return [{"id": r["id"], "version": r["version"]} for r in plugin_manager.records().values()]
 
 
+def premium_report() -> list[dict[str, str]]:
+    """The premium packages installed (premium/), as the heartbeat's "premium" (at most 50)."""
+    try:
+        from sudoo.premium import loader
+
+        return [{"id": r["id"], "version": r["version"]} for r in loader.records().values()][:50]
+    except Exception:  # noqa: BLE001 - optional; the heartbeat goes without it
+        log.exception("marketplace: could not list the premium features")
+        return []
+
+
+def _route_source(family: int, target: str) -> str | None:
+    """The local address the system would send from to reach `target` (a UDP "connect": nothing is sent)."""
+    try:
+        with socket.socket(family, socket.SOCK_DGRAM) as probe:
+            probe.connect((target, 53))
+            return str(probe.getsockname()[0])
+    except OSError:
+        return None
+
+
+def public_addresses() -> dict[str, str]:
+    """The server's public addresses for managed subdomains: PUBLIC_IPV4 / PUBLIC_IPV6 when set, else the address
+    the server sends from, when it is a global one (behind NAT there is none: set the setting)."""
+    found: dict[str, str] = {}
+    for name, family, target, setting in (
+        ("public_ipv4", socket.AF_INET, "1.1.1.1", settings.public_ipv4),
+        ("public_ipv6", socket.AF_INET6, "2606:4700:4700::1111", settings.public_ipv6),
+    ):
+        value = setting or _route_source(family, target)
+        try:
+            if value and ipaddress.ip_address(value).is_global:
+                found[name] = str(ipaddress.ip_address(value))
+        except ValueError:
+            continue
+    return found
+
+
 def _percent(value: Any) -> float | None:
     if isinstance(value, int | float) and not isinstance(value, bool):
         return round(min(100.0, max(0.0, float(value))), 1)
@@ -256,6 +296,8 @@ def _heartbeat_once() -> dict[str, Any]:
     usage = _usage_report()
     if usage is not None:
         body["usage"] = usage
+    body["premium"] = premium_report()
+    body.update(public_addresses())
     answer = client.request("POST", "/api/v1/heartbeat", body).data or {}
     token = answer.get("lease") if isinstance(answer, dict) else None
     if not isinstance(token, str):
@@ -288,6 +330,9 @@ def _heartbeat_once() -> dict[str, Any]:
     from sudoo import plugin_manager
 
     plugin_manager.apply_lease(verified)
+    from sudoo.premium import loader as premium_loader
+
+    premium_loader.after_lease()  # installs or updates the premium features the plan includes (a job)
     commands = answer.get("commands")
     carry_out(commands if isinstance(commands, list) else [], verified)
     _changed()

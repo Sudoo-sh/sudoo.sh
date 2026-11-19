@@ -442,6 +442,18 @@ function Overview({ instance, busy, act }: { instance: Instance; busy: boolean; 
           <div className="card-head"><h2>{t.details}</h2></div>
           <div className="card-body">
             <dl className="dl small">
+              {instance.managed_name && (
+                <>
+                  <dt>{t.managedName}</dt>
+                  <dd className="truncate">
+                    {instance.managed_name.url ? (
+                      <a href={instance.managed_name.url} target="_blank" rel="noreferrer" dir="ltr">{instance.managed_name.hostname}</a>
+                    ) : (
+                      <><bdi dir="ltr" className="mono">{instance.managed_name.hostname}</bdi> <span className="faint">{t.managedPending}</span></>
+                    )}
+                  </dd>
+                </>
+              )}
               <dt>{t.database}</dt>
               <dd className="mono" dir="ltr">{instance.odoo.database}</dd>
               <dt>{t.repository}</dt>

@@ -339,6 +339,8 @@ Audit entries (`GET /audit`) carry `support: true` when Sudoo.sh support made th
 | `GET /server` | `instances.view` | | 200, the panel's version and address, the plugins in use, the server's figures, the number of live-event clients |
 | `POST /server/restart` | `settings.manage` | `{}` | **202** `{"restarting": true}`: the backend stops and Docker starts it again within seconds; the web app, the connectors and the instances keep running. **409** while jobs run |
 | `GET /metrics` | `instances.view` | | 200, the latest figures of the server and every instance, and the capacity estimate ([Metrics](#9-metrics)) |
+| `GET /server/managed-subdomains` | `instances.view` | | 200, managed subdomains: `setting` (`MANAGED_SUBDOMAINS`), `linked`, `enabled` (Sudoo.sh offers them), `active`, `base_domain`, `company`, `limit`, `used`, `held` (this server's), `checked_at`, `error`, `pending_release`, `addresses` (the public addresses sent) |
+| `POST /server/managed-subdomains/sync` | `settings.manage` | | 200, the same after comparing the instances with their names now; 409 when the panel is not linked |
 | `GET /server/capacity` | `instances.view` | | 200, how many instances the server can run at once, how many run, the panel's own use, disk headroom ([Capacity](#capacity)); **503** before the first measurement |
 | `GET /metrics/history?minutes=60` | `instances.view` | | 200, up to one hour of figures, in columns |
 | `GET /instances/<name>/metrics?minutes=60` | `instances.view` | | 200, one instance's latest figures and history |
@@ -685,6 +687,15 @@ would use without a `file` (`null` when there is none):
 "restorable_backup": "sales-main__sales_main__20261112-000012__daily.zip",
 "rollback": {"backups": ["sales-main__sales_main__20261112-101500__before-restore.zip"],
              "taken_at": "2026-11-12T10:15:00Z", "until": "2026-11-13T10:15:00Z"}
+```
+
+Every instance also has `managed_name`: `null`, or its name under Sudoo.sh's domain (managed subdomains, every plan;
+[Administrator Guide](ADMIN_GUIDE.md#managed-subdomains)). Once `serving`, it is the instance's `url` too, unless
+the instance has a primary custom domain:
+
+```json
+"managed_name": {"hostname": "main.development.acme.sudoo.cloud", "status": "active", "reason": null,
+                 "serving": true, "url": "https://main.development.acme.sudoo.cloud"}
 ```
 
 `rollback` is `null` unless the instance was restored in the last `ROLLBACK_HOURS` (and not rolled back since):

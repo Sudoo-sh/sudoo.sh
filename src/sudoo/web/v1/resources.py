@@ -239,6 +239,9 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
         "current_job": current_job(current) if current else None,
         "links": {"self": f"{PREFIX}/instances/{name}"},
     }
+    from sudoo.instances import managed_names
+
+    resource["managed_name"] = managed_names.resource(name)  # its name under Sudoo.sh's domain (every plan), or None
     if full:
         recent_commits, found_submodules = code(name)
         disk = monitor.disk_usage(name)

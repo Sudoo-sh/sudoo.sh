@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
@@ -264,6 +264,14 @@ class FakeHub:
         self.premium: dict[str, PremiumBuild] = {}
         self.premium_binding_days = 30
         self.premium_requests: list[str] = []
+        # managed subdomains (hub contract "Managed subdomains")
+        self.subdomains_enabled = True
+        self.subdomains_base = "sudoo.test"
+        self.subdomains_company: str | None = None
+        self.subdomains: dict[str, dict[str, Any]] = {}  # hostname -> {branch, stage, company, server_id}
+        self.subdomain_limit: int | None = 5
+        self.subdomains_foreign: set[str] = set()  # names another account holds
+        self.subdomain_release_failures = 0  # the next releases answer 502 dns_failed
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
@@ -396,6 +404,17 @@ class FakeHub:
         sha = hashlib.sha256(package).hexdigest()
         message = b"\n".join((b"sudoo-plugin-v1", plugin_id.encode(), version.encode(), sha.encode()))
         return sha, self.key.sign(message)
+
+    def subdomains_out(self) -> dict[str, Any]:
+        return {"enabled": self.subdomains_enabled, "base_domain": self.subdomains_base if self.subdomains_enabled
+                else None, "company": self.subdomains_company, "limit": self.subdomain_limit,
+                "used": len(self.subdomains), "subdomains": [self.subdomain_out(h) for h in sorted(self.subdomains)]}  # fmt: skip
+
+    def subdomain_out(self, hostname: str) -> dict[str, Any]:
+        found = self.subdomains[hostname]
+        return {"hostname": hostname, "branch": found["branch"], "stage": found["stage"], "company": found["company"],
+                "ipv4": "203.0.113.7", "ipv6": None, "proxied": False, "server_id": found["server_id"],
+                "created_at": "2026-11-19T10:00:00Z", "updated_at": "2026-11-19T10:00:00Z"}  # fmt: skip
 
     def premium_included(self) -> list[str]:
         return list((self.entitlements or {}).get("premium") or [])
@@ -621,6 +640,8 @@ class FakeHub:
                 installation = self._signed(b"", lease=True)
                 if installation is None:
                     return None
+                if path == "/api/v1/installations/subdomains":
+                    return self._send(200, {"data": hub.subdomains_out()})
                 if path == "/api/v1/installations/premium" or path.startswith("/api/v1/installations/premium/"):
                     return self._premium(installation, parts, query)
                 if path == "/api/v1/installations/catalog":
@@ -699,6 +720,47 @@ class FakeHub:
                     return self._send(307, {}, {**headers, "Location": f"{hub.url}/objects/pkg/{plugin_id}/{version}"})
                 return self._send(200, raw=self._bytes(listing, version), headers=headers)
 
+            def _subdomain(self, installation: str, data: dict[str, Any]) -> None:
+                label = re.compile(r"^(?!..--)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
+                if not hub.subdomains_enabled:
+                    return self._problem(503, "Managed subdomains are not offered.", "subdomains_unavailable")
+                branch, stage, company = data.get("branch", ""), data.get("stage"), data.get("company")
+                if not label.match(branch) or stage not in ("production", "staging", "development"):
+                    return self._problem(422, "Not a label.", "invalid_label")
+                if not any(h.get("public_ipv4") or h.get("public_ipv6") for h in hub.heartbeats):
+                    return self._problem(409, "No public address yet.", "address_unknown")
+                if company and hub.subdomains_company and company != hub.subdomains_company:
+                    return self._problem(409, "The company label is fixed.", "company_label_fixed")
+                hub.subdomains_company = hub.subdomains_company or company or "acme"
+                hostname = f"{branch}.{stage}.{hub.subdomains_company}.{hub.subdomains_base}"
+                if hostname in hub.subdomains_foreign:
+                    return self._problem(409, "Taken.", "hostname_taken")
+                if hostname in hub.subdomains:
+                    hub.subdomains[hostname]["server_id"] = installation
+                    return self._send(200, {"data": hub.subdomain_out(hostname)})
+                if hub.subdomain_limit is not None and len(hub.subdomains) >= hub.subdomain_limit:
+                    return self._problem(403, "The plan's managed names are used up.", "subdomain_limit")
+                hub.subdomains[hostname] = {"branch": branch, "stage": stage, "company": hub.subdomains_company,
+                                            "server_id": installation}  # fmt: skip
+                return self._send(201, {"data": hub.subdomain_out(hostname)})
+
+            def do_DELETE(self) -> None:  # noqa: N802
+                hub.requests.append(f"DELETE {self.path}")
+                installation = self._signed(self._body(), lease=True)
+                if installation is None:
+                    return None
+                prefix = "/api/v1/installations/subdomains/"
+                if not self.path.startswith(prefix):
+                    return self._problem(404, "Not found.")
+                hostname = unquote(self.path[len(prefix) :])
+                if hub.subdomain_release_failures:
+                    hub.subdomain_release_failures -= 1
+                    return self._problem(502, "The DNS records could not be changed.", "dns_failed")
+                if hostname not in hub.subdomains:
+                    return self._problem(404, "The account holds no such name.", "unknown_subdomain")
+                del hub.subdomains[hostname]
+                return self._send(204)
+
             def do_POST(self) -> None:  # noqa: N802
                 hub.requests.append(f"POST {self.path}")
                 body = self._body()
@@ -746,6 +808,11 @@ class FakeHub:
                            "commands": [hub.command_out(cid, installation) for cid in hub.pending(installation)],
                            "flags": signed["flags"], "next_heartbeat_seconds": 900}  # fmt: skip
                     return self._send(200, {"data": out})
+                if self.path == "/api/v1/installations/subdomains":
+                    installation = self._signed(body, lease=True)
+                    if installation is None:
+                        return None
+                    return self._subdomain(installation, data)
                 if self.path == "/api/v1/link":
                     installation = self._signed(body)
                     if installation is None:

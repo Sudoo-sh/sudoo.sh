@@ -8,6 +8,10 @@ with the certificate in <GATEWAY_DIR>/certs/<domain>.pem; "external": something 
 (waiting_dns, issuing, active, renewing, failed). This module reads those records, tells the gateway which domains to
 answer (with the certificate they have), gives an instance's public address, and removes domains: removing is always
 possible. CUSTOM_DOMAINS=off keeps the records but serves none.
+
+Managed names (instances/managed_names.py, every plan) are records here too, marked "managed": served and renewed the
+same way whatever CUSTOM_DOMAINS says, never listed among an instance's custom domains, and removed only with their
+instance (or when the instance's branch or stage changes).
 """
 
 from __future__ import annotations
@@ -109,9 +113,13 @@ def get(domain: str) -> dict[str, Any] | None:
     return all_records().get(domain)
 
 
-def for_instance(name: str) -> list[dict[str, Any]]:
-    """The instance's domains, the primary one first, then by name."""
-    found = [record for record in all_records().values() if record.get("instance") == name]
+def for_instance(name: str, managed: bool = False) -> list[dict[str, Any]]:
+    """The instance's custom domains (with `managed`, its managed name too), the primary one first, then by name."""
+    found = [
+        record
+        for record in all_records().values()
+        if record.get("instance") == name and (managed or not record.get("managed"))
+    ]
     return sorted(found, key=lambda r: (not r.get("primary"), r["domain"]))
 
 
@@ -135,25 +143,31 @@ def serving(record: dict[str, Any]) -> bool:
 
 
 def primary_url(name: str) -> str | None:
-    """https://<primary domain> when the instance has one that is served now (and domains are on), else None."""
-    if not enabled():
-        return None
-    for record in for_instance(name):
-        if record.get("primary"):
-            return f"https://{record['domain']}" if serving(record) and record.get("tls") == tls_mode() else None
-    return None
+    """https://<primary domain> when the instance has one that is served now (and domains are on), else its managed
+    name when that is served (managed_names.py), else None."""
+    if enabled():
+        for record in for_instance(name):
+            if record.get("primary") and serving(record) and record.get("tls") == tls_mode():
+                return f"https://{record['domain']}"
+    from . import managed_names
+
+    return managed_names.url(name)
 
 
 def gateway_hosts() -> dict[str, dict[str, Any]]:
-    """The domains the gateway answers on ports 80/443 (CUSTOM_DOMAINS=acme): {domain: {"instance", "certificate"}}."""
-    if settings.custom_domains != "acme":
-        return {}
-    from sudoo.instances import store
+    """The domains the gateway answers on ports 80/443: custom domains with CUSTOM_DOMAINS=acme, managed names while
+    they are on (managed_names.on); {domain: {"instance", "certificate"}}."""
+    from sudoo.instances import managed_names, store
 
+    custom, managed = settings.custom_domains == "acme", managed_names.on()
+    if not custom and not managed:
+        return {}
     return {
         domain: {"instance": record["instance"], "certificate": certificate_present(domain)}
         for domain, record in sorted(all_records().items())
-        if record.get("tls") == "acme" and store.exists(str(record.get("instance")))
+        if record.get("tls") == "acme"
+        and (managed if record.get("managed") else custom)
+        and store.exists(str(record.get("instance")))
     }
 
 
@@ -164,6 +178,7 @@ def resource(record: dict[str, Any]) -> dict[str, Any]:
         "domain": record["domain"],
         "instance": record.get("instance"),
         "primary": bool(record.get("primary")),
+        "managed": bool(record.get("managed")),
         "tls": record.get("tls"),
         "status": shown_status(record),
         "reason": record.get("reason"),
@@ -210,12 +225,19 @@ def set_fields(domain: str, **values: Any) -> dict[str, Any] | None:
     return stored
 
 
-def remove(domain: str) -> dict[str, Any]:
-    """Remove a domain and its certificate; another domain of the instance becomes primary if this one was."""
+def remove(domain: str, managed: bool = False) -> dict[str, Any]:
+    """Remove a domain and its certificate; another domain of the instance becomes primary if this one was. A managed
+    name is removed only by managed_names.py (`managed`): it follows its instance."""
     with _LOCK:
         record = get(domain)
         if record is None:
             raise Refused("This instance has no such domain.", 404)
+        if record.get("managed") and not managed:
+            raise Refused(
+                "This is the instance's managed name: it stays while the instance exists and is released when the "
+                "instance is deleted (or MANAGED_SUBDOMAINS is turned off).",
+                409,
+            )
         storage().delete(COLLECTION, domain)
         forget_cache()
         cert_file(domain).unlink(missing_ok=True)
@@ -228,10 +250,17 @@ def remove(domain: str) -> dict[str, Any]:
 
 
 def forget_instance(name: str) -> None:
-    """The instance was deleted: remove its domains and certificates."""
+    """The instance was deleted: remove its domains and certificates; its managed name is released at the hub soon."""
+    released = []
     with _LOCK:
-        for record in for_instance(name):
+        for record in for_instance(name, managed=True):
             storage().delete(COLLECTION, record["domain"])
             cert_file(record["domain"]).unlink(missing_ok=True)
+            if record.get("managed"):
+                released.append(record["domain"])
         forget_cache()
     refresh_gateway()
+    if released:
+        from . import managed_names
+
+        managed_names.release_later(released)

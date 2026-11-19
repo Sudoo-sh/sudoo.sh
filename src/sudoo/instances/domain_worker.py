@@ -22,6 +22,9 @@ and a check waits for the authority anyway.
                            new certificate replaces the old one -> active; on failure it stays renewing (the old
                            certificate is still served) with the reason, and becomes failed once it expired
 
+Managed names (managed_names.py) go the same way on every plan and whatever CUSTOM_DOMAINS says, while they are on:
+the hub made their DNS records, so there is no DNS check (the http probe still runs with DOMAIN_HTTP_PROBE).
+
 Waiting and failing wait longer each time: DNS checks 1, 2, 4 ... minutes up to an hour; failed issuances 5, 10,
 20 ... minutes up to CERTIFICATE_RETRY_MAX_HOURS (ACME authorities allow only a few failed checks per hour).
 """
@@ -209,10 +212,11 @@ def process(record: dict[str, Any], now: float | None = None) -> None:
     """Move one domain along (see the module's description)."""
     now = time.time() if now is None else now
     domain, status = record["domain"], record.get("status")
-    if record.get("tls") != tls_mode():
+    managed = bool(record.get("managed"))
+    if not managed and record.get("tls") != tls_mode():
         return  # recorded for the other mode: kept, not served, until the mode changes back
-    dns = _dns()
-    if is_new(record) and dns is None:
+    dns = None if managed else _dns()  # a managed name's DNS is the hub's
+    if not managed and is_new(record) and dns is None:
         return  # adding domains comes with the premium domains package: a new one waits for it
     if status == "active":
         if record.get("tls") == "acme" and record.get("renew_at") and now >= record["renew_at"]:
@@ -278,7 +282,12 @@ def _expiring(record: dict[str, Any], now: float) -> bool:
 
 def due(record: dict[str, Any], now: float) -> bool:
     status = record.get("status")
-    if record.get("tls") == tls_mode() and is_new(record) and _dns() is None:
+    if record.get("managed"):
+        from sudoo.instances import managed_names
+
+        if not managed_names.on():
+            return False
+    elif not enabled() or (record.get("tls") == tls_mode() and is_new(record) and _dns() is None):
         return False
     if status == "active":
         return bool(record.get("renew_at") and now >= record["renew_at"]) or _expiring(record, now)
@@ -288,9 +297,8 @@ def due(record: dict[str, Any], now: float) -> bool:
 
 
 def round_(now: float | None = None) -> int:
-    """One pass over every due domain; how many were looked at."""
-    if not enabled():
-        return 0
+    """One pass over every due domain (custom domains while they are on, managed names while those are); how many
+    were looked at."""
     seen = 0
     with _RUNNING:
         for domain in sorted(all_records()):

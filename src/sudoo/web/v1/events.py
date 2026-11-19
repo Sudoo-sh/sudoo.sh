@@ -68,6 +68,7 @@ TOPICS = frozenset(
         "marketplace",
         "alert",
         "offsite",
+        "managed_names",
         "support",
         "premium",
     }

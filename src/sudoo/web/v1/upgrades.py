@@ -223,13 +223,9 @@ def _refuse_production_branch(name: str, branch: str) -> None:
     before = env.get("GIT_BRANCH", "")
     if project is None or not branch or branch == before:
         return
-    others = [
-        other
-        for other in projects.by_branch(project["id"]).get(before, [])
-        if other != name and projects.stage_of_instance(other) == stages.PRODUCTION
-    ]
+    keep_before = projects.stays_production(project["id"], before, without=name)
     with quotas.LOCK:
-        refused = projects.production_refusal(project, branch, replacing=None if others else before)
+        refused = projects.production_refusal(project, branch, replacing=None if keep_before else before)
     if refused:
         log("database upgrade of production refused (production branches)", instance=name, ok=False, detail=refused)
         abort(409, refused)

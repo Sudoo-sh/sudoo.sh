@@ -616,6 +616,7 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
             abort(409, f"{name} has a GitHub repository already. Switch branch changes its code.")
         repo = check.repo_address(check.text(data, "repo"))
         branch = check.branch(check.text(data, "branch", default="main"))
+        _refuse_joining_production(name, repo, branch)
         return operations.connect_repository, (name, repo, branch, check.flag(data, "install_modules"))
     simple: dict[str, tuple[Callable[..., Any], tuple[Any, ...]]] = {
         "update": (operations.update_code, (name,)),
@@ -668,7 +669,9 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
         return operations.upgrade_modules, (name, check.module_list(check.text(data, "modules", max_length=4000)))
     if action == "switch-branch":
         branch = check.branch(check.text(data, "branch"))
-        _refuse_production_branch(name, branch)
+        undo = _move_production_branch(name, branch)
+        if undo is not None:
+            return _switch_production_branch, (name, branch, undo)
         return operations.switch_branch, (name, branch)
     path = check.text(data, "path")
     if action == "add-submodule":
@@ -679,16 +682,53 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
     return operations.remove_submodule, (name, check.submodule_path(path))
 
 
-def _refuse_production_branch(name: str, branch: str) -> None:
-    """A production instance moved to another branch makes that branch one more production branch (its earlier one
-    stays recorded as production): 409 beyond the project's and the plan's limits, as for a stage change."""
+def _move_production_branch(name: str, branch: str) -> Callable[[], None] | None:
+    """A production instance moved to another branch makes that branch a production branch in place of its earlier
+    one, which stays production only while another production instance follows it: 409 when that is beyond the
+    project's or the plan's limits, as for a stage change. Within them the project's records follow at once, under
+    the same lock as the check; returns what puts them back (None: nothing recorded)."""
     env = store.read_env(name)
-    if not stages.is_production(env) or branch == env.get("GIT_BRANCH", ""):
+    before = env.get("GIT_BRANCH", "")
+    if not stages.is_production(env) or branch == before:
+        return None
+    project = projects.get(env.get("PROJECT", ""))
+    with quotas.LOCK:
+        if project is None:  # outside every project: the instance is the plan's key, whatever its branch
+            refused = entitlements.production_refusal(name)
+        else:
+            keep_before = projects.stays_production(project["id"], before, without=name)
+            refused = projects.production_refusal(project, branch, replacing=None if keep_before else before)
+        if refused:
+            log(f"switch branch of {name} refused (production branches)", ok=False, detail=refused)
+            abort(409, refused)
+        if project is None:
+            return None
+        return projects.move_production(project["id"], before, branch, g.user["name"], keep_before)
+
+
+def _switch_production_branch(job: Any, name: str, branch: str, undo: Callable[[], None]) -> None:
+    """operations.switch_branch of a production instance: when the instance did not reach the new branch, the
+    project's records of its production branches are put back."""
+    try:
+        operations.switch_branch(job, name, branch)
+    except BaseException:
+        if store.read_env(name).get("GIT_BRANCH") != branch:
+            undo()
+        raise
+
+
+def _refuse_joining_production(name: str, repo: str, branch: str) -> None:
+    """A plain production instance given a repository joins that repository's project as a production branch, in
+    place of counting for itself in the plan: 409 beyond the project's limit (or the plan's)."""
+    if not stages.is_production(store.read_env(name)):
+        return
+    found = projects.by_repository(github.repo_name(repo) or "")
+    if found is None:  # a new project: its one production branch replaces the instance in the plan's count
         return
     with quotas.LOCK:
-        refused = _project_production_refusal(env.get("PROJECT"), "", branch, name)
+        refused = projects.production_refusal(found, branch, replacing_key=name)
     if refused:
-        log(f"switch branch of {name} refused (production branches)", ok=False, detail=refused)
+        log(f"connecting a repository to {name} refused (production branches)", ok=False, detail=refused)
         abort(409, refused)
 
 

@@ -466,14 +466,54 @@ def test_staging_never_copies_a_production_branch_hidden_from_the_caller(
         access.forget_restrictions()
 
 
-def test_switching_a_production_instance_to_another_branch_counts_as_a_new_production_branch(
-    admin: Client, started: list[Any]
+def test_switching_the_only_production_instance_moves_the_production_branch(
+    admin: Client, started: list[Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The earlier branch stays production: the new one is one more production branch, within the project's (and
-    the plan's) limits like a stage change."""
+    """With the default limit of one production branch, the only production instance of a branch can move to
+    another branch: the new branch takes the old one's place in production (recorded at once), and the records go
+    back when the switch does not happen."""
+    from sudoo.web.v1 import instances as instances_api
+
     client, headers = admin
     pid = _linked(["main", "feature"])
     _instance("erp-main", "production", "Acme/ERP", "main", PROJECT=pid)
+    _instance("erp-dev", "development", "Acme/ERP", "main", PROJECT=pid)  # stays on main, not production
+    projects.record_branch(pid, "main", stage="production")
+    live.change({"project_production_branches": 1})
+    url = "/api/v1/instances/erp-main/actions/switch-branch"
+    answer = client.post(url, json={"branch": "feature"}, headers=headers)
+    assert answer.status_code == 202, answer.get_json()
+    fn, args = started[-1][1], started[-1][2]
+    assert fn is instances_api._switch_production_branch and args[:2] == ("erp-main", "feature")
+    recorded = (projects.get(pid) or {})["branches"]
+    assert recorded["feature"]["stage"] == "production" and "stage" not in recorded["main"]
+
+    # the switch fails before the instance reaches the branch: the records are put back
+    def failing(job: Any, name: str, branch: str) -> None:
+        raise JobError("fetch failed")
+
+    monkeypatch.setattr(operations, "switch_branch", failing)
+    with pytest.raises(JobError):
+        fn(Job("erp-main", "Switch branch", "update", "t"), *args)
+    recorded = (projects.get(pid) or {})["branches"]
+    assert recorded["main"]["stage"] == "production" and "stage" not in recorded.get("feature", {})
+    assert projects.production_branches(projects.get(pid) or {}) == ["main"]
+
+    # the instance does move: one production branch, the new one
+    store.update_env("erp-main", GIT_BRANCH="feature")
+    projects.move_production(pid, "main", "feature", "t", keep_before=False)
+    assert projects.production_branches(projects.get(pid) or {}) == ["feature"]
+
+
+def test_switching_a_production_instance_refused_beyond_the_production_branch_limit(
+    admin: Client, started: list[Any]
+) -> None:
+    """When another production instance keeps the earlier branch in production, the new branch is one more
+    production branch: refused beyond the project's limit, allowed within it (the earlier branch stays recorded)."""
+    client, headers = admin
+    pid = _linked(["main", "feature"])
+    _instance("erp-main", "production", "Acme/ERP", "main", PROJECT=pid)
+    _instance("erp-old", "production", "Acme/ERP", "main", PROJECT=pid)
     _instance("erp-dev", "development", "Acme/ERP", "feature", PROJECT=pid)
     projects.record_branch(pid, "main", stage="production")
     live.change({"project_production_branches": 1})
@@ -481,13 +521,39 @@ def test_switching_a_production_instance_to_another_branch_counts_as_a_new_produ
     refused = client.post(url, json={"branch": "feature"}, headers=headers)
     assert refused.status_code == 409 and "production" in refused.get_json()["detail"], refused.get_json()
     assert not started and store.read_env("erp-main")["GIT_BRANCH"] == "main"
+    assert "stage" not in (projects.get(pid) or {})["branches"].get("feature", {})
     answer = client.post(url, json={"branch": "main"}, headers=headers)  # its own branch: nothing more
-    assert answer.status_code == 202, answer.get_json()
+    assert answer.status_code == 202 and started[-1][1] is operations.switch_branch
     other = client.post("/api/v1/instances/erp-dev/actions/switch-branch", json={"branch": "qa"}, headers=headers)
     assert other.status_code == 202  # not production: no limit
     live.change({"project_production_branches": 2})
     answer = client.post(url, json={"branch": "feature"}, headers=headers)
-    assert answer.status_code == 202 and started[-1][2] == ("erp-main", "feature")
+    assert answer.status_code == 202 and started[-1][2][:2] == ("erp-main", "feature")
+    recorded = (projects.get(pid) or {})["branches"]
+    assert recorded["main"]["stage"] == "production" and recorded["feature"]["stage"] == "production"
+
+
+def test_connecting_a_repository_to_production_keeps_to_the_production_branch_limit(
+    admin: Client, started: list[Any]
+) -> None:
+    """A plain production instance given a repository becomes a production branch of its project."""
+    client, headers = admin
+    pid = _linked(["main", "feature"])
+    _instance("erp-main", "production", "Acme/ERP", "main", PROJECT=pid)
+    projects.record_branch(pid, "main", stage="production")
+    _instance("plain-one", "production", None)
+    live.change({"project_production_branches": 1})
+    url = "/api/v1/instances/plain-one/actions/connect-repository"
+    body = {"repo": "https://github.com/Acme/ERP", "branch": "feature"}
+    refused = client.post(url, json=body, headers=headers)
+    assert refused.status_code == 409 and "production" in refused.get_json()["detail"], refused.get_json()
+    assert not started
+    answer = client.post(url, json={**body, "branch": "main"}, headers=headers)  # production already
+    assert answer.status_code == 202, answer.get_json()
+    answer = client.post(url, json={**body, "repo": "https://github.com/Acme/New"}, headers=headers)
+    assert answer.status_code == 202  # a new project: its first production branch
+    store.update_env("plain-one", STAGE="development")
+    assert client.post(url, json=body, headers=headers).status_code == 202  # not production: no limit
 
 
 def test_moving_a_branch_out_of_production_needs_the_delete_permission(app: Flask, admin: Client) -> None:

@@ -843,8 +843,8 @@ Actions (`POST /instances/<name>/actions/<action>`); each needs its own permissi
 | `switch-off` | Switch off (stays off until started) | `instances.operate` | `{}` |
 | `upgrade` | Upgrade modules | `instances.operate` | `{"modules": "sale_custom,stock_custom"}` or `{"modules": "all"}` |
 | `remove-submodule` | Remove a submodule | `instances.operate` | `{"path": "oca/web"}` |
-| `switch-branch` | Switch branch | `instances.operate` | `{"branch": "main"}`; for a production instance the new branch is one more production branch (**409** beyond the project's and the plan's limits) |
-| `connect-repository` | Give an instance of plain Odoo a GitHub repository: clone it, install its modules if asked, restart (data kept); 409 when it has one | `instances.operate` | `{"repo": "https://github.com/acme/odoo-addons", "branch": "main", "install_modules": true}` (`branch` defaults to `main`) |
+| `switch-branch` | Switch branch | `instances.operate` | `{"branch": "main"}`; for a production instance the new branch becomes a production branch in place of the earlier one (which stays production only while another production instance follows it); **409** when that is beyond the project's or the plan's limits |
+| `connect-repository` | Give an instance of plain Odoo a GitHub repository: clone it, install its modules if asked, restart (data kept); 409 when it has one, or when a production instance would take its repository's project beyond its production branches | `instances.operate` | `{"repo": "https://github.com/acme/odoo-addons", "branch": "main", "install_modules": true}` (`branch` defaults to `main`) |
 | `backup` | Back up now | `instances.operate` | `{}` |
 | `update-images` | Download the instance's Odoo and PostgreSQL images again (same names and tags), pin the new digests, recreate the containers | `instances.operate` | `{}` |
 | `repair` | Restore the panel's configuration after a change made outside the panel (also started on its own with `DRIFT_ACTION=restore`) | `instances.operate` | `{}` |

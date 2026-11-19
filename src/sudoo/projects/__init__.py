@@ -163,10 +163,13 @@ def production_limit() -> int:
     return int(settings.project_production_branches)
 
 
-def production_refusal(project: Mapping[str, Any], branch: str, replacing: str | None = None) -> str | None:
+def production_refusal(
+    project: Mapping[str, Any], branch: str, replacing: str | None = None, replacing_key: str | None = None
+) -> str | None:
     """Why `branch` may not become one more production branch of `project`, or None: the project's limit, then the
     plan's (entitlements.py: production branches of the whole panel, withheld production, an expired licence).
-    `replacing`: a branch of the project that leaves production as `branch` comes in (it is not counted)."""
+    `replacing`: a branch of the project that leaves production as `branch` comes in (it is not counted);
+    `replacing_key`: the plan's key that leaves production instead (a plain instance joining the project)."""
     limit = production_limit()
     current = [b for b in production_branches(project) if b not in (branch, replacing)]
     if limit and len(current) >= limit:
@@ -178,8 +181,51 @@ def production_refusal(project: Mapping[str, Any], branch: str, replacing: str |
     from sudoo import entitlements  # late: entitlements counts every project's production branches
 
     return entitlements.production_refusal(
-        f"{project['id']}/{branch}", f"{project['id']}/{replacing}" if replacing else None
+        f"{project['id']}/{branch}", replacing_key or (f"{project['id']}/{replacing}" if replacing else None)
     )
+
+
+def stays_production(project_id: str, branch: str, without: str) -> bool:
+    """Whether another production instance than `without` follows `branch` of the project (the branch then stays a
+    production branch whatever happens to `without`)."""
+    return any(
+        name != without and stage_of_instance(name) == stages.PRODUCTION
+        for name in by_branch(project_id).get(branch, [])
+    )
+
+
+def move_production(project_id: str, before: str, after: str, user: str, keep_before: bool) -> Callable[[], None]:
+    """Record `after` as a production branch of the project in place of `before` (whose recorded stage is dropped
+    unless `keep_before`: another production instance keeps it production); returns what puts both records back as
+    they were."""
+    saved: dict[str, Any] = {}
+
+    def apply(project: Document) -> Document:
+        branches = dict(project.get("branches") or {})
+        saved.update({b: branches.get(b) for b in (before, after)})
+        branches[after] = {**branches.get(after, {}), "stage": stages.PRODUCTION, "changed_by": user,
+                           "changed_at": int(time.time())}  # fmt: skip
+        if before in branches and not keep_before:
+            branches[before] = {k: v for k, v in branches[before].items() if k != "stage"}
+        project["branches"] = branches
+        return project
+
+    change(project_id, apply)
+
+    def undo() -> None:
+        def restore(project: Document) -> Document:
+            branches = dict(project.get("branches") or {})
+            for branch, entry in saved.items():
+                if entry is None:
+                    branches.pop(branch, None)
+                else:
+                    branches[branch] = entry
+            project["branches"] = branches
+            return project
+
+        change(project_id, restore)
+
+    return undo
 
 
 def option(project: Mapping[str, Any], key: str) -> Any:

@@ -140,6 +140,19 @@
   &.success { --c: var(--positive); }
 }
 
+// A link inside a callout's sentence: underlined text in the accent shade, not a button.
+.callout-link {
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+  transition: color 150ms ease, text-decoration-thickness 150ms ease;
+  &:hover { text-decoration-thickness: 2px; }
+  &:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; border-radius: 2px; }
+}
+
 // ---------------------------------------------------------------- forms
 .field {
   display: flex;

@@ -14,6 +14,7 @@ import { SelectBox } from "@/components/app/select";
 import { useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import words from "@/i18n/new-instance";
+import { PremiumSlot } from "@/premium/components";
 import { ago, number } from "@/lib/format";
 
 export function useDebounced<T>(value: T, delay = 450): T {
@@ -110,6 +111,7 @@ export function NewInstancePage() {
   const [fromBackup, setFromBackup] = useState<string | null>(null);
   const [useBackup, setUseBackup] = useState(false);
   const [stage, setStage] = useState<Stage>("development");
+  const [server, setServer] = useState(""); // "": the project's default server, else the main one (several servers)
   const production = stage === "production";
   const t = useT(words);
 
@@ -207,6 +209,7 @@ export function NewInstancePage() {
         auto_update: autoUpdate && !plain,
         auto_pause: autoPause && !production,
         ...(useBackup && fromBackup ? { from_backup: fromBackup } : {}),
+        ...(server ? { server } : {}),
       }),
     [keys.instances, ["quota"]],
   );
@@ -381,6 +384,9 @@ export function NewInstancePage() {
               {productionRefused && <Callout tone="warning">{productionRefused}</Callout>}
             </div>
           </section>
+
+          {/* several servers (premium): which server the instance goes to */}
+          <PremiumSlot name="instance.create.server" props={{ value: server, onChange: setServer, servers: plan?.servers ?? [], fromBackup: useBackup }} />
 
           {mayUseBackups && (
             <section className="card">

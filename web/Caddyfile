@@ -37,6 +37,14 @@ http://:{$PANEL_PORT} {
 		}
 	}
 
+	# with several servers (premium): the channels of other servers' agents, WebSockets signed frame by frame,
+	# served next to the live events
+	handle /api/v1/servers/channel {
+		reverse_proxy 127.0.0.1:{$EVENTS_PORT} {
+			flush_interval -1
+		}
+	}
+
 	# the backend: API, webhooks, documentation pages and their files, health check. Its requests are small JSON
 	# documents (the backend refuses more than 64 KB); a much larger body is refused here already. /premium/* are the
 	# web files of premium features, served by the backend only while their hash matches their signed manifest

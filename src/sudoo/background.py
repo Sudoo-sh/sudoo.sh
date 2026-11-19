@@ -34,7 +34,12 @@ from sudoo.repos import github, github_app
 
 
 def start() -> None:
-    """Start everything. Called once when the web panel starts."""
+    """Start everything. Called once when the web panel starts (in a server's agent: start_agent)."""
+    from sudoo.premium import servers
+
+    if servers.is_agent():
+        start_agent()
+        return
     github.configure_git()
     threading.Thread(target=accounts.dummy_hash, daemon=True, name="dummy-hash").start()
     for loop in (
@@ -62,6 +67,31 @@ def start() -> None:
     triggers.start_all()
     threading.Thread(target=_adopt_instances, daemon=True, name="projects").start()
     threading.Thread(target=_check_project_branches, daemon=True, name="project-branches").start()
+
+
+def start_agent() -> None:
+    """In a server's agent (premium/agent.py): the work its own instances need, which keeps going while the main
+    panel is away: monitor, automatic pause and deletion, daily backups, images ahead of time, expired snapshots,
+    custom domains and their certificates, the mail catcher, the gateway (waking paused instances) and the
+    connectors. The panel's own work (marketplace, plugins, premium installs, update triggers, projects, alerts,
+    the premium packages' background work) stays with the main panel."""
+    github.configure_git()
+    for loop in (
+        monitor.run_forever,
+        STATE.save_visits_forever,
+        _pause_idle_instances,
+        _delete_expired_instances,
+        _daily_backups,
+        _prepull_images,
+        _remove_expired_snapshots,
+        domain_worker.run_forever,
+        mail_catcher.maintain_forever,
+        _watch_upgrades,
+    ):
+        threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
+    gateway.start(wake=start_wake_job)
+    live.on_change(_domain_settings_changed)
+    threading.Thread(target=exposure.ensure_all, daemon=True, name="connectors").start()
 
 
 def _start_premium_jobs() -> None:

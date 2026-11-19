@@ -254,6 +254,11 @@ async def _create_session() -> None:
     )
 
 
+def loop() -> asyncio.AbstractEventLoop:
+    """The event loop the gateway, the live event stream and the servers' channels share."""
+    return _LOOP
+
+
 def submit[T](coroutine: Coroutine[Any, Any, T]) -> concurrent.futures.Future[T]:
     """Run a coroutine on the gateway's event loop (shared with the live event stream, web/v1/events.py)."""
     return asyncio.run_coroutine_threadsafe(coroutine, _LOOP)

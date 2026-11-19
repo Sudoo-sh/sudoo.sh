@@ -38,6 +38,9 @@ def create_app() -> Flask:
     )
     app.json.sort_keys = False  # type: ignore[attr-defined]  # answers keep the order they were built in: no sort per answer
     security.install(app)
+    from sudoo.premium import servers
+
+    servers.install(app)  # several servers: requests about another server's instances go to its agent
     app.register_blueprint(docs.blueprint)
     v1.register(app)
     app.add_url_rule("/healthz", "health", lambda: "ok")
@@ -64,6 +67,9 @@ def create_app() -> Flask:
         """Every API answer carries X-Request-ID, also errors raised before a view ran."""
         return v1.add_request_id(response) if request.path.startswith(security.API_PREFIX) else response
 
+    if servers.is_agent():  # a server's agent: no web page, no event stream; the panel passes requests on
+        background.start()
+        return app
     link_deadline.first_run()  # recorded once, the first time the panel runs (link_deadline.py)
     background.start()
     v1.stream.start(app)

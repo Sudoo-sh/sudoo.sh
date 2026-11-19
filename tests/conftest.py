@@ -106,7 +106,7 @@ def operator(app: Flask, passwords: dict[str, str]) -> Iterator[tuple[FlaskClien
 def unlimited_plan(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
     """The tests run without a hub, which would mean the Free plan (entitlements.py): every test but those of the
     plan itself runs as a panel whose plan allows everything, so the panel's own limits are what they test."""
-    if request.module.__name__ in ("test_entitlements", "test_premium"):
+    if request.module.__name__ in ("test_entitlements", "test_premium", "test_servers_hooks"):
         return
     from sudoo import entitlements
 

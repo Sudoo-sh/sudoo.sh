@@ -173,6 +173,13 @@ def remember(claims: Mapping[str, Any], lease_expires_at: float, now: float) -> 
 def current() -> Current:
     """The entitlements that apply now (see the module's description)."""
     from sudoo.hub import marketplace
+    from sudoo.premium import servers
+
+    if servers.is_agent():  # a server's agent: the plan the main panel last pushed (premium/servers.py)
+        pushed = servers.PANEL.get("entitlements") or {}
+        raw = pushed.get("values")
+        given: dict[str, Any] = raw if isinstance(raw, dict) else {}
+        return Current({**FREE, **given}, str(pushed.get("source") or "unlinked"), linked=bool(pushed.get("linked")))
 
     if not settings.marketplace:
         return Current(dict(FREE), "unlinked", linked=False)
@@ -213,8 +220,11 @@ def production_keys() -> list[str]:
     of a project, and "<instance>" for every production instance outside a project (being created ones included)."""
     from sudoo import projects
     from sudoo.instances import stages
+    from sudoo.premium import servers
 
     keys = {f"{p['id']}/{branch}" for p in projects.all_projects() for branch in projects.production_branches(p)}
+    if servers.is_agent():  # every server's, as the main panel last counted them
+        keys |= {str(key) for key in servers.PANEL.get("production_keys") or ()}
     for name in stages.production_instances():
         if not projects.project_of(name) and not _creating_in_project(name):
             keys.add(name)
@@ -294,14 +304,15 @@ def feature_refusal(feature: str) -> str | None:
 def usage() -> dict[str, Any]:
     """What the panel counts: servers, projects, production branches, instances by stage."""
     from sudoo import projects
-    from sudoo.instances import stages, store
+    from sudoo.instances import stages
+    from sudoo.premium import servers
 
     by_stage = dict.fromkeys(stages.STAGES, 0)
-    for name in store.names():
-        by_stage[stages.of(store.read_env(name))] += 1
+    for name in servers.names():  # every server's instances
+        by_stage[stages.of(servers.env(name))] += 1
     keys = production_keys()
     return {
-        "servers": 1,
+        "servers": servers.counted(),
         "projects": len(projects.all_projects()),
         "production_branches": len(keys),
         "production_branch_names": keys,

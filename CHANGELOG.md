@@ -8,6 +8,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Several servers, the panel's side:** the extension points the premium package for several servers (Business
+  plans) uses: a server's agent (`sudoo.sh agent [join <code>|status|leave]`, which fetches the panel's premium packages
+  with the join code and runs them only when they are signed with the premium key and bound to that panel), the
+  instances of every server in lists, counts and access checks, the choice of server for a new instance (`"server"`;
+  a project's `default_server`), automatic updates reaching other servers, and the agents' channels. Every instance
+  shows its server (`server` in the API; `SERVER_NAME`, `SERVER_REGION`). Without the package, another server answers
+  `402` with the plans that include it. New settings `SERVER_NAME`, `SERVER_REGION`, `SERVERS_PANEL_URL`,
+  `SERVERS_JOIN_CODE_MINUTES`, `SERVERS_HEARTBEAT_SECONDS`, `SERVERS_OFFLINE_SECONDS`, `SERVERS_REQUEST_SECONDS`,
+  `SERVERS_WAIT_MINUTES`, `MOVE_MAX_BACKUP_GB`, `MOVE_CHUNK_MB`, `MOVE_AT_ONCE`, `MOVE_HEALTH_SECONDS`; new permissions
+  `servers.manage` and `instances.move`. The web app shares more of its design system with premium pages (lists to
+  choose from, text fields, tables, check boxes).
+
 - **A project's backups:** a project's page has a **Backups** tab with the backups of all its branches, grouped by
   branch with its stage, newest first, each with **Download**, **Restore** (into the instance it was taken from) and
   **Delete**, for those who manage backups (the project's access and branch locks apply). On the **Branches** tab an

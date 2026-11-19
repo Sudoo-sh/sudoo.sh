@@ -19,7 +19,9 @@ Extension points (entry-point groups a premium package may declare in its manife
     sudoo.premium.access      access hooks (projects/access.py): "grants" (adding grants and restricted branches)
     sudoo.premium.domains     custom domains: "manager" (adding domains: DNS checks and first certificates)
     sudoo.premium.support     support access: "support" (grants of support sessions, its channel)
-    sudoo.premium.servers     several servers: "servers" (placement, forwarding, moves)
+    sudoo.premium.servers     several servers: "servers" (the panel's side: instances of every server, placement,
+                              forwarding, moves; premium/servers.py) and "agent" (a server's agent: join, status,
+                              leave, run; premium/agent.py)
 
 What stays in the core, whatever the plan
     The data of every feature (storage collections) and the enforcement of what was set up: restrictions and locks
@@ -66,8 +68,16 @@ PACKAGES: dict[str, Package] = {
 
 
 def included_ids() -> set[str]:
-    """The packages the plan includes: the lease's entitlements "premium" list, else derived from its features."""
+    """The packages the plan includes: the lease's entitlements "premium" list, else derived from its features. In a
+    server's agent: those the main panel sent (the panel decides)."""
     from sudoo import entitlements
+
+    from .servers import is_agent
+
+    if is_agent():
+        from . import loader
+
+        return {p for p in loader.records() if p in PACKAGES}
 
     found = entitlements.current()
     listed = found.values.get("premium")

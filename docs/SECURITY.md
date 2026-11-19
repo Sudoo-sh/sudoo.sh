@@ -24,6 +24,7 @@
 15. [Web shell](#15-web-shell)
 16. [Mail catcher](#16-mail-catcher)
 17. [Support access](#17-support-access)
+18. [Servers](#18-servers)
 
 ---
 
@@ -813,3 +814,21 @@ Letting Sudoo.sh support into the panel for a while ([Admin guide](ADMIN_GUIDE.m
 | A grant outlives its purpose | It ends at its time (at most 3 days, `SUPPORT_ACCESS_MAX_HOURS`), on **Withdraw** or **End now**, or when `SUPPORT_ACCESS` goes off; the panel checks the grant on every request and every permission check, so the end is immediate on the panel and reaches the hub with the next call. Support shells close at once. Nothing support does can leave a way back in: it cannot create accounts, tokens, invitations, deploy keys or grants. |
 | A Sudoo.sh staff member's account is stolen | Each session needs a fresh code from that person's authenticator app (never a password or an e-mailed code), belongs to them alone, lasts at most an hour by default and never past the grant; staff need the `support_access.use` permission. |
 | Nobody knows what support did | Every change, refusal, session and shell is in the panel's activity log under "Sudoo.sh support (name)", marked as support; support shells are always recorded (encrypted, played by super admins); the hub keeps its own audit log of sessions, changes and shells, with the staff member's role and reason. |
+
+---
+
+## 18. Servers
+
+With several servers (a premium feature), the main panel manages other servers through their agents
+([Admin guide](ADMIN_GUIDE.md#27-servers)).
+
+| Threat | Protection |
+| :--- | :--- |
+| Someone joins a server of their own to the panel | Joining needs a join code that an administrator with `servers.manage` created: 32 random bytes (the panel keeps only their SHA-256), single use, valid `SERVERS_JOIN_CODE_MINUTES` (30). A joined server can do nothing until an administrator approves it by typing the fingerprint the server printed (two-sided approval). |
+| A stolen join code is used before the real server | The thief's key has another fingerprint than the one the real server prints: the approval fails, and the admin revokes the server and adds it again. |
+| A fake panel takes over a server | The join code carries the SHA-256 of the panel's public key; the agent pins the key only when the join answer matches it, and from then on accepts only a welcome and frames signed with that key. |
+| A server runs code that is not Sudoo.sh's | The agent runs only premium packages signed with the premium key and bound to the panel it joined (the panel's installation and hardware fingerprint), checked when installed and every time it starts. |
+| Messages are read, changed, replayed or reordered on the way | The channel runs over the panel's https address. On top of TLS, every frame is Ed25519-signed by its sender over the session (both sides' random nonces), its direction and its sequence number; the receiver accepts only the next number with a valid signature from the pinned key, else it closes the channel. |
+| An agent asks the panel for more than its instances need | The panel never sends its secrets (session key, vault key, GitHub App key, SMTP, off-site and hub credentials, deploy keys). It sends its non-secret instance settings and decisions, and, when a job there asks, a short-lived GitHub App installation token only for an account whose repositories that server's instances use. |
+| A request is run on a server with more rights than the person has | The panel computes the caller's permissions in that instance (role, project and branch access, locked branch) and sends exactly that list; the agent runs the endpoint with it and every check applies there. The agent listens on no port: it runs only requests that came over the signed channel. |
+| A compromised server attacks the others | Each agent has its own key and sees only its own instances; revoking it closes its channel at once and refuses its key. |

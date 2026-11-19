@@ -13,6 +13,7 @@ repository), and "store"/"erase" requests are ignored: the panel keeps its own c
 
 from __future__ import annotations
 
+import os
 import sys
 from typing import TextIO
 
@@ -35,6 +36,17 @@ def answer(action: str, values: dict[str, str]) -> str:
     owner = values.get("path", "").lstrip("/").split("/")[0]
     if not owner:
         return ""
+    from sudoo.premium import servers
+
+    if os.environ.get(servers.SOCKET_ENV):  # in a server's agent: the main panel gives the token
+        from sudoo.config import settings
+
+        try:
+            given = servers.token_from_agent(owner, float(settings.servers_wait_minutes) * 60 + 60)
+        except OSError as error:
+            print(f"Sudoo.sh: no token from the main panel ({error.__class__.__name__}).", file=sys.stderr)
+            return ""
+        return f"username=x-access-token\npassword={given}\n" if given else ""
     from sudoo.repos import github_app
 
     try:

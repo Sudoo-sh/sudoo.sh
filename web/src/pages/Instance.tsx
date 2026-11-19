@@ -31,6 +31,7 @@ import {
   ScrollText,
   Settings2,
   ShieldCheck,
+  ServerCog,
   SquareTerminal,
   Trash2,
   Zap,
@@ -46,6 +47,7 @@ import { JobLine, Monogram } from "@/components/InstanceCard";
 import { StageTag } from "@/components/StageTag";
 import { DomainsCore } from "@/components/DomainsCore";
 import { PremiumSlot } from "@/premium/components";
+import { usePremium } from "@/premium/loader";
 import { ShellTab } from "@/components/shell/ShellTab";
 import { UpgradeTab } from "@/components/UpgradeTab";
 import { MailTab } from "@/components/MailTab";
@@ -117,6 +119,7 @@ export function InstancePage() {
   const can = useCanIn(instance);
   // an alert links to /i/<name>/activity?job=<id>: that job opens at once
   const [jobId, setJobId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("job"));
+  const severalServers = usePremium().data?.packages.some((p) => p.id === "servers" && p.status === "active") ?? false;
   const run = useRun(name, setJobId);
   const capacity = useCapacity();
   const all = useT(words);
@@ -160,6 +163,11 @@ export function InstancePage() {
                   <FolderKanban size={14} strokeWidth={1.5} /> <bdi>{instance.project.name}</bdi>
                 </Link>
               )}
+              {instance.server && (severalServers || instance.server.id !== "main") && (
+                <span className="row xsmall" style={{ gap: 4 }} title={t.server}>
+                  <ServerCog size={14} strokeWidth={1.5} /> <bdi>{instance.server.region ? `${instance.server.name} · ${instance.server.region}` : instance.server.name}</bdi>
+                </span>
+              )}
               <Tag mono>{instance.odoo.version}</Tag>
               <Tag>{instance.odoo.edition === "enterprise" ? "Enterprise" : "Community"}</Tag>
               {plain ? (
@@ -200,6 +208,8 @@ export function InstancePage() {
               {t.getLatest}
             </Button>
           )}
+          {/* several servers (premium): Move to another server */}
+          <PremiumSlot name="instance.actions" props={{ instance, busy, onJob: setJobId }} />
           {(can("instances.update") || can("instances.operate")) && (
           <Menu trigger={(toggle) => <Button icon={<MoreHorizontal />} onClick={toggle} aria-label={t.moreActions} />}>
             {(close) => {

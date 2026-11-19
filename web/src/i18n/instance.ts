@@ -24,6 +24,7 @@ const en = {
   },
   head: {
     project: "Project",
+    server: "Server",
     plain: "Plain Odoo, no repository",
     openOdoo: "Open Odoo",
     start: "Start",
@@ -409,6 +410,7 @@ const ar: typeof en = {
   },
   head: {
     project: "المشروع",
+    server: "الخادم",
     plain: "Odoo مجرد، دون مستودع",
     openOdoo: "افتح Odoo",
     start: "شغّل",

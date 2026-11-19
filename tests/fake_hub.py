@@ -261,6 +261,8 @@ class FakeHub:
         self.quota_retry_after: int | None = None
         # premium packages: the premium signing key (separate from the hub keys), the builds offered, the bindings
         self.premium_key = HubKey(Ed25519PrivateKey.generate())
+        # the bindings are signed with a key of their own (it can never sign a package), endorsed by the premium key
+        self.binding_key = HubKey(Ed25519PrivateKey.generate())
         self.premium: dict[str, PremiumBuild] = {}
         self.premium_binding_days = 30
         self.premium_requests: list[str] = []
@@ -436,7 +438,23 @@ class FakeHub:
                    "sha256": hashlib.sha256(build.package).hexdigest(), "iat": now,
                    "exp": now + self.premium_binding_days * 86400}  # fmt: skip
         raw = canonical(binding)
-        return b64url(raw), self.premium_key.sign(b"sudoo-premium-binding-v1\n" + raw)
+        return b64url(raw), self.binding_key.sign(b"sudoo-premium-binding-v1\n" + raw)
+
+    def premium_keys(self) -> list[dict[str, Any]]:
+        """GET /api/v1/premium/keys: the premium key, and the binding key it endorses (signed when asked, so a test
+        may swap the premium key first)."""
+        key, binding = self.premium_key, self.binding_key
+        endorsement = binding.endorsement or self.premium_key.sign(
+            f"sudoo-premium-binding-key-v1\n{binding.key_id}\n{binding.public}\n{binding.not_before}".encode()
+        )
+        return [
+            {"algorithm": "Ed25519", "key_id": key.key_id, "public_key": key.public, "state": key.state,
+             "not_before": iso(key.not_before), "not_after": None, "revoked_at": None, "endorsed_by": None,
+             "endorsement": None},
+            {"algorithm": "Ed25519", "key_id": binding.key_id, "public_key": binding.public, "state": binding.state,
+             "not_before": iso(binding.not_before), "not_after": None, "revoked_at": None, "role": "binding",
+             "endorsed_by": binding.endorsed_by or key.key_id, "endorsement": endorsement},
+        ]  # fmt: skip
 
     def install_info(self, listing: Listing, version: str) -> dict[str, Any]:
         sha, signature = self.sign_package(listing.id, version, listing.versions[version])
@@ -629,12 +647,7 @@ class FakeHub:
                              for listing in hub.listings.values() if listing.id not in hub.reported]  # fmt: skip
                     return self._send(200, {"data": picks[: int(query.get("limit", ["8"])[0])]})
                 if path == "/api/v1/premium/keys":
-                    key = hub.premium_key
-                    return self._send(200, {"data": [{"algorithm": "Ed25519", "key_id": key.key_id,
-                                                      "public_key": key.public, "state": key.state,
-                                                      "not_before": iso(key.not_before), "not_after": None,
-                                                      "revoked_at": None, "endorsed_by": None,
-                                                      "endorsement": None}]})  # fmt: skip
+                    return self._send(200, {"data": hub.premium_keys()})
                 if parts[:3] != ["api", "v1", "installations"]:
                     return self._problem(404, "Not found.")
                 installation = self._signed(b"", lease=True)
@@ -687,13 +700,13 @@ class FakeHub:
                 binding, signature = hub.premium_binding(installation, fingerprint, build)
                 if parts[5] == "binding":
                     return self._send(200, {"data": {"binding": binding, "signature": signature,
-                                                     "key_id": hub.premium_key.key_id}})  # fmt: skip
+                                                     "key_id": hub.binding_key.key_id}})  # fmt: skip
                 offer = hub.premium_offer(build)
                 headers = {"X-Sudoo-Package-SHA256": offer["package_sha256"], "X-Sudoo-Premium-Id": build.id,
                            "X-Sudoo-Premium-Version": build.version, "X-Sudoo-Signature": offer["signature"],
                            "X-Sudoo-Signing-Key": hub.premium_key.key_id, "X-Sudoo-Premium-Binding": binding,
                            "X-Sudoo-Premium-Binding-Signature": signature,
-                           "X-Sudoo-Premium-Binding-Key": hub.premium_key.key_id}  # fmt: skip
+                           "X-Sudoo-Premium-Binding-Key": hub.binding_key.key_id}  # fmt: skip
                 return self._send(200, raw=build.package, headers=headers)
 
             def _bytes(self, listing: Listing, version: str) -> bytes:

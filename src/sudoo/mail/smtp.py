@@ -13,7 +13,7 @@ from __future__ import annotations
 import smtplib
 import ssl
 from email.message import EmailMessage
-from email.utils import formatdate, make_msgid, parseaddr
+from email.utils import formatdate, getaddresses, make_msgid, parseaddr
 
 from sudoo.config import Settings
 
@@ -47,10 +47,16 @@ class Smtp:
 
     def send_message(self, message: EmailMessage) -> None:
         """Send a message that is already composed (a released copy of a caught e-mail, mailcatcher/panel.py) to
-        its To address, or raise MailError."""
+        its To address, or raise MailError. The envelope is set here, from the panel's own address to the To
+        address: no other header (Resent-To, Bcc, ...) chooses who receives it."""
         s = self.settings
         if not self.ready:
             raise MailError("E-mail is not set up on this panel (SMTP_HOST is empty).")
+        from_addr = parseaddr(s.mail_from or s.smtp_username)[1]
+        to_addrs = [address for _, address in getaddresses([str(value) for value in message.get_all("To", [])])]
+        to_addrs = [address for address in to_addrs if "@" in address]
+        if not to_addrs:
+            raise MailError("The e-mail has no address to send it to.")
         context = ssl.create_default_context()
         try:
             if s.smtp_security == "ssl":
@@ -62,6 +68,6 @@ class Smtp:
                     server.starttls(context=context)
                 if s.smtp_username:
                     server.login(s.smtp_username, s.smtp_password)
-                server.send_message(message)
-        except (smtplib.SMTPException, OSError) as error:
+                server.send_message(message, from_addr=from_addr, to_addrs=to_addrs)
+        except (smtplib.SMTPException, OSError, ValueError) as error:
             raise MailError(f"The e-mail could not be sent ({type(error).__name__}). Try again in a minute.") from error

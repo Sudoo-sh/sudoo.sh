@@ -120,7 +120,7 @@ def write_settings() -> bool:
             return False
     except OSError:
         pass
-    write_private(path, text)
+    write_private(path, text, within=folder)  # the catcher writes in this folder too
     return True
 
 
@@ -322,7 +322,8 @@ def released(name: str, message_id: str, to: str) -> EmailMessage:
     message = mailbox.parse(data)
     original_from = str(message.get("From", "") or "")
     subject = str(message.get("Subject", "") or "")
-    for key in _DROPPED:
+    resent = {key for key in message if key.lower().startswith("resent-")}  # they would choose the envelope
+    for key in (*_DROPPED, *resent):
         del message[key]
     del message["Subject"]
     sender = settings.mail_from or settings.smtp_username

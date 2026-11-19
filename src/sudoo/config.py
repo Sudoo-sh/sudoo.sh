@@ -1114,6 +1114,12 @@ class Settings(BaseSettings):
         description="The premium signing keys the panel trusts (Ed25519, base64url, comma-separated); empty: the keys "
         "this release ships. Only for a test panel.",
     )
+    premium_binding_public_keys: str = Field(
+        "",
+        description="The premium binding keys the panel trusts (Ed25519, base64url, comma-separated): they sign the "
+        "bindings of downloads to a server, never a package; empty: the keys this release ships. Only for a test "
+        "panel.",
+    )
     public_ipv4: str = Field(
         "",
         description="The server's public IPv4 address, sent to Sudoo.sh for managed subdomains; empty: the address "
@@ -1165,7 +1171,7 @@ class Settings(BaseSettings):
         60, ge=5, le=500, description="Largest premium package the panel downloads, in MB."
     )
 
-    @field_validator("hub_public_keys", "premium_public_keys")
+    @field_validator("hub_public_keys", "premium_public_keys", "premium_binding_public_keys")
     @classmethod
     def _hub_public_keys(cls, value: str) -> str:
         import base64

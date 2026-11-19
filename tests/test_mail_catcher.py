@@ -390,6 +390,43 @@ def test_release_sends_a_copy_from_the_panel_and_is_audit_logged(
     assert off.status_code == 403 and len(sent) == 1
 
 
+def test_release_goes_only_to_the_typed_address_whatever_resent_headers_say(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo.mail import smtp
+
+    envelopes: list[tuple[str, list[str], EmailMessage]] = []
+
+    class FakeSMTP:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        def __enter__(self) -> FakeSMTP:
+            return self
+
+        def __exit__(self, *args: Any) -> None:
+            pass
+
+        def send_message(self, message: EmailMessage, from_addr: str | None = None,
+                         to_addrs: list[str] | None = None) -> None:  # fmt: skip
+            assert from_addr and to_addrs, "the envelope is always given, never taken from the headers"
+            envelopes.append((from_addr, list(to_addrs), message))
+
+    monkeypatch.setattr(smtp.smtplib, "SMTP", FakeSMTP)
+    live.change({"mail_from": "Sudoo.sh <panel@example.org>", "smtp_host": "127.0.0.1", "smtp_security": "none",
+                 "smtp_username": "", "mail_catcher_release": True})  # fmt: skip
+    message = _message("Resent")
+    message["Resent-Date"] = "Tue, 18 Nov 2026 09:00:00 +0000"
+    message["Resent-From"] = "panel@example.org"
+    message["Resent-To"] = "other1@outside.example"
+    message["RESENT-CC"] = "other2@outside.example"
+    message["Resent-Bcc"] = "other3@outside.example"
+    found = mailbox.deliver("mc-dev", bytes(message), {"received_at": time.time()}, {})
+    catcher.release("mc-dev", found, "admin@panel.example")
+    assert len(envelopes) == 1
+    sender, recipients, copy = envelopes[0]
+    assert sender == "panel@example.org" and recipients == ["admin@panel.example"]
+    assert not [key for key in copy if key.lower().startswith("resent-")]
+
+
 # ---------------------------------------------------------------- retention and limits
 
 

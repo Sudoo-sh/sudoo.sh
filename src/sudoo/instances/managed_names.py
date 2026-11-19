@@ -141,6 +141,11 @@ def _ask(record_label: str, stage: str) -> dict[str, Any]:
         from sudoo.hub import HubUnavailable
 
         raise HubUnavailable("Sudoo.sh answered without a valid name.")
+    base = str(state().get("base_domain") or "").lower().strip(".")
+    if not base or not hostname.endswith("." + base):
+        from sudoo.hub import HubUnavailable
+
+        raise HubUnavailable("Sudoo.sh answered with a name outside its own domain.")
     return data
 
 
@@ -181,11 +186,18 @@ def _create(name: str, data: dict[str, Any], wanted_label: str, stage: str, now:
     from . import custom_domains
 
     hostname = str(data["hostname"]).lower()
-    storage().put(custom_domains.COLLECTION, hostname, {
+    record = {
         "domain": hostname, "instance": name, "primary": False, "tls": "acme", "managed": True,
         "label": wanted_label, "stage": stage, "status": "waiting_dns", "reason": None, "added_at": now,
         "added_by": "Sudoo.sh", "checked_at": None, "addresses": [], "attempts": 0, "next_attempt_at": now,
-    })  # fmt: skip
+    }  # fmt: skip
+
+    def add(existing: dict[str, Any] | None) -> dict[str, Any]:
+        if existing is not None:  # a domain this server has already (a custom domain of an instance): never replaced
+            raise custom_domains.Refused(f"{hostname} is already a domain of this server.")
+        return record
+
+    storage().change(custom_domains.COLLECTION, hostname, add)
     custom_domains.forget_cache()
     audit.record("system", None, "managed name added", name, detail=hostname)
     custom_domains.changed(name)
@@ -197,7 +209,7 @@ def sync(now: float | None = None) -> dict[str, Any]:
     Never raises for the hub: its error is kept in the state."""
     from sudoo.hub import HubRefused, HubUnavailable
 
-    from . import store
+    from . import custom_domains, store
 
     if not settings.marketplace:
         return state()
@@ -248,7 +260,11 @@ def sync(now: float | None = None) -> dict[str, Any]:
                     continue  # the hub gave a name this server holds already (the same name): nothing to add
                 if given.get("company") and not state().get("company"):
                     _save(company=str(given["company"]))  # the account's first name fixed its company label
-                _create(name, given, goal[0], goal[1], now)
+                try:
+                    _create(name, given, goal[0], goal[1], now)
+                except custom_domains.Refused as error:
+                    problems.append(f"{name}: {error}")
+                    continue
                 if current is not None:  # the old name (another branch or stage): released once the new one is there
                     pending.append(current["domain"])
                     _forget(current)

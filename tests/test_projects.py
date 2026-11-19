@@ -419,6 +419,93 @@ def test_rebuild_staging_from_production(admin: Client, started: list[Any]) -> N
     assert "same Odoo version" in (staging.rebuild_refusal("erp-stage") or "")
 
 
+def test_staging_never_copies_a_production_branch_hidden_from_the_caller(
+    app: Flask, admin: Client, started: list[Any]
+) -> None:
+    """A restricted production branch keeps its data from those it does not name: they may not create or rebuild a
+    staging instance from it, and a push to staging no longer copies it automatically while they could open it."""
+    if accounts.get("projmaint") is None:
+        accounts.create("projmaint", "maintainer", "lilac-harbor-quill-91")
+    client, headers = sign_in(app, "projmaint", "lilac-harbor-quill-91")
+    pid = _linked(["main", "qa"])
+    HEADS["https://github.com/Acme/ERP"] = {"main": "a" * 40, "qa": "c" * 40}
+    _instance("erp-main", "production", "Acme/ERP", "main", PROJECT=pid)
+    _instance("erp-stage", "staging", "Acme/ERP", "qa", PROJECT=pid)
+    projects.record_branch(pid, "main", stage="production")
+    projects.record_branch(pid, "qa", stage="staging")
+    restricted = {"branches": {"main": {"restricted": True, "grants": [{"type": "user", "id": "admin1",
+                                                                         "level": "admin"}]}}}  # fmt: skip
+    projects.change(pid, lambda p: {**p, "access": restricted})
+    access.forget_restrictions()
+    try:
+        assert client.get("/api/v1/instances/erp-main").status_code == 404
+        assert client.get("/api/v1/instances/erp-stage").status_code == 200
+        rebuild = client.post(f"/api/v1/projects/{pid}/branches/qa/rebuild", json={}, headers=headers)
+        assert rebuild.status_code == 403, rebuild.get_json()
+        create = client.post(f"/api/v1/projects/{pid}/branches/qa/instances", json={}, headers=headers)
+        assert create.status_code == 403, create.get_json()
+        assert not started
+
+        # nobody asks for an automatic rebuild: it would show production's data to the maintainer, so not done
+        assert "projmaint" in access.copy_reveals(projects.get(pid) or {}, "main", "qa")
+        assert automation.update_for("erp-stage") is None
+
+        # someone the production branch names may
+        a_client, a_headers = admin
+        answer = a_client.post(f"/api/v1/projects/{pid}/branches/qa/rebuild", json={}, headers=a_headers)
+        assert answer.status_code == 202 and started[-1][:2] == ("erp-stage", staging.rebuild)
+
+        # once production's branch is open to the same people again, the push rebuilds as before
+        projects.change(pid, lambda p: {**p, "access": {}})
+        access.forget_restrictions()
+        assert access.copy_reveals(projects.get(pid) or {}, "main", "qa") == []
+        found = automation.update_for("erp-stage")
+        assert found is not None and found[2] is staging.rebuild
+    finally:
+        projects.change(pid, lambda p: {**p, "access": {}})
+        access.forget_restrictions()
+
+
+def test_switching_a_production_instance_to_another_branch_counts_as_a_new_production_branch(
+    admin: Client, started: list[Any]
+) -> None:
+    """The earlier branch stays production: the new one is one more production branch, within the project's (and
+    the plan's) limits like a stage change."""
+    client, headers = admin
+    pid = _linked(["main", "feature"])
+    _instance("erp-main", "production", "Acme/ERP", "main", PROJECT=pid)
+    _instance("erp-dev", "development", "Acme/ERP", "feature", PROJECT=pid)
+    projects.record_branch(pid, "main", stage="production")
+    live.change({"project_production_branches": 1})
+    url = "/api/v1/instances/erp-main/actions/switch-branch"
+    refused = client.post(url, json={"branch": "feature"}, headers=headers)
+    assert refused.status_code == 409 and "production" in refused.get_json()["detail"], refused.get_json()
+    assert not started and store.read_env("erp-main")["GIT_BRANCH"] == "main"
+    answer = client.post(url, json={"branch": "main"}, headers=headers)  # its own branch: nothing more
+    assert answer.status_code == 202, answer.get_json()
+    other = client.post("/api/v1/instances/erp-dev/actions/switch-branch", json={"branch": "qa"}, headers=headers)
+    assert other.status_code == 202  # not production: no limit
+    live.change({"project_production_branches": 2})
+    answer = client.post(url, json={"branch": "feature"}, headers=headers)
+    assert answer.status_code == 202 and started[-1][2] == ("erp-main", "feature")
+
+
+def test_moving_a_branch_out_of_production_needs_the_delete_permission(app: Flask, admin: Client) -> None:
+    if accounts.get("projmaint") is None:
+        accounts.create("projmaint", "maintainer", "lilac-harbor-quill-91")
+    client, headers = sign_in(app, "projmaint", "lilac-harbor-quill-91")
+    pid = _linked(["main"])
+    _instance("erp-main", "production", "Acme/ERP", "main", PROJECT=pid)
+    projects.record_branch(pid, "main", stage="production")
+    url = f"/api/v1/projects/{pid}/branches/main/stage"
+    body = {"stage": "staging", "confirm_production": True}
+    assert client.put(url, json=body, headers=headers).status_code == 403
+    assert store.read_env("erp-main")["STAGE"] == "production"
+    a_client, a_headers = admin
+    assert a_client.put(url, json=body, headers=a_headers).status_code == 200
+    assert store.read_env("erp-main")["STAGE"] == "staging"
+
+
 def test_the_rebuild_copies_neutralises_and_upgrades(monkeypatch: pytest.MonkeyPatch) -> None:
     project = projects.create(
         repository="Acme/ERP", odoo_version="18.0", edition="community", origin="linked", user="t"

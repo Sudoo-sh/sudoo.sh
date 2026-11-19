@@ -253,13 +253,15 @@ WITHHELD = {
 }
 
 
-def production_refusal(key: str) -> str | None:
+def production_refusal(key: str, replacing: str | None = None) -> str | None:
     """Why `key` ("<project>/<branch>", or "<instance>" outside a project) may not become one more production
-    branch under the plan, or None. A branch already in production is never refused."""
+    branch under the plan, or None. A branch already in production is never refused. `replacing`: a key that leaves
+    production as `key` comes in (it is not counted)."""
     found = current()
     existing = production_keys()
     if key in existing:
         return None
+    existing = [other for other in existing if other != replacing]
     if found.banned:
         return "The Sudoo.sh account of this panel is suspended: no new production branch can be made. What runs keeps serving."
     if found.withheld:

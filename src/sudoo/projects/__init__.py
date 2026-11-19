@@ -163,11 +163,12 @@ def production_limit() -> int:
     return int(settings.project_production_branches)
 
 
-def production_refusal(project: Mapping[str, Any], branch: str) -> str | None:
+def production_refusal(project: Mapping[str, Any], branch: str, replacing: str | None = None) -> str | None:
     """Why `branch` may not become one more production branch of `project`, or None: the project's limit, then the
-    plan's (entitlements.py: production branches of the whole panel, withheld production, an expired licence)."""
+    plan's (entitlements.py: production branches of the whole panel, withheld production, an expired licence).
+    `replacing`: a branch of the project that leaves production as `branch` comes in (it is not counted)."""
     limit = production_limit()
-    current = [b for b in production_branches(project) if b != branch]
+    current = [b for b in production_branches(project) if b not in (branch, replacing)]
     if limit and len(current) >= limit:
         return (
             f"{project['name']} may have {limit} production {'branch' if limit == 1 else 'branches'}, and "
@@ -176,7 +177,9 @@ def production_refusal(project: Mapping[str, Any], branch: str) -> str | None:
         )
     from sudoo import entitlements  # late: entitlements counts every project's production branches
 
-    return entitlements.production_refusal(f"{project['id']}/{branch}")
+    return entitlements.production_refusal(
+        f"{project['id']}/{branch}", f"{project['id']}/{replacing}" if replacing else None
+    )
 
 
 def option(project: Mapping[str, Any], key: str) -> Any:

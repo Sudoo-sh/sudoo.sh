@@ -201,7 +201,10 @@ running at once slow every instance down. Development instances pause when nobod
 world: no e-mail goes out (the **Mail** tab shows what it would have sent), scheduled actions are off, payment
 providers and other services are in test mode or off, it has its own database identity and its own link, and its
 administrator has the instance's own password (on its **Access** tab). By default a push to a staging branch
-rebuilds it from a new copy of production.
+rebuilds it from a new copy of production. Creating or rebuilding a staging instance by hand needs the right to
+restore production's instance too, so a production branch restricted to some people keeps its data from the others;
+a push rebuilds staging only when everyone who may open the staging instance (its password, shell, backups or caught
+e-mail) may also do so in production, and otherwise just brings the new code.
 
 **What happens on GitHub by itself** (each project can change it on its **Settings** tab):
 
@@ -623,8 +626,8 @@ and an instance cannot be moved to production until another one leaves it.
 
 **Changing the stage.** Open the instance, tab **Settings**, and choose another **Stage** (roles that may change
 automation: maintainers, administrators, super admins). Moving to **Production** switches off the automatic pause
-and makes its lifetime "keep". Moving out of production asks you to confirm; its settings then stay as they are
-until you change them. The audit log records every change of stage.
+and makes its lifetime "keep". Moving out of production asks you to confirm and needs the right to delete instances
+(it can then expire); its settings then stay as they are until you change them. The audit log records every change of stage.
 
 ---
 

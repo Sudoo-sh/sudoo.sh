@@ -317,6 +317,31 @@ def test_deleting_production_needs_its_name_and_the_word_production(admin: Clien
     assert started[-1][1] is operations.delete
 
 
+def test_leaving_production_needs_the_delete_permission(admin: Client, maintainer: Client,
+                                                        started: list[Any]) -> None:  # fmt: skip
+    """Out of production an instance can expire: a maintainer (no instances.delete) can neither move it out with a
+    short lifetime in one request (its expiry is worked out with the new stage) nor move it out at all."""
+    _instance("prod", "production", created_days_ago=30, DELETE_AFTER_DAYS="0")
+    url = "/api/v1/instances/prod"
+    m_client, m_headers = maintainer
+    before = store.read_env("prod")
+    for body in (
+        {"stage": "staging", "confirm_production": True, "delete_after_days": 1},
+        {"stage": "development", "confirm_production": True, "delete_after_days": 7},
+        {"stage": "staging", "confirm_production": True},
+    ):
+        assert m_client.patch(url, json=body, headers=m_headers).status_code == 403
+        assert store.read_env("prod") == before
+    assert operations.expires_at(store.read_env("prod")) is None
+    background.delete_expired_instances()
+    assert all(call[0] != "prod" for call in started)
+
+    client, headers = admin  # with instances.delete it may
+    body = {"stage": "staging", "confirm_production": True, "delete_after_days": 60}
+    assert client.patch(url, json=body, headers=headers).status_code == 200
+    assert store.read_env("prod")["STAGE"] == "staging"
+
+
 def test_the_resource_lists_the_stage(admin: Client) -> None:
     client, _ = admin
     _instance("prod", "production")

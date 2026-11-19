@@ -303,6 +303,25 @@ def sees_branch(user: Mapping[str, Any], project: Mapping[str, Any], branch: str
     return "instances.view" in role_permissions(user) and level(user, project, branch) != "none"
 
 
+OPENS_DATA = frozenset(
+    {"instances.credentials", "instances.shell", "instances.database_shell", "backups.manage", "caught_mail.view"}
+)
+"""Permissions that open an instance's data to whoever has them."""
+
+
+def copy_reveals(project: Mapping[str, Any], source_branch: str, target_branch: str) -> list[str]:
+    """The accounts that would get into data of `source_branch` they cannot open there, if it were copied into the
+    instances of `target_branch` (an automatic staging rebuild, with nobody asking): those who may open the target's
+    data in a way the source does not let them. Empty when the copy shows nobody anything new."""
+    found = []
+    for name, account in accounts.all_users().items():
+        user = {"name": name, "role": roles.normalize(account.get("role", ""))}
+        opened = permissions(user, project, target_branch) & OPENS_DATA
+        if opened - permissions(user, project, source_branch):
+            found.append(name)
+    return found
+
+
 def may_unlock(user: Mapping[str, Any], project: Mapping[str, Any], branch: str) -> bool:
     """Unlocking (or changing who the lock allows) needs projects.access in the project and the lock's own
     permission, except for super admins."""

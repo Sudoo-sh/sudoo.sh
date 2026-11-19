@@ -204,6 +204,7 @@ def promote(name: str) -> Response:
         )
     _confirm_production(name, data, f"upgrade it to Odoo {target}")
     instances_api.refuse_unlinked("upgrading instances", f"upgrade of {name} refused (panel not linked)")
+    _refuse_production_branch(name, str(doc.get("branch") or ""))
     code = _code(name, data)
     if jobs.busy(name):
         abort(409, f"{name} is busy; try again when its job has finished.")
@@ -211,6 +212,27 @@ def promote(name: str) -> Response:
                      user=g.user["name"])  # fmt: skip
     log("database upgrade of production started", instance=name, detail=f"to Odoo {target}")
     return instances_api._accepted(job)
+
+
+def _refuse_production_branch(name: str, branch: str) -> None:
+    """The upgrade branch becomes the project's production branch in place of the instance's branch (run.py,
+    _record_branches): 409 beyond the project's and the plan's production-branch limits, as for a stage change. The
+    earlier branch is not counted unless another production instance stays on it."""
+    env = store.read_env(name)
+    project = projects.get(env.get("PROJECT", ""))
+    before = env.get("GIT_BRANCH", "")
+    if project is None or not branch or branch == before:
+        return
+    others = [
+        other
+        for other in projects.by_branch(project["id"]).get(before, [])
+        if other != name and projects.stage_of_instance(other) == stages.PRODUCTION
+    ]
+    with quotas.LOCK:
+        refused = projects.production_refusal(project, branch, replacing=None if others else before)
+    if refused:
+        log("database upgrade of production refused (production branches)", instance=name, ok=False, detail=refused)
+        abort(409, refused)
 
 
 @blueprint.post("/instances/<name>/upgrade/cancel")

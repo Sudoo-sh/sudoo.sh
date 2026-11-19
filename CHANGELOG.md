@@ -394,6 +394,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **The web app's controls are shadcn/ui components** (Radix, Tailwind CSS), with the panel's look kept: buttons,
+  fields, switches, tags, notes, tables, menus, dialogs and side panels. Every list to choose from opens a designed
+  list (rounded, with a check mark, right to left in Arabic) instead of the browser's own; on a phone a dialog comes
+  up from the bottom edge and the sidebar is a sheet. Keyboard use is kept. The design token `--accent` is now
+  `--brand` (shadcn uses `--accent` for hover fills), and `BRAND_COLOR` now colours the web app as documented.
+
 - The code of teams, adding custom domains, off-site copies and support access is no longer part of this
   repository: it comes with the premium packages. Serving and renewing the custom domains that exist stays in the
   panel. Their data stays where it was (nothing is migrated or lost), and the panel itself

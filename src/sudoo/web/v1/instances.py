@@ -74,6 +74,7 @@ from sudoo.repos.gitrepo import origin_url
 
 from .. import validation as check
 from ..security import can, log, message_for_user, refuse_unless, require
+from .backups import refuse_unusable
 from .resources import instance_resource, job_resource
 from .responses import PREFIX, ok, page
 
@@ -231,9 +232,10 @@ def _usable_backup(file_name: str, version: str, edition: str, instance: str | N
     found = next((b for b in backups.all_backups() if b["file"] == file_name), None) if match else None
     if instance is None or found is None or not backups.belongs_to(instance, found):
         refuse_unless("backups.manage", f"use backup {file_name[:80]}" + (f" for {instance}" if instance else ""))
-    if found is not None and found["instance"] != instance and store.exists(found["instance"]):
-        # another instance's backup: that instance's access applies too (restricted project, locked branch)
-        refuse_unless("backups.manage", f"use backup {file_name[:80]}", instance=found["instance"])
+    if found is not None and not (instance is not None and backups.belongs_to(instance, found)):
+        # another instance's backup, or a deleted one's: its access applies too (restricted project, locked branch),
+        # also once that instance is gone (the project and branch recorded in the backup)
+        refuse_unusable(found, f"use backup {file_name[:80]}")
     path = check.backup_file(file_name)  # 404 for an unknown file or anything that is not a backup name
     problem = backups.problem(path.name, version, edition)
     if problem:
@@ -444,8 +446,8 @@ def change(name: str) -> Response:
 
     "stage" moves the instance to another stage (instances/stages.py). Into production: refused beyond
     stages.production_limit(); the instance is then kept (lifetime "keep") and no longer pauses when idle. Out of
-    production: only with "confirm_production": true. A production instance refuses a lifetime and the automatic
-    pause."""
+    production: only with "confirm_production": true, and with instances.delete (it can then expire). A production
+    instance refuses a lifetime and the automatic pause."""
     existing(name)
     data = check.body()
     if developer_token():
@@ -477,12 +479,12 @@ def _change(name: str, data: Mapping[str, Any]) -> Response:
         if stage == stages.PRODUCTION:
             values |= {"AUTO_PAUSE": "false", "DELETE_AFTER_DAYS": 0}
     if "delete_after_days" in data and stage != stages.PRODUCTION:
-        days = check.days(data, "delete_after_days")
-        current = operations.expires_at(env)
-        proposed = operations.expires_at({**env, "DELETE_AFTER_DAYS": str(days)})
-        if proposed is not None and (current is None or proposed < current):
-            refuse_unless("instances.delete", f"shorten the lifetime of {name}")
-        values["DELETE_AFTER_DAYS"] = days
+        values["DELETE_AFTER_DAYS"] = check.days(data, "delete_after_days")
+    # the expiry with every change of the request applied (a stage leaving production and a lifetime together too)
+    current = operations.expires_at(env)
+    proposed = operations.expires_at({**env, **{key: str(value) for key, value in values.items()}})
+    if proposed is not None and (current is None or proposed < current):
+        refuse_unless("instances.delete", f"shorten the lifetime of {name}", instance=name)
     if not values and not {"delete_after_days", "stage"} & set(data):
         abort(400, "Send at least one of: auto_update, auto_upgrade, auto_pause, delete_after_days, stage.")
     if not values:  # the stage it has already, or a production instance's lifetime "keep": nothing changes
@@ -533,7 +535,7 @@ def refuse_unlinked(what: str, logged: str) -> None:
 
 def _check_stage_change(name: str, before: str, after: str, data: Mapping[str, Any]) -> None:
     """Into production: within the limits (the server's, and the project's for its branch), and not while the panel
-    waits for its link (link_deadline.py). Out of production: only when confirmed."""
+    waits for its link (link_deadline.py). Out of production: only when confirmed, and with instances.delete."""
     if after == stages.PRODUCTION and before != stages.PRODUCTION:
         refuse_unlinked("moving instances into production", f"stage change of {name} refused (panel not linked)")
     if after == stages.PRODUCTION:
@@ -550,6 +552,9 @@ def _check_stage_change(name: str, before: str, after: str, data: Mapping[str, A
             f"{name} is a production instance. Confirm that it leaves production "
             '("confirm_production": true): it can then be paused and given a lifetime.',
         )
+    if before == stages.PRODUCTION:
+        # out of production it can be given a lifetime and expire: as much as deleting it
+        refuse_unless("instances.delete", f"move {name} out of production", instance=name)
 
 
 def _check_connected_app_change(name: str, data: Mapping[str, Any]) -> None:
@@ -611,6 +616,7 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
             abort(409, f"{name} has a GitHub repository already. Switch branch changes its code.")
         repo = check.repo_address(check.text(data, "repo"))
         branch = check.branch(check.text(data, "branch", default="main"))
+        _refuse_joining_production(name, repo, branch)
         return operations.connect_repository, (name, repo, branch, check.flag(data, "install_modules"))
     simple: dict[str, tuple[Callable[..., Any], tuple[Any, ...]]] = {
         "update": (operations.update_code, (name,)),
@@ -662,7 +668,11 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
     if action == "upgrade":
         return operations.upgrade_modules, (name, check.module_list(check.text(data, "modules", max_length=4000)))
     if action == "switch-branch":
-        return operations.switch_branch, (name, check.branch(check.text(data, "branch")))
+        branch = check.branch(check.text(data, "branch"))
+        undo = _move_production_branch(name, branch)
+        if undo is not None:
+            return _switch_production_branch, (name, branch, undo)
+        return operations.switch_branch, (name, branch)
     path = check.text(data, "path")
     if action == "add-submodule":
         url = check.repo_address(check.text(data, "url"))
@@ -670,6 +680,56 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
         path = check.submodule_path(path or cast(str, github.repo_name(url)).split("/")[-1])
         return operations.add_submodule, (name, url, path, branch)
     return operations.remove_submodule, (name, check.submodule_path(path))
+
+
+def _move_production_branch(name: str, branch: str) -> Callable[[], None] | None:
+    """A production instance moved to another branch makes that branch a production branch in place of its earlier
+    one, which stays production only while another production instance follows it: 409 when that is beyond the
+    project's or the plan's limits, as for a stage change. Within them the project's records follow at once, under
+    the same lock as the check; returns what puts them back (None: nothing recorded)."""
+    env = store.read_env(name)
+    before = env.get("GIT_BRANCH", "")
+    if not stages.is_production(env) or branch == before:
+        return None
+    project = projects.get(env.get("PROJECT", ""))
+    with quotas.LOCK:
+        if project is None:  # outside every project: the instance is the plan's key, whatever its branch
+            refused = entitlements.production_refusal(name)
+        else:
+            keep_before = projects.stays_production(project["id"], before, without=name)
+            refused = projects.production_refusal(project, branch, replacing=None if keep_before else before)
+        if refused:
+            log(f"switch branch of {name} refused (production branches)", ok=False, detail=refused)
+            abort(409, refused)
+        if project is None:
+            return None
+        return projects.move_production(project["id"], before, branch, g.user["name"], keep_before)
+
+
+def _switch_production_branch(job: Any, name: str, branch: str, undo: Callable[[], None]) -> None:
+    """operations.switch_branch of a production instance: when the instance did not reach the new branch, the
+    project's records of its production branches are put back."""
+    try:
+        operations.switch_branch(job, name, branch)
+    except BaseException:
+        if store.read_env(name).get("GIT_BRANCH") != branch:
+            undo()
+        raise
+
+
+def _refuse_joining_production(name: str, repo: str, branch: str) -> None:
+    """A plain production instance given a repository joins that repository's project as a production branch, in
+    place of counting for itself in the plan: 409 beyond the project's limit (or the plan's)."""
+    if not stages.is_production(store.read_env(name)):
+        return
+    found = projects.by_repository(github.repo_name(repo) or "")
+    if found is None:  # a new project: its one production branch replaces the instance in the plan's count
+        return
+    with quotas.LOCK:
+        refused = projects.production_refusal(found, branch, replacing_key=name)
+    if refused:
+        log(f"connecting a repository to {name} refused (production branches)", ok=False, detail=refused)
+        abort(409, refused)
 
 
 def _running(name: str) -> bool:

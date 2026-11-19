@@ -17,7 +17,7 @@ from sudoo.core.state import STATE
 from sudoo.instances import backups, integrity, odoo, operations, stages, store
 from sudoo.instances.store import compose
 from sudoo.repos.gitrepo import git
-from sudoo.upgrades import Secret, get, method_for, methods, remember, rollback_open, update
+from sudoo.upgrades import Secret, get, method_for, methods, remember, rollback_open, test_identity, update
 
 PRODUCTION_WAIT_SECONDS = 1800
 WATCH_SECONDS = 30
@@ -84,7 +84,7 @@ def create_test(job: Job, plan: dict[str, Any]) -> None:
     finally:
         plan["upgrade"]["code"] = None  # the subscription code is kept no longer than the job
     remember(source, job.user, "tested", f"on {plan['name']}", state="tested", staging=plan["name"],
-             tested_at=round(time.time()), test_job=job.id)  # fmt: skip
+             **test_identity(plan["name"]), tested_at=round(time.time()), test_job=job.id)  # fmt: skip
     job.note(
         f"{plan['name']} runs a neutralised copy of {source} upgraded to Odoo {plan['version']}. Test it; "
         f"then upgrade production from {source}'s Upgrade tab."

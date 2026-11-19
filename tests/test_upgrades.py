@@ -349,7 +349,8 @@ def test_a_push_to_the_upgrade_branch_runs_the_test_again() -> None:
                               user="t")  # fmt: skip
     _instance("shop-prod", PROJECT=project["id"])
     _instance("shop-prod-odoo19", ODOO_VERSION="19.0", STAGE="staging", GIT_BRANCH="19.0", PROJECT=project["id"])
-    upgrades.update("shop-prod", target="19.0", staging="shop-prod-odoo19", state="tested")
+    upgrades.update("shop-prod", target="19.0", staging="shop-prod-odoo19", state="tested",
+                    **upgrades.test_identity("shop-prod-odoo19"))  # fmt: skip
     found = automation.update_for("shop-prod-odoo19")
     assert found is not None and found[1:3] == ("upgrade-test", upgrade_run.rerun)
     assert found[3] == ("shop-prod-odoo19", "shop-prod", None)
@@ -364,7 +365,86 @@ def test_a_push_to_the_upgrade_branch_runs_the_test_again() -> None:
     )
 
 
+def test_a_new_instance_reusing_a_deleted_test_instances_name_is_not_its_upgrades_test() -> None:
+    """The test instance is the one the test job made: another instance given its name later (in another project)
+    never gets the production copy of a re-run, and deleting the test instance forgets it."""
+    shop = projects.create(repository="Acme/Shop", odoo_version="18.0", edition="community", origin="linked",
+                           user="t")  # fmt: skip
+    other = projects.create(repository="Evil/Repo", odoo_version="19.0", edition="community", origin="linked",
+                            user="t")  # fmt: skip
+    _instance("shop-prod", PROJECT=shop["id"])
+    _instance("shop-prod-odoo19", ODOO_VERSION="19.0", STAGE="staging", GIT_BRANCH="19.0", PROJECT=shop["id"])
+    upgrades.update("shop-prod", target="19.0", staging="shop-prod-odoo19", state="tested",
+                    tested_at=round(time.time()), **upgrades.test_identity("shop-prod-odoo19"))  # fmt: skip
+    assert upgrades.staging_of("shop-prod") == "shop-prod-odoo19"
+    assert upgrades.source_of("shop-prod-odoo19") == "shop-prod"
+
+    # the test instance is deleted and someone else creates an instance of that name in their own project
+    shutil.rmtree(store.folder("shop-prod-odoo19"))
+    _instance("shop-prod-odoo19", repo="Evil/Repo", ODOO_VERSION="19.0", STAGE="staging", GIT_BRANCH="19.0",
+              PROJECT=other["id"], AUTO_UPDATE="true", CREATED_AT=int(time.time()) + 5)  # fmt: skip
+    assert upgrades.source_of("shop-prod-odoo19") is None
+    assert upgrades.staging_of("shop-prod") is None
+    found = automation.update_for("shop-prod-odoo19")
+    assert found is None or found[1] != "upgrade-test"
+    assert upgrades.resource("shop-prod")["staging"] is None
+
+    # same creation time, other project: still not the test instance
+    store.update_env("shop-prod-odoo19", CREATED_AT=upgrades.get("shop-prod")["staging_created_at"])
+    assert upgrades.source_of("shop-prod-odoo19") is None
+
+    # an upgrade recorded by an earlier version (no identity): only an instance older than its test result
+    upgrades.change("shop-prod", lambda doc: {k: v for k, v in doc.items() if not k.startswith("staging_")})
+    store.update_env("shop-prod-odoo19", CREATED_AT=int(time.time()) + 5)
+    assert upgrades.source_of("shop-prod-odoo19") is None
+    store.update_env("shop-prod-odoo19", CREATED_AT=int(time.time()) - 60)
+    assert upgrades.source_of("shop-prod-odoo19") == "shop-prod"
+
+    # deleting an instance forgets that an upgrade was tested on it
+    upgrades.forget_staging("shop-prod-odoo19")
+    assert upgrades.get("shop-prod")["staging"] is None and upgrades.source_of("shop-prod-odoo19") is None
+    assert upgrades.get("shop-prod")["state"] == "tested"  # the rest of the upgrade is kept
+
+
+def test_deleting_an_instance_forgets_it_as_an_upgrades_test(monkeypatch: pytest.MonkeyPatch) -> None:
+    _instance("shop-prod")
+    _instance("shop-prod-odoo19", ODOO_VERSION="19.0", STAGE="staging", GIT_BRANCH="19.0")
+    upgrades.update("shop-prod", target="19.0", staging="shop-prod-odoo19", state="tested",
+                    **upgrades.test_identity("shop-prod-odoo19"))  # fmt: skip
+    monkeypatch.setattr(backups, "create", lambda job, name, kind="manual": [])
+    monkeypatch.setattr(gateway, "remove", lambda name: None)
+    monkeypatch.setattr(operations.exposure, "remove", lambda name: None)
+    monkeypatch.setattr(operations.mail_catcher, "detach", lambda name: None)
+    job = Job("shop-prod-odoo19", "Delete", "delete", "admin1")
+    monkeypatch.setattr(job, "run", lambda cmd, **_: None)
+    operations.delete(job, "shop-prod-odoo19")
+    assert not store.exists("shop-prod-odoo19")
+    assert upgrades.get("shop-prod")["staging"] is None
+
+
 # ---------------------------------------------------------------- production
+
+
+def test_promotion_keeps_to_the_production_branch_limits(admin: Any, started: list[Any]) -> None:
+    """The upgrade branch takes the place of the instance's branch in production: allowed within the limits, refused
+    when the earlier branch stays production (another production instance on it) and the limit is reached."""
+    project = projects.create(repository="Acme/Shop", odoo_version="18.0", edition="community", origin="linked",
+                              user="t")  # fmt: skip
+    _instance("shop-prod", PROJECT=project["id"])
+    projects.record_branch(project["id"], "main", stage="production")
+    live.change({"project_production_branches": 1})
+    upgrades.update("shop-prod", target="19.0", branch="19.0", state="tested", tested_at=time.time())
+    client, headers = admin
+    url = "/api/v1/instances/shop-prod/upgrade/promote"
+    answer = client.post(url, json={"confirm_production": True}, headers=headers)
+    assert answer.status_code == 202, answer.get_json()
+
+    _instance("ent-prod", PROJECT=project["id"])  # a second production instance stays on main
+    refused = client.post(url, json={"confirm_production": True}, headers=headers)
+    assert refused.status_code == 409 and "production" in refused.get_json()["detail"], refused.get_json()
+    live.change({"project_production_branches": 2})
+    assert client.post(url, json={"confirm_production": True}, headers=headers).status_code == 202
+    live.change(dict.fromkeys(live.overrides()))
 
 
 def test_promotion_needs_a_test_and_a_confirmation(monkeypatch: pytest.MonkeyPatch, admin: Any,

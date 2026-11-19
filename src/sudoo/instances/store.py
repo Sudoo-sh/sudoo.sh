@@ -29,7 +29,9 @@ from sudoo.core.cache import FileMemo
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
 ENV_KEY_RE = re.compile(r"[A-Z][A-Z0-9_]*")
-_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")  # a line break in a value would add or replace keys of .env
+# a line break in a value would add or replace keys of .env: ASCII and C1 control characters, and the Unicode line
+# and paragraph separators (str.splitlines() breaks lines on some of them, and other readers may too)
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
 _COMPOSE = "docker-compose.yml"
 
 
@@ -76,7 +78,7 @@ def _parse_env(path: str) -> dict[str, str]:
             text = fh.read()
     except FileNotFoundError:
         return env
-    for line in text.splitlines():
+    for line in text.split("\n"):  # only "\n" ends a line, as write_env writes them (not splitlines())
         key, sep, value = line.strip().partition("=")
         if sep and not key.startswith("#"):
             env[key.strip()] = value.strip()

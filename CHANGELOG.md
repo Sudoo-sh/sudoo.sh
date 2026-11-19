@@ -523,6 +523,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Security
 
+- **Project and branch access:** creating or rebuilding a staging instance from production needs the right to
+  restore production's instance, so a restricted production branch keeps its data from people it does not name; a
+  push rebuilds staging from production only when everyone who may open the staging instance may also do so in
+  production (otherwise it only brings the new code). Backups record their instance's project and branch, which keep
+  applying once the instance is deleted (list, download, delete, restore); such a backup taken by an earlier version
+  is only for those from whom no project is hidden.
+- **Database upgrades:** an upgrade's test instance is the very instance its test made (its creation time and
+  project are recorded); deleting it forgets it, so a later instance given the same name is never treated as the
+  test instance and never receives a copy of production on a re-run.
+- **Stages:** moving an instance or a branch out of production needs `instances.delete`, and a lifetime sent with
+  the stage change is weighed with the new stage. Switching a production instance to another branch (the new branch takes
+  the earlier one's place in production unless another production instance stays on it), promoting an upgrade onto
+  its upgrade branch and connecting a repository to a plain production instance keep to the project's and the
+  plan's production-branch limits (409).
+- **Instance files:** `.env` lines end only at line feeds, and values with C1 control characters or the Unicode line
+  and paragraph separators are refused, so an Odoo administrator login read from a database cannot add keys.
 - **Signed installer:** the release workflow now builds `sudoo-install.sh` from a pinned commit of the installer's
   repository and signs it keylessly with Sigstore (`sudoo-install.sh.sigstore.json`), as it already did for
   `compose.yaml`; no maintainer login signs anything. `sudoo-install update` verifies a newer release's installer

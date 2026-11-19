@@ -199,11 +199,15 @@ def update_for(name: str) -> tuple[str, str, Any, tuple[Any, ...]] | None:
         return None  # a locked branch: triggers.request_update skips it anyway
     tested = upgrades.source_of(name)
     if tested is not None:  # the test instance of a database upgrade (its upgrade branch)
+        if store.read_env(tested).get("PROJECT", "") != env.get("PROJECT", ""):
+            return None  # an upgrade's test instance is in its source's project: never copy across projects
         rerun = projects.option(project, "upgrade_test_on_push") and upgrades.method_for(store.read_env(tested)) == (
             "openupgrade"  # Odoo's service needs the subscription code, which is never kept: the code only
         )
         if not rerun or not store.exists(tested) or link_deadline.restricted():
             return None
+        if access.copy_reveals(project, projects.branch_of(tested), projects.branch_of(name)):
+            return None  # production's data would reach people its branch keeps it from: only by hand
         from sudoo.upgrades import run as upgrade_run
 
         return "Automatic upgrade test", "upgrade-test", upgrade_run.rerun, (name, tested, None)
@@ -212,6 +216,8 @@ def update_for(name: str) -> tuple[str, str, Any, tuple[Any, ...]] | None:
         return None  # production is locked: its data is not copied automatically, the usual update instead
     if projects.option(project, "staging_on_push") != "rebuild" or staging.rebuild_refusal(name):
         return None
+    if production and access.copy_reveals(project, projects.branch_of(production), projects.branch_of(name)):
+        return None  # production's data would reach people its branch keeps it from: the usual update instead
     return "Automatic rebuild from production", "restore", staging.rebuild, (name,)
 
 

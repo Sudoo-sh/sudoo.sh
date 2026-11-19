@@ -463,6 +463,8 @@ def change_stage(project_id: str, branch: str) -> Response:
                     abort(409, refused)
             if before == stages.PRODUCTION and not confirmed:
                 abort(400, LEAVING_PRODUCTION.format(branch=branch))
+            if before == stages.PRODUCTION:  # its instances can then expire: as much as deleting them
+                _refuse_unless("instances.delete", found, f"move {project_id} {branch} out of production", branch)
         busy = [name for name in members if jobs.creating(name)]
         if busy:
             abort(409, f"{', '.join(busy)} is still being created. Try again when its creation has finished.")
@@ -484,7 +486,9 @@ def change_stage(project_id: str, branch: str) -> Response:
 
 
 def _refuse_locked_production(project: Mapping[str, Any], production: str | None) -> None:
-    """Staging copies production's data: refused when production's branch is locked against the caller."""
+    """Staging copies production's data: refused unless the caller may restore production itself (a restricted
+    production branch that hides it from them keeps its data from them too), and when production's branch is locked
+    against the caller."""
     if not production:
         return
     branch = projects.branch_of(production)
@@ -493,6 +497,9 @@ def _refuse_locked_production(project: Mapping[str, Any], production: str | None
         log("refused: copy of a locked production branch", instance=production, ok=False)
         abort(403, f"The production branch {branch} is locked: only the people and teams its lock allows may copy its "
                    "data into staging.")  # fmt: skip
+    if not access.allowed_instance(g.user, "instances.restore", production):
+        log("refused: copy of production's data into staging", ok=False, detail=project.get("id"))
+        abort(403, "Copying production's data into staging needs the right to restore production's instance.")
 
 
 @blueprint.post("/projects/<project_id>/branches/<path:branch>/instances")

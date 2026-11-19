@@ -883,6 +883,9 @@ Passwords are never stored by the panel, only checked: see
 
 ### Teams
 
+> Teams and access per project are premium features: they install automatically from Sudoo.sh when your plan
+> includes them ([Premium features](PREMIUM.md)). Branch locks are on every plan.
+
 **Teams** (sidebar, Administration; administrators) are named groups of accounts, for example the leads who release
 to production, a project's developers, or a client's reviewers. **New team** asks for a name, an optional description
 and the members (a list of accounts with a search). The list shows each team's members and the projects whose access

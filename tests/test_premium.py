@@ -87,7 +87,7 @@ def test_a_package_the_plan_includes_installs_binds_and_loads(hub: FakeHub, admi
     assert loader.needs_sync()
     before = len(RESTARTS)
     job = _sync()
-    assert job.status == "success", job.output
+    assert job.status == "success", "".join(job.log)
     rec = loader.record("teams")
     assert rec and rec["version"] == "1.0.0" and rec["python_tag"] == "py3" and not rec.get("problem")
     assert loader.problem(rec) is None

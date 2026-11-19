@@ -8,6 +8,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Premium features install automatically:** teams and access per project and branch, custom domains, off-site
+  copies of backups, support access and several servers are premium features that install automatically from
+  Sudoo.sh when your plan includes them (after each signed lease; **Check now** in Settings › Plan › Premium features,
+  which also shows what is installed, waiting, failed or switched off). Each package is checked with a key used only
+  for premium packages, tied to your server (installation and hardware fingerprint, renewed before it ends) and
+  checked again every few minutes; a copy on another machine does not load. When a plan no longer includes a
+  feature, the panel backs up its data, switches it off and keeps everything; restrictions and locks stay enforced and
+  can always be removed, and custom domains keep their current certificates. Without the package, its pages show the
+  plans that include it and its API answers `402`. New settings `PREMIUM_AUTO_INSTALL`, `PREMIUM_CHECK_HOURS`,
+  `PREMIUM_RETRY_MINUTES`, `PREMIUM_WATCH_MINUTES`, `PREMIUM_BINDING_RENEW_DAYS`, `PREMIUM_MAX_PACKAGE_MB`,
+  `PREMIUM_PUBLIC_KEYS` (`.env` only), `PUBLIC_IPV4` and `PUBLIC_IPV6`; API `GET /api/v1/premium`,
+  `POST /api/v1/premium/sync`. The heartbeat reports the installed premium features and the server's public
+  addresses. See [Premium features](docs/PREMIUM.md).
+
 - **Support access:** super admins and administrators let Sudoo.sh support into the panel for a while (Settings ›
   Support access, or Support access in the side bar; permission `support_access.manage`): view, panel admin, or panel
   admin with shells; 1 hour, 1 day or 3 days (`SUPPORT_ACCESS_MAX_HOURS`); all projects and instances or chosen ones
@@ -372,6 +386,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   [Marketplace](docs/MARKETPLACE.md).
 
 ### Changed
+
+- The code of teams, custom domains, off-site copies and support access is no longer part of this repository: it
+  comes with the premium packages. Their data stays where it was (nothing is migrated or lost), and the panel itself
+  keeps serving existing custom domains, enforcing existing restrictions and locks, and removing them.
 
 - **Panels not linked to a Sudoo.sh account have the Free plan:** one production branch on the whole panel (on top
   of `PROJECT_PRODUCTION_BRANCHES` and `MAX_PRODUCTION_INSTANCES`), and no new teams, access rules, custom domains or

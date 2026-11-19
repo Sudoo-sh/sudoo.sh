@@ -1376,6 +1376,9 @@ sign-in.
 
 ## 19. Custom domains and certificates
 
+> Custom domains is a premium feature: it installs automatically from Sudoo.sh when your plan includes it. See
+> [Premium features](PREMIUM.md).
+
 An instance (usually a production instance) can answer on your client's own names, such as `erp.client.com`, over
 https. Administrators add the domains on the instance's **Domains** tab ([User Manual](USER_MANUAL.md#custom-domains)); this
 section is about what the server needs. Custom domains are off until you choose how https is handled, with
@@ -1453,6 +1456,9 @@ production instance every domain change must be confirmed, since it moves where 
 ---
 
 ## 20. Off-site copies
+
+> Off-site copies is a premium feature: it installs automatically from Sudoo.sh when your plan includes it. See
+> [Premium features](PREMIUM.md).
 
 Backups on the server's own disk are lost with the server. Off-site copies send them to S3-compatible storage
 somewhere else (Cloudflare R2, AWS S3, Backblaze B2, MinIO on another machine), each with a signed list of
@@ -1919,6 +1925,9 @@ Projects are documents in the panel's storage (collection `projects`); each reco
 
 ### Teams, project access and locked branches
 
+> Teams and access per project and branch (branch locks are on every plan) is a premium feature: it installs automatically from Sudoo.sh when your plan includes it. See
+> [Premium features](PREMIUM.md).
+
 Teams (**Teams** in the sidebar, `teams.manage`), each project's **Access** tab and branch locks (`projects.access`)
 are for administrators and super admins. What people see is in the
 [User manual](USER_MANUAL.md#project-access-and-locked-branches); the rules are in
@@ -2037,6 +2046,9 @@ temporary containers that download them when an upgrade runs:
 ---
 
 ## 26. Support access
+
+> Support access is a premium feature: it installs automatically from Sudoo.sh when your plan includes it. See
+> [Premium features](PREMIUM.md).
 
 A super admin or administrator can let Sudoo.sh support into the panel for a while, to look into a problem with
 them: **Settings › Support access** (super admins) or **Support access** in the side bar (administrators; the

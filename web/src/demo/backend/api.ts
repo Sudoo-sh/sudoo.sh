@@ -232,6 +232,30 @@ route("POST", "/setup", ({ body }) => {
   record(ME, "accepted the Sudoo.sh Licence Agreement", { detail: `version ${LICENCE.version}` });
   return created(me());
 });
+// Premium features (src/sudoo/premium): the demo has none installed, so every premium page shows its plan card.
+const PREMIUM_PACKAGES = [
+  ["teams", "Teams and access per project", ["teams", "per_project_access"], "Pro and Business"],
+  ["domains", "Custom domains", ["custom_domains"], "Business"],
+  ["offsite", "Off-site backups", ["offsite_backups"], "Pro and Business"],
+  ["support", "Support access", ["support_access"], "Pro and Business"],
+  ["servers", "Several servers", ["multi_server"], "Business"],
+] as const;
+route("GET", "/premium", () =>
+  ok({
+    packages: PREMIUM_PACKAGES.map(([id, name, features, plans]) => ({
+      id, name, features: [...features], plans, included: false, status: "not_included", version: null, installed_at: null,
+    })),
+    auto_install: true,
+    marketplace: true,
+    last_checked_at: Math.floor(OPENED / 1000),
+    last_error: null,
+    job: null,
+    build: { python_tag: "cp315", platform: "linux_x86_64" },
+  }),
+);
+route("POST", "/premium/sync", () => {
+  throw offline("Installing premium features");
+});
 route("GET", "/licence/text", () => ok(LICENCE));
 route("GET", "/licence", () => {
   signedIn();

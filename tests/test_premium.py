@@ -204,6 +204,37 @@ def test_a_binding_key_is_trusted_only_when_a_release_key_endorsed_it() -> None:
     assert found[binding.key_id]["role"] == keys.BINDING
 
 
+def test_an_expired_release_key_is_never_trusted_again_nor_endorses() -> None:
+    old, rogue, rogue_binding = (HubKey(Ed25519PrivateKey.generate()) for _ in range(3))
+    now = time.time()
+
+    def listed(key: HubKey, endorser: HubKey, domain: str, role: str, **fields: object) -> dict[str, object]:
+        message = f"{domain}\n{key.key_id}\n{key.public}\n{key.not_before}".encode()
+        entry = client._listed({"key_id": key.key_id, "public_key": key.public, "state": "active",
+                                "not_before": key.not_before, "endorsed_by": endorser.key_id,
+                                "endorsement": endorser.sign(message), **fields})  # fmt: skip
+        assert entry is not None
+        return {**entry, "role": role}
+
+    current = {old.key_id: {"public_key": old.public, "state": "expired", "not_after": now - 60,
+                            "source": "root", "role": keys.RELEASE}}  # fmt: skip
+    relisted = keys.applied(current, [listed(old, old, "sudoo-premium-key-v1", "release", not_after=None)], now)
+    assert relisted[old.key_id]["state"] == "expired"
+    endorsed = keys.applied(current, [listed(rogue, old, "sudoo-premium-key-v1", "release"),
+                                      listed(rogue_binding, old, "sudoo-premium-binding-key-v1", "binding")], now)  # fmt: skip
+    assert rogue.key_id not in endorsed and rogue_binding.key_id not in endorsed
+    # a retiring key is not made active again, nor given a later end
+    retiring = {old.key_id: {**current[old.key_id], "state": "retiring", "not_after": now + 60}}
+    later = keys.applied(retiring, [listed(old, old, "sudoo-premium-key-v1", "release", not_after=now + 9999)], now)
+    assert later[old.key_id]["state"] == "retiring" and later[old.key_id]["not_after"] == now + 60
+    # past its end, it neither signs nor endorses
+    ended = keys.applied(retiring, [listed(rogue, old, "sudoo-premium-key-v1", "release")], now + 120)
+    assert ended[old.key_id]["state"] == "expired" and rogue.key_id not in ended
+    # before its end, a retiring key still endorses its successor
+    handover = keys.applied(retiring, [listed(rogue, old, "sudoo-premium-key-v1", "release")], now)
+    assert handover[rogue.key_id]["state"] == "active"
+
+
 def test_a_revoked_root_stays_revoked_when_the_roots_change(monkeypatch: pytest.MonkeyPatch) -> None:
     first, second = HubKey(Ed25519PrivateKey.generate()), HubKey(Ed25519PrivateKey.generate())
     storage().delete(keys.STATE_COLLECTION, "keys")

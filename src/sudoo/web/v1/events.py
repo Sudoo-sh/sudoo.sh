@@ -200,7 +200,9 @@ def for_caller(user: dict[str, str], event: Event, data: Any) -> Any:
     if topic in ("job", "job.output"):
         job = jobs.JOBS.get(key)
         instance = job.instance if job is not None else (data.get("instance") if isinstance(data, dict) else None)
-        if instance and not jobs.is_panel_job(str(instance)) and not access.sees_instance(user, str(instance)):
+        if not instance:  # a job whose instance is not known here (another server's): only for who sees everything
+            return None
+        if not jobs.is_panel_job(str(instance)) and not access.sees_instance(user, str(instance)):
             return None
         return data
     if topic == "metrics" and isinstance(data, dict):

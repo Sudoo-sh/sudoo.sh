@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shutil
 import smtplib
 import threading
@@ -496,3 +497,21 @@ def test_every_help_topic_links_to_a_page_and_anchor_that_exist(developer: Clien
         if page.status_code != 200 or f'id="{anchor}"' not in page.get_json()["data"]["html"]:
             broken.append(f"{topic}: {path}#{anchor}")
     assert not broken
+
+
+def test_a_link_or_a_fifo_the_catcher_plants_at_its_settings_is_replaced_never_followed(tmp_path: Any) -> None:
+    path = settings.mail_catcher_dir / "catcher.json"
+    catcher.write_settings()
+    outside = tmp_path / "outside.json"
+    outside.write_text(path.read_text())  # the very text the panel would write
+    path.unlink()
+    path.symlink_to(outside)
+    assert catcher.write_settings()  # not read through the link: written again, the link replaced
+    assert not path.is_symlink() and path.is_file()
+    path.unlink()
+    os.mkfifo(path)
+    done = threading.Event()
+    worker = threading.Thread(target=lambda: (catcher.write_settings(), done.set()), daemon=True)
+    worker.start()
+    assert done.wait(5), "write_settings waited on the FIFO"
+    assert path.is_file() and not path.is_symlink()

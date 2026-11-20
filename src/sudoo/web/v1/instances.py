@@ -306,6 +306,11 @@ def create() -> Response:
     found = projects.by_repository(github.repo_name(repo) or "") if repo else None
     if found is not None:  # an instance of a project's branch: the caller's access in that branch
         _refuse_in_branch("instances.create", found, branch, f"create an instance of {found['id']} {branch}")
+    else:  # outside every project (Sudoo.sh support: only with a grant for "all")
+        refused = access.refusal(g.user, "instances.create", None)
+        if refused is not None:
+            log("refused: create an instance outside every project", ok=False, detail=refused[1])
+            abort(*refused)
     if from_backup:
         refuse_unless("instances.restore", "create an instance from a backup")
         if found is not None:
@@ -616,6 +621,9 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
             abort(409, f"{name} has a GitHub repository already. Switch branch changes its code.")
         repo = check.repo_address(check.text(data, "repo"))
         branch = check.branch(check.text(data, "branch", default="main"))
+        joined = projects.by_repository(github.repo_name(repo) or "")
+        if joined is not None:  # the instance joins that project's branch: as creating an instance of it
+            _refuse_in_branch("instances.create", joined, branch, f"connect {name} to {joined['id']} {branch}")
         _refuse_joining_production(name, repo, branch)
         return operations.connect_repository, (name, repo, branch, check.flag(data, "install_modules"))
     simple: dict[str, tuple[Callable[..., Any], tuple[Any, ...]]] = {

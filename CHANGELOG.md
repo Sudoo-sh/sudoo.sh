@@ -704,7 +704,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   mail catcher's `catcher.json` are read, written and removed without following a link, and are read only as regular
   files of bounded size (a FIFO planted there no longer blocks instance starts).
 - **Premium keys shipped:** the panel now trusts Sudoo.sh's premium release key (`4f4f3c18cd19ac11`) and the hub's
-  binding key (`13608776833dde7e`) out of the box (`SHIPPED_PREMIUM_KEYS`, `SHIPPED_PREMIUM_BINDING_KEYS`), so premium
+  binding key (`20aded7fa2a24bd4`) out of the box (`SHIPPED_PREMIUM_KEYS`, `SHIPPED_PREMIUM_BINDING_KEYS`), so premium
   packages install on a new panel without any key setting.
 
 ## [1.0.0] - 2026-11-14

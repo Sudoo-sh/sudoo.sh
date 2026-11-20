@@ -7,6 +7,9 @@
 A "write" token acts as an administrator, a "read" token as a viewer, an "instances" token as a connected app
 (roles.py; it may call only security.CONNECTED_APP_ENDPOINTS), a "developer" token as a developer token (only
 security.DEVELOPER_ENDPOINTS).
+
+A token that creates a token gives it its own owner (the account behind it), so the new token acts for that account
+and follows its role; a token whose account no longer exists cannot create one.
 """
 
 from __future__ import annotations
@@ -14,6 +17,7 @@ from __future__ import annotations
 from flask import Blueprint, Response, abort, g
 
 from sudoo import api_tokens
+from sudoo.projects import access
 
 from .. import validation as check
 from ..security import log, require
@@ -36,8 +40,11 @@ def create_token() -> Response:
     scope = check.one_of(
         check.text(data, "scope"), api_tokens.SCOPES, "Choose the scope read, instances, developer or write."
     )
+    owner = access.person(g.user) if g.user.get("token_id") else g.user["name"]
+    if not owner:
+        abort(403, "This API token has no account behind it any more: it cannot create tokens.")
     try:
-        token, signing_secret = api_tokens.create(name, scope, g.user["name"])
+        token, signing_secret = api_tokens.create(name, scope, owner)
     except ValueError as error:
         abort(400, str(error))
     log("API token created", detail=f"{name} ({scope})")

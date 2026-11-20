@@ -3,9 +3,11 @@ adds new domains: their DNS checks and first certificates). Against the stand-in
 
 from __future__ import annotations
 
+import os
 import shutil
 import time
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 
@@ -188,3 +190,47 @@ def test_a_moved_domain_is_served_with_its_certificate_and_waits_for_its_dns(
         assert custom_domains.certificate_pem(DOMAIN) == pem  # no new certificate was needed
     finally:
         live.change({"public_ipv4": None})
+
+
+def test_certificates_in_the_gateways_folder_are_never_reached_through_a_link_it_planted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The gateway container can write in GATEWAY_DIR: a link it plants in place of certs/ or of a certificate is
+    never followed to read a panel file, to write a certificate elsewhere, or to remove one."""
+    from sudoo.config import settings
+    from sudoo.core import vault
+
+    domain = "linked.example.test"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / f"{domain}.pem").write_text("PANEL-ONLY=1\n")
+    certs = settings.gateway_dir / custom_domains.CERTS
+    certs.mkdir(parents=True, exist_ok=True)
+    kept = certs.with_name("certs-kept")
+    certs.rename(kept)
+    try:
+        certs.symlink_to(outside, target_is_directory=True)
+        assert custom_domains.certificate_pem(domain) is None
+        monkeypatch.setattr(custom_domains, "get", lambda name: {"domain": name})
+        monkeypatch.setattr(custom_domains, "set_fields", lambda name, **values: None)
+        monkeypatch.setattr(custom_domains, "certs_dir", lambda: certs)  # the link swapped in after the check
+        (outside / f"{domain}.pem").unlink()
+        assert custom_domains.install_certificate(domain, _self_signed(domain)) is False
+        assert not (outside / f"{domain}.pem").exists()
+        (outside / f"{domain}.pem").write_text("PANEL-ONLY=1\n")
+        vault.remove_private(custom_domains.cert_file(domain), within=settings.gateway_dir)
+        assert (outside / f"{domain}.pem").exists()
+        certs.unlink()
+        kept.rename(certs)
+        (certs / f"{domain}.pem").symlink_to(outside / f"{domain}.pem")
+        assert custom_domains.certificate_pem(domain) is None
+        fifo = certs / "fifo.example.test.pem"
+        os.mkfifo(fifo)
+        assert custom_domains.certificate_pem("fifo.example.test") is None  # returns at once, never waits
+    finally:
+        if certs.is_symlink():
+            certs.unlink()
+        if kept.exists():
+            kept.rename(certs)
+        for name in (f"{domain}.pem", "fifo.example.test.pem"):
+            (certs / name).unlink(missing_ok=True)

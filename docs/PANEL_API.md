@@ -478,7 +478,7 @@ An account:
 | Method and path | Permission | Body | Answer |
 | :--- | :--- | :--- | :--- |
 | `GET /tokens` | `tokens.manage` | | 200, API tokens (never their secrets) |
-| `POST /tokens` | `tokens.manage` | `{"name", "scope"}` (`read`, `instances`, `developer` or `write`) | **201**, with `token` and `signing_secret`, shown once |
+| `POST /tokens` | `tokens.manage` | `{"name", "scope"}` (`read`, `instances`, `developer` or `write`) | **201**, with `token` and `signing_secret`, shown once. Created by a token, the new token acts for the same account (403 when that account no longer exists) |
 | `DELETE /tokens/<id>` | `tokens.manage` | | **204**, revoked |
 | `GET /backups` | `backups.manage` | `?instance=<name>`, `?project=<id>` optional | 200, backups, newest first (below); `instance` keeps those taken from that instance, `project` those of the project's instances (the ones it has now). The project's access applies either way: those of a hidden project or branch are not listed |
 | `GET /backups/<file>` | `backups.manage` | | the zip (`dump.sql`, the filestore, `manifest.json`) |
@@ -634,7 +634,7 @@ to `/help/<path>`, the web app's Help pages.
 | `PUT /session/password` | signed in | `{"current", "new"}` | **204**; other sessions of the account end, and a `password` restriction is lifted |
 | `GET /account` | signed in | | 200, own account: profile, role, second factors, whether one is required, `recovery_codes` (`{"left", "total", "created_at"}` or `null`), `recovery_codes_needed`, `sign_in_email` (`{"enabled", "own_choice", "default", "can_turn_off", "mail_ready"}`), and `language` (`{"value", "own_choice", "default"}`: the web app's language, the person's own choice or `null`, and `DEFAULT_LANGUAGE`) |
 | `PATCH /account` | signed in | any of `first_name`, `last_name`, `email`, `phone`, `sign_in_email` (`true`, `false`, or `null` for the server's default), and `language` (`"en"`, `"ar"`, or `null` for the server's default) | 200, the account. `sign_in_email: false` is **403** when `SIGN_IN_EMAIL_OPT_OUT` is off. The e-mail address cannot change while it receives sign-in codes. An address another account uses is refused: 400 "Another account already uses this e-mail address." A new address ends the account's other sessions |
-| `POST /account/second-factors/<name>` | signed in | `email`: `{"email"}`; `totp`: `{}`. To replace a factor that is already set up, add `"password"` | 200: a code was sent, or `{"secret", "otpauth_uri"}` for the app. 400 when the password is missing or wrong, or the e-mail address belongs to another account |
+| `POST /account/second-factors/<name>` | signed in | `email`: `{"email"}`; `totp`: `{}`. To replace a factor that is already set up, or to add one when another is set up, add `"password"` | 200: a code was sent, or `{"secret", "otpauth_uri"}` for the app. 400 when the password is missing or wrong, or the e-mail address belongs to another account |
 | `PUT /account/second-factors/<name>` | signed in | `{"code"}` | 200, the factors; it is set up. Setting up `totp` on an account without recovery codes also returns them, once, in `meta.recovery_codes`. Replacing a factor, or a new e-mail address, ends the account's other sessions |
 | `DELETE /account/second-factors/<name>` | signed in | `{"password"}` | **204**; the account's other sessions end; removing `totp` removes the recovery codes |
 | `POST /account/recovery-codes` | signed in | `{"password"}` | **201**, `{"codes", "left", "total", "created_at"}`: new codes, shown once; the earlier ones stop working. 400 without the authenticator app or with a wrong password |
@@ -1096,7 +1096,7 @@ data: {"key": "", "data": {"server": {"cpu": 12.5, ...}, "instances": {"sales-ma
 | `project` | A project changed: created, changed, deleted, a branch's stage changed (key: the project's id) | The project, as `GET /projects` lists it, or `{"id", "deleted": true}` |
 | `domains` | An instance's custom domains changed: added, removed, checked, issued, renewed (key: the instance) | As `GET /instances/<name>/domains` |
 | `job` | A job started, moved to another step, added a note or ended | The job, as `GET /jobs/<id>` |
-| `job.output` | New log text of a running job (at most twice a second) | `{"job", "offset", "text"}` |
+| `job.output` | New log text of a running job (at most twice a second); a caller from whom a project is hidden gets it only for jobs of instances they see | `{"job", "instance", "offset", "text"}` |
 | `metrics` | Every `METRICS_INTERVAL_SECONDS` (5 by default) | The new figures, as `GET /metrics` ([Metrics](#9-metrics)) |
 | `settings` | A setting was changed | `{"changed": ["idle_hours", ...]}` |
 | `alert` | An alert was raised, repeated, resolved or delivered; only for callers with `audit.view` | The alert, as `GET /alerts` |

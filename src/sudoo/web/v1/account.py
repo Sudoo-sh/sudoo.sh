@@ -6,7 +6,8 @@ PATCH  /api/v1/account                          change the profile (names, e-mai
                                                 true|false|null} and {"language": "en"|"ar"|null} (null: the
                                                 server's default)
 POST   /api/v1/account/second-factors/<name>    start setting one up: e-mail {"email"}; app {} -> the secret;
-                                                replacing one already set up also takes {"password"}
+                                                replacing one already set up, or adding one next to another,
+                                                also takes {"password"}
 PUT    /api/v1/account/second-factors/<name>    confirm with {"code"}; setting up the app also makes recovery
                                                 codes, returned once in meta.recovery_codes
 DELETE /api/v1/account/second-factors/<name>    remove it; {"password"} confirms -> 204
@@ -164,6 +165,8 @@ def begin(name: str) -> Response:
     if plugin.enrolled(account):  # replacing it: as for removing it, the password confirms
         _confirm_password(f"second factor replacement ({name})")
         session["replacing_factor"] = name
+    elif auth.enrolled(account):  # adding one next to a factor already set up: the password confirms too
+        _confirm_password(f"second factor added ({name})")
     email = body.get("email")
     if isinstance(email, str) and accounts.email_taken(email, other_than=g.user["name"]):
         abort(400, EMAIL_TAKEN)

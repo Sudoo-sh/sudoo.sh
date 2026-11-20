@@ -31,7 +31,9 @@ A project's access (its "access" document)
 
 Sudoo.sh support
     acts as a synthetic user (support/): its grant decides its level (support.level_in: "admin" inside the grant's
-    scope, "none" outside), it is in no team and no lock allows it, so locked branches stay locked to it.
+    scope, "none" outside), it is in no team and no lock allows it, so locked branches stay locked to it. Instances
+    outside every project (and creating projects or instances outside one) are within a grant for "all" only, or
+    for an instance the grant names itself.
 
 Super admins
     always have the level "admin" in every project and branch: grants and restricted modes never hide anything from
@@ -248,6 +250,8 @@ def permissions(
     """Everything `user` may do in `project` (and `branch`), panel-wide permissions included."""
     from_role = role_permissions(user)
     if project is None:
+        if user.get("support") and level(user, None) == "none":  # outside every project: only a grant for "all"
+            return from_role - PROJECT_PERMISSIONS
         return from_role
     found = (from_role - PROJECT_PERMISSIONS) | (from_role & LEVEL_PERMISSIONS[level(user, project, branch)])
     lock = lock_of(project, branch)
@@ -271,7 +275,11 @@ def refusal(
     project or branch is not even visible, so its existence is not told."""
     if permission not in role_permissions(user):
         return 403, f"Your role cannot do this ({roles.PERMISSIONS[permission].lower()})."
-    if project is None or permission not in PROJECT_PERMISSIONS:
+    if permission not in PROJECT_PERMISSIONS:
+        return None
+    if project is None:
+        if user.get("support") and level(user, None) == "none":
+            return 403, "Support access is limited to the projects and instances it was given."
         return None
     seen = level(user, project, branch)
     if seen == "none":
@@ -309,16 +317,40 @@ OPENS_DATA = frozenset(
 """Permissions that open an instance's data to whoever has them."""
 
 
+def _everyone() -> list[dict[str, Any]]:
+    """Every principal that can act on the panel, as the panel builds it for a request: each account, each API token
+    (its owner's teams and grants, or none when its owner is gone) and Sudoo.sh support under each active grant."""
+    from sudoo import api_tokens
+    from sudoo.premium import stubs
+    from sudoo.web.security import SCOPE_ROLES
+
+    found: list[dict[str, Any]] = [
+        {"name": name, "role": roles.normalize(account.get("role", ""))}
+        for name, account in accounts.all_users().items()
+    ]
+    for token in api_tokens.all_tokens():
+        found.append(
+            {
+                "name": f"api:{token.get('name')}",
+                "role": SCOPE_ROLES.get(str(token.get("scope")), "viewer"),
+                "token_id": str(token.get("id")),
+                "owner": str(token.get("created_by") or ""),
+            }
+        )
+    found.extend(dict(user) for user in stubs.support_users())
+    return found
+
+
 def copy_reveals(project: Mapping[str, Any], source_branch: str, target_branch: str) -> list[str]:
-    """The accounts that would get into data of `source_branch` they cannot open there, if it were copied into the
-    instances of `target_branch` (an automatic staging rebuild, with nobody asking): those who may open the target's
-    data in a way the source does not let them. Empty when the copy shows nobody anything new."""
+    """Who would get into data of `source_branch` they cannot open there, if it were copied into the instances of
+    `target_branch` (an automatic staging rebuild, with nobody asking): the accounts, API tokens and Sudoo.sh support
+    grants that may open the target's data in a way the source does not let them. Empty when the copy shows nobody
+    anything new."""
     found = []
-    for name, account in accounts.all_users().items():
-        user = {"name": name, "role": roles.normalize(account.get("role", ""))}
+    for user in _everyone():
         opened = permissions(user, project, target_branch) & OPENS_DATA
         if opened - permissions(user, project, source_branch):
-            found.append(name)
+            found.append(str(user["name"]))
     return found
 
 
@@ -395,7 +427,8 @@ def instance_refusal(user: Mapping[str, Any], permission: str, name: str) -> tup
             return 403, f"Your role cannot do this ({roles.PERMISSIONS[permission].lower()})."
         return 403, f"The branch {branch} is locked: support access does not open locked branches."
     found = refusal(user, permission, project, branch)
-    if found and found[0] == 404:
+    hidden = project is None and user.get("support") and level(user, None) == "none"  # outside support's grant
+    if found and (found[0] == 404 or hidden):
         return 404, "This instance does not exist."
     return found
 

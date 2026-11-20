@@ -403,3 +403,21 @@ def test_the_demo_shows_the_same_e_mails() -> None:
     for key, message in MESSAGES.items():
         assert shown[key]["default"] == {"subject": message.subject, "title": message.title, "body": message.body}
         assert {p["name"] for p in shown[key]["placeholders"]} == set(message.spec)
+
+
+def test_adding_a_second_factor_next_to_one_set_up_needs_the_password(
+    app: Flask, mailbox: FakeMailer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sudoo.auth import email_code
+
+    monkeypatch.setattr(email_code, "mailer", lambda: mailbox)
+    name = _user()
+    client, headers, _, _ = _with_app(app, name)
+    body = {"email": f"{name}-other@example.com"}
+    refused = client.post("/api/v1/account/second-factors/email", json=body, headers=headers)
+    assert refused.status_code == 400, refused.get_json()
+    assert mailbox.sent == [] or all(m["to"] != body["email"] for m in mailbox.sent)
+    wrong = client.post("/api/v1/account/second-factors/email", json={**body, "password": "nope"}, headers=headers)
+    assert wrong.status_code == 400
+    answer = client.post("/api/v1/account/second-factors/email", json={**body, "password": PASSWORD}, headers=headers)
+    assert answer.status_code == 200, answer.get_json()

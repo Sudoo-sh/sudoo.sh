@@ -587,3 +587,27 @@ def test_the_job_log_masks_secrets() -> None:
     job.mask(CODE)
     job.write(f"contract {CODE} used\n")
     assert CODE not in "".join(job.log)
+
+
+def test_running_the_test_again_keeps_to_the_lock_of_the_test_instances_branch(
+    monkeypatch: pytest.MonkeyPatch, app: Flask, started: list[Any]
+) -> None:
+    if accounts.get("upadmin") is None:
+        accounts.create("upadmin", "admin", "harbor-cobalt-lyric-28")
+    lead = sign_in(app, "upadmin", "harbor-cobalt-lyric-28")
+    project = projects.create(repository="Acme/Shop", odoo_version="18.0", edition="community", origin="linked",
+                              user="t")  # fmt: skip
+    _instance("shop-prod", PROJECT=project["id"])
+    _instance("shop-prod-odoo19", ODOO_VERSION="19.0", STAGE="staging", GIT_BRANCH="19.0", PROJECT=project["id"])
+    _checked(monkeypatch, lead)
+    upgrades.update("shop-prod", staging="shop-prod-odoo19", **upgrades.test_identity("shop-prod-odoo19"))
+    lock = {"by": "admin1", "at": time.time(), "reason": "keep", "allow": [{"type": "user", "id": "admin1"}]}
+    projects.change(project["id"], lambda p: {**p, "access": {"locks": {"19.0": lock}}})
+    client, headers = lead
+    answer = client.post("/api/v1/instances/shop-prod/upgrade/test", json={"target": "19.0"}, headers=headers)
+    assert answer.status_code == 403, answer.get_json()
+    assert started == []
+    projects.change(project["id"], lambda p: {**p, "access": {}})
+    answer = client.post("/api/v1/instances/shop-prod/upgrade/test", json={"target": "19.0"}, headers=headers)
+    assert answer.status_code == 202, answer.get_json()
+    assert started[-1][:3] == ("shop-prod-odoo19", "upgrade-test", upgrade_run.rerun)

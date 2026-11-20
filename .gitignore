@@ -25,3 +25,6 @@ state.json
 enterprise/
 backups/
 *.zip
+
+# the premium features' compiled web files for a demo build (vite.config.ts, demoPremium); never committed
+web/demo-premium/

@@ -981,6 +981,27 @@ class Settings(BaseSettings):
         description="Minutes a job on another server waits for the main panel when it needs it (a GitHub token), "
         "before it fails.",
     )
+    servers_instances_kept: int = Field(
+        2000,
+        ge=10,
+        le=100000,
+        description="Instances the panel keeps of what one server's agent reports; beyond that, the rest of that "
+        "server's report is not taken.",
+    )
+    servers_report_kb: int = Field(
+        64,
+        ge=8,
+        le=4096,
+        description="Largest description of one instance or job a server's agent may report, in KB; a larger one is "
+        "not kept.",
+    )
+    servers_log_entries_per_day: int = Field(
+        5000,
+        ge=100,
+        le=1000000,
+        description="Log entries the panel takes from one server's agent per day; beyond that they are left out until "
+        "the next day, which the log says once.",
+    )
     move_max_backup_gb: float = Field(
         100, ge=1, le=10000, description="Largest backup an instance may have to be moved to another server, in GB."
     )

@@ -6,6 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Limits on what each server's agent reports (several servers):** new settings `SERVERS_INSTANCES_KEPT` (instances
+  the panel keeps of one agent's report, default `2000`), `SERVERS_REPORT_KB` (largest description of one instance
+  or job, default `64` KB) and `SERVERS_LOG_ENTRIES_PER_DAY` (log entries taken from one agent per day, default `5000`;
+  beyond that the log says once that some were left out). All three are on the Settings page, **Servers**.
+
+### Changed
+
+- **Answers of another server's agent are never pages of the panel:** a response the servers package marks as
+  passed on from another server (`X-Sudoo-Forwarded`, removed before it is sent) gets a sandboxed
+  `Content-Security-Policy` with no script (`default-src 'none'; ...; sandbox`), whatever its content type.
 ### Changed
 
 - **Codes are typed in boxes built on shadcn's `input-otp`** (the second factor at sign-in, and confirming the

@@ -27,8 +27,12 @@ from sudoo.config import settings
 from sudoo.hub import client, crypto
 from sudoo.storage import storage
 
-SHIPPED_PREMIUM_KEYS: tuple[str, ...] = ()  # the owner adds the public key of the premium signing key here
-SHIPPED_PREMIUM_BINDING_KEYS: tuple[str, ...] = ()  # and the public key of the hub's binding key here
+SHIPPED_PREMIUM_KEYS: tuple[str, ...] = (
+    "Dz8rIXRIXpzL0dbExRdWJDoj6ogjEuOq5m28wPaGtL0",
+)  # Sudoo.sh premium release key 4f4f3c18cd19ac11
+SHIPPED_PREMIUM_BINDING_KEYS: tuple[str, ...] = (
+    "B1YW6Gbv-kBNeZhhNKckRLw1-ATR-aTd5I28Bop_DGw",
+)  # the hub's binding key 13608776833dde7e
 KEYS_PATH = "/api/v1/premium/keys"
 STATE_COLLECTION = "premium_state"
 RELEASE = "release"

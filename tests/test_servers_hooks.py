@@ -134,6 +134,7 @@ def hub(monkeypatch: pytest.MonkeyPatch) -> Iterator[FakeHub]:
     fake = FakeHub().start()
     monkeypatch.setattr(client, "hub_url", lambda: fake.url)
     monkeypatch.setattr(keys, "SHIPPED_PREMIUM_KEYS", (fake.premium_key.public,))
+    monkeypatch.setattr(keys, "SHIPPED_PREMIUM_BINDING_KEYS", ())
     monkeypatch.setattr(keys, "SHIPPED_PREMIUM_BINDING_KEYS", (fake.binding_key.public,))
     _clean()
     live.change({"marketplace": True})

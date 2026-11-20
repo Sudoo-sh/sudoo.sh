@@ -47,6 +47,7 @@ def hub(monkeypatch: pytest.MonkeyPatch) -> Iterator[FakeHub]:
     fake = FakeHub().start()
     monkeypatch.setattr(client, "hub_url", lambda: fake.url)
     monkeypatch.setattr(keys, "SHIPPED_PREMIUM_KEYS", (fake.premium_key.public,))
+    monkeypatch.setattr(keys, "SHIPPED_PREMIUM_BINDING_KEYS", ())
     for collection in (loader.COLLECTION, loader.STATE_COLLECTION, client.COLLECTION):
         for key in storage().all(collection):
             storage().delete(collection, key)
@@ -239,6 +240,7 @@ def test_a_revoked_root_stays_revoked_when_the_roots_change(monkeypatch: pytest.
     first, second = HubKey(Ed25519PrivateKey.generate()), HubKey(Ed25519PrivateKey.generate())
     storage().delete(keys.STATE_COLLECTION, "keys")
     monkeypatch.setattr(keys, "SHIPPED_PREMIUM_KEYS", (first.public,))
+    monkeypatch.setattr(keys, "SHIPPED_PREMIUM_BINDING_KEYS", ())
     assert first.key_id in keys.trusted()
     revoking = client._listed({"key_id": first.key_id, "public_key": first.public, "state": "revoked"})
     assert revoking is not None
@@ -246,10 +248,13 @@ def test_a_revoked_root_stays_revoked_when_the_roots_change(monkeypatch: pytest.
     storage().put(keys.STATE_COLLECTION, "keys", {"keys": applied})
     assert first.key_id not in keys.trusted()
     monkeypatch.setattr(keys, "SHIPPED_PREMIUM_KEYS", (first.public, second.public))  # a release adds a root
+    monkeypatch.setattr(keys, "SHIPPED_PREMIUM_BINDING_KEYS", ())
     assert set(keys.trusted()) == {second.key_id}
     monkeypatch.setattr(keys, "SHIPPED_PREMIUM_KEYS", (second.public,))  # dropped, then shipped again
+    monkeypatch.setattr(keys, "SHIPPED_PREMIUM_BINDING_KEYS", ())
     storage().put(keys.STATE_COLLECTION, "keys", {"keys": keys.known()})
     monkeypatch.setattr(keys, "SHIPPED_PREMIUM_KEYS", (first.public, second.public))
+    monkeypatch.setattr(keys, "SHIPPED_PREMIUM_BINDING_KEYS", ())
     assert set(keys.trusted()) == {second.key_id}
     statement = crypto.premium_statement("teams", "9.9.9", "a" * 64, "py3", "any")
     record = {"id": "teams", "version": "9.9.9", "sha256": "a" * 64, "python_tag": "py3", "platform": "any",

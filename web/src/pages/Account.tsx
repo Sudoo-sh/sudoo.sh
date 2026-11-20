@@ -45,6 +45,7 @@ function Setup({ factor, confirm, onDone, onCancel }: { factor: Factor; confirm:
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [shake, setShake] = useState(false);
   const t = useT(accountWords).factors;
   const c = useT(common).common;
   const label = t.labels[factor.name] ?? factor.label;
@@ -74,6 +75,8 @@ function Setup({ factor, confirm, onDone, onCancel }: { factor: Factor; confirm:
     } catch (e) {
       setCode("");
       setError(errorText(e));
+      setShake(true);
+      setTimeout(() => setShake(false), 350);
     } finally {
       setBusy(false);
     }
@@ -116,7 +119,7 @@ function Setup({ factor, confirm, onDone, onCancel }: { factor: Factor; confirm:
       ) : (
         <Callout tone="success">{t.sentTo(started.sent_to ?? "")}</Callout>
       )}
-      {started && <OtpInput value={code} onChange={setCode} onComplete={finish} />}
+      {started && <OtpInput value={code} onChange={setCode} onComplete={finish} shake={shake} label={factor.name === "totp" ? t.typeCode : undefined} />}
       {error && <Callout tone="danger">{error}</Callout>}
       <div className="row">
         <Button variant="ghost" onClick={onCancel}>{c.cancel}</Button>

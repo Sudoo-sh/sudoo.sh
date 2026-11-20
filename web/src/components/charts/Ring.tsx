@@ -54,15 +54,15 @@ export function Ring({ parts, total, caption }: { parts: Part[]; total: number; 
   }, [parts, theme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="ring">
-      <div className="ring-chart">
+    <div className="donut">
+      <div className="donut-chart">
         <canvas ref={canvas} role="img" aria-label={parts.map((p) => `${p.label} ${p.value}`).join(", ")} />
-        <div className="ring-total">
+        <div className="donut-total">
           <b>{total}</b>
           <span>{caption}</span>
         </div>
       </div>
-      <ul className="ring-legend">
+      <ul className="donut-legend">
         {parts.map((p) => (
           <li key={p.label}>
             <i style={{ background: `var(${p.color})` }} />

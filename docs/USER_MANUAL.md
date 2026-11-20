@@ -262,7 +262,7 @@ still let you go ahead.
 | **Requests** | Requests per minute of all instances together over the last hour, with the errors (answers 500 to 599) as a second line. |
 | **Instances** | A ring of the instances by state (**Online**, **Working**, **Paused**, **Switched off**), with the total in the middle. |
 | **Response time** | How long Odoo takes to start answering, over the last hour: the slowest instance's 95th percentile (95% of its requests were faster) and the average. |
-| **By instance** | Bars of the instances that use the most now. Switch between **CPU**, **Memory** and **Disk**. Click a bar to open that instance. |
+| **By instance** | Bars of the instances that use the most now, each with its value (inside the bar when it fits, otherwise just after it). Switch between **CPU**, **Memory** and **Disk**. Click a bar to open that instance. In Arabic the chart reads from right to left. |
 
 **The list of instances.** Use **Search** to find an instance by name, the filters **All**, **Online**,
 **Paused** and **Working** (each with its count), and the stage menu (**All stages**, **Production**, **Staging**,

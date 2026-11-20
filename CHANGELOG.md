@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **Dashboard, "By instance":** each value is written inside its bar when it fits there, otherwise just past the bar's
+  end with a gap, so it no longer overlaps the bar; the text inside takes the colour that reads best on the bar (light
+  and dark themes). On Arabic pages the chart is mirrored (names on the right, bars growing to the left) and values
+  such as "1.7 GB" keep their order. Long instance names are shortened with an ellipsis to fit instead of being cut
+  off at the edge.
+
 ## [3.0.0] - 2026-11-20
 
 ### Added

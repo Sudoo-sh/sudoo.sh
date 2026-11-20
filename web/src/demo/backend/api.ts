@@ -17,6 +17,9 @@ import { branchList, membersOf, productionInstance, projectResource, projects, s
 import { described, levelIn, LEVELS, mayUnlock, needIn, openAccess, permissionsIn, seesProject, setLocks, teamResource, teams, type DemoAccess } from "./access";
 import { acceptLicence, LICENCE, licencePending, licenceStatus } from "./licence";
 import { catalog, categories, marketplace, recommendations } from "./marketplace";
+import { currentPlan, ENTITLEMENTS, gatedBy, needPremium, premiumOverview } from "./premium";
+import * as fleet from "./servers";
+import * as support from "./support";
 import { endShell, issueTicket, recordingOf, shellOptions, shellSessions } from "./shell";
 import {
   addBackup,
@@ -235,27 +238,9 @@ route("POST", "/setup", ({ body }) => {
   record(ME, "accepted the Sudoo.sh Licence Agreement", { detail: `version ${LICENCE.version}` });
   return created(me());
 });
-// Premium features (src/sudoo/premium): the demo has none installed, so every premium page shows its plan card.
-const PREMIUM_PACKAGES = [
-  ["teams", "Teams and access per project", ["teams", "per_project_access"], "Pro and Business"],
-  ["domains", "Custom domains", ["custom_domains"], "Business"],
-  ["offsite", "Off-site backups", ["offsite_backups"], "Pro and Business"],
-  ["support", "Support access", ["support_access"], "Pro and Business"],
-  ["servers", "Several servers", ["multi_server"], "Business"],
-] as const;
-route("GET", "/premium", () =>
-  ok({
-    packages: PREMIUM_PACKAGES.map(([id, name, features, plans]) => ({
-      id, name, features: [...features], plans, included: false, status: "not_included", version: null, installed_at: null,
-    })),
-    auto_install: true,
-    marketplace: true,
-    last_checked_at: Math.floor(OPENED / 1000),
-    last_error: null,
-    job: null,
-    build: { python_tag: "cp315", platform: "linux_x86_64" },
-  }),
-);
+// Premium features (src/sudoo/premium): those the demo's plan includes run when the demo was built with their web
+// files (premium.ts); the others show their plan card, and their API paths answer 402 (dispatching, below).
+route("GET", "/premium", () => ok(premiumOverview(can("settings.manage"))));
 route("POST", "/premium/sync", () => {
   throw offline("Installing premium features");
 });
@@ -490,6 +475,7 @@ route("GET", "/instance-plan", ({ query }) => {
     defaults: DEFAULTS(stage),
     stage_defaults: { development: DEFAULTS("development"), staging: DEFAULTS("staging"), production: DEFAULTS("production") },
     production: productionInfo(),
+    ...(fleet.choices() ? { servers: fleet.choices() } : {}),
   });
 });
 route("GET", "/instance-quota", () => {
@@ -564,6 +550,7 @@ function createInstance(
     submodules: [],
     rollback: null,
   };
+  fleet.placeNew(instance, body.server);
   instances.set(name, instance);
   profiles.set(name, newProfile(name, stage === "production"));
   let steps = CREATE_STEPS(instance, body.install_modules !== false);
@@ -874,6 +861,7 @@ function deleteInstance(instance: Instance, body: Record<string, unknown>): Job 
       addBackup(instance, "deletion", Date.now());
       for (const old of backups.filter((b) => b.instance === instance.name && b.kind !== "manual" && b.kind !== "deletion")) backups.splice(backups.indexOf(old), 1);
       instances.delete(instance.name);
+      fleet.forget(instance.name);
       profiles.delete(instance.name);
       publish("instance.deleted", instance.name, { name: instance.name });
     },
@@ -2322,11 +2310,68 @@ route("DELETE", "/projects/:id/branches/:*branch/lock", ({ params }) => {
 // ---------------------------------------------------------------- support access (src/sudoo/support/): the demo has
 // no connection to Sudoo.sh, so access cannot be granted here
 
-route("GET", "/support-access/status", () => ok({ connected: false, sessions: [], active_grants: 0, can_end: false }));
+// support access (the premium "support" package, support.ts)
+route("GET", "/support-access/status", () => ok(support.supportStatus(can("support_access.manage"))));
 route("GET", "/support-access", () => {
-  need("support_access.manage");
-  return ok({ enabled: true, unavailable: "not_connected", max_hours: 72, durations: [1, 24, 72], levels: ["view", "admin", "admin_shell"],
-    shell_enabled: true, grants: [], sessions: [], channel: { last_ok: null, error: null } });
+  need("support_access.manage", "/api/v1/support-access");
+  return ok(support.supportOverview());
+});
+route("POST", "/support-access/grants", ({ body }) => {
+  need("support_access.manage", "/api/v1/support-access/grants");
+  return created(support.grantAccess(body));
+});
+route("DELETE", "/support-access/grants/:id", ({ params }) => {
+  need("support_access.manage", `/api/v1/support-access/grants/${params.id}`);
+  support.withdraw(params.id!);
+  return none();
+});
+route("POST", "/support-access/end", () => {
+  need("support_access.manage", "/api/v1/support-access/end");
+  support.endAll();
+  return none();
+});
+
+// servers (the premium "servers" package, servers.ts)
+route("GET", "/servers", () => {
+  need("instances.view", "/api/v1/servers");
+  const { data, meta } = fleet.listServers();
+  return ok(data, meta);
+});
+route("GET", "/servers/:id", ({ params }) => {
+  need("instances.view", `/api/v1/servers/${params.id}`);
+  return ok(fleet.getServer(params.id!));
+});
+route("POST", "/servers", ({ body }) => {
+  need("servers.manage", "/api/v1/servers");
+  const server = fleet.addServer(body);
+  return { status: 201, body: { data: server }, headers: { Location: `/api/v1/servers/${String(server.id)}` } };
+});
+route("PATCH", "/servers/:id", ({ params, body }) => {
+  need("servers.manage", `/api/v1/servers/${params.id}`);
+  return ok(fleet.changeServer(params.id!, body));
+});
+route("POST", "/servers/:id/join-code", ({ params }) => {
+  need("servers.manage", `/api/v1/servers/${params.id}/join-code`);
+  return ok(fleet.newJoinCode(params.id!));
+});
+route("POST", "/servers/:id/approve", ({ params, body }) => {
+  need("servers.manage", `/api/v1/servers/${params.id}/approve`);
+  return ok(fleet.approveServer(params.id!, body));
+});
+route("POST", "/servers/:id/revoke", ({ params, body }) => {
+  need("servers.manage", `/api/v1/servers/${params.id}/revoke`);
+  return ok(fleet.revokeServer(params.id!, body));
+});
+route("DELETE", "/servers/:id", ({ params, body }) => {
+  need("servers.manage", `/api/v1/servers/${params.id}`);
+  fleet.removeServer(params.id!, body);
+  return none();
+});
+route("POST", "/instances/:name/move", ({ params, body }) => {
+  needOn(params.name!, "instances.move", `/api/v1/instances/${params.name}/move`);
+  const instance = instances.get(params.name!);
+  if (!instance) throw new Problem(404, "This instance does not exist.");
+  return accepted(fleet.moveInstance(instance, body));
 });
 
 // ---------------------------------------------------------------- the panel's plan (src/sudoo/entitlements.py)
@@ -2339,40 +2384,34 @@ route("GET", "/plan", () => {
   for (const instance of instances.values()) if (!instance.project && instance.stage === "production") names.add(instance.name);
   const byStage = { production: 0, staging: 0, development: 0 };
   for (const instance of instances.values()) byStage[instance.stage] += 1;
-  const limit = 5;
+  const plan = currentPlan();
+  const entitlements = ENTITLEMENTS[plan];
+  const limit = entitlements.max_production_branches ?? Infinity;
   const used = names.size;
+  const planName = plan.charAt(0).toUpperCase() + plan.slice(1);
+  const linked = plan !== "free";
   return ok({
-    plan: "pro",
-    source: "hub",
-    linked: true,
-    account_name: "Example Integrator",
-    received_at: iso(Date.now() - 6 * 60 * 1000),
-    valid_until: iso(Date.now() + 23 * HOUR),
-    entitlements: {
-      max_production_branches: limit,
-      max_servers: 2,
-      max_projects: null,
-      teams: true,
-      features: { per_project_access: true, custom_domains: true, offsite_backups: true },
-      support_level: "email",
-      addons: {},
-      period: "year",
-      renews_at: iso(OPENED + 210 * DAY),
-      trial_plan: null,
-    },
+    plan,
+    // Pro and Business come from a linked Sudoo.sh account; Free is the plan of a panel not linked yet
+    source: linked ? "hub" : "unlinked",
+    linked,
+    account_name: linked ? "Example Integrator" : null,
+    received_at: linked ? iso(Date.now() - 6 * 60 * 1000) : null,
+    valid_until: linked ? iso(Date.now() + 23 * HOUR) : null,
+    entitlements: { ...entitlements, ...(entitlements.period ? { renews_at: iso(OPENED + 210 * DAY) } : {}) },
     production_withheld: null,
     banned: false,
     over_limit: [],
-    usage: { servers: 1, projects: projects.size, production_branches: used, production_branch_names: [...names].sort(), instances_by_stage: byStage },
-    production_refusal: used >= limit ? `The Pro plan allows ${limit} production branches, and this panel has ${used}. Move one out of production, or get more production branches. See the plans at https://sudoo.sh/pricing, or manage yours at https://app.sudoo.sh.` : null,
+    usage: { servers: fleet.serversActive() ? 1 + [...fleet.servers.values()].filter((s) => s.status === "active" || s.status === "joined").length : 1, projects: projects.size, production_branches: used, production_branch_names: [...names].sort(), instances_by_stage: byStage },
+    production_refusal: used >= limit ? `The ${planName} plan allows ${limit} production ${limit === 1 ? "branch" : "branches"}, and this panel has ${used}. Move one out of production, or get more production branches. See the plans at https://sudoo.sh/pricing, or manage yours at https://app.sudoo.sh.` : null,
     production_keep: null,
     leaving_production: [],
     links: { pricing: "https://sudoo.sh/pricing", account: "https://app.sudoo.sh", keep: "https://app.sudoo.sh/plan" },
     checked_at: iso(Date.now()),
-    // the demo shows the banner of a panel that is not linked yet (src/sudoo/link_deadline.py): to super admins and
-    // administrators only, five of its seven days left
+    // on the Free plan the demo shows the banner of a panel that is not linked yet (src/sudoo/link_deadline.py): to
+    // super admins and administrators only, five of its seven days left
     link_deadline:
-      ["super_admin", "admin"].includes(users.find((u) => u.name === ME)?.role ?? "")
+      !linked && ["super_admin", "admin"].includes(users.find((u) => u.name === ME)?.role ?? "")
         ? { linked: false, first_run: iso(OPENED - 2 * DAY), deadline_days: 7, deadline: iso(OPENED + 5 * DAY), days_left: 5, restricted: false }
         : null,
   });
@@ -2398,6 +2437,8 @@ export async function answer(method: string, path: string, query: URLSearchParam
     const params = Object.fromEntries(r.names.map((name, i) => [name, decodeURIComponent(match[i + 1]!)]));
     try {
       if (!PUBLIC.some((p) => path === p || path.startsWith(`${p}/`))) signedIn();
+      const premium = gatedBy(method, path);
+      if (premium) needPremium(premium);
       return await r.handler({ method, params, query, body: (body ?? {}) as Record<string, unknown> });
     } catch (error) {
       if (error instanceof Problem) return problem(error.status, error.detail, path);
@@ -2408,7 +2449,7 @@ export async function answer(method: string, path: string, query: URLSearchParam
   return problem(404, "Not found.", path);
 }
 
-const TITLES: Record<number, string> = { 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found", 409: "Conflict", 500: "Internal Server Error" };
+const TITLES: Record<number, string> = { 400: "Bad Request", 401: "Unauthorized", 402: "Payment Required", 403: "Forbidden", 404: "Not Found", 409: "Conflict", 500: "Internal Server Error" };
 function problem(status: number, detail: string, path: string): Answer {
   return { status, body: { type: "about:blank", title: TITLES[status] ?? "Error", status, detail, instance: `/api/v1${path}`, request_id: hex(16) } };
 }

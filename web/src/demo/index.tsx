@@ -18,9 +18,13 @@ import { me, remember, switchRole } from "./backend/api";
 import { seedDomains } from "./backend/domains";
 import { seedProjects } from "./backend/projects";
 import { seedTeams } from "./backend/access";
+import { setBackendNotifier } from "./backend/notices";
+import { seedServers } from "./backend/servers";
+import { seedSupport } from "./backend/support";
 import { startMetrics } from "./backend/metrics";
 import { startScenario } from "./backend/scenario";
 import { roleInfo, seedAll, session } from "./backend/state";
+import { DemoPlanMenu, markPremium } from "./plan";
 import { rememberReferrer, websiteLink } from "./referrer";
 import { installTransport, setNotifier } from "./transport";
 
@@ -38,6 +42,9 @@ export function start() {
   seedTeams();
   seedProjects();
   seedDomains();
+  seedServers();
+  seedSupport();
+  markPremium();
   installTransport();
   startMetrics();
   startScenario();
@@ -55,7 +62,10 @@ export function DemoBanner({ router }: { router: Pick<DataRouter, "state" | "sub
   const [path, setPath] = useState(router.state.location.pathname);
   useEffect(() => router.subscribe((state) => setPath(state.location.pathname)), [router]);
   useEffect(() => setRole(session.role), [path]); // first-run setup signs in as a super admin
-  useEffect(() => setNotifier((title, text) => toast("info", title, text)), [toast]);
+  useEffect(() => {
+    setNotifier((title, text) => toast("info", title, text));
+    setBackendNotifier((title, text) => toast("info", title, text));
+  }, [toast]);
 
   const choose = (next: Role) => {
     switchRole(next);
@@ -87,6 +97,7 @@ export function DemoBanner({ router }: { router: Pick<DataRouter, "state" | "sub
         )}
       </p>
       <span className="demo-spacer" />
+      <DemoPlanMenu />
       <label className="demo-role">
         <span className="demo-long">{t.viewingAs}</span>
         <SelectBox className="demo-select" size="sm" value={role} onValueChange={(value) => choose(value as Role)} aria-label={t.viewingAs}>

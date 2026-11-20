@@ -66,6 +66,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Type-check and build
         run: npm run build
+      - name: Tests of the demo's in-browser backend
+        run: npm test
       - name: Build the demo (README, Demo build)
         run: npm run build:demo
       - name: The normal build contains no demo code
@@ -74,6 +76,11 @@ jobs:
             echo "::error::Demo code found in the normal build (dist/)"; exit 1
           fi
           test -f dist-demo/_headers && test -f dist-demo/_redirects
+      - name: The public demo build contains no premium files
+        run: |
+          if [ -e dist-demo/premium ]; then
+            echo "::error::Premium files found in the demo build (dist-demo/premium)"; exit 1
+          fi
 
   edge:
     name: Publish the edge images (main)
@@ -91,10 +98,12 @@ jobs:
         type=edge,branch=main
         type=sha,prefix=sha-,format=short
 
-  # The demo (demo.sudoo.sh) by direct upload to Cloudflare Pages. Set the variable PAGES_DIRECT_UPLOAD to "true" and
-  # the secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID to turn it on; otherwise the job ends with a notice.
-  # Runs on pushes to main only; pull requests never deploy. A Pages project connected to the repository (README, Demo
-  # build) needs none of this.
+  # The demo without premium files (each premium feature shows its plan card) by direct upload to Cloudflare Pages.
+  # Set the variable PAGES_DIRECT_UPLOAD to "true" and the secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID to
+  # turn it on; otherwise the job ends with a notice. Runs on pushes to main only; pull requests never deploy. A Pages
+  # project connected to the repository (README, Demo build) needs none of this. The project it deploys to
+  # (PAGES_PROJECT, default sudoo-demo) must not be the one that serves the full demo with the premium features, which
+  # is deployed outside GitHub (README, Demo build): a deploy from here would replace it.
   demo:
     name: Deploy the demo to Cloudflare Pages
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -147,4 +156,4 @@ jobs:
           wranglerVersion: "4.156.0"
           packageManager: npm
           workingDirectory: .wrangler-deploy
-          command: pages deploy ../web/dist-demo --project-name=sudoo-demo --branch=main
+          command: pages deploy ../web/dist-demo --project-name=${{ vars.PAGES_PROJECT || 'sudoo-demo' }} --branch=main

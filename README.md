@@ -439,6 +439,15 @@ Security Policy) and `_redirects` (every path serves the app) are written next t
 Leave Cloudflare Web Analytics off for the project: its injected script is not allowed by the Content Security
 Policy. To try the demo locally: `npm run build:demo && npm run preview:demo`.
 
+The demo's banner also has a **Plan** menu (Free, Pro, Business) when the build includes the premium features' web
+files. Those are compiled files, not part of this repository: a demo build takes them from the folder named by
+`SUDOO_DEMO_PREMIUM` (or `web/demo-premium/`, which git ignores), one folder per premium package with its
+`ui-manifest.json` and `ui/` files, and serves them at `/premium/ui/<package>/` as a panel does. Without that folder,
+as in the builds from this repository, every premium feature shows its plan card. The demo at demo.sudoo.sh, with the
+premium features, is built and deployed outside GitHub to its own Cloudflare Pages project; a Pages project connected
+to this repository, or the direct upload of the CI workflow (variable `PAGES_PROJECT`), must deploy to another
+project, or it would replace it.
+
 ---
 
 ## Testing

@@ -13,6 +13,15 @@ const en = {
   install: "Install on your server",
   installShort: "Install",
   roles: { super_admin: "Super admin", admin: "Admin", developer: "Developer", viewer: "Viewer" } as Record<string, string>,
+  plan: "Plan",
+  planMenu: "The demo's plan",
+  planMenuText: "See the panel as each Sudoo.sh plan shows it.",
+  showBusiness: "Show Business features",
+  plans: { free: "Free", pro: "Pro", business: "Business" } as Record<string, string>,
+  planNow: (plan: string) => `The panel now has the ${plan} plan`,
+  planNowText: "Features another plan includes show what they are and which plans have them.",
+  mark: (plans: string): string => (plans === "Business" ? "Business plan" : "Pro and Business plans"),
+  markHint: "A premium feature: it installs automatically when the plan includes it.",
 };
 
 const ar: typeof en = {
@@ -28,6 +37,15 @@ const ar: typeof en = {
   install: "ثبّته على خادمك",
   installShort: "ثبّت",
   roles: { super_admin: "مسؤول أعلى", admin: "مسؤول", developer: "مطوّر", viewer: "مشاهد" },
+  plan: "الخطة",
+  planMenu: "خطة العرض التجريبي",
+  planMenuText: "شاهد اللوحة كما تظهر في كل خطة من خطط Sudoo.sh.",
+  showBusiness: "إظهار ميزات Business",
+  plans: { free: "المجانية", pro: "Pro", business: "Business" },
+  planNow: (plan) => `أصبحت خطة اللوحة الآن ${plan}`,
+  planNowText: "الميزات التي تشملها خطة أخرى تعرض ما هي والخطط التي تتضمنها.",
+  mark: (plans) => (plans === "Business" ? "خطة Business" : "خطتا Pro وBusiness"),
+  markHint: "ميزة متقدمة: تُثبَّت تلقائيًا عندما تشملها الخطة.",
 };
 
 export default { en, ar };

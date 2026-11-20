@@ -31,8 +31,8 @@ SHIPPED_PREMIUM_KEYS: tuple[str, ...] = (
     "Dz8rIXRIXpzL0dbExRdWJDoj6ogjEuOq5m28wPaGtL0",
 )  # Sudoo.sh premium release key 4f4f3c18cd19ac11
 SHIPPED_PREMIUM_BINDING_KEYS: tuple[str, ...] = (
-    "B1YW6Gbv-kBNeZhhNKckRLw1-ATR-aTd5I28Bop_DGw",
-)  # the hub's binding key 13608776833dde7e
+    "s0yDStW6ak31NPT-QUWPiRUOUjTZoZWg3ruuGLh2Uvo",
+)  # the hub's binding key 20aded7fa2a24bd4
 KEYS_PATH = "/api/v1/premium/keys"
 STATE_COLLECTION = "premium_state"
 RELEASE = "release"

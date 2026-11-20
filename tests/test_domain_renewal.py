@@ -100,3 +100,91 @@ def test_a_new_domain_waits_for_the_package(authority: FakeAcme) -> None:
     # removing it is always possible
     custom_domains.remove(DOMAIN)
     assert custom_domains.get(DOMAIN) is None
+
+
+# ---------------------------------------------------------------- a domain that moved here with its instance
+
+
+def _self_signed(domain: str, days: float = 60) -> str:
+    """A key and a certificate for `domain` (PEM), as a server serves a domain with."""
+    import datetime
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, domain)])
+    now = datetime.datetime.now(datetime.UTC)
+    certificate = (
+        x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
+        .serial_number(x509.random_serial_number()).not_valid_before(now - datetime.timedelta(days=1))
+        .not_valid_after(now + datetime.timedelta(days=days))
+        .add_extension(x509.SubjectAlternativeName([x509.DNSName(domain)]), critical=False)
+        .sign(key, hashes.SHA256())
+    )  # fmt: skip
+    key_pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                serialization.NoEncryption()).decode()  # fmt: skip
+    return key_pem + certificate.public_bytes(serialization.Encoding.PEM).decode()
+
+
+def test_a_moved_domain_is_served_with_its_certificate_and_waits_for_its_dns(
+    admin: tuple[object, dict[str, str]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """What the servers package leaves on the new server: the record (primary) with "moved" and "dns_pending", and
+    the certificate it was served with. It is served at once; the worker says where to point the DNS until it
+    points here."""
+    live.change({"public_ipv4": "9.9.9.10"})
+    try:
+        _existing(certificate=False, status="waiting_dns", next_attempt_at=0, dns_pending=True,
+                  moved={"from": "Riyadh", "addresses": ["5.6.7.8"], "at": time.time()})  # fmt: skip
+        pem = _self_signed(DOMAIN)
+        # only a valid key and certificate for that very name is taken
+        assert not custom_domains.install_certificate(DOMAIN, _self_signed("other.example.org"))
+        assert not custom_domains.install_certificate(DOMAIN, "-----BEGIN " + "PRIVATE KEY-----\nx")
+        assert not custom_domains.install_certificate(DOMAIN, _self_signed(DOMAIN, days=-0.5))
+        assert not custom_domains.install_certificate("nothing.example.org", pem)
+        assert custom_domains.install_certificate(DOMAIN, pem)
+        record = _record()
+        assert record["status"] == "active" and custom_domains.certificate_pem(DOMAIN) == pem
+        assert exposure.address(NAME) == f"https://{DOMAIN}"  # the primary domain stays the instance's address
+        assert custom_domains.gateway_hosts() == {DOMAIN: {"instance": NAME, "certificate": True}}
+        assert record["dns_pending"] and domain_worker.due(record, time.time())
+
+        # its DNS still points at the old server: the probe does not come back here
+        def away(url: str) -> bytes:
+            raise OSError("connection refused")
+
+        monkeypatch.setattr(domain_worker, "FETCH", away)
+        assert domain_worker.round_() == 1
+        record = _record()
+        assert record["status"] == "active" and record["dns_pending"] and certificates.present(DOMAIN)
+        assert "moved here from Riyadh" in str(record["reason"]) and "Update its DNS to A 9.9.9.10" in str(
+            record["reason"]
+        )
+        assert record["next_attempt_at"] > time.time() and not domain_worker.due(record, time.time())
+        client, headers = admin
+        shown = client.get(f"/api/v1/instances/{NAME}/domains", headers=headers).get_json()["data"]  # type: ignore[attr-defined]
+        found = shown["domains"][0]
+        assert found["moved_from"] == "Riyadh" and found["dns_pending"] and found["next_check_at"]
+        assert found["url"] == f"https://{DOMAIN}"
+        # the reason names the old server when the DNS check sees its address
+        assert "still points at the old server Riyadh (5.6.7.8)" in domain_worker.moved_reason(
+            record, ("5.6.7.8",), "points elsewhere"
+        )
+
+        # the DNS was updated: the probe comes back through the domain, the flag goes
+        def here(url: str) -> bytes:
+            token = url.rsplit("/", 1)[1]
+            return (custom_domains.settings.gateway_dir / custom_domains.CHALLENGES / token).read_bytes()
+
+        monkeypatch.setattr(domain_worker, "FETCH", here)
+        custom_domains.set_fields(DOMAIN, next_attempt_at=0)
+        assert domain_worker.round_() == 1
+        record = _record()
+        assert not record["dns_pending"] and record["reason"] is None and record["status"] == "active"
+        assert not domain_worker.due(record, time.time())
+        assert custom_domains.certificate_pem(DOMAIN) == pem  # no new certificate was needed
+    finally:
+        live.change({"public_ipv4": None})

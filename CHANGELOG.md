@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Custom domains follow a moved instance (several servers):** the core keeps what a move needs: a certificate a
+  domain was served with can be installed on its new server (`custom_domains.install_certificate`, for any domain,
+  not only managed names), and a domain that moved there is marked (`moved`, `dns_pending`) until its DNS points at
+  the new server. The domain worker checks such a domain first (the DNS check with the domains package, else the http
+  probe), keeps serving the certificate it came with, and says where its DNS points now and where to point it
+  ("still points at the old server ... Update its DNS to ..."). `GET /instances/<name>/domains` shows `moved_from`
+  and `dns_pending` for each domain, and the **Domains** tab shows a note for each moved domain.
 - **Several servers, the panel's side:** the extension points the premium package for several servers (Business
   plans) uses: a server's agent (`sudoo.sh agent [join <code>|status|leave]`, which fetches the panel's premium packages
   with the join code and runs them only when they are signed with the premium key and bound to that panel), the

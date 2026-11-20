@@ -12,6 +12,14 @@ possible. CUSTOM_DOMAINS=off keeps the records but serves none.
 Managed names (instances/managed_names.py, every plan) are records here too, marked "managed": served and renewed the
 same way whatever CUSTOM_DOMAINS says, never listed among an instance's custom domains, and removed only with their
 instance (or when the instance's branch or stage changes).
+
+Moving with the instance (several servers, the premium package "servers"): when an instance moves to another server,
+its custom domains go with it, before its old copy is deleted. The new server gets each record (primary or not) and
+the certificate it was served with (`certificate_pem`, carried over the servers' signed channel, `install_certificate`
+there), so its gateway serves the domain at once; the old server forgets it. The customer's DNS still points at the
+old server, so a moved record carries "moved" ({"from": the old server's name, "addresses": its public addresses,
+"at"}) and "dns_pending": true until the domain worker sees the domain point at the new server (domain_worker.py);
+the API shows both ("moved_from", "dns_pending") and the reason says where to point the DNS now.
 """
 
 from __future__ import annotations
@@ -77,6 +85,50 @@ def cert_file(domain: str) -> Path:
 
 def certificate_present(domain: str) -> bool:
     return cert_file(domain).is_file()
+
+
+def certificate_pem(domain: str) -> str | None:
+    """The certificate this server serves a domain with (its key and chain, PEM), or None."""
+    try:
+        return cert_file(domain).read_text()
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def install_certificate(domain: str, pem: str, now: float | None = None) -> bool:
+    """Serve a domain of this server with a certificate it had on another server (a move): kept where the gateway
+    reads it, the record active until its renewal. False (nothing changed) for anything but a key with a certificate
+    for that name that is still valid; the domain worker then gets a new one."""
+    from cryptography import x509
+
+    from . import certificates, domain_worker
+
+    now = time.time() if now is None else now
+    if get(domain) is None or "PRIVATE KEY-----" not in (pem or ""):
+        return False
+    start = pem.find("-----BEGIN CERTIFICATE-----")
+    if start < 0:
+        return False
+    try:
+        chain = pem[start:]
+        first = x509.load_pem_x509_certificates(chain.encode())[0]
+        names = first.extensions.get_extension_for_class(x509.SubjectAlternativeName).value.get_values_for_type(
+            x509.DNSName
+        )
+        found = certificates.facts(chain.encode())
+    except (ValueError, IndexError, x509.ExtensionNotFound):
+        return False
+    if domain not in [n.lower() for n in names] or found.not_after <= now:
+        return False
+    certs_dir()
+    vault.write_private(cert_file(domain), pem)
+    set_fields(
+        domain, status="active", reason=None, attempts=0, checked_at=now, next_attempt_at=None,
+        renew_at=domain_worker.renew_at(found.not_before, found.not_after),
+        certificate={"issued_at": found.not_before, "expires_at": found.not_after, "issuer": found.issuer,
+                     "staging": settings.acme_directory == "staging"},
+    )  # fmt: skip
+    return True
 
 
 def challenge_answer(token: str) -> bytes | None:

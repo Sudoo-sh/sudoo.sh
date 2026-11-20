@@ -592,6 +592,10 @@ def _entries(package: bytes) -> Iterator[tuple[str, bytes]]:
         ({**_package(), "../evil.py": "x"}, "outside its folder"),
         ({**_package(), "/etc/evil.py": "x"}, "outside its folder"),
         ({**_package(), "flask/__init__.py": ""}, "would clash"),
+        ({**_package(), "src/flask.py": ""}, "would clash"),
+        ({**_package(), "src/sudoo_premium_servers.py": ""}, "would clash"),
+        ({**_package(), "src/sudoo_premium_teams/web.py": ""}, "would clash"),
+        ({**_package(), "flask/json/provider.py": ""}, "would clash"),
         ({k: v for k, v in _package().items() if k != "manifest.json"}, "no manifest.json"),
         (_package(id="com.example.other"), "another plugin or version"),
     ],
@@ -599,6 +603,17 @@ def _entries(package: bytes) -> Iterator[tuple[str, bytes]]:
 def test_packages_that_do_not_suit_are_refused(files: dict[str, bytes | str], message: str) -> None:
     with pytest.raises(plugin_manager.PluginRefused, match=message):
         plugin_manager.check_package(_zip(files), FREE, "1.0.0")
+
+
+def test_premium_packages_go_on_the_path_before_plugins(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo.premium import loader
+
+    order: list[str] = []
+    monkeypatch.setattr(loader, "activate", lambda: order.append("premium") or set())
+    monkeypatch.setattr(plugin_manager, "records", lambda: order.append("plugins") or {})
+    monkeypatch.setattr(plugin_manager, "LOADED", None)
+    plugin_manager.activate()
+    assert order == ["premium", "plugins"]
 
 
 SDK_PYPROJECT = '[project]\nname="x"\ndependencies=["sudoo-plugin-sdk>=0.1.0,<1.0.0"]\n'

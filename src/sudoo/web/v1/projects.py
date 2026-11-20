@@ -672,11 +672,13 @@ def change_access(project_id: str) -> Response:
         restricted = check.flag(rule, "restricted") is True
         if own or restricted:
             rules[str(branch)] = {"restricted": restricted, "grants": own}
+    _refuse_branch_rules(found, rules)
     if not _only_removes(access.access_of(found), mode, grants, rules):  # removing restrictions is always possible
         refuse_without_premium("teams", f"change the access of {project_id}")
         refuse_without_feature("per_project_access", f"change the access of {project_id}")
     with projects.LOCK:
         current = projects.get(project_id) or found
+        _refuse_branch_rules(current, rules)
         after = {**current, "access": {**access.access_of(current), "mode": mode, "grants": grants, "branches": rules}}
         if not access.allowed(g.user, "projects.access", after):  # nobody locks themselves out of a project
             abort(409, "After this change you could no longer manage this project's access. Grant yourself (or one of "
@@ -689,6 +691,23 @@ def change_access(project_id: str) -> Response:
         else ""))  # fmt: skip
     events.publish("project", project_id)
     return ok(access_resource(projects.get(project_id) or found))
+
+
+def _refuse_branch_rules(project: Mapping[str, Any], rules: Mapping[str, Any]) -> None:
+    """403 unless the caller manages the access of every branch whose rule this change adds, changes or removes: an
+    admin of the project that a restricted branch (or the branch's own grants) leaves out cannot change that rule."""
+    before = access.access_of(project).get("branches") or {}
+    for branch in sorted(set(before) | set(rules)):
+        old, new = before.get(branch) or {}, rules.get(branch) or {}
+        same = bool(old.get("restricted")) == bool(new.get("restricted")) and _entries(old.get("grants")) == _entries(
+            new.get("grants")
+        )
+        if same:
+            continue
+        level = access.level(g.user, project, branch)
+        if "projects.access" not in access.role_permissions(g.user) & access.LEVEL_PERMISSIONS[level]:
+            log(f"refused: change the access rule of {project['id']} {branch}", ok=False)
+            abort(403, f"Your access to the branch {branch} does not let you change its rule.")
 
 
 def _entries(items: Any) -> set[tuple[str, str, str]]:

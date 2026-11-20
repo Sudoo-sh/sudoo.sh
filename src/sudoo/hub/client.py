@@ -559,16 +559,18 @@ def trusted_after(
     endorsement: Callable[[str, str, int], bytes] = crypto.endorsement_message,
 ) -> dict[str, dict[str, Any]]:
     """The trusted keys once the hub's list is applied: revocations and expiries first (at once), then states and
-    dates of known keys, then new keys whose endorsement verifies with a trusted key that is not revoked (repeated,
-    so a chain of rotations is followed)."""
+    dates of known keys, then new keys whose endorsement verifies with a trusted key usable now (active, or retiring
+    before its end; repeated, so a chain of rotations is followed). A list only moves a known key forward (active,
+    retiring, expired, revoked): an expired or revoked key is never trusted again, a retiring key never becomes
+    active again and its end is never put later."""
     trusted = {kid: dict(entry) for kid, entry in known.items()}
     by_id = {entry["key_id"]: entry for entry in listed}
     for kid, entry in by_id.items():
         if kid in trusted and trusted[kid]["public_key"] == entry["public_key"]:
-            if trusted[kid]["state"] != "revoked":  # a revoked key is never trusted again
-                trusted[kid].update(state=entry["state"], not_after=entry["not_after"])
-            if entry["state"] == "retiring" and entry["not_after"] and entry["not_after"] <= now:
-                trusted[kid]["state"] = "expired"
+            _move_forward(trusted[kid], entry)
+    for current in trusted.values():
+        if current.get("state") == "retiring" and current.get("not_after") and current["not_after"] <= now:
+            current["state"] = "expired"
     changed = True
     while changed:
         changed = False
@@ -578,7 +580,7 @@ def trusted_after(
             if entry["state"] == "retiring" and (not entry["not_after"] or entry["not_after"] <= now):
                 continue
             endorser = trusted.get(str(entry.get("endorsed_by")))
-            if endorser is None or endorser["state"] == "revoked" or entry["not_before"] is None:
+            if endorser is None or not _usable(endorser, now) or entry["not_before"] is None:
                 continue
             try:
                 signature = crypto.from_b64url(str(entry.get("endorsement") or ""))
@@ -590,6 +592,31 @@ def trusted_after(
                                 "not_after": entry["not_after"], "source": "endorsed"}  # fmt: skip
                 changed = True
     return trusted
+
+
+_KEY_ORDER = {"active": 0, "retiring": 1, "expired": 2, "revoked": 3}
+
+
+def _move_forward(current: dict[str, Any], entry: Mapping[str, Any]) -> None:
+    """Apply a listed key's state and end to a known key, only ever forward (see trusted_after)."""
+    was = _KEY_ORDER.get(str(current.get("state")), 3)
+    listed = _KEY_ORDER.get(str(entry.get("state")), 3)
+    if was >= _KEY_ORDER["expired"]:
+        if listed > was:
+            current["state"] = "revoked"
+        return
+    if listed > was:
+        current["state"] = entry["state"]
+    end, new_end = current.get("not_after"), entry.get("not_after")
+    if new_end is not None and (end is None or new_end < end):
+        current["not_after"] = new_end
+
+
+def _usable(key: Mapping[str, Any], now: float) -> bool:
+    """Whether a trusted key may endorse another now: active, or retiring before its end."""
+    if key.get("state") == "active":
+        return True
+    return key.get("state") == "retiring" and bool(key.get("not_after")) and now < float(key["not_after"])
 
 
 def refresh_keys() -> Identity:

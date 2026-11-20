@@ -253,3 +253,28 @@ def test_webhook_refuses_a_wrong_signature(webhook: tuple[FlaskClient, list[tupl
 def test_webhook_answers_github_ping(webhook: tuple[FlaskClient, list[tuple[str, str]]]) -> None:
     client, requested = webhook
     assert _push(client, {"zen": "hi"}, event="ping").get_json()["ok"] and not requested
+
+
+def test_a_token_made_by_a_token_acts_for_the_same_account(app: Flask) -> None:
+    from conftest import sign_in
+    from sudoo import accounts, api_tokens
+
+    accounts.create("tokenlead", "admin", "saffron-ledger-pilot-55")
+    try:
+        lead = sign_in(app, "tokenlead", "saffron-ledger-pilot-55")
+        token, secret, _ = _token(lead, f"parent {secrets.token_hex(3)}", "write")
+        parent = Caller(app.test_client(), token, secret)
+        made = parent.call("POST", "/api/v1/tokens", {"name": f"child {secrets.token_hex(3)}", "scope": "write"})
+        assert made.status_code == 201, made.get_json()
+        child_id = made.get_json()["data"]["id"]
+        assert next(t for t in api_tokens.all_tokens() if t["id"] == child_id)["created_by"] == "tokenlead"
+        child = Caller(app.test_client(), made.get_json()["data"]["token"], made.get_json()["data"]["signing_secret"])
+        assert child.call("GET", "/api/v1/users").status_code == 200
+        accounts.update("tokenlead", role="viewer")  # demoted: what its tokens may do follows
+        assert child.call("GET", "/api/v1/users").status_code == 403
+        accounts.delete("tokenlead")  # gone: its tokens cannot make more
+        refused = parent.call("POST", "/api/v1/tokens", {"name": f"orphan {secrets.token_hex(3)}", "scope": "read"})
+        assert refused.status_code == 403
+    finally:
+        if accounts.get("tokenlead") is not None:
+            accounts.delete("tokenlead")

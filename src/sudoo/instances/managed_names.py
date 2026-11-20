@@ -54,7 +54,7 @@ from typing import Any
 from urllib.parse import quote
 
 from sudoo.config import settings
-from sudoo.core import audit, events
+from sudoo.core import audit, events, vault
 from sudoo.storage import storage
 
 PATH = "/api/v1/installations/subdomains"
@@ -393,7 +393,7 @@ def _repoint(record: dict[str, Any], server_id: str, now: float) -> set[str]:
              "next_attempt_at": now}  # fmt: skip
     custom_domains.set_fields(domain, server=server_id if server_id != MAIN else None, points_to=target, **reset)
     if old == MAIN and server_id != MAIN:
-        custom_domains.cert_file(domain).unlink(missing_ok=True)
+        vault.remove_private(custom_domains.cert_file(domain), within=settings.gateway_dir)
         custom_domains.refresh_gateway()
     if old != server_id:
         audit.record("system", None, "managed name moved", str(record["instance"]),

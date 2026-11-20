@@ -33,10 +33,12 @@ function Qr({ value }: { value: string }) {
 }
 
 /** Setting up one second factor: the app (QR code) or an e-mail address (confirmed with a code). Replacing one that
- * is already set up starts with the account's password, as removing it does. */
-function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: (recoveryCodes?: string[]) => void; onCancel: () => void }) {
+ * is already set up, or adding one next to another (`confirm`), starts with the account's password, as removing it
+ * does. */
+function Setup({ factor, confirm, onDone, onCancel }: { factor: Factor; confirm: boolean; onDone: (recoveryCodes?: string[]) => void; onCancel: () => void }) {
   const toast = useToast();
   const replacing = factor.enrolled;
+  const needsPassword = replacing || confirm;
   const [started, setStarted] = useState<{ secret?: string; otpauth_uri?: string; sent_to?: string } | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -58,7 +60,7 @@ function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: (recovery
     }
   };
   useEffect(() => {
-    if (factor.name === "totp" && !replacing) begin();
+    if (factor.name === "totp" && !needsPassword) begin();
   }, []);
   const finish = async (value = code) => {
     setBusy(true);
@@ -84,7 +86,7 @@ function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: (recovery
   return (
     <div className="stack">
       {replacing && !started && <span className="small muted">{t.replacingText}</span>}
-      {factor.name === "totp" && replacing && !started ? (
+      {factor.name === "totp" && needsPassword && !started ? (
         <form className="row" style={{ alignItems: "flex-end" }} onSubmit={(e) => { e.preventDefault(); begin({ password }); }}>
           {passwordField}
           <Button type="submit" variant="primary" loading={busy} disabled={!password}>{t.continue}</Button>
@@ -104,12 +106,12 @@ function Setup({ factor, onDone, onCancel }: { factor: Factor; onDone: (recovery
           <Skeleton height={190} />
         )
       ) : !started ? (
-        <form className="row" style={{ alignItems: "flex-end", flexWrap: "wrap" }} onSubmit={(e) => { e.preventDefault(); begin(replacing ? { email, password } : { email }); }}>
+        <form className="row" style={{ alignItems: "flex-end", flexWrap: "wrap" }} onSubmit={(e) => { e.preventDefault(); begin(needsPassword ? { email, password } : { email }); }}>
           <Field label={t.emailAddress} className="spacer">
             <Input type="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
           </Field>
-          {replacing && passwordField}
-          <Button type="submit" variant="primary" loading={busy} disabled={!email || (replacing && !password)}>{t.sendCode}</Button>
+          {needsPassword && passwordField}
+          <Button type="submit" variant="primary" loading={busy} disabled={!email || (needsPassword && !password)}>{t.sendCode}</Button>
         </form>
       ) : (
         <Callout tone="success">{t.sentTo(started.sent_to ?? "")}</Callout>
@@ -146,7 +148,7 @@ export function Factors({ onChange }: { onChange?: () => void }) {
       {!account.second_factors.length && <Callout tone="warning">{t.none}</Callout>}
       {account.second_factors.map((f) =>
         setting?.name === f.name ? (
-          <div key={f.name} className="card pad"><Setup factor={f} onDone={done} onCancel={() => setSetting(null)} /></div>
+          <div key={f.name} className="card pad"><Setup factor={f} confirm={account.second_factors.some((other) => other.enrolled)} onDone={done} onCancel={() => setSetting(null)} /></div>
         ) : (
           <div key={f.name} className="choice" style={{ cursor: "default" }}>
             {ICON[f.name] ?? <KeyRound />}

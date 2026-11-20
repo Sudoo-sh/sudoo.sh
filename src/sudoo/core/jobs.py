@@ -87,7 +87,13 @@ class Job:
             events.publish(
                 "job.output",
                 self.id,
-                {"job": self.id, "offset": self._published_lines, "next_offset": end, "text": text},
+                {
+                    "job": self.id,
+                    "instance": self.instance,
+                    "offset": self._published_lines,
+                    "next_offset": end,
+                    "text": text,
+                },
             )
             self._published_lines = end
 

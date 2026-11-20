@@ -253,6 +253,9 @@ def activate() -> set[str]:
     """Once per process, before plugins are loaded: check every installed plugin's files and put the ones that
     may run on sys.path, where `plugins.load` finds their entry points. Returns the ids put on the path."""
     global LOADED
+    from sudoo.premium import loader as premium_loader
+
+    premium_loader.activate()  # premium packages first on sys.path: a plugin's module never shadows one of them
     with _LOCK:
         if LOADED is not None:
             return LOADED
@@ -572,16 +575,24 @@ def _own_modules(plugin_id: str) -> set[str]:
 
 
 def _top_level_modules(infos: Iterable[zipfile.ZipInfo]) -> set[str]:
+    """The names the package could be imported by, from each folder it puts on sys.path (the package's root and its
+    src/): every .py file directly in it, and every folder in it holding a .py file, with or without __init__.py (a
+    namespace package)."""
     found = set()
     for info in infos:
         parts = info.filename.split("/")
-        if parts[0] == "src" and len(parts) > 2:
-            parts = parts[1:]
-        if len(parts) > 1 and parts[1] == "__init__.py":
-            found.add(parts[0])
-        elif len(parts) == 1 and parts[0].endswith(".py"):
-            found.add(parts[0][:-3])
-    return {name for name in found if name.isidentifier()}
+        if parts[0] == "src" and len(parts) > 1:
+            found |= _names_in(parts[1:])
+        found |= _names_in(parts)
+    return {name for name in found if name.isidentifier() and name != "src"}
+
+
+def _names_in(parts: list[str]) -> set[str]:
+    if not parts or not parts[-1].endswith(".py"):
+        return set()
+    if len(parts) == 1:
+        return {parts[0][:-3]}
+    return {parts[0]}
 
 
 def _dist_name(plugin_id: str) -> str:

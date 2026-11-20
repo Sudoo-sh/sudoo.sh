@@ -6,6 +6,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Security
+
+- **Sudoo.sh support stays within its scope:** a support grant limited to chosen projects or instances no longer opens
+  instances outside every project (credentials, logs, actions, shells), and does not create projects or instances
+  outside one; a grant for everything, or one that names the instance, still does.
+- **Restricted branches stay restricted:** changing the access of a project (`PUT /projects/<id>/access`) refuses
+  (403) to add, change or remove the rule of a branch the caller does not manage (`projects.access` in that branch).
+- **New instances in a branch need access there in every way:** connecting a repository to a plain Odoo instance
+  needs `instances.create` in the branch of the project it joins, and a database upgrade test needs it in the upgrade
+  branch; running an upgrade test again needs `instances.restore` on its test instance, so a locked branch stays
+  locked.
+- **Live job logs:** `job.output` events carry the job's instance, and a job event whose instance the panel cannot
+  tell (another server's) goes only to callers from whom nothing is hidden.
+- **Automatic copies of a restricted production** into staging also count API tokens (those whose owner is gone too)
+  and active support grants (the support package's `active_users` hook) as people who could open the copy.
+- **Second factors:** adding a second factor next to one already set up needs the password, as replacing one does.
+- **API tokens created by a token** belong to the same account (they follow its role and access); a token whose
+  account was deleted cannot create tokens.
+- **Premium and hub keys:** a key list never trusts an expired key again, never makes a retiring key active again or
+  extends its end, and a key endorses another only while it is usable itself.
+- **Plugins:** the module-name check also covers `src/<name>.py` and folders without `__init__.py`, and premium
+  packages go on the module path before plugins.
+- **Shared folders:** certificates in the gateway's folder (also those of managed names that go with a move) and the
+  mail catcher's `catcher.json` are read, written and removed without following a link, and are read only as regular
+  files of bounded size (a FIFO planted there no longer blocks instance starts).
+
 ## [3.0.0] - 2026-11-20
 
 ### Added

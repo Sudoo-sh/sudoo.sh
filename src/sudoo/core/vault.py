@@ -88,6 +88,33 @@ def write_private(path: Path, text: str | bytes, *, within: Path | None = None) 
         os.close(folder)
 
 
+def read_private(path: Path, *, within: Path | None = None, limit: int = 1024 * 1024) -> bytes:
+    """The content of the regular file `path`, at most `limit` bytes; with `within`, as open_dir() reaches its
+    folder. Never follows a link at the file's name and never waits on a FIFO or a device planted there: OSError for
+    anything but a regular file, and for one larger than `limit`."""
+    folder = open_dir(path.parent, within)
+    try:
+        flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0)
+        fd = os.open(path.name, flags, dir_fd=folder)
+    finally:
+        os.close(folder)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise OSError(errno.EINVAL, "not a regular file", str(path))
+        chunks, size = [], 0
+        while size <= limit:
+            chunk = os.read(fd, min(65536, limit + 1 - size))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            size += len(chunk)
+        if size > limit:
+            raise OSError(errno.EFBIG, "file too large", str(path))
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
+
+
 def remove_private(path: Path, *, within: Path | None = None) -> None:
     """Remove the file `path` when it is there; with `within`, as open_dir() reaches its folder (a link planted
     in place of the folder: nothing of ours is there, nothing is removed)."""

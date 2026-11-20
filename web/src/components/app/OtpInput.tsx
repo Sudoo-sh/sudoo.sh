@@ -1,54 +1,50 @@
-import { useEffect, useRef } from "react";
+import { OTPInputContext, REGEXP_ONLY_DIGITS } from "input-otp";
+import { useContext } from "react";
+import { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from "@/components/ui/input-otp";
 import { useT } from "@/i18n";
 import auth from "@/i18n/auth";
 
-/** Six boxes for a one-time code: typing moves on, backspace moves back, pasting fills them all. */
-export function OtpInput({ value, onChange, onComplete, shake }: { value: string; onChange: (value: string) => void; onComplete?: (value: string) => void; shake?: boolean }) {
-  const refs = useRef<(HTMLInputElement | null)[]>([]);
-  const digit = useT(auth).login.digit;
-  useEffect(() => refs.current[0]?.focus(), []);
-  const set = (next: string) => {
-    const clean = next.replace(/\D/g, "").slice(0, 6);
-    onChange(clean);
-    refs.current[Math.min(clean.length, 5)]?.focus();
-    if (clean.length === 6) onComplete?.(clean);
-  };
+/**
+ * A 6-digit code in six boxes, grouped 3 + 3 (shadcn's input-otp). Underneath it is one field with one label,
+ * autocomplete="one-time-code" and a numeric keyboard, so code suggestions, password managers and pasting the whole
+ * code work; digits run left to right in Arabic too. A typed digit pops in; `shake` shakes the boxes once (no motion
+ * when less is asked for; styles/_look.scss).
+ */
+export function OtpInput({ value, onChange, onComplete, shake, label }: { value: string; onChange: (value: string) => void; onComplete?: (value: string) => void; shake?: boolean; label?: string }) {
+  const fallback = useT(auth).login.code;
   return (
-    <div className={`otp ${shake ? "shake" : ""}`} dir="ltr">
-      {Array.from({ length: 6 }, (_, i) => (
-        <span key={i} style={{ display: "contents" }}>
-          {i === 3 && <span className="gap" />}
-          <input
-            ref={(el) => {
-              refs.current[i] = el;
-            }}
-            inputMode="numeric"
-            autoComplete={i === 0 ? "one-time-code" : "off"}
-            aria-label={digit(i + 1)}
-            placeholder=" "
-            maxLength={1}
-            value={value[i] ?? ""}
-            onChange={(e) => {
-              const digit = e.target.value.replace(/\D/g, "").slice(-1);
-              if (!digit) return;
-              set((value.slice(0, i) + digit + value.slice(i + 1)).slice(0, 6));
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Backspace") {
-                e.preventDefault();
-                const next = value[i] ? value.slice(0, i) + value.slice(i + 1) : value.slice(0, Math.max(0, i - 1));
-                onChange(next);
-                refs.current[Math.max(0, value[i] ? i : i - 1)]?.focus();
-              } else if (e.key === "ArrowLeft") refs.current[i - 1]?.focus();
-              else if (e.key === "ArrowRight") refs.current[i + 1]?.focus();
-            }}
-            onPaste={(e) => {
-              e.preventDefault();
-              set(e.clipboardData.getData("text"));
-            }}
-          />
-        </span>
-      ))}
+    <div className="otp" dir="ltr" data-shake={shake || undefined}>
+      <InputOTP
+        maxLength={6}
+        pattern={REGEXP_ONLY_DIGITS}
+        pasteTransformer={(text) => text.replace(/\D/g, "")}
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        autoFocus
+        aria-label={label ?? fallback}
+        value={value}
+        onChange={onChange}
+        onComplete={onComplete}
+        noScriptCSSFallback={null}
+      >
+        <Boxes from={0} to={3} />
+        <InputOTPSeparator />
+        <Boxes from={3} to={6} />
+      </InputOTP>
     </div>
+  );
+}
+
+/** A group of boxes; a box is drawn again when its digit changes, so the new digit pops in. */
+function Boxes({ from, to }: { from: number; to: number }) {
+  const slots = useContext(OTPInputContext)?.slots ?? [];
+  return (
+    <InputOTPGroup>
+      {Array.from({ length: to - from }, (_, n) => {
+        const index = from + n;
+        const char = slots[index]?.char ?? "";
+        return <InputOTPSlot key={`${index}:${char}`} index={index} data-filled={char ? "" : undefined} />;
+      })}
+    </InputOTPGroup>
   );
 }

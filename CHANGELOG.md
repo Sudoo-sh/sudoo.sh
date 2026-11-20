@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Codes are typed in boxes built on shadcn's `input-otp`** (the second factor at sign-in, and confirming the
+  authenticator app or the e-mail code in Account). Six boxes grouped 3 + 3, now one field underneath with one label
+  (`autocomplete="one-time-code"`, numeric keyboard), so code suggestions, password managers and pasting the whole
+  code work as with a plain field; digits run left to right in Arabic. A typed digit pops in, a wrong code empties and
+  shakes the boxes (now in Account too), no motion when less is asked for.
+
 ## [3.0.0] - 2026-11-20
 
 ### Added

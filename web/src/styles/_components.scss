@@ -578,30 +578,6 @@
   dd { margin: 0; min-width: 0; }
 }
 
-.otp {
-  display: flex;
-  gap: var(--s2);
-  justify-content: center;
-  input {
-    width: 44px;
-    height: 52px;
-    text-align: center;
-    font-family: var(--mono);
-    font-size: 22px;
-    border: 1px solid var(--hairline-strong);
-    border-radius: var(--radius-control);
-    background: var(--surface);
-    transition: border-color var(--quick) var(--ease), box-shadow var(--quick) var(--ease);
-    &:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-ring); }
-  }
-  .gap { width: var(--s2); }
-  &.shake { animation: shake 0.32s var(--ease); }
-}
-@keyframes shake {
-  25% { transform: translateX(-4px); }
-  75% { transform: translateX(4px); }
-}
-
 .kbd {
   display: inline-grid;
   place-items: center;

@@ -33,7 +33,7 @@ const en = {
     sendNew: "Send a new code",
     send: "Send the code",
     factors: { totp: "Authenticator app", email: "E-mail code", recovery: "Recovery code" } as Record<string, string>,
-    digit: (n: number) => `Digit ${n}`,
+    code: "6-digit code",
   },
   setup: {
     title: "Set up Sudoo.sh",
@@ -122,7 +122,7 @@ const ar: typeof en = {
     sendNew: "أرسل رمزًا جديدًا",
     send: "أرسل الرمز",
     factors: { totp: "تطبيق المصادقة", email: "رمز بالبريد الإلكتروني", recovery: "رمز الاسترداد" },
-    digit: (n) => `الرقم ${n}`,
+    code: "الرمز المكوّن من 6 أرقام",
   },
   setup: {
     title: "إعداد Sudoo.sh",

@@ -552,3 +552,47 @@
   [data-slot="table-head"] { width: 1%; vertical-align: top; color: var(--text-2); }
   [data-slot="table-cell"] { overflow-wrap: anywhere; word-break: break-word; }
 }
+
+// ---------------------------------------------------------------- code boxes (components/app/OtpInput.tsx)
+// Six 44 x 52 boxes, 3 + 3 with a small dash between, centred; the active one has the plum ring and the caret. The
+// panel's Content-Security-Policy refuses the <style> element input-otp adds, so its rules for the hidden field are
+// here too.
+.otp {
+  display: flex;
+  justify-content: center;
+  [data-input-otp-container] { gap: var(--s2); }
+  [data-slot="input-otp-group"] { gap: var(--s2); }
+  [data-slot="input-otp-separator"] { color: var(--text-3); }
+  [data-slot="input-otp-slot"] {
+    width: 44px;
+    height: 52px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--radius-control);
+    background: var(--surface);
+    box-shadow: none;
+    font-family: var(--mono);
+    font-size: 22px;
+    color: var(--text);
+    transition: border-color var(--quick) var(--ease), box-shadow var(--quick) var(--ease);
+    &[data-active="true"] { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-ring); }
+  }
+}
+[data-input-otp]::selection { background: transparent; color: transparent; }
+[data-input-otp]:is(:autofill, :-webkit-autofill) {
+  background: transparent !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  box-shadow: none !important;
+}
+// a typed digit pops in (scale 0.9 to 1, 150 ms); a wrong code shakes the boxes once
+@media (prefers-reduced-motion: no-preference) {
+  .otp [data-slot="input-otp-slot"][data-filled] { animation: otp-pop 150ms ease-out; }
+  .otp[data-shake] { animation: otp-shake 320ms cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+}
+@keyframes otp-pop {
+  from { transform: scale(0.9); }
+}
+@keyframes otp-shake {
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}

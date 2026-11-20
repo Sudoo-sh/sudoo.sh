@@ -553,6 +553,9 @@ used: instances show them as their server.
 | `SERVERS_OFFLINE_SECONDS` | int | `90` | **live** | A server whose agent has not reported for this long is shown offline (15 to 3600). |
 | `SERVERS_REQUEST_SECONDS` | int | `30` | **live** | Seconds the panel waits for an agent to answer a request (5 to 300). |
 | `SERVERS_WAIT_MINUTES` | int | `60` | **live** | Minutes a job on another server waits for the main panel when it needs it (a GitHub token to read private code), before it fails (1 to 10080). |
+| `SERVERS_INSTANCES_KEPT` | int | `2000` | **live** | Instances the panel keeps of what one agent reports (10 to 100000); beyond that, the rest of that server's report is not taken. |
+| `SERVERS_REPORT_KB` | int | `64` | **live** | Largest description of one instance or job an agent may report, in KB (8 to 4096); a larger one is not kept (the instance is listed with its basic facts only). |
+| `SERVERS_LOG_ENTRIES_PER_DAY` | int | `5000` | **live** | Log entries the panel takes from one agent per day (100 to 1000000); beyond that they are left out until the next day, and the log says so once (`server log entries left out`). The panel's own entries are never limited. |
 | `MOVE_MAX_BACKUP_GB` | float | `100` | **live** | Largest backup an instance may have to be moved to another server, in GB (1 to 10000). |
 | `MOVE_CHUNK_MB` | int | `8` | **live** | Size of each piece of a backup copied between servers, in MB (1 to 64). |
 | `MOVE_AT_ONCE` | int | `1` | **live** | Moves between servers that may run at the same time (1 to 10). |

@@ -2590,6 +2590,48 @@
   "description": "Minutes a job on another server waits for the main panel when it needs it (a GitHub token), before it fails."
  },
  {
+  "key": "servers_instances_kept",
+  "env": "SERVERS_INSTANCES_KEPT",
+  "value": 2000,
+  "env_value": 2000,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "integer",
+  "minimum": 10,
+  "description": "Instances the panel keeps of what one server's agent reports; beyond that, the rest of that server's report is not taken."
+ },
+ {
+  "key": "servers_report_kb",
+  "env": "SERVERS_REPORT_KB",
+  "value": 64,
+  "env_value": 64,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "integer",
+  "minimum": 8,
+  "description": "Largest description of one instance or job a server's agent may report, in KB; a larger one is not kept."
+ },
+ {
+  "key": "servers_log_entries_per_day",
+  "env": "SERVERS_LOG_ENTRIES_PER_DAY",
+  "value": 5000,
+  "env_value": 5000,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "integer",
+  "minimum": 100,
+  "description": "Log entries the panel takes from one server's agent per day; beyond that they are left out until the next day, which the log says once."
+ },
+ {
   "key": "move_max_backup_gb",
   "env": "MOVE_MAX_BACKUP_GB",
   "value": 100.0,

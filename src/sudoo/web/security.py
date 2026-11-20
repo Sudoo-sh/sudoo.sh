@@ -48,6 +48,10 @@ CONTENT_SECURITY_POLICY = (
 
 SVG_POLICY = "default-src 'none'; style-src 'unsafe-inline'"
 
+FORWARDED_POLICY = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; sandbox"
+"""What an answer another server's agent built gets (premium/servers.py: it marks it with X-Sudoo-Forwarded): never a
+page or a script of the panel's origin, whatever its content."""
+
 
 def install(app: Flask) -> None:
     app.before_request(_check_request)
@@ -410,6 +414,9 @@ def _add_headers(response: Response) -> Response:
     )
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
+    if response.headers.pop("X-Sudoo-Forwarded", None) is not None:
+        # an answer of another server's agent: whatever it holds, never a page or a script on the panel's origin
+        response.headers["Content-Security-Policy"] = FORWARDED_POLICY
     if response.headers.pop("X-Sudoo-Frame", None) == "caught-mail" and response.mimetype == "text/html":
         # a caught e-mail's HTML (web/v1/caught_mail.py): shown only in a sandboxed frame of the panel itself
         from .v1.caught_mail import HTML_POLICY

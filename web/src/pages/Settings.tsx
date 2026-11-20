@@ -109,7 +109,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
   {
     id: "servers",
     groups: [
-      { id: "servers", keys: ["server_name", "server_region", "servers_panel_url", "servers_join_code_minutes", "servers_heartbeat_seconds", "servers_offline_seconds", "servers_request_seconds", "servers_wait_minutes"] },
+      { id: "servers", keys: ["server_name", "server_region", "servers_panel_url", "servers_join_code_minutes", "servers_heartbeat_seconds", "servers_offline_seconds", "servers_request_seconds", "servers_wait_minutes", "servers_instances_kept", "servers_report_kb", "servers_log_entries_per_day"] },
       { id: "moves", keys: ["move_max_backup_gb", "move_chunk_mb", "move_at_once", "move_health_seconds"] },
     ],
   },

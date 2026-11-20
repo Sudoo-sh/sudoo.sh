@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from sudoo import accounts
@@ -48,3 +50,21 @@ def test_master_password_hash_is_odoo_compatible_format() -> None:
     algorithm, rounds, salt, digest = hashed.lstrip("$").split("$")
     assert (algorithm, rounds) == ("pbkdf2-sha512", "1000")
     assert "+" not in salt + digest and "=" not in salt + digest  # passlib's base64 alphabet
+
+
+def test_an_answer_of_another_servers_agent_is_never_a_page_or_script_of_the_panel(app: Any) -> None:
+    """An answer the servers package marks as built by another server's agent gets the sandboxed policy, whatever
+    its content type, and the mark does not reach the browser."""
+    from flask import Response
+
+    from sudoo.web import security
+
+    with app.test_request_context("/api/v1/instances/far-one/page"):
+        forwarded = Response("<script src=/x.js></script>", mimetype="text/html")
+        forwarded.headers["X-Sudoo-Forwarded"] = "1"
+        answer = security._add_headers(forwarded)
+        assert answer.headers["Content-Security-Policy"] == security.FORWARDED_POLICY
+        assert "sandbox" in answer.headers["Content-Security-Policy"]
+        assert answer.headers["X-Content-Type-Options"] == "nosniff" and "X-Sudoo-Forwarded" not in answer.headers
+        own = security._add_headers(Response("{}", mimetype="application/json"))
+        assert own.headers["Content-Security-Policy"] == security.CONTENT_SECURITY_POLICY

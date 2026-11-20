@@ -16,9 +16,12 @@ The answer of GET (also the live event "domains", key: the instance) is one obje
      "exposure", "listener_error", "authority": "production" | "staging" | "custom",
      "domains": [{"domain", "primary", "status", "reason", "tls", "dns_records": [{"type", "name", "value"}],
                   "addresses", "added_at", "added_by", "checked_at", "next_check_at", "renews_at",
-                  "certificate": {"issued_at", "expires_at", "issuer", "staging"} | null, "url"}]}
+                  "certificate": {"issued_at", "expires_at", "issuer", "staging"} | null, "url",
+                  "moved_from", "dns_pending"}]}
 
-status: waiting_dns, issuing, active, renewing, expiring, failed (domains/__init__.py).
+status: waiting_dns, issuing, active, renewing, expiring, failed (domains/__init__.py). moved_from: the server the
+domain moved here from with its instance (several servers), or null; dns_pending: its DNS does not point at this
+server yet (the reason says where to point it; dns_records are this server's).
 """
 
 from __future__ import annotations
@@ -55,7 +58,9 @@ def domain_resource(record: dict[str, Any]) -> dict[str, Any]:
         "added_by": record.get("added_by"),
         "checked_at": iso(record.get("checked_at")),
         "next_check_at": (
-            iso(record.get("next_attempt_at")) if status in ("waiting_dns", "failed", "renewing") else None
+            iso(record.get("next_attempt_at"))
+            if status in ("waiting_dns", "failed", "renewing") or record.get("dns_pending")
+            else None
         ),
         "renews_at": iso(record.get("renew_at")) if certificate else None,
         "certificate": (
@@ -69,6 +74,8 @@ def domain_resource(record: dict[str, Any]) -> dict[str, Any]:
             else None
         ),
         "url": f"https://{record['domain']}" if domains.serving(record) else None,
+        "moved_from": (record.get("moved") or {}).get("from") or None,
+        "dns_pending": bool(record.get("dns_pending")),
     }
 
 

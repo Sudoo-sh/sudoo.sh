@@ -2193,13 +2193,23 @@ asks again). The move is a job:
 3. the backup is copied to the other server through the panel and checked (size and SHA-256);
 4. the instance is created there from the backup: same name, stage, project, branch, version, database and admin
    password; the data is not neutralised;
-5. its managed name (if it has one, [Managed subdomains](#managed-subdomains)) is pointed at the new server, with its
+5. its custom domains go to the new server, each with the certificate it is served with (over the servers' signed
+   channel): the new server's gateway serves them at once and the old one stops;
+6. its managed name (if it has one, [Managed subdomains](#managed-subdomains)) is pointed at the new server, with its
    certificate, and it is deleted on its old server (which keeps the deletion backup).
 
 The downtime lasts about as long as a backup, the copy and a restore of that instance. When a step fails, the move is
 rolled back: what was made on the target is removed and the instance starts again where it was. Its managed name stays
-its address; an address given by the exposure (a tunnel link or a port of the server) changes with the server. Add its
-custom domains again on the new server and point their DNS at it. Limits: `MOVE_MAX_BACKUP_GB`,
+its address; an address given by the exposure (a tunnel link or a port of the server) changes with the server.
+
+Its custom domains stay its domains (the primary one stays its address), but their DNS records still point at the old
+server: whoever manages each domain's DNS must point it at the new server. The move's job says so for each domain, and
+on the instance's **Domains** tab each moved domain shows "moved here from <server>", the reason (for example "still
+points at the old server ... Update its DNS to A 203.0.113.7") and the record to create. The new server checks the
+domain on the DNS back-off (and on **Check now**); once it points there the note goes, and a domain that came without
+a valid certificate gets its own. A domain the new server already has for another instance is not taken (the job
+warns). Each server keeps its own `DOMAIN_DNS_TARGET` (the main panel does not pass it on to other servers); a server
+without one (nor `PUBLIC_HOST`) tells people to point domains at its public address. Limits: `MOVE_MAX_BACKUP_GB`,
 `MOVE_AT_ONCE`, `MOVE_CHUNK_MB` ([Configuration](CONFIGURATION.md#servers)).
 
 ### When the main panel is down

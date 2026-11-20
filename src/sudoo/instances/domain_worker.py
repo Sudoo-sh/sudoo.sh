@@ -22,6 +22,12 @@ and a check waits for the authority anyway.
                            new certificate replaces the old one -> active; on failure it stays renewing (the old
                            certificate is still served) with the reason, and becomes failed once it expired
 
+A domain that moved here with its instance (another server, custom_domains.py "Moving with the instance") is
+"dns_pending" until its DNS points here: whatever its state, it is checked first (the DNS check with the package,
+else the http probe), on the DNS back-off; while it fails the reason says where its DNS points now (the old server)
+and where to point it, and the certificate it came with keeps being served here. Once it passes the flag goes and
+the domain goes on as any other (a domain without a certificate gets its own then).
+
 Managed names (managed_names.py) go the same way on every plan and whatever CUSTOM_DOMAINS says, while they are on:
 the hub made their DNS records, so there is no DNS check (the http probe still runs with DOMAIN_HTTP_PROBE).
 
@@ -208,13 +214,75 @@ def is_new(record: dict[str, Any]) -> bool:
     return not record.get("certificate") and record.get("status") != "active"
 
 
+def target_text(domain: str) -> str:
+    """Where a domain's DNS must point on this server, in words: the records the domains package gives (CNAME
+    server.example.net, A 203.0.113.7), else this server's public addresses; "" when neither is known."""
+    dns = _dns()
+    records = []
+    if dns is not None:
+        try:
+            records = [f"{r['type']} {r['value']}" for r in dns.instructions(domain)]
+        except Exception:  # noqa: BLE001 - the addresses below are enough
+            records = []
+    if not records:
+        from sudoo.hub import marketplace
+
+        found = marketplace.public_addresses()
+        records = [f"{'A' if key == 'public_ipv4' else 'AAAA'} {found[key]}" for key in ("public_ipv4", "public_ipv6")
+                   if found.get(key)]  # fmt: skip
+    return ", ".join(records)
+
+
+def moved_reason(record: dict[str, Any], addresses: tuple[str, ...] | list[str], detail: str) -> str:
+    """Why a domain that moved here is not reached here yet, and what to do (the person reads it in the panel)."""
+    domain = record["domain"]
+    moved = record.get("moved") or {}
+    old = str(moved.get("from") or "its old server")
+    target = target_text(domain)
+    update = f"Update its DNS to {target}" if target else "Update its DNS to point at this server"
+    if addresses and set(addresses) & set(moved.get("addresses") or []):
+        return f"{domain} still points at the old server {old} ({', '.join(sorted(addresses))}). {update}."
+    return f"{domain} moved here from {old} with its instance and is not reached here yet. {update}. {detail}".strip()
+
+
+def check_moved(record: dict[str, Any], now: float) -> bool:
+    """A domain that moved here (dns_pending): whether its DNS points here now. Clears the flag when it does; else
+    keeps its state (and certificate), says why and when it is checked again."""
+    domain = record["domain"]
+    dns = _dns()
+    if dns is not None and record.get("tls") == "acme":
+        checked = dns.check(domain)
+        ok, reason, found = checked.ok, checked.reason, tuple(checked.addresses)
+    else:
+        problem = probe(domain)
+        ok, reason, found = problem is None, problem or "", ()
+    if ok:
+        _set(domain, dns_pending=False, reason=None, attempts=0, checked_at=now,
+             **({"addresses": list(found)} if found else {}),
+             next_attempt_at=None if record.get("status") == "active" else now)  # fmt: skip
+        audit.record("panel", None, "moved custom domain reached here", record["instance"], detail=domain)
+        _publish(record["instance"])
+        return True
+    attempts = int(record.get("attempts") or 0) + 1
+    _set(domain, reason=moved_reason(record, found, reason), attempts=attempts, checked_at=now,
+         addresses=list(found), next_attempt_at=now + backoff(attempts, DNS_FIRST_SECONDS, DNS_MAX_SECONDS))  # fmt: skip
+    _publish(record["instance"])
+    return False
+
+
 def process(record: dict[str, Any], now: float | None = None) -> None:
     """Move one domain along (see the module's description)."""
     now = time.time() if now is None else now
-    domain, status = record["domain"], record.get("status")
     managed = bool(record.get("managed"))
     if not managed and record.get("tls") != tls_mode():
         return  # recorded for the other mode: kept, not served, until the mode changes back
+    if not managed and record.get("dns_pending"):
+        if not check_moved(record, now):
+            return
+        from sudoo.instances.custom_domains import get
+
+        record = get(record["domain"]) or record
+    domain, status = record["domain"], record.get("status")
     dns = None if managed else _dns()  # a managed name's DNS is the hub's
     if not managed and is_new(record) and dns is None:
         return  # adding domains comes with the premium domains package: a new one waits for it
@@ -287,7 +355,11 @@ def due(record: dict[str, Any], now: float) -> bool:
 
         if not managed_names.on() or managed_names.server_of(record) != managed_names.MAIN:
             return False  # off, or another server's name (its agent gets and renews the certificate)
-    elif not enabled() or (record.get("tls") == tls_mode() and is_new(record) and _dns() is None):
+    elif not enabled():
+        return False
+    elif record.get("dns_pending") and record.get("tls") == tls_mode():
+        return bool((record.get("next_attempt_at") or 0) <= now)  # moved here: is its DNS here yet
+    elif record.get("tls") == tls_mode() and is_new(record) and _dns() is None:
         return False
     if status == "active":
         return bool(record.get("renew_at") and now >= record["renew_at"]) or _expiring(record, now)
@@ -324,4 +396,7 @@ def run_forever() -> None:
             print(f"domains: {error!r}", flush=True)
 
 
-__all__ = ["COLLECTION", "backoff", "due", "is_new", "process", "renew_at", "round_", "run_forever"]
+__all__ = [
+    "COLLECTION", "backoff", "check_moved", "due", "is_new", "moved_reason", "process", "renew_at", "round_",
+    "run_forever", "target_text",
+]  # fmt: skip

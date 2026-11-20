@@ -61,6 +61,12 @@ export function DomainsCore({ instance }: { instance: Instance }) {
                   )}
                 </div>
               ))}
+              {data.domains.filter((domain) => domain.dns_pending).map((domain) => (
+                <Callout key={`moved-${domain.domain}`} tone="warning">
+                  <strong>{t.movedTitle(domain.domain, domain.moved_from || t.oldServer)}</strong>{" "}
+                  {domain.reason ?? t.movedText}
+                </Callout>
+              ))}
               <p className="xsmall faint">{t.keepServing}</p>
             </>
           )}

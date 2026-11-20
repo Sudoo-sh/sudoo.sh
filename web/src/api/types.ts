@@ -1072,6 +1072,10 @@ export interface CustomDomain {
   renews_at: string | null;
   certificate: { issued_at: string | null; expires_at: string | null; issuer: string | null; staging: boolean } | null;
   url: string | null;
+  /** The server the domain moved here from with its instance (several servers), or null. */
+  moved_from?: string | null;
+  /** Its DNS does not point at this server yet: `reason` says where to point it, `dns_records` are this server's. */
+  dns_pending?: boolean;
 }
 
 export interface Domains {

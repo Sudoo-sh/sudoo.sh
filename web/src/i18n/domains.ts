@@ -25,6 +25,9 @@ const en = {
   anotherPrimary: " Another domain becomes primary, or the default address is used again.",
   productionRemove: (name: ReactNode) => [name, " is a production instance: its users may be using this domain right now."],
   keepServing: "Domains set up before keep being served with the certificates they have; removing one is always possible.",
+  movedTitle: (domain: string, server: string) => `${ltr(domain)} moved here from ${ltr(server)} with the instance`,
+  oldServer: "the old server",
+  movedText: "Its DNS still points at the old server. Update it as shown; visitors reach the instance here once the change is visible.",
 };
 
 const ar: typeof en = {
@@ -49,6 +52,9 @@ const ar: typeof en = {
   anotherPrimary: " يصبح نطاق آخر أساسيًا، أو يُستخدم العنوان الافتراضي من جديد.",
   productionRemove: (name) => [name, " بيئة إنتاج: قد يستخدم مستخدموها هذا النطاق الآن."],
   keepServing: "تبقى النطاقات المُعدّة من قبل تعمل بشهاداتها الحالية؛ وإزالة أي منها ممكنة دائمًا.",
+  movedTitle: (domain, server) => `انتقل ${ltr(domain)} إلى هنا من ${ltr(server)} مع البيئة`,
+  oldServer: "الخادم القديم",
+  movedText: "ما زال DNS الخاص به يشير إلى الخادم القديم. حدّثه كما هو موضّح؛ يصل الزوار إلى البيئة هنا حالما يظهر التغيير.",
 };
 
 export default { en, ar };

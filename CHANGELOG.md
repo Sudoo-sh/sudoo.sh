@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **No border around the Instances ring on the dashboard.** Its box was named `ring`, which is also a Tailwind
+  utility (a 1px shadow in the text colour), so a dark frame was drawn around the chart, in light and dark mode and in
+  the demo. The box is now `donut`.
 ### Security
 
 - **Sudoo.sh support stays within its scope:** a support grant limited to chosen projects or instances no longer opens

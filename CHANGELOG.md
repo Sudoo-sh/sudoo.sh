@@ -6,56 +6,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
-### Added
-
-- **Limits on what each server's agent reports (several servers):** new settings `SERVERS_INSTANCES_KEPT` (instances
-  the panel keeps of one agent's report, default `2000`), `SERVERS_REPORT_KB` (largest description of one instance
-  or job, default `64` KB) and `SERVERS_LOG_ENTRIES_PER_DAY` (log entries taken from one agent per day, default `5000`;
-  beyond that the log says once that some were left out). All three are on the Settings page, **Servers**.
-
-### Changed
-
-- **Answers of another server's agent are never pages of the panel:** a response the servers package marks as
-  passed on from another server (`X-Sudoo-Forwarded`, removed before it is sent) gets a sandboxed
-  `Content-Security-Policy` with no script (`default-src 'none'; ...; sandbox`), whatever its content type.
-### Changed
-
-- **Codes are typed in boxes built on shadcn's `input-otp`** (the second factor at sign-in, and confirming the
-  authenticator app or the e-mail code in Account). Six boxes grouped 3 + 3, now one field underneath with one label
-  (`autocomplete="one-time-code"`, numeric keyboard), so code suggestions, password managers and pasting the whole
-  code work as with a plain field; digits run left to right in Arabic. A typed digit pops in, a wrong code empties and
-  shakes the boxes (now in Account too), no motion when less is asked for.
-### Fixed
-
-- **No border around the Instances ring on the dashboard.** Its box was named `ring`, which is also a Tailwind
-  utility (a 1px shadow in the text colour), so a dark frame was drawn around the chart, in light and dark mode and in
-  the demo. The box is now `donut`.
-### Security
-
-- **Sudoo.sh support stays within its scope:** a support grant limited to chosen projects or instances no longer opens
-  instances outside every project (credentials, logs, actions, shells), and does not create projects or instances
-  outside one; a grant for everything, or one that names the instance, still does.
-- **Restricted branches stay restricted:** changing the access of a project (`PUT /projects/<id>/access`) refuses
-  (403) to add, change or remove the rule of a branch the caller does not manage (`projects.access` in that branch).
-- **New instances in a branch need access there in every way:** connecting a repository to a plain Odoo instance
-  needs `instances.create` in the branch of the project it joins, and a database upgrade test needs it in the upgrade
-  branch; running an upgrade test again needs `instances.restore` on its test instance, so a locked branch stays
-  locked.
-- **Live job logs:** `job.output` events carry the job's instance, and a job event whose instance the panel cannot
-  tell (another server's) goes only to callers from whom nothing is hidden.
-- **Automatic copies of a restricted production** into staging also count API tokens (those whose owner is gone too)
-  and active support grants (the support package's `active_users` hook) as people who could open the copy.
-- **Second factors:** adding a second factor next to one already set up needs the password, as replacing one does.
-- **API tokens created by a token** belong to the same account (they follow its role and access); a token whose
-  account was deleted cannot create tokens.
-- **Premium and hub keys:** a key list never trusts an expired key again, never makes a retiring key active again or
-  extends its end, and a key endorses another only while it is usable itself.
-- **Plugins:** the module-name check also covers `src/<name>.py` and folders without `__init__.py`, and premium
-  packages go on the module path before plugins.
-- **Shared folders:** certificates in the gateway's folder (also those of managed names that go with a move) and the
-  mail catcher's `catcher.json` are read, written and removed without following a link, and are read only as regular
-  files of bounded size (a FIFO planted there no longer blocks instance starts).
-
 ## [3.0.0] - 2026-11-20
 
 ### Added
@@ -495,6 +445,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   cannot be reached. New settings `MARKETPLACE`, `HUB_URL` and `HUB_PUBLIC_KEYS`, a read-only mount of the host's
   `/etc/machine-id` in `compose.yaml`, permission `plugins.view`, command `sudoo.sh marketplace`, and
   [Marketplace](docs/MARKETPLACE.md).
+- **Limits on what each server's agent reports (several servers):** new settings `SERVERS_INSTANCES_KEPT` (instances
+  the panel keeps of one agent's report, default `2000`), `SERVERS_REPORT_KB` (largest description of one instance
+  or job, default `64` KB) and `SERVERS_LOG_ENTRIES_PER_DAY` (log entries taken from one agent per day, default `5000`;
+  beyond that the log says once that some were left out). All three are on the Settings page, **Servers**.
 
 ### Changed
 
@@ -560,6 +514,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
     frame no longer redraws on every live event.
   - The backend starts faster (the dummy password hash is made in the background), and gunicorn keeps its
     heartbeat file in memory.
+- **Answers of another server's agent are never pages of the panel:** a response the servers package marks as
+  passed on from another server (`X-Sudoo-Forwarded`, removed before it is sent) gets a sandboxed
+  `Content-Security-Policy` with no script (`default-src 'none'; ...; sandbox`), whatever its content type.
+- **Codes are typed in boxes built on shadcn's `input-otp`** (the second factor at sign-in, and confirming the
+  authenticator app or the e-mail code in Account). Six boxes grouped 3 + 3, now one field underneath with one label
+  (`autocomplete="one-time-code"`, numeric keyboard), so code suggestions, password managers and pasting the whole
+  code work as with a plain field; digits run left to right in Arabic. A typed digit pops in, a wrong code empties and
+  shakes the boxes (now in Account too), no motion when less is asked for.
 
 ### Fixed
 
@@ -607,6 +569,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   the deploy-key advice is given only when no app is connected. The access report gains `fix`
   ([Panel API](docs/PANEL_API.md)); the recommended setup is in the
   [Administrator guide](docs/ADMIN_GUIDE.md#which-account-should-own-the-app).
+- **No border around the Instances ring on the dashboard.** Its box was named `ring`, which is also a Tailwind
+  utility (a 1px shadow in the text colour), so a dark frame was drawn around the chart, in light and dark mode and in
+  the demo. The box is now `donut`.
 
 ### Security
 
@@ -715,6 +680,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   team shows only the projects the person reading it may see.
 - **Alert webhooks:** in Slack, Discord and Teams the alert's words (which can come from a failed job's output) are
   shown as written: they no longer mention a channel (`<!channel>`, `@everyone`) or form a link with another label.
+- **Sudoo.sh support stays within its scope:** a support grant limited to chosen projects or instances no longer opens
+  instances outside every project (credentials, logs, actions, shells), and does not create projects or instances
+  outside one; a grant for everything, or one that names the instance, still does.
+- **Restricted branches stay restricted:** changing the access of a project (`PUT /projects/<id>/access`) refuses
+  (403) to add, change or remove the rule of a branch the caller does not manage (`projects.access` in that branch).
+- **New instances in a branch need access there in every way:** connecting a repository to a plain Odoo instance
+  needs `instances.create` in the branch of the project it joins, and a database upgrade test needs it in the upgrade
+  branch; running an upgrade test again needs `instances.restore` on its test instance, so a locked branch stays
+  locked.
+- **Live job logs:** `job.output` events carry the job's instance, and a job event whose instance the panel cannot
+  tell (another server's) goes only to callers from whom nothing is hidden.
+- **Automatic copies of a restricted production** into staging also count API tokens (those whose owner is gone too)
+  and active support grants (the support package's `active_users` hook) as people who could open the copy.
+- **Second factors:** adding a second factor next to one already set up needs the password, as replacing one does.
+- **API tokens created by a token** belong to the same account (they follow its role and access); a token whose
+  account was deleted cannot create tokens.
+- **Premium and hub keys:** a key list never trusts an expired key again, never makes a retiring key active again or
+  extends its end, and a key endorses another only while it is usable itself.
+- **Plugins:** the module-name check also covers `src/<name>.py` and folders without `__init__.py`, and premium
+  packages go on the module path before plugins.
+- **Shared folders:** certificates in the gateway's folder (also those of managed names that go with a move) and the
+  mail catcher's `catcher.json` are read, written and removed without following a link, and are read only as regular
+  files of bounded size (a FIFO planted there no longer blocks instance starts).
+- **Premium keys shipped:** the panel now trusts Sudoo.sh's premium release key (`4f4f3c18cd19ac11`) and the hub's
+  binding key (`13608776833dde7e`) out of the box (`SHIPPED_PREMIUM_KEYS`, `SHIPPED_PREMIUM_BINDING_KEYS`), so premium
+  packages install on a new panel without any key setting.
 
 ## [1.0.0] - 2026-11-14
 

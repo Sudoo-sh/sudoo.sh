@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-11-20
+
 ### Added
 
 - **The demo shows every plan:** a **Plan** menu in the demo's banner switches the sample panel between Free, Pro and
@@ -19,6 +21,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   added to a demo build from a folder outside the repository (`SUDOO_DEMO_PREMIUM`, or the git-ignored
   `web/demo-premium/`); without them, as in this repository's own builds, every premium feature shows its plan card.
   Tests of the demo's backend run with `npm test` in `web/`.
+- **Custom domains follow a moved instance (several servers):** the core keeps what a move needs: a certificate a
+  domain was served with can be installed on its new server (`custom_domains.install_certificate`, for any domain,
+  not only managed names), and a domain that moved there is marked (`moved`, `dns_pending`) until its DNS points at
+  the new server. The domain worker checks such a domain first (the DNS check with the domains package, else the http
+  probe), keeps serving the certificate it came with, and says where its DNS points now and where to point it
+  ("still points at the old server ... Update its DNS to ..."). `GET /instances/<name>/domains` shows `moved_from`
+  and `dns_pending` for each domain, and the **Domains** tab shows a note for each moved domain.
 - **Several servers, the panel's side:** the extension points the premium package for several servers (Business
   plans) uses: a server's agent (`sudoo.sh agent [join <code>|status|leave]`, which fetches the panel's premium packages
   with the join code and runs them only when they are signed with the premium key and bound to that panel), the
@@ -896,6 +905,7 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v1.0.0...v3.0.0
 [1.0.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/Sudoo-sh/sudoo.sh/releases/tag/v0.1.0

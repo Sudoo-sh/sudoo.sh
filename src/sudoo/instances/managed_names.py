@@ -297,49 +297,19 @@ def certificate_pem(domain: str) -> str | None:
     """The certificate this server serves a name with (its key and chain, PEM), or None."""
     from . import custom_domains
 
-    try:
-        return custom_domains.cert_file(domain).read_text()
-    except (OSError, UnicodeDecodeError):
-        return None
+    return custom_domains.certificate_pem(domain)
 
 
 def install_certificate(domain: str, pem: str, now: float | None = None) -> bool:
     """Serve a managed name of this server with a certificate it had on another server (a move): kept where the
-    gateway reads it, the record active until its renewal. False (nothing changed) for anything but a key with a
-    certificate for that name that is still valid; the domain worker then gets a new one."""
-    from cryptography import x509
+    gateway reads it, the record active until its renewal. False (nothing changed) for anything but a managed name
+    and a key with a certificate for that name that is still valid; the domain worker then gets a new one."""
+    from . import custom_domains
 
-    from sudoo.core import vault
-
-    from . import certificates, custom_domains, domain_worker
-
-    now = time.time() if now is None else now
     record = custom_domains.get(domain)
-    if record is None or not record.get("managed") or "PRIVATE KEY-----" not in (pem or ""):
+    if record is None or not record.get("managed"):
         return False
-    start = pem.find("-----BEGIN CERTIFICATE-----")
-    if start < 0:
-        return False
-    try:
-        chain = pem[start:]
-        first = x509.load_pem_x509_certificates(chain.encode())[0]
-        names = first.extensions.get_extension_for_class(x509.SubjectAlternativeName).value.get_values_for_type(
-            x509.DNSName
-        )
-        found = certificates.facts(chain.encode())
-    except (ValueError, IndexError, x509.ExtensionNotFound):
-        return False
-    if domain not in [n.lower() for n in names] or found.not_after <= now:
-        return False
-    custom_domains.certs_dir()
-    vault.write_private(custom_domains.cert_file(domain), pem)
-    custom_domains.set_fields(
-        domain, status="active", reason=None, attempts=0, checked_at=now, next_attempt_at=None,
-        renew_at=domain_worker.renew_at(found.not_before, found.not_after),
-        certificate={"issued_at": found.not_before, "expires_at": found.not_after, "issuer": found.issuer,
-                     "staging": settings.acme_directory == "staging"},
-    )  # fmt: skip
-    return True
+    return custom_domains.install_certificate(domain, pem, now)
 
 
 # ---------------------------------------------------------------- names of other servers

@@ -463,6 +463,12 @@ the address in the header, and the links in Odoo's e-mails and portal (`web.base
 link (shown as **Default address**) keeps working too. To make another domain primary, open its **⋯** menu and
 choose **Make primary**; **Remove** in the same menu removes a domain and deletes its certificate.
 
+When an instance moves to another server (several servers), its custom domains go with it, primary one included,
+with their certificates: the new server serves them at once, the old one stops. Their DNS still points at the old
+server, so each one shows "moved here from <server>" with the record to create now; change it at the domain's DNS
+provider. The panel checks on its own (and with **Check now**) and the note goes once the domain points at the new
+server.
+
 ---
 
 ### The Mail tab

@@ -20,9 +20,24 @@ import { NotFoundPage } from "@/pages/NotFound";
 import { premiumComponent, premiumKey, usePremium } from "./loader";
 import type { PremiumId, PremiumPackage, PremiumRoute, PremiumSection, PremiumStatus } from "./types";
 
+/** Where a premium component is drawn: a page (its path) or a section of a panel page (its slot). */
+export interface PremiumPlace {
+  pkg: PremiumPackage;
+  path?: string;
+  slot?: string;
+}
+
+/** What draws around each premium component: nothing in the panel; a build may mark them (setPremiumFrame). */
+let frame = (node: ReactNode, _place: PremiumPlace): ReactNode => node;
+
+/** Draw something around every premium page and section from now on (the demo marks them with their plans). */
+export function setPremiumFrame(next: (node: ReactNode, place: PremiumPlace) => ReactNode) {
+  frame = next;
+}
+
 /** Draw a premium component once its file is loaded and checked. */
-function Loaded<P extends object>({ pkg, module, name, props, onError }: {
-  pkg: PremiumPackage; module: string; name: string; props: P; onError?: ReactNode;
+function Loaded<P extends object>({ pkg, module, name, props, onError, place }: {
+  pkg: PremiumPackage; module: string; name: string; props: P; onError?: ReactNode; place: Omit<PremiumPlace, "pkg">;
 }) {
   const t = useT(words);
   const [found, setFound] = useState<{ C: ComponentType<P> } | null>(null);
@@ -41,7 +56,7 @@ function Loaded<P extends object>({ pkg, module, name, props, onError }: {
   if (!found) return <Skeleton height={48} />;
   return (
     <Guard fallback={onError ?? <Callout tone="warning">{t.loadFailed}</Callout>}>
-      <found.C {...props} />
+      {frame(<found.C {...props} />, { pkg, ...place })}
     </Guard>
   );
 }
@@ -83,7 +98,7 @@ export function PremiumSlot<P extends object>({ name, props, fallback = null }: 
     <>
       {found.map(({ pkg, section }) => (
         <Loaded key={`${pkg.id}:${section.module}:${section.export}`} pkg={pkg} module={section.module} name={section.export}
-          props={(props ?? {}) as P} onError={fallback} />
+          props={(props ?? {}) as P} onError={fallback} place={{ slot: name }} />
       ))}
     </>
   );
@@ -108,7 +123,7 @@ export function PremiumPage({ id, path }: { id: PremiumId; path: string }) {
   const routes = usePremiumRoutes();
   if (isPending) return <Page><Skeleton height={160} /></Page>;
   const found = routes.find(({ route }) => route.path === path);
-  if (found) return <Loaded pkg={found.pkg} module={found.route.module} name={found.route.export} props={{}} />;
+  if (found) return <Loaded pkg={found.pkg} module={found.route.module} name={found.route.export} props={{}} place={{ path }} />;
   return <Page><PlanCard id={id} /></Page>;
 }
 
@@ -120,7 +135,7 @@ export function PremiumOrNotFound() {
   if (isPending) return <Page><Skeleton height={160} /></Page>;
   const found = routes.filter(({ route }) => matches(route.path, pathname)).sort((a, b) => b.route.path.length - a.route.path.length)[0];
   if (!found) return <NotFoundPage />;
-  return <Loaded pkg={found.pkg} module={found.route.module} name={found.route.export} props={{}} />;
+  return <Loaded pkg={found.pkg} module={found.route.module} name={found.route.export} props={{}} place={{ path: found.route.path }} />;
 }
 
 /** What a premium feature is and how it comes: shown where it would be while it is absent. */

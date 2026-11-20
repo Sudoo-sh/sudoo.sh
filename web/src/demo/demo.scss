@@ -133,3 +133,45 @@
   &:focus, &:focus-visible { border-color: var(--hairline); box-shadow: none; outline: 2px solid var(--brand-ring); outline-offset: 1px; }
   > svg { width: 14px; height: 14px; }
 }
+
+// the plan menu of the banner (plan.tsx): a pill like the role switcher, the plan's name in it
+@layer panel {
+.demo-bar .demo-plan {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  height: 28px;
+  padding-inline: 10px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text-3);
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color var(--quick) var(--ease);
+  @include press(0.97);
+  @include hover { border-color: var(--hairline-strong); }
+  &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 1px; }
+  b { color: var(--text); font-weight: 500; }
+  svg { width: 14px; height: 14px; }
+  > svg:first-child { color: var(--brand); }
+}
+.demo-plan-hint {
+  display: block;
+  max-width: 240px;
+  margin-top: 2px;
+  color: var(--text-3);
+  font-weight: 400;
+  white-space: normal;
+}
+
+// the mark on a premium section: which plans include it, just above the section
+.demo-premium {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  > .demo-mark { align-self: flex-start; }
+}
+}

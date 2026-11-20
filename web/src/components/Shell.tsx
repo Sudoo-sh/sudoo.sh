@@ -28,7 +28,7 @@ import {
   Users,
   UsersRound,
 } from "lucide-react";
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { api } from "@/api/client";
@@ -519,11 +519,15 @@ export function Page({ children, wide }: { children: ReactNode; wide?: boolean }
   );
 }
 
+/** Something shown next to the titles of the pages inside it (a premium page's plans, in the demo). */
+export const PageMark = createContext<ReactNode>(null);
+
 export function PageHead({ title, children, actions }: { title: ReactNode; children?: ReactNode; actions?: ReactNode }) {
+  const mark = useContext(PageMark);
   return (
     <div className="page-head">
       <div className="titles">
-        <h1>{title}</h1>
+        {mark ? <div className="row-wrap" style={{ gap: 12 }}><h1>{title}</h1>{mark}</div> : <h1>{title}</h1>}
         {children && <p>{children}</p>}
       </div>
       {actions && <div className="actions">{actions}</div>}

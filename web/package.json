@@ -16,6 +16,7 @@
     "preview:demo": "vite preview --mode demo",
     "check": "tsc -b --noEmit && node scripts/check-i18n.mjs",
     "check:i18n": "node scripts/check-i18n.mjs",
+    "test": "vitest run",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -47,7 +48,8 @@
     "sass": "^1.108.2",
     "tailwindcss": "^4.3.5",
     "typescript": "^7.0.2",
-    "vite": "^8.3.8"
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
   },
   "overrides": {
     "minimatch": "^11.0.1"

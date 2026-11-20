@@ -8,6 +8,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **The demo shows every plan:** a **Plan** menu in the demo's banner switches the sample panel between Free, Pro and
+  Business (**Show Business features** goes straight to Business); the choice is kept in the browser. The in-browser
+  backend then answers as a panel with that plan: what the plan allows (**Settings, Plan**), which premium features run,
+  and `402` with the plans that include a feature for the calls of those that do not, so each page shows its plan card.
+  With Business the demo has three servers (Frankfurt, Dubai, Virginia) with instances on each, the server of each
+  instance, adding and approving a server, choosing the server of a new instance and moving an instance; teams with
+  grants and a locked branch, custom domains in several certificate states, off-site copies and a support access grant.
+  Each premium page and section is marked with the plans that include it. The premium features' compiled web files are
+  added to a demo build from a folder outside the repository (`SUDOO_DEMO_PREMIUM`, or the git-ignored
+  `web/demo-premium/`); without them, as in this repository's own builds, every premium feature shows its plan card.
+  Tests of the demo's backend run with `npm test` in `web/`.
 - **Several servers, the panel's side:** the extension points the premium package for several servers (Business
   plans) uses: a server's agent (`sudoo.sh agent [join <code>|status|leave]`, which fetches the panel's premium packages
   with the join code and runs them only when they are signed with the premium key and bound to that panel), the

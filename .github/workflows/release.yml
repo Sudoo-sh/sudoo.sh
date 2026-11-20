@@ -14,11 +14,11 @@ name: Release
 #
 # The installer's source is the private repository Sudoo-sh/sudoo-installer, checked out read-only with the deploy key
 # in the secret SUDOO_INSTALLER_DEPLOY_KEY at the full commit INSTALLER_REF (a commit cannot move, a tag could): change
-# it in a reviewed pull request to release a newer installer. Without the secret the release stops before anything is
-# signed or published.
+# it in a reviewed pull request to release a newer installer. Without the secret, or when INSTALLER_REF cannot be
+# checked out with it, the job "installer-source" stops the release before any image is pushed, signed or tagged.
 #
 # Jobs and their permissions: only "sign" can request an OIDC token, only "release" can write to the repository, and
-# the job that holds the deploy key and runs the installer's tests can do neither. A maintainer checks the draft
+# the jobs that hold the deploy key (and run the installer's tests) can do neither. A maintainer checks the draft
 # (sudoo-installer's publish-release.sh) and publishes it.
 on:
   push:
@@ -36,8 +36,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Sudoo-sh/sudoo-installer, main after Sudoo-sh/sudoo-installer#6
-  INSTALLER_REF: 2c6db116dd0856722dc2cad1244311ce10c33cdf
+  # Sudoo-sh/sudoo-installer, main after Sudoo-sh/sudoo-installer#7 (a server's agent: agent --join)
+  INSTALLER_REF: f219cdeb3f2ff90cbdc12dd8b6c19056ef9aa79d
 
 jobs:
   version:
@@ -67,9 +67,37 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if [[ "$version" == *-* ]]; then echo "stable=false" >> "$GITHUB_OUTPUT"; else echo "stable=true" >> "$GITHUB_OUTPUT"; fi
 
+  installer-source:
+    # Before any image is pushed (and tagged latest): the deploy key is set and reaches INSTALLER_REF.
+    name: Check the installer's source
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: The secret SUDOO_INSTALLER_DEPLOY_KEY is set
+        env:
+          HAS_KEY: ${{ secrets.SUDOO_INSTALLER_DEPLOY_KEY != '' }}
+        run: |
+          if [ "$HAS_KEY" != true ]; then
+            echo "::error::The secret SUDOO_INSTALLER_DEPLOY_KEY is not set: add a read-only deploy key of Sudoo-sh/sudoo-installer and its private key as this secret, then run the workflow again"
+            exit 1
+          fi
+      - name: Sudoo-sh/sudoo-installer at INSTALLER_REF
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Sudoo-sh/sudoo-installer
+          ref: ${{ env.INSTALLER_REF }}
+          ssh-key: ${{ secrets.SUDOO_INSTALLER_DEPLOY_KEY }}
+          path: installer
+          persist-credentials: false
+      - name: The installer's source is exactly INSTALLER_REF
+        run: |
+          [ "$(git -C installer rev-parse HEAD)" = "$INSTALLER_REF" ]
+
   images:
     name: Images
-    needs: version
+    needs: [version, installer-source]
     uses: ./.github/workflows/images.yml
     permissions:
       contents: read
@@ -137,10 +165,15 @@ jobs:
           [ "$(grep -cxF "    image: $PANEL" dist/sudoo-install.sh)" = 3 ]
           grep -qxF "    image: $WEB" dist/sudoo-install.sh
           docker run --rm -v "$PWD/dist:/dist:ro" sudoo-installer-tests shellcheck /dist/sudoo-install.sh
-      - name: Both images exist for linux/amd64 and linux/arm64
+      - name: Both images exist for linux/amd64 and linux/arm64, and anyone can pull them
+        # No docker login here, as on a fresh server: a private package fails this step.
         run: |
           for ref in "$PANEL" "$WEB"; do
-            platforms=$(docker buildx imagetools inspect "$ref" | awk '/Platform:/ { print $2 }' | sort -u | tr '\n' ' ')
+            if ! inspect=$(docker buildx imagetools inspect "$ref"); then
+              echo "::error::${ref%%@*} cannot be pulled without signing in: make the package public (its Package settings, Change visibility), then re-run the failed jobs"
+              exit 1
+            fi
+            platforms=$(awk '/Platform:/ { print $2 }' <<<"$inspect" | sort -u | tr '\n' ' ')
             echo "${ref%%@*}: $platforms"
             [[ "$platforms" == *linux/amd64* && "$platforms" == *linux/arm64* ]]
           done

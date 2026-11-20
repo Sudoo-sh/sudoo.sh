@@ -89,9 +89,9 @@ def certificate_present(domain: str) -> bool:
 
 def certificate_pem(domain: str) -> str | None:
     """The certificate this server serves a domain with (its key and chain, PEM), or None."""
-    try:
-        return cert_file(domain).read_text()
-    except (OSError, UnicodeDecodeError):
+    try:  # the gateway container can write there: never through a link it planted, never more than a certificate
+        return vault.read_private(cert_file(domain), within=settings.gateway_dir, limit=256 * 1024).decode()
+    except (OSError, ValueError):
         return None
 
 
@@ -120,8 +120,11 @@ def install_certificate(domain: str, pem: str, now: float | None = None) -> bool
         return False
     if domain not in [n.lower() for n in names] or found.not_after <= now:
         return False
-    certs_dir()
-    vault.write_private(cert_file(domain), pem)
+    try:
+        certs_dir()
+        vault.write_private(cert_file(domain), pem, within=settings.gateway_dir)
+    except (OSError, ValueError):  # a link planted in place of certs/: nothing is written through it
+        return False
     set_fields(
         domain, status="active", reason=None, attempts=0, checked_at=now, next_attempt_at=None,
         renew_at=domain_worker.renew_at(found.not_before, found.not_after),

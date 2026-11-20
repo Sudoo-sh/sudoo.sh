@@ -108,7 +108,9 @@ of the instances ([Administrator Guide](ADMIN_GUIDE.md#19-custom-domains-and-cer
   leaving it.
 * **Keys.** Certificate keys are files of root only (mode 600) in `<ODOO_ROOT>/gateway/certs/` (mode 700); they are
   not encrypted, because the gateway service, which holds no vault key, must read them. The ACME account key is
-  encrypted with the vault key. Removing a domain deletes its key at once.
+  encrypted with the vault key. Removing a domain deletes its key at once. The gateway service can write in that
+  folder, so the panel reads, writes and removes certificates there (also those that go with a moved instance's
+  name) without following a link it finds, and reads only regular files of bounded size.
 * **Visitors' address.** Visitors of a custom domain connect directly, so no header is trusted for their address: the
   gateway appends the connection's own address to `X-Forwarded-For`, and `X-Forwarded-Proto` is `https`.
 * **The ACME client** (`domains/acme.py`) talks only https to the configured authority (http only for `localhost`),
@@ -230,8 +232,8 @@ A password can leak; a second factor means a leaked password alone does not open
 * After the password, the session only remembers who passed the first step, for 5 minutes; it opens nothing.
 * Wrong codes count like wrong passwords (5 per account and address in 15 minutes, then blocked).
 * `REQUIRE_SECOND_FACTOR` (`admins` by default) makes it compulsory: such an account without a factor can only set
-  one up after signing in. Removing a factor, or replacing one that is set up, needs the password and ends the
-  account's other sessions. A new sign-in e-mail address (in the profile or through the e-mail code) ends them too.
+  one up after signing in. Removing a factor, replacing one that is set up, or adding one next to a factor already
+  set up, needs the password; removing or replacing one ends the account's other sessions. A new sign-in e-mail address (in the profile or through the e-mail code) ends them too.
 * **Recovery codes** (`RECOVERY_CODES_COUNT`, 10 by default) come with the authenticator app and are shown once.
   Each is 10 characters from an alphabet of 31 (about 49 bits), works once in place of the app's code, and is
   stored only as HMAC-SHA256 keyed with a key derived from the vault key and bound to the user name. Spending one
@@ -468,6 +470,7 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 * A token **belongs to the account that created it** (its owner): its permissions are its scope's role ∩ the owner's
   current role, and the owner's teams, project access and locks apply to it (below). A token whose owner was deleted
   keeps its scope's role but has no grants and no teams: restricted projects and locked branches are closed to it.
+  A token created by a token belongs to the same account, and a token whose owner was deleted cannot create one.
 * Roles without `instances.credentials` never receive passwords, master passwords or ports, even in API answers.
 * Accounts of earlier versions were renamed once, when the panel started: `admin` became Super admin, the sync
   operator became Developer.
@@ -506,7 +509,17 @@ storage, teams) depend on the role alone.
   locked production branch keeps serving.
 * **Lists and live events** leave out the projects, branches, instances, jobs, backups and off-site copies the caller
   may not see, and the live stream filters each event per caller (metrics included); a project the caller lost
-  access to is sent as deleted.
+  access to is sent as deleted. Job events and job logs whose instance the panel cannot tell go only to callers from
+  whom nothing is hidden.
+* **Branch rules.** Adding, changing or removing a branch's own rule (its grants, whether it is restricted) needs
+  `projects.access` in that branch, so an administrator a restricted branch leaves out cannot lift the restriction or
+  grant themselves into it.
+* **New instances in a branch** need `instances.create` there, however they come: created, connected to the
+  project's repository from plain Odoo, or made as a database upgrade test. Running an upgrade test again on its
+  existing test instance needs `instances.restore` on that instance, so its branch's lock applies.
+* **Automatic copies** of a restricted production into staging (a push) are made only when nobody could open the copy
+  who cannot open production: accounts, API tokens (also those whose owner is gone) and active Sudoo.sh support
+  grants are all counted.
 * **No lockout.** A change of a project's access that would leave the person making it without `projects.access`
   there is refused.
 * **Audit.** Team changes (with members added and removed), access changes, locks, changed locks, unlocks, skipped
@@ -622,7 +635,7 @@ Plugins from the Sudoo.sh marketplace are checked by the panel itself before the
 | Key or value | Kind | Where it is kept | What it does |
 | :--- | :--- | :--- | :--- |
 | Installation key | Ed25519 private key, made on the server | The panel's database, encrypted with the vault key (label `hub-identity:<id>`) | Signs every request to the hub (method, path, installation id, time, single-use nonce, body hash), so the hub knows which panel asks and nobody can replay or alter a request |
-| Hub keys | Ed25519 public keys | The panel's database, starting from the root keys (`HUB_PUBLIC_KEYS`, else the keys the release ships for hub.sudoo.sh; for another hub, the keys it lists the first time) | Verify every answer, lease, command and package. A key the hub lists as `active` is accepted, a `retiring` one until its `not_after`; a `revoked` or `expired` one is dropped at once. A new key is trusted only when its endorsement, signed by a key already trusted and not revoked, verifies (`sudoo-hub-key-v1`, key id, public key, `not_before`) |
+| Hub keys | Ed25519 public keys | The panel's database, starting from the root keys (`HUB_PUBLIC_KEYS`, else the keys the release ships for hub.sudoo.sh; for another hub, the keys it lists the first time) | Verify every answer, lease, command and package. A key the hub lists as `active` is accepted, a `retiring` one until its `not_after`; a `revoked` or `expired` one is dropped at once and for good. A list only moves a known key forward (active, retiring, expired, revoked): it never makes a retiring key active again or its `not_after` later. A new key is trusted only when its endorsement, signed by a trusted key usable now (active, or retiring before its `not_after`), verifies (`sudoo-hub-key-v1`, key id, public key, `not_before`). Premium release and binding keys follow the same rules |
 | Answer signature | Ed25519, header `Sudoo-Signature: kid=, ts=, sig=` over `sudoo-hub-response-v1`, the request's method, path, installation id and nonce, the status, the time and the body's SHA-256 | Checked on every answer, refusals and downloads included (a download over its `X-Sudoo-Package-SHA256`) | An answer without a valid signature from an accepted key, or more than 5 minutes from the server's clock, is not believed: it counts as "the marketplace cannot be reached". A changed or replayed answer (another request's nonce) fails |
 | Lease | JWT signed by the hub (EdDSA only; `none` and HMAC algorithms are refused), for this installation, 72 hours | The panel's database | Says which plugins may run, the licence dates of the paid ones (with `run_until`) and the flags; only verified claims are used |
 | Commands | Ed25519 over `sudoo-hub-command-v1`, id, installation id, kind, time and the SHA-256 of the canonical JSON payload | Carried out once, recorded in the panel's database | `remove_paid_plugins` (after the server is logged out of its account): back up, remove the listed paid plugins, acknowledge. A command whose signature does not verify is ignored |
@@ -633,7 +646,9 @@ Plugins from the Sudoo.sh marketplace are checked by the panel itself before the
 * Every request to the hub is signed, so every answer is signed back; downloads use a signed request, and a redirect
   to a storage link (itself signed) is followed only over https, without the signature.
 * Packages with links, special files, absolute or `..` paths, compiled code, archive bombs or Python dependencies are
-  refused; plugins are unpacked into `/opt/odoo/manager/plugins/` (folders 700, files 600) and the package file is
+  refused, and so is one with a module name the panel already has (`sudoo`, `sudoo_premium*`, or any module it can
+  import), counted in each folder the plugin puts on the module path (its root and `src/`): `.py` files and folders,
+  with or without `__init__.py`. Premium packages go on the module path before plugins; plugins are unpacked into `/opt/odoo/manager/plugins/` (folders 700, files 600) and the package file is
   deleted. The web container does not mount that folder.
 * No endpoint returns a plugin's files or package. Payment links and receipts reach the browser only when they are
   https. Plugin icons are fetched by the panel (signed) and served from its own address, PNG or SVG only, with a
@@ -799,6 +814,7 @@ Staging and development instances send their e-mail to the mail catcher, `sudoo-
 
 | Threat | Protection |
 | :--- | :--- |
+| The catcher's container plants a link or a FIFO in the shared folder | The panel reads `catcher.json` only as a regular file of bounded size, without following a link and without waiting on a FIFO; anything else is replaced when the settings are written (atomically, never through a link). |
 | A test instance e-mails real customers | Odoo's `odoo.conf` points at the catcher, and every outgoing mail server in the instance's databases is switched off when it starts, when it leaves production and every 5 minutes. Code that opens its own SMTP connection is not covered (the instances can reach the Internet). |
 | One instance reads or fills another's mailbox | The catcher accepts e-mail only after SMTP authentication and files it under the instance whose password was given (a random password per instance; the catcher keeps only its SHA-256). The panel serves each instance's Mail tab from that instance's mailbox only, and checks the e-mail id's form so no path can be given. |
 | The catcher as a way into the server or between instances | Its container has no Docker socket, no `.env`, no published port, read-only system files, no capabilities, a process and memory limit, and an internal network of its own. It joins only the Odoo-side network of staging and development instances (never the database network) and forwards nothing. It speaks plain SMTP only on those networks. Lines are limited to 64 KB, e-mails to `MAIL_CATCHER_MAX_MESSAGE_MB`, connections to 64, wrong passwords to 3 per connection. |
@@ -814,7 +830,7 @@ Letting Sudoo.sh support into the panel for a while ([Admin guide](ADMIN_GUIDE.m
 | :--- | :--- |
 | Support reaches the server without being asked | Nothing listens for it: no port, no SSH key, no shared secret. Support's requests come only as answers to the panel's own outbound calls to the hub, and only while a grant made by a super admin or administrator is active; without one the panel does not ask. |
 | Someone pretends to be the hub | Every answer of the support channel must carry the hub's Ed25519 signature over the request, its nonce and the body (the same checks as the heartbeat); anything else is dropped. Each request must also name an active grant of this panel and a session the hub says is open on it. |
-| Support does more than granted | Requests run as a synthetic user whose permissions are the grant's level minus accounts, tokens, teams, access and locks, GitHub, settings, plugins and support access itself (those paths are refused before the app sees them); the scope limits projects, branches and instances; locks never let it through. The hub checks the level too (view: reads only; shells only with the shell level). |
+| Support does more than granted | Requests run as a synthetic user whose permissions are the grant's level minus accounts, tokens, teams, access and locks, GitHub, settings, plugins and support access itself (those paths are refused before the app sees them); the scope limits projects, branches and instances (instances outside every project, and new projects or instances outside one, only with a grant for everything or one that names the instance); locks never let it through. The hub checks the level too (view: reads only; shells only with the shell level). |
 | A grant outlives its purpose | It ends at its time (at most 3 days, `SUPPORT_ACCESS_MAX_HOURS`), on **Withdraw** or **End now**, or when `SUPPORT_ACCESS` goes off; the panel checks the grant on every request and every permission check, so the end is immediate on the panel and reaches the hub with the next call. Support shells close at once. Nothing support does can leave a way back in: it cannot create accounts, tokens, invitations, deploy keys or grants. |
 | A Sudoo.sh staff member's account is stolen | Each session needs a fresh code from that person's authenticator app (never a password or an e-mailed code), belongs to them alone, lasts at most an hour by default and never past the grant; staff need the `support_access.use` permission. |
 | Nobody knows what support did | Every change, refusal, session and shell is in the panel's activity log under "Sudoo.sh support (name)", marked as support; support shells are always recorded (encrypted, played by super admins); the hub keeps its own audit log of sessions, changes and shells, with the staff member's role and reason. |

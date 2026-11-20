@@ -35,7 +35,7 @@ from sudoo.upgrades import Secret, precheck
 from sudoo.upgrades import run as upgrade_run
 
 from .. import validation as check
-from ..security import log, require
+from ..security import log, refuse_unless, require
 from . import instances as instances_api
 from .responses import iso, no_content, ok
 
@@ -141,6 +141,8 @@ def test(name: str) -> Response:
     code = _code(name, data)
     existing = upgrades.staging_of(name)
     if existing and store.read_env(existing).get("ODOO_VERSION") == target:
+        # the test instance is overwritten: the caller needs to be able to restore it (its branch's access and lock)
+        refuse_unless("instances.restore", f"run the upgrade test of {name} again on {existing}", instance=existing)
         if jobs.busy(existing):
             abort(409, f"{existing} is busy; try again when its job has finished.")
         job = jobs.start(existing, f"Run the Odoo {target} upgrade test again", "upgrade-test", upgrade_run.rerun,
@@ -156,6 +158,8 @@ def _create_test(name: str, target: str, doc: dict[str, Any], code: Secret | Non
     branch = doc.get("branch")
     repo = origin_url(store.addons_dir(name)) if branch and not store.plain(env) else ""
     project = projects.get(env.get("PROJECT", "")) if repo else None
+    if project is not None:  # an instance of the upgrade branch: the caller's access in that branch
+        instances_api._refuse_in_branch("instances.create", project, str(branch), f"test the upgrade of {name}")
     instances_api._refuse_over_capacity("upgrade test refused (running instances)")
     if settings.max_instances and len(store.names()) + len(jobs.being_created()) >= settings.max_instances:
         abort(409, f"The server has its maximum of {settings.max_instances} instances; delete one first.")

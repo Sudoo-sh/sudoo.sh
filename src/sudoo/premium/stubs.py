@@ -12,7 +12,8 @@ SUPPORT_NAME_PREFIX = "Sudoo.sh support ("  # support's synthetic user, as audit
 
 
 def support() -> Any | None:
-    """The support package's hooks (grant_of, permissions, level_in, chosen_instance, start_channel), or None."""
+    """The support package's hooks (grant_of, permissions, level_in, chosen_instance, start_channel, active_users),
+    or None."""
     return hook(SUPPORT, "support") if loaded("support") else None
 
 
@@ -34,6 +35,16 @@ def support_level(user: Mapping[str, Any], project: Mapping[str, Any] | None, br
 def support_chosen_instance(user: Mapping[str, Any], name: str) -> bool:
     found = support()
     return False if found is None else bool(found.chosen_instance(user, name))
+
+
+def support_users() -> list[Mapping[str, Any]]:
+    """The user support acts as under each active grant (to ask what it could open): the package's "active_users"
+    hook; none without the package, or with an earlier one that does not provide it."""
+    found = support()
+    if found is None:
+        return []
+    listed = getattr(found, "active_users", None)
+    return list(listed()) if callable(listed) else []
 
 
 def support_entry(name: object) -> bool:

@@ -751,3 +751,159 @@ def test_a_push_to_staging_rebuilds_it_from_production(webhook: Any, started: li
     assert started[-1][:2] == ("erp-stage", operations.update_code)
     triggers.request_update("erp-main", "push")  # production: the usual (safe) update
     assert started[-1][:2] == ("erp-main", operations.update_code)
+
+
+# ---------------------------------------------------------------- access: narrower grants stay narrow
+
+
+def _maintainer(app: Flask) -> Client:
+    if accounts.get("projmaint") is None:
+        accounts.create("projmaint", "maintainer", "lilac-harbor-quill-91")
+    return sign_in(app, "projmaint", "lilac-harbor-quill-91")
+
+
+def _support(monkeypatch: pytest.MonkeyPatch, scope: dict[str, Any]) -> dict[str, Any]:
+    """Sudoo.sh support's synthetic user under a grant with `scope`, the support package's answers stood in for."""
+    from types import SimpleNamespace
+
+    from sudoo import roles
+    from sudoo.premium import stubs
+
+    def level_in(user: Any, project: Any, branch: Any) -> str:
+        if project is None:
+            return "admin" if scope.get("all") else "none"
+        if branch and access.branch_access(project, branch).get("restricted"):
+            return "none"
+        return "admin" if str(project.get("id")) in {str(p["id"]) for p in scope.get("projects") or ()} else "none"
+
+    hooks = SimpleNamespace(
+        grant_of=lambda user: {"id": "g1", "level": "admin", "scope": scope},
+        permissions=lambda user: roles.permissions("admin"),
+        level_in=level_in,
+        chosen_instance=lambda user, name: name in (scope.get("instances") or ()),
+    )
+    monkeypatch.setattr(stubs, "support", lambda: hooks)
+    return {"name": "Sudoo.sh support (Sam)", "role": "admin", "support": {"grant": "g1", "level": "admin"}}
+
+
+def test_a_support_grant_for_some_projects_does_not_open_instances_outside_every_project(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pid = _linked(["main"])
+    _instance("erp-main", "production", "Acme/ERP", "main", PROJECT=pid)
+    _instance("plain-one", None, None)
+    user = _support(monkeypatch, {"projects": [{"id": pid}]})
+    assert access.allowed_instance(user, "instances.credentials", "erp-main")
+    for permission in ("instances.view", "instances.credentials", "instances.shell", "instances.operate"):
+        assert not access.allowed_instance(user, permission, "plain-one"), permission
+    assert access.instance_refusal(user, "instances.credentials", "plain-one") == (404, "This instance does not exist.")
+    assert access.visible_instances(user, ["erp-main", "plain-one"]) == ["erp-main"]
+    assert access.refusal(user, "instances.create", None) is not None  # no new instance outside every project
+    assert access.refusal(user, "projects.manage", None) is not None  # nor a new project
+    # an instance the grant names itself, and a grant for everything, still open it
+    user = _support(monkeypatch, {"projects": [{"id": pid}], "instances": ["plain-one"]})
+    assert access.allowed_instance(user, "instances.credentials", "plain-one")
+    user = _support(monkeypatch, {"all": True})
+    assert access.allowed_instance(user, "instances.credentials", "plain-one")
+    assert access.refusal(user, "instances.create", None) is None
+
+
+def test_connecting_a_repository_needs_access_to_the_branch_it_joins(app: Flask, started: list[Any]) -> None:
+    client, headers = _maintainer(app)
+    pid = _linked(["main"])
+    _instance("plain-one", None, None)
+    projects.change(pid, lambda p: {**p, "access": {"mode": "restricted",
+                                                    "grants": [{"type": "user", "id": "admin1", "level": "admin"}]}})  # fmt: skip
+    access.forget_restrictions()
+    body = {"repo": "https://github.com/Acme/ERP", "branch": "main"}
+    answer = client.post("/api/v1/instances/plain-one/actions/connect-repository", json=body, headers=headers)
+    assert answer.status_code == 404, answer.get_json()
+    assert started == []
+    projects.change(pid, lambda p: {**p, "access": {}})
+    access.forget_restrictions()
+    answer = client.post("/api/v1/instances/plain-one/actions/connect-repository", json=body, headers=headers)
+    assert answer.status_code == 202, answer.get_json()
+
+
+def test_an_admin_hidden_from_a_restricted_branch_cannot_change_its_rule(app: Flask, admin: Client) -> None:
+    if accounts.get("projadmin") is None:
+        accounts.create("projadmin", "admin", "amber-willow-sonnet-63")
+    client, headers = sign_in(app, "projadmin", "amber-willow-sonnet-63")
+    pid = _linked(["main", "qa"])
+    rule = {"restricted": True, "grants": [{"type": "user", "id": "admin1", "level": "admin"}]}
+    qa_rule = {"restricted": False, "grants": [{"type": "user", "id": "projmaint", "level": "view"}]}
+    projects.change(pid, lambda p: {**p, "access": {"branches": {"main": rule, "qa": qa_rule}}})
+    access.forget_restrictions()
+    for branches_wanted in ({"qa": qa_rule}, {"main": {"restricted": True, "grants": [*rule["grants"],
+                            {"type": "user", "id": "projadmin", "level": "admin"}]}, "qa": qa_rule}):  # fmt: skip
+        answer = client.put(f"/api/v1/projects/{pid}/access", json={"branches": branches_wanted}, headers=headers)
+        assert answer.status_code == 403, answer.get_json()
+        assert (projects.get(pid) or {})["access"]["branches"] == {"main": rule, "qa": qa_rule}
+        assert access.level({"name": "projadmin", "role": "admin"}, projects.get(pid), "main") == "none"
+    # a branch they do see stays theirs to change, and a super admin may change any
+    answer = client.put(f"/api/v1/projects/{pid}/access", json={"branches": {"main": rule}}, headers=headers)
+    assert answer.status_code == 200, answer.get_json()
+    a_client, a_headers = admin
+    answer = a_client.put(f"/api/v1/projects/{pid}/access", json={"branches": {}}, headers=a_headers)
+    assert answer.status_code == 200, answer.get_json()
+    access.forget_restrictions()
+
+
+def test_an_automatic_copy_counts_api_tokens_and_support_grants(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sudoo import api_tokens
+
+    pid = _linked(["main", "qa"])
+    restricted = {"branches": {"main": {"restricted": True, "grants": [{"type": "user", "id": "admin1",
+                                                                         "level": "admin"}]}}}  # fmt: skip
+    projects.change(pid, lambda p: {**p, "access": restricted})
+    access.forget_restrictions()
+    project = projects.get(pid) or {}
+    monkeypatch.setattr(accounts, "all_users", lambda: {"admin1": {"role": "super_admin"}})
+    tokens: list[dict[str, Any]] = []
+    monkeypatch.setattr(api_tokens, "all_tokens", lambda: tokens)  # only this test's tokens
+    assert access.copy_reveals(project, "main", "qa") == []
+    tokens.append({"id": "a1b2c3d4e5f6", "name": "orphan copy", "scope": "write", "created_by": "someone-deleted"})
+    assert access.copy_reveals(project, "main", "qa") == ["api:orphan copy"]
+    tokens.clear()
+    from sudoo.premium import stubs
+
+    user = _support(monkeypatch, {"projects": [{"id": pid}]})
+    hooks = stubs.support()
+    hooks.active_users = lambda: [user]
+    assert access.copy_reveals(project, "main", "qa") == ["Sudoo.sh support (Sam)"]
+    access.forget_restrictions()
+
+
+def test_job_logs_of_an_instance_this_server_does_not_know_go_only_to_who_sees_everything() -> None:
+    from sudoo.core.events import Event
+    from sudoo.web.v1 import events as live_events
+
+    pid = _linked(["main"])
+    _instance("erp-main", "production", "Acme/ERP", "main", PROJECT=pid)
+    projects.change(pid, lambda p: {**p, "access": {"mode": "restricted"}})
+    access.forget_restrictions()
+    viewer = {"name": "projviewer", "role": "viewer"}
+    output = {"job": "elsewhere01", "offset": 0, "next_offset": 1, "text": "cloning git@github.com:Acme/ERP\n"}
+    event = Event(1, "job.output", "elsewhere01", output, time.time())
+    assert live_events.for_caller(viewer, event, output) is None  # another server's job, its instance unknown
+    named = {**output, "instance": "erp-main"}
+    assert live_events.for_caller(viewer, event, named) is None
+    admin_user = {"name": "admin1", "role": "super_admin"}
+    assert live_events.for_caller(admin_user, event, output) == output
+    # a job of this server says which instance it is about
+    job = Job("erp-main", "update", "update", "t")
+    published: list[Any] = []
+    from sudoo.core import events as core_events
+
+    original = core_events.publish
+    core_events.publish = lambda *args, **_: published.append(args)  # type: ignore[assignment]
+    try:
+        job.write("hello\n")
+        job.publish_output()
+    finally:
+        core_events.publish = original  # type: ignore[assignment]
+    assert published[-1][2]["instance"] == "erp-main"
+    projects.change(pid, lambda p: {**p, "access": {}})
+    access.forget_restrictions()

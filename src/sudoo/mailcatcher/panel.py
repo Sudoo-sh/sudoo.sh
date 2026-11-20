@@ -17,7 +17,7 @@ from typing import Any
 
 from sudoo.config import settings
 from sudoo.core.shell import capture, succeeds
-from sudoo.core.vault import write_private
+from sudoo.core.vault import read_private, write_private
 from sudoo.instances import stages, store
 
 from . import FORMAT, HOST, PORT, SETTINGS_FILE, mailbox
@@ -115,11 +115,11 @@ def write_settings() -> bool:
         {"format": FORMAT, "limits": limits_for(values), "mailboxes": mailboxes()}, indent=1, sort_keys=True
     )
     path = folder / SETTINGS_FILE
-    try:
-        if path.read_text() == text:
+    try:  # the catcher can write in this folder: never through a link or a FIFO it planted there
+        if read_private(path, within=folder, limit=len(text.encode()) + 1) == text.encode():
             return False
-    except OSError:
-        pass
+    except (OSError, ValueError):
+        pass  # anything but our regular file: written again, which replaces what is there
     write_private(path, text, within=folder)  # the catcher writes in this folder too
     return True
 

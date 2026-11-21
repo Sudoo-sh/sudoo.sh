@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [3.1.1] - 2026-11-21
 
+### Fixed
+
+- **Managed subdomains follow a new company label:** when Sudoo.sh changes the account's company label, the next check
+  asks for each name again under the new label (the hub has it ready), gets its certificate and releases the old name.
+  Before, the instances kept the old names until those were removed.
+
 ## [3.1.0] - 2026-11-21
 
 ### Added
@@ -50,10 +56,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   [Public addresses](docs/concepts/PUBLIC_ADDRESSES.md), with the tunnel as the option for servers without open ports.
 
 ### Fixed
-
-- **Managed subdomains follow a new company label:** when Sudoo.sh changes the account's company label, the next check
-  asks for each name again under the new label (the hub has it ready), gets its certificate and releases the old name.
-  Before, the instances kept the old names until those were removed.
 
 ## [3.0.1] - 2026-11-21
 

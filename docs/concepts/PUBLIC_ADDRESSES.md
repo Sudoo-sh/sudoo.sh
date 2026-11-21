@@ -60,7 +60,9 @@ renews from the ACME authority (HTTP-01 check on port 80).
 
 1. `PANEL_DOMAIN`, a name whose A (and AAAA) record points at the server, such as `panel.example.com`.
 2. `PUBLIC_HOST`, when it is a name.
-3. The server's own address (`PUBLIC_HOST` when it is an address, else `PUBLIC_IPV4` / `PUBLIC_IPV6`, else the
+3. Its managed name, `panel.<company>.<base>`, when the panel is linked to a Sudoo.sh account that offers managed
+   subdomains (`PANEL_MANAGED_NAME`; [Administrator Guide, The panel's own managed name](../ADMIN_GUIDE.md#the-panels-own-managed-name)).
+4. The server's own address (`PUBLIC_HOST` when it is an address, else `PUBLIC_IPV4` / `PUBLIC_IPV6`, else the
    address the server sends from), served with the **panel's own certificate**, which the panel makes itself.
    Browsers warn about it once; it is meant for the first sign-in, until a name is set.
 

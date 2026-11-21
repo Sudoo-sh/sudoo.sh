@@ -519,7 +519,7 @@ The panel and every instance have their own public https address. How they get i
 
 | `EXPOSURE` | The panel | An instance |
 | :--- | :--- | :--- |
-| `direct` (default of new installations) | `https://<PANEL_DOMAIN>`, else the server's public name, else `https://<server address>` with the panel's own certificate (browsers warn once) | its primary custom domain, else its managed name (`<branch>.<stage>.<company>.<base>`), else `https://<server address>:<gateway port>` |
+| `direct` (default of new installations) | `https://<PANEL_DOMAIN>`, else the server's public name, else its managed name from Sudoo.sh (`panel.<company>.<base>`, a linked panel), else `https://<server address>` with the panel's own certificate (browsers warn once) | its primary custom domain, else its managed name (`<branch>.<stage>.<company>.<base>`), else `https://<server address>:<gateway port>` |
 | `proxy` | `https://<PANEL_DOMAIN or PUBLIC_HOST>`, served by your proxy | its custom domain, else `https://<PUBLIC_HOST>:<gateway port>` |
 | `tunnel` | `https://<words>.trycloudflare.com` | the same, one per instance |
 
@@ -531,7 +531,8 @@ ports. With `tunnel`, allow outgoing TCP and UDP 7844.
 **Setting the panel's name with `direct`:** create an A (and AAAA) record for a name such as `panel.example.com`
 pointing at the server, set **Panel's name** (`PANEL_DOMAIN`) on **Settings, Addresses and domains**, and the panel
 gets its certificate within a minute or two (the page shows its state). Until then, and without a name, it answers
-on the server's address with its own certificate.
+on the server's address with its own certificate. A panel linked to a Sudoo.sh account needs no name of its own:
+it gets one from Sudoo.sh ([The panel's own managed name](#the-panels-own-managed-name)).
 
 **With `tunnel`, addresses change when the server restarts, or when a connector container restarts.** The panel
 always shows the current ones and tells every Odoo its new address within about 15 seconds (so links inside Odoo,
@@ -1523,6 +1524,28 @@ certificates (ACME, HTTP-01) on that server. When an instance moves, its name st
 server, its certificate goes with it (so it is served at once, without asking for a new one), and the old server stops
 serving it. When a server's addresses change, the names of its instances follow at the next check. An instance whose
 server reported no public address gets no name until it does (the state says so).
+
+### The panel's own managed name
+
+With `EXPOSURE=direct`, a panel linked to a Sudoo.sh account that offers managed subdomains also gets a name for
+itself: `panel.<company>.<base>`, for example `panel.acme.sudoo.cloud`. Instance names always have a branch and a stage
+in front of the company label, so the two can never be the same name. It is used only when you have not given the
+panel a name yourself:
+
+1. **Panel's name** (`PANEL_DOMAIN`) always wins;
+2. else `PUBLIC_HOST`, when it is a name;
+3. else the managed name, once its certificate is issued;
+4. else `https://<server address>` with the panel's own certificate.
+
+Sudoo.sh creates its DNS records (A and AAAA, from the server's public addresses, following them when they change),
+the gateway answers it on ports 80 and 443, and the panel gets and renews its certificate (ACME, HTTP-01) like its
+other names. It does not count toward the plan's managed subdomains unless Sudoo.sh says otherwise. **Settings,
+Addresses and domains** shows the name and the state of its certificate.
+
+When you set a name of your own, turn `PANEL_MANAGED_NAME` off, turn `MANAGED_SUBDOMAINS` off, log out of the
+account, or Sudoo.sh stops offering it, the panel goes back to the previous address (your name, or the server's
+address) and the managed name is released. It is checked with the managed subdomains (every
+`MANAGED_SUBDOMAINS_CHECK_MINUTES`, and with **Check now**).
 
 ---
 

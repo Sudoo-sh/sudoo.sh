@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNod
 import { Link, useSearchParams } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useCapacity, useServer, useSettings } from "@/api/queries";
-import { RESOURCE_KNOBS, type Setting, type Stage } from "@/api/types";
+import { RESOURCE_KNOBS, type Server, type Setting, type Stage } from "@/api/types";
 import { LicenceSettings } from "@/components/LicenceSettings";
 import { MarketplaceSettings } from "@/components/Marketplace";
 import { PlanSettings } from "@/components/PlanSettings";
@@ -93,7 +93,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
   {
     id: "domains",
     groups: [
-      { id: "publicAddress", keys: ["exposure", "panel_domain", "public_host"] },
+      { id: "publicAddress", keys: ["exposure", "panel_domain", "public_host", "panel_managed_name"] },
       { id: "customDomains", keys: ["custom_domains", "domain_dns_target", "domains_per_instance"] },
       { id: "certificates", keys: ["acme_directory", "acme_email", "certificate_renew_days", "certificate_retry_max_hours"] },
       { id: "checks", keys: ["domain_dns_timeout_seconds", "domain_http_probe", "domain_http_port", "domain_https_port"] },
@@ -350,6 +350,7 @@ function ExposureNotice({ saved, chosen }: { saved: string; chosen: string }) {
         {t.exposure.now(label(saved), server?.panel_url ? <bdi dir="ltr" className="mono">{server.panel_url}</bdi> : t.exposure.noAddress)}
       </p>
       {certificate && <p className="small muted">{certificate} {now?.reason && <bdi>{now.reason}</bdi>}</p>}
+      <ManagedPanelName address={now} />
       {chosen !== saved && t.exposure.to[target] && (
         <Callout tone="warning">
           <div className="stack-sm">
@@ -360,6 +361,19 @@ function ExposureNotice({ saved, chosen }: { saved: string; chosen: string }) {
       )}
     </div>
   );
+}
+
+/** Settings, Addresses and domains: the panel's own managed name from Sudoo.sh, when it has or wants one. */
+function ManagedPanelName({ address }: { address: NonNullable<Server["public_address"]> | undefined }) {
+  const t = useT(words).exposure.managedName;
+  const managed = address?.managed_name;
+  if (!managed || !managed.wanted) return null;
+  let text: ReactNode;
+  if (managed.hostname) text = t.serving(<bdi dir="ltr" className="mono">{managed.hostname}</bdi>);
+  else if (managed.error) text = <>{t.failed} <bdi>{managed.error}</bdi></>;
+  else if (managed.checked_at && !managed.offered) text = t.notOffered;
+  else text = t.waiting;
+  return <p className="small muted">{text}</p>;
 }
 
 /** One cell of a resources table: the setting's editor, named for screen readers by its row and its stage. */

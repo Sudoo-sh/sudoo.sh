@@ -63,9 +63,9 @@ TIMEOUT_SECONDS = 15
 MAX_JSON_BYTES = 4 * 1024 * 1024
 KEY_STATES = ("active", "retiring", "revoked", "expired")
 DEFAULT_HUB = "https://hub.sudoo.sh"
-# The root keys this release trusts for hub.sudoo.sh (base64url Ed25519 public keys). Filled in by the release that
-# opens the marketplace; while it is empty, HUB_PUBLIC_KEYS or the keys first seen are used.
-SHIPPED_KEYS: dict[str, tuple[str, ...]] = {DEFAULT_HUB: ()}
+# The root keys this release trusts for hub.sudoo.sh (base64url Ed25519 public keys): hub key 8a23a52cbd0d2e51.
+# HUB_PUBLIC_KEYS replaces them; for another hub with none configured, the keys first seen are used.
+SHIPPED_KEYS: dict[str, tuple[str, ...]] = {DEFAULT_HUB: ("Bgvq7-nu5waTKd5pcBHNhkY_nWyuSqvScBCK8M7olN0",)}
 MACHINE_ID_FILES = ("/host/etc/machine-id", "/etc/machine-id", "/var/lib/dbus/machine-id")
 _LOCK = threading.RLock()
 

@@ -8,6 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Linking a new panel to hub.sudoo.sh:** this release ships the hub's public key (`8a23a52cbd0d2e51`) as its root key,
+  so a new panel trusts the hub from the start instead of relying on the first key list it sees.
+
+### Fixed
+
 - **Dashboard, "By instance":** each value is written inside its bar when it fits there, otherwise just past the bar's
   end with a gap, so it no longer overlaps the bar; the text inside takes the colour that reads best on the bar (light
   and dark themes). On Arabic pages the chart is mirrored (names on the right, bars growing to the left) and values

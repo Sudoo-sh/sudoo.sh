@@ -116,7 +116,7 @@ instances. It is an independent project, not affiliated with Odoo S.A.
 | A running Odoo per branch | yes | yes, Community or Enterprise, any version |
 | Updates on push | yes | yes: GitHub App, GitHub webhook or polling ([plugins](docs/PLUGINS.md)) |
 | Instances that pause and expire | staging builds expire | pause when unused, wake on the next visit; lifetime with a backup |
-| How instances are reached | `*.odoo.com` | a public https link per instance, open ports, or your own exposure plugin |
+| How instances are reached | `*.odoo.com` | the server's own ports 80 and 443 with automatic certificates (a managed name or your own domain per instance), your own reverse proxy, or a tunnel for servers without open ports |
 | API for automation | | signed REST API ([Panel API](docs/PANEL_API.md)) |
 | Production hosting | yes | no: Sudoo.sh is for development, demos, tests and training |
 
@@ -130,9 +130,11 @@ command to use it: people receive a link.
 1. **Create an instance in a few clicks**: choose a GitHub repository, a branch, the Odoo version (any published version) and the
    edition (Community or Enterprise). The name, the database, the ports and the passwords are generated. Two minutes
    later the panel shows the instance's own https link and its login. See [Creating an instance](docs/USER_MANUAL.md#5-creating-an-instance).
-2. **One https link per instance**: every instance is reachable from anywhere through its own public link, provided
-   through extensions, so the server needs no open port. Browsers, API clients and webhook senders use it like any
-   Odoo address. See [Public links](docs/concepts/TUNNELING.md).
+2. **One https address per instance**: the server answers on ports 80 and 443 itself and gets a certificate for
+   every name from Let's Encrypt: the panel at its own name, each instance at its managed name
+   (`<branch>.<stage>.<company>.sudoo.cloud`) or a custom domain. Behind your own reverse proxy, or on a server that
+   cannot open ports (through a tunnel), it works too. Browsers, API clients and webhook senders use the address like
+   any Odoo address. See [Public addresses](docs/concepts/PUBLIC_ADDRESSES.md).
 3. **Stays in sync with GitHub**: by polling GitHub every 2 minutes, or instantly through a GitHub webhook (both are
    plugins, use either or both); when a developer pushes, the instance pulls
    the code, upgrades only the modules whose files changed and restarts. Submodules (for example OCA repositories)
@@ -181,8 +183,9 @@ command to use it: people receive a link.
 
 ![How the parts of Sudoo.sh fit together](docs/images/architecture.svg)
 
-Everything on the server listens on `127.0.0.1` only. With the default exposure plugin, the only ways in are the
-public-link connectors (connections the server itself opened) and SSH for administrators. The full picture is in [Architecture](docs/ARCHITECTURE.md).
+With the default exposure (`direct`), the only ways in are the gateway on ports 80 and 443 (and, for instances without
+a name yet, their gateway ports, over https) and SSH for administrators; the web app, the backend and Odoo listen on
+`127.0.0.1` only. The full picture is in [Architecture](docs/ARCHITECTURE.md).
 
 ---
 
@@ -194,7 +197,7 @@ public-link connectors (connections the server itself opened) and SSH for admini
 | **Docker Compose** | Describes each instance (Odoo + PostgreSQL + volumes) as one project. | One command starts, stops or removes a whole instance, and deleting leaves nothing behind. |
 | **Official Odoo images** (`odoo:<version>`) | The Odoo program itself. | Nothing to build or maintain; every version behaves exactly as Odoo publishes it; new versions appear in the panel by themselves (`ODOO_VERSIONS=auto`). |
 | **PostgreSQL 16** | The database of each instance. | Odoo's own database; one per instance, so instances never share data. |
-| **Exposure plugins** (default `cloudflare-quick`) | Give the panel and every instance a public https address. | The default works without any open port, account or domain, https included. See [Public links](docs/concepts/TUNNELING.md). |
+| **Exposure plugins** (`direct` for new installations; `proxy`, `tunnel`) | Give the panel and every instance a public https address. | Direct serves fixed addresses with certificates from Let's Encrypt on the server's own ports 80 and 443; proxy fits behind an existing reverse proxy; tunnel works without any open port. See [Public addresses](docs/concepts/PUBLIC_ADDRESSES.md). |
 | **Python 3.12+** with type hints | The panel's language. | Same language as Odoo, so every Odoo developer can read and fix it; type hints checked by mypy catch mistakes before they run. |
 | **uv** | Installs the dependencies, from a lock file. | Fast, and every installation (servers, CI, developers) gets exactly the same versions. |
 | **pydantic-settings** | Reads and checks the settings. | Every setting typed and documented in one class; a wrong value stops the panel at start-up with a clear message. |
@@ -235,7 +238,7 @@ All documents are in [`docs/`](docs/README.md) and are also shown inside the pan
 | [Architecture](docs/ARCHITECTURE.md) | developers | How the parts work together, and why each was chosen |
 | [Design](docs/DESIGN.md) | developers, designers | The design system: tokens, type, materials, motion, charts; restyling Sudoo.sh |
 | [Security](docs/SECURITY.md) | administrators, reviewers | Passwords, encryption, sessions, input checks, what is and is not protected |
-| [Concepts](docs/README.md#concepts-explained-with-examples) | anyone curious | Public links, Docker, the gateway, deploy keys, submodules, passwords and encryption, web attacks; each with examples |
+| [Concepts](docs/README.md#concepts-explained-with-examples) | anyone curious | Public addresses, Docker, the gateway, deploy keys, submodules, passwords and encryption, web attacks; each with examples |
 
 ---
 
@@ -243,7 +246,7 @@ All documents are in [`docs/`](docs/README.md) and are also shown inside the pan
 
 | Topic | How it is handled |
 | :--- | :--- |
-| Reachability | Nothing listens on a public address. The web app, the backend, the gateway and Odoo listen on `127.0.0.1`; the way in is the public-link connectors of the default exposure plugin. |
+| Reachability | With the default exposure (`direct`) only the gateway listens on public addresses: ports 80 and 443, with a certificate for every name, and the gateway ports of instances without a name, over https. The web app, the backend and Odoo listen on `127.0.0.1`; https ends on the server itself. |
 | First run | No default accounts: the first account is created with a one-time setup code printed on the server. |
 | Panel passwords | Never stored. Only a salted, peppered **scrypt hash** is kept; the pepper comes from a key outside the accounts file. Rules follow NIST SP 800-63B: 12 to 128 characters, common passwords and sequences refused. Sign-in is locked after repeated failures. |
 | Stored secrets | The GitHub App's private key, GitHub deploy keys and Odoo master passwords are **encrypted with AES-256-GCM**. Odoo itself only receives a hash of its master password. |
@@ -302,8 +305,10 @@ sudoo.sh/
     ├── repos/                     # git and GitHub: the GitHub App, deploy keys, access checks, git helpers
     ├── exposure/                  # PLUGIN TYPE: how instances are reached
     │   ├── base.py                #   the interface
-    │   ├── cloudflare.py          #   cloudflare-quick
-    │   └── ports.py               #   host-ports
+    │   ├── direct.py              #   direct (ports 80 and 443, the default of new installations)
+    │   ├── proxy.py               #   proxy (behind your own reverse proxy)
+    │   ├── cloudflare.py          #   tunnel (earlier name cloudflare-quick)
+    │   └── ports.py               #   host-ports (earlier option)
     ├── triggers/                  # PLUGIN TYPE: what starts a code update
     │   ├── base.py                #   the interface
     │   ├── polling.py             #   polling
@@ -335,7 +340,8 @@ sudoo.sh/
 
 Requirements: a Linux server (Ubuntu 22.04+ or Debian 12+; amd64 or arm64) with systemd, 2 CPU cores, at least 2 GB
 of memory (about 1 to 1.5 GB per running instance), 20 GB of free disk, and outgoing HTTPS to GitHub, ghcr.io, Docker
-Hub and Cloudflare. With the default exposure plugin no incoming port is needed.
+Hub, plus incoming TCP 80 and 443 for the default exposure (`direct`). The installer asks how people reach the server
+(Direct, Proxy or Tunnel; `--exposure direct|proxy|tunnel`) and checks the ports; a tunnel needs no incoming port.
 
 ```bash
 curl -fsSL https://github.com/Sudoo-sh/sudoo.sh/releases/latest/download/sudoo-install.sh | sudo bash
@@ -350,7 +356,7 @@ release (`ghcr.io/sudoo-sh/sudoo-panel` and `sudoo-web`, pinned by digest), writ
 | Command | What it does |
 | :--- | :--- |
 | `sudo sudoo-install check` | Checks the server; changes nothing. |
-| `sudo sudoo-install update` | Updates to the latest release. Only `sudoo-panel` and `sudoo-web` are replaced; instances, accounts, keys, settings and the public links are kept. |
+| `sudo sudoo-install update` | Updates to the latest release. Only `sudoo-panel` and `sudoo-web` are replaced; instances, accounts, keys, settings and the public addresses are kept (the exposure is never changed by an update). |
 | `sudo sudoo-install update --rollback` | Goes back to the version that ran before the last update. |
 | `sudo sudoo-install update --version edge` | Follows `main` (images built from every commit), for test servers. |
 | `sudo sudoo-install status` | Version, containers, links. |
@@ -402,7 +408,8 @@ the ones most people change:
 
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
-| `EXPOSURE` | `cloudflare-quick` | How instances are reached: the default public-link extension, or `host-ports` |
+| `EXPOSURE` | `direct` | How people reach the server: `direct` (ports 80 and 443), `proxy` (your reverse proxy) or `tunnel` (no open port) |
+| `PANEL_DOMAIN` | empty | The panel's name (its DNS points at the server); empty: the server's public name or address |
 | `ENTERPRISE_SOURCE` | `folder` | Where Enterprise comes from: `folder`, `git` or `none` |
 | `ENTERPRISE_PATH` | `/opt/odoo/enterprise/{version}` | Folder of a version's Enterprise add-ons, any naming |
 | `ODOO_VERSIONS` | `auto` | Every published Odoo version from `ODOO_MIN_VERSION` (`16.0`), or a fixed list |
@@ -460,7 +467,7 @@ cd web && npm ci && npm run build   # the web app: type check and build
 ```
 
 The same checks, plus a Docker image build, run on every pull request ([CI](.github/workflows/ci.yml)). The
-panel is also tested end to end on a real server, through the public links, the way users reach it:
+panel is also tested end to end on a real server, through the public addresses, the way users reach it:
 
 | Area | Checked |
 | :--- | :--- |
@@ -474,11 +481,11 @@ How to repeat these checks is described in the [Administrator guide](docs/ADMIN_
 
 ## Known Limitations
 
-* **With the default public-link extension (`cloudflare-quick`), links change after a restart** of the server or of
-  a connector. For links that never change, use `EXPOSURE=host-ports` on a server that can accept connections, or
-  write an exposure plugin that serves links from your own domain ([Plugins](docs/PLUGINS.md#6-writing-a-plugin)).
-* **Default public links** carry at most 100 MB per request, end requests that take longer than about 100
-  seconds, and have no uptime guarantee.
+* **With `EXPOSURE=tunnel`, addresses change after a restart** of the server or of a connector, and the free tunnel
+  carries at most 100 MB per request, ends requests that take longer than about 100 seconds, and has no uptime
+  guarantee. Direct and proxy addresses are fixed.
+* **Direct mode needs ports 80 and 443** of the server; until the panel has a name, it is served with its own
+  certificate, which browsers warn about once.
 * **Memory**: about 1 to 1.5 GB per running instance. On a 3 GB server, keep one or two instances running; the
   others pause by themselves.
 * **Python libraries** listed in a module's `requirements.txt` are not in the official Odoo image.

@@ -1,4 +1,5 @@
-"""Exposure plugin "host-ports": visitors connect straight to a port on the server's own address.
+"""Exposure plugin "host-ports" (an earlier option, kept for the panels that use it; new ones use "direct" or
+"proxy"): visitors connect straight to a port on the server's own address.
 
 For servers that can accept incoming connections (a VPS with a public address, a machine on the office network).
 The panel listens on PANEL_PORT and each instance's gateway on its GATEWAY_PORT, on every interface; the address is

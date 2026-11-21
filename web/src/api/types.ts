@@ -511,6 +511,15 @@ export interface Server {
   version: string;
   panel_url: string | null;
   plugins: { exposure: string; enterprise_source: string; update_triggers: string[] };
+  /** how people reach this server (EXPOSURE) and the panel's own address */
+  public_address?: {
+    mode: string;
+    url: string | null;
+    domain: string | null;
+    status: "waiting" | "active" | "failed" | null;
+    reason: string | null;
+    server_addresses: string[];
+  };
   metrics: Partial<ServerFigures>;
   live_clients: number;
 }

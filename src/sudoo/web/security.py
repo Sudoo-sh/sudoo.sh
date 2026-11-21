@@ -86,10 +86,13 @@ def _limit_rate() -> None:
 def client_ip_of(headers: Headers, remote: str) -> str:
     """The visitor's address. The backend listens on 127.0.0.1 behind the web service, which sets X-Forwarded-For
     to the address it received the request from (replacing any sent by the visitor); in front of that, the
-    exposure may name a header it sets itself (Cloudflare's CF-Connecting-IP)."""
-    trusted = getattr(exposure.provider(), "client_ip_header", None)
-    if trusted and headers.get(trusted, ""):
-        return headers.get(trusted, "")
+    exposure may name a header set by what is in front (Cloudflare's CF-Connecting-IP, the owner's proxy's
+    X-Real-IP; for a list, its last address), and with EXPOSURE=direct the gateway sends it in X-Sudoo-Client-IP
+    (the web service listens on 127.0.0.1 only, so nobody else can send that)."""
+    provider = exposure.provider()
+    for trusted in (getattr(provider, "panel_client_ip_header", None), getattr(provider, "client_ip_header", None)):
+        if trusted and headers.get(trusted, "").strip():
+            return headers.get(trusted, "").split(",")[-1].strip()
     forwarded = headers.get("X-Forwarded-For", "")
     if forwarded and remote in ("127.0.0.1", "::1"):
         return forwarded.split(",")[-1].strip()

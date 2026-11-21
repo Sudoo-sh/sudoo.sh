@@ -127,8 +127,9 @@ By default super admins and administrators must use a second factor. A super adm
   change both times on the Settings page.
 * **Sign out** (your name at the bottom of the sidebar, or **My account**) ends the session at once, on the server
   too: a copy of the session taken before cannot be used afterwards. Use it on shared computers.
-* The panel's link can change when the server restarts. If the link you saved stops working, ask the administrator
-  for the new one ([when links change](concepts/TUNNELING.md#5-when-the-link-changes)).
+* On a server reached through a tunnel, the panel's address can change when the server restarts. If the address you
+  saved stops working, ask the administrator for the new one
+  ([when an address changes](concepts/PUBLIC_ADDRESSES.md#6-when-an-address-changes)).
 
 ---
 
@@ -1150,12 +1151,13 @@ the browser, in tabs:
 | **Odoo** | Which versions are offered, where Odoo and PostgreSQL come from, and where the Enterprise add-ons are (including the Enterprise source plugin). |
 | **Backups** | Whether daily backups are taken, at what time (`HH:MM`, 24-hour clock) and in which time zone (for example `Africa/Cairo`; UTC by default), and how long a restore can be rolled back. Changes apply at once. |
 | **Sign-in and security** | Who must use a second factor (none, administrators, everyone), which second factors are offered, the authenticator, how long a session lasts, the sign-in e-mail (on for everyone by default, and whether each person may turn it off), how many recovery codes an authenticator app comes with, and requests per minute with the rate limiter. |
+| **Addresses and domains** | How people reach this server (**Direct**, **Proxy** or **Tunnel**, applied at a restart, with what a change does shown before it is saved), the panel's name and the server's public name or address, custom domains, certificates and managed subdomains ([Public addresses](concepts/PUBLIC_ADDRESSES.md)). |
 | **E-mail** | The mailer and the mailbox that sends sign-in codes, with **Send a test**, and a link to **E-mail texts** ([Administrator guide: E-mail templates](ADMIN_GUIDE.md#17-e-mail-templates)). |
 | **Alerts** | Who is told when something needs attention (super admins, more addresses, up to three webhooks for Slack, Discord, Teams or your own system), which alerts are sent, their thresholds, how often the same alert may repeat, and a daily summary, with **Send a test alert** ([Administrator guide: Alerts](ADMIN_GUIDE.md#16-alerts)). |
 | **GitHub and updates** | How often GitHub is checked, the update triggers, and the webhook secret. |
 | **Marketplace** | The connection to the Sudoo.sh marketplace, and linking this panel to an account ([Marketplace](MARKETPLACE.md)). |
 | **Plan** | The panel's Sudoo.sh plan, as the signed licence from Sudoo.sh says: what it allows (production branches, servers, projects, teams and access per project, custom domains, off-site backups, support), what the panel uses (production branches by name, instances by stage), whether new production branches are withheld, which production branches leave production after a downgrade, and **Manage the plan** and **Compare plans** ([Plans and limits](#plans-and-limits)). |
-| **Advanced** | How often figures are measured, the Cloudflare connector image, **Restart the panel**, and **Server**: read only, the folders, ports and how the panel is reached, which stay in the server's `.env`. |
+| **Advanced** | How often figures are measured, the tunnel connector image, **Restart the panel**, and **Server**: read only, the folders, ports and how the panel is reached, which stay in the server's `.env`. |
 | **About** | The licence agreement: the version this release bundles, the **Required licence version** (a newer one asks super admins to accept again), who accepted it, when and for which use, every acceptance (in the panel and by the installer, and whether your Sudoo.sh account has it), the full text, and **Review and accept again** (super admins) ([Administrator guide: The licence agreement](ADMIN_GUIDE.md#22-the-licence-agreement)). |
 
 The chosen tab is part of the address (for example `/settings?tab=backups`), so it can be linked and survives a

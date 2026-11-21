@@ -55,15 +55,22 @@ Examples of each attempt, and how the panel stops it, are in [Web attacks](conce
   `/api`, `/hooks` and `/docs` to the backend (`sudoo-panel`). The backend's API (`API_PORT`) and its live event
   stream (`EVENTS_PORT`) listen on `127.0.0.1` only, with every exposure: nothing reaches them except through the
   web service. The third, the gateway service (`sudoo-gateway`), holds the instances' gateway ports (next section).
-* With the default exposure plugin (`cloudflare-quick`), the web service, every gateway and every Odoo
-  listen on `127.0.0.1` only. Nothing is reachable from the internet except through the public-link connectors
-  that the server opened itself, and SSH for administrators.
-* With `host-ports`, the web service and the gateways listen on every interface, on purpose; Odoo itself and the
-  databases still listen on `127.0.0.1` only. Use a firewall to limit who can reach the ports, and https in front of
-  them on any network you do not fully trust (see [Plugins](PLUGINS.md#host-ports)).
-* With the default exposure plugin, the public-link service (Cloudflare) carries the traffic over https and
-  decrypts it at its edge; between the service and the server it travels inside the connector's own encrypted
-  connection. See [Public links](concepts/TUNNELING.md#6-is-it-safe).
+* With `EXPOSURE=direct` (the default of new installations), only the gateway listens on public addresses: ports 80
+  (the ACME authority's checks and a redirect to https) and 443 (https, a certificate for every name), and each
+  instance's gateway port, over https with the panel's own certificate. https ends on the server itself; no third
+  party sees the traffic. The web service, Odoo and the databases listen on `127.0.0.1` only; the gateway forwards
+  the panel's own address to the web service.
+* With `EXPOSURE=proxy`, the web service and the gateways listen on `PROXY_LISTEN` (`127.0.0.1` by default) and the
+  owner's proxy handles https. They trust the proxy's header with the visitor's address, so nothing but the proxy
+  may reach their ports.
+* With `EXPOSURE=tunnel`, the web service, every gateway and every Odoo listen on `127.0.0.1` only; nothing is
+  reachable from the internet except through the connectors the server opened itself. The tunnel service carries
+  the traffic over https and decrypts it at its edge; between the service and the server it travels inside the
+  connector's own encrypted connection. See [Public addresses](concepts/PUBLIC_ADDRESSES.md#7-is-it-safe).
+* With `host-ports` (an earlier option), the web service and the gateways listen on every interface, on purpose;
+  Odoo itself and the databases still listen on `127.0.0.1` only. Use a firewall to limit who can reach the ports,
+  and https in front of them on any network you do not fully trust (see [Plugins](PLUGINS.md#host-ports)).
+* SSH for administrators, in every mode.
 * The panel and every instance have different addresses (different browser origins), so an instance's pages can never read
   the panel's cookie. The gateway also removes the panel's cookie from requests to Odoo and stops Odoo from setting
   one with the same name.
@@ -127,13 +134,14 @@ visitor can make up:
 
 | Source | Trusted when |
 | :--- | :--- |
-| `CF-Connecting-IP` | Only with the `cloudflare-quick` exposure, where Cloudflare sets it (the exposure plugin's `client_ip_header`). With `host-ports` it is ignored. |
+| `X-Sudoo-Client-IP` | Only with `EXPOSURE=direct` (the exposure plugin's `panel_client_ip_header`): the gateway sets it to the address of the visitor's connection when it forwards the panel's own address, after removing any copy the visitor sent; the web service listens on `127.0.0.1` only, so nobody else can send it. Ignored in every other mode. |
+| The exposure's own header | `CF-Connecting-IP` only with `tunnel` (`cloudflare-quick`), where the tunnel service sets it; `PROXY_CLIENT_IP_HEADER` (`X-Real-IP` by default) only with `proxy`, where the owner's proxy must set it on every request (for a list, the last address). The exposure plugin's `client_ip_header`; with `direct` and `host-ports` there is none. |
 | `X-Forwarded-For` | Only when the request reaches the backend from `127.0.0.1`, that is from the web service, which replaces any value sent by the visitor with the address it received the request from. |
 | The connection's own address | In every other case. |
 
 Odoo, behind the gateway, runs in proxy mode and believes the **last** address in `X-Forwarded-For`. The gateway
-appends the address it can vouch for (`CF-Connecting-IP` with `cloudflare-quick`, the connection's own address with
-`host-ports`) and sets `X-Forwarded-Proto` and `X-Forwarded-Host` itself, so a visitor cannot choose the address
+appends the address it can vouch for (the exposure's own header with `tunnel` and `proxy`, the connection's own
+address with `direct` and `host-ports`) and sets `X-Forwarded-Proto` and `X-Forwarded-Host` itself, so a visitor cannot choose the address
 Odoo's own sign-in limits count. It also removes hop-by-hop headers (and any header named in `Connection`) in both
 directions, refuses request bodies larger than `GATEWAY_MAX_UPLOAD_MB`, gives up on bodies that stop arriving
 (`GATEWAY_IDLE_TIMEOUT_SECONDS`) and limits WebSocket messages (`GATEWAY_WEBSOCKET_MAX_MESSAGE_MB`), so one visitor
@@ -362,7 +370,8 @@ Being clear about limits is part of security.
 | **Someone with root on the server** | Root can read `vault.key` as well as the encrypted values, and controls Docker. The vault protects copies and backups, not a compromised server. Keep SSH access to the server limited. |
 | **A super admin or administrator account** | The panel controls Docker, so these roles can do anything on the server. Give them only to people who would be trusted with the server. |
 | **Plain http with `host-ports`** | With `PUBLIC_SCHEME=http`, passwords and session cookies travel unencrypted (the cookie is then not marked Secure). Put a TLS proxy in front, or keep it to trusted networks. |
-| **Traffic at the public-link service** | The default exposure plugin ends https at the service's edge (Cloudflare). For instances without real data this is acceptable; for end-to-end encryption use `host-ports` behind your own TLS proxy, or another exposure plugin ([Public links](concepts/TUNNELING.md#7-fixed-addresses-and-other-options)). |
+| **Traffic at the tunnel service** | `EXPOSURE=tunnel` ends https at the tunnel service's edge. For instances without real data this is acceptable; for https that ends on the server use `direct` (the default of new installations) or your own proxy ([Public addresses](concepts/PUBLIC_ADDRESSES.md#7-is-it-safe)). |
+| **The panel's own certificate** | With `EXPOSURE=direct` and no name for the panel, the panel (and every instance without a name, on its gateway port) is served with a certificate the panel makes itself; browsers warn, and a visitor who accepts the warning cannot tell this server from another. Set a name (`PANEL_DOMAIN`) before people sign in from untrusted networks. |
 | **Each instance's database password** | Stored readable in the instance's `.env`, `docker-compose.yml` and `odoo.conf` (folder mode 700, root only; `odoo.conf` readable by the Odoo container's user only). The database is reachable only from that instance's Odoo container, on an internal Docker network that the server itself has no address on (Docker 28 and later), so the password is of no use to anyone who could not already read the whole server. |
 | **Root and the docker group** | Anyone who is root on the server, or in its `docker` group, can change, replace or enter every container and file; nothing inside the panel can prevent that. The panel makes such changes visible and undoes them on instances ([Instance containers](#10-instance-containers)); it cannot stop them. |
 | **Sign-in lockout after a restart** | Failed attempts are counted in memory; a panel restart resets the counters. The slow hash still limits guessing. |
@@ -542,8 +551,7 @@ server reports (`usage`: servers, projects, production branches and their names,
 
 ## 10. Instance containers
 
-Each instance is two containers, `odoo` and `db` (PostgreSQL), plus a Cloudflare connector with the
-`cloudflare-quick` exposure. They exist to run Odoo for visitors who come through the panel's gateway, and nothing
+Each instance is two containers, `odoo` and `db` (PostgreSQL), plus a tunnel connector with `EXPOSURE=tunnel`. They exist to run Odoo for visitors who come through the panel's gateway, and nothing
 else. Three things follow from that: they get the least they need, there is no way into them except through the
 panel, and a change made to them by hand is found, reported and undone.
 
@@ -586,7 +594,7 @@ The instance folder is mode 700 and owned by root; `.env` and `docker-compose.ym
 read its configuration and no other user on the server can.
 
 **Only through the panel.** Nothing of an instance listens anywhere but `127.0.0.1`; visitors reach Odoo through the
-panel's gateway, and people change instances through the panel's jobs, each checked against a permission and written
+panel's gateway (the only part that listens on public addresses with `EXPOSURE=direct`), and people change instances through the panel's jobs, each checked against a permission and written
 to the audit log. A restore's filestore step runs one short-lived root container with only `CHOWN`, `DAC_OVERRIDE`
 and `FOWNER` (the database name is checked against the names the panel gives and passed to it as an argument, never
 as part of its script); everything else the panel does inside containers (`docker exec` of `psql`, `pg_dump`, `du`) runs with
@@ -687,6 +695,10 @@ Plugins from the Sudoo.sh marketplace are checked by the panel itself before the
 - [ ] Prefer the GitHub App to deploy keys; install it on **selected repositories** where all are not needed.
 - [ ] Remove deploy keys of repositories that are no longer used, in the panel and on GitHub.
 - [ ] Give each system its own API token, `read` where reading is enough; revoke tokens no longer used.
+- [ ] With `EXPOSURE=direct`, give the panel a name (`PANEL_DOMAIN`) so it has a trusted certificate; open only ports
+      80 and 443 (and the gateway ports only if instances without a name must be reachable).
+- [ ] With `EXPOSURE=proxy`, keep `PROXY_LISTEN=127.0.0.1` (or firewall the ports) and have the proxy replace the
+      visitor-address header on every request.
 - [ ] With `host-ports`, put https in front of the panel and limit who can reach its port.
 - [ ] Install only the plugins you need, preferably from Official or Verified publishers; read what each asks
       permission to do.

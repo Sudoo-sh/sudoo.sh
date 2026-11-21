@@ -3,7 +3,7 @@ import { Bell, CloudUpload, Gauge, SlidersHorizontal, Mail, Plug, Puzzle, Refres
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, errorText } from "@/api/client";
-import { keys, useCall, useCapacity, useSettings } from "@/api/queries";
+import { keys, useCall, useCapacity, useServer, useSettings } from "@/api/queries";
 import { RESOURCE_KNOBS, type Setting, type Stage } from "@/api/types";
 import { LicenceSettings } from "@/components/LicenceSettings";
 import { MarketplaceSettings } from "@/components/Marketplace";
@@ -93,6 +93,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
   {
     id: "domains",
     groups: [
+      { id: "publicAddress", keys: ["exposure", "panel_domain", "public_host"] },
       { id: "customDomains", keys: ["custom_domains", "domain_dns_target", "domains_per_instance"] },
       { id: "certificates", keys: ["acme_directory", "acme_email", "certificate_renew_days", "certificate_retry_max_hours"] },
       { id: "checks", keys: ["domain_dns_timeout_seconds", "domain_http_probe", "domain_http_port", "domain_https_port"] },
@@ -335,6 +336,32 @@ function TabList({ tab, onSelect, marks }: { tab: TabId; onSelect: (id: TabId) =
   );
 }
 
+/** Settings, Addresses and domains: how people reach this server now, and what a change of EXPOSURE does. */
+function ExposureNotice({ saved, chosen }: { saved: string; chosen: string }) {
+  const t = useT(words);
+  const server = useServer().data;
+  const now = server?.public_address;
+  const label = (mode: string) => t.choices.exposure?.[mode] ?? mode;
+  const certificate = now?.status ? t.exposure.certificate[now.status] : "";
+  const target = chosen === "cloudflare-quick" ? "tunnel" : chosen;
+  return (
+    <div className="card-body stack-sm">
+      <p className="small muted">
+        {t.exposure.now(label(saved), server?.panel_url ? <bdi dir="ltr" className="mono">{server.panel_url}</bdi> : t.exposure.noAddress)}
+      </p>
+      {certificate && <p className="small muted">{certificate} {now?.reason && <bdi>{now.reason}</bdi>}</p>}
+      {chosen !== saved && t.exposure.to[target] && (
+        <Callout tone="warning">
+          <div className="stack-sm">
+            <span><strong>{t.exposure.change}</strong> {t.exposure.to[target]}</span>
+            <span>{t.exposure.keepOpen}</span>
+          </div>
+        </Callout>
+      )}
+    </div>
+  );
+}
+
 /** One cell of a resources table: the setting's editor, named for screen readers by its row and its stage. */
 function Cell({ setting, value, label, onChange }: { setting: Setting | undefined; value: Value; label: string; onChange: (value: Value) => void }) {
   if (!setting) return <TableCell />;
@@ -546,6 +573,9 @@ export function SettingsPage() {
                 }
               >
                 {rows(group.keys)}
+                {group.id === "publicAddress" && byKey.exposure && (
+                  <ExposureNotice saved={String(byKey.exposure.value)} chosen={String(draft.exposure ?? byKey.exposure.value)} />
+                )}
               </Section>
             ))}
             {tab === "resources" && <ResourceSettings byKey={byKey} draft={draft} onChange={(key, v) => setDraft((d) => ({ ...d, [key]: v }))} />}

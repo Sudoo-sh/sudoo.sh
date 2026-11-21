@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PACKAGE_DIR = Path(__file__).resolve().parent
@@ -34,6 +34,19 @@ MEMORY_PATTERN = r"^(0|\d+(\.\d+)?[bkmg])$"
 """A quantity of memory in Docker units (512m, 2g); 0: none."""
 
 MIN_CONTAINER_MEMORY = 128 * 1024**2
+
+
+EXPOSURE_MODES = ("direct", "proxy", "tunnel")
+"""The ways the panel and the instances are reached that the Settings page offers (EXPOSURE)."""
+
+EXPOSURE_ALIASES = {"cloudflare-quick": "tunnel"}
+"""Earlier names of a mode: the same plugin under its old entry point."""
+
+
+def exposure_mode(name: str) -> str:
+    """The mode an EXPOSURE value stands for: direct, proxy, tunnel, or the value itself (host-ports, or a plugin
+    of someone else's)."""
+    return EXPOSURE_ALIASES.get(name, name)
 
 
 def memory_bytes(text: str) -> int:
@@ -162,14 +175,98 @@ class Settings(BaseSettings):
 
     # ------------------------------------------------------------------ exposure (plugin: exposure)
     exposure: str = Field(
-        "cloudflare-quick", description='How instances are reached: "cloudflare-quick" or "host-ports".'
+        "tunnel",
+        description='How people reach the panel and the instances: "direct" (this server answers on ports 80 and 443 '
+        'itself, with certificates from an ACME authority such as Let\'s Encrypt), "proxy" (your own reverse proxy '
+        'or load balancer in front) or "tunnel" (an outgoing tunnel, for servers that cannot open ports). New '
+        "installations get direct; a .env without this setting keeps tunnel, the behaviour of earlier releases. "
+        'The earlier names "cloudflare-quick" (tunnel) and "host-ports" still work.',
     )
-    cloudflared_image: str = Field("cloudflare/cloudflared:latest", description="cloudflare-quick: connector image.")
-    connector_prefix: str = Field("sudoo-connector-", description="cloudflare-quick: container name prefix.")
-    connector_status_port_start: int = Field(20300, description="cloudflare-quick: first status port of a connector.")
-    panel_connector_status_port: int = Field(20242, description="cloudflare-quick: status port of the panel connector.")
-    public_host: str = Field("", description="host-ports: the server's public name or address.")
-    public_scheme: Literal["http", "https"] = Field("http", description="host-ports: scheme of the public addresses.")
+    panel_domain: str = Field(
+        "",
+        description="direct and proxy: the name people open the panel with (its DNS points at this server, or at "
+        "your proxy). direct serves it on port 443 with a certificate from the ACME authority. Empty: "
+        "PUBLIC_HOST when it is a name, else the server's public address with the panel's own certificate.",
+    )
+    cloudflared_image: str = Field("cloudflare/cloudflared:latest", description="tunnel: connector image.")
+    connector_prefix: str = Field("sudoo-connector-", description="tunnel: container name prefix.")
+    connector_status_port_start: int = Field(20300, description="tunnel: first status port of a connector.")
+    panel_connector_status_port: int = Field(20242, description="tunnel: status port of the panel connector.")
+    public_host: str = Field(
+        "",
+        description="The server's public name or address, used in addresses that have no name of their own (direct: "
+        "an instance without a managed name or custom domain; proxy and host-ports: every address). Empty with "
+        "direct: the server's public address (PUBLIC_IPV4, PUBLIC_IPV6, or the one it sends from).",
+    )
+    public_scheme: Literal["", "http", "https"] = Field(
+        "",
+        description='proxy and host-ports: scheme of the public addresses; empty: "https" with proxy, "http" with '
+        "host-ports.",
+    )
+    proxy_listen: str = Field(
+        "127.0.0.1",
+        description="proxy: the address the panel and the gateways listen on. 127.0.0.1 when the proxy runs on this "
+        "server; another address only when a firewall lets nothing but the proxy reach those ports.",
+    )
+    proxy_client_ip_header: str = Field(
+        "X-Real-IP",
+        description="proxy: the request header in which your proxy sends the visitor's address (it must set it on "
+        "every request, replacing any the visitor sent). For X-Forwarded-For the last address is taken.",
+    )
+
+    @field_validator("exposure")
+    @classmethod
+    def _exposure(cls, value: str) -> str:
+        return value.strip().lower()
+
+    @field_validator("panel_domain")
+    @classmethod
+    def _panel_domain(cls, value: str) -> str:
+        import re
+
+        value = value.strip().lower().rstrip(".")
+        label = r"(?!-)[a-z0-9-]{1,63}(?<!-)"
+        if value and (len(value) > 253 or not re.fullmatch(rf"{label}(\.{label})+", value)):
+            raise ValueError("must be a host name such as panel.example.com")
+        return value
+
+    @field_validator("public_host")
+    @classmethod
+    def _public_host(cls, value: str) -> str:
+        import ipaddress
+        import re
+
+        value = value.strip().lower().rstrip(".")
+        if not value:
+            return ""
+        try:
+            return str(ipaddress.ip_address(value.strip("[]")))
+        except ValueError:
+            pass
+        label = r"(?!-)[a-z0-9-]{1,63}(?<!-)"
+        if len(value) > 253 or not re.fullmatch(rf"{label}(\.{label})*", value):
+            raise ValueError("must be a host name such as server.example.com, or an IP address")
+        return value
+
+    @field_validator("proxy_listen")
+    @classmethod
+    def _proxy_listen(cls, value: str) -> str:
+        import ipaddress
+
+        try:
+            return str(ipaddress.ip_address(value.strip().strip("[]")))
+        except ValueError:
+            raise ValueError("must be an IP address, such as 127.0.0.1") from None
+
+    @field_validator("proxy_client_ip_header")
+    @classmethod
+    def _proxy_client_ip_header(cls, value: str) -> str:
+        import re
+
+        value = value.strip()
+        if value and not re.fullmatch(r"[A-Za-z0-9-]{1,64}", value):
+            raise ValueError("must be a header name such as X-Real-IP")
+        return value
 
     # ------------------------------------------------------------------ update triggers (plugins)
     update_triggers: str = Field(
@@ -399,11 +496,12 @@ class Settings(BaseSettings):
     )
 
     # ------------------------------------------------------------------ custom domains (domains/)
-    custom_domains: Literal["off", "acme", "external"] = Field(
-        "off",
+    custom_domains: Literal["", "off", "acme", "external"] = Field(
+        "",
         description='Custom domains for instances: "off", "acme" (the gateway answers on ports 80 and 443 and gets '
         'a certificate for each domain from an ACME authority such as Let\'s Encrypt) or "external" (something in '
-        "front, such as your own Cloudflare tunnel or proxy, handles https; the panel only records the domains).",
+        "front, such as your own proxy, handles https; the panel only records the domains). Empty: as EXPOSURE "
+        'suggests: "acme" with direct, "external" with proxy, "off" otherwise.',
     )
     acme_directory: str = Field(
         "production",
@@ -496,6 +594,18 @@ class Settings(BaseSettings):
         if value and not re.fullmatch(r"[^@\s,:]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}", value):
             raise ValueError("is not an e-mail address")
         return value
+
+    @model_validator(mode="after")
+    def _follow_exposure(self) -> Settings:
+        """Empty CUSTOM_DOMAINS and PUBLIC_SCHEME take the value the exposure mode suggests."""
+        mode = exposure_mode(self.exposure)
+        if not self.custom_domains:
+            object.__setattr__(
+                self, "custom_domains", {"direct": "acme", "proxy": "external"}.get(mode, "off")
+            )  # frozen: set once, while the object is built
+        if not self.public_scheme:
+            object.__setattr__(self, "public_scheme", "https" if mode == "proxy" else "http")
+        return self
 
     @field_validator("domain_dns_target")
     @classmethod
@@ -1488,6 +1598,8 @@ EDITABLE = (
     "premium_binding_renew_days",
     "premium_max_package_mb",
     "custom_domains",
+    "panel_domain",
+    "public_host",
     "acme_directory",
     "acme_email",
     "certificate_renew_days",
@@ -1514,7 +1626,7 @@ EDITABLE = (
 )
 """Settings that can be changed in the panel, taking effect at once."""
 
-RESTART = ("mailer", "second_factors", "update_triggers", "enterprise_source", "auth", "rate_limiter")
+RESTART = ("mailer", "second_factors", "update_triggers", "enterprise_source", "auth", "rate_limiter", "exposure")
 """Settings that can be changed in the panel and take effect when the panel restarts (they choose plugins)."""
 
 SECRET = (

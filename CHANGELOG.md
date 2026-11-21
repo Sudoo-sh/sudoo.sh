@@ -6,6 +6,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Three ways to reach a server, Direct by default:** `EXPOSURE` takes `direct`, `proxy` or `tunnel`. **Direct**, the
+  default of new installations, has the gateway answer ports 80 and 443 of the server itself, with certificates from
+  the ACME authority (Let's Encrypt): the panel at its own name, each instance at its primary custom domain or managed
+  name, else `https://<server address>:<gateway port>`. **Proxy** fits behind your own reverse proxy or load balancer:
+  the panel and the gateways listen on `PROXY_LISTEN` (`127.0.0.1`) and trust the visitor's address in
+  `PROXY_CLIENT_IP_HEADER` (`X-Real-IP`). **Tunnel** is the earlier quick-tunnel behaviour, for servers that cannot
+  open ports. The earlier names `cloudflare-quick` (= `tunnel`) and `host-ports` keep working.
+- **The panel's own address with Direct:** `PANEL_DOMAIN` (else `PUBLIC_HOST` when it is a name) is served on port 443
+  with a certificate the panel gets and renews itself; until then, or without a name, the panel answers on the
+  server's own address with a certificate it makes itself. The gateway forwards the panel's visits to the web
+  service, which listens on `127.0.0.1` only, with the visitor's address in `X-Sudoo-Client-IP`.
+- **Settings, Addresses and domains, How people reach this server:** shows the mode and the panel's address, and
+  explains what a change does (ports, addresses, keeping the page open) before it is saved; the change applies when
+  the panel restarts. A change that would move the web service (from or to `host-ports`, or proxy on another
+  address) is refused there and is made in `.env`. `GET /api/v1/server` returns `public_address`.
+- New settings `PANEL_DOMAIN`, `PROXY_LISTEN` and `PROXY_CLIENT_IP_HEADER`.
+
+### Changed
+
+- **Existing installations keep how they are reached:** a `.env` without `EXPOSURE` keeps `tunnel`, the behaviour of
+  earlier releases, and an update keeps the value in `.env`; only new installations (and `.env.example`) use
+  `direct`.
+- `CUSTOM_DOMAINS` and `PUBLIC_SCHEME` left empty follow the mode: `acme` with direct, `external` and `https` with
+  proxy, `off` and `http` otherwise. Values set in `.env` are kept.
+- With Direct, an instance's gateway port speaks https with the panel's own certificate, and creating an instance no
+  longer waits for a tunnel address.
+- The documentation treats Direct as the normal path; the concept page "Public links" is now
+  [Public addresses](docs/concepts/PUBLIC_ADDRESSES.md), with the tunnel as the option for servers without open ports.
+
 ### Fixed
 
 - **Dashboard, "By instance":** each value is written inside its bar when it fits there, otherwise just past the bar's

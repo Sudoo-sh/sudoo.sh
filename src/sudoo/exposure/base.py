@@ -1,7 +1,14 @@
 """The interface every exposure plugin implements: how the panel and the instances are reached from outside.
 
 The panel and each instance's gateway listen on a local port. An exposure plugin turns that port into an address
-people can open, for example through a Cloudflare tunnel or by publishing the port on the server's own address.
+people can open: the server's own ports 80 and 443 (direct), the owner's reverse proxy (proxy), or an outgoing
+tunnel (tunnel).
+
+Optional attributes, read with getattr (False or None when a plugin does not have them):
+    panel_client_ip_header  a header with the visitor's address that only something on this server can send to the
+                            web service (direct: X-Sudoo-Client-IP, set by the gateway)
+    gateway_tls             the gateway ports speak https with the panel's own certificate (direct)
+    serves_panel            the gateway answers the panel's own address on ports 80 and 443 (direct)
 """
 
 from __future__ import annotations

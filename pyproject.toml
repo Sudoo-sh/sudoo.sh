@@ -33,6 +33,9 @@ sudoo = "sudoo.cli:main"  # the earlier name, kept so existing scripts keep work
 
 # ---------------------------------------------------------------- plugins (see docs/PLUGINS.md)
 [project.entry-points."sudoo.exposure"]
+direct = "sudoo.exposure.direct:Direct"
+proxy = "sudoo.exposure.proxy:Proxy"
+tunnel = "sudoo.exposure.cloudflare:CloudflareQuickTunnel"
 cloudflare-quick = "sudoo.exposure.cloudflare:CloudflareQuickTunnel"
 host-ports = "sudoo.exposure.ports:HostPorts"
 

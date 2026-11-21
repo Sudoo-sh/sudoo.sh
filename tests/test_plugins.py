@@ -18,7 +18,7 @@ from sudoo.instances import odoo
 
 
 def test_built_in_plugins_are_registered() -> None:
-    assert plugins.available(plugins.EXPOSURE_GROUP) == ["cloudflare-quick", "host-ports"]
+    assert plugins.available(plugins.EXPOSURE_GROUP) == ["cloudflare-quick", "direct", "host-ports", "proxy", "tunnel"]
     assert plugins.available(plugins.ADDON_SOURCE_GROUP) == ["folder", "git"]
 
 
@@ -30,7 +30,7 @@ def test_plugins_are_created_with_the_settings() -> None:
 
 
 def test_unknown_plugin_names_the_installed_ones() -> None:
-    with pytest.raises(plugins.PluginError, match="cloudflare-quick, host-ports"):
+    with pytest.raises(plugins.PluginError, match="cloudflare-quick, direct, host-ports, proxy, tunnel"):
         plugins.load(plugins.EXPOSURE_GROUP, "carrier-pigeon", Settings())
 
 

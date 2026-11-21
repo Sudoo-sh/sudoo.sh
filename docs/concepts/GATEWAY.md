@@ -41,15 +41,17 @@ on aiohttp), because it needs to do things those do not do on their own.
 
 ## 3. What the gateway does
 
-There is one gateway port per instance, on `127.0.0.1` (on every interface with the `host-ports` exposure). The
-instance's public-link connector points at it. For every request:
+There is one gateway port per instance. With `EXPOSURE=direct` (the default of new installations) it listens on every
+interface and speaks https with the panel's own certificate, for an instance that has no name yet; named visits
+arrive on ports 80 and 443. With `proxy` it listens on `PROXY_LISTEN` for your proxy, with `tunnel` on `127.0.0.1` for
+the instance's connector ([Public addresses](PUBLIC_ADDRESSES.md)). For every request:
 
 | Step | Why |
 | :--- | :--- |
 | Records the time of the visit | Instances without visits for 6 hours are paused. |
 | Removes the panel's cookie, if the browser sent one (in any of its `Cookie` headers), and stops Odoo from setting a cookie with that name | The panel's session must never reach an instance. |
 | Removes hop-by-hop headers (`Connection`, `Upgrade`, `Transfer-Encoding`, ... and any header named in `Connection`), both ways | They describe one connection, not the request; passed on, they can confuse Odoo about where a request ends. |
-| Appends the visitor's address to `X-Forwarded-For` and sets `X-Forwarded-Proto` and `X-Forwarded-Host` itself | Odoo believes the last address of `X-Forwarded-For`. That is the address Cloudflare reports (`CF-Connecting-IP`) or, with `host-ports`, the address the connection comes from: never one the visitor typed, so Odoo's sign-in limits per address cannot be dodged. |
+| Appends the visitor's address to `X-Forwarded-For` and sets `X-Forwarded-Proto` and `X-Forwarded-Host` itself | Odoo believes the last address of `X-Forwarded-For`. That is the address the connection comes from (`direct`, `host-ports`), or the one reported by what is in front (the proxy's `PROXY_CLIENT_IP_HEADER`, the tunnel's `CF-Connecting-IP`): never one the visitor typed, so Odoo's sign-in limits per address cannot be dodged. |
 | Forwards the request to the instance's Odoo, passing the body on piece by piece as it arrives, and the answer the same way | Large uploads and downloads never sit whole in memory. Bodies larger than `GATEWAY_MAX_UPLOAD_MB` are refused (`413`), and one that stops arriving for `GATEWAY_IDLE_TIMEOUT_SECONDS` is given up (`408`). |
 | Closes a connection that has not sent its request headers within `GATEWAY_HEADER_TIMEOUT_SECONDS`, and answers `503` to new connections beyond `GATEWAY_MAX_CONNECTIONS` (this instance) or `GATEWAY_MAX_CONNECTIONS_TOTAL` (all instances) | Slow or idle connections cannot use up the gateway's open files. |
 | Keeps WebSocket connections open both ways, each message up to `GATEWAY_WEBSOCKET_MAX_MESSAGE_MB` | Odoo's live updates (chat, notifications) work; one visitor cannot make the gateway hold a huge message. |
@@ -57,7 +59,8 @@ instance's public-link connector points at it. For every request:
 | If Odoo does not answer: asks the panel to start the instance (once), answers "Starting up" (`503`, `Retry-After: 4`); "Starting soon" while the panel cannot be reached, asking again every few seconds | A paused instance wakes on the first visit. |
 | If an update is running: answers "Update in progress" | Visitors see a clear message instead of an error. |
 | If the instance is switched off: answers "Switched off" | Nothing is started. |
-| With custom domains (`CUSTOM_DOMAINS=acme`): answers them on ports 80 and 443, picks the certificate by the name the browser asks for, serves the instance only when `Host` is that same name, redirects http to https and answers the ACME checks on port 80 | An instance can live at `https://erp.client.com` ([Administrator Guide](../ADMIN_GUIDE.md#19-custom-domains-and-certificates)); a renewed certificate is used at the next connection, without a restart. |
+| With `EXPOSURE=direct`: answers the panel's own name on ports 80 and 443 with its certificate (and the server's own addresses, and the name until its certificate is issued, with the panel's own certificate) and forwards those visits to the web service on `127.0.0.1:PANEL_PORT`, cookies included, with the visitor's address in `X-Sudoo-Client-IP` (any copy the visitor sent is removed) | The server answers on 80 and 443 for the panel too; the panel counts sign-in limits by the visitor's real address. |
+| With managed names and custom domains (`CUSTOM_DOMAINS=acme`): answers them on ports 80 and 443, picks the certificate by the name the browser asks for, serves the instance only when `Host` is that same name, redirects http to https and answers the ACME checks on port 80 | An instance can live at `https://erp.client.com` ([Administrator Guide](../ADMIN_GUIDE.md#19-custom-domains-and-certificates)); a renewed certificate is used at the next connection, without a restart. |
 
 ---
 
@@ -101,8 +104,8 @@ waking waits for the panel; only paused instances are affected, and production i
 
 **When the gateway service is not running**, the panel serves the instances itself, exactly as it did before: at
 once when the gateway stopped normally, after `GATEWAY_TAKEOVER_SECONDS` (10) when it stopped answering. Both open
-the ports with `SO_REUSEPORT`, so a port changes hands without a moment where nobody listens, and the connectors
-never notice. `GATEWAY_MODE=embedded` keeps the gateways in the panel for good.
+the ports with `SO_REUSEPORT`, so a port changes hands without a moment where nobody listens, and visitors (or the
+connectors, with `tunnel`) never notice. `GATEWAY_MODE=embedded` keeps the gateways in the panel for good.
 
 ---
 

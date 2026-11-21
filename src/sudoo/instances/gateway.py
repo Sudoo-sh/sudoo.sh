@@ -1,7 +1,9 @@
 """The gateway: receives every visit to an instance and forwards it to Odoo.
 
 Each instance has its own gateway port (GATEWAY_PORT), which the exposure plugin makes reachable: on 127.0.0.1 for
-a tunnel connector, or on every interface when visitors connect to the server directly.
+a tunnel connector or a proxy on this server, or on every interface when visitors connect to the server directly
+(EXPOSURE=direct: over https, with the panel's own certificate). Names (managed names, custom domains and, with
+EXPOSURE=direct, the panel's own address) are answered on ports 80 and 443, each with its certificate.
 The gateway forwards HTTP and WebSocket traffic to Odoo (127.0.0.1:ODOO_PORT) and, because it sees every
 request, it can:
     - record the last visit (used for automatic pausing)
@@ -53,6 +55,7 @@ _SESSION: aiohttp.ClientSession | None = None
 _RUNNERS: dict[str, web.AppRunner] = {}
 _LISTENERS: dict[str, asyncio.Server] = {}
 _PORTS: dict[str, tuple[str, int]] = {}  # instance name -> (address, port) it listens on
+_TLS: dict[str, bool] = {}  # instance name -> whether its gateway port speaks https (EXPOSURE=direct)
 LISTENER_ERRORS: dict[str, str] = {}
 _WAKE_REQUESTED: dict[str, float] = {}
 _wake: Callable[[str], jobs.Job] | None = None  # callable(name) -> Job; set by start()
@@ -75,7 +78,7 @@ _HOP_BY_HOP = frozenset(
         "host",
     }
 )
-_SET_BY_GATEWAY = frozenset({"cookie", "x-forwarded-for", "x-forwarded-proto", "x-forwarded-host"})
+_SET_BY_GATEWAY = frozenset({"cookie", "x-forwarded-for", "x-forwarded-proto", "x-forwarded-host", "x-sudoo-client-ip"})
 _NOT_A_VISIT = ("/websocket", "/longpolling", "/web/health", "/bus/")  # background traffic of an open tab
 _PANEL_COOKIES = {"sudoo_session"}
 _UPSTREAM_DOWN = (aiohttp.ClientConnectorError, aiohttp.ServerDisconnectedError, aiohttp.ClientOSError)
@@ -129,10 +132,12 @@ class DirectEdge:
 
 @dataclass(frozen=True, slots=True)
 class DomainHost:
-    """A custom domain the gateway answers on ports 80/443 (CUSTOM_DOMAINS=acme), and whether it has a certificate."""
+    """A custom domain the gateway answers on ports 80/443 (CUSTOM_DOMAINS=acme), and whether it has a certificate.
+    `panel`: the panel's own name (EXPOSURE=direct), forwarded to the web service; `instance` is then empty."""
 
     instance: str
     certificate: bool = False
+    panel: bool = False
 
 
 @dataclass(frozen=True)
@@ -142,15 +147,22 @@ class DomainRoutes:
     http_port: int = 80
     https_port: int = 443
     hosts: Mapping[str, DomainHost] = field(default_factory=dict)
+    panel_port: int | None = None
+    """EXPOSURE=direct: the web service's port; the panel's name and the server's own addresses are forwarded there."""
+    server_names: frozenset[str] = frozenset()
+    """EXPOSURE=direct: the server's own addresses (and PUBLIC_HOST), answered with the panel's own certificate."""
 
     def wanted(self) -> dict[str, tuple[str, int]]:
-        """The two listeners, when there is any domain ("" listens on every address, IPv4 and IPv6)."""
-        if not self.hosts:
+        """The two listeners, when there is any domain or the panel is answered here ("" listens on every address,
+        IPv4 and IPv6)."""
+        if not self.hosts and self.panel_port is None:
             return {}
         return {HTTP_LISTENER: ("", self.http_port), HTTPS_LISTENER: ("", self.https_port)}
 
 
 HTTP_LISTENER, HTTPS_LISTENER = "*http", "*https"  # listener names next to the instances' (never an instance name)
+SERVER_CERTIFICATE = "*server"  # the panel's own certificate, in _CONTEXT_DOMAIN (never a domain)
+PANEL_CLIENT_IP_HEADER = "X-Sudoo-Client-IP"  # the visitor's address, for the panel (exposure/direct.py)
 CHALLENGE_PATH = "/.well-known/acme-challenge/"
 DOMAINS = DomainRoutes()  # the custom domains served now (set by reconcile)
 
@@ -277,7 +289,9 @@ def add(name: str) -> None:
 
         gateway_link.add(name)
         return
-    run(_listen(name, exposure.provider().listen_host, int(store.read_env(name)["GATEWAY_PORT"])))
+    provider = exposure.provider()
+    tls = bool(getattr(provider, "gateway_tls", False))
+    run(_listen(name, provider.listen_host, int(store.read_env(name)["GATEWAY_PORT"]), tls))
 
 
 def remove(name: str) -> None:
@@ -306,21 +320,22 @@ async def reconcile(wanted: Mapping[str, tuple[str, int]], domains: DomainRoutes
     if domains is not None:
         DOMAINS = domains
         wanted = {**wanted, **domains.wanted()}
+    tls = bool(getattr(HOST.edge(), "gateway_tls", False))  # the instances' ports: https with EXPOSURE=direct
     for name in list(_PORTS):
-        if _PORTS[name] != wanted.get(name):
+        if _PORTS[name] != wanted.get(name) or (not name.startswith("*") and _TLS.get(name, False) != tls):
             await _unlisten(name)
     for name in set(LISTENER_ERRORS) - set(wanted):
         LISTENER_ERRORS.pop(name, None)
     for name, (host, port) in wanted.items():
         if name not in _PORTS:
-            await _listen(name, host, port)
+            await _listen(name, host, port, tls and not name.startswith("*"))
 
 
-async def _listen(name: str, host: str, port: int) -> None:
+async def _listen(name: str, host: str, port: int, tls: bool = False) -> None:
     if name in _RUNNERS:
         return
     try:
-        runner, listener = await _serve(name, host, port)
+        runner, listener = await _serve(name, host, port, tls)
     except OSError as exc:
         LISTENER_ERRORS[name] = f"Gateway port {port} is used by another program ({exc.strerror})."
         return
@@ -328,9 +343,10 @@ async def _listen(name: str, host: str, port: int) -> None:
     _RUNNERS[name] = runner
     _LISTENERS[name] = listener
     _PORTS[name] = (host, port)
+    _TLS[name] = tls
 
 
-async def _serve(name: str, host: str, port: int) -> tuple[web.AppRunner, asyncio.Server]:
+async def _serve(name: str, host: str, port: int, tls: bool = False) -> tuple[web.AppRunner, asyncio.Server]:
     """The gateway application of instance `name`, listening on host:port.
 
     A connection has GATEWAY_HEADER_TIMEOUT_SECONDS to send a request's line and headers (aiohttp's keep-alive
@@ -362,7 +378,7 @@ async def _serve(name: str, host: str, port: int) -> tuple[web.AppRunner, asynci
             port,
             reuse_address=True,
             reuse_port=True,
-            ssl=_tls_server() if name == HTTPS_LISTENER else None,
+            ssl=_tls_server() if name == HTTPS_LISTENER else _server_tls() if tls else None,
         )
     except OSError:
         await runner.cleanup()
@@ -372,6 +388,7 @@ async def _serve(name: str, host: str, port: int) -> tuple[web.AppRunner, asynci
 
 async def _unlisten(name: str) -> None:
     _PORTS.pop(name, None)
+    _TLS.pop(name, None)
     listener = _LISTENERS.pop(name, None)
     if listener:
         listener.close()  # no new connections; the runner closes the open ones
@@ -476,10 +493,23 @@ def _domain_of(request: web.Request) -> str:
     return (request.url.host or "").lower().rstrip(".")
 
 
+def _https_port() -> str:
+    return "" if DOMAINS.https_port == 443 else f":{DOMAINS.https_port}"
+
+
+def _server_name(domain: str) -> bool:
+    """One of the server's own addresses (or PUBLIC_HOST) while the panel is answered here (EXPOSURE=direct)."""
+    return DOMAINS.panel_port is not None and domain in DOMAINS.server_names
+
+
 async def _handle_domain_http(request: web.Request) -> web.StreamResponse:
-    """Port 80: HTTP-01 checks, then a permanent redirect to https once the domain has its certificate."""
+    """Port 80: HTTP-01 checks, then a permanent redirect to https once the domain has its certificate (the panel's
+    own addresses: at once, to the panel's own certificate)."""
     domain = _domain_of(request)
     entry = DOMAINS.hosts.get(domain)
+    if entry is None and _server_name(domain):
+        host = f"[{domain}]" if ":" in domain else domain
+        raise web.HTTPFound(f"https://{host}{_https_port()}{request.raw_path}")
     if entry is None:
         return web.Response(status=404, text="This domain is not served here.")
     if request.path.startswith(CHALLENGE_PATH):
@@ -489,19 +519,39 @@ async def _handle_domain_http(request: web.Request) -> web.StreamResponse:
             status=503, text="https for this domain is being set up. Try again in a few minutes.",
             headers={"Retry-After": "120"},
         )  # fmt: skip
-    port = "" if DOMAINS.https_port == 443 else f":{DOMAINS.https_port}"
-    raise web.HTTPPermanentRedirect(f"https://{domain}{port}{request.raw_path}")
+    raise web.HTTPPermanentRedirect(f"https://{domain}{_https_port()}{request.raw_path}")
 
 
 async def _handle_domain_https(request: web.Request) -> web.StreamResponse:
-    """Port 443: the instance of the domain, when the name the browser asked for (SNI) is the same as Host."""
+    """Port 443: the instance of the domain (or the panel, for its name), when the name the browser asked for (SNI)
+    is the same as Host. With EXPOSURE=direct, the server's own addresses and a panel name without its certificate
+    yet are the panel, on the panel's own certificate."""
     domain = _domain_of(request)
     entry = DOMAINS.hosts.get(domain)
     ssl_object = request.transport.get_extra_info("ssl_object") if request.transport else None
     asked = _CONTEXT_DOMAIN.get(ssl_object.context, "") if ssl_object is not None else ""
-    if entry is None or not entry.certificate or asked != domain:
-        return web.Response(status=421, text="This domain is not served on this connection.")
-    return await _to_instance(request, entry.instance, DirectEdge())
+    if entry is not None and entry.certificate and asked == domain:
+        if entry.panel:
+            return await _to_panel(request)
+        return await _to_instance(request, entry.instance, DirectEdge())
+    if asked == SERVER_CERTIFICATE and (_server_name(domain) or (entry is not None and entry.panel)):
+        return await _to_panel(request)
+    return web.Response(status=421, text="This domain is not served on this connection.")
+
+
+async def _to_panel(request: web.Request) -> web.StreamResponse:
+    """Forward a visit of the panel's address to the web service (127.0.0.1:PANEL_PORT), cookies included, with the
+    visitor's address in X-Sudoo-Client-IP."""
+    panel_url = f"http://127.0.0.1:{DOMAINS.panel_port}"
+    try:
+        if request.headers.get("Upgrade", "").lower() == "websocket":
+            return await _forward_websocket(request, panel_url, DirectEdge(), panel=True)
+        return await _forward_http(request, panel_url, "", DirectEdge(), panel=True)
+    except _OdooDown:
+        return web.Response(
+            status=502, text="The panel is not answering right now. Try again in a moment.",
+            headers={"Retry-After": "5"},
+        )  # fmt: skip
 
 
 _CONTEXTS: dict[str, tuple[tuple[int, int], ssl.SSLContext]] = {}  # domain -> (file's mtime and size, context)
@@ -541,10 +591,15 @@ def _domain_context(domain: str) -> ssl.SSLContext | None:
 
 
 def _choose_certificate(ssl_object: ssl.SSLObject, server_name: str | None, _: ssl.SSLContext) -> int | None:
-    """SNI: the certificate of the domain asked for; an unknown name (or none) ends the handshake."""
+    """SNI: the certificate of the domain asked for; an unknown name (or none) ends the handshake. While the panel is
+    answered here (EXPOSURE=direct), no name, one of the server's own and the panel's name before its certificate
+    get the panel's own certificate."""
     domain = (server_name or "").lower().rstrip(".")
     entry = DOMAINS.hosts.get(domain)
     context = _domain_context(domain) if entry and entry.certificate else None
+    panel = not domain or domain in DOMAINS.server_names or (entry is not None and entry.panel)
+    if context is None and DOMAINS.panel_port is not None and panel:
+        context = _server_context()
     if context is None:
         return ssl.ALERT_DESCRIPTION_UNRECOGNIZED_NAME
     ssl_object.context = context
@@ -554,6 +609,45 @@ def _choose_certificate(ssl_object: ssl.SSLObject, server_name: str | None, _: s
 def _tls_server() -> ssl.SSLContext:
     context = _new_context()
     context.sni_callback = _choose_certificate
+    return context
+
+
+def _server_context() -> ssl.SSLContext | None:
+    """The TLS context with the panel's own certificate (instances/panel_address.py), loaded again when it changed."""
+    from sudoo.instances import custom_domains
+
+    file = custom_domains.cert_file(custom_domains.SERVER_CERT)
+    try:
+        stat = file.stat()
+    except OSError:
+        return None
+    seen = (stat.st_mtime_ns, stat.st_size)
+    cached = _CONTEXTS.get(SERVER_CERTIFICATE)
+    if cached and cached[0] == seen:
+        return cached[1]
+    context = _new_context()
+    try:
+        context.load_cert_chain(file)
+    except (OSError, ssl.SSLError) as error:
+        print(f"The panel's own certificate is not usable: {error}", flush=True)
+        return None
+    _CONTEXTS[SERVER_CERTIFICATE] = (seen, context)
+    _CONTEXT_DOMAIN[context] = SERVER_CERTIFICATE
+    return context
+
+
+def _choose_server_certificate(ssl_object: ssl.SSLObject, _name: str | None, _: ssl.SSLContext) -> int | None:
+    context = _server_context()
+    if context is None:
+        return ssl.ALERT_DESCRIPTION_INTERNAL_ERROR
+    ssl_object.context = context
+    return None
+
+
+def _server_tls() -> ssl.SSLContext:
+    """An instance's gateway port with EXPOSURE=direct: https with the panel's own certificate."""
+    context = _new_context()
+    context.sni_callback = _choose_server_certificate
     return context
 
 
@@ -569,7 +663,7 @@ def _named_in_connection(headers: CIMultiDictProxy[str]) -> set[str]:
     return {token.strip().lower() for value in headers.getall("Connection", ()) for token in value.split(",")}
 
 
-def _forward_headers(request: web.Request, provider: Edge) -> CIMultiDict[str]:
+def _forward_headers(request: web.Request, provider: Edge, panel: bool = False) -> CIMultiDict[str]:
     """Request headers for Odoo: the visitor's own, in order and repeated ones kept, without hop-by-hop headers and
     panel cookies, and with forwarding headers the visitor cannot forge.
 
@@ -577,6 +671,9 @@ def _forward_headers(request: web.Request, provider: Edge) -> CIMultiDict[str]:
     gateway appends the address it can vouch for: the one the exposure plugin's own proxy reports
     (Cloudflare's CF-Connecting-IP), or else the address the connection comes from. Whatever a visitor put in front
     stays in front, where Odoo does not look; X-Forwarded-Proto and X-Forwarded-Host are always the gateway's.
+
+    `panel`: a visit of the panel's own address (EXPOSURE=direct): its cookies pass, and X-Sudoo-Client-IP carries
+    the address the connection comes from (any the visitor sent is dropped).
     """
     dropped = _HOP_BY_HOP | _SET_BY_GATEWAY | _named_in_connection(request.headers)
     headers: CIMultiDict[str] = CIMultiDict(
@@ -587,14 +684,16 @@ def _forward_headers(request: web.Request, provider: Edge) -> CIMultiDict[str]:
         crumb.strip()
         for value in request.headers.getall("Cookie", ())
         for crumb in value.split(";")
-        if crumb.strip() and crumb.split("=", 1)[0].strip() not in _PANEL_COOKIES
+        if crumb.strip() and (panel or crumb.split("=", 1)[0].strip() not in _PANEL_COOKIES)
     ]
     if cookies:  # a browser may send its cookies in several Cookie headers (HTTP/2): Odoo gets them as one
         headers["Cookie"] = "; ".join(cookies)
     trusted = getattr(provider, "client_ip_header", None)
-    visitor = (request.headers.get(trusted, "") if trusted else "") or request.remote or ""
+    visitor = (request.headers.get(trusted, "").split(",")[-1].strip() if trusted else "") or request.remote or ""
     chain = ", ".join(request.headers.getall("X-Forwarded-For", ()))
     headers["X-Forwarded-For"] = f"{chain}, {visitor}" if chain else visitor
+    if panel:
+        headers[PANEL_CLIENT_IP_HEADER] = visitor
     headers["X-Forwarded-Proto"] = "https" if provider.https else request.scheme
     headers["X-Forwarded-Host"] = request.host
     return headers
@@ -632,9 +731,11 @@ def _too_large() -> str:
     return f"The request is larger than this server accepts ({settings.gateway_max_upload_mb} MB)."
 
 
-async def _forward_http(request: web.Request, odoo_url: str, name: str, edge: Edge) -> web.StreamResponse:
+async def _forward_http(
+    request: web.Request, odoo_url: str, name: str, edge: Edge, panel: bool = False
+) -> web.StreamResponse:
     assert _SESSION is not None  # created when the event loop starts
-    headers = _forward_headers(request, edge)
+    headers = _forward_headers(request, edge, panel)
     body: AsyncIterator[bytes] | None = None
     if request.body_exists:
         limit = settings.gateway_max_upload_mb * 2**20
@@ -659,7 +760,7 @@ async def _forward_http(request: web.Request, odoo_url: str, name: str, edge: Ed
         if isinstance(exc, _UPSTREAM_DOWN):
             raise _OdooDown from exc
         raise
-    if not request.path.startswith(_NOT_A_VISIT):  # long-polling would distort the response times
+    if not panel and not request.path.startswith(_NOT_A_VISIT):  # long-polling would distort the response times
         HOST.answered(name, upstream.status, (time.perf_counter() - began) * 1000)
     async with upstream:
         response = web.StreamResponse(status=upstream.status, reason=upstream.reason)
@@ -668,7 +769,7 @@ async def _forward_http(request: web.Request, odoo_url: str, name: str, edge: Ed
             lowered = key.lower()
             if lowered in dropped:
                 continue
-            if lowered == "set-cookie" and value.split("=", 1)[0].strip() in _PANEL_COOKIES:
+            if not panel and lowered == "set-cookie" and value.split("=", 1)[0].strip() in _PANEL_COOKIES:
                 continue
             response.headers.add(key, value)
         try:
@@ -681,11 +782,13 @@ async def _forward_http(request: web.Request, odoo_url: str, name: str, edge: Ed
         return response
 
 
-async def _forward_websocket(request: web.Request, odoo_url: str, edge: Edge) -> web.StreamResponse:
+async def _forward_websocket(
+    request: web.Request, odoo_url: str, edge: Edge, panel: bool = False
+) -> web.StreamResponse:
     assert _SESSION is not None  # created when the event loop starts
     headers = CIMultiDict(
         (key, value)
-        for key, value in _forward_headers(request, edge).items()
+        for key, value in _forward_headers(request, edge, panel).items()
         if not key.lower().startswith("sec-websocket")
     )
     try:

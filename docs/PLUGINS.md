@@ -38,17 +38,18 @@ package declares in its `pyproject.toml` which classes it provides, under a grou
 
 ```toml
 [project.entry-points."sudoo.exposure"]
-cloudflare-quick = "sudoo.exposure.cloudflare:CloudflareQuickTunnel"
-host-ports = "sudoo.exposure.ports:HostPorts"
+direct = "sudoo.exposure.direct:Direct"
+proxy = "sudoo.exposure.proxy:Proxy"
+tunnel = "sudoo.exposure.cloudflare:CloudflareQuickTunnel"
 ```
 
-A setting names the plugin (`EXPOSURE=host-ports`). When the panel starts, `plugins.py` finds the class registered
+A setting names the plugin (`EXPOSURE=direct`). When the panel starts, `plugins.py` finds the class registered
 under that name, creates it **once** with the panel's settings (dependency injection: plugins never read the
 environment themselves), and every part of the panel uses that object.
 
 | Plugin type | Entry-point group | Setting | Interface | Built-in plugins |
 | :--- | :--- | :--- | :--- | :--- |
-| Exposure | `sudoo.exposure` | `EXPOSURE` | `exposure/base.py`: `Exposure` | `cloudflare-quick`, `host-ports` |
+| Exposure | `sudoo.exposure` | `EXPOSURE` | `exposure/base.py`: `Exposure` | `direct`, `proxy`, `tunnel` (also as `cloudflare-quick`), `host-ports` |
 | Add-on source | `sudoo.addon_sources` | `ENTERPRISE_SOURCE` | `addons/base.py`: `AddonSource` | `folder`, `git` (and `none`) |
 | Update trigger | `sudoo.update_triggers` | `UPDATE_TRIGGERS` (a list) | `triggers/base.py`: `UpdateTrigger` | `polling`, `github-app`, `github-webhook` |
 | Storage | `sudoo.storage` | `STORAGE` | `storage/base.py`: `Storage` | `sqlite` |
@@ -73,8 +74,8 @@ panel:
 
 | Setting | Where to change it |
 | :--- | :--- |
-| `ENTERPRISE_SOURCE`, `UPDATE_TRIGGERS`, `AUTH`, `SECOND_FACTORS`, `MAILER`, `RATE_LIMITER` | On the **Settings** page (super admins), section **Plugins**, then **Restart the panel**; or in `.env`. The page marks a changed setting until the restart. The restart stops only the backend for a few seconds (the web app, the connectors and the instances keep running) and is refused while jobs run. |
-| `EXPOSURE`, `STORAGE` | In `.env` only, then `cd /opt/odoo/manager && docker compose up -d`: the web service and the containers depend on them too. |
+| `ENTERPRISE_SOURCE`, `UPDATE_TRIGGERS`, `AUTH`, `SECOND_FACTORS`, `MAILER`, `RATE_LIMITER`, `EXPOSURE` | On the **Settings** page (super admins), section **Plugins**, then **Restart the panel**; or in `.env`. The page marks a changed setting until the restart. The restart stops only the backend for a few seconds (the web app, the connectors and the instances keep running) and is refused while jobs run. |
+| `STORAGE`, and an `EXPOSURE` change that moves the web service | In `.env` only, then `cd /opt/odoo/manager && docker compose up -d`: the web service and the containers depend on them too. The Settings page offers `direct`, `proxy` and `tunnel` (**Addresses and domains**) and refuses a change from or to `host-ports`, or to `proxy` with `PROXY_LISTEN` other than `127.0.0.1` ([Public addresses](concepts/PUBLIC_ADDRESSES.md#8-changing-the-mode-later)). |
 
 The settings of a plugin (for example `ENTERPRISE_PATH`, `POLL_MINUTES`, `SMTP_HOST`) mostly apply at once when
 changed on the Settings page; [Configuration](CONFIGURATION.md) says which.
@@ -86,12 +87,42 @@ changed on the Settings page; [Configuration](CONFIGURATION.md) says which.
 The panel and each instance's gateway listen on a local port. The exposure plugin makes those ports reachable and
 says what the public address is.
 
-### `cloudflare-quick` (default)
+New installations use `direct`; a `.env` without `EXPOSURE` keeps `tunnel`, the behaviour of earlier releases. The
+modes are compared in [Public addresses](concepts/PUBLIC_ADDRESSES.md).
 
-The default public-link extension: a public https link per instance and one for the panel, through a connector
-that only makes outgoing connections (Cloudflare quick tunnels). No open port, no account, no domain; https
-included. Addresses look like `https://<words>.trycloudflare.com` and change when the server restarts. See
-[Public links](concepts/TUNNELING.md).
+### `direct` (default of new installations)
+
+The server answers on ports 80 and 443 itself. The gateway serves every name with a certificate the panel gets and
+renews from the ACME authority (Let's Encrypt): the panel at `PANEL_DOMAIN` (else `PUBLIC_HOST` when it is a name,
+else the server's address with the panel's own certificate), each instance at its primary custom domain or managed
+name, else `https://<server address>:<gateway port>`. Addresses never change. Open TCP 80 and 443.
+
+| Setting | Default | Meaning |
+| :--- | :--- | :--- |
+| `PANEL_DOMAIN` | empty | The panel's name; its A/AAAA records point at the server |
+| `PUBLIC_HOST` | empty | The server's public name or address; empty: its public address |
+| `CUSTOM_DOMAINS` | empty: `acme` | Custom domains served with certificates from the ACME authority |
+
+### `proxy`
+
+Your own reverse proxy or load balancer handles https and forwards to the panel's port (`PANEL_PORT`) and each
+instance's gateway port on `PROXY_LISTEN`. It must send the visitor's address in `PROXY_CLIENT_IP_HEADER` on every
+request.
+
+| Setting | Default | Meaning |
+| :--- | :--- | :--- |
+| `PANEL_DOMAIN` or `PUBLIC_HOST` | (one required) | The name your proxy serves the panel under; `PUBLIC_HOST` also in instances' addresses (`https://<PUBLIC_HOST>:<gateway port>`) |
+| `PROXY_LISTEN` | `127.0.0.1` | Where the web service and the gateways listen |
+| `PROXY_CLIENT_IP_HEADER` | `X-Real-IP` | The header with the visitor's address |
+| `PUBLIC_SCHEME` | empty: `https` | Scheme of the addresses |
+| `CUSTOM_DOMAINS` | empty: `external` | The proxy handles the custom domains' https |
+
+### `tunnel` (earlier name `cloudflare-quick`)
+
+For servers that cannot open ports: a public https address per instance and one for the panel, through a connector
+that only makes outgoing connections (free quick tunnels). No open port, no account, no domain; https included.
+Addresses look like `https://<words>.trycloudflare.com` and change when a connector restarts. See
+[Public addresses](concepts/PUBLIC_ADDRESSES.md#5-tunnel).
 
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
@@ -102,13 +133,14 @@ included. Addresses look like `https://<words>.trycloudflare.com` and change whe
 
 ### `host-ports`
 
-Visitors connect straight to the server: the panel on `PANEL_PORT`, each instance on its `GATEWAY_PORT`, on every
+An earlier option, kept for the panels that use it (new servers use `direct` or `proxy`). Visitors connect straight
+to the server: the panel on `PANEL_PORT`, each instance on its `GATEWAY_PORT`, on every
 network interface. Addresses never change. For servers with a public address, or on an office network.
 
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
 | `PUBLIC_HOST` | (required) | The server's public name or address, for example `demo.example.com` |
-| `PUBLIC_SCHEME` | `http` | `https` only when a TLS proxy in front of the server handles https on those ports |
+| `PUBLIC_SCHEME` | empty: `http` | `https` only when a TLS proxy in front of the server handles https on those ports |
 
 ```
 EXPOSURE=host-ports
@@ -202,8 +234,8 @@ GitHub then sends a test call (a "ping"), and the panel answers it. Every call i
 refused, so only GitHub can trigger updates. A push updates every instance that follows the pushed repository and
 branch.
 
-With `EXPOSURE=cloudflare-quick` the panel's address changes when the server restarts, so the webhook address would
-have to be edited on GitHub each time: use it with `host-ports` or with your own domain.
+With `EXPOSURE=tunnel` the panel's address changes when the server restarts, so the webhook address would have to be
+edited on GitHub each time: use it with `direct` or `proxy`, whose addresses do not change.
 
 ---
 
@@ -261,9 +293,18 @@ Install it into the panel's environment, for example by adding it to `pyproject.
 `uv lock`, build the images from that source (README, "From source"), then set `EXPOSURE=wildcard-domain`.
 
 `client_ip_header` names a request header that carries the visitor's real address and that only the service in
-front can set (the built-in `cloudflare-quick` uses Cloudflare's `CF-Connecting-IP`; `host-ports` uses `None`). The
-panel trusts it for sign-in lockout, rate limits and the audit log, so name a header only when visitors cannot
-reach the panel without passing through that service, which replaces any value they send. An add-on source works the same way: implement
+front can set (the built-in `tunnel` uses Cloudflare's `CF-Connecting-IP`, `proxy` the `PROXY_CLIENT_IP_HEADER`;
+`direct` and `host-ports` use `None`). The panel trusts it for sign-in lockout, rate limits and the audit log, so name
+a header only when visitors cannot reach the panel without passing through that service, which replaces any value
+they send (for a list such as `X-Forwarded-For`, the last address is taken).
+
+A plugin may also have these attributes (read with `getattr`; absent means `None` or `False`):
+
+| Attribute | Meaning | Built-in use |
+| :--- | :--- | :--- |
+| `panel_client_ip_header` | A header with the visitor's address that only something on the server itself can send to the web service | `direct`: `X-Sudoo-Client-IP`, set by the gateway |
+| `gateway_tls` | The instances' gateway ports speak https, with the panel's own certificate | `direct` |
+| `serves_panel` | The gateway answers the panel's own address on ports 80 and 443 and forwards it to the web service | `direct` | An add-on source works the same way: implement
 `available(version)` and `prepare(version, log)` from `addons/base.py` and register it under
 `sudoo.addon_sources`. The panel mounts into an instance only folders it knows hold Enterprise add-ons: give your
 source an `owns(folder)` method returning whether a folder is one of yours, so instances made from it keep starting

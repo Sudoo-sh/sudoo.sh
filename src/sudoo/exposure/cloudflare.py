@@ -1,4 +1,5 @@
-"""Exposure plugin "cloudflare-quick": a free Cloudflare quick tunnel per target, no account, no domain, no open port.
+"""Exposure plugin "tunnel" (earlier name "cloudflare-quick"): a free Cloudflare quick tunnel per target, no account,
+no domain, no open port. For servers that cannot accept incoming connections; servers that can use "direct".
 
 The server needs no incoming connection: a connector container (`cloudflared`) makes an outgoing connection to
 Cloudflare, which gives it a random address https://<words>.trycloudflare.com and sends every visit to that address
@@ -8,7 +9,7 @@ back through the connection. One connector per target:
     <connector_prefix><name>    -> instance gateway (127.0.0.1:GATEWAY_PORT of the instance)
 
 Each connector reports its address on its status port (GET /quicktunnel). The address changes only when the
-connector itself restarts; restarting the panel or an instance keeps it. See docs/concepts/TUNNELING.md.
+connector itself restarts; restarting the panel or an instance keeps it. See docs/concepts/PUBLIC_ADDRESSES.md.
 """
 
 from __future__ import annotations

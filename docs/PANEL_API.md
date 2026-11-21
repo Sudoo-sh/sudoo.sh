@@ -361,7 +361,7 @@ code or the agent's signature).
 
 | Method and path | Permission | Body | Answer |
 | :--- | :--- | :--- | :--- |
-| `GET /server` | `instances.view` | | 200, the panel's version and address, the plugins in use, the server's figures, the number of live-event clients |
+| `GET /server` | `instances.view` | | 200, the panel's version and address, the plugins in use, `public_address` (`mode`: `direct`, `proxy`, `tunnel` or the plugin's name; `url`; `domain`: the panel's name or `null`; `status` of its certificate: `waiting`, `active`, `failed` or `null`; `reason`; `server_addresses`), the server's figures, the number of live-event clients |
 | `POST /server/restart` | `settings.manage` | `{}` | **202** `{"restarting": true}`: the backend stops and Docker starts it again within seconds; the web app, the connectors and the instances keep running. **409** while jobs run |
 | `GET /metrics` | `instances.view` | | 200, the latest figures of the server and every instance, and the capacity estimate ([Metrics](#9-metrics)) |
 | `GET /server/managed-subdomains` | `instances.view` | | 200, managed subdomains: `setting` (`MANAGED_SUBDOMAINS`), `linked`, `enabled` (Sudoo.sh offers them), `active`, `base_domain`, `company`, `limit`, `used`, `held` (the names this panel holds, for every server), `other_servers` (of those, the names other servers serve), `checked_at`, `error`, `pending_release`, `addresses` (the public addresses sent) |
@@ -1034,7 +1034,7 @@ while the panel runs, on the **Settings** page or through the API; the change is
 | :--- | :--- | :--- |
 | `now` | At once, without a restart | Almost every setting: limits, sessions, e-mail, daily backups (`daily_backups`, `daily_backup_time`, `timezone`), Odoo images and versions, Enterprise paths, contact, accent colour (marked **live** in [Configuration](CONFIGURATION.md)) |
 | `restart` | After the panel restarts (`POST /api/v1/server/restart`, or **Restart the panel** on the Settings page) | The settings that choose plugins: `mailer`, `second_factors`, `update_triggers`, `enterprise_source`, `auth`, `rate_limiter` |
-| `env` | Only in `.env`; the API refuses a change with 400 | Folders, ports, exposure, storage |
+| `env` | Only in `.env`; the API refuses a change with 400 | Folders, ports, the proxy's address, storage. `EXPOSURE` applies at restart; the API takes `direct`, `proxy` or `tunnel` and answers 409 for a change that would move the web service ([Public addresses](concepts/PUBLIC_ADDRESSES.md#8-changing-the-mode-later)) |
 
 ```json
 GET /api/v1/settings
@@ -1149,7 +1149,7 @@ restarts). Container figures come from a continuous `docker stats` stream.
 | `uptime_seconds` | Since Odoo's container started; `null` when it is not running |
 | `disk_bytes` | Database and files, measured every 5 minutes while running |
 | Server only: `memory_*_bytes`, `disk_percent`, `disk_*_bytes`, `load_1m`, `cores`, `uptime_seconds`, `instances_running`, `instances_total` | `instances_running`: how many instances run now |
-| Server only: `panel_cpu_percent`, `panel_memory_bytes`, `panel_cpu_peak_percent`, `panel_memory_peak_bytes` | The panel's own use (its backend, its web service and the Cloudflare connectors): now, and the highest over the history kept |
+| Server only: `panel_cpu_percent`, `panel_memory_bytes`, `panel_cpu_peak_percent`, `panel_memory_peak_bytes` | The panel's own use (its backend, its web service and, with `EXPOSURE=tunnel`, the connectors): now, and the highest over the history kept |
 
 `GET /api/v1/metrics` returns the latest sample:
 

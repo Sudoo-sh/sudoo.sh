@@ -88,12 +88,13 @@ def fetch(url: str) -> bytes:
 FETCH: Callable[[str], bytes] = fetch  # replaced in tests
 
 
-def probe(domain: str) -> str | None:
-    """Fetch a fresh answer through the domain; None when it came back, else why not."""
+def probe(domain: str, scheme: str | None = None) -> str | None:
+    """Fetch a fresh answer through the domain (over `scheme`; by default https for external domains, else http);
+    None when it came back, else why not."""
     token = secrets.token_urlsafe(32)
     content = secrets.token_urlsafe(32)
     certificates.publish_challenge(token, content)
-    scheme = "https" if tls_mode() == "external" else "http"
+    scheme = scheme or ("https" if tls_mode() == "external" else "http")
     try:
         body = FETCH(f"{scheme}://{domain}{PROBE_PATH}{token}")
     except urllib.error.HTTPError as error:
@@ -156,8 +157,9 @@ def _failed(record: dict[str, Any], reason: str, now: float) -> None:
     _alert(record, f"Certificate of {domain} could not be {verb}", reason, f"certificate:{domain}")
 
 
-def _issue(record: dict[str, Any], now: float) -> None:
-    domain = record["domain"]
+def obtain(domain: str) -> certificates.Facts:
+    """Get a certificate for `domain` from the ACME authority (HTTP-01, answered by the gateway) and keep it where
+    the gateway reads it; its facts. Raises acme.AcmeError, ValueError or OSError when that fails."""
     directory = acme.directory_url(settings.acme_directory)
     key_pem, account_url = certificates.account(directory)
     client = acme.Client(directory, acme.load_key(key_pem), account_url, transport=TRANSPORT)
@@ -176,7 +178,12 @@ def _issue(record: dict[str, Any], now: float) -> None:
             directory, key_pem, client.register(settings.acme_email or settings.admin_contact_email)
         )
         chain = client.certificate(domain, key, certificates.publish_challenge, certificates.withdraw_challenge)
-    found = certificates.store(domain, acme.key_pem(key), chain)
+    return certificates.store(domain, acme.key_pem(key), chain)
+
+
+def _issue(record: dict[str, Any], now: float) -> None:
+    domain = record["domain"]
+    found = obtain(domain)
     stored = _set(
         domain, status="active", reason=None, attempts=0, checked_at=now, next_attempt_at=None,
         renew_at=renew_at(found.not_before, found.not_after),
@@ -383,6 +390,12 @@ def round_(now: float | None = None) -> int:
                 process(record, current)
             except Exception as error:  # noqa: BLE001 - one domain must not stop the others
                 print(f"domains: {domain}: {error!r}", flush=True)
+    from sudoo.instances import panel_address
+
+    try:
+        panel_address.round_(now)
+    except Exception as error:  # noqa: BLE001 - try again at the next round
+        print(f"domains: the panel's own name: {error!r}", flush=True)
     return seen
 
 
@@ -397,6 +410,6 @@ def run_forever() -> None:
 
 
 __all__ = [
-    "COLLECTION", "backoff", "check_moved", "due", "is_new", "moved_reason", "process", "renew_at", "round_",
+    "COLLECTION", "backoff", "check_moved", "due", "is_new", "moved_reason", "obtain", "process", "renew_at", "round_",
     "run_forever", "target_text",
 ]  # fmt: skip

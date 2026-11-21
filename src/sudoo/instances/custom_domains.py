@@ -40,6 +40,7 @@ STATUSES = ("waiting_dns", "issuing", "active", "renewing", "failed")
 SERVING = ("active", "renewing")
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
 CERTS = "certs"
+SERVER_CERT = "_server"  # certs/_server.pem: the panel's own certificate (panel_address.py), never a domain
 CHALLENGES = "acme-challenge"
 
 _LOCK = threading.RLock()

@@ -7,8 +7,10 @@ which it shares with the panel:
     routes.json    written by the panel (gateway_link.py): the instances (gateway port, Odoo port, switched off),
                    the address to listen on and the visitor-address header the exposure trusts, the gateway's
                    settings (limits, contact details for the pages) and the custom domains (their instance, whether
-                   they have a certificate, ports 80/443). Read again whenever it changes; a file that is not valid
-                   is refused and the last valid one kept.
+                   they have a certificate, ports 80/443); with EXPOSURE=direct also whether the gateway ports speak
+                   https, the panel's name, the server's own addresses and the web service's port, where the panel's
+                   visits go. Read again whenever it changes; a file that is not valid is refused and the last valid
+                   one kept.
     certs/         the custom domains' certificates and keys, acme-challenge/ the answers of running domain checks
                    (written by the panel, domains/certificates.py)
     visits.json    written here: the last visit of every instance. The panel reads it (automatic pause, daily
@@ -93,6 +95,7 @@ class Edge:
     listen_host: str = "127.0.0.1"
     https: bool = False
     client_ip_header: str | None = None
+    gateway_tls: bool = False  # EXPOSURE=direct: the gateway ports speak https, with the panel's own certificate
 
 
 @dataclass(frozen=True)
@@ -137,7 +140,7 @@ def parse_routes(data: Any) -> Routes:
     header = raw_edge.get("client_ip_header")
     if header is not None and not (isinstance(header, str) and _HEADER_RE.match(header)):
         raise ValueError("client_ip_header is not a header name")
-    edge = Edge(listen_host, raw_edge.get("https") is True, header)
+    edge = Edge(listen_host, raw_edge.get("https") is True, header, raw_edge.get("gateway_tls") is True)
     values = data.get("settings", {})
     if not isinstance(values, dict):
         raise ValueError("no settings")
@@ -180,10 +183,30 @@ def _parse_domains(raw: Any, instances: dict[str, tuple[int, gateway.Route]], po
     for domain, entry in raw["hosts"].items():
         if not isinstance(domain, str) or not _DOMAIN_RE.match(domain) or not isinstance(entry, dict):
             raise ValueError(f"not a domain: {str(domain)[:80]!r}")
+        if entry.get("panel") is True:  # the panel's own name (EXPOSURE=direct)
+            hosts[domain] = gateway.DomainHost("", entry.get("certificate") is True, panel=True)
+            continue
         if entry.get("instance") not in instances:
             raise ValueError(f"{domain}: unknown instance")
         hosts[domain] = gateway.DomainHost(str(entry["instance"]), entry.get("certificate") is True)
-    return gateway.DomainRoutes(http_port, https_port, hosts)
+    panel_port = raw.get("panel_port")  # absent unless the panel is answered here
+    if panel_port is not None:
+        panel_port = _port(panel_port)
+        if panel_port in ports | {http_port, https_port}:
+            raise ValueError("the panel's port is taken")
+    names = raw.get("server_names", [])
+    if not isinstance(names, list) or len(names) > 16:
+        raise ValueError("server_names is not as expected")
+    server_names: set[str] = set()
+    for name in names:
+        if not isinstance(name, str):
+            raise ValueError("not a server name")
+        try:
+            server_names.add(str(ipaddress.ip_address(name)))
+        except ValueError:
+            if _DOMAIN_RE.match(name):  # anything else (a name without a dot) is left out
+                server_names.add(name)
+    return gateway.DomainRoutes(http_port, https_port, hosts, panel_port, frozenset(server_names))
 
 
 def routes_document(
@@ -197,7 +220,10 @@ def routes_document(
     document: dict[str, Any] = {
         "format": FORMAT,
         "mode": mode,
-        "edge": {"listen_host": edge.listen_host, "https": edge.https, "client_ip_header": edge.client_ip_header},
+        "edge": {
+            "listen_host": edge.listen_host, "https": edge.https, "client_ip_header": edge.client_ip_header,
+            "gateway_tls": edge.gateway_tls,
+        },  # fmt: skip
         "settings": values,
         "instances": instances,
     }
@@ -206,10 +232,17 @@ def routes_document(
             "http_port": domains.http_port,
             "https_port": domains.https_port,
             "hosts": {
-                domain: {"instance": host.instance, "certificate": host.certificate}
+                domain: (
+                    {"panel": True, "certificate": host.certificate}
+                    if host.panel
+                    else {"instance": host.instance, "certificate": host.certificate}
+                )
                 for domain, host in domains.hosts.items()
             },
         }
+        if domains.panel_port is not None:
+            document["domains"]["panel_port"] = domains.panel_port
+            document["domains"]["server_names"] = sorted(domains.server_names)
     return json.dumps(document, indent=1, sort_keys=True)
 
 

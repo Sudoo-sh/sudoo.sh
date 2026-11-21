@@ -25,7 +25,7 @@ each part was chosen.
 | **Web app** | The panel in the browser: React, TypeScript and SCSS design tokens, Chart.js for the live charts, built by Vite and served by Caddy (container `sudoo-web`) on `PANEL_PORT` (9000). Caddy forwards `/api`, `/hooks` and `/docs` to the backend and `/api/v1/events` to the live events. The design system is described in [Design](DESIGN.md). | `web/` |
 | **Backend** | The API, `/api/v1` (Flask, served by Gunicorn, container `sudoo-panel`) on `127.0.0.1:API_PORT` (9002). | `sudoo/web/` |
 | **Live events** | `/api/v1/events`: every change (jobs, instances, resource figures, settings) pushed to connected clients as Server-Sent Events, on the backend's asyncio loop (the one `gateway.py` runs), `127.0.0.1:9001`. Always in the backend. | `sudoo/core/events.py`, `web/v1/events.py` |
-| **Gateway** | One small web server per instance (aiohttp) on `127.0.0.1:<gateway port>`. Forwards every request to that instance's Odoo. Runs in its own container, `sudoo-gateway` (`GATEWAY_MODE=service`, the default), or inside the backend (`embedded`). | `sudoo/instances/gateway.py`, `gateway_service.py`, `gateway_link.py` |
+| **Gateway** | One small web server per instance (aiohttp) on its gateway port (`127.0.0.1` behind a tunnel or a proxy on the server; every address, over https, with `EXPOSURE=direct`), and, with direct, managed names or custom domains, ports 80 and 443 for every name, each with its certificate. Forwards every request to that instance's Odoo, and with direct the panel's own address to the web service. Runs in its own container, `sudoo-gateway` (`GATEWAY_MODE=service`, the default), or inside the backend (`embedded`). | `sudoo/instances/gateway.py`, `gateway_service.py`, `gateway_link.py` |
 | **Mail catcher** | A small SMTP server in its own container, `sudoo-mail` (the panel's image, `sudoo.sh mailcatcher`), that staging and development instances send their e-mail to: nothing reaches real addresses. The backend connects it to those instances' networks, points their `odoo.conf` at it, switches off their own mail servers and reads the caught e-mails from `/opt/odoo/mail` for the Mail tab ([Admin guide](ADMIN_GUIDE.md#23-mail-catcher)). | `sudoo/mailcatcher/` |
 | **Metrics** | Figures of the server and every instance (CPU, memory, requests, errors, response times, uptime, disk) with one hour of history, from the monitor and the gateway. | `sudoo/instances/metrics.py` |
 | **Roles** | Five roles, each a set of named permissions; every endpoint and action checks a permission, never a role. | `sudoo/roles.py` |
@@ -33,7 +33,7 @@ each part was chosen.
 | **Background work** | Threads in the panel's process: resource monitor (every `METRICS_INTERVAL_SECONDS`, 5 s, reading a continuous `docker stats` stream), automatic pause (every 2 min), automatic deletion (every 10 min), daily backups (checked every minute, run once `DAILY_BACKUP_TIME` has passed in `TIMEZONE`), GitHub polling (every `POLL_MINUTES`), alerts (the end of every job, and the server and instances every `METRICS_INTERVAL_SECONDS`; e-mail, webhooks, the bell). | `sudoo/background.py`, `instances/monitor.py`, `sudoo/alerts/` |
 | **Backups** | Odoo-format zips (`dump.sql`, `filestore/`, `manifest.json`) in `BACKUPS_DIR`, named `<instance>__<database>__<YYYYMMDD-HHMMSS>__<kind>.zip`. Seven kinds: `manual`, `daily`, `deletion`, `before-restore`, `before-rollback`, `before-repair`, `before-update`; each instance keeps only its latest `daily`, `before-restore`, `before-rollback`, `before-repair` and `before-update` (taken before a code update, put back when it fails: `SAFE_UPDATES`), `before-restore` and `before-rollback` for `ROLLBACK_HOURS`. Restoring replaces an instance's database and filestore in place; a backup of another instance of the same Odoo series is loaded under the target's database name and neutralised. | `sudoo/instances/backups.py`, `instances/operations.py` |
 | **Jobs** | Every action (create, update, restart...) runs as a job in its own thread, with steps, notes and a log. One job at a time per instance; others wait. | `sudoo/core/jobs.py`, `instances/operations.py` |
-| **Exposure plugin** | Makes the panel and each gateway reachable from outside. Default `cloudflare-quick`, the default public-link extension: one `cloudflared` connector container per target, opening an outgoing connection to the public-link service. Alternative `host-ports`: the ports are opened on the server. | `sudoo/exposure/` |
+| **Exposure plugin** | Makes the panel and each gateway reachable from outside ([Public addresses](concepts/PUBLIC_ADDRESSES.md)). `direct` (the default of new installations): the gateway answers ports 80 and 443 itself with ACME certificates. `proxy`: the owner's reverse proxy in front, local ports and a trusted header with the visitor's address. `tunnel` (earlier name `cloudflare-quick`): one `cloudflared` connector container per target, opening an outgoing connection. `host-ports` (earlier option): the ports opened on the server. | `sudoo/exposure/`, `instances/panel_address.py` |
 | **Add-on source plugin** | Provides the Enterprise add-ons of a version: an existing folder (`folder`) or a branch of a git repository (`git`). | `sudoo/addons/` |
 | **Settings** | Every setting, typed and checked (pydantic-settings). Almost all can be changed on the Settings page while the panel runs, kept on top of `.env` with secrets encrypted. | `sudoo/config.py` |
 | **Instances** | One Docker Compose project per instance: an `odoo` container (official image) and a `db` container (PostgreSQL 16), two volumes. | `/opt/odoo/instances/<name>/` |
@@ -50,9 +50,9 @@ Each instance uses three ports on `127.0.0.1`, chosen when it is created and sto
 
 | Port | Starts at | Used by |
 | :--- | :--- | :--- |
-| `GATEWAY_PORT` | 8069 | The gateway listens here; the instance's connector points here. |
+| `GATEWAY_PORT` | 8069 | The gateway listens here; a proxy or the instance's connector points here. |
 | `ODOO_PORT` | 28069 | Odoo itself; only the gateway connects to it. |
-| `CONNECTOR_METRICS_PORT` | 20300 | The connector reports its public address here. |
+| `CONNECTOR_METRICS_PORT` | 20300 | With `tunnel` only: the connector reports its public address here. |
 
 ---
 
@@ -69,7 +69,7 @@ data; it shares one folder with the backend, `<ODOO_ROOT>/gateway` (root only):
 
 | File | Written by | What it is |
 | :--- | :--- | :--- |
-| `routes.json` | backend | Every instance's gateway and Odoo port and whether it is switched off, the address to listen on and the visitor-address header the exposure trusts, and the gateway settings (also those changed in the panel). |
+| `routes.json` | backend | Every instance's gateway and Odoo port and whether it is switched off, the address to listen on, the visitor-address header the exposure trusts, the gateway settings (also those changed in the panel), the names answered on ports 80 and 443 and, with `EXPOSURE=direct`, the panel's name, the server's own addresses and the web service's port. |
 | `visits.json` | gateway | The last visit of every instance; the backend takes newer ones into the instance state (automatic pause, daily backups). |
 | `gateway.sock` | gateway | Control channel: `POST /sync` makes the gateway read `routes.json` and reconcile its listeners now, and answers with them, their errors and the requests counted since the last call (the backend adds them to the metrics); `GET /healthz` for the health check. |
 | `panel.sock` | backend | `POST /wake/<name>`: the gateway asks the backend to start a paused instance. |
@@ -111,9 +111,9 @@ When a link changes (after a restart), the monitor sees it within 15 seconds and
 
 | State | What runs |
 | :--- | :--- |
-| Running | Odoo, PostgreSQL, connector |
-| Paused | connector only (so a visit still reaches the gateway, which starts the rest) |
-| Switched off | connector only; the gateway answers "Switched off" and does not start anything |
+| Running | Odoo, PostgreSQL (and its connector with `tunnel`) |
+| Paused | nothing of its own, besides a connector with `tunnel` (a visit still reaches the gateway, which starts the rest) |
+| Switched off | the same; the gateway answers "Switched off" and does not start anything |
 
 Besides its files, each instance has a small record in the panel's storage (`core/state.py`, collection
 `instance_state`):
@@ -144,7 +144,7 @@ never replaces its own snapshot); a background loop removes expired snapshots ev
 
 ![Creating an instance](images/create-flow.svg)
 
-If any step fails, everything created so far (containers, volumes, connector, folder) is removed, so the same name
+If any step fails, everything created so far (containers, volumes, connector with `tunnel`, folder) is removed, so the same name
 can be used again. `addons_path` lists every folder of the repository that contains modules (including submodules
 such as `oca/web`), then the Enterprise add-ons; it is recalculated on every start, restart and update.
 
@@ -209,24 +209,30 @@ Each decision lists what was chosen, why, what it costs, and the alternatives th
   shared secret (a Unix socket in a root-only folder is unreachable from the network and the instances' containers,
   with nothing to leak).
 
-### Public links through exposure plugins, outgoing connections by default
-- **Chosen:** how the panel and the instances are reached is an exposure plugin. The default, `cloudflare-quick`,
-  gives each destination (panel, every instance) a connector that connects out to the public-link service and
-  receives an https address. See [Public links](concepts/TUNNELING.md).
-- **Why:** many servers accept no incoming connections (cloud containers, office networks, providers that forward
-  only SSH), but almost all allow outgoing ones. The default needs no account, no domain and no open port, and
-  includes https.
-- **Cost:** with the default, links change when the server or a connector restarts. The panel always shows the
-  current links and updates each Odoo's own address automatically.
-- **Considered:** opening ports (kept as the `host-ports` plugin, for servers that allow it); SSH tunnels (every
-  user, client and webhook sender would need SSH access); private networks such as Tailscale (every visitor would
-  need the software); a plugin for a fixed domain (permanent links, needs a domain: possible as a plugin).
+### Public addresses through exposure plugins, the server's own ports by default
+- **Chosen:** how the panel and the instances are reached is an exposure plugin. The default of new installations,
+  `direct`, has the gateway answer ports 80 and 443 of the server for every name (the panel's name, managed names,
+  custom domains), each with a certificate the panel gets and renews from an ACME authority (Let's Encrypt). The
+  panel's own address is forwarded by the gateway to the web service on `127.0.0.1`, with the visitor's address in
+  `X-Sudoo-Client-IP`. `proxy` fits servers behind the owner's reverse proxy; `tunnel` gives each destination a
+  connector that connects out, for servers that accept no incoming connections. See
+  [Public addresses](concepts/PUBLIC_ADDRESSES.md).
+- **Why:** a server with a public address needs nothing in front of it: fixed addresses, https that ends on the
+  server, nothing between the visitor and the server. The certificate code already served custom domains and
+  managed names, so the panel's own name is one more name. Servers that cannot open ports still have the tunnel.
+- **Cost:** ports 80 and 443 must be open; until the panel has a name it is served with its own certificate, which
+  browsers warn about once. With `tunnel`, addresses change when a connector restarts.
+- **Existing installations:** a `.env` without `EXPOSURE` keeps `tunnel`, the earlier default, and updates keep the
+  value in `.env`, so no update changes how a running panel is reached.
+- **Considered:** a separate reverse proxy container (Caddy or Traefik) in front (a second place that holds
+  certificates and routes, kept in step with the panel's instances); SSH tunnels (every user, client and webhook
+  sender would need SSH access); private networks such as Tailscale (every visitor would need the software).
 
 ### One link per instance
 - **Chosen:** every instance has its own link and Odoo runs at its normal paths.
 - **Why:** Odoo cannot run under a sub-path such as `/instance/sales/`. A shared address would need a cookie to remember
   the instance, which breaks API calls, webhooks, links in e-mails and having two instances open at the same time.
-- **Cost:** one small connector per instance (about 30 MB of memory).
+- **Cost:** one name per instance (a managed name or a custom domain, each with its certificate); with `tunnel`, one small connector per instance (about 30 MB of memory).
 
 ### One GitHub App per panel, deploy keys as the fallback
 - **Chosen:** each panel registers its own private, read-only GitHub App through GitHub's App Manifest flow, and a
@@ -297,7 +303,7 @@ Each decision lists what was chosen, why, what it costs, and the alternatives th
   panel's port. The backend only answers `/api/v1`.
 - **Why:** the front end can change, be restyled or be replaced without touching the backend; every page uses the
   same API as other systems; a modern, animated interface without giving up the strict Content-Security-Policy.
-  Taking over the panel's port keeps the panel's public link: the connector in front of it is not touched.
+  Taking over the panel's port keeps the panel's public address: what is in front of it is not touched.
 - **Considered:** the previous plain JavaScript pages served by Flask (no build step, but every page hand-built
   and hard to extend); server-rendered pages (every update a full round trip); Next.js (a Node server to run for
   pages that need none).
@@ -458,7 +464,7 @@ Each decision lists what was chosen, why, what it costs, and the alternatives th
 ### Plugins for everything that differs between servers
 - **Chosen:** how instances are reached (`EXPOSURE`) and where Enterprise add-ons come from (`ENTERPRISE_SOURCE`)
   are plugins, found through Python entry points and created once with the settings. See [Plugins](PLUGINS.md).
-- **Why:** servers differ: one accepts no incoming connection, another has a public address; one team keeps
+- **Why:** servers differ: one has a public address, another sits behind a proxy or accepts no incoming connection; one team keeps
   Enterprise in folders, another in git. Building one way in would force it on everyone. Entry points are the
   standard Python mechanism (pytest, Flask, Sphinx), so a plugin can live in its own package without changing the
   panel.

@@ -16,14 +16,14 @@ domains and certificates, off-site copies of backups.
 4. [Updating, rolling back, uninstalling](#4-updating-rolling-back-uninstalling)
 5. [Settings](#5-settings)
 6. [E-mail](#6-e-mail)
-7. [Public links](#7-public-links)
+7. [Public addresses](#7-public-addresses)
 8. [Containers, files and folders on the server](#8-containers-files-and-folders-on-the-server)
 9. [Odoo Enterprise add-ons](#9-odoo-enterprise-add-ons)
 10. [Backups](#10-backups)
 11. [Accounts from the command line](#11-accounts-from-the-command-line)
 12. [Checking that everything works](#12-checking-that-everything-works)
 13. [Troubleshooting](#13-troubleshooting)
-14. [Moving to permanent links](#14-moving-to-permanent-links)
+14. [Changing how the server is reached](#14-changing-how-the-server-is-reached)
 15. [The GitHub App](#15-the-github-app)
 16. [Alerts](#16-alerts)
 17. [E-mail templates](#17-e-mail-templates)
@@ -48,8 +48,10 @@ domains and certificates, off-site copies of backups.
 | 2 CPU cores, 2 GB of memory or more (4 GB recommended); about 0.7 to 1.5 GB per running instance | Odoo and PostgreSQL. Paused instances use none; [how many instances a server runs](#how-many-instances-can-my-server-run). |
 | 20 GB of free disk on `/opt` and on Docker's folder (`/var/lib/docker`) | Odoo images (about 1.5 GB per version), databases, attachments, backups. |
 | Docker Engine 24+ with the Compose v2 plugin (the installer installs them after asking) | The panel and every instance are Compose projects. |
-| Outgoing HTTPS to github.com, ghcr.io, registry-1.docker.io and Cloudflare (443, 7844); GitHub SSH (22) for private repositories | Releases and code, the Sudoo.sh images, the Odoo images, public links. |
-| **No incoming port** | Public access goes through connections the server opens itself ([Public links](concepts/TUNNELING.md)). Only SSH is needed, for administration. |
+| Outgoing HTTPS to github.com, ghcr.io and registry-1.docker.io (443); GitHub SSH (22) for private repositories | Releases and code, the Sudoo.sh images, the Odoo images. |
+| **Incoming TCP 80 and 443** (the default, `EXPOSURE=direct`) | The server answers the panel's and the instances' addresses itself, with certificates from Let's Encrypt; the certificate authority checks port 80 ([Public addresses](concepts/PUBLIC_ADDRESSES.md)). Nothing else on the server may use these ports. Plus SSH for administration. |
+| Or: behind your own reverse proxy (`proxy`) | The proxy handles https and forwards to the panel's and the gateways' local ports; no port of the server is opened to the internet. |
+| Or: no incoming port at all (`tunnel`) | For a server that cannot accept connections: public access goes through connections the server opens itself, which needs outgoing TCP and UDP 7844. Addresses change when a connector restarts. |
 
 The installer checks all of this before it changes anything. To only check (changes nothing):
 
@@ -191,19 +193,27 @@ What it does, in order:
    [Sudoo.sh Licence Agreement](https://sudoo.sh/legal/license) and the address of the exact version, and you type `accept`. Without a
    terminal it stops unless `--accept-licence` is given ([section 22](#the-installer)). Nothing is checked or
    installed before.
-1. **Checks the server** (read only): root, operating system, architecture, systemd, processor, memory, disk, clock,
-   the panel's ports, the tools it needs, internet access, Docker. When a check fails it stops, with the fix, before
-   changing anything.
-2. **Installs what is missing, after asking**: curl, openssl, ca-certificates, Docker Engine (from Docker's
+1. **Asks how people should reach this server** (a fresh installation only): **Direct** (pre-selected and
+   recommended: the server answers on ports 80 and 443 itself), **Proxy** (your own reverse proxy or load balancer
+   in front) or **Tunnel** (no open port). Before it accepts Direct it checks that ports 80 and 443 are free on the
+   server, that the server has a public address of its own and that a host firewall (ufw, firewalld) lets them in
+   (whether they are open from the internet cannot be seen from the server itself; the panel checks port 80 again
+   before each certificate); it explains what it found and suggests Proxy or Tunnel when something is not right.
+   Direct and Proxy then ask for the panel's name (`PANEL_DOMAIN`). The answer is written to `.env` as `EXPOSURE`;
+   an update never asks again and never changes it.
+2. **Checks the server** (read only): root, operating system, architecture, systemd, processor, memory, disk, clock,
+   the panel's ports, the tools it needs, internet access (port 7844 only for a tunnel), Docker. When a check fails it
+   stops, with the fix, before changing anything.
+3. **Installs what is missing, after asking**: curl, openssl, ca-certificates, Docker Engine (from Docker's
    repository, or the distribution's packages when Docker has none for this release), the Compose and buildx
    plugins, starting Docker. Each question is answered **[y]es**, **[n]o** or **[a]ll** (yes to every later question).
    Without a terminal it stops and prints the command to run again with `--yes` (also `--allow-all`).
-3. **Downloads the images** `ghcr.io/sudoo-sh/sudoo-panel` and `ghcr.io/sudoo-sh/sudoo-web`, pinned by digest in the
+4. **Downloads the images** `ghcr.io/sudoo-sh/sudoo-panel` and `ghcr.io/sudoo-sh/sudoo-web`, pinned by digest in the
    installer, and checks their signatures when `cosign` is installed ([Security](SECURITY.md#13-releases-and-signatures)).
-4. **Writes the files**: `/opt/odoo/{manager,instances,enterprise,gateway,mail}` (root only), `/opt/odoo/manager/.env`
+5. **Writes the files**: `/opt/odoo/{manager,instances,enterprise,gateway,mail}` (root only), `/opt/odoo/manager/.env`
    from the release's settings template (values already there are kept), and `/opt/odoo/manager/compose.yaml`.
-5. **Starts** `sudoo-panel`, `sudoo-gateway`, `sudoo-mail` and `sudoo-web` and waits until all are healthy.
-6. Prints the panel's link and, on a new server, the **setup code** for the first account ([section 3](#3-the-first-account)).
+6. **Starts** `sudoo-panel`, `sudoo-gateway`, `sudoo-mail` and `sudoo-web` and waits until all are healthy.
+7. Prints the panel's address and, on a new server, the **setup code** for the first account ([section 3](#3-the-first-account)).
 
 It keeps a copy of itself as `/opt/odoo/manager/installer/sudoo-install.sh`, on the path as **`sudoo-install`**.
 
@@ -215,9 +225,11 @@ It keeps a copy of itself as `/opt/odoo/manager/installer/sudoo-install.sh`, on 
 | `--dry-run` | Show what would be done; change nothing. |
 | `--docker-source official` or `distro` | Where a missing Docker comes from. |
 | `--force` | Continue although a check failed (not recommended). |
+| `--exposure direct`, `proxy` or `tunnel` | How people reach the server, without the question (for scripts). Without a terminal and without this option, a fresh installation takes `direct`; a busy port 80 or 443 then fails the check before anything is changed. `--domain NAME` sets the panel's name (`PANEL_DOMAIN`). |
 
-Settings you want from the start (another `PANEL_PORT`, `EXPOSURE=host-ports`...) can be written to
-`/opt/odoo/manager/.env` before installing; the installer keeps them and adds the rest.
+Settings you want from the start (another `PANEL_PORT`, `PANEL_DOMAIN=panel.example.com`, `EXPOSURE=proxy`...) can be
+written to `/opt/odoo/manager/.env` before installing; the installer keeps them (an `EXPOSURE` there is not asked
+again) and adds the rest.
 
 ### Manual installation
 
@@ -228,7 +240,8 @@ sudo install -d -m 700 /opt/odoo /opt/odoo/manager /opt/odoo/instances /opt/odoo
 cd /opt/odoo/manager
 sudo curl -fsSLO https://github.com/Sudoo-sh/sudoo.sh/releases/latest/download/compose.yaml
 sudo curl -fsSL -o .env https://github.com/Sudoo-sh/sudoo.sh/releases/latest/download/env.example
-sudo chmod 600 .env compose.yaml          # edit .env now if needed (CONFIGURATION.md)
+sudo chmod 600 .env compose.yaml          # edit .env now if needed (CONFIGURATION.md): EXPOSURE=direct is the
+                                          # template's choice; set PANEL_DOMAIN, or EXPOSURE=proxy or tunnel
 sudo docker compose pull
 sudo docker compose up -d
 sudo docker exec sudoo-panel sudoo.sh urls
@@ -302,7 +315,7 @@ installed, its signature by that release's workflow (a missing or failing signat
 | Kept | Replaced or restarted |
 | :--- | :--- |
 | Instances, their databases, files and links | `sudoo-panel`, `sudoo-gateway`, `sudoo-mail` and `sudoo-web` (a few seconds) |
-| The connector containers, so every public link stays the same | `compose.yaml`; new settings in `.env` |
+| The connector containers (tunnel), so every public address stays the same, and `EXPOSURE` | `compose.yaml`; new settings in `.env` |
 | Accounts, API tokens, audit log (`sudoo.db`), deploy keys, vault key, secret key | |
 | Settings in `.env` and `settings.json` | |
 | Caught e-mails (`/opt/odoo/mail`) | |
@@ -361,7 +374,7 @@ and `sudoo-web`; never use `--remove-orphans` or restart the connectors.
 sudo sudoo-install uninstall
 ```
 
-Removes `sudoo-panel`, `sudoo-gateway`, `sudoo-mail`, `sudoo-web`, their images, the Cloudflare connectors (the public links stop working) and the
+Removes `sudoo-panel`, `sudoo-gateway`, `sudoo-mail`, `sudoo-web`, their images, the tunnel connectors, if any (the public addresses stop working) and the
 `sudoo-install` command, and stops the instances. `/opt/odoo` (settings, accounts, keys, backups, caught e-mails) and
 the instances' databases and files are kept; installing again brings them back, with new links.
 
@@ -408,7 +421,7 @@ The two choices that shape a server are plugins ([Plugins](PLUGINS.md)):
 
 | Setting | Options |
 | :--- | :--- |
-| `EXPOSURE` | `cloudflare-quick` (the default public-link extension: a link per instance, no open port) or `host-ports` (open ports, fixed addresses) |
+| `EXPOSURE` | `direct` (the default of new installations: the server answers on ports 80 and 443 with automatic certificates), `proxy` (behind your own reverse proxy) or `tunnel` (no open port; addresses change when a connector restarts); the earlier `cloudflare-quick` (= `tunnel`) and `host-ports` still work ([section 14](#14-changing-how-the-server-is-reached)) |
 | `ENTERPRISE_SOURCE` | `folder` (default), `git` (a branch per version) or `none` |
 
 Per instance, the **Settings** tab of the instance's page changes the stage, automation and lifetime (stored as
@@ -499,33 +512,49 @@ messages a day for a personal account. Other mail servers are described in
 
 ---
 
-## 7. Public links
+## 7. Public addresses
 
-The panel and every instance have their own public https link. With the default public-link extension
-(`EXPOSURE=cloudflare-quick`) a link looks like `https://<words>.trycloudflare.com`.
+The panel and every instance have their own public https address. How they get it is `EXPOSURE`
+([Public addresses](concepts/PUBLIC_ADDRESSES.md)):
 
-**With the default extension, links change when the server restarts, or when a connector container restarts.**
-The panel always shows the current ones, and tells every Odoo its new address within about 15 seconds (so links
-inside Odoo, such as those in e-mails, follow). The GitHub App's webhook address follows too, within two minutes
-([section 15](#15-the-github-app)). Links you shared earlier, and webhook addresses registered at other services
-(such as a per-repository `github-webhook`), must be updated by hand.
+| `EXPOSURE` | The panel | An instance |
+| :--- | :--- | :--- |
+| `direct` (default of new installations) | `https://<PANEL_DOMAIN>`, else the server's public name, else `https://<server address>` with the panel's own certificate (browsers warn once) | its primary custom domain, else its managed name (`<branch>.<stage>.<company>.<base>`), else `https://<server address>:<gateway port>` |
+| `proxy` | `https://<PANEL_DOMAIN or PUBLIC_HOST>`, served by your proxy | its custom domain, else `https://<PUBLIC_HOST>:<gateway port>` |
+| `tunnel` | `https://<words>.trycloudflare.com` | the same, one per instance |
 
-Updating Sudoo.sh does not touch the connector containers, so the links stay the same through an update.
+**Firewall with `direct`:** open TCP 80 and 443 to the internet (at the hosting provider too). The certificate
+authority checks port 80; everything else is https on 443. Open the gateway ports (from `GATEWAY_PORT_START`, 8069)
+only if instances without a name must be reachable. With `proxy`, open nothing: only the proxy reaches the local
+ports. With `tunnel`, allow outgoing TCP and UDP 7844.
 
-To see the current links on the server:
+**Setting the panel's name with `direct`:** create an A (and AAAA) record for a name such as `panel.example.com`
+pointing at the server, set **Panel's name** (`PANEL_DOMAIN`) on **Settings, Addresses and domains**, and the panel
+gets its certificate within a minute or two (the page shows its state). Until then, and without a name, it answers
+on the server's address with its own certificate.
+
+**With `tunnel`, addresses change when the server restarts, or when a connector container restarts.** The panel
+always shows the current ones and tells every Odoo its new address within about 15 seconds (so links inside Odoo,
+such as those in e-mails, follow). The GitHub App's webhook address follows too, within two minutes
+([section 15](#15-the-github-app)). Addresses shared earlier, and webhook addresses registered at other services
+(such as a per-repository `github-webhook`), must be updated by hand. Direct and proxy addresses do not change.
+
+Updating Sudoo.sh never changes `EXPOSURE` and does not touch the connector containers, so the addresses stay the
+same through an update.
+
+To see the current addresses on the server:
 
 ```bash
 docker exec sudoo-panel sudoo.sh urls
 ```
 
-Administrators can also reach the panel without its public link, through SSH (9000 is the default `PANEL_PORT`):
+Administrators can also reach the panel without its public address, through SSH (9000 is the default `PANEL_PORT`):
 
 ```bash
 ssh -N -L 9000:localhost:9000 <user>@<server>
 ```
 
-then open `http://localhost:9000`. How public links work is explained in
-[Public links](concepts/TUNNELING.md).
+then open `http://localhost:9000`.
 
 ---
 
@@ -1015,7 +1044,9 @@ After installing or updating:
 | "Cannot decrypt the value" in a log | `vault.key` was replaced or lost | Restore `vault.key` from its backup; otherwise recreate deploy keys, set the passwords on the Settings page again and reset account passwords |
 | Deletion failed: "the database did not start, so no backup could be taken" | The instance's database container is broken | Nothing was deleted. Check `docker logs odoo-<name>-db-1`; to delete anyway, fix or remove the database by hand |
 | JSON-2 API: 401 with a valid key | Odoo 20 API key without an expiry date | Create the key with an expiry date ([API](API.md)) |
-| Requests over 100 MB, or over 100 seconds, fail | Limits of the default public-link extension (`cloudflare-quick`) | Split uploads; run long operations in the background |
+| Requests over 100 MB, or over 100 seconds, fail | Limits of the free tunnel (`EXPOSURE=tunnel`) | Split uploads; run long operations in the background, or switch to `direct` ([section 14](#14-changing-how-the-server-is-reached)) |
+| The browser warns about the panel's certificate | `EXPOSURE=direct` without a name for the panel: it uses its own certificate | Point a name at the server and set **Panel's name** (`PANEL_DOMAIN`) |
+| The panel's name has no certificate | Port 80 is closed, or the name does not point at the server | Open TCP 80 and 443; check the name's A/AAAA records; **Settings, Addresses and domains** shows the reason |
 
 
 ### Installer checks
@@ -1033,10 +1064,11 @@ anything; a ! is a warning. `sudo sudoo-install check` runs them all without cha
 | Memory | ✗ under 2 GB; ! under 4 GB | A bigger server; at least add a swap file (`fallocate -l 2G /swapfile`, `mkswap`, `swapon`) |
 | Free disk for /opt and /var/lib/docker | Under 20 GB free (5 GB for an update) | Free space (`docker system df`, `docker image prune`) or enlarge the disk |
 | Clock | ! The clock is not synchronised | `sudo timedatectl set-ntp true` |
+| Ports 80 and 443 for Direct | ! Another program listens on port 80 or 443, the server has no public address of its own, or a host firewall (ufw, firewalld) does not let them in | Stop the other program (`sudo ss -ltnp 'sport = :443'`), open the ports at the firewall and the hosting provider, or choose Proxy or Tunnel (`--exposure proxy` or `tunnel`) |
 | Port ... is free | Another program listens on `PANEL_PORT`, `API_PORT` or `EVENTS_PORT` | `sudo ss -ltnp 'sport = :9000'` shows it; stop it, or set another port in `/opt/odoo/manager/.env` and run the installer again |
 | Tools | curl, tar, openssl or ca-certificates is missing | Answer yes when asked, or `sudo apt-get install -y curl openssl ca-certificates` |
-| HTTPS to github.com, ghcr.io, registry-1.docker.io, download.docker.com, api.trycloudflare.com | No connection | Allow outgoing TCP 443; check DNS (`getent hosts ghcr.io`) and any proxy (`HTTPS_PROXY`, and Docker's own proxy settings) |
-| Port 7844 of the default public-link extension | ! Outgoing 7844 is blocked | Allow outgoing TCP and UDP 7844 to `*.argotunnel.com` |
+| HTTPS to github.com, ghcr.io, registry-1.docker.io, download.docker.com (and api.trycloudflare.com for a tunnel) | No connection | Allow outgoing TCP 443; check DNS (`getent hosts ghcr.io`) and any proxy (`HTTPS_PROXY`, and Docker's own proxy settings) |
+| Port 7844 (tunnel only) | ! Outgoing 7844 is blocked | Allow outgoing TCP and UDP 7844 to `*.argotunnel.com` |
 | Docker Engine | Missing, from a snap, not running, or older than 24 | Answer yes to install or start it; a snap: `sudo snap remove docker`, then run again; old: upgrade from Docker's repository |
 | Docker Compose | The Compose v2 plugin is missing | Answer yes, or `sudo apt-get install -y docker-compose-plugin` (Ubuntu's `docker.io`: `docker-compose-v2`) |
 | Docker buildx | ! Missing (only needed to build images yourself) | `sudo apt-get install -y docker-buildx-plugin` (or `docker-buildx`) |
@@ -1055,21 +1087,25 @@ anything; a ! is a warning. `sudo sudoo-install check` runs them all without cha
 
 ---
 
-## 14. Moving to permanent links
+## 14. Changing how the server is reached
 
-The default public-link extension needs no account and no domain, but its addresses change. For addresses that
-never change:
+`EXPOSURE` can be changed later on **Settings, Addresses and domains, How people reach this server**: the page shows
+the current mode and the panel's address, explains what the change does, and the change applies when the panel
+restarts (**Restart the panel**). It offers `direct`, `proxy` and `tunnel`; a change that would move the web service
+to another address (from or to `host-ports`, or `proxy` with `PROXY_LISTEN` other than `127.0.0.1`) is refused there:
+change `EXPOSURE` in `/opt/odoo/manager/.env` instead and run `cd /opt/odoo/manager && docker compose up -d`. The
+gateway, the instances and their data stay as they are; only the addresses change.
 
-| Option | How |
-| :--- | :--- |
-| The server accepts incoming connections | `EXPOSURE=host-ports`, `PUBLIC_HOST=<name or address>`, open the ports. Built in. |
-| A domain of your own | Register a domain and write a small exposure plugin that routes `<instance>.<domain>` to each gateway port, for example through a Cloudflare named tunnel on your own account ([Plugins](PLUGINS.md#6-writing-a-plugin)). |
-| A reverse proxy you already run | An exposure plugin like the example in [Plugins](PLUGINS.md#6-writing-a-plugin). |
+| From | To | Before switching |
+| :--- | :--- | :--- |
+| `tunnel` | `direct` | Open TCP 80 and 443; point a name at the server and set **Panel's name**. A `.env` written by an earlier release has `CUSTOM_DOMAINS=off`: set it to `acme` (or empty) to serve custom domains. The `sudoo-connector-*` containers keep running until removed (`docker rm -f $(docker ps -aq --filter name=sudoo-connector-)`). |
+| `tunnel` or `direct` | `proxy` | Set up the proxy first ([Public addresses](concepts/PUBLIC_ADDRESSES.md#4-proxy)), with `PANEL_DOMAIN` or `PUBLIC_HOST`. |
+| `direct` or `proxy` | `tunnel` | Nothing; the connectors start with the panel. |
 
-`EXPOSURE` and `PUBLIC_HOST` are `.env`-only settings: change them in `/opt/odoo/manager/.env` and run
-`cd /opt/odoo/manager && docker compose up -d`. The gateway, the instances and the panel stay as they are; only the
-exposure plugin changes. The options are compared in
-[Public links](concepts/TUNNELING.md#7-fixed-addresses-and-other-options).
+Keep the Settings page open at the current address until the new one works. If the panel cannot be reached
+afterwards, set `EXPOSURE` back in `.env` and run `docker compose up -d`, or reach it through SSH
+([section 7](#7-public-addresses)). The options are compared in
+[Public addresses](concepts/PUBLIC_ADDRESSES.md#2-choosing).
 
 ---
 
@@ -1216,7 +1252,7 @@ setting with a default ([Configuration, Alerts](CONFIGURATION.md#alerts)).
 | Disk almost full | The disk holding the instances and backups has less than `ALERT_DISK_FREE_PERCENT` (10 %) free. | `ALERT_DISK` |
 | Memory high | Server memory stays at or above the capacity warning (`CAPACITY_WARNING_PERCENT`, 85 %) for `ALERT_MEMORY_MINUTES` (10). | `ALERT_MEMORY` |
 | Changed outside the panel | An instance's containers or files were changed by hand ([Hardened containers](#hardened-containers-and-changes-made-by-hand)). | `ALERT_DRIFT` |
-| No public link | The panel, or an instance that is online, has had no public link for `ALERT_PUBLIC_LINK_MINUTES` (10): its Cloudflare connector stopped, for example. | `ALERT_PUBLIC_LINK` |
+| No public link | The panel, or an instance that is online, has had no public address for `ALERT_PUBLIC_LINK_MINUTES` (10): its tunnel connector stopped, for example. | `ALERT_PUBLIC_LINK` |
 
 When a problem that lasts is over (the instance answers again, the disk has room, memory is back below the warning,
 the link is back), a **resolved** notice follows, unless `ALERT_RECOVERY` is off. A paused, switched-off or deleted
@@ -1383,16 +1419,17 @@ sign-in.
 
 An instance (usually a production instance) can answer on your client's own names, such as `erp.client.com`, over
 https. Administrators add the domains on the instance's **Domains** tab ([User Manual](USER_MANUAL.md#custom-domains)); this
-section is about what the server needs. Custom domains are off until you choose how https is handled, with
-`CUSTOM_DOMAINS` on **Settings, Custom domains** ([Configuration](CONFIGURATION.md#custom-domains)).
+section is about what the server needs. How https is handled is `CUSTOM_DOMAINS` on **Settings, Addresses and
+domains** ([Configuration](CONFIGURATION.md#custom-domains)); left empty it follows `EXPOSURE`: `acme` with
+`direct`, `external` with `proxy`, off with `tunnel`.
 
 ### Which mode
 
 | Your server | `CUSTOM_DOMAINS` | What happens |
 | :--- | :--- | :--- |
-| Accepts connections from the internet on ports 80 and 443 (a VPS with a public address) | `acme` | The gateway answers the domains on ports 80 and 443, gets a certificate for each from Let's Encrypt (or the authority in `ACME_DIRECTORY`) and renews it. Works with any `EXPOSURE`: the instances' own links stay as they are. |
-| Reached only through the default public-link extension (`EXPOSURE=cloudflare-quick`, no open port) | `external`, or none | The default public links cannot carry your own domain. With your own Cloudflare account, create a named tunnel that sends the domain to `http://127.0.0.1:<the instance's gateway port>` (shown under **Credentials**); Cloudflare then handles https, and the panel records the domain, checks that it reaches the instance, and uses it as the instance's address. Without your own Cloudflare (or another proxy), custom domains are not available on this server, and the Domains tab says so. |
-| Behind a proxy or load balancer you run | `external` | Same as above: the proxy handles https and forwards to the gateway port. |
+| Accepts connections from the internet on ports 80 and 443 (`EXPOSURE=direct`, the default) | `acme` | The gateway answers the domains on ports 80 and 443, gets a certificate for each from Let's Encrypt (or the authority in `ACME_DIRECTORY`) and renews it. |
+| Behind a proxy or load balancer you run (`EXPOSURE=proxy`) | `external` | The proxy handles https and forwards to `http://<PROXY_LISTEN>:<the instance's gateway port>` (shown under **Credentials**); the panel records the domain, checks that it reaches the instance, and uses it as the instance's address. |
+| Reached only through a tunnel (`EXPOSURE=tunnel`, no open port) | `external`, or none | The tunnel's random addresses cannot carry your own domain. A tunnel of your own account, or another proxy, that sends the domain to the instance's gateway port works as `external`. Otherwise custom domains are not available on this server, and the Domains tab says so. |
 
 ### Setting up `acme`
 

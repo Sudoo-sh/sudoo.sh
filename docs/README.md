@@ -30,7 +30,8 @@ Everything about Sudoo.sh, in one place. The same pages are on GitHub and inside
 | Read the charts on the Instances page | [User manual: The Instances page](USER_MANUAL.md#3-the-instances-page) |
 | Create an account or set a new password | [User manual: Accounts and roles](USER_MANUAL.md#9-accounts-and-roles) |
 | Know which passwords are accepted | [User manual: Password rules](USER_MANUAL.md#password-rules) |
-| Find the current links after a restart | [Administrator guide: Links](ADMIN_GUIDE.md#7-public-links) |
+| Find the panel's and the instances' addresses, or open ports 80 and 443 | [Administrator guide: Public addresses](ADMIN_GUIDE.md#7-public-addresses) |
+| Change how the server is reached (direct, proxy, tunnel) | [Administrator guide: Changing how the server is reached](ADMIN_GUIDE.md#14-changing-how-the-server-is-reached) |
 | Choose how long an instance lives | [User manual: Creating an instance](USER_MANUAL.md#5-creating-an-instance), step 8 |
 | Restore an instance from a backup | [User manual: The Backups card](USER_MANUAL.md#the-backups-card) |
 | Find or download a backup, or know when backups are taken | [User manual: Backups and audit log](USER_MANUAL.md#11-backups-and-audit-log) |
@@ -60,7 +61,7 @@ starts with an everyday comparison, then shows what it looks like on a Sudoo.sh 
 
 | Concept | In one sentence |
 | :--- | :--- |
-| [Public links](concepts/TUNNELING.md) | How every instance gets a public https link, even on a server that accepts no incoming connections. |
+| [Public addresses](concepts/PUBLIC_ADDRESSES.md) | How the panel and every instance get a public https address: the server's own ports 80 and 443, your reverse proxy, or a tunnel for a server without open ports. |
 | [Docker and containers](concepts/DOCKER.md) | How many Odoo versions run side by side on one server without disturbing each other. |
 | [The gateway (reverse proxy)](concepts/GATEWAY.md) | The small program in front of every instance that records visits and wakes paused instances. |
 | [Deploy keys](concepts/DEPLOY_KEYS.md) | How the server reads a private GitHub repository without anyone's password or token. |

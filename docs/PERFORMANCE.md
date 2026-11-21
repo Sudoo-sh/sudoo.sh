@@ -243,6 +243,6 @@ are unchanged. While measuring, these were checked and, where needed, fixed (tes
 | :--- | :--- |
 | uvloop for the gateway's event loop, orjson for JSON | Both are new dependencies; each is worth an issue first (CONTRIBUTING.md, rule 7). uvloop would roughly halve the gateway's own cost per request. |
 | Several backend processes | The jobs, the monitor and the gateway share their state in memory by design; more processes would need a shared store (Redis or a database server), which the panel avoids. Free-threaded Python is the way to use more cores later. |
-| A header timeout in the gateway | aiohttp has none. Behind the default public-link extension slow clients never reach the gateway; with `host-ports`, put a TLS proxy in front, as [Plugins](PLUGINS.md#host-ports) advises. |
+| A header timeout in the gateway | aiohttp has none. Behind a tunnel slow clients never reach the gateway; with `host-ports`, put a TLS proxy in front, as [Plugins](PLUGINS.md#host-ports) advises. |
 | A summary endpoint for the dashboard | The dashboard adds up 40 instances' histories in the browser; the server could send the sums. A change of the API, so a separate step. |
 | GitHub webhook bodies | The backend accepts 64 KB per request; GitHub can send larger push payloads for very large pushes. Raising the limit for `/hooks/` only is worth a look. |

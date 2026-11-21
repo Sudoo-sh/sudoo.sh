@@ -303,11 +303,15 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     job.step("Creating the public link")
     gateway.add(name)
     exposure.ensure(name)
-    url = exposure.wait_for_address(name)
-    if not url:
+    tunnel = bool(exposure.provider().instance_ports())  # a connector per instance: its address comes from it
+    url = exposure.wait_for_address(name) if tunnel else exposure.address(name)
+    if not url and tunnel:
         raise JobError("Cloudflare did not provide a public address for this instance.")
-    for cmd in odoo.public_address_cmds(name, url):
-        job.run(cmd, timeout=60)
+    if url:
+        for cmd in odoo.public_address_cmds(name, url):
+            job.run(cmd, timeout=60)
+    else:  # direct or proxy without a known address yet: Odoo gets it once there is one (monitor.py)
+        job.note("No public address yet: the instance gets one with its managed name or a custom domain.")
 
     job.step("Starting Odoo")
     job.run(compose(name, "up", "-d"), timeout=600)

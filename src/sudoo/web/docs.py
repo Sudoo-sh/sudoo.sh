@@ -6,7 +6,7 @@ HTML rendered here (GET /api/v1/docs/<path>, web/v1/docs.py). Pages are addresse
 
     /help/docs/README.md               the documentation index
     /help/README.md                    the project overview
-    /help/docs/concepts/TUNNELING.md   a concept explained with examples
+    /help/docs/concepts/PUBLIC_ADDRESSES.md a concept explained with examples
 
 Links between Markdown files are rewritten to /help/ addresses, and the diagrams (docs/images/*.svg, built by
 docs/diagrams/build.py) to /docs/ addresses served by the backend, so the same files read correctly on GitHub and in

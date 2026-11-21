@@ -14,7 +14,8 @@ def test_defaults_are_usable(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in ("ENTERPRISE_SOURCE", "EXPOSURE"):
         monkeypatch.delenv(name, raising=False)
     settings = Settings(odoo_root=Path("/srv/x"))
-    assert settings.exposure == "cloudflare-quick"
+    assert settings.exposure == "tunnel"  # a .env without EXPOSURE keeps the behaviour of earlier releases
+    assert settings.custom_domains == "off"
     assert settings.enterprise_source == "folder"
     assert settings.instances_dir == Path("/srv/x/instances")
     assert settings.vault_key_file == Path("/srv/x/manager/vault.key")

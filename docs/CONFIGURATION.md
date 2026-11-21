@@ -15,7 +15,7 @@ The **Applies** column of each table says how a change takes effect:
 | :--- | :--- | :--- |
 | **live** | Settings page or `.env` | On the Settings page: at once, without a restart. |
 | **restart** | Settings page or `.env` | These settings choose plugins. On the Settings page: after **Restart the panel** (Settings, Advanced), which stops only the backend for a few seconds and is refused while jobs run. |
-| `.env` only | `.env` only | Folders, ports, the exposure and the storage, which the web service and the containers read too. The Settings page lists them, read-only, under **Advanced**, **Server**. |
+| `.env` only | `.env` only | Folders, ports, the proxy's address and the storage, which the web service and the containers read too. The Settings page lists them, read-only, under **Advanced**, **Server**. |
 
 A change made in `.env` itself (any class) applies when the containers are recreated:
 `cd /opt/odoo/manager && docker compose up -d`. A value changed on the Settings page wins over `.env` until it is
@@ -39,7 +39,7 @@ reset with **Use .env**.
 2. [Odoo](#odoo)
 3. [Instance containers](#instance-containers)
 4. [Enterprise add-ons (plugin)](#enterprise-add-ons-plugin)
-5. [Exposure (plugin)](#exposure-plugin)
+5. [Public addresses (plugin: exposure)](#public-addresses-plugin-exposure)
 6. [Code updates (plugins)](#code-updates-plugins)
 7. [Storage, sign-in and e-mail (plugins)](#storage-sign-in-and-e-mail-plugins)
 8. [Limits](#limits)
@@ -166,17 +166,25 @@ ignored.
 
 ---
 
-## Exposure (plugin)
+## Public addresses (plugin: exposure)
+
+How people reach the panel and the instances ([Public addresses](concepts/PUBLIC_ADDRESSES.md)). New installations
+get `EXPOSURE=direct` (the installer asks, with direct pre-selected; `.env.example` has it too). A `.env` without
+`EXPOSURE` keeps `tunnel`, the behaviour of earlier releases, so an update never changes how a running panel is
+reached.
 
 | Setting | Type | Default | Applies | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
-| `EXPOSURE` | str | `cloudflare-quick` | `.env` only | How instances are reached: "cloudflare-quick" or "host-ports". |
-| `PUBLIC_HOST` | str | empty | `.env` only | host-ports: the server's public name or address. |
-| `PUBLIC_SCHEME` | `http` or `https` | `http` | `.env` only | host-ports: scheme of the public addresses. |
-| `CLOUDFLARED_IMAGE` | str | `cloudflare/cloudflared:latest` | **live** | cloudflare-quick: connector image, used for connectors started after the change. |
-| `CONNECTOR_PREFIX` | str | `sudoo-connector-` | `.env` only | cloudflare-quick: container name prefix. |
-| `CONNECTOR_STATUS_PORT_START` | int | `20300` | `.env` only | cloudflare-quick: first status port of a connector. |
-| `PANEL_CONNECTOR_STATUS_PORT` | int | `20242` | `.env` only | cloudflare-quick: status port of the panel connector. |
+| `EXPOSURE` | str | `direct` in new installations; `tunnel` when missing from `.env` | restart | `direct`: the server answers on ports 80 and 443 itself; the gateway serves the panel's name, managed names and custom domains with certificates from the ACME authority. `proxy`: your own reverse proxy or load balancer in front handles https and forwards to the local ports. `tunnel`: an outgoing tunnel per instance, for servers that cannot open ports. The earlier names `cloudflare-quick` (= `tunnel`) and `host-ports` still work in `.env`. The Settings page (Domains) offers the three modes; it refuses a change that would move the web service to another address (from or to `host-ports`, or `proxy` with `PROXY_LISTEN` other than `127.0.0.1`): change `.env` then and recreate the services. |
+| `PANEL_DOMAIN` | str | empty | **live** | direct and proxy: the name people open the panel with; its DNS points at this server (direct) or at your proxy. direct serves it on port 443 with a certificate from the ACME authority. Empty with direct: `PUBLIC_HOST` when it is a name, else `https://<the server's public address>` with the panel's own certificate (browsers warn once). |
+| `PUBLIC_HOST` | str | empty | **live** | The server's public name or address, for addresses that have no name of their own: with direct an instance without a managed name or custom domain (`https://<PUBLIC_HOST>:<gateway port>`), with proxy and host-ports every address. Empty with direct: the server's public address (`PUBLIC_IPV4`, `PUBLIC_IPV6`, or the one it sends from). |
+| `PUBLIC_SCHEME` | empty, `http` or `https` | empty | `.env` only | proxy and host-ports: scheme of the public addresses; empty: `https` with proxy, `http` with host-ports. |
+| `PROXY_LISTEN` | IP address | `127.0.0.1` | `.env` only | proxy: the address the web service and the gateways listen on. `127.0.0.1` when the proxy runs on this server; another address only when a firewall lets nothing but the proxy reach those ports, because the visitor's address is taken from a header. |
+| `PROXY_CLIENT_IP_HEADER` | str | `X-Real-IP` | `.env` only | proxy: the request header in which your proxy sends the visitor's address. The proxy must set it on every request, replacing any the visitor sent. For `X-Forwarded-For` the last address is taken. |
+| `CLOUDFLARED_IMAGE` | str | `cloudflare/cloudflared:latest` | **live** | tunnel: connector image, used for connectors started after the change. |
+| `CONNECTOR_PREFIX` | str | `sudoo-connector-` | `.env` only | tunnel: container name prefix. |
+| `CONNECTOR_STATUS_PORT_START` | int | `20300` | `.env` only | tunnel: first status port of a connector. |
+| `PANEL_CONNECTOR_STATUS_PORT` | int | `20242` | `.env` only | tunnel: status port of the panel connector. |
 
 ---
 
@@ -333,12 +341,12 @@ seconds. Set them in the panel's `.env` or in the panel, as always.
 ## Custom domains
 
 Instances answering on your own names, such as `erp.client.com`, over https
-([Administrator Guide, Custom domains](ADMIN_GUIDE.md#19-custom-domains-and-certificates)). Off by default. Every
-value here can be changed on the Settings page except the two ports.
+([Administrator Guide, Custom domains](ADMIN_GUIDE.md#19-custom-domains-and-certificates)). On (`acme`) by default
+with `EXPOSURE=direct`. Every value here can be changed on the Settings page except the two ports.
 
 | Setting | Type | Default | Applies | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
-| `CUSTOM_DOMAINS` | text | `off` | **live** | `off`: no custom domains (recorded ones are kept, not served). `acme`: the gateway answers custom domains on ports 80 and 443 of the server, gets a certificate for each from the ACME authority and renews it; needs a server that accepts connections on those ports. `external`: something in front (your own proxy, or a Cloudflare named tunnel on your own account) handles https and sends the visits to the instance's gateway port; the panel only records the domains, checks that they reach the instance, and uses the primary one as its address. Choosing `acme` means agreeing to the ACME authority's terms of service (Let's Encrypt's subscriber agreement). |
+| `CUSTOM_DOMAINS` | text | empty: `acme` with direct, `external` with proxy, `off` with tunnel | **live** | `off`: no custom domains (recorded ones are kept, not served). `acme`: the gateway answers custom domains on ports 80 and 443 of the server, gets a certificate for each from the ACME authority and renews it; needs a server that accepts connections on those ports. `external`: something in front (your own proxy) handles https and sends the visits to the instance's gateway port; the panel only records the domains, checks that they reach the instance, and uses the primary one as its address. Choosing `acme` means agreeing to the ACME authority's terms of service (Let's Encrypt's subscriber agreement). |
 | `ACME_DIRECTORY` | text | `production` | **live** | The ACME authority: `production` (Let's Encrypt), `staging` (Let's Encrypt's test authority: certificates browsers do not trust, with far higher limits, for trying the setup out) or the `https://` address of another authority's ACME directory. |
 | `ACME_EMAIL` | text | empty | **live** | Contact e-mail given to the ACME authority when the panel creates its account there; empty: `ADMIN_CONTACT_EMAIL`, or none. |
 | `CERTIFICATE_RENEW_DAYS` | int | `30` | **live** | Renew a certificate this many days before it expires (1 to 90); a short-lived certificate is renewed a third of its lifetime before it expires at the latest. |

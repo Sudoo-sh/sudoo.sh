@@ -88,7 +88,9 @@ def panel_should_serve(now: float, last_seen: float | None, started: float, sock
 
 def build_routes(mode: str) -> str:
     provider = exposure.provider()
-    edge = Edge(provider.listen_host, provider.https, provider.client_ip_header)
+    edge = Edge(
+        provider.listen_host, provider.https, provider.client_ip_header, bool(getattr(provider, "gateway_tls", False))
+    )
     values = {key: getattr(settings, key) for key in ROUTED_SETTINGS}
     names = store.names()
     _WITHDRAWN.intersection_update(names)
@@ -119,7 +121,16 @@ def domain_routes(instances: set[str] | None = None) -> gateway.DomainRoutes:
         for domain, entry in domains.gateway_hosts().items()
         if instances is None or entry["instance"] in instances
     }
-    return gateway.DomainRoutes(settings.domain_http_port, settings.domain_https_port, hosts)
+    panel_port, server_names = None, frozenset[str]()
+    if getattr(exposure.provider(), "serves_panel", False):  # EXPOSURE=direct: the panel's address too
+        from sudoo.instances import panel_address
+
+        name = panel_address.domain()
+        if name and name not in hosts:
+            hosts[name] = gateway.DomainHost("", panel_address.certificate_ready(), panel=True)
+        panel_port = settings.panel_port
+        server_names = frozenset(panel_address.wanted_names())
+    return gateway.DomainRoutes(settings.domain_http_port, settings.domain_https_port, hosts, panel_port, server_names)
 
 
 def refresh_domains() -> None:

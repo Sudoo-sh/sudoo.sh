@@ -814,16 +814,16 @@
  {
   "key": "exposure",
   "env": "EXPOSURE",
-  "value": "cloudflare-quick",
-  "env_value": "cloudflare-quick",
+  "value": "direct",
+  "env_value": "direct",
   "changed_in_panel": false,
-  "editable": false,
-  "applies": "env",
+  "editable": true,
+  "applies": "restart",
   "pending_restart": false,
   "secret": false,
   "type": "string",
   "minimum": null,
-  "description": "How instances are reached: \"cloudflare-quick\" or \"host-ports\"."
+  "description": "How people reach the panel and the instances: \"direct\" (this server answers on ports 80 and 443 itself), \"proxy\" (your own reverse proxy or load balancer in front) or \"tunnel\" (an outgoing tunnel, for servers that cannot open ports)."
  },
  {
   "key": "cloudflared_image",

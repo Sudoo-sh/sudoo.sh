@@ -11,7 +11,7 @@ Every call is checked with GitHub's signature (X-Hub-Signature-256: HMAC-SHA256 
 only GitHub, which knows the secret, can trigger updates. A push updates every instance that follows the pushed
 repository and branch and has "Update automatically" on.
 
-The panel needs an address that does not change (EXPOSURE=host-ports, or a domain): with cloudflare-quick the
+The panel needs an address that does not change (EXPOSURE=direct or proxy with a name): with a tunnel the
 address changes when the server restarts and the webhook would have to be edited each time. Keep "polling" enabled
 next to it as a safety net if you like: UPDATE_TRIGGERS=github-webhook,polling.
 """

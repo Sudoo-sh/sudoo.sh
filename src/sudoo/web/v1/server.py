@@ -21,7 +21,7 @@ from flask import Blueprint, Response, abort, g, request
 from sudoo import exposure
 from sudoo.config import settings
 from sudoo.core import events, jobs
-from sudoo.instances import capacity, metrics
+from sudoo.instances import capacity, metrics, panel_address
 from sudoo.projects import access
 
 from .. import validation as check
@@ -44,6 +44,7 @@ def server() -> Response:
         {
             "version": _version(),
             "panel_url": exposure.address(exposure.PANEL),
+            "public_address": panel_address.resource(),
             "plugins": {
                 "exposure": settings.exposure,
                 "enterprise_source": settings.enterprise_source,

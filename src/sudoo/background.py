@@ -139,7 +139,9 @@ def _adopt_instances() -> None:
         print(f"projects: {len(report['joined'])} instances joined {len(report['created'])} new projects", flush=True)
 
 
-_DOMAIN_SETTINGS = {"custom_domains", "domain_http_probe", "acme_directory", "domain_dns_target"}
+_DOMAIN_SETTINGS = {
+    "custom_domains", "domain_http_probe", "acme_directory", "domain_dns_target", "panel_domain", "public_host",
+}  # fmt: skip
 
 
 def _domain_settings_changed(changed: dict[str, object]) -> None:

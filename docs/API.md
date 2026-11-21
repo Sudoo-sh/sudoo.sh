@@ -162,8 +162,8 @@ data = s.get(f"{url}/web/content/{attachment_id}?download=true").content
 | A paused instance answers `503` with `Retry-After` for 20 to 60 seconds while it starts | Retry after the given number of seconds. Most HTTP libraries and webhook senders do this already. |
 | An instance being updated answers `503` for a minute or two | Same as above. |
 | The link changes after a server restart | Keep the base address in one setting of your script or system, not spread through code. |
-| At most 100 MB per request (Cloudflare) | Split large uploads. |
-| Requests longer than about 100 seconds are ended (Cloudflare) | Start long work in Odoo as a scheduled action or queue job; poll for the result. |
+| At most 100 MB per request through a tunnel (`EXPOSURE=tunnel`); otherwise `GATEWAY_MAX_UPLOAD_MB` | Split large uploads. |
+| Requests longer than about 100 seconds are ended through a tunnel (`EXPOSURE=tunnel`) | Start long work in Odoo as a scheduled action or queue job; poll for the result. |
 | Everyone with the link can reach the instance | Use a dedicated Odoo user with only the rights the integration needs, and an API key you can revoke. |
 
 ---

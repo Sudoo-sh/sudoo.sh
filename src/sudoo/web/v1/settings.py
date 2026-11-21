@@ -6,7 +6,8 @@
     POST   /api/v1/settings/test-email   send the test e-mail to {"to"} with the current mail settings
 
 "applies" says when a change takes effect: "now", "restart" (it chooses a plugin; restart the panel with
-POST /api/v1/server/restart) or "env" (only in .env: folders, ports, exposure, storage). Changes are kept on top of
+POST /api/v1/server/restart) or "env" (only in .env: folders, ports, storage). EXPOSURE applies at restart, and
+the panel takes only direct, proxy or tunnel, and only while the web service listens on 127.0.0.1 before and after. Changes are kept on top of
 .env (config.py, LiveSettings); secrets are stored encrypted and never shown, only whether they are set. The audit
 log names every changed setting with its new value, except secrets: "SMTP_PASSWORD=(set)". Changing an off-site
 setting (OFFSITE_*) also needs the permission offsite.configure.
@@ -87,7 +88,35 @@ def audit_value(key: str, value: Any) -> str:
     return "(set)" if key in config.SECRET else str(value)
 
 
+def web_bind(values: Settings) -> str:
+    """Where the web service listens with these settings (web/entrypoint.sh, which reads .env when it starts)."""
+    mode = config.exposure_mode(values.exposure)
+    return (
+        "0.0.0.0" if mode == "host-ports" else str(values.proxy_listen) if mode == "proxy" else "127.0.0.1"
+    )  # noqa: S104
+
+
+def check_exposure(value: Any) -> None:
+    """A change of EXPOSURE in the panel: one of the three modes (or the .env value back), and only where the web
+    service, which takes its address from .env when it starts, does not have to move: it must listen on 127.0.0.1
+    before and after (otherwise the change is made in .env, and the services recreated)."""
+    if value is None or value == live.env.exposure:
+        return
+    if value not in config.EXPOSURE_MODES:
+        abort(400, f"EXPOSURE: choose one of {', '.join(config.EXPOSURE_MODES)}.")
+    if web_bind(live.env) != "127.0.0.1" or (value == "proxy" and settings.proxy_listen != "127.0.0.1"):
+        abort(
+            409,
+            "EXPOSURE: the web service would have to listen on another address. Change EXPOSURE in "
+            "/opt/odoo/manager/.env instead and recreate the services (docs/ADMIN_GUIDE.md).",
+        )
+    if value == "proxy" and not (settings.panel_domain or settings.public_host):
+        abort(400, "EXPOSURE=proxy needs PANEL_DOMAIN or PUBLIC_HOST: the name your proxy serves the panel under.")
+
+
 def _change(values: dict[str, Any]) -> None:
+    if "exposure" in values:
+        check_exposure(values["exposure"])
     offsite = sorted(set(values) & set(config.OFFSITE_SETTINGS))
     if offsite:  # where backups go off the server: its own permission, besides settings.manage
         refuse_unless("offsite.configure", f"change {', '.join(k.upper() for k in offsite)}")

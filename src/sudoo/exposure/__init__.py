@@ -1,7 +1,8 @@
 """Public addresses of the panel and the instances, through the exposure plugin chosen by the EXPOSURE setting.
 
 The rest of the panel calls only the functions here; which plugin does the work is decided once, by configuration.
-Built-in plugins: cloudflare-quick (cloudflare.py) and host-ports (ports.py). Writing one: docs/PLUGINS.md.
+Built-in plugins: direct (direct.py, the default of new installations), proxy (proxy.py), tunnel (cloudflare.py; its
+earlier name cloudflare-quick still works) and host-ports (ports.py, an earlier option). Writing one: docs/PLUGINS.md.
 """
 
 from __future__ import annotations

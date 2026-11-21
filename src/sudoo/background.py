@@ -141,11 +141,15 @@ def _adopt_instances() -> None:
 
 _DOMAIN_SETTINGS = {
     "custom_domains", "domain_http_probe", "acme_directory", "domain_dns_target", "panel_domain", "public_host",
+    "managed_subdomains", "panel_managed_name",
 }  # fmt: skip
+_PANEL_NAME_SETTINGS = {"panel_domain", "public_host", "managed_subdomains", "panel_managed_name"}
 
 
 def _domain_settings_changed(changed: dict[str, object]) -> None:
     """Custom domains turned on or off, or their checks changed: serve accordingly, look at every domain now."""
+    if _PANEL_NAME_SETTINGS & set(changed):
+        managed_names.wake()  # the panel's own managed name: asked for or released (panel_name.py)
     if _DOMAIN_SETTINGS & set(changed):
         custom_domains.WAKE.set()
         try:

@@ -549,6 +549,13 @@ class Settings(BaseSettings):
     managed_subdomains_check_minutes: int = Field(
         15, ge=1, le=1440, description="Minutes between two comparisons of the instances with their managed names."
     )
+    panel_managed_name: bool = Field(
+        True,
+        description="direct: when neither PANEL_DOMAIN nor PUBLIC_HOST gives the panel a name, ask the linked "
+        "account's hub for one under Sudoo.sh's domain (panel.<company>.<base>) and serve the panel there with a "
+        "certificate from the ACME authority. Needs MANAGED_SUBDOMAINS. Off, or once a name is set: a name held is "
+        "released and the panel goes back to the server's address.",
+    )
 
     @field_validator("managed_subdomain_company")
     @classmethod
@@ -1611,6 +1618,7 @@ EDITABLE = (
     "managed_subdomains",
     "managed_subdomain_company",
     "managed_subdomains_check_minutes",
+    "panel_managed_name",
     *OFFSITE_SETTINGS,
     *ALERT_SETTINGS,
     *MAIL_CATCHER_SETTINGS,

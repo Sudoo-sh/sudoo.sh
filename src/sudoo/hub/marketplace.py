@@ -491,6 +491,12 @@ def unlink() -> None:
     _save(linked=None, unlinked_at=time.time())
     _changed()
     try:
+        from sudoo.instances import panel_name
+
+        panel_name.forget()  # the hub released the panel's managed name: back to the previous address
+    except Exception as error:  # noqa: BLE001 - the next check forgets it anyway
+        log.info("marketplace: the panel's managed name after logging out: %s", error)
+    try:
         heartbeat()
     except (HubUnavailable, HubRefused) as error:  # the next heartbeat carries the command
         log.info("marketplace: heartbeat after logging out: %s", error)

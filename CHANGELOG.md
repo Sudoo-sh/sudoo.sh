@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-11-21
+
+### Fixed
+
+- **Managed subdomains follow a new company label:** when Sudoo.sh changes the account's company label, the next check
+  asks for each name again under the new label (the hub has it ready), gets its certificate and releases the old name.
+  Before, the instances kept the old names until those were removed.
+
 ## [3.1.0] - 2026-11-21
 
 ### Added
@@ -48,10 +56,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   [Public addresses](docs/concepts/PUBLIC_ADDRESSES.md), with the tunnel as the option for servers without open ports.
 
 ### Fixed
-
-- **Managed subdomains follow a new company label:** when Sudoo.sh changes the account's company label, the next check
-  asks for each name again under the new label (the hub has it ready), gets its certificate and releases the old name.
-  Before, the instances kept the old names until those were removed.
 
 ## [3.0.1] - 2026-11-21
 
@@ -1005,7 +1009,8 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.1.0...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.1.1...HEAD
+[3.1.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.1.0...v3.1.1
 [3.1.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.0.1...v3.1.0
 [3.0.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v1.0.0...v3.0.0

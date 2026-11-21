@@ -580,7 +580,8 @@ def overview() -> dict[str, Any]:
 
 
 def run_forever() -> None:
-    """Sync every MANAGED_SUBDOMAINS_CHECK_MINUTES, and at once when woken (an instance came or went)."""
+    """Sync every MANAGED_SUBDOMAINS_CHECK_MINUTES, and at once when woken (an instance came or went); the panel's own
+    managed name (panel_name.py) with it."""
     WAKE.set()  # once at start
     while True:
         WAKE.wait(max(60.0, float(settings.managed_subdomains_check_minutes) * 60))
@@ -589,6 +590,12 @@ def run_forever() -> None:
             sync()
         except Exception as error:  # noqa: BLE001 - the loop must survive anything
             print(f"managed names: {error!r}", flush=True)
+        try:
+            from . import panel_name
+
+            panel_name.sync()
+        except Exception as error:  # noqa: BLE001 - the loop must survive anything
+            print(f"managed names: the panel's own name: {error!r}", flush=True)
 
 
 def wake() -> None:

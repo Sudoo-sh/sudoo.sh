@@ -37,7 +37,7 @@ concurrency:
 
 env:
   # Sudoo-sh/sudoo-installer, main after Sudoo-sh/sudoo-installer#7 (a server's agent: agent --join)
-  INSTALLER_REF: f219cdeb3f2ff90cbdc12dd8b6c19056ef9aa79d
+  INSTALLER_REF: 5c1e65ae2be1e772c2a48c5957bfc5d90115a214
 
 jobs:
   version:

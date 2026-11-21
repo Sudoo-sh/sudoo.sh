@@ -274,6 +274,10 @@ class FakeHub:
         self.subdomain_limit: int | None = 5
         self.subdomains_foreign: set[str] = set()  # names another account holds
         self.subdomain_release_failures = 0  # the next releases answer 502 dns_failed
+        # the panel's own name (hub contract "The panel's own name"): {hostname, server_id} or None
+        self.panel_names_offered = True
+        self.panel_label = "panel"
+        self.panel_name: dict[str, Any] | None = None
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
@@ -421,6 +425,17 @@ class FakeHub:
                 new = f"{found['branch']}.{found['stage']}.{company}.{self.subdomains_base}"
                 self.subdomains[new] = {**found, "company": company}
 
+    def panel_name_state(self) -> dict[str, Any]:
+        offered = self.subdomains_enabled and self.panel_names_offered
+        name = None
+        if self.panel_name is not None:
+            name = {"hostname": self.panel_name["hostname"], "label": self.panel_label,
+                    "company": self.subdomains_company, "ipv4": "203.0.113.7", "ipv6": None, "proxied": False,
+                    "server_id": self.panel_name["server_id"], "created_at": "2026-11-21T10:00:00Z",
+                    "updated_at": "2026-11-21T10:00:00Z"}  # fmt: skip
+        return {"offered": offered, "base_domain": self.subdomains_base if self.subdomains_enabled else None,
+                "company": self.subdomains_company, "label": self.panel_label, "counts": False, "name": name}  # fmt: skip
+
     def subdomain_out(self, hostname: str) -> dict[str, Any]:
         found = self.subdomains[hostname]
         return {"hostname": hostname, "branch": found["branch"], "stage": found["stage"], "company": found["company"],
@@ -479,6 +494,7 @@ class FakeHub:
         for licence in self.licences.values():
             licence["state"] = "revoked"
         self.linked = None
+        self.panel_name = None  # released with the link
         command_id = str(uuid.uuid4())
         self.commands[command_id] = {"kind": "remove_paid_plugins", "issued_at": int(time.time()),
                                      "payload": {"plugins": paid, "reason": reason}, "acked": False,
@@ -665,6 +681,10 @@ class FakeHub:
                     return None
                 if path == "/api/v1/installations/subdomains":
                     return self._send(200, {"data": hub.subdomains_out()})
+                if path == "/api/v1/installations/panel-name":
+                    if hub.linked is None:
+                        return self._problem(403, "Link this panel to an account first.", "link_required")
+                    return self._send(200, {"data": hub.panel_name_state()})
                 if path == "/api/v1/installations/premium" or path.startswith("/api/v1/installations/premium/"):
                     return self._premium(installation, parts, query)
                 if path == "/api/v1/installations/catalog":
@@ -771,11 +791,33 @@ class FakeHub:
                                             "server_id": installation, **pointed}  # fmt: skip
                 return self._send(201, {"data": hub.subdomain_out(hostname)})
 
+            def do_PUT(self) -> None:  # noqa: N802
+                hub.requests.append(f"PUT {self.path}")
+                body = self._body()
+                installation = self._signed(body, lease=True)
+                if installation is None:
+                    return None
+                if self.path != "/api/v1/installations/panel-name":
+                    return self._problem(404, "Not found.")
+                if hub.linked is None:
+                    return self._problem(403, "Link this panel to an account first.", "link_required")
+                if not (hub.subdomains_enabled and hub.panel_names_offered):
+                    return self._problem(503, "Panel names are not offered.", "panel_names_unavailable")
+                company = json.loads(body or b"{}").get("company")
+                hub.subdomains_company = hub.subdomains_company or company or "acme"
+                hostname = f"{hub.panel_label}.{hub.subdomains_company}.{hub.subdomains_base}"
+                made = hub.panel_name is None
+                hub.panel_name = {"hostname": hostname, "server_id": installation}
+                return self._send(201 if made else 200, {"data": hub.panel_name_state()["name"]})
+
             def do_DELETE(self) -> None:  # noqa: N802
                 hub.requests.append(f"DELETE {self.path}")
                 installation = self._signed(self._body(), lease=True)
                 if installation is None:
                     return None
+                if self.path == "/api/v1/installations/panel-name":
+                    hub.panel_name = None
+                    return self._send(204)
                 prefix = "/api/v1/installations/subdomains/"
                 if not self.path.startswith(prefix):
                     return self._problem(404, "Not found.")

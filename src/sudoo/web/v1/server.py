@@ -142,10 +142,11 @@ def managed_subdomains() -> Response:
 @blueprint.post("/server/managed-subdomains/sync")
 @require("settings.manage")
 def managed_subdomains_sync() -> Response:
-    from sudoo.instances import managed_names
+    from sudoo.instances import managed_names, panel_name
 
     if not settings.marketplace:
         abort(409, "Managed subdomains come from Sudoo.sh: link this panel first (Settings, Marketplace).")
     managed_names.sync()
+    panel_name.sync()
     log("managed subdomains: check now")
     return ok(managed_names.overview())

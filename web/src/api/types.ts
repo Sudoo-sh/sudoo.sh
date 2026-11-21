@@ -516,9 +516,22 @@ export interface Server {
     mode: string;
     url: string | null;
     domain: string | null;
+    /** where the panel's name comes from */
+    source?: "panel_domain" | "public_host" | "managed" | null;
     status: "waiting" | "active" | "failed" | null;
     reason: string | null;
     server_addresses: string[];
+    /** the panel's own managed name from Sudoo.sh (panel.<company>.<base>) */
+    managed_name?: {
+      setting: boolean;
+      wanted: boolean;
+      offered: boolean;
+      hostname: string | null;
+      held: string | null;
+      counts: boolean;
+      checked_at: number | null;
+      error: string | null;
+    };
   };
   metrics: Partial<ServerFigures>;
   live_clients: number;

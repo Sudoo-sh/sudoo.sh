@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-21
+
 ### Added
 
 - **Three ways to reach a server, Direct by default:** `EXPOSURE` takes `direct`, `proxy` or `tunnel`. **Direct**, the
@@ -19,6 +21,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   with a certificate the panel gets and renews itself; until then, or without a name, the panel answers on the
   server's own address with a certificate it makes itself. The gateway forwards the panel's visits to the web
   service, which listens on `127.0.0.1` only, with the visitor's address in `X-Sudoo-Client-IP`.
+- **The panel's own managed name with Direct:** a panel linked to a Sudoo.sh account that offers managed subdomains
+  gets `panel.<company>.<base>` (for example `panel.acme.sudoo.cloud`) for itself. Sudoo.sh keeps its DNS records,
+  the gateway serves it on port 443 and the panel gets and renews its certificate (ACME), like its other names. It is
+  the panel's address when no name of your own is set (`PANEL_DOMAIN`, else `PUBLIC_HOST` when it is a name); it is
+  released, and the panel goes back to the previous address, when you set a name, turn off `PANEL_MANAGED_NAME`
+  (new, on by default) or `MANAGED_SUBDOMAINS`, log out of the account, or Sudoo.sh stops offering it. Checked with
+  the managed subdomains. Settings, Addresses and domains shows the name and its state (`public_address.source` and
+  `public_address.managed_name` in `GET /api/v1/server`). Needs a hub with panel names; earlier hubs are not asked.
 - **Settings, Addresses and domains, How people reach this server:** shows the mode and the panel's address, and
   explains what a change does (ports, addresses, keeping the page open) before it is saved; the change applies when
   the panel restarts. A change that would move the web service (from or to `host-ports`, or proxy on another
@@ -995,7 +1005,8 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.0.1...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.1.0...HEAD
+[3.1.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.0.1...v3.1.0
 [3.0.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v1.0.0...v3.0.0
 [1.0.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v0.1.0...v1.0.0

@@ -6,6 +6,8 @@ Which address, in this order:
     PANEL_DOMAIN            a name the owner points at this server (A/AAAA records): served with a certificate from
                             the ACME authority (HTTP-01 on port 80), got and renewed here
     PUBLIC_HOST, a name     the same, when PANEL_DOMAIN is empty
+    the managed name        panel.<company>.<base>, from the linked Sudoo.sh account (panel_name.py), when neither
+                            is set: the same (the hub keeps its DNS records)
     the server's address    PUBLIC_HOST when it is an address, else PUBLIC_IPV4 / PUBLIC_IPV6, else the address
                             the server sends from (hub/marketplace.public_addresses): served with the panel's own
                             certificate (self-signed, made here), so browsers warn once; meant for the first sign-in
@@ -51,12 +53,32 @@ def _is_address(text: str) -> bool:
     return True
 
 
-def domain() -> str:
-    """The name the panel is served under (PANEL_DOMAIN, else PUBLIC_HOST when it is a name); "" when none."""
+def owner_domain() -> str:
+    """The name the owner gave the panel (PANEL_DOMAIN, else PUBLIC_HOST when it is a name); "" when none."""
     if settings.panel_domain:
         return str(settings.panel_domain)
     host = str(settings.public_host)
     return host if host and "." in host and not _is_address(host) else ""
+
+
+def domain() -> str:
+    """The name the panel is served under: the owner's (owner_domain), else its managed name from Sudoo.sh
+    (panel_name.hostname); "" when none."""
+    found = owner_domain()
+    if found:
+        return found
+    from sudoo.instances import panel_name
+
+    return panel_name.hostname()
+
+
+def source() -> str | None:
+    """Where the panel's name comes from: "panel_domain", "public_host", "managed", or None (no name)."""
+    if settings.panel_domain:
+        return "panel_domain"
+    if owner_domain():
+        return "public_host"
+    return "managed" if domain() else None
 
 
 def server_addresses() -> list[str]:
@@ -233,13 +255,17 @@ def round_(now: float | None = None) -> None:
 
 
 def resource() -> dict[str, Any]:
-    """What the Settings page shows about the panel's address."""
+    """What the Settings page shows about the panel's address, and its managed name (panel_name.py)."""
+    from sudoo.instances import panel_name
+
     found = state()
     return {
         "mode": exposure_mode(settings.exposure),
         "url": url(),
         "domain": domain() or None,
+        "source": source(),
         "status": found.get("status") or ("waiting" if domain() else None),
         "reason": found.get("reason"),
         "server_addresses": server_addresses(),
+        "managed_name": panel_name.resource(),
     }

@@ -6,13 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-11-21
+
 ### Fixed
 
 - **Linking a new panel to hub.sudoo.sh:** this release ships the hub's public key (`8a23a52cbd0d2e51`) as its root key,
   so a new panel trusts the hub from the start instead of relying on the first key list it sees.
-
-### Fixed
-
 - **Dashboard, "By instance":** each value is written inside its bar when it fits there, otherwise just past the bar's
   end with a gap, so it no longer overlaps the bar; the text inside takes the colour that reads best on the bar (light
   and dark themes). On Arabic pages the chart is mirrored (names on the right, bars growing to the left) and values
@@ -959,7 +958,8 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.0.1...HEAD
+[3.0.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v1.0.0...v3.0.0
 [1.0.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/Sudoo-sh/sudoo.sh/releases/tag/v0.1.0

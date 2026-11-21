@@ -1504,7 +1504,9 @@ to be set up on your side but the network:
   HTTP-01) and renews it like a custom domain's, whatever `CUSTOM_DOMAINS` says.
 * The branch is the instance's branch (its name for plain Odoo), made a DNS label; the stage is its stage. The
   company label is chosen with the account's first name (`MANAGED_SUBDOMAIN_COMPANY`, else Sudoo.sh makes it from the
-  company's name) and never changes. Two instances of the same branch and stage share one name: the first keeps it.
+  company's name) and does not change unless Sudoo.sh support changes it on request; the names then move to the new
+  label at the next check (each gets a new certificate, the old names are released). Two instances of the same branch
+  and stage share one name: the first keeps it.
 
 Once its certificate is there, the managed name is the instance's address (shown on its **Overview**), unless it has a
 primary custom domain. When the instance switches branch or stage it gets the new name and the old one is released;

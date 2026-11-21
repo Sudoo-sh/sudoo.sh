@@ -143,6 +143,30 @@ def test_the_name_follows_the_branch_and_stage_and_goes_with_the_instance(hub: F
     assert managed_names.of_instance(DEMO) is not None  # now free for the other instance
 
 
+def test_a_new_company_label_moves_the_names_with_new_certificates(
+    hub: FakeHub, authority: FakeAcme, admin: Client
+) -> None:
+    old, new = "main.production.acme.sudoo.test", "main.production.sudoo.sudoo.test"
+    _instance(DEMO, "demo", "development")
+    managed_names.sync()
+    assert domain_worker.round_() == 2 and certificates.present(old)
+    hub.relabel_company("sudoo")  # staff change the label at the hub: the new names are there, the old ones too
+    found = managed_names.sync()
+    assert found["company"] == "sudoo" and found["pending_release"] == [] and not found["problems"]
+    assert set(managed_names.records()) == {new, "demo.development.sudoo.sudoo.test"}
+    assert set(hub.subdomains) == {new, "demo.development.sudoo.sudoo.test"}  # the old ones released
+    assert custom_domains.get(old) is None and not certificates.present(old)
+    assert (custom_domains.get(new) or {})["status"] == "waiting_dns"
+    assert domain_worker.round_() == 2 and certificates.present(new)
+    assert exposure.address(SHOP) == f"https://{new}"
+    asked = sum(r.startswith("POST /api/v1/installations/subdomains") for r in hub.requests)
+    managed_names.sync()  # nothing more to do
+    assert sum(r.startswith("POST /api/v1/installations/subdomains") for r in hub.requests) == asked
+    web, _ = admin
+    shown = web.get(f"/api/v1/instances/{SHOP}").get_json()["data"]
+    assert shown["managed_name"]["hostname"] == new
+
+
 def test_nothing_is_asked_while_the_hub_or_the_setting_is_off(hub: FakeHub, admin: Client) -> None:
     hub.subdomains_enabled = False
     found = managed_names.sync()

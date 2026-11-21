@@ -412,6 +412,15 @@ class FakeHub:
                 else None, "company": self.subdomains_company, "limit": self.subdomain_limit,
                 "used": len(self.subdomains), "subdomains": [self.subdomain_out(h) for h in sorted(self.subdomains)]}  # fmt: skip
 
+    def relabel_company(self, company: str) -> None:
+        """Staff change the account's company label (PUT .../company-label): each name is made again under it; the
+        old ones stay (until the panel releases them, or their grace ends)."""
+        old, self.subdomains_company = self.subdomains_company, company
+        for found in list(self.subdomains.values()):
+            if found["company"] == old:
+                new = f"{found['branch']}.{found['stage']}.{company}.{self.subdomains_base}"
+                self.subdomains[new] = {**found, "company": company}
+
     def subdomain_out(self, hostname: str) -> dict[str, Any]:
         found = self.subdomains[hostname]
         return {"hostname": hostname, "branch": found["branch"], "stage": found["stage"], "company": found["company"],

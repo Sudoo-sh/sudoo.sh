@@ -17,7 +17,9 @@ remove it: it follows the instance. `sync()` (every MANAGED_SUBDOMAINS_CHECK_MIN
 deleted or changes branch or stage, and on Check now) compares this server's instances with their names:
 
     an instance without its name        ask for it; the hub's answer is the name (its company label and base)
-    a name whose labels no longer fit   ask for the new one, then release the old one (a branch switch, a stage)
+    a name whose labels no longer fit   ask for the new one, then release the old one (a branch switch, a stage,
+                                        or a new company label: staff changed it at the hub, which keeps the old
+                                        names for a while and has the new ones ready)
     a name whose instance is gone       release it; a release the hub could not do now is tried again later
 
 The label of an instance is its branch (the instance's name for plain Odoo, which has no branch), made a DNS label
@@ -147,6 +149,18 @@ def wanted(name: str) -> tuple[str, str] | None:
     stage = stages.of(env)
     found = label(env.get("GIT_BRANCH") or name)
     return (found, stage) if found and stage in STAGES else None
+
+
+def named_right(record: dict[str, Any], found: dict[str, Any] | None = None) -> bool:
+    """Whether a name is <label>.<stage>.<company>.<base> with the company label and base domain the hub said last
+    (True when it said neither). False after staff changed the account's company label: the name is asked for again
+    and the old one released."""
+    found = state() if found is None else found
+    company = str(found.get("company") or "").lower()
+    base = str(found.get("base_domain") or "").lower().strip(".")
+    if not company or not base:
+        return True
+    return str(record.get("domain")) == f"{record.get('label')}.{record.get('stage')}.{company}.{base}"
 
 
 def resource(name: str) -> dict[str, Any] | None:
@@ -483,13 +497,25 @@ def sync(now: float | None = None) -> dict[str, Any]:
                 current = of_instance(name)
                 server_id = servers.server_of(name)
                 try:
-                    if current is not None and goal == (current.get("label"), current.get("stage")):
+                    if (
+                        current is not None
+                        and goal == (current.get("label"), current.get("stage"))
+                        and named_right(current, found)
+                    ):
                         if server_of(current) != server_id or (
                             server_id != MAIN and current.get("points_to") != points_to(server_id)
                         ):  # it moved, or its server's addresses changed
                             told |= _repoint(current, server_id, now)
                         continue
-                    taken = next((r for r in records().values() if (r.get("label"), r.get("stage")) == goal), None)
+                    mine = current["domain"] if current is not None else None
+                    taken = next(
+                        (
+                            r
+                            for r in records().values()
+                            if (r.get("label"), r.get("stage")) == goal and r["domain"] != mine
+                        ),
+                        None,
+                    )
                     if taken is not None:
                         continue  # another instance has that branch and stage: the first keeps it
                     target = points_to(server_id)

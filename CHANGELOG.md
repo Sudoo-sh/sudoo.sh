@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-21
+
 ### Added
 
 - **Three ways to reach a server, Direct by default:** `EXPOSURE` takes `direct`, `proxy` or `tunnel`. **Direct**, the
@@ -997,7 +999,8 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.0.1...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.1.0...HEAD
+[3.1.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.0.1...v3.1.0
 [3.0.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v1.0.0...v3.0.0
 [1.0.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v0.1.0...v1.0.0

@@ -936,3 +936,12 @@ th button.sort:focus-visible { outline: 2px solid var(--brand-ring); border-radi
 .audit-filters [data-slot="select-trigger"] { width: 100%; max-width: 100%; min-width: 0; overflow: hidden; }
 .audit-filters .select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .audit-filters > * { min-width: 0; }
+.flame-hot td { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 767px) {
+  // on a phone: when and the buttons; the length, samples and who are on wider screens
+  .profiler-recordings th:nth-child(2), .profiler-recordings td:nth-child(2),
+  .profiler-recordings th:nth-child(3), .profiler-recordings td:nth-child(3),
+  .profiler-recordings th:nth-child(4), .profiler-recordings td:nth-child(4) { display: none; }
+  .profiler-recordings td { white-space: normal; }
+  .profiler-recordings .open-label { display: none; }
+}

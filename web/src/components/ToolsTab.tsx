@@ -115,7 +115,7 @@ export function ToolsTab({ instance }: { instance: Instance }) {
         {!state.recordings.length ? (
           <Empty icon={<FlameKindling />} title={t.none}>{t.noneText}</Empty>
         ) : (
-          <Table>
+          <Table className="profiler-recordings">
             <TableHeader>
               <TableRow>
                 <TableHead>{t.when}</TableHead>
@@ -140,8 +140,8 @@ export function ToolsTab({ instance }: { instance: Instance }) {
                   <TableCell className="small"><bdi>{r.user}</bdi></TableCell>
                   <TableCell>
                     <div className="row" style={{ justifyContent: "flex-end" }}>
-                      <Button size="sm" variant={shown === r.id ? "soft" : "default"} icon={<Flame />} onClick={() => setShown(shown === r.id ? null : r.id)}>
-                        {shown === r.id ? t.opened : t.open}
+                      <Button size="sm" variant={shown === r.id ? "soft" : "default"} icon={<Flame />} aria-label={shown === r.id ? t.opened : t.open} aria-pressed={shown === r.id} onClick={() => setShown(shown === r.id ? null : r.id)}>
+                        <span className="open-label">{shown === r.id ? t.opened : t.open}</span>
                       </Button>
                       <Button size="sm" variant="ghost" icon={<Download />} asChild title={t.downloadHint}>
                         <a href={r.links.download} download aria-label={`${t.download} (${bytes(r.size)})`} />

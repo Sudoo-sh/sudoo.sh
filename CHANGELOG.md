@@ -155,6 +155,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Build tests, checked against real Odoo 17, 18 and 19:** a failing test's line keeps its exception, the failing
   module is also read from Odoo's per-module summary, repeated warnings count once, theme modules are left out of
   "every module", and the staging test copy first ends other sessions on the source database.
+- **Workers of a new instance:** an instance created in a project stage with workers (production with 2, say)
+  started in threaded mode until its first restart, while the gateway already sent WebSockets to Odoo's gevent port,
+  so live updates in Odoo did not connect. Its `odoo.conf` now gets the stage's workers and limits when it is created.
+- **Branch resources after a stage change:** a branch's **Resources of this branch** still named its former stage
+  after it was moved (drag and drop or **Move to**) until the page was reloaded.
 
 ## [3.1.1] - 2026-11-21
 

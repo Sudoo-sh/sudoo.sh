@@ -252,6 +252,9 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
         },
     )
     odoo.write_config(name, db, db_password, master_password)
+    # workers and limits in odoo.conf, as the compose file gets them (integrity.apply below): without them a project
+    # stage with workers would start Odoo in threaded mode while the gateway sends WebSockets to the gevent port
+    resources.write_conf(name)
     refresh_addons_path(job, name)
     mail_catcher.prepare(name)  # staging and development: e-mail goes to the mail catcher
     STATE.update(name, last_visit=time.time(), paused=False, switched_off=False)

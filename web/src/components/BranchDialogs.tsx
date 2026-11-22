@@ -53,7 +53,9 @@ export function StageDialog({ project, meta, branch, stage, onClose, onCompare }
   const stopped = promoting && Boolean(check.data?.blocking) && !anyway;
   const save = useCall(
     () => api.put<ProjectBranch>(`/projects/${project.id}/branches/${branch.name}/stage`, { stage, confirm_production: production, ...(promoting && anyway ? { promote_anyway: true } : {}) }),
-    [keys.project(project.id), keys.projects, keys.instances, promotionKey(project.id, branch.name)],
+    // the branch's resources follow its stage: "branch-resources" and "project-resources" (ProjectResources.tsx)
+    [keys.project(project.id), keys.projects, keys.instances, promotionKey(project.id, branch.name),
+      ["branch-resources", project.id], ["project-resources", project.id]],
   );
   return (
     <Modal wide={promoting} title={d.title(branch.name, STAGE_LABEL[stage])} onClose={onClose}

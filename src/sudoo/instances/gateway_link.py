@@ -9,7 +9,8 @@ Every ROUND_SECONDS, and at once when an instance is created or deleted (gateway
     3. reads visits.json and takes the newer visits into the instances' state (automatic pause, daily backups).
 
 It also serves panel.sock, where the gateway service asks POST /wake/<name> when an instance's Odoo does not answer:
-the panel starts it (gateway.wake_decision) and says which page to show.
+the panel starts it (gateway.wake_decision) and says which page to show; and POST /connect/<name> when a Connect as
+link is opened (connect_as.py).
 
 Hand-over. While the gateway service cannot be reached, the panel serves the instances itself, with gateway.py's
 listeners in this process, exactly as in embedded mode: at once when gateway.sock does not exist (no service runs, or
@@ -289,10 +290,30 @@ async def _wake(request: web.Request) -> web.Response:
     return web.json_response({"page": page, "since": since})
 
 
+async def _connect(request: web.Request) -> web.Response:
+    """A Connect as link opened on the gateway service: use up the token, write the Odoo session (connect_as.py)."""
+    from sudoo.instances import connect_as
+
+    name = request.match_info["name"]
+    try:
+        data = await request.json()
+        token, ip = str(data.get("token") or ""), str(data.get("ip") or "")[:64]
+    except (ValueError, AttributeError):
+        return web.json_response({"error": "The link is not valid."}, status=400)
+    if not store.NAME_RE.match(name) or not store.exists(name):
+        return web.json_response({"error": "This instance does not exist."}, status=404)
+    try:
+        sid = await asyncio.to_thread(connect_as.connect, name, token, ip)
+    except connect_as.ConnectError as error:
+        return web.json_response({"error": str(error)}, status=403)
+    return web.json_response({"sid": sid})
+
+
 async def serve_wake() -> web.AppRunner:
-    """Serve POST /wake/<name> on panel.sock (on the gateway's event loop)."""
+    """Serve POST /wake/<name> and POST /connect/<name> on panel.sock (on the gateway's event loop)."""
     app = web.Application()
     app.router.add_post("/wake/{name}", _wake)
+    app.router.add_post("/connect/{name}", _connect)
     runner = web.AppRunner(app, access_log=None, handle_signals=False)
     await runner.setup()
     sock = path(PANEL_SOCKET)

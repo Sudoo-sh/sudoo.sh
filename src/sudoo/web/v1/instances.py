@@ -17,6 +17,7 @@
                                                      restore: {"file"} optional (any instance's backup of the
                                                      same Odoo series), the latest backup otherwise
                                                      rollback: back to before the last restore (ROLLBACK_HOURS)
+                                                     backup: {"comment"} optional, kept with the backup
                                                      connect-repository: {"repo", "branch", "install_modules"}
                                                      gives plain Odoo a repository (its data is kept)
     DELETE /api/v1/instances/<name>                  delete after a backup; body {"confirm": "<name>"} -> 202
@@ -652,7 +653,7 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
         "restart": (operations.restart, (name,)),
         "start": (operations.wake, (name,)),
         "pause": (operations.pause, (name,)),
-        "backup": (operations.backup, (name,)),
+        "backup": (operations.backup, (name, "manual", check.text(data, "comment", max_length=backups.COMMENT_MAX))),
         "switch-off": (operations.switch_off, (name,)),
         "update-images": (operations.update_images, (name,)),
         "repair": (operations.repair, (name,)),

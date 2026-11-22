@@ -832,6 +832,18 @@ class Settings(BaseSettings):
         description="Back up an instance before an update changes its code, and put it back (code, and the database "
         "when it may have changed) when the update fails.",
     )
+    import_max_gb: float = Field(
+        20,
+        gt=0,
+        le=1000,
+        description="Largest database dump that can be uploaded with Import database (GB).",
+    )
+    log_download_max_lines: int = Field(
+        100000,
+        ge=1000,
+        le=1000000,
+        description="Lines a log download holds at most (the last ones).",
+    )
 
     # ------------------------------------------------------------------ off-site copies (offsite/, docs/ADMIN_GUIDE.md "Off-site copies")
     offsite_backups: bool = Field(
@@ -1619,6 +1631,8 @@ EDITABLE = (
     "timezone",
     "rollback_hours",
     "safe_updates",
+    "import_max_gb",
+    "log_download_max_lines",
     "upgrade_methods",
     "openupgrade_repository",
     "openupgrade_refs",

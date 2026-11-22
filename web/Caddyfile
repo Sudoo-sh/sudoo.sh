@@ -37,6 +37,26 @@ http://:{$PANEL_PORT} {
 		}
 	}
 
+	# followed logs: Server-Sent Events, served next to the live events (the backend checks session and access)
+	@logstream path_regexp ^/api/v1/instances/[a-z0-9-]+/logs/stream$
+	handle @logstream {
+		reverse_proxy 127.0.0.1:{$EVENTS_PORT} {
+			flush_interval -1
+		}
+	}
+
+	# a piece of a database being imported (Import database): up to 8 MB each, the only large requests
+	@importpiece {
+		method PUT
+		path_regexp ^/api/v1/instances/[a-z0-9-]+/imports/[A-Za-z0-9_-]+$
+	}
+	handle @importpiece {
+		request_body {
+			max_size 9MB
+		}
+		reverse_proxy 127.0.0.1:{$API_PORT}
+	}
+
 	# with several servers (premium): the channels of other servers' agents, WebSockets signed frame by frame,
 	# served next to the live events
 	handle /api/v1/servers/channel {

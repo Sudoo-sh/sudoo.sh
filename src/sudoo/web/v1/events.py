@@ -52,7 +52,7 @@ from sudoo.instances import gateway
 from sudoo.projects import access
 
 from ..security import api_caller, client_ip_of, user_of_session
-from . import shell_socket
+from . import log_stream, shell_socket
 
 PATH = "/api/v1/events"
 FLASK_APP = web.AppKey("flask", Flask)
@@ -105,6 +105,7 @@ def make_app(flask_app: Flask) -> web.Application:
     app[FLASK_APP] = flask_app
     app.router.add_get(PATH, stream)
     shell_socket.add_routes(app)  # the web shell's WebSockets (shell_socket.py) share this server
+    log_stream.add_routes(app)  # followed logs (log_stream.py) too
     from sudoo.premium import servers
 
     servers.add_routes(app)  # several servers: the channels of other servers' agents

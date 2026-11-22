@@ -106,6 +106,7 @@ hidden from the token, 404). It may call these endpoints and nothing else:
 | `GET /projects`, `GET /projects/<id>` | List and read the projects it may see, with their branches |
 | `GET /instances`, `GET /instances/<name>`, `GET /instances/<name>/resources` | List and read instances |
 | `GET /instances/<name>/logs` | Odoo's log |
+| `GET /instances/<name>/logs/files`, `.../logs/stream`, `.../logs/download` | Its logs: which there are, following one, downloading one |
 | `GET /instances/<name>/mail...` | Caught e-mails (reading only) |
 | `GET /jobs`, `GET /jobs/<id>`, `GET /jobs/<id>/log` | Jobs and their technical logs |
 | `GET /instance-quota`, `GET /instance-plan` | How many it may still create, and the name a new one would get |
@@ -221,6 +222,16 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `GET /instances/<name>` | `instances.view` | | 200, the instance with `disk`, `recent_commits`, `submodules`, `backups`, `restorable_backup` and `recent_jobs` ([below](#instances-jobs-and-actions-in-detail)); also while it is being created (status `creating`). For callers with `instances.shell` or `instances.credentials` in it, `containers`: `odoo` and `db` (container names), `db_user` and `host` (PUBLIC_HOST, or `null`), for the SSH and psql commands of a project's branch; never a password |
 | `GET /instances/<name>/credentials` | `instances.credentials` | | 200, Odoo `login`, `admin_password`, `master_password`, `ports`; written to the audit log |
 | `GET /instances/<name>/logs?lines=300` | `instances.logs` | | 200, `{"text"}`: the end of Odoo's log (1 to 5000 lines) |
+| `GET /instances/<name>/logs/files` | `instances.logs` | | 200, the logs that can be read: `odoo.log` (Odoo's container), and `install.log`, `update.log`, `upgrade.log` (the technical log of the instance's latest creation, update and module upgrade job, while the panel keeps it), each `{"name", "job", "status", "started_at"}` |
+| `GET /instances/<name>/logs/stream?log=odoo.log&tail=300&q=` | `instances.logs` | | Server-Sent Events: the last `tail` lines (0 to 5000), then new ones as they are written; `q` keeps only the lines that contain that text, ignoring case (plain text, never a pattern). Events `lines` (`{"lines": [...]}`) and `end` (`{"reason": "max_duration"}` after 5 minutes, `"stopped"` when Odoo's container stops, `"finished"` at the end of a job's log); every event's `id` is where to continue: send it back as `Last-Event-ID` or `?after=`. A caller follows at most 4 logs at once (429) ([Following a log](#following-a-log)) |
+| `GET /instances/<name>/logs/download?log=odoo.log&q=` | `instances.logs` | | 200, the log as a text file (`text/plain`, attachment): its last `LOG_DOWNLOAD_MAX_LINES` lines, with the filter `q` applied; audit-logged |
+| `GET /instances/<name>/odoo-users` | `instances.credentials` | | 200, the active internal Odoo users: `[{"id", "login", "name"}]` (read again after 30 seconds); 409 when the database is not running |
+| `POST /instances/<name>/connect` | `instances.credentials` | `{"uid": 7}`; a production instance also `"confirm_stage": "production"` | **201**, `{"url", "expires_at", "login"}`: a link that opens Odoo signed in as that user, once, within 60 seconds ([Connect as](#connect-as)); audit-logged, and so is its use |
+| `POST /instances/<name>/imports` | `instances.restore` | `{"file_name": "prod.zip", "size": 734003200}` | **201**, a new upload `{"id", "file_name", "format", "size", "received", "complete", "chunk_size"}`; 400 for a file that is not `.zip`, `.dump`, `.sql` or `.sql.gz`, 413 beyond `IMPORT_MAX_GB` ([Import database](#import-database)) |
+| `GET /instances/<name>/imports/<id>` | `instances.restore` | | 200, the upload: how much arrived |
+| `PUT /instances/<name>/imports/<id>?offset=0` | `instances.restore` | the next piece as `application/octet-stream` (at most 8 MB) | 200, the upload; **409** with `meta.received` when `offset` is not where the upload stands |
+| `DELETE /instances/<name>/imports/<id>` | `instances.restore` | | **204**, the upload removed |
+| `POST /instances/<name>/imports/<id>/restore` | `instances.restore` | `{"neutralize": true}` (default `true`, `false` in production); a production instance also `"confirm_production": true` and `"confirm_stage": "production"` | **202**, the job "Import a database"; 400 when the file is not a valid dump, unsafe (paths outside the archive), or of another major Odoo version |
 | `GET /instances/<name>/resources` | `instances.view` | | 200, `stage`, `priority` (`rank` 1 production to 3 development, `cpu_weight`, `oom_score_adj`, `memory_reservation`, `db_memory_reservation`), `limits` (what applies), `own` (set for this instance), `stage_defaults`, `odoo_defaults`, `unlimited`, `pending` (the containers run with older values until a restart), `warnings` (each `code`, `text`, `values`; they never refuse anything), `server` (`cores`, `memory_bytes`, `usable_bytes`, `reserved_bytes`) ([Resources and priority](ADMIN_GUIDE.md#resources-and-priority)) |
 | `PUT /instances/<name>/resources` | `instances.resources` | `{"limits": {"odoo_workers": 2, "odoo_memory_limit": "4g"}}`: the instance's own limits, each of `odoo_workers`, `odoo_cron_threads`, `odoo_limit_memory_soft_mb`, `odoo_limit_memory_hard_mb`, `odoo_limit_time_cpu`, `odoo_limit_time_real`, `odoo_memory_limit`, `odoo_cpu_limit`, `db_memory_limit`, `db_cpu_limit` (a missing one or `null` follows the stage); a production instance also `"confirm_production": true` | **202**, the job "Apply resources"; 400 for a value Docker or Odoo cannot use |
 | `POST /instances` | `instances.create` | as below | **202**, the job; `Content-Location` names the new instance |
@@ -555,8 +566,11 @@ A backup in `GET /backups` (`created` in Unix seconds, `size` in bytes):
 ```json
 {"file": "sales-main__sales_main__20261112-000012__daily.zip", "instance": "sales-main", "db": "sales_main",
  "stamp": "20261112-000012", "kind": "daily", "size": 48213504, "created": 1794441612.4,
- "version": "19.0", "series": "19.0", "edition": "community"}
+ "version": "19.0", "series": "19.0", "edition": "community", "revision": "9f2c4e1...", "comment": null}
 ```
+
+`revision` is the commit the instance's code was at when the backup was taken, `comment` what was given with **Back
+up now** (`null` for backups without them). An instance lists its own backups with both too.
 
 `version` and `edition` come from the backup's `manifest.json` (`null` when it does not say; backups of earlier
 versions of Sudoo.sh have no `edition`). `series` is the Odoo release the database belongs to (`"17.1"` for
@@ -850,7 +864,7 @@ Actions (`POST /instances/<name>/actions/<action>`); each needs its own permissi
 | `remove-submodule` | Remove a submodule | `instances.operate` | `{"path": "oca/web"}` |
 | `switch-branch` | Switch branch | `instances.operate` | `{"branch": "main"}`; for a production instance the new branch becomes a production branch in place of the earlier one (which stays production only while another production instance follows it); **409** when that is beyond the project's or the plan's limits |
 | `connect-repository` | Give an instance of plain Odoo a GitHub repository: clone it, install its modules if asked, restart (data kept); 409 when it has one, or when a production instance would take its repository's project beyond its production branches | `instances.operate` | `{"repo": "https://github.com/acme/odoo-addons", "branch": "main", "install_modules": true}` (`branch` defaults to `main`) |
-| `backup` | Back up now | `instances.operate` | `{}` |
+| `backup` | Back up now | `instances.operate` | `{}`, or `{"comment": "before the price import"}` (up to 200 characters, kept in the backup's `manifest.json`) |
 | `update-images` | Download the instance's Odoo and PostgreSQL images again (same names and tags), pin the new digests, recreate the containers | `instances.operate` | `{}` |
 | `repair` | Restore the panel's configuration after a change made outside the panel (also started on its own with `DRIFT_ACTION=restore`) | `instances.operate` | `{}` |
 | `restore` | Restore a backup: replaces the database and the filestore | `instances.restore` (and `backups.manage` for another instance's backup) | `{}` for the latest, or `{"file": "<backup file name>"}` |
@@ -861,6 +875,40 @@ By role: a Developer may run the `instances.update` actions, a Maintainer every 
 admin or Administrator all of them. On a production instance, `pause`, `switch-off`, `restore` and `rollback` also
 need `"confirm_production": true` in the body, and `delete` needs `"confirm_stage": "production"` besides the name;
 without them the answer is 400 and nothing starts.
+
+#### Following a log
+
+`GET /instances/<name>/logs/stream` answers with Server-Sent Events, served next to the live events. A browser's
+`EventSource` reconnects by itself and sends the last event's id as `Last-Event-ID`; other clients send it as
+`?after=<id>` with `tail=0`. The id of `odoo.log` is the time stamp Docker gave the last line, so a stream opened again
+continues exactly after it; the id of a job's log is an offset in that log. The server ends a stream after 5 minutes
+(`end` with `"max_duration"`) and when Odoo's container stops (`"stopped"`): open it again from the last id. Lines are
+read from Docker only as fast as the client takes them.
+
+#### Connect as
+
+`POST /instances/<name>/connect` gives a link `https://<instance address>/__sudoo/connect?token=...`. The token is
+random, valid once and for 60 seconds, for that instance and that Odoo user only, and kept by the panel only as its
+SHA-256. The instance's gateway answers the link: it asks the panel to use up the token, the panel writes a session for
+the user into the instance's own session store through Odoo's session API (in `odoo shell` inside the Odoo container),
+and the gateway sets Odoo's `session_id` cookie for the instance's address and redirects to `/web`. No password is
+read, reset or changed; the session ends as any Odoo session does (sign out, password change, Odoo's session
+lifetime). Giving the link and every use of it are written to the audit log (who, instance, which Odoo user). A used,
+expired or unknown link answers 403 with a short page.
+
+#### Import database
+
+An Odoo dump from elsewhere goes into an instance in three steps: `POST .../imports` announces the file, `PUT
+.../imports/<id>?offset=` sends it piece by piece (the web app sends 4 MB pieces; after a lost connection, `GET
+.../imports/<id>` says how much arrived), and `POST .../imports/<id>/restore` starts the job. Accepted: `.zip`
+(Odoo's backup format: `dump.sql`, `filestore/`, `manifest.json`), `.dump` (`pg_dump -Fc`), `.sql` and `.sql.gz`.
+Before the job starts, a zip is checked: a valid archive, every entry inside it (no absolute paths, no `..`, no
+links), `dump.sql` present, and the Odoo version in `manifest.json` of the instance's major version. A dump without a
+manifest is checked by the job, from the version of the `base` module recorded in the dump. The job backs up the
+current state first (Rollback is offered afterwards), replaces the database and the filestore (a dump without a
+filestore leaves it empty), neutralises the data unless `"neutralize": false`, and starts Odoo. Users keep their
+passwords from the dump. An upload belongs to the person who started it and is removed after the import, when
+cancelled, or after 24 hours without a new piece.
 
 #### Stages
 

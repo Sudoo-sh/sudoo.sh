@@ -491,12 +491,12 @@ def expire(job: Job, name: str) -> None:
         raise
 
 
-def backup(job: Job, name: str, kind: str = "manual") -> None:
+def backup(job: Job, name: str, kind: str = "manual", comment: str = "") -> None:
     job.step("Backing up the database and files")
     paused = _paused(name)
     if kind == "daily":
         STATE.update(name, used_since=None)  # visits from now on count for the next one
-    saved = backups.create(job, name, kind)
+    saved = backups.create(job, name, kind, comment)
     if paused:
         job.run(compose(name, "stop"), timeout=300)  # leave a paused instance paused
     job.note(f"Backup saved: {', '.join(path.name for path in saved)}")

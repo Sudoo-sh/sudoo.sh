@@ -8,6 +8,9 @@ role (roles.py), and the same permission checks apply.
     session.py     sign in (password, then a second factor when needed) and out, own password, contact
     account.py     own account and second factors
     instances.py   instances, jobs, versions
+    logs.py        an instance's logs: which there are, downloading one (log_stream.py follows one live)
+    connect.py     Connect as: open an instance's Odoo signed in as one of its users
+    imports.py     Import database: upload an Odoo dump in pieces and put it into an instance
     projects.py    projects (one GitHub repository each), their branches and stages, access and locked branches
     upgrades.py    database upgrades of instances to a newer Odoo version: pre-check, test, production, rollback
     teams.py       teams: named groups of accounts that project access is given to (reading, removing; the rest
@@ -32,6 +35,7 @@ role (roles.py), and the same permission checks apply.
     shell.py       the web shell: tickets, open and past shells, recordings
     events.py      the live event stream (Server-Sent Events), served on the asyncio loop
     shell_socket.py  the web shell's WebSocket, served on the same loop
+    log_stream.py  following a log (Server-Sent Events), served on the same loop
 Answers follow the conventions in responses.py.
 """
 
@@ -48,13 +52,16 @@ from . import (
     alerts,
     backups,
     caught_mail,
+    connect,
     docs,
     domains,
     github,
     help_panel,
+    imports,
     instances,
     invitations,
     licence,
+    logs,
     mail_templates,
     plan,
     plugins,
@@ -92,6 +99,9 @@ def register(app: Flask) -> None:
         session,
         account,
         instances,
+        logs,
+        connect,
+        imports,
         projects,
         domains,
         caught_mail,

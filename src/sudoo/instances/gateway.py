@@ -188,6 +188,11 @@ class Host(Protocol):
         """Odoo did not accept the connection: the answer for the visitor (and start the instance if needed)."""
         ...
 
+    async def connect(self, name: str, token: str, ip: str) -> tuple[str | None, str]:
+        """A Connect as link was opened (connect_as.py): (Odoo session id, "") when its token was valid and the
+        session was written, else (None, why)."""
+        ...
+
 
 def websocket_port(env: Mapping[str, str]) -> int | None:
     """Where the instance's WebSockets go when its containers run with Odoo workers (ODOO_WORKERS, written by the
@@ -218,6 +223,14 @@ class PanelHost:
     async def not_ready(self, request: web.Request, name: str) -> web.StreamResponse:
         page, since = wake_decision(name)
         return status_pages.render(request, name, page, since=since)
+
+    async def connect(self, name: str, token: str, ip: str) -> tuple[str | None, str]:
+        from sudoo.instances import connect_as
+
+        try:
+            return await asyncio.to_thread(connect_as.connect, name, token, ip), ""
+        except connect_as.ConnectError as error:
+            return None, str(error)
 
 
 HOST: Host = PanelHost()
@@ -467,6 +480,8 @@ async def _to_instance(request: web.Request, name: str, edge: Edge) -> web.Strea
         HOST.visited(name)
     if route.switched_off:
         return status_pages.render(request, name, "off")
+    if request.path == CONNECT_PATH:
+        return await _connect(request, name, edge)
     odoo_url = f"http://127.0.0.1:{route.odoo_port}"
     try:
         if request.headers.get("Upgrade", "").lower() == "websocket":
@@ -476,6 +491,36 @@ async def _to_instance(request: web.Request, name: str, edge: Edge) -> web.Strea
         return await _forward_http(request, odoo_url, name, edge)
     except _OdooDown:
         return await HOST.not_ready(request, name)
+
+
+CONNECT_PATH = "/__sudoo/connect"  # connect_as.PATH: a Connect as link, answered here, never passed to Odoo
+_CONNECT_PAGE = (
+    "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'><title>Connect as</title>"
+    "<body style='font:16px system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 16px;color:#1d1d1f'>"
+    "<h1 style='font-size:20px'>This link cannot sign you in</h1><p>{}</p></body>"
+)
+
+
+async def _connect(request: web.Request, name: str, edge: Edge) -> web.StreamResponse:
+    """A Connect as link: its token is used up; when it was valid, Odoo's session cookie is set for this address and
+    the visitor goes to Odoo's backend, signed in as the chosen user. The answer is never cached, and the link is
+    not passed on as the referrer."""
+    import html
+
+    headers = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex"}
+    if request.method != "GET":
+        return web.Response(status=405, text="Use GET.", headers=headers)
+    trusted = edge.client_ip_header
+    visitor = (request.headers.get(trusted, "").split(",")[-1].strip() if trusted else "") or request.remote or ""
+    sid, why = await HOST.connect(name, request.query.get("token", ""), visitor)
+    if sid is None:
+        page = _CONNECT_PAGE.format(html.escape(why or "The link is not valid."))
+        return web.Response(status=403, text=page, content_type="text/html", headers=headers)
+    answer = web.Response(status=302, headers={**headers, "Location": "/web"})
+    answer.set_cookie(
+        "session_id", sid, path="/", httponly=True, samesite="Lax", secure=edge.https, max_age=7 * 24 * 3600
+    )
+    return answer
 
 
 # --------------------------------------------------------------------------- custom domains (ports 80 and 443)

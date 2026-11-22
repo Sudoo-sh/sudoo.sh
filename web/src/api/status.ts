@@ -82,6 +82,7 @@ export type NotificationEvent =
   | "production_up"
   | "backup_failed"
   | "restore_done"
+  | "staging_refreshed"
   | "storage_over";
 
 export interface Delivery {

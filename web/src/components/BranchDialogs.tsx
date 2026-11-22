@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { api, errorText } from "@/api/client";
 import { keys, useCall } from "@/api/queries";
 import type { Instance, Job, ProjectBranch, ProjectDetail, ProjectMeta, Stage } from "@/api/types";
+import { PromotionChecklist, promotionKey, usePromotionCheck } from "@/components/PromotionChecklist";
 import { STAGE_LABEL } from "@/components/StageTag";
 import { Button, Callout, Field, Switch } from "@/components/app/basics";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import { Modal, useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/projects";
+import promotionWords from "@/i18n/promotion";
 import { ago } from "@/lib/format";
 
 export function BranchCommit({ branch }: { branch: ProjectBranch }) {
@@ -33,23 +35,30 @@ export type BranchDialog =
   | { kind: "stage"; branch: ProjectBranch; stage: Stage }
   | { kind: "create"; branch: ProjectBranch }
   | { kind: "rebuild"; branch: ProjectBranch; instance: string }
-  | { kind: "delete"; instance: Instance };
+  | { kind: "delete"; instance: Instance }
+  | { kind: "compare"; branch: ProjectBranch; base: string }
+  | { kind: "promotion"; branch: ProjectBranch };
 
-export function StageDialog({ project, meta, branch, stage, onClose }: { project: ProjectDetail; meta: ProjectMeta; branch: ProjectBranch; stage: Stage; onClose: () => void }) {
+export function StageDialog({ project, meta, branch, stage, onClose, onCompare }: { project: ProjectDetail; meta: ProjectMeta; branch: ProjectBranch; stage: Stage; onClose: () => void; onCompare?: (base: string) => void }) {
   const t = useT(words);
   const d = t.stageDialog;
   const c = useT(common).common;
   const toast = useToast();
+  const p = useT(promotionWords).check;
   const [understood, setUnderstood] = useState(false);
+  const [anyway, setAnyway] = useState(false);
   const production = stage === "production" || branch.stage === "production";
+  const promoting = stage === "production" && branch.stage !== "production";
+  const check = usePromotionCheck(project.id, branch.name, promoting);
+  const stopped = promoting && Boolean(check.data?.blocking) && !anyway;
   const save = useCall(
-    () => api.put<ProjectBranch>(`/projects/${project.id}/branches/${branch.name}/stage`, { stage, confirm_production: production }),
-    [keys.project(project.id), keys.projects, keys.instances],
+    () => api.put<ProjectBranch>(`/projects/${project.id}/branches/${branch.name}/stage`, { stage, confirm_production: production, ...(promoting && anyway ? { promote_anyway: true } : {}) }),
+    [keys.project(project.id), keys.projects, keys.instances, promotionKey(project.id, branch.name)],
   );
   return (
-    <Modal title={d.title(branch.name, STAGE_LABEL[stage])} onClose={onClose}
+    <Modal wide={promoting} title={d.title(branch.name, STAGE_LABEL[stage])} onClose={onClose}
       footer={<><Button onClick={onClose}>{c.cancel}</Button>
-        <Button variant={production ? "danger" : "primary"} loading={save.isPending} disabled={production && !understood}
+        <Button variant={production ? "danger" : "primary"} loading={save.isPending} disabled={(production && !understood) || stopped}
           onClick={() => save.mutate(undefined, {
             onSuccess: () => { toast("success", t.page.stageChanged(branch.name, STAGE_LABEL[stage])); onClose(); },
             onError: (e) => toast("error", t.page.stageNotChanged, errorText(e)),
@@ -65,6 +74,13 @@ export function StageDialog({ project, meta, branch, stage, onClose }: { project
         {stage === "staging" && branch.instances.length > 0 && <p className="small muted">{d.staging}</p>}
         {stage === "development" && branch.instances.length > 0 && branch.stage !== "production" && <p className="small muted">{d.development}</p>}
         <p className="small">{branch.instances.length ? d.instances(branch.instances.join(", ")) : d.noInstances}</p>
+        {promoting && <PromotionChecklist project={project} branch={branch} onCompare={onCompare} />}
+        {promoting && check.data?.blocking && (
+          <div className="stack-xs">
+            <Switch checked={anyway} onChange={setAnyway} label={p.promoteAnyway} />
+            <p className="small muted">{p.promoteAnywayText}</p>
+          </div>
+        )}
         {production && <Switch checked={understood} onChange={setUnderstood} label={d.confirm} />}
       </div>
     </Modal>

@@ -49,7 +49,7 @@ export function seedProjects() {
       origin: members.length ? "adopted" : "linked",
       created_at: OPENED - (members.length ? 74 : 4) * DAY,
       created_by: members.length ? "system" : "omar",
-      own: id === "nile-logistics" ? { max_auto_development: 5, branch_deleted: "keep" } : id === "acme-retail" ? { test_suite: "selection", staging_tests: true } : {},
+      own: id === "nile-logistics" ? { max_auto_development: 5, branch_deleted: "keep" } : id === "acme-retail" ? { test_suite: "selection", staging_tests: true, pr_previews: true } : {},
       stages,
       autoCreated: id === "acme-retail" ? { "pos-refunds": "acme-retail-pos-refunds" } : {},
       access: seededAccess(id),
@@ -76,6 +76,9 @@ const OPTION_SETTINGS: Record<keyof ProjectOptions, string> = {
   test_tags: "project_test_tags",
   staging_tests: "project_staging_tests",
   commit_statuses: "project_commit_statuses",
+  pr_previews: "project_pr_previews",
+  pr_preview_limit: "project_pr_preview_limit",
+  pr_previews_forks: "project_pr_previews_forks",
 };
 
 export function options(project: DemoProject): ProjectOptions {

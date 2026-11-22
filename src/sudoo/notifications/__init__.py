@@ -13,6 +13,9 @@ Events (EVENTS) come from what the panel already publishes, never from a second 
     stage_changed, promoted                        a branch moved to another stage (the "stage" entry of the
                                                    branch's history); promoted: to production
     restore_done                                   a backup was restored into an instance of the project
+    staging_refreshed                              the scheduled refresh of staging from production ran
+                                                   (the "refresh" entry of the branch's history,
+                                                   projects/refresh.py)
     production_down, production_up                 the status checks (status/checks.py), down after two failed
                                                    checks in a row
     backup_failed                                  a backup job of an instance of the project failed (jobs.on_end)
@@ -57,6 +60,7 @@ EVENTS = (
     "production_up",
     "backup_failed",
     "restore_done",
+    "staging_refreshed",
     "storage_over",
 )
 DEFAULT_EVENTS = (
@@ -554,6 +558,12 @@ def on_build(entry_id: str) -> int:
             return emit("promoted", project_id, title=f"{branch} is now in production", text=what + ".",
                         severity="info", **common)  # fmt: skip
         return emit("stage_changed", project_id, title=f"{branch} is now {after}", text=what + ".", severity="info",
+                    **common)  # fmt: skip
+    if kind == "refresh" and _first_time(f"{entry_id}:refresh"):
+        refreshed = status == "success"
+        return emit("staging_refreshed", project_id,
+                    title=f"Staging {branch} refreshed from production" if refreshed else f"Staging {branch} not refreshed",
+                    text=str(entry.get("result") or ""), severity="info" if refreshed else "problem",
                     **common)  # fmt: skip
     if kind == "restore" and status == "success" and _first_time(f"{entry_id}:restore"):
         return emit("restore_done", project_id, title=f"Backup restored into {entry.get('instance')}",

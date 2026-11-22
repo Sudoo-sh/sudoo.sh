@@ -34,6 +34,8 @@ import { ProjectBuilds } from "@/components/ProjectBuilds";
 import { ProjectNotifications } from "@/components/ProjectNotifications";
 import { ProjectStatus, ProjectStatusTabs } from "@/components/ProjectStatus";
 import { ProjectWorkspace } from "@/components/ProjectWorkspace";
+import { PullRequestPreviews } from "@/components/PullRequestPreviews";
+import { StagingRefresh } from "@/components/StagingRefresh";
 import { Page, PageHead, useCan, useSubCrumb } from "@/components/Shell";
 import { STAGE_ICON, STAGE_LABEL } from "@/components/StageTag";
 import { Button, Callout, Empty, Field, Skeleton, Status, Switch, Tag } from "@/components/app/basics";
@@ -269,6 +271,8 @@ function SettingsTab({ project, meta }: { project: ProjectDetail; meta: ProjectM
       </section>
       <ProjectBuildDefaults project={project} meta={meta} editable={editable} />
       <ProjectResources project={project} meta={meta} />
+      <StagingRefresh project={project} />
+      <PullRequestPreviews project={project} />
       <section className="card">
         <div className="card-head"><h2>{s.lifetimes}</h2></div>
         <div className="card-body stack">

@@ -292,8 +292,10 @@ def test_build_events(project: dict[str, Any], monkeypatch: pytest.MonkeyPatch) 
     add("s1", type="stage", **{"from": "staging", "to": "production"}, at=5.0)
     add("s2", type="stage", **{"from": "development", "to": "staging"}, at=6.0)
     add("r1", type="restore", status="success", at=7.0)
+    add("f1", type="refresh", status="success", at=8.0)  # the scheduled staging refresh (projects/refresh.py)
     notifications.on_build("b1")  # published again (an update of the entry): told once
-    assert sent == ["build_failed", "build_recovered", "build_warning", "promoted", "stage_changed", "restore_done"]
+    assert sent == ["build_failed", "build_recovered", "build_warning", "promoted", "stage_changed", "restore_done",
+                    "staging_refreshed"]  # fmt: skip
 
 
 def test_backup_failure_and_storage_over(project: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:

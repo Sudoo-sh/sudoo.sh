@@ -65,6 +65,11 @@ def start() -> None:
     from sudoo.projects import builds  # late: projects/ imports the instances package, as this module does
 
     builds.listen()
+    from sudoo.projects import previews, refresh
+
+    previews.listen()
+    threading.Thread(target=refresh.run_forever, daemon=True, name="staging-refresh").start()
+
     from sudoo import notifications
     from sudoo.status import checks as status_checks
 

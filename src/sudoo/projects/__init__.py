@@ -60,6 +60,10 @@ OPTIONS: dict[str, str] = {
     "test_tags": "project_test_tags",
     "staging_tests": "project_staging_tests",
     "commit_statuses": "project_commit_statuses",
+    # pull-request previews (projects/previews.py)
+    "pr_previews": "project_pr_previews",
+    "pr_preview_limit": "project_pr_preview_limit",
+    "pr_previews_forks": "project_pr_previews_forks",
 }
 """A project's options and the panel settings that give their defaults."""
 

@@ -33,7 +33,7 @@ const EVENT_GROUPS: { id: "builds" | "stages" | "production" | "data"; events: N
   { id: "builds", events: ["build_failed", "build_warning", "build_recovered"] },
   { id: "stages", events: ["stage_changed", "promoted"] },
   { id: "production", events: ["production_down", "production_up"] },
-  { id: "data", events: ["backup_failed", "restore_done", "storage_over"] },
+  { id: "data", events: ["backup_failed", "restore_done", "staging_refreshed", "storage_over"] },
 ];
 
 export function ProjectNotifications({ project }: { project: ProjectDetail }) {

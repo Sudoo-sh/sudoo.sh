@@ -7,7 +7,7 @@ import { branchList, projects, type DemoProject } from "./projects";
 import { instances, ME } from "./state";
 import { DAY, hash, hex, HOUR, MINUTE, OPENED, Problem, seeded } from "./util";
 
-const EVENTS: NotificationEvent[] = ["build_failed", "build_warning", "build_recovered", "stage_changed", "promoted", "production_down", "production_up", "backup_failed", "restore_done", "storage_over"];
+const EVENTS: NotificationEvent[] = ["build_failed", "build_warning", "build_recovered", "stage_changed", "promoted", "production_down", "production_up", "backup_failed", "restore_done", "staging_refreshed", "storage_over"];
 const DEFAULT_EVENTS: NotificationEvent[] = ["build_failed", "build_recovered", "promoted", "production_down", "production_up", "backup_failed", "storage_over"];
 const TYPES: ChannelType[] = ["slack", "discord", "teams", "telegram", "webhook", "email"];
 const LIMIT = 10;

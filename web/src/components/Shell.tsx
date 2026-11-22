@@ -47,6 +47,7 @@ import { LanguageSwitch } from "./LanguageSwitch";
 import { Brand } from "./app/Brand";
 import { Button, Callout } from "./app/basics";
 import { BackToTop } from "./BackToTop";
+import { CommandButton, CommandPalette } from "./CommandPalette";
 import { HelpButton } from "./HelpPanel";
 import { PageMotion } from "./PageMotion";
 import { PlanBanner } from "./PlanSettings";
@@ -426,6 +427,7 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
           {t.cpu} <b>{percent(server.cpu_percent)}</b> &nbsp; {t.memory} <b>{percent(server.memory_percent)}</b>
         </span>
       )}
+      <CommandButton />
       <HelpButton />
       <Alerts />
     </header>
@@ -507,6 +509,7 @@ export function Shell() {
         <Outlet />
       </div>
       <BackToTop />
+      <CommandPalette />
     </div>
   );
 }

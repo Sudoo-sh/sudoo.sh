@@ -1176,6 +1176,61 @@ class Settings(BaseSettings):
         "json", description='Webhook 3: "json", "slack", "discord" or "teams".'
     )
 
+    # ------------------------------------------------------------------ project status (status/, docs/ADMIN_GUIDE.md "Project status")
+    status_checks: bool = Field(
+        True,
+        description="Check each project's production instance (through its gateway), the server and the backups "
+        "every status_check_interval_seconds, for the projects' Status tab; off: nothing is checked or recorded.",
+    )
+    status_check_interval_seconds: float = Field(60, ge=15, le=3600, description="Seconds between two status checks.")
+    status_check_timeout_seconds: float = Field(
+        10,
+        ge=1,
+        le=60,
+        description="Seconds a production instance may take to answer a check before it counts as down.",
+    )
+    status_slow_ms: float = Field(
+        3000,
+        ge=100,
+        le=60000,
+        description="An answer slower than this, in milliseconds, shows the instance as degraded.",
+    )
+    status_backup_grace_hours: float = Field(
+        2, ge=0, le=48, description="Hours a daily backup may be late before the backups count as failing."
+    )
+    status_minute_hours: int = Field(
+        48, ge=1, le=168, description="Hours the results of every check are kept; older ones are kept per hour only."
+    )
+    status_keep_days: int = Field(90, ge=7, le=400, description="Days hourly results and incidents are kept.")
+    status_public_pages: bool = Field(
+        True,
+        description="Projects may turn on a public status page (a read-only link with a secret token, off for each "
+        "project until someone turns it on); off: every public status page answers 404.",
+    )
+
+    # ------------------------------------------------------------------ notifications (notifications/, docs/ADMIN_GUIDE.md "Notifications")
+    notifications: bool = Field(
+        True,
+        description="Projects may send notifications to Slack, Discord, Telegram, Microsoft Teams, webhooks and "
+        "e-mail; off: nothing is sent.",
+    )
+    notification_timeout_seconds: float = Field(
+        10, ge=1, le=60, description="Seconds a chat service or webhook may take to answer one delivery."
+    )
+    notification_retries: int = Field(
+        5,
+        ge=0,
+        le=10,
+        description="Times a failed delivery is tried again, waiting longer each time (30 seconds, then 1, 2, 4 "
+        "minutes and so on).",
+    )
+    notification_channels_per_project: int = Field(10, ge=1, le=50, description="Channels one project may have.")
+    notification_allowed_hosts: str = Field(
+        "",
+        description="Host names or networks (comma-separated, such as hooks.internal or 10.0.0.0/8) webhooks may reach "
+        "although they resolve to a private, local or link-local address.",
+    )
+
     # ------------------------------------------------------------------ support access (support/, docs/ADMIN_GUIDE.md)
     support_access: bool = Field(
         True,
@@ -1382,6 +1437,23 @@ class Settings(BaseSettings):
         if len(addresses) > 50:
             raise ValueError("at most 50 addresses")
         return ",".join(dict.fromkeys(addresses))
+
+    @field_validator("notification_allowed_hosts")
+    @classmethod
+    def _notification_allowed_hosts(cls, value: str) -> str:
+        import ipaddress
+        import re
+
+        found = [part.strip().lower() for part in value.split(",") if part.strip()]
+        for part in found:
+            try:
+                ipaddress.ip_network(part, strict=False)
+            except ValueError:
+                if not re.fullmatch(r"[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?", part):
+                    raise ValueError(f"{part[:80]} is neither a host name nor a network") from None
+        if len(found) > 50:
+            raise ValueError("at most 50 hosts or networks")
+        return ",".join(dict.fromkeys(found))
 
     @field_validator("alert_webhook_1_url", "alert_webhook_2_url", "alert_webhook_3_url")
     @classmethod
@@ -1690,6 +1762,10 @@ SERVER_SETTINGS = tuple(name for name in Settings.model_fields if name.startswit
 PROJECT_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("project_"))
 """Every setting of projects (projects/); all of them can be changed in the panel."""
 
+STATUS_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith(("status_", "notification")))
+"""Every setting of project status checks (status/) and notifications (notifications/); all can be changed in the
+panel."""
+
 MAIL_CATCHER_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("mail_catcher_"))
 """Every setting of the mail catcher (mailcatcher/); all of them can be changed in the panel."""
 
@@ -1800,6 +1876,7 @@ EDITABLE = (
     *OFFSITE_SETTINGS,
     *ALERT_SETTINGS,
     *MAIL_CATCHER_SETTINGS,
+    *STATUS_SETTINGS,
     "docs_url",
     "support_url",
     "hub_support_url",

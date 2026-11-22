@@ -1366,6 +1366,51 @@ Alerts are written by the panel in plain words; they never copy a job's log, an 
 keys, and any address with a user name or password in it is masked. The link in an alert opens the panel, which asks
 the reader to sign in.
 
+
+### Project status and notifications
+
+Next to the alerts for the whole panel, each project has a **Status** tab and its own **Notifications**, as Odoo.sh
+has a status page and chat notifications. Settings: [Configuration, Project status and
+notifications](CONFIGURATION.md#project-status-and-notifications).
+
+**Status checks.** Every `STATUS_CHECK_INTERVAL_SECONDS` (60) the panel checks, for each project:
+
+| What | Up when | Degraded when |
+| :--- | :--- | :--- |
+| Each production instance | `GET /web/health` through the instance's own gateway port answers below 500 within `STATUS_CHECK_TIMEOUT_SECONDS` (it is not counted as a visit) | It answers slower than `STATUS_SLOW_MS`, or fails while a job runs on it |
+| The server | The monitor measured it recently (its heartbeat) | The disk is below `ALERT_DISK_FREE_PERCENT` free, or memory above `CAPACITY_WARNING_PERCENT` |
+| The production instance's backups | Its latest backup is newer than the last `DAILY_BACKUP_TIME`, `STATUS_BACKUP_GRACE_HOURS` (2) allowed | |
+| Its off-site copies (with off-site copies on) | The latest successful copy is newer than `ALERT_OFFSITE_MISSING_HOURS` | |
+
+A switched-off production instance counts as down. Results are kept per minute for `STATUS_MINUTE_HOURS` (48) and per
+hour for `STATUS_KEEP_DAYS` (90), with the incidents (from the first failed check until the next good one). Uptime is
+the share of checked minutes that were up; for the server, a minute without any check (the panel was not running)
+counts as down. Days are UTC days. Nothing is sent to another server: the checks run inside the panel.
+
+**Public status page.** Someone who manages a project can turn on a read-only page for it (off by default; a link
+with a 43-character random token, which can be replaced at any time). It shows the project's name, each target's
+name, state and uptime, and nothing else; `STATUS_PUBLIC_PAGES` off closes every such page.
+
+**Notifications.** A project's channels: Slack (incoming webhook), Discord (webhook), Telegram (bot token and chat
+id), Microsoft Teams (Workflows webhook), a webhook of your own (JSON signed with HMAC-SHA256 in
+`X-Sudoo-Signature: sha256=<hex>`, its secret made by the panel and shown once), and e-mail (the panel's mailer). Each
+channel chooses its events: build failed, build with warnings, build working again, stage change, promotion to
+production, production down (after two failed checks in a row) and back up, backup failed, backup restored, storage
+over its quota (the last one needs `ALERTS` and `ALERT_STORAGE`). They are taken from what the panel already
+publishes (a branch's history, the jobs, the alerts): nothing is watched twice.
+
+* Addresses and tokens are stored encrypted with the vault key and never shown again, logged or audited: the page
+  shows their last 4 characters.
+* Every request is checked first: `https://` only, no user name or password in the address, and the host name must
+  resolve to public addresses only (no private, loopback, link-local, shared or multicast address, IPv4 inside IPv6
+  included). The connection goes to the address that was checked, with the certificate checked for the host name,
+  and redirects are never followed. A receiver inside your own network must be listed in
+  `NOTIFICATION_ALLOWED_HOSTS`.
+* Delivery runs in the background. No answer, HTTP 429 or a 5xx is tried again `NOTIFICATION_RETRIES` (5) times, 30
+  seconds after the first try and twice as long each time after; other answers are not retried. Each channel shows
+  how its last delivery went, and **Send test** sends one at once. Deliveries still waiting when the panel restarts
+  are not sent.
+
 ---
 
 ## 17. E-mail templates

@@ -240,7 +240,7 @@ def test_branch_options_api(app: Flask, admin: Client) -> None:
 # ---------------------------------------------------------------- what a new commit does
 
 
-def test_behaviour_upon_new_commits(started: list[Any]) -> None:
+def test_behaviour_upon_new_commits(started: list[Any], admin: Client) -> None:
     project = _project()
     pid = project["id"]
     _instance("bo-main", "production", "main", pid)
@@ -273,6 +273,12 @@ def test_behaviour_upon_new_commits(started: list[Any]) -> None:
     entries = builds.history(pid, "dev")
     assert [e["type"] for e in entries] == ["commit"] and entries[0]["commit"]["full_sha"] == SHA
     assert entries[0]["result"] == builds.NOT_BUILT
+    # the timeline lists recorded commits only when asked (the web app's timeline shows builds, stages, restores)
+    client, headers = admin
+    url = f"/api/v1/projects/{pid}/branches/dev/history"
+    assert client.get(url, headers=headers).get_json()["data"] == []
+    shown = client.get(f"{url}?commits=1", headers=headers).get_json()["data"]
+    assert shown[0]["type"] == "commit" and shown[0]["status"] == "skipped" and shown[0]["commit"]["full_sha"] == SHA
 
 
 def test_a_new_branch_gets_the_branchs_demo_data(started: list[Any], monkeypatch: pytest.MonkeyPatch) -> None:

@@ -30,6 +30,7 @@ import {
   EyeOff,
   GitBranch,
   GitCommitHorizontal,
+  History,
   Lock,
   LockOpen,
   Plus,
@@ -41,8 +42,10 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { useInstances } from "@/api/queries";
+import { useInstance, useInstances } from "@/api/queries";
 import type { Instance, Permission, ProjectBranch, ProjectDetail, ProjectMeta, Stage } from "@/api/types";
+import { BranchCommands } from "@/components/BranchCommands";
+import { BranchHistory } from "@/components/BuildHistory";
 import { BranchCommit, CreateDialog, DeleteInstanceDialog, RebuildDialog, StageDialog, type BranchDialog } from "@/components/BranchDialogs";
 import { JobDrawer } from "@/components/JobDrawer";
 import { LockTag } from "@/components/LockTag";
@@ -57,6 +60,7 @@ import { Menu, MenuItem, MenuLabel, MenuSeparator, Modal } from "@/components/ap
 import { Input } from "@/components/ui/input";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
+import buildWords from "@/i18n/builds";
 import words from "@/i18n/projects";
 import teamWords from "@/i18n/teams";
 import { ago, count, statusLabel } from "@/lib/format";
@@ -76,8 +80,8 @@ export function branchPath(project: string, branch: string, view = "", instance?
 }
 
 /** How a branch's instances are, as one dot: green online, red failing, amber working, grey hollow asleep. */
-type Dot = "online" | "failed" | "busy" | "asleep" | "none";
-function dotOf(members: Instance[]): Dot {
+export type Dot = "online" | "failed" | "busy" | "asleep" | "none";
+export function dotOf(members: Instance[]): Dot {
   if (!members.length) return "none";
   if (members.some((i) => i.status === "unreachable" || i.gateway_error || (i.update_failure && !i.update_failure.rolled_back))) return "failed";
   if (members.some((i) => WORKING.includes(i.status) || i.current_job)) return "busy";
@@ -86,8 +90,16 @@ function dotOf(members: Instance[]): Dot {
   return "failed";
 }
 
+/** The production instance a staging branch is built from: the first production branch's production instance. */
+export function productionOf(branches: ProjectBranch[], instances: Map<string, Instance>): string | null {
+  for (const branch of branches)
+    if (branch.stage === "production")
+      for (const name of branch.instances) if (instances.get(name)?.stage === "production" && instances.get(name)?.status !== "creating") return name;
+  return null;
+}
+
 /** What the caller may do in a branch: its own permissions (role, access, lock) when the server sends them. */
-function useBranchCan() {
+export function useBranchCan() {
   const roleCan = useCan();
   return (branch: ProjectBranch, permission: Permission) => (branch.permissions ? branch.permissions.includes(permission) : roleCan(permission));
 }
@@ -322,20 +334,6 @@ function BranchMenu({
 
 // ---------------------------------------------------------------- the branch's pane
 
-/** The branch to merge in the example: the one a stage below (development into staging, staging into production),
- *  else production, else any other. */
-function mergeSource(branches: ProjectBranch[], branch: ProjectBranch): string {
-  const below: Record<Stage, Stage | null> = { production: "staging", staging: "development", development: null };
-  const others = branches.filter((b) => b.name !== branch.name && b.on_github !== false);
-  const stage = below[branch.stage];
-  return (
-    (stage && others.find((b) => b.stage === stage)?.name) ||
-    others.find((b) => b.stage === "production")?.name ||
-    others[0]?.name ||
-    "<branch>"
-  );
-}
-
 function BranchPane({
   project,
   branch,
@@ -343,6 +341,7 @@ function BranchPane({
   instances,
   backups,
   onDialog,
+  onJob,
 }: {
   project: ProjectDetail;
   branch: ProjectBranch;
@@ -350,6 +349,7 @@ function BranchPane({
   instances: Map<string, Instance>;
   backups: Map<string, number> | null;
   onDialog: (dialog: BranchDialog) => void;
+  onJob: (id: string) => void;
 }) {
   const t = useT(words).page;
   const w = useT(words).workspace;
@@ -362,7 +362,21 @@ function BranchPane({
   const asked = search.get("instance");
   const chosen = asked && branch.instances.includes(asked) ? asked : (branch.instances[0] ?? null);
   const instance = chosen ? instances.get(chosen) : undefined;
-  const repository = `${project.repository.url}.git`;
+  // the instance in full (the page below reads it too): the names its SSH and SQL commands need
+  const { data: detail } = useInstance(chosen ?? "", !!chosen);
+  const hb = useT(buildWords).history;
+  // the branch's History comes first (the address without a view); the instance's own overview is "overview"
+  const history = (
+    <BranchHistory
+      project={project}
+      branch={branch}
+      instances={instances}
+      mayOpen={!branch.lock || can(branch, "instances.logs")}
+      access={(name) => (can(branch, "instances.credentials") ? branchPath(project.id, branch.name, "access", name === branch.instances[0] ? null : name) : null)}
+      onJob={onJob}
+    />
+  );
+  const instanceTab = view === "" || view === "history" ? "history" : view === "overview" ? "" : view;
   return (
     <section className="ws-pane" aria-label={branch.name}>
       <div className="ws-pane-head">
@@ -381,6 +395,7 @@ function BranchPane({
             {branch.auto_created && branch.instances.includes(branch.auto_created) && <span className="faint">{t.autoCreated}</span>}
           </div>
         </div>
+        <div className="ws-pane-tools">
         <div className="actions">
           {branch.instances.length > 1 && chosen && (
             <SelectBox dir="ltr" size="sm" aria-label={w.instance} value={chosen}
@@ -393,19 +408,20 @@ function BranchPane({
           )}
           <BranchMenu project={project} branch={branch} instance={instance} backups={chosen ? (backups?.get(chosen) ?? null) : null} onDialog={onDialog} />
         </div>
-      </div>
-      <div className="ws-commands" role="group" aria-label={w.commands}>
-        <Command label={w.clone} command={`git clone --recurse-submodules --branch ${branch.name} ${repository}`} />
-        <Command label={w.merge} command={`git merge ${mergeSource(project.branches_list, branch)} && git push -u origin ${branch.name}`} />
+        <BranchCommands project={project} branch={branch} instance={detail ?? instance} can={(p) => can(branch, p)}
+          shellLink={chosen ? branchPath(project.id, branch.name, "shell", chosen === branch.instances[0] ? null : chosen) : null}
+          onDialog={onDialog} onJob={onJob} />
+        </div>
       </div>
       {chosen ? (
         <InsidePage.Provider value={true}>
           <InstanceView
             key={chosen}
             name={chosen}
-            tab={view}
+            tab={instanceTab}
             embedded
-            tabLink={(tab) => branchPath(project.id, branch.name, tab, chosen === branch.instances[0] ? null : chosen)}
+            lead={{ id: "history", label: hb.title, icon: <History />, content: history }}
+            tabLink={(tab) => branchPath(project.id, branch.name, tab === "history" ? "" : tab === "" ? "overview" : tab, chosen === branch.instances[0] ? null : chosen)}
             afterDelete={branchPath(project.id, branch.name)}
           />
         </InsidePage.Provider>
@@ -423,6 +439,12 @@ function BranchPane({
             {branch.on_github === false ? w.noInstanceDeleted : w.noInstanceText}
           </Empty>
         </div>
+      )}
+      {!chosen && (
+        <section className="stack" aria-label={hb.title}>
+          <h3 className="section-title row" style={{ gap: 8 }}><History size={16} /> {hb.title}</h3>
+          {history}
+        </section>
       )}
     </section>
   );
@@ -512,12 +534,7 @@ export function ProjectWorkspace({
     branches.find((b) => b.stage === "production") ??
     STAGES.map((s) => branches.find((b) => b.stage === s)).find(Boolean) ??
     null;
-  const production = useMemo(() => {
-    for (const branch of branches)
-      if (branch.stage === "production")
-        for (const name of branch.instances) if (instances.get(name)?.stage === "production" && instances.get(name)?.status !== "creating") return name;
-    return null;
-  }, [branches, instances]);
+  const production = useMemo(() => productionOf(branches, instances), [branches, instances]);
   const membersOf = (branch: ProjectBranch) => branch.instances.map((n) => instances.get(n)).filter((i): i is Instance => !!i);
   const query = filter.trim().toLowerCase();
   const running = project.instances.names.filter((n) => instances.get(n)?.status === "online").length;
@@ -660,7 +677,7 @@ export function ProjectWorkspace({
         </aside>
         {current && (
           <BranchPane key={current.name} project={project} branch={current} view={view} instances={instances}
-            backups={backupCounts} onDialog={setDialog} />
+            backups={backupCounts} onDialog={setDialog} onJob={setJobId} />
         )}
       </div>
       {dialog?.kind === "lock" && <LockDialog project={project} branch={dialog.branch} onClose={() => setDialog(null)} />}

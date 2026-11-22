@@ -297,6 +297,8 @@ export interface Instance {
   restorable_backup?: string | null;
   /** while the state before the last restore is kept (ROLLBACK_HOURS): what Rollback puts back, and until when */
   rollback?: { backups: string[]; taken_at: string; until: string } | null;
+  /** for callers who may open a shell or see the credentials: the names a command needs (never a password) */
+  containers?: { odoo: string; db: string; db_user: string; host: string | null };
 }
 
 export interface ProjectReference {
@@ -506,7 +508,8 @@ export interface RestoreEntry extends HistoryEntryBase {
   job: string | null;
 }
 
-/** A commit pushed to a branch that builds nothing on new commits (on_new_commit "nothing") */
+/** A commit pushed to a branch that builds nothing on new commits (on_new_commit "nothing"); the history lists
+ * these only with ?commits=1, so HistoryEntry (what the timeline shows) leaves them out */
 export interface CommitEntry extends HistoryEntryBase {
   type: "commit";
   instance: string | null;
@@ -515,7 +518,7 @@ export interface CommitEntry extends HistoryEntryBase {
   result: string;
 }
 
-export type HistoryEntry = Build | StageChange | RestoreEntry | CommitEntry;
+export type HistoryEntry = Build | StageChange | RestoreEntry;
 
 /** GET /projects/<id>/builds: the last builds of each branch, newest first */
 export interface BranchBuilds {

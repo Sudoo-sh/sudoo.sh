@@ -28,9 +28,11 @@
     GET    /api/v1/projects/<id>/builds?per_branch=  the last builds of every branch (10 each by default, at most
                                                      200), newest first (projects/builds.py)
     GET    /api/v1/projects/<id>/builds/<build_id>   one build, or any other entry of a branch's history
-    GET    /api/v1/projects/<id>/branches/<branch>/history?limit=&offset=
+    GET    /api/v1/projects/<id>/branches/<branch>/history?limit=&offset=&commits=
                                                      the branch's timeline, newest first: builds, stage changes
-                                                     and restores; meta.total, meta.limit, meta.offset
+                                                     and restores (commits=1: also the commits a branch that builds
+                                                     nothing on new commits recorded); meta.total, meta.limit,
+                                                     meta.offset
     GET    /api/v1/projects/<id>/branches/<branch>/options
                                                      the branch's build options: what applies ("options"), where
                                                      each comes from ("sources"), its own values ("own")
@@ -742,6 +744,8 @@ def branch_history(project_id: str, branch: str) -> Response:
     )
     offset = check.whole_number(request.args.get("offset", "0"), "offset", minimum=0, maximum=1_000_000)
     entries = builds.history(project_id, branch)
+    if request.args.get("commits") not in ("1", "true"):  # recorded commits only for those who ask for them
+        entries = [entry for entry in entries if entry["type"] != "commit"]
     page = [history_resource(entry) for entry in entries[offset : offset + limit]]
     return ok(page, meta={"total": len(entries), "limit": limit, "offset": offset})
 

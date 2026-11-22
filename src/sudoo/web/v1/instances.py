@@ -192,7 +192,16 @@ def instance(name: str) -> Response:
     """The instance; meta.permissions: what the caller may do in it (role ∩ project access, locked branch)."""
     resource = instance_resource(known(name), full=True)
     project, branch = access.scope_of_instance(name)
-    return ok(resource, meta={"permissions": sorted(access.permissions(g.user, project, branch))})
+    permitted = access.permissions(g.user, project, branch)
+    if store.exists(name) and permitted & {"instances.shell", "instances.credentials"}:
+        # for the commands a project's branch offers (SSH, psql): names only, never a password
+        resource["containers"] = {
+            "odoo": store.container(name, "odoo"),
+            "db": store.container(name, "db"),
+            "db_user": "odoo",
+            "host": settings.public_host or None,
+        }
+    return ok(resource, meta={"permissions": sorted(permitted)})
 
 
 @blueprint.get("/instances/<name>/credentials")

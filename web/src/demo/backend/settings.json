@@ -2114,6 +2114,20 @@
   "description": "Builds report their result on GitHub as commit statuses (sudoo/<stage>) when the GitHub App may write statuses (each project can change it)."
  },
  {
+  "key": "project_builds_kept",
+  "env": "PROJECT_BUILDS_KEPT",
+  "value": 200,
+  "env_value": 200,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "integer",
+  "minimum": 1,
+  "description": "Builds kept in the history of each branch of a project (the oldest are removed first), with the stage changes and restores since the oldest of them."
+ },
+ {
   "key": "upgrade_methods",
   "env": "UPGRADE_METHODS",
   "value": "enterprise,openupgrade",

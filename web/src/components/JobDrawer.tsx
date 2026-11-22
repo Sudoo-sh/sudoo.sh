@@ -1,4 +1,5 @@
-import { Check, X } from "lucide-react";
+import { Check, ScrollText, X } from "lucide-react";
+import { ApiError } from "@/api/client";
 import { useJob, useJobLog } from "@/api/queries";
 import type { Job } from "@/api/types";
 import { useT } from "@/i18n";
@@ -6,7 +7,7 @@ import instanceWords from "@/i18n/instance";
 import { jobTitle, stepTitle } from "@/i18n/jobs";
 import { ago, elapsed } from "@/lib/format";
 import { LogView } from "./LogView";
-import { Callout, Progress, Spinner, Status } from "./app/basics";
+import { Callout, Empty, Progress, Spinner, Status } from "./app/basics";
 import { Drawer } from "./app/overlay";
 
 /** A job's steps as a timeline: done, failed, or the one running now. */
@@ -31,8 +32,10 @@ export function JobSteps({ job }: { job: Pick<Job, "steps"> }) {
 
 /** A job: its steps as a timeline, notes, the reason it failed, and its technical log, all live. */
 export function JobDrawer({ id, onClose }: { id: string; onClose: () => void }) {
-  const { data: job } = useJob(id);
-  const { data: log } = useJobLog(id);
+  const { data: job, error } = useJob(id);
+  // a job is kept for a while (the last 300): an older one, linked from a build's history, is gone
+  const gone = error instanceof ApiError && error.status === 404;
+  const { data: log } = useJobLog(gone ? null : id);
   const running = job?.status === "running" || job?.status === "queued";
   const t = useT(instanceWords).job;
   return (
@@ -53,7 +56,9 @@ export function JobDrawer({ id, onClose }: { id: string; onClose: () => void }) 
         </div>
       }
     >
-      {!job ? (
+      {gone ? (
+        <Empty icon={<ScrollText />} title={t.gone}>{t.goneText}</Empty>
+      ) : !job ? (
         <Spinner />
       ) : (
         <div className="stack">

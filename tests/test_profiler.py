@@ -311,6 +311,14 @@ def test_the_dockerfile_pins_py_spy() -> None:
     assert profiler.DOCKERFILE.startswith(f"FROM {profiler.BASE_IMAGE}")
 
 
+def test_thread_names() -> None:
+    assert profiler._thread_name('Process 9 Thread 11 "Worker WorkerHTTP (9) workthread"') == (
+        "Worker WorkerHTTP (9) workthread"
+    )
+    assert profiler._thread_name('Process 18 Thread 18 "MainThread"') == "MainThread (process 18)"
+    assert profiler._thread_name('Process 7 Thread 0 ""') == "Thread 0 (process 7)"
+
+
 def test_the_tree_is_pruned() -> None:
     data = speedscope()
     data["profiles"][1]["samples"] = [[0, 1, 2, 3, 4, 5]] * 10000 + [[0, 1, 2, 4]]

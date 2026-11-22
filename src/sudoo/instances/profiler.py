@@ -362,9 +362,14 @@ def summarize(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _thread_name(name: str) -> str:
-    """'Process 17 Thread 19 "Worker WorkerHTTP (17) workthread"' -> 'Worker WorkerHTTP (17) workthread'."""
-    found = re.search(r'"(.+)"', name)
-    return (found.group(1) if found else name)[:80] or "thread"
+    """'Process 17 Thread 19 "Worker WorkerHTTP (17) workthread"' -> 'Worker WorkerHTTP (17) workthread';
+    'Process 18 Thread 18 "MainThread"' -> 'MainThread (process 18)' (every process has one)."""
+    found = re.match(r'^Process (\d+) Thread (\d+) "(.*)"$', name)
+    if not found:
+        return name[:80] or "thread"
+    process, thread, label = found.groups()
+    label = label or f"Thread {thread}"
+    return (label if f"({process})" in label else f"{label} (process {process})")[:80]
 
 
 def _count(node: dict[str, Any], floor: int) -> int:
@@ -494,7 +499,7 @@ def _save(run: Run) -> None:
         "started_at": round(run.recording_since or run.started),
         "ended_at": round(ended),
         "minutes": run.minutes,
-        "seconds": summary["seconds"] or round(ended - (run.recording_since or run.started)),
+        "seconds": round(ended - (run.recording_since or run.started), 1),  # how long it recorded (wall clock)
         "samples": summary["total"],
         "threads": len(summary["threads"]),
         "rate": int(settings.profiler_rate),

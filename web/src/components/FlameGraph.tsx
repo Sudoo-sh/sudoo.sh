@@ -30,7 +30,7 @@ interface Node {
 
 /** What kind of code a frame is, for its colour: the database layer, Odoo's core, add-ons, Python itself, other. */
 export function kindOf(name: string, where: string): Kind {
-  if (/sql_db\.py|psycopg|(^|\.)execute$/.test(where + " " + name)) return "sql";
+  if (/sql_db\.py|psycopg/.test(where) || /^[Cc]ursor\.execute/.test(name)) return "sql";
   if (/(^|\/)addons\/|odoo\/addons\//.test(where) && !/^odoo\/(models|fields|api|http|service|tools|modules|osv)\b/.test(where)) return "addons";
   if (/^odoo\//.test(where)) return "odoo";
   if (/^[a-z_]+(\/|\.py)/.test(where) || where.startsWith("<")) return "python";

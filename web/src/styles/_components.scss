@@ -570,7 +570,7 @@
     border-inline-start: 1px solid color-mix(in srgb, var(--primary-foreground, #fff) 28%, transparent);
   }
 }
-.connect-find { max-width: none; }
+.connect-find { flex: none; max-width: none; }
 .user-pick {
   display: flex;
   flex-direction: column;

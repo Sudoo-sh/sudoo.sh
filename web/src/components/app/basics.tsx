@@ -3,6 +3,7 @@ import {
   cloneElement,
   isValidElement,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -13,11 +14,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button as UIButton } from "@/components/ui/button";
 import { FieldDescription, FieldError, FieldLabel, Field as UIField } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { Progress as UIProgress } from "@/components/ui/progress";
 import { Skeleton as UISkeleton } from "@/components/ui/skeleton";
 import { Switch as UISwitch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
+import { SelectBox } from "@/components/app/select";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import { statusLabel } from "@/lib/format";
@@ -155,6 +159,8 @@ export function Segmented<T extends string>({
 }
 
 /** A form field (shadcn's Field): the label, the control, and a hint or an error under it. */
+const LABELLED = new Set<unknown>([Input, Textarea, SelectBox]);
+
 export function Field({
   label,
   hint,
@@ -170,10 +176,15 @@ export function Field({
   className?: string;
   htmlFor?: string;
 }) {
+  // the label names its control: `htmlFor`, else the one Input, Textarea or SelectBox inside (given an id if it has none)
+  const auto = useId();
+  const control =
+    !htmlFor && label && isValidElement<{ id?: string }>(children) && LABELLED.has(children.type) ? children : null;
+  const id = htmlFor ?? (control ? (control.props.id ?? auto) : undefined);
   return (
     <UIField className={className} data-invalid={error ? true : undefined}>
-      {label && <FieldLabel htmlFor={htmlFor}>{label}</FieldLabel>}
-      {children}
+      {label && <FieldLabel htmlFor={id}>{label}</FieldLabel>}
+      {control && !control.props.id ? cloneElement(control, { id }) : children}
       {error ? <FieldError>{error}</FieldError> : hint && <FieldDescription>{hint}</FieldDescription>}
     </UIField>
   );

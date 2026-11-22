@@ -74,6 +74,11 @@ data; it shares one folder with the backend, `<ODOO_ROOT>/gateway` (root only):
 | `gateway.sock` | gateway | Control channel: `POST /sync` makes the gateway read `routes.json` and reconcile its listeners now, and answers with them, their errors and the requests counted since the last call (the backend adds them to the metrics); `GET /healthz` for the health check. |
 | `panel.sock` | backend | `POST /wake/<name>`: the gateway asks the backend to start a paused instance. |
 
+A Unix socket's path holds at most 107 bytes. When `<ODOO_ROOT>/gateway/gateway.sock` would be longer (a deep
+ODOO_ROOT, as in a test run on one machine), both sockets go to `/tmp/sudoo-<hash of the gateway folder>/` (mode
+`700`, refused when another user owns it), which the backend, the gateway service and its health check all derive the
+same way. Containers each have their own `/tmp`, so keep ODOO_ROOT short where the two run in separate containers.
+
 The backend (`instances/gateway_link.py`) runs one round every 2 seconds and at once when an instance is created or
 deleted: write `routes.json` if it changed, `POST /sync`, read `visits.json`. While the backend is down, the gateway
 keeps serving with the last `routes.json`, records visits and counts requests; a visitor of a **paused** instance

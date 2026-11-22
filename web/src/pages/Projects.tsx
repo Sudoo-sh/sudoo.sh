@@ -555,7 +555,7 @@ export function NewProjectPage() {
             </Field>
           </div>
         </section>
-        <section className="card">
+        <section className="card form-end">
           <div className="card-body row-wrap">
             <p className="small muted spacer">
               {mode === "link" ? t.summaryLink(<bdi key="r" dir="ltr" className="mono">{shownRepo || "…"}</bdi>) : t.summaryCreate(<bdi key="r" dir="ltr" className="mono">{shownRepo}</bdi>)}

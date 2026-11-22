@@ -65,6 +65,10 @@ def start() -> None:
     from sudoo.projects import builds  # late: projects/ imports the instances package, as this module does
 
     builds.listen()
+    from sudoo.projects import previews, refresh
+
+    previews.listen()
+    threading.Thread(target=refresh.run_forever, daemon=True, name="staging-refresh").start()
     _start_premium_jobs()
     gateway.start(wake=start_wake_job)
     live.on_change(_domain_settings_changed)

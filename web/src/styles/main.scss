@@ -11,6 +11,7 @@
   @include meta.load-css("layout");
   @include meta.load-css("pages");
   @include meta.load-css("resources");
+  @include meta.load-css("promotion");
 }
 
 @include meta.load-css("look");

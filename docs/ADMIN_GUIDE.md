@@ -1159,8 +1159,8 @@ What the app may do, and nothing more:
 
 | | |
 | :--- | :--- |
-| Repository permissions | **Contents: read**, **Metadata: read** (no write to code, no issues, no pull requests); **Commit statuses: write**, to show each build's result next to its commit ([Commit statuses](#commit-statuses)); **Administration: write** only when you allow it, to create empty repositories for new projects ([below](#creating-repositories-for-new-projects)) |
-| Events | **Push**, **Create**, **Delete** (branches), plus the installation events GitHub always sends |
+| Repository permissions | **Contents: read**, **Metadata: read** (no write to code); **Commit statuses: write**, to show each build's result next to its commit ([Commit statuses](#commit-statuses)); **Pull requests: write** and **Issues: write**, to hear of pull requests and write one comment on each with its preview's link ([Pull-request previews](#pull-request-previews)); **Administration: write** only when you allow it, to create empty repositories for new projects ([below](#creating-repositories-for-new-projects)) |
+| Events | **Push**, **Create**, **Delete** (branches), **Pull request**, plus the installation events GitHub always sends |
 | Visibility | Private: only the account that owns it can install it |
 | Webhook | `<panel address>/hooks/github-app`, signed with a secret GitHub creates |
 
@@ -1244,6 +1244,10 @@ Without a connected app, the message advises a deploy key instead.
 
 * When a build of a project's branch starts and ends, the panel sets the commit's status on GitHub with a separate
   token that may only write statuses ([Commit statuses](#commit-statuses)).
+* For pull-request previews the panel reads open pull requests and writes its one comment per pull request with a
+  separate token that has only the installation's **Pull requests** and **Issues** access, valid one hour and kept in
+  memory only. Without these permissions previews still work from the webhook, without the comment
+  ([Pull-request previews](#pull-request-previews)).
 
 A repository that still has a deploy key keeps using it. Delete the key to switch that repository to the app.
 
@@ -2134,6 +2138,76 @@ connected earlier: on GitHub open the app's settings, **Permissions and events**
 permission on the installation's page (GitHub sends them an e-mail). The panel sees the accepted permission at its
 next look at the installations (within a minute of opening GitHub access, or **Refresh**). Until then no status is
 set, and the project's branch options say so (`commit_statuses.available`).
+
+### Promoting to production
+
+Moving a branch into production (dragging it onto **Production**, or **Move to, Production** in its menu) opens the
+**pre-promotion checklist**; staging branches also have **Promotion check** in their menu, to read it before merging
+into the production branch on GitHub. Each item is green, amber or red, with the reason:
+
+| Item | Green | Amber | Red |
+| :--- | :--- | :--- | :--- |
+| Build | the branch's latest build succeeded (and its tests passed) | warnings, still building, or never built | the build failed or its tests failed |
+| Backup | production's newest backup is younger than `PROJECT_PROMOTION_BACKUP_HOURS` (or there is no production yet) | older, or none: **Back up now** starts one | |
+| Modules | the modules added and with a new version, read from each `__manifest__.py` at both commits | a module removed, or a version going down | |
+| Migrations | no migration scripts to run | scripts in `<module>/migrations/<new version>/` will run on production's next upgrade: run them on staging first | |
+| Odoo version | the branch and production run the same Odoo series | | another series, or modules written for another series |
+| Lock | no lock on either branch | a lock that lets you through | a lock that does not |
+| Capacity | room in the project, the plan and the server | the server is near its capacity (production never pauses) | the project's or the plan's production limit |
+
+Red items stop the move while `PROJECT_PROMOTION_BLOCKS` is on. Someone with `projects.manage` in the branch can tick
+**Promote anyway**; the move is then made and the audit log records "promotion checklist overridden" with the red
+items. The API does the same: `PUT .../stage` answers 409 unless the body has `"promote_anyway": true`.
+
+The modules and migrations come from the panel's own copy of the repository (`<ODOO_ROOT>/manager/mirrors/`, a bare
+clone without file contents: git downloads the history and folder listings, and only the `__manifest__.py` files
+the panel reads). It is fetched at most every 30 seconds, through the GitHub App, a deploy key or anonymously, like
+the instances' code. Manifests are read as data and never run. When git cannot read the repository and the GitHub
+App covers it, GitHub's compare API answers instead, without module versions.
+
+**Compare** in a branch's menu shows the same comparison between any two branches: commits ahead and behind, the
+commits, the number of changed files, the modules and the pending migrations, with a link to GitHub's compare page.
+
+### Scheduled staging refresh
+
+A project's Settings tab has **Scheduled refresh from production**: off, daily or weekly (a day), at a time in the
+panel's `TIMEZONE`, for every staging branch or the ones you choose. At that time each staging instance of those
+branches is rebuilt exactly as **Rebuild from production** does it ([Staging from production](#staging-from-production)).
+An instance is skipped, with the reason, when its branch or production's branch is locked, it is busy with another
+job, it cannot be rebuilt (no production instance, another Odoo version), or production's data would reach people
+production's branch is hidden from. Each branch's history gets a **refresh** entry listing what was rebuilt and
+what was skipped (the web app is told at once); the run is in the audit log ("staging refreshed from production").
+**Refresh now** runs it at once. Changing the schedule needs `projects.manage` and `instances.restore`.
+
+### Pull-request previews
+
+With a project's **Pull-request previews** on (`PROJECT_PR_PREVIEWS`, off by default), each open pull request gets a
+development instance of its branch:
+
+* The panel hears of pull requests from the GitHub App's webhook (**Pull request** events) and, when a webhook did
+  not arrive, by looking at the open pull requests every `POLL_MINUTES`.
+* When the branch already has an instance (a project that creates instances for new branches made one), that
+  instance is the preview and is never deleted for the pull request. Otherwise a development instance of the
+  branch is created, as for a new branch.
+* At most `PROJECT_PR_PREVIEW_LIMIT` previews per project (3 by default), and never beyond `MAX_INSTANCES`, the
+  running limit or the plan; a pull request beyond them is listed with the reason, and gets a comment saying so.
+* The panel writes **one comment** on the pull request with the preview's address and the panel's link, and changes
+  it when a build of the preview starts and ends (status and commit). This needs **Pull requests: Read and write**
+  (or **Issues: Read and write**) on the installation. Apps connected from this version on ask for them; for an app
+  connected earlier, add them on GitHub (the app's **Permissions and events**; tick the **Pull request** event too)
+  and have an owner accept them on the installation. GitHub sends pull-request events only to an app that may read
+  pull requests: with **Pull requests: Read** alone previews work without the comment; without it, there are no
+  previews.
+* When the pull request is closed or merged, a preview the panel created is deleted **without a backup** (its data is
+  throw-away).
+* **Forks.** Pull requests from forks get no preview unless the project's **Previews of forks**
+  (`PROJECT_PR_PREVIEWS_FORKS`) is on: a fork's code is written by people outside your repository, and a preview runs
+  it on your server, with the server's resources and network. When it is on, a fork's preview follows the fork's
+  branch and belongs to a project of its own for the fork's repository (it creates nothing by itself), so it never
+  mixes with your branches.
+
+The project's Settings tab lists the previews with their status. Each creation, refusal and deletion is in the audit
+log.
 
 ### Many branches at once
 

@@ -51,7 +51,8 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       {
         id: "projects",
         keys: ["project_production_branches", "project_auto_development", "project_max_auto_development", "project_development_demo_data", "project_staging_on_push", "project_branch_deleted", "project_upgrade_test_on_push", "project_builds_kept",
-          "project_development_on_new_commit", "project_module_install", "project_modules", "project_test_suite", "project_test_tags", "project_staging_tests", "project_test_timeout_minutes", "project_commit_statuses"],
+          "project_development_on_new_commit", "project_module_install", "project_modules", "project_test_suite", "project_test_tags", "project_staging_tests", "project_test_timeout_minutes", "project_commit_statuses",
+          "project_promotion_backup_hours", "project_promotion_blocks", "project_pr_previews", "project_pr_preview_limit", "project_pr_previews_forks"],
       },
       { id: "howMany", keys: ["max_instances", "max_instances_per_user", "create_cooldown_minutes"] },
       { id: "capacity", keys: ["capacity_reserve_mb", "capacity_reserve_percent", "capacity_instance_memory_mb", "capacity_warning_percent", "max_running_instances"] },

@@ -16,8 +16,10 @@
                                                      or null (the panel's setting)}}
     DELETE /api/v1/projects/<id>                     {"confirm": "<id>"}; only a project without instances -> 204
     PUT    /api/v1/projects/<id>/branches/<branch>/stage
-                                                     {"stage", "confirm_production"}: the branch and every instance
-                                                     of it move to that stage
+                                                     {"stage", "confirm_production", "promote_anyway"?}: the branch
+                                                     and every instance of it move to that stage; into production
+                                                     only when the pre-promotion checklist has no red item, or
+                                                     with "promote_anyway": true (audit-logged; promotion.py)
     POST   /api/v1/projects/<id>/branches/<branch>/instances
                                                      a new instance of the branch in the branch's stage ({"name"?,
                                                      "demo"?, "install_modules"?}); staging starts from a neutralised
@@ -94,9 +96,13 @@ OPTION_CHOICES = {
 }
 OPTION_FLAGS = (
     "auto_development", "development_demo_data", "upgrade_test_on_push", "staging_tests", "commit_statuses",
+    "pr_previews", "pr_previews_forks",
 )  # fmt: skip
 OPTION_TEXTS = ("modules", "test_tags")  # checked by projects/build_options.clean
-OPTION_NUMBERS = {"max_auto_development": 100, "development_lifetime_days": 3650, "staging_lifetime_days": 3650}
+OPTION_NUMBERS = {
+    "max_auto_development": 100, "development_lifetime_days": 3650, "staging_lifetime_days": 3650,
+    "pr_preview_limit": 50,
+}  # fmt: skip
 
 
 def _refuse_unless(permission: str, project: Mapping[str, Any] | None, what: str, branch: str | None = None) -> None:
@@ -472,6 +478,26 @@ LEAVING_PRODUCTION = (
 )
 
 
+def promotion_check(project: Mapping[str, Any], branch: str, anyway: bool) -> None:
+    """The pre-promotion checklist's red items stop a move into production (409) unless the caller chose to promote
+    anyway (projects/promotion.py); overriding them is audit-logged."""
+    from sudoo.projects import promotion
+
+    found = promotion.check(project, branch, g.user, deep=False)
+    if not found["blocking"]:
+        return
+    red = "; ".join(item["text"] for item in found["items"] if item["status"] == promotion.BLOCKED)
+    if not anyway:
+        log(
+            "branch stage change refused (promotion checklist)",
+            ok=False,
+            detail=f"{project['id']} {branch}: {red}"[:300],
+        )
+        abort(409, f"The pre-promotion checklist has red items: {red} Fix them, or promote anyway "
+                   '("promote_anyway": true).')  # fmt: skip
+    log("promotion checklist overridden", detail=f"{project['id']} {branch}: {red}"[:300])
+
+
 @blueprint.put("/projects/<project_id>/branches/<path:branch>/stage")
 def change_stage(project_id: str, branch: str) -> Response:
     """Move a branch, and every instance of it, to another stage."""
@@ -497,6 +523,7 @@ def change_stage(project_id: str, branch: str) -> Response:
                 if refused:
                     log("branch stage change refused (production branches)", ok=False, detail=refused)
                     abort(409, refused)
+                promotion_check(found, branch, check.flag(data, "promote_anyway") is True)
             if before == stages.PRODUCTION and not confirmed:
                 abort(400, LEAVING_PRODUCTION.format(branch=branch))
             if before == stages.PRODUCTION:  # its instances can then expire: as much as deleting them

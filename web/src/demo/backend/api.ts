@@ -11,6 +11,7 @@ import { announce, full, reference, startJob } from "./jobs";
 import { capacity, currentMetrics, history, listed, newProfile } from "./metrics";
 import { applied, cleanLimits, markPending, resourcesOf, setOwn } from "./resources";
 import * as sizing from "./project-resources";
+import * as promotion from "./promotion";
 import * as mail from "./mail";
 import * as caught from "./caught-mail";
 import * as offsite from "./offsite";
@@ -2377,6 +2378,78 @@ route("PUT", "/projects/:id/branches/:*branch/resources", ({ params, body }) => 
   needInProject(project, "projects.resources", params.branch!);
   if (!branchList(project).some((b) => b.name === params.branch)) throw new Problem(404, `${project.repository} has no branch ${params.branch}.`);
   return applySizing(project, body, params.branch!);
+});
+
+// ---------------------------------------------------------------- promotion (src/sudoo/web/v1/promotion.py)
+
+function knownBranch(project: DemoProject, branch: string) {
+  if (!branchList(project).some((b) => b.name === branch)) throw new Problem(404, "There is no such branch.");
+  return branch;
+}
+route("GET", "/projects/:id/branches/:*branch/promotion-check", ({ params, query }) => {
+  const project = projectOf(params.id!);
+  const branch = knownBranch(project, params.branch!);
+  needInProject(project, "instances.view", branch);
+  return ok(promotion.promotionCheck(project, branch, query.get("mode") === "merge"));
+});
+route("GET", "/projects/:id/compare", ({ params, query }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "instances.view");
+  const base = knownBranch(project, query.get("base") ?? "");
+  const head = knownBranch(project, query.get("head") ?? "");
+  if (base === head) throw new Problem(400, "Choose two different branches to compare.");
+  return ok(promotion.compare(project, base, head));
+});
+route("GET", "/projects/:id/staging-refresh", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "instances.view");
+  return ok(promotion.schedule(project), { branches: promotion.stagingBranches(project), timezone: String(setting("timezone") ?? "UTC") });
+});
+route("PUT", "/projects/:id/staging-refresh", ({ params, body }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.manage");
+  needInProject(project, "instances.restore");
+  const frequency = body.frequency as "off" | "daily" | "weekly";
+  if (!["off", "daily", "weekly"].includes(frequency)) throw new Problem(400, "frequency: off, daily, weekly.");
+  const time = String(body.time ?? "03:00");
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Problem(400, 'time: "HH:MM" (00:00 to 23:59).');
+  const weekday = Number(body.weekday ?? 6);
+  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) throw new Problem(400, "weekday: 0 (Monday) to 6 (Sunday).");
+  const chosen = Array.isArray(body.branches) ? body.branches.map(String) : [];
+  const saved = promotion.saveSchedule(project, { frequency, time, weekday, branches: chosen }, ME);
+  record(ME, "staging refresh scheduled", { detail: `${project.id}: ${frequency} ${time}` });
+  return ok(saved, { branches: promotion.stagingBranches(project) });
+});
+route("POST", "/projects/:id/staging-refresh/run", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "instances.restore");
+  const production = productionInstance(project);
+  const started: string[] = [];
+  const skipped: { instance: string; reason: string }[] = [];
+  for (const branch of promotion.stagingBranches(project))
+    for (const name of branch.instances) {
+      const instance = instances.get(name);
+      if (!instance || !production) { skipped.push({ instance: name, reason: "there is no production instance to copy" }); continue; }
+      if (project.access.locks[branch.name]) { skipped.push({ instance: name, reason: "the branch is locked" }); continue; }
+      if (instance.current_job) { skipped.push({ instance: name, reason: "it is busy with another job" }); continue; }
+      addBackup(production, "staging-copy", Date.now());
+      startJob({
+        instance: name, action: "Scheduled refresh from production", kind: "restore", status: "busy",
+        steps: [`Copying the data of ${production.name} (production)`, "Loading the copy", "Neutralising the copied data", "Starting Odoo"],
+        seconds: [2, 2.5, 1.5, 1.5],
+        onDone: () => wake(instance),
+      });
+      started.push(name);
+    }
+  record(ME, "staging refreshed from production", { detail: `${project.id}: started ${started.join(", ") || "none"}` });
+  return ok({ started, skipped }, undefined, started.length ? 202 : 200);
+});
+route("GET", "/projects/:id/previews", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "instances.view");
+  const options = projectResource(project).options;
+  const list = promotion.previews(project);
+  return ok(list, { enabled: options.pr_previews, limit: options.pr_preview_limit, forks: options.pr_previews_forks, app_connected: true, can_comment: true, created: list.filter((p) => !p.existing && p.status !== "refused").length });
 });
 
 // ---------------------------------------------------------------- teams, access and locks (projects/access.py)

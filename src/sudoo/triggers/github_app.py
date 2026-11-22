@@ -9,6 +9,8 @@ created from the panel's manifest, and receives the events of every repository t
                                "branch deleted on GitHub" warning, and the repository's project creates a
                                development instance for a new branch or archives the instances of a deleted one
                                (projects/automation.py)
+    pull_request               a pull request opened, got new commits or closed: the project's preview instance
+                               follows (projects/previews.py, when the project has pull-request previews on)
     installation               the app was installed, removed, suspended or given back on an account: the panel's
                                list of installations follows
     installation_repositories  repositories were added to or removed from an installation
@@ -65,6 +67,10 @@ class GitHubAppWebhook(GitHubWebhook):
             if event == "create":
                 return jsonify(ok=True, instances=following, created=automation.branch_created(repository, branch))
             return jsonify(ok=True, instances=following, branch_deleted=automation.branch_deleted(repository, branch))
+        if event == "pull_request":
+            from sudoo.projects import previews  # late: projects/ imports the instances package
+
+            return jsonify(ok=True, **previews.pull_request(payload))
         if event == "installation":
             return self.installation(payload)
         if event == "installation_repositories":

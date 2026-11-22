@@ -481,6 +481,11 @@ project sets its own.
 | `PROJECT_STAGING_TESTS` | bool | `false` | **live** | Staging builds run the project's tests too, on a throw-away copy of the staging database (removed afterwards). |
 | `PROJECT_TEST_TIMEOUT_MINUTES` | int | `30` | **live** | Tests of one build that take longer are stopped, and the build fails. 1 to 1440. |
 | `PROJECT_COMMIT_STATUSES` | bool | `true` | **live** | Builds report their result on GitHub as commit statuses (`sudoo/development`, `sudoo/staging`, `sudoo/production`), linked to the branch's history in the panel. Needs the GitHub App with **Commit statuses: Read and write**; see [Commit statuses](ADMIN_GUIDE.md#commit-statuses). |
+| `PROJECT_PROMOTION_BACKUP_HOURS` | int | `24` | **live** | Before a branch goes into production, production's newest backup should be younger than this many hours; an older one (or none) shows amber in the pre-promotion checklist, with **Back up now**. 0 to 720; 0: not checked. See [Promoting to production](ADMIN_GUIDE.md#promoting-to-production). |
+| `PROJECT_PROMOTION_BLOCKS` | bool | `true` | **live** | Red items of the pre-promotion checklist (a failed build or failed tests, another Odoo version, a lock that does not let the person through, a production limit) stop the move into production, unless someone with `projects.manage` chooses **Promote anyway** (audit-logged). Off: red items are shown but never stop the move. |
+| `PROJECT_PR_PREVIEWS` | bool | `false` | **live** | Pull requests get a development instance of their branch (a preview), linked from a comment on the pull request and deleted, without a backup, when it is closed or merged. Each project can change it. See [Pull-request previews](ADMIN_GUIDE.md#pull-request-previews). |
+| `PROJECT_PR_PREVIEW_LIMIT` | int | `3` | **live** | Previews one project may have at the same time; one more pull request then gets no preview (listed with the reason) until one is closed. 0 to 50; 0: no limit (`MAX_INSTANCES`, the running limit and the plan still apply). Each project can change it. |
+| `PROJECT_PR_PREVIEWS_FORKS` | bool | `false` | **live** | Pull requests from forks get previews too. Off by default: a fork's code is written by people outside your repository and runs on your server. Each project can change it. |
 
 ## Database upgrades
 

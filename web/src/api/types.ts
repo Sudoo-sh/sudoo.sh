@@ -419,6 +419,12 @@ export interface ProjectOptions {
   staging_tests: boolean;
   /** builds are reported on GitHub as commit statuses (when the GitHub App may write them) */
   commit_statuses: boolean;
+  /** pull requests get a development instance of their branch (projects/previews.py) */
+  pr_previews: boolean;
+  /** previews at the same time; 0: no limit */
+  pr_preview_limit: number;
+  /** pull requests from forks get previews too (their code is untrusted) */
+  pr_previews_forks: boolean;
 }
 
 /** What a new commit does: the same database updated, a new build from scratch, or only a line in the history */
@@ -603,7 +609,8 @@ export interface StageChange extends HistoryEntryBase {
 
 /** A backup restored into an instance of the branch (or a restore rolled back) */
 export interface RestoreEntry extends HistoryEntryBase {
-  type: "restore";
+  /** "refresh": a scheduled refresh of staging from production (projects/refresh.py) */
+  type: "restore" | "refresh";
   instance: string;
   status: "success" | "failed";
   action: string | null;
@@ -1621,4 +1628,142 @@ export interface SupportStatus {
   sessions: SupportSession[];
   active_grants: number;
   can_end: boolean;
+}
+
+// ---------------------------------------------------------------- promotion (web/v1/promotion.py)
+
+export type CheckStatus = "ok" | "warning" | "blocked";
+export type CheckKey = "build" | "backup" | "modules" | "migrations" | "odoo" | "lock" | "capacity";
+
+export interface ModuleVersion {
+  name: string;
+  version: string;
+}
+export interface ModuleChange {
+  name: string;
+  from: string;
+  to: string;
+  /** how the version changed; "unknown" when GitHub answered without the manifests */
+  bump: "up" | "down" | "same" | "unknown";
+}
+export interface ModuleChanges {
+  added: ModuleVersion[];
+  removed: ModuleVersion[];
+  changed: ModuleChange[];
+  /** false: found from the changed paths only, without versions */
+  known: boolean;
+}
+export interface PendingMigration {
+  module: string;
+  version: string;
+  scripts: string[];
+}
+
+/** One item of the pre-promotion checklist, with what it found */
+export interface CheckItem {
+  key: CheckKey;
+  status: CheckStatus;
+  text: string;
+  build?: { id: string; status: string; at: number | string | null; commit: { sha: string; subject?: string } | null; tests: Record<string, unknown> | null };
+  backup?: { file: string; created: number } | null;
+  instance?: string;
+  max_hours?: number;
+  busy?: boolean;
+  modules?: ModuleChanges;
+  ahead?: number | null;
+  behind?: number | null;
+  migrations?: PendingMigration[];
+  branch_series?: string[];
+  production_series?: string[];
+  branches?: string[];
+}
+
+/** GET /projects/<id>/branches/<branch>/promotion-check */
+export interface PromotionCheck {
+  branch: string;
+  /** "move": the branch becomes production; "merge": it is merged into production's branch (no capacity item) */
+  mode: "move" | "merge";
+  production: { branch: string | null; instance: string | null };
+  items: CheckItem[];
+  blocked: CheckKey[];
+  /** red items stop the move into production (PROJECT_PROMOTION_BLOCKS) */
+  blocking: boolean;
+  compare: { ahead: number; behind: number; files_changed: number; github_url: string; source: "git" | "github" } | null;
+  checked_at: string | null;
+}
+
+export interface CompareCommit {
+  sha: string;
+  full_sha: string;
+  subject: string;
+  author: string;
+  when: string;
+}
+
+/** GET /projects/<id>/compare?base=&head= */
+export interface BranchCompare {
+  ahead: number;
+  behind: number;
+  commits: CompareCommit[];
+  files_changed: number;
+  modules: ModuleChanges;
+  migrations: PendingMigration[];
+  source: "git" | "github";
+  base: { branch: string; sha: string };
+  head: { branch: string; sha: string };
+  github_url: string;
+  odoo_series: string;
+}
+
+export type RefreshFrequency = "off" | "daily" | "weekly";
+
+/** GET/PUT /projects/<id>/staging-refresh */
+export interface StagingRefresh {
+  frequency: RefreshFrequency;
+  /** "HH:MM" in the panel's time zone */
+  time: string;
+  /** 0 Monday to 6 Sunday */
+  weekday: number;
+  /** empty: every staging branch */
+  branches: string[];
+  last_run: string | null;
+  next_run: string | null;
+  changed_by?: string | null;
+}
+export interface StagingRefreshMeta {
+  branches: { name: string; instances: string[] }[];
+  timezone?: string;
+}
+export interface StagingRefreshRun {
+  started: string[];
+  skipped: { instance: string; reason: string }[];
+}
+
+export type PreviewStatus = "creating" | "building" | "ready" | "failed" | "deleted" | "refused";
+
+/** GET /projects/<id>/previews: one pull request's preview */
+export interface Preview {
+  number: number;
+  title: string;
+  url: string;
+  branch: string;
+  repository: string;
+  fork: boolean;
+  head_sha: string | null;
+  instance: string | null;
+  instance_exists: boolean;
+  /** the branch's instance existed before the pull request: it is not deleted with it */
+  existing: boolean;
+  status: PreviewStatus;
+  reason: string | null;
+  commented: boolean;
+  opened_at: string | null;
+}
+export interface PreviewsMeta {
+  enabled: boolean;
+  limit: number;
+  forks: boolean;
+  app_connected: boolean;
+  can_comment: boolean;
+  created: number;
 }

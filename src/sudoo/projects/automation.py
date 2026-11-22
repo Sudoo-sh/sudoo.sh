@@ -39,7 +39,7 @@ from sudoo.core.jobs import Job
 from sudoo.core.state import STATE
 from sudoo.instances import capacity, operations, planning, stages, store
 from sudoo.limits import quotas
-from sudoo.projects import access, branches, build_options, staging
+from sudoo.projects import access, branches, build_options, previews, staging
 
 SYNC_MINIMUM_SECONDS = 60
 
@@ -281,11 +281,13 @@ def sync(project: Mapping[str, Any]) -> dict[str, list[str]]:
 
 
 def sync_forever() -> None:
-    """Background loop: look at every project's branches every POLL_MINUTES (at least a minute apart)."""
+    """Background loop: look at every project's branches (and open pull requests, projects/previews.py) every
+    POLL_MINUTES (at least a minute apart)."""
     while True:
         time.sleep(max(SYNC_MINIMUM_SECONDS, settings.poll_minutes * 60))
         for project in projects.all_projects():
             try:
                 sync(project)
+                previews.poll(project)  # pull requests whose webhook did not arrive
             except Exception as error:  # noqa: BLE001 - one project's trouble never stops the others
                 print(f"projects: branches of {project['id']} not checked: {error!r}", flush=True)

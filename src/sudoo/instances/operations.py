@@ -429,24 +429,17 @@ def _record_admin_login(name: str, db: str) -> str:
     return login or kept
 
 
-def delete(job: Job, name: str, without_backup: bool = False) -> None:
+def delete(job: Job, name: str, without_backup: bool = False, no_backup: bool = False) -> None:
     """Back up every database, then remove the instance completely. No backup, no deletion, unless `without_backup`
     (asked for by someone who may manage backups): then a failed backup is noted and audit-logged, and the instance
-    is removed anyway. Code running in the instance can make its own backup fail; this keeps it from staying."""
+    is removed anyway. Code running in the instance can make its own backup fail; this keeps it from staying.
+    `no_backup`: no backup is taken at all (a pull request's preview, projects/previews.py: its data is throw-away)."""
     job.expect(3)
-    job.step("Backing up the database and files")
-    try:
-        saved = backups.create(job, name, "deletion")
-    except Exception as error:
-        if not without_backup:
-            job.write(panel_hint(DELETION_BACKUP_FAILED))
-            raise
-        from sudoo.core import audit
-
-        job.note(f"The backup failed, so the instance is deleted without a complete backup: {error}", "warning")
-        audit.record(job.user, None, "instance deleted without a complete backup", name, ok=False, detail=error)
+    job.step("Backing up the database and files" if not no_backup else "Leaving out the backup")
+    if no_backup:
+        job.note("No backup: this instance's data is throw-away.")
     else:
-        job.note(f"Backup kept: {', '.join(path.name for path in saved)}")
+        _backup_before_deletion(job, name, without_backup)
     job.step("Removing Odoo, its database and its files")
     mail_catcher.detach(name)  # Docker keeps a network something is connected to
     job.run(compose(name, "down", "-v", "--remove-orphans"), timeout=600)
@@ -466,6 +459,21 @@ def delete(job: Job, name: str, without_backup: bool = False) -> None:
 
     upgrades.forget_staging(name)  # a later instance of the same name is never an upgrade's test instance
     backups.remove_daily(name)  # the backup above is newer
+
+
+def _backup_before_deletion(job: Job, name: str, without_backup: bool) -> None:
+    try:
+        saved = backups.create(job, name, "deletion")
+    except Exception as error:
+        if not without_backup:
+            job.write(panel_hint(DELETION_BACKUP_FAILED))
+            raise
+        from sudoo.core import audit
+
+        job.note(f"The backup failed, so the instance is deleted without a complete backup: {error}", "warning")
+        audit.record(job.user, None, "instance deleted without a complete backup", name, ok=False, detail=error)
+    else:
+        job.note(f"Backup kept: {', '.join(path.name for path in saved)}")
 
 
 DELETION_BACKUP_FAILED = (

@@ -8,6 +8,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Pre-promotion checklist**: moving a branch into production (drag and drop or **Move to**), and **Promotion
+  check** in a staging branch's menu, list green, amber and red items with the reason: the branch's latest build and
+  tests, production's newest backup (**Back up now** when older than `PROJECT_PROMOTION_BACKUP_HOURS`), the modules
+  added, removed and with a new version between production and the branch (read from each `__manifest__.py` at both
+  commits), the migration scripts those versions run, the Odoo version, locks and capacity. Red items stop the move
+  (`PROJECT_PROMOTION_BLOCKS`) unless someone who manages the project ticks **Promote anyway** (audit-logged). API:
+  `GET /api/v1/projects/<id>/branches/<branch>/promotion-check`; `PUT .../stage` takes `"promote_anyway"`.
+- **Compare branches**: **Compare** in a branch's menu shows commits ahead and behind, the commits, changed files,
+  module version changes and pending migrations between any two branches, with a link to GitHub's compare page
+  (`GET /api/v1/projects/<id>/compare?base=&head=`). The panel keeps its own bare, contents-on-demand copy of each
+  repository for it (`<ODOO_ROOT>/manager/mirrors/`); GitHub's compare API answers when git cannot.
+- **Scheduled staging refresh**: a project's Settings can rebuild its staging branches from a new copy of production
+  every day or every week at a chosen time (all staging branches or chosen ones), skipping locked or busy instances,
+  with a **refresh** entry in each branch's history and **Refresh now**
+  (`GET/PUT /api/v1/projects/<id>/staging-refresh`, `POST .../staging-refresh/run`).
+- **Pull-request previews** (off by default, `PROJECT_PR_PREVIEWS`): an open pull request gets a development
+  instance of its branch, one comment on the pull request with its link (updated after each build), and the instance
+  is deleted without a backup when the pull request is closed or merged. At most `PROJECT_PR_PREVIEW_LIMIT` per project
+  (3); pull requests from forks only with `PROJECT_PR_PREVIEWS_FORKS`. Heard from the GitHub App's webhook, with a look
+  at open pull requests every `POLL_MINUTES` as a fallback (`GET /api/v1/projects/<id>/previews`). New GitHub Apps ask
+  for **Pull requests: write**, **Issues: write** and the **Pull request** event; apps connected earlier keep working
+  without previews' comments until they are added (Admin Guide, The GitHub App).
 - **Project resources**, as Odoo.sh's database workers, workers settings and production database size: a
   **Resources** section on a project's Settings tab (one card per stage with steppers for workers and cron workers,
   the HTTP and scheduled actions timeouts, more limits, the computed Odoo container memory and cores, and the line

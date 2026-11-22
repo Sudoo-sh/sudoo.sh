@@ -122,6 +122,12 @@ def _add(entry: Document) -> Document:
     return entry
 
 
+def add_entry(entry: Document) -> Document:
+    """Add a timeline entry made elsewhere (a scheduled staging refresh, projects/refresh.py); it is published as a
+    live "build" event like every entry."""
+    return _add(entry)
+
+
 def _update(project_id: str, branch: str, entry_id: str, **values: Any) -> None:
     def apply(entries: list[Document]) -> list[Document]:
         return [{**e, **values} if e["id"] == entry_id else e for e in entries]

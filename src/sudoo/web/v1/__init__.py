@@ -13,6 +13,7 @@ role (roles.py), and the same permission checks apply.
     imports.py     Import database: upload an Odoo dump in pieces and put it into an instance
     projects.py    projects (one GitHub repository each), their branches and stages, access and locked branches
     project_resources.py  a project's and a branch's resources: workers, timeouts, memory per stage; storage
+    promotion.py   the pre-promotion checklist, comparing branches, the scheduled staging refresh, PR previews
     upgrades.py    database upgrades of instances to a newer Odoo version: pre-check, test, production, rollback
     teams.py       teams: named groups of accounts that project access is given to (reading, removing; the rest
                    comes with the premium teams package)
@@ -69,6 +70,7 @@ from . import (
     premium,
     project_resources,
     projects,
+    promotion,
     server,
     session,
     settings,
@@ -106,6 +108,7 @@ def register(app: Flask) -> None:
         imports,
         projects,
         project_resources,
+        promotion,
         domains,
         caught_mail,
         settings,

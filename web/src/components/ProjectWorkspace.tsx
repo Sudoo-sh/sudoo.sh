@@ -30,6 +30,8 @@ import {
   EyeOff,
   GitBranch,
   GitCommitHorizontal,
+  GitCompareArrows,
+  ListChecks,
   History,
   Lock,
   LockOpen,
@@ -50,7 +52,9 @@ import { BranchHistory } from "@/components/BuildHistory";
 import { BranchSettings } from "@/components/BuildOptions";
 import { BranchResources } from "@/components/ProjectResources";
 import { BranchCommit, CreateDialog, DeleteInstanceDialog, RebuildDialog, StageDialog, type BranchDialog } from "@/components/BranchDialogs";
+import { CompareDialog } from "@/components/BranchCompare";
 import { JobDrawer } from "@/components/JobDrawer";
+import { PromotionDialog } from "@/components/PromotionChecklist";
 import { LockTag } from "@/components/LockTag";
 import { LockDialog, UnlockDialog } from "@/components/ProjectAccess";
 import { useProjectBackups } from "@/components/ProjectBackups";
@@ -66,6 +70,7 @@ import common from "@/i18n/common";
 import buildWords from "@/i18n/builds";
 import optionWords from "@/i18n/build-options";
 import words from "@/i18n/projects";
+import promotionWords from "@/i18n/promotion";
 import teamWords from "@/i18n/teams";
 import { ago, count, statusLabel } from "@/lib/format";
 import { useMedia } from "@/lib/media";
@@ -269,6 +274,7 @@ function BranchMenu({
   const t = useT(words).page;
   const w = useT(words).workspace;
   const l = useT(teamWords);
+  const pw = useT(promotionWords);
   const roleCan = useCan();
   const branchCan = useBranchCan();
   const can = (permission: Permission) => branchCan(branch, permission);
@@ -288,6 +294,16 @@ function BranchMenu({
             <MenuItem asChild><Link to={view("backups")} viewTransition onClick={close}>
               <Archive /> {backups ? count(backups, "backup") : w.backups}
             </Link></MenuItem>
+          )}
+          {branch.on_github !== false && project.branches_list.some((b) => b.name !== branch.name && b.on_github !== false) && (
+            <MenuItem onSelect={() => { close(); onDialog({ kind: "compare", branch, base: project.branches_list.find((b) => b.stage === "production" && b.name !== branch.name)?.name ?? project.branches_list.find((b) => b.name !== branch.name)!.name }); }}>
+              <GitCompareArrows /> {pw.compare.menu}
+            </MenuItem>
+          )}
+          {branch.stage === "staging" && (
+            <MenuItem onSelect={() => { close(); onDialog({ kind: "promotion", branch }); }}>
+              <ListChecks /> {pw.check.menu}
+            </MenuItem>
           )}
           {instance && branch.stage === "staging" && can("instances.restore") && (
             <MenuItem onSelect={() => { close(); onDialog({ kind: "rebuild", branch, instance: instance.name }); }}>
@@ -696,7 +712,11 @@ export function ProjectWorkspace({
       </div>
       {dialog?.kind === "lock" && <LockDialog project={project} branch={dialog.branch} onClose={() => setDialog(null)} />}
       {dialog?.kind === "unlock" && <UnlockDialog project={project} branch={dialog.branch} onClose={() => setDialog(null)} />}
-      {dialog?.kind === "stage" && <StageDialog project={project} meta={meta} branch={dialog.branch} stage={dialog.stage} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "stage" && <StageDialog project={project} meta={meta} branch={dialog.branch} stage={dialog.stage} onClose={() => setDialog(null)}
+        onCompare={(base) => setDialog({ kind: "compare", branch: dialog.branch, base })} />}
+      {dialog?.kind === "compare" && <CompareDialog project={project} base={dialog.base} head={dialog.branch.name} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "promotion" && <PromotionDialog project={project} branch={dialog.branch} onClose={() => setDialog(null)}
+        onCompare={(base) => setDialog({ kind: "compare", branch: dialog.branch, base })} />}
       {dialog?.kind === "create" && <CreateDialog project={project} branch={dialog.branch} production={production} onClose={() => setDialog(null)} onJob={setJobId} />}
       {dialog?.kind === "rebuild" && <RebuildDialog project={project} branch={dialog.branch} instance={dialog.instance} production={production} onClose={() => setDialog(null)} onJob={setJobId} />}
       {dialog?.kind === "delete" && <DeleteInstanceDialog instance={dialog.instance} onClose={() => setDialog(null)} onJob={setJobId} />}

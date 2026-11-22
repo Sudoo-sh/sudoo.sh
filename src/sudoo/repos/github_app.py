@@ -55,8 +55,9 @@ PERMISSIONS = {"contents": "read", "metadata": "read"}
 CREATE_PERMISSIONS = {"administration": "write"}  # creating repositories in an organisation (projects/)
 STATUS_PERMISSIONS = {"statuses": "write"}  # reporting builds as commit statuses (projects/commit_status.py)
 STATUS_STATES = ("pending", "success", "failure", "error")
+PULL_PERMISSIONS = {"pull_requests": "write", "issues": "write"}  # pull-request previews: events and one comment each
 REPOSITORY_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
-EVENTS = ["push", "create", "delete"]
+EVENTS = ["push", "create", "delete", "pull_request"]
 HOOK_PATH = "/hooks/github-app"
 SECRET_FIELDS = ("pem", "webhook_secret", "client_secret")
 NAME_LIMIT = 34  # GitHub refuses longer app names
@@ -203,11 +204,15 @@ def app_name(host: str) -> str:
 
 def manifest(panel_url: str, hook_base: str, host: str, create_repositories: bool = False) -> dict[str, Any]:
     """The GitHub App manifest: private, read-only access to code, Commit statuses: write (builds reported on their
-    commits, STATUS_PERMISSIONS), push/create/delete events to the panel's webhook. With `create_repositories`, also
+    commits, STATUS_PERMISSIONS), Pull requests and Issues: write (pull-request previews: their events and one comment
+    on each pull request with the preview's link, PULL_PERMISSIONS), push/create/delete/pull_request events to the
+    panel's webhook. With `create_repositories`, also
     Administration: write, so the panel can create empty repositories for new projects in the organisations it is
     installed on (CREATE_PERMISSIONS)."""
     panel_url, hook_base = panel_url.rstrip("/"), hook_base.rstrip("/")
-    permissions = {**PERMISSIONS, **STATUS_PERMISSIONS, **(CREATE_PERMISSIONS if create_repositories else {})}
+    permissions = {
+        **PERMISSIONS, **STATUS_PERMISSIONS, **PULL_PERMISSIONS, **(CREATE_PERMISSIONS if create_repositories else {}),
+    }  # fmt: skip
     return {
         "name": app_name(host),
         "url": panel_url,
@@ -772,3 +777,96 @@ def post_status(full_name: str, sha: str, state: str, context: str, description:
             with _lock:
                 _status_tokens.pop(installation, None)  # asked for again next time
         raise
+
+
+# --------------------------------------------------------------------------- pull requests (projects/previews.py)
+
+
+def can_comment(owner: str) -> bool:
+    """Whether the app's installation on `owner` may comment on pull requests (Pull requests or Issues: Read and write,
+    accepted on the installation). Apps made before the panel asked for it lack it until it is added on GitHub."""
+    if not connected():
+        return False
+    found = next((i for i in installations() if str(i["account"]).lower() == owner.lower()), None)
+    granted = (found or {}).get("permissions") or {}
+    return bool(
+        found and not found.get("suspended") and "write" in (granted.get("pull_requests"), granted.get("issues"))
+    )
+
+
+_comment_tokens: dict[int, tuple[float, str]] = {}  # installation id -> (expires, token): in memory only
+
+
+def _comment_token(installation_id: int, now: float | None = None) -> str:
+    """A token with only the installation's Pull requests and Issues access (reading pull requests, writing the
+    panel's comment); never the read-only token's cache."""
+    now = now if now is not None else time.time()
+    with _lock:
+        cached = _comment_tokens.get(installation_id)
+        if cached and cached[0] - TOKEN_MARGIN > now:
+            return cached[1]
+    found = next((i for i in installations() if int(i["id"]) == installation_id), {})
+    granted = found.get("permissions") or {}
+    wanted = {key: str(granted[key]) for key in PULL_PERMISSIONS if granted.get(key) in ("read", "write")}
+    answer = request(
+        "POST",
+        f"/app/installations/{installation_id}/access_tokens",
+        bearer=app_jwt(),
+        body={"permissions": {**wanted, "metadata": "read"}},
+    )
+    token = str(answer["token"])
+    with _lock:
+        _comment_tokens[installation_id] = (_parse_time(str(answer.get("expires_at", ""))) or now + 3600, token)
+    return token
+
+
+def _repository_parts(full_name: str) -> tuple[str, str]:
+    owner, _, repository = full_name.partition("/")
+    if not ORG_RE.match(owner) or not REPOSITORY_NAME_RE.match(repository):
+        raise GitHubError("Not a repository GitHub knows.", 400)
+    return owner, repository
+
+
+def comment(full_name: str, number: int, body: str, comment_id: int | None = None) -> int:
+    """Write the panel's comment on pull request `number` of `full_name` ("owner/repo"), or change the one it wrote
+    (`comment_id`); returns the comment's id. Raises GitHubError (callers never let it fail anything)."""
+    owner, repository = _repository_parts(full_name)
+    installation = installation_for(owner)
+    if installation is None:
+        raise GitHubError(f"The GitHub App is not installed on {owner}.", 409)
+    if not can_comment(owner):
+        raise GitHubError("The GitHub App may not comment on pull requests (Pull requests: Read and write).", 403)
+    token = _comment_token(installation)
+    text = body[:60000]
+    try:
+        if comment_id:
+            try:
+                request("PATCH", f"/repos/{owner}/{repository}/issues/comments/{int(comment_id)}", bearer=token,
+                        body={"body": text})  # fmt: skip
+                return int(comment_id)
+            except GitHubError as error:
+                if error.status != 404:  # someone deleted the comment: a new one
+                    raise
+        answer = request("POST", f"/repos/{owner}/{repository}/issues/{int(number)}/comments", bearer=token,
+                         body={"body": text})  # fmt: skip
+    except GitHubError as error:
+        if error.status == 401:
+            with _lock:
+                _comment_tokens.pop(installation, None)  # asked for again next time
+        raise
+    return int(answer["id"])
+
+
+def open_pulls(full_name: str) -> list[dict[str, Any]]:
+    """The open pull requests of `full_name` (at most 100), as GitHub's webhook describes them (number, head, base,
+    title, html_url): the fallback when webhooks do not arrive. Raises GitHubError."""
+    owner, repository = _repository_parts(full_name)
+    installation = installation_for(owner)
+    if installation is None:
+        raise GitHubError(f"The GitHub App is not installed on {owner}.", 409)
+    found = next((i for i in installations() if int(i["id"]) == installation), {})
+    if (found.get("permissions") or {}).get("pull_requests") not in ("read", "write"):
+        raise GitHubError("The GitHub App may not read pull requests (Pull requests: Read and write).", 403)
+    answer = request("GET", f"/repos/{owner}/{repository}/pulls?state=open&per_page=100",
+                     bearer=_comment_token(installation))  # fmt: skip
+    return [found for found in answer or [] if isinstance(found, dict)]

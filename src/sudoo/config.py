@@ -842,6 +842,35 @@ class Settings(BaseSettings):
         description="Builds report their result on GitHub as commit statuses (sudoo/<stage>) when the GitHub App may "
         "write statuses (each project can change it).",
     )
+    project_promotion_backup_hours: int = Field(
+        24,
+        ge=0,
+        le=720,
+        description="Before a branch goes into production, production's newest backup should be younger than this "
+        "many hours (the pre-promotion checklist shows an older one in amber); 0: not checked.",
+    )
+    project_promotion_blocks: bool = Field(
+        True,
+        description="Red items of the pre-promotion checklist (a failed build, another Odoo version, a lock) stop a "
+        'branch from moving into production unless someone who manages the project chooses "Promote anyway".',
+    )
+    project_pr_previews: bool = Field(
+        False,
+        description="Pull requests get a development instance of their branch (a preview), linked from a comment on "
+        "the pull request and deleted when it is closed (each project can change it).",
+    )
+    project_pr_preview_limit: int = Field(
+        3,
+        ge=0,
+        le=50,
+        description="Pull-request previews one project may have at the same time (each project can change it); 0: no "
+        "limit (the server's and the plan's limits still apply).",
+    )
+    project_pr_previews_forks: bool = Field(
+        False,
+        description="Pull requests from forks get previews too. Off by default: a fork's code is written by people "
+        "outside the repository and runs on this server (each project can change it).",
+    )
 
     @field_validator("project_modules")
     @classmethod

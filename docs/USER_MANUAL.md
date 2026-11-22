@@ -222,8 +222,19 @@ The menu (**…**) next to the branch's name has its actions:
 | **Logs**, **Backups** | Opens the instance's Odoo log, or its backups (with how many there are). | everyone (Logs: instances.logs) |
 | **Move to** a stage | Changes the branch's stage and moves its instances with it, like dragging it. Making a branch production asks you to confirm what changes: its instances never pause, never expire, are backed up every day and get new code only through a backup and an automatic rollback. A project has one production branch unless the administrator allows more. Leaving production asks for a confirmation too. | maintainers and up |
 | **Rebuild from production** | Staging only: replaces its database and files with a new neutralised copy of production, then takes the branch's latest code. Everything done in staging since its last rebuild is lost. | instances.restore |
+| **Compare** | What the branch brings compared with another one (production's branch first): commits ahead and behind, the commits, how many files changed, the Odoo modules added, removed and with a new version (from each module's manifest), the migration scripts those versions run, and **Open on GitHub**. Swap the two branches with the arrows. | everyone |
+| **Promotion check** | Staging only: the pre-promotion checklist (below), to read before merging the branch into production on GitHub. | everyone |
 | **Delete instance** | Deletes the instance after a backup (a production instance asks you to type `production` too). The branch stays. | instances.delete |
 | **Lock**, **Change the lock**, **Unlock** | Closes the branch to everyone but the people and teams the lock allows ([locked branches](#project-access-and-locked-branches)). | administrators |
+
+**The pre-promotion checklist.** Moving a branch into production (by dragging it or with **Move to**) shows a
+checklist first, each line green, amber or red with the reason: the branch's latest build and its tests;
+production's newest backup (**Back up now** when it is older than the administrator's limit, 24 hours by default);
+the modules that change between production and the branch; the migration scripts that will run; whether both run
+the same Odoo version; locks; and the room left in the project, the plan and the server. Red lines stop the move.
+If you manage the project and know why a line is red, tick **Promote anyway**: the move is made and the audit log
+records it. **Compare with production** opens the full comparison. See
+[Promoting to production](ADMIN_GUIDE.md#promoting-to-production).
 
 What you may do in a branch also depends on the project's access: a branch hidden from you is not listed, and a
 **Locked** tag marks a locked branch (its menu then offers only what the lock lets you do). **Restricted** marks a
@@ -298,6 +309,20 @@ happens with new, pushed and deleted branches, the build options above, the life
 instances, and
 **Delete the project** (only without instances; the repository on GitHub stays). A value you do not set follows the
 panel's setting (**Settings**, **Instances**, **Projects**); the reset button next to it goes back to it.
+
+**Scheduled refresh from production** (in **Settings**): staging can be rebuilt from a new copy of production by
+itself, **Daily** or **Weekly** (choose the day), at a time in the panel's time zone, for every staging branch or the
+ones you tick. It does what **Rebuild from production** does, so whatever was done in staging since is lost. A
+branch that is locked, busy or cannot be rebuilt is skipped, and its history says why; each refresh appears in the
+branch's history. **Refresh now** runs it at once. The card shows the last and the next run.
+
+**Pull-request previews** (in **Settings**, off by default): each open pull request on GitHub gets a development
+instance of its branch, and the panel writes one comment on the pull request with the preview's link, updated after
+each build. When the pull request is closed or merged, the preview is deleted (without a backup). A branch that
+already had an instance keeps it, and that instance is the preview. **Previews at most** limits how many a project
+has at once (3 by default). **Previews of forks** stays off unless you trust the people who send pull requests from
+forks: their code would run on your server. The card lists the pull requests with their previews and status. See
+[Pull-request previews](ADMIN_GUIDE.md#pull-request-previews).
 
 **Access** (the project's tab, administrators): who sees the project and at which level, per project and per branch,
 and its locked branches: see [Project access and locked branches](#project-access-and-locked-branches).

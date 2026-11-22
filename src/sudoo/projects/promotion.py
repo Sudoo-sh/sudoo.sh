@@ -90,7 +90,7 @@ def backup_item(production: str | None, now: float | None = None) -> dict[str, A
 
 
 def _hours_ago(age: float) -> str:
-    """"less than an hour ago", "1 hour ago", "5 hours ago"."""
+    """How long ago, in words: less than an hour ago, 1 hour ago, 5 hours ago."""
     whole = round(max(age, 0))
     if age < 1:
         return "less than an hour ago"

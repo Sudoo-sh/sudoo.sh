@@ -1,24 +1,18 @@
-// The Projects pages (the Odoo.sh model): the list of projects (one GitHub repository each), a project's branches by
-// stage with what can be done to each, the project's settings, and the new-project wizard (link a repository, or
-// create a new, empty one through the GitHub App).
+// The Projects pages (the Odoo.sh model): the list of projects (one GitHub repository each), a project (its branches
+// by stage in a workspace, components/ProjectWorkspace.tsx), the project's settings, and the new-project wizard (link
+// a repository, or create a new, empty one through the GitHub App).
 
 import {
   Archive,
   ArrowUpRight,
   Boxes,
   ChevronRight,
-  Ellipsis,
-  EyeOff,
   FolderGit2,
   FolderPlus,
   GitBranch,
   Hammer,
-  Lock,
-  LockOpen,
-  Plus,
   RefreshCw,
   RotateCcw,
-  ScrollText,
   Search,
   ShieldCheck,
   Trash2,
@@ -27,24 +21,20 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api, ApiError, errorText } from "@/api/client";
 import { keys, useCall, useInstances, useProject, useProjects, useRepositoryOwners, useVersions } from "@/api/queries";
-import type { Instance, Job, Permission, Project, ProjectBranch, ProjectDetail, ProjectMeta, ProjectOptions, Stage } from "@/api/types";
-import { LockTag } from "@/components/LockTag";
-import { AccessTab, LockDialog, UnlockDialog } from "@/components/ProjectAccess";
+import type { Instance, Project, ProjectDetail, ProjectOptions, Stage } from "@/api/types";
+import { AccessTab } from "@/components/ProjectAccess";
 import { InstanceCard } from "@/components/InstanceCard";
-import { ProjectBackups, useProjectBackups } from "@/components/ProjectBackups";
-import { JobDrawer } from "@/components/JobDrawer";
+import { ProjectBackups } from "@/components/ProjectBackups";
+import { ProjectWorkspace } from "@/components/ProjectWorkspace";
 import { Page, PageHead, useCan, useSubCrumb } from "@/components/Shell";
-import { useMe } from "@/components/Session";
-import { STAGE_ICON, STAGE_LABEL, StageTag } from "@/components/StageTag";
+import { STAGE_ICON, STAGE_LABEL } from "@/components/StageTag";
 import { Button, Callout, Empty, Field, Skeleton, Status, Switch, Tag } from "@/components/app/basics";
 import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
-import { Menu, MenuItem, MenuLabel, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
+import { Modal, useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/projects";
-import teamWords from "@/i18n/teams";
-import { ago, count } from "@/lib/format";
 import { RepositoryPicker } from "./NewInstance";
 
 const STAGES: Stage[] = ["production", "staging", "development"];
@@ -174,386 +164,6 @@ export function ProjectsPage() {
 }
 
 // ---------------------------------------------------------------- a project
-
-function BranchCommit({ branch }: { branch: ProjectBranch }) {
-  const t = useT(words).page;
-  if (!branch.commit) return <span className="faint small">{t.noCommit}</span>;
-  return (
-    <div className="branch-commit">
-      <span className="sha">{branch.commit.sha}</span>
-      {branch.commit.subject && <bdi className="truncate">{branch.commit.subject}</bdi>}
-      {branch.commit.when && <span className="faint xsmall nowrap">{ago(branch.commit.when)}</span>}
-    </div>
-  );
-}
-
-type Dialog =
-  | { kind: "lock"; branch: ProjectBranch }
-  | { kind: "unlock"; branch: ProjectBranch }
-  | { kind: "stage"; branch: ProjectBranch; stage: Stage }
-  | { kind: "create"; branch: ProjectBranch }
-  | { kind: "rebuild"; branch: ProjectBranch; instance: string }
-  | { kind: "delete"; instance: Instance };
-
-function BranchRow({
-  branch,
-  instances,
-  backups,
-  onDialog,
-}: {
-  branch: ProjectBranch;
-  instances: Map<string, Instance>;
-  /** backups per instance; null when the caller may not manage backups */
-  backups: Map<string, number> | null;
-  onDialog: (dialog: Dialog) => void;
-}) {
-  const roleCan = useCan();
-  const can = (permission: Permission) => (branch.permissions ? branch.permissions.includes(permission) : roleCan(permission));
-  const t = useT(words).page;
-  const l = useT(teamWords);
-  const members = branch.instances.map((n) => instances.get(n)).filter((i): i is Instance => !!i);
-  const first = members[0];
-  const lockedOut = !!branch.lock && !can("instances.logs");
-  const me = useMe();
-  // changing or removing a lock: whoever it allows (they keep projects.access in the branch) and super admins
-  const mayUnlock = can("projects.access") || me.role === "super_admin";
-  const others = STAGES.filter((s) => s !== branch.stage);
-  return (
-    <div className="branch-row" role="row">
-      <div className="br-branch" role="cell">
-        <GitBranch />
-        <div className="stack-xs">
-          <bdi className="br-name truncate" dir="ltr">{branch.name}</bdi>
-          <div className="row-wrap xsmall">
-            {branch.default && <Tag>{t.defaultBranch}</Tag>}
-            {branch.lock && <LockTag lock={branch.lock} branch={branch.name} />}
-            {branch.restricted && <span title={l.lock.restrictedHint}><Tag icon={<EyeOff />}>{l.lock.restricted}</Tag></span>}
-            {branch.on_github === false && <Tag tone="negative">{t.deletedOnGitHub}</Tag>}
-            {branch.auto_created && branch.instances.includes(branch.auto_created) && <span className="faint">{t.autoCreated}</span>}
-          </div>
-        </div>
-      </div>
-      <div className="br-commit" role="cell"><BranchCommit branch={branch} /></div>
-      <div className="br-instance" role="cell">
-        {members.length ? (
-          <div className="stack-xs">
-            {members.map((instance) => (
-              <div key={instance.name} className="row small">
-                <Status status={instance.status} label="" />
-                <Link to={`/i/${instance.name}`} viewTransition className="truncate">{instance.name}</Link>
-                {instance.stage !== branch.stage && <StageTag stage={instance.stage} />}
-                {backups?.get(instance.name) ? (
-                  <Link to={`/i/${instance.name}/backups`} viewTransition className="xsmall nowrap br-backups">
-                    {count(backups.get(instance.name)!, "backup")}
-                  </Link>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <span className="faint small">{t.noInstance}</span>
-        )}
-      </div>
-      <div className="br-actions" role="cell">
-        {first ? (
-          first.url && first.status !== "switched_off" && !lockedOut ? (
-            <Button asChild size="sm"><a href={first.url} target="_blank" rel="noreferrer">{t.open} <ArrowUpRight className="flip-rtl" /></a></Button>
-          ) : (
-            <Button asChild size="sm"><Link to={`/i/${first.name}`} viewTransition>{t.details}</Link></Button>
-          )
-        ) : (
-          can("instances.create") && branch.on_github !== false && (
-            <Button size="sm" variant="soft" icon={<Plus />} onClick={() => onDialog({ kind: "create", branch })}>{t.createInstance}</Button>
-          )
-        )}
-        <Menu
-          trigger={(toggle) => <Button size="sm" variant="ghost" icon={<Ellipsis />} onClick={toggle} aria-label={t.moreActions(branch.name)} />}
-        >
-          {(close) => (
-            <>
-              {first && (
-                <MenuItem asChild><Link to={`/i/${first.name}`} viewTransition onClick={close}><Boxes /> {t.details}</Link></MenuItem>
-              )}
-              {first && can("instances.logs") && (
-                <MenuItem asChild><Link to={`/i/${first.name}/logs`} viewTransition onClick={close}><ScrollText /> {t.logs}</Link></MenuItem>
-              )}
-              {first && branch.stage === "staging" && can("instances.restore") && (
-                <MenuItem onSelect={() => { close(); onDialog({ kind: "rebuild", branch, instance: first.name }); }}>
-                  <RotateCcw /> {t.rebuild}
-                </MenuItem>
-              )}
-              {can("projects.manage") && (
-                <>
-                  <MenuSeparator /><MenuLabel>{t.moveTo}</MenuLabel>
-                  {others.map((stage) => {
-                    const Icon = STAGE_ICON[stage];
-                    return (
-                      <MenuItem key={stage} onSelect={() => { close(); onDialog({ kind: "stage", branch, stage }); }}>
-                        <Icon /> {STAGE_LABEL[stage]}
-                      </MenuItem>
-                    );
-                  })}
-                </>
-              )}
-              {!first && can("instances.create") && branch.on_github !== false && (
-                <MenuItem onSelect={() => { close(); onDialog({ kind: "create", branch }); }}>
-                  <Plus /> {t.createInstance}
-                </MenuItem>
-              )}
-              {roleCan("projects.access") && (branch.lock ? mayUnlock : can("projects.access")) && (
-                <>
-                  <MenuSeparator />
-                  {branch.lock ? (
-                    <>
-                      <MenuItem onSelect={() => { close(); onDialog({ kind: "lock", branch }); }}>
-                        <Lock /> {l.lock.changeLock}
-                      </MenuItem>
-                      <MenuItem onSelect={() => { close(); onDialog({ kind: "unlock", branch }); }}>
-                        <LockOpen /> {l.lock.unlock}
-                      </MenuItem>
-                    </>
-                  ) : (
-                    <MenuItem onSelect={() => { close(); onDialog({ kind: "lock", branch }); }}>
-                      <Lock /> {l.lock.lock}
-                    </MenuItem>
-                  )}
-                </>
-              )}
-              {first && can("instances.delete") && (
-                <MenuItem danger onSelect={() => { close(); onDialog({ kind: "delete", instance: first }); }}>
-                  <Trash2 /> {t.deleteInstance}
-                </MenuItem>
-              )}
-            </>
-          )}
-        </Menu>
-      </div>
-    </div>
-  );
-}
-
-function StageDialog({ project, meta, branch, stage, onClose }: { project: ProjectDetail; meta: ProjectMeta; branch: ProjectBranch; stage: Stage; onClose: () => void }) {
-  const t = useT(words);
-  const d = t.stageDialog;
-  const c = useT(common).common;
-  const toast = useToast();
-  const [understood, setUnderstood] = useState(false);
-  const production = stage === "production" || branch.stage === "production";
-  const save = useCall(
-    () => api.put<ProjectBranch>(`/projects/${project.id}/branches/${branch.name}/stage`, { stage, confirm_production: production }),
-    [keys.project(project.id), keys.projects, keys.instances],
-  );
-  return (
-    <Modal title={d.title(branch.name, STAGE_LABEL[stage])} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button>
-        <Button variant={production ? "danger" : "primary"} loading={save.isPending} disabled={production && !understood}
-          onClick={() => save.mutate(undefined, {
-            onSuccess: () => { toast("success", t.page.stageChanged(branch.name, STAGE_LABEL[stage])); onClose(); },
-            onError: (e) => toast("error", t.page.stageNotChanged, errorText(e)),
-          })}>{d.move}</Button></>}>
-      <div className="stack">
-        {stage === "production" && (
-          <Callout tone="warning">
-            {d.production}
-            {meta.production_limit ? <> {d.productionLimit(meta.production_limit)}</> : null}
-          </Callout>
-        )}
-        {branch.stage === "production" && <Callout tone="warning">{d.leaving}</Callout>}
-        {stage === "staging" && branch.instances.length > 0 && <p className="small muted">{d.staging}</p>}
-        {stage === "development" && branch.instances.length > 0 && branch.stage !== "production" && <p className="small muted">{d.development}</p>}
-        <p className="small">{branch.instances.length ? d.instances(branch.instances.join(", ")) : d.noInstances}</p>
-        {production && <Switch checked={understood} onChange={setUnderstood} label={d.confirm} />}
-      </div>
-    </Modal>
-  );
-}
-
-function CreateDialog({ project, branch, production, onClose, onJob }: { project: ProjectDetail; branch: ProjectBranch; production: string | null; onClose: () => void; onJob: (id: string) => void }) {
-  const t = useT(words);
-  const d = t.createDialog;
-  const c = useT(common).common;
-  const toast = useToast();
-  const [demo, setDemo] = useState(project.options.development_demo_data);
-  const [modules, setModules] = useState(true);
-  const [name, setName] = useState("");
-  const edition = project.odoo.edition === "enterprise" ? "Enterprise" : "Community";
-  const blocked = branch.stage === "staging" && !production;
-  const create = useCall(
-    () =>
-      api.post<Job>(`/projects/${project.id}/branches/${branch.name}/instances`, {
-        ...(name.trim() ? { name: name.trim() } : {}),
-        ...(branch.stage === "development" ? { demo } : {}),
-        install_modules: modules,
-      }),
-    [keys.project(project.id), keys.instances],
-  );
-  return (
-    <Modal title={d.title(branch.name)} description={d.text(STAGE_LABEL[branch.stage], project.odoo.version, edition)} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button>
-        <Button variant="primary" icon={<Plus />} loading={create.isPending} disabled={blocked}
-          onClick={() => create.mutate(undefined, {
-            onSuccess: (job) => { toast("success", t.page.created(job.instance), t.page.createdText); onClose(); onJob(job.id); },
-            onError: (e) => toast("error", t.page.notCreated, errorText(e)),
-          })}>{d.create}</Button></>}>
-      <div className="stack">
-        {branch.stage === "production" && <Callout tone="info">{d.production}</Callout>}
-        {branch.stage === "staging" && (production ? <Callout tone="info">{d.staging(production)}</Callout> : <Callout tone="warning">{d.stagingWithout}</Callout>)}
-        {branch.stage === "development" && <p className="small muted">{d.development}</p>}
-        <Field label={d.name} hint={d.nameHint}>
-          <Input dir="ltr" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
-        </Field>
-        {branch.stage === "development" && <Switch checked={demo} onChange={setDemo} label={d.demo} />}
-        <Switch checked={modules} onChange={setModules} label={d.modules} />
-      </div>
-    </Modal>
-  );
-}
-
-function RebuildDialog({ project, instance, production, onClose, onJob }: { project: ProjectDetail; branch: ProjectBranch; instance: string; production: string | null; onClose: () => void; onJob: (id: string) => void }) {
-  const t = useT(words);
-  const d = t.rebuildDialog;
-  const c = useT(common).common;
-  const toast = useToast();
-  const branch = useMemo(() => project.branches_list.find((b) => b.instances.includes(instance)), [project, instance]);
-  const rebuild = useCall(
-    () => api.post<Job>(`/projects/${project.id}/branches/${branch?.name ?? ""}/rebuild`, { instance }),
-    [keys.instance(instance), keys.jobs(instance)],
-  );
-  return (
-    <Modal title={d.title(instance)} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button>
-        <Button variant="danger" icon={<RotateCcw />} loading={rebuild.isPending} disabled={!production}
-          onClick={() => rebuild.mutate(undefined, {
-            onSuccess: (job) => { toast("success", t.page.rebuildStarted); onClose(); onJob(job.id); },
-            onError: (e) => toast("error", t.page.rebuildNotStarted, errorText(e)),
-          })}>{d.rebuild}</Button></>}>
-      <div className="stack">
-        {production ? <p>{d.text(production)}</p> : <Callout tone="warning">{t.createDialog.stagingWithout}</Callout>}
-        <Callout tone="warning">{d.lost}</Callout>
-      </div>
-    </Modal>
-  );
-}
-
-function DeleteInstanceDialog({ instance, onClose, onJob }: { instance: Instance; onClose: () => void; onJob: (id: string) => void }) {
-  const [typed, setTyped] = useState("");
-  const [typedStage, setTypedStage] = useState("");
-  const production = instance.stage === "production";
-  const confirmed = typed === instance.name && (!production || typedStage === "production");
-  const toast = useToast();
-  const all = useT(words);
-  const t = all.page;
-  const s = all.settings;
-  const c = useT(common).common;
-  const remove = useCall(
-    () => api.del<Job>(`/instances/${instance.name}`, { confirm: instance.name, ...(production ? { confirm_stage: "production" } : {}) }),
-    [keys.jobs()],
-  );
-  return (
-    <Modal title={t.deleteInstance} description={instance.name} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button>
-        <Button variant="danger" icon={<Trash2 />} loading={remove.isPending} disabled={!confirmed}
-          onClick={() => remove.mutate(undefined, {
-            onSuccess: (job) => { onClose(); if (job) onJob(job.id); },
-            onError: (e) => toast("error", t.deleteInstance, errorText(e)),
-          })}>{t.deleteInstance}</Button></>}>
-      <div className="stack">
-        {production && <Callout tone="danger">{all.stageDialog.production}</Callout>}
-        <Field label={<>{s.typeId(<code key="n">{instance.name}</code>)}</>}>
-          <Input dir="ltr" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} />
-        </Field>
-        {production && (
-          <Field label={<>{s.typeId(<code key="p">production</code>)}</>}>
-            <Input dir="ltr" value={typedStage} onChange={(e) => setTypedStage(e.target.value)} />
-          </Field>
-        )}
-      </div>
-    </Modal>
-  );
-}
-
-function BranchesTab({ project, meta, onRefresh, refreshing, backups }: { project: ProjectDetail; meta: ProjectMeta; onRefresh: () => void; refreshing: boolean; backups: boolean }) {
-  const t = useT(words).page;
-  const instances = useInstanceMap();
-  // how many backups each instance has, for the "N backups" link on its branch's row
-  const { data: backupList } = useProjectBackups(project.id, backups);
-  const backupCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const b of backupList ?? []) counts.set(b.instance, (counts.get(b.instance) ?? 0) + 1);
-    return counts;
-  }, [backupList]);
-  const [dialog, setDialog] = useState<Dialog | null>(null);
-  const [jobId, setJobId] = useState<string | null>(null);
-  const production = useMemo(() => {
-    for (const branch of project.branches_list)
-      if (branch.stage === "production")
-        for (const name of branch.instances) if (instances.get(name)?.stage === "production" && instances.get(name)?.status !== "creating") return name;
-    return null;
-  }, [project, instances]);
-  const running = project.instances.names.filter((n) => instances.get(n)?.status === "online").length;
-  const capacity = meta.capacity;
-  return (
-    <div className="stack tab-panel">
-      {capacity?.warning && capacity.message && (
-        <Callout tone="warning">
-          {t.capacity(capacity.message)} {running > 1 && t.parallel(running)}{" "}
-          <Link to="/help/docs/ADMIN_GUIDE.md#how-many-instances-can-my-server-run" viewTransition>{t.howMany}</Link>
-        </Callout>
-      )}
-      {meta.branches_error && <Callout tone="warning">{t.cannotRead} {meta.branches_error}</Callout>}
-      <div className="row small faint">
-        <span>{meta.branches_read_at ? t.readAt(ago(meta.branches_read_at)) : ""}</span>
-        <span className="spacer" />
-        <Button size="sm" variant="ghost" icon={<RefreshCw />} loading={refreshing} onClick={onRefresh}>{t.refresh}</Button>
-      </div>
-      {project.branches_list.length === 0 ? (
-        <div className="card">
-          <Empty icon={<GitBranch />} title={t.empty}>
-            {t.emptyText}
-          </Empty>
-          <div className="card-body stack-sm">
-            <p className="small muted">{t.pushHelp}</p>
-            <pre className="terminal" dir="ltr">{`git init -b main\ngit add .\ngit commit -m "First modules"\ngit remote add origin ${project.repository.url}.git\ngit push -u origin main`}</pre>
-          </div>
-        </div>
-      ) : (
-        STAGES.map((stage) => {
-          const listed = project.branches_list.filter((b) => b.stage === stage);
-          return (
-            <section key={stage} className={`card branch-group ${stage}`} aria-label={STAGE_LABEL[stage]}>
-              <div className="card-head">
-                <StageTag stage={stage} />
-                <span className="faint small">{count(listed.length, "branch")}</span>
-              </div>
-              {listed.length ? (
-                <div className="branch-table" role="table">
-                  <div className="branch-row head" role="row">
-                    <div role="columnheader">{t.branch}</div>
-                    <div role="columnheader">{t.lastCommit}</div>
-                    <div role="columnheader">{t.instance}</div>
-                    <div role="columnheader" className="br-actions">{t.actions}</div>
-                  </div>
-                  {listed.map((branch) => (
-                    <BranchRow key={branch.name} branch={branch} instances={instances} backups={backupList ? backupCounts : null} onDialog={setDialog} />
-                  ))}
-                </div>
-              ) : (
-                <p className="card-body small faint">{t.stageEmpty[stage]}</p>
-              )}
-            </section>
-          );
-        })
-      )}
-      {dialog?.kind === "lock" && <LockDialog project={project} branch={dialog.branch} onClose={() => setDialog(null)} />}
-      {dialog?.kind === "unlock" && <UnlockDialog project={project} branch={dialog.branch} onClose={() => setDialog(null)} />}
-      {dialog?.kind === "stage" && <StageDialog project={project} meta={meta} branch={dialog.branch} stage={dialog.stage} onClose={() => setDialog(null)} />}
-      {dialog?.kind === "create" && <CreateDialog project={project} branch={dialog.branch} production={production} onClose={() => setDialog(null)} onJob={setJobId} />}
-      {dialog?.kind === "rebuild" && <RebuildDialog project={project} branch={dialog.branch} instance={dialog.instance} production={production} onClose={() => setDialog(null)} onJob={setJobId} />}
-      {dialog?.kind === "delete" && <DeleteInstanceDialog instance={dialog.instance} onClose={() => setDialog(null)} onJob={setJobId} />}
-      {jobId && <JobDrawer id={jobId} onClose={() => setJobId(null)} />}
-    </div>
-  );
-}
 
 type Own = Partial<Record<keyof ProjectOptions, ProjectOptions[keyof ProjectOptions] | null>>;
 
@@ -695,7 +305,9 @@ function SettingsTab({ project }: { project: ProjectDetail }) {
 }
 
 export function ProjectPage() {
-  const { id = "", tab = "" } = useParams();
+  const { id = "", tab: pageTab = "", branch, view = "" } = useParams();
+  // a branch (/projects/<id>/branches/<branch>/<view>) is shown in the Branches tab, the workspace
+  const tab = branch === undefined && ["settings", "backups", "access"].includes(pageTab) ? pageTab : "";
   const can = useCan();
   const { data, isPending, error, refetch } = useProject(id);
   const t = useT(words).page;
@@ -731,7 +343,7 @@ export function ProjectPage() {
     }
   };
   return (
-    <Page>
+    <Page wide>
       <PageHead
         title={project.name}
         actions={
@@ -771,7 +383,7 @@ export function ProjectPage() {
       ) : tab === "settings" ? (
         <SettingsTab key={project.id} project={project} />
       ) : (
-        <BranchesTab project={project} meta={meta} onRefresh={refresh} refreshing={refreshing} backups={mayManageBackups} />
+        <ProjectWorkspace project={project} meta={meta} selected={branch} view={view} onRefresh={refresh} refreshing={refreshing} backups={mayManageBackups} />
       )}
     </Page>
   );

@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **A project is one workspace, as on Odoo.sh:** its branches in a sidebar grouped by Production, Staging and
+  Development (with a filter, the Odoo version and a status dot), and the chosen branch beside them with commands to
+  copy (clone, merge) and its instance's tabs, at `/projects/<project>/branches/<branch>/<tab>`. Dragging a branch onto
+  another stage (mouse, long press, or the keyboard) asks for the same confirmation as **Move to**. The **+** of
+  Staging and Development shows how to push a new branch. Instance pages at `/i/<name>` are unchanged.
+
 ## [3.1.1] - 2026-11-21
 
 ### Fixed

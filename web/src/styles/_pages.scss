@@ -1090,31 +1090,162 @@ tr.invited {
 .option-control { justify-content: flex-end; .select, .input { flex: 1; min-width: 0; } .input.number { max-width: 120px; } }
 .danger-zone { border-color: color-mix(in srgb, var(--negative) 30%, var(--hairline)); }
 
-.branch-group > .card-head { gap: var(--s3); }
-.branch-table { display: flex; flex-direction: column; }
-.branch-row {
+.branch-commit { display: flex; align-items: baseline; gap: var(--s2); min-width: 0; font-size: var(--text-13); color: var(--text-2);
+  .sha { font-family: var(--mono); font-size: var(--text-12); color: var(--text-3); flex: none; } }
+
+// ---------------------------------------------------------------- a project's workspace (ProjectWorkspace.tsx)
+// branches by stage in a sticky sidebar, the chosen branch beside them; a branch dragged onto another stage lifts
+// (scale 1.02 and a shadow) and the groups it can go to are outlined, the one under it filled
+
+.workspace {
   display: grid;
-  grid-template-columns: minmax(160px, 1.1fr) minmax(0, 1.6fr) minmax(140px, 1fr) auto;
-  gap: var(--s4);
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: var(--s6);
+  align-items: start;
+}
+.ws-side {
+  position: sticky;
+  top: calc(var(--topbar) + var(--s4));
+  max-height: calc(100dvh - var(--topbar) - var(--s8));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-width: 0;
+}
+.ws-side-body { display: flex; flex-direction: column; gap: var(--s3); min-width: 0; }
+.ws-side-tools { display: flex; gap: var(--s1); align-items: center; .input-group { flex: 1; min-width: 0; } }
+.ws-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s1);
+  border-radius: var(--radius-card);
+  outline: 1px dashed transparent;
+  outline-offset: -1px;
+  transition: background-color var(--quick) var(--ease), outline-color var(--quick) var(--ease);
+  &[data-target] { outline-color: var(--hairline-strong); }
+  &[data-over] { outline-color: var(--brand); outline-style: solid; background: var(--brand-soft); }
+}
+.ws-group-head {
+  display: flex;
   align-items: center;
-  padding: var(--s3) var(--s5);
-  border-bottom: 1px solid var(--hairline);
-  &:last-child { border-bottom: 0; }
-  &.head { padding-block: var(--s2); font-size: var(--text-12); color: var(--text-3); }
-  .br-branch { display: flex; align-items: flex-start; gap: var(--s2); min-width: 0;
-    > svg { width: 15px; height: 15px; margin-top: 3px; color: var(--text-3); flex: none; stroke-width: 1.5; } }
-  .br-name { font-family: var(--mono); font-size: var(--text-13); font-weight: 500; }
-  .br-instance { min-width: 0; a { min-width: 0; } }
-  .br-backups { flex: none; color: var(--text-3); @include hover { color: var(--brand-ink); } }
-  .br-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--s1); }
-  .branch-commit { display: flex; align-items: baseline; gap: var(--s2); min-width: 0; font-size: var(--text-13); color: var(--text-2);
-    .sha { font-family: var(--mono); font-size: var(--text-12); color: var(--text-3); flex: none; } }
-  @media (max-width: 860px) {
-    grid-template-columns: minmax(0, 1fr) auto;
-    &.head { display: none; }
-    .br-commit, .br-instance { grid-column: 1 / -1; }
-    .br-actions { grid-row: 1; grid-column: 2; }
-  }
+  gap: var(--s2);
+  min-height: 32px;
+  padding-inline: var(--s2) 0;
+  font-size: var(--text-12);
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  > svg { width: 14px; height: 14px; flex: none; color: var(--text-3); }
+  .ws-count { font-weight: 500; color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .spacer { flex: 1; }
+  button svg { width: 15px; height: 15px; }
+}
+.ws-group.production .ws-group-head > svg { color: var(--brand); }
+.ws-list { display: flex; flex-direction: column; gap: 1px; }
+.ws-empty, .ws-drop-hint { margin: 0; padding: var(--s1) var(--s2); font-size: var(--text-12); color: var(--text-3); }
+.ws-drop-hint { color: var(--brand-ink); }
+.ws-hint { margin: 0; padding-inline: var(--s2); font-size: var(--text-12); color: var(--text-3); }
+.ws-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  height: 34px;
+  padding: 0 var(--s2);
+  border-radius: var(--radius-control);
+  color: var(--text) !important;
+  text-decoration: none !important;
+  font-size: var(--text-13);
+  -webkit-touch-callout: none;
+  user-select: none;
+  touch-action: manipulation;
+  transition: background-color var(--quick) var(--ease), opacity var(--quick) var(--ease);
+  @include hover { background: var(--raised); }
+  &[aria-current="page"] { background: var(--brand-soft); .ws-name { font-weight: 600; } }
+  &[data-movable] { cursor: grab; }
+  &[data-dragging] { opacity: 0.4; }
+  &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: -2px; }
+  .ws-name { flex: 1; min-width: 0; font-family: var(--mono); font-size: var(--text-13); }
+  .ws-lock { width: 13px; height: 13px; flex: none; color: var(--caution); }
+  .ws-version { flex: none; font-family: var(--mono); font-size: var(--text-12); color: var(--text-3); }
+}
+.ws-overlay {
+  cursor: grabbing;
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  transform: scale(1.02);
+  transition: transform var(--quick) var(--ease), box-shadow var(--quick) var(--ease);
+  @starting-style { transform: scale(1); box-shadow: none; }
+}
+.ws-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  &.online { background: var(--positive); }
+  &.failed { background: var(--negative); }
+  &.busy { background: var(--caution); animation: running 1.4s var(--ease) infinite; }
+  &.asleep { border: 1.5px solid var(--idle); }
+  &.none { border: 1.5px dashed var(--hairline-strong); }
+}
+.ws-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  text-align: start;
+  cursor: pointer;
+  @include press(0.98);
+  > svg { width: 16px; height: 16px; flex: none; color: var(--text-3); }
+  .ws-toggle-text { display: flex; flex-direction: column; flex: 1; min-width: 0; font-size: var(--text-13); }
+  .ws-chevron { transition: transform var(--quick) var(--ease); }
+  &[aria-expanded="true"] .ws-chevron { transform: rotate(180deg); }
+}
+.ws-pane { display: flex; flex-direction: column; gap: var(--s5); min-width: 0; }
+.ws-pane-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  .ws-pane-title { display: flex; flex-direction: column; gap: var(--s2); flex: 1; min-width: 0; }
+  .ws-branch-icon { width: 18px; height: 18px; flex: none; color: var(--text-3); }
+  .ws-branch-name { margin: 0; min-width: 0; font-family: var(--mono); font-size: var(--text-18); font-weight: 600; }
+  .actions { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; }
+}
+.ws-commands { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--s2); }
+.ws-command {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  height: 36px;
+  padding-inline: var(--s3) var(--s1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  .ws-command-label { flex: none; font-size: var(--text-12); font-weight: 500; color: var(--text-3); }
+  code { flex: 1; min-width: 0; font-family: var(--mono); font-size: var(--text-12); color: var(--text-2); }
+}
+.page-inside { display: flex; flex-direction: column; gap: var(--s5); min-width: 0; }
+.page-inside .instance-title { margin: 0; font-size: var(--text-18); font-weight: 600; }
+@media (max-width: 767px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); gap: var(--s4); }
+  .ws-side { position: static; max-height: none; overflow: visible; }
+  .ws-row { height: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ws-overlay { transform: none; transition: none; }
+  .ws-group, .ws-row { transition: none; }
 }
 
 // ---------------------------------------------------------------- teams and project access

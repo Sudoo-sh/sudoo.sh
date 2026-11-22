@@ -37,7 +37,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, NavLink, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useCapacity, useCredentials, useHistory, useInstance, useInstancePermissions, useJobs, useOdooLog } from "@/api/queries";
 import type { Instance, InstanceBackup, Job, Permission, Stage } from "@/api/types";
@@ -115,6 +115,25 @@ function useCanIn(instance: Instance | undefined) {
 
 export function InstancePage() {
   const { name = "", tab = "" } = useParams();
+  return <InstanceView name={name} tab={tab} />;
+}
+
+/** An instance's page: its head, banners and tabs. On its own at /i/<name>/<tab>, or inside a project's branch pane
+ *  (`embedded`), where `tabLink` keeps the tabs' links in the project, the project is not named again, and a deleted
+ *  instance leads back to `afterDelete`. */
+export function InstanceView({
+  name,
+  tab,
+  tabLink = (id: string) => `/i/${name}${id ? `/${id}` : ""}`,
+  embedded = false,
+  afterDelete = "/",
+}: {
+  name: string;
+  tab: string;
+  tabLink?: (tab: string) => string;
+  embedded?: boolean;
+  afterDelete?: string;
+}) {
   const { data: instance, isPending, error } = useInstance(name);
   const can = useCanIn(instance);
   // an alert links to /i/<name>/activity?job=<id>: that job opens at once
@@ -150,15 +169,19 @@ export function InstancePage() {
     <Page>
       <div className="page-head">
         <div className="hero spacer">
-          <Monogram name={instance.name} large />
+          {!embedded && <Monogram name={instance.name} large />}
           <div className="titles" style={{ minWidth: 0 }}>
             <div className="row-wrap" style={{ gap: 12 }}>
-              <h1 className="truncate"><bdi>{instance.name}</bdi></h1>
+              {embedded ? (
+                <h2 className="truncate instance-title"><bdi>{instance.name}</bdi></h2>
+              ) : (
+                <h1 className="truncate"><bdi>{instance.name}</bdi></h1>
+              )}
               <StageTag stage={instance.stage} />
               <Status status={instance.status} />
             </div>
             <div className="row-wrap small muted">
-              {instance.project && (
+              {instance.project && !embedded && (
                 <Link to={`/projects/${instance.project.id}`} viewTransition className="row xsmall" style={{ gap: 4 }} title={t.project}>
                   <FolderKanban size={14} strokeWidth={1.5} /> <bdi>{instance.project.name}</bdi>
                 </Link>
@@ -321,11 +344,11 @@ export function InstancePage() {
         </Callout>
       )}
 
-      <nav className="tabs">
+      <nav className="tabs" aria-label={instance.name}>
         {TABS.filter((t) => (!t.permission || can(t.permission)) && !(plain && t.id === "code") && !(production && t.id === "mail")).map((t) => (
-          <NavLink key={t.id} to={`/i/${name}${t.id ? `/${t.id}` : ""}`} end viewTransition className={({ isActive }) => (isActive ? "active" : "")}>
+          <Link key={t.id} to={tabLink(t.id)} viewTransition className={tab === t.id ? "active" : ""} aria-current={tab === t.id ? "page" : undefined}>
             {t.icon} {all.tabs[t.label]}
-          </NavLink>
+          </Link>
         ))}
       </nav>
 
@@ -348,7 +371,7 @@ export function InstancePage() {
       {dialog === "branch" && <BranchDialog instance={instance} onClose={() => setDialog(null)} onRun={(branch) => act("switch-branch", j.switchBranch, { branch })} />}
       {dialog === "connect" && <ConnectDialog onClose={() => setDialog(null)} onRun={(body) => act("connect-repository", j.connect, body)} />}
       {dialog === "submodule" && <SubmoduleDialog version={instance.odoo.version} onClose={() => setDialog(null)} onRun={(body) => act("add-submodule", j.addSubmodule, body)} />}
-      {dialog === "delete" && <DeleteDialog name={name} production={production} onClose={() => setDialog(null)} />}
+      {dialog === "delete" && <DeleteDialog name={name} production={production} after={afterDelete} onClose={() => setDialog(null)} />}
       {(dialog === "pause" || dialog === "switch-off") && (
         <StopProductionDialog name={name} action={dialog} onClose={() => setDialog(null)}
           onRun={() => act(dialog, dialog === "pause" ? j.pause : j.switchOff)} />
@@ -1012,7 +1035,7 @@ function SubmoduleDialog({ version, onClose, onRun }: { version: string; onClose
   );
 }
 
-function DeleteDialog({ name, production, onClose }: { name: string; production: boolean; onClose: () => void }) {
+function DeleteDialog({ name, production, after = "/", onClose }: { name: string; production: boolean; after?: string; onClose: () => void }) {
   const [typed, setTyped] = useState("");
   const [typedStage, setTypedStage] = useState("");
   const confirmed = typed === name && (!production || typedStage === "production");
@@ -1034,7 +1057,7 @@ function DeleteDialog({ name, production, onClose }: { name: string; production:
   return (
     <Modal title={t.title(name)} onClose={onClose}
       footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="danger" icon={<Trash2 />} loading={remove.isPending} disabled={!confirmed}
-        onClick={() => remove.mutate(undefined, { onSuccess: () => { toast("success", t.started, t.startedText); navigate("/", { viewTransition: true }); }, onError: (e) => toast("error", t.notDeleted, errorText(e)) })}>{t.delete}</Button></>}>
+        onClick={() => remove.mutate(undefined, { onSuccess: () => { toast("success", t.started, t.startedText); navigate(after, { viewTransition: true }); }, onError: (e) => toast("error", t.notDeleted, errorText(e)) })}>{t.delete}</Button></>}>
       <div className="stack">
         <Callout tone="danger">
           <b>{t.removed}</b>{t.backupFirst}

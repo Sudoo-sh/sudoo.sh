@@ -511,7 +511,13 @@ export function Shell() {
   );
 }
 
+/** True inside another page: a project's branch shows its instance's page in its own pane, where Page draws a plain
+ *  block instead of a second <main>. */
+export const InsidePage = createContext(false);
+
 export function Page({ children, wide }: { children: ReactNode; wide?: boolean }) {
+  const inside = useContext(InsidePage);
+  if (inside) return <div className="page-inside">{children}</div>;
   return (
     <main className="page" tabIndex={-1} style={wide ? { maxWidth: 1600 } : undefined}>
       {children}

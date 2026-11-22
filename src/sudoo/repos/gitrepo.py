@@ -66,6 +66,15 @@ def commits(addons: Path, count: int = 8) -> list[dict[str, str]]:
     return result
 
 
+def commit(addons: Path, ref: str = "HEAD") -> dict[str, str] | None:
+    """One commit, as commits() shows it ("@{upstream}": the latest one fetched from GitHub), or None."""
+    output = capture(git(addons, "log", "-1", "--format=%h%x1f%H%x1f%cI%x1f%an%x1f%s", ref, "--"))
+    if not output.strip():
+        return None
+    sha, full, when, author, subject = (output.strip().split("\x1f", 4) + ["", "", "", ""])[:5]
+    return {"sha": sha, "full_sha": full, "subject": subject, "when": _utc(when), "author": author}
+
+
 def _utc(when: str) -> str:
     """git's ISO 8601 date in UTC (2026-11-18T06:34:19Z), or as given when git wrote something else."""
     try:

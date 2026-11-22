@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Build history per branch:** every branch of a project keeps a history, as on Odoo.sh: one build per commit an
+  instance was built from (created, updated by a push or by hand, staging rebuilt), with its commit, who started it,
+  times and duration, the instance and job, and a status (building, success, warning when Odoo's log has warnings or
+  errors while loading the modules, failed, dropped once the instance moved on), plus the branch's stage changes and
+  restores. Read it with `GET /api/v1/projects/<id>/builds`, `GET /api/v1/projects/<id>/branches/<branch>/history`
+  and `GET /api/v1/projects/<id>/builds/<build_id>`; the `build` live event carries every change.
+  `PROJECT_BUILDS_KEPT` (200) sets how many builds each branch keeps.
+
 ## [3.1.1] - 2026-11-21
 
 ### Fixed

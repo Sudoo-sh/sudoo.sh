@@ -33,6 +33,7 @@ ACTIVE_JOB: dict[str, Job] = {}  # instance name -> the job currently running on
 _GENERATIONS: defaultdict[str, int] = defaultdict(int)  # instance name -> jobs started or ended on it
 _KEEP = 300
 _END_LISTENERS: list[Callable[[Job], None]] = []
+_START_LISTENERS: list[Callable[[Job], None]] = []
 _OUTPUT_EVERY_SECONDS = 0.5
 
 
@@ -299,6 +300,7 @@ def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
         job.changed()
         if not is_panel_job(job.instance):
             events.publish("instance", job.instance)
+        _tell(_START_LISTENERS, job)
         try:
             fn(job, *args)
             for step in job.steps:
@@ -325,11 +327,22 @@ def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
                 pass  # nothing was left (operations.create announces the removal), or the name was someone else's
             elif not is_panel_job(job.instance):
                 events.publish("instance", job.instance)
-            for listener in list(_END_LISTENERS):
-                try:
-                    listener(job)
-                except Exception as exc:  # noqa: BLE001 - a listener (alerts) never changes how the job ended
-                    print(f"job {job.id} listener: {exc!r}", flush=True)
+            _tell(_END_LISTENERS, job)
+
+
+def _tell(listeners: list[Callable[[Job], None]], job: Job) -> None:
+    for listener in list(listeners):
+        try:
+            listener(job)
+        except Exception as exc:  # noqa: BLE001 - a listener (alerts, builds) never changes how the job runs
+            print(f"job {job.id} listener: {exc!r}", flush=True)
+
+
+def on_start(listener: Callable[[Job], None]) -> None:
+    """Call `listener(job)` in the job's thread when a job starts running (it holds the instance's lock): the
+    build history (projects/builds.py) uses it."""
+    if listener not in _START_LISTENERS:
+        _START_LISTENERS.append(listener)
 
 
 def on_end(listener: Callable[[Job], None]) -> None:

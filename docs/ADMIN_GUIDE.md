@@ -2005,6 +2005,33 @@ existing branch.
   up and switched off (it can be started again, and its lifetime still ends it); with `delete` it is deleted after a
   backup. Staging is archived at most and production is never touched. A busy instance is left as it is.
 
+### Build history
+
+Every branch of a project keeps a history, as on Odoo.sh. A **build** is recorded each time an instance of the
+branch gets code from it: when the instance is created, when a push updates it (or rebuilds staging from production),
+when someone uses **Get latest code** or **Update submodules**, and when someone rebuilds staging by hand. A build
+shows the commit (sha, message, author), who or what started it, when it was queued, started and finished, how long
+it took, the instance, the job (whose log you can open) and a short result:
+
+* **building** while its job runs;
+* **success** when the job succeeded;
+* **warning** when the job succeeded but Odoo's log has `WARNING` or `ERROR` lines while loading the modules (the
+  first ten are kept with the build), or the job left a warning, such as modules that could not be upgraded;
+* **failed** when the job failed; an update that was put back keeps the instance on its previous build, which stays
+  live;
+* **dropped** when the instance moved on: a newer build of it succeeded, it follows another branch now, or it was
+  deleted. Only the latest build of an instance is live. A build cut off by a restart of the panel is dropped too.
+
+An update that finds nothing new on GitHub is not a build. Between the builds, the history shows each change of the
+branch's stage (who moved it, from which stage to which, and what the new stage does), including the moves made by a
+database upgrade and by a plan that no longer allows a production branch, and each restore of a backup into one of
+its instances.
+
+Each branch keeps its last `PROJECT_BUILDS_KEPT` builds (200 by default; **Settings**, **Projects**). The history is
+kept in the panel's storage (collection `build_history`) and removed with its project. Reading it needs what
+reading the project needs; branches hidden from someone keep their history from them too
+([API](PANEL_API.md#projects): `GET /projects/<id>/builds`, `GET /projects/<id>/branches/<branch>/history`).
+
 ### Many branches at once
 
 Every running instance takes memory and processor time, so many branches running in parallel slow every instance.

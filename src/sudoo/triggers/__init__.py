@@ -57,9 +57,9 @@ def request_update(name: str, reason: str) -> None:
     special = automation.update_for(name)
     if special is not None:
         title, kind, fn, args = special
-        jobs.start(name, f"{title}: {reason}", kind, fn, *args)
+        jobs.start(name, f"{title}: {reason}", kind, fn, *args, details={"build": "push"})
         return
-    jobs.start(name, f"Automatic update: {reason}", "update", operations.update_code, name)
+    jobs.start(name, f"Automatic update: {reason}", "update", operations.update_code, name, details={"build": "push"})
 
 
 def start_all() -> None:

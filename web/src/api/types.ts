@@ -396,6 +396,76 @@ export interface ProjectBranch {
   permissions?: Permission[];
 }
 
+export type BuildStatus = "building" | "success" | "warning" | "failed" | "dropped";
+/** what started a build: the instance's creation, a push, someone (Get latest code), a rebuild from production */
+export type BuildTrigger = "create" | "push" | "manual" | "rebuild";
+
+interface HistoryEntryBase {
+  id: string;
+  project: string;
+  branch: string;
+  /** when the entry was recorded (ISO 8601) */
+  at: string | null;
+  /** account name, or "system" */
+  by: string | null;
+  links: { self: string; job: string | null; instance?: string | null };
+}
+
+/** A build of a branch: one commit an instance was built from (projects/builds.py) */
+export interface Build extends HistoryEntryBase {
+  type: "build";
+  instance: string;
+  trigger: BuildTrigger;
+  status: BuildStatus;
+  /** null until the job has the code */
+  commit: { sha: string; full_sha: string; subject: string; author: string; when: string } | null;
+  action: string | null;
+  /** a sentence: "Instance created", "1 warning in Odoo's log while loading the modules", the failure */
+  result: string;
+  /** Odoo's warning and error lines (the first ten) */
+  messages: string[];
+  /** the job; its log is at links.job while the panel keeps it (the last 300 jobs) */
+  job: string | null;
+  queued_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  duration_seconds: number | null;
+  dropped_at: string | null;
+}
+
+/** A change of a branch's stage */
+export interface StageChange extends HistoryEntryBase {
+  type: "stage";
+  from: Stage;
+  to: Stage;
+  /** what the new stage does */
+  explanation: string;
+  /** null for the branch's own stage change; else what made it (a database upgrade, an instance's stage) */
+  reason: string | null;
+}
+
+/** A backup restored into an instance of the branch (or a restore rolled back) */
+export interface RestoreEntry extends HistoryEntryBase {
+  type: "restore";
+  instance: string;
+  status: "success" | "failed";
+  action: string | null;
+  result: string;
+  job: string | null;
+}
+
+export type HistoryEntry = Build | StageChange | RestoreEntry;
+
+/** GET /projects/<id>/builds: the last builds of each branch, newest first */
+export interface BranchBuilds {
+  branch: string;
+  stage: Stage;
+  builds: Build[];
+}
+
+/** The "build" live event: an entry, or an update that found nothing new (no build) */
+export type BuildEvent = HistoryEntry | { id: string; project: string; branch: string; removed: true };
+
 /** GET /projects/<id>: the project with its branches */
 export interface ProjectDetail extends Project {
   branches_list: ProjectBranch[];

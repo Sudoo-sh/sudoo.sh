@@ -695,6 +695,13 @@ class Settings(BaseSettings):
         'off ("archive") or deleted after a backup ("delete"); staging is archived at most, production only '
         "marked. Each project can change it.",
     )
+    project_builds_kept: int = Field(
+        200,
+        ge=1,
+        le=10000,
+        description="Builds kept in the history of each branch of a project (the oldest are removed first), with the "
+        "stage changes and restores since the oldest of them.",
+    )
     project_upgrade_test_on_push: bool = Field(
         True,
         description="A push to a project's upgrade branch (named after the next Odoo version, such as 18.0) runs its "

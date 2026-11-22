@@ -24,6 +24,8 @@ import type {
   Recommendation,
   AuditEntry,
   Backup,
+  BranchBuilds,
+  HistoryEntry,
   Credentials,
   DeployKey,
   Domains,
@@ -66,6 +68,10 @@ export const keys = {
   projects: ["projects"] as const,
   project: (id: string) => ["project", id] as const,
   projectAccess: (id: string) => ["project", id, "access"] as const,
+  builds: (id: string, perBranch?: number) => ["project", id, "builds", perBranch ?? null] as const,
+  build: (id: string, buildId: string) => ["project", id, "build", buildId] as const,
+  branchHistory: (id: string, branch: string, limit?: number, offset?: number) =>
+    ["project", id, "history", branch, limit ?? null, offset ?? null] as const,
   teams: ["teams"] as const,
   plan: ["plan"] as const,
   instance: (name: string) => ["instance", name] as const,
@@ -130,6 +136,42 @@ export const useProject = (id: string) =>
       const answer = await api.page<ProjectDetail>(`/projects/${encodeURIComponent(id)}`);
       return { project: answer.data, meta: answer.meta as unknown as ProjectMeta };
     },
+  });
+
+/** The last builds of each branch of a project (newest first; per_branch 10 by default, at most 200). */
+export const useBuilds = (id: string, perBranch?: number, enabled = true) =>
+  useQuery({
+    queryKey: keys.builds(id, perBranch),
+    queryFn: async () => {
+      const query = perBranch ? `?per_branch=${perBranch}` : "";
+      const answer = await api.page<BranchBuilds[]>(`/projects/${encodeURIComponent(id)}/builds${query}`);
+      return { branches: answer.data, keptPerBranch: Number(answer.meta?.kept_per_branch ?? 0) || null };
+    },
+    enabled: enabled && Boolean(id),
+  });
+
+/** One entry of a branch's history (a build, a stage change, a restore). */
+export const useBuild = (id: string, buildId: string | null) =>
+  useQuery({
+    queryKey: keys.build(id, buildId ?? ""),
+    queryFn: () => api.get<HistoryEntry>(`/projects/${encodeURIComponent(id)}/builds/${encodeURIComponent(buildId ?? "")}`),
+    enabled: Boolean(id && buildId),
+  });
+
+/** A branch's timeline, newest first, a page at a time (limit 50 by default, at most 200). */
+export const useBranchHistory = (id: string, branch: string, limit = 50, offset = 0, enabled = true) =>
+  useQuery({
+    queryKey: keys.branchHistory(id, branch, limit, offset),
+    queryFn: async () => {
+      // a branch name may contain "/": each part is encoded on its own
+      const path = branch.split("/").map(encodeURIComponent).join("/");
+      const answer = await api.page<HistoryEntry[]>(
+        `/projects/${encodeURIComponent(id)}/branches/${path}/history?limit=${limit}&offset=${offset}`,
+      );
+      return { entries: answer.data, total: Number(answer.meta?.total ?? answer.data.length) };
+    },
+    placeholderData: keepPreviousData,
+    enabled: enabled && Boolean(id && branch),
   });
 
 export const useRepositoryOwners = (enabled: boolean) =>

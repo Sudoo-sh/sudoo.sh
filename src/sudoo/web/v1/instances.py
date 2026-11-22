@@ -102,6 +102,9 @@ ACTIONS = {
 }
 
 
+BUILD_ACTIONS = frozenset({"update", "update-submodules"})
+"""Actions that build the instance from its branch's latest code: each is a build of the branch (projects/builds.py)."""
+
 CONNECTED_APP_ACTIONS = frozenset({"start", "pause", "restart", "backup", "delete"})
 """The only actions a connected app (instances scope) may run, whatever its permissions would allow."""
 
@@ -463,7 +466,9 @@ def change(name: str) -> Response:
         return _change(name, data)
 
 
-def _change(name: str, data: Mapping[str, Any]) -> Response:
+def _change(name: str, data: Mapping[str, Any], history: bool = True) -> Response:
+    """`history`: record a change of the branch's stage in its history (False when the branch's own stage change
+    moves its instances: that records it once)."""
     env = store.read_env(name)
     stage_before = stages.of(env)
     stage = stage_before
@@ -504,11 +509,17 @@ def _change(name: str, data: Mapping[str, Any]) -> Response:
         from sudoo.instances import managed_names
 
         managed_names.wake()  # its managed name names the stage
-        if env.get("PROJECT") and env.get("GIT_BRANCH") and projects.get(env["PROJECT"]):
+        if env.get("PROJECT") and env.get("GIT_BRANCH") and (project := projects.get(env["PROJECT"])):
             # the branch takes the stage its instance was given (projects/: a branch's stage is recorded)
+            branch_before = (project.get("branches") or {}).get(env["GIT_BRANCH"], {}).get("stage") or stage_before
             projects.record_branch(
                 env["PROJECT"], env["GIT_BRANCH"], stage=stage, changed_by=g.user["name"], changed_at=int(time.time())
             )
+            if history:
+                from sudoo.projects import builds
+
+                builds.stage_changed(env["PROJECT"], env["GIT_BRANCH"], branch_before, stage, g.user["name"],
+                                     reason=f"stage of {name} changed")  # fmt: skip
         mail_catcher.stage_changed(name)  # production sends its own e-mail; the other stages to the mail catcher
     log("instance settings changed", instance=name, detail=", ".join(sorted(values)))
     events.publish("instance", name)
@@ -775,7 +786,8 @@ def run(name: str, action: str) -> Response:
     fn, args = _job_for(action, name, check.body())
     if action == "start" and not _running(name):
         _refuse_over_capacity(f"start of {name} refused (running instances)")
-    job = jobs.start(name, title, kind, fn, *args, user=g.user["name"])
+    build = {"build": "manual"} if action in BUILD_ACTIONS else None  # a new build in the branch's history
+    job = jobs.start(name, title, kind, fn, *args, user=g.user["name"], details=build)
     log(title, instance=name)
     return _accepted(job)
 

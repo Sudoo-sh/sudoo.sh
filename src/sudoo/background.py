@@ -62,6 +62,9 @@ def start() -> None:
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     alerts.start()
+    from sudoo.projects import builds  # late: projects/ imports the instances package, as this module does
+
+    builds.listen()
     _start_premium_jobs()
     gateway.start(wake=start_wake_job)
     live.on_change(_domain_settings_changed)

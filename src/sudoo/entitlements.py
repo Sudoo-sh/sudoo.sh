@@ -383,6 +383,10 @@ def apply_production_keep() -> list[str]:
         if branch and projects.get(project_id):
             projects.record_branch(project_id, branch, stage=stages.DEVELOPMENT, changed_by="system",
                                    changed_at=int(time.time()))  # fmt: skip
+            from sudoo.projects import builds  # late: projects/ imports this module
+
+            builds.stage_changed(project_id, branch, stages.PRODUCTION, stages.DEVELOPMENT, "system",
+                                 reason="not kept after the plan's downgrade")  # fmt: skip
             events.publish("project", project_id)
         audit.record("system", None, "production branch left production (plan)", names[0] if names else None,
                      detail=f"{key}: not kept after the plan's downgrade ({', '.join(names) or 'no instance'})")  # fmt: skip

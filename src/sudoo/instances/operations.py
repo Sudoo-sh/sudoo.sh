@@ -450,6 +450,9 @@ def delete(job: Job, name: str, without_backup: bool = False) -> None:
     integrity.forget(name)
     resources.forget(name)
     mail_catcher.forget(name)
+    from sudoo.instances import profiler
+
+    profiler.forget_instance(name)  # its recordings
     from sudoo import upgrades  # late: upgrades/ uses this module
 
     upgrades.forget_staging(name)  # a later instance of the same name is never an upgrade's test instance

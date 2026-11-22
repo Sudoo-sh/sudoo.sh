@@ -20,7 +20,9 @@ only a named set of permissions:
 Shells (webshell/): super admins and administrators open terminals in instances' containers (instances.shell,
 instances.database_shell); the SHELL_ROLES setting adds maintainers, or maintainers and developers, for the Odoo
 container only (permissions() adds it); viewers never. Only super admins supervise shells (shells.supervise).
-SHELL_ENABLED off takes the shell permissions from everyone.
+SHELL_ENABLED off takes the shell permissions from everyone. The code profiler (instances.profile) follows the same
+pattern: super admins and administrators always, the PROFILER_ROLES setting adds maintainers, or maintainers and
+developers; PROFILER_ENABLED off takes it from everyone.
 
 Inside a project, a role's permissions are limited by the level the person has there (teams and grants, locked
 branches): projects/access.py. A role is the most anyone can do; a grant never adds to it.
@@ -85,6 +87,8 @@ PERMISSIONS: dict[str, str] = {
     "mail.manage": "Change the texts of the e-mails the panel sends",
     "instances.shell": "Open a terminal in instances' Odoo containers (odoo shell too)",
     "instances.database_shell": "Open psql in instances' database containers",
+    "instances.profile": "Record what an instance's Odoo workers spend their time on (code profiler), and read, "
+    "download and delete its recordings",
     "shells.supervise": "See open and past shells, end them and play their recordings",
     "servers.manage": "Add, approve, revoke and remove servers; change their name, region and room",
     "instances.move": "Move instances to another server",
@@ -157,6 +161,7 @@ def normalize(role: str) -> str:
 
 
 SHELL_PERMISSIONS = frozenset({"instances.shell", "instances.database_shell"})
+PROFILE = "instances.profile"
 SHELL_ROLES = {"admins": (), "maintainers": ("maintainer",), "developers": ("maintainer", "developer")}
 """Who else may open a shell in an Odoo container, by the SHELL_ROLES setting (super admins and administrators
 always may; viewers never)."""
@@ -167,6 +172,10 @@ def permissions(role: str) -> frozenset[str]:
         return TOKEN_ROLES[role].permissions
     role = normalize(role)
     found = ROLES[role].permissions
+    if not settings.profiler_enabled:  # the profiler switched off: nobody has it (the Tools tab disappears)
+        found = found - {PROFILE}
+    elif role in SHELL_ROLES.get(settings.profiler_roles, ()):
+        found = found | {PROFILE}
     if not settings.shell_enabled:  # shells switched off: nobody has them (the Shell tab disappears)
         return found - SHELL_PERMISSIONS
     if role in SHELL_ROLES.get(settings.shell_roles, ()):

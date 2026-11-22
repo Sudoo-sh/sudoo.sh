@@ -84,6 +84,7 @@ PROJECT_PERMISSIONS = frozenset(
         "instances.move",
         "instances.shell",
         "instances.database_shell",
+        "instances.profile",
         "caught_mail.view",
         "caught_mail.manage",
         "backups.manage",
@@ -97,7 +98,7 @@ PROJECT_PERMISSIONS = frozenset(
 """Permissions that apply inside a project (and its branches and instances); the others are panel-wide."""
 
 _VIEW = frozenset({"instances.view", "instances.logs"})
-_DEVELOP = _VIEW | {"instances.update", "caught_mail.view", "instances.shell"}
+_DEVELOP = _VIEW | {"instances.update", "caught_mail.view", "instances.shell", "instances.profile"}
 _MAINTAIN = _DEVELOP | {
     "instances.operate",
     "instances.restore",

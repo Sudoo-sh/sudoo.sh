@@ -11,6 +11,7 @@ role (roles.py), and the same permission checks apply.
     logs.py        an instance's logs: which there are, downloading one (log_stream.py follows one live)
     connect.py     Connect as: open an instance's Odoo signed in as one of its users
     imports.py     Import database: upload an Odoo dump in pieces and put it into an instance
+    profiler.py    the code profiler of an instance (the Tools tab): record, stop, read, download, delete
     projects.py    projects (one GitHub repository each), their branches and stages, access and locked branches
     upgrades.py    database upgrades of instances to a newer Odoo version: pre-check, test, production, rollback
     teams.py       teams: named groups of accounts that project access is given to (reading, removing; the rest
@@ -66,6 +67,7 @@ from . import (
     plan,
     plugins,
     premium,
+    profiler,
     projects,
     server,
     session,
@@ -102,6 +104,7 @@ def register(app: Flask) -> None:
         logs,
         connect,
         imports,
+        profiler,
         projects,
         domains,
         caught_mail,

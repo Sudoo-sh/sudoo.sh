@@ -546,3 +546,19 @@ def test_the_manifest_asks_for_commit_statuses() -> None:
     manifest = github_app.manifest("https://p", "https://p", "p")
     assert manifest["default_permissions"]["statuses"] == "write"
     assert manifest["default_permissions"]["contents"] == "read"
+
+
+def test_a_build_keeps_its_tests_counts(fake_github: list[Any], admin: Client) -> None:
+    project = _project()
+    job = Job("bo-dev", "Create instance", "create", "t")
+    job.details = {"build": "create", "project": project["id"], "branch": "dev"}
+    builds.job_started(job)
+    job.details["tests"] = {"status": "failed", "result": "At least one test failed", "tests": 132, "failed": 1,
+                            "errors": 0, "warnings": 2, "modules": ["sale_custom"], "messages": ["x"]}  # fmt: skip
+    job.status, job.finished = "success", time.time()
+    builds.job_ended(job)
+    client, headers = admin
+    shown = client.get(f"/api/v1/projects/{project['id']}/branches/dev/history", headers=headers).get_json()["data"]
+    assert shown[0]["status"] == "failed"
+    assert shown[0]["tests"] == {"status": "failed", "tests": 132, "failed": 1, "errors": 0, "warnings": 2,
+                                 "modules": ["sale_custom"]}  # fmt: skip

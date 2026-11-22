@@ -1,0 +1,31 @@
+2026-11-22 07:50:39,651 1 INFO ? odoo: Odoo version 17.0-20260908
+2026-11-22 07:50:39,651 1 INFO ? odoo: Using configuration file at /etc/odoo/odoo.conf
+2026-11-22 07:50:39,651 1 INFO ? odoo: addons paths: ['/usr/lib/python3/dist-packages/odoo/addons', '/var/lib/odoo/addons/17.0', '/mnt/extra-addons']
+2026-11-22 07:50:39,651 1 INFO ? odoo: database: odoo@db:5432
+2026-11-22 07:50:39,712 1 INFO ? odoo.addons.base.models.ir_actions_report: Will use the Wkhtmltopdf binary at /usr/local/bin/wkhtmltopdf
+2026-11-22 07:50:39,796 1 INFO ? odoo.service.server: HTTP service (werkzeug) running on odoo:8069
+2026-11-22 07:50:39,806 1 INFO acme odoo.modules.loading: loading 1 modules...
+2026-11-22 07:50:39,810 1 INFO acme odoo.modules.loading: 1 modules loaded in 0.00s, 0 queries (+0 extra)
+2026-11-22 07:50:39,820 1 INFO acme odoo.modules.loading: updating modules list
+2026-11-22 07:50:39,821 1 INFO acme odoo.addons.base.models.ir_module: ALLOW access to module.update_list on [] to user __system__ #1 via n/a
+2026-11-22 07:50:40,209 1 INFO acme odoo.addons.base.models.ir_module: ALLOW access to module.button_upgrade on ['Sudoo demo pass'] to user __system__ #1 via n/a
+2026-11-22 07:50:40,209 1 INFO acme odoo.addons.base.models.ir_module: ALLOW access to module.update_list on ['Sudoo demo pass'] to user __system__ #1 via n/a
+2026-11-22 07:50:40,462 1 INFO acme odoo.addons.base.models.ir_module: ALLOW access to module.button_install on [] to user __system__ #1 via n/a
+2026-11-22 07:50:40,471 1 INFO acme odoo.modules.loading: loading 13 modules...
+2026-11-22 07:50:40,471 1 INFO acme odoo.modules.loading: Loading module sbo_demo_pass (2/13)
+2026-11-22 07:50:40,517 1 INFO acme odoo.addons.sbo_demo_pass.tests.test_demo: Starting TestPass.test_one ...
+2026-11-22 07:50:40,518 1 INFO acme odoo.addons.sbo_demo_pass.tests.test_demo: Starting TestPass.test_two ...
+2026-11-22 07:50:40,530 1 INFO acme odoo.addons.base.models.ir_attachment: filestore gc 0 checked, 0 removed
+2026-11-22 07:50:40,535 1 INFO acme odoo.modules.loading: Module sbo_demo_pass loaded in 0.06s (incl. 0.02s test), 15 queries (+6 test, +15 other)
+2026-11-22 07:50:40,591 1 INFO acme odoo.modules.loading: 13 modules loaded in 0.12s, 15 queries (+21 extra)
+2026-11-22 07:50:40,727 1 INFO acme odoo.modules.loading: Modules loaded.
+2026-11-22 07:50:40,728 1 INFO acme odoo.modules.registry: Registry loaded in 0.932s
+2026-11-22 07:50:40,728 1 INFO acme odoo.service.server: Starting post tests
+2026-11-22 07:50:40,729 1 INFO acme odoo.addons.sbo_demo_pass.tests.test_demo: Starting TestPassPost.test_post ...
+2026-11-22 07:50:40,741 1 INFO acme odoo.addons.base.models.ir_attachment: filestore gc 0 checked, 0 removed
+2026-11-22 07:50:40,742 1 INFO acme odoo.service.server: 1 post-tests in 0.01s, 5 queries
+2026-11-22 07:50:40,742 1 INFO acme odoo.tests.stats: sbo_demo_pass: 7 tests 0.03s 11 queries
+2026-11-22 07:50:40,742 1 INFO acme odoo.tests.result: 0 failed, 0 error(s) of 3 tests when loading database 'acme'
+2026-11-22 07:50:40,742 1 INFO acme odoo.service.server: Initiating shutdown
+2026-11-22 07:50:40,742 1 INFO acme odoo.service.server: Hit CTRL-C again or send a second signal to force the shutdown.
+2026-11-22 07:50:40,798 1 INFO acme odoo.sql_db: ConnectionPool(used=0/count=0/max=64): Closed 2 connections

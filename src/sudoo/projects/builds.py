@@ -34,7 +34,7 @@ import re
 import threading
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from sudoo import projects
@@ -366,6 +366,16 @@ def outcome(job: Job, trigger: str) -> tuple[str, str, list[str]]:
     return "success", f"{done}. {tests['result']}" if tests.get("result") else done, []
 
 
+TEST_KEYS = ("status", "tests", "failed", "errors", "warnings", "modules")
+
+
+def tests_summary(report: Mapping[str, Any]) -> dict[str, Any]:
+    """What a build keeps of its tests' report (projects/testing.py): the status and the counts, the modules with a
+    failing test."""
+    found = {key: report.get(key) for key in TEST_KEYS}
+    return found | {"modules": list(found["modules"] or [])[:20]}
+
+
 def job_ended(job: Job) -> None:
     """jobs.on_end: finish the job's build; record restores; drop builds of instances that moved on or are gone."""
     with _lock:
@@ -423,6 +433,7 @@ def _finish(job: Job, project_id: str, branch: str, build_id: str, code_before: 
         messages=messages,
         finished_at=job.finished or time.time(),
         **({"commit": commit} if commit else {}),
+        **({"tests": tests_summary(job.details["tests"])} if job.details.get("tests") else {}),
     )
     if status in LIVE:
         _drop(project_id, job.instance, keep=build_id, branch=None)

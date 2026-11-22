@@ -693,10 +693,20 @@ def history_resource(entry: Mapping[str, Any]) -> dict[str, Any]:
             "duration_seconds": _duration(entry.get("started_at"), entry.get("finished_at")),
             "dropped_at": iso(entry.get("dropped_at")),
             "messages": list(entry.get("messages") or []),
+            "tests": _tests(entry.get("tests")),
         }
     links["job"] = f"{PREFIX}/jobs/{job_id}" if job_id else None
     resource["links"] = links
     return resource
+
+
+def _tests(found: Any) -> dict[str, Any] | None:
+    """A build's tests (projects/builds.tests_summary): status, counts and the modules with a failing test; None
+    when the build ran none."""
+    if not isinstance(found, Mapping):
+        return None
+    counts = {key: int(found.get(key) or 0) for key in ("tests", "failed", "errors", "warnings")}
+    return {"status": found.get("status") or "success", **counts, "modules": list(found.get("modules") or [])}
 
 
 def _sees(project: Mapping[str, Any], branch: str) -> bool:

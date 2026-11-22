@@ -1,0 +1,10 @@
+2026-11-22 12:30:00,110 1 INFO ? odoo: Odoo version 19.0-20261115
+2026-11-22 12:30:01,210 1 INFO acme odoo.modules.loading: loading 1 modules...
+2026-11-22 12:30:02,315 1 INFO acme odoo.modules.loading: Loading module stock_custom (61/61)
+2026-11-22 12:30:03,005 1 INFO acme odoo.modules.module: odoo.addons.stock_custom.tests.test_moves running
+2026-11-22 12:30:03,040 1 INFO acme odoo.addons.stock_custom.tests.test_moves: Starting TestMoves.test_reserve ...
+2026-11-22 12:30:03,094 1 INFO acme odoo.addons.stock_custom.tests.test_moves: Starting TestMoves.test_split ...
+2026-11-22 12:30:03,512 1 INFO acme odoo.modules.loading: 61 modules loaded in 1.20s, 1980 queries (+1980 other)
+2026-11-22 12:30:03,955 1 INFO acme odoo.tests.stats: stock_custom: 8 tests 0.33s 201 queries
+2026-11-22 12:30:03,957 1 INFO acme odoo.tests.result: 0 failed, 0 error(s) of 8 tests when loading database 'acme'
+2026-11-22 12:30:03,958 1 INFO acme odoo.service.server: Initiating shutdown

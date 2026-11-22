@@ -268,7 +268,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
             init.append("--with-demo")
         job.run(odoo.run_cmd(name, *init), timeout=1800)
 
-    modules = own_modules(addons) if plan["install_modules"] else []
+    modules = _modules_to_install(job, name, db) if plan["install_modules"] and plan["repo"] else []
     if modules and source:  # the backup's database may have them already: those are kept as they are
         installed = backups.installed_modules(name, db)
         already = [module for module in modules if module in installed]
@@ -287,6 +287,8 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
                 "after a developer has looked at the technical log.",
                 "warning",
             )
+
+    _before_serving(job, name, db)  # a project's build: its tests, before Odoo serves the instance
 
     # a new database already has the login admin / admin; a backup's administrator (user 2) gets the panel's
     # password too, so the instance's credentials in the panel work for it
@@ -320,6 +322,26 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     job.result = {"name": name, "url": url, "login": login, "password": settings.odoo_admin_password, "db": db}
     if source:
         job.note(f"Started from the backup {source['file']}")
+
+
+def _modules_to_install(job: Job, name: str, db: str) -> list[str]:
+    """The modules a new database gets: the repository's, or what its project's branch asks for (module_install,
+    projects/build_options.py)."""
+    if not store.read_env(name).get("PROJECT"):
+        return own_modules(store.addons_dir(name))
+    from sudoo.projects import testing  # late: projects/ imports this package
+
+    return testing.modules_to_install(job, name, db)
+
+
+def _before_serving(job: Job, name: str, db: str | None = None) -> None:
+    """A build of a project's branch runs its tests here, with Odoo stopped, before it serves the new code
+    (projects/testing.py); nothing for other instances and jobs."""
+    if not job.details.get("build") or not store.read_env(name).get("PROJECT"):
+        return
+    from sudoo.projects import testing  # late: projects/ imports this package
+
+    testing.before_serving(job, name, db)
 
 
 def _download_images(job: Job, version: str) -> None:
@@ -829,6 +851,8 @@ def update_code(job: Job, name: str, submodules_only: bool = False) -> None:
         if upgrading:
             run.stage, run.database_touched = "upgrading modules", True
             _upgrade(job, name, modules)
+            run.stage = "running the tests"
+            _before_serving(job, name)
             if paused:
                 _stay_paused(job, name)
             else:
@@ -839,6 +863,8 @@ def update_code(job: Job, name: str, submodules_only: bool = False) -> None:
             refresh_addons_path(job, name)
             job.note("The instance stays paused and uses the new code when someone opens it.")
         else:
+            run.stage = "running the tests"
+            _before_serving(job, name)  # stops Odoo when tests run; the restart below starts it again
             run.stage = "starting Odoo"
             job.step("Restarting Odoo")
             _start_odoo(job, name, restart=True, strict=safe)

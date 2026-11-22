@@ -76,7 +76,7 @@ import { CapacityNote, RepositoryPicker, useDebounced } from "./NewInstance";
 
 type Action = { action: string; body?: Record<string, unknown>; title: string };
 
-function useRun(name: string, openJob: (id: string) => void) {
+export function useRun(name: string, openJob: (id: string) => void) {
   const toast = useToast();
   const t = useT(words).run;
   return useCall(
@@ -130,12 +130,15 @@ export function InstanceView({
   tabLink = (id: string) => `/i/${name}${id ? `/${id}` : ""}`,
   embedded = false,
   afterDelete = "/",
+  lead,
 }: {
   name: string;
   tab: string;
   tabLink?: (tab: string) => string;
   embedded?: boolean;
   afterDelete?: string;
+  /** a tab of the page around it, first of the tabs (a project branch's History) */
+  lead?: { id: string; label: string; icon: React.ReactNode; content: React.ReactNode };
 }) {
   const { data: instance, isPending, error } = useInstance(name);
   const can = useCanIn(instance);
@@ -348,6 +351,11 @@ export function InstanceView({
       )}
 
       <nav className="tabs" aria-label={instance.name}>
+        {lead && (
+          <Link to={tabLink(lead.id)} viewTransition className={tab === lead.id ? "active" : ""} aria-current={tab === lead.id ? "page" : undefined}>
+            {lead.icon} {lead.label}
+          </Link>
+        )}
         {TABS.filter((t) => (!t.permission || can(t.permission)) && !(plain && t.id === "code") && !(production && t.id === "mail")).map((t) => (
           <Link key={t.id} to={tabLink(t.id)} viewTransition className={tab === t.id ? "active" : ""} aria-current={tab === t.id ? "page" : undefined}>
             {t.icon} {all.tabs[t.label]}
@@ -356,6 +364,7 @@ export function InstanceView({
       </nav>
 
       <div className="rise tab-panel" key={tab}>
+        {lead && tab === lead.id && lead.content}
         {tab === "" && <Overview instance={instance} busy={busy} act={act} />}
         {tab === "activity" && <ActivityTab name={name} onOpen={setJobId} />}
         {tab === "code" && !plain && <CodeTab instance={instance} canAdd={can("instances.update")} canRemove={can("instances.operate")} busy={busy} onAdd={() => setDialog("submodule")} act={act} />}
@@ -1023,7 +1032,7 @@ function ConnectDialog({ onClose, onRun }: { onClose: () => void; onRun: (body: 
   );
 }
 
-function SubmoduleDialog({ version, onClose, onRun }: { version: string; onClose: () => void; onRun: (body: Record<string, unknown>) => void }) {
+export function SubmoduleDialog({ version, onClose, onRun }: { version: string; onClose: () => void; onRun: (body: Record<string, unknown>) => void }) {
   const [url, setUrl] = useState("");
   const [path, setPath] = useState("");
   const [branch, setBranch] = useState(version);

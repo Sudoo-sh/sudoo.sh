@@ -1222,7 +1222,6 @@ tr.invited {
   .ws-branch-name { margin: 0; min-width: 0; font-family: var(--mono); font-size: var(--text-18); font-weight: 600; }
   .actions { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; }
 }
-.ws-commands { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--s2); }
 .ws-command {
   display: flex;
   align-items: center;
@@ -1319,3 +1318,394 @@ tr.invited {
   .grant-row { flex-wrap: wrap; .select { flex: 1 1 auto; } }
 }
 .teams-table td:first-child { min-width: 200px; }
+
+// ---------------------------------------------------------------- a branch's commands (BranchCommands.tsx)
+// Odoo.sh's toolbar at the top right of the branch: small tabs, and one command under them
+
+.ws-pane-tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s2);
+  flex: 0 1 560px;
+  min-width: 0;
+}
+.bc { display: flex; flex-direction: column; gap: var(--s2); width: 100%; min-width: 0; padding: var(--s2); border: 1px solid var(--hairline); border-radius: var(--radius-card); background: var(--surface); }
+.bc-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+  button {
+    @include press;
+    flex: none;
+    height: 28px;
+    padding: 0 var(--s3);
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-2);
+    font: inherit;
+    font-size: var(--text-12);
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    @include hover { color: var(--text); }
+    &[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-small), 0 0 0 1px var(--hairline); }
+    &.danger[aria-selected="true"] { color: var(--negative); }
+    &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 1px; }
+  }
+}
+.bc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-width: 0;
+  animation: fade var(--quick) var(--ease) both;
+}
+.bc-text { margin: 0; font-size: var(--text-12); color: var(--text-3); }
+.bc-inputs { display: flex; gap: var(--s2); .input, .select { height: 30px; font-family: var(--mono); font-size: var(--text-12); } }
+.bc-actions { display: flex; flex-wrap: wrap; gap: var(--s2); justify-content: flex-end; }
+.bc-field {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  height: 36px;
+  padding-inline: var(--s3) var(--s1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  .bc-example { flex: none; font-size: var(--text-12); font-weight: 500; color: var(--text-3); }
+  code {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+    font-family: var(--mono);
+    font-size: var(--text-12);
+    color: var(--text);
+    user-select: all;
+    &::-webkit-scrollbar { display: none; }
+    &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 2px; border-radius: 4px; }
+  }
+}
+@media (max-width: 767px) {
+  .ws-pane-tools { flex: 1 1 100%; align-items: stretch; .actions { justify-content: flex-end; } }
+}
+
+// ---------------------------------------------------------------- the Connect split button
+
+.split-button {
+  display: inline-flex;
+  > a, > button { border-start-end-radius: 0; border-end-end-radius: 0; }
+  > .menu-anchor > button { border-start-start-radius: 0; border-end-start-radius: 0; border-inline-start: 1px solid color-mix(in oklab, var(--on-brand) 30%, transparent); padding-inline: 6px; width: auto; }
+  > .menu-anchor > button svg { width: 14px; height: 14px; }
+}
+
+// ---------------------------------------------------------------- a branch's history (BuildHistory.tsx)
+// a timeline: a day's title, then its entries, each a card with a node on the line beside it
+
+.bh { display: flex; flex-direction: column; gap: var(--s5); min-width: 0; }
+.bh-day { display: flex; flex-direction: column; gap: var(--s3); min-width: 0; }
+.bh-day-title { margin: 0; font-size: var(--text-13); font-weight: 600; color: var(--text-2); }
+.bh-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s3); }
+.bh-item {
+  --c: var(--idle);
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--s3);
+  min-width: 0;
+  // the line joining the nodes
+  &::before {
+    content: "";
+    position: absolute;
+    inset-block: 40px calc(-1 * var(--s3));
+    inset-inline-start: 13.5px;
+    width: 1px;
+    background: var(--hairline-strong);
+  }
+  &:last-child::before { display: none; }
+  &.success { --c: var(--positive); }
+  &.warning { --c: var(--caution); }
+  &.failed { --c: var(--negative); }
+  &.building { --c: var(--working); }
+  &.note { --c: var(--brand); }
+}
+.bh-node {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-top: var(--s3);
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  color: var(--c);
+  svg { width: 15px; height: 15px; }
+  .bh-hollow { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--idle); }
+}
+.bh-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-width: 0;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-small);
+  &[data-live] { border-color: color-mix(in oklab, var(--positive) 35%, var(--hairline)); }
+  &.dropped { background: var(--bg); .bh-subject { color: var(--text-2); } }
+}
+.bh-card-head { display: flex; align-items: center; gap: var(--s3); min-width: 0; flex-wrap: wrap; }
+.bh-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  background: hsl(var(--hue) 45% 92%);
+  color: hsl(var(--hue) 45% 30%);
+  font-size: var(--text-12);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+:root[data-theme="dark"] .bh-avatar { background: hsl(var(--hue) 30% 24%); color: hsl(var(--hue) 50% 82%); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .bh-avatar { background: hsl(var(--hue) 30% 24%); color: hsl(var(--hue) 50% 82%); }
+}
+.bh-who { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.bh-author { font-size: var(--text-14); font-weight: 600; }
+.bh-meta { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--text-12); color: var(--text-3); }
+.bh-side { display: flex; align-items: center; gap: var(--s3); margin-inline-start: auto; flex-wrap: wrap; justify-content: flex-end; }
+.bh-commit { display: flex; align-items: baseline; gap: var(--s2); min-width: 0; flex-wrap: wrap; }
+.bh-subject { font-size: var(--text-14); color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+.bh-sha {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  button, a {
+    @include press;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 22px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: var(--radius-tag);
+    background: var(--raised);
+    color: var(--text-2);
+    font: inherit;
+    cursor: pointer;
+    @include hover { color: var(--text); }
+    &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 1px; }
+  }
+  code { font-family: var(--mono); font-size: var(--text-12); }
+  svg { width: 12px; height: 12px; }
+}
+.bh-status {
+  --c: var(--text-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-13);
+  font-weight: 500;
+  color: var(--c);
+  white-space: nowrap;
+  svg { width: 15px; height: 15px; }
+  &.success { --c: var(--positive); }
+  &.warning { --c: var(--caution); }
+  &.failed { --c: var(--negative); }
+  &.building { --c: var(--working); }
+  &.dropped {
+    height: 20px;
+    padding: 0 var(--s2);
+    border-radius: 999px;
+    background: var(--raised);
+    border: 1px solid var(--hairline);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+}
+.bh-spin { animation: spin 1s linear infinite; }
+.bh-result {
+  margin: 0;
+  font-size: var(--text-13);
+  &.failed { color: var(--negative); }
+  &.warning { color: var(--caution); }
+}
+.bh-messages { display: flex; flex-direction: column; gap: var(--s2); }
+.bh-toggle {
+  @include press;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--text-12);
+  cursor: pointer;
+  @include hover { color: var(--text); }
+  .bh-chevron { width: 14px; height: 14px; transition: rotate var(--quick) var(--ease); }
+  &[aria-expanded="true"] .bh-chevron { rotate: 90deg; }
+}
+[dir="rtl"] .bh-toggle[aria-expanded="true"] .bh-chevron { rotate: -90deg; }
+.bh-lines {
+  list-style: none;
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  max-height: 240px;
+  overflow: auto;
+  border-radius: var(--radius-control);
+  background: var(--log-bg);
+  color: var(--log-warning);
+  font-family: var(--mono);
+  font-size: var(--text-12);
+  line-height: 1.6;
+  text-align: left;
+  animation: rise var(--enter) var(--ease) both;
+  li { white-space: pre-wrap; overflow-wrap: anywhere; }
+}
+.bh-foot { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; margin-top: 2px; }
+.bh-lifetime { font-size: var(--text-12); color: var(--caution); }
+.bh-note-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: var(--text-13);
+  .bh-kind { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3); }
+  s { color: var(--text-3); }
+  .bh-arrow { width: 14px; height: 14px; color: var(--text-3); }
+  .bh-meta { margin-inline-start: auto; }
+}
+.bh-quote {
+  margin: 0;
+  padding: var(--s1) var(--s3);
+  border-inline-start: 3px solid var(--hairline-strong);
+  font-size: var(--text-13);
+  color: var(--text-2);
+  &.failed { border-color: var(--negative); }
+}
+.bh-more { display: flex; justify-content: center; }
+
+// ---------------------------------------------------------------- a project's builds (ProjectBuilds.tsx)
+
+.pb-stage .card-head { h2 { margin: 0; font-size: var(--text-15); } .ws-count { font-weight: 500; color: var(--text-3); font-variant-numeric: tabular-nums; } }
+.pb-rows { display: flex; flex-direction: column; }
+.pb-row {
+  display: grid;
+  grid-template-columns: 184px minmax(0, 1fr);
+  gap: var(--s4);
+  padding: var(--s4) var(--s5);
+  min-width: 0;
+  & + & { border-top: 1px solid var(--hairline); }
+}
+.pb-branch { display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
+.pb-name {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: var(--text-14);
+  font-weight: 600;
+  a { color: var(--text); text-decoration: none; min-width: 0; @include hover { color: var(--brand-ink); } }
+}
+.pb-actions { display: flex; gap: var(--s1); flex-wrap: wrap; margin-inline-start: -8px; }
+.pb-tiles {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(224px, 1fr);
+  gap: var(--s3);
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  padding-bottom: 2px;
+  &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 2px; border-radius: var(--radius-control); }
+}
+.pb-none { margin: 0; align-self: center; font-size: var(--text-13); color: var(--text-3); }
+.pb-tile {
+  --c: var(--idle);
+  --tint: transparent;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: var(--s3);
+  padding-top: calc(var(--s3) + 3px);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  background: linear-gradient(var(--tint), var(--tint)), var(--surface);
+  scroll-snap-align: start;
+  @include press(0.985);
+  @include hover { border-color: var(--hairline-strong); }
+  // the status band
+  &::before { content: ""; position: absolute; inset: -1px -1px auto; height: 4px; border-radius: var(--radius-control) var(--radius-control) 0 0; background: var(--c); }
+  &.success { --c: var(--positive); --tint: color-mix(in oklab, var(--positive) 6%, transparent); }
+  &.failed { --c: var(--negative); --tint: color-mix(in oklab, var(--negative) 6%, transparent); }
+  &.warning { --c: var(--caution); --tint: color-mix(in oklab, var(--caution) 7%, transparent); }
+  &.dropped { --c: var(--hairline-strong); --tint: var(--bg); }
+  &.building {
+    --c: var(--working);
+    &::before { background: repeating-linear-gradient(-45deg, var(--working) 0 8px, color-mix(in oklab, var(--working) 35%, transparent) 8px 16px); background-size: 22.6px 100%; animation: pb-stripes 0.8s linear infinite; }
+  }
+  &:has(.pb-open:focus-visible) { outline: 2px solid var(--brand-ring); outline-offset: 2px; }
+}
+@keyframes pb-stripes { to { background-position: 22.6px 0; } }
+.pb-open {
+  min-width: 0;
+  color: var(--text);
+  text-decoration: none;
+  outline: none;
+  // the whole tile opens the branch's history; what acts inside it (Connect) sits above
+  &::after { content: ""; position: absolute; inset: 0; }
+}
+.pb-subject { display: block; font-size: var(--text-13); font-weight: 600; }
+.pb-author { font-size: var(--text-12); color: var(--text-2); }
+.pb-facts {
+  display: flex;
+  gap: var(--s4);
+  margin: 0;
+  div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  dt { font-size: 11px; color: var(--text-3); }
+  dd { margin: 0; font-size: var(--text-12); font-variant-numeric: tabular-nums; white-space: nowrap; }
+}
+.pb-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  margin-top: auto;
+  padding-top: 4px;
+  min-height: 32px;
+  .split-button { position: relative; z-index: 1; }
+}
+@media (max-width: 767px) {
+  .pb-row { grid-template-columns: minmax(0, 1fr); gap: var(--s3); padding: var(--s3) var(--s4); }
+  .pb-tiles { grid-auto-columns: minmax(200px, 78%); }
+  // one column on a phone: the card's own status says what the node would
+  .bh-item { grid-template-columns: minmax(0, 1fr); &::before { display: none; } }
+  .bh-node { display: none; }
+  .bh-card { padding: var(--s3); }
+  .bh-side { margin-inline-start: 0; width: 100%; justify-content: space-between; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bh-spin, .pb-tile.building::before { animation: none !important; }
+  .bh-lines, .bc-panel { animation: none !important; }
+}

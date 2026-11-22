@@ -124,6 +124,9 @@ def rebuild(job: Job, name: str) -> None:
                 "read why in the technical log.",
                 "warning",
             )
+    from sudoo.projects import testing  # late: testing imports this package's neighbours
+
+    testing.before_serving(job, name, database)  # the branch's tests, on a throw-away copy of the copy
     STATE.update(name, rebuilt_at=time.time(), rebuilt_from=production, update_failed=None)
     operations._finish_restore(job, name)
     taken = datetime.fromtimestamp(source["created"], settings.zone).strftime("%Y-%m-%d %H:%M")

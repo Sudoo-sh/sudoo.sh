@@ -8,6 +8,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Build options and tests**, as on Odoo.sh: each project, and each branch for itself, chooses what a new commit does
+  (update in place, a new build from scratch, or nothing but a line in the history), which modules a new development
+  database gets (the repository's, all, or a list) and which tests run (off, the repository's modules, or custom
+  `--test-tags`). Tests run before the instance is served (staging on a throw-away copy of its database) and their
+  result feeds the build: "At least one test failed when loading the modules (module_x)". API:
+  `GET/PUT /api/v1/projects/<id>/branches/<branch>/options`; new settings `PROJECT_DEVELOPMENT_ON_NEW_COMMIT`,
+  `PROJECT_MODULE_INSTALL`, `PROJECT_MODULES`, `PROJECT_TEST_SUITE`, `PROJECT_TEST_TAGS`, `PROJECT_STAGING_TESTS`,
+  `PROJECT_TEST_TIMEOUT_MINUTES`. Defaults keep today's behaviour (updates in place, no tests).
+- **Commit statuses:** builds are reported on GitHub as commit statuses (`sudoo/<stage>`: pending, success,
+  failure, error), linked to the branch's history in the panel, when the GitHub App has **Commit statuses: Read and
+  write** (new apps ask for it; add it to an existing app on GitHub) and `PROJECT_COMMIT_STATUSES` is on. GitHub
+  refusing never fails a build.
 - **Build history per branch:** every branch of a project keeps a history, as on Odoo.sh: one build per commit an
   instance was built from (created, updated by a push or by hand, staging rebuilt), with its commit, who started it,
   times and duration, the instance and job, and a status (building, success, warning when Odoo's log has warnings or
@@ -34,6 +46,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   for "production" to be typed. `POST /api/v1/instances/<name>/imports` and what follows it.
 - **Backups show their revision and a comment:** every backup records the commit the instance's code was at, and
   **Back up now** takes an optional comment; both show in the instance's list of backups and in `GET /api/v1/backups`.
+- **History and Builds in the web app:** a branch opens on its **History**, a timeline of its builds grouped by day
+  (author, commit with a hash to copy and a link to GitHub, status, **Connect** on the live build, the reason and
+  Odoo's messages for a failed or warned build, **View log**), stage changes and restores, with **Show older**. A
+  project's new **Builds** tab shows the last four builds of every branch side by side, by stage, with **GitHub**,
+  **Rebuild** and **Connect**. **Builds kept per branch** is in **Settings**. The demo shows both.
+- **Branch commands, as on Odoo.sh:** the branch pane's toolbar has Clone, Fork, Merge, SSH, SQL, Submodule and
+  Delete, each with its command for the branch (and **Open the web shell**, **Add submodule**, **Delete instance**
+  where you may). `GET /api/v1/instances/<name>` names the instance's containers and database user (`containers`) for
+  those who may open a shell or see its credentials; never a password.
 
 ### Changed
 

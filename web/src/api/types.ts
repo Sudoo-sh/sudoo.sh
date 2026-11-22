@@ -297,6 +297,8 @@ export interface Instance {
   restorable_backup?: string | null;
   /** while the state before the last restore is kept (ROLLBACK_HOURS): what Rollback puts back, and until when */
   rollback?: { backups: string[]; taken_at: string; until: string } | null;
+  /** for callers who may open a shell or see the credentials: the names a command needs (never a password) */
+  containers?: { odoo: string; db: string; db_user: string; host: string | null };
 }
 
 export interface ProjectReference {
@@ -314,7 +316,59 @@ export interface ProjectOptions {
   upgrade_test_on_push: boolean;
   development_lifetime_days: number;
   staging_lifetime_days: number;
+  /** build options: the defaults of every branch (BranchBuildOptions) */
+  development_on_new_commit: OnNewCommit;
+  module_install: ModuleInstall;
+  /** comma-separated module names, for module_install "list" */
+  modules: string;
+  test_suite: TestSuite;
+  /** Odoo's --test-tags, for test_suite "custom" */
+  test_tags: string;
+  /** staging builds run the tests too, on a throw-away copy of the database */
+  staging_tests: boolean;
+  /** builds are reported on GitHub as commit statuses (when the GitHub App may write them) */
+  commit_statuses: boolean;
 }
+
+/** What a new commit does: the same database updated, a new build from scratch, or only a line in the history */
+export type OnNewCommit = "new_build" | "update" | "nothing";
+/** Modules of a new development database: the repository's, every module (no tests), or a list */
+export type ModuleInstall = "repository" | "all" | "list";
+/** Tests of a build: none, the repository's installed modules, or custom --test-tags */
+export type TestSuite = "off" | "selection" | "custom";
+
+/** A branch's build options (GET/PUT /projects/<id>/branches/<branch>/options) */
+export interface BuildOptionValues {
+  on_new_commit: OnNewCommit;
+  module_install: ModuleInstall;
+  modules: string;
+  test_suite: TestSuite;
+  test_tags: string;
+  demo_data: boolean;
+}
+
+/** Where a branch's option comes from: its own value, the project's, or why it is forced */
+export type BuildOptionSource = "branch" | "project" | "production" | "module_install" | "empty_list" | "empty_tags";
+
+export interface BranchBuildOptions {
+  project: string;
+  branch: string;
+  stage: Stage;
+  /** what applies to the branch now */
+  options: BuildOptionValues;
+  sources: Record<keyof BuildOptionValues, BuildOptionSource>;
+  /** the values the branch sets itself */
+  own: Partial<BuildOptionValues>;
+  /** what the branch gets without its own values */
+  project_defaults: BuildOptionValues;
+  changed_by: string | null;
+  changed_at: string | null;
+  commit_statuses: { enabled: boolean; available: boolean; context: string };
+  links: { self: string };
+}
+
+/** PUT /projects/<id>/branches/<branch>/options: a value sets it, null follows the project again */
+export type BuildOptionsChange = { [K in keyof BuildOptionValues]?: BuildOptionValues[K] | null };
 
 /** A project: one GitHub repository (GET /projects) */
 export interface Project {
@@ -454,6 +508,16 @@ export interface RestoreEntry extends HistoryEntryBase {
   job: string | null;
 }
 
+/** A commit pushed to a branch that builds nothing on new commits (on_new_commit "nothing"); the history lists
+ * these only with ?commits=1, so HistoryEntry (what the timeline shows) leaves them out */
+export interface CommitEntry extends HistoryEntryBase {
+  type: "commit";
+  instance: string | null;
+  status: "skipped";
+  commit: { sha: string; full_sha: string; subject: string; author: string; when: string } | null;
+  result: string;
+}
+
 export type HistoryEntry = Build | StageChange | RestoreEntry;
 
 /** GET /projects/<id>/builds: the last builds of each branch, newest first */
@@ -478,6 +542,8 @@ export interface ProjectMeta {
   capacity: { comfortable: number; running: number; headroom: number; warning: boolean; message: string | null; overloaded: boolean } | null;
   production_limit: number | null;
   server_production_limit: number | null;
+  /** whether the GitHub App may write commit statuses in the repository */
+  commit_statuses?: { available: boolean };
   /** what the caller may do in the project as a whole */
   permissions?: Permission[];
 }

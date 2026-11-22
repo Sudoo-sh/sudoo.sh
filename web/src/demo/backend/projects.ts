@@ -5,6 +5,7 @@
 import type { Instance, Project, ProjectBranch, ProjectOptions, Stage } from "@/api/types";
 import { described, levelIn, permissionsIn, PROJECT_PERMISSIONS, seededAccess, setLocks, type DemoAccess } from "./access";
 import { commitsOf, instances, OWNER, PROJECT_NAMES, REPOS, setting, type DemoRepo } from "./state";
+import { resetBuilds } from "./builds";
 import { iso, OPENED, DAY } from "./util";
 
 export interface DemoProject {
@@ -54,6 +55,7 @@ export function seedProjects() {
     });
     setLocks(id, projects.get(id)!.access, () => undefined);
   }
+  resetBuilds();
 }
 
 const OPTION_SETTINGS: Record<keyof ProjectOptions, string> = {
@@ -65,6 +67,13 @@ const OPTION_SETTINGS: Record<keyof ProjectOptions, string> = {
   upgrade_test_on_push: "project_upgrade_test_on_push",
   development_lifetime_days: "delete_after_days",
   staging_lifetime_days: "staging_delete_after_days",
+  development_on_new_commit: "project_development_on_new_commit",
+  module_install: "project_module_install",
+  modules: "project_modules",
+  test_suite: "project_test_suite",
+  test_tags: "project_test_tags",
+  staging_tests: "project_staging_tests",
+  commit_statuses: "project_commit_statuses",
 };
 
 export function options(project: DemoProject): ProjectOptions {

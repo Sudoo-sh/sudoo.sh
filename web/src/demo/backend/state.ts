@@ -430,8 +430,9 @@ function seedJobs() {
 
 // ---------------------------------------------------------------- backups
 
-export function addBackup(instance: Pick<Instance, "name" | "odoo">, kind: BackupKind, at: number, size?: number): Backup {
+export function addBackup(instance: Pick<Instance, "name" | "odoo">, kind: BackupKind, at: number, size?: number, comment?: string): Backup {
   const series = instance.odoo.version;
+  const head = instances.get(instance.name)?.git.commit?.sha;
   const backup: Backup = {
     file: backupFile(instance.name, instance.odoo.database, at, kind),
     instance: instance.name,
@@ -443,6 +444,8 @@ export function addBackup(instance: Pick<Instance, "name" | "odoo">, kind: Backu
     version: series,
     series,
     edition: instance.odoo.edition,
+    revision: head ? `${head}${hash(instance.name + head).toString(16)}`.padEnd(40, "0").slice(0, 40) : null,
+    comment: comment || null,
   };
   backups.push(backup);
   backups.sort((a, b) => b.created - a.created);
@@ -457,8 +460,8 @@ function seedBackups() {
     if (instance.status === "online" || instance.stage === "production") addBackup(instance, "daily", lastNight + (hash(instance.name) % 400) * SECOND);
   }
   const by = (name: string) => instances.get(name)!;
-  addBackup(by("acme-retail-main"), "manual", OPENED - 3 * DAY - 2 * HOUR, 612 * MIB);
-  addBackup(by("acme-retail-main"), "manual", OPENED - 17 * DAY, 571 * MIB);
+  addBackup(by("acme-retail-main"), "manual", OPENED - 3 * DAY - 2 * HOUR, 612 * MIB, "Before importing the 2027 price lists");
+  addBackup(by("acme-retail-main"), "manual", OPENED - 17 * DAY, 571 * MIB, "Before the go-live");
   addBackup(by("nile-logistics-main"), "manual", OPENED - 8 * DAY, 438 * MIB);
   addBackup(by("zahra-clinic-main"), "manual", OPENED - 5 * HOUR, 296 * MIB);
   addBackup(by("acme-retail-loyalty-points"), "daily", OPENED - 1 * DAY - 22 * HOUR);

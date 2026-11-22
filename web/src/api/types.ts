@@ -944,6 +944,10 @@ export interface Backup {
   /** the Odoo series the database belongs to ("17.0"): it only goes into an instance of the same series */
   series: string | null;
   edition: "community" | "enterprise" | null;
+  /** the commit the instance's code was at, from the manifest */
+  revision?: string | null;
+  /** given with a manual backup */
+  comment?: string | null;
 }
 
 /** A backup as an instance lists it. */
@@ -953,6 +957,10 @@ export interface InstanceBackup {
   database: string;
   size_bytes: number;
   created_at: string;
+  /** the commit the instance's code was at (recorded since backups have it) */
+  revision?: string | null;
+  /** given with a manual backup */
+  comment?: string | null;
 }
 
 export interface DeployKey {

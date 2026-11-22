@@ -3,11 +3,12 @@
 // (Esc leaves it). Logs stay left to right in Arabic. Only the last lines are drawn at first (more on request), so a
 // long log stays quick; the search and the filter work on all of it.
 
-import { ArrowDown, Check, ChevronDown, ChevronUp, Copy, Maximize2, Minimize2, Search, X } from "lucide-react";
+import { ArrowDown, Check, ChevronDown, ChevronUp, Copy, Maximize2, Minimize2, Pause, Play, Search, X } from "lucide-react";
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/i18n";
 import words from "@/i18n/instance";
+import toolWords from "@/i18n/tools";
 import { number } from "@/lib/format";
 import { parseLog, shows, type Filter, type LogLine, type StepState } from "@/lib/logs";
 import { Button } from "./app/basics";
@@ -36,7 +37,15 @@ function Highlighted({ text, query, current }: { text: string; query: string; cu
   return <>{parts.length ? parts : " "}</>;
 }
 
-export function LogView({ text, live, steps, empty, tools }: {
+/** A followed log's pause (components/LogsPanel.tsx): while paused, new lines wait in the parent, counted here. */
+export interface LogPause {
+  paused: boolean;
+  /** lines that arrived while paused */
+  pending: number;
+  onChange: (paused: boolean) => void;
+}
+
+export function LogView({ text, live, steps, empty, tools, wrap = true, onQuery, pause }: {
   text: string;
   /** new lines are still coming (a running job): a cursor blinks at the end */
   live?: boolean;
@@ -46,8 +55,15 @@ export function LogView({ text, live, steps, empty, tools }: {
   empty?: string;
   /** more controls for the toolbar (the Odoo log's number of lines, Refresh) */
   tools?: ReactNode;
+  /** long lines wrap (default), or the log scrolls sideways */
+  wrap?: boolean;
+  /** told what is typed in the search box (a followed log filters on the server too) */
+  onQuery?: (typed: string) => void;
+  /** the follow button pauses and resumes the parent's stream instead of only the scrolling */
+  pause?: LogPause;
 }) {
   const t = useT(words).logView;
+  const tl = useT(toolWords).logs;
   const lines = useMemo(() => parseLog(text, steps), [text, steps]);
   const [filter, setFilter] = useState<Filter>("all");
   const [typed, setTyped] = useState("");
@@ -59,6 +75,12 @@ export function LogView({ text, live, steps, empty, tools }: {
   // which match is current, for one search and filter (another search starts at its first match)
   const [cursor, setCursor] = useState({ of: "", n: 0 });
   const box = useRef<HTMLDivElement>(null);
+  const told = useRef(onQuery);
+  told.current = onQuery;
+  useEffect(() => told.current?.(typed), [typed]);
+  // paused by the parent: the scrolling stops too; following again goes to the end
+  const paused = pause?.paused ?? false;
+  useEffect(() => setFollow(!paused), [paused]);
 
   const counts = useMemo(() => {
     const c = { error: 0, warning: 0, info: 0, debug: 0 };
@@ -178,14 +200,21 @@ export function LogView({ text, live, steps, empty, tools }: {
         <span className="spacer" />
         {tools}
         <div className="log-actions">
-          <Button size="sm" variant={follow ? "default" : "ghost"} icon={<ArrowDown />} aria-pressed={follow} onClick={() => setFollow(!follow)} title={follow ? t.followingText : t.pausedText}>
-            {follow ? t.following : t.paused}
-          </Button>
+          {pause ? (
+            <Button size="sm" variant={paused ? "ghost" : "default"} icon={paused ? <Play /> : <Pause />} aria-pressed={!paused}
+              onClick={() => pause.onChange(!paused)} title={paused ? tl.pauseText : tl.followText}>
+              {paused ? tl.follow : tl.pause}
+            </Button>
+          ) : (
+            <Button size="sm" variant={follow ? "default" : "ghost"} icon={<ArrowDown />} aria-pressed={follow} onClick={() => setFollow(!follow)} title={follow ? t.followingText : t.pausedText}>
+              {follow ? t.following : t.paused}
+            </Button>
+          )}
           <Button size="sm" variant="ghost" icon={copied ? <Check /> : <Copy />} onClick={copy} aria-label={copied ? t.copied : t.copy} title={copied ? t.copied : t.copy} />
           <Button size="sm" variant="ghost" icon={full ? <Minimize2 /> : <Maximize2 />} onClick={() => setFull(!full)} aria-label={full ? t.exitFullScreen : t.fullScreen} title={full ? t.exitFullScreen : t.fullScreen} />
         </div>
       </div>
-      <div className="terminal log-lines" dir="ltr" ref={box} onScroll={onScroll} tabIndex={0} aria-label={t.log}>
+      <div className={`terminal log-lines${wrap ? "" : " nowrap"}`} dir="ltr" ref={box} onScroll={onScroll} tabIndex={0} aria-label={t.log}>
         {first > 0 && (
           <button type="button" className="log-more" onClick={() => setLimit((l) => l + PAGE)}>
             {t.earlier(number(first))}
@@ -200,7 +229,11 @@ export function LogView({ text, live, steps, empty, tools }: {
         )}
         {live && <span className="cursor" />}
       </div>
-      {!follow && live && !query && (
+      {paused && pause && pause.pending > 0 ? (
+        <button type="button" className="log-jump" onClick={() => pause.onChange(false)}>
+          <ArrowDown aria-hidden="true" /> {tl.newLines(number(pause.pending))}
+        </button>
+      ) : !follow && live && !query && (
         <button type="button" className="log-jump" onClick={() => setFollow(true)}>
           <ArrowDown aria-hidden="true" /> {t.jumpToEnd}
         </button>

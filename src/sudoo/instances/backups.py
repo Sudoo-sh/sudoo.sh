@@ -6,7 +6,8 @@ database manager produces and accepts under "Restore":
     dump.sql        the database, as SQL (pg_dump --no-owner)
     filestore/      attachments and images
     manifest.json   what the backup is (database, Odoo version, edition, and the instance it was taken from:
-                    its name, INSTANCE_ID, project and branch)
+                    its name, INSTANCE_ID, project and branch; the commit its code was at, "revision", and the
+                    comment given with a manual backup, "comment")
 
 Kinds (files of earlier versions have no kind and count as "manual"):
 
@@ -101,8 +102,13 @@ def on_created(listener: Callable[[str, str, list[Path]], None]) -> None:
         _CREATED.append(listener)
 
 
-def create(job: Job, name: str, kind: str = "manual") -> list[Path]:
-    """Back up every database of instance `name`; return the paths of the backup files."""
+COMMENT_MAX = 200
+"""Longest comment a manual backup keeps."""
+
+
+def create(job: Job, name: str, kind: str = "manual", comment: str = "") -> list[Path]:
+    """Back up every database of instance `name`; return the paths of the backup files. `comment`: kept in the
+    manifest (manual backups)."""
     settings.backups_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     _database_up(job, name)
     env = store.read_env(name)
@@ -114,6 +120,8 @@ def create(job: Job, name: str, kind: str = "manual") -> list[Path]:
         # whose backup it is once the instance is gone: its project's and branch's access keep applying to it
         "project": env.get("PROJECT", ""),
         "branch": env.get("GIT_BRANCH", "") if env.get("PROJECT") else "",
+        "revision": _revision(name),
+        "comment": comment.strip()[:COMMENT_MAX],
     }
     saved = [_backup_database(job, name, db, facts, stamp, kind) for db in odoo.databases(name)]
     if kind in _KEEP_ONE:
@@ -128,6 +136,14 @@ def create(job: Job, name: str, kind: str = "manual") -> list[Path]:
         except Exception as error:  # noqa: BLE001 - the backup itself is done; the listener reports its own trouble
             job.write(f"Could not queue the off-site copy: {error!r}\n")
     return saved
+
+
+def _revision(name: str) -> str:
+    """The commit the instance's code is at ("" without a repository)."""
+    from sudoo.repos.gitrepo import head
+
+    addons = store.addons_dir(name)
+    return head(addons) if (addons / ".git").exists() else ""
 
 
 def _database_up(job: Job, name: str) -> None:
@@ -180,6 +196,8 @@ def _backup_database(job: Job, name: str, db: str, facts: dict[str, str], stamp:
                         **({"instance_id": facts["instance_id"]} if facts.get("instance_id") else {}),
                         "project": facts.get("project", ""),
                         "branch": facts.get("branch", ""),
+                        **({"revision": facts["revision"]} if facts.get("revision") else {}),
+                        **({"comment": facts["comment"]} if facts.get("comment") else {}),
                     },
                     indent=2,
                 ),
@@ -296,13 +314,14 @@ _DETAILS: dict[tuple[str, float], dict[str, str | None]] = {}  # (file, mtime) -
 
 
 def details(file_name: str) -> dict[str, str | None]:
-    """{"version", "series", "edition"} read from the backup's manifest.json; None for what it does not say.
+    """{"version", "series", "edition", "revision", "comment"} read from the backup's manifest.json; None for what
+    it does not say.
 
     "series" is the Odoo release the database belongs to ("17.0", "saas~17.1" gives "17.1"): a database can only be
     opened by Odoo of the same series. "edition" is only recorded by this version of Sudoo.sh on.
     """
     found = _manifest(file_name)
-    return {key: found.get(key) for key in ("version", "series", "edition")}
+    return {key: found.get(key) for key in ("version", "series", "edition", "revision", "comment")}
 
 
 def instance_id(file_name: str) -> str | None:
@@ -322,7 +341,9 @@ def scope(file_name: str) -> tuple[str, str] | None:
 def _manifest(file_name: str) -> dict[str, str | None]:
     path = path_of(file_name)
     if path is None:
-        return {"version": None, "series": None, "edition": None, "instance_id": None, "project": None, "branch": None}
+        return dict.fromkeys(
+            ("version", "series", "edition", "instance_id", "project", "branch", "revision", "comment")
+        )
     key = (path.name, path.stat().st_mtime)
     if key not in _DETAILS:
         manifest: dict[str, Any] = {}
@@ -342,8 +363,14 @@ def _manifest(file_name: str) -> dict[str, str | None]:
             "instance_id": manifest["instance_id"] if isinstance(manifest.get("instance_id"), str) else None,
             "project": manifest["project"] if isinstance(manifest.get("project"), str) else None,
             "branch": manifest["branch"] if isinstance(manifest.get("branch"), str) else None,
+            "revision": _short_text(manifest.get("revision"), 64),
+            "comment": _short_text(manifest.get("comment"), COMMENT_MAX),
         }
     return _DETAILS[key]
+
+
+def _short_text(value: Any, longest: int) -> str | None:
+    return value[:longest] if isinstance(value, str) and value else None
 
 
 def series(version: str | None) -> str | None:
@@ -424,42 +451,67 @@ def restore(job: Job, name: str, backup: dict[str, Any], db: str | None = None) 
     db = db or backup["db"]
     if not DB_NAME_RE.fullmatch(db):  # it goes into SQL and into a path below: only names the panel gives
         raise JobError(f"{db[:70]!r} is not a database name this panel uses")
-    container = store.container(name, "db")
     with zipfile.ZipFile(path) as archive:
         names = set(archive.namelist())
         if "dump.sql" not in names:
             raise JobError("the backup has no dump.sql; it cannot be restored here")
-        _database_up(job, name)
-        job.write(f"Replacing database {db}\n")
-        for sql in (
-            f'DROP DATABASE IF EXISTS "{db}" WITH (FORCE)',
-            f"CREATE DATABASE \"{db}\" OWNER odoo ENCODING 'UTF8' TEMPLATE template0",
-        ):
-            job.run(["docker", "exec", container, "psql", "-q", "-U", "odoo", "-d", "postgres", "-c", sql], timeout=600)
+        recreate_database(job, name, db)
         with archive.open("dump.sql") as dump:
-            _feed(["docker", "exec", "-i", container, "psql", "-q", "-X", "-U", "odoo", "-d", db], dump, "database")
-        job.run(["docker", "exec", container, "psql", "-q", "-U", "odoo", "-d", db, "-c", "SELECT 1 FROM res_users"])
+            load_sql(name, db, dump)
+        check_database(job, name, db)
+        replace_filestore(job, name, db, archive)
 
-        job.write(f"Replacing the filestore of {db}\n")
-        with tempfile.TemporaryFile(dir=settings.backups_dir) as tar_file:
-            with tarfile.open(fileobj=tar_file, mode="w") as tar:
-                for entry in _filestore_entries(archive):
-                    info = tarfile.TarInfo(entry.filename.removeprefix("filestore/"))
-                    info.size = entry.file_size
-                    info.mtime = int(time.mktime((*entry.date_time, 0, 0, -1)))  # not 1970
-                    with archive.open(entry) as data:
-                        tar.addfile(info, data)
-            tar_file.seek(0)
-            # the folder is the script's argument ($1), never part of the script's text
-            script = 'rm -rf "$1" && mkdir -p "$1" && tar -x -C "$1" && chown -R odoo: "$1"'
-            target = f"/var/lib/odoo/filestore/{db}"
-            # root in a short-lived container, with only what replacing files owned by Odoo's user needs (the
-            # instance's containers drop every capability otherwise)
-            capabilities = [arg for cap in odoo.FILESTORE_CAPABILITIES for arg in ("--cap-add", cap)]
-            command = store.compose(
-                name, "run", "--rm", "--no-deps", "-T", "--user", "root", *capabilities, "--entrypoint", "sh"
-            )
-            _feed([*command, "odoo", "-c", script, "sh", target], tar_file, "filestore")
+
+def recreate_database(job: Job, name: str, db: str) -> None:
+    """Drop database `db` of instance `name` (Odoo must be stopped) and create it again, empty."""
+    if not DB_NAME_RE.fullmatch(db):  # it goes into SQL: only names the panel gives
+        raise JobError(f"{db[:70]!r} is not a database name this panel uses")
+    _database_up(job, name)
+    container = store.container(name, "db")
+    job.write(f"Replacing database {db}\n")
+    for sql in (
+        f'DROP DATABASE IF EXISTS "{db}" WITH (FORCE)',
+        f"CREATE DATABASE \"{db}\" OWNER odoo ENCODING 'UTF8' TEMPLATE template0",
+    ):
+        job.run(["docker", "exec", container, "psql", "-q", "-U", "odoo", "-d", "postgres", "-c", sql], timeout=600)
+
+
+def load_sql(name: str, db: str, dump: IO[bytes]) -> None:
+    """Load a plain SQL dump (pg_dump without owner) into database `db` of instance `name`."""
+    container = store.container(name, "db")
+    _feed(["docker", "exec", "-i", container, "psql", "-q", "-X", "-U", "odoo", "-d", db], dump, "database")
+
+
+def check_database(job: Job, name: str, db: str) -> None:
+    """Fail unless database `db` of instance `name` is an Odoo database (it has res_users)."""
+    container = store.container(name, "db")
+    job.run(["docker", "exec", container, "psql", "-q", "-U", "odoo", "-d", db, "-c", "SELECT 1 FROM res_users"])
+
+
+def replace_filestore(job: Job, name: str, db: str, archive: zipfile.ZipFile | None) -> None:
+    """Replace the filestore of database `db` of instance `name` with the archive's filestore/ (empty without one)."""
+    if not DB_NAME_RE.fullmatch(db):  # it becomes part of a path below
+        raise JobError(f"{db[:70]!r} is not a database name this panel uses")
+    job.write(f"Replacing the filestore of {db}\n")
+    with tempfile.TemporaryFile(dir=settings.backups_dir) as tar_file:
+        with tarfile.open(fileobj=tar_file, mode="w") as tar:
+            for entry in _filestore_entries(archive) if archive is not None else ():
+                info = tarfile.TarInfo(entry.filename.removeprefix("filestore/"))
+                info.size = entry.file_size
+                info.mtime = int(time.mktime((*entry.date_time, 0, 0, -1)))  # not 1970
+                with archive.open(entry) as data:  # type: ignore[union-attr]
+                    tar.addfile(info, data)
+        tar_file.seek(0)
+        # the folder is the script's argument ($1), never part of the script's text
+        script = 'rm -rf "$1" && mkdir -p "$1" && tar -x -C "$1" && chown -R odoo: "$1"'
+        target = f"/var/lib/odoo/filestore/{db}"
+        # root in a short-lived container, with only what replacing files owned by Odoo's user needs (the
+        # instance's containers drop every capability otherwise)
+        capabilities = [arg for cap in odoo.FILESTORE_CAPABILITIES for arg in ("--cap-add", cap)]
+        command = store.compose(
+            name, "run", "--rm", "--no-deps", "-T", "--user", "root", *capabilities, "--entrypoint", "sh"
+        )
+        _feed([*command, "odoo", "-c", script, "sh", target], tar_file, "filestore")
 
 
 _NEUTRALIZE_SQL = (

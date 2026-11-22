@@ -407,13 +407,137 @@ route("GET", "/instances/:name/logs", ({ params, query }) => {
   const instance = instanceOf(params.name!);
   return ok({ text: odooLog(instance, Math.min(Number(query.get("lines") ?? 300), 3000)) });
 });
+// ---------------------------------------------------------------- logs, Connect as, Import database
+
+const LOG_KINDS: Record<string, string> = { "install.log": "create", "update.log": "update", "upgrade.log": "upgrade" };
+
+/** The newest job of the instance whose log is `log` (install.log, update.log, upgrade.log). */
+export function jobOfLog(name: string, log: string): Job | undefined {
+  return jobs.find((j) => j.instance === name && j.kind === LOG_KINDS[log]);
+}
+
+route("GET", "/instances/:name/logs/files", ({ params }) => {
+  needOn(params.name!, "instances.logs");
+  instanceOf(params.name!);
+  const found = [{ name: "odoo.log", job: null, status: null, started_at: null }];
+  for (const log of Object.keys(LOG_KINDS)) {
+    const job = jobOfLog(params.name!, log);
+    if (job) found.push({ name: log, job: job.id as never, status: job.status as never, started_at: job.started_at as never });
+  }
+  return ok(found);
+});
+
+const DEMO_USERS = [
+  { id: 2, login: "admin", name: "Mitchell Admin" },
+  { id: 6, login: "lena@acme.example", name: "Lena Hoffmann" },
+  { id: 7, login: "karim@acme.example", name: "Karim Nasser" },
+  { id: 9, login: "sales@acme.example", name: "Sales Desk" },
+  { id: 12, login: "warehouse@acme.example", name: "Warehouse Tablet" },
+];
+
+route("GET", "/instances/:name/odoo-users", ({ params }) => {
+  needOn(params.name!, "instances.credentials");
+  const instance = instanceOf(params.name!);
+  if (ASLEEP.includes(instance.status)) throw new Problem(409, "The database is not running. Start the instance first.");
+  return ok(DEMO_USERS);
+});
+
+route("POST", "/instances/:name/connect", ({ params, body }) => {
+  needOn(params.name!, "instances.credentials");
+  const instance = instanceOf(params.name!);
+  const user = DEMO_USERS.find((u) => u.id === body.uid);
+  if (typeof body.uid !== "number") throw new Problem(400, "Choose the Odoo user to connect as.");
+  if (instance.stage === "production" && body.confirm_stage !== "production") throw new Problem(400, 'This is a production instance: type "production" to confirm.');
+  if (!user) throw new Problem(404, "This Odoo user does not exist or is not an active internal user.");
+  record(ME, "connect as link given" + (instance.stage === "production" ? " (production)" : ""), { instance: instance.name, detail: `${user.login} (id ${user.id})` });
+  return created({ url: `${instance.url}/__sudoo/connect?token=${hex(43)}`, expires_at: iso(Date.now() + 60 * 1000), login: user.login });
+});
+
+interface DemoUpload { id: string; instance: string; file_name: string; format: string; size: number; received: number }
+const uploads = new Map<string, DemoUpload>();
+const CHUNK = 4 * 1024 * 1024;
+const uploadOf = (name: string, id: string) => {
+  const found = uploads.get(id);
+  if (!found || found.instance !== name) throw new Problem(404, "This upload does not exist (any more). Upload the file again.");
+  return found;
+};
+const shownUpload = (u: DemoUpload) => ({ ...u, complete: u.received === u.size, chunk_size: CHUNK });
+
+route("POST", "/instances/:name/imports", ({ params, body }) => {
+  needOn(params.name!, "instances.restore");
+  const instance = instanceOf(params.name!);
+  const fileName = String(body.file_name ?? "");
+  const format = /\.sql\.gz$/i.test(fileName) ? "sql.gz" : (/\.(zip|dump|sql)$/i.exec(fileName)?.[1]?.toLowerCase() ?? "");
+  if (!format) throw new Problem(400, "Upload a .zip (Odoo backup with its filestore), .dump, .sql or .sql.gz file.");
+  const size = Number(body.size);
+  if (!(size > 0)) throw new Problem(400, "The file is empty.");
+  if (size > Number(setting("import_max_gb")) * 1024 ** 3) throw new Problem(413, `The file is larger than the ${setting("import_max_gb")} GB this panel accepts.`);
+  const upload: DemoUpload = { id: hex(24), instance: instance.name, file_name: fileName, format, size, received: 0 };
+  uploads.set(upload.id, upload);
+  record(ME, "database import upload started", { instance: instance.name, detail: `${fileName} (${size} bytes)` });
+  return created(shownUpload(upload));
+});
+route("GET", "/instances/:name/imports/:id", ({ params }) => {
+  needOn(params.name!, "instances.restore");
+  return ok(shownUpload(uploadOf(params.name!, params.id!)));
+});
+route("PUT", "/instances/:name/imports/:id", ({ params, query, body }) => {
+  needOn(params.name!, "instances.restore");
+  const upload = uploadOf(params.name!, params.id!);
+  const offset = Number(query.get("offset"));
+  if (offset !== upload.received) return ok({ detail: `Expected the piece at ${upload.received}.` }, { received: upload.received }, 409);
+  upload.received = Math.min(upload.size, upload.received + Number(body.size ?? 0));
+  return ok(shownUpload(upload));
+});
+route("DELETE", "/instances/:name/imports/:id", ({ params }) => {
+  needOn(params.name!, "instances.restore");
+  uploads.delete(uploadOf(params.name!, params.id!).id);
+  return none();
+});
+route("POST", "/instances/:name/imports/:id/restore", ({ params, body }) => {
+  needOn(params.name!, "instances.restore");
+  const instance = instanceOf(params.name!);
+  const upload = uploadOf(params.name!, params.id!);
+  const production = instance.stage === "production";
+  if (production && (body.confirm_production !== true || body.confirm_stage !== "production"))
+    throw new Problem(400, 'This is a production instance: confirm, and type "production", to replace its database.');
+  if (upload.received !== upload.size) throw new Problem(400, "The upload is not complete yet.");
+  if (/odoo-?1[0-6]/i.test(upload.file_name))
+    throw new Problem(400, `This dump is of an older Odoo, and this instance runs Odoo ${instance.odoo.version}. Import it into an instance of that version, then upgrade it.`);
+  const neutralize = body.neutralize === undefined ? !production : body.neutralize === true;
+  uploads.delete(upload.id);
+  record(ME, "database import started" + (production ? " (production)" : ""), { instance: instance.name, detail: `${upload.file_name}, neutralise: ${neutralize ? "yes" : "no"}` });
+  return accepted(
+    startJob({
+      instance: instance.name,
+      action: "Import a database",
+      kind: "restore",
+      steps: ["Checking the file", "Saving the current state first", "Stopping Odoo", `Importing ${upload.file_name}`, ...(neutralize ? ["Neutralising the imported data"] : []), "Starting Odoo"],
+      seconds: 2.2,
+      status: "busy",
+      notes: [
+        { text: `The dump is of Odoo ${instance.odoo.version}.`, level: "info" },
+        ...(neutralize ? [] : [{ text: "The imported data was not neutralised: it may send e-mail and run scheduled actions.", level: "warning" as const }]),
+        { text: "Users keep their passwords from the dump. Use Connect as to sign in as any of them.", level: "info" },
+      ],
+      onDone: () => {
+        const now = Date.now();
+        const before = addBackup(instance, "before-restore", now);
+        for (const old of backups.filter((b) => b.instance === instance.name && b.kind === "before-restore" && b.file !== before.file)) backups.splice(backups.indexOf(old), 1);
+        instance.rollback = { backups: [before.file], taken_at: iso(now)!, until: iso(now + Number(setting("rollback_hours")) * HOUR)! };
+        wake(instance);
+      },
+    }),
+  );
+});
+
 route("GET", "/instances/:name/metrics", ({ params }) => {
   need("instances.view");
   instanceOf(params.name!);
   return ok({ latest: currentMetrics().instances[params.name!], history: history().instances[params.name!] });
 });
 
-function odooLog(instance: Instance, lines: number): string {
+export function odooLog(instance: Instance, lines: number): string {
   if (ASLEEP.includes(instance.status)) return "";
   const db = instance.odoo.database;
   const paths = ["/web", "/web/dataset/call_kw/sale.order/web_search_read", "/web/action/load", "/pos/web", "/shop", "/web/dataset/call_kw/stock.picking/web_read", "/longpolling/poll", "/web/image/res.partner/7/avatar_128", "/my/orders", "/web/webclient/translations"];
@@ -798,7 +922,7 @@ function runAction(instance: Instance, action: string, body: Record<string, unkn
       });
     }
     case "backup":
-      return startJob({ ...base, steps: ["Backing up the database and files"], seconds: 4, status: instance.status, onDone: () => offsite.backupTaken(addBackup(instance, "manual", Date.now())) });
+      return startJob({ ...base, steps: ["Backing up the database and files"], seconds: 4, status: instance.status, onDone: () => offsite.backupTaken(addBackup(instance, "manual", Date.now(), undefined, typeof body.comment === "string" ? body.comment.slice(0, 200) : undefined)) });
     case "update-images":
       return startJob({ ...base, steps: ["Downloading the images", "Starting Odoo with the new images"], seconds: [4, 2.5], status: "busy", onDone: () => wake(instance) });
     case "repair":

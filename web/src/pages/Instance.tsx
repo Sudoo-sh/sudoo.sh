@@ -39,7 +39,7 @@ import {
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api, errorText } from "@/api/client";
-import { keys, useCall, useCapacity, useCredentials, useHistory, useInstance, useInstancePermissions, useJobs, useOdooLog } from "@/api/queries";
+import { keys, useCall, useCapacity, useCredentials, useHistory, useInstance, useInstancePermissions, useJobs } from "@/api/queries";
 import type { Instance, InstanceBackup, Job, Permission, Stage } from "@/api/types";
 import { BackupPicker } from "@/components/BackupPicker";
 import { LiveChart } from "@/components/charts/LiveChart";
@@ -54,7 +54,9 @@ import { MailTab } from "@/components/MailTab";
 import { LockBanner } from "@/components/ProjectAccess";
 import { ResourcesCard } from "@/components/ResourcesCard";
 import { JobDrawer } from "@/components/JobDrawer";
-import { LogView } from "@/components/LogView";
+import { LogsPanel } from "@/components/LogsPanel";
+import { ConnectAsCard } from "@/components/ConnectAs";
+import { BackupCommentDialog, ImportDatabaseButton } from "@/components/ImportDatabase";
 import { Page, useCan } from "@/components/Shell";
 import { StatCard } from "@/components/StatCard";
 import { Button, Callout, CopyField, Empty, Field, Progress, Segmented, Skeleton, Status, Switch, Tag } from "@/components/app/basics";
@@ -65,6 +67,7 @@ import { Menu, MenuItem, MenuSeparator, Modal, useToast } from "@/components/app
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/instance";
+import toolWords from "@/i18n/tools";
 import { jobTitle } from "@/i18n/jobs";
 import { ago, bytes, count, dateTime, duration, elapsed, fullDateTime, ms, number, percent } from "@/lib/format";
 import { commitPage } from "@/lib/git";
@@ -527,10 +530,12 @@ function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolea
   const can = useCanIn(instance);
   const [restoring, setRestoring] = useState<InstanceBackup | null>(null);
   const [picking, setPicking] = useState(false);
+  const [commenting, setCommenting] = useState(false);
   const list = instance.backups ?? [];
   const latest = list.find((b) => b.file === instance.restorable_backup);
   const all = useT(words);
   const t = all.backups;
+  const tb = useT(toolWords).backups;
   const KIND_LABEL = all.backupKinds;
   return (
     <section className="card">
@@ -539,7 +544,7 @@ function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolea
         <span className="sub">{list.length ? t.kept(count(list.length, "backup")) : t.noneYet}</span>
         <span className="spacer" />
         {can("instances.operate") && (
-          <Button size="sm" icon={<Database />} disabled={busy} onClick={() => act("backup", all.jobs.backup)}>{t.backUpNow}</Button>
+          <Button size="sm" icon={<Database />} disabled={busy} onClick={() => setCommenting(true)}>{t.backUpNow}</Button>
         )}
         {can("instances.restore") && (
           <Button size="sm" icon={<History />} disabled={busy || !latest} onClick={() => latest && setRestoring(latest)}>
@@ -551,6 +556,7 @@ function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolea
             {t.restoreAnother}
           </Button>
         )}
+        {can("instances.restore") && <ImportDatabaseButton instance={instance} busy={busy} />}
       </div>
       {latest ? (
         <div className="backup-latest">
@@ -567,12 +573,18 @@ function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolea
       )}
       {list.length > 0 && (
         <Table>
-          <TableHeader><TableRow><TableHead>{t.taken}</TableHead><TableHead>{t.kind}</TableHead><TableHead>{t.size}</TableHead><TableHead /></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>{t.taken}</TableHead><TableHead>{t.kind}</TableHead><TableHead>{tb.revision}</TableHead><TableHead>{tb.comment}</TableHead><TableHead>{t.size}</TableHead><TableHead /></TableRow></TableHeader>
           <TableBody>
             {list.map((b) => (
               <TableRow key={b.file}>
                 <TableCell>{dateTime(b.created_at)} <span className="faint xsmall">· {ago(b.created_at)}</span></TableCell>
                 <TableCell><Tag tone={b.kind === "daily" ? "accent" : undefined}>{KIND_LABEL[b.kind] ?? b.kind}</Tag></TableCell>
+                <TableCell className="mono small" dir="ltr">
+                  {b.revision ? (commitPage(instance.git.repository, b.revision)
+                    ? <a href={commitPage(instance.git.repository, b.revision)!} target="_blank" rel="noreferrer">{b.revision.slice(0, 7)}</a>
+                    : b.revision.slice(0, 7)) : <span className="faint">—</span>}
+                </TableCell>
+                <TableCell className="small"><span className="backup-comment" title={b.comment ?? undefined}><bdi>{b.comment || tb.noComment}</bdi></span></TableCell>
                 <TableCell className="mono small">{bytes(b.size_bytes)}</TableCell>
                 <TableCell className="actions">
                   {can("backups.manage") && (
@@ -594,6 +606,10 @@ function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolea
       {picking && (
         <AnotherBackupDialog instance={instance} onClose={() => setPicking(false)}
           onRun={(file) => act("restore", all.jobs.restore, { file })} />
+      )}
+      {commenting && (
+        <BackupCommentDialog onClose={() => setCommenting(false)}
+          onRun={(comment) => act("backup", all.jobs.backup, comment ? { comment } : undefined)} />
       )}
     </section>
   );
@@ -802,18 +818,7 @@ function CodeTab({ instance, canAdd, canRemove, busy, onAdd, act }: { instance: 
 // ---------------------------------------------------------------- logs
 
 function LogsTab({ name }: { name: string }) {
-  const [lines, setLines] = useState(300);
-  const { data, isFetching, refetch } = useOdooLog(name, lines);
-  const t = useT(words).logs;
-  const tools = (
-    <div className="row">
-      <SelectBox size="sm" aria-label={t.lines} value={lines} onValueChange={(value) => setLines(Number(value))}>
-        {[100, 300, 1000, 3000].map((n) => <option key={n} value={n}>{t.lastLines(n)}</option>)}
-      </SelectBox>
-      <Button size="sm" icon={<RefreshCw />} loading={isFetching} onClick={() => refetch()}>{t.refresh}</Button>
-    </div>
-  );
-  return data ? <LogView text={data.text} empty={t.empty} tools={tools} /> : <Skeleton height={300} />;
+  return <LogsPanel name={name} />;
 }
 
 // ---------------------------------------------------------------- settings
@@ -917,6 +922,8 @@ function AccessTab({ instance }: { instance: Instance }) {
   const { data, isFetching } = useCredentials(instance.name, shown);
   const t = useT(words).access;
   return (
+    <div className="stack">
+    <ConnectAsCard instance={instance} />
     <div className="card">
       <div className="card-head"><h2>{t.title}</h2><span className="spacer" /><span className="sub">{t.recorded}</span></div>
       <div className="card-body">
@@ -934,6 +941,7 @@ function AccessTab({ instance }: { instance: Instance }) {
           </dl>
         )}
       </div>
+    </div>
     </div>
   );
 }

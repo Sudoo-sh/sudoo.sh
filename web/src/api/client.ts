@@ -21,6 +21,8 @@ let csrfToken = "";
 export const setCsrfToken = (token: string) => {
   csrfToken = token;
 };
+/** The CSRF header for a change sent without call() (a piece of an uploaded file, components/ImportDatabase.tsx). */
+export const csrfHeaders = (): Record<string, string> => (csrfToken ? { "X-CSRF-Token": csrfToken } : {});
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 

@@ -267,6 +267,8 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
                     "database": b["db"],
                     "size_bytes": b["size"],
                     "created_at": iso(b["created"]),
+                    "revision": backups.details(b["file"])["revision"],
+                    "comment": backups.details(b["file"])["comment"],
                 }
                 for b in backups.own_backups(name)
             ],

@@ -158,18 +158,23 @@ export const useBuild = (id: string, buildId: string | null) =>
     enabled: Boolean(id && buildId),
   });
 
+/** A page of a branch's timeline, newest first (limit 1 to 200 entries from offset): for useQuery and useQueries. */
+export const branchHistoryQuery = (id: string, branch: string, limit = 50, offset = 0) => ({
+  queryKey: keys.branchHistory(id, branch, limit, offset),
+  queryFn: async () => {
+    // a branch name may contain "/": each part is encoded on its own
+    const path = branch.split("/").map(encodeURIComponent).join("/");
+    const answer = await api.page<HistoryEntry[]>(
+      `/projects/${encodeURIComponent(id)}/branches/${path}/history?limit=${limit}&offset=${offset}`,
+    );
+    return { entries: answer.data, total: Number(answer.meta?.total ?? answer.data.length) };
+  },
+});
+
 /** A branch's timeline, newest first, a page at a time (limit 50 by default, at most 200). */
 export const useBranchHistory = (id: string, branch: string, limit = 50, offset = 0, enabled = true) =>
   useQuery({
-    queryKey: keys.branchHistory(id, branch, limit, offset),
-    queryFn: async () => {
-      // a branch name may contain "/": each part is encoded on its own
-      const path = branch.split("/").map(encodeURIComponent).join("/");
-      const answer = await api.page<HistoryEntry[]>(
-        `/projects/${encodeURIComponent(id)}/branches/${path}/history?limit=${limit}&offset=${offset}`,
-      );
-      return { entries: answer.data, total: Number(answer.meta?.total ?? answer.data.length) };
-    },
+    ...branchHistoryQuery(id, branch, limit, offset),
     placeholderData: keepPreviousData,
     enabled: enabled && Boolean(id && branch),
   });
@@ -185,8 +190,8 @@ export const useRepositoryOwners = (enabled: boolean) =>
     retry: false,
   });
 
-export const useInstance = (name: string) =>
-  useQuery({ queryKey: keys.instance(name), queryFn: () => api.get<Instance>(`/instances/${name}`) });
+export const useInstance = (name: string, enabled = true) =>
+  useQuery({ queryKey: keys.instance(name), queryFn: () => api.get<Instance>(`/instances/${name}`), enabled: enabled && Boolean(name) });
 
 /** What the caller may do in an instance (its project's access and its branch's lock): GET /instances/<name>'s
  *  meta.permissions, read again when the lock changes. */

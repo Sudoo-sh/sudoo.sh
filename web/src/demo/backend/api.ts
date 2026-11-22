@@ -13,6 +13,7 @@ import { applied, cleanLimits, markPending, resourcesOf, setOwn } from "./resour
 import * as mail from "./mail";
 import * as caught from "./caught-mail";
 import * as offsite from "./offsite";
+import { branchBuilds, branchHistory, findEntry, recordStageChange } from "./builds";
 import { branchList, membersOf, productionInstance, projectResource, projects, stageOf, type DemoProject } from "./projects";
 import { described, levelIn, LEVELS, mayUnlock, needIn, openAccess, permissionsIn, seesProject, setLocks, teamResource, teams, type DemoAccess } from "./access";
 import { acceptLicence, LICENCE, licencePending, licenceStatus } from "./licence";
@@ -358,7 +359,10 @@ route("GET", "/instances/:name", ({ params }) => {
   needOn(params.name!, "instances.view");
   const instance = instanceOf(params.name!);
   const project = instance.project ? projects.get(instance.project.id) : undefined;
-  return ok(full(instance), { permissions: (project ? permissionsIn(project.access, instance.git.branch) : roleInfo(session.role).permissions).slice().sort() });
+  const permissions = (project ? permissionsIn(project.access, instance.git.branch) : roleInfo(session.role).permissions).slice().sort();
+  const named = permissions.includes("instances.shell") || permissions.includes("instances.credentials");
+  const containers = { odoo: `odoo-${instance.name}-odoo-1`, db: `odoo-${instance.name}-db-1`, db_user: "odoo", host: "odoo.example.com" };
+  return ok({ ...full(instance), ...(named ? { containers } : {}) }, { permissions });
 });
 route("GET", "/instances/:name/credentials", ({ params }) => {
   needOn(params.name!, "instances.credentials", `/api/v1/instances/${params.name}/credentials`);
@@ -2077,6 +2081,7 @@ route("PUT", "/projects/:id/branches/:*branch/stage", ({ params, body }) => {
     }
   }
   project.stages[branch] = stage;
+  if (before !== stage) recordStageChange(project.id, branch, before, stage, ME);
   record(ME, "branch stage changed", { detail: `${project.id} ${branch}: ${before} -> ${stage}` });
   publishProject(project);
   return ok(branchList(project).find((b) => b.name === branch));
@@ -2140,6 +2145,36 @@ route("POST", "/projects/:id/branches/:*branch/rebuild", ({ params, body }) => {
   return accepted(job);
 });
 
+
+// ---------------------------------------------------------------- build history (projects/builds.py)
+
+route("GET", "/projects/:id/builds", ({ params, query }) => {
+  need("instances.view");
+  const project = projectOf(params.id!);
+  const perBranch = Math.min(200, Math.max(1, Number(query.get("per_branch") ?? 10) || 10));
+  const listed = branchList(project).map((b) => ({ branch: b.name, stage: b.stage, builds: branchBuilds(project.id, b.name, b.instances).slice(0, perBranch) }));
+  return ok(listed, { per_branch: perBranch, kept_per_branch: Number(setting("project_builds_kept") ?? 200) });
+});
+
+route("GET", "/projects/:id/builds/:build", ({ params }) => {
+  need("instances.view");
+  const project = projectOf(params.id!);
+  const found = findEntry(project.id, params.build!, branchList(project).map((b) => ({ name: b.name, instances: b.instances })));
+  if (!found) throw new Problem(404, "This build does not exist.");
+  return ok(found);
+});
+
+route("GET", "/projects/:id/branches/:*branch/history", ({ params, query }) => {
+  const project = projectOf(params.id!);
+  const name = params.branch!.replace(/\/history$/, "");
+  needInProject(project, "instances.view", name);
+  const branch = branchList(project).find((b) => b.name === name);
+  if (!branch) throw new Problem(404, `${project.repository} has no branch ${name}.`);
+  const limit = Math.min(200, Math.max(1, Number(query.get("limit") ?? 50) || 50));
+  const offset = Math.max(0, Number(query.get("offset") ?? 0) || 0);
+  const entries = branchHistory(project.id, branch.name, branch.instances);
+  return ok(entries.slice(offset, offset + limit), { total: entries.length, limit, offset });
+});
 
 // ---------------------------------------------------------------- teams, access and locks (projects/access.py)
 

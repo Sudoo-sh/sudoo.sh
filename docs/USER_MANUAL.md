@@ -176,10 +176,32 @@ list by name. On a phone the list folds into a button at the top that names the 
 
 Choose a branch and it opens on the right, at `/projects/<project>/branches/<branch>`: its name (with a button that
 copies it), its stage and tags (**default** for the repository's default branch, **deleted on GitHub** when it is
-gone), two commands to copy (**Clone** the branch with its submodules, and a **Merge** example), and then its
-instance's tabs (Overview, Activity, Code, Logs, Backups and the others, as on the instance's own page). A branch with
-several instances has a list to choose the instance; a branch without one shows its latest commit and **Create
-instance**. The page opens on the production branch, else the first branch.
+gone), the branch's commands, and then its **History** followed by its instance's tabs (Overview, Activity, Code,
+Logs, Backups and the others, as on the instance's own page). A branch with several instances has a list to choose the
+instance; a branch without one shows its latest commit, **Create instance** and its history. The page opens on the
+production branch, else the first branch.
+
+**Commands.** At the top right of the branch, one tab per task and the command for this branch under it, with a
+button that copies it (**Example:** marks a command to adapt). **Clone** downloads the branch with its submodules.
+**Fork** makes a new branch from this one: type its name and the command follows. **Merge** merges another branch
+into this one (production by default, staging for a production branch; choose another in the list). **SSH** opens a
+shell in the instance's Odoo container through SSH to the server, and **SQL** opens its database in psql (both need
+the right to open a shell or to see the instance's credentials; **Open the web shell** goes to its **Shell** tab).
+**Submodule** shows how to add a repository of modules, with **Add submodule** for those who may update the
+instance. **Delete** shows how to delete the branch on GitHub and has **Delete instance** for those who may delete
+it. The tab you chose stays chosen while the browser tab is open.
+
+**History** (the branch's first tab) lists, newest first and grouped by day, every build of the branch, as on Odoo.sh:
+one card per commit an instance was built from, with the author, when, what started it (a new instance, a push,
+**Get latest code**, a rebuild from production) and how long it took, the commit's subject and short hash (press it to
+copy the whole hash; the arrow opens the commit on GitHub), and its status: **Test: Success**, **Warning** (Odoo's log
+had warnings or errors while loading the modules; **Show the messages** lists them), **Failed** (with the reason) or
+**Building**. Each instance has one live build, its newest successful one, with **Connect** (its arrow offers
+**Open** and **Credentials**); older builds are marked **Dropped**. For staging and development, the live build says
+when the instance will be deleted. Stage changes (**Stage change: Development › Staging**, with what the new stage
+does) and restores appear in the same timeline. **View log** opens the build's job; the panel keeps the last 300 jobs,
+so an older one says **Log no longer kept**. **Show older** reads further back; the panel keeps the last builds of each
+branch (**Builds kept per branch**, 200 by default, in **Settings**, **Instances**, **Projects**).
 
 **Changing a stage by dragging.** Drag a branch from one group onto another (with a mouse, or a long press on a touch
 screen). The groups it can go to are outlined while you drag, the one under it is filled. Dropping it asks for the
@@ -209,6 +231,13 @@ branch seen only by its own grants.
 
 For those who manage backups, the branch's menu shows how many backups its instance has (**3 backups**); the link
 opens the instance's **Backups** tab.
+
+**Builds** (the project's tab) shows every branch at once, under **Production**, **Staging** and **Development**: the
+branch's name and status dot, **GitHub** (the branch on GitHub) and, for a staging branch you may rebuild,
+**Rebuild**, then its last four builds side by side (scroll sideways for more): the commit's subject, its author, its
+age and duration, a coloured band for its status (green success, amber warning, red failed, grey dropped, moving
+stripes while building), and **Connect** on the live build. Press a build to open the branch's history. **Filter
+branches** narrows the rows by name.
 
 **Backups** (administrators and super admins: those who manage backups) lists the backups of all the project's
 branches, one card per branch with its stage, the newest backups first. Each backup has **Download**, **Restore**

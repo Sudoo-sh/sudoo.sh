@@ -290,3 +290,12 @@ def test_a_shorter_lifetime_needs_the_delete_permission(app: Any, admin: Client)
     assert client.patch(url, json={"delete_after_days": 90}, headers=headers).status_code == 200  # longer
     assert client.patch(url, json={"delete_after_days": 0}, headers=headers).status_code == 200  # keep
     assert store.read_env(CODED)["DELETE_AFTER_DAYS"] == "0"
+
+
+def test_instance_names_its_containers_for_shell_commands(admin: Client) -> None:
+    """GET /instances/<name> names the containers and the database user (for SSH and psql), never a password."""
+    client, headers = admin
+    data = client.get(f"/api/v1/instances/{CODED}", headers=headers).get_json()["data"]
+    names = data["containers"]
+    assert names["odoo"] == f"odoo-{CODED}-odoo-1" and names["db"] == f"odoo-{CODED}-db-1"
+    assert names["db_user"] == "odoo" and "password" not in str(names).lower()

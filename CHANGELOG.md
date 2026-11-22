@@ -15,6 +15,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   restores. Read it with `GET /api/v1/projects/<id>/builds`, `GET /api/v1/projects/<id>/branches/<branch>/history`
   and `GET /api/v1/projects/<id>/builds/<build_id>`; the `build` live event carries every change.
   `PROJECT_BUILDS_KEPT` (200) sets how many builds each branch keeps.
+- **History and Builds in the web app:** a branch opens on its **History**, a timeline of its builds grouped by day
+  (author, commit with a hash to copy and a link to GitHub, status, **Connect** on the live build, the reason and
+  Odoo's messages for a failed or warned build, **View log**), stage changes and restores, with **Show older**. A
+  project's new **Builds** tab shows the last four builds of every branch side by side, by stage, with **GitHub**,
+  **Rebuild** and **Connect**. **Builds kept per branch** is in **Settings**. The demo shows both.
+- **Branch commands, as on Odoo.sh:** the branch pane's toolbar has Clone, Fork, Merge, SSH, SQL, Submodule and
+  Delete, each with its command for the branch (and **Open the web shell**, **Add submodule**, **Delete instance**
+  where you may). `GET /api/v1/instances/<name>` names the instance's containers and database user (`containers`) for
+  those who may open a shell or see its credentials; never a password.
 
 ### Changed
 

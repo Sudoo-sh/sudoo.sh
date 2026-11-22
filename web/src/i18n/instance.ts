@@ -363,6 +363,8 @@ const en = {
     technicalLog: "Technical log",
     activity: "Activity",
     waiting: "Waiting to start…",
+    gone: "Log no longer kept",
+    goneText: "The panel keeps the log of its last 300 jobs; this one has been removed.",
     meta: (instance: string, by: string, started: string) => `${ltr(instance)} · by ${by} · started ${started}`,
   },
   backupKinds: {
@@ -750,6 +752,8 @@ const ar: typeof en = {
     technicalLog: "السجل التقني",
     activity: "النشاط",
     waiting: "في انتظار البدء…",
+    gone: "لم يعد السجل محفوظًا",
+    goneText: "تحتفظ اللوحة بسجلات آخر 300 مهمة؛ وقد أُزيل سجل هذه المهمة.",
     meta: (instance, by, started) => `${ltr(instance)} · بواسطة ${by} · بدأت ${started}`,
   },
   backupKinds: {

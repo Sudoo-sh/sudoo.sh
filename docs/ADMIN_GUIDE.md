@@ -260,7 +260,7 @@ It keeps a copy of itself as `/opt/odoo/manager/installer/sudoo-install.sh`, on 
 
 | Option | Meaning |
 | :--- | :--- |
-| `--version 3.1.1` | Install that release instead of the latest. `edge` follows `main` ([section 4](#following-main-edge)). |
+| `--version 3.2.0` | Install that release instead of the latest. `edge` follows `main` ([section 4](#following-main-edge)). |
 | `--yes`, `--allow-all` | Answer yes to every question (for scripts). |
 | `--accept-licence` | Accept the licence agreement without the prompt (for scripts). `--yes` does not accept it. |
 | `--dry-run` | Show what would be done; change nothing. |

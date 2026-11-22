@@ -5,15 +5,17 @@
 import { RESOURCE_KNOBS, type Instance, type InstanceResources, type ResourceKnob, type ResourceLimits, type Stage } from "@/api/types";
 import { instances, setting } from "./state";
 import { Problem } from "./util";
+import { storageOf } from "./project-resources";
 
 const GIB = 1024 ** 3;
 const CORES = 8;
 const MEMORY_TOTAL = 32 * GIB;
 const USABLE = MEMORY_TOTAL - (1024 * 1024 ** 2 + MEMORY_TOTAL * 0.1) - 290 * 1024 ** 2;
 const RANK: Record<Stage, 1 | 2 | 3> = { production: 1, staging: 2, development: 3 };
-const ODOO_DEFAULTS = { odoo_cron_threads: 2, odoo_limit_memory_soft_mb: 2048, odoo_limit_memory_hard_mb: 2560, odoo_limit_time_cpu: 60, odoo_limit_time_real: 120 };
+const ODOO_DEFAULTS = { odoo_cron_threads: 2, odoo_limit_memory_soft_mb: 2048, odoo_limit_memory_hard_mb: 2560, odoo_limit_time_cpu: 60, odoo_limit_time_real: 120, odoo_limit_time_real_cron: 120, db_max_connections: 100 };
 const INTEGER: Partial<Record<ResourceKnob, number>> = {
   odoo_workers: 256, odoo_cron_threads: 64, odoo_limit_memory_soft_mb: 1048576, odoo_limit_memory_hard_mb: 1048576, odoo_limit_time_cpu: 86400, odoo_limit_time_real: 86400,
+  odoo_limit_time_real_cron: 86400, db_max_connections: 10000,
 };
 
 const own = new Map<string, Partial<ResourceLimits>>();
@@ -82,6 +84,7 @@ export function resourcesOf(instance: Instance): InstanceResources {
     odoo_defaults: ODOO_DEFAULTS,
     unlimited: !memoryBytes(limits.odoo_memory_limit) && !memoryBytes(limits.db_memory_limit) && !Number(limits.odoo_cpu_limit) && !Number(limits.db_cpu_limit),
     pending: pending.has(instance.name),
+    storage: storageOf(instance),
     warnings,
     server: { cores: CORES, memory_bytes: MEMORY_TOTAL, usable_bytes: USABLE, reserved_bytes: reserved },
   };

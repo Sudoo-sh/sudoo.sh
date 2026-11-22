@@ -488,11 +488,14 @@ async def _to_instance(request: web.Request, name: str, edge: Edge) -> web.Strea
             if route.websocket_port:  # Odoo with workers serves WebSockets on its gevent port only
                 odoo_url = f"http://127.0.0.1:{route.websocket_port}"
             return await _forward_websocket(request, odoo_url, edge)
+        if route.websocket_port and request.path.startswith(LONGPOLLING_PATH):  # Odoo 15 and earlier, with workers
+            odoo_url = f"http://127.0.0.1:{route.websocket_port}"
         return await _forward_http(request, odoo_url, name, edge)
     except _OdooDown:
         return await HOST.not_ready(request, name)
 
 
+LONGPOLLING_PATH = "/longpolling/"  # the bus of Odoo 15 and earlier: served by the gevent server too, with workers
 CONNECT_PATH = "/__sudoo/connect"  # connect_as.PATH: a Connect as link, answered here, never passed to Odoo
 _CONNECT_PAGE = (
     "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'><title>Connect as</title>"

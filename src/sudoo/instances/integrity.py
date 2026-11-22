@@ -526,6 +526,8 @@ def compare(name: str, service: str, spec: dict[str, Any], kept: dict[str, Any],
     differs("memory reservation", host.get("MemoryReservation") or 0, _memory(want.get("mem_reservation")))
     differs("out-of-memory score", host.get("OomScoreAdj") or 0, int(want.get("oom_score_adj", 0)))
     differs("restart policy", (host.get("RestartPolicy") or {}).get("Name"), want["restart"])
+    if "command" in want:
+        differs("command", config.get("Cmd"), want["command"])
     differs("init process", bool(host.get("Init")), True)
     differs("devices", host.get("Devices") or [], [])
     for mode in ("PidMode", "UsernsMode", "UTSMode"):

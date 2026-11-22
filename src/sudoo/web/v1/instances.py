@@ -841,6 +841,12 @@ def change_resources(name: str) -> Response:
             f"{name} is a production instance: applying resources restarts it. Confirm "
             '("confirm_production": true).',
         )
+    stage = resources.stage_of(name)
+    after = resources.resolve(resources.layers(name, stage) | {"instance": limits})
+    refused = resources.plan({name: (stage, after)})["refusal"] if after != resources.effective(name, stage) else None
+    if refused:
+        log("instance resources refused", instance=name, ok=False, detail=refused)
+        abort(409, refused)
     previous = resources.overrides(name)
     resources.save_overrides(name, limits, g.user["name"])
     job = jobs.start(

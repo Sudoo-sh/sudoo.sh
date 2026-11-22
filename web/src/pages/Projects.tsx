@@ -27,6 +27,7 @@ import { AccessTab } from "@/components/ProjectAccess";
 import { InstanceCard } from "@/components/InstanceCard";
 import { ProjectBackups } from "@/components/ProjectBackups";
 import { ProjectBuildDefaults } from "@/components/BuildOptions";
+import { ProjectResources } from "@/components/ProjectResources";
 import { ProjectBuilds } from "@/components/ProjectBuilds";
 import { ProjectWorkspace } from "@/components/ProjectWorkspace";
 import { Page, PageHead, useCan, useSubCrumb } from "@/components/Shell";
@@ -263,6 +264,7 @@ function SettingsTab({ project, meta }: { project: ProjectDetail; meta: ProjectM
         </div>
       </section>
       <ProjectBuildDefaults project={project} meta={meta} editable={editable} />
+      <ProjectResources project={project} meta={meta} />
       <section className="card">
         <div className="card-head"><h2>{s.lifetimes}</h2></div>
         <div className="card-body stack">

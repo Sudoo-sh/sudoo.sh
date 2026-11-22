@@ -1120,7 +1120,7 @@ What the app may do, and nothing more:
 
 | | |
 | :--- | :--- |
-| Repository permissions | **Contents: read**, **Metadata: read** (no write, no issues, no pull requests); **Administration: write** only when you allow it, to create empty repositories for new projects ([below](#creating-repositories-for-new-projects)) |
+| Repository permissions | **Contents: read**, **Metadata: read** (no write to code, no issues, no pull requests); **Commit statuses: write**, to show each build's result next to its commit ([Commit statuses](#commit-statuses)); **Administration: write** only when you allow it, to create empty repositories for new projects ([below](#creating-repositories-for-new-projects)) |
 | Events | **Push**, **Create**, **Delete** (branches), plus the installation events GitHub always sends |
 | Visibility | Private: only the account that owns it can install it |
 | Webhook | `<panel address>/hooks/github-app`, signed with a secret GitHub creates |
@@ -1136,8 +1136,9 @@ read your personal repositories. The panel connects one app, so choose its owner
 | A company organisation (the usual case) | The organisation (**An organisation** in step 2 below). An owner of the organisation on GitHub has to do it | Personal or other repositories: deploy keys ([User manual](USER_MANUAL.md#8-github-access-private-repositories)), one per repository |
 | Your personal account only | Your account (**My personal account**) | Company repositories: deploy keys, or reconnect the app under the organisation |
 
-The app stays private and read-only either way. Connecting a second app at the same time is not supported: each app
-has its own private key, webhook secret and webhook, and one app per panel keeps that simple and safe.
+The app stays private and never writes code either way. Connecting a second app at the same time is not
+supported: each app has its own private key, webhook secret and webhook, and one app per panel keeps that simple and
+safe.
 
 An app already connected under the wrong account (for example created on a personal account when the repositories
 are the company's): click **Disconnect**, delete the old app on GitHub (the links the panel shows), then **Connect
@@ -1201,6 +1202,9 @@ Without a connected app, the message advises a deploy key instead.
   `github-app` on the Settings page (Plugins) and restart the panel.
 * Every two minutes the panel compares its public address with the app's webhook address and, when the default
   public-link extension gave the panel a new address, updates the webhook on GitHub (an audit-log entry says so).
+
+* When a build of a project's branch starts and ends, the panel sets the commit's status on GitHub with a separate
+  token that may only write statuses ([Commit statuses](#commit-statuses)).
 
 A repository that still has a deploy key keeps using it. Delete the key to switch that repository to the app.
 
@@ -1957,7 +1961,7 @@ The rules of [Instance stages](#instance-stages) apply to every instance; projec
 | | Development | Staging | Production |
 | :--- | :--- | :--- | :--- |
 | New instance of the branch | a fresh database (with demo data when `PROJECT_DEVELOPMENT_DEMO_DATA`) | a neutralised copy of the project's production instance | a fresh database, without demo data |
-| A push to the branch | new code (`AUTO_UPDATE`) | with `PROJECT_STAGING_ON_PUSH=rebuild`: a new neutralised copy of production, then the new code; `keep_data`: new code only | new code only when asked, or with its automatic updates switched on; always backup + automatic rollback |
+| A push to the branch | by the branch's **Behaviour upon new commits** ([Build options and tests](#build-options-and-tests)): new code (`AUTO_UPDATE`) by default | with `PROJECT_STAGING_ON_PUSH=rebuild`: a new neutralised copy of production, then the new code; `keep_data`: new code only (a branch can choose its own behaviour) | new code only when asked, or with its automatic updates switched on; always backup + automatic rollback |
 | The branch deleted on GitHub | `PROJECT_BRANCH_DELETED` (keep, archive, delete) | archived at most | marked only |
 | How many per project | any | any | `PROJECT_PRODUCTION_BRANCHES` (1) |
 
@@ -2031,6 +2035,60 @@ Each branch keeps its last `PROJECT_BUILDS_KEPT` builds (200 by default; **Setti
 kept in the panel's storage (collection `build_history`) and removed with its project. Reading it needs what
 reading the project needs; branches hidden from someone keep their history from them too
 ([API](PANEL_API.md#projects): `GET /projects/<id>/builds`, `GET /projects/<id>/branches/<branch>/history`).
+
+### Build options and tests
+
+Each project has **build options**, as Odoo.sh's "New build options", and each branch can change them for itself
+(project **Settings**; a branch's **Build options**; [API](PANEL_API.md#projects):
+`GET/PUT /projects/<id>/branches/<branch>/options`). A branch's value wins over the project's, and the project's over
+the panel's settings ([Configuration](CONFIGURATION.md#projects)):
+
+| Option | Choices | Default |
+| :--- | :--- | :--- |
+| Behaviour upon new commits (`on_new_commit`) | `update`: the new code in the same database, the changed modules upgraded; `new_build`: development builds a new database from scratch (the old one and its files are replaced), staging is rebuilt from a new neutralised copy of production; `nothing`: the commit is only recorded in the branch's history | development: `PROJECT_DEVELOPMENT_ON_NEW_COMMIT` (`update`); staging: `PROJECT_STAGING_ON_PUSH` (`rebuild` is `new_build`) |
+| Module installation (`module_install`) | `repository`: every module of the repository; `all`: every module Odoo has, with the repository's (localisations, `test_*` and `hw_*` modules are left out; tests are off); `list`: only `modules` | `PROJECT_MODULE_INSTALL` (`repository`) |
+| Test suite (`test_suite`) | `off`; `selection`: the tests of the repository's installed modules; `custom`: `test_tags` in Odoo's `--test-tags` syntax | `PROJECT_TEST_SUITE` (`off`) |
+| Demo data (`demo_data`) | new development databases get Odoo's demo data | `PROJECT_DEVELOPMENT_DEMO_DATA` |
+
+Module installation and demo data apply to new development databases (a new instance, or a `new_build`). Production
+is never built by these options: its new code always comes through the safe update with a backup and automatic
+rollback, and its tests never run on its database.
+
+**How the tests run.** When a build creates or updates an instance of a development branch whose test suite is not
+`off`, the panel stops Odoo and runs, in a one-off container of the instance's own image,
+`odoo -d <database> --test-enable --stop-after-init --no-http -u <the repository's installed modules>` with
+`--test-tags=/<module>,...` (`selection`) or `--test-tags=<test_tags>` (`custom`); Odoo 15 and earlier run the tests
+of the upgraded modules instead (no `--test-tags`). Only then is the instance started. Staging runs them too when the
+project's **Tests on staging** (`PROJECT_STAGING_TESTS`) is on or the branch sets its own test suite, on a
+**throw-away copy** of the staging database and its files (a PostgreSQL template copy, removed afterwards), so the
+tests never touch the data testers work with. Tests that take longer than `PROJECT_TEST_TIMEOUT_MINUTES` (30) are
+stopped.
+
+**The result.** The panel reads Odoo's log of the run: the "N failed, N error(s) of M tests" summary, the failing
+tests (`ERROR` lines of `odoo.addons.<module>.tests`), `ERROR` lines of `odoo.modules.loading` and `unittest`, and
+warnings. The build is then **failed** with "At least one test failed when loading the modules (module_x)" and the
+first ten error lines, **warning** when the tests passed with warnings in the log, or **success** with the number of
+tests that passed. A failed test does not stop the instance: it starts with the new code, and the build shows that it
+failed, as on Odoo.sh.
+
+### Commit statuses
+
+The result of each build is shown on GitHub next to its commit (pull requests show it in their checks), when the
+GitHub App may write statuses and the project's **Commit statuses** (`PROJECT_COMMIT_STATUSES`) is on:
+
+* `pending` ("Building") when the build starts, `success` when it ends with success or warning, `failure` when a test
+  failed, `error` when the build failed otherwise;
+* the context is `sudoo/<stage>` (`sudoo/development`, `sudoo/staging`, `sudoo/production`), and **Details** opens
+  the branch's history in the panel (`<panel address>/projects/<id>/branches/<branch>`);
+* GitHub is told in the background: a slow or refusing GitHub never holds or fails a build (the panel's log says
+  when a status could not be set).
+
+**The permission.** Apps connected from this version on ask for **Commit statuses: Read and write**. For an app
+connected earlier: on GitHub open the app's settings, **Permissions and events**, **Repository permissions**, set
+**Commit statuses** to **Read and write** and save; then an owner of each account it is installed on accepts the new
+permission on the installation's page (GitHub sends them an e-mail). The panel sees the accepted permission at its
+next look at the installations (within a minute of opening GitHub access, or **Refresh**). Until then no status is
+set, and the project's branch options say so (`commit_statuses.available`).
 
 ### Many branches at once
 

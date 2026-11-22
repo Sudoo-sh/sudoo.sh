@@ -1,0 +1,10 @@
+2026-11-22 09:00:01,101 1 INFO acme odoo.modules.loading: loading 40 modules...
+2026-11-22 09:00:02,500 1 INFO acme odoo.modules.module: odoo.addons.sale_custom.tests.test_order running
+2026-11-22 09:00:02,620 1 ERROR acme odoo.addons.sale_custom.tests.test_order: FAIL: test_total (odoo.addons.sale_custom.tests.test_order.TestOrder)
+Traceback (most recent call last):
+  File "/mnt/extra-addons/sale_custom/tests/test_order.py", line 21, in test_total
+    self.assertEqual(order.amount_total, 115.0)
+AssertionError: 100.0 != 115.0
+2026-11-22 09:00:02,700 1 INFO acme odoo.modules.module: Ran 6 tests in 0.200s
+2026-11-22 09:00:02,701 1 ERROR acme odoo.modules.module: FAILED (failures=1)
+2026-11-22 09:00:03,100 1 ERROR acme odoo.modules.loading: At least one test failed when loading the modules.

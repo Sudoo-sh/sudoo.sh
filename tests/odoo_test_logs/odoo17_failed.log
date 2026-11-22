@@ -1,0 +1,27 @@
+2026-11-22 10:00:00,912 1 INFO ? odoo: Odoo version 17.0-20261115
+2026-11-22 10:00:00,913 1 INFO ? odoo: Using configuration file at /etc/odoo/odoo.conf
+2026-11-22 10:00:00,913 1 INFO ? odoo: addons paths: ['/usr/lib/python3/dist-packages/odoo/addons', '/var/lib/odoo/addons/17.0', '/mnt/extra-addons']
+2026-11-22 10:00:01,101 1 INFO acme odoo.modules.loading: loading 1 modules...
+2026-11-22 10:00:01,120 1 INFO acme odoo.modules.loading: 1 modules loaded in 0.01s, 0 queries (+0 extra)
+2026-11-22 10:00:01,402 1 INFO acme odoo.modules.loading: updating modules list
+2026-11-22 10:00:02,300 1 INFO acme odoo.modules.loading: loading 45 modules...
+2026-11-22 10:00:02,301 1 INFO acme odoo.modules.loading: Loading module sale_custom (45/45)
+2026-11-22 10:00:03,206 1 INFO acme odoo.modules.registry: module sale_custom: creating or updating database tables
+2026-11-22 10:00:03,512 1 INFO acme odoo.modules.module: odoo.addons.sale_custom.tests.test_order running
+2026-11-22 10:00:03,601 1 INFO acme odoo.addons.sale_custom.tests.test_order: Starting TestOrder.test_lines ...
+2026-11-22 10:00:03,622 1 INFO acme odoo.addons.sale_custom.tests.test_order: Starting TestOrder.test_total ...
+2026-11-22 10:00:03,644 1 ERROR acme odoo.addons.sale_custom.tests.test_order: FAIL: TestOrder.test_total
+Traceback (most recent call last):
+  File "/mnt/extra-addons/sale_custom/tests/test_order.py", line 21, in test_total
+    self.assertEqual(order.amount_total, 115.0)
+AssertionError: 100.0 != 115.0
+
+2026-11-22 10:00:04,002 1 INFO acme odoo.modules.loading: 45 modules loaded in 1.70s, 2104 queries (+2104 other)
+2026-11-22 10:00:04,100 1 ERROR acme odoo.modules.loading: At least one test failed when loading the modules.
+2026-11-22 10:00:04,321 1 INFO acme odoo.modules.loading: Modules loaded.
+2026-11-22 10:00:04,330 1 INFO acme odoo.service.server: Starting post tests
+2026-11-22 10:00:04,702 1 INFO acme odoo.service.server: 2 post-tests in 0.37s, 120 queries
+2026-11-22 10:00:04,703 1 INFO acme odoo.tests.stats: sale_custom: 14 tests 0.42s 310 queries
+2026-11-22 10:00:04,705 1 ERROR acme odoo.tests.result: 1 failed, 0 error(s) of 14 tests when loading database 'acme'
+2026-11-22 10:00:04,706 1 INFO acme odoo.service.server: Initiating shutdown
+2026-11-22 10:00:04,706 1 INFO acme odoo.service.server: Hit CTRL-C again or send a second signal to force the shutdown.

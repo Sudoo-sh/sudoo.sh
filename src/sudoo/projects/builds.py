@@ -6,17 +6,21 @@ updated by someone (Get latest code, Update submodules: "manual"), or rebuilt fr
 starts as "building" when its job starts and ends as
 
     success     the job succeeded
-    warning     the job succeeded, but Odoo's log of the job has WARNING or ERROR lines (module loading), or the job
-                left a warning note (some modules could not be upgraded)
-    failed      the job failed (an update put back keeps the instance on its previous build)
+    warning     the job succeeded, but Odoo's log of the job has WARNING or ERROR lines (module loading), the job
+                left a warning note (some modules could not be upgraded), or the tests passed with warnings
+    failed      the job failed (an update put back keeps the instance on its previous build), or the build's tests
+                failed ("At least one test failed when loading the modules (module_x)"; projects/testing.py)
     dropped     the instance moved on: a newer build of it succeeded, it follows another branch now, or it was deleted
                 (only the latest build of an instance is live, as on Odoo.sh)
 
 An update that found nothing new on GitHub is no build: its record is removed when its job ends.
 
 Next to the builds, a branch's timeline has **stage** entries (who moved the branch from which stage to which, with
-what the new stage does) and **restore** entries (a backup restored into one of its instances, or a restore rolled
-back).
+what the new stage does), **restore** entries (a backup restored into one of its instances, or a restore rolled
+back) and **commit** entries (a commit pushed to a branch that builds nothing on new commits,
+projects/build_options.py).
+
+When a build starts and ends, its commit's status on GitHub follows (projects/commit_status.py).
 
 Storage: collection "build_history", one document per project and branch (key "<project id>:<branch>"):
 {"project", "branch", "entries": [oldest first]}. Each branch keeps its last PROJECT_BUILDS_KEPT builds (and the
@@ -65,6 +69,7 @@ _ODOO_LINE = re.compile(r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d+ \d+ (WARNING|ERROR
 
 _lock = threading.Lock()
 _started: dict[str, dict[str, Any]] = {}  # job id -> what the job started with (project, branch, build, code)
+_pending: dict[str, list[str]] = {}  # job id -> commits marked "pending" on GitHub (projects/commit_status.py)
 
 
 # ---------------------------------------------------------------- the documents
@@ -193,6 +198,32 @@ def stage_changed(project_id: str, branch: str, before: str, after: str, user: s
     )
 
 
+NOT_BUILT = "New commit; this branch builds nothing on new commits (its Behaviour upon new commits)."
+
+
+def commit_recorded(project_id: str, branch: str, instance: str, sha: str) -> bool:
+    """Record a commit pushed to a branch that builds nothing on new commits (build_options on_new_commit
+    "nothing"): a "commit" entry, once per commit. True when it was recorded now."""
+    if not project_id or not branch or not sha:
+        return False
+    entries = history(project_id, branch)
+    if any(e["type"] in ("commit", "build") and (e.get("commit") or {}).get("full_sha") == sha for e in entries[:20]):
+        return False
+    _add(
+        {
+            "type": "commit",
+            "project": project_id,
+            "branch": branch,
+            "instance": instance,
+            "by": "system",
+            "commit": {"sha": sha[:7], "full_sha": sha, "subject": "", "author": "", "when": ""},
+            "status": "skipped",
+            "result": NOT_BUILT,
+        }
+    )
+    return True
+
+
 # ---------------------------------------------------------------- builds from jobs
 
 
@@ -244,8 +275,38 @@ def job_started(job: Job) -> None:
             }
         )
         found |= {"build": entry["id"], "code": _code(job.instance)}
+        _report_start(job, project_id, branch, str(trigger), (found["code"] or {}).get("."))
     with _lock:
         _started[job.id] = found
+
+
+def _report_start(job: Job, project_id: str, branch: str, trigger: str, before: str | None) -> None:
+    """ "pending" on GitHub for the commit the build is about to build (projects/commit_status.py): the branch's head
+    on GitHub, unless an update would find nothing new there (the instance has that commit already)."""
+    from sudoo.projects import branches as project_branches
+    from sudoo.projects import commit_status
+
+    def sha_of() -> str | None:
+        project = projects.get(project_id)
+        if project is None:
+            return None
+        heads, _, error = project_branches.heads(project, refresh=True)
+        sha = None if error else heads.get(branch)
+        if not sha or (trigger in ("push", "manual") and sha == before):
+            return None
+        with _lock:
+            _pending.setdefault(job.id, []).append(sha)
+        return sha
+
+    commit_status.started(project_id, branch, _stage(project_id, branch, job.instance), sha_of)
+
+
+def _stage(project_id: str, branch: str, instance: str) -> str:
+    """The stage a build is reported under: its instance's, else its branch's."""
+    if store.exists(instance):
+        return stages.of(store.read_env(instance))
+    project = projects.get(project_id)
+    return projects.branch_stage(project, branch) if project else stages.DEVELOPMENT
 
 
 def odoo_messages(log: str) -> tuple[int, int, list[str]]:
@@ -277,18 +338,32 @@ DONE = {
 }
 
 
+AT_LEAST_ONE = "At least one test failed when loading the modules."
+
+
 def outcome(job: Job, trigger: str) -> tuple[str, str, list[str]]:
-    """(status, result, messages) of a finished build job."""
+    """(status, result, messages) of a finished build job. The build's tests (projects/testing.py,
+    job.details["tests"]) come first; Odoo's log outside the tests says whether it built with warnings."""
     if job.status == "failed":
         return "failed", (job.hint or "The build failed; the job's log says why.")[:500], []
-    warnings, errors, lines = odoo_messages("".join(job.log))
-    noted = [n["text"] for n in job.notes if n.get("level") == "warning"]
+    tests = job.details.get("tests") or {}
+    if tests.get("status") == "failed":
+        return "failed", str(tests.get("result") or AT_LEAST_ONE)[:500], list(tests.get("messages") or [])
+    log = job.log
+    span = job.details.get("tests_log")
+    if span:  # the tests' own warnings and errors are the tests' result, not the build's
+        log = [*job.log[: span[0]], *job.log[span[1] :]]
+    warnings, errors, lines = odoo_messages("".join(log))
+    noted = [n["text"] for n in job.notes if n.get("level") == "warning" and n["text"] != tests.get("result")]
     if warnings or errors:
         parts = [_plural(n, w) for n, w in ((warnings, "warning"), (errors, "error")) if n]
         return "warning", f"{' and '.join(parts)} in Odoo's log while loading the modules", lines
     if noted:
         return "warning", noted[0][:500], []
-    return "success", DONE.get(trigger, "Built"), []
+    if tests.get("status") == "warning":
+        return "warning", str(tests.get("result"))[:500], list(tests.get("messages") or [])
+    done = DONE.get(trigger, "Built")
+    return "success", f"{done}. {tests['result']}" if tests.get("result") else done, []
 
 
 def job_ended(job: Job) -> None:
@@ -327,6 +402,13 @@ def _finish(job: Job, project_id: str, branch: str, build_id: str, code_before: 
     code_after = _code(job.instance)
     if job.status == "success" and job.kind == "update" and code_before is not None and code_after == code_before:
         _remove(project_id, branch, build_id)  # nothing new on GitHub: no build
+        with _lock:
+            pending = _pending.pop(job.id, [])
+        if pending:  # never left "pending" on GitHub
+            from sudoo.projects import commit_status
+
+            stage = _stage(project_id, branch, job.instance)
+            commit_status.finished(project_id, branch, stage, "success", "Nothing new to build", pending)
         return
     commit = None
     if store.exists(job.instance):  # a failed update was put back: the commit it tried is the one fetched
@@ -344,6 +426,15 @@ def _finish(job: Job, project_id: str, branch: str, build_id: str, code_before: 
     )
     if status in LIVE:
         _drop(project_id, job.instance, keep=build_id, branch=None)
+    from sudoo.projects import commit_status
+
+    with _lock:
+        pending = _pending.pop(job.id, [])
+    shas = [sha for sha in [str((commit or {}).get("full_sha") or ""), *pending] if sha]
+    commit_status.finished(
+        project_id, branch, _stage(project_id, branch, job.instance), status, result, shas,
+        tests_failed=(job.details.get("tests") or {}).get("status") == "failed",
+    )  # fmt: skip
 
 
 def _drop(project_id: str, instance: str, keep: str | None, branch: str | None) -> None:

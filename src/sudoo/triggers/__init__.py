@@ -54,6 +54,8 @@ def request_update(name: str, reason: str) -> None:
         audit.record("system", None, "automatic update skipped (panel not linked)", name, detail=reason[:200])
         return
 
+    if automation.skips_update(name):  # its branch builds nothing on new commits: the commit is recorded
+        return
     special = automation.update_for(name)
     if special is not None:
         title, kind, fn, args = special

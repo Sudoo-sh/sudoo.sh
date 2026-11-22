@@ -24,6 +24,8 @@ import type {
   Recommendation,
   AuditEntry,
   Backup,
+  BranchBuildOptions,
+  BuildOptionsChange,
   BranchBuilds,
   HistoryEntry,
   Credentials,
@@ -70,6 +72,7 @@ export const keys = {
   projectAccess: (id: string) => ["project", id, "access"] as const,
   builds: (id: string, perBranch?: number) => ["project", id, "builds", perBranch ?? null] as const,
   build: (id: string, buildId: string) => ["project", id, "build", buildId] as const,
+  branchOptions: (id: string, branch: string) => ["project", id, "branch-options", branch] as const,
   branchHistory: (id: string, branch: string, limit?: number, offset?: number) =>
     ["project", id, "history", branch, limit ?? null, offset ?? null] as const,
   teams: ["teams"] as const,
@@ -173,6 +176,26 @@ export const useBranchHistory = (id: string, branch: string, limit = 50, offset 
     placeholderData: keepPreviousData,
     enabled: enabled && Boolean(id && branch),
   });
+
+/** A branch's path in the API: a branch name may contain "/", each part is encoded on its own. */
+const branchPath = (branch: string) => branch.split("/").map(encodeURIComponent).join("/");
+
+/** A branch's build options: what applies, where each comes from, what the branch sets itself. */
+export const useBranchOptions = (id: string, branch: string, enabled = true) =>
+  useQuery({
+    queryKey: keys.branchOptions(id, branch),
+    queryFn: () =>
+      api.get<BranchBuildOptions>(`/projects/${encodeURIComponent(id)}/branches/${branchPath(branch)}/options`),
+    enabled: enabled && Boolean(id && branch),
+  });
+
+/** Change a branch's own build options (null: follow the project again); the project and the options are read again. */
+export const useChangeBranchOptions = (id: string, branch: string) =>
+  useCall(
+    (change: BuildOptionsChange) =>
+      api.put<BranchBuildOptions>(`/projects/${encodeURIComponent(id)}/branches/${branchPath(branch)}/options`, change),
+    [keys.branchOptions(id, branch), keys.project(id)],
+  );
 
 export const useRepositoryOwners = (enabled: boolean) =>
   useQuery({

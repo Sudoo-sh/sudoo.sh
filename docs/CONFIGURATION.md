@@ -410,10 +410,11 @@ above exactly. A production instance is never paused or deleted automatically, i
 
 A project is one GitHub repository; each of its branches can run as an instance, in the branch's stage (see
 [Projects and branches](ADMIN_GUIDE.md#24-projects-and-branches)). The settings
-below apply to every project; all but `PROJECT_PRODUCTION_BRANCHES` are defaults that a project can change on its
-**Settings** tab (a project's own value wins; reset it to follow the panel again). The lifetimes of new development and
-staging instances of a project follow `DELETE_AFTER_DAYS` and `STAGING_DELETE_AFTER_DAYS` unless the project sets
-its own.
+below apply to every project; all but `PROJECT_PRODUCTION_BRANCHES`, `PROJECT_BUILDS_KEPT` and
+`PROJECT_TEST_TIMEOUT_MINUTES` are defaults that a project can change on its **Settings** tab (a project's own value
+wins; reset it to follow the panel again; the build options can also be changed per branch). The lifetimes of new
+development and staging instances of a project follow `DELETE_AFTER_DAYS` and `STAGING_DELETE_AFTER_DAYS` unless the
+project sets its own.
 
 | Setting | Type | Default | Applies | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
@@ -425,6 +426,14 @@ its own.
 | `PROJECT_BRANCH_DELETED` | text | `archive` | **live** | A branch deleted on GitHub: its development instance is kept (`keep`), backed up and switched off (`archive`), or deleted after a backup (`delete`). A staging instance is archived at most, a production instance only shows that its branch is gone. |
 | `PROJECT_BUILDS_KEPT` | int | `200` | **live** | Builds kept in the history of each branch of a project; the oldest are removed first, with the stage changes and restores older than the oldest build kept. 1 to 10000. See [Build history](ADMIN_GUIDE.md#build-history). |
 | `PROJECT_UPGRADE_TEST_ON_PUSH` | bool | `true` | **live** | A push to a project's upgrade branch (named after the next Odoo version, such as `19.0`) runs its database upgrade test again on the test instance: a fresh backup of the instance being upgraded, OpenUpgrade, neutralised. With Odoo's upgrade service (Enterprise) the push only gives the test instance the new code, because the subscription code is never kept. See [Database upgrades](ADMIN_GUIDE.md#25-database-upgrades). |
+| `PROJECT_DEVELOPMENT_ON_NEW_COMMIT` | text | `update` | **live** | A new commit on a development branch: `update` takes the new code into the same database and upgrades what changed; `new_build` builds a new database from scratch (the old one is replaced); `nothing` only records the commit in the branch's history. A staging branch follows `PROJECT_STAGING_ON_PUSH` (`rebuild` is `new_build`, `keep_data` is `update`) unless the branch sets its own. See [Build options and tests](ADMIN_GUIDE.md#build-options-and-tests). |
+| `PROJECT_MODULE_INSTALL` | text | `repository` | **live** | Modules a new development database gets: `repository` (every module of the repository), `all` (every module Odoo has, with the repository's; localisations, test and hardware modules are left out, and tests are off) or `list` (only `PROJECT_MODULES`). |
+| `PROJECT_MODULES` | text | *(empty)* | **live** | The modules installed when `PROJECT_MODULE_INSTALL` is `list`, comma-separated module names (at most 200). |
+| `PROJECT_TEST_SUITE` | text | `off` | **live** | Tests of a build, run before the instance is served: `off`, `selection` (the tests of the repository's installed modules) or `custom` (`PROJECT_TEST_TAGS`). A failed test marks the build failed; the instance still starts. |
+| `PROJECT_TEST_TAGS` | text | *(empty)* | **live** | The `--test-tags` of a `custom` test suite, in Odoo's syntax: comma-separated `[-][tag][/module][:class][.method]`, such as `/sale_custom,-slow`. Odoo 15 and earlier run the tests of the upgraded modules instead. |
+| `PROJECT_STAGING_TESTS` | bool | `false` | **live** | Staging builds run the project's tests too, on a throw-away copy of the staging database (removed afterwards). |
+| `PROJECT_TEST_TIMEOUT_MINUTES` | int | `30` | **live** | Tests of one build that take longer are stopped, and the build fails. 1 to 1440. |
+| `PROJECT_COMMIT_STATUSES` | bool | `true` | **live** | Builds report their result on GitHub as commit statuses (`sudoo/development`, `sudoo/staging`, `sudoo/production`), linked to the branch's history in the panel. Needs the GitHub App with **Commit statuses: Read and write**; see [Commit statuses](ADMIN_GUIDE.md#commit-statuses). |
 
 ## Database upgrades
 

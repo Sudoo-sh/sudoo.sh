@@ -1,5 +1,6 @@
 // A branch's history, the Odoo.sh way: its builds (one commit an instance was built from), stage changes and
-// restores, newest first and grouped by day. The live build (an instance's newest successful one) has Connect; a
+// restores, newest first and grouped by day; a commit a branch did not build (its Behaviour upon new commits is
+// Do nothing) is a small card of its own, and a build that ran tests says how many passed or which module failed. The live build (an instance's newest successful one) has Connect; a
 // failed build says why, with Odoo's messages to unfold; every entry with a job opens its log. The live event
 // stream ("build") reads the timeline again whenever an entry is added or changes.
 
@@ -12,7 +13,9 @@ import {
   ChevronRight,
   CircleCheck,
   CircleX,
+  CircleDot,
   Copy,
+  FlaskConical,
   History as HistoryIcon,
   KeyRound,
   LoaderCircle,
@@ -23,7 +26,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { branchHistoryQuery } from "@/api/queries";
-import type { Build, BuildStatus, HistoryEntry, Instance, ProjectBranch, ProjectDetail, RestoreEntry, StageChange } from "@/api/types";
+import type { Build, BuildStatus, CommitEntry, HistoryEntry, Instance, ProjectBranch, ProjectDetail, RestoreEntry, StageChange } from "@/api/types";
 import { STAGE_LABEL } from "@/components/StageTag";
 import { Button, Empty, Skeleton } from "@/components/app/basics";
 import { Menu, MenuItem } from "@/components/app/overlay";
@@ -220,6 +223,7 @@ function BuildCard({ build, ctx, branch }: { build: Build; ctx: Context; branch:
       {(build.status === "failed" || build.status === "warning") && build.result && (
         <p className={`bh-result ${build.status}`}>{build.result}</p>
       )}
+      {build.tests && <TestsLine tests={build.tests} />}
       <Messages lines={build.messages} />
       {(build.job || ends) && (
         <div className="bh-foot">
@@ -232,6 +236,47 @@ function BuildCard({ build, ctx, branch }: { build: Build; ctx: Context; branch:
           <LogLink job={build.job} ctx={ctx} />
         </div>
       )}
+    </article>
+  );
+}
+
+/** What a build's tests found: "Tests: 132 passed", or how many failed and in which modules. */
+function TestsLine({ tests }: { tests: NonNullable<Build["tests"]> }) {
+  const t = useT(words).history;
+  const bad = tests.failed + tests.errors;
+  return (
+    <p className={`bh-tests ${bad ? "failed" : tests.status}`}>
+      <FlaskConical aria-hidden />
+      <span>{bad ? t.testsFailed(bad, tests.tests) : t.testsPassed(tests.tests)}</span>
+      {tests.warnings > 0 && !bad && <span className="bh-tests-more">· {t.testsWarnings(tests.warnings)}</span>}
+      {tests.modules.length > 0 && (
+        <span className="bh-tests-more">
+          · {t.failingIn}{" "}
+          {tests.modules.map((m, i) => <span key={m}>{i > 0 && ", "}<code dir="ltr">{m}</code></span>)}
+        </span>
+      )}
+    </p>
+  );
+}
+
+/** A commit the branch did not build (Behaviour upon new commits: Do nothing). */
+function CommitCard({ entry, ctx, settings }: { entry: CommitEntry; ctx: Context; settings: string }) {
+  const t = useT(words).history;
+  return (
+    <article className="bh-card note bh-commit-card">
+      <div className="bh-note-head">
+        <span className="bh-kind">{t.commitReceived}</span>
+        <span className="bh-skip">{t.notBuiltTag}</span>
+        <span className="spacer" />
+        <span className="bh-meta"><When at={entry.at} /></span>
+      </div>
+      <div className="bh-commit">
+        {entry.commit?.subject && <bdi className="bh-subject">{entry.commit.subject}</bdi>}
+        {entry.commit && <Sha commit={entry.commit} repository={ctx.repository} />}
+      </div>
+      <p className="small muted">
+        {t.notBuilt} <Link to={settings} viewTransition>{t.branchSettings}</Link>
+      </p>
     </article>
   );
 }
@@ -272,7 +317,7 @@ function RestoreCard({ entry, ctx }: { entry: RestoreEntry; ctx: Context }) {
 }
 
 const ENTRY_ICON = (entry: HistoryEntry) =>
-  entry.type === "stage" ? <Milestone /> : entry.type === "restore" ? <ArchiveRestore /> : STATUS_ICON[entry.status] ?? <span className="bh-hollow" />;
+  entry.type === "stage" ? <Milestone /> : entry.type === "restore" ? <ArchiveRestore /> : entry.type === "commit" ? <CircleDot /> : STATUS_ICON[entry.status] ?? <span className="bh-hollow" />;
 
 // ---------------------------------------------------------------- the timeline
 
@@ -357,6 +402,8 @@ export function BranchHistory({
                   <BuildCard build={entry} ctx={ctx} branch={branch} />
                 ) : entry.type === "stage" ? (
                   <StageCard entry={entry} />
+                ) : entry.type === "commit" ? (
+                  <CommitCard entry={entry} ctx={ctx} settings={`/projects/${project.id}/branches/${encodeURIComponent(branch.name)}/branch-settings`} />
                 ) : (
                   <RestoreCard entry={entry} ctx={ctx} />
                 )}

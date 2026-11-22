@@ -2,7 +2,7 @@
 // timeline with its live build, an entry by id, and a stage change joining the timeline. Run with `npm test`.
 
 import { beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
-import type { Build, BranchBuilds, HistoryEntry } from "@/api/types";
+import type { BranchBuildOptions, Build, BranchBuilds, HistoryEntry } from "@/api/types";
 import { answer } from "./api";
 import { seedTeams } from "./access";
 import { seedProjects } from "./projects";
@@ -66,5 +66,37 @@ describe("build history", () => {
     const entries = (await call("GET", "/projects/acme-retail/branches/loyalty-points/history")).body.data as HistoryEntry[];
     const change = entries.find((e) => e.type === "stage");
     expect(change).toMatchObject({ from: "development", to: "staging" });
+  });
+});
+
+describe("build options", () => {
+  beforeEach(() => {
+    seedAll();
+    seedTeams();
+    seedProjects();
+  });
+
+  test("a branch's options say where each value comes from, and a change is checked", async () => {
+    const read = (await call("GET", "/projects/acme-retail/branches/pos-refunds/options")).body.data as BranchBuildOptions;
+    expect(read.options.test_suite).toBe("selection");
+    expect(read.sources.test_suite).toBe("project");
+    expect((await call("PUT", "/projects/acme-retail/branches/pos-refunds/options", { module_install: "list" })).status).toBe(400);
+    const changed = (await call("PUT", "/projects/acme-retail/branches/pos-refunds/options", { module_install: "list", modules: "sale, stock" })).body.data as BranchBuildOptions;
+    expect(changed.options.modules).toBe("sale,stock");
+    expect(changed.sources.module_install).toBe("branch");
+    const production = (await call("GET", "/projects/acme-retail/branches/main/options")).body.data as BranchBuildOptions;
+    expect(production.options.on_new_commit).toBe("update");
+    expect(production.sources.test_suite).toBe("production");
+  });
+
+  test("tested builds carry their tests, and a branch that does nothing lists the commits it skipped", async () => {
+    const dev = (await call("GET", "/projects/acme-retail/branches/pos-refunds/history?limit=200")).body.data as HistoryEntry[];
+    const tested = dev.filter((e): e is Build => e.type === "build" && !!e.tests);
+    expect(tested.length).toBeGreaterThan(0);
+    expect(tested.some((b) => b.status === "failed" && b.tests!.failed === 1 && b.tests!.modules.length === 1)).toBe(true);
+    const plain = (await call("GET", "/projects/acme-retail/branches/loyalty-points/history")).body.data as HistoryEntry[];
+    expect(plain.some((e) => e.type === "commit")).toBe(false);
+    const all = (await call("GET", "/projects/acme-retail/branches/loyalty-points/history?commits=1")).body.data as HistoryEntry[];
+    expect(all.filter((e) => e.type === "commit")).toHaveLength(2);
   });
 });

@@ -20,6 +20,7 @@ from sudoo.config import settings
 from sudoo.core import events, vault
 from sudoo.core.hints import panel_hint, specific_hint
 from sudoo.core.jobs import Job, JobError
+from sudoo.core.odoo_args import demo_args
 from sudoo.core.shell import capture
 from sudoo.core.state import STATE
 from sudoo.instances import backups, gateway, integrity, managed_names, monitor, odoo, resources, stages, store
@@ -264,8 +265,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
         job.step(f"Creating the Odoo {'Enterprise' if enterprise else 'Community'} database (about 1-2 minutes)")
         # web_enterprise turns the database into Enterprise: Enterprise interface and apps
         init = ["-d", db, "-i", "base,web_enterprise" if enterprise else "base", "--stop-after-init", "--no-http"]
-        if plan["demo"]:
-            init.append("--with-demo")
+        init += demo_args(version, bool(plan["demo"]))  # the flag depends on the version (core/odoo_args.py)
         job.run(odoo.run_cmd(name, *init), timeout=1800)
 
     modules = _modules_to_install(job, name, db) if plan["install_modules"] and plan["repo"] else []

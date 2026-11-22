@@ -22,12 +22,13 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api, ApiError, errorText } from "@/api/client";
 import { keys, useCall, useInstances, useProject, useProjects, useRepositoryOwners, useVersions } from "@/api/queries";
-import type { Instance, Project, ProjectDetail, ProjectOptions, Stage } from "@/api/types";
+import type { Instance, Project, ProjectDetail, ProjectMeta, ProjectOptions, Stage } from "@/api/types";
 import { AccessTab } from "@/components/ProjectAccess";
 import { GitHubCheckCard } from "@/components/GitHubCheckCard";
 import { ProjectAuditLink } from "@/components/ProjectAuditLink";
 import { InstanceCard } from "@/components/InstanceCard";
 import { ProjectBackups } from "@/components/ProjectBackups";
+import { ProjectBuildDefaults } from "@/components/BuildOptions";
 import { ProjectBuilds } from "@/components/ProjectBuilds";
 import { ProjectWorkspace } from "@/components/ProjectWorkspace";
 import { Page, PageHead, useCan, useSubCrumb } from "@/components/Shell";
@@ -188,7 +189,7 @@ function OptionRow({ label, children, onReset, own }: { label: string; children:
   );
 }
 
-function SettingsTab({ project }: { project: ProjectDetail }) {
+function SettingsTab({ project, meta }: { project: ProjectDetail; meta: ProjectMeta }) {
   const s = useT(words).settings;
   const can = useCan();
   const toast = useToast();
@@ -206,7 +207,7 @@ function SettingsTab({ project }: { project: ProjectDetail }) {
   const setOption = (key: keyof ProjectOptions, value: Own[keyof ProjectOptions]) => send({ options: { [key]: value } });
   const own = project.own_options;
   const value = <K extends keyof ProjectOptions>(key: K) => project.options[key];
-  const flag = (key: "auto_development" | "development_demo_data" | "upgrade_test_on_push") => (
+  const flag = (key: "auto_development" | "upgrade_test_on_push") => (
     <OptionRow label={s[key]} own={key in own} onReset={() => setOption(key, null)}>
       <Switch checked={Boolean(value(key))} disabled={!editable} onChange={(v) => setOption(key, v)} label="" />
     </OptionRow>
@@ -257,13 +258,13 @@ function SettingsTab({ project }: { project: ProjectDetail }) {
           <div className="settings-list card-flush">
             {flag("auto_development")}
             {days("max_auto_development")}
-            {flag("development_demo_data")}
             {choice("staging_on_push", ["rebuild", "keep_data"])}
             {choice("branch_deleted", ["keep", "archive", "delete"])}
             {flag("upgrade_test_on_push")}
           </div>
         </div>
       </section>
+      <ProjectBuildDefaults project={project} meta={meta} editable={editable} />
       <section className="card">
         <div className="card-head"><h2>{s.lifetimes}</h2></div>
         <div className="card-body stack">
@@ -394,7 +395,7 @@ export function ProjectPage() {
       ) : tab === "builds" ? (
         <ProjectBuilds key={project.id} project={project} />
       ) : tab === "settings" ? (
-        <SettingsTab key={project.id} project={project} />
+        <SettingsTab key={project.id} project={project} meta={meta} />
       ) : (
         <ProjectWorkspace project={project} meta={meta} selected={branch} view={view} onRefresh={refresh} refreshing={refreshing} backups={mayManageBackups} />
       )}

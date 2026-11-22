@@ -50,16 +50,17 @@ reset with **Use .env**.
 13. [Database upgrades](#database-upgrades)
 14. [Off-site copies](#off-site-copies)
 15. [Alerts](#alerts)
-16. [Web shell](#web-shell)
-17. [Code profiler](#code-profiler)
-18. [Audit log](#audit-log)
-19. [Servers](#servers)
-20. [Mail catcher](#mail-catcher)
-21. [Help panel](#help-panel)
-22. [Marketplace](#marketplace)
-23. [Premium features](#premium-features)
-24. [Support access](#support-access)
-25. [Locations](#locations)
+16. [Project status and notifications](#project-status-and-notifications)
+17. [Web shell](#web-shell)
+18. [Code profiler](#code-profiler)
+19. [Audit log](#audit-log)
+20. [Servers](#servers)
+21. [Mail catcher](#mail-catcher)
+22. [Help panel](#help-panel)
+23. [Marketplace](#marketplace)
+24. [Premium features](#premium-features)
+25. [Support access](#support-access)
+26. [Locations](#locations)
 
 ---
 
@@ -577,6 +578,31 @@ with **Send a test alert** for the e-mail and each webhook.
 | `ALERT_WEBHOOK_3_URL` | text | empty | **live** | Webhook 3: as webhook 1. Secret. |
 | `ALERT_WEBHOOK_3_SECRET` | text | empty | **live** | Webhook 3: as webhook 1. Secret. |
 | `ALERT_WEBHOOK_3_FORMAT` | text | `json` | **live** | Webhook 3: as webhook 1. |
+
+---
+
+## Project status and notifications
+
+What a project's **Status** tab checks and keeps, and how its notifications are sent. Settings page, **Alerts** tab,
+groups **Project status** and **Notifications**. How they work: [Admin guide, Project status and
+notifications](ADMIN_GUIDE.md#project-status-and-notifications); the tabs themselves: [User manual, Status and
+notifications](USER_MANUAL.md#status-and-notifications).
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `STATUS_CHECKS` | bool | `true` | **live** | Check each project's production instance (through its gateway), the server and the backups every `STATUS_CHECK_INTERVAL_SECONDS`. `false`: nothing is checked or recorded, and the Status tab shows what was recorded before. |
+| `STATUS_CHECK_INTERVAL_SECONDS` | float | `60` | **live** | Seconds between two checks (15 to 3600). |
+| `STATUS_CHECK_TIMEOUT_SECONDS` | float | `10` | **live** | Seconds a production instance may take to answer before the check counts as down (1 to 60). |
+| `STATUS_SLOW_MS` | float | `3000` | **live** | An answer slower than this, in milliseconds, shows the instance as degraded (it still counts as up). |
+| `STATUS_BACKUP_GRACE_HOURS` | float | `2` | **live** | Hours a daily backup may be late (after `DAILY_BACKUP_TIME`) before the backups count as failing (0 to 48). |
+| `STATUS_MINUTE_HOURS` | int | `48` | **live** | Hours the result of every check is kept; older results are kept per hour only (1 to 168). |
+| `STATUS_KEEP_DAYS` | int | `90` | **live** | Days hourly results and incidents are kept (7 to 400). |
+| `STATUS_PUBLIC_PAGES` | bool | `true` | **live** | Projects may turn on a public status page (a read-only link with a secret token; off in each project until someone turns it on). `false`: every public status page answers 404. |
+| `NOTIFICATIONS` | bool | `true` | **live** | Projects may send notifications to Slack, Discord, Telegram, Microsoft Teams, webhooks and e-mail. `false`: nothing is sent. |
+| `NOTIFICATION_TIMEOUT_SECONDS` | float | `10` | **live** | Seconds a chat service or webhook may take to answer one delivery (1 to 60). |
+| `NOTIFICATION_RETRIES` | int | `5` | **live** | Times a delivery that got no answer, HTTP 429 or a 5xx is tried again: 30 seconds after the first try, then twice as long each time, at most an hour (0 to 10). |
+| `NOTIFICATION_CHANNELS_PER_PROJECT` | int | `10` | **live** | Channels one project may have (1 to 50). |
+| `NOTIFICATION_ALLOWED_HOSTS` | text | empty | **live** | Host names or networks, comma-separated (`hooks.internal`, `10.0.0.0/8`), that webhooks may reach although they resolve to a private, local or link-local address. Empty: only public addresses. |
 
 ---
 

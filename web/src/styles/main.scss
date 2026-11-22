@@ -14,3 +14,5 @@
 }
 
 @include meta.load-css("look");
+// outside the layers like the look: the palette's dialog moves away from the centre the shadcn utilities put it in
+@include meta.load-css("status");

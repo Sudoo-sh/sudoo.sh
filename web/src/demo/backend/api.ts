@@ -14,6 +14,7 @@ import * as sizing from "./project-resources";
 import * as mail from "./mail";
 import * as caught from "./caught-mail";
 import * as offsite from "./offsite";
+import * as statusPages from "./status";
 import { branchBuilds, branchHistory, findEntry, recordStageChange } from "./builds";
 import { branchOptions, changeBranchOptions, clean as cleanOption, problem as optionsProblem, statusesAvailable } from "./build-options";
 import { branchList, membersOf, productionInstance, projectResource, projects, stageOf, type DemoProject } from "./projects";
@@ -2458,6 +2459,55 @@ route("PUT", "/projects/:id/branches/:*branch/resources", ({ params, body }) => 
   return applySizing(project, body, params.branch!);
 });
 
+// ---------------------------------------------------------------- status and notifications (web/v1/project_status.py, notifications.py)
+
+const managesProject = (project: DemoProject) => can("projects.manage") && permissionsIn(project.access).includes("projects.manage");
+route("GET", "/projects/:id/status", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "instances.view");
+  return ok(statusPages.projectStatus(project, managesProject(project)));
+});
+route("PUT", "/projects/:id/status/public", ({ params, body }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.manage");
+  record(ME, "public status page " + (body.enabled === true ? "on" : "off"), { detail: project.id });
+  return ok(statusPages.changePublic(project, body));
+});
+route("GET", "/public-status/:token", ({ params }) => ok(statusPages.publicStatus(params.token!, (id) => projects.get(id))));
+route("GET", "/projects/:id/notifications", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.manage");
+  return ok(statusPages.notificationsOf(project.id));
+});
+route("POST", "/projects/:id/notifications", ({ params, body }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.manage");
+  const channel = statusPages.addChannel(project.id, body);
+  record(ME, "notification channel added", { detail: `${project.id}: ${channel.name} (${channel.type})` });
+  return created(channel);
+});
+route("PATCH", "/projects/:id/notifications/:channel", ({ params, body }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.manage");
+  return ok(statusPages.changeChannel(statusPages.channelOf(project.id, params.channel!), body));
+});
+route("DELETE", "/projects/:id/notifications/:channel", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.manage");
+  statusPages.removeChannel(statusPages.channelOf(project.id, params.channel!).id);
+  return none();
+});
+route("POST", "/projects/:id/notifications/:channel/test", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.manage");
+  return ok(statusPages.testChannel(statusPages.channelOf(project.id, params.channel!)));
+});
+route("POST", "/projects/:id/notifications/:channel/signing-secret", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.manage");
+  return ok(statusPages.newSigningSecret(statusPages.channelOf(project.id, params.channel!)));
+});
+
 // ---------------------------------------------------------------- teams, access and locks (projects/access.py)
 
 const usedIn = (teamId: string) =>
@@ -2736,7 +2786,7 @@ route("GET", "/plan", () => {
 
 // ---------------------------------------------------------------- dispatching
 
-const PUBLIC = ["/setup", "/contact", "/session", "/session/second-factor", "/invitation"];
+const PUBLIC = ["/setup", "/contact", "/session", "/session/second-factor", "/invitation", "/public-status"];
 
 export function remember() {
   try {

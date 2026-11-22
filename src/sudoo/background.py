@@ -65,6 +65,11 @@ def start() -> None:
     from sudoo.projects import builds  # late: projects/ imports the instances package, as this module does
 
     builds.listen()
+    from sudoo import notifications
+    from sudoo.status import checks as status_checks
+
+    notifications.start()
+    threading.Thread(target=status_checks.run_forever, daemon=True, name="status-checks").start()
     _start_premium_jobs()
     gateway.start(wake=start_wake_job)
     live.on_change(_domain_settings_changed)

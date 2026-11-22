@@ -8,6 +8,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Project status page**, as Odoo.sh's: a **Status** tab on every project with a banner (all systems operational,
+  degraded, down), the uptime of the past day, week and month and a bar per day for 30 days for each production
+  instance (checked through its gateway every `STATUS_CHECK_INTERVAL_SECONDS`), the server (its heartbeat) and the
+  backups (late against the daily schedule; off-site copies when they are on), the response time per day, and the
+  incidents with their start, end and duration. Results are kept per minute for 48 hours and per hour for 90 days
+  (`STATUS_*`). An optional public, read-only status page per project (off by default; a link with a secret token
+  that can be replaced). API: `GET /api/v1/projects/<id>/status`, `PUT .../status/public`,
+  `GET /api/v1/public-status/<token>`.
+- **Notifications** per project: Slack, Discord, Telegram, Microsoft Teams, a signed webhook (HMAC-SHA256, its secret
+  shown once) and e-mail, each with the events it wants (build failed, with warnings, working again, stage change,
+  promotion to production, production down and up, backup failed, backup restored, storage over its quota).
+  Addresses and tokens are encrypted and never shown again (only their last 4 characters); requests reach public
+  addresses only (`NOTIFICATION_ALLOWED_HOSTS` for your own network), are retried with growing waits, and each
+  channel shows its last delivery and has **Send test** (`NOTIFICATION_*`). API: `/api/v1/projects/<id>/notifications`.
+- **Command palette**: Ctrl+K (⌘K on a Mac) opens a search over projects, branches, instances, their tabs and the
+  panel's pages, and runs Get latest code and Restart with the same confirmations; recent items first, keyboard only,
+  only what your role may open. `/` focuses the branch filter of a project.
 - **Code profiler (Tools tab), as on Odoo.sh:** record what an instance's Odoo workers spend their time on for 1 to
   `PROFILER_MAX_MINUTES` minutes (py-spy in a one-off sidecar that joins the Odoo container's processes with only
   `SYS_PTRACE`, no network), stop it early, then read an interactive flame graph (zoom, search, threads, the

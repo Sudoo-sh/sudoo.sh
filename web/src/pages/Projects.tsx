@@ -31,6 +31,8 @@ import { ProjectBackups } from "@/components/ProjectBackups";
 import { ProjectBuildDefaults } from "@/components/BuildOptions";
 import { ProjectResources } from "@/components/ProjectResources";
 import { ProjectBuilds } from "@/components/ProjectBuilds";
+import { ProjectNotifications } from "@/components/ProjectNotifications";
+import { ProjectStatus, ProjectStatusTabs } from "@/components/ProjectStatus";
 import { ProjectWorkspace } from "@/components/ProjectWorkspace";
 import { Page, PageHead, useCan, useSubCrumb } from "@/components/Shell";
 import { STAGE_ICON, STAGE_LABEL } from "@/components/StageTag";
@@ -316,7 +318,7 @@ function SettingsTab({ project, meta }: { project: ProjectDetail; meta: ProjectM
 export function ProjectPage() {
   const { id = "", tab: pageTab = "", branch, view = "" } = useParams();
   // a branch (/projects/<id>/branches/<branch>/<view>) is shown in the Branches tab, the workspace
-  const tab = branch === undefined && ["builds", "settings", "backups", "access"].includes(pageTab) ? pageTab : "";
+  const tab = branch === undefined && ["builds", "status", "notifications", "settings", "backups", "access"].includes(pageTab) ? pageTab : "";
   const can = useCan();
   const { data, isPending, error, refetch } = useProject(id);
   const t = useT(words).page;
@@ -343,6 +345,7 @@ export function ProjectPage() {
   const { project, meta } = data;
   const mayManageAccess = meta.permissions ? meta.permissions.includes("projects.access") : can("projects.access");
   const mayManageBackups = meta.permissions ? meta.permissions.includes("backups.manage") : can("backups.manage");
+  const mayManage = meta.permissions ? meta.permissions.includes("projects.manage") : can("projects.manage");
   const refresh = async () => {
     setRefreshing(true);
     try {
@@ -376,6 +379,7 @@ export function ProjectPage() {
         <Link to={`/projects/${project.id}/builds`} viewTransition className={`tab ${tab === "builds" ? "active" : ""}`} aria-current={tab === "builds" ? "page" : undefined}>
           <Layers /> {b.tab}
         </Link>
+        <ProjectStatusTabs project={project} tab={tab} manage={mayManage} />
         <Link to={`/projects/${project.id}/settings`} viewTransition className={`tab ${tab === "settings" ? "active" : ""}`} aria-current={tab === "settings" ? "page" : undefined}>
           <Hammer /> {t.settingsTab}
         </Link>
@@ -394,6 +398,10 @@ export function ProjectPage() {
         <AccessTab key={project.id} project={project} permitted={mayManageAccess} />
       ) : tab === "backups" && mayManageBackups ? (
         <ProjectBackups key={project.id} project={project} />
+      ) : tab === "status" ? (
+        <ProjectStatus key={project.id} project={project} />
+      ) : tab === "notifications" && mayManage ? (
+        <ProjectNotifications key={project.id} project={project} />
       ) : tab === "builds" ? (
         <ProjectBuilds key={project.id} project={project} />
       ) : tab === "settings" ? (

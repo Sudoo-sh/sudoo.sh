@@ -22,6 +22,7 @@ import type {
 } from "@/api/types";
 import { logText, type LogContext } from "./logs";
 import seedSettings from "./settings.json";
+import { seedProfiles } from "./profiler";
 import { backupFile, DAY, hash, hex, HOUR, iso, MINUTE, OPENED, seeded, SECOND } from "./util";
 
 // ---------------------------------------------------------------- roles (as src/sudoo/roles.py)
@@ -33,7 +34,7 @@ const ALL: Permission[] = [
   "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "projects.manage", "projects.access", "teams.manage", "instances.restore", "instances.upgrade",
   "instances.delete", "instances.credentials", "instances.resources", "caught_mail.view", "caught_mail.manage", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
   "audit.view", "plugins.view", "settings.manage", "mail.manage", "offsite.configure", "offsite.restore", "offsite.delete",
-  "instances.shell", "instances.database_shell", "shells.supervise", "servers.manage", "instances.move", "support_access.manage",
+  "instances.shell", "instances.database_shell", "instances.profile", "shells.supervise", "servers.manage", "instances.move", "support_access.manage",
 ];
 const SHELL: Permission[] = ["instances.shell", "instances.database_shell"];
 
@@ -67,6 +68,7 @@ export const PERMISSIONS: Record<Permission, string> = {
   "offsite.delete": "Delete off-site copies",
   "instances.shell": "Open a terminal in instances' Odoo containers (odoo shell too)",
   "instances.database_shell": "Open psql in instances' database containers",
+  "instances.profile": "Record what an instance's Odoo workers spend their time on (code profiler), and read, download and delete its recordings",
   "shells.supervise": "See open and past shells, end them and play their recordings",
   "servers.manage": "Add, approve, revoke and remove servers; change their name, region and room",
   "instances.move": "Move instances to another server",
@@ -80,9 +82,13 @@ export const ROLES: RoleInfo[] = [
   { name: "developer", label: "Developer", description: "Gets new code, restarts and starts instances, adds submodules.", permissions: DEVELOP },
   { name: "viewer", label: "Viewer", description: "Sees instances, their activity and logs.", permissions: VIEW },
 ];
-/** A role with its permissions as the settings make them: SHELL_ENABLED and SHELL_ROLES (as roles.permissions). */
+const ROLES_OF = { admins: [], maintainers: ["maintainer"], developers: ["maintainer", "developer"] } as Record<string, string[]>;
+/** A role with its permissions as the settings make them: PROFILER_ENABLED and PROFILER_ROLES, SHELL_ENABLED and
+ *  SHELL_ROLES (as roles.permissions). */
 export const roleInfo = (role: Role): RoleInfo => {
-  const found = ROLES.find((r) => r.name === role) ?? ROLES[4]!;
+  const base = ROLES.find((r) => r.name === role) ?? ROLES[4]!;
+  const profiles = setting("profiler_enabled") !== false && (base.permissions.includes("instances.profile") || (ROLES_OF[String(setting("profiler_roles") ?? "maintainers")] ?? []).includes(base.name));
+  const found = { ...base, permissions: [...base.permissions.filter((p) => p !== "instances.profile"), ...(profiles ? (["instances.profile"] as Permission[]) : [])] };
   if (setting("shell_enabled") === false) return { ...found, permissions: found.permissions.filter((p) => !SHELL.includes(p)) };
   const extra = { admins: [], maintainers: ["maintainer"], developers: ["maintainer", "developer"] }[String(setting("shell_roles")) as "admins"] ?? [];
   return (extra as string[]).includes(found.name) ? { ...found, permissions: [...found.permissions, "instances.shell"] } : found;
@@ -672,6 +678,7 @@ export function seedAll() {
   seedBackups();
   seedFailure();
   seedAudit();
+  seedProfiles([...instances.values()]);
   seedAlerts();
   jobs.sort((a, b) => Date.parse(b.started_at!) - Date.parse(a.started_at!));
 }

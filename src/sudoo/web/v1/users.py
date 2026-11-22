@@ -290,7 +290,7 @@ def audit_facets() -> Response:
 
     found = audit.facets()
     listed = [{"id": p["id"], "name": p.get("name") or p["id"]} for p in projects.all_projects()]
-    return ok({**found, "projects": listed})
+    return ok({**found, "projects": listed, "export_max_rows": int(settings.audit_export_max_rows)})
 
 
 @blueprint.get("/audit/export")

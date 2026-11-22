@@ -24,6 +24,8 @@ import { api, ApiError, errorText } from "@/api/client";
 import { keys, useCall, useInstances, useProject, useProjects, useRepositoryOwners, useVersions } from "@/api/queries";
 import type { Instance, Project, ProjectDetail, ProjectOptions, Stage } from "@/api/types";
 import { AccessTab } from "@/components/ProjectAccess";
+import { GitHubCheckCard } from "@/components/GitHubCheckCard";
+import { ProjectAuditLink } from "@/components/ProjectAuditLink";
 import { InstanceCard } from "@/components/InstanceCard";
 import { ProjectBackups } from "@/components/ProjectBackups";
 import { ProjectBuilds } from "@/components/ProjectBuilds";
@@ -272,6 +274,7 @@ function SettingsTab({ project }: { project: ProjectDetail }) {
           </div>
         </div>
       </section>
+      <GitHubCheckCard project={project} />
       <section className="card">
         <div className="card-head"><h2 className="spacer">{s.access}</h2>
           {can("projects.access") && <Button asChild size="sm"><Link to={`/projects/${project.id}/access`} viewTransition><ShieldCheck /> {s.manageAccess}</Link></Button>}
@@ -360,6 +363,7 @@ export function ProjectPage() {
           <bdi dir="ltr" className="mono small">{project.repository.full_name}</bdi>
           <Tag mono>{project.odoo.version}</Tag>
           <Tag>{project.odoo.edition === "enterprise" ? "Enterprise" : "Community"}</Tag>
+          <ProjectAuditLink project={project.id} />
         </span>
       </PageHead>
       <nav className="tabs" aria-label={project.name}>

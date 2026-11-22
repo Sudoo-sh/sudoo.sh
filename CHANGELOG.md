@@ -8,6 +8,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Code profiler (Tools tab), as on Odoo.sh:** record what an instance's Odoo workers spend their time on for 1 to
+  `PROFILER_MAX_MINUTES` minutes (py-spy in a one-off sidecar that joins the Odoo container's processes with only
+  `SYS_PTRACE`, no network), stop it early, then read an interactive flame graph (zoom, search, threads, the
+  functions with the most time) or download it as a speedscope file. The last `PROFILER_KEEP` recordings are kept
+  per instance; production asks for a confirmation every time; everything is in the audit log. New permission
+  `instances.profile` (super admins, administrators and, by `PROFILER_ROLES`, maintainers); new settings
+  `PROFILER_ENABLED`, `PROFILER_ROLES`, `PROFILER_PRODUCTION`, `PROFILER_MAX_MINUTES`, `PROFILER_KEEP`,
+  `PROFILER_RATE`, `PROFILER_IMAGE`. API: `/api/v1/instances/<name>/profiler` and `/profiles/<id>`.
+- **Audit log per project, with exports:** entries now name their project and branch; the audit log filters by
+  project, branch, instance, user, action, result and dates, sorts by any column and pages on the server, and exports
+  what it shows as CSV or XLSX (a year and `AUDIT_EXPORT_MAX_ROWS` entries at most; each export is audit-logged).
+  A project's page links to its own entries. API: `GET /api/v1/audit` (new filters, `sort`, `offset`, `meta.total`),
+  `GET /api/v1/audit/facets`, `GET /api/v1/audit/export`.
+- **GitHub connection check**, like Verify Deploy Key and Verify Webhook on Odoo.sh: a project's Settings tab checks
+  that the repository can be read, the GitHub App covers it with the permissions and events it needs, its webhook
+  reaches the panel and its latest deliveries arrived, and every submodule can be read, with what to fix where. API:
+  `POST /api/v1/projects/<id>/github/check`.
 - **Build options and tests**, as on Odoo.sh: each project, and each branch for itself, chooses what a new commit does
   (update in place, a new build from scratch, or nothing but a line in the history), which modules a new development
   database gets (the repository's, all, or a list) and which tests run (off, the repository's modules, or custom

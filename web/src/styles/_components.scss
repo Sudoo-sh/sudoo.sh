@@ -851,3 +851,84 @@
   .text { display: grid; gap: var(--s2); }
   .links { display: flex; flex-wrap: wrap; gap: var(--s4); }
 }
+
+// ---------------------------------------------------------------- the profiler (components/ToolsTab.tsx, FlameGraph.tsx)
+.tools-tab { display: flex; flex-direction: column; gap: var(--s5); }
+.profiler-start { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s3); }
+.profiler-run { display: flex; flex-direction: column; gap: var(--s2); }
+.profiler-run .row-wrap { justify-content: space-between; }
+.profiler-countdown { font-variant-numeric: tabular-nums; }
+.flame { display: flex; flex-direction: column; gap: var(--s3); }
+.flame-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
+.flame-tools .input-group { flex: 1 1 220px; max-width: 360px; }
+.flame-legend { display: flex; flex-wrap: wrap; gap: var(--s3); font-size: 12px; color: var(--text-2); }
+.flame-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.flame-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.flame-view {
+  position: relative;
+  max-height: 560px;
+  overflow: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  overscroll-behavior: contain;
+}
+.flame-view canvas { display: block; cursor: pointer; touch-action: pan-y; }
+.flame-tip {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 8px 10px;
+  border-radius: var(--radius-control);
+  background: var(--material);
+  backdrop-filter: var(--material-blur);
+  -webkit-backdrop-filter: var(--material-blur);
+  box-shadow: var(--shadow-float);
+  border: 1px solid var(--hairline);
+  font-size: 12px;
+  line-height: 1.45;
+  b { display: block; font-family: var(--mono); font-weight: 600; word-break: break-all; }
+  .mono { word-break: break-all; }
+}
+.flame-hot td:first-child { max-width: 520px; }
+.flame-hot .bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--brand);
+  opacity: 0.55;
+  margin-top: 4px;
+}
+.check-list { display: flex; flex-direction: column; }
+.check-row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: var(--s3);
+  align-items: start;
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--hairline);
+  &:first-child { border-top: 0; }
+  > svg { margin-top: 2px; }
+  h3 { font-size: 14px; font-weight: 600; margin: 0 0 2px; }
+  p { margin: 0; }
+}
+@media (max-width: 767px) {
+  .check-row { grid-template-columns: 20px 1fr; }
+  .check-row > .fix { grid-column: 2; }
+}
+.audit-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--s3); }
+.audit-filters .wide { grid-column: span 2; }
+@media (max-width: 767px) { .audit-filters .wide { grid-column: auto; } }
+.audit-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s3); }
+th button.sort { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+th button.sort:focus-visible { outline: 2px solid var(--brand-ring); border-radius: 4px; }
+.audit-pager .row { flex-wrap: wrap; }
+.audit-pager .faint { white-space: nowrap; }
+.audit-table .phone-only { display: none; }
+@media (max-width: 767px) {
+  // on a phone: when, who and what (the instance under it); the instance and address columns on wider screens
+  .audit-table th:nth-child(n + 4),
+  .audit-table td:nth-child(n + 4) { display: none; }
+  .audit-table td { white-space: normal; overflow-wrap: anywhere; }
+  .audit-table .phone-only { display: block; }
+}

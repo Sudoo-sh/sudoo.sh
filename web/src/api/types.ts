@@ -31,6 +31,7 @@ export type Permission =
   | "offsite.delete"
   | "instances.shell"
   | "instances.database_shell"
+  | "instances.profile"
   | "shells.supervise"
   | "servers.manage"
   | "instances.move"
@@ -979,8 +980,20 @@ export interface AuditEntry {
   ok: boolean;
   instance?: string;
   detail?: string;
+  /** the project and branch the entry is about, when there is one */
+  project?: string;
+  branch?: string;
   /** done by Sudoo.sh support through support access */
   support?: boolean;
+}
+
+/** GET /audit/facets: what the audit log's filters can offer. */
+export interface AuditFacets {
+  users: string[];
+  events: string[];
+  projects: { id: string; name: string }[];
+  /** AUDIT_EXPORT_MAX_ROWS */
+  export_max_rows: number;
 }
 
 export interface GitHubInstallation {
@@ -1518,4 +1531,77 @@ export interface SupportStatus {
   sessions: SupportSession[];
   active_grants: number;
   can_end: boolean;
+}
+
+// ---------------------------------------------------------------- code profiler (web/v1/profiler.py)
+
+/** A recording being made: preparing (image, checks), recording, saving. */
+export interface ProfilerRun {
+  id: string;
+  phase: "preparing" | "recording" | "saving";
+  minutes: number;
+  user: string;
+  started_at: string;
+  recording_since: string | null;
+  ends_at: string;
+  stopping: boolean;
+  production: boolean;
+}
+export interface ProfileRecording {
+  id: string;
+  user: string;
+  minutes: number;
+  seconds: number;
+  samples: number;
+  threads: number;
+  rate: number;
+  size: number;
+  started_at: string;
+  ended_at: string;
+  stopped_early: boolean;
+  production: boolean;
+  links: { self: string; download: string };
+}
+export interface ProfilerState {
+  enabled: boolean;
+  production: boolean;
+  production_allowed: boolean;
+  running: boolean;
+  status: string;
+  max_minutes: number;
+  keep: number;
+  rate: number;
+  current: ProfilerRun | null;
+  last_error: { message: string; code: string; at: number } | null;
+  recordings: ProfileRecording[];
+}
+/** A node of the flame graph: name, where (file:line), samples, children. */
+export interface ProfileNode {
+  n: string;
+  w?: string;
+  v: number;
+  c?: ProfileNode[];
+}
+export interface ProfileTree {
+  total: number;
+  seconds: number;
+  threads: { name: string; samples: number }[];
+  root: ProfileNode;
+  top: { name: string; where: string; self: number; total: number }[];
+}
+export type ProfileDetail = ProfileRecording & { tree: ProfileTree };
+
+// ---------------------------------------------------------------- GitHub link checks (repos/github_check.py)
+
+export type GitHubCheckStatus = "ok" | "warning" | "error" | "skipped";
+export interface GitHubCheck {
+  id: "repository" | "installation" | "permissions" | "webhook" | "submodules";
+  status: GitHubCheckStatus;
+  message: string;
+  fix: { url: string; label: string } | null;
+}
+export interface GitHubCheckResult {
+  status: "ok" | "warning" | "error";
+  checks: GitHubCheck[];
+  checked_at: string;
 }

@@ -59,6 +59,14 @@
   // colours as programs use them (ls, git, psql), each readable on --shell-bg (4.5:1 or more; black aside in the dark
   // theme, where programs use it as a background)
   --shell-bg: #fbfbfb;
+  // the profiler's flame graph (components/FlameGraph.tsx): one soft fill per kind of code, dark text on each (4.5:1)
+  --flame-odoo: #e3cbdc;
+  --flame-addons: #c9dcf5;
+  --flame-sql: #f6d9b0;
+  --flame-python: #e2e2e6;
+  --flame-other: #cfe9d6;
+  --flame-text: #1f1f22;
+  --flame-match: #f3c969;
   --shell-text: #1f1f22;
   --shell-cursor: #714b67;
   --shell-selection: rgb(113 75 103 / 0.22);
@@ -130,6 +138,13 @@
 @mixin dark {
   color-scheme: dark;
   --shell-bg: #0f0f10;
+  --flame-odoo: #5a3a52;
+  --flame-addons: #2c4466;
+  --flame-sql: #5e4421;
+  --flame-python: #3a3a40;
+  --flame-other: #2b4a35;
+  --flame-text: #f2f2f3;
+  --flame-match: #8a6a1c;
   --shell-text: #d4d4d8;
   --shell-cursor: #e6c1dc;
   --shell-selection: rgb(199 155 189 / 0.3);

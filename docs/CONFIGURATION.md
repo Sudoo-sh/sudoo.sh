@@ -52,13 +52,15 @@ reset with **Use .env**.
 15. [Alerts](#alerts)
 16. [Project status and notifications](#project-status-and-notifications)
 17. [Web shell](#web-shell)
-18. [Servers](#servers)
-19. [Mail catcher](#mail-catcher)
-20. [Help panel](#help-panel)
-21. [Marketplace](#marketplace)
-22. [Premium features](#premium-features)
-23. [Support access](#support-access)
-24. [Locations](#locations)
+18. [Code profiler](#code-profiler)
+19. [Audit log](#audit-log)
+20. [Servers](#servers)
+21. [Mail catcher](#mail-catcher)
+22. [Help panel](#help-panel)
+23. [Marketplace](#marketplace)
+24. [Premium features](#premium-features)
+25. [Support access](#support-access)
+26. [Locations](#locations)
 
 ---
 
@@ -625,6 +627,32 @@ groups **Web shell** and **Shell recordings**. How it works and is protected: [A
 | `SHELL_RECORDING_DAYS` | int | `30` | **live** | Days recordings and the list of past shells are kept (1 to 3650). |
 | `SHELL_RECORDING_MAX_MB` | float | `5` | **live** | Largest recording of one shell, in MB (0.1 to 50); beyond it only typing is recorded, and the shell closes when typing alone reaches the size again. |
 | `SHELL_RECORDINGS_TOTAL_MB` | int | `500` | **live** | Space all recordings may take together, in MB (10 to 100000); the oldest are deleted first. |
+
+---
+
+## Code profiler
+
+Records what an instance's Odoo workers spend their time on, for up to a few minutes, and shows it as a flame graph
+(the Tools tab). Settings page, **Sign-in and security**, group **Code profiler**. How it works:
+[Admin guide, Code profiler](ADMIN_GUIDE.md#28-code-profiler).
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `PROFILER_ENABLED` | bool | `true` | **live** | Profiles can be recorded (by the roles allowed). `false`: nobody can, and the Tools tab disappears. |
+| `PROFILER_ROLES` | text | `maintainers` | **live** | Who may record, read and delete profiles: `admins` (super admins and administrators), `maintainers` (and maintainers) or `developers` (and maintainers and developers). Viewers never can. |
+| `PROFILER_PRODUCTION` | bool | `true` | **live** | Production instances may be profiled; each recording is confirmed when it starts. `false`: only staging and development instances. |
+| `PROFILER_MAX_MINUTES` | int | `5` | **live** | Longest recording, in minutes (1 to 30); people choose from 1 minute up to this. |
+| `PROFILER_KEEP` | int | `5` | **live** | Recordings kept per instance (1 to 50); the oldest is deleted when a new one is saved. |
+| `PROFILER_RATE` | int | `100` | **live** | Samples per second taken of each Odoo process (10 to 500). |
+| `PROFILER_IMAGE` | text | (empty) | **live** | Container image with `py-spy` (and `sh`) that records profiles. Empty: the panel builds `sudoo-profiler:py-spy-<version>` from `python:3.12-slim` and a pinned py-spy wheel checked against its sha256, the first time a profile is recorded. |
+
+---
+
+## Audit log
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `AUDIT_EXPORT_MAX_ROWS` | int | `100000` | **live** | Most entries one export of the audit log (CSV or XLSX) contains (100 to 1000000). An export covers a year at most; each export is itself in the audit log. |
 
 ---
 

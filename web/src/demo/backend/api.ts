@@ -25,6 +25,7 @@ import { currentPlan, ENTITLEMENTS, gatedBy, needPremium, premiumOverview } from
 import * as fleet from "./servers";
 import * as support from "./support";
 import { endShell, issueTicket, recordingOf, shellOptions, shellSessions } from "./shell";
+import { deleteProfile, profileOf, profilerState, startProfiler, stopProfiler } from "./profiler";
 import {
   addBackup,
   alerts,
@@ -1016,6 +1017,33 @@ function ownDomain(instance: Instance, name: string) {
 
 // ---------------------------------------------------------------- web shell (simulated: shell.ts)
 
+route("GET", "/instances/:name/profiler", ({ params }) => {
+  const instance = instanceOf(params.name!);
+  needOn(instance.name, "instances.profile", `/api/v1/instances/${instance.name}/profiler`);
+  return ok(profilerState(instance));
+});
+route("POST", "/instances/:name/profiler", ({ params, body }) => {
+  const instance = instanceOf(params.name!);
+  needOn(instance.name, "instances.profile", `/api/v1/instances/${instance.name}/profiler`);
+  return ok(startProfiler(instance, body), undefined, 202);
+});
+route("POST", "/instances/:name/profiler/stop", ({ params }) => {
+  const instance = instanceOf(params.name!);
+  needOn(instance.name, "instances.profile", `/api/v1/instances/${instance.name}/profiler/stop`);
+  return ok(stopProfiler(instance), undefined, 202);
+});
+route("GET", "/instances/:name/profiles/:id", ({ params }) => {
+  const instance = instanceOf(params.name!);
+  needOn(instance.name, "instances.profile");
+  return ok(profileOf(instance, params.id!));
+});
+route("DELETE", "/instances/:name/profiles/:id", ({ params }) => {
+  const instance = instanceOf(params.name!);
+  needOn(instance.name, "instances.profile", `/api/v1/instances/${instance.name}/profiles/${params.id}`);
+  deleteProfile(instance, params.id!);
+  return none();
+});
+
 route("GET", "/instances/:name/shell", ({ params }) => {
   need("instances.view");
   return ok(shellOptions(instanceOf(params.name!)));
@@ -1482,9 +1510,42 @@ route("POST", "/invitation/accept", ({ body }) => {
   return created(me());
 });
 
+/** An entry with the project and branch of its instance (the panel records them with each entry). */
+const scoped = (entry: (typeof audit)[number]) => {
+  const instance = entry.instance ? instances.get(entry.instance) : undefined;
+  return instance?.project ? { ...entry, project: instance.project.id, branch: instance.git.branch } : entry;
+};
 route("GET", "/audit", ({ query }) => {
   need("audit.view", "/api/v1/audit");
-  return ok(audit.slice(0, Number(query.get("limit") ?? 200)));
+  const limit = Math.min(2000, Math.max(1, Number(query.get("limit") ?? 200)));
+  const offset = Math.max(0, Number(query.get("offset") ?? 0));
+  const sort = query.get("sort") ?? "-ts";
+  const column = sort.replace("-", "") as "ts" | "user" | "event" | "instance" | "ip" | "ok";
+  const since = query.get("since") ? Date.parse(query.get("since")!) / 1000 : null;
+  const until = query.get("until") ? Date.parse(query.get("until")!) / 1000 : null;
+  const text = (query.get("q") ?? "").toLowerCase();
+  const found = audit.map(scoped).filter((e) =>
+    (!query.get("user") || e.user === query.get("user")) &&
+    (!query.get("event") || e.event === query.get("event")) &&
+    (!query.get("instance") || e.instance === query.get("instance")) &&
+    (!query.get("project") || e.project === query.get("project")) &&
+    (!query.get("branch") || e.branch === query.get("branch")) &&
+    (!query.get("ok") || e.ok === (query.get("ok") === "allowed")) &&
+    (since === null || e.ts >= since) && (until === null || e.ts < until) &&
+    (!text || [e.user, e.event, e.instance, e.ip, e.detail].some((v) => String(v ?? "").toLowerCase().includes(text))),
+  );
+  const value = (e: (typeof found)[number]) => (column === "ts" ? e.ts : String(e[column] ?? ""));
+  found.sort((a, b) => (value(a) < value(b) ? -1 : value(a) > value(b) ? 1 : 0) * (sort.startsWith("-") ? -1 : 1));
+  return ok(found.slice(offset, offset + limit), { total: found.length, limit, offset });
+});
+route("GET", "/audit/facets", () => {
+  need("audit.view", "/api/v1/audit/facets");
+  return ok({
+    users: [...new Set(audit.map((e) => e.user))].sort(),
+    events: [...new Set(audit.map((e) => e.event))].sort(),
+    projects: [...projects.values()].map((p) => ({ id: p.id, name: p.name })).sort((a, b) => a.name.localeCompare(b.name)),
+    export_max_rows: Number(setting("audit_export_max_rows") ?? 100000),
+  });
 });
 
 // ---------------------------------------------------------------- tokens, backups, GitHub
@@ -1858,6 +1919,24 @@ route("GET", "/projects/repository-owners", () => {
     })),
     { connected: true },
   );
+});
+
+route("POST", "/projects/:id/github/check", ({ params }) => {
+  need("projects.manage", `/api/v1/projects/${params.id}/github/check`);
+  const project = projectOf(params.id!);
+  const owner = project.repository.split("/")[0];
+  record(ME, "GitHub connection checked", { detail: `${project.id}: warning (permissions: warning)` });
+  return ok({
+    status: "warning",
+    checked_at: iso(Date.now()),
+    checks: [
+      { id: "repository", status: "ok", message: `The server can read ${project.repository} through the GitHub App.`, fix: null },
+      { id: "installation", status: "ok", message: `The GitHub App is installed on ${owner} (selected repositories) and covers ${project.repository}.`, fix: { url: `https://github.com/organizations/${owner}/settings/installations`, label: "Open the installation" } },
+      { id: "permissions", status: "warning", message: "Contents and Metadata can be read; Commit statuses: write is not granted, so builds are not shown on GitHub's commits.", fix: { url: `https://github.com/organizations/${owner}/settings/installations`, label: "Review permissions" } },
+      { id: "webhook", status: "ok", message: "The webhook goes to this panel and the latest of this repository's deliveries (push, 2026-11-22T08:41:12Z) arrived.", fix: null },
+      { id: "submodules", status: "ok", message: "All 2 submodules can be read (1 with a deploy key).", fix: null },
+    ],
+  });
 });
 
 route("GET", "/projects/:id", ({ params }) => {

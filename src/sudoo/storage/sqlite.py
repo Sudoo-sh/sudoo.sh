@@ -14,6 +14,7 @@ import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 from sudoo.config import Settings
 
@@ -38,7 +39,10 @@ CREATE TABLE IF NOT EXISTS audit (
 );
 CREATE INDEX IF NOT EXISTS audit_user ON audit (user, id);
 CREATE INDEX IF NOT EXISTS audit_instance ON audit (instance, id);
+CREATE INDEX IF NOT EXISTS audit_ts ON audit (ts);
 """
+_AUDIT_SCOPE = (("project", "TEXT"), ("branch", "TEXT"))  # added in 3.2: the project and branch an entry is about
+_AUDIT_SORT = {"ts": "ts", "user": "user", "event": "event", "instance": "instance", "ip": "ip", "ok": "ok"}
 _AUDIT_KEEP = 200_000  # entries; older ones are removed now and then
 
 
@@ -51,6 +55,11 @@ class SqliteStorage:
             os.close(os.open(self.path, os.O_WRONLY | os.O_CREAT, 0o600))
         with self._connection() as db:
             db.executescript(_SCHEMA)
+            known = {row[1] for row in db.execute("PRAGMA table_info(audit)")}
+            for column, kind in _AUDIT_SCOPE:
+                if column not in known:
+                    db.execute(f"ALTER TABLE audit ADD COLUMN {column} {kind}")
+            db.execute("CREATE INDEX IF NOT EXISTS audit_project ON audit (project, id)")
 
     def _db(self) -> sqlite3.Connection:
         db: sqlite3.Connection | None = getattr(self._local, "db", None)
@@ -121,7 +130,8 @@ class SqliteStorage:
     def log(self, entry: Document) -> None:
         with self._connection(write=True) as db:
             cursor = db.execute(
-                "INSERT INTO audit (ts, user, ip, event, instance, ok, detail) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO audit (ts, user, ip, event, instance, ok, detail, project, branch)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     entry["ts"],
                     entry["user"],
@@ -130,6 +140,8 @@ class SqliteStorage:
                     entry.get("instance"),
                     int(entry.get("ok", True)),
                     entry.get("detail"),
+                    entry.get("project"),
+                    entry.get("branch"),
                 ),
             )
             if cursor.lastrowid and cursor.lastrowid % 1000 == 0:
@@ -160,17 +172,86 @@ class SqliteStorage:
             where.append("instance = ?")
             values.append(instance)
         rows = self._db().execute(
-            "SELECT ts, user, ip, event, instance, ok, detail FROM audit"
+            "SELECT ts, user, ip, event, instance, ok, detail, project, branch FROM audit"
             + (f" WHERE {' AND '.join(where)}" if where else "")
             + " ORDER BY id DESC LIMIT ? OFFSET ?",
             (*values, limit, offset),
         )
-        entries = []
-        for ts, who, ip, event, inst, ok, detail in rows:
-            entry: Document = {"ts": ts, "user": who, "ip": ip, "event": event, "ok": bool(ok)}
-            if inst:
-                entry["instance"] = inst
-            if detail:
-                entry["detail"] = detail
-            entries.append(entry)
-        return entries
+        return [_entry(row) for row in rows]
+
+    def search_logs(
+        self, filters: dict[str, Any], sort: str = "ts", descending: bool = True, limit: int = 200, offset: int = 0
+    ) -> tuple[list[Document], int]:
+        """Audit-log entries matching `filters` (core/audit.search describes them), sorted, one page of them, and
+        how many match in all."""
+        where, values = _audit_where(filters)
+        clause = f" WHERE {' AND '.join(where)}" if where else ""
+        column = _AUDIT_SORT.get(sort, "ts")
+        order = f" ORDER BY {column} {'DESC' if descending else 'ASC'}, id {'DESC' if descending else 'ASC'}"
+        db = self._db()
+        total = int(db.execute("SELECT COUNT(*) FROM audit" + clause, values).fetchone()[0])
+        rows = db.execute(
+            "SELECT ts, user, ip, event, instance, ok, detail, project, branch FROM audit" + clause + order
+            + " LIMIT ? OFFSET ?",
+            (*values, limit, offset),
+        )  # fmt: skip
+        return [_entry(row) for row in rows], total
+
+    def audit_facets(self) -> dict[str, list[str]]:
+        """The users and events found in the audit log, for filters."""
+        db = self._db()
+        return {
+            "users": [r[0] for r in db.execute("SELECT DISTINCT user FROM audit ORDER BY user LIMIT 2000")],
+            "events": [r[0] for r in db.execute("SELECT DISTINCT event FROM audit ORDER BY event LIMIT 2000")],
+        }
+
+
+def _entry(row: tuple[Any, ...]) -> Document:
+    ts, who, ip, event, inst, ok, detail, *scope = row
+    entry: Document = {"ts": ts, "user": who, "ip": ip, "event": event, "ok": bool(ok)}
+    if inst:
+        entry["instance"] = inst
+    if detail:
+        entry["detail"] = detail
+    if scope and scope[0]:
+        entry["project"] = scope[0]
+    if len(scope) > 1 and scope[1]:
+        entry["branch"] = scope[1]
+    return entry
+
+
+def _in(column: str, names: list[str]) -> tuple[str, list[Any]]:
+    if not names:
+        return "0", []
+    return f"{column} IN ({', '.join('?' for _ in names)})", list(names)
+
+
+def _audit_where(filters: dict[str, Any]) -> tuple[list[str], list[Any]]:
+    where: list[str] = []
+    values: list[Any] = []
+    for key in ("user", "instance", "event", "ip"):
+        if filters.get(key):
+            where.append(f"{key} = ?")
+            values.append(filters[key])
+    if filters.get("ok") is not None:
+        where.append("ok = ?")
+        values.append(int(bool(filters["ok"])))
+    if filters.get("since") is not None:
+        where.append("ts >= ?")
+        values.append(int(filters["since"]))
+    if filters.get("until") is not None:
+        where.append("ts < ?")
+        values.append(int(filters["until"]))
+    for column in ("project", "branch"):
+        if filters.get(column):  # recorded with the entry, or (older entries) one of its instances now
+            known, known_values = _in("instance", list(filters.get(f"{column}_instances") or []))
+            where.append(f"({column} = ? OR ({column} IS NULL AND {known}))")
+            values += [filters[column], *known_values]
+    if filters.get("text"):
+        pattern = "%" + str(filters["text"]).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        where.append(
+            "(user LIKE ? ESCAPE '\\' OR event LIKE ? ESCAPE '\\' OR instance LIKE ? ESCAPE '\\'"
+            " OR ip LIKE ? ESCAPE '\\' OR detail LIKE ? ESCAPE '\\')"
+        )
+        values += [pattern] * 5
+    return where, values

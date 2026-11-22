@@ -474,6 +474,7 @@ wait: one job per instance at a time.
 | **Access** | The Odoo sign-in (**Connect as**, next to **Open Odoo** at the top of the page, opens Odoo signed in as any of its users without their password: [Connect as](#connect-as)): address, login, password, and the master password (for Odoo's database manager). Click **Show the passwords**; each viewing is recorded in the audit log. |
 | **Mail** | Staging and development only: the e-mails the instance sent, caught before they reached anyone ([The Mail tab](#the-mail-tab)). Developers and up. |
 | **Shell** | A terminal in the browser, inside the instance's own containers: a command line in the Odoo container, `odoo shell`, or `psql` on its database ([The Shell tab](#the-shell-tab)). Only for the roles allowed to. |
+| **Tools** | The code profiler: record what Odoo spends its time on for a few minutes, then read it as a flame graph ([The Tools tab](#the-tools-tab)). Maintainers and up, by default. |
 | **Upgrade** | Administrators: move the database to a newer Odoo version: the pre-check, a test on a new staging instance, then the upgrade itself with its backup and rollback ([Upgrading to a newer Odoo version](#upgrading-to-a-newer-odoo-version)). |
 
 ### The Logs tab
@@ -712,6 +713,27 @@ Good to know:
 Super admins also see **Shells in this instance** under the terminal: who opened one, when, for how long and how it
 ended. **End** closes a shell someone has open; **Play** shows a recording, and **Download (.cast)** saves it in the
 asciinema format.
+
+### The Tools tab
+
+**Tools** records what the instance's Odoo workers spend their time on, as on Odoo.sh, and shows it as a flame
+graph. It is there for super admins, administrators and maintainers (the administrator can change who, see
+[Admin guide](ADMIN_GUIDE.md#28-code-profiler)).
+
+1. Choose a **Duration** (1 to 5 minutes by default) and press **Start profiler**. On a production instance you
+   confirm it first, every time. The first recording on a server can take a minute to prepare.
+2. Use the instance while it records, or repeat the slow action. A countdown shows how long is left; **Stop now**
+   ends it early and keeps what was recorded.
+3. The recording opens by itself when it is saved. Each bar of the flame graph is a function; the wider it is, the
+   more time was spent in it and in what it called. The colours tell Odoo's own code, add-ons, the database, Python
+   and the rest apart. Hover a bar for its file, line and share of the time; click it to zoom in, click a caller
+   above it (or **Show everything**) to zoom out; choose one thread instead of all; type in **Highlight functions**
+   to see how much time a function takes. **Where the time goes** lists the functions with the most time in their
+   own code.
+
+The last 5 recordings are kept. **Download** saves one as a speedscope file (open it at speedscope.app);
+**Delete** removes it. For one slow request in detail (each SQL query and call), use Odoo's own profiler, which the
+tab links to.
 
 ## 5. Creating an instance
 
@@ -1301,9 +1323,14 @@ Restoring brings back both the data and the attachments, because both are in the
 
 **Audit log** (sidebar, Operations) lists what happened, newest first: sign-ins (also failed ones), refused actions,
 every job on an instance, viewing an instance's passwords, account, key, token and settings changes. Each line shows
-when, the account, what happened, the instance and the address it came from. A changed secret setting (a password
-or webhook secret) appears as `(set)`, never with its value. Use **Search** to find entries,
-**Refused only** to see only what was not allowed, and **Show older entries** to go further back.
+when, the account, what happened, the instance (or project and branch) and the address it came from. A changed
+secret setting (a password or webhook secret) appears as `(set)`, never with its value.
+
+Filter by **Project** and **Branch**, **Instance**, **User**, **Action**, **From** and **To** dates and **Result**
+(allowed or refused), or search any text; click a column's title to sort by it, and page through the results.
+The filters are part of the page's address, so a filtered view can be bookmarked or shared; a project's page links
+to its own entries (**Audit log**, under its name). **Export** downloads what the filters show as CSV or Excel
+(XLSX), a year at most; each export is recorded in the audit log too.
 
 ### Alerts (the bell)
 

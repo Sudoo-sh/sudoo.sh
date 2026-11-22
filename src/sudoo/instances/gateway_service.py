@@ -18,7 +18,9 @@ which it shares with the panel:
     gateway.sock   served here, for the panel: POST /sync (read routes.json now and reconcile the listeners; the
                    answer has the listeners, their errors and the requests counted since the last call, for the
                    metrics) and GET /healthz (the container's health check).
-    panel.sock     served by the panel: POST /wake/<name> starts a paused instance (Docker is the panel's alone).
+    panel.sock     served by the panel: POST /wake/<name> starts a paused instance (Docker is the panel's alone);
+                   POST /connect/<name> {"token", "ip"} answers a Connect as link (connect_as.py) with {"sid"} or
+                   {"error"}.
 
 When the panel cannot be reached, a visitor of a paused instance gets "Starting soon" and the page asks again every
 few seconds; running instances are not affected at all. Both sockets are Unix sockets in a folder only root can
@@ -55,6 +57,7 @@ VISITS = "visits.json"
 GATEWAY_SOCKET = "gateway.sock"
 PANEL_SOCKET = "panel.sock"
 FORMAT = 1  # version of routes.json and visits.json
+CONNECT_SECONDS = 150  # how long a Connect as link may wait for the panel (it starts `odoo shell` in the instance)
 
 ROUND_SECONDS = 2.0  # how often routes.json is checked and failed ports are tried again
 VISITS_SECONDS = 5.0  # how often new visits are written
@@ -332,6 +335,24 @@ class ServiceHost:
             page, since = "waiting", self.waiting_since.setdefault(name, now)
         self.answers[name] = (now, page, since)
         return page, since
+
+    async def connect(self, name: str, token: str, ip: str) -> tuple[str | None, str]:
+        """A Connect as link: the panel uses up the token and writes the Odoo session (Docker is the panel's alone)."""
+        try:
+            async with (
+                aiohttp.ClientSession(
+                    connector=aiohttp.UnixConnector(path=str(path(PANEL_SOCKET))),
+                    timeout=aiohttp.ClientTimeout(total=CONNECT_SECONDS),
+                ) as panel,
+                panel.post(f"http://panel/connect/{name}", json={"token": token, "ip": ip}) as answer,
+            ):
+                data = await answer.json()
+            sid = data.get("sid")
+            if isinstance(sid, str) and sid:
+                return sid, ""
+            return None, str(data.get("error") or "The link is not valid.")
+        except (aiohttp.ClientError, OSError, TimeoutError, ValueError, AttributeError):
+            return None, "The panel cannot be reached right now. Try again in a minute."
 
     async def close(self) -> None:
         if self._panel is not None:

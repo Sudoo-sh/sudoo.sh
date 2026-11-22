@@ -2254,6 +2254,34 @@
   "description": "Back up an instance before an update changes its code, and put it back (code, and the database when it may have changed) when the update fails."
  },
  {
+  "key": "import_max_gb",
+  "env": "IMPORT_MAX_GB",
+  "value": 20.0,
+  "env_value": 20.0,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "number",
+  "minimum": null,
+  "description": "Largest database dump that can be uploaded with Import database (GB)."
+ },
+ {
+  "key": "log_download_max_lines",
+  "env": "LOG_DOWNLOAD_MAX_LINES",
+  "value": 100000,
+  "env_value": 100000,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "integer",
+  "minimum": 1000,
+  "description": "Lines a log download holds at most (the last ones)."
+ },
+ {
   "key": "offsite_backups",
   "env": "OFFSITE_BACKUPS",
   "value": true,

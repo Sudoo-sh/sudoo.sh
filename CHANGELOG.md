@@ -15,6 +15,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   restores. Read it with `GET /api/v1/projects/<id>/builds`, `GET /api/v1/projects/<id>/branches/<branch>/history`
   and `GET /api/v1/projects/<id>/builds/<build_id>`; the `build` live event carries every change.
   `PROJECT_BUILDS_KEPT` (200) sets how many builds each branch keeps.
+- **Live logs, as on Odoo.sh:** the instance's **Logs** tab follows `odoo.log` as Odoo writes it, and also shows the
+  logs of its latest creation, update and module upgrade (`install.log`, `update.log`, `upgrade.log`). Pause keeps new
+  lines aside and counts them, the search filters on the server (plain text, any case) and highlights its matches,
+  levels are coloured (werkzeug's request lines dimmed), long lines wrap or scroll, and **Download** saves the log as
+  text (`LOG_DOWNLOAD_MAX_LINES`, 100,000). `GET /api/v1/instances/<name>/logs/files`, `.../logs/stream` (Server-Sent
+  Events, resumed with Last-Event-ID) and `.../logs/download`.
+- **Connect as:** open an instance's Odoo signed in as any active internal user, without their password, from the
+  **Access** tab. The panel gives a single-use link valid for 60 seconds; the instance's gateway has the panel write a
+  session for that user through Odoo's own session API and sets the session cookie. No password is read or changed.
+  Needs `instances.credentials`; production asks for "production" to be typed; giving and using a link are both
+  audit-logged. `GET /api/v1/instances/<name>/odoo-users`, `POST /api/v1/instances/<name>/connect`.
+- **Import database:** upload a dump from Odoo.sh, another server or Odoo's database manager (`.zip` with the
+  filestore, `.dump`, `.sql`, `.sql.gz`) into an instance from its **Backups** card. The upload goes in resumable
+  pieces up to `IMPORT_MAX_GB` (20); a zip is checked for paths that would leave it, and a dump of another major Odoo
+  version is refused with what to do instead. The import backs up the current state first (Rollback is offered),
+  neutralises the data unless unticked (the default outside production) and keeps users' passwords. Production asks
+  for "production" to be typed. `POST /api/v1/instances/<name>/imports` and what follows it.
+- **Backups show their revision and a comment:** every backup records the commit the instance's code was at, and
+  **Back up now** takes an optional comment; both show in the instance's list of backups and in `GET /api/v1/backups`.
 
 ### Changed
 

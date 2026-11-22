@@ -4,8 +4,9 @@
 // such as the lines of a traceback, keeps the level of the line it continues. The text itself is never changed.
 
 export type Level = "error" | "warning" | "success" | "info" | "debug";
-/** How a line is drawn: its level, and for a job's log whether it is a step title or a command. */
-export type Kind = "step" | "cmd" | null;
+/** How a line is drawn: its level, and for a job's log whether it is a step title or a command; for Odoo's log, a
+ *  CRITICAL line stands out ("critical") and a request line of werkzeug, the bulk of a busy log, recedes ("dim"). */
+export type Kind = "step" | "cmd" | "critical" | "dim" | null;
 export interface LogLine {
   text: string;
   level: Level;
@@ -19,7 +20,8 @@ export interface StepState {
 
 const ODOO = /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(?:,\d+)? +\d+ +(DEBUG|INFO|WARNING|WARN|ERROR|CRITICAL|TEST)\b/;
 const ODOO_LEVEL: Record<string, Level> = { DEBUG: "debug", INFO: "info", TEST: "info", WARNING: "warning", WARN: "warning", ERROR: "error", CRITICAL: "error" };
-const NOTE = /^\[(info|warning|error|success|debug)\]/i;
+const WERKZEUG = / werkzeug: /;
+const NOTE =/^\[(info|warning|error|success|debug)\]/i;
 const ERROR = /^(ERROR|FATAL|CRITICAL)\b|^Traceback \(most recent call last\)|^[\w.]*(Error|Exception): |\b(failed|refused|denied)\b/;
 const WARNING = /^(WARNING|WARN)\b|^\w*Warning: /;
 const SUCCESS = /\b(done|succeeded|successfully|completed|verified|up to date|healthy)\b|^(Backup written|Restored|Status: Downloaded)|\b(Started|Created)$|\bGET \S+ 200\b/i;
@@ -40,6 +42,7 @@ export function parseLog(text: string, steps?: StepState[]): LogLine[] {
     const note = NOTE.exec(raw);
     if (odoo) {
       level = ODOO_LEVEL[odoo[1]!] ?? "info";
+      kind = odoo[1] === "CRITICAL" ? "critical" : level === "info" && WERKZEUG.test(raw) ? "dim" : null;
       carried = level;
     } else if (raw.startsWith("== ")) {
       kind = "step";

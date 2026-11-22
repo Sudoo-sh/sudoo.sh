@@ -352,11 +352,11 @@ wait: one job per instance at a time.
 | Status | Meaning | What to do |
 | :--- | :--- | :--- |
 | **Online** | Odoo answers. | Nothing. |
-| **Starting** | The container runs but Odoo is not answering yet. | Wait up to a minute. If it stays, open the **Odoo log** tab. |
+| **Starting** | The container runs but Odoo is not answering yet. | Wait up to a minute. If it stays, open the **Logs** tab. |
 | **Working** | A job (update, restart, backup...) is running. Other actions wait their turn. | Wait; click the job line to follow it. |
 | **Paused** | Stopped to save memory because nobody used it for some hours (6 by default). | Nothing: it starts by itself when someone opens its link, or click **Start**. |
 | **Switched off** | Stopped on purpose. It does **not** start when someone opens it. | Someone allowed to do so clicks **Start**. |
-| **Stopped** | Odoo stopped unexpectedly, often for lack of memory. | **Start**. If it happens again, check the **Odoo log** and pause other instances. |
+| **Stopped** | Odoo stopped unexpectedly, often for lack of memory. | **Start**. If it happens again, check the **Logs** tab and pause other instances. |
 | **Checking** | The panel has not measured the instance yet, for example just after the panel started. | Wait a few seconds. |
 
 ### Tabs
@@ -366,14 +366,46 @@ wait: one job per instance at a time.
 | **Overview** | Four cards with the processor, memory, requests per minute and response time of this instance, each with a small line of the last hour; one live chart with a **CPU / Memory / Requests / Response** switch; the **Backups** card; details such as the database, its size and how long it has been running. |
 | **Activity** | Every job on this instance, newest first. Click one to open a panel with its steps, notes, the reason it failed (if it did) and the technical log, which follows live while the job runs. |
 | **Code** | The repository and branch, the recent commits, and the submodules, with **Add submodule** and **Remove** ([section 7](#7-submodules)). |
-| **Odoo log** | The latest lines Odoo wrote (100 to 3000), with **Refresh**. Lines with `ERROR` or `Traceback` usually explain a problem. |
+| **Logs** | Odoo's log as it is written, and the logs of the instance's latest creation, update and module upgrade ([The Logs tab](#the-logs-tab)). Lines with `ERROR` or `Traceback` usually explain a problem. |
 | **Backups** | The **Backups** card on its own ([The Backups card](#the-backups-card)): the instance's backups, **Back up now** and the restores. |
 | **Domains** | The instance's own domains, such as `erp.client.com`: their state, the DNS record to create, the certificate and its expiry ([Custom domains](#custom-domains)). Everyone sees them; administrators add and remove them. |
 | **Settings** | The stage ([Stages](#stages-production-staging-and-development)), the automation switches and the lifetime ([section 6](#6-keeping-the-code-up-to-date)), saved at once; and **Resources** ([Resources](#resources)). |
-| **Access** | The Odoo sign-in: address, login, password, and the master password (for Odoo's database manager). Click **Show the passwords**; each viewing is recorded in the audit log. |
+| **Access** | **Connect as**: open Odoo signed in as any of its users, without their password ([Connect as](#connect-as)); and the Odoo sign-in: address, login, password, and the master password (for Odoo's database manager). Click **Show the passwords**; each viewing is recorded in the audit log. |
 | **Mail** | Staging and development only: the e-mails the instance sent, caught before they reached anyone ([The Mail tab](#the-mail-tab)). Developers and up. |
 | **Shell** | A terminal in the browser, inside the instance's own containers: a command line in the Odoo container, `odoo shell`, or `psql` on its database ([The Shell tab](#the-shell-tab)). Only for the roles allowed to. |
 | **Upgrade** | Administrators: move the database to a newer Odoo version: the pre-check, a test on a new staging instance, then the upgrade itself with its backup and rollback ([Upgrading to a newer Odoo version](#upgrading-to-a-newer-odoo-version)). |
+
+### The Logs tab
+
+The **Logs** tab follows a log live, as Odoo.sh does.
+
+* **Log.** `odoo.log` is what Odoo writes (its server log). `install.log`, `update.log` and `upgrade.log` are the
+  technical logs of the instance's latest creation, latest update (new code, Python requirements, module updates) and
+  latest **Upgrade modules**, while the panel keeps them; they also open from the **Activity** tab.
+* **Follow and Pause.** New lines appear as they are written. **Pause** keeps them aside: a pill shows how many new
+  lines arrived, and clicking it (or **Follow**) shows them. Scrolling up stops the scrolling only; **Jump to the
+  latest lines** goes back to the end.
+* **Search.** Type a word: only the lines that contain it are shown (any case), and the word is highlighted. Use the
+  arrows, or Enter and Shift+Enter, to step through the matches.
+* **Levels.** Errors and CRITICAL lines are red, warnings orange; the request lines of `werkzeug` are dimmed so the
+  rest stands out. The level buttons show only one level.
+* **Wrap** breaks long lines (on by default); off, the log scrolls sideways.
+* **Download** saves the log as a text file: its last lines (100,000 unless an administrator changed
+  `LOG_DOWNLOAD_MAX_LINES`), with the search applied.
+
+When Odoo is stopped, the tab shows the last lines it wrote and follows again once it starts.
+
+### Connect as
+
+**Connect as** on the **Access** tab opens Odoo signed in as one of its users, without knowing or changing their
+password, for example to see what a salesperson sees. Click the arrow next to **Open Odoo**, then **Connect as…**,
+choose the user, and click **Get the sign-in link**, then **Open Odoo as ...**. The link works once, for one minute.
+
+* Only the roles that may see the Odoo passwords can use it (administrators and up).
+* On a production instance you type `production` first: you act as that user on live data.
+* Giving the link and opening it are both written to the audit log: who, which instance, which Odoo user.
+* Odoo opens an ordinary session for the user: it ends when you sign out of Odoo, when the user's password changes,
+  or after Odoo's usual session lifetime. The instance must be running.
 
 ### Resources
 
@@ -400,11 +432,12 @@ The **Backups** card holds the instance's backups. It is on the **Overview** tab
 
 | Part | What it does |
 | :--- | :--- |
-| **Back up now** | Saves the database and the files as an Odoo backup now. A running instance keeps running; a paused one stays paused. |
+| **Back up now** | Saves the database and the files as an Odoo backup now, with an optional comment that says why ("before the price import"). A running instance keeps running; a paused one stays paused. |
+| **Import database** | Replaces the instance's database with a dump from elsewhere ([Importing a database](#importing-a-database)). |
 | **Restore the latest** | Puts back the newest backup taken by hand, daily or before a deletion. Greyed out when the instance has none. |
 | **Restore another backup…** | Opens a list of every backup on the server, grouped by instance, with its Odoo version and date. Pick one and confirm to put it into this instance, even a backup of another instance. Backups of another Odoo version, or Enterprise backups on a Community instance, are greyed out with the reason. Shown to roles that may both restore and manage backups (administrators and super admins). |
 | **Latest backup** | The date and time of that backup, its kind, its size and how long ago it was taken. |
-| The list | Every backup of the instance, newest first, with when it was taken, its kind and its size. **Restore** puts back that backup; **Download** (the arrow) saves the zip, for roles that may manage backups. |
+| The list | Every backup of the instance, newest first, with when it was taken, its kind, the revision (the commit the code was at, linked to the repository), the comment and its size. **Restore** puts back that backup; **Download** (the arrow) saves the zip, for roles that may manage backups. |
 
 The kinds of backup are explained in [section 11](#11-backups-and-audit-log).
 
@@ -439,6 +472,25 @@ current state first as a **Before a rollback** backup, kept as long, and never r
 Once you have rolled back, the banner goes; to go back to that state again, restore the **Before a restore**
 backup from the Backups card. After that time the **Before a restore** backup is removed and the banner goes. A second restore within that time
 replaces it: Rollback always goes back to just before the last restore.
+
+**Importing a database.** **Import database** puts a database from elsewhere into this instance: a backup
+downloaded from Odoo.sh or from Odoo's own database manager (a `.zip` with `dump.sql` and the filestore), a
+`pg_dump` file (`.dump`), or a plain SQL file (`.sql` or `.sql.gz`). Drop the file on the dialog or choose it, then
+click **Upload and import**.
+
+* The file goes up in pieces. If the connection drops, the upload continues by itself; after closing the page,
+  choose the same file again and it continues where it stopped. The largest file is 20 GB unless an administrator
+  changed `IMPORT_MAX_GB`.
+* The dump must be of the instance's Odoo version (17.0 into 17.0). A dump of another version is refused with the
+  reason: import it into an instance of its own version, then upgrade that instance.
+* A zip whose paths would leave the archive is refused.
+* **Neutralise the imported data** is on by default (off in production): outgoing e-mail, scheduled actions and
+  payment providers are switched off, as for a copy. Untick it only when the imported data should act as the original.
+* Production asks you to type `production`. On every instance the current state is backed up first and offered as
+  **Rollback** for a while, as after a restore.
+* Users keep the passwords they have in the dump. Use **Connect as** to sign in as any of them.
+
+A `.dump` or `.sql` file has no filestore: attachments stored as files are not part of it.
 
 ### Managed address
 
@@ -1286,7 +1338,7 @@ in English. E-mails the panel sends are in English for now.
 
 1. Read the message: the panel explains failures in plain words.
 2. Open the job in the instance's **Activity** tab to see which step failed, the reason and the technical log.
-3. Try **Restart** if Odoo behaves strangely, and look at the **Odoo log** tab if it does not start.
+3. Try **Restart** if Odoo behaves strangely, and look at the **Logs** tab if it does not start.
 4. If a button is missing or an action is refused, your role may not include it ([section 9](#9-accounts-and-roles)).
 5. If it is still not solved, contact the administrator named on the sign-in page, and say which instance, what you
    did and what the message said.

@@ -112,6 +112,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     proxy: {
       "/api/v1/events": { target: events, changeOrigin: false },
+      "^/api/v1/instances/[a-z0-9-]+/logs/stream": { target: events, changeOrigin: false },
       "/api": { target: api, changeOrigin: false },
       "/docs": { target: api, changeOrigin: false },
       "/static": { target: api, changeOrigin: false },

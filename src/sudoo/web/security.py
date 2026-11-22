@@ -209,6 +209,8 @@ def _check_request() -> ResponseReturnValue | None:
     if request.path.startswith(HOOKS_PREFIX) or request.path in PUBLIC_PATHS:
         return None
     if request.path.startswith(API_PREFIX):
+        if _upload_piece():
+            request.max_content_length = UPLOAD_PIECE_MAX  # one piece of an imported database (web/v1/imports.py)
         if "Authorization" in request.headers:
             _authenticate_api_call()
         else:
@@ -221,6 +223,20 @@ def _check_request() -> ResponseReturnValue | None:
     if not g.user:
         return redirect("/login")
     return None
+
+
+UPLOAD_PIECE_RE = re.compile(r"^/api/v1/instances/[a-z0-9][a-z0-9-]{0,30}/imports/[A-Za-z0-9_-]{16,40}$")
+UPLOAD_PIECE_MAX = 8 * 2**20 + 1024
+"""Requests are small JSON documents, except one piece of a database being imported: PUT on UPLOAD_PIECE_RE as
+application/octet-stream, at most 8 MB (instances/imports.py CHUNK_MAX)."""
+
+
+def _upload_piece() -> bool:
+    return (
+        request.method == "PUT"
+        and request.mimetype == "application/octet-stream"
+        and UPLOAD_PIECE_RE.match(request.path) is not None
+    )
 
 
 def _authenticate_support_call(user: Any) -> None:
@@ -239,7 +255,7 @@ def _authenticate_browser_call() -> None:
     if request.method not in SAFE_METHODS:
         if not _same_origin():
             abort(403, "Request blocked: it did not come from this panel.")
-        if request.content_length and request.mimetype != "application/json":
+        if request.content_length and request.mimetype != "application/json" and not _upload_piece():
             abort(415, "Requests must be sent as JSON.")
     if (
         (request.method, request.path) in PUBLIC_API
@@ -302,7 +318,7 @@ DEVELOPER_ENDPOINTS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
         ("POST", "instances"),  # development instances only (v1/instances.create)
         ("GET", f"instances/{_NAME}"),
         ("DELETE", f"instances/{_NAME}"),  # development instances only
-        ("GET", f"instances/{_NAME}/logs"),
+        ("GET", f"instances/{_NAME}/logs(/files|/download|/stream)?"),
         ("GET", f"instances/{_NAME}/resources"),
         ("GET", f"instances/{_NAME}/mail(/.+)?"),
         ("POST", f"instances/{_NAME}/actions/{_NAME}"),  # which actions: v1/instances.DEVELOPER_ACTIONS
@@ -402,7 +418,7 @@ def _path_with_query() -> str:
 
 def _authenticate_api_call() -> None:
     """Accept an /api/v1 call with an API token only when its signature is valid; act as "api:<token name>"."""
-    if request.content_length and request.mimetype != "application/json":
+    if request.content_length and request.mimetype != "application/json" and not _upload_piece():
         abort(415, "Requests must be sent as JSON.")
     try:
         g.user = api_caller(request.headers, request.method, _path_with_query(), request.get_data(), client_ip())

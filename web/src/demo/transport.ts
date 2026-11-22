@@ -2,10 +2,10 @@
 // (backend/api.ts), so the web app runs unchanged and nothing is sent anywhere. Links and downloads that would leave
 // the demo are stopped with a short explanation instead.
 
-import { answer } from "./backend/api";
+import { answer, jobOfLog, odooLog } from "./backend/api";
 import { subscribe, type Topic } from "./backend/bus";
 import { DemoShellSocket } from "./backend/shell";
-import { roleInfo, session } from "./backend/state";
+import { ASLEEP, instances, logs, roleInfo, session } from "./backend/state";
 import { websiteLink } from "./referrer";
 
 const ours = (url: URL) => url.origin === location.origin && (url.pathname.startsWith("/api/") || url.pathname === "/healthz");
@@ -28,6 +28,8 @@ function installFetch() {
     } catch {
       return json(400, { type: "about:blank", title: "Bad Request", status: 400, detail: "The request is not JSON." });
     }
+    // a piece of an uploaded file (Import database): the backend only needs its size
+    if (init?.body instanceof Blob) body = { size: init.body.size };
     const result = await answer(method, url.pathname.replace(/^\/api\/v1/, ""), url.searchParams, body);
     if (result.status === 204) return new Response(null, { status: 204, headers: result.headers });
     return json(result.status, result.body, result.headers);
@@ -92,11 +94,92 @@ class DemoEventSource extends EventTarget {
   }
 }
 
+const LOG_STREAM = /^\/api\/v1\/instances\/([^/]+)\/logs\/stream$/;
+
+/** GET /api/v1/instances/<name>/logs/stream: Odoo's sample log, a few new lines every second or two (filtered as the
+ *  server filters: plain text, any case); a job's log is sent whole and ends. */
+class DemoLogSource extends EventTarget {
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSED = 2;
+  readonly CONNECTING = 0;
+  readonly OPEN = 1;
+  readonly CLOSED = 2;
+  readonly url: string;
+  readonly withCredentials = false;
+  readyState = 0;
+  onopen: ((event: Event) => void) | null = null;
+  onerror: ((event: Event) => void) | null = null;
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  private timers: ReturnType<typeof setTimeout>[] = [];
+  private sent = 0;
+
+  constructor(url: string | URL, name: string) {
+    super();
+    this.url = new URL(String(url), location.href).href;
+    const query = new URL(this.url).searchParams;
+    const log = query.get("log") ?? "odoo.log";
+    const wanted = (query.get("q") ?? "").trim().toLowerCase();
+    const keep = (line: string) => !wanted || line.toLowerCase().includes(wanted);
+    const tail = Number(query.get("tail") ?? 300);
+    this.timers.push(
+      setTimeout(() => {
+        const instance = instances.get(name);
+        if (!session.signedIn || !instance) return this.fail();
+        this.readyState = 1;
+        const opened = new Event("open");
+        this.onopen?.(opened);
+        this.dispatchEvent(opened);
+        if (log !== "odoo.log") {
+          const job = jobOfLog(name, log);
+          const text = job ? (logs.get(job.id) ?? "") : "";
+          this.send("lines", { lines: text.split("\n").filter(keep).slice(-tail || undefined) });
+          this.send("end", { reason: "finished" });
+          return;
+        }
+        if (ASLEEP.includes(instance.status)) {
+          this.send("lines", { lines: [] });
+          this.send("end", { reason: "stopped" });
+          return;
+        }
+        this.send("lines", { lines: tail ? odooLog(instance, Math.max(tail, 50)).trimEnd().split("\n").filter(keep).slice(-tail) : [] });
+        const more = () => {
+          if (this.readyState === 2) return;
+          const fresh = odooLog(instance, 1 + (this.sent % 3)).trimEnd().split("\n").filter(keep);
+          if (fresh.length) this.send("lines", { lines: fresh });
+          this.timers.push(setTimeout(more, 900 + Math.random() * 1400));
+        };
+        this.timers.push(setTimeout(more, 1200));
+      }, 120),
+    );
+  }
+
+  private send(event: string, data: unknown) {
+    this.sent++;
+    const message = new MessageEvent(event, { data: JSON.stringify(data), lastEventId: String(this.sent) });
+    this.dispatchEvent(message);
+  }
+
+  private fail() {
+    this.readyState = 2;
+    const event = new Event("error");
+    this.onerror?.(event);
+    this.dispatchEvent(event);
+  }
+
+  close() {
+    this.readyState = 2;
+    for (const timer of this.timers) clearTimeout(timer);
+  }
+}
+
 function installEventSource() {
   const RealEventSource = window.EventSource;
   const Demo = function (url: string | URL, init?: EventSourceInit) {
     const address = new URL(String(url), location.href);
     if (!ours(address)) return new RealEventSource(url, init);
+    const followed = LOG_STREAM.exec(address.pathname);
+    if (followed) return new DemoLogSource(url, decodeURIComponent(followed[1]!));
     return new DemoEventSource(url);
   } as unknown as typeof EventSource;
   Object.assign(Demo, { CONNECTING: 0, OPEN: 1, CLOSED: 2 });

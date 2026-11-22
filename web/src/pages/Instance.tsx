@@ -11,6 +11,7 @@ import {
   Container,
   Copy,
   Database,
+  Gauge,
   Download,
   DownloadCloud,
   GitBranch,
@@ -49,6 +50,7 @@ import { DomainsCore } from "@/components/DomainsCore";
 import { PremiumSlot } from "@/premium/components";
 import { usePremium } from "@/premium/loader";
 import { ShellTab } from "@/components/shell/ShellTab";
+import { ToolsTab } from "@/components/ToolsTab";
 import { UpgradeTab } from "@/components/UpgradeTab";
 import { MailTab } from "@/components/MailTab";
 import { LockBanner } from "@/components/ProjectAccess";
@@ -106,6 +108,7 @@ const TABS: { id: string; label: keyof (typeof words)["en"]["tabs"]; icon: React
   { id: "access", label: "access", icon: <KeyRound />, permission: "instances.credentials" },
   { id: "mail", label: "mail", icon: <Mail />, permission: "caught_mail.view" },
   { id: "shell", label: "shell", icon: <SquareTerminal />, permission: "instances.shell" },
+  { id: "tools", label: "tools", icon: <Gauge />, permission: "instances.profile" },
   { id: "upgrade", label: "upgrade", icon: <ArrowUpCircle />, permission: "instances.upgrade" },
 ];
 
@@ -381,6 +384,7 @@ export function InstanceView({
         {tab === "access" && can("instances.credentials") && <AccessTab instance={instance} />}
         {tab === "mail" && can("caught_mail.view") && !production && <MailTab instance={instance} />}
         {tab === "shell" && can("instances.shell") && <ShellTab instance={instance} />}
+        {tab === "tools" && can("instances.profile") && <ToolsTab instance={instance} />}
         {tab === "upgrade" && can("instances.upgrade") && <UpgradeTab instance={instance} onJob={setJobId} />}
         {tab === "backups" && <BackupsCard instance={instance} busy={busy} act={act} />}
       </div>

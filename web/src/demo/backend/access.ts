@@ -27,12 +27,12 @@ interface DemoTeam {
 export const LEVELS: AccessLevel[] = ["none", "view", "developer", "maintainer", "admin"];
 export const PROJECT_PERMISSIONS: Permission[] = [
   "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "instances.restore",
-  "instances.upgrade", "instances.delete", "instances.credentials", "instances.resources", "instances.shell", "instances.database_shell",
+  "instances.upgrade", "instances.delete", "instances.credentials", "instances.resources", "instances.shell", "instances.database_shell", "instances.profile",
   "caught_mail.view", "caught_mail.manage", "backups.manage", "offsite.restore", "offsite.delete", "domains.manage",
   "projects.manage", "projects.access", "projects.resources",
 ];
 const VIEW: Permission[] = ["instances.view", "instances.logs"];
-const DEVELOP: Permission[] = [...VIEW, "instances.update", "caught_mail.view", "instances.shell"];
+const DEVELOP: Permission[] = [...VIEW, "instances.update", "caught_mail.view", "instances.shell", "instances.profile"];
 const MAINTAIN: Permission[] = [...DEVELOP, "instances.operate", "instances.restore", "instances.create", "instances.credentials", "projects.manage"];
 const LEVEL_PERMISSIONS: Record<AccessLevel, Permission[]> = { none: [], view: VIEW, developer: DEVELOP, maintainer: MAINTAIN, admin: PROJECT_PERMISSIONS };
 

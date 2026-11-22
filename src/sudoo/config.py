@@ -1240,6 +1240,48 @@ class Settings(BaseSettings):
         500, ge=10, le=100000, description="Space all shell recordings may take together, in MB; the oldest go first."
     )
 
+    # ------------------------------------------------------------------ code profiler (instances/profiler.py, docs/ADMIN_GUIDE.md "Code profiler")
+    profiler_enabled: bool = Field(
+        True,
+        description="People whose role allows it can record what an instance's Odoo workers spend their time on "
+        "(the Tools tab); off: nobody can.",
+    )
+    profiler_roles: Literal["admins", "maintainers", "developers"] = Field(
+        "maintainers",
+        description='Who may record a profile: "admins" (super admins and administrators), "maintainers" (and '
+        'maintainers) or "developers" (and developers). Viewers never can.',
+    )
+    profiler_production: bool = Field(
+        True,
+        description="Profiles of production instances may be recorded (each one is confirmed when it starts); "
+        "off: only staging and development instances.",
+    )
+    profiler_max_minutes: int = Field(
+        5, ge=1, le=30, description="Longest recording, in minutes; people choose from 1 minute up to this."
+    )
+    profiler_keep: int = Field(
+        5, ge=1, le=50, description="Recordings kept per instance; the oldest is deleted when a new one is made."
+    )
+    profiler_rate: int = Field(
+        100, ge=10, le=500, description="Samples per second taken of each Odoo process while recording."
+    )
+    profiler_image: str = Field(
+        "",
+        max_length=200,
+        pattern=r"^$|^[a-z0-9][a-z0-9._/:@-]*$",
+        description="Container image with py-spy that records profiles (its entry point is not used: the panel "
+        "runs `sh` and `py-spy` in it). Empty: the panel builds sudoo-profiler from python:3.12-slim and a "
+        "pinned, hash-checked py-spy release the first time it is needed.",
+    )
+
+    # ------------------------------------------------------------------ audit log export (core/audit.py)
+    audit_export_max_rows: int = Field(
+        100_000,
+        ge=100,
+        le=1_000_000,
+        description="Most entries one export of the audit log (CSV or XLSX) contains; an export covers a year at most.",
+    )
+
     # ------------------------------------------------------------------ servers (premium/servers.py, docs/ADMIN_GUIDE.md "Servers")
     server_name: str = Field(
         "Main", min_length=1, max_length=40, description="Name of this server, the main one, where instances show it."
@@ -1684,6 +1726,9 @@ OFFSITE_SETTINGS = tuple(name for name in Settings.model_fields if name.startswi
 SHELL_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("shell_"))
 """Every web shell setting (webshell/); all of them can be changed in the panel."""
 
+PROFILER_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("profiler_"))
+"""Every setting of the code profiler (instances/profiler.py); all of them can be changed in the panel."""
+
 SERVER_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith(("server_", "servers_", "move_")))
 """Every setting of servers and moves between them (premium/servers.py); all of them can be changed in the panel."""
 
@@ -1806,6 +1851,8 @@ EDITABLE = (
     "plan_pricing_url",
     "plan_account_url",
     *SHELL_SETTINGS,
+    *PROFILER_SETTINGS,
+    "audit_export_max_rows",
     "support_access",
     "support_access_max_hours",
     *SERVER_SETTINGS,

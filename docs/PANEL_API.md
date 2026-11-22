@@ -40,6 +40,7 @@ Every endpoint needs a **permission** (for example `instances.create`). A person
 10. [Signing in from a web app](#10-signing-in-from-a-web-app)
 11. [Limits](#11-limits)
 12. [Web shell](#12-web-shell)
+13. [Code profiler](#13-code-profiler)
 
 ---
 
@@ -312,6 +313,7 @@ instance; `null` for plain Odoo). See [Projects and branches](ADMIN_GUIDE.md#24-
 | `PUT /projects/<id>/access` | `projects.access` | `{"mode": "panel_roles" or "restricted", "grants": [{"type", "id", "level"}], "branches": {"<branch>": {"restricted": true, "grants": [...]}}}`; `level` is `none`, `view`, `developer`, `maintainer` or `admin` | 200, the access (locks unchanged); 400 for an unknown team or account; **409** when the change would leave the caller without `projects.access` in the project |
 | `PUT /projects/<id>/branches/<branch>/lock` | `projects.access` in the branch; to change an existing lock, also allowed by it (super admins always) | `{"reason"?, "allow": [{"type": "team" or "user", "id"}]}` | 200, the lock; the caller is always added to `allow`. 404 for a branch the project does not know |
 | `DELETE /projects/<id>/branches/<branch>/lock` | `projects.access`, allowed by the lock (super admins always) | | **204**; 404 when the branch is not locked |
+| `POST /projects/<id>/github/check` | `projects.manage` | `{}` | 200, `status` (`ok`, `warning` or `error`), `checked_at` and `checks`: one per part of the link to GitHub, in order, each `{"id", "status", "message", "fix"}` with `status` `ok`, `warning`, `error` or `skipped` and `fix` `{"url", "label"}` or `null`. `id`: `repository` (the server can read it), `installation` (the GitHub App is installed on its owner, not suspended, and covers it), `permissions` (Contents and Metadata: read; Commit statuses: write and the push, create and delete events are recommended), `webhook` (the app's webhook goes to this panel; the latest deliveries for this repository, or the app's, arrived), `submodules` (each submodule of the default branch can be read). Nothing is changed; audit-logged ([Admin guide](ADMIN_GUIDE.md#checking-a-projects-connection)) |
 
 Inside a project every permission is the caller's role ∩ the level the project (or the branch) gives them, and a
 locked branch takes every project permission but `instances.view` from whoever its lock does not allow
@@ -455,7 +457,9 @@ the web app. `resolved_at` is set when the problem is over. Webhooks are named b
 | `POST /users/<name>/password` | `accounts.manage` | `{}` to generate one, or `{"password", "must_change_password"}` | 200, `{"password"}`, shown once; the account's sessions end |
 | `DELETE /users/<name>/second-factors` | `accounts.manage` | | **204**: removes the account's second factors and recovery codes (a lost phone) and signs it out |
 | `DELETE /users/<name>` | `accounts.manage` | | **204** |
-| `GET /audit?limit=200&user=&instance=` | `audit.view` | | 200, the latest audit-log entries, newest first (`limit` 1 to 2000) |
+| `GET /audit?limit=200&offset=0&sort=-ts&...` | `audit.view` | | 200, audit-log entries (`ts`, `user`, `ip`, `event`, `ok`, `instance`?, `detail`?, `project`?, `branch`?, `support`), `limit` (1 to 2000) from `offset`, sorted by `sort` (`ts`, `user`, `event`, `instance`, `ip` or `ok`; a leading `-` for descending, the default `-ts`). Filters: `user`, `event`, `instance`, `ip` (exact), `ok` (`allowed` or `refused`), `since` and `until` (ISO 8601 or Unix time; `until` excluded), `project` and `branch` (a branch needs its project), `q` (text in any field). `meta`: `total`, `limit`, `offset`. An entry names the project and branch of its instance, or of the project it changed; older entries are found by the instances the project and branch have now |
+| `GET /audit/facets` | `audit.view` | | 200, `users` and `events` found in the log, `projects` (`id`, `name`), `export_max_rows` (`AUDIT_EXPORT_MAX_ROWS`) |
+| `GET /audit/export?format=csv` | `audit.view` | | 200, the entries the same filters and `sort` choose, as a file: `format` `csv` (UTF-8 with a byte order mark; a cell that starts with `=`, `+`, `-` or `@` is prefixed with `'`) or `xlsx`. Columns: time (UTC), user, event, allowed, project, branch, instance, address, detail. At most a year (`since` defaults to a year before `until`; 400 for a longer range) and `AUDIT_EXPORT_MAX_ROWS` entries; headers `X-Total-Count` (matching) and `X-Exported-Count`. Each export is itself audit-logged (`audit log exported`) |
 
 `role` is one of `super_admin`, `admin`, `maintainer`, `developer`, `viewer`. Only a super admin creates, changes,
 resets or deletes super admins (403 otherwise).
@@ -1428,3 +1432,20 @@ panel's), 429 (limits). A ticket works once, refused or not.
 Reasons: `exit` (the program ended), `closed` (the browser closed), `idle`, `max-length`, `not-allowed` (session
 ended or rules changed; checked every 15 seconds), `ended` (by a super admin), `stopping` (the panel stopped),
 `recording-full`, `error`. Whatever the reason, every process of the shell is then ended.
+
+---
+
+## 13. Code profiler
+
+The Tools tab of the web app ([User manual](USER_MANUAL.md#the-tools-tab)) uses these calls. Every one needs
+`instances.profile` in the instance (super admins and administrators, plus the roles `PROFILER_ROLES` adds; project
+access and locked branches apply). How it works: [Admin guide](ADMIN_GUIDE.md#28-code-profiler).
+
+| Method and path | Body | Answer |
+| :--- | :--- | :--- |
+| `GET /instances/<name>/profiler` | | 200, `enabled`, `production`, `production_allowed`, `running` (the instance runs), `status`, `max_minutes`, `keep`, `rate`, `current` (the recording being made, or `null`: `id`, `phase` `preparing`, `recording` or `saving`, `minutes`, `user`, `started_at`, `recording_since`, `ends_at`, `stopping`, `production`), `last_error` (`message`, `code`, `at`, or `null`), `recordings` (newest first: `id`, `user`, `minutes`, `seconds`, `samples`, `threads`, `rate`, `size`, `started_at`, `ended_at`, `stopped_early`, `production`, `links`) |
+| `POST /instances/<name>/profiler` | `{"minutes": 1}` (1 to `PROFILER_MAX_MINUTES`); a production instance also `"confirm_production": true` | **202**, the recording being made; 400 for minutes out of range or a missing confirmation, 403 when the profiler or production profiles are off, **409** when the instance is not running or a recording of it is being made. Audit-logged |
+| `POST /instances/<name>/profiler/stop` | | **202**, the recording, `stopping: true`: py-spy writes what it has; 409 when nothing is recorded. Audit-logged |
+| `GET /instances/<name>/profiles/<id>` | | 200, the recording and its `tree`: `total` (samples), `seconds`, `threads` (`name`, `samples`), `root` (the call tree: `n` name, `w` file and line, `v` samples, `c` children; the first level is the threads, calls under 0.02% of the samples are left out) and `top` (the functions with the most samples in their own code: `name`, `where`, `self`, `total`) |
+| `GET /instances/<name>/profiles/<id>/download` | | 200, the speedscope file (`application/json`, attachment), for speedscope.app or another viewer; the processes' command lines are removed from it. Audit-logged |
+| `DELETE /instances/<name>/profiles/<id>` | | **204**. Audit-logged |

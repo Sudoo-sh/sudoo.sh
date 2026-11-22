@@ -42,6 +42,10 @@
                                                      {"on_new_commit", "module_install", "modules", "test_suite",
                                                      "test_tags", "demo_data"}: a value sets it, null follows the
                                                      project again (projects/build_options.py)
+    POST   /api/v1/projects/<id>/github/check        check the link to GitHub (repos/github_check.py): the repository
+                                                     can be read, the GitHub App covers it with the permissions and
+                                                     events it needs, its webhook reaches the panel, submodules can
+                                                     be read; {"status", "checks": [...], "checked_at"}
     GET    /api/v1/projects/<id>/access              who may see and work in the project: mode, grants, branches'
                                                      grants and locks, with names            (projects.access)
     PUT    /api/v1/projects/<id>/access              {"mode", "grants", "branches"}: replaces them (locks stay)
@@ -51,9 +55,9 @@
     DELETE /api/v1/projects/<id>/branches/<branch>/lock
                                                      unlock it -> 204
 
-Seeing projects needs instances.view; creating, linking, changing and deleting them and changing a branch's stage
-or build options need projects.manage; a new instance needs instances.create, a rebuild instances.restore (it
-replaces data); access and locks need projects.access. Every check goes through projects/access.py: role ∩ the
+Seeing projects needs instances.view; creating, linking, changing and deleting them, changing a branch's stage or
+build options, and checking the link to GitHub need projects.manage; a new instance needs instances.create, a rebuild
+instances.restore (it replaces data); access and locks need projects.access. Every check goes through projects/access.py: role ∩ the
 caller's level in the project and branch (teams, grants, restricted projects and branches), and locked branches;
 projects and branches hidden from the caller answer 404 and are left out of lists. Production asks for more: making a
 branch production, or moving it out of production, needs "confirm_production": true; a project has at most
@@ -1081,3 +1085,17 @@ def unlock_branch(project_id: str, branch: str) -> Response:
         events.publish("instance", name)
     events.publish("project", project_id)
     return no_content()
+
+
+@blueprint.post("/projects/<project_id>/github/check")
+def check_github(project_id: str) -> Response:
+    """Like Odoo.sh's "Verify Deploy Key" and "Verify Webhook", for every part of the link at once."""
+    from sudoo.repos import github_check
+
+    project = _project(project_id, "projects.manage")
+    results = github_check.check(project)
+    status = github_check.overall(results)
+    problems = [f"{r['id']}: {r['status']}" for r in results if r["status"] in ("error", "warning")]
+    log("GitHub connection checked", detail=f"{project_id}: {status}" + (f" ({', '.join(problems)})" if problems
+                                                                         else ""))  # fmt: skip
+    return ok({"status": status, "checks": results, "checked_at": iso(time.time())})

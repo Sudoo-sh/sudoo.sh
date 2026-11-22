@@ -4,6 +4,9 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./client";
 import type {
+  AuditFacets,
+  ProfileDetail,
+  ProfilerState,
   LicenceStatus,
   LicenceText,
   ShellOptions,
@@ -311,11 +314,31 @@ export const useGitHubApp = () =>
       return { ...answer.data, can_manage: Boolean(answer.meta?.can_manage) };
     },
   });
-export const useAudit = (limit: number) =>
+/** One page of the audit log for the filters, sorting and paging in `params` (GET /audit), with meta.total. */
+export const useAudit = (params: string) =>
   useQuery({
-    queryKey: ["audit", limit],
-    queryFn: () => api.get<AuditEntry[]>(`/audit?limit=${limit}`),
+    queryKey: ["audit", params],
+    queryFn: async () => {
+      const answer = await api.page<AuditEntry[]>(`/audit?${params}`);
+      return { entries: answer.data, total: Number(answer.meta?.total ?? answer.data.length) };
+    },
     placeholderData: keepPreviousData,
+  });
+export const useAuditFacets = () =>
+  useQuery({ queryKey: ["audit-facets"], queryFn: () => api.get<AuditFacets>("/audit/facets"), staleTime: 60_000 });
+/** The Tools tab: the profiler's state, refreshed every second while a recording is made. */
+export const useProfiler = (name: string) =>
+  useQuery({
+    queryKey: ["profiler", name],
+    queryFn: () => api.get<ProfilerState>(`/instances/${name}/profiler`),
+    refetchInterval: (query) => (query.state.data?.current ? 1000 : false),
+  });
+export const useProfile = (name: string, id: string | null) =>
+  useQuery({
+    queryKey: ["profile", name, id],
+    queryFn: () => api.get<ProfileDetail>(`/instances/${name}/profiles/${id}`),
+    enabled: !!id,
+    staleTime: Infinity,
   });
 export const useDomains = (name: string) =>
   useQuery({ queryKey: keys.domains(name), queryFn: () => api.get<Domains>(`/instances/${name}/domains`) });

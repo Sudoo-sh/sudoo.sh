@@ -11,7 +11,15 @@
                                                  {"must_change_password"} (default true); returns it once
     DELETE /api/v1/users/<name>/second-factors   remove all second factors and recovery codes (a lost phone) -> 204
     DELETE /api/v1/users/<name>                  delete -> 204
-    GET    /api/v1/audit?limit=&user=&instance=  the latest audit-log entries, newest first
+    GET    /api/v1/audit                         audit-log entries, newest first unless sorted: limit (at most
+                                                 2000), offset, sort (ts, user, event, instance, ip, ok; "-" first
+                                                 for descending), filters user, event, instance, ip, ok
+                                                 (allowed|refused), since, until (ISO 8601 or Unix time), project,
+                                                 branch, q (text in any field); meta.total, meta.limit, meta.offset
+    GET    /api/v1/audit/facets                  the users, events and projects there are, for the filters
+    GET    /api/v1/audit/export?format=csv|xlsx  the entries the same filters choose as a file: a year at most
+                                                 (since defaults to a year before until), AUDIT_EXPORT_MAX_ROWS rows
+                                                 at most (meta in X-Total-Count, X-Exported-Count); audit-logged
 
 Only a super admin creates, changes or deletes super admins; there is always at least one. Accounts created or reset
 here choose their own password at their next sign-in, unless must_change_password is false. New people are normally
@@ -21,11 +29,14 @@ invited by e-mail instead (invitations.py); POST /users is refused unless INVITA
 
 from __future__ import annotations
 
+import time
+from datetime import UTC, datetime
 from typing import Any
 
 from flask import Blueprint, Response, abort, g, request
 
 from sudoo import accounts, invitations, roles, teams
+from sudoo.config import settings
 from sudoo.core import audit
 from sudoo.mail import mailer
 from sudoo.projects import access
@@ -208,13 +219,106 @@ def delete_user(name: str) -> Response:
     return no_content()
 
 
+def _when(name: str) -> int | None:
+    """A time filter: ISO 8601 (a date alone is midnight UTC; no zone is UTC) or a Unix time; None when absent."""
+    raw = (request.args.get(name) or "").strip()
+    if not raw:
+        return None
+    if raw.isdigit():
+        return int(raw)
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        abort(400, f"{name} must be a date and time (ISO 8601) or a Unix time.")
+    return int((parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)).timestamp())
+
+
+def _audit_filters() -> dict[str, Any]:
+    filters: dict[str, Any] = {}
+    for key in ("user", "event", "instance", "ip", "project", "branch"):
+        value = (request.args.get(key) or "").strip()
+        if len(value) > 200:
+            abort(400, f"{key} is too long.")
+        if value:
+            filters[key] = value
+    if filters.get("branch") and not filters.get("project"):
+        abort(400, "Choose the project of the branch too.")
+    text = (request.args.get("q") or "").strip()
+    if len(text) > 200:
+        abort(400, "The search is too long (at most 200 characters).")
+    if text:
+        filters["text"] = text
+    shown = request.args.get("ok") or ""
+    if shown:
+        filters["ok"] = check.one_of(shown, ("allowed", "refused"), 'ok is "allowed" or "refused".') == "allowed"
+    since, until = _when("since"), _when("until")
+    if since is not None and until is not None and since >= until:
+        abort(400, "since must be before until.")
+    filters.update({k: v for k, v in (("since", since), ("until", until)) if v is not None})
+    return filters
+
+
+def _sort() -> tuple[str, bool]:
+    raw = request.args.get("sort") or "-ts"
+    descending = raw.startswith("-")
+    column = raw.lstrip("-")
+    if column not in audit.SORTS:
+        abort(400, f"sort is one of {', '.join(audit.SORTS)}, with \"-\" first for descending.")
+    return column, descending
+
+
+def _with_support(entry: dict[str, Any]) -> dict[str, Any]:
+    from sudoo.premium import stubs
+
+    return {**entry, "support": stubs.support_entry(entry.get("user"))}
+
+
 @blueprint.get("/audit")
 @require("audit.view")
 def audit_log() -> Response:
     limit = check.whole_number(request.args.get("limit", "200"), "limit", minimum=1, maximum=2000)
-    user = request.args.get("user") or None
-    instance = request.args.get("instance") or None
-    from sudoo.premium import stubs
+    offset = check.whole_number(request.args.get("offset", "0"), "offset", minimum=0, maximum=10**7)
+    column, descending = _sort()
+    found, total = audit.search(_audit_filters(), column, descending, limit, offset)
+    return ok([_with_support(entry) for entry in found], meta={"total": total, "limit": limit, "offset": offset})
 
-    return ok([{**entry, "support": stubs.support_entry(entry.get("user"))} for entry in
-               audit.latest(limit, user=user, instance=instance)])  # fmt: skip
+
+@blueprint.get("/audit/facets")
+@require("audit.view")
+def audit_facets() -> Response:
+    from sudoo import projects
+
+    found = audit.facets()
+    listed = [{"id": p["id"], "name": p.get("name") or p["id"]} for p in projects.all_projects()]
+    return ok({**found, "projects": listed, "export_max_rows": int(settings.audit_export_max_rows)})
+
+
+@blueprint.get("/audit/export")
+@require("audit.view")
+def audit_export() -> Response:
+    chosen = check.one_of(request.args.get("format", "csv"), ("csv", "xlsx"), 'format is "csv" or "xlsx".')
+    filters = _audit_filters()
+    until = filters.get("until") or int(time.time()) + 1
+    earliest = until - audit.EXPORT_MAX_DAYS * 86400
+    if filters.get("since", earliest) < earliest:
+        abort(400, f"An export covers {audit.EXPORT_MAX_DAYS} days at most: choose a later start.")
+    filters["since"] = max(filters.get("since", earliest), earliest)
+    column, descending = _sort()
+    limit = int(settings.audit_export_max_rows)
+    rows, total = audit.export_rows(filters, column, descending, limit)
+    shown = {k: v for k, v in filters.items() if k not in ("since", "until")}
+    log("audit log exported", detail=f"{chosen}, {len(rows)} of {total} entries, from {iso(filters['since'])}"
+        f"{' to ' + str(iso(filters['until'])) if filters.get('until') else ''}"
+        f"{', ' + ', '.join(f'{k}={v}' for k, v in shown.items()) if shown else ''}"[:300])  # fmt: skip
+    body = audit.to_xlsx(rows) if chosen == "xlsx" else audit.to_csv(rows)
+    mimetype = XLSX_TYPE if chosen == "xlsx" else "text/csv; charset=utf-8"
+    response = Response(body, mimetype=mimetype)
+    stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+    response.headers["Content-Disposition"] = f'attachment; filename="audit-{stamp}.{chosen}"'
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["X-Exported-Count"] = str(len(rows))
+    return response
+
+
+XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

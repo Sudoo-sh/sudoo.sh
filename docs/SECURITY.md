@@ -25,6 +25,7 @@
 16. [Mail catcher](#16-mail-catcher)
 17. [Support access](#17-support-access)
 18. [Servers](#18-servers)
+19. [Code profiler](#19-code-profiler)
 
 ---
 
@@ -464,6 +465,7 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | `instances.shell` | Open a terminal in instances' Odoo containers, and `odoo shell` ([Web shell](#15-web-shell)) | yes | yes | `SHELL_ROLES` | `SHELL_ROLES` | |
 | `instances.database_shell` | Open `psql` in instances' database containers | yes | yes | | | |
 | `shells.supervise` | See open and past shells, end them, play their recordings | yes | | | | |
+| `instances.profile` | Record what an instance's Odoo processes spend their time on (code profiler), read, download and delete the recordings ([Admin guide](ADMIN_GUIDE.md#28-code-profiler)) | yes | yes | `PROFILER_ROLES` (default) | `PROFILER_ROLES` | |
 
 * Only a **super admin** creates, changes, resets or deletes super admin accounts. The last super admin cannot be
   deleted or given another role, so there is always at least one.
@@ -869,3 +871,22 @@ With several servers (a premium feature), the main panel manages other servers t
 | A compromised server attacks the others | Each agent has its own key and sees only its own instances; revoking it closes its channel at once and refuses its key. |
 | A compromised server speaks for other instances | What an agent reports, its live events, jobs and log entries are taken only for instances the panel places on that server: never about the main server's instances or another server's. The project of another server's instance is the one the panel placed it in, never the one its agent reports. A move takes the repository and custom domains from the panel's own records, and writes on the main server only a backup named after the moved instance, inside the backups folder. Each agent's report and log entries are limited (`SERVERS_INSTANCES_KEPT`, `SERVERS_REPORT_KB`, `SERVERS_LOG_ENTRIES_PER_DAY`). |
 | An agent's answer runs as the panel | An answer passed on from an agent keeps only a JSON or plain-text type (a caught e-mail's HTML keeps its sandboxed frame policy); anything else is sent as a download. Every such answer gets `nosniff` and a sandboxed `Content-Security-Policy` with no script, and only redirects to the panel's own paths. |
+
+---
+
+## 19. Code profiler
+
+The code profiler ([Admin guide](ADMIN_GUIDE.md#28-code-profiler)) is the only place the panel starts a container
+with a capability an instance's containers do not have: `SYS_PTRACE`, which py-spy needs to read the memory of the
+Odoo processes. It is contained like this:
+
+* The sidecar joins only the PID namespace of the instance's own Odoo container, after the panel checked that
+  container's name and labels; it never sees the server's processes or other instances.
+* It has no network (`--network none`), every other capability dropped, `no-new-privileges`, 256 MB of memory, one
+  processor and 64 processes, and is removed as soon as the recording is copied out.
+* Its image is built from `python:3.12-slim` and one pinned py-spy wheel checked against its sha256, or is the image
+  the administrator set in `PROFILER_IMAGE`; nothing is downloaded at run time.
+* A recording holds function names, files and line numbers, never variables or data; the processes' command lines,
+  which may contain passwords, are removed before it is stored (mode 600).
+* Recording needs `instances.profile` in the instance; production is confirmed every time and can be switched off
+  (`PROFILER_PRODUCTION`); starting, stopping, downloading and deleting are in the audit log.

@@ -37,6 +37,8 @@ domains and certificates, off-site copies of backups.
 25. [Database upgrades](#25-database-upgrades)
 26. [Support access](#26-support-access)
 27. [Servers](#27-servers)
+28. [Code profiler](#28-code-profiler)
+29. [Audit log](#29-audit-log)
 
 ---
 
@@ -1269,6 +1271,23 @@ Administration: write and Metadata: read, valid one hour, used for that one call
 stay read-only. A repository is created private (unless chosen otherwise), with no README and no branch. GitHub lets
 an app create repositories only in **organisations**: for a personal account, create an empty repository on GitHub
 and link it. Each creation is in the audit log ("repository created on GitHub").
+
+### Checking a project's connection
+
+On a project's **Settings** tab, **GitHub connection, Check connection** checks every part of the project's link to
+GitHub at once, like **Verify Deploy Key** and **Verify Webhook** on Odoo.sh, and changes nothing:
+
+| Check | What it looks at |
+| :--- | :--- |
+| Repository | The server can read the repository (through the App, a deploy key, or as a public repository). |
+| GitHub App installation | The App is installed on the repository's owner, not suspended, and covers the repository (all repositories, or among the selected ones). |
+| Permissions and events | **Contents: read** and **Metadata: read** are needed; **Commit statuses: write** (builds shown on commits) and the push, create and delete events (changes arrive at once, not at the next poll) are recommended. |
+| Webhook | The App's webhook goes to this panel's address, and its latest deliveries for this repository (or the App's) arrived; a failed delivery links to the App's **Advanced** page on GitHub, where it can be redelivered. |
+| Submodules and deploy keys | Every submodule of the default branch can be read; a private one the App does not cover needs a deploy key. |
+
+Each check that fails or warns says what to do and links to the page where it is done. The check needs
+`projects.manage` in the project and is in the audit log (`GitHub connection checked`). API:
+`POST /api/v1/projects/<id>/github/check` ([Panel API](PANEL_API.md#projects)).
 
 ### Disconnecting
 
@@ -2505,3 +2524,65 @@ fingerprint and the panel's.
 The other servers keep running their instances on their own, but the panel no longer reaches them: new instances go
 to the main server, and their instances are not listed. When the plan includes several servers again, everything
 comes back as it was.
+
+---
+
+## 28. Code profiler
+
+The **Tools** tab of an instance records, for 1 to `PROFILER_MAX_MINUTES` minutes, what its Odoo processes spend
+their time on, and shows the result as a flame graph ([User manual](USER_MANUAL.md#the-tools-tab)), as the Tools
+tab of Odoo.sh does. Nothing in the instance is restarted or changed.
+
+### How it records
+
+1. The panel makes sure the profiler image is on the server. With `PROFILER_IMAGE` empty (the default) it builds
+   `sudoo-profiler:py-spy-<version>` the first time, from `python:3.12-slim` and the py-spy wheel from PyPI, pinned
+   to one version and checked against its sha256 (`pip install --require-hashes`); this needs the server to reach
+   Docker Hub and PyPI once. Set `PROFILER_IMAGE` to an image of your own (with `sh` and `py-spy`) to avoid that.
+2. It checks that the instance's Odoo container is running and is the one the panel made for it (name and labels).
+3. It starts a one-off sidecar container, `sudoo-profiler-<instance>`, that joins the PID namespace of the Odoo
+   container (`--pid=container:odoo-<instance>-odoo-1`) with only the `SYS_PTRACE` capability, no network, no new
+   privileges, 256 MB of memory, one processor and 64 processes. It finds the Odoo main process and runs
+   `py-spy record --format speedscope --subprocesses --duration <seconds> --rate <PROFILER_RATE>`: the main process,
+   its HTTP and cron workers and the gevent process are all sampled. **Stop now** sends py-spy SIGINT; it then writes
+   what it has.
+4. The file is copied out (`docker cp`), the sidecar removed, the processes' command lines are taken out of the file
+   (they may hold passwords), and a compact call tree for the flame graph is computed once.
+
+Recordings are kept in `/opt/odoo/manager/profiles/<instance>/` (mode 600): the speedscope file, the call tree and a
+short description; the last `PROFILER_KEEP` per instance, and all of them go when the instance is deleted. One
+recording per instance runs at a time.
+
+If the recording fails with a ptrace error, the server's Docker does not let containers trace processes: check
+that the Docker seccomp profile is the default one (Docker 20.10 or later allows `ptrace` with `SYS_PTRACE`) and,
+on hosts with AppArmor or SELinux policies of their own, that they allow it.
+
+### Who may record
+
+| Setting (**Settings, Sign-in and security, Code profiler and audit exports**) | Default | What it does |
+| :--- | :--- | :--- |
+| `PROFILER_ENABLED` | `true` | Off: nobody can record; the Tools tab disappears. |
+| `PROFILER_ROLES` | `maintainers` | Besides super admins and administrators: `maintainers`, or `developers` (maintainers and developers), or `admins` only. Viewers never can. The permission is `instances.profile`; project access and locked branches apply. |
+| `PROFILER_PRODUCTION` | `true` | Production instances may be profiled; each recording is confirmed when it starts. Off: staging and development only. |
+| `PROFILER_MAX_MINUTES` | `5` | Longest recording (people choose from 1 minute up to this). |
+| `PROFILER_KEEP` | `5` | Recordings kept per instance. |
+| `PROFILER_RATE` | `100` | Samples per second. Each sample pauses the Odoo processes for a fraction of a millisecond. |
+| `PROFILER_IMAGE` | (empty) | The image with py-spy; empty: built here as described above. |
+
+Audit log entries: `profiler started` (with the minutes, and `production, confirmed`), `profiler stopped`,
+`profile recorded`, `profile failed` (with the reason), `profile downloaded`, `profile deleted`.
+
+---
+
+## 29. Audit log
+
+**Audit log** in the sidebar lists who did what, from where, and whether it was allowed. Each entry also names the
+project and branch it is about, when there is one: those of its instance, or of the project it changed. Filter by
+project and branch, instance, user, action, result (allowed or refused), dates and any text; sort by a column; page
+through it. A project's page links to its own entries (**Audit log**, next to its version), which opens the page
+filtered to the project (`/activity?project=<id>`).
+
+**Export** downloads what the filters show as CSV or Excel (XLSX): a year at most and `AUDIT_EXPORT_MAX_ROWS`
+entries at most (100,000 by default). Each export is itself an entry (`audit log exported`, with the format, how many
+entries and the filters). The panel keeps the newest 200,000 entries. API: `GET /api/v1/audit`,
+`GET /api/v1/audit/facets` and `GET /api/v1/audit/export` ([Panel API](PANEL_API.md#accounts-roles-and-the-audit-log)).

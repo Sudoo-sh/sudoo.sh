@@ -29,7 +29,9 @@ port for a moment while one hands it over to the other.
 from __future__ import annotations
 
 import asyncio
+import atexit
 import concurrent.futures
+import contextlib
 import ssl
 import threading
 import time
@@ -277,6 +279,19 @@ async def _create_session() -> None:
         read_bufsize=_READ_BUFFER,
         skip_auto_headers=("User-Agent", "Accept", "Accept-Encoding"),  # only the visitor's own are passed on
     )
+
+
+def close_session() -> None:
+    """When the backend stops: close the connections to Odoo on the gateway's loop (else aiohttp reports an unclosed
+    client session at exit)."""
+    session = _SESSION
+    if session is None or session.closed or not _LOOP.is_running():
+        return
+    with contextlib.suppress(Exception):
+        run(session.close(), timeout=5)
+
+
+atexit.register(close_session)
 
 
 def loop() -> asyncio.AbstractEventLoop:

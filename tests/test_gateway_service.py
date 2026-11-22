@@ -13,6 +13,7 @@ import os
 import shutil
 import signal
 import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -413,3 +414,54 @@ def test_the_gateway_service_process_serves_instances_while_no_panel_runs() -> N
 
 def test_the_health_check_needs_a_running_service(tmp_path: Path) -> None:
     assert not gateway_health.answers(str(tmp_path / "gateway.sock"))
+
+
+def test_sockets_move_to_a_short_folder_when_odoo_root_is_long(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A Unix socket address holds 107 bytes: under a deep ODOO_ROOT the sockets go to a private folder named after
+    GATEWAY_DIR, the same for the panel, the gateway service and the health check."""
+    short = Path(tempfile.mkdtemp(prefix="sgw-"))
+    monkeypatch.setattr(gateway_health, "SHORT_BASE", str(short))
+    try:
+        assert gateway_service.socket_path("gateway.sock").parent == settings.gateway_dir  # short enough: unchanged
+        root = tmp_path / ("deep-" * 20)
+        folder = str(root / "gateway")
+        sock = gateway_health.socket_file(folder, "gateway.sock")
+        assert len(os.fsencode(os.path.join(folder, "gateway.sock"))) > gateway_health.MAX_SOCKET_PATH
+        assert sock == os.path.join(gateway_health.short_dir(folder), "gateway.sock") and sock.startswith(str(short))
+        panel = gateway_health.socket_file(folder + "/", "panel.sock")
+        assert panel == os.path.join(os.path.dirname(sock), "panel.sock")
+        monkeypatch.setenv("ODOO_ROOT", str(root))
+        assert gateway_health.socket_path() == sock  # the container's health check finds it too
+
+        gateway_health.prepare_short_dir(folder)
+        assert (os.stat(os.path.dirname(sock)).st_mode & 0o777) == 0o700
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
+            server.bind(sock)  # "AF_UNIX path too long" with the path in GATEWAY_DIR
+
+        other = str(tmp_path / ("other-" * 20) / "gateway")
+        os.symlink(tmp_path, gateway_health.short_dir(other))  # a link put there by someone else is refused
+        with pytest.raises(OSError):
+            gateway_health.prepare_short_dir(other)
+    finally:
+        shutil.rmtree(short, ignore_errors=True)
+
+
+def test_the_client_session_is_closed_when_the_backend_stops(tmp_path: Path) -> None:
+    """No "Unclosed client session" from aiohttp when the panel's process ends."""
+    script = (
+        "import threading, time\n"
+        "from sudoo.instances import gateway\n"
+        "threading.Thread(target=gateway._run_loop, daemon=True).start()\n"
+        "while gateway._SESSION is None: time.sleep(0.01)\n"
+        "gateway.close_session()\n"
+        "print(gateway._SESSION.closed)\n"
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", script],
+        env={**os.environ, "ODOO_ROOT": str(tmp_path)},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip() == "True" and "Unclosed client session" not in done.stderr

@@ -3,7 +3,7 @@
 // the server filters, sorts and pages (GET /audit), and exports what the filters show as CSV or XLSX.
 
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, CircleCheck, CircleX, Download, FilterX, ScrollText, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useAudit, useAuditFacets } from "@/api/queries";
 import { Page, PageHead } from "@/components/Shell";
@@ -38,6 +38,7 @@ function useDebounced<T>(value: T, delay = 300) {
 
 export function AuditPage() {
   const t = useT(words).audit;
+  const searchId = useId();
   const sw = useT(supportWords);
   const [params, setParams] = useSearchParams();
   const get = (key: string) => params.get(key) ?? "";
@@ -123,10 +124,10 @@ export function AuditPage() {
       <section className="card rise">
         <div className="card-body stack">
           <div className="audit-filters">
-            <Field label={t.filters} className="wide">
+            <Field label={t.filters} className="wide" htmlFor={searchId}>
               <div className="input-group">
                 <Search />
-                <Input placeholder={t.search} value={text} onChange={(e) => setText(e.target.value)} />
+                <Input id={searchId} placeholder={t.search} value={text} onChange={(e) => setText(e.target.value)} />
               </div>
             </Field>
             <Field label={t.project}>

@@ -170,6 +170,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   than an hour ago" (and "1 hour ago").
 - **Deleting an instance:** the web app no longer reads the deleted instance again when its deletion ends (requests
   that could only answer 404).
+- **Panel on a new ODOO_ROOT:** the panel did not start when `<ODOO_ROOT>/manager` did not exist yet. It now creates
+  that folder (readable by root only) when it starts.
+- **Gateway under a long ODOO_ROOT:** the gateway's control sockets did not open when their path was longer than a Unix
+  socket allows ("AF_UNIX path too long"). They then move to a short private folder in `/tmp` named after the
+  gateway folder, which the panel, the gateway service and its health check all find.
+- **Stopping the backend:** it no longer reports "Unclosed client session": the gateway's connections to Odoo are
+  closed when the process ends, and when the gateway service fails to start.
+- **Activity filters:** the labels of the filter fields were not linked to their fields (screen readers did not read
+  them, a click on a label did not focus its field). Every field label now names the input or list inside it.
+- **New project:** an error message no longer covers the **Create project** button: the page leaves room under it.
 
 ## [3.1.1] - 2026-11-21
 

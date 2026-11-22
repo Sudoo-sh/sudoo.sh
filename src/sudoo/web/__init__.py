@@ -18,12 +18,15 @@ from flask.typing import ResponseReturnValue
 from werkzeug.exceptions import HTTPException
 
 from sudoo import accounts, background, exposure, link_deadline, triggers
+from sudoo.config import settings
 
 from . import docs, security, v1
 
 
 def create_app() -> Flask:
     """Build the panel and start the background work (monitor, gateway, connectors, scheduled jobs)."""
+    # a new ODOO_ROOT: the panel's own folder holds its keys and data, readable by root only
+    settings.manager_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     app = Flask(__name__, static_folder=None)
     app.config.update(
         SECRET_KEY=accounts.session_secret(),

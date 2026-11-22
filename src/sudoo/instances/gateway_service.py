@@ -84,10 +84,16 @@ def path(file: str) -> Path:
     return settings.gateway_dir / file
 
 
+def socket_path(name: str) -> Path:
+    """A control socket: in GATEWAY_DIR, or in a short private folder when that path is too long for a Unix socket."""
+    return Path(gateway_health.socket_file(str(settings.gateway_dir), name))
+
+
 def prepare_dir() -> None:
     """GATEWAY_DIR, readable by root only (the sockets in it are the control channel)."""
     settings.gateway_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(settings.gateway_dir, 0o700)
+    gateway_health.prepare_short_dir(str(settings.gateway_dir))
 
 
 # --------------------------------------------------------------------------- routes.json
@@ -321,7 +327,7 @@ class ServiceHost:
         try:
             if self._panel is None:
                 self._panel = aiohttp.ClientSession(
-                    connector=aiohttp.UnixConnector(path=str(path(PANEL_SOCKET))),
+                    connector=aiohttp.UnixConnector(path=str(socket_path(PANEL_SOCKET))),
                     timeout=aiohttp.ClientTimeout(total=5),
                 )
             async with self._panel.post(f"http://panel/wake/{name}") as answer:
@@ -341,7 +347,7 @@ class ServiceHost:
         try:
             async with (
                 aiohttp.ClientSession(
-                    connector=aiohttp.UnixConnector(path=str(path(PANEL_SOCKET))),
+                    connector=aiohttp.UnixConnector(path=str(socket_path(PANEL_SOCKET))),
                     timeout=aiohttp.ClientTimeout(total=CONNECT_SECONDS),
                 ) as panel,
                 panel.post(f"http://panel/connect/{name}", json={"token": token, "ip": ip}) as answer,
@@ -442,14 +448,19 @@ class Service:
         app.router.add_get("/healthz", self._health)
         self._control = web.AppRunner(app, access_log=None, handle_signals=False)
         await self._control.setup()
-        sock = path(GATEWAY_SOCKET)
+        sock = socket_path(GATEWAY_SOCKET)
         sock.unlink(missing_ok=True)  # left by a service that did not stop normally
         await web.UnixSite(self._control, str(sock)).start()
         os.chmod(sock, 0o600)
 
     async def run(self) -> None:
         """Serve until stopped (SIGTERM, SIGINT or stop())."""
-        await self.start()
+        try:
+            await self.start()
+        except BaseException:
+            if gateway._SESSION is not None:  # closed here: aiohttp would report it at exit
+                await gateway._SESSION.close()
+            raise
         loop = asyncio.get_running_loop()
         for stop_signal in (signal.SIGTERM, signal.SIGINT):
             with contextlib.suppress(NotImplementedError, RuntimeError):  # not in the main thread (tests)
@@ -469,7 +480,7 @@ class Service:
 
     async def stop(self, handover: float = HANDOVER_SECONDS) -> None:
         """Remove the control socket (the panel then takes over the ports), wait `handover` seconds, close."""
-        path(GATEWAY_SOCKET).unlink(missing_ok=True)
+        socket_path(GATEWAY_SOCKET).unlink(missing_ok=True)
         if self._control is not None:
             await self._control.cleanup()
             self._control = None
@@ -485,7 +496,7 @@ class Service:
 
 def check() -> bool:
     """True when the gateway service answers on its control socket (as the container's health check asks)."""
-    return gateway_health.answers(str(path(GATEWAY_SOCKET)))
+    return gateway_health.answers(str(socket_path(GATEWAY_SOCKET)))
 
 
 def main(health_check: bool = False) -> None:

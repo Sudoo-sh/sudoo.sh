@@ -1085,6 +1085,8 @@ tr.invited {
 }
 .section-title { font-size: var(--text-15); font-weight: 600; margin: 0; }
 .narrow-page { max-width: 820px; }
+// the card with a form's main button, last on the page: room under it, so a toast (bottom corner) leaves it uncovered
+.form-end { margin-bottom: calc(var(--s12) * 2 + var(--s4)); }
 .stack-xs { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .card-flush { margin: 0 calc(-1 * var(--s5)) calc(-1 * var(--s5)); border-top: 1px solid var(--hairline); }
 .option-control { justify-content: flex-end; .select, .input { flex: 1; min-width: 0; } .input.number { max-width: 120px; } }

@@ -54,6 +54,7 @@ from sudoo.instances.gateway_service import (
     prepare_dir,
     read_visits,
     routes_document,
+    socket_path,
 )
 
 ROUND_SECONDS = 2.0
@@ -172,7 +173,7 @@ class _UnixHTTPConnection(http.client.HTTPConnection):
 
 def ask_gateway(timeout: float = 5) -> dict[str, Any] | None:
     """POST /sync to the gateway service: its answer, or None when it cannot be reached."""
-    conn = _UnixHTTPConnection(str(path(GATEWAY_SOCKET)), timeout)
+    conn = _UnixHTTPConnection(str(socket_path(GATEWAY_SOCKET)), timeout)
     try:
         conn.request("POST", "/sync")
         answer = conn.getresponse()
@@ -241,7 +242,7 @@ def sync() -> None:
             )
         else:
             LINK.collect = False
-            if panel_should_serve(now, LINK.last_seen, LINK.started, path(GATEWAY_SOCKET).exists()):
+            if panel_should_serve(now, LINK.last_seen, LINK.started, socket_path(GATEWAY_SOCKET).exists()):
                 routes = parse_routes(json.loads(text))
                 gateway.run(gateway.reconcile(routes.wanted(), routes.served_domains()))
                 if not LINK.serving_reported:
@@ -316,7 +317,7 @@ async def serve_wake() -> web.AppRunner:
     app.router.add_post("/connect/{name}", _connect)
     runner = web.AppRunner(app, access_log=None, handle_signals=False)
     await runner.setup()
-    sock = path(PANEL_SOCKET)
+    sock = socket_path(PANEL_SOCKET)
     sock.unlink(missing_ok=True)
     await web.UnixSite(runner, str(sock)).start()
     chmod_private(sock)  # never through a link the gateway swapped in

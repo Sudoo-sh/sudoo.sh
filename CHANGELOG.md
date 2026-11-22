@@ -168,6 +168,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   schedule again keeps it.
 - **Pre-promotion checklist:** a production backup taken minutes ago read "backed up 0 hours ago"; it now reads "less
   than an hour ago" (and "1 hour ago").
+- **Deleting an instance:** the web app no longer reads the deleted instance again when its deletion ends (requests
+  that could only answer 404).
 
 ## [3.1.1] - 2026-11-21
 

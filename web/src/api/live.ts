@@ -88,6 +88,8 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
       }
       if (job.status === "success" || job.status === "failed") {
         if (job.kind.startsWith("plugin")) client.invalidateQueries({ queryKey: keys.plugins });
+        // a deleted instance is gone: reading it again would only answer 404
+        else if (job.kind === "delete" && job.status === "success") client.removeQueries({ queryKey: keys.instance(job.instance) });
         else client.invalidateQueries({ queryKey: keys.instance(job.instance) });
         if (job.kind === "backup" || job.kind === "delete") client.invalidateQueries({ queryKey: ["backups"] });
       }

@@ -10,8 +10,9 @@ A project is a document in the storage (collection "projects", key: the project'
                         instance of a repository that had no project yet)
     created_at, created_by
     options             the project's own choices; a missing (or null) one follows the panel's setting (OPTIONS)
-    branches            {branch: {"stage", "changed_at", "changed_by", "auto_created"}}: the stage of each branch
-                        someone chose (or the panel recorded), and which instance the panel created by itself
+    branches            {branch: {"stage", "changed_at", "changed_by", "auto_created", "options"}}: the stage of
+                        each branch someone chose (or the panel recorded), which instance the panel created by
+                        itself, and the branch's own build options (projects/build_options.py)
     seen                the branches found on GitHub at the last look (projects/automation.py): a branch missing
                         from it is new, one that disappears was deleted
     access              who may work in it: {"mode": "panel_roles"} today (projects/access.py)
@@ -51,6 +52,14 @@ OPTIONS: dict[str, str] = {
     "upgrade_test_on_push": "project_upgrade_test_on_push",
     "development_lifetime_days": "delete_after_days",
     "staging_lifetime_days": "staging_delete_after_days",
+    # build options (projects/build_options.py: each branch can change them too)
+    "development_on_new_commit": "project_development_on_new_commit",
+    "module_install": "project_module_install",
+    "modules": "project_modules",
+    "test_suite": "project_test_suite",
+    "test_tags": "project_test_tags",
+    "staging_tests": "project_staging_tests",
+    "commit_statuses": "project_commit_statuses",
 }
 """A project's options and the panel settings that give their defaults."""
 

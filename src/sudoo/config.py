@@ -707,6 +707,62 @@ class Settings(BaseSettings):
         description="A push to a project's upgrade branch (named after the next Odoo version, such as 18.0) runs its "
         "database upgrade test again (each project can change it).",
     )
+    project_development_on_new_commit: Literal["new_build", "update", "nothing"] = Field(
+        "update",
+        description='A new commit on a development branch: "update" (the new code in the same database, upgrading '
+        'what changed), "new_build" (a new database built from scratch) or "nothing" (the commit is only recorded). '
+        "Each project and branch can change it.",
+    )
+    project_module_install: Literal["repository", "all", "list"] = Field(
+        "repository",
+        description='Modules a new development database gets: "repository" (every module of the repository), "all" '
+        '(every module Odoo has, with the repository\'s; no tests) or "list" (only PROJECT_MODULES). Each project and '
+        "branch can change it.",
+    )
+    project_modules: str = Field(
+        "",
+        max_length=4000,
+        description='The modules installed when PROJECT_MODULE_INSTALL is "list", comma-separated (each project and '
+        "branch can change it).",
+    )
+    project_test_suite: Literal["off", "selection", "custom"] = Field(
+        "off",
+        description='Tests of development builds: "off", "selection" (the tests of the repository\'s installed '
+        'modules) or "custom" (PROJECT_TEST_TAGS). Each project and branch can change it.',
+    )
+    project_test_tags: str = Field(
+        "",
+        max_length=1000,
+        description='The --test-tags of a "custom" test suite (Odoo\'s syntax, such as "/sale_custom,-slow"); each '
+        "project and branch can change it.",
+    )
+    project_staging_tests: bool = Field(
+        False,
+        description="Staging builds run the project's tests too, on a throw-away copy of the staging database (each "
+        "project can change it).",
+    )
+    project_test_timeout_minutes: int = Field(
+        30, ge=1, le=1440, description="Tests of a build that take longer are stopped and the build fails."
+    )
+    project_commit_statuses: bool = Field(
+        True,
+        description="Builds report their result on GitHub as commit statuses (sudoo/<stage>) when the GitHub App may "
+        "write statuses (each project can change it).",
+    )
+
+    @field_validator("project_modules")
+    @classmethod
+    def _modules_valid(cls, value: str) -> str:
+        from sudoo.core.odoo_args import parse_modules
+
+        return ",".join(parse_modules(value))
+
+    @field_validator("project_test_tags")
+    @classmethod
+    def _test_tags_valid(cls, value: str) -> str:
+        from sudoo.core.odoo_args import parse_test_tags
+
+        return parse_test_tags(value)
 
     # ------------------------------------------------------------------ database upgrades (upgrades/)
     upgrade_methods: str = Field(

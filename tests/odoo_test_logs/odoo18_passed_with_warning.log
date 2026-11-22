@@ -1,0 +1,17 @@
+2026-11-22 11:20:00,401 1 INFO ? odoo: Odoo version 18.0-20261115
+2026-11-22 11:20:00,402 1 INFO ? odoo: Using configuration file at /etc/odoo/odoo.conf
+2026-11-22 11:20:01,010 1 INFO acme odoo.modules.loading: loading 1 modules...
+2026-11-22 11:20:01,033 1 INFO acme odoo.modules.loading: 1 modules loaded in 0.02s, 0 queries (+0 extra)
+2026-11-22 11:20:01,804 1 INFO acme odoo.modules.loading: loading 52 modules...
+2026-11-22 11:20:01,805 1 INFO acme odoo.modules.loading: Loading module sale_custom (52/52)
+2026-11-22 11:20:02,911 1 WARNING acme odoo.fields: Field sale.order.legacy_ref: unknown parameter 'tracking', if this is an actual parameter you may want to override the method _valid_field_parameter on the relevant model in order to allow it
+2026-11-22 11:20:03,101 1 INFO acme odoo.modules.module: odoo.addons.sale_custom.tests.test_order running
+2026-11-22 11:20:03,150 1 INFO acme odoo.addons.sale_custom.tests.test_order: Starting TestOrder.test_lines ...
+2026-11-22 11:20:03,190 1 INFO acme odoo.addons.sale_custom.tests.test_order: Starting TestOrder.test_total ...
+2026-11-22 11:20:03,602 1 INFO acme odoo.modules.loading: 52 modules loaded in 1.80s, 2310 queries (+2310 other)
+2026-11-22 11:20:03,800 1 INFO acme odoo.modules.loading: Modules loaded.
+2026-11-22 11:20:03,801 1 INFO acme odoo.service.server: Starting post tests
+2026-11-22 11:20:04,215 1 INFO acme odoo.service.server: 3 post-tests in 0.41s, 140 queries
+2026-11-22 11:20:04,216 1 INFO acme odoo.tests.stats: sale_custom: 14 tests 0.51s 330 queries
+2026-11-22 11:20:04,218 1 INFO acme odoo.tests.result: 0 failed, 0 error(s) of 14 tests when loading database 'acme'
+2026-11-22 11:20:04,219 1 INFO acme odoo.service.server: Initiating shutdown

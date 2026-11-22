@@ -4,12 +4,15 @@
                     (PROJECT_AUTO_DEVELOPMENT), the branch has no instance and no other stage recorded, the project
                     has fewer than max_auto_development instances it created this way (PROJECT_MAX_AUTO_DEVELOPMENT,
                     0: no limit), and the server's limits allow one more (MAX_INSTANCES, MAX_RUNNING_INSTANCES)
-    push            the instances following the branch get the new code as before (triggers/); a staging instance of
-                    a project whose staging_on_push is "rebuild" (PROJECT_STAGING_ON_PUSH) is rebuilt from a new
-                    copy of production instead (projects/staging.py); the test instance of a database upgrade (its
-                    upgrade branch) runs the upgrade test again when the project's upgrade_test_on_push is on
-                    (PROJECT_UPGRADE_TEST_ON_PUSH) and the upgrade uses OpenUpgrade (Odoo's service needs the
-                    subscription code, never kept: that test instance only gets the new code)
+    push            what the branch's on_new_commit says (projects/build_options.py): "update" the instances
+                    following the branch get the new code as before (triggers/); "new_build" a development instance
+                    is built again from scratch (projects/testing.py) and a staging instance is rebuilt from a new
+                    copy of production (projects/staging.py; the default of a project whose staging_on_push is
+                    "rebuild", PROJECT_STAGING_ON_PUSH); "nothing" the commit is only recorded. The test
+                    instance of a database upgrade (its upgrade branch) runs the upgrade test again when the
+                    project's upgrade_test_on_push is on (PROJECT_UPGRADE_TEST_ON_PUSH) and the upgrade uses
+                    OpenUpgrade (Odoo's service needs the subscription code, never kept: that test instance only
+                    gets the new code)
     deleted branch  its instances show that the branch is gone; then, by the project's branch_deleted option
                     (PROJECT_BRANCH_DELETED): "keep" nothing more, "archive" a backup and the instance switched off,
                     "delete" a backup and the instance deleted. Staging is archived at most; production is never
@@ -36,7 +39,7 @@ from sudoo.core.jobs import Job
 from sudoo.core.state import STATE
 from sudoo.instances import capacity, operations, planning, stages, store
 from sudoo.limits import quotas
-from sudoo.projects import access, branches, staging
+from sudoo.projects import access, branches, build_options, staging
 
 SYNC_MINIMUM_SECONDS = 60
 
@@ -121,7 +124,7 @@ def branch_created(repository: str, branch: str, user: str = "system") -> str | 
             stage=stage,
             user=user,
             switches={**defaults, "delete_after_days": projects.lifetime_days(project, stage)},
-            demo=bool(projects.option(project, "development_demo_data")),
+            demo=bool(build_options.effective(project, branch, stage)["demo_data"]),
             install_modules=True,
             project=project["id"],
         )
@@ -188,15 +191,49 @@ def branch_deleted(repository: str, branch: str, user: str = "system") -> list[s
 # ---------------------------------------------------------------- pushes
 
 
-def update_for(name: str) -> tuple[str, str, Any, tuple[Any, ...]] | None:
-    """How a push updates instance `name` when it is not the usual update: (title, kind, function, arguments) of a
-    staging rebuild from production, or None."""
+def _behaviour(project: Mapping[str, Any], name: str, stage: str) -> str:
+    """What a new commit does to instance `name` by its branch's build options (on_new_commit)."""
+    return str(build_options.effective(project, projects.branch_of(name), stage)["on_new_commit"])
+
+
+def skips_update(name: str) -> bool:
+    """A new commit for an instance whose branch builds nothing on new commits (on_new_commit "nothing"): the
+    commit is recorded in the branch's history (once) and True is returned; False otherwise."""
     env = store.read_env(name)
     project = projects.get(env.get("PROJECT", ""))
-    if project is None or stages.of(env) != stages.STAGING:
+    stage = stages.of(env)
+    if project is None or stage == stages.PRODUCTION or upgrades.source_of(name) is not None:
+        return False
+    if _behaviour(project, name, stage) != "nothing":
+        return False
+    branch = projects.branch_of(name)
+    found, _, error = branches.heads(project, refresh=True)
+    if not error and found.get(branch):
+        from sudoo.projects import builds  # late: builds follows jobs, imported when the panel starts
+
+        builds.commit_recorded(project["id"], branch, name, found[branch])
+    return True
+
+
+def update_for(name: str) -> tuple[str, str, Any, tuple[Any, ...]] | None:
+    """How a push updates instance `name` when it is not the usual update: (title, kind, function, arguments) of a
+    staging rebuild from production, a development instance built from scratch (on_new_commit "new_build"), or
+    None (the usual update, operations.update_code, which runs the branch's tests when it has some)."""
+    env = store.read_env(name)
+    project = projects.get(env.get("PROJECT", ""))
+    stage = stages.of(env)
+    if project is None or stage == stages.PRODUCTION:
         return None
     if access.lock_of(project, projects.branch_of(name)) is not None:
         return None  # a locked branch: triggers.request_update skips it anyway
+    if stage == stages.DEVELOPMENT:
+        if _behaviour(project, name, stage) == "new_build" and not store.plain(env):
+            from sudoo.projects import testing
+
+            return "Automatic new build", "update", testing.new_build, (name,)
+        return None
+    if stage != stages.STAGING:
+        return None
     tested = upgrades.source_of(name)
     if tested is not None:  # the test instance of a database upgrade (its upgrade branch)
         if store.read_env(tested).get("PROJECT", "") != env.get("PROJECT", ""):
@@ -214,7 +251,7 @@ def update_for(name: str) -> tuple[str, str, Any, tuple[Any, ...]] | None:
     production = staging.production_instance(project)
     if production and access.lock_of(project, projects.branch_of(production)) is not None:
         return None  # production is locked: its data is not copied automatically, the usual update instead
-    if projects.option(project, "staging_on_push") != "rebuild" or staging.rebuild_refusal(name):
+    if _behaviour(project, name, stage) != "new_build" or staging.rebuild_refusal(name):
         return None
     if production and access.copy_reveals(project, projects.branch_of(production), projects.branch_of(name)):
         return None  # production's data would reach people its branch keeps it from: the usual update instead

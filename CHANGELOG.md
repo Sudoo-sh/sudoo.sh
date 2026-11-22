@@ -8,6 +8,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Build options and tests**, as on Odoo.sh: each project, and each branch for itself, chooses what a new commit does
+  (update in place, a new build from scratch, or nothing but a line in the history), which modules a new development
+  database gets (the repository's, all, or a list) and which tests run (off, the repository's modules, or custom
+  `--test-tags`). Tests run before the instance is served (staging on a throw-away copy of its database) and their
+  result feeds the build: "At least one test failed when loading the modules (module_x)". API:
+  `GET/PUT /api/v1/projects/<id>/branches/<branch>/options`; new settings `PROJECT_DEVELOPMENT_ON_NEW_COMMIT`,
+  `PROJECT_MODULE_INSTALL`, `PROJECT_MODULES`, `PROJECT_TEST_SUITE`, `PROJECT_TEST_TAGS`, `PROJECT_STAGING_TESTS`,
+  `PROJECT_TEST_TIMEOUT_MINUTES`. Defaults keep today's behaviour (updates in place, no tests).
+- **Commit statuses:** builds are reported on GitHub as commit statuses (`sudoo/<stage>`: pending, success,
+  failure, error), linked to the branch's history in the panel, when the GitHub App has **Commit statuses: Read and
+  write** (new apps ask for it; add it to an existing app on GitHub) and `PROJECT_COMMIT_STATUSES` is on. GitHub
+  refusing never fails a build.
 - **Build history per branch:** every branch of a project keeps a history, as on Odoo.sh: one build per commit an
   instance was built from (created, updated by a push or by hand, staging rebuilt), with its commit, who started it,
   times and duration, the instance and job, and a status (building, success, warning when Odoo's log has warnings or

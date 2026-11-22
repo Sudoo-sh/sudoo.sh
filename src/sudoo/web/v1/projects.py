@@ -28,9 +28,18 @@
     GET    /api/v1/projects/<id>/builds?per_branch=  the last builds of every branch (10 each by default, at most
                                                      200), newest first (projects/builds.py)
     GET    /api/v1/projects/<id>/builds/<build_id>   one build, or any other entry of a branch's history
-    GET    /api/v1/projects/<id>/branches/<branch>/history?limit=&offset=
+    GET    /api/v1/projects/<id>/branches/<branch>/history?limit=&offset=&commits=
                                                      the branch's timeline, newest first: builds, stage changes
-                                                     and restores; meta.total, meta.limit, meta.offset
+                                                     and restores (commits=1: also the commits a branch that builds
+                                                     nothing on new commits recorded); meta.total, meta.limit,
+                                                     meta.offset
+    GET    /api/v1/projects/<id>/branches/<branch>/options
+                                                     the branch's build options: what applies ("options"), where
+                                                     each comes from ("sources"), its own values ("own")
+    PUT    /api/v1/projects/<id>/branches/<branch>/options
+                                                     {"on_new_commit", "module_install", "modules", "test_suite",
+                                                     "test_tags", "demo_data"}: a value sets it, null follows the
+                                                     project again (projects/build_options.py)
     GET    /api/v1/projects/<id>/access              who may see and work in the project: mode, grants, branches'
                                                      grants and locks, with names            (projects.access)
     PUT    /api/v1/projects/<id>/access              {"mode", "grants", "branches"}: replaces them (locks stay)
@@ -41,10 +50,10 @@
                                                      unlock it -> 204
 
 Seeing projects needs instances.view; creating, linking, changing and deleting them and changing a branch's stage
-need projects.manage; a new instance needs instances.create, a rebuild instances.restore (it replaces data); access
-and locks need projects.access. Every check goes through projects/access.py: role ∩ the caller's level in the project
-and branch (teams, grants, restricted projects and branches), and locked branches; projects and branches hidden from
-the caller answer 404 and are left out of lists. Production asks for more: making a
+or build options need projects.manage; a new instance needs instances.create, a rebuild instances.restore (it
+replaces data); access and locks need projects.access. Every check goes through projects/access.py: role ∩ the
+caller's level in the project and branch (teams, grants, restricted projects and branches), and locked branches;
+projects and branches hidden from the caller answer 404 and are left out of lists. Production asks for more: making a
 branch production, or moving it out of production, needs "confirm_production": true; a project has at most
 PROJECT_PRODUCTION_BRANCHES production branches, and the server at most MAX_PRODUCTION_INSTANCES production
 instances (409 beyond).
@@ -63,7 +72,7 @@ from sudoo.config import settings
 from sudoo.core import events, jobs
 from sudoo.instances import capacity, monitor, odoo, stages, store
 from sudoo.limits import quotas
-from sudoo.projects import access, adopt, branches, builds, staging
+from sudoo.projects import access, adopt, branches, build_options, builds, commit_status, staging
 from sudoo.repos import github, github_app
 
 from .. import validation as check
@@ -79,8 +88,14 @@ STATUS_ORDER = ("creating", "busy", "starting", "online", "paused", "switched_of
 OPTION_CHOICES = {
     "staging_on_push": ("rebuild", "keep_data"),
     "branch_deleted": ("keep", "archive", "delete"),
+    "development_on_new_commit": build_options.ON_NEW_COMMIT,
+    "module_install": build_options.MODULE_INSTALL,
+    "test_suite": build_options.TEST_SUITE,
 }
-OPTION_FLAGS = ("auto_development", "development_demo_data", "upgrade_test_on_push")
+OPTION_FLAGS = (
+    "auto_development", "development_demo_data", "upgrade_test_on_push", "staging_tests", "commit_statuses",
+)  # fmt: skip
+OPTION_TEXTS = ("modules", "test_tags")  # checked by projects/build_options.clean
 OPTION_NUMBERS = {"max_auto_development": 100, "development_lifetime_days": 3650, "staging_lifetime_days": 3650}
 
 
@@ -222,6 +237,7 @@ def full_resource(
         "capacity": _capacity(),
         "production_limit": projects.production_limit() or None,
         "server_production_limit": stages.production_limit() or None,
+        "commit_statuses": {"available": commit_status.available(project)},
     }
     if user is not None:
         meta["permissions"] = sorted(access.permissions(user, project) & access.PROJECT_PERMISSIONS)
@@ -372,6 +388,11 @@ def _options(raw: Any) -> dict[str, Any]:
             cleaned[key] = None
         elif key in OPTION_FLAGS:
             cleaned[key] = check.flag(raw, key)
+        elif key in OPTION_TEXTS:
+            try:
+                cleaned[key] = build_options.clean(key, value)
+            except ValueError as error:
+                abort(400, str(error))
         elif key in OPTION_CHOICES:
             cleaned[key] = check.one_of(
                 check.text(raw, key, max_length=20), OPTION_CHOICES[key], f"{key}: {' or '.join(OPTION_CHOICES[key])}."
@@ -404,6 +425,13 @@ def change_project(project_id: str) -> Response:
         own = {**(project.get("options") or {}), **options}
         return {**project, **values, "options": {k: v for k, v in own.items() if v is not None}}
 
+    if options:  # a list without modules, custom tests without tags: refused before they are kept
+        own = {k: v for k, v in {**(found.get("options") or {}), **options}.items() if v is not None}
+        merged = {**found, "options": own}
+        keys = ("module_install", "modules", "test_suite", "test_tags")
+        refused = build_options.problem({key: projects.option(merged, key) for key in keys})
+        if refused:
+            abort(400, refused)
     projects.change(project_id, update)
     changed = sorted(values) + [f"options.{k}={v}" for k, v in sorted(options.items())]
     log("project changed", detail=f"{project_id}: {', '.join(changed)}"[:300])
@@ -546,7 +574,7 @@ def create_instance(project_id: str, branch: str) -> Response:
         "auto_pause": stage != stages.PRODUCTION and bool(stages.defaults(stage)["auto_pause"]),
     }
     demo = (
-        check.flag(data, "demo", bool(projects.option(found, "development_demo_data")))
+        check.flag(data, "demo", bool(build_options.effective(found, branch, stage)["demo_data"]))
         if stage == stages.DEVELOPMENT
         else False
     )
@@ -621,7 +649,20 @@ def history_resource(entry: Mapping[str, Any]) -> dict[str, Any]:
     }
     job_id = entry.get("job")
     links: dict[str, Any] = {"self": f"{base}/builds/{entry['id']}"}
-    if entry["type"] == "stage":
+    if entry["type"] == "commit":  # a commit of a branch that builds nothing on new commits
+        commit = entry.get("commit") or None
+        resource |= {
+            "instance": entry.get("instance"),
+            "status": entry.get("status") or "skipped",
+            "result": entry.get("result") or "",
+            "commit": (
+                {key: commit.get(key) or "" for key in ("sha", "full_sha", "subject", "author", "when")}
+                if commit
+                else None
+            ),
+        }
+        links["instance"] = f"{PREFIX}/instances/{entry.get('instance')}" if entry.get("instance") else None
+    elif entry["type"] == "stage":
         resource |= {
             "from": entry.get("from"),
             "to": entry.get("to"),
@@ -703,6 +744,8 @@ def branch_history(project_id: str, branch: str) -> Response:
     )
     offset = check.whole_number(request.args.get("offset", "0"), "offset", minimum=0, maximum=1_000_000)
     entries = builds.history(project_id, branch)
+    if request.args.get("commits") not in ("1", "true"):  # recorded commits only for those who ask for them
+        entries = [entry for entry in entries if entry["type"] != "commit"]
     page = [history_resource(entry) for entry in entries[offset : offset + limit]]
     return ok(page, meta={"total": len(entries), "limit": limit, "offset": offset})
 
@@ -711,6 +754,71 @@ def build_event(entry_id: str) -> dict[str, Any] | None:
     """A "build" live event: the entry as the API shows it, or None when it is gone."""
     entry = builds.find(entry_id)
     return history_resource(entry) if entry else None
+
+
+# ---------------------------------------------------------------- build options of a branch
+
+
+def branch_options_resource(project: Mapping[str, Any], branch: str) -> dict[str, Any]:
+    """A branch's build options (projects/build_options.py): what applies, where it comes from, what it sets."""
+    stage = projects.branch_stage(project, branch)
+    found = build_options.effective(project, branch, stage)
+    entry = (project.get("branches") or {}).get(branch) or {}
+    return {
+        "project": project["id"],
+        "branch": branch,
+        "stage": stage,
+        "options": {key: found[key] for key in build_options.KEYS},
+        "sources": found["sources"],
+        "own": build_options.own(project, branch),
+        "project_defaults": {key: build_options.project_default(project, key, stage) for key in build_options.KEYS},
+        "changed_by": entry.get("options_changed_by"),
+        "changed_at": iso(entry.get("options_changed_at")),
+        "commit_statuses": {
+            "enabled": bool(projects.option(project, "commit_statuses")),
+            "available": commit_status.available(project),
+            "context": commit_status.context(stage),
+        },
+        "links": {"self": f"{PREFIX}/projects/{project['id']}/branches/{branch}/options"},
+    }
+
+
+@blueprint.get("/projects/<project_id>/branches/<path:branch>/options")
+def read_branch_options(project_id: str, branch: str) -> Response:
+    found = _project(project_id)
+    branch = _branch(branch)
+    _refuse_unless("instances.view", found, f"build options of {project_id} {branch}", branch)
+    return ok(branch_options_resource(found, branch))
+
+
+@blueprint.put("/projects/<project_id>/branches/<path:branch>/options")
+def change_branch_options(project_id: str, branch: str) -> Response:
+    """Set (a value) or reset (null: the project's) the branch's own build options; keys left out are kept."""
+    found = _project(project_id)
+    branch = _branch(branch)
+    _refuse_unless("projects.manage", found, f"change the build options of {project_id} {branch}", branch)
+    data = check.body()
+    unknown = sorted(set(data) - set(build_options.KEYS))
+    if unknown or not data:
+        known = ", ".join(build_options.KEYS)
+        abort(400, f"Send one or more of: {known}" + (f" (unknown: {unknown[0][:40]!r})." if unknown else "."))
+    try:
+        values = {key: build_options.clean(key, value) for key, value in data.items()}
+    except ValueError as error:
+        abort(400, str(error))
+    with projects.LOCK:
+        current = projects.get(project_id) or found
+        mine = {k: v for k, v in {**build_options.own(current, branch), **values}.items() if v is not None}
+        stage = projects.branch_stage(current, branch)
+        merged = {key: mine.get(key, build_options.project_default(current, key, stage)) for key in build_options.KEYS}
+        refused = build_options.problem(merged)
+        if refused:
+            abort(400, refused)
+        build_options.change(project_id, branch, values, g.user["name"])
+    changed = ", ".join(f"{k}={v}" for k, v in sorted(values.items()))
+    log("branch build options changed", detail=f"{project_id} {branch}: {changed}"[:300])
+    events.publish("project", project_id)
+    return ok(branch_options_resource(projects.get(project_id) or found, branch))
 
 
 # ---------------------------------------------------------------- access and locks

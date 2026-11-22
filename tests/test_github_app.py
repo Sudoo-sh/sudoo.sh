@@ -211,7 +211,7 @@ def test_manifest_flow_stores_the_app_encrypted(admin: Client, no_app: type[Fake
     data = started.get_json()["data"]
     assert data["action"] == f"https://github.com/organizations/Acme/settings/apps/new?state={data['state']}"
     manifest = data["manifest"]
-    assert manifest["default_permissions"] == {"contents": "read", "metadata": "read"}
+    assert manifest["default_permissions"] == {"contents": "read", "metadata": "read", "statuses": "write"}
     assert manifest["default_events"] == ["push", "create", "delete"] and manifest["public"] is False
     assert manifest["redirect_url"] == "http://localhost/github/app/created"
     assert manifest["hook_attributes"]["url"].endswith("/hooks/github-app")
@@ -560,7 +560,7 @@ def test_disconnect_forgets_everything(admin: Client, connected: type[FakeGitHub
 def test_manifest_can_ask_for_repository_creation() -> None:
     assert "administration" not in github_app.manifest("https://p", "https://p", "p")["default_permissions"]
     asked = github_app.manifest("https://p", "https://p", "p", create_repositories=True)["default_permissions"]
-    assert asked == {"contents": "read", "metadata": "read", "administration": "write"}
+    assert asked == {"contents": "read", "metadata": "read", "statuses": "write", "administration": "write"}
 
 
 def test_repository_creation_says_what_is_missing(no_app: type[FakeGitHub]) -> None:

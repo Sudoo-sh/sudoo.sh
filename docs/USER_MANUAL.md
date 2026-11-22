@@ -261,14 +261,35 @@ e-mail) may also do so in production, and otherwise just brings the new code.
 
 * **A new branch** gets a development instance, up to a few per project (3 by default). Beyond that, or when the
   project does not do it, use **Create instance**.
-* **A push** updates the branch's instances as before; a staging instance is rebuilt from production first (or only
-  takes the code, if the project says so).
+* **A push** does what the branch's **Behaviour upon new commits** says (below): by default it updates a development
+  instance in place, and a staging instance is rebuilt from production first (or only takes the code, if the project
+  says so).
 * **A deleted branch:** its development instance is backed up and switched off by default (it can be started again,
   and its lifetime still ends it); the project can keep it or delete it instead. Staging is switched off at most and
   production is never touched.
 
+**Build options and tests**, as on Odoo.sh. The project's **Settings** give every branch its defaults, and each
+branch can change them for itself (maintainers and up):
+
+* **Behaviour upon new commits:** **Update** (the new code in the same database, the changed modules upgraded),
+  **New build** (development: a new database built from scratch, the old data is gone; staging: a new copy of
+  production) or **Do nothing** (the commit is only listed in the branch's history).
+* **Module installation** for new development databases: **the repository's modules**, **all modules** (every module
+  Odoo has, with the repository's; no tests) or **a list** of module names.
+* **Test suite:** **off**, **the repository's modules** (the tests of its installed modules) or **custom tags**
+  (Odoo's `--test-tags`, such as `/sale_custom,-slow`). Tests run before the instance opens; a failed test marks the
+  build **failed** ("At least one test failed when loading the modules (module_x)") with the failing lines, and the
+  instance still opens. Staging runs them on a throw-away copy of its database, only when the project turns
+  **Tests on staging** on.
+* **Demo data** for new development databases.
+
+When the GitHub App may write commit statuses, each build's result also shows next to its commit on GitHub (and in
+pull requests) as `sudoo/development`, `sudoo/staging` or `sudoo/production`; **Details** opens the branch's history
+here. The project's **Commit statuses** switches it off.
+
 **Settings** (the project's tab, maintainers and up): the name, the Odoo version and edition of new instances, what
-happens with new, pushed and deleted branches, the lifetimes of new development and staging instances, and
+happens with new, pushed and deleted branches, the build options above, the lifetimes of new development and staging
+instances, and
 **Delete the project** (only without instances; the repository on GitHub stays). A value you do not set follows the
 panel's setting (**Settings**, **Instances**, **Projects**); the reset button next to it goes back to it.
 

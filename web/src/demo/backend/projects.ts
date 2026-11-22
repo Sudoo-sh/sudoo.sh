@@ -67,6 +67,13 @@ const OPTION_SETTINGS: Record<keyof ProjectOptions, string> = {
   upgrade_test_on_push: "project_upgrade_test_on_push",
   development_lifetime_days: "delete_after_days",
   staging_lifetime_days: "staging_delete_after_days",
+  development_on_new_commit: "project_development_on_new_commit",
+  module_install: "project_module_install",
+  modules: "project_modules",
+  test_suite: "project_test_suite",
+  test_tags: "project_test_tags",
+  staging_tests: "project_staging_tests",
+  commit_statuses: "project_commit_statuses",
 };
 
 export function options(project: DemoProject): ProjectOptions {

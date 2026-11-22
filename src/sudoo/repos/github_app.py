@@ -1,11 +1,13 @@
-"""The panel's GitHub App: read-only access to every repository of the GitHub accounts it is installed on, and,
+"""The panel's GitHub App: read-only access to the code of every repository of the GitHub accounts it is installed on,
+commit statuses (a build's result shown on its commit, when the installation has Commit statuses: write), and,
 when it was given Administration: write, the creation of empty repositories for new projects in organisations
 (create_repository; GitHub lets an app create repositories only in organisations).
 
 One GitHub App per panel, registered from a manifest (GitHub's "App Manifest" flow) so nothing is typed by hand:
 
-    1. A super admin presses Connect GitHub. The panel builds a manifest (name, addresses, read-only permissions,
-       push/create/delete events) and the browser posts it to GitHub, with a random `state` the panel remembers.
+    1. A super admin presses Connect GitHub. The panel builds a manifest (name, addresses, read-only access to
+       code, Commit statuses: write, push/create/delete events) and the browser posts it to GitHub, with a random
+       `state` the panel remembers.
     2. GitHub shows the new app, the super admin presses Create, and GitHub sends the browser back with a one-time
        `code` (valid one hour) and the same `state`.
     3. The panel checks the state and exchanges the code (POST /app-manifests/{code}/conversions) for the app's id,
@@ -51,6 +53,8 @@ WEB = "https://github.com"
 API_VERSION = "2022-11-28"
 PERMISSIONS = {"contents": "read", "metadata": "read"}
 CREATE_PERMISSIONS = {"administration": "write"}  # creating repositories in an organisation (projects/)
+STATUS_PERMISSIONS = {"statuses": "write"}  # reporting builds as commit statuses (projects/commit_status.py)
+STATUS_STATES = ("pending", "success", "failure", "error")
 REPOSITORY_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 EVENTS = ["push", "create", "delete"]
 HOOK_PATH = "/hooks/github-app"
@@ -198,16 +202,18 @@ def app_name(host: str) -> str:
 
 
 def manifest(panel_url: str, hook_base: str, host: str, create_repositories: bool = False) -> dict[str, Any]:
-    """The GitHub App manifest: read-only, private, push/create/delete events to the panel's webhook. With
-    `create_repositories`, also Administration: write, so the panel can create empty repositories for new projects
-    in the organisations it is installed on (CREATE_PERMISSIONS)."""
+    """The GitHub App manifest: private, read-only access to code, Commit statuses: write (builds reported on their
+    commits, STATUS_PERMISSIONS), push/create/delete events to the panel's webhook. With `create_repositories`, also
+    Administration: write, so the panel can create empty repositories for new projects in the organisations it is
+    installed on (CREATE_PERMISSIONS)."""
     panel_url, hook_base = panel_url.rstrip("/"), hook_base.rstrip("/")
-    permissions = {**PERMISSIONS, **(CREATE_PERMISSIONS if create_repositories else {})}
+    permissions = {**PERMISSIONS, **STATUS_PERMISSIONS, **(CREATE_PERMISSIONS if create_repositories else {})}
     return {
         "name": app_name(host),
         "url": panel_url,
-        "description": "Access for the Sudoo.sh panel: it downloads branches to run them as Odoo instances"
-        + (" and creates empty repositories for new projects." if create_repositories else " (read-only)."),
+        "description": "Access for the Sudoo.sh panel: it downloads branches to run them as Odoo instances, reports "
+        "builds on their commits"
+        + (" and creates empty repositories for new projects." if create_repositories else " (read-only code)."),
         "hook_attributes": {"url": hook_base + HOOK_PATH, "active": True},
         "redirect_url": f"{panel_url}/github/app/created",
         "setup_url": f"{panel_url}/github/app/installed",
@@ -706,3 +712,63 @@ def repository_owners() -> list[dict[str, Any]]:
         {"account": i["account"], "account_type": i.get("account_type", "User"), **repository_creation(i["account"])}
         for i in sorted(installations(), key=lambda i: str(i["account"]).lower())
     ]
+
+
+# --------------------------------------------------------------------------- commit statuses (projects/)
+
+
+def can_post_statuses(owner: str) -> bool:
+    """Whether the app's installation on `owner` may write commit statuses (Commit statuses: Read and write, accepted
+    on the installation). Apps made before the panel asked for it lack it until it is added on GitHub."""
+    if not connected():
+        return False
+    found = next((i for i in installations() if str(i["account"]).lower() == owner.lower()), None)
+    return bool(found and not found.get("suspended") and (found.get("permissions") or {}).get("statuses") == "write")
+
+
+_status_tokens: dict[int, tuple[float, str]] = {}  # installation id -> (expires, token): in memory only
+
+
+def _status_token(installation_id: int, now: float | None = None) -> str:
+    """A token with only Commit statuses: write (never the read-only token's cache: that one stays read-only)."""
+    now = now if now is not None else time.time()
+    with _lock:
+        cached = _status_tokens.get(installation_id)
+        if cached and cached[0] - TOKEN_MARGIN > now:
+            return cached[1]
+    answer = request(
+        "POST",
+        f"/app/installations/{installation_id}/access_tokens",
+        bearer=app_jwt(),
+        body={"permissions": {**STATUS_PERMISSIONS, "metadata": "read"}},
+    )
+    token = str(answer["token"])
+    with _lock:
+        _status_tokens[installation_id] = (_parse_time(str(answer.get("expires_at", ""))) or now + 3600, token)
+    return token
+
+
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
+def post_status(full_name: str, sha: str, state: str, context: str, description: str, target_url: str | None) -> None:
+    """Set the commit status `context` of commit `sha` in repository `full_name` ("owner/repo"). Raises GitHubError
+    (callers never let it fail a build)."""
+    owner, _, repository = full_name.partition("/")
+    if not ORG_RE.match(owner) or not REPOSITORY_NAME_RE.match(repository) or not SHA_RE.match(sha):
+        raise GitHubError("Not a repository and commit GitHub knows.", 400)
+    if state not in STATUS_STATES:
+        raise GitHubError(f"Not a commit status: {state[:20]!r}.", 400)
+    installation = installation_for(owner)
+    if installation is None:
+        raise GitHubError(f"The GitHub App is not installed on {owner}.", 409)
+    body: dict[str, Any] = {"state": state, "context": context[:100], "description": description[:140]}
+    if target_url:
+        body["target_url"] = target_url
+    try:
+        request("POST", f"/repos/{owner}/{repository}/statuses/{sha}", bearer=_status_token(installation), body=body)
+    except GitHubError as error:
+        if error.status == 401:
+            with _lock:
+                _status_tokens.pop(installation, None)  # asked for again next time
+        raise

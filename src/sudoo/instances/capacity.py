@@ -253,8 +253,24 @@ def snapshot() -> dict[str, Any]:
     return {**metrics.snapshot(), "capacity": current()}
 
 
-def refusal() -> str | None:
-    """Why one more instance may not start (MAX_RUNNING_INSTANCES reached), or None."""
+def refusal(reservation: tuple[int, int] | None = None) -> str | None:
+    """Why one more instance may not start (MAX_RUNNING_INSTANCES reached), or None.
+
+    With `reservation` ((before, after): the memory all instances reserve before and after a change of resources,
+    resources.reservations): why the change may not be made, or None. Only a change that raises the reservation
+    above the memory the server can spare for instances is refused; lowering it is always allowed, and so is
+    anything before the first measurement."""
+    if reservation is not None:
+        before, after = reservation
+        found = current()
+        usable = int(found["memory"]["usable_bytes"]) if found else 0
+        if not usable or after <= before or after <= usable:
+            return None
+        return (
+            f"This change would reserve {after / 1024**3:.1f} GB of memory for instances, more than the "
+            f"{usable / 1024**3:.1f} GB this server can spare for them. Lower the workers or memory limits, pause or "
+            "delete instances, or give the server more memory."
+        )
     limit = settings.max_running_instances
     if not limit:
         return None

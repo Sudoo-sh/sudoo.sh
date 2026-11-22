@@ -302,6 +302,31 @@ panel's setting (**Settings**, **Instances**, **Projects**); the reset button ne
 **Access** (the project's tab, administrators): who sees the project and at which level, per project and per branch,
 and its locked branches: see [Project access and locked branches](#project-access-and-locked-branches).
 
+### Project resources
+
+A project's **Settings** tab has a **Resources** section, as Odoo.sh's workers and database size: one card per
+stage (production, staging, development) with the values its instances get.
+
+* **Workers** and **Cron workers**: steppers. 0 workers is Odoo's threaded mode (one process). About one worker for
+  six people using Odoo at the same time. With workers, the Odoo container's memory and cores are computed from them
+  when you do not set them ("Odoo container: 2.4 GB, 2 cores").
+* **HTTP timeout** and **Scheduled actions timeout**: the seconds one request, or one scheduled action, may run.
+* **More limits**: processor time per request, memory per worker, the Odoo and database containers' memory and
+  cores, the database connections.
+* Under each field: where an empty field's value comes from (the stage's default) and the most you may set (the
+  administrator's maximum). The arrow next to a value you set brings back the default.
+* The line at the bottom says how much memory the server reserves for all its instances, and how much after your
+  change, while you type. A change the server cannot hold is refused before it is applied.
+* **Apply** restarts the instances of that stage with the new values. Production asks first, is backed up, and gets
+  its previous values back if Odoo does not answer with the new ones.
+
+The **Storage** card lists the database and files of every instance of the project against its quota, production's
+database size first.
+
+A branch can differ from its project: on its **Branch settings** tab, **Resources of this branch**, click
+**Override for this branch** and set only what differs; **Follow the project** removes the branch's own values.
+Changing resources needs the **Project resources** permission (administrators by default).
+
 ---
 
 ## 3. The Instances page
@@ -472,9 +497,12 @@ when the server is busy.
   development. When the server's processor or memory is fully used, production gets them first and development
   gives them up first. On a quiet server this changes nothing: every instance gets what it asks for.
 * **Usage.** The processor and memory this instance uses now, against its limits ("no limit" by default).
+* **Storage.** The database and files of the instance, measured every hour, against its stage's soft quota. Near
+  the quota the bar turns amber, over it red, and the administrators are alerted; nothing is stopped.
 * **Limits.** By default there are none. An administrator can set, for this instance only, the Odoo workers and
-  cron workers, the memory per worker, the time a request may take, and the processor and memory of its Odoo and
-  database containers. An empty field follows the stage's default, shown under it. Warnings appear when the values
+  cron workers, the memory per worker, the time a request may take (the HTTP timeout), the scheduled actions
+  timeout, the database connections, and the processor and memory of its Odoo and database containers. An empty
+  field follows what the stage, the project or the branch sets, shown under it. Warnings appear when the values
   look risky for this server; they never stop you.
 * **Apply** restarts Odoo with the new values (a production instance asks first and is backed up before). A notice
   says when the instance runs with older values, for example after a change of stage, until it is restarted.
@@ -967,6 +995,7 @@ Every account has one role. The role decides which pages, buttons and menu items
 | Restore a backup of an instance (replaces its database and files) | yes | yes | yes | no | no |
 | Change an instance's settings tab (automation, a longer lifetime) | yes | yes | yes | no | no |
 | Set an instance's resources (workers, limits) | yes | yes | no | no | no |
+| Set a project's and a branch's resources within the maxima ([Project resources](#project-resources)) | yes | yes | no | no | no |
 | Give an instance a shorter lifetime | yes | yes | no | no | no |
 | See the Odoo passwords (Access tab) | yes | yes | yes | no | no |
 | GitHub access (deploy keys; see the GitHub App's state) | yes | yes | yes | no | no |
@@ -1276,7 +1305,7 @@ the browser, in tabs:
 | :--- | :--- |
 | **General** | Contact and appearance: who people are told to contact, and the accent colour of the panel and its e-mails. |
 | **Instances** | What a new instance starts with (pause when idle and after how many hours, automatic updates, upgrades, lifetime, Odoo login); how many instances in total and per person, and how often a new one can be created; the process limit and logs of each instance's containers; what visitors may send through the gateway. 0 turns a limit off. |
-| **Resources** | How instances share the server when it is busy (production first, then staging, then development) and the default limits of each stage, all off by default ([Administrator guide: Resources and priority](ADMIN_GUIDE.md#resources-and-priority)). |
+| **Resources** | How instances share the server when it is busy (production first, then staging, then development) the default limits of each stage, all off by default, with the most project owners may set, how container limits follow the workers, and the storage quotas ([Administrator guide: Resources and priority](ADMIN_GUIDE.md#resources-and-priority)). |
 | **Odoo** | Which versions are offered, where Odoo and PostgreSQL come from, and where the Enterprise add-ons are (including the Enterprise source plugin). |
 | **Backups** | Whether daily backups are taken, at what time (`HH:MM`, 24-hour clock) and in which time zone (for example `Africa/Cairo`; UTC by default), and how long a restore can be rolled back. Changes apply at once. |
 | **Sign-in and security** | Who must use a second factor (none, administrators, everyone), which second factors are offered, the authenticator, how long a session lasts, the sign-in e-mail (on for everyone by default, and whether each person may turn it off), how many recovery codes an authenticator app comes with, and requests per minute with the rate limiter. |

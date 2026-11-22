@@ -254,10 +254,12 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
     resource["managed_name"] = managed_names.resource(name)  # its name under Sudoo.sh's domain (every plan), or None
     if full:
         recent_commits, found_submodules = code(name)
-        disk = monitor.disk_usage(name)
+        from sudoo.instances import disk_use
+
+        monitor.disk_usage(name)  # measured again first when it is due
         latest = backups.latest(name)
         resource |= {
-            "disk": {"database_bytes": disk.get("db"), "files_bytes": disk.get("files")},
+            "disk": disk_use.usage(name, stages.of(env)),
             "recent_commits": recent_commits,
             "submodules": found_submodules,
             "backups": [

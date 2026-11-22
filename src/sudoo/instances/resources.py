@@ -1,8 +1,20 @@
 """An instance's resources: its priority when the server is busy, and the limits an admin may set.
 
 Unlimited by default. No instance has a processor or memory cap, and Odoo runs with its own defaults (threaded
-mode), unless an admin sets a limit: as a default of a stage (settings <stage>_<knob>, Settings > Resources) or for
-one instance (kept by the panel, storage collection "instance_resources"; the instance's own value wins).
+mode), unless someone sets a limit. What applies to an instance, each layer over the one before:
+
+    stage       the default of its stage (settings <stage>_<knob>, Settings > Resources; administrators)
+    project     its project's value for that stage (project document "resources": {stage: {knob: value}})
+    branch      its branch's value (project document, branches[branch]["resources"])
+    instance    the instance's own value (storage collection "instance_resources"; instances.resources)
+
+Project owners (projects.resources) set the project and branch layers, within the maxima (settings
+resources_max_<knob>): a value above its maximum is refused when it is set and lowered to it when the maximum later
+falls (`clamp`). The stage defaults and an instance's own values are set by administrators and are not bound.
+
+With workers set by a project or a branch and no container limit set anywhere, the Odoo container gets limits computed
+from them (RESOURCES_COMPUTED_LIMITS): memory resources_base_memory_mb + (workers + cron workers) x memory per worker before
+recycling, max(1, workers) cores (`computed`).
 
 Priority under load, from the instance's stage (settings priority_*), written on both containers (Odoo and its
 database) every time the panel starts or recreates them:
@@ -21,7 +33,11 @@ The limits, each written only when set (0 is "not set"):
 
     odoo_workers, odoo_cron_threads             odoo.conf workers, max_cron_threads (0 workers: threaded mode)
     odoo_limit_memory_soft_mb / _hard_mb        odoo.conf limit_memory_soft / limit_memory_hard (bytes there)
-    odoo_limit_time_cpu / _real                 odoo.conf limit_time_cpu / limit_time_real (seconds)
+    odoo_limit_time_cpu / _real                 odoo.conf limit_time_cpu / limit_time_real (seconds; the HTTP
+                                                timeout)
+    odoo_limit_time_real_cron                   odoo.conf limit_time_real_cron (scheduled actions' timeout)
+    db_max_connections                          PostgreSQL max_connections (the database container's command) and
+                                                odoo.conf db_maxconn, shared out between Odoo's processes
     odoo_memory_limit, odoo_cpu_limit           compose mem_limit, cpus of the Odoo container
     db_memory_limit, db_cpu_limit               the same for the database container
 
@@ -54,6 +70,8 @@ _INTEGER = {
     "odoo_limit_memory_hard_mb": 1048576,
     "odoo_limit_time_cpu": 86400,
     "odoo_limit_time_real": 86400,
+    "odoo_limit_time_real_cron": 86400,
+    "db_max_connections": 10000,
 }
 _CORES = ("odoo_cpu_limit", "db_cpu_limit")
 _MEMORY = ("odoo_memory_limit", "db_memory_limit")
@@ -65,10 +83,11 @@ CONF_OPTIONS = {
     "odoo_limit_memory_hard_mb": "limit_memory_hard",
     "odoo_limit_time_cpu": "limit_time_cpu",
     "odoo_limit_time_real": "limit_time_real",
+    "odoo_limit_time_real_cron": "limit_time_real_cron",
 }
 """Knob -> the odoo.conf option it writes."""
 
-COMPOSE_KEYS = ("cpu_shares", "mem_reservation", "oom_score_adj", "mem_limit", "cpus")
+COMPOSE_KEYS = ("cpu_shares", "mem_reservation", "oom_score_adj", "mem_limit", "cpus", "command")
 """The keys of a service in the compose file that come from here."""
 
 RANK = {stages.PRODUCTION: 1, stages.STAGING: 2, stages.DEVELOPMENT: 3}
@@ -78,7 +97,11 @@ ODOO_DEFAULTS = {  # what Odoo uses when odoo.conf does not say (for the estimat
     "odoo_limit_memory_hard_mb": 2560,
     "odoo_limit_time_cpu": 60,
     "odoo_limit_time_real": 120,
+    "odoo_limit_time_real_cron": 120,
+    "db_max_connections": 100,
 }
+DB_RESERVED_CONNECTIONS = 8  # PostgreSQL connections kept for the panel (backups, psql, measurements)
+LAYERS = ("stage", "project", "branch", "instance")
 
 
 class Invalid(ValueError):
@@ -121,9 +144,108 @@ def stage_of(name: str) -> str:
     return stages.of(store.read_env(name))
 
 
+def maxima() -> dict[str, Any]:
+    """The most project owners may set, by knob (settings resources_max_<knob>); 0 or "0": no maximum."""
+    return {knob: getattr(settings, f"resources_max_{knob}") for knob in KNOBS}
+
+
+def _above(knob: str, value: Any, maximum: Any) -> bool:
+    """Whether `value` is above `maximum` (no maximum: never). 0 for a container limit is "no limit": above any."""
+    top = _amount(knob, maximum)
+    if not top:
+        return False
+    amount = _amount(knob, value)
+    return amount > top or (not amount and knob in _MEMORY + _CORES)
+
+
+def clamp(values: Mapping[str, Any], bounds: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """`values` with each one above its maximum lowered to it (a maximum lowered after the value was set)."""
+    bounds = maxima() if bounds is None else bounds
+    return {knob: bounds[knob] if _above(knob, value, bounds.get(knob)) else value for knob, value in values.items()}
+
+
+def _project_entry(name: str) -> tuple[Mapping[str, Any] | None, str]:
+    from sudoo import projects
+
+    env = store.read_env(name)
+    project_id = env.get("PROJECT", "")
+    return (projects.get(project_id) if project_id else None), env.get("GIT_BRANCH", "")
+
+
+def project_own(project: Mapping[str, Any] | None, stage: str) -> dict[str, Any]:
+    """The values a project sets for its instances of `stage`."""
+    found = ((project or {}).get("resources") or {}).get(stage) or {}
+    return {knob: found[knob] for knob in KNOBS if knob in found}
+
+
+def branch_own(project: Mapping[str, Any] | None, branch: str) -> dict[str, Any]:
+    """The values a branch of a project sets for its instances."""
+    found = (((project or {}).get("branches") or {}).get(branch) or {}).get("resources") or {}
+    return {knob: found[knob] for knob in KNOBS if knob in found}
+
+
+def layers(name: str, stage: str | None = None) -> dict[str, dict[str, Any]]:
+    """{layer: its values} of the instance, the project's and the branch's clamped to the maxima."""
+    stage = stage or stage_of(name)
+    project, branch = _project_entry(name)
+    bounds = maxima()
+    return {
+        "stage": stage_defaults(stage),
+        "project": clamp(project_own(project, stage), bounds),
+        "branch": clamp(branch_own(project, branch), bounds),
+        "instance": overrides(name),
+    }
+
+
+def merged(found: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """The values of the layers `found` (lowest first), each over the one before."""
+    values: dict[str, Any] = {}
+    for layer in found:
+        values |= found[layer]
+    return values
+
+
+def sources(found: Mapping[str, Mapping[str, Any]]) -> dict[str, str]:
+    """{knob: the layer its value comes from}."""
+    return {knob: next(layer for layer in reversed(LAYERS) if knob in found.get(layer, {}) or layer == "stage")
+            for knob in KNOBS}  # fmt: skip
+
+
+def computed(limits: Mapping[str, Any], available: int | None = None) -> dict[str, Any]:
+    """The container limits computed from the workers, for those not set (RESOURCES_COMPUTED_LIMITS): {knob: value},
+    empty in threaded mode or when both are set."""
+    count = workers(limits)
+    if not count or not settings.resources_computed_limits:
+        return {}
+    found: dict[str, Any] = {}
+    if not memory_bytes(str(limits.get("odoo_memory_limit") or "0")):
+        cron = int(limits.get("odoo_cron_threads") or ODOO_DEFAULTS["odoo_cron_threads"])
+        soft = int(limits.get("odoo_limit_memory_soft_mb") or ODOO_DEFAULTS["odoo_limit_memory_soft_mb"])
+        found["odoo_memory_limit"] = f"{settings.resources_base_memory_mb + (count + cron) * soft}m"
+    if not float(limits.get("odoo_cpu_limit") or 0):
+        found["odoo_cpu_limit"] = float(min(max(1, count), available or cores()))
+    return found
+
+
+OWNER_LAYERS = ("project", "branch", "own")
+"""The layers project owners set: container limits are computed only from workers set there, so workers an
+administrator set before (a stage default, an instance's own) keep running without an implicit cap."""
+
+
+def computed_for(found: Mapping[str, Mapping[str, Any]], available: int | None = None) -> dict[str, Any]:
+    """`computed` for the layers `found`, when their workers come from a project or a branch."""
+    workers_from = next((layer for layer in reversed(list(found)) if "odoo_workers" in found[layer]), "stage")
+    return computed(merged(found), available) if workers_from in OWNER_LAYERS else {}
+
+
+def resolve(found: Mapping[str, Mapping[str, Any]], available: int | None = None) -> dict[str, Any]:
+    """The limits from the layers, with the computed container limits."""
+    return merged(found) | computed_for(found, available)
+
+
 def effective(name: str, stage: str | None = None) -> dict[str, Any]:
-    """The limits that apply to the instance: its own, else its stage's default."""
-    return stage_defaults(stage or stage_of(name)) | overrides(name)
+    """The limits that apply to the instance: each layer over the one before, then the computed container limits."""
+    return resolve(layers(name, stage))
 
 
 def priority(stage: str) -> dict[str, Any]:
@@ -160,6 +282,9 @@ def compose_keys(stage: str, limits: Mapping[str, Any], available: int | None = 
         if cpus > 0:
             keys["cpus"] = _cpus(cpus, available)
         found[service] = keys
+    connections = int(limits.get("db_max_connections") or 0)
+    if connections:
+        found["db"]["command"] = ["postgres", "-c", f"max_connections={connections}"]
     return found
 
 
@@ -172,7 +297,24 @@ def conf_options(limits: Mapping[str, Any]) -> dict[str, str | None]:
             options[option] = str(value * 1024 * 1024) if value else None
         else:
             options[option] = str(value) if value else None
+    options["db_maxconn"] = str(db_maxconn(limits)) if int(limits.get("db_max_connections") or 0) else None
     return options
+
+
+def processes(limits: Mapping[str, Any]) -> int:
+    """Odoo's processes that keep their own database connections: one in threaded mode; with workers, each worker,
+    each cron worker and the gevent (WebSocket) server."""
+    count = workers(limits)
+    if not count:
+        return 1
+    return count + int(limits.get("odoo_cron_threads") or ODOO_DEFAULTS["odoo_cron_threads"]) + 1
+
+
+def db_maxconn(limits: Mapping[str, Any]) -> int:
+    """odoo.conf db_maxconn (per process) from the database's max_connections: what is left after the panel's own
+    connections, shared out between Odoo's processes, at least 2."""
+    total = int(limits.get("db_max_connections") or 0)
+    return max(2, (total - DB_RESERVED_CONNECTIONS) // processes(limits))
 
 
 def workers(limits: Mapping[str, Any]) -> int:
@@ -228,9 +370,9 @@ def websocket_port(name: str, limits: Mapping[str, Any]) -> int | None:
 # ---------------------------------------------------------------- checks
 
 
-def clean(data: Mapping[str, Any], available: int | None = None) -> dict[str, Any]:
-    """The instance's own limits from a request: {knob: value}; null or "" removes one (the stage's default
-    applies). Raises Invalid for a value that cannot be applied."""
+def clean(data: Mapping[str, Any], available: int | None = None, bounded: bool = False) -> dict[str, Any]:
+    """Limits from a request: {knob: value}; null or "" removes one (the layer below applies). Raises Invalid for a
+    value that cannot be applied, and with `bounded` (a project's or a branch's values) for one above its maximum."""
     available = available or cores()
     unknown = sorted(set(data) - set(KNOBS))
     if unknown:
@@ -271,22 +413,63 @@ def clean(data: Mapping[str, Any], available: int | None = None) -> dict[str, An
     hard = found.get("odoo_limit_memory_hard_mb")
     if soft and hard and soft > hard:
         raise Invalid("The soft memory limit per worker is above the hard one: Odoo would stop requests first.")
+    if bounded:
+        bounds = maxima()
+        for knob, value in found.items():
+            if _above(knob, value, bounds[knob]):
+                unlimited = knob in _MEMORY + _CORES and not _amount(knob, value)
+                raise Invalid(
+                    f"{knob}: at most {bounds[knob]}, the administrator's maximum"
+                    + ("; 0 (no limit) is above it." if unlimited else ".")
+                )
     return found
 
 
-def _reserved_by(stage: str) -> int:
+def _amount(knob: str, value: Any) -> float:
+    return float(memory_bytes(str(value or "0"))) if knob in _MEMORY else float(value or 0)
+
+
+def reserved_bytes(stage: str, limits: Mapping[str, Any]) -> int:
+    """The memory one instance counts with on the server: for each container its memory limit, else its reservation
+    under load (0 for none); staging and development count CAPACITY_OVERCOMMIT of it (they pause when unused),
+    production fully."""
     weights = priority(stage)
-    return memory_bytes(weights["memory_reservation"]) + memory_bytes(weights["db_memory_reservation"])
+    total = 0
+    for service, reservation in (("odoo", weights["memory_reservation"]), ("db", weights["db_memory_reservation"])):
+        limit = memory_bytes(str(limits.get(f"{service}_memory_limit") or "0"))
+        total += limit or memory_bytes(reservation)
+    return total if stage == stages.PRODUCTION else int(total * settings.capacity_overcommit)
 
 
-def reservations(changes: Mapping[str, str] | None = None) -> dict[str, Any]:
-    """The memory reserved (mem_reservation) by all instances, by stage, with `changes` ({name: stage}) applied."""
+def reservations(changes: Mapping[str, tuple[str, Mapping[str, Any]]] | None = None) -> dict[str, Any]:
+    """The memory reserved by all instances (`reserved_bytes`), by stage, with `changes` ({name: (stage, limits)})
+    in place of what applies to them now."""
+    changes = changes or {}
     by_stage = dict.fromkeys(stages.STAGES, 0)
-    names = set(store.names()) | set(changes or {})
-    for name in names:
-        stage = (changes or {}).get(name) or stage_of(name)
-        by_stage[stage] += _reserved_by(stage)
+    for name in set(store.names()) | set(changes):
+        if name in changes:
+            stage, limits = changes[name]
+        else:
+            stage = stage_of(name)
+            limits = effective(name, stage)
+        by_stage[stage] += reserved_bytes(stage, limits)
     return {"total_bytes": sum(by_stage.values()), "by_stage": by_stage}
+
+
+def plan(changes: Mapping[str, tuple[str, Mapping[str, Any]]]) -> dict[str, Any]:
+    """What a change of resources does to the memory reserved on this server: {"before_bytes", "after_bytes",
+    "usable_bytes" (None before the first measurement), "refusal" (why it is refused, or None)}."""
+    from sudoo.instances import capacity
+
+    before = reservations()["total_bytes"]
+    after = reservations(changes)["total_bytes"]
+    _, usable = _server_memory()
+    return {
+        "before_bytes": before,
+        "after_bytes": after,
+        "usable_bytes": usable or None,
+        "refusal": capacity.refusal(reservation=(before, after)) if settings.resources_reservation_check else None,
+    }
 
 
 def _server_memory() -> tuple[int, int]:
@@ -312,7 +495,7 @@ def warnings(name: str, limits: Mapping[str, Any], stage: str | None = None) -> 
     stage = stage or stage_of(name)
     found: list[dict[str, Any]] = []
     total, usable = _server_memory()
-    reserved = reservations({name: stage})["total_bytes"]
+    reserved = reservations({name: (stage, limits)})["total_bytes"]
     if total and reserved > total:
         found.append(_warning(
             "reserved_over_total",
@@ -390,18 +573,28 @@ def pending(name: str) -> bool:
 
 def resource(name: str) -> dict[str, Any]:
     """GET /api/v1/instances/<name>/resources."""
+    from sudoo.instances import disk_use
+
     stage = stage_of(name)
-    defaults = stage_defaults(stage)
-    own = overrides(name)
-    limits = defaults | own
+    found = layers(name, stage)
+    own = found["instance"]
+    limits = resolve(found)
+    inherited = merged({layer: values for layer, values in found.items() if layer != "instance"})
     total, usable = _server_memory()
     return {
         "stage": stage,
         "priority": priority(stage),
         "limits": limits,
         "own": own,
-        "stage_defaults": defaults,
+        "stage_defaults": found["stage"],
+        "project": found["project"],
+        "branch": found["branch"],
+        "inherited": inherited,
+        "sources": sources(found),
+        "computed": sorted(computed_for(found)),
+        "maxima": maxima(),
         "odoo_defaults": ODOO_DEFAULTS,
+        "storage": disk_use.usage(name, stage),
         "unlimited": not any(memory_bytes(str(limits[k])) for k in _MEMORY) and not any(limits[k] for k in _CORES),
         "pending": pending(name),
         "warnings": warnings(name, limits, stage),
@@ -412,3 +605,33 @@ def resource(name: str) -> dict[str, Any]:
             "reserved_bytes": reservations()["total_bytes"],
         },
     }
+
+
+# ---------------------------------------------------------------- projects and branches
+
+
+def save_project(project_id: str, stage: str, values: Mapping[str, Any], user: str) -> None:
+    """Replace the values a project sets for its instances of `stage`."""
+    from sudoo import projects
+
+    def update(project: dict[str, Any]) -> dict[str, Any]:
+        found = dict(project.get("resources") or {})
+        found[stage] = {knob: values[knob] for knob in KNOBS if knob in values}
+        project["resources"] = found
+        project["resources_changed"] = {"by": user, "at": time.time()}
+        return project
+
+    projects.change(project_id, update)
+
+
+def save_branch(project_id: str, branch: str, values: Mapping[str, Any], user: str) -> None:
+    """Replace the values a branch sets for its instances."""
+    from sudoo import projects
+
+    projects.record_branch(
+        project_id,
+        branch,
+        resources={knob: values[knob] for knob in KNOBS if knob in values},
+        resources_changed_by=user,
+        resources_changed_at=time.time(),
+    )

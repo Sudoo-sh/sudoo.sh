@@ -48,6 +48,7 @@ import type { Instance, Permission, ProjectBranch, ProjectDetail, ProjectMeta, S
 import { BranchCommands } from "@/components/BranchCommands";
 import { BranchHistory } from "@/components/BuildHistory";
 import { BranchSettings } from "@/components/BuildOptions";
+import { BranchResources } from "@/components/ProjectResources";
 import { BranchCommit, CreateDialog, DeleteInstanceDialog, RebuildDialog, StageDialog, type BranchDialog } from "@/components/BranchDialogs";
 import { JobDrawer } from "@/components/JobDrawer";
 import { LockTag } from "@/components/LockTag";
@@ -382,7 +383,7 @@ function BranchPane({
   const instanceTab = view === "" || view === "history" ? "history" : view === "overview" ? "" : view;
   // the branch's settings (Odoo.sh's SETTINGS tab): what a new commit does, how a new build is made, its tests
   const bo = useT(optionWords);
-  const settings = <BranchSettings project={project} branch={branch} editable={can(branch, "projects.manage")} />;
+  const settings = <div className="stack"><BranchSettings project={project} branch={branch} editable={can(branch, "projects.manage")} /><BranchResources project={project} branch={branch} /></div>;
   return (
     <section className="ws-pane" aria-label={branch.name}>
       <div className="ws-pane-head">

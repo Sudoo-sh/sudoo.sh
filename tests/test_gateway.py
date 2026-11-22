@@ -22,6 +22,7 @@ from sudoo.config import settings
 from sudoo.instances import gateway, store
 
 NAME = "gw-test"
+WHO = web.AppKey("who", str)  # which stand-in server answered
 RECEIVED: dict[str, Any] = {}
 
 
@@ -317,6 +318,65 @@ def test_slow_headers_are_cut_off_and_connections_are_capped(monkeypatch: pytest
             assert gateway._SESSION is not None
             await gateway._SESSION.close()
             await odoo.close()
+            shutil.rmtree(folder)
+
+    asyncio.run(main())
+
+
+def test_with_workers_the_bus_goes_to_odoos_gevent_server() -> None:
+    """With workers, Odoo serves WebSockets (17 and later) and long polling (15 and earlier) on its gevent port only:
+    the gateway sends them there, and everything else to the HTTP port."""
+
+    async def where(request: web.Request) -> web.Response:
+        return web.json_response({"server": request.app[WHO], "path": request.path})
+
+    async def tagged_socket(request: web.Request) -> web.WebSocketResponse:
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        async for message in ws:
+            if message.type == WSMsgType.TEXT:
+                await ws.send_str(f"{request.app[WHO]}:{message.data}")
+        return ws
+
+    def server(who: str) -> web.Application:
+        app = web.Application()
+        app[WHO] = who
+        app.router.add_get("/websocket", tagged_socket)
+        app.router.add_route("*", "/{tail:.*}", where)
+        return app
+
+    async def main() -> None:
+        http, gevent = TestServer(server("http")), TestServer(server("gevent"))
+        await http.start_server()
+        await gevent.start_server()
+        folder = store.folder(NAME)
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "docker-compose.yml").write_text("services: {}\n")
+        store.write_env(NAME, {"ODOO_PORT": http.port, "GATEWAY_PORT": 1, "ODOO_GEVENT_PORT": gevent.port,
+                               "ODOO_WORKERS": 2})  # fmt: skip
+        await gateway._create_session()
+        app = web.Application()
+        app[gateway.INSTANCE] = NAME
+        app.router.add_route("*", "/{tail:.*}", gateway._handle)
+        client = TestClient(TestServer(app))
+        await client.start_server()
+        try:
+            async with client.ws_connect("/websocket") as ws:
+                await ws.send_str("hello")
+                assert (await ws.receive(timeout=5)).data == "gevent:hello"
+            assert (await (await client.post("/longpolling/poll", json={})).json())["server"] == "gevent"
+            assert (await (await client.get("/web/login")).json())["server"] == "http"
+            store.update_env(NAME, ODOO_WORKERS=0)  # threaded mode again: everything to the HTTP port
+            async with client.ws_connect("/websocket") as ws:
+                await ws.send_str("hello")
+                assert (await ws.receive(timeout=5)).data == "http:hello"
+            assert (await (await client.post("/longpolling/poll", json={})).json())["server"] == "http"
+        finally:
+            await client.close()
+            assert gateway._SESSION is not None
+            await gateway._SESSION.close()
+            await http.close()
+            await gevent.close()
             shutil.rmtree(folder)
 
     asyncio.run(main())

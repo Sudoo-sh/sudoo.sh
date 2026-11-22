@@ -10,6 +10,7 @@
   @include meta.load-css("components");
   @include meta.load-css("layout");
   @include meta.load-css("pages");
+  @include meta.load-css("resources");
 }
 
 @include meta.load-css("look");

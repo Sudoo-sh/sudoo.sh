@@ -3,7 +3,9 @@ the instances every METRICS_INTERVAL_SECONDS (check), from what the monitor meas
 
 Conditions that last (an instance down, memory high, no public link) count from when they were first seen and are
 alerted once they lasted their ALERT_..._MINUTES; when they are over, a recovery notice follows (alerts.recover).
-The disk is alerted as soon as its free share falls below ALERT_DISK_FREE_PERCENT. An instance that is paused,
+The disk is alerted as soon as its free share falls below ALERT_DISK_FREE_PERCENT. An instance's storage (its last
+measurement, instances/disk_use.py) is alerted once at STORAGE_WARNING_PERCENT of its quota and once over it; a
+production instance over its quota is alerted again every day until it is back under it. An instance that is paused,
 switched off, busy with a job or deleted is not watched: an open alert about it is closed without a notice.
 
 Drift (changes made outside the panel) is reported by instances/integrity.py through alerts.send.
@@ -22,6 +24,8 @@ from . import Alert, close, recover, send
 
 _SINCE: dict[str, float] = {}  # condition key -> when it was first seen (in memory: a restart starts counting again)
 _ACTIVE: set[str] = set()  # condition keys alerted and not over yet
+_OVER_SENT: dict[str, float] = {}  # instance -> when "over its storage quota" was last sent (production: daily)
+DAY = 86400
 
 
 def _instance_path(name: str, job_id: str | None = None) -> str:
@@ -172,10 +176,11 @@ def _check_instances(now: float) -> None:
     from sudoo.instances import monitor, store
 
     names = set(store.names())
-    for key in [k for k in _ACTIVE | set(_SINCE) if k.startswith(("instance_down:", "public_link:"))]:
+    for key in [k for k in _ACTIVE | set(_SINCE) if k.startswith(("instance_down:", "public_link:", "storage"))]:
         if key.split(":", 1)[1] not in names | {"panel"}:
             _forget(key, now)  # deleted
     for name in sorted(names):
+        _check_storage(name, now)
         status = monitor.status(name)
         down, link = f"instance_down:{name}", f"public_link:{name}"
         if status == "online":
@@ -198,6 +203,43 @@ def _check_instances(now: float) -> None:
         elif status != "unknown":  # paused, switched off
             _forget(down, now)
             _forget(link, now)
+
+
+def _check_storage(name: str, now: float) -> None:
+    """Alert when the instance's database and files reach STORAGE_WARNING_PERCENT of its quota, and when they are
+    over it (production: again every day). Nothing is refused."""
+    from sudoo.instances import disk_use, stages, store
+
+    stage = stages.of(store.read_env(name))
+    found = disk_use.usage(name, stage)
+    warning, over = f"storage:{name}", f"storage_over:{name}"
+    level, path = found["level"], _instance_path(name)
+    if level == "none":
+        _forget(warning, now)
+        _forget(over, now)
+        _OVER_SENT.pop(name, None)
+        return
+    used, quota = _size(found["total_bytes"] or 0), _size(found["quota_bytes"] or 0)
+    if level in ("warning", "over"):
+        _raise(warning, Alert("storage", f"{name} is near its storage quota",
+                              f"Instance {name} uses {used} (database and files) of its {quota} quota "
+                              f"({found['percent']:g}%). Nothing is stopped: delete data Odoo no longer needs, or ask "
+                              "an administrator to raise the quota.", instance=name, path=path), now)  # fmt: skip
+    else:
+        _over(warning, Alert("storage", f"{name} is back under its storage quota",
+                             f"Instance {name} uses {used} of its {quota} quota.", instance=name, path=path), now)  # fmt: skip
+    if level != "over":
+        _over(over, None, now)
+        _OVER_SENT.pop(name, None)
+        return
+    if stage == stages.PRODUCTION and now - _OVER_SENT.get(name, now) >= DAY:
+        _ACTIVE.discard(over)  # production over its quota: told again every day
+    if over not in _ACTIVE:
+        _OVER_SENT[name] = now
+    _raise(over, Alert("storage", f"{name} is over its storage quota",
+                       f"Instance {name} uses {used} (database and files), more than its {quota} quota. It keeps "
+                       "running; delete data Odoo no longer needs, or ask an administrator to raise the quota.",
+                       instance=name, path=path), now)  # fmt: skip
 
 
 def _size(count: float) -> str:

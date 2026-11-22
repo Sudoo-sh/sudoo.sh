@@ -2,7 +2,7 @@
 
 What raises an alert (watch.py): a job failed, an update failed and was rolled back (or its rollback failed too), a
 backup failed, a backup could not be copied off-site or a copy failed its check, a production instance has had no
-off-site copy for too long (offsite/), an instance that should run does not answer, the disk is almost full, memory stays above the capacity
+off-site copy for too long (offsite/), an instance that should run does not answer, the disk is almost full, an instance's database and files near or over their storage quota, memory stays above the capacity
 warning, an instance was changed outside the panel (drift), the panel or an instance has no public link. When a
 condition is over (back online, disk freed), a recovery notice follows, if its alert was sent.
 
@@ -47,6 +47,7 @@ TYPES: dict[str, str | None] = {
     "backup_failed": "alert_backup_failed",
     "instance_down": "alert_instance_down",
     "disk": "alert_disk",
+    "storage": "alert_storage",
     "memory": "alert_memory",
     "drift": "alert_drift",
     "public_link": "alert_public_link",

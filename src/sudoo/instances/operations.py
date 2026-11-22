@@ -23,7 +23,18 @@ from sudoo.core.jobs import Job, JobError
 from sudoo.core.odoo_args import demo_args
 from sudoo.core.shell import capture
 from sudoo.core.state import STATE
-from sudoo.instances import backups, gateway, integrity, managed_names, monitor, odoo, resources, stages, store
+from sudoo.instances import (
+    backups,
+    disk_use,
+    gateway,
+    integrity,
+    managed_names,
+    monitor,
+    odoo,
+    resources,
+    stages,
+    store,
+)
 from sudoo.instances.store import compose
 from sudoo.mailcatcher import panel as mail_catcher
 from sudoo.repos import github
@@ -449,6 +460,7 @@ def delete(job: Job, name: str, without_backup: bool = False) -> None:
     STATE.remove(name)
     integrity.forget(name)
     resources.forget(name)
+    disk_use.forget(name)
     mail_catcher.forget(name)
     from sudoo import upgrades  # late: upgrades/ uses this module
 
@@ -708,12 +720,16 @@ def repair(job: Job, name: str) -> None:
                  detail="; ".join([*put_back, *stopped, *sorted(services)]))  # fmt: skip
 
 
-def apply_resources(job: Job, name: str, previous: dict[str, Any]) -> None:
+def apply_resources(
+    job: Job, name: str, previous: dict[str, Any], layer: str = "instance", scope: tuple[str, str] | None = None
+) -> None:
     """Apply the instance's resources (resources.py): write odoo.conf and the compose file, and recreate or restart
     Odoo with them. A paused instance gets them when it next starts.
 
     Production is changed safely, as an update is: a backup first, and when Odoo does not answer with the new
-    limits, `previous` (the instance's own limits before the change) is put back and Odoo started with them."""
+    limits, `previous` (the values of the layer that changed, before the change) is put back and Odoo started with
+    them. `layer`: "instance" (the instance's own limits), "project" (scope: (project, stage)) or "branch" (scope:
+    (project, branch))."""
     production = stages.is_production(store.read_env(name))
     paused = _paused(name)
     job.expect(1 if paused else 2 + production)
@@ -734,7 +750,12 @@ def apply_resources(job: Job, name: str, previous: dict[str, Any]) -> None:
         if not production:
             raise
         job.step("Putting the previous resources back")
-        resources.save_overrides(name, previous, job.user)
+        if layer == "project" and scope:
+            resources.save_project(scope[0], scope[1], previous, job.user)
+        elif layer == "branch" and scope:
+            resources.save_branch(scope[0], scope[1], previous, job.user)
+        else:
+            resources.save_overrides(name, previous, job.user)
         _start_odoo(job, name, restart=True)
         raise JobError(
             "Odoo did not answer with the new resources, so the previous ones were put back. Check Odoo's log: "

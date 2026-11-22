@@ -72,6 +72,8 @@ def start(plan: dict[str, Any], user: str, fn: Callable[..., object] | None = No
     """Start the creation's job; record the branch's stage in its project when the branch has none yet. `fn`: what
     the job runs instead of operations.create, fn(job, plan, *args) (a database upgrade's test instance)."""
     details = {key: plan[key] for key in (*SHOWN, "auto_update", "auto_upgrade", "auto_pause", "delete_after_days")}
+    if plan["project"] and plan["branch"]:
+        details["build"] = "create"  # the first build of the branch's instance (projects/builds.py)
     record_stage(plan, user)
     return jobs.start(
         plan["name"], "Create instance", "create", fn or operations.create, plan, *args, user=user, details=details

@@ -423,6 +423,7 @@ its own.
 | `PROJECT_DEVELOPMENT_DEMO_DATA` | bool | `true` | **live** | Development instances of projects start with Odoo's demo data. Staging and production never get demo data. |
 | `PROJECT_STAGING_ON_PUSH` | text | `rebuild` | **live** | A push to a staging branch: `rebuild` replaces the staging instance's data with a new neutralised copy of production, then takes the new code; `keep_data` only takes the new code (like a development instance). |
 | `PROJECT_BRANCH_DELETED` | text | `archive` | **live** | A branch deleted on GitHub: its development instance is kept (`keep`), backed up and switched off (`archive`), or deleted after a backup (`delete`). A staging instance is archived at most, a production instance only shows that its branch is gone. |
+| `PROJECT_BUILDS_KEPT` | int | `200` | **live** | Builds kept in the history of each branch of a project; the oldest are removed first, with the stage changes and restores older than the oldest build kept. 1 to 10000. See [Build history](ADMIN_GUIDE.md#build-history). |
 | `PROJECT_UPGRADE_TEST_ON_PUSH` | bool | `true` | **live** | A push to a project's upgrade branch (named after the next Odoo version, such as `19.0`) runs its database upgrade test again on the test instance: a fresh backup of the instance being upgraded, OpenUpgrade, neutralised. With Odoo's upgrade service (Enterprise) the push only gives the test instance the new code, because the subscription code is never kept. See [Database upgrades](ADMIN_GUIDE.md#25-database-upgrades). |
 
 ## Database upgrades

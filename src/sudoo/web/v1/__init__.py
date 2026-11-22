@@ -122,4 +122,5 @@ def register(app: Flask) -> None:
     bus.present("job", lambda job_id: job_resource(jobs.JOBS[job_id]))
     bus.present("domains", domains.domains_resource)
     bus.present("project", _project_event)
+    bus.present("build", projects.build_event)
     live.on_change(settings.publish_changes)

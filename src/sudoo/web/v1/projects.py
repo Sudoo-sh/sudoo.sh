@@ -25,6 +25,12 @@
     POST   /api/v1/projects/<id>/branches/<branch>/rebuild
                                                      rebuild the branch's staging instance from a new copy of
                                                      production -> 202, Location: job
+    GET    /api/v1/projects/<id>/builds?per_branch=  the last builds of every branch (10 each by default, at most
+                                                     200), newest first (projects/builds.py)
+    GET    /api/v1/projects/<id>/builds/<build_id>   one build, or any other entry of a branch's history
+    GET    /api/v1/projects/<id>/branches/<branch>/history?limit=&offset=
+                                                     the branch's timeline, newest first: builds, stage changes
+                                                     and restores; meta.total, meta.limit, meta.offset
     GET    /api/v1/projects/<id>/access              who may see and work in the project: mode, grants, branches'
                                                      grants and locks, with names            (projects.access)
     PUT    /api/v1/projects/<id>/access              {"mode", "grants", "branches"}: replaces them (locks stay)
@@ -53,10 +59,11 @@ from typing import Any
 from flask import Blueprint, Response, abort, g, request
 
 from sudoo import accounts, addons, projects, teams
+from sudoo.config import settings
 from sudoo.core import events, jobs
 from sudoo.instances import capacity, monitor, odoo, stages, store
 from sudoo.limits import quotas
-from sudoo.projects import access, adopt, branches, staging
+from sudoo.projects import access, adopt, branches, builds, staging
 from sudoo.repos import github, github_app
 
 from .. import validation as check
@@ -417,6 +424,7 @@ def delete_project(project_id: str) -> Response:
             f"({', '.join(members[:5])}). Delete them first; the repository on GitHub is never touched.",
         )
     projects.remove(project_id)
+    builds.forget_project(project_id)
     log("project deleted", detail=f"{project_id} ({found['repository']})")
     events.publish("project", project_id)
     return no_content()
@@ -470,8 +478,9 @@ def change_stage(project_id: str, branch: str) -> Response:
             abort(409, f"{', '.join(busy)} is still being created. Try again when its creation has finished.")
         for name in members:  # each instance with the rules of PATCH /instances/<name> (server-wide limit too)
             if stages.of(store.read_env(name)) != stage:
-                instances_api._change(name, {"stage": stage, "confirm_production": True})
+                instances_api._change(name, {"stage": stage, "confirm_production": True}, history=False)
         projects.record_branch(project_id, branch, stage=stage, changed_by=g.user["name"], changed_at=int(time.time()))
+        builds.stage_changed(project_id, branch, before, stage, g.user["name"])
     log("branch stage changed", detail=f"{project_id} {branch}: {before} -> {stage}")
     events.publish("project", project_id)
     notes = []
@@ -575,11 +584,133 @@ def rebuild(project_id: str, branch: str) -> Response:
     _refuse_locked_production(found, staging.production_instance(found))
     if jobs.busy(name):
         abort(409, f"{name} is busy with another job. Try again when it has finished.")
-    job = jobs.start(name, "Rebuild from production", "restore", staging.rebuild, name, user=g.user["name"])
+    job = jobs.start(
+        name, "Rebuild from production", "restore", staging.rebuild, name, user=g.user["name"],
+        details={"build": "rebuild"},
+    )  # fmt: skip
     log("Rebuild from production", instance=name, detail=f"{project_id} {branch}")
     response = ok(job_resource(job), status=202)
     response.headers["Location"] = f"{PREFIX}/jobs/{job.id}"
     return response
+
+
+# ---------------------------------------------------------------- builds and history
+
+PER_BRANCH_DEFAULT = 10
+HISTORY_PAGE_DEFAULT = 50
+HISTORY_PAGE_MAX = 200
+
+
+def _duration(start: Any, end: Any) -> int | None:
+    if not start or not end:
+        return None
+    return max(0, round(float(end) - float(start)))
+
+
+def history_resource(entry: Mapping[str, Any]) -> dict[str, Any]:
+    """An entry of a branch's history (projects/builds.py) as the API shows it: a build, a stage change or a
+    restore."""
+    base = f"{PREFIX}/projects/{entry['project']}"
+    resource: dict[str, Any] = {
+        "id": entry["id"],
+        "type": entry["type"],
+        "project": entry["project"],
+        "branch": entry["branch"],
+        "at": iso(entry.get("at")),
+        "by": entry.get("by") or None,
+    }
+    job_id = entry.get("job")
+    links: dict[str, Any] = {"self": f"{base}/builds/{entry['id']}"}
+    if entry["type"] == "stage":
+        resource |= {
+            "from": entry.get("from"),
+            "to": entry.get("to"),
+            "explanation": entry.get("explanation") or "",
+            "reason": entry.get("reason") or None,
+        }
+    else:
+        resource |= {
+            "instance": entry.get("instance"),
+            "status": entry.get("status"),
+            "action": entry.get("action") or None,
+            "result": entry.get("result") or "",
+            "job": job_id or None,
+        }
+        links["instance"] = f"{PREFIX}/instances/{entry.get('instance')}" if entry.get("instance") else None
+    if entry["type"] == "build":
+        commit = entry.get("commit") or None
+        resource |= {
+            "trigger": entry.get("trigger"),
+            "commit": (
+                {key: commit.get(key) or "" for key in ("sha", "full_sha", "subject", "author", "when")}
+                if commit
+                else None
+            ),
+            "queued_at": iso(entry.get("queued_at")),
+            "started_at": iso(entry.get("started_at")),
+            "finished_at": iso(entry.get("finished_at")),
+            "duration_seconds": _duration(entry.get("started_at"), entry.get("finished_at")),
+            "dropped_at": iso(entry.get("dropped_at")),
+            "messages": list(entry.get("messages") or []),
+        }
+    links["job"] = f"{PREFIX}/jobs/{job_id}" if job_id else None
+    resource["links"] = links
+    return resource
+
+
+def _sees(project: Mapping[str, Any], branch: str) -> bool:
+    return access.sees_branch(g.user, project, branch)
+
+
+@blueprint.get("/projects/<project_id>/builds")
+def list_builds(project_id: str) -> Response:
+    """The last builds of every branch of the project the caller may see, newest first."""
+    found = _project(project_id)
+    per_branch = check.whole_number(
+        request.args.get("per_branch", str(PER_BRANCH_DEFAULT)), "per_branch", minimum=1, maximum=200
+    )
+    grouped = projects.by_branch(project_id)
+    shown = [
+        (projects.branch_stage(found, branch, grouped.get(branch, [])), branch, entries)
+        for branch, entries in builds.builds(project_id, per_branch).items()
+        if _sees(found, branch)
+    ]
+    shown.sort(key=lambda found: (-projects.STAGE_RANK[found[0]], found[1].lower()))  # production first
+    listed = [
+        {"branch": branch, "stage": stage, "builds": [history_resource(entry) for entry in entries]}
+        for stage, branch, entries in shown
+    ]
+    return ok(listed, meta={"per_branch": per_branch, "kept_per_branch": int(settings.project_builds_kept)})
+
+
+@blueprint.get("/projects/<project_id>/builds/<build_id>")
+def read_build(project_id: str, build_id: str) -> Response:
+    found = _project(project_id)
+    entry = builds.find(build_id, project_id) if build_id.isalnum() and len(build_id) <= 40 else None
+    if entry is None or not _sees(found, str(entry["branch"])):
+        abort(404, "There is no such build in this project.")
+    return ok(history_resource(entry))
+
+
+@blueprint.get("/projects/<project_id>/branches/<path:branch>/history")
+def branch_history(project_id: str, branch: str) -> Response:
+    """The branch's timeline, newest first, a page at a time."""
+    found = _project(project_id)
+    branch = _branch(branch)
+    _refuse_unless("instances.view", found, f"history of {project_id} {branch}", branch)
+    limit = check.whole_number(
+        request.args.get("limit", str(HISTORY_PAGE_DEFAULT)), "limit", minimum=1, maximum=HISTORY_PAGE_MAX
+    )
+    offset = check.whole_number(request.args.get("offset", "0"), "offset", minimum=0, maximum=1_000_000)
+    entries = builds.history(project_id, branch)
+    page = [history_resource(entry) for entry in entries[offset : offset + limit]]
+    return ok(page, meta={"total": len(entries), "limit": limit, "offset": offset})
+
+
+def build_event(entry_id: str) -> dict[str, Any] | None:
+    """A "build" live event: the entry as the API shows it, or None when it is gone."""
+    entry = builds.find(entry_id)
+    return history_resource(entry) if entry else None
 
 
 # ---------------------------------------------------------------- access and locks

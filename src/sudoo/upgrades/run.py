@@ -237,6 +237,8 @@ def _record_branches(name: str, before: str, after: str, user: str) -> None:
     project_id = store.read_env(name).get("PROJECT", "")
     if not project_id or not after or after == before or projects.get(project_id) is None:
         return
+    recorded = ((projects.get(project_id) or {}).get("branches") or {}).get(after, {}).get("stage")
+    after_before = str(recorded or stages.STAGING)  # an upgrade branch's test instance is a staging instance
     projects.record_branch(project_id, after, stage=stages.PRODUCTION, changed_by=user)
 
     def drop(project: dict[str, Any]) -> dict[str, Any]:
@@ -247,6 +249,11 @@ def _record_branches(name: str, before: str, after: str, user: str) -> None:
         return project
 
     projects.change(project_id, drop)
+    from sudoo.projects import builds  # late: projects/ imports the instances package
+
+    builds.stage_changed(project_id, after, after_before, stages.PRODUCTION, user, reason="database upgrade")
+    left = projects.branch_stage(projects.get(project_id) or {}, before)
+    builds.stage_changed(project_id, before, stages.PRODUCTION, left, user, reason="database upgrade")
 
 
 def _put_back(job: Job, name: str, previous: dict[str, str], saved: list[str]) -> None:

@@ -32,7 +32,7 @@ const DEVELOP: Permission[] = [...VIEW, "instances.update", "caught_mail.view"];
 const MAINTAIN: Permission[] = [...DEVELOP, "instances.operate", "instances.restore", "instances.create", "instances.credentials", "github.manage", "projects.manage"];
 const ALL: Permission[] = [
   "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "projects.manage", "projects.access", "teams.manage", "instances.restore", "instances.upgrade",
-  "instances.delete", "instances.credentials", "instances.resources", "caught_mail.view", "caught_mail.manage", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
+  "instances.delete", "instances.credentials", "instances.resources", "projects.resources", "caught_mail.view", "caught_mail.manage", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
   "audit.view", "plugins.view", "settings.manage", "mail.manage", "offsite.configure", "offsite.restore", "offsite.delete",
   "instances.shell", "instances.database_shell", "instances.profile", "shells.supervise", "servers.manage", "instances.move", "support_access.manage",
 ];
@@ -52,6 +52,7 @@ export const PERMISSIONS: Record<Permission, string> = {
   "instances.delete": "Delete instances",
   "instances.credentials": "See Odoo passwords and ports",
   "instances.resources": "Set an instance's resources: Odoo workers, time and memory limits, container limits",
+  "projects.resources": "Set a project's and its branches' resources (workers, timeouts, memory) within the administrator's maxima, and apply them",
   "caught_mail.view": "Read the e-mails caught from staging and development instances (the Mail tab)",
   "caught_mail.manage": "Delete caught e-mails and release them (send a copy to an address)",
   "backups.manage": "Download and delete backups; see, check and copy again off-site copies",

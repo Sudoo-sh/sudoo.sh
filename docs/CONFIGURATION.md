@@ -132,10 +132,12 @@ contention; on a quiet server every instance gets all the processor and memory i
 | `PRIORITY_MEMORY_RESERVATION_DEVELOPMENT` | str | `0` | **live** | Memory reservation (soft limit) of the Odoo container of development instances, Docker units; `0`: none. |
 | `PRIORITY_DB_MEMORY_RESERVATION_DEVELOPMENT` | str | `0` | **live** | The same for their database container. |
 
-Default limits of each stage. `0` means "not set": no container limit, and Odoo's own default in `odoo.conf`. An
-admin can set any of them for one instance on its **Settings** tab, which wins over the stage's default. With
-workers, Odoo serves WebSockets on its own port; the panel publishes it on `127.0.0.1` and the gateway sends them
-there.
+Default limits of each stage. `0` means "not set": no container limit, and Odoo's own default in `odoo.conf`. A
+project can set its own values per stage and each branch its own (**Settings, Resources** of the project and
+**Branch settings** of the branch, permission `projects.resources`, within the maxima below), and an admin can set
+any of them for one instance on its **Settings** tab, which wins over everything else. With workers, Odoo serves
+WebSockets (and the long-polling bus of Odoo 15 and earlier) on its own port; the panel publishes it on `127.0.0.1`
+and the gateway sends them there.
 
 | Setting | Type | Default | Applies | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
@@ -144,11 +146,54 @@ there.
 | `PRODUCTION_ODOO_LIMIT_MEMORY_SOFT_MB`, `STAGING_ODOO_LIMIT_MEMORY_SOFT_MB`, `DEVELOPMENT_ODOO_LIMIT_MEMORY_SOFT_MB` | int | `0` | **live** | Memory per worker before Odoo recycles it, MB (`limit_memory_soft`); `0`: Odoo's default (2048). |
 | `PRODUCTION_ODOO_LIMIT_MEMORY_HARD_MB`, `STAGING_ODOO_LIMIT_MEMORY_HARD_MB`, `DEVELOPMENT_ODOO_LIMIT_MEMORY_HARD_MB` | int | `0` | **live** | Memory per worker before Odoo stops the request, MB (`limit_memory_hard`); `0`: Odoo's default (2560). |
 | `PRODUCTION_ODOO_LIMIT_TIME_CPU`, `STAGING_ODOO_LIMIT_TIME_CPU`, `DEVELOPMENT_ODOO_LIMIT_TIME_CPU` | int | `0` | **live** | Processor seconds per request (`limit_time_cpu`); `0`: Odoo's default (60). |
-| `PRODUCTION_ODOO_LIMIT_TIME_REAL`, `STAGING_ODOO_LIMIT_TIME_REAL`, `DEVELOPMENT_ODOO_LIMIT_TIME_REAL` | int | `0` | **live** | Seconds per request (`limit_time_real`); `0`: Odoo's default (120). |
+| `PRODUCTION_ODOO_LIMIT_TIME_REAL`, `STAGING_ODOO_LIMIT_TIME_REAL`, `DEVELOPMENT_ODOO_LIMIT_TIME_REAL` | int | `0` | **live** | Seconds per request, the HTTP timeout (`limit_time_real`); `0`: Odoo's default (120). |
+| `PRODUCTION_ODOO_LIMIT_TIME_REAL_CRON`, `STAGING_ODOO_LIMIT_TIME_REAL_CRON`, `DEVELOPMENT_ODOO_LIMIT_TIME_REAL_CRON` | int | `0` | **live** | Seconds one scheduled action may run (`limit_time_real_cron`); `0`: Odoo's default (the same as `limit_time_real`). |
+| `PRODUCTION_DB_MAX_CONNECTIONS`, `STAGING_DB_MAX_CONNECTIONS`, `DEVELOPMENT_DB_MAX_CONNECTIONS` | int | `0` | **live** | Connections the database accepts (PostgreSQL `max_connections`); Odoo's `db_maxconn` is then (connections - 8) / its processes (workers + cron workers + 1 with workers, else 1), at least 2. `0`: the defaults (100 and 64). |
 | `PRODUCTION_ODOO_MEMORY_LIMIT`, `STAGING_ODOO_MEMORY_LIMIT`, `DEVELOPMENT_ODOO_MEMORY_LIMIT` | str | `0` | **live** | Memory of the Odoo container, Docker units (`512m`, `2g`, at least `128m`); `0`: no limit. |
 | `PRODUCTION_ODOO_CPU_LIMIT`, `STAGING_ODOO_CPU_LIMIT`, `DEVELOPMENT_ODOO_CPU_LIMIT` | float | `0` | **live** | Processor cores of the Odoo container; `0`: no limit. |
 | `PRODUCTION_DB_MEMORY_LIMIT`, `STAGING_DB_MEMORY_LIMIT`, `DEVELOPMENT_DB_MEMORY_LIMIT` | str | `0` | **live** | Memory of the database container, Docker units; `0`: no limit. |
 | `PRODUCTION_DB_CPU_LIMIT`, `STAGING_DB_CPU_LIMIT`, `DEVELOPMENT_DB_CPU_LIMIT` | float | `0` | **live** | Processor cores of the database container; `0`: no limit. |
+
+The most a project owner may set, per project or per branch (`projects.resources`). A value above its maximum is
+refused when it is set, and lowered to it when the maximum later falls. Administrators' stage defaults and an
+instance's own limits are not bound by them. `0`: no maximum.
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `RESOURCES_MAX_ODOO_WORKERS` | int | `8` | **live** | Odoo HTTP workers. |
+| `RESOURCES_MAX_ODOO_CRON_THREADS` | int | `4` | **live** | Cron workers. |
+| `RESOURCES_MAX_ODOO_LIMIT_MEMORY_SOFT_MB` | int | `2048` | **live** | Memory per worker before recycling, MB. |
+| `RESOURCES_MAX_ODOO_LIMIT_MEMORY_HARD_MB` | int | `2560` | **live** | Memory per worker, MB. |
+| `RESOURCES_MAX_ODOO_LIMIT_TIME_CPU` | int | `600` | **live** | Processor seconds per request. |
+| `RESOURCES_MAX_ODOO_LIMIT_TIME_REAL` | int | `600` | **live** | HTTP timeout, seconds. |
+| `RESOURCES_MAX_ODOO_LIMIT_TIME_REAL_CRON` | int | `3600` | **live** | Scheduled actions timeout, seconds. |
+| `RESOURCES_MAX_ODOO_MEMORY_LIMIT` | str | `16g` | **live** | Memory of the Odoo container; "no limit" is above it. |
+| `RESOURCES_MAX_ODOO_CPU_LIMIT` | float | `8` | **live** | Cores of the Odoo container; "no limit" is above it. |
+| `RESOURCES_MAX_DB_MEMORY_LIMIT` | str | `8g` | **live** | Memory of the database container; "no limit" is above it. |
+| `RESOURCES_MAX_DB_CPU_LIMIT` | float | `4` | **live** | Cores of the database container; "no limit" is above it. |
+| `RESOURCES_MAX_DB_MAX_CONNECTIONS` | int | `200` | **live** | Database connections. |
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `RESOURCES_COMPUTED_LIMITS` | bool | `true` | **live** | With workers set by a project or a branch and no Odoo container limit set anywhere, give the container limits computed from them: memory `RESOURCES_BASE_MEMORY_MB` + (workers + cron workers) x memory per worker before recycling, and max(1, workers) cores. A value set anywhere wins. |
+| `RESOURCES_BASE_MEMORY_MB` | int | `512` | **live** | The Odoo container's memory beside its workers in the computed limit, MB. |
+| `RESOURCES_RESERVATION_CHECK` | bool | `true` | **live** | Refuse a change of resources that raises the memory reserved by all instances above what the server can spare for them (the capacity's usable memory). Lowering is always allowed. |
+| `CAPACITY_OVERCOMMIT` | float | `0.5` | **live** | Share of the memory of staging and development instances counted as reserved (0 to 1); production counts fully. An instance reserves, for each container, its memory limit, else its stage's memory reservation. |
+
+### Storage
+
+The database (`pg_database_size`) and files (the filestore) of each instance, measured every hour while it runs and
+kept while it is paused, against a soft quota per stage. Nothing is refused or stopped: from
+`STORAGE_WARNING_PERCENT` of its quota an instance is shown as almost full and alerted (`ALERT_STORAGE`), above it
+as over its quota (production: alerted again every day).
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `STORAGE_MEASURE_MINUTES` | int | `60` | **live** | Minutes between two measurements of an instance (5 to 1440). |
+| `STORAGE_QUOTA_GB_PRODUCTION` | float | `20` | **live** | Soft quota of a production instance, GB; `0`: none. |
+| `STORAGE_QUOTA_GB_STAGING` | float | `10` | **live** | Soft quota of a staging instance, GB; `0`: none. |
+| `STORAGE_QUOTA_GB_DEVELOPMENT` | float | `5` | **live** | Soft quota of a development instance, GB; `0`: none. |
+| `STORAGE_WARNING_PERCENT` | float | `80` | **live** | Share of its quota from which an instance is shown and alerted as almost full. |
 
 `ODOO_MEMORY_LIMIT`, `ODOO_CPU_LIMIT`, `DB_MEMORY_LIMIT` and `DB_CPU_LIMIT` (one limit for every instance, before
 3.0) are no longer read: a value changed in the panel became the default of every stage; a value in `.env` is
@@ -507,6 +552,7 @@ with **Send a test alert** for the e-mail and each webhook.
 | `ALERT_INSTANCE_DOWN_MINUTES` | float | `5` | **live** | Minutes it must stay down before the alert (1 to 1440). |
 | `ALERT_DISK` | bool | `true` | **live** | The disk holding `ODOO_ROOT` has less than `ALERT_DISK_FREE_PERCENT` free. |
 | `ALERT_DISK_FREE_PERCENT` | float | `10` | **live** | Free disk, in %, below which the alert is sent (1 to 90). |
+| `ALERT_STORAGE` | bool | `true` | **live** | An instance's database and files reach `STORAGE_WARNING_PERCENT` of its storage quota, and again when they are over it (every day for production). |
 | `ALERT_MEMORY` | bool | `true` | **live** | Server memory stays at or above `CAPACITY_WARNING_PERCENT` for `ALERT_MEMORY_MINUTES`. |
 | `ALERT_MEMORY_MINUTES` | float | `10` | **live** | Minutes memory must stay high before the alert (1 to 1440). |
 | `ALERT_DRIFT` | bool | `true` | **live** | An instance's containers or files were changed outside the panel (`DRIFT_ACTION`). |

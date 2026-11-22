@@ -11,10 +11,14 @@ import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/instance";
 import { bytes, number, percent } from "@/lib/format";
+import { StorageBar } from "@/components/ProjectResources";
 
 const GROUPS: { id: "odoo" | "containers"; knobs: ResourceKnob[] }[] = [
-  { id: "odoo", knobs: RESOURCE_KNOBS.slice(0, 6) as ResourceKnob[] },
-  { id: "containers", knobs: RESOURCE_KNOBS.slice(6) as ResourceKnob[] },
+  {
+    id: "odoo",
+    knobs: ["odoo_workers", "odoo_cron_threads", "odoo_limit_memory_soft_mb", "odoo_limit_memory_hard_mb", "odoo_limit_time_cpu", "odoo_limit_time_real", "odoo_limit_time_real_cron"],
+  },
+  { id: "containers", knobs: ["odoo_memory_limit", "odoo_cpu_limit", "db_memory_limit", "db_cpu_limit", "db_max_connections"] },
 ];
 const MEMORY = new Set<ResourceKnob>(["odoo_memory_limit", "db_memory_limit"]);
 const CORES = new Set<ResourceKnob>(["odoo_cpu_limit", "db_cpu_limit"]);
@@ -64,6 +68,7 @@ function Resources({ instance, data }: { instance: Instance; data: InstanceResou
     }
     if (knob.endsWith("_mb")) return `${number(Number(value))} MB`;
     if (knob.startsWith("odoo_limit_time")) return `${number(Number(value))} s`;
+    if (knob === "db_max_connections") return number(Number(value));
     if (CORES.has(knob)) return number(Number(value), 2);
     if (MEMORY.has(knob)) return bytes(memoryBytes(value));
     return number(Number(value));
@@ -141,6 +146,7 @@ function Resources({ instance, data }: { instance: Instance; data: InstanceResou
             <div className="tabular">{t.used(bytes(instance.usage.memory_bytes), memoryLimit ? bytes(memoryLimit) : t.noLimit)}</div>
           </div>
         </div>
+        {data.storage && <StorageBar use={data.storage} label={t.storage} />}
         {data.unlimited && <p className="small muted">{t.unlimited}</p>}
         {data.pending && <Callout tone="info">{t.pending}</Callout>}
         {data.warnings.length > 0 && (
@@ -174,12 +180,16 @@ function Resources({ instance, data }: { instance: Instance; data: InstanceResou
                     dir="ltr"
                     inputMode={MEMORY.has(knob) ? "text" : CORES.has(knob) ? "decimal" : "numeric"}
                     disabled={!editable || apply.isPending}
-                    placeholder={String(data.stage_defaults[knob])}
+                    placeholder={String((data.inherited ?? data.stage_defaults)[knob] ?? "")}
                     value={draft[knob]}
                     onChange={(e) => setDraft((d) => ({ ...d, [knob]: e.target.value }))}
                   />
                   <span className="small faint">
-                    {draft[knob] === "" ? t.stageDefault(shown(knob, data.stage_defaults[knob])) : shown(knob, draft[knob])}
+                    {draft[knob] === ""
+                      ? data.computed?.includes(knob)
+                        ? t.computed(shown(knob, data.limits[knob]))
+                        : t.stageDefault(shown(knob, (data.inherited ?? data.stage_defaults)[knob] ?? 0))
+                      : shown(knob, draft[knob])}
                   </span>
                 </div>
               </div>

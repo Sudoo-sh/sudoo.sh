@@ -64,7 +64,11 @@ _LIMIT_TEXT = {
     "memory_soft": "Memory per Odoo worker before it is recycled, in MB (limit_memory_soft); 0: Odoo's default.",
     "memory_hard": "Memory per Odoo worker before a request is stopped, in MB (limit_memory_hard); 0: Odoo's default.",
     "time_cpu": "Processor seconds one request may use (limit_time_cpu); 0: Odoo's default.",
-    "time_real": "Seconds one request may take (limit_time_real); 0: Odoo's default.",
+    "time_real": "Seconds one request may take (limit_time_real, the HTTP timeout); 0: Odoo's default.",
+    "time_real_cron": "Seconds one scheduled action may run (limit_time_real_cron); 0: Odoo's default (the same as "
+    "limit_time_real).",
+    "db_connections": "Connections the database accepts (PostgreSQL max_connections); Odoo's db_maxconn is then "
+    "shared out between its processes. 0: PostgreSQL's and Odoo's defaults (100, 64).",
     "odoo_memory": "Memory the Odoo container may use, in Docker units (512m, 2g); 0: no limit.",
     "odoo_cpu": "Processor cores the Odoo container may use; 0: no limit.",
     "db_memory": "Memory the database container may use, in Docker units (512m, 2g); 0: no limit.",
@@ -74,6 +78,13 @@ _LIMIT_TEXT = {
 
 def _limit(stage: str, what: str) -> str:
     return f"Default for {stage} instances. {_LIMIT_TEXT[what]}"
+
+
+def _maximum(what: str, unit: str = "") -> str:
+    return (
+        f"The most a project owner may set for {what}{unit}, per project or per branch (projects.resources). "
+        "Administrators' stage defaults and an instance's own limits are not bound by it. 0: no maximum."
+    )
 
 
 def _cpu_weight(stage: str) -> str:
@@ -427,6 +438,10 @@ class Settings(BaseSettings):
     production_odoo_cpu_limit: float = Field(0, ge=0, le=1024, description=_limit("production", "odoo_cpu"))
     production_db_memory_limit: str = Field("0", pattern=MEMORY_PATTERN, description=_limit("production", "db_memory"))
     production_db_cpu_limit: float = Field(0, ge=0, le=1024, description=_limit("production", "db_cpu"))
+    production_odoo_limit_time_real_cron: int = Field(
+        0, ge=0, le=86400, description=_limit("production", "time_real_cron")
+    )
+    production_db_max_connections: int = Field(0, ge=0, le=10000, description=_limit("production", "db_connections"))
     staging_odoo_workers: int = Field(0, ge=0, le=256, description=_limit("staging", "workers"))
     staging_odoo_cron_threads: int = Field(0, ge=0, le=64, description=_limit("staging", "cron_threads"))
     staging_odoo_limit_memory_soft_mb: int = Field(0, ge=0, le=1048576, description=_limit("staging", "memory_soft"))
@@ -437,6 +452,8 @@ class Settings(BaseSettings):
     staging_odoo_cpu_limit: float = Field(0, ge=0, le=1024, description=_limit("staging", "odoo_cpu"))
     staging_db_memory_limit: str = Field("0", pattern=MEMORY_PATTERN, description=_limit("staging", "db_memory"))
     staging_db_cpu_limit: float = Field(0, ge=0, le=1024, description=_limit("staging", "db_cpu"))
+    staging_odoo_limit_time_real_cron: int = Field(0, ge=0, le=86400, description=_limit("staging", "time_real_cron"))
+    staging_db_max_connections: int = Field(0, ge=0, le=10000, description=_limit("staging", "db_connections"))
     development_odoo_workers: int = Field(0, ge=0, le=256, description=_limit("development", "workers"))
     development_odoo_cron_threads: int = Field(0, ge=0, le=64, description=_limit("development", "cron_threads"))
     development_odoo_limit_memory_soft_mb: int = Field(
@@ -455,6 +472,82 @@ class Settings(BaseSettings):
         "0", pattern=MEMORY_PATTERN, description=_limit("development", "db_memory")
     )
     development_db_cpu_limit: float = Field(0, ge=0, le=1024, description=_limit("development", "db_cpu"))
+    development_odoo_limit_time_real_cron: int = Field(
+        0, ge=0, le=86400, description=_limit("development", "time_real_cron")
+    )
+    development_db_max_connections: int = Field(0, ge=0, le=10000, description=_limit("development", "db_connections"))
+
+    # The most project owners may set (projects.resources), per project or per branch; 0: no maximum.
+    resources_max_odoo_workers: int = Field(8, ge=0, le=256, description=_maximum("Odoo HTTP workers"))
+    resources_max_odoo_cron_threads: int = Field(4, ge=0, le=64, description=_maximum("cron workers"))
+    resources_max_odoo_limit_memory_soft_mb: int = Field(
+        2048, ge=0, le=1048576, description=_maximum("the memory per worker before recycling", ", in MB")
+    )
+    resources_max_odoo_limit_memory_hard_mb: int = Field(
+        2560, ge=0, le=1048576, description=_maximum("the memory per worker", ", in MB")
+    )
+    resources_max_odoo_limit_time_cpu: int = Field(
+        600, ge=0, le=86400, description=_maximum("the processor time per request", ", in seconds")
+    )
+    resources_max_odoo_limit_time_real: int = Field(
+        600, ge=0, le=86400, description=_maximum("the HTTP timeout", ", in seconds")
+    )
+    resources_max_odoo_limit_time_real_cron: int = Field(
+        3600, ge=0, le=86400, description=_maximum("the scheduled actions timeout", ", in seconds")
+    )
+    resources_max_odoo_memory_limit: str = Field(
+        "16g", pattern=MEMORY_PATTERN, description=_maximum("the Odoo container's memory", " (Docker units)")
+    )
+    resources_max_odoo_cpu_limit: float = Field(8, ge=0, le=1024, description=_maximum("the Odoo container's cores"))
+    resources_max_db_memory_limit: str = Field(
+        "8g", pattern=MEMORY_PATTERN, description=_maximum("the database container's memory", " (Docker units)")
+    )
+    resources_max_db_cpu_limit: float = Field(4, ge=0, le=1024, description=_maximum("the database container's cores"))
+    resources_max_db_max_connections: int = Field(200, ge=0, le=10000, description=_maximum("the database connections"))
+    resources_computed_limits: bool = Field(
+        True,
+        description="With Odoo workers set by a project or a branch, give the Odoo container a memory and processor "
+        "limit computed from them when none is set: resources_base_memory_mb + (workers + cron workers) x memory per worker before "
+        "recycling, and max(1, workers) cores. A limit set anywhere wins.",
+    )
+    resources_base_memory_mb: int = Field(
+        512, ge=0, le=65536, description="The Odoo container's memory beside its workers, in MB, in the computed limit."
+    )
+    resources_reservation_check: bool = Field(
+        True,
+        description="Refuse a resources change that raises the memory reserved by all instances above what the "
+        "server can spare for them (capacity's usable memory). Lowering is always allowed.",
+    )
+    capacity_overcommit: float = Field(
+        0.5,
+        ge=0,
+        le=1,
+        description="Share of the memory of staging and development instances counted as reserved (they pause "
+        "when unused); production always counts fully.",
+    )
+    # Storage of each instance (instances/disk_use.py): measured, never enforced.
+    storage_measure_minutes: int = Field(
+        60, ge=5, le=1440, description="Minutes between two measurements of an instance's database and files."
+    )
+    storage_quota_gb_production: float = Field(
+        20,
+        ge=0,
+        le=100000,
+        description="Soft storage quota of a production instance (database + files), in GB; "
+        "0: none. Alerts only: nothing is refused.",
+    )
+    storage_quota_gb_staging: float = Field(
+        10, ge=0, le=100000, description="Soft storage quota of a staging instance, in GB; 0: none."
+    )
+    storage_quota_gb_development: float = Field(
+        5, ge=0, le=100000, description="Soft storage quota of a development instance, in GB; 0: none."
+    )
+    storage_warning_percent: float = Field(
+        80,
+        ge=1,
+        le=100,
+        description="Share of its storage quota from which an instance is shown and alerted as " "almost full.",
+    )
 
     # ------------------------------------------------------------------ gateway (instances/gateway.py)
     gateway_mode: Literal["service", "embedded"] = Field(
@@ -1005,6 +1098,11 @@ class Settings(BaseSettings):
         5, ge=1, le=1440, description="Minutes an instance must stay down before the alert."
     )
     alert_disk: bool = Field(True, description="Alert when the free disk falls below alert_disk_free_percent.")
+    alert_storage: bool = Field(
+        True,
+        description="Alert when an instance's database and files reach storage_warning_percent of its storage quota, "
+        "and again (every day for production) when they are over it.",
+    )
     alert_disk_free_percent: float = Field(
         10, ge=1, le=90, description="Free disk, in % of the disk holding ODOO_ROOT, below which the alert is sent."
     )
@@ -1609,13 +1707,16 @@ RESOURCE_KNOBS = (
     "odoo_cpu_limit",
     "db_memory_limit",
     "db_cpu_limit",
+    "odoo_limit_time_real_cron",
+    "db_max_connections",
 )
 """The limits an admin can set per stage (setting <stage>_<knob>) and per instance (instances/resources.py)."""
 
 RESOURCE_SETTINGS = tuple(
     name
     for name in Settings.model_fields
-    if name.startswith("priority_") or any(name == f"{stage}_{knob}" for stage in STAGES for knob in RESOURCE_KNOBS)
+    if name.startswith(("priority_", "resources_", "storage_", "capacity_overcommit"))
+    or any(name == f"{stage}_{knob}" for stage in STAGES for knob in RESOURCE_KNOBS)
 )
 """Priority weights and default limits of each stage (instances/resources.py)."""
 

@@ -29,7 +29,7 @@ from sudoo.config import settings
 from sudoo.core import events, jobs
 from sudoo.core.shell import capture, succeeds
 from sudoo.core.state import STATE
-from sudoo.instances import capacity, integrity, metrics, odoo, store
+from sudoo.instances import capacity, disk_use, integrity, metrics, odoo, store
 from sudoo.repos.gitrepo import git, origin_url
 
 STATUS: dict[str, dict[str, Any]] = {}  # instance name -> latest measurements
@@ -37,7 +37,6 @@ HOST: dict[str, Any] = {"history": deque(maxlen=settings.history_samples)}
 HISTORY: defaultdict[str, deque[tuple[int, float, int]]] = defaultdict(
     lambda: deque(maxlen=settings.history_samples)
 )  # name -> [(time, cpu %, memory bytes)]
-_DISK_CACHE: dict[str, dict[str, Any]] = {}
 _KNOWN_ADDRESSES: dict[str, str] = {}
 _LAST_SEEN: dict[str, tuple[Any, ...]] = {}  # name -> what clients last heard about it
 _STARTED: dict[str, float] = {}  # container id -> Unix time it started
@@ -255,10 +254,8 @@ def collect() -> None:
             "repo": repo,
         }
         HISTORY[name].append((int(now), round(cpu, 2), memory))
-        disk_bytes = None
-        if running:
-            stored = disk_usage(name)  # measured every 5 minutes at most
-            disk_bytes = (stored.get("db") or 0) + (stored.get("files") or 0) or None
+        stored = disk_usage(name)  # measured every STORAGE_MEASURE_MINUTES while it runs, kept while it is paused
+        disk_bytes = (stored.get("db") or 0) + (stored.get("files") or 0) or None
         measured_instances[name] = metrics.Usage(
             running, cpu, memory, limit, started.get(store.container(name, "odoo")), disk_bytes
         )
@@ -383,31 +380,7 @@ def status(name: str) -> str:
 
 
 def disk_usage(name: str) -> dict[str, Any]:
-    """{"db": bytes, "files": bytes} of a running instance (None when not running). Cached 5 minutes."""
-    cached = _DISK_CACHE.get(name)
-    if cached and time.time() - cached["at"] < 300:
-        return cached
+    """{"db": bytes, "files": bytes, "at"} of an instance: the last measurement (disk_use.py), measured again when
+    it is due (STORAGE_MEASURE_MINUTES) and its containers run."""
     measured = STATUS.get(name, {})
-    result: dict[str, Any] = {"db": None, "files": None, "at": time.time()}
-    db = odoo.databases(name)[0]
-    if measured.get("db_running"):
-        out = capture(
-            [
-                "docker",
-                "exec",
-                store.container(name, "db"),
-                "psql",
-                "-U",
-                "odoo",
-                "-d",
-                "postgres",
-                "-tAc",
-                f"SELECT pg_database_size('{db}')",
-            ]
-        )
-        result["db"] = int(out) if out.strip().isdigit() else None
-    if measured.get("running"):
-        out = capture(["docker", "exec", store.container(name, "odoo"), "du", "-sb", "/var/lib/odoo"])
-        result["files"] = int(out.split()[0]) if out else None
-    _DISK_CACHE[name] = result
-    return result
+    return disk_use.current(name, bool(measured.get("db_running")), bool(measured.get("running")))

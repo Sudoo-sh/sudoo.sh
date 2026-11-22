@@ -25,6 +25,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   that the repository can be read, the GitHub App covers it with the permissions and events it needs, its webhook
   reaches the panel and its latest deliveries arrived, and every submodule can be read, with what to fix where. API:
   `POST /api/v1/projects/<id>/github/check`.
+- **Project resources**, as Odoo.sh's database workers, workers settings and production database size: a
+  **Resources** section on a project's Settings tab (one card per stage with steppers for workers and cron workers,
+  the HTTP and scheduled actions timeouts, more limits, the computed Odoo container memory and cores, and the line
+  "This server: X of Y GB reserved after this change"), a branch's own values under **Override for this branch** on
+  its Branch settings tab, and new permission `projects.resources` (administrators; a project's admin level).
+  Values stay within administrator maxima (`RESOURCES_MAX_*`, a column of Settings, Resources). Applying restarts the
+  instances it changes through a job; production is backed up first and gets its previous values back if Odoo does
+  not answer. A change the server cannot hold is refused (`RESOURCES_RESERVATION_CHECK`, `CAPACITY_OVERCOMMIT`).
+  New knobs for every layer: `limit_time_real_cron` (`<STAGE>_ODOO_LIMIT_TIME_REAL_CRON`) and the database's
+  `max_connections` with Odoo's `db_maxconn` shared out (`<STAGE>_DB_MAX_CONNECTIONS`); with workers set by a project or
+  a branch, the Odoo container's limits are computed from them unless set (`RESOURCES_COMPUTED_LIMITS`, `RESOURCES_BASE_MEMORY_MB`).
+  Every default stays off, so existing instances do not change. API: `GET/PUT /api/v1/projects/<id>/resources` and
+  `/branches/<branch>/resources`.
+- **Storage of each instance**: its database and filestore measured every hour (`STORAGE_MEASURE_MINUTES`) and
+  kept while it is paused, shown on its Settings tab and per project, against a soft quota per stage
+  (`STORAGE_QUOTA_GB_*`, `STORAGE_WARNING_PERCENT`) with alerts at the warning and over the quota (`ALERT_STORAGE`;
+  production every day). Nothing is refused.
+- With workers, the gateway also sends the long-polling bus of Odoo 15 and earlier to Odoo's gevent server.
+
 - **Branch settings and build options in the web app**, as on Odoo.sh: a **Branch settings** tab on each branch
   (Behaviour upon new commits; New build options with **Use the project's defaults**, module installation, test suite
   with a link to Odoo's test tags, demo data), each value saying whether it comes from the branch, the project or the

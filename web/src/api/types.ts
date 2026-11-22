@@ -15,6 +15,7 @@ export type Permission =
   | "instances.delete"
   | "instances.credentials"
   | "instances.resources"
+  | "projects.resources"
   | "caught_mail.view"
   | "caught_mail.manage"
   | "backups.manage"
@@ -185,6 +186,8 @@ export const RESOURCE_KNOBS = [
   "odoo_cpu_limit",
   "db_memory_limit",
   "db_cpu_limit",
+  "odoo_limit_time_real_cron",
+  "db_max_connections",
 ] as const;
 export type ResourceKnob = (typeof RESOURCE_KNOBS)[number];
 export type ResourceLimits = Record<ResourceKnob, number | string>;
@@ -201,7 +204,95 @@ export interface InstanceResources {
   /** the containers run with older values until the instance restarts */
   pending: boolean;
   warnings: { code: string; text: string; values: Record<string, number> }[];
-  server: { cores: number; memory_bytes: number | null; usable_bytes: number | null; reserved_bytes: number };
+  server: ResourceServer;
+  /** the values of the project (for the instance's stage) and of its branch; what applies without the instance's own */
+  project?: Partial<ResourceLimits>;
+  branch?: Partial<ResourceLimits>;
+  inherited?: Partial<ResourceLimits>;
+  sources?: Record<ResourceKnob, ResourceLayer>;
+  /** container limits computed from the workers (none set) */
+  computed?: ResourceKnob[];
+  maxima?: ResourceLimits;
+  storage?: StorageUse;
+}
+
+/** Where a resource value comes from: the stage's default, the project, the branch, the instance itself. */
+export type ResourceLayer = "stage" | "project" | "branch" | "instance" | "own";
+
+export interface ResourceServer {
+  cores: number;
+  memory_bytes: number | null;
+  usable_bytes: number | null;
+  reserved_bytes: number;
+}
+
+/** An instance's database and files (instances/disk_use.py) against the soft quota of its stage. */
+export interface StorageUse {
+  database_bytes: number | null;
+  files_bytes: number | null;
+  total_bytes: number | null;
+  measured_at: number | null;
+  quota_bytes: number | null;
+  percent: number | null;
+  level: "none" | "ok" | "warning" | "over";
+}
+
+/** One stage of a project's resources, or a branch's: its own values, what it inherits and what applies. */
+export interface ResourceLayerView {
+  own: Partial<ResourceLimits>;
+  inherited: Partial<ResourceLimits>;
+  applies: ResourceLimits;
+  computed: ResourceKnob[];
+  sources: Record<ResourceKnob, ResourceLayer>;
+}
+
+export interface ResourceInstance {
+  name: string;
+  branch: string;
+  stage: Stage;
+  limits: ResourceLimits;
+  pending: boolean;
+  storage: StorageUse;
+}
+
+/** What a change would reserve on the server (PUT ... "preview": true). */
+export interface ResourcePlan {
+  before_bytes: number;
+  after_bytes: number;
+  usable_bytes: number | null;
+  refusal: string | null;
+}
+
+/** GET /projects/<id>/resources */
+export interface ProjectResources {
+  project: string;
+  stages: Record<Stage, ResourceLayerView & { quota_bytes: number | null }>;
+  maxima: ResourceLimits;
+  odoo_defaults: Partial<Record<ResourceKnob, number>>;
+  instances: ResourceInstance[];
+  storage: { instances: Record<string, StorageUse & { stage: Stage }>; by_stage: Record<Stage, number>; total_bytes: number };
+  server: ResourceServer;
+  changed: { by: string; at: number } | null;
+}
+
+/** GET /projects/<id>/branches/<branch>/resources */
+export interface BranchResources extends ResourceLayerView {
+  project: string;
+  branch: string;
+  stage: Stage;
+  maxima: ResourceLimits;
+  odoo_defaults: Partial<Record<ResourceKnob, number>>;
+  instances: ResourceInstance[];
+  quota_bytes: number | null;
+  server: ResourceServer;
+  changed: { by: string; at: number } | null;
+}
+
+/** PUT answer: the resources, what was started, and the instances that apply them at their next start. */
+export interface ResourcesChange {
+  plan: ResourcePlan;
+  jobs: Job[];
+  waiting: string[];
 }
 
 /** production: never paused or deleted automatically, backed up every day, updated safely; staging and development:
@@ -288,7 +379,7 @@ export interface Instance {
   current_job: CurrentJob | null;
   created_by: string | null;
   // only on GET /instances/<name>
-  disk?: { database_bytes: number | null; files_bytes: number | null };
+  disk?: { database_bytes: number | null; files_bytes: number | null } & Partial<StorageUse>;
   /** `when`: ISO 8601 in UTC; `full_sha`: the whole hash (missing from panels older than this web app) */
   recent_commits?: { sha: string; full_sha?: string; subject: string; when: string; author: string }[];
   submodules?: { path: string; sha: string; url: string }[];

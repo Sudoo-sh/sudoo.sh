@@ -93,6 +93,7 @@ PROJECT_PERMISSIONS = frozenset(
         "domains.manage",
         "projects.manage",
         "projects.access",
+        "projects.resources",
     }
 )
 """Permissions that apply inside a project (and its branches and instances); the others are panel-wide."""

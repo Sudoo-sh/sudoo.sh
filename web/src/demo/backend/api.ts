@@ -10,6 +10,7 @@ import { addDomain, checkName, checkNow, domainsOf, findDomain, makePrimary, rem
 import { announce, full, reference, startJob } from "./jobs";
 import { capacity, currentMetrics, history, listed, newProfile } from "./metrics";
 import { applied, cleanLimits, markPending, resourcesOf, setOwn } from "./resources";
+import * as sizing from "./project-resources";
 import * as mail from "./mail";
 import * as caught from "./caught-mail";
 import * as offsite from "./offsite";
@@ -1891,7 +1892,7 @@ const PROJECT_SCOPED: Permission[] = [
   "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "instances.restore",
   "instances.delete", "instances.credentials", "instances.resources", "instances.shell", "instances.database_shell",
   "caught_mail.view", "caught_mail.manage", "backups.manage", "offsite.restore", "offsite.delete", "domains.manage",
-  "projects.manage", "projects.access",
+  "projects.manage", "projects.access", "projects.resources",
 ];
 
 const publishProject = (project: DemoProject) => publish("project", project.id, projectResource(project));
@@ -2410,6 +2411,51 @@ route("PUT", "/projects/:id/branches/:*branch/options", ({ params, body }) => {
   record(ME, "branch build options changed", { detail: `${project.id} ${name}` });
   publishProject(project);
   return ok(answer);
+});
+
+// ---------------------------------------------------------------- resources of projects and branches (web/v1/project_resources.py)
+
+sizing.knowProjects(() => [...projects.values()]);
+function applySizing(project: DemoProject, body: Record<string, unknown>, branch?: string) {
+  const found = sizing.change(project, body, branch);
+  if (found.preview) return ok(found.data);
+  const jobs = found.changed.map((instance) =>
+    startJob({
+      instance: instance.name,
+      action: "Apply resources",
+      kind: "restart",
+      steps: [...(instance.stage === "production" ? ["Backing up the database and files before the change"] : []), "Applying the new resources", "Waiting for Odoo to be ready"],
+      status: ASLEEP.includes(instance.status) ? undefined : "starting",
+      onStart: instance.stage === "production" ? () => addBackup(instance, "before-update", Date.now()) : undefined,
+      onDone: () => (ASLEEP.includes(instance.status) ? undefined : wake(instance)),
+    }),
+  );
+  record(ME, branch == null ? "project resources changed" : "branch resources changed", { detail: `${project.id} ${branch ?? String(body.stage)}` });
+  publishProject(project);
+  const answer = branch == null ? sizing.projectResources(project) : sizing.branchResources(project, branch);
+  return ok({ ...answer, plan: found.plan, jobs, waiting: [] });
+}
+route("GET", "/projects/:id/resources", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "instances.view");
+  return ok(sizing.projectResources(project));
+});
+route("PUT", "/projects/:id/resources", ({ params, body }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.resources");
+  return applySizing(project, body);
+});
+route("GET", "/projects/:id/branches/:*branch/resources", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "instances.view", params.branch!);
+  if (!branchList(project).some((b) => b.name === params.branch)) throw new Problem(404, `${project.repository} has no branch ${params.branch}.`);
+  return ok(sizing.branchResources(project, params.branch!));
+});
+route("PUT", "/projects/:id/branches/:*branch/resources", ({ params, body }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.resources", params.branch!);
+  if (!branchList(project).some((b) => b.name === params.branch)) throw new Problem(404, `${project.repository} has no branch ${params.branch}.`);
+  return applySizing(project, body, params.branch!);
 });
 
 // ---------------------------------------------------------------- teams, access and locks (projects/access.py)

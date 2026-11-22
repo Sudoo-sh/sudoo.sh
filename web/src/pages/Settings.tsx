@@ -59,7 +59,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       { id: "gateway", keys: ["gateway_max_upload_mb", "gateway_idle_timeout_seconds", "gateway_websocket_max_message_mb"] },
     ],
   },
-  { id: "resources", groups: [] },
+  { id: "resources", groups: [{ id: "resourceRules", keys: ["resources_computed_limits", "resources_base_memory_mb", "resources_reservation_check", "capacity_overcommit"] }, { id: "storageQuotas", keys: ["storage_quota_gb_production", "storage_quota_gb_staging", "storage_quota_gb_development", "storage_warning_percent", "storage_measure_minutes"] }] },
   {
     id: "odoo",
     groups: [
@@ -121,7 +121,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
     groups: [
       { id: "recipients", keys: ["alerts", "alert_super_admins", "alert_emails"], test: "email" },
       { id: "jobs", keys: ["alert_job_failed", "alert_update_failed", "alert_backup_failed", "alert_drift"] },
-      { id: "instancesServer", keys: ["alert_instance_down", "alert_instance_down_minutes", "alert_public_link", "alert_public_link_minutes", "alert_memory", "alert_memory_minutes", "alert_disk", "alert_disk_free_percent"] },
+      { id: "instancesServer", keys: ["alert_instance_down", "alert_instance_down_minutes", "alert_public_link", "alert_public_link_minutes", "alert_memory", "alert_memory_minutes", "alert_disk", "alert_disk_free_percent", "alert_storage"] },
       { id: "certificateAlerts", keys: ["alert_certificate", "alert_certificate_days"] },
       { id: "offsiteAlerts", keys: ["alert_offsite_failed", "alert_offsite_missing", "alert_offsite_missing_hours"] },
       { id: "howOften", keys: ["alert_recovery", "alert_quiet_minutes", "alert_digest", "alert_digest_time", "alert_webhook_timeout_seconds"] },
@@ -148,9 +148,11 @@ const STAGES: Stage[] = ["production", "staging", "development"];
 const PRIORITY_ROWS = ["priority_cpu_weight", "priority_memory_reservation", "priority_db_memory_reservation", "priority_oom_score"] as const;
 const priorityKey = (row: string, stage: Stage) => `${row}_${stage}`;
 const limitKey = (row: string, stage: Stage) => `${stage}_${row}`;
+const maximumKey = (row: string) => `resources_max_${row}`;
 const RESOURCE_KEYS = [
   ...PRIORITY_ROWS.flatMap((row) => STAGES.map((stage) => priorityKey(row, stage))),
   ...RESOURCE_KNOBS.flatMap((row) => STAGES.map((stage) => limitKey(row, stage))),
+  ...RESOURCE_KNOBS.map(maximumKey),
 ];
 const TAB_IDS = new Set<string>(TABS.map((t) => t.id));
 const KNOWN = new Set<string>([...TABS.flatMap((t) => t.groups.flatMap((g) => g.keys)), "marketplace", "licence_required_version", "link_deadline_days", ...RESOURCE_KEYS]);
@@ -398,12 +400,13 @@ function ResourceSettings({ byKey, draft, onChange }: { byKey: Record<string, Se
   const c = useT(common);
   const capacity = useCapacity();
   const valueOf = (key: string): Value => (key in draft ? draft[key]! : (byKey[key]?.value as Value) ?? "");
-  const table = (rows: readonly string[], keyOf: (row: string, stage: Stage) => string) => (
+  const table = (rows: readonly string[], keyOf: (row: string, stage: Stage) => string, extra?: (row: string) => string) => (
     <Table className="resources-table">
       <TableHeader>
         <TableRow>
           <TableHead>{r.knob}</TableHead>
           {STAGES.map((stage) => <TableHead key={stage}>{c.stages[stage]?.label ?? stage}</TableHead>)}
+          {extra && <TableHead title={r.maximumText}>{r.maximum}</TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -419,6 +422,7 @@ function ResourceSettings({ byKey, draft, onChange }: { byKey: Record<string, Se
                 const key = keyOf(row, stage);
                 return <Cell key={stage} setting={byKey[key]} value={valueOf(key)} label={r.cell(words.label, c.stages[stage]?.label ?? stage)} onChange={(v) => onChange(key, v)} />;
               })}
+              {extra && <Cell setting={byKey[extra(row)]} value={valueOf(extra(row))} label={r.cell(words.label, r.maximum)} onChange={(v) => onChange(extra(row), v)} />}
             </TableRow>
           );
         })}
@@ -439,7 +443,8 @@ function ResourceSettings({ byKey, draft, onChange }: { byKey: Record<string, Se
         )}
       </Section>
       <Section title={r.defaultsTitle} text={r.defaultsText} icon={<SlidersHorizontal />}>
-        {table(RESOURCE_KNOBS, limitKey)}
+        {table(RESOURCE_KNOBS, limitKey, maximumKey)}
+        <div className="card-body"><p className="small muted">{r.maximumText}</p></div>
       </Section>
     </>
   );

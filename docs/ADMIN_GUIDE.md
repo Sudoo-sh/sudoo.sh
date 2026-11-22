@@ -145,9 +145,35 @@ after moving an instance to another stage, its **Settings** tab says when a rest
 
 **Limits, when you want them.** On **Settings**, **Resources**, each stage has default limits, all off: Odoo
 workers and cron workers, memory per worker (`limit_memory_soft`, `limit_memory_hard`), time per request
-(`limit_time_cpu`, `limit_time_real`), and the processor and memory of the Odoo and database containers. An
-administrator (permission `instances.resources`) can override any of them for one instance on its **Settings** tab,
-**Resources**. The page shows what applies, where it comes from, and warns (without refusing) when:
+(`limit_time_cpu`, `limit_time_real`: the HTTP timeout), the scheduled actions timeout (`limit_time_real_cron`),
+the database's connections (PostgreSQL `max_connections`, from which the panel shares out Odoo's `db_maxconn`
+between its processes), and the processor and memory of the Odoo and database containers. They stay off, so
+existing instances do not change until someone sets a value. Each layer below overrides the one before:
+
+1. the stage's default (administrators, **Settings**, **Resources**);
+2. the project's value for that stage (project **Settings**, **Resources**, permission `projects.resources`);
+3. the branch's own value (the branch's **Branch settings** tab, the same permission);
+4. the instance's own value (administrators, permission `instances.resources`, its **Settings** tab, **Resources**).
+
+Project owners stay within the **maxima** (the last column of the table, `RESOURCES_MAX_*`): a higher value is
+refused, and one set before a maximum was lowered is lowered to it. Administrators' stage defaults and an instance's
+own limits are not bound by them. The permission `projects.resources` belongs to administrators and super admins by
+default, and to a project's **admin** level in its access settings.
+
+**Computed container limits.** With workers set by a project or a branch and no Odoo container limit set anywhere,
+the container gets limits computed from them (`RESOURCES_COMPUTED_LIMITS`): memory `RESOURCES_BASE_MEMORY_MB` + (workers + cron workers) ×
+memory per worker before recycling, and max(1, workers) cores. With 2 workers, 1 cron worker and 640 MB per
+worker that is 2.4 GB and 2 cores. A value typed anywhere wins. Workers an administrator sets as a stage default or
+for one instance get no implicit cap, as before.
+
+**The reservation check.** Every instance counts on the server with, for each container, its memory limit, else
+its stage's memory reservation; staging and development count `CAPACITY_OVERCOMMIT` of it (half by default, they
+pause when unused), production fully. A change of resources that raises this total above the memory the server can
+spare for instances (see Capacity above) is refused with the figures; lowering is always allowed. The project's
+**Resources** section shows the line "This server: 9.1 GB of 14 GB reserved after this change" while you type.
+`RESOURCES_RESERVATION_CHECK=false` turns the refusal off.
+
+The pages show what applies, where it comes from, and warn (without refusing) when:
 
 - the memory reserved by all instances is more than the server has, or than it can spare for instances;
 - the Odoo container's memory limit looks too small for its workers;
@@ -157,9 +183,22 @@ administrator (permission `instances.resources`) can override any of them for on
 change; the data stays). On a production instance it asks for confirmation, takes a backup first, and puts the
 previous limits back if Odoo does not answer with the new ones. A paused instance gets them when it next starts.
 
-**Workers.** With workers, Odoo serves WebSockets (live chat, notifications) on a second port. The panel reserves
-it the first time (`ODOO_GEVENT_PORT` in the instance's `.env`), publishes it on `127.0.0.1` only, and the gateway
-sends WebSocket traffic there. A rule of thumb: one worker for about six people using Odoo at the same time.
+**Workers.** With workers, Odoo serves WebSockets (live chat, notifications) on a second port, its gevent server
+(8072 in the container). The panel reserves it the first time (`ODOO_GEVENT_PORT` in the instance's `.env`),
+publishes it on `127.0.0.1` only, and the gateway sends WebSocket traffic there, and the long-polling bus of Odoo 15
+and earlier (`/longpolling/`) too. A rule of thumb: one worker for about six people using Odoo at the same time.
+
+**Applying from a project.** Saving a stage of a project (or a branch) applies it at once to the instances it
+changes: a job "Apply resources" each, as above (production: confirmation, backup, the previous values put back if
+Odoo does not answer). An instance with a job running, or on a locked branch you may not change, keeps its
+containers and shows "Restart pending" until it next starts.
+
+**Storage.** The monitor measures each running instance's database (`pg_database_size`) and files (its filestore)
+every `STORAGE_MEASURE_MINUTES` (an hour) and keeps the result, so a paused instance still shows its size. Each
+stage has a soft quota (`STORAGE_QUOTA_GB_*`: 20 GB production, 10 GB staging, 5 GB development): from
+`STORAGE_WARNING_PERCENT` (80 %) an instance is shown as near its quota and an alert is sent, over it a second alert
+(production: again every day). Nothing is refused or stopped. The sizes show on the instance's **Settings** tab and
+on the project's **Settings**, **Resources** (production's database size first, as on Odoo.sh).
 
 **Upgrading from 2.x.** `ODOO_MEMORY_LIMIT`, `ODOO_CPU_LIMIT`, `DB_MEMORY_LIMIT` and `DB_CPU_LIMIT` are no longer
 read, so the 2 GB / 2 cores of the old template no longer cap anything. A value you had changed on the Settings page
@@ -1274,6 +1313,7 @@ setting with a default ([Configuration, Alerts](CONFIGURATION.md#alerts)).
 | A backup failed | A manual or daily backup failed. | `ALERT_BACKUP_FAILED` |
 | An instance is down | An instance that should run (not paused, not switched off, no job on it) is stopped, or Odoo in it does not answer, for `ALERT_INSTANCE_DOWN_MINUTES` (5). | `ALERT_INSTANCE_DOWN` |
 | Disk almost full | The disk holding the instances and backups has less than `ALERT_DISK_FREE_PERCENT` (10 %) free. | `ALERT_DISK` |
+| Storage near or over its quota | An instance's database and files reach `STORAGE_WARNING_PERCENT` (80 %) of its stage's storage quota, and again when they are over it (production: every day until it is back under) ([Resources and priority](#resources-and-priority)). Nothing is stopped. | `ALERT_STORAGE` |
 | Memory high | Server memory stays at or above the capacity warning (`CAPACITY_WARNING_PERCENT`, 85 %) for `ALERT_MEMORY_MINUTES` (10). | `ALERT_MEMORY` |
 | Changed outside the panel | An instance's containers or files were changed by hand ([Hardened containers](#hardened-containers-and-changes-made-by-hand)). | `ALERT_DRIFT` |
 | No public link | The panel, or an instance that is online, has had no public address for `ALERT_PUBLIC_LINK_MINUTES` (10): its tunnel connector stopped, for example. | `ALERT_PUBLIC_LINK` |

@@ -48,6 +48,8 @@ export const router = createBrowserRouter([
           { path: "/", lazy: page(() => import("./pages/Dashboard"), (m) => m.DashboardPage) },
           { path: "/projects", lazy: page(() => import("./pages/Projects"), (m) => m.ProjectsPage) },
           { path: "/projects/new", lazy: page(() => import("./pages/Projects"), (m) => m.NewProjectPage, "projects.manage") },
+          // a branch's name may hold "/": it is one segment, written with encodeURIComponent (branchPath in components/ProjectWorkspace.tsx)
+          { path: "/projects/:id/branches/:branch/:view?", lazy: page(() => import("./pages/Projects"), (m) => m.ProjectPage) },
           { path: "/projects/:id/:tab?", lazy: page(() => import("./pages/Projects"), (m) => m.ProjectPage) },
           { path: "/i/:name/:tab?", lazy: page(() => import("./pages/Instance"), (m) => m.InstancePage) },
           { path: "/new", lazy: page(() => import("./pages/NewInstance"), (m) => m.NewInstancePage, "instances.create") },

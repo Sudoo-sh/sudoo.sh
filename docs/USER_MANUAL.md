@@ -168,16 +168,37 @@ failed update, changes made by hand, or a branch deleted on GitHub. Click a card
 
 ### A project's page
 
-**Branches** lists every branch of the repository (read from GitHub at most every 30 seconds; **Read the branches
-again** reads them now), grouped by stage, production first. Each row shows the branch (with **default** for the
-repository's default branch, and **deleted on GitHub** when it is gone), its latest commit, its instance and its
-status, and its actions:
+**Branches** is the project's workspace. On the left, every branch of the repository (read from GitHub at most every
+30 seconds; the refresh button next to **Filter branches** reads them now), grouped under **Production**, **Staging**
+and **Development**. Each row shows the branch's name, its Odoo version and a dot for its instance: green online, red
+failing, amber working, a grey ring paused or switched off, a dashed ring no instance. **Filter branches** narrows the
+list by name. On a phone the list folds into a button at the top that names the chosen branch.
+
+Choose a branch and it opens on the right, at `/projects/<project>/branches/<branch>`: its name (with a button that
+copies it), its stage and tags (**default** for the repository's default branch, **deleted on GitHub** when it is
+gone), two commands to copy (**Clone** the branch with its submodules, and a **Merge** example), and then its
+instance's tabs (Overview, Activity, Code, Logs, Backups and the others, as on the instance's own page). A branch with
+several instances has a list to choose the instance; a branch without one shows its latest commit and **Create
+instance**. The page opens on the production branch, else the first branch.
+
+**Changing a stage by dragging.** Drag a branch from one group onto another (with a mouse, or a long press on a touch
+screen). The groups it can go to are outlined while you drag, the one under it is filled. Dropping it asks for the
+same confirmation as **Move to** below; **Cancel** leaves it where it was. With the keyboard, move to a branch, press
+Space to pick it up, the up and down arrows to choose the stage, Space to drop it, Escape to put it back. Only those
+who may change the branch's stage can drag it (the project's access and the branch's lock apply).
+
+**New branches.** The **+** next to **Staging** and **Development** explains how to add a branch: branches are created
+on GitHub, by pushing one. Choose the branch to start from and a name, and copy the command
+(`git checkout -b <new> origin/<from> && git push -u origin <new>`). The new branch appears in **Development** when the
+branches are read again; drag it to **Staging** to make it a staging branch.
+
+The menu (**…**) next to the branch's name has its actions:
 
 | Action | What it does | Who |
 | :--- | :--- | :--- |
 | **Create instance** | A new instance of the branch, in the branch's stage, with the project's Odoo version and edition. Development: a fresh database, with Odoo's demo data unless you switch it off. Staging: a neutralised copy of the project's production instance (below). Production: a fresh database without demo data. | instances.create (staging also instances.restore) |
-| **Open**, **Details**, **Logs** | Opens Odoo, the instance's page, or its Odoo log. | everyone |
-| **Move to** a stage | Changes the branch's stage and moves its instances with it. Making a branch production asks you to confirm what changes: its instances never pause, never expire, are backed up every day and get new code only through a backup and an automatic rollback. A project has one production branch unless the administrator allows more. Leaving production asks for a confirmation too. | maintainers and up |
+| **Logs**, **Backups** | Opens the instance's Odoo log, or its backups (with how many there are). | everyone (Logs: instances.logs) |
+| **Move to** a stage | Changes the branch's stage and moves its instances with it, like dragging it. Making a branch production asks you to confirm what changes: its instances never pause, never expire, are backed up every day and get new code only through a backup and an automatic rollback. A project has one production branch unless the administrator allows more. Leaving production asks for a confirmation too. | maintainers and up |
 | **Rebuild from production** | Staging only: replaces its database and files with a new neutralised copy of production, then takes the branch's latest code. Everything done in staging since its last rebuild is lost. | instances.restore |
 | **Delete instance** | Deletes the instance after a backup (a production instance asks you to type `production` too). The branch stays. | instances.delete |
 | **Lock**, **Change the lock**, **Unlock** | Closes the branch to everyone but the people and teams the lock allows ([locked branches](#project-access-and-locked-branches)). | administrators |
@@ -186,7 +207,7 @@ What you may do in a branch also depends on the project's access: a branch hidde
 **Locked** tag marks a locked branch (its menu then offers only what the lock lets you do). **Restricted** marks a
 branch seen only by its own grants.
 
-For those who manage backups, an instance with backups shows how many next to its name (**3 backups**); the link
+For those who manage backups, the branch's menu shows how many backups its instance has (**3 backups**); the link
 opens the instance's **Backups** tab.
 
 **Backups** (administrators and super admins: those who manage backups) lists the backups of all the project's

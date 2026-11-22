@@ -11,9 +11,12 @@ files, both removed afterwards), so nothing the tests do reaches the data tester
 repository's installed modules (--test-tags=/module,... from Odoo 16 on; older versions run the tests of the modules
 being upgraded); "custom" passes the branch's test_tags. The run stops after PROJECT_TEST_TIMEOUT_MINUTES.
 
-Odoo's log is then read (parse_log): the "N failed, N error(s) of M tests" summary (Odoo 16 and later), the
-"Ran N tests" / "FAILED (failures=N, errors=N)" lines of older versions, ERROR lines of a test module
-(odoo.addons.<module>.tests...), of odoo.modules.loading or unittest, and WARNING lines. The result goes into the job
+Odoo's log is then read (parse_log): the "N failed, N error(s) of M tests" summary (Odoo 16 and later; checked
+against real runs of Odoo 17, 18 and 19, tests/odoo_test_logs/real_*.log), the "Module x: N failures, N errors of M
+tests" line of each module, the "Ran N tests" / "FAILED (failures=N, errors=N)" lines of older versions, ERROR lines
+of a test module (odoo.addons.<module>.tests...: "FAIL: TestX.test_y" followed by the traceback, whose last line, the
+exception, is kept with it), of odoo.modules.loading or unittest, and WARNING lines (each distinct one counted once:
+Odoo 19 logs some twice). The result goes into the job
 (job.details["tests"]) and from there into the build (projects/builds.py): "failed" with "At least one test failed when
 loading the modules (module_x)", "warning", or "success". A failed test never stops the instance from being served,
 as on Odoo.sh: the build shows that it failed.
@@ -27,7 +30,7 @@ from typing import Any
 from sudoo import exposure, projects
 from sudoo.config import settings
 from sudoo.core.jobs import Job, JobError
-from sudoo.core.odoo_args import modules_of_tags
+from sudoo.core.odoo_args import demo_args, modules_of_tags
 from sudoo.core.shell import capture
 from sudoo.instances import backups, odoo, stages, store
 from sudoo.instances.store import compose
@@ -40,12 +43,14 @@ TAGS_FROM = 16  # Odoo versions with --test-tags as the panel uses it
 LINE = re.compile(r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d+ \d+ (INFO|WARNING|ERROR|CRITICAL) \S+ (\S+): ?(.*)$")
 SUMMARY = re.compile(r"(\d+) failed, (\d+) error\(s\) of (\d+) tests?")
 RAN = re.compile(r"\bRan (\d+) tests? in ")
+MODULE_FAILED = re.compile(r"Module (\w+): (\d+) failures?, (\d+) errors? of \d+ tests?")
 OLD_FAILED = re.compile(r"FAILED \((?:failures=(\d+))?(?:, )?(?:errors=(\d+))?\)")
 AT_LEAST_ONE = "At least one test failed when loading the modules"
 TEST_LOGGERS = ("odoo.modules.loading", "odoo.modules.module", "odoo.tests", "unittest", "odoo.service.server")
 # left out of "every module": localisations (they would fight over the company's country), test modules (Odoo's own
-# test suites), hardware drivers (they need the IoT box)
-ALL_EXCLUDED = ("l10n_", "test_", "hw_")
+# test suites), hardware drivers (they need the IoT box), website themes (each is a look to apply to one website: a real
+# Odoo 18 run installed all 30 at once, to no purpose)
+ALL_EXCLUDED = ("l10n_", "test_", "hw_", "theme_")
 
 
 # ---------------------------------------------------------------- which options apply to an instance
@@ -133,8 +138,15 @@ def parse_log(text: str, exit_code: int | None = 0, timed_out: bool = False, min
     modules: list[str] = []
     error_lines: list[str] = []
     warning_lines: list[str] = []
+    traceback = False  # the lines after a test's ERROR line: its traceback, whose last line is the exception
     for raw in text.splitlines():
         line = raw.strip()
+        found = LINE.match(line)
+        if traceback and not found and not (SUMMARY.search(line) or RAN.search(line) or OLD_FAILED.search(line)):
+            if line and not raw.startswith(" ") and not line.startswith(("Traceback", "^")):
+                error_lines[-1] = f"{error_lines[-1].split(' | ')[0]} | {line}"[:300]
+            continue
+        traceback = False
         if match := SUMMARY.search(line):
             summary_seen = True
             failed, errors, tests = max(failed, int(match[1])), max(errors, int(match[2])), max(tests, int(match[3]))
@@ -145,13 +157,16 @@ def parse_log(text: str, exit_code: int | None = 0, timed_out: bool = False, min
             errors += int(match[2] or 0)
         if AT_LEAST_ONE in line:
             at_least_one = True
-        found = LINE.match(line)
+        if (match := MODULE_FAILED.search(line)) and (match[2] != "0" or match[3] != "0") and match[1] not in modules:
+            modules.append(match[1])
         if not found:
             continue
         level, logger, message = found[1], found[2], found[3]
         if level == "WARNING":
-            warnings += 1
-            warning_lines.append(f"WARNING {logger}: {message}"[:300])
+            warning = f"WARNING {logger}: {message}"[:300]
+            if warning not in warning_lines:
+                warnings += 1
+                warning_lines.append(warning)
         elif level in ("ERROR", "CRITICAL"):
             if logger.startswith("odoo.addons."):
                 module = logger.split(".")[2]
@@ -160,6 +175,7 @@ def parse_log(text: str, exit_code: int | None = 0, timed_out: bool = False, min
             elif not logger.startswith(TEST_LOGGERS):
                 continue  # an error of something else (a mail server, a cron): Odoo's own loading warns about it
             error_lines.append(f"{level} {logger}: {message}"[:300])
+            traceback = logger.startswith("odoo.addons.")
     messages = (error_lines + warning_lines)[:MESSAGES_KEPT]
     report: dict[str, Any] = {"tests": tests, "failed": failed, "errors": errors, "warnings": warnings,
                               "modules": modules, "messages": messages}  # fmt: skip
@@ -202,6 +218,11 @@ def _filestore(name: str, script: str, *paths: str) -> list[str]:
     return [*command, "odoo", "-c", script, "sh", *paths]
 
 
+END_SESSIONS = (
+    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{db}' AND pid <> pg_backend_pid()"
+)
+
+
 def copy_name(db: str) -> str:
     return f"{db[:57]}_tests"
 
@@ -238,6 +259,9 @@ def run(job: Job, name: str, db: str | None = None) -> dict[str, Any] | None:
     try:
         if copy:
             job.run(_sql(name, f'DROP DATABASE IF EXISTS "{target}" WITH (FORCE)'), timeout=600)
+            # a template copy fails while anyone else is connected to the database ("being accessed by other
+            # users"); Odoo is stopped, so whatever is still connected is ended
+            job.run_unchecked(_sql(name, END_SESSIONS.format(db=db)), timeout=60)
             job.run(_sql(name, f'CREATE DATABASE "{target}" OWNER odoo TEMPLATE "{db}"'), timeout=1800)
             script = 'rm -rf "$2" && if [ -d "$1" ]; then cp -a "$1" "$2"; fi'
             job.run(_filestore(name, script, f"/var/lib/odoo/filestore/{db}", f"/var/lib/odoo/filestore/{target}"),
@@ -299,8 +323,7 @@ def new_build(job: Job, name: str) -> None:
     operations.refresh_addons_path(job, name)
     enterprise = env.get("EDITION") == "enterprise"
     init = ["-d", db, "-i", "base,web_enterprise" if enterprise else "base", "--stop-after-init", "--no-http"]
-    if found["demo_data"]:
-        init.append("--with-demo")
+    init += demo_args(env.get("ODOO_VERSION", ""), bool(found["demo_data"]))
     job.run(odoo.run_cmd(name, *init), timeout=1800)
     modules = modules_to_install(job, name, db)
     job.step(f"Installing modules ({len(modules)})" if modules else "No modules to install")

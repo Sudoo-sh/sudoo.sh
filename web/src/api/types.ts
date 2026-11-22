@@ -485,6 +485,18 @@ export interface Build extends HistoryEntryBase {
   finished_at: string | null;
   duration_seconds: number | null;
   dropped_at: string | null;
+  /** the build's tests (projects/testing.py); null when it ran none */
+  tests?: BuildTests | null;
+}
+
+/** What a build's tests found: the counts of Odoo's summary and the modules with a failing test */
+export interface BuildTests {
+  status: "success" | "warning" | "failed";
+  tests: number;
+  failed: number;
+  errors: number;
+  warnings: number;
+  modules: string[];
 }
 
 /** A change of a branch's stage */
@@ -509,7 +521,7 @@ export interface RestoreEntry extends HistoryEntryBase {
 }
 
 /** A commit pushed to a branch that builds nothing on new commits (on_new_commit "nothing"); the history lists
- * these only with ?commits=1, so HistoryEntry (what the timeline shows) leaves them out */
+ * these only with ?commits=1, which the branch's timeline asks for */
 export interface CommitEntry extends HistoryEntryBase {
   type: "commit";
   instance: string | null;
@@ -518,7 +530,7 @@ export interface CommitEntry extends HistoryEntryBase {
   result: string;
 }
 
-export type HistoryEntry = Build | StageChange | RestoreEntry;
+export type HistoryEntry = Build | StageChange | RestoreEntry | CommitEntry;
 
 /** GET /projects/<id>/builds: the last builds of each branch, newest first */
 export interface BranchBuilds {

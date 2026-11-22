@@ -268,18 +268,24 @@ e-mail) may also do so in production, and otherwise just brings the new code.
   and its lifetime still ends it); the project can keep it or delete it instead. Staging is switched off at most and
   production is never touched.
 
-**Build options and tests**, as on Odoo.sh. The project's **Settings** give every branch its defaults, and each
-branch can change them for itself (maintainers and up):
+**Build options and tests**, as on Odoo.sh. The project's **Settings** give every branch its defaults
+(**Development branches defaults**), and each branch can change them for itself on its **Branch settings** tab, the
+last of the branch's tabs (maintainers and up). Clear **Use the project's defaults** to give a branch new build
+options of its own; next to each value a quiet label says where it comes from (**This branch**, **Project default**
+or **Panel setting**), and the reset button goes back to the default. Production has no options: it always takes new
+commits through the safe update.
 
 * **Behaviour upon new commits:** **Update** (the new code in the same database, the changed modules upgraded),
   **New build** (development: a new database built from scratch, the old data is gone; staging: a new copy of
-  production) or **Do nothing** (the commit is only listed in the branch's history).
+  production) or **Do nothing** (the commit is only listed in the branch's history, as **Commit received**, until
+  you click **Get latest code**).
 * **Module installation** for new development databases: **the repository's modules**, **all modules** (every module
   Odoo has, with the repository's; no tests) or **a list** of module names.
 * **Test suite:** **off**, **the repository's modules** (the tests of its installed modules) or **custom tags**
   (Odoo's `--test-tags`, such as `/sale_custom,-slow`). Tests run before the instance opens; a failed test marks the
   build **failed** ("At least one test failed when loading the modules (module_x)") with the failing lines, and the
-  instance still opens. Staging runs them on a throw-away copy of its database, only when the project turns
+  instance still opens. Each build in the history says how its tests went: **Tests: 132 passed**, or how many failed
+  and in which module. Staging runs them on a throw-away copy of its database, only when the project turns
   **Tests on staging** on.
 * **Demo data** for new development databases.
 
@@ -420,7 +426,7 @@ wait: one job per instance at a time.
 | **Backups** | The **Backups** card on its own ([The Backups card](#the-backups-card)): the instance's backups, **Back up now** and the restores. |
 | **Domains** | The instance's own domains, such as `erp.client.com`: their state, the DNS record to create, the certificate and its expiry ([Custom domains](#custom-domains)). Everyone sees them; administrators add and remove them. |
 | **Settings** | The stage ([Stages](#stages-production-staging-and-development)), the automation switches and the lifetime ([section 6](#6-keeping-the-code-up-to-date)), saved at once; and **Resources** ([Resources](#resources)). |
-| **Access** | **Connect as**: open Odoo signed in as any of its users, without their password ([Connect as](#connect-as)); and the Odoo sign-in: address, login, password, and the master password (for Odoo's database manager). Click **Show the passwords**; each viewing is recorded in the audit log. |
+| **Access** | The Odoo sign-in (**Connect as**, next to **Open Odoo** at the top of the page, opens Odoo signed in as any of its users without their password: [Connect as](#connect-as)): address, login, password, and the master password (for Odoo's database manager). Click **Show the passwords**; each viewing is recorded in the audit log. |
 | **Mail** | Staging and development only: the e-mails the instance sent, caught before they reached anyone ([The Mail tab](#the-mail-tab)). Developers and up. |
 | **Shell** | A terminal in the browser, inside the instance's own containers: a command line in the Odoo container, `odoo shell`, or `psql` on its database ([The Shell tab](#the-shell-tab)). Only for the roles allowed to. |
 | **Upgrade** | Administrators: move the database to a newer Odoo version: the pre-check, a test on a new staging instance, then the upgrade itself with its backup and rollback ([Upgrading to a newer Odoo version](#upgrading-to-a-newer-odoo-version)). |
@@ -447,7 +453,7 @@ When Odoo is stopped, the tab shows the last lines it wrote and follows again on
 
 ### Connect as
 
-**Connect as** on the **Access** tab opens Odoo signed in as one of its users, without knowing or changing their
+**Connect as**, next to **Open Odoo** at the top of the instance's page, opens Odoo signed in as one of its users, without knowing or changing their
 password, for example to see what a salesperson sees. Click the arrow next to **Open Odoo**, then **Connect as…**,
 choose the user, and click **Get the sign-in link**, then **Open Odoo as ...**. The link works once, for one minute.
 

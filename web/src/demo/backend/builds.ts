@@ -2,9 +2,11 @@
 // (its creation, Get latest code, a rebuild from production) is a build; restores and stage changes join the
 // branch's timeline. Builds are read from the demo's jobs, so a job started in the demo shows up as a build at once
 // (building, then its outcome), with the commit it brought. As on a real panel, an instance has one live build:
-// a newer success drops the older ones.
+// a newer success drops the older ones. Builds of a branch whose test suite is on say how many tests passed (one of
+// them failed a test); a branch that does nothing on new commits lists the commits it did not build.
 
-import type { Build, BuildTrigger, HistoryEntry, Job, RestoreEntry, Stage, StageChange } from "@/api/types";
+import type { Build, BuildTests, BuildTrigger, CommitEntry, HistoryEntry, Job, RestoreEntry, Stage, StageChange } from "@/api/types";
+import { effective, projectById } from "./build-options";
 import { publish, subscribe } from "./bus";
 import { instances, jobs } from "./state";
 import { hash, iso, DAY, HOUR, MINUTE } from "./util";
@@ -103,6 +105,8 @@ function instanceEntries(projectId: string, name: string): HistoryEntry[] {
   const own = jobs.filter((j) => j.instance === name).sort((a, b) => Date.parse(b.started_at!) - Date.parse(a.started_at!));
   const commits = instance.recent_commits ?? [];
   const entries: HistoryEntry[] = [];
+  const project = projectById(projectId);
+  const testing = project && instance.stage !== "production" ? effective(project, branch).values.test_suite !== "off" : false;
   let builds = 0;
   let live = false;
   for (const job of own) {
@@ -150,7 +154,24 @@ function instanceEntries(projectId: string, name: string): HistoryEntry[] {
       }
       live = true;
     }
-    const messages = warned ? warningLines(instance.odoo.database, started + 40_000) : [];
+    let messages = warned ? warningLines(instance.odoo.database, started + 40_000) : [];
+    // the tests of the build: one build of a tested branch failed a test, the others passed
+    let tests: BuildTests | null = null;
+    let testResult = "";
+    if (testing && !running && job.status === "success") {
+      const total = 40 + (hash(`${name}${builds}`) % 120);
+      if (builds === 2) {
+        const module = `${instance.git.branch?.replace(/-/g, "_") ?? "custom"}`.slice(0, 30);
+        tests = { status: "failed", tests: total, failed: 1, errors: 0, warnings: 0, modules: [`acme_${module}`] };
+        status = "failed";
+        droppedAt = null;
+        testResult = `At least one test failed when loading the modules (acme_${module}). 1 failed, 0 with errors, of ${total} tests.`;
+        messages = [`ERROR ${instance.odoo.database} odoo.addons.acme_${module}.tests.test_flow: FAIL: TestFlow.test_totals | AssertionError: 118.0 != 120.0`];
+      } else {
+        tests = { status: warned ? "warning" : "success", tests: total, failed: 0, errors: 0, warnings: warned ? messages.length : 0, modules: [] };
+        testResult = `${total} tests passed.`;
+      }
+    }
     entries.push({
       id: `b${job.id}`,
       type: "build",
@@ -167,9 +188,14 @@ function instanceEntries(projectId: string, name: string): HistoryEntry[] {
         ? ""
         : job.status === "failed"
           ? (job.error ?? "The build failed; the job's log says why.")
-          : warned
-            ? `${messages.length} warnings in Odoo's log while loading the modules`
-            : DONE[why],
+          : testResult && status === "failed"
+            ? testResult
+            : warned
+              ? `${messages.length} warnings in Odoo's log while loading the modules`
+              : testResult
+                ? `${DONE[why]}. ${testResult}`
+                : DONE[why],
+      tests,
       messages,
       job: jobId,
       queued_at: job.started_at,
@@ -183,9 +209,41 @@ function instanceEntries(projectId: string, name: string): HistoryEntry[] {
   return entries;
 }
 
+const NOT_BUILT = "New commit; this branch builds nothing on new commits (its Behaviour upon new commits).";
+const UNBUILT = [
+  { subject: "Points expire after a year unless the customer buys again", author: "Ines Haddad", hours: 3 },
+  { subject: "Show the points balance on the receipt", author: "Ines Haddad", hours: 26 },
+];
+
+/** The commits a branch that does nothing on new commits did not build (they wait for Get latest code). */
+function commitEntries(projectId: string, branch: string, members: string[]): CommitEntry[] {
+  const project = projectById(projectId);
+  if (!project) return [];
+  const found = effective(project, branch);
+  if (found.stage === "production" || found.values.on_new_commit !== "nothing") return [];
+  return UNBUILT.map((c, i) => {
+    const full = hash(`${projectId}${branch}${i}`).toString(16).padStart(8, "0").repeat(5).slice(0, 40);
+    const at = Date.now() - c.hours * HOUR;
+    const id = `c${full.slice(0, 12)}`;
+    return {
+      id,
+      type: "commit",
+      project: projectId,
+      branch,
+      at: iso(at),
+      by: "system",
+      instance: members[0] ?? null,
+      status: "skipped",
+      commit: { sha: full.slice(0, 7), full_sha: full, subject: c.subject, author: c.author, when: iso(at)! },
+      result: NOT_BUILT,
+      links: { self: `/api/v1/projects/${projectId}/builds/${id}`, job: null },
+    };
+  });
+}
+
 /** A branch's timeline, newest first. */
 export function branchHistory(projectId: string, branch: string, members: string[]): HistoryEntry[] {
-  const entries = members.flatMap((name) => instanceEntries(projectId, name));
+  const entries: HistoryEntry[] = [...members.flatMap((name) => instanceEntries(projectId, name)), ...commitEntries(projectId, branch, members)];
   for (const change of stageChanges.get(projectId) ?? []) if (change.branch === branch) entries.push(change);
   return entries.sort((a, b) => Date.parse(b.at ?? "") - Date.parse(a.at ?? ""));
 }

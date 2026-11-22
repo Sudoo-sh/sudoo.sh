@@ -2039,18 +2039,20 @@ reading the project needs; branches hidden from someone keep their history from 
 ### Build options and tests
 
 Each project has **build options**, as Odoo.sh's "New build options", and each branch can change them for itself
-(project **Settings**; a branch's **Build options**; [API](PANEL_API.md#projects):
+(project **Settings**, **Development branches defaults**; a branch's **Branch settings** tab; [API](PANEL_API.md#projects):
 `GET/PUT /projects/<id>/branches/<branch>/options`). A branch's value wins over the project's, and the project's over
 the panel's settings ([Configuration](CONFIGURATION.md#projects)):
 
 | Option | Choices | Default |
 | :--- | :--- | :--- |
 | Behaviour upon new commits (`on_new_commit`) | `update`: the new code in the same database, the changed modules upgraded; `new_build`: development builds a new database from scratch (the old one and its files are replaced), staging is rebuilt from a new neutralised copy of production; `nothing`: the commit is only recorded in the branch's history | development: `PROJECT_DEVELOPMENT_ON_NEW_COMMIT` (`update`); staging: `PROJECT_STAGING_ON_PUSH` (`rebuild` is `new_build`) |
-| Module installation (`module_install`) | `repository`: every module of the repository; `all`: every module Odoo has, with the repository's (localisations, `test_*` and `hw_*` modules are left out; tests are off); `list`: only `modules` | `PROJECT_MODULE_INSTALL` (`repository`) |
+| Module installation (`module_install`) | `repository`: every module of the repository; `all`: every module Odoo has, with the repository's (localisations, `test_*`, `hw_*` and `theme_*` modules are left out, and modules Odoo marks as not installable; tests are off); `list`: only `modules` | `PROJECT_MODULE_INSTALL` (`repository`) |
 | Test suite (`test_suite`) | `off`; `selection`: the tests of the repository's installed modules; `custom`: `test_tags` in Odoo's `--test-tags` syntax | `PROJECT_TEST_SUITE` (`off`) |
 | Demo data (`demo_data`) | new development databases get Odoo's demo data | `PROJECT_DEVELOPMENT_DEMO_DATA` |
 
-Module installation and demo data apply to new development databases (a new instance, or a `new_build`). Production
+Module installation and demo data apply to new development databases (a new instance, or a `new_build`). Demo data
+uses the flag each version knows: Odoo 19 and later load it with `--with-demo`; Odoo 18 and earlier load it unless
+told `--without-demo=all`. Production
 is never built by these options: its new code always comes through the safe update with a backup and automatic
 rollback, and its tests never run on its database.
 
@@ -2061,12 +2063,15 @@ rollback, and its tests never run on its database.
 of the upgraded modules instead (no `--test-tags`). Only then is the instance started. Staging runs them too when the
 project's **Tests on staging** (`PROJECT_STAGING_TESTS`) is on or the branch sets its own test suite, on a
 **throw-away copy** of the staging database and its files (a PostgreSQL template copy, removed afterwards), so the
-tests never touch the data testers work with. Tests that take longer than `PROJECT_TEST_TIMEOUT_MINUTES` (30) are
+tests never touch the data testers work with. A template copy needs the source database to itself: the panel stops
+Odoo and ends any other session on it first. Tests that take longer than `PROJECT_TEST_TIMEOUT_MINUTES` (30) are
 stopped.
 
-**The result.** The panel reads Odoo's log of the run: the "N failed, N error(s) of M tests" summary, the failing
-tests (`ERROR` lines of `odoo.addons.<module>.tests`), `ERROR` lines of `odoo.modules.loading` and `unittest`, and
-warnings. The build is then **failed** with "At least one test failed when loading the modules (module_x)" and the
+**The result.** The panel reads Odoo's log of the run (checked against real runs of Odoo 17, 18 and 19): the
+"N failed, N error(s) of M tests" summary of `odoo.tests.result`, which counts the post-install tests too, the
+"Module x: N failures, N errors of M tests" lines, the failing tests (`ERROR` lines of `odoo.addons.<module>.tests`,
+with the exception that ended them), `ERROR` lines of `odoo.modules.loading` and `unittest`, and warnings (each
+distinct line once). Odoo exits with code 1 when a test fails. The build is then **failed** with "At least one test failed when loading the modules (module_x)" and the
 first ten error lines, **warning** when the tests passed with warnings in the log, or **success** with the number of
 tests that passed. A failed test does not stop the instance: it starts with the new code, and the build shows that it
 failed, as on Odoo.sh.

@@ -64,3 +64,19 @@ def modules_of_tags(tags: str) -> list[str]:
         if match and match["module"] and match["module"] not in found:
             found.append(match["module"])
     return found
+
+
+DEMO_FLAG_FROM = 19  # Odoo 19 installs no demo data unless --with-demo; older versions install it unless told not to
+
+
+def demo_args(version: str, demo: bool) -> list[str]:
+    """The arguments of `odoo -i base` that give a new database Odoo's demo data (`demo`) or not. Odoo 19 and later
+    load none by default and take --with-demo; Odoo 18 and older load it by default, refuse --with-demo ("no such
+    option", exit code 2) and take --without-demo=all."""
+    try:
+        major = int(str(version).split(".")[0].removeprefix("saas~").removeprefix("saas-"))
+    except ValueError:
+        major = DEMO_FLAG_FROM
+    if major >= DEMO_FLAG_FROM:
+        return ["--with-demo"] if demo else []
+    return [] if demo else ["--without-demo=all"]

@@ -34,6 +34,8 @@ const loading = (
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   { path: "/invite", lazy: page(() => import("./pages/Invite"), (m) => m.InvitePage), hydrateFallbackElement: loading },
+  // a project's public status page: read without signing in (status/pages.py)
+  { path: "/status/:token", lazy: page(() => import("./pages/PublicStatus"), (m) => m.PublicStatusPage), hydrateFallbackElement: loading },
   { path: "/setup", lazy: page(() => import("./pages/Setup"), (m) => m.SetupPage), hydrateFallbackElement: loading },
   {
     element: <RequireSession />,

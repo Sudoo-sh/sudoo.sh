@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 Presenter = Callable[[str], Any]
+Listener = Callable[["Event"], None]
 
 _KEEP = 1000  # events kept for clients that reconnect
 _QUEUE = 2000  # events waiting for one client before it counts as too slow
@@ -69,6 +70,12 @@ class EventBus:
         self._recent: deque[Event] = deque(maxlen=_KEEP)
         self._subscribers: set[Subscription] = set()
         self._presenters: dict[str, Presenter] = {}
+        self._listeners: list[tuple[frozenset[str], Listener]] = []
+
+    def listen(self, topics: frozenset[str], listener: Listener) -> None:
+        """Call `listener(event)` in the publishing thread for every event of `topics` (its data may be None: build it
+        with data_of). A listener must be quick (hand the work to its own thread) and never raises into publish."""
+        self._listeners.append((topics, listener))
 
     def present(self, topic: str, presenter: Presenter) -> None:
         """Build the data of `topic` events from their key, when the publisher gives none."""
@@ -87,6 +94,12 @@ class EventBus:
             self._next_id += 1
             self._recent.append(event)
             subscribers = list(self._subscribers)
+        for topics, listener in self._listeners:
+            if topic in topics:
+                try:
+                    listener(event)
+                except Exception as exc:  # noqa: BLE001 - publishing must never break the work that publishes
+                    print(f"event listener {topic} {key}: {exc!r}", flush=True)
         for subscriber in subscribers:
             if subscriber.wants(event):
                 try:
@@ -143,3 +156,4 @@ class EventBus:
 BUS = EventBus()
 publish = BUS.publish
 present = BUS.present
+listen = BUS.listen

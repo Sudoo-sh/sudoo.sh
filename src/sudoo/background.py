@@ -69,6 +69,12 @@ def start() -> None:
 
     previews.listen()
     threading.Thread(target=refresh.run_forever, daemon=True, name="staging-refresh").start()
+
+    from sudoo import notifications
+    from sudoo.status import checks as status_checks
+
+    notifications.start()
+    threading.Thread(target=status_checks.run_forever, daemon=True, name="status-checks").start()
     _start_premium_jobs()
     gateway.start(wake=start_wake_job)
     live.on_change(_domain_settings_changed)

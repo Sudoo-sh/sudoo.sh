@@ -314,7 +314,8 @@ panel's setting (**Settings**, **Instances**, **Projects**); the reset button ne
 itself, **Daily** or **Weekly** (choose the day), at a time in the panel's time zone, for every staging branch or the
 ones you tick. It does what **Rebuild from production** does, so whatever was done in staging since is lost. A
 branch that is locked, busy or cannot be rebuilt is skipped, and its history says why; each refresh appears in the
-branch's history. **Refresh now** runs it at once. The card shows the last and the next run.
+branch's history. **Refresh now** runs it at once. The card shows the last and the next run. A notification channel
+with the event **Staging refreshed from production** is told each time ([Status and notifications](#status-and-notifications)).
 
 **Pull-request previews** (in **Settings**, off by default): each open pull request on GitHub gets a development
 instance of its branch, and the panel writes one comment on the pull request with the preview's link, updated after
@@ -351,6 +352,26 @@ database size first.
 A branch can differ from its project: on its **Branch settings** tab, **Resources of this branch**, click
 **Override for this branch** and set only what differs; **Follow the project** removes the branch's own values.
 Changing resources needs the **Project resources** permission (administrators by default).
+
+
+### Status and notifications
+
+**Status** (the project's tab, everyone who sees the project): whether production is up, as Odoo.sh's status page.
+
+* The banner at the top says **All systems operational**, **Degraded** (something is slow or late, or a backup is
+  missing) or **Down** (a production instance does not answer).
+* One card per production instance, its backups (and off-site copies), and the server: its state now, its uptime over
+  the past day, week and month, a bar per day for 30 days (hover or focus a bar for that day's uptime), and, for the
+  instance, its response time per day.
+* **Incidents**: each time something was not up, when it started, how long it lasted and what was seen.
+* **Public status page** (maintainers and up): a read-only link you can give to your customers. It shows only names,
+  states and uptime. **New link** makes the old one stop working.
+
+**Notifications** (the project's tab, maintainers and up): where the project tells you what happened. **Add channel**,
+choose Slack, Discord, Telegram, Microsoft Teams, Webhook or E-mail, paste the address (or the bot token and chat id,
+or the addresses), and tick the events you want. Saved addresses and tokens are never shown again, only their last 4
+characters; type a new one to replace it. A webhook's signing secret is shown once, when it is made: copy it then.
+**Send test** sends a test at once; each channel says how its last delivery went.
 
 ---
 

@@ -16,7 +16,8 @@ code, its modules upgraded). An instance is skipped, with the reason, when its b
 locked, it is busy with another job, it cannot be rebuilt (no production, another Odoo version) or production's data
 would reach people production's branch is hidden from. Each branch's history gets a "refresh" entry saying what was
 started and what was skipped; the rebuild itself is a build of the branch as usual. The entry is published as a live
-"build" event (the web app's notification) and the run is audit-logged.
+"build" event, which the project's notification channels receive as "staging_refreshed" (notifications/), and the
+run is audit-logged.
 """
 
 from __future__ import annotations

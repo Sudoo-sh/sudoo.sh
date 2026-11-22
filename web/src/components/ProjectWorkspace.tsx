@@ -646,7 +646,7 @@ export function ProjectWorkspace({
               <div className="ws-side-tools">
                 <div className="input-group">
                   <Search />
-                  <Input placeholder={w.filter} aria-label={w.filter} value={filter} onChange={(e) => setFilter(e.target.value)} />
+                  <Input data-branch-filter placeholder={w.filter} aria-label={w.filter} aria-keyshortcuts="/" value={filter} onChange={(e) => setFilter(e.target.value)} />
                 </div>
                 <Button variant="ghost" icon={<RefreshCw />} loading={refreshing} onClick={onRefresh} aria-label={w.readAgain} title={w.readAgain} />
               </div>

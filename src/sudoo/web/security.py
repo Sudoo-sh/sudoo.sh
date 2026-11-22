@@ -179,9 +179,9 @@ PUBLIC_API = {
     ("POST", "/api/v1/servers/join"),  # a new server's agent with its join code (402 without several servers)
 }
 PUBLIC_API_PREFIXES = ("/api/v1/session/second-factor/",)  # sending a code, between the two sign-in steps
-PUBLIC_API_READ_PREFIXES = ("/api/v1/servers/agent-packages",)
+PUBLIC_API_READ_PREFIXES = ("/api/v1/servers/agent-packages", "/api/v1/public-status/")
 """GET without a session: a server's agent fetching packages with its join code or its own signature (premium/agent.py;
-402 without several servers)."""
+402 without several servers), and a project's public status page (its token is in the path; web/v1/project_status.py)."""
 RESTRICTED_PREFIXES = ("/api/v1/session", "/api/v1/account", "/api/v1/contact")  # all a restricted session opens
 LICENCE_PREFIXES = (*RESTRICTED_PREFIXES, "/api/v1/licence")  # all a super admin can open before accepting it
 

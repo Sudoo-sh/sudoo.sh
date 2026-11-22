@@ -321,6 +321,11 @@ def record_branch(project_id: str, branch: str, **values: Any) -> None:
 
 def remove(project_id: str) -> None:
     storage().delete(COLLECTION, project_id)
+    from sudoo import notifications  # late: notifications/ reads projects
+    from sudoo.status import pages
+
+    notifications.remove_project(project_id)  # a later project with the same id starts without them
+    pages.remove(project_id)
 
 
 def for_repository(repository: str, odoo_version: str, edition: str, user: str) -> Document:

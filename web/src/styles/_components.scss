@@ -932,3 +932,7 @@ th button.sort:focus-visible { outline: 2px solid var(--brand-ring); border-radi
   .audit-table td { white-space: normal; overflow-wrap: anywhere; }
   .audit-table .phone-only { display: block; }
 }
+// long action names (refusals carry a path) must not widen the filters past the screen
+.audit-filters [data-slot="select-trigger"] { width: 100%; max-width: 100%; min-width: 0; overflow: hidden; }
+.audit-filters .select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.audit-filters > * { min-width: 0; }

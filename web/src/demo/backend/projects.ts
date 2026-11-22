@@ -5,6 +5,7 @@
 import type { Instance, Project, ProjectBranch, ProjectOptions, Stage } from "@/api/types";
 import { described, levelIn, permissionsIn, PROJECT_PERMISSIONS, seededAccess, setLocks, type DemoAccess } from "./access";
 import { commitsOf, instances, OWNER, PROJECT_NAMES, REPOS, setting, type DemoRepo } from "./state";
+import { resetBuilds } from "./builds";
 import { iso, OPENED, DAY } from "./util";
 
 export interface DemoProject {
@@ -54,6 +55,7 @@ export function seedProjects() {
     });
     setLocks(id, projects.get(id)!.access, () => undefined);
   }
+  resetBuilds();
 }
 
 const OPTION_SETTINGS: Record<keyof ProjectOptions, string> = {

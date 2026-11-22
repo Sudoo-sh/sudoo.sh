@@ -184,6 +184,7 @@ const en = {
     production_auto_update: "Production gets new code automatically",
     staging_delete_after_days: "Staging lifetime, days",
     project_production_branches: "Production branches per project",
+    project_builds_kept: "Builds kept per branch",
     project_auto_development: "New branches get a development instance",
     project_max_auto_development: "Development instances created this way, per project",
     project_development_demo_data: "Development instances start with demo data",
@@ -467,6 +468,7 @@ const en = {
     max_production_instances: "Instances that may be in the production stage at the same time; 0: no limit.",
     production_auto_update: "New production instances get new code automatically (off: updates only when someone asks, or once switched on for the instance).",
     staging_delete_after_days: "Lifetime offered for new staging instances, in days; 0: keep.",
+    project_builds_kept: "Builds kept in the history of each branch (the oldest are removed first), with the stage changes and restores since the oldest of them.",
     project_production_branches: "Production branches one project may have; 0: no limit (Production instances at most still limits the whole server).",
     project_auto_development: "A new branch pushed to a project's repository gets a development instance by itself (each project can change it).",
     project_max_auto_development: "Development instances a project creates by itself for new branches, at most at the same time; 0: no limit.",
@@ -595,7 +597,7 @@ const en = {
   exposure: {
     now: (mode: string, url: ReactNode): ReactNode[] => ["Now: ", mode, ". The panel's address: ", url],
     noAddress: "not known yet",
-    certificate: { waiting: "The certificate of the panel's name is being requested.", active: "", failed: "The certificate of the panel's name could not be issued yet:" } as Record<string, string>,
+    certificate: { waiting: "The certificate of the panel's name is being requested.", active: "The certificate of the panel's name is valid.", failed: "The certificate of the panel's name could not be issued yet:" } as Record<string, string>,
     managedName: {
       serving: (name: ReactNode): ReactNode[] => ["The panel's name from Sudoo.sh: ", name, ". A name of your own (Panel's name) takes its place."],
       waiting: "The panel's name is being asked for from Sudoo.sh.",
@@ -834,6 +836,7 @@ const ar: typeof en = {
     production_auto_update: "الإنتاج يجلب الشيفرة الجديدة تلقائيًا",
     staging_delete_after_days: "مدة بقاء التجهيز، بالأيام",
     project_production_branches: "فروع الإنتاج لكل مشروع",
+    project_builds_kept: "الأبنية المحفوظة لكل فرع",
     project_auto_development: "تحصل الفروع الجديدة على بيئة تطوير",
     project_max_auto_development: "بيئات التطوير المنشأة بهذه الطريقة، لكل مشروع",
     project_development_demo_data: "تبدأ بيئات التطوير ببيانات تجريبية",
@@ -1116,6 +1119,7 @@ const ar: typeof en = {
     max_production_instances: "البيئات التي يمكن أن تكون في مرحلة الإنتاج في الوقت نفسه؛ 0: دون حد.",
     production_auto_update: "تجلب بيئات الإنتاج الجديدة الشيفرة الجديدة تلقائيًا (متوقف: تحديثات فقط حين يطلبها أحد، أو بعد تفعيلها للبيئة).",
     staging_delete_after_days: "مدة البقاء المعروضة لبيئات التجهيز الجديدة، بالأيام؛ 0: إبقاء.",
+    project_builds_kept: "الأبنية المحفوظة في سجل كل فرع (يُحذف الأقدم أولًا)، مع تغييرات المرحلة وعمليات الاستعادة منذ أقدمها.",
     project_production_branches: "فروع الإنتاج التي يمكن أن تكون لمشروع واحد؛ 0: دون حد (ويبقى أقصى عدد لبيئات الإنتاج حدًّا للخادم كله).",
     project_auto_development: "يحصل الفرع الجديد المدفوع إلى مستودع مشروع على بيئة تطوير من تلقاء نفسه (ويمكن لكل مشروع تغيير ذلك).",
     project_max_auto_development: "أقصى عدد لبيئات التطوير التي ينشئها المشروع بنفسه للفروع الجديدة في الوقت نفسه؛ 0: دون حد.",
@@ -1244,7 +1248,7 @@ const ar: typeof en = {
   exposure: {
     now: (mode, url) => ["الآن: ", mode, ". عنوان اللوحة: ", url],
     noAddress: "غير معروف بعد",
-    certificate: { waiting: "يُطلب الآن شهادة اسم اللوحة.", active: "", failed: "تعذّر إصدار شهادة اسم اللوحة حتى الآن:" },
+    certificate: { waiting: "يُطلب الآن شهادة اسم اللوحة.", active: "شهادة اسم اللوحة صالحة.", failed: "تعذّر إصدار شهادة اسم اللوحة حتى الآن:" },
     managedName: {
       serving: (name) => ["اسم اللوحة من Sudoo.sh: ", name, ". ويحل محله أي اسم خاص بك (اسم اللوحة)."],
       waiting: "يُطلب الآن اسم اللوحة من Sudoo.sh.",

@@ -11,6 +11,7 @@ import {
   FolderPlus,
   GitBranch,
   Hammer,
+  Layers,
   RefreshCw,
   RotateCcw,
   Search,
@@ -25,6 +26,7 @@ import type { Instance, Project, ProjectDetail, ProjectOptions, Stage } from "@/
 import { AccessTab } from "@/components/ProjectAccess";
 import { InstanceCard } from "@/components/InstanceCard";
 import { ProjectBackups } from "@/components/ProjectBackups";
+import { ProjectBuilds } from "@/components/ProjectBuilds";
 import { ProjectWorkspace } from "@/components/ProjectWorkspace";
 import { Page, PageHead, useCan, useSubCrumb } from "@/components/Shell";
 import { STAGE_ICON, STAGE_LABEL } from "@/components/StageTag";
@@ -34,6 +36,7 @@ import { SelectBox } from "@/components/app/select";
 import { Modal, useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
+import buildWords from "@/i18n/builds";
 import words from "@/i18n/projects";
 import { RepositoryPicker } from "./NewInstance";
 
@@ -307,10 +310,11 @@ function SettingsTab({ project }: { project: ProjectDetail }) {
 export function ProjectPage() {
   const { id = "", tab: pageTab = "", branch, view = "" } = useParams();
   // a branch (/projects/<id>/branches/<branch>/<view>) is shown in the Branches tab, the workspace
-  const tab = branch === undefined && ["settings", "backups", "access"].includes(pageTab) ? pageTab : "";
+  const tab = branch === undefined && ["builds", "settings", "backups", "access"].includes(pageTab) ? pageTab : "";
   const can = useCan();
   const { data, isPending, error, refetch } = useProject(id);
   const t = useT(words).page;
+  const b = useT(buildWords).builds;
   const [refreshing, setRefreshing] = useState(false);
   useSubCrumb(data?.project.name ?? null);
   if (isPending)
@@ -362,6 +366,9 @@ export function ProjectPage() {
         <Link to={`/projects/${project.id}`} viewTransition className={`tab ${tab === "" ? "active" : ""}`} aria-current={tab === "" ? "page" : undefined}>
           <GitBranch /> {t.branchesTab}
         </Link>
+        <Link to={`/projects/${project.id}/builds`} viewTransition className={`tab ${tab === "builds" ? "active" : ""}`} aria-current={tab === "builds" ? "page" : undefined}>
+          <Layers /> {b.tab}
+        </Link>
         <Link to={`/projects/${project.id}/settings`} viewTransition className={`tab ${tab === "settings" ? "active" : ""}`} aria-current={tab === "settings" ? "page" : undefined}>
           <Hammer /> {t.settingsTab}
         </Link>
@@ -380,6 +387,8 @@ export function ProjectPage() {
         <AccessTab key={project.id} project={project} permitted={mayManageAccess} />
       ) : tab === "backups" && mayManageBackups ? (
         <ProjectBackups key={project.id} project={project} />
+      ) : tab === "builds" ? (
+        <ProjectBuilds key={project.id} project={project} />
       ) : tab === "settings" ? (
         <SettingsTab key={project.id} project={project} />
       ) : (

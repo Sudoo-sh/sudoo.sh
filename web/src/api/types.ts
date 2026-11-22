@@ -297,6 +297,8 @@ export interface Instance {
   restorable_backup?: string | null;
   /** while the state before the last restore is kept (ROLLBACK_HOURS): what Rollback puts back, and until when */
   rollback?: { backups: string[]; taken_at: string; until: string } | null;
+  /** for callers who may open a shell or see the credentials: the names a command needs (never a password) */
+  containers?: { odoo: string; db: string; db_user: string; host: string | null };
 }
 
 export interface ProjectReference {

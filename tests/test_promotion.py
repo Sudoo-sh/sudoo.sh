@@ -305,6 +305,9 @@ def test_the_checklist_items(repository: Path) -> None:
 
     _backup("pm-main", 2)
     assert promotion.backup_item("pm-main")["status"] == "ok"
+    assert promotion.backup_item("pm-main")["text"] == "pm-main (production) was backed up 2 hours ago."
+    assert [promotion._hours_ago(age) for age in (0.2, 1.2, 5.6)] == [
+        "less than an hour ago", "1 hour ago", "6 hours ago"]  # fmt: skip
     _backup("pm-main", 30)  # the newest counts
     assert promotion.backup_item("pm-main")["status"] == "ok"
     live.change({"project_promotion_backup_hours": 1})

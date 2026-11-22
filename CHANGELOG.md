@@ -166,6 +166,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Scheduled staging refresh:** saving the schedule showed "Last refresh just now" although nothing was refreshed.
   The last refresh is now the last run that started a rebuild (on schedule or with **Refresh now**), and saving the
   schedule again keeps it.
+- **Pre-promotion checklist:** a production backup taken minutes ago read "backed up 0 hours ago"; it now reads "less
+  than an hour ago" (and "1 hour ago").
 
 ## [3.1.1] - 2026-11-21
 

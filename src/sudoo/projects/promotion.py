@@ -86,7 +86,15 @@ def backup_item(production: str | None, now: float | None = None) -> dict[str, A
     if hours and age > hours:
         return _item("backup", WARNING, f"The newest backup of {production} is {age:.0f} hours old (more than {hours}). "
                      "Back it up now.", **extra)  # fmt: skip
-    return _item("backup", OK, f"{production} (production) was backed up {max(age, 0):.0f} hours ago.", **extra)
+    return _item("backup", OK, f"{production} (production) was backed up {_hours_ago(age)}.", **extra)
+
+
+def _hours_ago(age: float) -> str:
+    """How long ago, in words: less than an hour ago, 1 hour ago, 5 hours ago."""
+    whole = round(max(age, 0))
+    if age < 1:
+        return "less than an hour ago"
+    return "1 hour ago" if whole == 1 else f"{whole} hours ago"
 
 
 def module_items(result: Mapping[str, Any] | None, problem: str | None) -> list[dict[str, Any]]:

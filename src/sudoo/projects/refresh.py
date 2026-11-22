@@ -7,7 +7,9 @@ Each project keeps its schedule in its document ("staging_refresh"):
     time        "HH:MM" in the panel's TIMEZONE
     weekday     0 (Monday) to 6 (Sunday), for "weekly"
     branches    the staging branches refreshed; empty: every staging branch of the project
-    last_run    when it last ran (set when the schedule is saved, so a time already past today waits for the next one)
+    last_run    when the schedule last looked (set when it is saved, so a time already past today waits for the next one)
+    refreshed_at  when staging was last refreshed (a scheduled run or Refresh now that started a rebuild); shown as the
+                last refresh, which saving the schedule never is
     changed_by, changed_at
 
 When a slot comes (the loop looks every CHECK_SECONDS), every staging instance of the chosen branches is rebuilt the
@@ -74,7 +76,8 @@ def save(project_id: str, values: Mapping[str, Any], user: str, now: float | Non
     stamp = time.time() if now is None else now
 
     def update(project: dict[str, Any]) -> dict[str, Any]:
-        project[KEY] = {**values, "last_run": stamp, "changed_by": user, "changed_at": int(stamp)}
+        kept = {"refreshed_at": project[KEY]["refreshed_at"]} if (project.get(KEY) or {}).get("refreshed_at") else {}
+        project[KEY] = {**values, **kept, "last_run": stamp, "changed_by": user, "changed_at": int(stamp)}
         return project
 
     found = projects.change(project_id, update) or {}
@@ -167,6 +170,13 @@ def run(project: Mapping[str, Any], user: str = "system") -> dict[str, Any]:
         _record(project, branch, mine_started, mine_skipped, user)
         started += mine_started
         skipped += mine_skipped
+    if started:
+
+        def refreshed(found: dict[str, Any]) -> dict[str, Any]:
+            found[KEY] = {**schedule(found), "refreshed_at": time.time()}
+            return found
+
+        projects.change(str(project["id"]), refreshed)
     audit.record(user, None, "staging refreshed from production", detail=(
         f"{project['id']}: started {', '.join(started) or 'none'}"
         + (f"; skipped {', '.join(s['instance'] + ' (' + s['reason'] + ')' for s in skipped)}" if skipped else "")

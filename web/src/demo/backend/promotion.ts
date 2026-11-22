@@ -45,7 +45,7 @@ export function promotionCheck(project: DemoProject, branch: string, merge = fal
       ? age === null || (hours && age > hours)
         ? { key: "backup", status: "warning", instance: production.name, max_hours: hours, backup: newest ? { file: newest.file, created: newest.created } : null,
             text: newest ? `The newest backup of ${production.name} is ${Math.round(age!)} hours old (more than ${hours}). Back it up now.` : `${production.name} (production) has no backup. Back it up before the change.` }
-        : { key: "backup", status: "ok", instance: production.name, max_hours: hours, backup: { file: newest!.file, created: newest!.created }, text: `${production.name} (production) was backed up ${Math.round(age!)} hours ago.` }
+        : { key: "backup", status: "ok", instance: production.name, max_hours: hours, backup: { file: newest!.file, created: newest!.created }, text: `${production.name} (production) was backed up ${age! < 1 ? "less than an hour ago" : Math.round(age!) === 1 ? "1 hour ago" : `${Math.round(age!)} hours ago`}.` }
       : { key: "backup", status: "ok", text: "There is no production instance yet, so there is no production data to protect." },
     {
       key: "modules",
@@ -119,7 +119,8 @@ export function schedule(project: DemoProject): StagingRefresh {
 }
 
 export function saveSchedule(project: DemoProject, values: Pick<StagingRefresh, "frequency" | "time" | "weekday" | "branches">, user: string): StagingRefresh {
-  schedules.set(project.id, { ...values, last_run: iso(Date.now()), next_run: null, changed_by: user });
+  // saving refreshes nothing: the last refresh stays what it was
+  schedules.set(project.id, { ...values, last_run: schedule(project).last_run, next_run: null, changed_by: user });
   return schedule(project);
 }
 

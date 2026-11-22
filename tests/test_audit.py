@@ -60,6 +60,21 @@ def test_entries_name_their_project_and_branch() -> None:
     assert "project" not in fifth
 
 
+def test_the_creation_of_an_instance_names_its_project_and_branch() -> None:
+    """The creation is recorded before the instance's .env exists: its job's plan names the project and branch."""
+    from sudoo.core import jobs
+
+    job = jobs.Job("auditnew", "Create instance", "create", "ada")
+    job.details = {"project": PROJECT, "branch": "main"}
+    jobs.JOBS[job.id] = job
+    try:
+        audit.record("ada", "10.0.0.1", "Create instance", instance="auditnew", detail="Odoo 18.0 community")
+        created = audit.latest(1)[0]
+        assert (created["project"], created["branch"]) == (PROJECT, "main")
+    finally:
+        jobs.JOBS.pop(job.id, None)
+
+
 def test_filters_sorting_and_paging(admin: Client) -> None:
     since = int(time.time()) - 1
     for number in range(12):

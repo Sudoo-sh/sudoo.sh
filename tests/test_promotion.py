@@ -305,6 +305,9 @@ def test_the_checklist_items(repository: Path) -> None:
 
     _backup("pm-main", 2)
     assert promotion.backup_item("pm-main")["status"] == "ok"
+    assert promotion.backup_item("pm-main")["text"] == "pm-main (production) was backed up 2 hours ago."
+    assert [promotion._hours_ago(age) for age in (0.2, 1.2, 5.6)] == [
+        "less than an hour ago", "1 hour ago", "6 hours ago"]  # fmt: skip
     _backup("pm-main", 30)  # the newest counts
     assert promotion.backup_item("pm-main")["status"] == "ok"
     live.change({"project_promotion_backup_hours": 1})
@@ -443,12 +446,16 @@ def test_the_schedule_endpoints(admin: Client, viewer_client: Client, started: l
                          headers=headers)  # fmt: skip
     assert changed.status_code == 200, changed.get_json()
     assert changed.get_json()["data"]["weekday"] == 5 and changed.get_json()["data"]["next_run"]
+    assert changed.get_json()["data"]["last_run"] is None  # saving the schedule refreshes nothing
     assert client.put(url, json={"frequency": "sometimes"}, headers=headers).status_code == 400
     viewer, viewer_headers = viewer_client
     assert viewer.get(url).status_code == 200
     assert viewer.put(url, json={"frequency": "off"}, headers=viewer_headers).status_code == 403
     ran = client.post(f"{url}/run", json={}, headers=headers)
     assert ran.status_code == 202 and ran.get_json()["data"]["started"] == ["pm-qa"]
+    assert client.get(url).get_json()["data"]["last_run"]  # Refresh now did
+    again = client.put(url, json={"frequency": "daily", "time": "02:15"}, headers=headers).get_json()["data"]
+    assert again["last_run"]  # and saving again keeps it
 
 
 # ---------------------------------------------------------------- pull-request previews

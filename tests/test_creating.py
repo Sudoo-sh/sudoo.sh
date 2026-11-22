@@ -222,3 +222,30 @@ def test_failed_download_removes_everything_and_keeps_its_error(monkeypatch: pyt
     assert not store.folder(NAME).exists()
     assert "Could not" not in "".join(job.log)
     assert f"instance.deleted {NAME}" in deleted
+
+
+def test_a_new_instance_gets_its_stage_workers_in_odoo_conf(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The workers of the instance's stage are in odoo.conf before Compose first starts Odoo: the compose file
+    publishes the gevent port and the gateway sends WebSockets there, so threaded mode would leave them unanswered."""
+    from sudoo.instances import odoo, operations
+
+    live.change({"production_odoo_workers": 2})
+    seen: dict[str, str | None] = {}
+
+    class Stop(Exception):
+        pass
+
+    def at_apply(job: jobs.Job, name: str, pull: bool = False) -> None:
+        seen["workers"] = odoo.read_config(name).get("options", "workers", fallback=None)
+        raise Stop
+
+    monkeypatch.setattr(operations, "_download_images", lambda job, version: None)
+    monkeypatch.setattr(operations, "refresh_addons_path", lambda job, name: None)
+    monkeypatch.setattr(operations.integrity, "apply", at_apply)
+    monkeypatch.setattr(operations.events, "publish", lambda topic, key, data=None: None)
+    monkeypatch.setattr(jobs.Job, "run_unchecked", lambda self, cmd, timeout=None, input=None: 0)
+    plan = {**PLAN, "name": NAME, "ports": store.reserve_ports({}), "install_modules": False,
+            "demo": False, "from_backup": None, "stage": "production"}  # fmt: skip
+    with pytest.raises(Stop):
+        operations.create(jobs.Job(NAME, "Create instance", "create", "admin1"), plan)
+    assert seen["workers"] == "2"

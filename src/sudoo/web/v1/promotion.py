@@ -82,7 +82,7 @@ def _schedule_resource(project: dict[str, Any]) -> dict[str, Any]:
         "time": found["time"],
         "weekday": found["weekday"],
         "branches": list(found["branches"]),
-        "last_run": iso(found.get("last_run")) if found["frequency"] != "off" else None,
+        "last_run": iso(found.get("refreshed_at")),  # the last refresh; saving the schedule is none
         "next_run": iso(refresh.next_run(found)),
         "changed_by": found.get("changed_by"),
     }

@@ -163,6 +163,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Audit log of a new instance:** the **Create instance** entry of a project's branch had no project or branch (they
   were read from the instance's files, which do not exist yet), so the CSV and XLSX exports left them empty. They come
   from the creation's plan now.
+- **Scheduled staging refresh:** saving the schedule showed "Last refresh just now" although nothing was refreshed.
+  The last refresh is now the last run that started a rebuild (on schedule or with **Refresh now**), and saving the
+  schedule again keeps it.
 
 ## [3.1.1] - 2026-11-21
 

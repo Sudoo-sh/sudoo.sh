@@ -119,7 +119,8 @@ export function schedule(project: DemoProject): StagingRefresh {
 }
 
 export function saveSchedule(project: DemoProject, values: Pick<StagingRefresh, "frequency" | "time" | "weekday" | "branches">, user: string): StagingRefresh {
-  schedules.set(project.id, { ...values, last_run: iso(Date.now()), next_run: null, changed_by: user });
+  // saving refreshes nothing: the last refresh stays what it was
+  schedules.set(project.id, { ...values, last_run: schedule(project).last_run, next_run: null, changed_by: user });
   return schedule(project);
 }
 

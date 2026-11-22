@@ -160,6 +160,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   so live updates in Odoo did not connect. Its `odoo.conf` now gets the stage's workers and limits when it is created.
 - **Branch resources after a stage change:** a branch's **Resources of this branch** still named its former stage
   after it was moved (drag and drop or **Move to**) until the page was reloaded.
+- **Audit log of a new instance:** the **Create instance** entry of a project's branch had no project or branch (they
+  were read from the instance's files, which do not exist yet), so the CSV and XLSX exports left them empty. They come
+  from the creation's plan now.
 
 ## [3.1.1] - 2026-11-21
 

@@ -37,6 +37,12 @@ def _scope(instance: str | None, detail: str | None) -> tuple[str | None, str | 
 
         if instance:
             project = projects.project_of(instance)
+            if not project:  # an instance being created has no .env yet: its creation's plan names the project
+                from sudoo.core import jobs
+
+                job = jobs.creating(instance)
+                planned = (job.details.get("project") or None) if job is not None else None
+                return planned, (job.details.get("branch") or None) if job is not None and planned else None
             return project, (projects.branch_of(instance) or None) if project else None
         found = _PROJECT_DETAIL.match(detail or "")
         if found and projects.get(found.group(1)) is not None:

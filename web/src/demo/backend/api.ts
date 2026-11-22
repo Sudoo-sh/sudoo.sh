@@ -14,6 +14,7 @@ import * as mail from "./mail";
 import * as caught from "./caught-mail";
 import * as offsite from "./offsite";
 import { branchBuilds, branchHistory, findEntry, recordStageChange } from "./builds";
+import { branchOptions, changeBranchOptions, clean as cleanOption, problem as optionsProblem, statusesAvailable } from "./build-options";
 import { branchList, membersOf, productionInstance, projectResource, projects, stageOf, type DemoProject } from "./projects";
 import { described, levelIn, LEVELS, mayUnlock, needIn, openAccess, permissionsIn, seesProject, setLocks, teamResource, teams, type DemoAccess } from "./access";
 import { acceptLicence, LICENCE, licencePending, licenceStatus } from "./licence";
@@ -1820,6 +1821,7 @@ function projectMeta(project: DemoProject) {
     capacity: { comfortable: c.comfortable, running: c.running, headroom: c.headroom, warning: c.warning, message: c.message, overloaded: c.overloaded },
     production_limit: Number(setting("project_production_branches") ?? 1) || null,
     server_production_limit: Number(setting("max_production_instances") ?? 0) || null,
+    commit_statuses: { available: statusesAvailable(project) },
     permissions: permissionsIn(project.access).filter((p) => (PROJECT_SCOPED as string[]).includes(p)),
   };
 }
@@ -2132,6 +2134,8 @@ route("DELETE", "/instances/:name/upgrade", ({ params }) => {
 });
 
 const OPTION_CHOICES: Partial<Record<keyof ProjectOptions, string[]>> = { staging_on_push: ["rebuild", "keep_data"], branch_deleted: ["keep", "archive", "delete"] };
+/** build options of the project, checked as a branch's are (build_options.clean) */
+const BUILD_OPTIONS = ["development_on_new_commit", "module_install", "modules", "test_suite", "test_tags", "staging_tests", "commit_statuses"];
 
 route("PATCH", "/projects/:id", ({ params, body }) => {
   const project = projectOf(params.id!);
@@ -2146,6 +2150,13 @@ route("PATCH", "/projects/:id", ({ params, body }) => {
   if (typeof body.odoo_version === "string") project.version = body.odoo_version;
   if (body.edition === "community" || body.edition === "enterprise") project.edition = body.edition;
   const changes = (body.options ?? {}) as Record<string, unknown>;
+  for (const key of Object.keys(changes)) if (BUILD_OPTIONS.includes(key)) changes[key] = cleanOption(key, changes[key]);
+  if (Object.keys(changes).some((k) => BUILD_OPTIONS.includes(k))) {
+    const merged = { ...projectResource(project).options } as Record<string, unknown>;
+    for (const [key, value] of Object.entries(changes)) if (value !== null) merged[key] = value;
+    const refused = optionsProblem({ module_install: merged.module_install as "list", modules: String(merged.modules ?? ""), test_suite: merged.test_suite as "custom", test_tags: String(merged.test_tags ?? "") });
+    if (refused) throw new Problem(400, refused);
+  }
   for (const [key, value] of Object.entries(changes)) {
     const option = key as keyof ProjectOptions;
     if (!(option in projectResource(project).options)) throw new Problem(400, `Unknown option ${key}.`);
@@ -2296,8 +2307,30 @@ route("GET", "/projects/:id/branches/:*branch/history", ({ params, query }) => {
   if (!branch) throw new Problem(404, `${project.repository} has no branch ${name}.`);
   const limit = Math.min(200, Math.max(1, Number(query.get("limit") ?? 50) || 50));
   const offset = Math.max(0, Number(query.get("offset") ?? 0) || 0);
-  const entries = branchHistory(project.id, branch.name, branch.instances);
+  const commits = ["1", "true"].includes(query.get("commits") ?? "");
+  const entries = branchHistory(project.id, branch.name, branch.instances).filter((e) => commits || e.type !== "commit");
   return ok(entries.slice(offset, offset + limit), { total: entries.length, limit, offset });
+});
+
+// ---------------------------------------------------------------- build options of a branch (projects/build_options.py)
+
+route("GET", "/projects/:id/branches/:*branch/options", ({ params }) => {
+  const project = projectOf(params.id!);
+  const name = params.branch!;
+  needInProject(project, "instances.view", name);
+  if (!branchList(project).some((b) => b.name === name)) throw new Problem(404, `${project.repository} has no branch ${name}.`);
+  return ok(branchOptions(project, name));
+});
+
+route("PUT", "/projects/:id/branches/:*branch/options", ({ params, body }) => {
+  const project = projectOf(params.id!);
+  const name = params.branch!;
+  needInProject(project, "projects.manage", name);
+  if (!branchList(project).some((b) => b.name === name)) throw new Problem(404, `${project.repository} has no branch ${name}.`);
+  const answer = changeBranchOptions(project, name, body, ME);
+  record(ME, "branch build options changed", { detail: `${project.id} ${name}` });
+  publishProject(project);
+  return ok(answer);
 });
 
 // ---------------------------------------------------------------- teams, access and locks (projects/access.py)

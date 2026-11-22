@@ -38,6 +38,7 @@ import {
   RotateCcw,
   ScrollText,
   Search,
+  SlidersHorizontal,
   Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
@@ -46,6 +47,7 @@ import { useInstance, useInstances } from "@/api/queries";
 import type { Instance, Permission, ProjectBranch, ProjectDetail, ProjectMeta, Stage } from "@/api/types";
 import { BranchCommands } from "@/components/BranchCommands";
 import { BranchHistory } from "@/components/BuildHistory";
+import { BranchSettings } from "@/components/BuildOptions";
 import { BranchCommit, CreateDialog, DeleteInstanceDialog, RebuildDialog, StageDialog, type BranchDialog } from "@/components/BranchDialogs";
 import { JobDrawer } from "@/components/JobDrawer";
 import { LockTag } from "@/components/LockTag";
@@ -61,6 +63,7 @@ import { Input } from "@/components/ui/input";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import buildWords from "@/i18n/builds";
+import optionWords from "@/i18n/build-options";
 import words from "@/i18n/projects";
 import teamWords from "@/i18n/teams";
 import { ago, count, statusLabel } from "@/lib/format";
@@ -377,6 +380,9 @@ function BranchPane({
     />
   );
   const instanceTab = view === "" || view === "history" ? "history" : view === "overview" ? "" : view;
+  // the branch's settings (Odoo.sh's SETTINGS tab): what a new commit does, how a new build is made, its tests
+  const bo = useT(optionWords);
+  const settings = <BranchSettings project={project} branch={branch} editable={can(branch, "projects.manage")} />;
   return (
     <section className="ws-pane" aria-label={branch.name}>
       <div className="ws-pane-head">
@@ -421,6 +427,7 @@ function BranchPane({
             tab={instanceTab}
             embedded
             lead={{ id: "history", label: hb.title, icon: <History />, content: history }}
+            trail={{ id: "branch-settings", label: bo.tab, icon: <SlidersHorizontal />, content: settings }}
             tabLink={(tab) => branchPath(project.id, branch.name, tab === "history" ? "" : tab === "" ? "overview" : tab, chosen === branch.instances[0] ? null : chosen)}
             afterDelete={branchPath(project.id, branch.name)}
           />
@@ -444,6 +451,12 @@ function BranchPane({
         <section className="stack" aria-label={hb.title}>
           <h3 className="section-title row" style={{ gap: 8 }}><History size={16} /> {hb.title}</h3>
           {history}
+        </section>
+      )}
+      {!chosen && (
+        <section className="stack" aria-label={bo.tab}>
+          <h3 className="section-title row" style={{ gap: 8 }}><SlidersHorizontal size={16} /> {bo.tab}</h3>
+          {settings}
         </section>
       )}
     </section>

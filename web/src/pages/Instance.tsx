@@ -55,7 +55,7 @@ import { LockBanner } from "@/components/ProjectAccess";
 import { ResourcesCard } from "@/components/ResourcesCard";
 import { JobDrawer } from "@/components/JobDrawer";
 import { LogsPanel } from "@/components/LogsPanel";
-import { ConnectAsCard } from "@/components/ConnectAs";
+import { ConnectButton } from "@/components/ConnectAs";
 import { BackupCommentDialog, ImportDatabaseButton } from "@/components/ImportDatabase";
 import { Page, useCan } from "@/components/Shell";
 import { StatCard } from "@/components/StatCard";
@@ -131,6 +131,7 @@ export function InstanceView({
   embedded = false,
   afterDelete = "/",
   lead,
+  trail,
 }: {
   name: string;
   tab: string;
@@ -139,6 +140,8 @@ export function InstanceView({
   afterDelete?: string;
   /** a tab of the page around it, first of the tabs (a project branch's History) */
   lead?: { id: string; label: string; icon: React.ReactNode; content: React.ReactNode };
+  /** a tab of the page around it, last of the tabs (a project branch's Branch settings, as on Odoo.sh) */
+  trail?: { id: string; label: string; icon: React.ReactNode; content: React.ReactNode };
 }) {
   const { data: instance, isPending, error } = useInstance(name);
   const can = useCanIn(instance);
@@ -218,9 +221,7 @@ export function InstanceView({
         </div>
         <div className="actions">
           {instance.url && !asleep && (!instance.lock || can("instances.logs")) && (
-            <Button asChild variant="primary"><a href={instance.url} target="_blank" rel="noreferrer">
-              {t.openOdoo} <ArrowUpRight className="flip-rtl" />
-            </a></Button>
+            <ConnectButton instance={instance} connectAs={can("instances.credentials")} />
           )}
           {can("instances.update") &&
             (asleep ? (
@@ -361,10 +362,16 @@ export function InstanceView({
             {t.icon} {all.tabs[t.label]}
           </Link>
         ))}
+        {trail && (
+          <Link to={tabLink(trail.id)} viewTransition className={tab === trail.id ? "active" : ""} aria-current={tab === trail.id ? "page" : undefined}>
+            {trail.icon} {trail.label}
+          </Link>
+        )}
       </nav>
 
       <div className="rise tab-panel" key={tab}>
         {lead && tab === lead.id && lead.content}
+        {trail && tab === trail.id && trail.content}
         {tab === "" && <Overview instance={instance} busy={busy} act={act} />}
         {tab === "activity" && <ActivityTab name={name} onOpen={setJobId} />}
         {tab === "code" && !plain && <CodeTab instance={instance} canAdd={can("instances.update")} canRemove={can("instances.operate")} busy={busy} onAdd={() => setDialog("submodule")} act={act} />}
@@ -923,7 +930,6 @@ function AccessTab({ instance }: { instance: Instance }) {
   const t = useT(words).access;
   return (
     <div className="stack">
-    <ConnectAsCard instance={instance} />
     <div className="card">
       <div className="card-head"><h2>{t.title}</h2><span className="spacer" /><span className="sub">{t.recorded}</span></div>
       <div className="card-body">

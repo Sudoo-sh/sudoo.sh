@@ -50,11 +50,12 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       { id: "stages", keys: ["max_production_instances", "production_auto_update", "staging_delete_after_days"] },
       {
         id: "projects",
-        keys: ["project_production_branches", "project_auto_development", "project_max_auto_development", "project_development_demo_data", "project_staging_on_push", "project_branch_deleted", "project_upgrade_test_on_push", "project_builds_kept"],
+        keys: ["project_production_branches", "project_auto_development", "project_max_auto_development", "project_development_demo_data", "project_staging_on_push", "project_branch_deleted", "project_upgrade_test_on_push", "project_builds_kept",
+          "project_development_on_new_commit", "project_module_install", "project_modules", "project_test_suite", "project_test_tags", "project_staging_tests", "project_test_timeout_minutes", "project_commit_statuses"],
       },
       { id: "howMany", keys: ["max_instances", "max_instances_per_user", "create_cooldown_minutes"] },
       { id: "capacity", keys: ["capacity_reserve_mb", "capacity_reserve_percent", "capacity_instance_memory_mb", "capacity_warning_percent", "max_running_instances"] },
-      { id: "containers", keys: ["odoo_memory_limit", "odoo_cpu_limit", "db_memory_limit", "db_cpu_limit", "container_pids_limit", "container_log_max_size", "container_log_max_files", "drift_action"] },
+      { id: "containers", keys: ["odoo_memory_limit", "odoo_cpu_limit", "db_memory_limit", "db_cpu_limit", "container_pids_limit", "container_log_max_size", "container_log_max_files", "log_download_max_lines", "drift_action"] },
       { id: "gateway", keys: ["gateway_max_upload_mb", "gateway_idle_timeout_seconds", "gateway_websocket_max_message_mb"] },
     ],
   },
@@ -70,7 +71,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
   {
     id: "backups",
     groups: [
-      { id: "backups", keys: ["daily_backups", "staging_daily_backups", "daily_backup_time", "timezone", "rollback_hours", "safe_updates"] },
+      { id: "backups", keys: ["daily_backups", "staging_daily_backups", "daily_backup_time", "timezone", "rollback_hours", "safe_updates", "import_max_gb"] },
       {
         id: "offsiteStorage",
         keys: ["offsite_backups", "offsite_endpoint", "offsite_region", "offsite_bucket", "offsite_prefix", "offsite_addressing", "offsite_access_key_id", "offsite_secret_access_key"],

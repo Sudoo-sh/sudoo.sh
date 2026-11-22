@@ -6,6 +6,7 @@ import type { Instance, Project, ProjectBranch, ProjectOptions, Stage } from "@/
 import { described, levelIn, permissionsIn, PROJECT_PERMISSIONS, seededAccess, setLocks, type DemoAccess } from "./access";
 import { commitsOf, instances, OWNER, PROJECT_NAMES, REPOS, setting, type DemoRepo } from "./state";
 import { resetBuilds } from "./builds";
+import { seedBuildOptions } from "./build-options";
 import { iso, OPENED, DAY } from "./util";
 
 export interface DemoProject {
@@ -48,13 +49,14 @@ export function seedProjects() {
       origin: members.length ? "adopted" : "linked",
       created_at: OPENED - (members.length ? 74 : 4) * DAY,
       created_by: members.length ? "system" : "omar",
-      own: id === "nile-logistics" ? { max_auto_development: 5, branch_deleted: "keep" } : {},
+      own: id === "nile-logistics" ? { max_auto_development: 5, branch_deleted: "keep" } : id === "acme-retail" ? { test_suite: "selection", staging_tests: true } : {},
       stages,
       autoCreated: id === "acme-retail" ? { "pos-refunds": "acme-retail-pos-refunds" } : {},
       access: seededAccess(id),
     });
     setLocks(id, projects.get(id)!.access, () => undefined);
   }
+  seedBuildOptions();
   resetBuilds();
 }
 

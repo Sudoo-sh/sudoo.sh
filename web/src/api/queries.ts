@@ -168,7 +168,7 @@ export const branchHistoryQuery = (id: string, branch: string, limit = 50, offse
     // a branch name may contain "/": each part is encoded on its own
     const path = branch.split("/").map(encodeURIComponent).join("/");
     const answer = await api.page<HistoryEntry[]>(
-      `/projects/${encodeURIComponent(id)}/branches/${path}/history?limit=${limit}&offset=${offset}`,
+      `/projects/${encodeURIComponent(id)}/branches/${path}/history?limit=${limit}&offset=${offset}&commits=1`,
     );
     return { entries: answer.data, total: Number(answer.meta?.total ?? answer.data.length) };
   },

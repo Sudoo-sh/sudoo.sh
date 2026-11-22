@@ -1600,6 +1600,121 @@ tr.invited {
   &.failed { border-color: var(--negative); }
 }
 .bh-more { display: flex; justify-content: center; }
+// a build's tests: "Tests: 132 passed", or how many failed and in which module
+.bh-tests {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--text-13);
+  color: var(--positive);
+  svg { width: 14px; height: 14px; flex: none; }
+  &.warning { color: var(--caution); }
+  &.failed { color: var(--negative); }
+  .bh-tests-more { color: var(--text-2); }
+  code { font-size: var(--text-12); }
+}
+// a commit the branch did not build (Behaviour upon new commits: Do nothing)
+.bh-skip {
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--s2);
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.bh-commit-card { gap: var(--s2); p { margin: 0; } }
+
+// ---------------------------------------------------------------- build options (BuildOptions.tsx)
+
+.bo-field { display: flex; flex-direction: column; gap: var(--s2); }
+.bo-field + .bo-field { padding-top: var(--s4); border-top: 1px solid var(--hairline); }
+.bo-field-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 28px;
+  h4 { margin: 0; font-size: var(--text-15); font-weight: 600; }
+}
+// where a value comes from: quiet, never louder than the value itself
+.bo-origin {
+  font-size: var(--text-12);
+  color: var(--text-3);
+  white-space: nowrap;
+  &::before { content: "·"; margin-inline-end: 6px; }
+  &:first-child::before { display: none; }
+  &[data-origin="branch"], &[data-origin="project"] { color: var(--brand); }
+  &[data-origin="production"], &[data-origin="module_install"], &[data-origin="empty_list"], &[data-origin="empty_tags"] { color: var(--caution); }
+}
+.bo-choices[data-slot="radio-group"] { display: flex; flex-direction: column; gap: var(--s2); }
+.bo-choice {
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-control);
+  transition: border-color 160ms ease-out, background-color 160ms ease-out;
+  &[data-checked] { border-color: var(--brand); background: var(--brand-soft); }
+  &[data-disabled] { opacity: 0.6; }
+  &[data-disabled][data-checked] { opacity: 1; }
+}
+.bo-choice-row, .bo-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  cursor: pointer;
+  > [data-slot="radio-group-item"], > [data-slot="checkbox"] { margin-top: 2px; }
+}
+.bo-choice[data-disabled] .bo-choice-row, .bo-check[data-disabled] { cursor: default; }
+.bo-check { padding: 0; }
+.bo-check[data-disabled] { opacity: 0.6; }
+.bo-choice-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bo-choice-label { font-weight: 500; }
+.bo-choice-hint { font-size: var(--text-13); color: var(--text-2); }
+// the field a choice needs (modules, test tags) comes in under it
+.bo-extra {
+  padding-block: 0 var(--s3);
+  padding-inline: calc(var(--s4) + 16px + var(--s3)) var(--s4);
+  animation: rise 220ms var(--ease) both;
+  @media (prefers-reduced-motion: reduce) { animation: fade 160ms ease-out both; }
+}
+.bo-text [data-slot="input"] { width: 100%; }
+.bo-text[data-invalid] [data-slot="input"] { border-color: var(--negative); }
+.bo-error { margin: var(--s1) 0 0; font-size: var(--text-12); color: var(--negative); }
+.bo-note { margin: 0; font-size: var(--text-13); color: var(--caution); }
+.bo-docs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  font-size: var(--text-13);
+  svg { width: 14px; height: 14px; }
+}
+.bo-defaults { padding-bottom: var(--s2); }
+.bo-group { display: flex; flex-direction: column; gap: var(--s4); transition: opacity 160ms ease-out; &[data-muted] { opacity: 0.75; } }
+.bo-switch-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s4);
+  > .switch-field { margin-top: 2px; }
+}
+.bo-switch-origin { display: flex; align-items: center; gap: var(--s1); margin-top: 2px; .bo-origin::before { display: none; } }
+.bo-saved {
+  font-size: var(--text-12);
+  color: var(--positive);
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+  &[data-shown] { opacity: 1; }
+}
+@media (max-width: 520px) {
+  .bo-choice-row { padding: var(--s3); }
+  .bo-extra { padding-inline: var(--s3); }
+}
 
 // ---------------------------------------------------------------- a project's builds (ProjectBuilds.tsx)
 

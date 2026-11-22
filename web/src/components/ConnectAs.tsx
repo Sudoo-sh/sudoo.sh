@@ -1,4 +1,4 @@
-// Connect as (the instance's Access tab): open Odoo signed in as one of its users, without their password. The
+// Connect as (the instance's header, next to Open Odoo): open Odoo signed in as one of its users, without their password. The
 // split button opens Odoo, or, from its menu, a dialog to choose the user: the panel gives a single-use link valid
 // for a minute (POST /api/v1/instances/<name>/connect, web/v1/connect.py) that the person then opens. Production asks
 // for "production" to be typed first. Every link is recorded in the audit log.
@@ -29,12 +29,19 @@ interface ConnectLink {
 
 const ASLEEP = ["paused", "switched_off", "stopped"];
 
-/** "Open Odoo" with a menu holding "Connect as…". */
-export function ConnectButton({ instance }: { instance: Instance }) {
+/** "Open Odoo" with a menu holding "Connect as…" (the instance's header, as on Odoo.sh); only "Open Odoo" for those
+ *  who may not see the instance's credentials (`connectAs` false). */
+export function ConnectButton({ instance, connectAs = true }: { instance: Instance; connectAs?: boolean }) {
   const t = useT(toolWords).connect;
   const [open, setOpen] = useState(false);
   if (!instance.url) return null;
   const asleep = ASLEEP.includes(instance.status);
+  if (!connectAs)
+    return (
+      <Button asChild variant="primary"><a href={instance.url} target="_blank" rel="noreferrer">
+        {t.open} <ArrowUpRight className="flip-rtl" />
+      </a></Button>
+    );
   return (
     <>
       <span className="split-button">
@@ -51,21 +58,6 @@ export function ConnectButton({ instance }: { instance: Instance }) {
       </span>
       {open && <ConnectDialog instance={instance} onClose={() => setOpen(false)} />}
     </>
-  );
-}
-
-/** The Access tab's card: what Connect as does, and the button. */
-export function ConnectAsCard({ instance }: { instance: Instance }) {
-  const t = useT(toolWords).connect;
-  const asleep = ASLEEP.includes(instance.status);
-  return (
-    <section className="card">
-      <div className="card-head"><h2>{t.title}</h2></div>
-      <div className="card-body stack">
-        <p className="small muted">{t.text}</p>
-        {asleep ? <Callout tone="info">{t.asleep}</Callout> : <div className="row"><ConnectButton instance={instance} /></div>}
-      </div>
-    </section>
   );
 }
 

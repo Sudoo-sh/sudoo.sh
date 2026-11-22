@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Branch settings and build options in the web app**, as on Odoo.sh: a **Branch settings** tab on each branch
+  (Behaviour upon new commits; New build options with **Use the project's defaults**, module installation, test suite
+  with a link to Odoo's test tags, demo data), each value saying whether it comes from the branch, the project or the
+  panel; a **Development branches defaults** card on the project's Settings (with tests on staging and commit
+  statuses, which explains when the GitHub App may not write them); the eight `PROJECT_*` build settings on the
+  Settings page. The branch history shows commits a branch did not build (**Commit received**, Do nothing) and each
+  build's tests ("Tests: 132 passed", or the failing module); the history API gives each build's `tests`.
+- **Connect as** is next to **Open Odoo** at the top of an instance's page, as on Odoo.sh (it was on the Access tab).
+  `LOG_DOWNLOAD_MAX_LINES` and `IMPORT_MAX_GB` are on the Settings page.
 - **Build options and tests**, as on Odoo.sh: each project, and each branch for itself, chooses what a new commit does
   (update in place, a new build from scratch, or nothing but a line in the history), which modules a new development
   database gets (the repository's, all, or a list) and which tests run (off, the repository's modules, or custom
@@ -63,6 +72,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   copy (clone, merge) and its instance's tabs, at `/projects/<project>/branches/<branch>/<tab>`. Dragging a branch onto
   another stage (mouse, long press, or the keyboard) asks for the same confirmation as **Move to**. The **+** of
   Staging and Development shows how to push a new branch. Instance pages at `/i/<name>` are unchanged.
+
+### Fixed
+
+- **Demo data on Odoo 17 and 18:** a new development database with demo data failed there (those versions have no
+  `--with-demo`), and one without demo data still got it. Each version now gets the flag it knows.
+- **Build tests, checked against real Odoo 17, 18 and 19:** a failing test's line keeps its exception, the failing
+  module is also read from Odoo's per-module summary, repeated warnings count once, theme modules are left out of
+  "every module", and the staging test copy first ends other sessions on the source database.
 
 ## [3.1.1] - 2026-11-21
 

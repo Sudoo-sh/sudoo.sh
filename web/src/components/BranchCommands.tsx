@@ -179,7 +179,7 @@ export function BranchCommands({
       body = (
         <>
           <p className="bc-text">{t.submodule}</p>
-          <CommandField example command={`git submodule add -b ${project.odoo.version} https://github.com/OCA/web.git oca/web && git commit -m "Add OCA web" && git push`} />
+          <CommandField example command={`git submodule add -b ${instance?.odoo.version ?? branch.odoo_version ?? project.odoo.version} https://github.com/OCA/web.git oca/web && git commit -m "Add OCA web" && git push`} />
           {instance && can("instances.update") && (
             <div className="bc-actions">
               <Button size="sm" icon={<Plus />} disabled={!!instance.current_job} onClick={() => setAdding(true)}>{t.addSubmodule}</Button>

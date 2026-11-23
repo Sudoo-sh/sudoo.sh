@@ -22,8 +22,12 @@
                                                      with "promote_anyway": true (audit-logged; promotion.py)
     POST   /api/v1/projects/<id>/branches/<branch>/instances
                                                      a new instance of the branch in the branch's stage ({"name"?,
-                                                     "demo"?, "install_modules"?}); staging starts from a neutralised
-                                                     copy of production -> 202, Location: job
+                                                     "demo"?, "install_modules"?, "odoo_version"?}); staging starts
+                                                     from a neutralised copy of production; "odoo_version" (one of
+                                                     GET /versions) becomes the branch's own version, left out: the
+                                                     branch's, else the project's; a staging branch with its own
+                                                     version of another series than production's starts empty
+                                                     -> 202, Location: job
     POST   /api/v1/projects/<id>/branches/<branch>/rebuild
                                                      rebuild the branch's staging instance from a new copy of
                                                      production -> 202, Location: job
@@ -76,7 +80,7 @@ from flask import Blueprint, Response, abort, g, request
 from sudoo import accounts, addons, projects, teams
 from sudoo.config import settings
 from sudoo.core import events, jobs
-from sudoo.instances import capacity, monitor, odoo, stages, store
+from sudoo.instances import backups, capacity, monitor, odoo, stages, store
 from sudoo.limits import quotas
 from sudoo.projects import access, adopt, branches, build_options, builds, commit_status, staging
 from sudoo.repos import github, github_app
@@ -572,7 +576,8 @@ def _refuse_locked_production(project: Mapping[str, Any], production: str | None
 
 @blueprint.post("/projects/<project_id>/branches/<path:branch>/instances")
 def create_instance(project_id: str, branch: str) -> Response:
-    """A new instance of the branch, in the branch's stage, with the project's Odoo version and edition."""
+    """A new instance of the branch, in the branch's stage, with the chosen Odoo version (else the branch's, else the
+    project's) and the project's edition."""
     found = _project(project_id)
     branch = _branch(branch)
     _refuse_unless("instances.create", found, f"create an instance of {project_id} {branch}", branch)
@@ -587,15 +592,27 @@ def create_instance(project_id: str, branch: str) -> Response:
         instances_api.refuse_developer_token(
             f"create a {stage} instance of {project_id} {branch}", "only instances of development branches."
         )
-    version, edition = found["odoo_version"], found["edition"]
+    chosen = check.text(data, "odoo_version", max_length=10)
+    if chosen:
+        chosen = check.one_of(chosen, odoo.versions(), "Choose an Odoo version from the list.")
+    version, edition = chosen or projects.branch_version(found, branch), found["edition"]
     if edition == "enterprise" and not addons.available(version):
         abort(409, f"Odoo {version} Enterprise is not available on this server.")
     from_production = None
-    if stage == stages.STAGING:
+    production = staging.production_instance(found) if stage == stages.STAGING else None
+    # a staging branch given its own Odoo version, of another series than production's, starts empty: production's
+    # data cannot go into another version (staging.copy_problem), and its later rebuilds are refused the same way
+    own_version = bool(chosen or ((found.get("branches") or {}).get(branch) or {}).get("odoo_version"))
+    other_series = (
+        own_version
+        and production is not None
+        and (backups.series(store.read_env(production)["ODOO_VERSION"]) != backups.series(version))
+    )
+    if stage == stages.STAGING and not other_series:
         _refuse_unless(
             "instances.restore", found, f"create a staging instance of {project_id} from production data", branch
         )
-        from_production = staging.production_instance(found)
+        from_production = production
         _refuse_locked_production(found, from_production)
         problem = staging.copy_problem(from_production, version, edition)
         if problem:
@@ -610,7 +627,7 @@ def create_instance(project_id: str, branch: str) -> Response:
         else False
     )
     with quotas.LOCK:
-        return instances_api._start_creation(
+        response = instances_api._start_creation(
             {**switches, "demo": demo, "install_modules": check.flag(data, "install_modules", True)},
             f"https://github.com/{found['repository']}",
             branch,
@@ -622,6 +639,10 @@ def create_instance(project_id: str, branch: str) -> Response:
             project=project_id,
             from_production=from_production,
         )
+    if chosen:  # the branch's own version from now on (projects.branch_version); the project's: it follows it again
+        projects.record_branch(project_id, branch, odoo_version=None if chosen == found["odoo_version"] else chosen)
+        events.publish("project", project_id)
+    return response
 
 
 @blueprint.post("/projects/<project_id>/branches/<path:branch>/rebuild")

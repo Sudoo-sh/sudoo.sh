@@ -45,7 +45,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { useInstance, useInstances } from "@/api/queries";
+import { useBranchHistory, useInstance, useInstances } from "@/api/queries";
 import type { Instance, Permission, ProjectBranch, ProjectDetail, ProjectMeta, Stage } from "@/api/types";
 import { BranchCommands } from "@/components/BranchCommands";
 import { BranchHistory } from "@/components/BuildHistory";
@@ -399,7 +399,29 @@ function BranchPane({
   const instanceTab = view === "" || view === "history" ? "history" : view === "overview" ? "" : view;
   // the branch's settings (Odoo.sh's SETTINGS tab): what a new commit does, how a new build is made, its tests
   const bo = useT(optionWords);
-  const settings = <div className="stack"><BranchSettings project={project} branch={branch} editable={can(branch, "projects.manage")} /><BranchResources project={project} branch={branch} /></div>;
+  // shown only with an instance: they describe how the running branch builds; its Odoo version is the instance's, and
+  // moving it to another one is an upgrade (the instance's Upgrade tab)
+  const runningVersion = (detail ?? instance)?.odoo.version;
+  const settings = (
+    <div className="stack">
+      {runningVersion && (
+        <p className="small row-wrap" style={{ gap: 6 }}>
+          <span className="muted">{w.odooVersion}</span>
+          <bdi dir="ltr">{w.instanceVersion(runningVersion)}</bdi>
+          {can(branch, "instances.upgrade") && chosen && (
+            <span className="faint">
+              {w.upgradeHint}{" "}
+              <Link to={branchPath(project.id, branch.name, "upgrade", chosen === branch.instances[0] ? null : chosen)} viewTransition>{w.upgradeLink}</Link>
+            </span>
+          )}
+        </p>
+      )}
+      <BranchSettings project={project} branch={branch} editable={can(branch, "projects.manage")} />
+      <BranchResources project={project} branch={branch} />
+    </div>
+  );
+  // without an instance the branch's History shows only when it has entries (a branch that ran before)
+  const { data: pastHistory } = useBranchHistory(project.id, branch.name, 1, 0, !chosen);
   return (
     <section className="ws-pane" aria-label={branch.name}>
       <div className="ws-pane-head">
@@ -461,19 +483,14 @@ function BranchPane({
           {/* Create instance is in the head, next to the branch's menu */}
           <Empty icon={<GitBranch />} title={w.noInstanceTitle}>
             {branch.on_github === false ? w.noInstanceDeleted : w.noInstanceText}
+            {branch.on_github !== false && <span className="xsmall faint" style={{ display: "block", marginTop: 6 }}>{w.settingsLater}</span>}
           </Empty>
         </div>
       )}
-      {!chosen && (
+      {!chosen && !!pastHistory?.total && (
         <section className="stack" aria-label={hb.title}>
           <h3 className="section-title row" style={{ gap: 8 }}><History size={16} /> {hb.title}</h3>
           {history}
-        </section>
-      )}
-      {!chosen && (
-        <section className="stack" aria-label={bo.tab}>
-          <h3 className="section-title row" style={{ gap: 8 }}><SlidersHorizontal size={16} /> {bo.tab}</h3>
-          {settings}
         </section>
       )}
     </section>
@@ -676,7 +693,7 @@ export function ProjectWorkspace({
                             key={branch.name}
                             branch={branch}
                             members={membersOf(branch)}
-                            version={membersOf(branch)[0]?.odoo.version ?? project.odoo.version}
+                            version={membersOf(branch)[0]?.odoo.version ?? branch.odoo_version ?? project.odoo.version}
                             to={branchPath(project.id, branch.name)}
                             selected={branch.name === current?.name}
                             movable={branchCan(branch, "projects.manage")}
@@ -695,7 +712,7 @@ export function ProjectWorkspace({
                 <DragOverlay dropAnimation={dropAnimation}>
                   {dragging ? (
                     <div className="ws-row ws-overlay">
-                      <RowBody branch={dragging} members={membersOf(dragging)} version={membersOf(dragging)[0]?.odoo.version ?? project.odoo.version} />
+                      <RowBody branch={dragging} members={membersOf(dragging)} version={membersOf(dragging)[0]?.odoo.version ?? dragging.odoo_version ?? project.odoo.version} />
                     </div>
                   ) : null}
                 </DragOverlay>

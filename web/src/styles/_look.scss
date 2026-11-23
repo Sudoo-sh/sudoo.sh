@@ -543,6 +543,33 @@
 // icon on the right, the side its label is on
 .input-group > [data-slot="input"] { padding-inline-start: 36px; }
 [dir="rtl"] .input-group > [data-slot="input"]:is([dir="ltr"], [type="email"], [type="password"], [inputmode="email"]) { padding-left: var(--s3); padding-right: 36px; }
+// a field with a clear (x) button at its inline end (Input clearable): the left in Arabic, also for a left-to-right
+// value, so the room for it follows the page's direction, not the field's
+.input-clearable { position: relative; display: block; width: 100%; min-width: 0; }
+.input-clearable[data-filled] > [data-slot="input"] { padding-right: 34px; }
+[dir="rtl"] .input-clearable[data-filled] > [data-slot="input"] { padding-right: var(--s3); padding-left: 34px; }
+.input-clear {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 5px;
+  margin-block: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color var(--quick) var(--ease), background-color var(--quick) var(--ease), transform var(--quick) var(--ease);
+  svg { width: 14px; height: 14px; }
+  &:hover { color: var(--text); background: var(--raised); }
+  &:active { transform: scale(0.97); }
+  &:focus-visible { outline: none; color: var(--text); box-shadow: 0 0 0 3px var(--brand-ring); }
+}
 [data-slot="textarea"].mail-body { min-height: 260px; padding-block: var(--s2); font-size: var(--text-13); line-height: 1.55; }
 .plan-list[data-slot="radio-group"] { display: flex; flex-direction: column; gap: var(--s2); }
 .licence-check > [data-slot="checkbox"] { margin-top: 3px; }

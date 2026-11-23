@@ -22,6 +22,8 @@ export interface DemoProject {
   own: Partial<ProjectOptions>;
   stages: Record<string, Stage>;
   autoCreated: Record<string, string>;
+  /** branches' own Odoo versions (projects.branch_version): missing, the project's */
+  versions?: Record<string, string>;
   access: DemoAccess;
 }
 
@@ -117,6 +119,7 @@ export function branchList(project: DemoProject, everything = false): ProjectBra
         commit: commit ? { sha: commit.sha, full_sha: commit.sha, subject: commit.subject, when: commit.when, author: commit.author } : null,
         instances: own.map((i) => i.name),
         auto_created: project.autoCreated[name] ?? null,
+        odoo_version: project.versions?.[name] ?? null,
         lock: project.access.locks[name] ? { ...project.access.locks[name]!, allow: described(project.access.locks[name]!.allow) } : null,
         restricted: Boolean(project.access.branches[name]?.restricted),
         permissions: permissionsIn(project.access, name).filter((p) => PROJECT_PERMISSIONS.includes(p)),

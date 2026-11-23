@@ -161,8 +161,9 @@ failed update, changes made by hand, or a branch deleted on GitHub. Click a card
    Creating needs the app's **Administration: write** permission; when it is missing, the page says what to do on
    GitHub (an owner of the organisation accepts the change), then **Check again**. A personal account cannot get
    repositories from an app: create an empty one on GitHub and link it.
-2. **Odoo.** The project's name (empty: the repository's name), and the Odoo version and edition its new instances
-   get.
+2. **Odoo.** The project's name (filled in with the repository's name; change it if you like, or clear it with the
+   **x** to keep the repository's name), and the Odoo version and edition its new instances get. A branch can choose
+   another Odoo version when you create its instance.
 3. **Create project.** A linked repository's branches are listed at once; a new repository has none until you push
    the first branch.
 
@@ -170,7 +171,8 @@ failed update, changes made by hand, or a branch deleted on GitHub. Click a card
 
 **Branches** is the project's workspace. On the left, every branch of the repository (read from GitHub at most every
 30 seconds; the refresh button next to **Filter branches** reads them now), grouped under **Production**, **Staging**
-and **Development**. Each row shows the branch's name, its Odoo version and a dot for its instance: green online, red
+and **Development**. Each row shows the branch's name, its Odoo version (its instance's, else the branch's own, else
+the project's) and a dot for its instance: green online, red
 failing, amber working, a grey ring paused or switched off, a dashed ring no instance. **Filter branches** narrows the
 list by name. On a phone the list folds into a button at the top that names the chosen branch.
 
@@ -178,7 +180,8 @@ Choose a branch and it opens on the right, at `/projects/<project>/branches/<bra
 copies it), its stage and tags (**default** for the repository's default branch, **deleted on GitHub** when it is
 gone), the branch's commands, and then its **History** followed by its instance's tabs (Overview, Activity, Code,
 Logs, Backups and the others, as on the instance's own page). A branch with several instances has a list to choose the
-instance; a branch without one shows its latest commit, **Create instance** and its history. The page opens on the
+instance; a branch without one shows its latest commit, **Create instance**, and its history when it has one. Its
+settings appear once it has an instance: they describe how the running branch builds. The page opens on the
 production branch, else the first branch.
 
 **Commands.** At the top right of the branch, one tab per task and the command for this branch under it, with a
@@ -218,7 +221,7 @@ The menu (**…**) next to the branch's name has its actions:
 
 | Action | What it does | Who |
 | :--- | :--- | :--- |
-| **Create instance** | A new instance of the branch, in the branch's stage, with the project's Odoo version and edition. Development: a fresh database, with Odoo's demo data unless you switch it off. Staging: a neutralised copy of the project's production instance (below). Production: a fresh database without demo data. | instances.create (staging also instances.restore) |
+| **Create instance** | A new instance of the branch, in the branch's stage, with the branch's Odoo version and the project's edition. **Odoo version** starts on the branch's own version, else the project's; choose another and the branch keeps it, so its later instances (made by hand, for new commits or for pull requests) get it too. **Name** is filled in with the name the panel would give (repository and branch); type another, or clear it with the **x**. Development: a fresh database, with Odoo's demo data unless you switch it off. Staging: a neutralised copy of the project's production instance (below); when you choose an Odoo version of another series than production's, production's data cannot go into it, a warning says so and the staging instance starts with an empty database. Production: a fresh database without demo data. | instances.create (staging also instances.restore) |
 | **Logs**, **Backups** | Opens the instance's Odoo log, or its backups (with how many there are). | everyone (Logs: instances.logs) |
 | **Move to** a stage | Changes the branch's stage and moves its instances with it, like dragging it. Making a branch production asks you to confirm what changes: its instances never pause, never expire, are backed up every day and get new code only through a backup and an automatic rollback. A project has one production branch unless the administrator allows more. Leaving production asks for a confirmation too. | maintainers and up |
 | **Rebuild from production** | Staging only: replaces its database and files with a new neutralised copy of production, then takes the branch's latest code. Everything done in staging since its last rebuild is lost. | instances.restore |
@@ -281,7 +284,10 @@ e-mail) may also do so in production, and otherwise just brings the new code.
 
 **Build options and tests**, as on Odoo.sh. The project's **Settings** give every branch its defaults
 (**Development branches defaults**), and each branch can change them for itself on its **Branch settings** tab, the
-last of the branch's tabs (maintainers and up). Clear **Use the project's defaults** to give a branch new build
+last of the branch's tabs (maintainers and up). The tab first shows the Odoo version the branch's instance runs;
+moving a running instance to another version is an upgrade, on the instance's **Upgrade** tab
+([Upgrading to a newer Odoo version](#upgrading-to-a-newer-odoo-version)). A branch without an instance has no
+settings to show. Clear **Use the project's defaults** to give a branch new build
 options of its own; next to each value a quiet label says where it comes from (**This branch**, **Project default**
 or **Panel setting**), and the reset button goes back to the default. Production has no options: it always takes new
 commits through the safe update.
@@ -784,8 +790,9 @@ Click **New instance** in the sidebar (roles that may create instances). Under *
    what is wrong.
 3. **Branch**: pick the branch. The instance only ever takes code from this branch. When the branch is named like a
    version (`19.0`), the Odoo version follows it.
-4. **Name**: leave it empty to use repository and branch. The hint shows the final name and the database name, for
-   example "Will be **sales-main** · database `sales_main`".
+4. **Name**: filled in with the name the panel gives from the repository and the branch (it follows them until you
+   type in the field). Type another, or clear it with the **x** to let the panel name it. Once you type, the hint
+   shows the final name and the database name, for example "Will be **sales-main** · database `sales_main`".
 5. Below the name, the **access report** shows one line for the repository and one for every submodule, each with
    a mark: green when the server can read it, red with the reason when it cannot. The reason says what applies, with
    a button to fix it: the GitHub App belongs to another account, is not installed on the repository's owner, or
@@ -963,7 +970,7 @@ Adding a submodule:
 
 1. Click **Add submodule**.
 2. **Repository**, for example `https://github.com/OCA/web`.
-3. **Folder** (optional, for example `oca/web`; empty: the repository's name) and **Branch**. For OCA repositories
+3. **Folder** (filled in with the repository's name; type another, for example `oca/web`) and **Branch**. For OCA repositories
    use the branch that matches the Odoo version, for example `19.0`.
 4. Confirm. The panel first checks that it can read the repository.
 

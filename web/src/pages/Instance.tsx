@@ -73,6 +73,7 @@ import toolWords from "@/i18n/tools";
 import { jobTitle } from "@/i18n/jobs";
 import { ago, bytes, count, dateTime, duration, elapsed, fullDateTime, ms, number, percent } from "@/lib/format";
 import { commitPage } from "@/lib/git";
+import { repositoryShortName } from "@/lib/naming";
 import { CreatingInstance, MissingInstance } from "./InstanceCreating";
 import { CapacityNote, RepositoryPicker, useDebounced } from "./NewInstance";
 
@@ -1045,16 +1046,21 @@ function ConnectDialog({ onClose, onRun }: { onClose: () => void; onRun: (body: 
 export function SubmoduleDialog({ version, onClose, onRun }: { version: string; onClose: () => void; onRun: (body: Record<string, unknown>) => void }) {
   const [url, setUrl] = useState("");
   const [path, setPath] = useState("");
+  // the folder shows the repository's own name (the server's choice when none is given) until typed in
+  const [pathEdited, setPathEdited] = useState(false);
+  const shownPath = pathEdited ? path : repositoryShortName(url);
   const [branch, setBranch] = useState(version);
   const t = useT(words).submodule;
   const c = useT(common).common;
   return (
     <Modal title={t.title} description={t.text} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" disabled={!url} onClick={() => { onRun({ url, path, branch }); onClose(); }}>{t.add}</Button></>}>
+      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" disabled={!url} onClick={() => { onRun({ url, path: pathEdited ? path.trim() : "", branch }); onClose(); }}>{t.add}</Button></>}>
       <div className="stack">
         <Field label={t.repository}><Input dir="ltr" autoFocus placeholder="https://github.com/OCA/web" value={url} onChange={(e) => setUrl(e.target.value)} /></Field>
         <div className="grid-2">
-          <Field label={t.folder} hint={t.folderHint}><Input dir="ltr" placeholder="oca/web" value={path} onChange={(e) => setPath(e.target.value)} /></Field>
+          <Field label={t.folder} hint={t.folderHint}>
+            <Input dir="ltr" clearable placeholder="oca/web" value={shownPath} onChange={(e) => { setPathEdited(true); setPath(e.target.value); }} />
+          </Field>
           <Field label={t.branch}><Input dir="ltr" value={branch} onChange={(e) => setBranch(e.target.value)} /></Field>
         </div>
       </div>

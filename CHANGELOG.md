@@ -6,6 +6,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Each branch can have its own Odoo version**, as on Odoo.sh. The **Create instance** dialog of a project's
+  branch has an **Odoo version** list (the versions the panel offers), starting on the branch's own version, else
+  the project's; another choice is kept on the branch, and its later instances (made by hand, for new branches, for
+  pull requests) get it too. A staging branch given a version of another series than production's starts with an
+  empty database, and the dialog warns about it. The branch's **Branch settings** tab shows the Odoo version its
+  instance runs, with a link to the **Upgrade** tab. API: `POST .../branches/<branch>/instances` takes
+  `"odoo_version"`; a project's `branches_list` gives each branch's `odoo_version`.
+- Text fields that suggest a name (an instance's name on **New instance** and in **Create instance**, a new
+  project's name, a submodule's folder) are filled in with the name the server would give, and have a small **x**
+  that clears them.
+
+### Changed
+
+- A branch without an instance no longer shows its settings (build options, tests, resources), only its latest
+  commit, **Create instance** and its history when it has one; a quiet line says the settings appear once it has an
+  instance.
+
 ## [3.2.0] - 2026-11-22
 
 ### Added

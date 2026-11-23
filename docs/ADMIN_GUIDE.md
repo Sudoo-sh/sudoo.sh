@@ -2078,9 +2078,15 @@ instance's stage: making a branch production needs a confirmation and is refused
 production branches in the project and beyond `MAX_PRODUCTION_INSTANCES` production instances on the server; leaving production needs a confirmation too. Changing one instance's stage on its
 own page records that stage for its branch.
 
+Each branch can have its own Odoo version, as on Odoo.sh: the version chosen in **Create instance** is kept on the
+branch (`branches[<branch>].odoo_version` in the project; none: the project's version) and every new instance of the
+branch gets it, also those created for new branches, pull requests and staging. The choice is checked against the
+versions the panel offers (`ODOO_VERSIONS`). A running instance keeps its version until it is upgraded.
+
 ### Staging from production
 
-A staging instance never starts from an empty database: creating it, and rebuilding it, start from a new backup of
+A staging instance starts from production's data (unless its branch was given an Odoo version of another series: then it
+starts with an empty database, and rebuilds are refused): creating it, and rebuilding it, start from a new backup of
 the project's production instance (kind `staging-copy`; each production instance keeps only its latest one, and
 the production instance keeps serving while it is taken; no update or restore runs on it meanwhile). The copy is then
 neutralised:

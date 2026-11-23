@@ -334,7 +334,7 @@ const en = {
     add: "Add",
     repository: "Repository",
     folder: "Folder",
-    folderHint: "Empty: the repository's name",
+    folderHint: "Suggested from the repository's name. You can change it.",
     branch: "Branch",
   },
   remove: {
@@ -728,7 +728,7 @@ const ar: typeof en = {
     add: "أضف",
     repository: "المستودع",
     folder: "المجلد",
-    folderHint: "فارغ: اسم المستودع",
+    folderHint: "مقترح من اسم المستودع. يمكنك تغييره.",
     branch: "الفرع",
   },
   remove: {

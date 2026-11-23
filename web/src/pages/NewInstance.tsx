@@ -101,6 +101,8 @@ export function NewInstancePage() {
   const [repo, setRepo] = useState("");
   const [branch, setBranch] = useState("");
   const [name, setName] = useState("");
+  // the name field shows the suggested name (GET /instance-plan without a name) until someone types in it
+  const [nameEdited, setNameEdited] = useState(false);
   const [version, setVersion] = useState("");
   const [edition, setEdition] = useState<"community" | "enterprise">("community");
   const [installModules, setInstallModules] = useState(true);
@@ -171,7 +173,18 @@ export function NewInstancePage() {
     };
   }, [branches, branch, debouncedRepo]);
 
-  const { data: plan } = usePlan(plain ? "" : debouncedRepo, plain ? "" : branch, useDebounced(name.trim()), plain ? version : "", plain ? edition : "");
+  const typedName = useDebounced(nameEdited ? name.trim() : "");
+  const { data: plan } = usePlan(plain ? "" : debouncedRepo, plain ? "" : branch, typedName, plain ? version : "", plain ? edition : "");
+  const { data: suggestion } = usePlan(plain ? "" : debouncedRepo, plain ? "" : branch, "", plain ? version : "", plain ? edition : "");
+  const suggested = plain || (debouncedRepo && branch) ? (suggestion?.name ?? "") : "";
+  const shownName = nameEdited ? name : suggested;
+  // the suggestion shown: where it comes from; a name typed (or the field emptied): what the instance will be called
+  const nameHint = (suggestedText: string) =>
+    nameEdited && plan ? <>{t.willBe(<b key="n" dir="ltr">{plan.name}</b>, <code key="d">{plan.database}</code>)}</> : suggestedText;
+  const typeName = (value: string) => {
+    setNameEdited(true);
+    setName(value);
+  };
   // a stage brings its own defaults (production: never paused, kept, new code on demand); each can still be changed
   const chooseStage = (next: Stage) => {
     setStage(next);
@@ -201,7 +214,8 @@ export function NewInstancePage() {
         version,
         edition,
         // plain Odoo without a name: the suggested one shown (odoo-<version>-<edition>-<random>)
-        name: name.trim() || (plain ? (plan?.name ?? "") : ""),
+        // a repository's instance left with the suggested name: the server names it the same way
+        name: (nameEdited ? name.trim() : "") || (plain ? (plan?.name ?? "") : ""),
         install_modules: installModules && !plain,
         demo: demo && !useBackup,
         stage,
@@ -269,8 +283,8 @@ export function NewInstancePage() {
                 </button>
               </div>
               {plain ? (
-                <Field className="full" label={t.name} hint={plan ? <>{t.willBe(<b key="n" dir="ltr">{plan.name}</b>, <code key="d">{plan.database}</code>)}</> : t.emptyPlain}>
-                  <Input dir="ltr" placeholder={plan?.name ?? "sales-demo"} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
+                <Field className="full" label={t.name} hint={nameHint(t.suggestedPlain)}>
+                  <Input dir="ltr" clearable placeholder="sales-demo" value={shownName} onChange={(e) => typeName(e.target.value)} maxLength={40} />
                 </Field>
               ) : (
               <>
@@ -300,8 +314,8 @@ export function NewInstancePage() {
                   </div>
                 )}
               </Field>
-              <Field label={t.name} hint={plan ? <>{t.willBe(<b key="n" dir="ltr">{plan.name}</b>, <code key="d">{plan.database}</code>)}</> : t.emptyRepository}>
-                <Input dir="ltr" placeholder={plan?.name ?? "sales-demo"} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
+              <Field label={t.name} hint={nameHint(t.suggestedRepository)}>
+                <Input dir="ltr" clearable placeholder="sales-demo" value={shownName} onChange={(e) => typeName(e.target.value)} maxLength={40} />
               </Field>
               {access && (
                 <div className="full stack-sm">

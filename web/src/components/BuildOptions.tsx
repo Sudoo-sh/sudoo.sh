@@ -395,7 +395,7 @@ export function BranchSettings({ project, branch, editable }: { project: Project
     stage: data.stage,
     editable: editable,
     errors,
-    version: project.odoo.version,
+    version: branch.odoo_version ?? project.odoo.version,
     save,
     pending,
     setPending,

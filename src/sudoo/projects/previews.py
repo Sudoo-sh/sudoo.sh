@@ -220,7 +220,7 @@ def _create(project: Mapping[str, Any], facts: Mapping[str, Any]) -> str:
     plan = planning.build(
         repo=f"https://github.com/{facts['repository']}",
         branch=facts["branch"],
-        version=project["odoo_version"],
+        version=projects.branch_version(project, facts["branch"]),
         edition=project["edition"],
         stage=stage,
         user="system",

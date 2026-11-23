@@ -19,6 +19,7 @@ from collections.abc import Mapping
 from typing import Any
 from urllib.parse import quote
 
+from sudoo import projects
 from sudoo.instances import backups
 from sudoo.projects import branches
 from sudoo.repos import github_app, mirror
@@ -137,7 +138,7 @@ def compare(project: Mapping[str, Any], base: str, head: str, refresh: bool = Fa
         cached = _cache.get(key)
     if cached and not refresh and time.time() - cached[0] < CACHE_SECONDS:
         return dict(cached[1])
-    series = backups.series(str(project.get("odoo_version") or "")) or ""
+    series = backups.series(projects.branch_version(project, head)) or ""
     try:
         path = mirror.refresh(f"https://github.com/{project['repository']}", force=refresh)
         ahead, behind = mirror.counts(path, base_sha, head_sha)

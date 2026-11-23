@@ -164,7 +164,8 @@ def _matches(entry: dict[str, Any], filters: dict[str, Any]) -> bool:
 # --------------------------------------------------------------------------- export
 
 
-def _row(entry: dict[str, Any]) -> list[str]:
+def row(entry: dict[str, Any]) -> list[str]:
+    """An entry as a row of an export (COLUMNS)."""
     when = datetime.fromtimestamp(entry["ts"], UTC).strftime("%Y-%m-%d %H:%M:%S")
     return [
         when,
@@ -191,7 +192,7 @@ def export_rows(filters: dict[str, Any], sort: str, descending: bool, max_rows: 
     page = 5000
     while len(rows) < max_rows:
         batch, total = search(filters, sort, descending, min(page, max_rows - len(rows)), len(rows))
-        rows += [_row(e) for e in batch]
+        rows += [row(e) for e in batch]
         if len(batch) < page:
             break
     return rows, total

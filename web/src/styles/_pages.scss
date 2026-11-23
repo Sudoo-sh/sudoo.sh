@@ -1206,11 +1206,9 @@ tr.invited {
   gap: var(--s2);
   min-height: 32px;
   padding-inline: var(--s2) 0;
-  font-size: var(--text-12);
+  font-size: var(--text-13);
   font-weight: 600;
-  color: var(--text-2);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--text);
   > svg { width: 14px; height: 14px; flex: none; color: var(--text-3); }
   .ws-count { font-weight: 500; color: var(--text-3); font-variant-numeric: tabular-nums; }
   .spacer { flex: 1; }
@@ -1555,6 +1553,7 @@ tr.invited {
   .bh-hollow { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--idle); }
 }
 .bh-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--s2);
@@ -1589,9 +1588,13 @@ tr.invited {
 .bh-side { display: flex; align-items: center; gap: var(--s3); margin-inline-start: auto; flex-wrap: wrap; justify-content: flex-end; }
 .bh-commit { display: flex; align-items: baseline; gap: var(--s2); min-width: 0; flex-wrap: wrap; }
 .bh-subject { font-size: var(--text-14); color: var(--text); min-width: 0; overflow-wrap: anywhere; }
-.bh-sha {
+// a commit's short hash (components/CommitHash.tsx): a press copies the whole hash, the arrow opens it on GitHub
+.commit-hash {
+  position: relative;
+  z-index: 1; // above a card's link
   display: inline-flex;
   align-items: center;
+  flex: none;
   gap: 2px;
   button, a {
     @include press;
@@ -1606,11 +1609,50 @@ tr.invited {
     color: var(--text-2);
     font: inherit;
     cursor: pointer;
+    text-decoration: none;
     @include hover { color: var(--text); }
     &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 1px; }
   }
-  code { font-family: var(--mono); font-size: var(--text-12); }
-  svg { width: 12px; height: 12px; }
+  code { font-family: var(--mono); font-size: var(--text-12); font-variant-numeric: tabular-nums; }
+  svg { width: 12px; height: 12px; flex: none; }
+  .ch-icon { width: 14px; height: 14px; color: var(--text-3); }
+}
+// a build's commit subject as its card's link (BuildHistory.tsx CommitSubject): the link covers the card, so pressing
+// anywhere on it opens the commit on GitHub; pointing at the card underlines the subject and shows the external-link
+// mark; what acts or is read inside the card (buttons, the reason it failed, Odoo's messages) sits above the link
+.commit-link {
+  outline: none;
+  color: inherit !important;
+  text-decoration: none !important;
+  &::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+  .commit-link-icon {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-inline-start: 4px;
+    vertical-align: -1px;
+    color: var(--text-3);
+    opacity: 0;
+    transition: opacity var(--quick) var(--ease);
+  }
+}
+:is(.bh-card, .pb-tile)[data-linked] {
+  cursor: pointer;
+  @include hover {
+    border-color: var(--hairline-strong);
+    .commit-link > bdi { text-decoration: underline; text-decoration-color: var(--text-3); text-underline-offset: 3px; }
+    .commit-link-icon { opacity: 1; }
+  }
+  &:has(.commit-link:focus-visible) { outline: 2px solid var(--brand-ring); outline-offset: 2px; .commit-link-icon { opacity: 1; } }
+}
+.bh-card[data-linked] {
+  .bh-side, .bh-foot, .bh-messages, .bh-tests, .bh-result, .why-failed, .why-details, .why-fix, blockquote, p, ul, pre { position: relative; z-index: 1; }
+}
+@media (hover: none) {
+  .commit-link .commit-link-icon { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .commit-link .commit-link-icon { transition: none; }
 }
 .bh-status {
   --c: var(--text-3);
@@ -1632,10 +1674,8 @@ tr.invited {
     border-radius: 999px;
     background: var(--raised);
     border: 1px solid var(--hairline);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    font-size: var(--text-12);
+    font-weight: 500;
   }
 }
 .bh-spin { animation: spin 1s linear infinite; }
@@ -1894,6 +1934,15 @@ tr.invited {
 }
 .pb-subject { display: block; font-size: var(--text-13); font-weight: 600; }
 .pb-author { font-size: var(--text-12); color: var(--text-2); }
+.pb-who { display: flex; align-items: center; gap: var(--s2); min-width: 0; .pb-author { flex: 1; min-width: 0; } }
+// in a build card the subject is cut short, and its external-link mark stays visible after it
+.pb-tile .pb-subject.commit-link {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  > bdi { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .commit-link-icon { flex: none; }
+}
 .pb-facts {
   display: flex;
   gap: var(--s4);
@@ -1961,6 +2010,8 @@ tr.invited {
   font-variant-numeric: tabular-nums;
 }
 .pb-why {
+  position: relative;
+  z-index: 1; // above the card's link: it opens the branch's history
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;

@@ -72,6 +72,9 @@ def start() -> None:
 
     previews.listen()
     threading.Thread(target=refresh.run_forever, daemon=True, name="staging-refresh").start()
+    from sudoo.projects import clients
+
+    threading.Thread(target=clients.run_forever, daemon=True, name="client-portal").start()
 
     from sudoo import notifications
     from sudoo.status import checks as status_checks
@@ -171,7 +174,7 @@ def _adopt_instances() -> None:
 
 _DOMAIN_SETTINGS = {
     "custom_domains", "domain_http_probe", "acme_directory", "domain_dns_target", "panel_domain", "public_host",
-    "managed_subdomains", "panel_managed_name",
+    "managed_subdomains", "panel_managed_name", "portal_domain",
 }  # fmt: skip
 _PANEL_NAME_SETTINGS = {"panel_domain", "public_host", "managed_subdomains", "panel_managed_name"}
 

@@ -257,7 +257,7 @@ class Settings(BaseSettings):
             raise ValueError("must be GitHub organisation names, comma-separated")
         return ",".join(dict.fromkeys(chosen))
 
-    @field_validator("panel_domain")
+    @field_validator("panel_domain", "portal_domain")
     @classmethod
     def _panel_domain(cls, value: str) -> str:
         import re
@@ -266,6 +266,26 @@ class Settings(BaseSettings):
         label = r"(?!-)[a-z0-9-]{1,63}(?<!-)"
         if value and (len(value) > 253 or not re.fullmatch(rf"{label}(\.{label})+", value)):
             raise ValueError("must be a host name such as panel.example.com")
+        return value
+
+    @field_validator("client_open_hours")
+    @classmethod
+    def _client_open_hours(cls, value: str) -> str:
+        parts = [part.strip() for part in value.split(",") if part.strip()]
+        try:
+            hours = [float(part) for part in parts]
+        except ValueError:
+            raise ValueError("must be hours separated by commas, such as 1,4,24") from None
+        if not hours or len(hours) > 8 or any(not 0 < h <= 8760 for h in hours):
+            raise ValueError("must be 1 to 8 durations between 0 and 8760 hours, such as 1,4,24")
+        return ",".join(f"{h:g}" for h in hours)
+
+    @field_validator("portal_name")
+    @classmethod
+    def _portal_name(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if any(ch in value for ch in "<>{}"):
+            raise ValueError("must be plain text")
         return value
 
     @field_validator("public_host")
@@ -1379,6 +1399,58 @@ class Settings(BaseSettings):
         "days, up to this).",
     )
 
+    # ------------------------------------------------------------------ client portal (projects/clients.py, docs/ADMIN_GUIDE.md "Client portal")
+    portal_domain: str = Field(
+        "",
+        description="direct and proxy: a second name of the panel for clients (portal.example.com), pointed at this "
+        "server (or your proxy). There, the web app shows the client portal and only clients sign in; direct serves "
+        "it on port 443 with a certificate from the ACME authority. Empty: clients use the panel's own address.",
+    )
+    portal_name: str = Field(
+        "",
+        max_length=60,
+        description="Your company's name, shown to clients at the top of the client portal and on its sign-in page; "
+        "empty: the portal shows no company name.",
+    )
+    client_emergency_access: bool = Field(
+        True,
+        description="New clients' projects start with emergency access allowed: a super admin may open a project "
+        "the client closed, for a short time, by typing a reason (the client is told at once). Each client can turn "
+        "it off for its projects in the portal.",
+    )
+    client_emergency_minutes: int = Field(
+        60, ge=5, le=1440, description="How long emergency access to a closed project lasts, in minutes."
+    )
+    client_open_hours: str = Field(
+        "1,4,24",
+        description='The durations offered to clients for "Open for a time", in hours (comma-separated); they may '
+        "also type their own, up to client_open_max_hours.",
+    )
+    client_open_max_hours: int = Field(
+        720, ge=1, le=8760, description="The longest a client can open a project or branch for at once, in hours."
+    )
+    client_request_hours: int = Field(
+        4, ge=1, le=8760, description="The duration an access request asks for unless the person changes it, in hours."
+    )
+    client_request_max_hours: int = Field(
+        168, ge=1, le=8760, description="The longest duration an access request may ask for, in hours."
+    )
+    client_confirmations: bool = Field(
+        True,
+        description="Clients confirm every major action in the portal (opening or closing, locks, emergency access, "
+        "approvals, the people they let in) with a one-time link or a 6-digit code sent to their e-mail address; "
+        "the action waits until then. Needs e-mail to be set up.",
+    )
+    client_confirm_minutes: int = Field(
+        15, ge=5, le=60, description="Minutes a client's confirmation link or code works."
+    )
+    client_request_expire_hours: int = Field(
+        72,
+        ge=1,
+        le=720,
+        description="Hours after which an access request the client did not answer lapses (the person asks again).",
+    )
+
     # ------------------------------------------------------------------ web shell (webshell/, docs/ADMIN_GUIDE.md "Web shell")
     shell_enabled: bool = Field(
         True,
@@ -1941,6 +2013,9 @@ SERVER_SETTINGS = tuple(name for name in Settings.model_fields if name.startswit
 PROJECT_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("project_"))
 """Every setting of projects (projects/); all of them can be changed in the panel."""
 
+CLIENT_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith(("client_", "portal_")))
+"""Every setting of the client portal (projects/clients.py); all of them can be changed in the panel."""
+
 STATUS_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith(("status_", "notification")))
 """Every setting of project status checks (status/) and notifications (notifications/); all can be changed in the
 panel."""
@@ -2084,6 +2159,7 @@ EDITABLE = (
     "audit_export_max_rows",
     "support_access",
     "support_access_max_hours",
+    *CLIENT_SETTINGS,
     *SERVER_SETTINGS,
 )
 """Settings that can be changed in the panel, taking effect at once."""

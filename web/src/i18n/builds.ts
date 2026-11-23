@@ -19,6 +19,7 @@ const en = {
     copySha: "Copy the commit's hash",
     copied: "Copied",
     onGitHub: "Open the commit on GitHub",
+    openCommit: (sha: string) => `Open commit ${sha} on GitHub, in a new tab`,
     showMessages: (n: number) => (n === 1 ? "Show 1 message from Odoo's log" : `Show ${n} messages from Odoo's log`),
     hideMessages: "Hide the messages",
     unknownCommit: "Commit not known yet",
@@ -34,11 +35,11 @@ const en = {
     failingIn: "Failing in",
   },
   status: {
-    success: "Test: Success",
+    success: "Passed",
     warning: "Warning",
     failed: "Failed",
     building: "Building",
-    dropped: "Dropped",
+    dropped: "Replaced",
   },
   trigger: {
     create: "New instance",
@@ -48,7 +49,7 @@ const en = {
   },
   builds: {
     tab: "Builds",
-    filter: "Filter branches",
+    filter: "Search branches",
     noMatch: "No branch matches",
     none: "No builds yet",
     noneText: "Builds appear when an instance of a branch is created or gets new code.",
@@ -79,6 +80,7 @@ const ar: typeof en = {
     copySha: "نسخ معرّف الإيداع",
     copied: "نُسخ",
     onGitHub: "فتح الإيداع على GitHub",
+    openCommit: (sha) => `فتح الإيداع ${ltr(sha)} على GitHub في علامة تبويب جديدة`,
     showMessages: (n) => (n === 1 ? "عرض رسالة واحدة من سجل Odoo" : n === 2 ? "عرض رسالتين من سجل Odoo" : n <= 10 ? `عرض ${n} رسائل من سجل Odoo` : `عرض ${n} رسالة من سجل Odoo`),
     hideMessages: "إخفاء الرسائل",
     unknownCommit: "الإيداع غير معروف بعد",
@@ -94,11 +96,11 @@ const ar: typeof en = {
     failingIn: "يفشل في",
   },
   status: {
-    success: "الاختبار: نجح",
+    success: "نجح",
     warning: "تحذير",
     failed: "فشل",
     building: "قيد البناء",
-    dropped: "متروك",
+    dropped: "مُستبدَل",
   },
   trigger: {
     create: "بيئة جديدة",
@@ -108,7 +110,7 @@ const ar: typeof en = {
   },
   builds: {
     tab: "الأبنية",
-    filter: "تصفية الفروع",
+    filter: "ابحث في الفروع",
     noMatch: "لا فرع مطابق",
     none: "لا أبنية بعد",
     noneText: "تظهر الأبنية عند إنشاء بيئة لفرع أو حصولها على شيفرة جديدة.",

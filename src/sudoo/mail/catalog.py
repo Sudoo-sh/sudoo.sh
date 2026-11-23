@@ -23,6 +23,12 @@ below stay as they are, so "Reset to default" only forgets the change. Texts are
     access_removed
     access_request       temporary access asked: to the project's admins; access_request_decided: the answer
     access_review        who has access to a project, every ACCESS_REVIEW_DAYS, to its admins
+    client_access_request    someone of the panel's owner asks a client to open a closed project or branch
+                         (projects/clients.py); client_access_request_ar in Arabic
+    client_action_confirm    the link and code that confirm a client's major change in the portal
+                         (projects/client_confirm.py); client_action_confirm_ar in Arabic
+    client_emergency_access  a super admin forced access to a client's closed project or branch, at once;
+                         client_emergency_access_ar in Arabic
     test                 the test e-mail of Settings, E-mail and `sudoo.sh test-email`
 
 Block placeholders (the code box, the details of a request, the list of alerts) are drawn by the functions at the
@@ -184,6 +190,31 @@ _SAMPLE_ALERTS = [
 ]
 
 
+_CLIENT_PLACEHOLDERS = (
+    Placeholder("name", "The client's name", "Lina Haddad"),
+    Placeholder("person", "Who asked, or who forced access", "Omar Saleh"),
+    Placeholder("project", "The project", "Nile Logistics"),
+    Placeholder("where", "The branch, or the project as a whole", "main"),
+    Placeholder("reason", "Why, in their own words", "The invoice report fails since this morning's update."),
+    Placeholder("link", "The client portal's page of the project", "https://portal.example.com/p/nile-logistics", LINK),
+)
+_REQUEST_PLACEHOLDERS = (*_CLIENT_PLACEHOLDERS, Placeholder("hours", "How many hours they ask for", 4))
+_EMERGENCY_PLACEHOLDERS = (*_CLIENT_PLACEHOLDERS, Placeholder("minutes", "How many minutes the access lasts", 60))
+
+_CONFIRM_PLACEHOLDERS = (
+    Placeholder("name", "The client's name", "Lina Haddad"),
+    Placeholder("project", "The project", "Nile Logistics"),
+    Placeholder("action", "The change asked for", "Close the branch main"),
+    Placeholder("code", "The 6-digit code (works once)", "482913"),
+    Placeholder("minutes", "How many minutes the link and the code work", 15),
+    Placeholder(
+        "link",
+        "The confirmation link (works once, in the same browser)",
+        "https://portal.example.com/confirm#sample",
+        LINK,
+    ),
+)
+
 _PUSH_PLACEHOLDERS = (
     Placeholder("name", "The name of who pushed", "Huda"),
     Placeholder("project", "The project", "Acme ERP"),
@@ -263,7 +294,7 @@ _ACCESS_PLACEHOLDERS = (
     Placeholder("how", "How the person signs in (GitHub, a code by e-mail, a password)", "Continue with GitHub"),
     Placeholder("link", "The project's page", "https://panel.example.com/projects/acme-retail", LINK),
 )
-_REQUEST_PLACEHOLDERS = (
+_ELEVATION_PLACEHOLDERS = (
     Placeholder("name", "The person the e-mail is for", "Sara"),
     Placeholder("who", "The person who asked", "Karim Saleh"),
     Placeholder("project", "The project", "Acme Retail"),
@@ -387,7 +418,7 @@ ACCESS_MESSAGES = (
         "Hello {{ name }},\n\n**{{ who }}** asks for the role **{{ role }}** in **{{ stage }}** of "
         "**{{ project }}** for {{ hours }} hours.\n\n**Why:** {{ reason }}\n\n"
         "[Approve or refuse]({{ link }})\n\nIt ends by itself when the time is over.",
-        _REQUEST_PLACEHOLDERS,
+        _ELEVATION_PLACEHOLDERS,
     ),
     _access(
         "access_request_ar",
@@ -401,7 +432,7 @@ ACCESS_MESSAGES = (
         "مرحبًا {{ name }}،\n\nيطلب **{{ who }}** الدور **{{ role }}** في **{{ stage }}** من "
         "**{{ project }}** لمدة {{ hours }} ساعات.\n\n**السبب:** {{ reason }}\n\n"
         "[وافق أو ارفض]({{ link }})\n\nينتهي تلقائيًا حين تنقضي المدة.",
-        _REQUEST_PLACEHOLDERS,
+        _ELEVATION_PLACEHOLDERS,
     ),
     _access(
         "access_request_decided",
@@ -415,7 +446,7 @@ ACCESS_MESSAGES = (
         "Hello {{ name }},\n\n{{ decided_by }} {{ decision }} your request for the role **{{ role }}** in "
         "**{{ stage }}** of **{{ project }}**.\n\nWhen approved, it ends on {{ until }}.\n\n"
         "[Open {{ project }}]({{ link }})",
-        _REQUEST_PLACEHOLDERS,
+        _ELEVATION_PLACEHOLDERS,
     ),
     _access(
         "access_request_decided_ar",
@@ -429,7 +460,7 @@ ACCESS_MESSAGES = (
         "مرحبًا {{ name }}،\n\nقرار {{ decided_by }} في طلبك للدور **{{ role }}** في **{{ stage }}** من "
         "**{{ project }}**: {{ decision }}.\n\nإن وُوفق عليه فهو ينتهي في {{ until }}.\n\n"
         "[افتح {{ project }}]({{ link }})",
-        _REQUEST_PLACEHOLDERS,
+        _ELEVATION_PLACEHOLDERS,
     ),
     _access(
         "access_review",
@@ -860,6 +891,137 @@ MESSAGES: dict[str, Message] = {
             ),
             placeholders=_PUSH_PLACEHOLDERS,
             required=("reason",),
+        ),
+        Message(
+            key="client_access_request",
+            name="Access request (client portal)",
+            description="Someone of your team asks a client to open a project or branch the client closed: sent to "
+            "each client of the project, who answers in the client portal.",
+            recipients="The clients of the project (client portal)",
+            kicker="{{ project }}",
+            preheader="{{ person }} asks to open {{ where }} for {{ hours }} hours",
+            subject="{{ person }} asks for access to {{ where }} ({{ project }})",
+            title="An access request is waiting for you",
+            body=(
+                "Hello {{ name }},\n\n"
+                "**{{ person }}** asks for access to **{{ where }}** in **{{ project }}**, which you closed, for "
+                "**{{ hours }} hours**.\n\n"
+                "**Why:** {{ reason }}\n\n"
+                "Approve it (for these people and this time, or less) or refuse it in the client portal. Nothing "
+                "opens until you answer.\n\n"
+                "[Answer the request]({{ link }})"
+            ),
+            placeholders=_REQUEST_PLACEHOLDERS,
+            required=("link",),
+        ),
+        Message(
+            key="client_access_request_ar",
+            name="Access request (client portal, Arabic)",
+            description="The same e-mail in Arabic, for clients whose account (or the panel) uses Arabic.",
+            recipients="The clients of the project (client portal)",
+            kicker="{{ project }}",
+            preheader="يطلب {{ person }} فتح {{ where }} لمدة {{ hours }} ساعات",
+            subject="يطلب {{ person }} الوصول إلى {{ where }} ({{ project }})",
+            title="طلب وصول بانتظارك",
+            body=(
+                "مرحبًا {{ name }}،\n\n"
+                "يطلب **{{ person }}** الوصول إلى **{{ where }}** في **{{ project }}**، الذي أغلقته، لمدة "
+                "**{{ hours }} ساعات**.\n\n"
+                "**السبب:** {{ reason }}\n\n"
+                "وافق عليه (لهؤلاء الأشخاص ولهذه المدة، أو أقل) أو ارفضه في بوابة العملاء. لا يُفتح شيء حتى "
+                "تجيب.\n\n"
+                "[أجب عن الطلب]({{ link }})"
+            ),
+            placeholders=_REQUEST_PLACEHOLDERS,
+            required=("link",),
+        ),
+        Message(
+            key="client_emergency_access",
+            name="Emergency access (client portal)",
+            description="A super admin forced access to a project or branch a client closed (emergency access, "
+            "which the client allows): sent at once to each client of the project.",
+            recipients="The clients of the project (client portal)",
+            kicker="{{ project }}",
+            preheader="{{ person }} opened {{ where }} for {{ minutes }} minutes",
+            subject="Emergency access to {{ where }} ({{ project }})",
+            title="Emergency access was used",
+            body=(
+                "Hello {{ name }},\n\n"
+                "**{{ person }}** used emergency access to **{{ where }}** in **{{ project }}**, which you closed. "
+                "It lasts **{{ minutes }} minutes**, then it closes again by itself.\n\n"
+                "**Why:** {{ reason }}\n\n"
+                "Everything they do is in your activity log. You can end this access now, and turn emergency access "
+                "off for this project, in the client portal.\n\n"
+                "[Open the project]({{ link }})"
+            ),
+            placeholders=_EMERGENCY_PLACEHOLDERS,
+            required=("reason",),
+        ),
+        Message(
+            key="client_emergency_access_ar",
+            name="Emergency access (client portal, Arabic)",
+            description="The same e-mail in Arabic, for clients whose account (or the panel) uses Arabic.",
+            recipients="The clients of the project (client portal)",
+            kicker="{{ project }}",
+            preheader="فتح {{ person }} {{ where }} لمدة {{ minutes }} دقيقة",
+            subject="وصول طارئ إلى {{ where }} ({{ project }})",
+            title="استُخدم الوصول الطارئ",
+            body=(
+                "مرحبًا {{ name }}،\n\n"
+                "استخدم **{{ person }}** الوصول الطارئ إلى **{{ where }}** في **{{ project }}**، الذي أغلقته. "
+                "يستمر **{{ minutes }} دقيقة**، ثم يُغلق من تلقاء نفسه.\n\n"
+                "**السبب:** {{ reason }}\n\n"
+                "كل ما يفعلونه مسجّل في سجل نشاطك. يمكنك إنهاء هذا الوصول الآن، وإيقاف الوصول الطارئ لهذا المشروع، "
+                "من بوابة العملاء.\n\n"
+                "[افتح المشروع]({{ link }})"
+            ),
+            placeholders=_EMERGENCY_PLACEHOLDERS,
+            required=("reason",),
+        ),
+        Message(
+            key="client_action_confirm",
+            name="Confirm a change (client portal)",
+            description="A client asked for a major change in the portal (opening or closing, a lock, emergency access, "
+            "an approval, the people it lets in): it waits until the client confirms it with this link or code.",
+            recipients="The client who asked (client portal)",
+            kicker="{{ project }}",
+            preheader="Confirm: {{ action }}",
+            subject="Confirm in {{ project }}: {{ action }}",
+            title="Confirm this change",
+            body=(
+                "Hello {{ name }},\n\n"
+                "You asked for this change in **{{ project }}**:\n\n"
+                "**{{ action }}**\n\n"
+                "It happens only once you confirm it, in the browser where you asked, within {{ minutes }} minutes. "
+                "Open the link, or type the code in the portal.\n\n"
+                "[Confirm the change]({{ link }})\n\n"
+                "Your code: **{{ code }}**\n\n"
+                "> Did not ask for this? Do nothing: nothing changes, and the link stops working by itself."
+            ),
+            placeholders=_CONFIRM_PLACEHOLDERS,
+            required=("code",),
+        ),
+        Message(
+            key="client_action_confirm_ar",
+            name="Confirm a change (client portal, Arabic)",
+            description="The same e-mail in Arabic, for clients whose account (or the panel) uses Arabic.",
+            recipients="The client who asked (client portal)",
+            kicker="{{ project }}",
+            preheader="أكّد: {{ action }}",
+            subject="أكّد في {{ project }}: {{ action }}",
+            title="أكّد هذا التغيير",
+            body=(
+                "مرحبًا {{ name }}،\n\n"
+                "طلبت هذا التغيير في **{{ project }}**:\n\n"
+                "**{{ action }}**\n\n"
+                "لا يحدث إلا بعد أن تؤكّده، في المتصفح الذي طلبته منه، خلال {{ minutes }} دقيقة. "
+                "افتح الرابط، أو اكتب الرمز في البوابة.\n\n"
+                "[أكّد التغيير]({{ link }})\n\n"
+                "رمزك: **{{ code }}**\n\n"
+                "> لم تطلب هذا؟ لا تفعل شيئًا: لن يتغيّر شيء، ويتوقف الرابط عن العمل من تلقاء نفسه."
+            ),
+            placeholders=_CONFIRM_PLACEHOLDERS,
+            required=("code",),
         ),
         Message(
             key="test",

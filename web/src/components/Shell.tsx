@@ -17,19 +17,15 @@ import {
   LogOut,
   Mail,
   Menu as MenuIcon,
-  Monitor,
-  Moon,
   Plus,
   Puzzle,
   ScrollText,
   Settings2,
-  Sun,
   UserRound,
   Users,
   UsersRound,
 } from "lucide-react";
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { flushSync } from "react-dom";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { api } from "@/api/client";
 import { useLiveEvents, type Sync } from "@/api/live";
@@ -38,12 +34,11 @@ import type { Alert } from "@/api/types";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import { ago, percent } from "@/lib/format";
-import { applyTheme, storedTheme, type ThemeChoice } from "@/lib/theme";
-import { revealTheme } from "@/lib/theme-reveal";
 import { NARROW, useMedia } from "@/lib/media";
 import { useDirection } from "@/components/ui/direction";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { LanguageSwitch } from "./LanguageSwitch";
+import { ThemeButton } from "./ThemeButton";
 import { Brand } from "./app/Brand";
 import { Button, Callout } from "./app/basics";
 import { BackToTop } from "./BackToTop";
@@ -79,30 +74,6 @@ function NavItem({ to, icon, children, end, count }: { to: string; icon: ReactNo
       <span>{children}</span>
       {count != null && <span className="count">{count}</span>}
     </NavLink>
-  );
-}
-
-function ThemeButton() {
-  const [theme, setTheme] = useState<ThemeChoice>(storedTheme);
-  const next: Record<ThemeChoice, ThemeChoice> = { system: "light", light: "dark", dark: "system" };
-  const icon = { system: <Monitor />, light: <Sun />, dark: <Moon /> }[theme];
-  const label = useT(common).theme[theme];
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      icon={icon}
-      title={label}
-      aria-label={label}
-      onClick={(event) => {
-        const choice = next[theme];
-        // the new theme grows in a circle from this button; with reduced motion or an older browser it fades
-        void revealTheme(event.currentTarget, (revealed) => {
-          flushSync(() => setTheme(choice));
-          applyTheme(choice, !revealed);
-        });
-      }}
-    />
   );
 }
 

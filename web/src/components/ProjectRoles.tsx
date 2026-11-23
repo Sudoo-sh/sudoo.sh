@@ -7,7 +7,7 @@ import { ArrowRightLeft, Check, Clock, RotateCcw, Send, ShieldCheck, UsersRound,
 import { useMemo, useState } from "react";
 import { api, errorText } from "@/api/client";
 import { keys, useCall } from "@/api/queries";
-import type { AccessLevel, AccessPerson, AccessRequest, Permission, ProjectAccess, ProjectDetail, RoleScope, Stage } from "@/api/types";
+import type { AccessLevel, AccessPerson, RoleRequest, Permission, ProjectAccess, ProjectDetail, RoleScope, Stage } from "@/api/types";
 import { Button, Callout, Field, Skeleton, Tag } from "@/components/app/basics";
 import { Modal, useToast } from "@/components/app/overlay";
 import { SelectBox } from "@/components/app/select";
@@ -215,11 +215,11 @@ export function RequestsCard({ project, maxHours, enabled }: { project: ProjectD
   const [asking, setAsking] = useState(false);
   const { data } = useQuery({
     queryKey: requestsKey(project.id),
-    queryFn: () => api.get<AccessRequest[]>(`/projects/${project.id}/access-requests`),
+    queryFn: () => api.get<RoleRequest[]>(`/projects/${project.id}/role-requests`),
   });
   const refresh = [requestsKey(project.id), peopleKey(project.id), keys.project(project.id)];
   const act = useCall(({ id, how }: { id: string; how: "approve" | "refuse" | "end" }) =>
-    how === "end" ? api.del(`/projects/${project.id}/access-requests/${id}`) : api.post(`/projects/${project.id}/access-requests/${id}/${how}`, {}), refresh);
+    how === "end" ? api.del(`/projects/${project.id}/role-requests/${id}`) : api.post(`/projects/${project.id}/role-requests/${id}/${how}`, {}), refresh);
   const run = (id: string, how: "approve" | "refuse" | "end", done: string) =>
     act.mutate({ id, how }, { onSuccess: () => toast("success", done), onError: (e) => toast("error", q.notDone, errorText(e)) });
   return (
@@ -261,7 +261,7 @@ export function RequestDialog({ project, maxHours, onClose, stage: initialStage 
   const [level, setLevel] = useState<AccessLevel>("maintainer");
   const [hours, setHours] = useState(Math.min(2, maxHours));
   const [reason, setReason] = useState("");
-  const send = useCall(() => api.post(`/projects/${project.id}/access-requests`, { stage, level, hours, reason: reason.trim() }), [requestsKey(project.id)]);
+  const send = useCall(() => api.post(`/projects/${project.id}/role-requests`, { stage, level, hours, reason: reason.trim() }), [requestsKey(project.id)]);
   return (
     <Modal title={q.ask} onClose={onClose}
       footer={<><Button onClick={onClose}>{c.cancel}</Button>

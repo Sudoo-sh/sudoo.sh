@@ -54,6 +54,17 @@ Locked branches
     delete them, a deleted branch on GitHub does not archive or delete them, and a visit does not start a paused one.
     A locked production branch keeps serving.
 
+Clients and their switch (projects/clients.py)
+    A client account (role "client") has the level "client" in the projects it is a client of, and "none" in every
+    other project and outside every project: it sees its projects (instances.view, instances.logs), downloads their
+    backups and opens a shell only where it was given them. The client owns a switch per project and per branch:
+    open, closed, or open for a time. A closure takes from everyone it does not let through what a lock takes
+    (LOCKED_PERMISSIONS), super admins included, and nobody can lift it but the client: it lets through the project's
+    clients, the people the client named, and the people of an active pass (an approved access request, or a super
+    admin's emergency access where the client allows it). Sudoo.sh support is never let through. Automatic changes
+    stop as for a lock (held); a visit still starts a paused instance. A client lock of a branch or of the whole
+    project is as strong and lets through only the clients and emergency access; it stops automatic deploys too.
+
 API tokens
     A token acts for the account that created it (its owner): its permissions are its scope's role ∩ the owner's
     role, and the owner's teams and grants apply. A token whose owner no longer exists keeps its scope's role but has
@@ -67,6 +78,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 from sudoo import accounts, roles, teams
+from sudoo.projects import clients
 
 from . import project_roles
 
@@ -160,6 +172,11 @@ def _person_role(user: Mapping[str, Any]) -> str | None:
     return roles.normalize(account["role"]) if account else None
 
 
+def is_client(user: Mapping[str, Any]) -> bool:
+    """A client account (projects/clients.py), or a token whose owner is one."""
+    return clients.is_client(user)
+
+
 def is_super_admin(user: Mapping[str, Any]) -> bool:
     """A super admin, or a token whose owner is one (never Sudoo.sh support)."""
     if user.get("support"):
@@ -225,7 +242,7 @@ def model(project: Mapping[str, Any] | None) -> str:
 
 def _roles_model(user: Mapping[str, Any], project: Mapping[str, Any] | None) -> bool:
     """Whether project roles decide `user`'s rights in `project` (Sudoo.sh support keeps its own rules)."""
-    return project is not None and not user.get("support") and model(project) == "project_roles"
+    return project is not None and not user.get("support") and not is_client(user) and model(project) == "project_roles"
 
 
 def full_access(user: Mapping[str, Any]) -> bool:
@@ -291,6 +308,8 @@ def level(user: Mapping[str, Any], project: Mapping[str, Any] | None, branch: st
         from sudoo.premium import stubs
 
         return stubs.support_level(user, project, branch)
+    if is_client(user):  # a client: only the projects it is a client of, never anything outside them
+        return clients.CLIENT_LEVEL if clients.entry(project, person(user)) is not None else "none"
     if project is None or is_super_admin(user):
         return "admin"
     if mode(project) not in MODES:  # an access mode this panel does not know: nothing rather than everything
@@ -363,6 +382,26 @@ def lock_allows(user: Mapping[str, Any], lock: Mapping[str, Any]) -> bool:
     return False
 
 
+def level_permissions(
+    user: Mapping[str, Any], project: Mapping[str, Any] | None, branch: str | None = None
+) -> frozenset[str]:
+    """What the level `user` has in `project` (and `branch`) gives (a client: what its entry gives)."""
+    found = level(user, project, branch)
+    if found == clients.CLIENT_LEVEL:
+        return clients.permissions_of(clients.entry(project, person(user)))
+    return LEVEL_PERMISSIONS.get(found, frozenset())
+
+
+def closed_to(user: Mapping[str, Any], project: Mapping[str, Any] | None, branch: str | None = None) -> bool:
+    """Whether the client's switch, or a client lock, closes `branch` (None: the project) to `user`
+    (projects/clients.py)."""
+    if project is None:
+        return False
+    if clients.client_lock(project, branch) is not None and not clients.lock_lets_through(user, project, branch):
+        return True
+    return clients.closed(project, branch) and not clients.lets_through(user, project, branch)
+
+
 def permissions(
     user: Mapping[str, Any],
     project: Mapping[str, Any] | None,
@@ -376,13 +415,18 @@ def permissions(
     if project is None:
         if user.get("support") and level(user, None) == "none":  # outside every project: only a grant for "all"
             return from_role - PROJECT_PERMISSIONS
+        if is_client(user):  # nothing outside the projects it is a client of
+            return from_role - PROJECT_PERMISSIONS
         return from_role
     if _roles_model(user, project):
         found = (from_role - PROJECT_PERMISSIONS) | _project_rights(user, project, branch, stage)
     else:
-        found = (from_role - PROJECT_PERMISSIONS) | (from_role & LEVEL_PERMISSIONS[level(user, project, branch)])
+        found = (from_role - PROJECT_PERMISSIONS) | (from_role & level_permissions(user, project, branch))
+    # a client's closure or lock, and a branch lock, come before any role or temporary access
     lock = lock_of(project, branch)
     if with_lock and lock is not None and not lock_allows(user, lock):
+        found -= LOCKED_PERMISSIONS
+    if with_lock and closed_to(user, project, branch):
         found -= LOCKED_PERMISSIONS
     return found
 
@@ -456,16 +500,26 @@ def refusal(
     if project is None:
         if user.get("support") and level(user, None) == "none":
             return 403, "Support access is limited to the projects and instances it was given."
+        if is_client(user):
+            return 404, "This does not exist."
         return None
     seen = level(user, project, branch)
     if seen == "none":
         return 404, "This project does not exist." if branch is None else "There is no such branch."
-    if permission not in LEVEL_PERMISSIONS[seen]:
+    if permission not in level_permissions(user, project, branch):
         return 403, f"Your access to {project.get('name', project.get('id'))} does not include this ({seen})."
     lock = lock_of(project, branch)
     if lock is not None and permission in LOCKED_PERMISSIONS and not lock_allows(user, lock):
         by = lock.get("by") or "an administrator"
         return 403, f"The branch {branch} is locked by {by}: only the people and teams the lock allows may do this."
+    if permission in LOCKED_PERMISSIONS and closed_to(user, project, branch):
+        what = f"The branch {branch}" if branch else f"The project {project.get('name', project.get('id'))}"
+        if clients.client_lock(project, branch) is not None and not clients.lock_lets_through(user, project, branch):
+            return 403, f"{what} is locked by its client: only the client may do this, or unlock it."
+        return 403, (
+            f"{what} is closed by its client: only the client and the people it lets in may do this. Ask the "
+            "client for access (Request access)."
+        )
     return None
 
 
@@ -479,11 +533,27 @@ def _roles_refusal(
     unlocked = permissions(user, project, branch, stage, with_lock=False)
     if "instances.view" not in unlocked and (branch is not None or not sees_project(user, project)):
         return 404, "This project does not exist." if branch is None else "There is no such branch."
+    closure = _closure_refusal(user, project, branch) if permission in LOCKED_PERMISSIONS & unlocked else None
+    if closure is not None:  # the client's switch or lock comes first
+        return closure
     lock = lock_of(project, branch)
     if permission in unlocked and lock is not None:
         by = lock.get("by") or "an administrator"
         return 403, f"The branch {branch} is locked by {by}: only the people and teams the lock allows may do this."
     return 403, denial(user, permission, project, stage)
+
+
+def _closure_refusal(user: Mapping[str, Any], project: Mapping[str, Any], branch: str | None) -> tuple[int, str] | None:
+    """The refusal of a client's closure or lock of the branch (or project), or None (projects/clients.py)."""
+    if not closed_to(user, project, branch):
+        return None
+    what = f"The branch {branch}" if branch else f"The project {project.get('name', project.get('id'))}"
+    if clients.client_lock(project, branch) is not None and not clients.lock_lets_through(user, project, branch):
+        return 403, f"{what} is locked by its client: only the client may do this, or unlock it."
+    return 403, (
+        f"{what} is closed by its client: only the client and the people it lets in may do this. Ask the "
+        "client for access (Request access)."
+    )
 
 
 def sees_project(user: Mapping[str, Any], project: Mapping[str, Any]) -> bool:
@@ -557,13 +627,15 @@ def manages(user: Mapping[str, Any], project: Mapping[str, Any], branch: str | N
     """Whether `user` manages the access of the project (and branch), locks left aside."""
     if _roles_model(user, project):
         return "projects.access" in permissions(user, project, branch, with_lock=False)
-    return "projects.access" in (role_permissions(user) & LEVEL_PERMISSIONS[level(user, project, branch)])
+    return "projects.access" in (role_permissions(user) & level_permissions(user, project, branch))
 
 
 def may_unlock(user: Mapping[str, Any], project: Mapping[str, Any], branch: str) -> bool:
     """Unlocking (or changing who the lock allows) needs projects.access in the project and the lock's own
     permission, except for super admins."""
     if not manages(user, project, branch):
+        return False
+    if closed_to(user, project, branch):  # a closure is the client's: no lock changes inside it
         return False
     lock = lock_of(project, branch)
     return lock is None or is_super_admin(user) or lock_allows(user, lock)
@@ -614,7 +686,10 @@ def _chosen_permissions(
 ) -> frozenset[str]:
     found = role_permissions(user)
     lock = lock_of(project, branch)
-    return found - LOCKED_PERMISSIONS if lock is not None else found
+    if lock is not None or clients.closed(project, branch) or clients.client_lock(project, branch) is not None:
+        # support is never let through either
+        return found - LOCKED_PERMISSIONS
+    return found
 
 
 def instance_stage(name: str, project: Mapping[str, Any] | None) -> str | None:
@@ -652,15 +727,29 @@ def sees_instance(user: Mapping[str, Any], name: str) -> bool:
     return allowed_instance(user, "instances.view", name)
 
 
-def instance_lock(name: str) -> dict[str, Any] | None:
-    """The lock of the branch an instance follows, or None (automatic work asks this before changing it). In a
-    server's agent: the locks the main panel pushed (premium/servers.py)."""
+def held(project: Mapping[str, Any] | None, branch: str | None) -> dict[str, Any] | None:
+    """What stops automatic changes to a branch: its lock, or the client's closure of it (as a lock: "by", "at",
+    "client": True); None when neither applies."""
+    lock = lock_of(project, branch)
+    if lock is not None:
+        return lock
+    locked = clients.client_lock(project, branch)
+    if locked is not None:
+        return {**locked, "client": True, "client_lock": True}
+    found = clients.closure(project, branch)
+    return {**found, "client": True} if found is not None else None
+
+
+def instance_lock(name: str, closures: bool = True) -> dict[str, Any] | None:
+    """The lock of the branch an instance follows, or the client's closure of it (held), or None: automatic work
+    asks this before changing it. closures=False: the lock alone (a visit starts a paused instance of a closed
+    branch: it changes nothing). In a server's agent: the locks the main panel pushed (premium/servers.py)."""
     from sudoo.premium import servers
 
     if servers.is_agent():
         return {"locked_by": "panel"} if name in (servers.PANEL.get("locked") or ()) else None
     project, branch = scope_of_instance(name)
-    return lock_of(project, branch)
+    return held(project, branch) if closures else lock_of(project, branch)
 
 
 def visible_instances(user: Mapping[str, Any], names: Iterable[str]) -> list[str]:
@@ -702,7 +791,7 @@ def forget_restrictions() -> None:
 
 def sees_everything(user: Mapping[str, Any]) -> bool:
     """Whether nothing is hidden from `user` (the fast path of lists and live events)."""
-    if user.get("support"):
+    if user.get("support") or is_client(user):
         return False
     if is_super_admin(user):
         return "instances.view" in role_permissions(user)
@@ -755,6 +844,8 @@ def _forget(kind: str, value: str) -> list[str]:
         lists = [found.get("grants") or ()]
         lists += [v.get("grants") or () for v in (found.get("branches") or {}).values()]
         lists += [v.get("allow") or () for v in (found.get("locks") or {}).values()]
+        client = found.get("client") or {}
+        lists += [client.get("allow") or (), [{"type": "user", **e} for e in client.get("clients") or ()]]
         return any(e.get("type") == kind and e.get("id") == value for entries in lists for e in entries)
 
     changed = []
@@ -771,6 +862,11 @@ def _forget(kind: str, value: str) -> list[str]:
             current["locks"] = {
                 b: {**v, "allow": keep(v.get("allow") or ())} for b, v in (current.get("locks") or {}).items()
             }
+            if isinstance(current.get("client"), dict) and kind == "user":
+                client = dict(current["client"])
+                client["allow"] = keep(client.get("allow") or ())
+                client["clients"] = [e for e in client.get("clients") or () if e.get("id") != value]
+                current["client"] = client
             stored["access"] = current
             return stored
 

@@ -65,12 +65,12 @@
                                                      before them keeps the earlier model until switched)
     POST   /api/v1/projects/<id>/access/model        {"model": "project_roles"}: switch, keeping each person's role
                                                      with individual grants where needed
-    GET    /api/v1/projects/<id>/access-requests     temporary access: all of the project's for its admins, else
+    GET    /api/v1/projects/<id>/role-requests       temporary access: all of the project's for its admins, else
                                                      one's own
-    POST   /api/v1/projects/<id>/access-requests     ask: {"stage", "level", "hours", "reason"} -> 201
-    POST   /api/v1/projects/<id>/access-requests/<rid>/approve   {"note"?} (projects.access)
-    POST   /api/v1/projects/<id>/access-requests/<rid>/refuse    {"note"?} (projects.access)
-    DELETE /api/v1/projects/<id>/access-requests/<rid>          withdraw one's own, or end it early -> 204
+    POST   /api/v1/projects/<id>/role-requests       ask: {"stage", "level", "hours", "reason"} -> 201
+    POST   /api/v1/projects/<id>/role-requests/<rid>/approve   {"note"?} (projects.access)
+    POST   /api/v1/projects/<id>/role-requests/<rid>/refuse    {"note"?} (projects.access)
+    DELETE /api/v1/projects/<id>/role-requests/<rid>          withdraw one's own, or end it early -> 204
     PUT    /api/v1/projects/<id>/branches/<branch>/lock
                                                      lock the branch, or change who its lock allows: {"reason"?,
                                                      "allow": [{"type": "team"|"user", "id"}]}
@@ -107,6 +107,7 @@ from sudoo.projects import (
     branches,
     build_options,
     builds,
+    clients,
     commit_status,
     elevation,
     notices,
@@ -248,6 +249,8 @@ def project_resource(project: Mapping[str, Any], user: Mapping[str, Any] | None 
             ),
             "locked_branches": sorted(b for b in found_access.get("locks") or {} if b not in hidden),
         },
+        # the client's switch of the project as a whole (projects/clients.py), or None: no client
+        "client_access": clients.describe(project, None, user),
         "links": {"self": f"{PREFIX}/projects/{project['id']}"},
     }
 
@@ -270,6 +273,7 @@ def full_resource(
     for branch in listed:
         branch["lock"] = access.describe_lock(access.lock_of(project, branch["name"]))
         branch["restricted"] = bool(access.branch_access(project, branch["name"]).get("restricted"))
+        branch["client_access"] = clients.describe(project, branch["name"], user)
         if user is not None:
             branch["permissions"] = sorted(
                 access.permissions(user, project, branch["name"]) & access.PROJECT_PERMISSIONS
@@ -1282,7 +1286,7 @@ def _request(project_id: str, request_id: str) -> dict[str, Any]:
     return found
 
 
-@blueprint.get("/projects/<project_id>/access-requests")
+@blueprint.get("/projects/<project_id>/role-requests")
 def list_requests(project_id: str) -> Response:
     found = _project(project_id)
     manages = access.allowed(g.user, "projects.access", found)
@@ -1292,7 +1296,7 @@ def list_requests(project_id: str) -> Response:
                                                              "max_hours": int(settings.access_request_max_hours)})  # fmt: skip
 
 
-@blueprint.post("/projects/<project_id>/access-requests")
+@blueprint.post("/projects/<project_id>/role-requests")
 def ask_access(project_id: str) -> Response:
     found = _project(project_id)
     if g.user.get("token_id"):
@@ -1309,7 +1313,7 @@ def ask_access(project_id: str) -> Response:
         abort(400, str(error))
     log("temporary access asked", detail=f"{project_id}: {made['level']} in {made['stage']} for {made['hours']} h")
     notices.request_asked(found, made)
-    return created(request_resource(made), f"{PREFIX}/projects/{project_id}/access-requests/{made['id']}")
+    return created(request_resource(made), f"{PREFIX}/projects/{project_id}/role-requests/{made['id']}")
 
 
 def _decide(project_id: str, request_id: str, approve: bool) -> Response:
@@ -1332,17 +1336,17 @@ def _decide(project_id: str, request_id: str, approve: bool) -> Response:
     return ok(request_resource(decided))
 
 
-@blueprint.post("/projects/<project_id>/access-requests/<request_id>/approve")
+@blueprint.post("/projects/<project_id>/role-requests/<request_id>/approve")
 def approve_request(project_id: str, request_id: str) -> Response:
     return _decide(project_id, request_id, True)
 
 
-@blueprint.post("/projects/<project_id>/access-requests/<request_id>/refuse")
+@blueprint.post("/projects/<project_id>/role-requests/<request_id>/refuse")
 def refuse_request(project_id: str, request_id: str) -> Response:
     return _decide(project_id, request_id, False)
 
 
-@blueprint.delete("/projects/<project_id>/access-requests/<request_id>")
+@blueprint.delete("/projects/<project_id>/role-requests/<request_id>")
 def end_request(project_id: str, request_id: str) -> Response:
     found = _project(project_id)
     current = _request(project_id, request_id)

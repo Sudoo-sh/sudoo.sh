@@ -54,9 +54,11 @@ import { ToolsTab } from "@/components/ToolsTab";
 import { UpgradeTab } from "@/components/UpgradeTab";
 import { MailTab } from "@/components/MailTab";
 import { LockBanner } from "@/components/ProjectAccess";
+import { ClosedNotice } from "@/components/ClientAccess";
 import { ResourcesCard } from "@/components/ResourcesCard";
 import { JobDrawer } from "@/components/JobDrawer";
 import { LogsPanel } from "@/components/LogsPanel";
+import { CommitHash } from "@/components/CommitHash";
 import { ConnectButton } from "@/components/ConnectAs";
 import { BackupCommentDialog, ImportDatabaseButton } from "@/components/ImportDatabase";
 import { Page, useCan } from "@/components/Shell";
@@ -98,12 +100,14 @@ export function useRun(name: string, openJob: (id: string) => void) {
   );
 }
 
-const TABS: { id: string; label: keyof (typeof words)["en"]["tabs"]; icon: React.ReactNode; permission?: Permission }[] = [
+const BACKUP_RIGHTS: Permission[] = ["backups.manage", "instances.operate", "instances.restore"];
+// `anyOf`: shown when the caller has one of these in the instance's stage (project roles: a developer has no backups in production)
+const TABS: { id: string; label: keyof (typeof words)["en"]["tabs"]; icon: React.ReactNode; permission?: Permission; anyOf?: Permission[] }[] = [
   { id: "", label: "overview", icon: <Activity /> },
   { id: "activity", label: "activity", icon: <Layers /> },
   { id: "code", label: "code", icon: <Code2 /> },
   { id: "logs", label: "logs", icon: <ScrollText />, permission: "instances.logs" },
-  { id: "backups", label: "backups", icon: <Archive /> },
+  { id: "backups", label: "backups", icon: <Archive />, anyOf: BACKUP_RIGHTS },
   { id: "domains", label: "domains", icon: <Globe /> },
   { id: "settings", label: "settings", icon: <Settings2 />, permission: "instances.operate" },
   { id: "access", label: "access", icon: <KeyRound />, permission: "instances.credentials" },
@@ -116,7 +120,7 @@ const TABS: { id: string; label: keyof (typeof words)["en"]["tabs"]; icon: React
 /** What the caller may do in this instance: their role, narrowed by the project's access and the branch's lock. */
 function useCanIn(instance: Instance | undefined) {
   const roleCan = useCan();
-  const { data } = useInstancePermissions(instance?.name ?? "", JSON.stringify(instance?.lock ?? null));
+  const { data } = useInstancePermissions(instance?.name ?? "", JSON.stringify([instance?.lock ?? null, instance?.client_access ?? null]));
   return (permission: Permission) => roleCan(permission) && (!data || data.includes(permission));
 }
 
@@ -215,6 +219,11 @@ export function InstanceView({
                   <GitBranch size={14} strokeWidth={1.5} /> <bdi dir="ltr">{instance.git.branch}</bdi>
                 </span>
               )}
+              {/* the commit its current build runs: the short hash copies, its arrow opens the commit on GitHub */}
+              {!plain && instance.git.commit && (
+                <CommitHash icon sha={instance.recent_commits?.find((c) => c.sha === instance.git.commit!.sha)?.full_sha || instance.git.commit.sha}
+                  repository={instance.git.repository} />
+              )}
               {instance.url && (!instance.lock || can("instances.logs")) && (
                 <a href={instance.url} target="_blank" rel="noreferrer" className="row truncate mono xsmall" style={{ gap: 4 }}>
                   <Globe size={14} strokeWidth={1.5} /> <bdi dir="ltr">{instance.url.replace(/^https?:\/\//, "")}</bdi>
@@ -227,7 +236,7 @@ export function InstanceView({
             (.header-secondary, styles/_layout.scss) */}
         <div className="actions">
           {instance.url && !asleep && (!instance.lock || can("instances.logs")) && (
-            <ConnectButton instance={instance} connectAs={can("instances.credentials")} />
+            <ConnectButton instance={instance} connectAs={can("instances.connect")} />
           )}
           {can("instances.update") &&
             (asleep ? (
@@ -315,6 +324,9 @@ export function InstanceView({
       </div>
 
       {instance.lock && <LockBanner lock={instance.lock} allowed={can("instances.logs")} />}
+      {instance.project && (
+        <ClosedNotice projectId={instance.project.id} projectName={instance.project.name} branch={instance.git.branch} access={instance.client_access && { ...instance.client_access, lets_you_through: can("instances.logs") }} />
+      )}
       {instance.current_job && (
         <button className="card pad" style={{ textAlign: "start", cursor: "pointer" }} onClick={() => setJobId(instance.current_job!.id)}>
           <JobLine job={instance.current_job} />
@@ -386,7 +398,7 @@ export function InstanceView({
             {lead.icon} {lead.label}
           </Link>
         )}
-        {TABS.filter((t) => (!t.permission || can(t.permission)) && !(plain && t.id === "code") && !(production && t.id === "mail")).map((t) => (
+        {TABS.filter((t) => (!t.permission || can(t.permission)) && (!t.anyOf || t.anyOf.some((p) => can(p))) && !(plain && t.id === "code") && !(production && t.id === "mail")).map((t) => (
           <Link key={t.id} to={tabLink(t.id)} viewTransition className={tab === t.id ? "active" : ""} aria-current={tab === t.id ? "page" : undefined}>
             {t.icon} {all.tabs[t.label]}
           </Link>
@@ -412,7 +424,7 @@ export function InstanceView({
         {tab === "shell" && can("instances.shell") && <ShellTab instance={instance} />}
         {tab === "tools" && can("instances.profile") && <ToolsTab instance={instance} />}
         {tab === "upgrade" && can("instances.upgrade") && <UpgradeTab instance={instance} onJob={setJobId} />}
-        {tab === "backups" && <BackupsCard instance={instance} busy={busy} act={act} />}
+        {tab === "backups" && BACKUP_RIGHTS.some((p) => can(p)) && <BackupsCard instance={instance} busy={busy} act={act} />}
       </div>
 
       {jobId && <JobDrawer id={jobId} onClose={() => setJobId(null)} />}

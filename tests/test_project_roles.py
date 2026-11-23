@@ -243,7 +243,7 @@ def test_temporary_access_is_approved_and_ends(app: Flask, project: dict[str, An
     user = _person("member")
     _grant(project, user["name"], "developer")
     asker, asker_headers = sign_in(app, user["name"], PASSWORD)
-    path = f"/api/v1/projects/{project['id']}/access-requests"
+    path = f"/api/v1/projects/{project['id']}/role-requests"
     short = asker.post(path, json={"stage": "production", "level": "maintainer", "hours": 2, "reason": "x"},
                        headers=asker_headers)  # fmt: skip
     assert short.status_code == 400
@@ -261,12 +261,16 @@ def test_temporary_access_is_approved_and_ends(app: Flask, project: dict[str, An
     assert access.allowed(user, "instances.logs", found, "main")
     assert not access.allowed(user, "instances.shell", found, "main")  # Maintainer's rights, not more
     assert not access.allowed(user, "instances.logs", found, "staging") or True  # staging keeps its own
+
     # a condition (the client portal's switch) can stop it at once
-    elevation.add_condition(lambda r: "production is closed by the client" if r["stage"] == "production" else None)
+    def closed_production(request: dict[str, Any]) -> str | None:
+        return "production is closed by the client" if request["stage"] == "production" else None
+
+    elevation.add_condition(closed_production)
     try:
         assert not access.allowed(user, "instances.logs", found, "main")
     finally:
-        elevation._conditions.clear()
+        elevation._conditions.remove(closed_production)
     # it ends by itself
     stored = storage().get(elevation.COLLECTION, request_id) or {}
     storage().put(elevation.COLLECTION, request_id, {**stored, "expires": time.time() - 1})
@@ -404,3 +408,57 @@ def test_defaults_are_listed_once() -> None:
     assert described["levels"] == ["view", "tester", "developer", "maintainer", "admin"]
     assert set(project_roles.RIGHT_LABELS) == set(project_roles.STAGE_RIGHTS) | set(project_roles.PROJECT_RIGHTS)
     assert set(project_roles.STAGE_RIGHTS) | set(project_roles.PROJECT_RIGHTS) == set(access.PROJECT_PERMISSIONS)
+
+
+# ---------------------------------------------------------------- the client's switch comes first
+
+
+def _client_of(project: dict[str, Any]) -> str:
+    from sudoo.projects import clients
+
+    name = f"c{time.time_ns() % 10**10}"
+    accounts.create(name, "client", PASSWORD, must_change=False, email=f"{name}@example.com")
+    clients.add_client(project["id"], name, by="admin1")
+    return name
+
+
+def test_temporary_access_never_opens_what_the_client_closed(app: Flask, project: dict[str, Any]) -> None:
+    from sudoo.projects import clients
+
+    assert clients.elevation_refusal in elevation._conditions  # registered by the client portal
+    client = _client_of(project)
+    user = _person("member")
+    _grant(project, user["name"], "developer")
+    # a lock on production: no temporary access to production, development still possible
+    clients.set_lock(project["id"], "main", True, by=client, reason="Season")
+    with pytest.raises(ValueError, match="locked by its client"):
+        elevation.ask(project["id"], user["name"], "production", "maintainer", 2, "Read the failed import's logs")
+    made = elevation.ask(project["id"], user["name"], "development", "admin", 2, "Check the upgrade of the shop")
+    elevation.decide(made["id"], "admin1", approve=True)
+    found = projects.get(project["id"]) or {}
+    assert access.allowed(user, "instances.upgrade", found, "dev")
+    # the project closed by its client: the running temporary access stops at once, and the role's own rights too
+    clients.set_lock(project["id"], "main", False, by=client)
+    clients.set_switch(project["id"], None, "closed", by=client)
+    found = projects.get(project["id"]) or {}
+    assert not access.allowed(user, "instances.upgrade", found, "dev")
+    assert not access.allowed(user, "instances.shell", found, "dev")
+    assert access.allowed(user, "instances.view", found, "dev")  # closing hides nothing
+    refused = access.refusal(user, "instances.shell", found, "dev")
+    assert refused is not None and "closed by its client" in refused[1]
+    with pytest.raises(ValueError, match="closed by its client"):
+        elevation.ask(project["id"], user["name"], "staging", "maintainer", 2, "Prepare the staging data")
+    clients.set_switch(project["id"], None, "open", by=client)
+    assert access.allowed(user, "instances.shell", projects.get(project["id"]) or {}, "dev")
+
+
+def test_a_client_lock_refuses_admins_and_temporary_access_alike(app: Flask, project: dict[str, Any]) -> None:
+    from sudoo.projects import clients
+
+    client = _client_of(project)
+    admin = _person("admin")
+    clients.set_lock(project["id"], None, True, by=client, reason="Audit")
+    found = projects.get(project["id"]) or {}
+    refused = access.refusal(admin, "instances.shell", found, "dev")
+    assert refused is not None and "locked by its client" in refused[1]
+    clients.set_lock(project["id"], None, False, by=client)

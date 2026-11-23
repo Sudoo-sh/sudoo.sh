@@ -57,6 +57,7 @@ import { CompareDialog } from "@/components/BranchCompare";
 import { JobDrawer } from "@/components/JobDrawer";
 import { PromotionDialog } from "@/components/PromotionChecklist";
 import { LockTag } from "@/components/LockTag";
+import { ClientTag } from "@/components/ClientAccess";
 import { LockDialog, UnlockDialog } from "@/components/ProjectAccess";
 import { useProjectBackups } from "@/components/ProjectBackups";
 import { InsidePage, useCan } from "@/components/Shell";
@@ -409,6 +410,7 @@ function BranchIdentity({
         <StageTag stage={branch.stage} />
         {branch.default && <Tag>{t.defaultBranch}</Tag>}
         {branch.lock && <LockTag lock={branch.lock} branch={branch.name} />}
+        <ClientTag access={branch.client_access} />
         {branch.restricted && <span title={l.lock.restrictedHint}><Tag icon={<EyeOff />}>{l.lock.restricted}</Tag></span>}
         {branch.on_github === false && <Tag tone="negative">{t.deletedOnGitHub}</Tag>}
         {branch.auto_created && branch.instances.includes(branch.auto_created) && <span className="faint">{t.autoCreated}</span>}
@@ -474,7 +476,7 @@ function BranchPane({
       branch={branch}
       instances={instances}
       mayOpen={!branch.lock || can(branch, "instances.logs")}
-      connectAs={can(branch, "instances.credentials")}
+      connectAs={can(branch, "instances.connect")}
       access={(name) => (can(branch, "instances.credentials") ? branchPath(project.id, branch.name, "access", name === branch.instances[0] ? null : name) : null)}
       onJob={onJob}
     />

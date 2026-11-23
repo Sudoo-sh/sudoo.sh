@@ -442,7 +442,7 @@ with `EXPOSURE=direct`. Every value here can be changed on the Settings page exc
 | `ROLLBACK_HOURS` | float | `24` | **live** | After a restore, the state the instance had before it is kept this many hours (up to 720), and the instance page offers **Rollback** meanwhile. Then that backup is removed. |
 | `SAFE_UPDATES` | bool | `true` | **live** | Before an update that changes an instance's code (a push to its branch, **Get latest code**, **Update submodules**), back up its database and files (kind `before-update`); if the update then fails, put the previous code back, restore that backup when the database may have changed, and start Odoo again. `false`: updates run as before, without the backup and the automatic rollback. See [Keeping the code up to date](USER_MANUAL.md#6-keeping-the-code-up-to-date). |
 | `IMPORT_MAX_GB` | float | `20` | **live** | The largest database dump that can be uploaded with **Import database** on an instance's Backups card (up to 1000). The upload is kept in `BACKUPS_DIR/.imports/` until the import ends, so the server needs this much free disk space besides the backups. |
-| `LOG_DOWNLOAD_MAX_LINES` | integer | `100000` | **live** | How many lines **Download** on an instance's Logs tab saves at most (the last ones; 1000 to 1000000). |
+| `LOG_DOWNLOAD_MAX_LINES` | integer | `100000` | **live** | How many lines **Download** on an instance's Logs tab saves at most (the last ones; 1000 to 1000000), and how far back the tab pages through `odoo.log`. |
 
 ### Stages
 

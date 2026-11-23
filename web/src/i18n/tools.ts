@@ -1,30 +1,10 @@
-// The words of an instance's Logs tab (following a log), Connect as and Import database, and of the backups'
+// The words of Connect as and Import database, and of the backups'
 // revision and comment.
 
 import type { ReactNode } from "react";
 import { ltr } from "./plural.ts";
 
 const en = {
-  logs: {
-    which: "Log",
-    names: {
-      "odoo.log": "odoo.log (Odoo)",
-    } as Record<string, string>,
-    filter: "Filter the log",
-    filterHint: "Shows only the lines that contain this text (any case), also in the download.",
-    follow: "Follow",
-    pause: "Pause",
-    followText: "New lines appear as they are written.",
-    pauseText: "New lines wait until you follow again.",
-    newLines: (n: string) => `${n} new lines`,
-    wrap: "Wrap long lines",
-    download: "Download",
-    downloadText: "Download this log as a text file (the last lines, with the filter applied)",
-    connecting: "Connecting to the log…",
-    stopped: "Odoo is not running: these are the last lines it wrote. Following again when it starts.",
-    empty: "No lines yet.",
-    noMatch: "No line contains this text.",
-  },
   connect: {
     title: "Connect as",
     text: "Open Odoo signed in as one of its users, without their password. The link works once, for one minute, and is recorded in the audit log.",
@@ -84,26 +64,6 @@ const en = {
 };
 
 const ar: typeof en = {
-  logs: {
-    which: "السجل",
-    names: {
-      "odoo.log": "odoo.log (أودو)",
-    },
-    filter: "صفِّ السجل",
-    filterHint: "يعرض فقط الأسطر التي تحتوي هذا النص (بأي حالة أحرف)، وكذلك في التنزيل.",
-    follow: "تابع",
-    pause: "أوقف مؤقتًا",
-    followText: "تظهر الأسطر الجديدة فور كتابتها.",
-    pauseText: "تنتظر الأسطر الجديدة حتى تتابع من جديد.",
-    newLines: (n) => `أسطر جديدة: ${n}`,
-    wrap: "التفاف الأسطر الطويلة",
-    download: "نزّل",
-    downloadText: "نزّل هذا السجل ملفًا نصيًا (آخر الأسطر، بعد تطبيق التصفية)",
-    connecting: "جارٍ الاتصال بالسجل…",
-    stopped: "أودو لا يعمل: هذه آخر الأسطر التي كتبها. تُستأنف المتابعة عند تشغيله.",
-    empty: "لا أسطر بعد.",
-    noMatch: "لا يوجد سطر يحتوي هذا النص.",
-  },
   connect: {
     title: "الدخول باسم مستخدم",
     text: "افتح أودو مسجلًا باسم أحد مستخدميه دون كلمة مروره. يعمل الرابط مرة واحدة لمدة دقيقة، ويُسجَّل في سجل التدقيق.",

@@ -22,7 +22,7 @@ MANAGED = {"app.kubernetes.io/managed-by": "sudoo"}
 PREFIX = "sudoo-"
 SYSTEM_NAMESPACE = "sudoo-system"
 PANEL_SERVICE_ACCOUNT = "sudoo-panel"
-INSTANCE_ROLE = "sudoo-instance"  # the ClusterRole the panel binds in each of its namespaces (k3s-prepare.sh)
+INSTANCE_ROLE = "sudoo-instance"  # the ClusterRole the panel binds in each of its namespaces (installer)
 
 ODOO_UID, ODOO_GID = 100, 101  # the official Odoo image's user
 POSTGRES_UID = 999  # the official PostgreSQL image's user

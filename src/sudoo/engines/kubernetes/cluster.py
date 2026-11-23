@@ -8,7 +8,7 @@
                      the new node checks it joins this cluster.
 
 The panel's ServiceAccount may create Secrets in kube-system and nothing else there; the cluster's admission policy
-(scripts/k3s-prepare.sh, sudoo-panel-scope) refuses any Secret there that is not such a token.
+(the installer's k3s-prepare.sh, sudoo-panel-scope) refuses any Secret there that is not such a token.
 """
 
 from __future__ import annotations

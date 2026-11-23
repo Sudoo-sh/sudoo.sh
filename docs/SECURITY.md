@@ -1068,7 +1068,7 @@ The live infrastructure view of Sudoo.sh staff ([Marketplace, Sharing the topolo
 
 With the Docker engine the panel holds the Docker socket, which is root on the server. With the Kubernetes engine
 ([Kubernetes engine](KUBERNETES_ENGINE.md#6-the-panels-access-to-the-cluster)) it holds a ServiceAccount token
-(`sudoo-system/sudoo-panel`) instead, written by `scripts/k3s-prepare.sh` into a kubeconfig of mode 600:
+(`sudoo-system/sudoo-panel`) instead, written by the installer's k3s preparation script (`k3s-prepare.sh`) into a kubeconfig of mode 600:
 
 | What | How it is limited |
 | :--- | :--- |

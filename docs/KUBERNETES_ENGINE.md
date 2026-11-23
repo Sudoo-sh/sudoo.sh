@@ -169,7 +169,8 @@ never one of these two, so it stays out.
 ## 6. The panel's access to the cluster
 
 With Docker, the panel holds the Docker socket, which is root on the server. With Kubernetes, the panel holds a
-ServiceAccount token (`sudoo-system/sudoo-panel`) whose rights are written by `scripts/k3s-prepare.sh`:
+ServiceAccount token (`sudoo-system/sudoo-panel`) whose rights are written by the installer's k3s preparation script (`k3s-prepare.sh`, run by
+`sudo sudoo-install engine kubernetes`):
 
 | Grant | Where | Rights |
 | :--- | :--- | :--- |

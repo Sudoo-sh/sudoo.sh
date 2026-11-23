@@ -54,6 +54,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   the filters in use stay listed above the log. Following pauses when you scroll up, with **Jump to latest**; earlier
   lines load as you scroll to the top. Only the lines in view are drawn, so 100,000 lines stay smooth.
 - The log stream (`.../logs/stream`) filters whole entries, sends each line's id (`ids`) and only follows `odoo.log`.
+- **Motion throughout the panel**, short and only where it explains something: menus and lists to choose from grow
+  from their button on a spring; dialogs pop in gently over a fading backdrop and leave quicker; toasts slide in from
+  the right (the left in Arabic) and the others glide aside; the tabs' underline slides to the chosen tab; an
+  instance card's name moves into the instance page's title; cards lift a little under the pointer; lists and the
+  dashboard's figures come in one after the other on first load (at most eight steps) and the figures count up;
+  copy buttons and the theme button turn their icon into the next one; a field that turns invalid shakes once;
+  loading skeletons get a lighter shimmer; only something running has a pulsing status dot. With reduced motion
+  everything shows at once or fades. The motion tokens, wrappers and rules are in the design guide.
 
 ## [3.3.4] - 2026-11-23
 

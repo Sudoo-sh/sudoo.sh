@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
 import { Modal, useToast } from "@/components/app/overlay";
+import { TabInk } from "@/components/app/motion";
 import { useLocale, useT } from "@/i18n";
 import { bytes } from "@/lib/format";
 import common from "@/i18n/common";
@@ -345,6 +346,7 @@ function TabList({ tab, onSelect, marks }: { tab: TabId; onSelect: (id: TabId) =
           </button>
         );
       })}
+      <TabInk />
     </div>
   );
 }

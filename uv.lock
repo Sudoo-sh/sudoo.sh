@@ -1726,7 +1726,7 @@ wheels = [
 
 [[package]]
 name = "sudoo"
-version = "3.3.4"
+version = "3.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },

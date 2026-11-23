@@ -9,16 +9,19 @@ which it shares with the panel:
                    settings (limits, contact details for the pages) and the custom domains (their instance, whether
                    they have a certificate, ports 80/443); with EXPOSURE=direct also whether the gateway ports speak
                    https, the panel's name, the server's own addresses and the web service's port, where the panel's
-                   visits go. Read again whenever it changes; a file that is not valid is refused and the last valid
+                   visits go; the production access rules and the key of the panel's passes (access_gate.py). Read again whenever it changes; a file that is not valid is refused and the last valid
                    one kept.
     certs/         the custom domains' certificates and keys, acme-challenge/ the answers of running domain checks
                    (written by the panel, domains/certificates.py)
+    geo/           the country database of the access rules (geoip.py), written by the panel
     visits.json    written here: the last visit of every instance. The panel reads it (automatic pause, daily
                    backups), also when it was down while the visits happened.
     gateway.sock   served here, for the panel: POST /sync (read routes.json now and reconcile the listeners; the
                    answer has the listeners, their errors and the requests counted since the last call, for the
-                   metrics) and GET /healthz (the container's health check).
-    panel.sock     served by the panel: POST /wake/<name> starts a paused instance (Docker is the panel's alone);
+                   metrics, and the uses of the panel's passes, for the audit log) and GET /healthz (the
+                   container's health check).
+    panel.sock     served by the panel: POST /wake/<name> starts a paused instance (Docker is the panel's alone) and answers
+                   with the page to show and the public progress of the instance's job;
                    POST /connect/<name> {"token", "ip"} answers a Connect as link (connect_as.py) with {"sid"} or
                    {"error"}.
 
@@ -50,7 +53,7 @@ from aiohttp import web
 
 from sudoo.config import live, settings
 from sudoo.core.vault import write_private
-from sudoo.instances import gateway, gateway_health, metrics, status_pages, store
+from sudoo.instances import access_gate, gateway, gateway_health, metrics, status_pages, store
 
 ROUTES = "routes.json"
 VISITS = "visits.json"
@@ -116,6 +119,7 @@ class Routes:
     settings: dict[str, Any] = field(default_factory=dict)
     instances: dict[str, tuple[int, gateway.Route]] = field(default_factory=dict)  # name -> (gateway port, route)
     domains: gateway.DomainRoutes = field(default_factory=gateway.DomainRoutes)
+    access: Any = None  # the production access rules, as access_gate.load() takes them
 
     def wanted(self) -> dict[str, tuple[str, int]]:
         """The listeners these routes ask for: none unless the gateways run here (mode "service"); the custom
@@ -176,7 +180,9 @@ def parse_routes(data: Any) -> Routes:
                 None if websocket is None else _port(websocket),
             ),
         )
-    return Routes(mode, edge, dict(values), instances, _parse_domains(data.get("domains"), instances, ports))
+    access = data.get("access")  # absent in files of earlier panels: no rules
+    access_gate.parse_section(access)  # refused here when not valid, with the rest of the file
+    return Routes(mode, edge, dict(values), instances, _parse_domains(data.get("domains"), instances, ports), access)
 
 
 def _parse_domains(raw: Any, instances: dict[str, tuple[int, gateway.Route]], ports: set[int]) -> gateway.DomainRoutes:
@@ -224,6 +230,7 @@ def routes_document(
     values: dict[str, Any],
     instances: dict[str, dict[str, Any]],
     domains: gateway.DomainRoutes | None = None,
+    access: dict[str, Any] | None = None,
 ) -> str:
     """The text of routes.json (written by the panel, gateway_link.py)."""
     document: dict[str, Any] = {
@@ -252,6 +259,8 @@ def routes_document(
         if domains.panel_port is not None:
             document["domains"]["panel_port"] = domains.panel_port
             document["domains"]["server_names"] = sorted(domains.server_names)
+    if access is not None:
+        document["access"] = access
     return json.dumps(document, indent=1, sort_keys=True)
 
 
@@ -292,7 +301,7 @@ class ServiceHost:
         self.visits: dict[str, float] = {}
         self.visits_dirty = False
         self.waiting_since: dict[str, float] = {}  # instance -> when the panel could first not be asked
-        self.answers: dict[str, tuple[float, str, float]] = {}  # instance -> (asked at, page, since)
+        self.answers: dict[str, tuple[float, status_pages.Situation]] = {}  # instance -> (asked at, answer)
         self._panel: aiohttp.ClientSession | None = None
 
     # ---- Host
@@ -312,18 +321,23 @@ class ServiceHost:
         metrics.record_request(name, status, duration_ms)
 
     async def not_ready(self, request: web.Request, name: str) -> web.StreamResponse:
-        page, since = await self.ask_panel(name)
-        return status_pages.render(request, name, page, since=since)
+        found = await self.situation(name)
+        return status_pages.render(request, name, found.page, since=found.since, progress=found.progress)
+
+    async def situation(self, name: str) -> status_pages.Situation:
+        return await self.ask_panel(name)
 
     # ---- asking the panel to start an instance
 
-    async def ask_panel(self, name: str) -> tuple[str, float]:
+    async def ask_panel(self, name: str) -> status_pages.Situation:
         """The page for a visitor of an instance whose Odoo does not answer: the panel's ("waking", "busy",
-        "off", "locked"; it starts the instance if needed), or "waiting" while the panel cannot be reached."""
+        "off", "locked"; it starts the instance if needed) with the public progress of its job, or "waiting" while
+        the panel cannot be reached."""
         now = time.time()
         cached = self.answers.get(name)
         if cached and now - cached[0] < ASK_SECONDS:
-            return cached[1], cached[2]
+            return cached[1]
+        progress = None
         try:
             if self._panel is None:
                 self._panel = aiohttp.ClientSession(
@@ -336,11 +350,13 @@ class ServiceHost:
             page, since = data["page"], float(data["since"])
             if page not in ("waking", "busy", "upgrading", "off", "locked"):
                 raise ValueError(page)
+            progress = status_pages.clean_progress(data.get("progress"))
             self.waiting_since.pop(name, None)
         except (aiohttp.ClientError, OSError, TimeoutError, ValueError, KeyError, TypeError):
             page, since = "waiting", self.waiting_since.setdefault(name, now)
-        self.answers[name] = (now, page, since)
-        return page, since
+        found = status_pages.Situation(page, since, progress)
+        self.answers[name] = (now, found)
+        return found
 
     async def connect(self, name: str, token: str, ip: str) -> tuple[str | None, str]:
         """A Connect as link: the panel uses up the token and writes the Odoo session (Docker is the panel's alone)."""
@@ -380,6 +396,7 @@ class ServiceHost:
         try:
             routes = parse_routes(json.loads(file.read_text()))
             live.use(routes.settings)
+            access_gate.load(routes.access)
         except (OSError, ValueError) as error:
             if str(error) != self.routes_problem:
                 self.routes_problem = str(error)
@@ -414,6 +431,7 @@ class ServiceHost:
                 name: {"count": counted.count, "errors": counted.errors, "durations_ms": counted.durations_ms}
                 for name, counted in metrics._take_requests().items()
             }
+            answer["passes"] = access_gate.take_used()
         return answer
 
 

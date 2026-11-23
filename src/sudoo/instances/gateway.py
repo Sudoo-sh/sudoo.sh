@@ -8,7 +8,8 @@ The gateway forwards HTTP and WebSocket traffic to Odoo (127.0.0.1:ODOO_PORT) an
 request, it can:
     - record the last visit (used for automatic pausing)
     - start a paused instance on the first request and show a "Starting up" page meanwhile
-    - show "Update in progress" / "Switched off" pages
+    - show "Update in progress" / "Switched off" pages, with the job's progress (status_pages.py)
+    - apply a production instance's access rules (access_gate.py)
     - keep the panel's cookies away from Odoo
     - count requests, errors and response times for the metrics (metrics.py)
 
@@ -49,7 +50,7 @@ from sudoo import exposure
 from sudoo.config import settings
 from sudoo.core import jobs
 from sudoo.core.state import STATE
-from sudoo.instances import metrics, status_pages, store
+from sudoo.instances import access_gate, metrics, status_pages, store
 from sudoo.instances.monitor import STATUS
 
 _LOOP = asyncio.new_event_loop()
@@ -82,7 +83,7 @@ _HOP_BY_HOP = frozenset(
 )
 _SET_BY_GATEWAY = frozenset({"cookie", "x-forwarded-for", "x-forwarded-proto", "x-forwarded-host", "x-sudoo-client-ip"})
 _NOT_A_VISIT = ("/websocket", "/longpolling", "/web/health", "/bus/")  # background traffic of an open tab
-_PANEL_COOKIES = {"sudoo_session"}
+_PANEL_COOKIES = {"sudoo_session", access_gate.PASS_COOKIE}  # never sent to Odoo, nor set by it
 _UPSTREAM_DOWN = (aiohttp.ClientConnectorError, aiohttp.ServerDisconnectedError, aiohttp.ClientOSError)
 _CLIENT_GONE = (ConnectionResetError, aiohttp.ClientConnectionResetError, aiohttp.ClientPayloadError)
 INSTANCE = web.AppKey("instance", str)  # the instance a gateway application serves
@@ -190,6 +191,11 @@ class Host(Protocol):
         """Odoo did not accept the connection: the answer for the visitor (and start the instance if needed)."""
         ...
 
+    async def situation(self, name: str) -> status_pages.Situation:
+        """Odoo did not accept the connection: why, with the public progress of the job under way (and start the
+        instance if needed)."""
+        ...
+
     async def connect(self, name: str, token: str, ip: str) -> tuple[str | None, str]:
         """A Connect as link was opened (connect_as.py): (Odoo session id, "") when its token was valid and the
         session was written, else (None, why)."""
@@ -223,8 +229,12 @@ class PanelHost:
         metrics.record_request(name, status, duration_ms)
 
     async def not_ready(self, request: web.Request, name: str) -> web.StreamResponse:
+        found = await self.situation(name)
+        return status_pages.render(request, name, found.page, since=found.since, progress=found.progress)
+
+    async def situation(self, name: str) -> status_pages.Situation:
         page, since = wake_decision(name)
-        return status_pages.render(request, name, page, since=since)
+        return status_pages.Situation(page, since, public_progress(name))
 
     async def connect(self, name: str, token: str, ip: str) -> tuple[str | None, str]:
         from sudoo.instances import connect_as
@@ -491,6 +501,11 @@ async def _to_instance(request: web.Request, name: str, edge: Edge) -> web.Strea
     route = HOST.route(name)
     if route is None:
         return status_pages.render(request, name, "gone")
+    refused = access_gate.check(request, name, edge.client_ip_header, edge.https or request.secure)
+    if refused is not None:  # production access rules, or a pass from the panel (access_gate.py)
+        return refused
+    if request.path == status_pages.STATUS_PATH:
+        return await _status(request, name, route, edge)
     if not request.path.startswith(_NOT_A_VISIT):
         HOST.visited(name)
     if route.switched_off:
@@ -508,6 +523,44 @@ async def _to_instance(request: web.Request, name: str, edge: Edge) -> web.Strea
         return await _forward_http(request, odoo_url, name, edge)
     except _OdooDown:
         return await HOST.not_ready(request, name)
+
+
+_STATUS_ASKS: dict[str, tuple[float, int]] = {}  # visitor's address -> (minute, asks)
+STATUS_ASKS_PER_MINUTE = 60
+
+
+async def _status(request: web.Request, name: str, route: Route, edge: Edge) -> web.StreamResponse:
+    """The public status address of an instance's pages (status_pages.status_json): its state and the public progress
+    of its job, nothing else; at most STATUS_ASKS_PER_MINUTE asks a minute from one address. Never passed to Odoo."""
+    headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex"}
+    if request.method != "GET":
+        return web.json_response({"error": "Use GET."}, status=405, headers=headers)
+    visitor = access_gate.visitor_ip(request, edge.client_ip_header)
+    minute = time.time() // 60
+    seen = _STATUS_ASKS.get(visitor)
+    asks = seen[1] + 1 if seen and seen[0] == minute else 1
+    if len(_STATUS_ASKS) > 10_000:
+        _STATUS_ASKS.clear()
+    _STATUS_ASKS[visitor] = (minute, asks)
+    if asks > STATUS_ASKS_PER_MINUTE:
+        return web.json_response({"error": "Too many requests."}, status=429, headers={**headers, "Retry-After": "30"})
+    if route.switched_off:
+        return web.json_response({"state": "off"}, headers=headers)
+    if await _odoo_answers(route.odoo_port):
+        return web.json_response(status_pages.status_json(None), headers=headers)
+    return web.json_response(status_pages.status_json(await HOST.situation(name)), headers=headers)
+
+
+async def _odoo_answers(port: int) -> bool:
+    """Whether Odoo accepts a connection on its port now."""
+    try:
+        _, writer = await asyncio.wait_for(asyncio.open_connection("127.0.0.1", port), 1.5)
+    except (OSError, TimeoutError):
+        return False
+    writer.close()
+    with contextlib.suppress(OSError):
+        await writer.wait_closed()
+    return True
 
 
 LONGPOLLING_PATH = "/longpolling/"  # the bus of Odoo 15 and earlier: served by the gevent server too, with workers
@@ -528,8 +581,7 @@ async def _connect(request: web.Request, name: str, edge: Edge) -> web.StreamRes
     headers = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex"}
     if request.method != "GET":
         return web.Response(status=405, text="Use GET.", headers=headers)
-    trusted = edge.client_ip_header
-    visitor = (request.headers.get(trusted, "").split(",")[-1].strip() if trusted else "") or request.remote or ""
+    visitor = access_gate.visitor_ip(request, edge.client_ip_header)
     sid, why = await HOST.connect(name, request.query.get("token", ""), visitor)
     if sid is None:
         page = _CONNECT_PAGE.format(html.escape(why or "The link is not valid."))
@@ -751,8 +803,7 @@ def _forward_headers(request: web.Request, provider: Edge, panel: bool = False) 
     ]
     if cookies:  # a browser may send its cookies in several Cookie headers (HTTP/2): Odoo gets them as one
         headers["Cookie"] = "; ".join(cookies)
-    trusted = getattr(provider, "client_ip_header", None)
-    visitor = (request.headers.get(trusted, "").split(",")[-1].strip() if trusted else "") or request.remote or ""
+    visitor = access_gate.visitor_ip(request, getattr(provider, "client_ip_header", None))
     chain = ", ".join(request.headers.getall("X-Forwarded-For", ()))
     headers["X-Forwarded-For"] = f"{chain}, {visitor}" if chain else visitor
     if panel:
@@ -903,6 +954,11 @@ def _locked(name: str) -> bool:
         return access.instance_lock(name) is not None
     except Exception:  # noqa: BLE001 - a broken project document must not stop the visitor's page
         return False
+
+
+def public_progress(name: str) -> dict[str, Any] | None:
+    """What a visitor may see of the instance's job under way (status_pages.public_progress), or None."""
+    return status_pages.public_progress(jobs.ACTIVE_JOB.get(name))
 
 
 def wake_decision(name: str) -> tuple[str, float]:

@@ -666,3 +666,9 @@ MESSAGES: dict[str, Message] = {
         ),
     )
 }
+
+
+# the e-mails of production access rules live in their own module (catalog_access.py)
+from .catalog_access import MESSAGES as _ACCESS_MESSAGES  # noqa: E402
+
+MESSAGES.update({message.key: message for message in _ACCESS_MESSAGES})

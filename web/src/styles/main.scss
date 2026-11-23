@@ -13,6 +13,7 @@
   @include meta.load-css("resources");
   @include meta.load-css("promotion");
   @include meta.load-css("logs");
+  @include meta.load-css("access");
 }
 
 @include meta.load-css("look");

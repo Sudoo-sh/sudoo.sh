@@ -167,6 +167,8 @@ export interface JobRef {
   action: string;
   status: JobStatus;
   progress_percent: number | null;
+  /** how many steps the job announced it takes; missing from older panels and for jobs that do not know */
+  expected_steps?: number | null;
 }
 
 /** One step of a job. While it runs, `progress` says how far it is in plain words ("Downloading Odoo 19.0: 2 of 5

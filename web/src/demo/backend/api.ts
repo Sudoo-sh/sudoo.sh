@@ -16,6 +16,7 @@ import * as mail from "./mail";
 import * as caught from "./caught-mail";
 import * as offsite from "./offsite";
 import * as statusPages from "./status";
+import * as accessRules from "./access-rules";
 import { branchBuilds, branchHistory, findEntry, recordStageChange } from "./builds";
 import { branchOptions, changeBranchOptions, clean as cleanOption, problem as optionsProblem, statusesAvailable } from "./build-options";
 import { branchList, membersOf, productionInstance, projectResource, projects, stageOf, type DemoProject } from "./projects";
@@ -515,7 +516,11 @@ route("POST", "/instances/:name/connect", ({ params, body }) => {
   if (instance.stage === "production" && body.confirm_stage !== "production") throw new Problem(400, 'This is a production instance: type "production" to confirm.');
   if (!user) throw new Problem(404, "This Odoo user does not exist or is not an active internal user.");
   record(ME, "connect as link given" + (instance.stage === "production" ? " (production)" : ""), { instance: instance.name, detail: `${user.login} (id ${user.id})` });
-  return created({ url: `${instance.url}/__sudoo/connect?token=${hex(43)}`, expires_at: iso(Date.now() + 60 * 1000), login: user.login });
+  const connect = `/__sudoo/connect?token=${hex(43)}`;
+  const url = instance.stage === "production" && accessRules.hasRules(instance.name)
+    ? `${instance.url}/__sudoo/pass?token=${hex(64)}&next=${encodeURIComponent(connect)}`
+    : `${instance.url}${connect}`;
+  return created({ url, expires_at: iso(Date.now() + 60 * 1000), login: user.login });
 });
 
 interface DemoUpload { id: string; instance: string; file_name: string; format: string; size: number; received: number }
@@ -1123,6 +1128,43 @@ route("DELETE", "/shells/:id", ({ params }) => {
 route("GET", "/shells/:id/recording", ({ params }) => {
   need("shells.supervise", "/shells");
   return ok(recordingOf(params.id!));
+});
+
+// ---------------------------------------------------------------- production access rules (beta)
+const mayChangeRules = () => session.role === "super_admin" || session.role === "admin";
+route("GET", "/instances/:name/access-rules", ({ params }) => {
+  needOn(params.name!, "instances.view");
+  const instance = instanceOf(params.name!);
+  return ok(accessRules.accessState(instance.name, instance.stage === "production", mayChangeRules()));
+});
+route("POST", "/instances/:name/access-rules/preview", ({ params, body }) => {
+  needOn(params.name!, "instances.view");
+  instanceOf(params.name!);
+  return ok(accessRules.preview(body.rules, typeof body.test_address === "string" && body.test_address ? body.test_address : undefined));
+});
+route("POST", "/instances/:name/access-rules/code", ({ params, body }) => {
+  const instance = instanceOf(params.name!);
+  if (!mayChangeRules()) throw new Problem(403, "Only the project's administrators, super admins and the project's client can change production access rules, in the panel (not with an API token).");
+  if (instance.stage !== "production") throw new Problem(409, "Access rules are for production instances. Move this instance to production first.");
+  record(ME, "access rules: confirmation code asked", { instance: instance.name, detail: String(body.method) });
+  return ok(accessRules.sendCode(instance.name, body.method === "app" ? "app" : "email"));
+});
+route("PUT", "/instances/:name/access-rules", ({ params, body }) => {
+  const instance = instanceOf(params.name!);
+  if (!mayChangeRules()) throw new Problem(403, "Only the project's administrators, super admins and the project's client can change production access rules, in the panel (not with an API token).");
+  const saved = accessRules.change(instance.name, body, ME);
+  record(ME, "access rules changed", { instance: instance.name, detail: accessRules.summary(saved) });
+  return ok(accessRules.accessState(instance.name, instance.stage === "production", true));
+});
+route("POST", "/instances/:name/open-link", ({ params, body }) => {
+  needOn(params.name!, "instances.view");
+  const instance = instanceOf(params.name!);
+  const target = typeof body.target === "string" && body.target.startsWith("/") ? body.target : "/odoo";
+  if (instance.stage === "production" && accessRules.hasRules(instance.name)) {
+    record(ME, "access rules: pass given", { instance: instance.name, detail: `to ${target}` });
+    return ok({ url: `${instance.url}/__sudoo/pass?token=${hex(64)}&next=${encodeURIComponent(target)}`, pass: true });
+  }
+  return ok({ url: instance.url, pass: false });
 });
 
 route("GET", "/instances/:name/domains", ({ params }) => {

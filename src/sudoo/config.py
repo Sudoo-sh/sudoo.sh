@@ -1016,6 +1016,49 @@ class Settings(BaseSettings):
     admin_contact_phone: str = ""
     admin_contact_email: str = ""
 
+    # ------------------------------------------------------------------ production access rules (instances/access_rules.py)
+    access_rules_beta: bool = Field(
+        False,
+        description="Production access rules (beta): let production instances limit who may open them, by country "
+        "and by address. Off: the feature is hidden and no rule applies (rules already set are kept).",
+    )
+    access_rules_geo_missing: Literal["open", "closed"] = Field(
+        "open",
+        description='When the country database is missing: "open" lets the country part of a rule pass (a warning '
+        'shows in the panel), "closed" lets nobody in by country (address rules and passes still work).',
+    )
+    access_rules_geo_download: bool = Field(
+        True,
+        description="Download the DB-IP Lite country database once a month while the access rules are switched on. "
+        "Off: place it yourself (docs/ADMIN_GUIDE.md).",
+    )
+    access_rules_geo_url: str = Field(
+        "https://download.db-ip.com/free/dbip-country-lite-{year}-{month}.csv.gz",
+        description="Where the monthly country database is downloaded from ({year} and {month} are filled in); an "
+        "https:// address of a DB-IP country CSV file, gzip-compressed or not.",
+    )
+    access_rules_pass_hours: float = Field(
+        8,
+        gt=0,
+        le=24,
+        description="How long the pass given when someone opens a production instance from the panel lets their "
+        "browser through its access rules, in hours.",
+    )
+    access_rules_show_ip: bool = Field(
+        False, description="Show visitors their full address on the blocked page (their country is always shown)."
+    )
+    access_rules_contact: str = Field(
+        "",
+        max_length=300,
+        description="The line on the blocked page that says whom to contact; empty: built from ADMIN_CONTACT_NAME, "
+        "ADMIN_CONTACT_PHONE and ADMIN_CONTACT_EMAIL.",
+    )
+
+    @field_validator("access_rules_geo_url")
+    @classmethod
+    def _access_rules_geo_url(cls, value: str) -> str:
+        return _plain_https(value, required=True)
+
     metrics_interval_seconds: float = Field(
         5, ge=2, le=60, description="Seconds between two measurements of the server and the instances."
     )
@@ -1909,6 +1952,9 @@ RESOURCE_SETTINGS = tuple(
 OFFSITE_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("offsite_"))
 """Every setting of off-site copies (offsite/); changing them also needs the permission offsite.configure."""
 
+ACCESS_RULES_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("access_rules_"))
+"""Every setting of production access rules (instances/access_rules.py); all of them can be changed in the panel."""
+
 SHELL_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("shell_"))
 """Every web shell setting (webshell/); all of them can be changed in the panel."""
 
@@ -1951,6 +1997,7 @@ EDITABLE = (
     "gateway_max_upload_mb",
     "gateway_idle_timeout_seconds",
     "gateway_websocket_max_message_mb",
+    *ACCESS_RULES_SETTINGS,
     "idle_hours",
     "auto_pause",
     "auto_update",

@@ -2,10 +2,11 @@
 
 Every ROUND_SECONDS, and at once when an instance is created or deleted (gateway.add, gateway.remove), the panel:
     1. writes routes.json when it changed: every instance with its two ports and whether it is switched off, the
-       exposure's listen address and trusted visitor-address header, and the gateway's current settings;
+       exposure's listen address and trusted visitor-address header, the gateway's current settings, and the
+       production access rules with the key of the panel's passes (access_rules.py);
     2. asks the gateway service to sync (gateway.sock): it reads routes.json, reconciles its listeners and answers
        with them, their errors (shown on the instance's page) and the requests it counted since the last round,
-       which are added to the metrics (metrics.py);
+       which are added to the metrics (metrics.py), and the passes used at its gateways (for the audit log);
     3. reads visits.json and takes the newer visits into the instances' state (automatic pause, daily backups).
 
 It also serves panel.sock, where the gateway service asks POST /wake/<name> when an instance's Odoo does not answer:
@@ -41,7 +42,7 @@ from sudoo.config import settings
 from sudoo.core import audit
 from sudoo.core.state import STATE
 from sudoo.core.vault import chmod_private, write_private
-from sudoo.instances import gateway, metrics, store
+from sudoo.instances import access_rules, gateway, metrics, store
 from sudoo.instances.gateway_service import (
     GATEWAY_SOCKET,
     PANEL_SOCKET,
@@ -110,7 +111,8 @@ def build_routes(mode: str) -> str:
         websocket = gateway.websocket_port(env)
         if websocket:
             instances[name]["websocket_port"] = websocket
-    return routes_document(mode, edge, values, instances, domain_routes(set(instances)))
+    access = access_rules.load_locally()  # the panel's own gateway too, when it serves the instances itself
+    return routes_document(mode, edge, values, instances, domain_routes(set(instances)), access)
 
 
 def domain_routes(instances: set[str] | None = None) -> gateway.DomainRoutes:
@@ -206,6 +208,15 @@ def _take_counts(requests: Any, known: set[str]) -> None:
             metrics.add_requests(name, count, errors, _numbers(counted.get("durations_ms")))
 
 
+def _take_passes(passes: Any, known: set[str]) -> None:
+    """The passes used at the gateway service since the last round, into the audit log."""
+    if not isinstance(passes, list):
+        return
+    for event in passes[:500]:
+        if isinstance(event, dict) and event.get("instance") in known:
+            access_rules.record_pass_use(event)
+
+
 # --------------------------------------------------------------------------- one round
 
 
@@ -221,6 +232,7 @@ def sync() -> None:
             LINK.last_seen = now
             if LINK.collect:
                 _take_counts(answer.get("requests"), known)
+            _take_passes(answer.get("passes"), known)
             LINK.collect = True
             theirs = {name for name in answer["listening"] if isinstance(name, str)}
             for name in set(gateway.listening()) & theirs:  # hand the ports back
@@ -288,7 +300,7 @@ async def _wake(request: web.Request) -> web.Response:
     if not store.exists(name):
         return web.json_response({"page": "gone"}, status=404)
     page, since = await asyncio.to_thread(gateway.wake_decision, name)
-    return web.json_response({"page": page, "since": since})
+    return web.json_response({"page": page, "since": since, "progress": gateway.public_progress(name)})
 
 
 async def _connect(request: web.Request) -> web.Response:

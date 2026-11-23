@@ -35,6 +35,7 @@ const ALL: Permission[] = [
   "instances.delete", "instances.credentials", "instances.resources", "projects.resources", "caught_mail.view", "caught_mail.manage", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
   "audit.view", "plugins.view", "settings.manage", "mail.manage", "offsite.configure", "offsite.restore", "offsite.delete",
   "instances.shell", "instances.database_shell", "instances.profile", "shells.supervise", "servers.manage", "instances.move", "support_access.manage", "clients.manage",
+  "maintenance.manage",
 ];
 const SHELL: Permission[] = ["instances.shell", "instances.database_shell"];
 
@@ -76,6 +77,7 @@ export const PERMISSIONS: Record<Permission, string> = {
   "instances.move": "Move instances to another server",
   "support_access.manage": "Grant Sudoo.sh support temporary access to the panel, see it and withdraw it",
   "clients.manage": "Invite clients to projects and take them out (the client portal); only clients open and close access to their projects",
+  "maintenance.manage": "Choose when maintenance Sudoo.sh planned on the panel runs (an update, new images, a restart)",
 };
 
 export const ROLES: RoleInfo[] = [

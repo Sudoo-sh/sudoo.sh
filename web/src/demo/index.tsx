@@ -19,6 +19,7 @@ import { seedDomains } from "./backend/domains";
 import { seedProjects } from "./backend/projects";
 import { seedTeams } from "./backend/access";
 import { seedClients } from "./backend/clients";
+import { seedMaintenance } from "./backend/maintenance";
 import { setBackendNotifier } from "./backend/notices";
 import { seedServers } from "./backend/servers";
 import { seedSupport } from "./backend/support";
@@ -43,6 +44,7 @@ export function start() {
   seedTeams();
   seedProjects();
   seedClients();
+  seedMaintenance();
   seedDomains();
   seedServers();
   seedSupport();

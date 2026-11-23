@@ -35,7 +35,7 @@ _MARK = (Path(__file__).resolve().parent / "mark.svg").read_text().strip()  # th
 _ICON = "data:image/svg+xml," + quote(_MARK)  # the Sudoo.sh mark
 
 STATUS_PATH = "/__sudoo/status"
-WAITING_KINDS = ("waking", "waiting", "busy", "upgrading")
+WAITING_KINDS = ("waking", "waiting", "busy", "upgrading", "maintenance")
 STATES = (*WAITING_KINDS, "off", "locked", "gone", "ready")
 
 # the English texts, as API clients get them ("<title>. <text>"): unchanged
@@ -55,6 +55,11 @@ _PAGES = {
         "Update in progress",
         "This Odoo is being updated. It will be available again in a minute or two. This page refreshes "
         "automatically.",
+    ),
+    "maintenance": (
+        "Scheduled maintenance",
+        "This Odoo is in a maintenance window planned in advance. It is back as soon as the work is done. This page "
+        "refreshes automatically.",
     ),
     "upgrading": (
         "Upgrading",
@@ -82,6 +87,10 @@ _PAGES_AR = {
         "خلال دقيقة. تفتح هذه الصفحة Odoo تلقائيًا عندما يصبح جاهزًا.",
     ),
     "busy": ("جارٍ التحديث", "يجري تحديث Odoo هذا، وسيعود متاحًا خلال دقيقة أو اثنتين. تتحدّث هذه الصفحة تلقائيًا."),
+    "maintenance": (
+        "صيانة مجدولة",
+        "يمرّ Odoo هذا بنافذة صيانة مخطّط لها مسبقًا، ويعود فور انتهاء العمل. تتحدّث هذه الصفحة تلقائيًا.",
+    ),
     "upgrading": (
         "جارٍ الترقية",
         "تجري ترقية Odoo هذا إلى إصدار أحدث، ويعود فور انتهائها، وقد يستغرق ذلك بعض الوقت لقاعدة بيانات كبيرة. "
@@ -566,3 +575,6 @@ def render_blocked(
     return web.Response(
         status=403, text=page, content_type="text/html", headers={**headers, **_security_headers(nonce)}
     )
+
+
+_ART["maintenance"] = _ART["busy"]  # planned maintenance (maintenance.py): the same layers and gear as an update

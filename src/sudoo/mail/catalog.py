@@ -29,6 +29,10 @@ below stay as they are, so "Reset to default" only forgets the change. Texts are
                          (projects/client_confirm.py); client_action_confirm_ar in Arabic
     client_emergency_access  a super admin forced access to a client's closed project or branch, at once;
                          client_emergency_access_ar in Arabic
+    maintenance_planned  Sudoo.sh planned maintenance on the panel: to administrators (and the clients of affected
+                         projects), with a link to choose its time (maintenance.py); _ar in Arabic
+    maintenance_reminder its time comes soon (MAINTENANCE_REMINDER_HOURS), or the default window was chosen; _ar
+    maintenance_result   it is done, failed or was cancelled; _ar in Arabic
     test                 the test e-mail of Settings, E-mail and `sudoo.sh test-email`
 
 Block placeholders (the code box, the details of a request, the list of alerts) are drawn by the functions at the
@@ -262,6 +266,24 @@ _PUSH_PLACEHOLDERS = (
         "The branch's page in the panel",
         "https://panel.example.com/projects/acme/branches/feature-invoices/history",
         LINK,
+    ),
+)
+
+
+_MAINTENANCE_PLACEHOLDERS = (
+    Placeholder("name", "The person's name", "Sara Nassar"),
+    Placeholder("what", "What is done", "Update the Odoo images"),
+    Placeholder("reason", "Why, in Sudoo.sh's words", "A security fix in the Odoo 18.0 image."),
+    Placeholder("where", "The instances it works on, or the panel", "shop-main, shop-staging"),
+    Placeholder("window", "When it runs, in the panel's time zone", "2026-11-29 02:00 (Africa/Cairo)"),
+    Placeholder("duration", "How many minutes it takes, about", 30),
+    Placeholder("deadline", "The latest it may start", "2026-12-05 23:00 (Africa/Cairo)"),
+    Placeholder("hours", "How many hours until it starts", 24),
+    Placeholder("chosen", "Who chose the time, in a sentence", "Chosen by Sara Nassar."),
+    Placeholder("result", "done, failed or cancelled", "done"),
+    Placeholder("detail", "What happened, in a sentence", "2 done, 1 skipped."),
+    Placeholder(
+        "link", "The page where the time is chosen and the work is shown", "https://panel.example.com/maintenance", LINK
     ),
 )
 
@@ -1022,6 +1044,119 @@ MESSAGES: dict[str, Message] = {
             ),
             placeholders=_CONFIRM_PLACEHOLDERS,
             required=("code",),
+        ),
+        Message(
+            key="maintenance_planned",
+            name="Maintenance planned",
+            description="Sudoo.sh planned maintenance on this panel (an update, new images, a restart): choose when it runs before the deadline, or the default window applies.",
+            recipients="Super admins and admins; clients of the affected projects (MAINTENANCE_REMIND_CLIENTS)",
+            kicker="Maintenance",
+            preheader="{{ what }}, by {{ deadline }}",
+            subject="Planned maintenance: {{ what }}",
+            title="Maintenance is planned",
+            body=(
+                "Hello {{ name }},\n\n"
+                "Sudoo.sh planned this maintenance: **{{ what }}**.\n\n"
+                "**Why:** {{ reason }}\n\n"
+                "**Works on:** {{ where }}. It takes about {{ duration }} minutes and starts by {{ deadline }} at the "
+                "latest.\n\n"
+                "Choose when it runs, for example tonight or at the weekend. If nobody chooses, the panel picks its "
+                "default maintenance window.\n\n"
+                "[Choose a time]({{ link }})"
+            ),
+            placeholders=_MAINTENANCE_PLACEHOLDERS,
+        ),
+        Message(
+            key="maintenance_planned_ar",
+            name="Maintenance planned (Arabic)",
+            description="The same e-mail in Arabic, for people whose account (or the panel) uses Arabic.",
+            recipients="Super admins and admins; clients of the affected projects (MAINTENANCE_REMIND_CLIENTS)",
+            kicker="الصيانة",
+            preheader="{{ what }}، قبل {{ deadline }}",
+            subject="صيانة مخطّطة: {{ what }}",
+            title="صيانة مخطّطة",
+            body=(
+                "مرحبًا {{ name }}،\n\n"
+                "خطّطت Sudoo.sh لهذه الصيانة: **{{ what }}**.\n\n"
+                "**السبب:** {{ reason }}\n\n"
+                "**تشمل:** {{ where }}. تستغرق نحو {{ duration }} دقيقة، وتبدأ في موعد أقصاه {{ deadline }}.\n\n"
+                "اختر موعدها، الليلة مثلًا أو في عطلة نهاية الأسبوع. إن لم يختر أحد، تختار اللوحة نافذة الصيانة "
+                "الافتراضية.\n\n"
+                "[اختر موعدًا]({{ link }})"
+            ),
+            placeholders=_MAINTENANCE_PLACEHOLDERS,
+        ),
+        Message(
+            key="maintenance_reminder",
+            name="Maintenance reminder",
+            description="Planned maintenance starts soon (MAINTENANCE_REMINDER_HOURS), or the panel chose the default window because nobody chose a time.",
+            recipients="Super admins and admins; clients of the affected projects (MAINTENANCE_REMIND_CLIENTS)",
+            kicker="Maintenance",
+            preheader="{{ what }} at {{ window }}",
+            subject="Maintenance at {{ window }}: {{ what }}",
+            title="Maintenance is coming",
+            body=(
+                "Hello {{ name }},\n\n"
+                "**{{ what }}** starts at **{{ window }}**, in about {{ hours }} hours, and takes about {{ duration }} "
+                "minutes. {{ chosen }}\n\n"
+                "**Why:** {{ reason }}\n\n"
+                "**Works on:** {{ where }}. Instances may restart and be unavailable for a few minutes during it.\n\n"
+                "[See the maintenance]({{ link }})"
+            ),
+            placeholders=_MAINTENANCE_PLACEHOLDERS,
+        ),
+        Message(
+            key="maintenance_reminder_ar",
+            name="Maintenance reminder (Arabic)",
+            description="The same e-mail in Arabic, for people whose account (or the panel) uses Arabic.",
+            recipients="Super admins and admins; clients of the affected projects (MAINTENANCE_REMIND_CLIENTS)",
+            kicker="الصيانة",
+            preheader="{{ what }} في {{ window }}",
+            subject="صيانة في {{ window }}: {{ what }}",
+            title="الصيانة تقترب",
+            body=(
+                "مرحبًا {{ name }}،\n\n"
+                "تبدأ **{{ what }}** في **{{ window }}**، بعد نحو {{ hours }} ساعة، وتستغرق نحو {{ duration }} دقيقة. "
+                "{{ chosen }}\n\n"
+                "**السبب:** {{ reason }}\n\n"
+                "**تشمل:** {{ where }}. قد تُعاد تشغيل البيئات وتتوقف بضع دقائق أثناءها.\n\n"
+                "[اعرض الصيانة]({{ link }})"
+            ),
+            placeholders=_MAINTENANCE_PLACEHOLDERS,
+        ),
+        Message(
+            key="maintenance_result",
+            name="Maintenance result",
+            description="Planned maintenance is done, failed, or was cancelled.",
+            recipients="Super admins and admins; clients of the affected projects (MAINTENANCE_REMIND_CLIENTS)",
+            kicker="Maintenance",
+            preheader="{{ result }}: {{ what }}",
+            subject="Maintenance {{ result }}: {{ what }}",
+            title="Maintenance: {{ result }}",
+            body=(
+                "Hello {{ name }},\n\n"
+                "**{{ what }}** ({{ where }}): **{{ result }}**.\n\n"
+                "{{ detail }}\n\n"
+                "[See what was done]({{ link }})"
+            ),
+            placeholders=_MAINTENANCE_PLACEHOLDERS,
+        ),
+        Message(
+            key="maintenance_result_ar",
+            name="Maintenance result (Arabic)",
+            description="The same e-mail in Arabic, for people whose account (or the panel) uses Arabic.",
+            recipients="Super admins and admins; clients of the affected projects (MAINTENANCE_REMIND_CLIENTS)",
+            kicker="الصيانة",
+            preheader="{{ result }}: {{ what }}",
+            subject="الصيانة {{ result }}: {{ what }}",
+            title="الصيانة: {{ result }}",
+            body=(
+                "مرحبًا {{ name }}،\n\n"
+                "**{{ what }}** ({{ where }}): **{{ result }}**.\n\n"
+                "{{ detail }}\n\n"
+                "[اعرض ما تمّ]({{ link }})"
+            ),
+            placeholders=_MAINTENANCE_PLACEHOLDERS,
         ),
         Message(
             key="test",

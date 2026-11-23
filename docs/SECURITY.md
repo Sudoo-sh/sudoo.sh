@@ -28,7 +28,8 @@
 19. [Code profiler](#19-code-profiler)
 20. [Client portal](#20-client-portal)
 21. [Production access rules (beta)](#21-production-access-rules-beta)
-22. [Topology shared with Sudoo.sh](#22-topology-shared-with-sudoosh)
+22. [Maintenance windows](#22-maintenance-windows)
+23. [Topology shared with Sudoo.sh](#23-topology-shared-with-sudoosh)
 
 ---
 
@@ -1028,7 +1029,22 @@ not a replacement for it.
 
 ---
 
-## 22. Topology shared with Sudoo.sh
+## 22. Maintenance windows
+
+Maintenance Sudoo.sh plans on the panel ([Admin guide](ADMIN_GUIDE.md#32-maintenance-windows)).
+
+| Threat | Protection |
+| :--- | :--- |
+| Someone sends the panel work to do | Items come only with the hub's signed answer: the command `maintenance`, signed on its own over its id, this installation, its kind, its time and a hash of its payload, and the lease's claim, inside the signed lease. Both are verified with the hub keys the panel trusts; anything else is ignored. |
+| The hub (or someone holding its key) asks for arbitrary commands | The panel never runs what the hub sends. It checks each item against a fixed allow-list (four kinds, each on the scopes it allows, names of its own instances, projects and servers, a version for a panel update) and maps it to its own jobs (restart, new images) or to waiting for an update the server's administrator installs. Anything else refuses the whole item, and the refusal is acknowledged and audit-logged. |
+| Maintenance runs on a client's closed project | An instance whose branch its client closed or locked is skipped unless that client approved this item, confirmed by e-mail in its own session. A branch the panel's people locked is skipped too. |
+| Maintenance breaks production | One item at a time, one instance at a time, production last and only when nothing failed before it; a backup first before new images; Odoo must answer afterwards. |
+| The panel's connectors are restarted | Maintenance never starts, stops or recreates the Cloudflare connectors; a panel restart restarts the backend only, once no job runs. |
+| Someone moves the window | Choosing needs `maintenance.manage` (super admins and admins), or a client of an affected project when `MAINTENANCE_CLIENT_CHOICE` is on, confirmed by e-mail. Every choice is audit-logged and sent to the hub, signed. |
+
+---
+
+## 23. Topology shared with Sudoo.sh
 
 The live infrastructure view of Sudoo.sh staff ([Marketplace, Sharing the topology](MARKETPLACE.md#13-sharing-the-topology)).
 

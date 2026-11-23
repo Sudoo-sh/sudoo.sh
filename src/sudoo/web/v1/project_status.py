@@ -60,7 +60,10 @@ def public_page(token: str) -> Response:
     found = projects.get(project_id) if project_id else None
     if found is None:
         abort(404, "There is no such status page.")
-    response = ok(checks.public_status(found))
+    from sudoo import maintenance
+
+    # planned maintenance of the project's instances (a small hook: the kind and the time only)
+    response = ok({**checks.public_status(found), "maintenance": maintenance.public_notices(str(found["id"]))})
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Robots-Tag"] = "noindex"
     return response

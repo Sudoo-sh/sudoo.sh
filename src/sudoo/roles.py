@@ -102,6 +102,7 @@ PERMISSIONS: dict[str, str] = {
     "support_access.manage": "Grant Sudoo.sh support temporary access to the panel, see it and withdraw it",
     "clients.manage": "Invite clients to projects and take them out (the client portal); only clients open and "
     "close access to their projects",
+    "maintenance.manage": "Choose when maintenance Sudoo.sh planned on the panel runs (an update, new images, a restart)",
 }
 
 

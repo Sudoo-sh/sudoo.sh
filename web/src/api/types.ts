@@ -38,7 +38,8 @@ export type Permission =
   | "servers.manage"
   | "instances.move"
   | "support_access.manage"
-  | "clients.manage";
+  | "clients.manage"
+  | "maintenance.manage";
 
 export interface Profile {
   first_name: string | null;
@@ -573,7 +574,7 @@ export interface ClientAccess {
 /** A client's major change waiting for its confirmation by e-mail (projects/client_confirm.py). */
 export interface ClientConfirmation {
   id: string;
-  kind: "switch" | "lock" | "emergency" | "approve" | "allow";
+  kind: "switch" | "lock" | "emergency" | "approve" | "allow" | "maintenance_window" | "maintenance_approve";
   summary: string;
   asked_at: string;
   expires_at: string;
@@ -2182,4 +2183,60 @@ export interface OdooApp {
   name: string;
   title: string;
   enterprise: boolean;
+}
+
+// ---------------------------------------------------------------- maintenance windows (src/sudoo/maintenance.py)
+
+export type MaintenanceStatus = "proposed" | "scheduled" | "running" | "done" | "failed" | "cancelled";
+export type MaintenancePreset = "tonight" | "weekend" | "default";
+export interface MaintenanceItem {
+  id: string;
+  kind: "panel_update" | "odoo_images" | "restart" | "custom";
+  scope: "panel" | "server" | "instance" | "project";
+  targets: string[];
+  version: string | null;
+  title: { en: string; ar: string };
+  reason: { en: string; ar: string };
+  estimated_minutes: number;
+  earliest_start: string;
+  deadline: string;
+  required: boolean;
+  status: MaintenanceStatus;
+  window: { start: string; end: string; source: "panel" | "client" | "account" | "default"; chosen_by: string | null; chosen_at: string | null } | null;
+  choose_from: string | null;
+  choose_until: string | null;
+  presets: { id: MaintenancePreset; start: string; end: string }[];
+  auto_at: string | null;
+  default_start: string | null;
+  instances: { name: string; stage: string; project: string | null; held: string | null }[];
+  approvals: string[];
+  steps: { name: string; instance?: string | null; stage?: string | null; status: string; job?: string | null; detail?: string | null }[];
+  detail: string | null;
+  received_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  /** the client portal only: the client's projects it works on, and those closed or locked */
+  projects?: { id: string; name: string }[];
+  held?: string[];
+}
+export interface MaintenanceMeta {
+  timezone: string;
+  lead_minutes: number;
+  default_window: string;
+  default_days: string;
+  tonight_time: string;
+  weekend_day: string;
+  reminder_hours: number[];
+  client_choice: boolean;
+  default_minutes: number;
+  default_start: string;
+  may_choose: boolean;
+  confirmations?: boolean;
+}
+export interface PublicMaintenance {
+  kind: MaintenanceItem["kind"];
+  title: { en: string; ar: string };
+  status: "scheduled" | "running";
+  window_start: string | null;
+  window_end: string | null;
 }

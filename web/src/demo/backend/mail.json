@@ -1334,6 +1334,582 @@
    }
   },
   {
+   "key": "maintenance_planned",
+   "name": "Maintenance planned",
+   "description": "Sudoo.sh planned maintenance on this panel (an update, new images, a restart): choose when it runs before the deadline, or the default window applies.",
+   "recipients": "Super admins and admins; clients of the affected projects (MAINTENANCE_REMIND_CLIENTS)",
+   "kicker": "Maintenance",
+   "preheader": "{{ what }}, by {{ deadline }}",
+   "default": {
+    "subject": "Planned maintenance: {{ what }}",
+    "title": "Maintenance is planned",
+    "body": "Hello {{ name }},\n\nSudoo.sh planned this maintenance: **{{ what }}**.\n\n**Why:** {{ reason }}\n\n**Works on:** {{ where }}. It takes about {{ duration }} minutes and starts by {{ deadline }} at the latest.\n\nChoose when it runs, for example tonight or at the weekend. If nobody chooses, the panel picks its default maintenance window.\n\n[Choose a time]({{ link }})"
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person's name",
+     "kind": "text"
+    },
+    {
+     "name": "what",
+     "description": "What is done",
+     "kind": "text"
+    },
+    {
+     "name": "reason",
+     "description": "Why, in Sudoo.sh's words",
+     "kind": "text"
+    },
+    {
+     "name": "where",
+     "description": "The instances it works on, or the panel",
+     "kind": "text"
+    },
+    {
+     "name": "window",
+     "description": "When it runs, in the panel's time zone",
+     "kind": "text"
+    },
+    {
+     "name": "duration",
+     "description": "How many minutes it takes, about",
+     "kind": "text"
+    },
+    {
+     "name": "deadline",
+     "description": "The latest it may start",
+     "kind": "text"
+    },
+    {
+     "name": "hours",
+     "description": "How many hours until it starts",
+     "kind": "text"
+    },
+    {
+     "name": "chosen",
+     "description": "Who chose the time, in a sentence",
+     "kind": "text"
+    },
+    {
+     "name": "result",
+     "description": "done, failed or cancelled",
+     "kind": "text"
+    },
+    {
+     "name": "detail",
+     "description": "What happened, in a sentence",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The page where the time is chosen and the work is shown",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Sara Nassar",
+    "what": "Update the Odoo images",
+    "reason": "A security fix in the Odoo 18.0 image.",
+    "where": "shop-main, shop-staging",
+    "window": "2026-11-29 02:00 (Africa/Cairo)",
+    "duration": 30,
+    "deadline": "2026-12-05 23:00 (Africa/Cairo)",
+    "hours": 24,
+    "chosen": "Chosen by Sara Nassar.",
+    "result": "done",
+    "detail": "2 done, 1 skipped.",
+    "link": "https://panel.example.com/maintenance",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
+   "key": "maintenance_planned_ar",
+   "name": "Maintenance planned (Arabic)",
+   "description": "The same e-mail in Arabic, for people whose account (or the panel) uses Arabic.",
+   "recipients": "Super admins and admins; clients of the affected projects (MAINTENANCE_REMIND_CLIENTS)",
+   "kicker": "الصيانة",
+   "preheader": "{{ what }}، قبل {{ deadline }}",
+   "default": {
+    "subject": "صيانة مخطّطة: {{ what }}",
+    "title": "صيانة مخطّطة",
+    "body": "مرحبًا {{ name }}،\n\nخطّطت Sudoo.sh لهذه الصيانة: **{{ what }}**.\n\n**السبب:** {{ reason }}\n\n**تشمل:** {{ where }}. تستغرق نحو {{ duration }} دقيقة، وتبدأ في موعد أقصاه {{ deadline }}.\n\nاختر موعدها، الليلة مثلًا أو في عطلة نهاية الأسبوع. إن لم يختر أحد، تختار اللوحة نافذة الصيانة الافتراضية.\n\n[اختر موعدًا]({{ link }})"
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person's name",
+     "kind": "text"
+    },
+    {
+     "name": "what",
+     "description": "What is done",
+     "kind": "text"
+    },
+    {
+     "name": "reason",
+     "description": "Why, in Sudoo.sh's words",
+     "kind": "text"
+    },
+    {
+     "name": "where",
+     "description": "The instances it works on, or the panel",
+     "kind": "text"
+    },
+    {
+     "name": "window",
+     "description": "When it runs, in the panel's time zone",
+     "kind": "text"
+    },
+    {
+     "name": "duration",
+     "description": "How many minutes it takes, about",
+     "kind": "text"
+    },
+    {
+     "name": "deadline",
+     "description": "The latest it may start",
+     "kind": "text"
+    },
+    {
+     "name": "hours",
+     "description": "How many hours until it starts",
+     "kind": "text"
+    },
+    {
+     "name": "chosen",
+     "description": "Who chose the time, in a sentence",
+     "kind": "text"
+    },
+    {
+     "name": "result",
+     "description": "done, failed or cancelled",
+     "kind": "text"
+    },
+    {
+     "name": "detail",
+     "description": "What happened, in a sentence",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The page where the time is chosen and the work is shown",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Sara Nassar",
+    "what": "Update the Odoo images",
+    "reason": "A security fix in the Odoo 18.0 image.",
+    "where": "shop-main, shop-staging",
+    "window": "2026-11-29 02:00 (Africa/Cairo)",
+    "duration": 30,
+    "deadline": "2026-12-05 23:00 (Africa/Cairo)",
+    "hours": 24,
+    "chosen": "Chosen by Sara Nassar.",
+    "result": "done",
+    "detail": "2 done, 1 skipped.",
+    "link": "https://panel.example.com/maintenance",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
+   "key": "maintenance_reminder",
+   "name": "Maintenance reminder",
+   "description": "Planned maintenance starts soon (MAINTENANCE_REMINDER_HOURS), or the panel chose the default window because nobody chose a time.",
+   "recipients": "Super admins and admins; clients of the affected projects (MAINTENANCE_REMIND_CLIENTS)",
+   "kicker": "Maintenance",
+   "preheader": "{{ what }} at {{ window }}",
+   "default": {
+    "subject": "Maintenance at {{ window }}: {{ what }}",
+    "title": "Maintenance is coming",
+    "body": "Hello {{ name }},\n\n**{{ what }}** starts at **{{ window }}**, in about {{ hours }} hours, and takes about {{ duration }} minutes. {{ chosen }}\n\n**Why:** {{ reason }}\n\n**Works on:** {{ where }}. Instances may restart and be unavailable for a few minutes during it.\n\n[See the maintenance]({{ link }})"
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person's name",
+     "kind": "text"
+    },
+    {
+     "name": "what",
+     "description": "What is done",
+     "kind": "text"
+    },
+    {
+     "name": "reason",
+     "description": "Why, in Sudoo.sh's words",
+     "kind": "text"
+    },
+    {
+     "name": "where",
+     "description": "The instances it works on, or the panel",
+     "kind": "text"
+    },
+    {
+     "name": "window",
+     "description": "When it runs, in the panel's time zone",
+     "kind": "text"
+    },
+    {
+     "name": "duration",
+     "description": "How many minutes it takes, about",
+     "kind": "text"
+    },
+    {
+     "name": "deadline",
+     "description": "The latest it may start",
+     "kind": "text"
+    },
+    {
+     "name": "hours",
+     "description": "How many hours until it starts",
+     "kind": "text"
+    },
+    {
+     "name": "chosen",
+     "description": "Who chose the time, in a sentence",
+     "kind": "text"
+    },
+    {
+     "name": "result",
+     "description": "done, failed or cancelled",
+     "kind": "text"
+    },
+    {
+     "name": "detail",
+     "description": "What happened, in a sentence",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The page where the time is chosen and the work is shown",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Sara Nassar",
+    "what": "Update the Odoo images",
+    "reason": "A security fix in the Odoo 18.0 image.",
+    "where": "shop-main, shop-staging",
+    "window": "2026-11-29 02:00 (Africa/Cairo)",
+    "duration": 30,
+    "deadline": "2026-12-05 23:00 (Africa/Cairo)",
+    "hours": 24,
+    "chosen": "Chosen by Sara Nassar.",
+    "result": "done",
+    "detail": "2 done, 1 skipped.",
+    "link": "https://panel.example.com/maintenance",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
+   "key": "maintenance_reminder_ar",
+   "name": "Maintenance reminder (Arabic)",
+   "description": "The same e-mail in Arabic, for people whose account (or the panel) uses Arabic.",
+   "recipients": "Super admins and admins; clients of the affected projects (MAINTENANCE_REMIND_CLIENTS)",
+   "kicker": "الصيانة",
+   "preheader": "{{ what }} في {{ window }}",
+   "default": {
+    "subject": "صيانة في {{ window }}: {{ what }}",
+    "title": "الصيانة تقترب",
+    "body": "مرحبًا {{ name }}،\n\nتبدأ **{{ what }}** في **{{ window }}**، بعد نحو {{ hours }} ساعة، وتستغرق نحو {{ duration }} دقيقة. {{ chosen }}\n\n**السبب:** {{ reason }}\n\n**تشمل:** {{ where }}. قد تُعاد تشغيل البيئات وتتوقف بضع دقائق أثناءها.\n\n[اعرض الصيانة]({{ link }})"
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person's name",
+     "kind": "text"
+    },
+    {
+     "name": "what",
+     "description": "What is done",
+     "kind": "text"
+    },
+    {
+     "name": "reason",
+     "description": "Why, in Sudoo.sh's words",
+     "kind": "text"
+    },
+    {
+     "name": "where",
+     "description": "The instances it works on, or the panel",
+     "kind": "text"
+    },
+    {
+     "name": "window",
+     "description": "When it runs, in the panel's time zone",
+     "kind": "text"
+    },
+    {
+     "name": "duration",
+     "description": "How many minutes it takes, about",
+     "kind": "text"
+    },
+    {
+     "name": "deadline",
+     "description": "The latest it may start",
+     "kind": "text"
+    },
+    {
+     "name": "hours",
+     "description": "How many hours until it starts",
+     "kind": "text"
+    },
+    {
+     "name": "chosen",
+     "description": "Who chose the time, in a sentence",
+     "kind": "text"
+    },
+    {
+     "name": "result",
+     "description": "done, failed or cancelled",
+     "kind": "text"
+    },
+    {
+     "name": "detail",
+     "description": "What happened, in a sentence",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The page where the time is chosen and the work is shown",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Sara Nassar",
+    "what": "Update the Odoo images",
+    "reason": "A security fix in the Odoo 18.0 image.",
+    "where": "shop-main, shop-staging",
+    "window": "2026-11-29 02:00 (Africa/Cairo)",
+    "duration": 30,
+    "deadline": "2026-12-05 23:00 (Africa/Cairo)",
+    "hours": 24,
+    "chosen": "Chosen by Sara Nassar.",
+    "result": "done",
+    "detail": "2 done, 1 skipped.",
+    "link": "https://panel.example.com/maintenance",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
+   "key": "maintenance_result",
+   "name": "Maintenance result",
+   "description": "Planned maintenance is done, failed, or was cancelled.",
+   "recipients": "Super admins and admins; clients of the affected projects (MAINTENANCE_REMIND_CLIENTS)",
+   "kicker": "Maintenance",
+   "preheader": "{{ result }}: {{ what }}",
+   "default": {
+    "subject": "Maintenance {{ result }}: {{ what }}",
+    "title": "Maintenance: {{ result }}",
+    "body": "Hello {{ name }},\n\n**{{ what }}** ({{ where }}): **{{ result }}**.\n\n{{ detail }}\n\n[See what was done]({{ link }})"
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person's name",
+     "kind": "text"
+    },
+    {
+     "name": "what",
+     "description": "What is done",
+     "kind": "text"
+    },
+    {
+     "name": "reason",
+     "description": "Why, in Sudoo.sh's words",
+     "kind": "text"
+    },
+    {
+     "name": "where",
+     "description": "The instances it works on, or the panel",
+     "kind": "text"
+    },
+    {
+     "name": "window",
+     "description": "When it runs, in the panel's time zone",
+     "kind": "text"
+    },
+    {
+     "name": "duration",
+     "description": "How many minutes it takes, about",
+     "kind": "text"
+    },
+    {
+     "name": "deadline",
+     "description": "The latest it may start",
+     "kind": "text"
+    },
+    {
+     "name": "hours",
+     "description": "How many hours until it starts",
+     "kind": "text"
+    },
+    {
+     "name": "chosen",
+     "description": "Who chose the time, in a sentence",
+     "kind": "text"
+    },
+    {
+     "name": "result",
+     "description": "done, failed or cancelled",
+     "kind": "text"
+    },
+    {
+     "name": "detail",
+     "description": "What happened, in a sentence",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The page where the time is chosen and the work is shown",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Sara Nassar",
+    "what": "Update the Odoo images",
+    "reason": "A security fix in the Odoo 18.0 image.",
+    "where": "shop-main, shop-staging",
+    "window": "2026-11-29 02:00 (Africa/Cairo)",
+    "duration": 30,
+    "deadline": "2026-12-05 23:00 (Africa/Cairo)",
+    "hours": 24,
+    "chosen": "Chosen by Sara Nassar.",
+    "result": "done",
+    "detail": "2 done, 1 skipped.",
+    "link": "https://panel.example.com/maintenance",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
+   "key": "maintenance_result_ar",
+   "name": "Maintenance result (Arabic)",
+   "description": "The same e-mail in Arabic, for people whose account (or the panel) uses Arabic.",
+   "recipients": "Super admins and admins; clients of the affected projects (MAINTENANCE_REMIND_CLIENTS)",
+   "kicker": "الصيانة",
+   "preheader": "{{ result }}: {{ what }}",
+   "default": {
+    "subject": "الصيانة {{ result }}: {{ what }}",
+    "title": "الصيانة: {{ result }}",
+    "body": "مرحبًا {{ name }}،\n\n**{{ what }}** ({{ where }}): **{{ result }}**.\n\n{{ detail }}\n\n[اعرض ما تمّ]({{ link }})"
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person's name",
+     "kind": "text"
+    },
+    {
+     "name": "what",
+     "description": "What is done",
+     "kind": "text"
+    },
+    {
+     "name": "reason",
+     "description": "Why, in Sudoo.sh's words",
+     "kind": "text"
+    },
+    {
+     "name": "where",
+     "description": "The instances it works on, or the panel",
+     "kind": "text"
+    },
+    {
+     "name": "window",
+     "description": "When it runs, in the panel's time zone",
+     "kind": "text"
+    },
+    {
+     "name": "duration",
+     "description": "How many minutes it takes, about",
+     "kind": "text"
+    },
+    {
+     "name": "deadline",
+     "description": "The latest it may start",
+     "kind": "text"
+    },
+    {
+     "name": "hours",
+     "description": "How many hours until it starts",
+     "kind": "text"
+    },
+    {
+     "name": "chosen",
+     "description": "Who chose the time, in a sentence",
+     "kind": "text"
+    },
+    {
+     "name": "result",
+     "description": "done, failed or cancelled",
+     "kind": "text"
+    },
+    {
+     "name": "detail",
+     "description": "What happened, in a sentence",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The page where the time is chosen and the work is shown",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Sara Nassar",
+    "what": "Update the Odoo images",
+    "reason": "A security fix in the Odoo 18.0 image.",
+    "where": "shop-main, shop-staging",
+    "window": "2026-11-29 02:00 (Africa/Cairo)",
+    "duration": 30,
+    "deadline": "2026-12-05 23:00 (Africa/Cairo)",
+    "hours": 24,
+    "chosen": "Chosen by Sara Nassar.",
+    "result": "done",
+    "detail": "2 done, 1 skipped.",
+    "link": "https://panel.example.com/maintenance",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
    "key": "test",
    "name": "Test e-mail",
    "description": "Proves the mail settings work (Settings, E-mail, Send a test; sudoo.sh test-email).",

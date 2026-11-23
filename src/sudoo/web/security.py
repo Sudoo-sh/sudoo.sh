@@ -345,7 +345,7 @@ DEVELOPER_ENDPOINTS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
         ("POST", "instances"),  # development instances only (v1/instances.create)
         ("GET", f"instances/{_NAME}"),
         ("DELETE", f"instances/{_NAME}"),  # development instances only
-        ("GET", f"instances/{_NAME}/logs(/files|/download|/stream)?"),
+        ("GET", f"instances/{_NAME}/logs(/files|/entries|/download|/stream)?"),
         ("GET", f"instances/{_NAME}/resources"),
         ("GET", f"instances/{_NAME}/mail(/.+)?"),
         ("POST", f"instances/{_NAME}/actions/{_NAME}"),  # which actions: v1/instances.DEVELOPER_ACTIONS

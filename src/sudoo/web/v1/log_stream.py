@@ -5,11 +5,16 @@ there), like the shells' WebSockets: a log followed for an hour is a coroutine, 
 Same callers and checks as the live events (session cookie with Origin, or an API token with a signature), and
 instances.logs in the instance (projects/access.py), as GET /api/v1/instances/<name>/logs.
 
-`log` is one of instances/logs.NAMES (odoo.log, the default; jobs' technical logs are server logs, never streamed);
-`tail` the number of earlier lines sent first (0-5000, default 300); `q` keeps only the lines containing that text, ignoring case (plain text, never a pattern). Events:
+`log` is odoo.log (the default; install.log and update.log are read in pages, GET .../logs/entries, and jobs'
+technical logs are server logs, never streamed); `tail` the number of earlier lines sent first (0-5000, default 300);
+the filters of the pages (instances/logs.filters_from: `level`, `logger`, `q`, `regex`, `since`, `until`,
+`tracebacks`) keep whole entries: a line in Odoo's format with its traceback. An entry is sent once it is complete
+(the next one started, or nothing came for BATCH_SECONDS). Events:
 
-    event: lines   data: {"lines": [...]}           id: where to resume (a time stamp)
-    event: end     data: {"reason": "max_duration" | "stopped"}
+    event: lines   data: {"lines": [...], "ids": [...]}    id: where to resume (a time stamp)
+    event: end     data: {"reason": "max_duration" | "stopped" | "slow_pattern"}
+
+`ids` gives each line's id (Docker's time stamp, nine decimals), the id GET .../logs/entries?around= takes.
 
 The stream ends after MAX_SECONDS ("max_duration"): the client opens it again with Last-Event-ID (or ?after=<id>)
 and continues where it stopped, so a forgotten tab cannot hold a connection for ever. It also ends when Odoo's
@@ -80,14 +85,15 @@ async def handle(request: web.Request) -> web.StreamResponse:
     if not await loop.run_in_executor(None, store.exists, name):
         return _problem(request, 404, "Not Found", "This instance does not exist.")
     log = request.query.get("log", logs.ODOO_LOG)
-    if log not in logs.NAMES:
-        return _problem(request, 400, "Bad Request", f"Choose one of the logs: {', '.join(logs.NAMES)}.")
+    if log != logs.ODOO_LOG:
+        return _problem(request, 400, "Bad Request", f"Only {logs.ODOO_LOG} can be followed.")
     raw_tail = request.query.get("tail", "300")
     if not re.fullmatch(r"[0-9]{1,5}", raw_tail) or int(raw_tail) > MAX_TAIL:
         return _problem(request, 400, "Bad Request", f"tail must be a whole number from 0 to {MAX_TAIL}.")
-    query = request.query.get("q", "")
-    if len(query) > logs.MAX_QUERY:
-        return _problem(request, 400, "Bad Request", f"The filter is too long (at most {logs.MAX_QUERY} characters).")
+    try:  # compiling a pattern runs its probes (at most a few tens of milliseconds): off the loop
+        filters = await loop.run_in_executor(None, logs.filters_from, dict(request.query))
+    except ValueError as error:
+        return _problem(request, 400, "Bad Request", str(error))
     key = _caller_key(user)
     if _OPEN.get(key, 0) >= MAX_PER_CALLER or sum(_OPEN.values()) >= MAX_STREAMS:
         refused_now = _problem(request, 429, "Too Many Requests", "Too many logs followed at once. Close one first.")
@@ -105,7 +111,7 @@ async def handle(request: web.Request) -> web.StreamResponse:
         )
         await response.prepare(request)
         await response.write(b"retry: 2000\n\n")
-        follow = Follow(response, logs.matcher(query), user, session)
+        follow = Follow(response, filters, user, session)
         with contextlib.suppress(ConnectionResetError):  # the client went away
             await follow.odoo(name, int(raw_tail), _resume_from(request))
         return response
@@ -116,37 +122,68 @@ async def handle(request: web.Request) -> web.StreamResponse:
 
 
 class Follow:
-    """Sends the lines of one log to one client, in batches, until MAX_SECONDS have passed."""
+    """Sends the entries of one log that pass the filters to one client, in batches, until MAX_SECONDS have passed.
+
+    The lines of the entry being written wait in `entry` until it is complete (a new entry starts, or nothing comes
+    for BATCH_SECONDS); only then is it kept or dropped as a whole, and the resume id moves past it."""
 
     def __init__(
-        self, response: web.StreamResponse, keep: Any, user: dict[str, str], session: dict[str, Any] | None
+        self,
+        response: web.StreamResponse,
+        filters: logs.Filters,
+        user: dict[str, str],
+        session: dict[str, Any] | None,
     ) -> None:
         self.response = response
-        self.keep = keep
+        self.filters = filters
         self.user = user
         self.session = session
         self.loop = asyncio.get_running_loop()
         self.deadline = self.loop.time() + MAX_SECONDS
         self.checked = self.loop.time()
         self.batch: list[str] = []
+        self.ids: list[str] = []
+        self.entry: logs.Entry | None = None
+        self.entry_ids: list[str] = []
+        self.entry_stamp: str | None = None  # the raw stamp of the entry's last line (where to resume after it)
         self.last_id: str | None = None
         self.sent_at = self.loop.time()
 
     async def flush(self) -> None:
         if self.batch:
-            await self.response.write(_frame("lines", {"lines": self.batch}, self.last_id))
-            self.batch = []
+            await self.response.write(_frame("lines", {"lines": self.batch, "ids": self.ids}, self.last_id))
+            self.batch, self.ids = [], []
             self.sent_at = self.loop.time()
+        self.filters.spent = 0.0  # a pattern's time limit holds for each batch, not for the whole stream
 
-    async def add(self, text: str, event_id: str | None) -> None:
-        if event_id is not None:
-            self.last_id = event_id
-        if self.keep(text):
-            self.batch.append(text)
+    async def complete(self) -> None:
+        """Decide the entry waiting: keep it (all its lines) or drop it. SlowPattern from the filters goes up."""
+        entry, self.entry = self.entry, None
+        if entry is None:
+            return
+        if self.entry_stamp is not None:
+            self.last_id = self.entry_stamp
+        if self.filters.empty or self.filters.keep(entry):
+            self.batch.extend(entry.lines)
+            self.ids.extend(self.entry_ids)
+        self.entry_ids = []
         if len(self.batch) >= BATCH_LINES:
             await self.flush()
 
+    async def add(self, text: str, stamp: str | None) -> None:
+        if self.entry is not None and self.entry.head is not None and logs.parse_line(text) is None:
+            self.entry.lines.append(text)
+        else:
+            await self.complete()
+            line_id = logs.normal_stamp(stamp or "")
+            self.entry = logs.Entry(line_id, [text], logs.parse_line(text))
+        self.entry_ids.append(logs.normal_stamp(stamp or ""))
+        if stamp is not None:
+            self.entry_stamp = stamp
+
     async def end(self, reason: str) -> None:
+        with contextlib.suppress(logs.SlowPattern):
+            await self.complete()
         await self.flush()
         await self.response.write(_frame("end", {"reason": reason}, self.last_id))
 
@@ -171,6 +208,7 @@ class Follow:
             limit=_LINE_LIMIT,
         )
         assert proc.stdout is not None
+        resume = logs.normal_stamp(since or "")
         try:
             while True:
                 if self.remaining() <= 0:
@@ -178,11 +216,13 @@ class Follow:
                     return
                 if not await self.allowed():
                     return
-                wait = BATCH_SECONDS if self.batch else min(HEARTBEAT_SECONDS, self.remaining())
+                waiting = self.batch or self.entry is not None
+                wait = BATCH_SECONDS if waiting else min(HEARTBEAT_SECONDS, self.remaining())
                 try:
                     raw = await asyncio.wait_for(proc.stdout.readline(), max(wait, 0.01))
                 except TimeoutError:
-                    if self.batch:
+                    if waiting:
+                        await self.complete()
                         await self.flush()
                     elif self.loop.time() - self.sent_at >= HEARTBEAT_SECONDS:
                         await self.response.write(b": ping\n\n")
@@ -195,11 +235,14 @@ class Follow:
                     await self.end("stopped")
                     return
                 stamp, text = logs.split_stamp(raw.decode(errors="replace").rstrip("\n"))
-                if since and stamp == since:  # --since includes the line it starts from: sent before
+                if resume and logs.normal_stamp(stamp) == resume:  # --since includes the line it starts from
                     continue
                 await self.add(text, stamp or None)
                 if self.loop.time() - self.sent_at >= BATCH_SECONDS:
-                    await self.flush()
+                    await self.flush()  # the entry being written stays until it is complete
+        except logs.SlowPattern:
+            await self.flush()
+            await self.response.write(_frame("end", {"reason": "slow_pattern"}, self.last_id))
         finally:
             if proc.returncode is None:
                 proc.kill()

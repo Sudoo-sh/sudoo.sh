@@ -108,7 +108,7 @@ hidden from the token, 404). It may call these endpoints and nothing else:
 | `GET /projects`, `GET /projects/<id>` | List and read the projects it may see, with their branches |
 | `GET /instances`, `GET /instances/<name>`, `GET /instances/<name>/resources` | List and read instances |
 | `GET /instances/<name>/logs` | Odoo's log |
-| `GET /instances/<name>/logs/files`, `.../logs/stream`, `.../logs/download` | Odoo's log: which there are, following it, downloading it |
+| `GET /instances/<name>/logs/files`, `.../logs/entries`, `.../logs/stream`, `.../logs/download` | Odoo's logs: which there are, reading them in pages, following one, downloading one |
 | `GET /instances/<name>/mail...` | Caught e-mails (reading only) |
 | `GET /jobs`, `GET /jobs/<id>` | Jobs: their steps, progress and why they failed |
 | `GET /instance-quota`, `GET /instance-plan` | How many it may still create, and the name a new one would get |
@@ -225,9 +225,10 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `GET /instances/<name>` | `instances.view` | | 200, the instance with `disk`, `recent_commits`, `submodules`, `backups`, `restorable_backup`, `newer_odoo_image` (a newer copy of its Odoo image is on this server: `update-images` moves it there) and `recent_jobs` ([below](#instances-jobs-and-actions-in-detail)); also while it is being created (status `creating`). For callers with `instances.shell` or `instances.credentials` in it, `containers`: `odoo` and `db` (container names), `db_user` and `host` (PUBLIC_HOST, or `null`), for the SSH and psql commands of a project's branch; never a password |
 | `GET /instances/<name>/credentials` | `instances.credentials` | | 200, Odoo `login`, `admin_password`, `master_password`, `ports`; written to the audit log |
 | `GET /instances/<name>/logs?lines=300` | `instances.logs` | | 200, `{"text"}`: the end of Odoo's log (1 to 5000 lines) |
-| `GET /instances/<name>/logs/files` | `instances.logs` | | 200, the logs that can be read: `odoo.log` (Odoo's container), as `{"name", "job", "status", "started_at"}` (the last three always `null`). Jobs' technical logs are server logs: they are never listed, streamed or downloaded |
-| `GET /instances/<name>/logs/stream?log=odoo.log&tail=300&q=` | `instances.logs` | | Server-Sent Events: the last `tail` lines (0 to 5000), then new ones as they are written; `q` keeps only the lines that contain that text, ignoring case (plain text, never a pattern). Events `lines` (`{"lines": [...]}`) and `end` (`{"reason": "max_duration"}` after 5 minutes, `"stopped"` when Odoo's container stops); every event's `id` is where to continue: send it back as `Last-Event-ID` or `?after=`. A caller follows at most 4 logs at once (429) ([Following a log](#following-a-log)) |
-| `GET /instances/<name>/logs/download?log=odoo.log&q=` | `instances.logs` | | 200, the log as a text file (`text/plain`, attachment): its last `LOG_DOWNLOAD_MAX_LINES` lines, with the filter `q` applied; audit-logged |
+| `GET /instances/<name>/logs/files` | `instances.logs` | | 200, the logs that can be read, as `{"name", "job", "status", "started_at"}`: `odoo.log` (Odoo's container), then `install.log` and `update.log` when the panel keeps such a run of Odoo (`started_at`: the latest; `job` and `status` always `null`) ([Reading logs](#reading-logs)). Jobs' technical logs are server logs: they are never listed, streamed or downloaded |
+| `GET /instances/<name>/logs/entries?log=odoo.log&limit=500&before=\|after=\|around=&level=&logger=&q=&regex=&since=&until=&tracebacks=` | `instances.logs` | | 200, a page of entries, oldest first: `[{"id", "time", "level", "pid", "database", "logger", "traceback", "text"}]` (`text`: the line and the lines that belong to it, such as its traceback). Without a cursor the last `limit` (1 to 2000); `before` and `after` page from an entry's `id`, `around` gives the entry and about `limit` entries around it. `meta`: `log`, `has_before`, `has_after`, `first`, `last`. Filters below; 400 for a bad value or a pattern that could take very long, **422** when a pattern takes too long on this log ([Reading logs](#reading-logs)) |
+| `GET /instances/<name>/logs/stream?log=odoo.log&tail=300&<filters>` | `instances.logs` | | Server-Sent Events: the last `tail` lines (0 to 5000), then new ones as they are written; the filters below keep whole entries. Events `lines` (`{"lines": [...], "ids": [...]}`, `ids` one per line) and `end` (`{"reason": "max_duration"}` after 5 minutes, `"stopped"` when Odoo's container stops, `"slow_pattern"` when the pattern took too long); every event's `id` is where to continue: send it back as `Last-Event-ID` or `?after=`. Only `odoo.log` is followed (400 for another). A caller follows at most 4 logs at once (429) ([Following a log](#following-a-log)) |
+| `GET /instances/<name>/logs/download?log=odoo.log&<filters>` | `instances.logs` | | 200, the log as a text file (`text/plain`, attachment): its last `LOG_DOWNLOAD_MAX_LINES` lines, only the entries the filters keep; audit-logged with the filters |
 | `GET /instances/<name>/odoo-users` | `instances.credentials` | | 200, the active internal Odoo users: `[{"id", "login", "name"}]` (read again after 30 seconds); 409 when the database is not running |
 | `POST /instances/<name>/connect` | `instances.credentials` | `{"uid": 7}`; a production instance also `"confirm_stage": "production"` | **201**, `{"url", "expires_at", "login"}`: a link that opens Odoo signed in as that user, once, within 60 seconds ([Connect as](#connect-as)); audit-logged, and so is its use |
 | `POST /instances/<name>/imports` | `instances.restore` | `{"file_name": "prod.zip", "size": 734003200}` | **201**, a new upload `{"id", "file_name", "format", "size", "received", "complete", "chunk_size"}`; 400 for a file that is not `.zip`, `.dump`, `.sql` or `.sql.gz`, 413 beyond `IMPORT_MAX_GB` ([Import database](#import-database)) |
@@ -954,7 +955,31 @@ those Odoo would not find (inside another module, in hidden or `setup` folders, 
 `?after=<id>` with `tail=0`. The id of `odoo.log` is the time stamp Docker gave the last line, so a stream opened again
 continues exactly after it. The server ends a stream after 5 minutes
 (`end` with `"max_duration"`) and when Odoo's container stops (`"stopped"`): open it again from the last id. Lines are
-read from Docker only as fast as the client takes them.
+read from Docker only as fast as the client takes them. With filters, an entry (a line and its traceback) is sent
+once it is complete: when the next one starts, or after a quarter of a second without a new line.
+
+#### Reading logs
+
+A log is read as **entries**: a line in Odoo's format (`2026-11-22 08:00:00,123 7 INFO shop odoo.http: text`) and
+the lines after it that are not, such as a traceback. Each entry has an `id` that orders them: for `odoo.log` the time
+stamp Docker gave its first line, with nine decimals (`2026-11-22T08:00:00.123456789Z`), the same as the stream's
+`ids`; for `install.log` and `update.log` the start of the job and the line's place in it. A link to a line keeps that
+`id` and opens it with `around=`.
+
+* `install.log` and `update.log` are cut out of the jobs' technical logs: only the output of Odoo's own
+  `--stop-after-init` runs (`-i` for installs, `-u` for updates), and of it only the lines in Odoo's format and the
+  tracebacks that follow them, redacted as the server's log is. Commands, paths, step titles and notes of the panel
+  never appear. They exist while the panel keeps the jobs in memory (the last 300 jobs, until it restarts).
+* Filters, the same on the pages, the stream and the download: `level` (one or more of `DEBUG`, `INFO`, `WARNING`,
+  `ERROR`, `CRITICAL`, separated by commas; `WARN` counts as `WARNING`), `logger` (that logger and those under it:
+  `odoo.addons` keeps `odoo.addons.sale.models.sale_order`), `tracebacks=1`, `since` and `until` (ISO 8601 with a
+  zone; Odoo writes its time stamps in UTC), and `q`: a text, any case, or with `regex=1` a regular expression (any
+  case). Only the first 4,096 characters of an entry are searched.
+* A regular expression is compiled by the `regex` package and run with a time limit on each entry (20 ms) and on the
+  whole request (2 s). One that already takes too long on short probe texts, such as `(a+)+$`, is refused with 400;
+  one that takes too long on the log itself answers 422 (the stream ends with `"slow_pattern"`). A pattern can never
+  hold the panel's threads.
+* Pages read at most the last `LOG_DOWNLOAD_MAX_LINES` lines of `odoo.log` and at most 64 MB of it.
 
 #### Connect as
 

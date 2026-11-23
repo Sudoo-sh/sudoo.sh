@@ -51,7 +51,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       {
         id: "projects",
         keys: ["project_production_branches", "project_auto_development", "project_max_auto_development", "project_development_demo_data", "project_staging_on_push", "project_branch_deleted", "project_upgrade_test_on_push", "project_builds_kept",
-          "project_development_on_new_commit", "project_module_install", "project_modules", "project_test_suite", "project_test_tags", "project_staging_tests", "project_test_timeout_minutes", "project_commit_statuses",
+          "project_development_on_new_commit", "project_module_install", "project_modules", "project_test_suite", "project_test_tags", "project_staging_tests", "project_test_timeout_minutes", "project_commit_statuses", "project_email_pusher",
           "project_promotion_backup_hours", "project_promotion_blocks", "project_pr_previews", "project_pr_preview_limit", "project_pr_previews_forks"],
       },
       { id: "howMany", keys: ["max_instances", "max_instances_per_user", "create_cooldown_minutes"] },
@@ -64,7 +64,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
   {
     id: "odoo",
     groups: [
-      { id: "versions", keys: ["odoo_versions", "odoo_min_version", "prepull_images", "odoo_image", "postgres_image"] },
+      { id: "versions", keys: ["odoo_versions", "odoo_min_version", "prepull_images", "odoo_image_check_hours", "odoo_image", "postgres_image"] },
       { id: "enterprise", keys: ["enterprise_source", "enterprise_path", "enterprise_git_url", "enterprise_git_branch", "enterprise_marker"] },
       { id: "upgrades", keys: ["upgrade_methods", "openupgrade_repository", "openupgrade_refs", "openupgrade_lib", "upgrade_rollback_minutes", "upgrade_max_hours", "upgrade_service_url"] },
     ],

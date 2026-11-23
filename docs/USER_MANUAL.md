@@ -195,13 +195,32 @@ it. The tab you chose stays chosen while the browser tab is open.
 one card per commit an instance was built from, with the author, when, what started it (a new instance, a push,
 **Get latest code**, a rebuild from production) and how long it took, the commit's subject and short hash (press it to
 copy the whole hash; the arrow opens the commit on GitHub), and its status: **Test: Success**, **Warning** (Odoo's log
-had warnings or errors while loading the modules; **Show the messages** lists them), **Failed** (with the reason) or
-**Building**. Each instance has one live build, its newest successful one, with **Connect** (its arrow offers
+had warnings or errors while loading the modules; **Show the messages** lists them), **Failed** (with **Why it
+failed**, below) or **Building**. Each instance has one live build, its newest successful one, with **Connect** (its arrow offers
 **Open** and **Credentials**); older builds are marked **Dropped**. For staging and development, the live build says
 when the instance will be deleted. Stage changes (**Stage change: Development › Staging**, with what the new stage
-does) and restores appear in the same timeline. **View log** opens the build's job; the panel keeps the last 300 jobs,
-so an older one says **Log no longer kept**. **Show older** reads further back; the panel keeps the last builds of each
+does) and restores appear in the same timeline. **View steps** opens the build's job; the panel keeps the last 300 jobs,
+so an older one says **Job no longer kept**. **Show older** reads further back; the panel keeps the last builds of each
 branch (**Builds kept per branch**, 200 by default, in **Settings**, **Instances**, **Projects**).
+
+**Why it failed.** A failed build (and a failed job, in the instance's **Activity** tab) shows the step that failed,
+the reason in plain words and **Error details**: only the lines that explain the failure, never the whole technical
+log. These are, depending on what broke, the Odoo error and the end of its traceback while installing or upgrading
+modules, the git message (a submodule's repository not found, a missing access right), the failing tests with their
+messages, or the Python package that could not be installed. Server paths, addresses and secrets are removed; the copy
+button copies the lines. The full technical log stays on the server; your administrator can read it. When the panel
+cannot read a repository (a new private submodule, or the main repository), the fix is right there for those who
+manage the project: each repository with **Access OK** or **No access**, then the two ways to fix it, in this order:
+give the panel's GitHub App access to that repository (recommended; the button opens the App's installation on
+GitHub), or create a read-only deploy key for it and add it on GitHub. **Check again** reads the access again; once
+every repository can be read, **Retry the update** runs the update again. The **Builds** tab shows the step and the
+reason on each failed build; its card opens the branch's history.
+
+**E-mail to the person who pushed.** When a build started by a push fails, the person who pushed receives an e-mail
+with the project, the branch, the commit, what failed, the error details and what to do (for a repository the panel
+cannot read: the same two ways, with a link to the branch). It is sent once per branch and commit, never to a GitHub
+noreply address; the build then says whether it was sent. Those who manage the project turn it off with **E-mail the
+pusher when a deployment fails** in the project's **Settings**.
 
 **Changing a stage by dragging.** Drag a branch from one group onto another (with a mouse, or a long press on a touch
 screen). The groups it can go to are outlined while you drag, the one under it is filled. Dropping it asks for the
@@ -491,7 +510,7 @@ wait: one job per instance at a time.
 | Tab | Contents |
 | :--- | :--- |
 | **Overview** | Four cards with the processor, memory, requests per minute and response time of this instance, each with a small line of the last hour; one live chart with a **CPU / Memory / Requests / Response** switch; the **Backups** card; details such as the database, its size and how long it has been running. |
-| **Activity** | Every job on this instance, newest first. Click one to open a panel with its steps, notes, the reason it failed (if it did) and the technical log, which follows live while the job runs. |
+| **Activity** | Every job on this instance, newest first. Click one to open a panel with its steps (the running one with its progress, such as "Downloading Odoo 19.0: 2 of 5 parts"), notes and, if it failed, **Why it failed**: the step, the reason and the error details. It follows live while the job runs. |
 | **Code** | The repository and branch, the recent commits, and the submodules, with **Add submodule** and **Remove** ([section 7](#7-submodules)). |
 | **Logs** | Odoo's log as it is written, and the logs of the instance's latest creation, update and module upgrade ([The Logs tab](#the-logs-tab)). Lines with `ERROR` or `Traceback` usually explain a problem. |
 | **Backups** | The **Backups** card on its own ([The Backups card](#the-backups-card)): the instance's backups, **Back up now** and the restores. |
@@ -507,9 +526,9 @@ wait: one job per instance at a time.
 
 The **Logs** tab follows a log live, as Odoo.sh does.
 
-* **Log.** `odoo.log` is what Odoo writes (its server log). `install.log`, `update.log` and `upgrade.log` are the
-  technical logs of the instance's latest creation, latest update (new code, Python requirements, module updates) and
-  latest **Upgrade modules**, while the panel keeps them; they also open from the **Activity** tab.
+* **Log.** `odoo.log` is what Odoo writes (its server log). The technical logs of the panel's jobs (creation,
+  updates, module upgrades) are server logs and are not shown here: a job's steps, progress and **Why it failed** are
+  in the **Activity** tab, and your administrator can read the full technical log on the server.
 * **Follow and Pause.** New lines appear as they are written. **Pause** keeps them aside: a pill shows how many new
   lines arrived, and clicking it (or **Follow**) shows them. Scrolling up stops the scrolling only; **Jump to the
   latest lines** goes back to the end.
@@ -820,7 +839,7 @@ If the server has a limit on the number of instances, or a waiting time between 
 the form says so before you start, and the numbers under the button show how many exist.
 
 The new instance's page opens at once with the status **Creating** (**Waiting to start** while another job on the
-same name finishes) and shows each step as it happens, with the progress and the technical log: downloading the
+same name finishes) and shows each step as it happens, with its progress: downloading the
 Odoo image (the first time for a version takes a few minutes; the log says how far the download is), preparing,
 downloading the code, starting the database, creating the Odoo database, installing modules, creating the public
 link, starting Odoo. A new instance usually takes **2 to 4 minutes**. You can leave the page: the work continues,
@@ -830,7 +849,7 @@ When it is ready, the page becomes the instance's own page: the link is in the h
 **Access** tab.
 
 If a step fails, the page says **Not created** and explains what went wrong in plain words, with the step where it
-stopped and the technical log. Everything created so far is removed, so you can simply try again (**Try again**).
+stopped, and **Why it failed**. Everything created so far is removed, so you can simply try again (**Try again**).
 
 ### Stages: production, staging and development
 
@@ -1495,7 +1514,7 @@ in English. E-mails the panel sends are in English for now.
 ## 14. When something goes wrong
 
 1. Read the message: the panel explains failures in plain words.
-2. Open the job in the instance's **Activity** tab to see which step failed, the reason and the technical log.
+2. Open the job in the instance's **Activity** tab to see **Why it failed**: which step failed, the reason and the error details. The full technical log is in the server's log; your administrator can read it.
 3. Try **Restart** if Odoo behaves strangely, and look at the **Logs** tab if it does not start.
 4. If a button is missing or an action is refused, your role may not include it ([section 9](#9-accounts-and-roles)).
 5. If it is still not solved, contact the administrator named on the sign-in page, and say which instance, what you

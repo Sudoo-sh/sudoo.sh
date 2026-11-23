@@ -39,7 +39,7 @@ _HINTS: list[tuple[str, str]] = [
     (
         r"ParseError|odoo\.tools\.convert",
         "One of the modules has an error in its XML files (views or data). A developer needs to fix the module; the "
-        "technical log shows which file.",
+        "server's log shows which file (your administrator can read it).",
     ),
     (
         r"ModuleNotFoundError|No module named",
@@ -51,8 +51,8 @@ _HINTS: list[tuple[str, str]] = [
     ),
     (
         r"took too long",
-        "This step took much longer than expected and was stopped. Try again; if it keeps happening, check the "
-        "technical log.",
+        "This step took much longer than expected and was stopped. Try again; if it keeps happening, ask your "
+        "administrator to look at the server's log.",
     ),
 ]
 
@@ -83,7 +83,7 @@ def friendly_hint(log: str) -> str:
     return specific_hint(log) or GENERAL_HINT
 
 
-GENERAL_HINT = "Something went wrong. The technical log shows exactly what happened; send it to a developer if needed."
+GENERAL_HINT = "Something went wrong in this step. The server's log has the details; your administrator can read it."
 
 
 def specific_hint(log: str) -> str | None:

@@ -70,6 +70,20 @@
   "description": "Download the Odoo image of every offered version, and the PostgreSQL image, in the background, so the first instance of a version does not wait for the download (each Odoo image takes 1-3 GB of disk)."
  },
  {
+  "key": "odoo_image_check_hours",
+  "env": "ODOO_IMAGE_CHECK_HOURS",
+  "value": 24,
+  "env_value": 24,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "integer",
+  "minimum": 1,
+  "description": "How often, in hours, the panel checks Docker Hub in the background for a newer Odoo image of every version in use (and of the default version for new instances). New instances use the newest image on this server at once; existing instances keep theirs until Update Odoo and PostgreSQL images."
+ },
+ {
   "key": "postgres_image",
   "env": "POSTGRES_IMAGE",
   "value": "postgres:16",
@@ -2490,6 +2504,20 @@
   "type": "boolean",
   "minimum": null,
   "description": "Builds report their result on GitHub as commit statuses (sudoo/<stage>) when the GitHub App may write statuses (each project can change it)."
+ },
+ {
+  "key": "project_email_pusher",
+  "env": "PROJECT_EMAIL_PUSHER",
+  "value": true,
+  "env_value": true,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "boolean",
+  "minimum": null,
+  "description": "When a deployment triggered by a push fails (an automatic update, a rebuild on push), e-mail the person who pushed: what failed, the error details and what to do; at most once per branch and commit (each project can change it)."
  },
  {
   "key": "project_promotion_backup_hours",

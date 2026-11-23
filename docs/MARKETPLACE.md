@@ -80,7 +80,7 @@ so at the top of every page for super admins and administrators.
    instance keep running. A message says when the plugin is ready.
 
 Installing is refused while other jobs run (a restart would cut them off): wait until they finish. If a step fails,
-the card says why in plain words; **Details** shows the technical log.
+the card says why in plain words; **Details** shows the job's steps and why it failed. The technical log is in the server's log (`docker logs sudoo-panel`).
 
 ---
 

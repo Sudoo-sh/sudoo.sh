@@ -1,4 +1,4 @@
-// An instance's Logs tab: one of its logs (odoo.log, or the latest install/update/upgrade job's), followed live over
+// An instance's Logs tab: Odoo's own log (odoo.log; jobs' technical logs are server logs, never shown), followed live over
 // Server-Sent Events (GET /api/v1/instances/<name>/logs/stream, web/v1/log_stream.py). What is typed in the search
 // box filters on the server too (plain text, any case) and is highlighted in the lines; Pause keeps the lines that
 // arrive meanwhile and counts them; Download saves the log as text with the same filter. The stream ends every few
@@ -160,7 +160,6 @@ export function LogsPanel({ name }: { name: string }) {
   return (
     <div className="stack">
       {state === "stopped" && <Callout tone="info">{t.stopped}</Callout>}
-      {state === "finished" && log !== "odoo.log" && <Callout tone="info">{t.finished}</Callout>}
       <LogView
         text={lines.join("\n")}
         live={state === "open" && !paused}

@@ -6,6 +6,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Why it failed**: a failed job or build shows the step that failed, the reason in plain words and **Error
+  details**, only the lines that explain the failure (the Odoo error and the end of its traceback, the git or
+  submodule message, the failing tests, the Python package that could not be installed), cleaned of server paths,
+  addresses and secrets, with a copy button; in the job panel, the branch's History and the Builds tab. API: `failure`
+  on jobs and builds. When the panel cannot read a repository (a new private submodule), the fix is next to it: give
+  the panel's GitHub App access (recommended) or create a read-only deploy key, **Check again**, then **Retry the
+  update**.
+- **E-mail to the person who pushed** when the deployment of their push fails: the project, branch, commit, what
+  failed, the error details and what to do; once per branch and commit, never to a GitHub noreply address, audited
+  without its text. New e-mail templates "Deployment of a push failed" (English and Arabic) and the project option
+  **E-mail the pusher when a deployment fails** (`PROJECT_EMAIL_PUSHER`, on by default).
+- **Background check for newer Odoo images** every `ODOO_IMAGE_CHECK_HOURS` (24 by default, 1 to 168): the Odoo image
+  of every version in use and of the default version is pulled quietly; an instance's page says when a newer image
+  of its version is on the server, with **Update Odoo and PostgreSQL images**.
+
+### Changed
+
+- **Jobs' technical logs are server logs**: no user of the panel sees them any more, whatever their role. They go to
+  the backend's log (`docker logs sudoo-panel`), each line prefixed with the job id and the instance. Removed:
+  `GET /api/v1/jobs/<id>/log`, `?include=log` on `GET /jobs/<id>`, the `job.output` live event, the job logs
+  (`install.log`, `update.log`, `upgrade.log`) of the Logs tab and the job panel's technical log. Long steps show
+  their progress instead, in plain words (`progress` and `progress_percent` on each step: "Downloading Odoo 19.0: 2
+  of 5 parts", the module Odoo is setting up) with the time they have run. A failure without a specific explanation
+  says "Something went wrong in this step. The server's log has the details; your administrator can read it."
+- **Creating an instance uses the Odoo image already on the server** instead of checking Docker Hub every time; a
+  missing image is downloaded as a step of its own ("Downloading Odoo 19.0, first time on this server").
+  **Update Odoo and PostgreSQL images** moves an instance to the newest image on the server, downloading only a
+  missing one.
+
 ## [3.2.0] - 2026-11-22
 
 ### Added

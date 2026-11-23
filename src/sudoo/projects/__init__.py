@@ -60,6 +60,7 @@ OPTIONS: dict[str, str] = {
     "test_tags": "project_test_tags",
     "staging_tests": "project_staging_tests",
     "commit_statuses": "project_commit_statuses",
+    "email_pusher": "project_email_pusher",
     # pull-request previews (projects/previews.py)
     "pr_previews": "project_pr_previews",
     "pr_preview_limit": "project_pr_preview_limit",

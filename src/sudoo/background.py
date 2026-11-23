@@ -1,5 +1,5 @@
 """Work that runs on its own inside the panel process: monitor, automatic pause, automatic deletion, daily backups,
-downloading images ahead of time (PREPULL_IMAGES), removal of expired rollback snapshots, GitHub polling, the GitHub
+downloading images ahead of time (PREPULL_IMAGES) and checking for newer Odoo images, removal of expired rollback snapshots, GitHub polling, the GitHub
 App's webhook address, gateway, connectors, alerts, the marketplace heartbeat, the plugin watchdog (files,
 licences), the renewal of custom domains' certificates, the premium features' integrity pass and background work (premium/) and the mail
 catcher (its settings, network connections and retention), and the watch over production upgrades in their
@@ -7,13 +7,14 @@ rollback window."""
 
 from __future__ import annotations
 
+import subprocess
 import threading
 import time
 
 from sudoo import accounts, alerts, exposure, plugin_manager, premium, triggers
 from sudoo.config import live, settings
 from sudoo.core import audit, jobs
-from sudoo.core.shell import succeeds
+from sudoo.core.shell import redact, succeeds
 from sudoo.core.state import STATE
 from sudoo.hub import marketplace
 from sudoo.instances import (
@@ -266,21 +267,77 @@ def daily_backups(tried: dict[str, float], now: float | None = None) -> list[str
 
 PREPULL_CHECK_SECONDS = 1800
 _PREPULL_NOW = threading.Event()
-_PREPULL_INPUTS = {"prepull_images", "odoo_versions", "odoo_min_version", "odoo_image", "postgres_image"}
+_PREPULL_INPUTS = {"prepull_images", "odoo_versions", "odoo_min_version", "odoo_image", "postgres_image",
+                   "odoo_image_check_hours"}  # fmt: skip
 
 
 def _prepull_images() -> None:
-    """Every half hour, and as soon as one of its settings changes, when PREPULL_IMAGES is on: download the images a
+    """Every half hour, and as soon as one of its settings changes: when PREPULL_IMAGES is on, download the images a
     new instance needs that are not on this server yet (the Odoo image of every offered version, the PostgreSQL
-    image), so creating one does not wait for them. Images already here are left alone: creating an instance checks
-    for a newer one anyway."""
+    image), so creating one does not wait for them; and every ODOO_IMAGE_CHECK_HOURS, look for newer Odoo images
+    (refresh_odoo_images). Creating an instance uses the copy on this server and never waits for Docker Hub."""
     live.on_change(lambda changed: _PREPULL_NOW.set() if _PREPULL_INPUTS & set(changed) else None)
     _PREPULL_NOW.wait(60)  # let the panel start first
     while True:
         _PREPULL_NOW.clear()
         if settings.prepull_images:
             prepull_images()
+        refresh_odoo_images()
         _PREPULL_NOW.wait(PREPULL_CHECK_SECONDS)
+
+
+_IMAGE_REFRESH: dict[str, float] = {"at": 0.0}  # when the Odoo images were last checked for newer versions
+
+
+def odoo_images_in_use() -> list[str]:
+    """The configured Odoo image of every version an instance of this server runs, and of the version new instances
+    get by default (the newest offered), each once."""
+    found = []
+    for name in store.names():
+        try:
+            version = store.read_env(name).get("ODOO_VERSION")
+        except (OSError, KeyError, ValueError):
+            continue
+        if version:
+            found.append(version)
+    offered = odoo.versions()
+    if offered:
+        found.append(offered[-1])
+    return [f"{settings.odoo_image}:{version}" for version in sorted(set(found), key=odoo.version_key)]
+
+
+def refresh_odoo_images(now: float | None = None) -> list[str]:
+    """Every ODOO_IMAGE_CHECK_HOURS, quietly: `docker pull` the Odoo image of every version in use
+    (odoo_images_in_use). An image that did not change costs one manifest check; a newer one is downloaded, and new
+    instances get it while existing ones stay on the image they are pinned to until "Update Odoo and PostgreSQL
+    images". No job is shown; the output goes to the server's log. Waits while a job downloads an image. Returns the
+    images that changed."""
+    now = time.time() if now is None else now
+    if now - _IMAGE_REFRESH["at"] < settings.odoo_image_check_hours * 3600 or integrity.pulling():
+        return []
+    changed: list[str] = []
+    for image in odoo_images_in_use():
+        if integrity.pulling():  # a job started a download: continue at the next round
+            return changed
+        before = integrity.local_pinned(image)
+        try:
+            result = subprocess.run(["docker", "pull", image], capture_output=True, text=True, timeout=3600)
+        except (subprocess.TimeoutExpired, OSError) as error:
+            print(f"Odoo image check: could not check {image}: {error!r}", flush=True)
+            continue
+        integrity.forget_local_digests()
+        if result.returncode != 0:
+            last = (result.stderr or result.stdout).strip().splitlines()[-1:] or [""]
+            print(f"Odoo image check: could not check {image}: {redact(last[0])}", flush=True)
+            continue
+        after = integrity.local_pinned(image)
+        if after != before:
+            changed.append(image)
+            print(f"Odoo image check: a newer {image} is on this server ({after})", flush=True)
+        else:
+            print(f"Odoo image check: {image} is up to date", flush=True)
+    _IMAGE_REFRESH["at"] = now
+    return changed
 
 
 def prepull_images() -> list[str]:

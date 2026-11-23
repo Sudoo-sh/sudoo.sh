@@ -876,7 +876,7 @@ def test_an_automatic_copy_counts_api_tokens_and_support_grants(
     access.forget_restrictions()
 
 
-def test_job_logs_of_an_instance_this_server_does_not_know_go_only_to_who_sees_everything() -> None:
+def test_jobs_of_an_instance_this_server_does_not_know_go_only_to_who_sees_everything() -> None:
     from sudoo.core.events import Event
     from sudoo.web.v1 import events as live_events
 
@@ -885,14 +885,14 @@ def test_job_logs_of_an_instance_this_server_does_not_know_go_only_to_who_sees_e
     projects.change(pid, lambda p: {**p, "access": {"mode": "restricted"}})
     access.forget_restrictions()
     viewer = {"name": "projviewer", "role": "viewer"}
-    output = {"job": "elsewhere01", "offset": 0, "next_offset": 1, "text": "cloning git@github.com:Acme/ERP\n"}
-    event = Event(1, "job.output", "elsewhere01", output, time.time())
-    assert live_events.for_caller(viewer, event, output) is None  # another server's job, its instance unknown
-    named = {**output, "instance": "erp-main"}
+    shown = {"id": "elsewhere01", "status": "running", "steps": []}
+    event = Event(1, "job", "elsewhere01", shown, time.time())
+    assert live_events.for_caller(viewer, event, shown) is None  # another server's job, its instance unknown
+    named = {**shown, "instance": "erp-main"}
     assert live_events.for_caller(viewer, event, named) is None
     admin_user = {"name": "admin1", "role": "super_admin"}
-    assert live_events.for_caller(admin_user, event, output) == output
-    # a job of this server says which instance it is about
+    assert live_events.for_caller(admin_user, event, shown) == shown
+    # the technical log of a job is never published, whatever it writes
     job = Job("erp-main", "update", "update", "t")
     published: list[Any] = []
     from sudoo.core import events as core_events
@@ -900,10 +900,9 @@ def test_job_logs_of_an_instance_this_server_does_not_know_go_only_to_who_sees_e
     original = core_events.publish
     core_events.publish = lambda *args, **_: published.append(args)  # type: ignore[assignment]
     try:
-        job.write("hello\n")
-        job.publish_output()
+        job.write("cloning git@github.com:Acme/ERP\n")
     finally:
         core_events.publish = original  # type: ignore[assignment]
-    assert published[-1][2]["instance"] == "erp-main"
+    assert published == []
     projects.change(pid, lambda p: {**p, "access": {}})
     access.forget_restrictions()

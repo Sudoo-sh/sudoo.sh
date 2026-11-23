@@ -475,7 +475,7 @@ applies at once) is the language of every account that has not chosen one; each 
 **My account** or with the switch at the bottom of the sidebar, and the choice is kept on the account, so it follows
 them to every browser. Before signing in, the sign-in and setup pages use the browser's language (or a `sudoo_lang`
 cookie, which the other Sudoo.sh sites set), and the default when the browser asks for neither. Messages written by
-the server (problem details, job logs, Odoo's logs) and the e-mails the panel sends stay in English.
+the server (problem details, error details, Odoo's logs) and most e-mails the panel sends stay in English (the e-mail to the person who pushed has an Arabic version).
 
 ### Instance stages
 
@@ -740,8 +740,19 @@ next start or restart (the database container is recreated too; its data stays i
 
 **Images.** An instance keeps the exact Odoo and PostgreSQL images it was created with (pinned by digest in its
 `.env` as `ODOO_IMAGE_REF` and `DB_IMAGE_REF`). **Update Odoo and PostgreSQL images** in the instance's menu
-(`POST /api/v1/instances/<name>/actions/update-images`, permission `instances.operate`) downloads the same image names
-and tags again, pins the new digests and recreates the containers; a paused instance gets them at its next start.
+(`POST /api/v1/instances/<name>/actions/update-images`, permission `instances.operate`) moves it to the newest copy of
+the same image names and tags on this server (downloaded only when missing), pins the new digests and recreates the
+containers; a paused instance gets them at its next start.
+
+Creating an instance uses the Odoo and PostgreSQL images already on the server at once; only a missing image is
+downloaded, as a step of its own ("Downloading Odoo 19.0, first time on this server", with its progress). Newer images
+arrive in the background: every `ODOO_IMAGE_CHECK_HOURS` (24 by default, 1 to 168, Settings, Odoo) the panel runs
+`docker pull` for the Odoo image of every version an instance uses and of the newest offered version, quietly (no job;
+its output is in `docker logs sudoo-panel`), waiting while a job downloads an image. An image that did not change
+costs one manifest check. New instances then get the newest image; existing ones stay on the image they are pinned
+to, and their page says "A newer Odoo 19.0 image is on this server" with **Update Odoo and PostgreSQL images**. The
+panel never deletes images: Docker keeps every image an instance is pinned to, and removing unused ones
+(`docker image prune`) is up to you.
 `ODOO_IMAGE` and `POSTGRES_IMAGE` apply to new instances only, so an instance never jumps to another PostgreSQL major
 version.
 
@@ -812,7 +823,7 @@ Each folder holds the modules directly:
 per version) and `ENTERPRISE_GIT_BRANCH` (for example `{version}`). Give the server a deploy key for that repository
 under **GitHub access**. The branch is downloaded when an Enterprise instance of that version is created, and
 refreshed the next time. Use an SSH address (`git@github.com:my-company/odoo-enterprise.git`): an address with a user
-name or password in it (`https://user:token@...`) is refused, because it would be shown in job logs and kept in the
+name or password in it (`https://user:token@...`) is refused, because it would be written in job logs and kept in the
 downloaded folder, which every Enterprise instance can read. If your `.env` still has such an address, the panel does
 not start until you replace it.
 
@@ -1073,6 +1084,7 @@ After installing or updating:
 | A plugin setting changed in the browser has no effect | Plugin settings apply after a restart | Settings, Advanced, **Restart the panel** (refused while jobs run: wait for them) |
 | A value changed in `.env` has no effect | The same setting was changed on the Settings page, which wins | Click **Use .env** next to it on the Settings page |
 | "Starting up" for several minutes | Odoo fails to start | The instance's **Logs** tab |
+| A job failed and "Why it failed" is not enough | The error details show only the lines that explain the failure | Read the whole technical log in the backend's log: `docker logs sudoo-panel 2>&1 \| grep 'job <id>'` (the job's id is in its address, `?job=<id>`); every line starts with `job <id> <instance>:` |
 | "Starting soon" on a paused instance | `sudoo-panel` is down or restarting; only it can start an instance | `docker ps -a`, `docker logs sudoo-panel`; the instance starts once the panel is back |
 | An instance's page says its gateway port is used by another program | Another program holds that port | `ss -ltnp 'sport = :<port>'` shows which; stop it, and the gateway takes the port within seconds |
 | `docker logs sudoo-panel` says the gateway service does not answer | `sudoo-gateway` is stopped, restarting or hangs (the panel serves the instances meanwhile) | `docker logs sudoo-gateway`, then `cd /opt/odoo/manager && docker compose up -d gateway` |
@@ -1312,7 +1324,7 @@ setting with a default ([Configuration, Alerts](CONFIGURATION.md#alerts)).
 
 | Alert | When | Setting |
 | :--- | :--- | :--- |
-| A job failed | Any job on an instance fails. The alert carries the plain hint the panel shows next to the job, the step that failed and a link that opens the job's log. | `ALERT_JOB_FAILED` |
+| A job failed | Any job on an instance fails. The alert carries the plain hint the panel shows next to the job, the step that failed and a link that opens the job. | `ALERT_JOB_FAILED` |
 | An update failed | An update failed and the instance was put back to its previous code and database (`SAFE_UPDATES`), or putting it back failed too (the before-update backup is then kept for a restore by hand). | `ALERT_UPDATE_FAILED` |
 | A backup failed | A manual or daily backup failed. | `ALERT_BACKUP_FAILED` |
 | An instance is down | An instance that should run (not paused, not switched off, no job on it) is stopped, or Odoo in it does not answer, for `ALERT_INSTANCE_DOWN_MINUTES` (5). | `ALERT_INSTANCE_DOWN` |
@@ -1452,6 +1464,7 @@ overwrites a text you changed.
 | Alert | An alert as it happens, and its recovery ([Alerts](#16-alerts)) | Alert recipients |
 | Daily summary of alerts | Once a day with `ALERT_DIGEST` | Alert recipients |
 | Plugin notice | A plugin's licence ends soon or ended, a plugin was switched off | Every super admin with an address |
+| Deployment of a push failed (and its Arabic version) | A build started by a push failed ([E-mail to the person who pushed](#e-mail-to-the-person-who-pushed)) | The person who pushed |
 | Test e-mail | **Send a test** on Settings, E-mail, and `sudoo.sh test-email` | The address typed |
 
 The panel sends no invitation or password-reset e-mails: new accounts and new passwords are handed over by the
@@ -2123,14 +2136,15 @@ Every branch of a project keeps a history, as on Odoo.sh. A **build** is recorde
 branch gets code from it: when the instance is created, when a push updates it (or rebuilds staging from production),
 when someone uses **Get latest code** or **Update submodules**, and when someone rebuilds staging by hand. A build
 shows the commit (sha, message, author), who or what started it, when it was queued, started and finished, how long
-it took, the instance, the job (whose log you can open) and a short result:
+it took, the instance, the job (whose steps you can open) and a short result:
 
 * **building** while its job runs;
 * **success** when the job succeeded;
 * **warning** when the job succeeded but Odoo's log has `WARNING` or `ERROR` lines while loading the modules (the
   first ten are kept with the build), or the job left a warning, such as modules that could not be upgraded;
-* **failed** when the job failed; an update that was put back keeps the instance on its previous build, which stays
-  live;
+* **failed** when the job failed, with **Why it failed** (the step, the reason and the error details, `core/failure.py`;
+  for a repository the panel cannot read, the fix next to it); an update that was put back keeps the instance on its
+  previous build, which stays live;
 * **dropped** when the instance moved on: a newer build of it succeeded, it follows another branch now, or it was
   deleted. Only the latest build of an instance is live. A build cut off by a restart of the panel is dropped too.
 
@@ -2138,6 +2152,21 @@ An update that finds nothing new on GitHub is not a build. Between the builds, t
 branch's stage (who moved it, from which stage to which, and what the new stage does), including the moves made by a
 database upgrade and by a plan that no longer allows a production branch, and each restore of a backup into one of
 its instances.
+
+#### E-mail to the person who pushed
+
+When a build started by a push fails (an automatic update, or a staging rebuild on push), the panel e-mails the person
+who pushed: the project, the branch, the commit, what failed, the error details and what to do. For a repository the
+panel cannot read (a new private submodule, or the main repository), it says to give the panel's GitHub App access to
+that repository, or else to add a read-only deploy key, with a link to the branch's page. The address comes from
+GitHub's push (the pusher, else the head commit's committer or author); with polling, from the commit's author in
+the instance's clone. GitHub's noreply addresses are skipped. Without a usable address nobody is e-mailed: the
+project's notification channels receive their usual "build failed", and the build says that nobody could be e-mailed.
+
+It is sent at most once per branch and commit, in Arabic when the address belongs to a panel account that uses
+Arabic (or the panel's default language is Arabic). The texts are on the **E-mail templates** page ("Deployment of a
+push failed" and its Arabic version). Each e-mail is recorded in the audit log with its recipient, never its text.
+`PROJECT_EMAIL_PUSHER` (on by default) and each project's **E-mail the pusher when a deployment fails** turn it off.
 
 Each branch keeps its last `PROJECT_BUILDS_KEPT` builds (200 by default; **Settings**, **Projects**). The history is
 kept in the panel's storage (collection `build_history`) and removed with its project. Reading it needs what

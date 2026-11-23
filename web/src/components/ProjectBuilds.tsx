@@ -16,6 +16,8 @@ import { Button, Empty, Skeleton } from "@/components/app/basics";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/i18n";
 import words from "@/i18n/builds";
+import failureWords from "@/i18n/failure";
+import { stepTitle } from "@/i18n/jobs";
 import { ago, duration, elapsed, fullDateTime, statusLabel } from "@/lib/format";
 
 const STAGES: Stage[] = ["production", "staging", "development"];
@@ -23,6 +25,7 @@ const PER_BRANCH = 4;
 
 function BuildTile({ build, live, instance, mayOpen, access, to }: { build: Build; live: boolean; instance: Instance | undefined; mayOpen: boolean; access: string | null; to: string }) {
   const t = useT(words);
+  const fw = useT(failureWords);
   const author = build.commit?.author || build.by || "";
   return (
     <article className={`pb-tile ${build.status}`} data-live={live || undefined}>
@@ -40,6 +43,13 @@ function BuildTile({ build, live, instance, mayOpen, access, to }: { build: Buil
           <dd>{build.status === "building" ? elapsed(build.started_at ?? build.at) : duration(build.duration_seconds)}</dd>
         </div>
       </dl>
+      {build.status === "failed" && (build.failure?.reason || build.result) && (
+        // why it failed, in short; the branch's history has the step, the error details and the fix
+        <Link to={to} viewTransition className="pb-why xsmall" title={fw.title}>
+          {build.failure?.step && <b>{stepTitle(build.failure.step)}: </b>}
+          {build.failure?.reason || build.result}
+        </Link>
+      )}
       <div className="pb-foot">
         <BuildStatusTag status={build.status} />
         {live && instance?.url && mayOpen && <ConnectButton url={instance.url} access={access} size="sm" />}

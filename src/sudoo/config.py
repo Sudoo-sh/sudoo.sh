@@ -154,6 +154,14 @@ class Settings(BaseSettings):
         description="Download the Odoo image of every offered version, and the PostgreSQL image, in the background, "
         "so the first instance of a version does not wait for the download (each Odoo image takes 1-3 GB of disk).",
     )
+    odoo_image_check_hours: int = Field(
+        24,
+        ge=1,
+        le=168,
+        description="How often, in hours, the panel checks Docker Hub in the background for a newer Odoo image of every "
+        "version in use (and of the default version for new instances). New instances use the newest image on this "
+        "server at once; existing instances keep theirs until Update Odoo and PostgreSQL images.",
+    )
     postgres_image: str = Field("postgres:16", description="Docker image of each instance's database.")
     odoo_admin_password: str = Field("admin", description='Password of the Odoo user "admin" in new instances.')
 
@@ -841,6 +849,12 @@ class Settings(BaseSettings):
         True,
         description="Builds report their result on GitHub as commit statuses (sudoo/<stage>) when the GitHub App may "
         "write statuses (each project can change it).",
+    )
+    project_email_pusher: bool = Field(
+        True,
+        description="When a deployment triggered by a push fails (an automatic update, a rebuild on push), e-mail the "
+        "person who pushed: what failed, the error details and what to do; at most once per branch and commit (each "
+        "project can change it).",
     )
     project_promotion_backup_hours: int = Field(
         24,
@@ -1893,6 +1907,7 @@ EDITABLE = (
     "odoo_versions",
     "odoo_min_version",
     "prepull_images",
+    "odoo_image_check_hours",
     "odoo_image",
     "postgres_image",
     "odoo_admin_password",

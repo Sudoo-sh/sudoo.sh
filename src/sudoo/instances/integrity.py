@@ -44,7 +44,7 @@ from typing import Any
 
 from sudoo.config import settings
 from sudoo.core import audit, events, jobs
-from sudoo.core.jobs import Job, JobError
+from sudoo.core.jobs import CommandFailed, Job, JobError
 from sudoo.core.shell import capture
 from sudoo.core.state import STATE
 from sudoo.instances import odoo, resources, store
@@ -211,22 +211,67 @@ def present(reference: str) -> bool:
     return _image(reference) is not None
 
 
+_PULLING: set[str] = set()  # images a job is downloading now
+_PULLING_LOCK = threading.Lock()
+
+
+def pulling() -> bool:
+    """Whether a job is downloading an image now (the background refresh waits for it to end)."""
+    with _PULLING_LOCK:
+        return bool(_PULLING)
+
+
+def image_label(reference: str) -> str:
+    """An image as people name it: "Odoo 19.0" for odoo:19.0, "PostgreSQL 16" for postgres:16, else its name and tag
+    without the registry or digest."""
+    repository = _repository(reference)
+    tag = reference.split("@")[0][len(repository) :].lstrip(":")
+    name = repository.rsplit("/", 1)[-1]
+    if repository == _repository(settings.odoo_image) or name == "odoo":
+        name = "Odoo"
+    elif name == "postgres":
+        name = "PostgreSQL"
+    return f"{name} {tag}".strip()
+
+
+def pull_progress(label: str, layers: dict[str, str]) -> tuple[str, int | None]:
+    """The plain-language progress of a download (layers: layer id -> Docker's last word about it): the sentence and
+    a percentage (None while the parts are not known yet). A part counts half when downloaded, whole when unpacked."""
+    if not layers:
+        return f"Downloading {label}", None
+    total = len(layers)
+    downloaded = sum(state in _DOWNLOADED for state in layers.values())
+    unpacked = sum(state in ("Pull complete", "Already exists") for state in layers.values())
+    percent = round(100 * (downloaded + unpacked) / (2 * total))
+    if downloaded < total:
+        return f"Downloading {label}: {downloaded} of {total} parts", percent
+    return f"Unpacking {label}: {unpacked} of {total} parts", percent
+
+
 def pull_image(job: Job, reference: str, timeout: float = 1800) -> None:
-    """`docker pull reference` with its output in the job's log. Docker writes nothing while a large layer downloads,
-    so every 10 seconds without news a line says how far it is (layers downloaded and unpacked, time so far).
+    """`docker pull reference`, its output in the job's technical log (the server's log), and how far it is as the
+    step's progress ("Downloading Odoo 19.0: 2 of 5 parts"). Docker writes nothing while a large layer downloads, so
+    every 10 seconds without news the log says how far it is too.
 
     When the download fails but the image is on this server already (no network), the job goes on with that one."""
     layers: dict[str, str] = {}
     started = time.monotonic()
+    label = image_label(reference)
+
+    def show() -> None:
+        text, percent = pull_progress(label, layers)
+        job.progress(text, percent)
 
     def follow(line: str) -> None:
         found = _LAYER_LINE.match(line.strip())
         # layers are announced ("Pulling fs layer", "Already exists"); other ids (the image's configuration) are not
         if found and (found[1] in layers or found[2] in ("Pulling fs layer", "Already exists")):
             layers[found[1]] = found[2]
+            show()
 
     def progress() -> None:
         seconds = round(time.monotonic() - started)
+        show()
         if not layers:
             job.write(f"Still downloading {reference} ({seconds} s)\n")
             return
@@ -237,18 +282,67 @@ def pull_image(job: Job, reference: str, timeout: float = 1800) -> None:
             f"({seconds} s)\n"
         )
 
-    if job.run_watched(["docker", "pull", reference], timeout, follow, progress) == 0:
+    show()
+    with _PULLING_LOCK:
+        _PULLING.add(f"{job.id}:{reference}")
+    try:
+        code = job.run_watched(["docker", "pull", reference], timeout, follow, progress)
+    finally:
+        with _PULLING_LOCK:
+            _PULLING.discard(f"{job.id}:{reference}")
+        forget_local_digests()
+    if code == 0:
         return
     if not present(reference):
-        raise JobError(f"command failed: docker pull {reference}")
-    job.note(f"Could not check for a newer {reference}; the copy on this server is used.", "warning")
+        raise CommandFailed(f"command failed: docker pull {reference}")
+    job.note(f"Could not download {label}; the copy already on this server is used.", "warning")
+
+
+def ensure_image(job: Job, reference: str, timeout: float = 1800) -> bool:
+    """The image on this server: the copy already here when there is one (newer versions arrive through the
+    background refresh, background.py), else downloaded now. Returns whether it was downloaded."""
+    if present(reference):
+        job.write(f"{reference} is on this server already: using it.\n")
+        return False
+    pull_image(job, reference, timeout)
+    return True
+
+
+_LOCAL_DIGESTS: dict[str, tuple[float, str | None]] = {}  # image reference -> (when read, the local copy pinned)
+_LOCAL_DIGEST_SECONDS = 60
+
+
+def forget_local_digests() -> None:
+    """After a download: read the local copies again."""
+    _LOCAL_DIGESTS.clear()
+
+
+def local_pinned(reference: str) -> str | None:
+    """`reference` (name and tag) pinned to the digest of the copy on this server now; None when there is none.
+    Read again at most once a minute, and after every download."""
+    found = _LOCAL_DIGESTS.get(reference)
+    if found is None or time.monotonic() - found[0] >= _LOCAL_DIGEST_SECONDS:
+        image = _image(reference)
+        found = (time.monotonic(), pinned(reference, image) if image else None)
+        _LOCAL_DIGESTS[reference] = found
+    return found[1]
+
+
+def newer_odoo_image(name: str) -> bool:
+    """Whether this server has a newer copy of the Odoo image the instance is pinned to (the same name and tag at
+    another digest): "Update Odoo and PostgreSQL images" moves it to that copy without downloading anything."""
+    current = ((record(name) or {}).get("inputs") or {}).get("ODOO_IMAGE_REF") or ""
+    if "@" not in current:
+        return False
+    local = local_pinned(current.split("@")[0])
+    return bool(local and "@" in local and local != current)
 
 
 def pin_images(job: Job, name: str, pull: bool) -> dict[str, str]:
     """Image references of the instance, pinned by digest, written to its .env (ODOO_IMAGE_REF, DB_IMAGE_REF).
 
-    pull=True (creation, "Update images"): download the images and pin what arrived; an instance keeps the image
-    names and tags it was made with.
+    pull=True ("Update images"): pin the newest copy of the images on this server (downloaded only when missing; the
+    background refresh brings newer ones); an instance keeps the image names and tags it was made with.
     pull=False (first start of an instance made before images were pinned): pin what its containers run now, so
     nothing changes but the hardening; references already pinned stay."""
     env = store.read_env(name)
@@ -266,8 +360,8 @@ def pin_images(job: Job, name: str, pull: bool) -> dict[str, str]:
         if current:  # keep the image name and tag the instance was made with (a new PostgreSQL major version
             configured = current.split("@")[0]  # could not open its data); only the digest is refreshed
         image: dict[str, Any] | None = None
-        if pull:
-            pull_image(job, configured)
+        if pull:  # the newest copy on this server (the background refresh keeps it current), downloaded if missing
+            ensure_image(job, configured)
         else:
             running = _container_image(store.container(name, service))
             image = _image(running) if running else None
@@ -424,8 +518,8 @@ def retarget(job: Job, name: str, odoo_image: str, enterprise_folder: str) -> No
 
 
 def pinned_reference(job: Job, reference: str) -> str:
-    """`reference` (an image name and tag) downloaded and pinned by digest."""
-    pull_image(job, reference)
+    """`reference` (an image name and tag) pinned by digest: the copy on this server, downloaded when missing."""
+    ensure_image(job, reference)
     image = _image(reference)
     if image is None:
         raise JobError(f"The image {reference} is not available.")

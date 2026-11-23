@@ -6,7 +6,10 @@ and github-webhook (github_webhook.py). Writing one: docs/PLUGINS.md.
 
 from __future__ import annotations
 
+import threading
+import time
 from functools import cache
+from typing import Any
 
 from flask import Blueprint
 
@@ -16,7 +19,37 @@ from sudoo.core import jobs
 from sudoo.instances import operations, store
 from sudoo.triggers.base import RequestUpdate, UpdateTrigger
 
-__all__ = ["RequestUpdate", "UpdateTrigger", "blueprints", "enabled", "request_update", "start_all"]
+__all__ = ["RequestUpdate", "UpdateTrigger", "blueprints", "enabled", "note_pusher", "pusher_of", "request_update",
+           "start_all"]  # fmt: skip
+
+
+_PUSHERS: dict[str, tuple[float, dict[str, str]]] = {}  # instance -> (when, who pushed) for its next update
+_PUSHERS_LOCK = threading.Lock()
+_PUSHER_SECONDS = 600
+
+
+def pusher_of(payload: dict[str, Any]) -> dict[str, str]:
+    """Who pushed, from a GitHub push payload: {"name", "email"} of the pusher, else of the head commit's committer
+    or author (an address may be empty or GitHub's noreply one; projects/push_failed.py decides)."""
+    pusher = payload.get("pusher") or {}
+    head = payload.get("head_commit") or {}
+    for person in (pusher, head.get("committer") or {}, head.get("author") or {}):
+        email = str(person.get("email") or "").strip()
+        if email:
+            return {"name": str(person.get("name") or person.get("username") or "")[:100], "email": email[:254]}
+    return {"name": str(pusher.get("name") or "")[:100], "email": ""}
+
+
+def note_pusher(name: str, pusher: dict[str, str]) -> None:
+    """Remember who pushed the code instance `name` is about to be updated to (the next update job carries it)."""
+    with _PUSHERS_LOCK:
+        _PUSHERS[name] = (time.time(), dict(pusher))
+
+
+def _take_pusher(name: str) -> dict[str, str] | None:
+    with _PUSHERS_LOCK:
+        found = _PUSHERS.pop(name, None)
+    return found[1] if found and time.time() - found[0] < _PUSHER_SECONDS else None
 
 
 @cache
@@ -56,12 +89,16 @@ def request_update(name: str, reason: str) -> None:
 
     if automation.skips_update(name):  # its branch builds nothing on new commits: the commit is recorded
         return
+    details: dict[str, Any] = {"build": "push"}
+    pusher = _take_pusher(name)
+    if pusher:  # who to tell if it fails (projects/push_failed.py); polling: the commit's author, read then
+        details["pusher"] = pusher
     special = automation.update_for(name)
     if special is not None:
         title, kind, fn, args = special
-        jobs.start(name, f"{title}: {reason}", kind, fn, *args, details={"build": "push"})
+        jobs.start(name, f"{title}: {reason}", kind, fn, *args, details=details)
         return
-    jobs.start(name, f"Automatic update: {reason}", "update", operations.update_code, name, details={"build": "push"})
+    jobs.start(name, f"Automatic update: {reason}", "update", operations.update_code, name, details=details)
 
 
 def start_all() -> None:

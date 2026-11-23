@@ -1,0 +1,22 @@
+{
+  "about": "What a single-node k3s server costs, idle and with Odoo instances of the Sudoo.sh Kubernetes engine (beta). A local measurement, not a guarantee: see docs/KUBERNETES_ENGINE.md, section 14. Made with perf/k3s_measure.py.",
+  "measured_at": "2026-11-23T17:34:48Z",
+  "machine": "Development machine: Intel Core i7-11800H (16 threads), 15 GB of memory, Docker 29.1; k3s in one privileged Docker container (k3s in Docker), not a VPS.",
+  "method": "Local measurement only: one k3s server node in a Docker container on a development machine (k3s v1.36.6+k3s1, Traefik and servicelb off, metrics-server, CoreDNS and local-path on), measured with docker stats every 5 s for 120 s after 120 s of rest. Instances: Odoo 18.0 Community with only the base module and PostgreSQL 16, idle (no visitors), made by the Kubernetes engine (one namespace each). Figures are the whole node: k3s, containerd and every pod.",
+  "k3s_version": "v1.36.6+k3s1",
+  "results": {
+    "idle": {"instances": 0, "memory_mib": 599, "memory_max_mib": 605, "cpu_cores": 0.09, "samples": 20},
+    "one_instance": {"instances": 1, "memory_mib": 848, "memory_max_mib": 855, "cpu_cores": 0.23, "samples": 20},
+    "three_instances": {"instances": 3, "memory_mib": 1231, "memory_max_mib": 1238, "cpu_cores": 0.13, "samples": 20}
+  },
+  "per_instance_mib": 211,
+  "k3s_minimum_per_server_node": {
+    "cpu_cores": 2,
+    "memory_mib": 2048,
+    "source": "https://docs.k3s.io/installation/requirements"
+  },
+  "recommendation": {
+    "memory_mib": 8192,
+    "note": "At least 8 GB for the panel, k3s and a few instances with real data and visitors; 4 GB is enough to try one or two instances."
+  }
+}

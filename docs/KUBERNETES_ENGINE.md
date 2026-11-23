@@ -322,14 +322,32 @@ to that server with the engine given in the plan (phase 4).
 
 ## 14. Resources it costs
 
-| Part | Memory | Notes |
-| :--- | :--- | :--- |
-| k3s server (API, scheduler, controllers, SQLite, containerd, flannel, CoreDNS, metrics-server, local-path) | about 1 to 1.5 GB | Traefik and the service load balancer are disabled by the installer |
-| k3s agent (each other node) | about 300 to 500 MB | |
-| Per instance | the same as with Docker | plus a few MB for its namespace's objects |
+**Measured (locally, not on a VPS).** One k3s server node (v1.36.6+k3s1) in a Docker container on a development
+machine (Intel Core i7-11800H, 16 threads, 15 GB), with Traefik and servicelb off as the installer sets them, and
+CoreDNS, metrics-server and local-path on. Each instance is Odoo 18.0 Community with only the `base` module and
+PostgreSQL 16, made by this engine, idle (no visitors). Figures are the whole node (k3s, containerd and every pod),
+averaged over `docker stats` samples every 5 seconds for 2 minutes, after 2 minutes of rest:
 
-**Recommendation:** a server with **at least 8 GB of memory** (4 GB works for trying it with one or two instances).
-Docker and k3s use separate container runtimes on the same server: images are downloaded once per runtime.
+| State | Memory (average) | Memory (highest) | Processor (average) |
+| :--- | :--- | :--- | :--- |
+| k3s idle, no instance | 599 MiB | 605 MiB | 0.09 cores |
+| 1 instance (Odoo + PostgreSQL) | 848 MiB | 855 MiB | 0.23 cores |
+| 3 instances | 1231 MiB | 1238 MiB | 0.13 cores |
+
+So k3s itself took about **600 MiB** here, and each idle instance about **210 MiB** more. (The processor figures are
+small and noisy: the single instance was still finishing its first scheduled jobs.) The same figures are in
+`docs/data/kubernetes-resources.json` for the installer and the website; they come from `perf/k3s_measure.py`
+(with the engine, phase 2), which you can run again.
+
+What this does not include: the server's own system, Docker and the panel's containers (`sudoo-panel`,
+`sudoo-gateway`, `sudoo-web`), instances with real data, modules and visitors (an Odoo with workers and users takes
+far more than 210 MiB), and a second node (a k3s agent takes less than a server). The official k3s minimum for a
+server node is 2 CPU cores and 2 GB of memory before any application
+([k3s: Requirements](https://docs.k3s.io/installation/requirements)).
+
+**Recommendation:** a server with **at least 8 GB of memory** for the panel, k3s and a few working instances (4 GB is
+enough to try it with one or two). Docker and k3s use separate container runtimes on the same server: images are
+downloaded once per runtime.
 
 ---
 

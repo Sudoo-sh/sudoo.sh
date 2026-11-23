@@ -144,9 +144,15 @@ def test_only_commands_that_work_here_are_listed(code: Path) -> None:
     assert "odoo-shell" not in commands and "odoo-update" not in commands  # no Odoo and no odoo.conf here
 
 
-def test_a_narrow_terminal_gets_no_banner(code: Path) -> None:
+def test_a_narrow_terminal_gets_the_name_on_one_line(code: Path) -> None:
     shown = _terminal(_environment("staging", code), code, [], cols=40)
-    assert "█" not in shown and "You are connected to the" in ESCAPES.sub("", shown)
+    plain = ESCAPES.sub("", shown)
+    assert "█" not in shown and "SUDOO.SH" in plain and "You are connected to the" in plain
+
+
+def test_a_terminal_without_a_size_yet_gets_the_banner(code: Path) -> None:
+    shown = _terminal(_environment("development", code), code, [], cols=0)
+    assert "█" in shown
 
 
 def test_no_color_turns_every_colour_off(code: Path) -> None:

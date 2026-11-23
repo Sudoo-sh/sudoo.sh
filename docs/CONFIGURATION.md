@@ -399,8 +399,8 @@ seconds. Set them in the panel's `.env` or in the panel, as always.
 ### Production access rules (beta)
 
 Who may open a production instance, by country and by address, applied by the gateway
-([User Manual](USER_MANUAL.md#production-access-rules-beta), [Administrator Guide](ADMIN_GUIDE.md#production-access-rules-beta),
-[Security](SECURITY.md#production-access-rules-beta)). The rules themselves are set per instance, in its **Settings**
+([User Manual](USER_MANUAL.md#production-access-rules-beta), [Administrator Guide](ADMIN_GUIDE.md#30-production-access-rules-beta),
+[Security](SECURITY.md#20-production-access-rules-beta)). The rules themselves are set per instance, in its **Settings**
 tab; these settings are for the whole panel. The gateway service gets them through `routes.json`, like the settings
 above.
 
@@ -408,7 +408,7 @@ above.
 | :--- | :--- | :--- | :--- | :--- |
 | `ACCESS_RULES_BETA` | bool | `false` | **live** | Shows the feature (a **Beta** badge marks it) and lets the rules apply. Off: the feature is hidden, no rule applies and no country database is downloaded; rules already set are kept for when it is switched on again. |
 | `ACCESS_RULES_GEO_MISSING` | text | `open` | **live** | What a country rule does while the country database is missing: `open` lets the country part of the rule pass (the panel shows a warning on every instance with country rules), `closed` lets nobody in by country (address rules, exceptions and the panel's passes still work). |
-| `ACCESS_RULES_GEO_DOWNLOAD` | bool | `true` | **live** | Download the DB-IP Lite country database once a month (only while `ACCESS_RULES_BETA` is on). Off: place it yourself, see the [Administrator Guide](ADMIN_GUIDE.md#production-access-rules-beta). |
+| `ACCESS_RULES_GEO_DOWNLOAD` | bool | `true` | **live** | Download the DB-IP Lite country database once a month (only while `ACCESS_RULES_BETA` is on). Off: place it yourself, see the [Administrator Guide](ADMIN_GUIDE.md#30-production-access-rules-beta). |
 | `ACCESS_RULES_GEO_URL` | text | `https://download.db-ip.com/free/dbip-country-lite-{year}-{month}.csv.gz` | **live** | Where the monthly country database comes from; `{year}` and `{month}` are filled in. Must be `https://`. A DB-IP country CSV file (start address, end address, country code), compressed with gzip or not. |
 | `ACCESS_RULES_PASS_HOURS` | float | `8` | **live** | How long the pass given when someone opens a production instance from the panel (**Open Odoo**, **Connect as**) lets their browser through the rules, in hours (up to 24). Saving new rules ends every pass given before. |
 | `ACCESS_RULES_SHOW_IP` | bool | `false` | **live** | Show visitors their full address on the blocked page. Their country and a reference are always shown. |

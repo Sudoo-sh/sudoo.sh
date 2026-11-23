@@ -6,6 +6,7 @@ role (roles.py), and the same permission checks apply.
 
     alerts.py      the alerts of the bell, test alerts
     session.py     sign in (password, then a second factor when needed) and out, own password, contact
+    setup_wizard.py  the first-run setup wizard's server check, draft and test e-mail
     account.py     own account and second factors
     instances.py   instances, jobs, versions
     logs.py        an instance's logs: which there are, downloading one (log_stream.py follows one live)
@@ -83,6 +84,7 @@ from . import (
     server,
     session,
     settings,
+    setup_wizard,
     shell,
     teams,
     tokens,
@@ -110,6 +112,7 @@ def register(app: Flask) -> None:
     api = Blueprint("api_v1", __name__, url_prefix=PREFIX)
     for module in (
         session,
+        setup_wizard,
         account,
         instances,
         logs,

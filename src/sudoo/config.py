@@ -192,6 +192,31 @@ class Settings(BaseSettings):
     enterprise_git_branch: str = Field("{version}", description="git source: branch name of a version, e.g. {version}.")
     enterprise_marker: str = Field("web_enterprise", description="Module whose presence proves the add-ons are there.")
 
+    # ------------------------------------------------------------------ engine (server_check.py)
+    engine: Literal["docker", "kubernetes"] = Field(
+        "docker",
+        description='What runs the instances: "docker", or "kubernetes" (k3s, beta). Written by the installer, '
+        "which prepares the server for it; switch with `sudo sudoo-install engine docker|kubernetes`, never here. "
+        "This release runs the instances on Docker until a Kubernetes engine package is installed.",
+    )
+    engine_wanted: Literal["", "kubernetes"] = Field(
+        "",
+        description='"kubernetes" while Kubernetes was chosen but not prepared yet (the release had no k3s script); '
+        "written and cleared by the installer.",
+    )
+    engine_k8s_min_memory_gb: int = Field(
+        8,
+        ge=1,
+        le=4096,
+        description="The memory (GB) from which the server check recommends Kubernetes (90% of it counts: a server "
+        "sold as 8 GB reports a little less). The installer's own threshold is --k8s-min-memory.",
+    )
+    engine_k8s_default: bool = Field(
+        False,
+        description="Pre-select Kubernetes on the setup page where it is recommended. Off while the Kubernetes "
+        "engine is beta: Docker is pre-selected everywhere.",
+    )
+
     # ------------------------------------------------------------------ exposure (plugin: exposure)
     exposure: str = Field(
         "tunnel",
@@ -2119,6 +2144,8 @@ EDITABLE = (
     "managed_subdomain_company",
     "managed_subdomains_check_minutes",
     "panel_managed_name",
+    "engine_k8s_min_memory_gb",
+    "engine_k8s_default",
     *OFFSITE_SETTINGS,
     *ALERT_SETTINGS,
     *MAIL_CATCHER_SETTINGS,

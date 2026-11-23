@@ -4,7 +4,10 @@
                                                    default language (public)
     POST   /api/v1/setup                           create the first account, a super admin, with the setup code
                                                    printed by the installer, and sign in -> 201 (public); "licence"
-                                                   holds the acceptance of the licence agreement (v1/licence.py)
+                                                   holds the acceptance of the licence agreement (v1/licence.py).
+                                                   The final confirm of the setup wizard: the draft's settings are
+                                                   checked first and applied once the account exists; the answer's
+                                                   "setup" says what was applied (setup_wizard.py, v1/setup_wizard.py)
     GET    /api/v1/contact                         who to contact and the server's default language (public: shown
                                                    on the sign-in page)
     GET    /api/v1/portal                          whether this address is the client portal's, and its company name
@@ -40,7 +43,7 @@ from typing import Any
 
 from flask import Blueprint, Response, abort, g, request, session
 
-from sudoo import accounts, auth, licence, roles
+from sudoo import accounts, auth, licence, roles, setup_wizard
 from sudoo.auth import methods, recovery
 from sudoo.config import settings
 from sudoo.core import audit
@@ -76,10 +79,10 @@ def me() -> dict[str, Any]:
     }
 
 
-def _signed_in_answer() -> Response:
+def _signed_in_answer(extra: dict[str, Any] | None = None) -> Response:
     account = accounts.get(session["user"]) or abort(401, "Your session has ended. Please sign in again.")
     g.user = {"name": session["user"], "role": roles.normalize(account["role"])}
-    return ok(me(), status=201)
+    return ok({**me(), **(extra or {})}, status=201)
 
 
 # ---------------------------------------------------------------- first run
@@ -112,6 +115,16 @@ def setup() -> Response:
         accepted = licence.check_acceptance(data.get("licence"))
     except licence.LicenceError as error:
         abort(400, str(error))
+    # the setup wizard's choices (setup_wizard.py): checked before the account exists, applied after
+    draft = setup_wizard.read()
+    try:
+        changes = setup_wizard.validate(draft)
+    except setup_wizard.DraftError as error:
+        abort(400, str(error))
+    if "exposure" in changes:
+        from .settings import check_exposure
+
+        check_exposure(changes["exposure"])
     chosen = check.text(data, "username", max_length=32).lower()
     username = check.username(chosen) if chosen else accounts.username_for(profile["email"])
     try:
@@ -142,7 +155,19 @@ def setup() -> Response:
         "accepted the Sudoo.sh Licence Agreement",
         detail=f"version {entry['version']}, use {entry['use']}",
     )
-    return _signed_in_answer()
+    from .settings import audit_value
+
+    result = setup_wizard.apply(changes, draft)
+    if changes:
+        audit.record(
+            username,
+            ip,
+            "first-run setup: settings chosen",
+            detail=", ".join(f"{k.upper()}={audit_value(k, v)}" for k, v in changes.items()),
+        )
+    if result["linked"]:
+        audit.record(username, ip, "panel linked to a Sudoo.sh account", detail=result["linked"].get("account_name"))
+    return _signed_in_answer({"setup": result})
 
 
 # ---------------------------------------------------------------- signing in and out

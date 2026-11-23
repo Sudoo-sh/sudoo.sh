@@ -180,7 +180,9 @@ Choose a branch and it opens on the right, at `/projects/<project>/branches/<bra
 copies it), its stage and tags (**default** for the repository's default branch, **deleted on GitHub** when it is
 gone), the branch's commands, and then its **History** followed by its instance's tabs (Overview, Activity, Code,
 Logs, Backups and the others, as on the instance's own page). A branch with several instances has a list to choose the
-instance; a branch without one shows its latest commit, **Create instance**, and its history when it has one. Its
+instance; a branch without one shows its latest commit, **Create instance**, and its history when it has one. While
+an instance of the branch is being created (by you, or by the panel for a new branch), the branch shows its progress
+instead, and a second one cannot be created by mistake. Its
 settings appear once it has an instance: they describe how the running branch builds. The page opens on the
 production branch, else the first branch.
 
@@ -199,8 +201,8 @@ one card per commit an instance was built from, with the author, when, what star
 **Get latest code**, a rebuild from production) and how long it took, the commit's subject and short hash (press it to
 copy the whole hash; the arrow opens the commit on GitHub), and its status: **Test: Success**, **Warning** (Odoo's log
 had warnings or errors while loading the modules; **Show the messages** lists them), **Failed** (with the reason) or
-**Building**. Each instance has one live build, its newest successful one, with **Connect** (its arrow offers
-**Open** and **Credentials**); older builds are marked **Dropped**. For staging and development, the live build says
+**Building**. Each instance has one live build, its newest successful one, with **Open Odoo** (its arrow offers
+**Connect as…** and **Access details**, to those who may see the credentials); older builds are marked **Dropped**. For staging and development, the live build says
 when the instance will be deleted. Stage changes (**Stage change: Development › Staging**, with what the new stage
 does) and restores appear in the same timeline. **View log** opens the build's job; the panel keeps the last 300 jobs,
 so an older one says **Log no longer kept**. **Show older** reads further back; the panel keeps the last builds of each
@@ -250,7 +252,7 @@ opens the instance's **Backups** tab.
 branch's name and status dot, **GitHub** (the branch on GitHub) and, for a staging branch you may rebuild,
 **Rebuild**, then its last four builds side by side (scroll sideways for more): the commit's subject, its author, its
 age and duration, a coloured band for its status (green success, amber warning, red failed, grey dropped, moving
-stripes while building), and **Connect** on the live build. Press a build to open the branch's history. **Filter
+stripes while building), and **Open Odoo** on the live build. Press a build to open the branch's history. **Filter
 branches** narrows the rows by name.
 
 **Backups** (administrators and super admins: those who manage backups) lists the backups of all the project's

@@ -2310,6 +2310,8 @@ route("POST", "/projects/:id/branches/:*branch/instances", ({ params, body }) =>
   needInProject(project, "instances.create", branch);
   if (!branchList(project).some((b) => b.name === branch && b.on_github !== false)) throw new Problem(404, `${project.repository} has no branch ${branch} on GitHub.`);
   const stage = stageOf(project, branch);
+  const members = membersOf(project.id).filter((i) => i.git.branch === branch);
+  if (members.length && body.another !== true) throw new Problem(409, `${branch} has an instance already (${members[0]!.name}). Open it, or send "another": true to create one more.`);
   const chosen = typeof body.odoo_version === "string" ? body.odoo_version : "";
   if (chosen && !DEMO_VERSIONS.includes(chosen)) throw new Problem(400, "Choose an Odoo version from the list.");
   const version = chosen || project.versions?.[branch] || project.version;

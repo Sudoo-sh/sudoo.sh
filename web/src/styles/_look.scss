@@ -75,6 +75,40 @@
   &[data-size="icon-lg"] { width: 44px; height: 44px; padding: 0; }
 }
 
+// ---------------------------------------------------------------- split button
+// "Open Odoo" and its narrow menu as one control (components/ConnectAs.tsx): one outer radius, no gap, a thin divider,
+// one height (36px, or 32px at size "sm"). The action is the <a> of Button asChild; Menu wraps its trigger in
+// .menu-anchor. Logical corners and borders, so the halves swap sides in Arabic. Here, outside the cascade layers,
+// because the buttons' own radius above would win over a rule in the panel's layer.
+.split-button {
+  display: inline-flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-small);
+  > [data-slot="button"] { border-start-end-radius: 0; border-end-end-radius: 0; box-shadow: none; }
+  > .menu-anchor { display: inline-flex; }
+  > .menu-anchor > [data-slot="button"] {
+    width: auto;
+    min-width: 0;
+    padding-inline: 7px;
+    border-start-start-radius: 0;
+    border-end-start-radius: 0;
+    border-inline-start: 1px solid color-mix(in oklab, var(--on-brand) 32%, transparent);
+    box-shadow: none;
+    svg { width: 14px; height: 14px; }
+  }
+  > .menu-anchor > [data-slot="button"]:is([data-size="sm"], [data-size="icon-sm"]) { padding-inline: 6px; }
+}
+
+// an instance's header (pages/Instance.tsx): on narrow screens Restart and Get latest code leave the row for the
+// "more" menu, where their own items show only then
+[data-slot="dropdown-menu-item"].header-secondary-item { display: none; }
+@media (max-width: 640px) {
+  [data-slot="button"].header-secondary { display: none; }
+  [data-slot="dropdown-menu-item"].header-secondary-item { display: flex; }
+}
+
 // ---------------------------------------------------------------- fields
 [data-slot="input"],
 [data-slot="textarea"],

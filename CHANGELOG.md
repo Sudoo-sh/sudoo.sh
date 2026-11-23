@@ -21,9 +21,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Open Odoo** is one joined control everywhere (one outer radius, a thin divider, its menu narrow, also in Arabic):
+  the instance's header, a branch's history and the project's builds. Its menu holds **Connect as…** and, in the
+  history and the builds, **Access details**; the separate **Connect** button is gone. On a phone the instance's
+  header puts its actions on a line of their own, and **Restart** and **Get latest code** move into the **More
+  actions** menu.
+- Opening a menu, a list or a dialog no longer moves the page sideways: the scrollbar's room is kept all the time.
 - A branch without an instance no longer shows its settings (build options, tests, resources), only its latest
   commit, **Create instance** and its history when it has one; a quiet line says the settings appear once it has an
   instance.
+
+### Fixed
+
+- A new branch could get two instances: the one the panel creates for a new branch, and a second one when someone
+  clicked **Create instance** before the page showed the first. Creating an instance of a branch that has one, or
+  while one is being created for it, is now refused (409), under the same lock as the panel's own creation; the
+  branch's page shows the creation as soon as it starts, and the **Create instance** dialog says so if it happens
+  while the dialog is open. `"another": true` creates one more on purpose.
+- A long instance name made from the repository and the branch is shortened at a whole word
+  (`odootec-demos-v19-car-rent`, not `odootec-demos-v19-car-rent-d`); the suggested name in the forms follows it.
 
 ## [3.2.0] - 2026-11-22
 

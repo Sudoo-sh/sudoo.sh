@@ -34,7 +34,7 @@ from typing import Any
 
 from sudoo import link_deadline, projects, upgrades
 from sudoo.config import settings
-from sudoo.core import audit, jobs
+from sudoo.core import audit, events, jobs
 from sudoo.core.jobs import Job
 from sudoo.core.state import STATE
 from sudoo.instances import capacity, operations, planning, stages, store
@@ -133,6 +133,8 @@ def branch_created(repository: str, branch: str, user: str = "system") -> str | 
         servers.start_planned(plan, user, str(project.get("default_server") or ""))
         projects.record_branch(project["id"], branch, stage=stage, auto_created=plan["name"], changed_by=user)
     audit.record(user, None, "instance created for a new branch", plan["name"], detail=f"{project['id']} {branch}")
+    # the branch pane shows the creation at once (instead of "No instance" and a Create button that would make a second)
+    events.publish("project", project["id"])
     return str(plan["name"])
 
 

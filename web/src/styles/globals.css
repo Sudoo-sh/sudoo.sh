@@ -136,10 +136,21 @@
   margin: 0;
   transform: translateX(-100%);
 }
-html:has(> body[data-scroll-locked]) {
+/* The scrollbar's room is kept all the time (on the left in Arabic), not only while something is open: a page too
+   short to scroll would otherwise move when the lock adds it. And the room the lock gives back on its own (a margin
+   or padding the size of the scrollbar, when its stylesheet is allowed, as in development) is taken away again,
+   or it would count the scrollbar twice. */
+html {
   scrollbar-gutter: stable;
 }
-body[data-scroll-locked] {
+html body[data-scroll-locked] {
   overflow: hidden !important;
   overscroll-behavior: contain;
+  margin-right: 0 !important;
+  margin-left: 0 !important;
+  padding-right: 0 !important;
+  padding-left: 0 !important;
+  --removed-body-scroll-bar-size: 0px !important;
 }
+html body[data-scroll-locked] .right-scroll-bar-position { right: 0 !important; }
+html body[data-scroll-locked] .width-before-scroll-bar { margin-right: 0 !important; }

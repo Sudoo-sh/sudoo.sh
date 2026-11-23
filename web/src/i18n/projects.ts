@@ -139,6 +139,7 @@ const en = {
     modules: "Install the repository's modules",
     version: "Odoo version",
     versionHint: "The branch keeps this version: its next instances get it too.",
+    started: (name: string) => `The branch has an instance now (${name}), being created or ready: open it instead of creating a second one.`,
     otherSeries: (production: string, productionVersion: string, version: string) =>
       `${production} (production) runs Odoo ${productionVersion}: its data cannot be copied into Odoo ${version}, so this staging instance starts with an empty database.`,
     name: "Name",
@@ -368,6 +369,7 @@ const ar: typeof en = {
     modules: "تثبيت وحدات المستودع",
     version: "إصدار Odoo",
     versionHint: "يحتفظ الفرع بهذا الإصدار: تأخذه بيئاته التالية أيضًا.",
+    started: (name) => `للفرع بيئة الآن (${name})، قيد الإنشاء أو جاهزة: افتحها بدل إنشاء بيئة ثانية.`,
     otherSeries: (production, productionVersion, version) =>
       `تعمل ${production} (الإنتاج) بـ Odoo ${productionVersion}: لا يمكن نسخ بياناتها إلى Odoo ${version}، فتبدأ بيئة التجهيز هذه بقاعدة بيانات فارغة.`,
     name: "الاسم",

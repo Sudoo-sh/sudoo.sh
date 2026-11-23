@@ -22,7 +22,9 @@
                                                      with "promote_anyway": true (audit-logged; promotion.py)
     POST   /api/v1/projects/<id>/branches/<branch>/instances
                                                      a new instance of the branch in the branch's stage ({"name"?,
-                                                     "demo"?, "install_modules"?, "odoo_version"?}); staging starts
+                                                     "demo"?, "install_modules"?, "odoo_version"?, "another"?}); 409 when
+                                                     the branch has an instance or one is being created, unless
+                                                     "another": true; staging starts
                                                      from a neutralised copy of production; "odoo_version" (one of
                                                      GET /versions) becomes the branch's own version, left out: the
                                                      branch's, else the project's; a staging branch with its own
@@ -626,7 +628,16 @@ def create_instance(project_id: str, branch: str) -> Response:
         if stage == stages.DEVELOPMENT
         else False
     )
-    with quotas.LOCK:
+    # the same locks, in the same order, as the creation for a new branch (projects/automation.py branch_created): a
+    # branch the panel is creating an instance for, or that has one, gets a second one only when asked for by name
+    with quotas.LOCK, projects.LOCK:
+        members = projects.by_branch(project_id).get(branch, [])
+        if members and check.flag(data, "another") is not True:
+            creating = [name for name in members if jobs.creating(name)]
+            log("instance creation refused (the branch has one)", ok=False, detail=f"{project_id} {branch}")
+            abort(409, f"An instance of this branch is already being created ({creating[0]}). Wait for it, or open it."
+                  if creating else f"{branch} has an instance already ({members[0]}). Open it, or send "
+                  '"another": true to create one more.')  # fmt: skip
         response = instances_api._start_creation(
             {**switches, "demo": demo, "install_modules": check.flag(data, "install_modules", True)},
             f"https://github.com/{found['repository']}",

@@ -232,6 +232,7 @@ def _create(project: Mapping[str, Any], facts: Mapping[str, Any]) -> str:
     from sudoo.premium import servers
 
     servers.start_planned(plan, "system", str(project.get("default_server") or ""))
+    events.publish("project", fork_project or str(project["id"]))
     return str(plan["name"])
 
 

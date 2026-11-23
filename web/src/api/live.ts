@@ -83,6 +83,12 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
     case "job": {
       const job = data as Job;
       client.setQueryData(keys.job(job.id), job);
+      // an instance being created belongs to its branch at once: the branch pane shows the creation, not "No instance"
+      // and a Create button (read once when the creation is first heard of, and again when it ends)
+      if (job.kind === "create" && (!creationsSeen.has(job.id) || job.status === "success" || job.status === "failed")) {
+        creationsSeen.add(job.id);
+        client.invalidateQueries({ queryKey: ["project"] });
+      }
       for (const scope of [undefined, job.instance]) {
         client.setQueryData<Job[]>(keys.jobs(scope), (list) => upsert(list, job, (j) => j.id === job.id, true));
       }
@@ -166,6 +172,8 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
   }
 }
 
+/** Creation jobs already heard of (the "job" topic): the projects are read again once for each. */
+const creationsSeen = new Set<string>();
 const TOPICS = ["instance", "instance.deleted", "project", "build", "domains", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "premium", "support", "alert", "offsite", "reset"];
 
 export interface Sync {

@@ -223,6 +223,8 @@ export function InstanceView({
             </div>
           </div>
         </div>
+        {/* one way to open Odoo; on narrow screens Restart and Get latest code move into the "more" menu
+            (.header-secondary, styles/_layout.scss) */}
         <div className="actions">
           {instance.url && !asleep && (!instance.lock || can("instances.logs")) && (
             <ConnectButton instance={instance} connectAs={can("instances.credentials")} />
@@ -233,12 +235,12 @@ export function InstanceView({
                 {t.start}
               </Button>
             ) : (
-              <Button icon={<RotateCw />} disabled={busy} onClick={() => act("restart", j.restart)}>
+              <Button className="header-secondary" icon={<RotateCw />} disabled={busy} onClick={() => act("restart", j.restart)}>
                 {t.restart}
               </Button>
             ))}
           {can("instances.update") && !plain && (
-            <Button icon={<DownloadCloud />} disabled={busy || !instance.git.repository} onClick={() => act("update", j.update)}>
+            <Button className="header-secondary" icon={<DownloadCloud />} disabled={busy || !instance.git.repository} onClick={() => act("update", j.update)}>
               {t.getLatest}
             </Button>
           )}
@@ -253,6 +255,17 @@ export function InstanceView({
               };
               return (
                 <>
+                  {/* the header's own buttons, when the header is too narrow for them */}
+                  {can("instances.update") && !asleep && (
+                    <MenuItem className="header-secondary-item" disabled={busy} onSelect={item(() => act("restart", j.restart))}>
+                      <RotateCw /> {t.restart}
+                    </MenuItem>
+                  )}
+                  {can("instances.update") && !plain && (
+                    <MenuItem className="header-secondary-item" disabled={busy || !instance.git.repository} onSelect={item(() => act("update", j.update))}>
+                      <DownloadCloud /> {t.getLatest}
+                    </MenuItem>
+                  )}
                   {!plain && (
                     <MenuItem disabled={busy || !instance.git.repository} onSelect={item(() => act("update-submodules", j.updateSubmodules))}>
                       <RefreshCw /> {t.updateSubmodules}

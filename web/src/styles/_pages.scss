@@ -1401,15 +1401,6 @@ tr.invited {
   .ws-pane-tools { flex: 1 1 100%; align-items: stretch; .actions { justify-content: flex-end; } }
 }
 
-// ---------------------------------------------------------------- the Connect split button
-
-.split-button {
-  display: inline-flex;
-  > a, > button { border-start-end-radius: 0; border-end-end-radius: 0; }
-  > .menu-anchor > button { border-start-start-radius: 0; border-end-start-radius: 0; border-inline-start: 1px solid color-mix(in oklab, var(--on-brand) 30%, transparent); padding-inline: 6px; width: auto; }
-  > .menu-anchor > button svg { width: 14px; height: 14px; }
-}
-
 // ---------------------------------------------------------------- a branch's history (BuildHistory.tsx)
 // a timeline: a day's title, then its entries, each a card with a node on the line beside it
 

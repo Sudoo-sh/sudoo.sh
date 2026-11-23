@@ -110,7 +110,9 @@ export function CreateDialog({ project, branch, production, onClose, onJob }: { 
   const choices = offered.includes(recorded) ? offered : [recorded, ...offered];
   const enterprise = project.odoo.edition === "enterprise";
   const edition = enterprise ? "Enterprise" : "Community";
-  const blocked = branch.stage === "staging" && !production;
+  // the branch as the project reads it now: an instance made meanwhile (for a new branch, by someone else) stops this one
+  const started = project.branches_list.find((b) => b.name === branch.name)?.instances ?? branch.instances;
+  const blocked = (branch.stage === "staging" && !production) || started.length > 0;
   // staging copies production's data, only into the same Odoo series: in another one it starts empty
   const { data: productionInstance } = useInstance(production ?? "", branch.stage === "staging" && !!production);
   const productionVersion = productionInstance?.odoo.version;
@@ -135,6 +137,7 @@ export function CreateDialog({ project, branch, production, onClose, onJob }: { 
             onError: (e) => toast("error", t.page.notCreated, errorText(e)),
           })}>{d.create}</Button></>}>
       <div className="stack">
+        {started.length > 0 && <Callout tone="warning">{d.started(started[0]!)}</Callout>}
         {branch.stage === "production" && <Callout tone="info">{d.production}</Callout>}
         {branch.stage === "staging" && (!production ? <Callout tone="warning">{d.stagingWithout}</Callout>
           : otherSeries ? <Callout tone="warning">{d.otherSeries(production, productionVersion ?? "", version)}</Callout>

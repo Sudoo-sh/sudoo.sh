@@ -22,7 +22,7 @@ from sudoo.config import Settings, live, settings
 from sudoo.core import jobs
 from sudoo.core.jobs import Job, JobError
 from sudoo.core.state import STATE
-from sudoo.instances import backups, monitor, operations, store
+from sudoo.instances import backups, monitor, naming, operations, store
 from sudoo.limits import quotas
 from sudoo.projects import access, adopt, automation, branches, staging
 from sudoo.repos import github
@@ -331,7 +331,10 @@ def test_create_instances_for_branches(admin: Client, developer: Client, started
     # a production branch: no lifetime, no pause, no demo data
     projects.change(pid, lambda p: {**p, "branches": {**p["branches"], "main": {"stage": "production"}}})
     live.change({"max_production_instances": 0, "project_production_branches": 0})
-    client.post(f"/api/v1/projects/{pid}/branches/main/instances", json={}, headers=headers)
+    # main has its instance (erp-main): one more only when asked for
+    refused = client.post(f"/api/v1/projects/{pid}/branches/main/instances", json={}, headers=headers)
+    assert refused.status_code == 409 and "erp-main" in refused.get_json()["detail"]
+    client.post(f"/api/v1/projects/{pid}/branches/main/instances", json={"another": True}, headers=headers)
     plan = _plan(started)
     assert plan["stage"] == "production" and plan["delete_after_days"] == 0 and plan["auto_pause"] is False
 
@@ -401,6 +404,42 @@ def test_creating_an_instance_records_the_chosen_odoo_version(admin: Client, sta
     branches.forget(pid)
     refused = client.post(f"/api/v1/projects/{pid}/branches/release/instances", json={}, headers=headers)
     assert refused.status_code == 409 and "same Odoo version" in refused.get_json()["detail"]
+
+
+def test_a_branch_being_created_gets_no_second_instance(
+    admin: Client, started: list[Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A new branch's instance created by the panel (automation.branch_created) while someone clicks Create instance on
+    the same branch: the click is refused, under the same locks."""
+    client, headers = admin
+    pid = _linked(["main"])
+    HEADS["https://github.com/Acme/ERP"] = {"main": "a" * 40, "v19_car_rent_demo": "b" * 40}
+    made = automation.branch_created("acme/erp", "v19_car_rent_demo")
+    assert made is not None and _plan(started)["branch"] == "v19_car_rent_demo"
+    # the creation job is queued or running (the recorded jobs never run): the branch knows its instance
+    job = Job(made, "Create instance", "create", "system")
+    job.details.update({"project": pid, "branch": "v19_car_rent_demo"})
+    monkeypatch.setattr(jobs, "being_created", lambda: [made])
+    monkeypatch.setattr(jobs, "creating", lambda name: job if name == made else None)
+    url = f"/api/v1/projects/{pid}/branches/v19_car_rent_demo/instances"
+    refused = client.post(url, json={}, headers=headers)
+    assert refused.status_code == 409 and "already being created" in refused.get_json()["detail"]
+    assert len(started) == 1
+    # asked for on purpose: a second instance of the branch
+    assert client.post(url, json={"another": True}, headers=headers).status_code == 202
+    _plan(started)
+
+
+def test_long_instance_names_end_on_a_whole_word() -> None:
+    assert naming.shorten("odootec-demos-v19-car-rent-demo") == "odootec-demos-v19-car-rent"
+    assert naming.shorten("acme-erp-main") == "acme-erp-main"
+    assert naming.shorten("odootec-demos-v19-car-rent-d") == "odootec-demos-v19-car-rent-d"  # fits: unchanged
+    assert naming.shorten("a" * 40) == "a" * 28  # no word to keep whole: cut where the limit falls
+    assert naming.shorten("abcdefghijklmnopqrstuvwxyz-0123456789") == "abcdefghijklmnopqrstuvwxyz"
+    assert naming.shorten("odootec-demos-v19-car-rent-demo", 26) == "odootec-demos-v19-car-rent"
+    name, database = naming.plan_name("https://github.com/OdooTec/odootec-demos", "v19_car_rent_demo", "")
+    assert name == "odootec-demos-v19-car-rent" and database == "odootec_demos_v19_car_rent"
+    assert len(name) <= naming.NAME_MAX
 
 
 def test_creating_an_instance_of_a_repository_puts_it_in_its_project(admin: Client, started: list[Any]) -> None:

@@ -9,7 +9,9 @@ import { jobTitle, progressText, stepTitle } from "@/i18n/jobs";
 import { ago, elapsed } from "@/lib/format";
 import { Callout, Empty, Progress, Spinner, Status } from "./app/basics";
 import { Drawer } from "./app/overlay";
+import { JobHero } from "./JobProgress";
 import { WhyItFailed } from "./WhyItFailed";
+import progressWords from "@/i18n/job-progress";
 
 /** Re-render every second while `on`, so a running step's time keeps counting between events. */
 function useSecondTick(on: boolean) {
@@ -35,13 +37,17 @@ function StepProgress({ step }: { step: JobStep }) {
   return <span className="step-progress" aria-live="polite">{parts.join(" · ")}</span>;
 }
 
-/** A job's steps as a timeline: done, failed, or the one running now with its progress. */
-export function JobSteps({ job }: { job: Pick<Job, "steps"> }) {
+/** A job's steps as a stepper: done, failed, or the one running now (highlighted) with its progress; when the job
+ *  announced how many steps it takes, how many are left. */
+export function JobSteps({ job }: { job: Pick<Job, "steps"> & { expected_steps?: number | null } }) {
   const t = useT(instanceWords).job;
+  const p = useT(progressWords);
+  const left = job.expected_steps ? Math.max(0, job.expected_steps - job.steps.length) : 0;
+  const running = job.steps.some((step) => step.status === "running");
   return (
-    <ol className="timeline">
+    <ol className="timeline job-steps">
       {job.steps.map((step, i) => (
-        <li key={i}>
+        <li key={i} data-current={step.status === "running" || undefined} aria-current={step.status === "running" ? "step" : undefined}>
           <span className={`node ${step.status}`}>
             {step.status === "done" ? <Check /> : step.status === "failed" ? <X /> : <span className="spinner" />}
           </span>
@@ -52,6 +58,9 @@ export function JobSteps({ job }: { job: Pick<Job, "steps"> }) {
         </li>
       ))}
       {!job.steps.length && <li className="faint">{t.waiting}</li>}
+      {running && left > 0 && (
+        <li className="upcoming"><span className="node" /><span className="faint small">{p.stepsLeft(left)}</span></li>
+      )}
     </ol>
   );
 }
@@ -87,7 +96,11 @@ export function JobDrawer({ id, onClose }: { id: string; onClose: () => void }) 
         <Spinner />
       ) : (
         <div className="stack">
-          <Progress value={job.progress_percent} status={job.status} />
+          {job.status === "running" || job.status === "queued" ? (
+            <JobHero job={job} />
+          ) : (
+            <Progress value={job.progress_percent} status={job.status} />
+          )}
           {job.status === "failed" && (
             <WhyItFailed failure={job.failure} fallback={job.error} instance={job.instance.includes(":") ? null : job.instance} />
           )}

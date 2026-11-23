@@ -44,7 +44,7 @@ import { keys, useCall, useCapacity, useCredentials, useHistory, useInstance, us
 import type { Instance, InstanceBackup, Job, Permission, Stage } from "@/api/types";
 import { BackupPicker } from "@/components/BackupPicker";
 import { LiveChart } from "@/components/charts/LiveChart";
-import { JobLine, Monogram } from "@/components/InstanceCard";
+import { Monogram } from "@/components/InstanceCard";
 import { StageTag } from "@/components/StageTag";
 import { DomainsCore } from "@/components/DomainsCore";
 import { PremiumSlot } from "@/premium/components";
@@ -57,6 +57,8 @@ import { LockBanner } from "@/components/ProjectAccess";
 import { ClosedNotice } from "@/components/ClientAccess";
 import { ResourcesCard } from "@/components/ResourcesCard";
 import { JobDrawer } from "@/components/JobDrawer";
+import { JobBanner } from "@/components/JobProgress";
+import { AccessRulesCard } from "@/components/AccessRules";
 import { LogsPanel } from "@/components/LogsPanel";
 import { CommitHash } from "@/components/CommitHash";
 import { ConnectButton } from "@/components/ConnectAs";
@@ -330,11 +332,7 @@ export function InstanceView({
       {instance.project && (
         <ClosedNotice projectId={instance.project.id} projectName={instance.project.name} branch={instance.git.branch} access={instance.client_access && { ...instance.client_access, lets_you_through: can("instances.logs") }} />
       )}
-      {instance.current_job && (
-        <button className="card pad" style={{ textAlign: "start", cursor: "pointer" }} onClick={() => setJobId(instance.current_job!.id)}>
-          <JobLine job={instance.current_job} />
-        </button>
-      )}
+      {instance.current_job && <JobBanner job={instance.current_job} onOpen={() => setJobId(instance.current_job!.id)} />}
       {instance.rollback && can("instances.restore") && (
         <div className="rollback-banner" role="status">
           <Undo2 />
@@ -963,6 +961,7 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
           </Modal>
         )}
       </div>
+      <AccessRulesCard instance={instance} />
       <ResourcesCard instance={instance} />
     </div>
   );

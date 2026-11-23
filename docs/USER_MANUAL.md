@@ -814,6 +814,54 @@ server.
 
 ---
 
+### Production access rules (beta)
+
+On a production instance, the **Settings** tab can have a **Production access rules** card, marked **Beta**. It is
+there when the administrator has switched the feature on (`ACCESS_RULES_BETA`). The rules say who can open the
+instance:
+
+* **Who can open it**: people in the **Countries** you choose (search the list by name or code; each has its flag),
+  people on the **Addresses** and ranges you list (your office, your VPN; IPv4 or IPv6, such as `203.0.113.0/24`,
+  each with a label), or **Either**.
+* **What it protects**: **Back office only** (sign-in, the back office, the APIs and the database manager; the
+  public website and shop stay open to everyone) or **Whole site**.
+* **Always allowed**: payment providers' notifications and automation webhooks are on by default, so payments and
+  integrations keep working; add customers' portal sign-in, live chat, links in e-mails, your own paths or
+  addresses (an uptime monitor) as needed.
+
+Super admins, the project's administrators and the project's client can change them; the others see them. A change
+takes three steps:
+
+1. **Rules**: make your choices, then **Check the rules**.
+2. **Check**: see whether your current address would still get in, test another address (a colleague's), and see
+   which sample paths a visitor outside the rules could still open. Nothing is saved yet.
+3. **Confirm**: type the instance's name and a one-time code, sent by e-mail or shown by your authenticator app,
+   then **Apply the rules**. They apply within seconds; the other people who may change them get an e-mail.
+
+**Open Odoo** and **Connect as** keep working from anywhere for the people whose project role lets them open production (unless the client has closed access): the panel
+gives your browser a short pass that the gateway accepts, valid for a few hours on that instance only.
+
+A visitor turned away sees a calm page saying "This site isn't available from your location / network", with their
+country, a reference to give the administrator and how to reach them. Countries are a convenience barrier: anyone can
+appear to be in another country with a VPN. Address rules are stronger. Country data: IP geolocation by DB-IP.
+
+### Status pages
+
+When an instance cannot answer, its visitors see a page from the gateway instead of an error: **Starting up**
+(a paused instance waking), **Starting soon** (while the panel restarts), **Update in progress**, **Upgrading**,
+**Switched off**, **Locked** or **Not found**. Each has a small animated picture, follows the visitor's language
+(English or Arabic) and light or dark setting, and stays still for people who asked for less motion.
+
+While a job runs (an update, a restart, a creation), the page shows the step it is on, its progress, which step of
+how many, how long it has waited and, when the panel knows how long the same work took before, about how long is
+left. It opens Odoo by itself as soon as Odoo is ready. Programs that call the instance (APIs, webhooks) get the same
+`503` answer with `Retry-After: 4` as before, and try again.
+
+In the panel, the instance's header shows the same job at a glance: its current step, a progress bar and the time
+it has run. Click it for every step; a failed job still explains **Why it failed**.
+
+---
+
 ### The Mail tab
 
 Staging and development instances never send real e-mail. Everything Odoo sends there (quotations, invoices,

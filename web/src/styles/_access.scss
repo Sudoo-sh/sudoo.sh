@@ -1,0 +1,218 @@
+// Production access rules (components/AccessRules.tsx) and a job under way (components/JobProgress.tsx).
+@use "mixins" as *;
+
+// ---------------------------------------------------------------- access rules
+
+.access-rules {
+  .card-head h2 svg { color: var(--brand); }
+}
+
+.access-summary {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  gap: var(--s2) var(--s4);
+  margin: 0;
+  font-size: var(--text-13);
+  dt { color: var(--text-3); }
+  dd { margin: 0; min-width: 0; }
+  .chips { margin-top: var(--s2); }
+  .nets { list-style: none; margin: var(--s1) 0 0; padding: 0; display: grid; gap: 2px; }
+  code { font: 500 12px/1.5 var(--mono); }
+  @media (max-width: 560px) {
+    grid-template-columns: minmax(0, 1fr);
+    dt { margin-top: var(--s2); }
+  }
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: var(--s1); }
+.access-summary .chip { cursor: default; }
+.chip.removable {
+  transition: transform var(--dur-micro) var(--ease), border-color var(--dur-micro) var(--ease);
+  &:active { transform: scale(0.97); }
+  &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 1px; }
+}
+
+.access-steps {
+  list-style: none;
+  display: flex;
+  gap: var(--s2);
+  margin: 0 0 var(--s4);
+  padding: 0;
+  font-size: var(--text-13);
+  color: var(--text-3);
+  li {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    flex: 1;
+    padding-bottom: var(--s2);
+    border-bottom: 2px solid var(--hairline);
+    transition: color var(--dur-micro) var(--ease), border-color var(--dur-enter) var(--ease);
+  }
+  .n {
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid var(--hairline-strong);
+    font: 600 11px/1 var(--mono);
+  }
+  li[data-state="current"] { color: var(--text); border-color: var(--brand); .n { background: var(--brand); border-color: var(--brand); color: var(--on-brand); } }
+  li[data-state="done"] { color: var(--text-2); border-color: color-mix(in oklab, var(--brand) 45%, transparent); .n { color: var(--brand); border-color: var(--brand); } }
+}
+
+.access-form {
+  fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+  fieldset:disabled { opacity: 0.55; }
+  .presets { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
+  .presets code { font: 11.5px/1.4 var(--mono); margin-inline-start: var(--s1); }
+}
+
+.network-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto;
+  gap: var(--s2);
+  align-items: start;
+  @media (max-width: 520px) { grid-template-columns: minmax(0, 1fr) auto; > :nth-child(2) { grid-column: 1; } }
+}
+
+.country-picker {
+  .search-field {
+    position: relative;
+    > svg { position: absolute; inset-inline-start: 10px; top: 50%; translate: 0 -50%; color: var(--text-3); pointer-events: none; }
+    input { padding-inline-start: 30px; }
+  }
+}
+
+.country-list {
+  list-style: none;
+  margin: 0;
+  padding: var(--s1);
+  max-height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  li {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    min-height: 34px;
+    padding: 0 var(--s2);
+    border-radius: 6px;
+    font-size: var(--text-13);
+    cursor: pointer;
+    transition: background-color var(--dur-micro) var(--ease);
+    @include hover { background: var(--raised); }
+    &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: -2px; }
+    &[data-chosen] { background: var(--brand-soft); }
+    &.no-match { cursor: default; justify-content: center; }
+  }
+  .flag { font-size: 16px; line-height: 1; }
+  code { font: 11px/1 var(--mono); }
+  .tick { display: inline-grid; width: 14px; color: var(--brand); }
+}
+
+.samples {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  li {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    padding: 6px var(--s3);
+    font-size: var(--text-13);
+    & + li { border-top: 1px solid var(--hairline); }
+  }
+  code { font: 12px/1.4 var(--mono); }
+}
+
+.small.positive, .xsmall.positive { color: var(--positive); }
+.small.negative, .xsmall.negative { color: var(--negative); }
+
+// ---------------------------------------------------------------- a job under way
+
+.job-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--s1) var(--s3);
+  text-align: start;
+  .job-hero-text { min-width: 0; display: grid; gap: 2px; }
+  .job-hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--s2);
+    color: var(--text-3);
+    b { color: var(--text-2); font-weight: 500; }
+    span + span::before, b + span::before { content: "·"; margin-inline-end: var(--s2); }
+  }
+  .job-hero-title { font-weight: 600; color: var(--text); line-height: 1.35; overflow-wrap: anywhere; }
+  .job-hero-progress { color: var(--text-2); overflow-wrap: anywhere; }
+  .job-hero-share { font-size: var(--text-13); color: var(--text-2); }
+  .job-hero-open { width: 16px; height: 16px; color: var(--text-3); }
+  .job-hero-bar { grid-column: 1 / -1; margin-top: var(--s2); }
+}
+
+// a calm mark: a plum dot that breathes, a soft ring that grows from it (still when less motion is asked for)
+.job-hero-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  span {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--brand);
+    animation: job-breathe 2.4s ease-in-out infinite;
+  }
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--brand-soft);
+    border: 1px solid color-mix(in oklab, var(--brand) 22%, transparent);
+    animation: job-ring 2.4s cubic-bezier(0.23, 1, 0.32, 1) infinite;
+  }
+}
+.job-hero[data-status="queued"] .job-hero-mark span { background: var(--idle); }
+
+.job-banner {
+  display: block;
+  width: 100%;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--hairline);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: transform var(--dur-ui) var(--spring), border-color var(--dur-micro) var(--ease);
+  @include hover { border-color: var(--hairline-strong); }
+  &:active { transform: scale(0.99); }
+  &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 2px; }
+}
+
+.job-steps {
+  li[data-current] > span:last-child { color: var(--text); font-weight: 500; }
+  li[data-current] .node {
+    border-color: var(--brand);
+    color: var(--brand);
+    box-shadow: 0 0 0 4px var(--brand-soft);
+  }
+  li.upcoming .node { border-style: dashed; }
+}
+
+@keyframes job-breathe { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.8); opacity: 0.7; } }
+@keyframes job-ring { 0% { transform: scale(0.55); opacity: 0.9; } 100% { transform: scale(1.15); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .job-hero-mark span, .job-hero-mark::before { animation: none; }
+  .job-hero-mark::before { opacity: 0.6; transform: scale(0.9); }
+}

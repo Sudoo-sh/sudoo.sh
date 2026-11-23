@@ -84,10 +84,22 @@ def start() -> None:
     _start_premium_jobs()
     gateway.start(wake=start_wake_job)
     live.on_change(_domain_settings_changed)
+    _start_access_rules()
     threading.Thread(target=exposure.ensure_all, daemon=True, name="connectors").start()
     triggers.start_all()
     threading.Thread(target=_adopt_instances, daemon=True, name="projects").start()
     threading.Thread(target=_check_project_branches, daemon=True, name="project-branches").start()
+
+
+def _start_access_rules() -> None:
+    """Production access rules (beta): the monthly country database, and the gateway told at once when a setting
+    they use changes."""
+    from sudoo.instances import access_rules, geoip
+
+    threading.Thread(target=geoip.update_forever, daemon=True, name="country-database").start()
+    live.on_change(
+        lambda changed: access_rules.apply() if any(k.startswith("access_rules_") for k in changed) else None
+    )
 
 
 def start_agent() -> None:
@@ -112,6 +124,7 @@ def start_agent() -> None:
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     gateway.start(wake=start_wake_job)
     live.on_change(_domain_settings_changed)
+    _start_access_rules()
     threading.Thread(target=exposure.ensure_all, daemon=True, name="connectors").start()
 
 

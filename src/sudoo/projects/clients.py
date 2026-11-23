@@ -434,6 +434,7 @@ def set_switch(project_id: str, branch: str | None, state: str, by: str, hours: 
         return found
 
     changed = _change(project_id, apply)
+    _access_rules_changed()
     where = f"{project_id} {branch}" if branch else project_id
     if inherit:
         audit.record(by, _ip(), "client access follows the project again", detail=f"{where}: as the project")
@@ -443,6 +444,17 @@ def set_switch(project_id: str, branch: str | None, state: str, by: str, hours: 
     else:
         audit.record(by, _ip(), f"client access {'closed' if state == 'closed' else 'opened'}", detail=where)
     return changed
+
+
+def _access_rules_changed() -> None:
+    """Production access rules (instances/access_rules.py) give no pass while the client has closed access: tell the
+    gateway now rather than at its next round."""
+    from sudoo.instances import access_rules
+
+    try:
+        access_rules.apply()
+    except Exception as error:  # noqa: BLE001 - the switch has changed; the gateway catches up at its next round
+        print(f"Access rules after a client change: {error!r}", flush=True)
 
 
 def set_lock(project_id: str, branch: str | None, locked: bool, by: str, reason: str = "") -> Document:
@@ -460,6 +472,7 @@ def set_lock(project_id: str, branch: str | None, locked: bool, by: str, reason:
         return found
 
     changed = _change(project_id, apply)
+    _access_rules_changed()
     where = _where(project_id, branch)
     audit.record(
         by,
@@ -698,6 +711,8 @@ def sweep(now: float | None = None) -> list[str]:
         for item in ended:
             audit.record("system", None, "access ended (time over)", detail=f"{_where(str(project['id']), item.get('branch'))}: {', '.join(item.get('users') or ())} ({item.get('kind')})")  # fmt: skip
         changed.append(str(project["id"]))
+    if changed:
+        _access_rules_changed()
     lapse(now)
     return changed
 

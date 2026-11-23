@@ -25,6 +25,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Production access rules (beta)**, off until `ACCESS_RULES_BETA` is switched on: a production instance can let
+  only visitors from chosen countries, from chosen IPv4/IPv6 addresses and ranges, or either, open its back office
+  (the default; the public website and shop stay open) or its whole site, with exceptions for payment and webhook
+  callbacks and paths or addresses of your own. The gateway applies them with the visitor address it already trusts
+  in each exposure mode. Opening the instance from the panel (Open Odoo, Connect as) goes through a short signed
+  pass that works from anywhere. A change is previewed first (does your own address still get in?), then confirmed
+  with the instance's name and a one-time code by e-mail or authenticator app; it is audited and the other people
+  who may change the rules are e-mailed. Visitors turned away get a calm 403 page in English or Arabic. Countries
+  come from the DB-IP Lite database (CC BY 4.0), downloaded monthly; while it is missing, country rules fail open by
+  default (`ACCESS_RULES_GEO_MISSING`). New settings: `ACCESS_RULES_*`. API:
+  `/api/v1/instances/<name>/access-rules` (with `/preview` and `/code`) and `/api/v1/instances/<name>/open-link`.
+- **Status pages redesigned**: "Starting up", "Update in progress", "Upgrading", "Switched off" and the others have an
+  animated illustration each, follow the visitor's language (English or Arabic) and light or dark setting, and show
+  the running job's current step, progress and an estimated time left, from a small public status address
+  (`/__sudoo/status`: state and step only, rate-limited). API clients get the same 503 with `Retry-After` as before.
+- The job drawer and an instance's header show a job under way more clearly: the current step highlighted, which step
+  of how many, the progress bar and text, and the time it has run. Jobs carry `expected_steps`.
 - **Project roles per stage: Viewer, Tester, Developer, Maintainer, Admin.** Inside a project, a person's project role
   decides what they may do in production, staging and development: a Developer works freely in development, tests
   staging without its data and sees only production's status; a Maintainer also reads production's logs, connects to

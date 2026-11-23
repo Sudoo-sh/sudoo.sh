@@ -40,6 +40,7 @@ domains and certificates, off-site copies of backups.
 28. [Code profiler](#28-code-profiler)
 29. [Audit log](#29-audit-log)
 30. [Client portal](#30-client-portal)
+31. [Production access rules (beta)](#31-production-access-rules-beta)
 
 ---
 
@@ -2974,3 +2975,129 @@ and the client reads it as its activity log (its CSV export uses the audit log's
 Docker, can reach the instances' containers, databases and files without the panel (and could reset a client's
 password from the command line). Say so to clients who ask; a client that needs stronger isolation runs its
 projects on its own server.
+
+---
+
+## 31. Production access rules (beta)
+
+A production instance can say who may open it: people in some countries, people on some addresses or ranges (your
+office, your VPN), or either. The gateway applies the rules before anything reaches Odoo. This is a **beta**: the
+feature is off until you switch it on, and it is marked **Beta** wherever it shows.
+
+### Switching it on
+
+1. Set `ACCESS_RULES_BETA` to on (**Settings**, **Security**, **Production access rules (beta)**, or `.env`).
+2. The panel downloads the country database within a minute (see below). Until it has it, country rules let
+   everyone through and every instance with country rules shows a warning (`ACCESS_RULES_GEO_MISSING=open`, the
+   default), or let nobody in by country (`closed`).
+3. Open a production instance, **Settings** tab, **Production access rules**, **Set up rules**.
+
+Turning `ACCESS_RULES_BETA` off hides the feature and stops every rule at once; the rules stay saved. Rules apply only
+while the instance is in the production stage: moving it to staging or development keeps them but stops them.
+
+### What the rules can say
+
+| Part | Choices |
+| :--- | :--- |
+| Who can open it | **Countries** (two-letter codes, chosen from a searchable list with flags), **Addresses** (IPv4 and IPv6 addresses and ranges such as `203.0.113.0/24`, each with a label), or **Either**. |
+| What it protects | **Back office only** (the default) or **Whole site**. |
+| Always allowed | Paths and addresses that pass whatever the rules say: payment providers' notifications (`/payment/`) and automation webhooks (`/web/hook/`) are on by default; customers' portal sign-in, live chat with website visitors and links in e-mails can be added, and any path of your own. |
+
+**Back office only** covers what someone needs to work inside Odoo or to read its data, and leaves the public website
+and the shop open:
+
+| Blocked from outside the rules | Left open |
+| :--- | :--- |
+| `/web` and everything below it (sign-in, `/web/login`, `/web/signup`, the RPC routes, sessions, the database manager `/web/database/...`) | `/web/assets/`, `/web/bundle/`, `/web/static/`, `/web/image`, `/web/content`, `/web/binary/company_logo`, `/web/webclient/translations`, `/web/webclient/locale`, `/web/health` (the website uses them too) |
+| `/odoo` (the back office's addresses since Odoo 17.2) | Every other path: `/`, `/shop`, `/my`, `/blog`, `/website/...`, `/payment/...` |
+| `/json` (the JSON-2 API), `/xmlrpc`, `/jsonrpc` | |
+| `/websocket`, `/longpolling`, `/bus` (live notifications) | |
+| `/report` (printed reports), `/doc` (the API documentation), `/__sudoo/connect` (Connect as links) | |
+
+Paths are compared after decoding (also twice-encoded characters), with `.` and `..` resolved, repeated slashes
+merged and in lower case, so `/WEB//login`, `/shop/../web/login` and `/web%2Flogin` are all the back office.
+
+Customers who sign in to the portal use `/web/login` too: with **Back office only**, they can sign in only from the
+allowed places unless you add **Customers' portal sign-in** to the exceptions. Routes the website and the back office
+share (for example `/mail/...`) stay open with **Back office only**; they need a signed-in session, which cannot be
+opened from outside the rules. Choose **Whole site** when nothing should answer outside them.
+
+### Changing the rules
+
+Only super admins, the project's administrators (those who may change its access) and, with the client portal, the
+project's client can change them, and only in the panel: API tokens cannot. A change takes three steps:
+
+1. **Rules**: the choices above.
+2. **Check**: the panel shows, before saving anything, whether your current address would still get in (with its
+   country), lets you test any other address, and lists sample paths with **Open** or **Blocked** for a visitor
+   outside the rules.
+3. **Confirm**: type the instance's name and a one-time code, sent by e-mail or read from your authenticator app
+   (each code works once; after 5 wrong codes, wait 10 minutes).
+
+The change applies within two seconds and ends every pass given before. The other people who may change the rules
+(and the client) get an e-mail (`access_rules_changed`, English or Arabic as each account prefers; texts on the
+**E-mail templates** page). The audit log records every code asked, every change and every refusal.
+
+### Opening production from the panel: the pass
+
+**Open Odoo** and **Connect as** on a production instance with active rules go through a pass, so the people who
+work in the panel get in from anywhere:
+
+1. The panel checks that the person's project role lets them open Odoo in production (`instances.connect` in the
+   production column of the project's roles: Maintainer and Admin by default) and that the client has not closed
+   access (client portal: a closed or expired switch, or a client lock). While it is closed nobody gets a pass, and
+   the gateway refuses the passes given before. Otherwise no pass is given, and the audit log says why.
+2. It signs a token with a key derived from the vault key: the instance, the host name, the version of the rules,
+   a random nonce and an expiry two minutes later. The gateway service gets the key in `routes.json`.
+3. The browser opens `https://<instance>/__sudoo/pass?token=...&next=/odoo`. The gateway checks the signature, the
+   host, the version, the expiry and that the nonce was not used, then sets a cookie for that host only (`HttpOnly`,
+   `SameSite=Lax`, `Secure` over https) valid for `ACCESS_RULES_PASS_HOURS` (8 by default) and sends the browser on.
+   The cookie never reaches Odoo.
+
+Each pass given, used or refused is an audit log entry (`access rules: pass given`, `pass accepted`,
+`pass refused: expired`...).
+
+### The visitor's address
+
+The rules use exactly the address the gateway already trusts for `X-Forwarded-For`:
+
+| `EXPOSURE` | The visitor's address |
+| :--- | :--- |
+| `direct`, `host-ports`, and custom domains on ports 80 and 443 | The connection's own address. Headers the visitor sends are ignored. |
+| `proxy` | The header your proxy sets (`PROXY_CLIENT_IP_HEADER`; with `X-Forwarded-For`, its last address). Your proxy must replace any copy the visitor sent. |
+| `tunnel` | Cloudflare's `CF-Connecting-IP`, from the connector. |
+
+### The country database
+
+Countries come from **DB-IP Lite** (IP to Country Lite, [db-ip.com](https://db-ip.com)), licensed under
+[Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/): no account and no payment, and
+the attribution "IP geolocation by DB-IP" is shown next to every country rule.
+
+* While `ACCESS_RULES_BETA` and `ACCESS_RULES_GEO_DOWNLOAD` are on, the panel checks every 6 hours whether a newer
+  month is available and downloads it from `ACCESS_RULES_GEO_URL` (this month's file, else last month's while the new
+  one is not published).
+* It turns the CSV file into a compact range table and refuses implausibly small files. The table and a manifest
+  with its SHA-256 are written into `<ODOO_ROOT>/gateway/geo/` (`country.bin`, `country.json`), each replaced
+  atomically. The gateway (and the panel) load a new table only when its checksum matches.
+* A server that cannot reach db-ip.com: download the month's `dbip-country-lite-YYYY-MM.csv.gz` on another machine,
+  serve it over https on your own network, and set `ACCESS_RULES_GEO_URL` to that address (with `{year}` and
+  `{month}` in it, or the file's own name). The panel then takes it from there once a month as usual.
+
+### The blocked page
+
+A visitor turned away gets HTTP 403: a page in their language (English or Arabic, by the browser's
+`Accept-Language`), light or dark as their system is, with a small animated illustration (no motion when they asked
+for less), their country, a reference to quote and the contact line (`ACCESS_RULES_CONTACT`, else made from
+`ADMIN_CONTACT_*`). Their address is shown only with `ACCESS_RULES_SHOW_IP`. API clients get a JSON 403
+(`{"error": "access_denied", "message", "country", "reference"}`) when they ask for JSON, plain text otherwise. The
+gateway's log has one line per blocked request with the same reference (at most 20 a minute per instance):
+
+```
+Access rules: blocked 3FA2C91B acme-main 198.51.100.20 US /odoo
+```
+
+### Honest limits
+
+Countries are a convenience barrier: anyone can appear to be in another country with a VPN or a rented server, and
+the database can be wrong for some addresses. Address rules are much stronger; use them for what matters. See
+[Security](SECURITY.md#21-production-access-rules-beta).

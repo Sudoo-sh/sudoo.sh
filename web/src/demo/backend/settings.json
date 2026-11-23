@@ -2041,7 +2041,7 @@
   "secret": false,
   "type": "boolean",
   "minimum": null,
-  "description": "Download the DB-IP Lite country database once a month while the access rules are switched on. Off: place it yourself (docs/ADMIN_GUIDE.md)."
+  "description": "Download the DB-IP Lite country database once a month while the access rules are switched on. Off: nothing is downloaded; a table already there keeps being used."
  },
  {
   "key": "access_rules_geo_url",

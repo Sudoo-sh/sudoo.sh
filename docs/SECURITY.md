@@ -928,3 +928,37 @@ Odoo processes. It is contained like this:
   which may contain passwords, are removed before it is stored (mode 600).
 * Recording needs `instances.profile` in the instance; production is confirmed every time and can be switched off
   (`PROFILER_PRODUCTION`); starting, stopping, downloading and deleting are in the audit log.
+
+## 20. Production access rules (beta)
+
+Production access rules ([Administrator Guide](ADMIN_GUIDE.md#30-production-access-rules-beta)) let a production
+instance refuse visitors outside some countries or addresses. They are a second wall in front of Odoo's own sign-in,
+not a replacement for it.
+
+### Threat model
+
+| Threat | What stops it |
+| :--- | :--- |
+| Someone outside the allowed places guesses or reuses a password at `/web/login`, or calls the APIs (`/json/2`, `/xmlrpc`, `/jsonrpc`) or the database manager | The gateway refuses the request before Odoo sees it (403). |
+| A visitor forges `X-Forwarded-For`, `X-Real-IP` or `CF-Connecting-IP` to look like an allowed address | The address is the one the gateway already trusts for each exposure mode (the connection itself with `direct`, the proxy's header with `proxy`, Cloudflare's header with `tunnel`); a header the visitor sent is never believed otherwise. With `proxy`, your proxy must overwrite that header. |
+| Path tricks (`/WEB//login`, `/shop/../web/login`, `/web%2Flogin`, `/web%252Flogin`) to slip past "back office only" | Paths are decoded (twice-encoded too), `.` and `..` resolved, slashes merged and lower-cased before they are compared. |
+| A forged, expired, replayed or borrowed pass | Passes are HMAC-SHA256 signed with a key derived from the vault key; the gateway checks the signature in constant time, the instance, the host name, the rules' version and the expiry; the link's token works once (the gateway remembers its nonce until it expires). The cookie is `HttpOnly`, `SameSite=Lax`, `Secure` over https, for that host only, and never reaches Odoo. New rules end every earlier pass. |
+| Someone with a stolen panel password changes the rules | A change needs a person in the panel (no API token), the instance's name typed and a one-time code by e-mail or from an authenticator app (5 wrong codes: 10 minutes' wait); the other people who may change the rules are e-mailed and the audit log records it. |
+| Someone is locked out by a mistake | The preview shows, before anything is saved, whether the person's own address still gets in; opening the instance from the panel always works through a pass, for those whose role allows it. |
+
+### What it does not protect against
+
+* **VPNs and rented servers.** A country is where an address is registered, not where a person is. Anyone can
+  appear to be in an allowed country with a VPN, a proxy or a cloud server there. Countries are a convenience
+  barrier; use address rules for what matters.
+* **Database mistakes.** The DB-IP Lite database is wrong for some addresses, and mobile networks and satellite links
+  may appear in another country.
+* **Fail open.** While the country database is missing, country rules let everyone through by default
+  (`ACCESS_RULES_GEO_MISSING=open`), so a broken download never locks a company out of its own ERP. Set `closed` when
+  a missing database must mean "no country is allowed".
+* **"Back office only" leaves the website open.** Routes the website shares with the back office (for example
+  `/mail/...`) answer everyone; they need a signed-in session, which cannot be opened from outside the rules. Choose
+  **Whole site** when nothing should answer.
+* **Passes on a shared computer.** A pass cookie lasts `ACCESS_RULES_PASS_HOURS` in the browser it was given to.
+* The public status address of an instance (`/__sudoo/status`) says only its state and the title and progress of
+  the step its job is on, rate-limited per address; never logs or names.

@@ -1030,7 +1030,7 @@ class Settings(BaseSettings):
     access_rules_geo_download: bool = Field(
         True,
         description="Download the DB-IP Lite country database once a month while the access rules are switched on. "
-        "Off: place it yourself (docs/ADMIN_GUIDE.md).",
+        "Off: nothing is downloaded; a table already there keeps being used.",
     )
     access_rules_geo_url: str = Field(
         "https://download.db-ip.com/free/dbip-country-lite-{year}-{month}.csv.gz",

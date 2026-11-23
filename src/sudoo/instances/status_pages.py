@@ -213,8 +213,8 @@ padding:14px 16px;text-align:start}
 .bar i{display:block;height:100%;width:var(--w,0%);background:var(--accent);border-radius:inherit;
 transition:width .6s cubic-bezier(.2,.8,.2,1)}
 .bar.unknown i{width:35%;animation:slide 1.8s ease-in-out infinite}
-.row{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--faint)}
-.row span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 12px;font-size:13px;color:var(--faint)}
+.row #ptext{order:3;flex-basis:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .meta{margin-top:16px;font-size:13px;color:var(--faint)}
 .meta .sep{margin:0 6px}
 .facts{margin:18px auto 0;max-width:400px;background:var(--card);border:1px solid var(--line);border-radius:14px;

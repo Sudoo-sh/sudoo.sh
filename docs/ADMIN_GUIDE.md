@@ -2853,9 +2853,9 @@ the attribution "IP geolocation by DB-IP" is shown next to every country rule.
 * It turns the CSV file into a compact range table and refuses implausibly small files. The table and a manifest
   with its SHA-256 are written into `<ODOO_ROOT>/gateway/geo/` (`country.bin`, `country.json`), each replaced
   atomically. The gateway (and the panel) load a new table only when its checksum matches.
-* Offline server: set `ACCESS_RULES_GEO_DOWNLOAD=false`, download the month's `dbip-country-lite-YYYY-MM.csv.gz`
-  yourself and point `ACCESS_RULES_GEO_URL` at an https address of your own that serves it, or build the table
-  with `python -c "from sudoo.instances import geoip; ..."` inside `sudoo-panel` (the functions `build` and `install`).
+* A server that cannot reach db-ip.com: download the month's `dbip-country-lite-YYYY-MM.csv.gz` on another machine,
+  serve it over https on your own network, and set `ACCESS_RULES_GEO_URL` to that address (with `{year}` and
+  `{month}` in it, or the file's own name). The panel then takes it from there once a month as usual.
 
 ### The blocked page
 

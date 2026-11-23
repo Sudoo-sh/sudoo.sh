@@ -1866,6 +1866,14 @@ started in the background or with `nohup`: each carries the shell's id in its en
 SIGHUP, then SIGKILL a second later. A shell left open when the panel crashed is ended the same way when it starts
 again.
 
+The Odoo container's **Terminal** starts with the panel's welcome, useful commands (`odoo-shell`, `odoo-update`,
+`odoo-install`, `psql`) and a prompt in the stage's colour ([The Shell tab](USER_MANUAL.md#the-shell-tab)). The panel
+passes its start file to bash in the environment of the process it starts, never as a file: nothing is written or
+mounted in the container and nothing is changed in the image, so every instance has it, those made before too, without
+being recreated. The person's own `~/.bashrc` in the container is read first. Only commands that work in the container
+are listed (images without `psql` do not show it; root terminals do not show the Odoo commands). Images without bash
+get a plain `sh` as before.
+
 ### Recordings
 
 | Setting | Default | What it does |

@@ -55,10 +55,10 @@
   --log-mark: rgb(243 201 105 / 0.35);
   --log-mark-current: #f3c969;
 
-  // the web shell's terminal (components/shell/): light in the light theme, dark in the dark one; the 16 terminal
-  // colours as programs use them (ls, git, psql), each readable on --shell-bg (4.5:1 or more; black aside in the dark
-  // theme, where programs use it as a background)
-  --shell-bg: #fbfbfb;
+  // the web shell's terminal (components/shell/): dark in both themes, like the logs, with a plum cursor and
+  // selection; the 16 terminal colours as programs use them (ls, git, psql, the prompt's stage colour: red, yellow,
+  // green), each readable on --shell-bg (4.5:1 or more; black aside, which programs use as a background)
+  --shell-bg: #0f0f10;
   // the profiler's flame graph (components/FlameGraph.tsx): one soft fill per kind of code, dark text on each (4.5:1)
   --flame-odoo: #e3cbdc;
   --flame-addons: #c9dcf5;
@@ -67,25 +67,25 @@
   --flame-other: #cfe9d6;
   --flame-text: #1f1f22;
   --flame-match: #f3c969;
-  --shell-text: #1f1f22;
-  --shell-cursor: #714b67;
-  --shell-selection: rgb(113 75 103 / 0.22);
-  --shell-black: #1f1f22;
-  --shell-red: #b42318;
-  --shell-green: #146c2e;
-  --shell-yellow: #8a5a00;
-  --shell-blue: #1d4ed8;
-  --shell-magenta: #8e3f80;
-  --shell-cyan: #0e6e78;
-  --shell-white: #5c5c63;
-  --shell-bright-black: #52525b;
-  --shell-bright-red: #c4320a;
-  --shell-bright-green: #18794e;
-  --shell-bright-yellow: #935f00;
-  --shell-bright-blue: #2559d8;
-  --shell-bright-magenta: #9d3f8f;
-  --shell-bright-cyan: #0b7285;
-  --shell-bright-white: #3f3f46;
+  --shell-text: #d4d4d8;
+  --shell-cursor: #e6c1dc;
+  --shell-selection: rgb(199 155 189 / 0.3);
+  --shell-black: #3f3f46;
+  --shell-red: #ff8a80;
+  --shell-green: #6ee7a8;
+  --shell-yellow: #f3c969;
+  --shell-blue: #8ab4f8;
+  --shell-magenta: #e6a6d6;
+  --shell-cyan: #7dd3c8;
+  --shell-white: #d4d4d8;
+  --shell-bright-black: #8e8e96;
+  --shell-bright-red: #ffb4ab;
+  --shell-bright-green: #9bf0c4;
+  --shell-bright-yellow: #f8dc9a;
+  --shell-bright-blue: #b3cdfb;
+  --shell-bright-magenta: #f0c6e5;
+  --shell-bright-cyan: #a8e6de;
+  --shell-bright-white: #f4f4f5;
 
   // type: the platform's own face first (SF on Apple devices, with its optical sizes), Inter elsewhere
   --font: "IBM Plex Sans Arabic", -apple-system, BlinkMacSystemFont, "Inter Variable", "Inter", "Segoe UI", system-ui, sans-serif;
@@ -137,7 +137,6 @@
 
 @mixin dark {
   color-scheme: dark;
-  --shell-bg: #0f0f10;
   --flame-odoo: #5a3a52;
   --flame-addons: #2c4466;
   --flame-sql: #5e4421;
@@ -145,25 +144,6 @@
   --flame-other: #2b4a35;
   --flame-text: #f2f2f3;
   --flame-match: #8a6a1c;
-  --shell-text: #d4d4d8;
-  --shell-cursor: #e6c1dc;
-  --shell-selection: rgb(199 155 189 / 0.3);
-  --shell-black: #3f3f46;
-  --shell-red: #ff8a80;
-  --shell-green: #6ee7a8;
-  --shell-yellow: #f3c969;
-  --shell-blue: #8ab4f8;
-  --shell-magenta: #e6a6d6;
-  --shell-cyan: #7dd3c8;
-  --shell-white: #d4d4d8;
-  --shell-bright-black: #8e8e96;
-  --shell-bright-red: #ffb4ab;
-  --shell-bright-green: #9bf0c4;
-  --shell-bright-yellow: #f8dc9a;
-  --shell-bright-blue: #b3cdfb;
-  --shell-bright-magenta: #f0c6e5;
-  --shell-bright-cyan: #a8e6de;
-  --shell-bright-white: #f4f4f5;
   --primary: #c79bbd;
   --brand-ink: #d9b6d0;
   --on-brand: #1b1219;

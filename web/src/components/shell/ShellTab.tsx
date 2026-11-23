@@ -78,6 +78,8 @@ export function ShellTab({ instance }: { instance: Instance }) {
       <ShellTerminal
         key={opened.key}
         instance={instance.name}
+        stage={instance.stage}
+        showUser={can("shells.supervise")}
         target={opened.target}
         asRoot={opened.asRoot}
         confirmed={opened.confirmed}

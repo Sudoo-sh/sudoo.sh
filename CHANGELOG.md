@@ -6,6 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **A welcome in the web shell's Terminal**: a Sudoo.sh banner, which instance and stage you are in (with its Odoo
+  version, project and branch), a plain warning on production, and the useful commands that work there: `odoo-shell`,
+  `odoo-update <modules>`, `odoo-install <modules>` (production asks for the instance's name first), `psql` already
+  signed in to the instance's database, `cd` back to the code and `sudoo-help`. The prompt reads
+  `<instance> [<stage>/<version>]:~$` in bold, red for production, amber for staging and green for development; it
+  never shows the container's id or the server's paths, and the code's folder is `~`. Your own `~/.bashrc` still
+  works, `NO_COLOR` turns colours off, and existing instances get it without being recreated. The Shell tab's bar
+  shows the stage in the same colour and no longer names the container's user, and the terminal is dark in both
+  themes with a plum cursor and selection.
+
 ## [3.3.2] - 2026-11-23
 
 ### Changed

@@ -24,17 +24,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from sudoo import roles
+from sudoo import projects, roles
 from sudoo.config import settings
 from sudoo.instances import odoo, stages, store
 from sudoo.projects import access
+
+from . import welcome
 
 TARGETS = ("shell", "odoo-shell", "psql")
 SERVICE = {"shell": "odoo", "odoo-shell": "odoo", "psql": "db"}
 PERMISSION = {"shell": "instances.shell", "odoo-shell": "instances.shell", "psql": "instances.database_shell"}
 CONTAINER_USER = {"odoo": "odoo", "db": "postgres"}  # who a shell runs as, in each container
 ODOO_CONFIG = "/etc/odoo/odoo.conf"  # odoo.py mounts the instance's config folder there
-LOGIN_SHELL = "if command -v bash >/dev/null 2>&1; then exec bash -l; fi; exec sh -l"
 # lower priority than Odoo itself, so a heavy command in a shell does not slow the instance's visitors
 NICE = 'if command -v nice >/dev/null 2>&1; then exec nice -n 10 "$@"; fi; exec "$@"'
 
@@ -63,6 +64,8 @@ class Plan:
     root: bool
     production: bool
     recorded: bool
+    stage: str = stages.DEVELOPMENT
+    env: tuple[tuple[str, str], ...] = ()  # added to the process's environment (the Terminal's welcome)
 
 
 def recorded(production: bool, root: bool) -> bool:
@@ -111,8 +114,10 @@ def plan(user: dict[str, str], name: str, target: str, *, as_root: bool = False,
             raise Refused(403, "root-super-admins", "Only super admins open root shells.")
     service = SERVICE[target]
     database = env.get("DB_NAME", "")
-    if target == "shell":
-        argv: tuple[str, ...] = ("sh", "-c", LOGIN_SHELL)
+    shell_env: tuple[tuple[str, str], ...] = ()
+    if target == "shell":  # bash with the panel's welcome and prompt (welcome.py)
+        argv: tuple[str, ...] = ("sh", "-c", welcome.START)
+        shell_env = tuple(_welcome_environment(name, env).items())
     elif target == "odoo-shell":
         argv = ("odoo", "shell", "-c", ODOO_CONFIG, "-d", database, "--no-http")
     else:
@@ -128,6 +133,27 @@ def plan(user: dict[str, str], name: str, target: str, *, as_root: bool = False,
         root=as_root,
         production=production,
         recorded=True if user.get("support") else recorded(production, as_root),  # support's shells: always
+        stage=stages.of(env),
+        env=shell_env,
+    )
+
+
+def _welcome_environment(name: str, env: dict[str, str]) -> dict[str, str]:
+    """What the Terminal's welcome and prompt need (welcome.py): the instance, its stage and code, and its database
+    as its odoo.conf names it."""
+    options = odoo.read_config(name)
+    database = {
+        key: options.get("options", f"db_{key}", fallback=default)
+        for key, default in (("host", "db"), ("port", "5432"), ("user", "odoo"))
+    }
+    project = projects.get(env.get("PROJECT", ""))
+    return welcome.environment(
+        name,
+        env,
+        code=odoo.CUSTOM_ADDONS_MOUNT,
+        odoo_conf=ODOO_CONFIG,
+        database=database,
+        project=str(project.get("name", "")) if project else "",
     )
 
 

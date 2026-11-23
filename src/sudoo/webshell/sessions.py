@@ -172,7 +172,13 @@ async def serve(ws: web.WebSocketResponse, session: Session, still_allowed: Call
     try:
         if session.reason is not None:  # ended (by a super admin) before it even started
             return
-        env = {"TERM": "xterm-256color", "COLORTERM": "truecolor", "LANG": "C.UTF-8", "SUDOO_SHELL": session.id}
+        env = {  # plan.env: the Terminal's welcome and prompt (welcome.py)
+            **dict(plan.env),
+            "TERM": "xterm-256color",
+            "COLORTERM": "truecolor",
+            "LANG": "C.UTF-8",
+            "SUDOO_SHELL": session.id,
+        }
         exec_id = await docker_exec.create(
             plan.container,
             list(plan.argv),
@@ -232,6 +238,7 @@ def _summary(session: Session) -> dict[str, Any]:
         "user": session.user,
         "root": plan.root,
         "production": plan.production,
+        "stage": plan.stage,
         "recorded": plan.recorded,
         "idle_seconds": int(settings.shell_idle_minutes * 60),
         "max_seconds": int(settings.shell_max_minutes * 60),

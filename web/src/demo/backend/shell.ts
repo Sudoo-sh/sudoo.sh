@@ -193,11 +193,18 @@ function answers(instance: Instance, target: ShellTarget, user: string): { banne
       },
     };
   }
-  const home = "/mnt/extra-addons";
+  // the welcome and prompt of webshell/welcome.bash: the instance and its stage, the code shown as ~
+  const home = "~";
   const sign = user === "root" ? "#" : "$";
+  const colour = { production: "\x1b[1;31m", staging: "\x1b[1;33m", development: "\x1b[1;32m" }[instance.stage] ?? GREEN;
+  const welcome =
+    `You are connected to the ${colour}${instance.stage}${RESET} instance ${colour}${instance.name}${RESET}\r\n` +
+    `running Odoo ${version}\r\n` +
+    (instance.stage === "production" ? `\x1b[1;31mThis is production: changes affect live users.${RESET}\r\n` : "") +
+    "\r\n";
   return {
-    banner: note,
-    prompt: () => `${GREEN}${user}@${instance.name}${RESET}:${BLUE}${home}${RESET}${sign} `,
+    banner: welcome + note,
+    prompt: () => `${colour}${instance.name} [${instance.stage}/${version}]\x1b[0;1m:${home}${sign}${RESET} `,
     run: (line) => {
       const command = line.trim();
       if (command === "exit" || command === "logout") return null;
@@ -302,7 +309,7 @@ export class DemoShellSocket extends EventTarget {
     record(ME, "shell opened", { instance: instance.name, detail: `${target} as ${user}; ${item.recorded ? "recorded" : "not recorded"}; ${this.id}` });
     this.json({
       type: "ready", session: this.id, instance: instance.name, target, container: `odoo-${instance.name}-${target === "psql" ? "db" : "odoo"}-1`,
-      container_user: user, user: ME, root: asRoot, production: item.production, recorded: item.recorded,
+      container_user: user, user: ME, root: asRoot, production: item.production, stage: instance.stage, recorded: item.recorded,
       idle_seconds: Number(setting("shell_idle_minutes") ?? 15) * 60, max_seconds: Number(setting("shell_max_minutes") ?? 60) * 60, started: Math.floor(now / 1000),
     });
     this.started = now;

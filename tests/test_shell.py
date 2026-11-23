@@ -26,7 +26,7 @@ from sudoo.config import live, settings
 from sudoo.core import audit
 from sudoo.instances import monitor, odoo, store
 from sudoo.storage import storage
-from sudoo.webshell import docker_exec, policy, recordings, sessions, tickets
+from sudoo.webshell import docker_exec, policy, recordings, sessions, tickets, welcome
 
 Client = tuple[FlaskClient, dict[str, str]]
 DEV, PROD = "shellbox", "shellprod"
@@ -165,7 +165,7 @@ def test_what_each_target_runs() -> None:
     user = {"name": "admin1", "role": "super_admin"}
     shell = policy.plan(user, DEV, "shell")
     assert shell.container == f"odoo-{DEV}-odoo-1" and shell.container_user == "odoo" and not shell.root
-    assert shell.argv[:3] == ("sh", "-c", policy.NICE) and shell.argv[-1] == policy.LOGIN_SHELL
+    assert shell.argv[:3] == ("sh", "-c", policy.NICE) and shell.argv[-1] == welcome.START
     odoo_shell = policy.plan(user, DEV, "odoo-shell")
     assert odoo_shell.argv[4:] == ("odoo", "shell", "-c", "/etc/odoo/odoo.conf", "-d", f"{DEV}_db", "--no-http")
     psql = policy.plan(user, DEV, "psql")
@@ -417,6 +417,8 @@ def test_a_shell_session_from_ticket_to_hang_up(app: Flask, admin: Client, engin
     assert created["container"] == f"odoo-{DEV}-odoo-1" and created["user"] == "odoo"
     assert (created["cols"], created["rows"]) == (100, 30) and created["workdir"] == odoo.CUSTOM_ADDONS_MOUNT
     assert created["env"]["SUDOO_SHELL"] == ready["session"] and created["env"]["TERM"] == "xterm-256color"
+    assert created["argv"][-3:] == ["sh", "-c", welcome.START] and created["env"]["SUDOO_RC"] == welcome.rc()
+    assert created["env"]["SUDOO_STAGE"] == ready["stage"] == "development" and created["env"]["HOSTNAME"] == DEV
     assert engine.hung_up == [(f"odoo-{DEV}-odoo-1", ready["session"], "odoo")] and engine.streams[0].closed
     closed, opened = _events()[:2]
     assert opened["event"] == "shell opened" and opened["user"] == "admin1" and ready["session"] in opened["detail"]

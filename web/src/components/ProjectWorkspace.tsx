@@ -476,7 +476,7 @@ function BranchPane({
       branch={branch}
       instances={instances}
       mayOpen={!branch.lock || can(branch, "instances.logs")}
-      connectAs={can(branch, "instances.credentials")}
+      connectAs={can(branch, "instances.connect")}
       access={(name) => (can(branch, "instances.credentials") ? branchPath(project.id, branch.name, "access", name === branch.instances[0] ? null : name) : null)}
       onJob={onJob}
     />

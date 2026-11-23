@@ -403,8 +403,10 @@ class Settings(BaseSettings):
         description="GitHub organisations, comma-separated, whose members may sign in with GitHub without an "
         "invitation; their account is created at the first sign-in. Empty: only people with an account or invitation.",
     )
-    github_sign_in_role: Literal["viewer", "developer", "maintainer", "admin"] = Field(
-        "developer", description="The role of an account created for a member of GITHUB_SIGN_IN_ORGS."
+    github_sign_in_role: Literal["member", "viewer", "developer", "maintainer", "admin"] = Field(
+        "member",
+        description="The panel role of an account created for a member of GITHUB_SIGN_IN_ORGS. Member: no rights by "
+        "itself; each project's role comes from GitHub or from its Access tab.",
     )
     github_sign_in_skips_second_factor: bool = Field(
         False,
@@ -413,13 +415,31 @@ class Settings(BaseSettings):
     )
     github_access_from_repositories: bool = Field(
         True,
-        description="For accounts linked to GitHub (except administrators), a project's access follows their "
-        "permission on its repository: admin gives maintainer, maintain or write developer, triage or read view, "
-        "none nothing. Only with GITHUB_SIGN_IN.",
+        description="For accounts linked to GitHub (except administrators), a project's role follows their "
+        "permission on its repository: admin gives Admin, maintain Maintainer, write Developer, triage or read "
+        "Tester, none nothing. Only with GITHUB_SIGN_IN.",
     )
     github_access_check_minutes: int = Field(
-        15, ge=1, le=1440, description="How often repository permissions are read from GitHub again."
+        15, ge=1, le=1440, description="How often repository permissions and GitHub team members are read again."
     )
+    project_access_model: Literal["project_roles", "legacy"] = Field(
+        "project_roles",
+        description='The access model of new projects: "project_roles" (Viewer, Tester, Developer, Maintainer, '
+        'Admin, per stage) or "legacy" (the panel role limited by the project\'s grant, the same in every stage).',
+    )
+    access_emails: bool = Field(
+        True, description="E-mail people when they get access to a project, when their role changes, and when it ends."
+    )
+    access_requests: bool = Field(
+        True, description="People may ask a project's admins for temporary access (a higher role in one stage)."
+    )
+    access_request_max_hours: int = Field(
+        8, ge=1, le=168, description="The longest temporary access that can be asked for, in hours."
+    )
+    access_review: bool = Field(
+        True, description="E-mail each project's admins, every ACCESS_REVIEW_DAYS, who has access to it."
+    )
+    access_review_days: int = Field(30, ge=1, le=365, description="Days between two access reviews of a project.")
     brand_color: str = Field(
         "#714B67", pattern=r"^#[0-9A-Fa-f]{6}$", description="Accent colour of e-mails, as #RRGGBB."
     )
@@ -2135,6 +2155,12 @@ EDITABLE = (
     "github_sign_in_skips_second_factor",
     "github_access_from_repositories",
     "github_access_check_minutes",
+    "project_access_model",
+    "access_emails",
+    "access_requests",
+    "access_request_max_hours",
+    "access_review",
+    "access_review_days",
     "cloudflared_image",
     "admin_contact_name",
     "admin_contact_phone",

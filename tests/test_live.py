@@ -206,7 +206,7 @@ def test_secret_values_written_by_earlier_versions_are_removed_from_the_audit_lo
         "SMTP_PASSWORD=kept",  # another event: left as it is
         "SMTP_PASSWORD=(set), IDLE_HOURS=2, ODOO_ADMIN_PASSWORD=(env), GITHUB_WEBHOOK_SECRET=(set)",
     ]
-    assert db.get("meta", "schema") == {"version": 3}
+    assert db.get("meta", "schema") == {"version": 4}
 
 
 def _signed(token: str, signing_secret: str, path: str) -> dict[str, str]:

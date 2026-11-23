@@ -1434,6 +1434,13 @@ POST /api/v1/session/second-factor  {"method": "totp", "code": "123456"}
 
 Between the two calls the session opens nothing, for 5 minutes at most.
 
+Project roles (`GET /api/v1/projects/<id>/access` has `model`, `roles` and the matrix): `PUT .../access/matrix`
+`{"matrix": {"developer": {"staging": ["instances.view", "instances.connect"]}}}` (null: the defaults), `GET
+.../access/people` (who can do what), `GET`/`POST .../access/model` (preview and switch a project of the earlier
+model), and temporary access: `GET`/`POST /api/v1/projects/<id>/role-requests` (`{"stage", "level", "hours",
+"reason"}`), `POST .../role-requests/<rid>/approve|refuse`, `DELETE .../role-requests/<rid>`. A refused right in a
+project answers 403 with a sentence that names the role, the right and the stage.
+
 `GET /api/v1/session/options` (public) says which other ways the page offers, `{"password", "email_code", "github"}`
 (true or false). Each is a first step like the password; the second factor follows the same way:
 

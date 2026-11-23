@@ -61,6 +61,7 @@ def start() -> None:
         mail_catcher.maintain_forever,
         _watch_upgrades,
         _github_access,
+        _access_reviews,
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     alerts.start()
@@ -134,6 +135,13 @@ def _github_access() -> None:
     from sudoo.auth import github_access
 
     github_access.run_forever()
+
+
+def _access_reviews() -> None:
+    """Every hour: the access reviews that are due (projects/notices.py)."""
+    from sudoo.projects import notices
+
+    notices.review_forever()
 
 
 def _watch_upgrades() -> None:

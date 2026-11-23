@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Upgrading
+
+- **Projects keep their access.** Projects made before this version keep the earlier access model (the panel role
+  limited by the project's grant, the same in every stage) until an admin switches them on their Access tab, so
+  nobody gains or loses access by the upgrade. **Switch to project roles** first shows, person by person, the role
+  each gets and the rights that change, and keeps everyone's role with a grant on the project where the default would
+  differ. Projects made after the upgrade use project roles (`PROJECT_ACCESS_MODEL`).
+- Connecting to an instance's Odoo (connect-as) now needs its own permission, `instances.connect`; the panel roles
+  that could see Odoo passwords keep it. Accounts made for members of `GITHUB_SIGN_IN_ORGS` now get the new panel role
+  **Member** by default (`GITHUB_SIGN_IN_ROLE`).
+
 ### Fixed
 
 - **The Terminal always says it is Sudoo.sh**: a terminal narrower than the banner shows "SUDOO.SH" on one line
@@ -13,6 +24,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   instead of none.
 
 ### Added
+
+- **Project roles per stage: Viewer, Tester, Developer, Maintainer, Admin.** Inside a project, a person's project role
+  decides what they may do in production, staging and development: a Developer works freely in development, tests
+  staging without its data and sees only production's status; a Maintainer also reads production's logs, connects to
+  it, downloads its backups and restarts it, never its shell, database, restores or deletion; Admin does everything.
+  Each project's Access tab shows the matrix, and its admins can change any cell. Panel roles keep the panel-wide
+  rights; administrators have every right in every project; a new panel role, **Member**, has none by itself.
+- **GitHub teams and repository permissions give project roles**: admin gives Admin, maintain Maintainer, write
+  Developer, triage or read Tester; a GitHub team (`org/team`) can be given a role on the Access tab, its members read
+  from GitHub with the App's token (Members: read). A role given to the person wins; otherwise the highest of GitHub,
+  panel teams and GitHub teams.
+- **Temporary access**: ask a project's admins for a higher role in one stage for a few hours, with a reason; they
+  approve or refuse it by e-mail notice and on the Access tab; it ends by itself (`ACCESS_REQUESTS`,
+  `ACCESS_REQUEST_MAX_HOURS`).
+- **Access e-mails** when someone gets access to a project, when their role changes and when it ends, once per change
+  and in the person's language (`ACCESS_EMAILS`); a regular **access review** to each project's admins
+  (`ACCESS_REVIEW`, `ACCESS_REVIEW_DAYS`); a **Who can do what** list on the Access tab; refusals that say which role
+  cannot do what, and where, and how to ask for temporary access.
 
 - **Repository guard** (a project's Settings tab), off until a project Admin turns it on. **CI checks**: the panel
   opens a pull request (from its own branch `sudoo/repository-guard`, never a push to a branch people use) adding a

@@ -87,6 +87,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
     groups: [
       { id: "signIn", keys: ["require_second_factor", "second_factors", "session_idle_minutes", "session_max_hours", "auth"] },
       { id: "signInWays", keys: ["sign_in_methods", "client_sign_in_methods", "email_code_sign_in", "email_code_sends_per_hour", "github_sign_in", "github_sign_in_orgs", "github_sign_in_role", "github_sign_in_skips_second_factor", "github_access_from_repositories", "github_access_check_minutes"] },
+      { id: "projectRoles", keys: ["project_access_model", "access_emails", "access_requests", "access_request_max_hours", "access_review", "access_review_days"] },
       { id: "signInEmail", keys: ["sign_in_email", "sign_in_email_opt_out", "recovery_codes_count"] },
       { id: "invitations", keys: ["invitation_hours", "invitation_password_fallback", "invitations_per_hour"] },
       { id: "requests", keys: ["rate_limit_reads_per_minute", "rate_limit_changes_per_minute", "rate_limiter"] },

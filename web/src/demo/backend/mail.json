@@ -1362,6 +1362,930 @@
     "server": "smtp.example.com:587 (starttls)",
     "panel_link": "https://demo.sudoo.sh"
    }
+  },
+  {
+   "key": "access_granted",
+   "name": "Project access given",
+   "description": "Someone can now work in a project, and as what.",
+   "recipients": "The person given the access (ACCESS_EMAILS)",
+   "kicker": "{{ project }}",
+   "preheader": "{{ role }} in {{ project }}",
+   "default": {
+    "subject": "You can now work in {{ project }}",
+    "title": "Welcome to {{ project }}",
+    "body": "Hello {{ name }},\n\nYou now have the role **{{ role }}** in **{{ project }}** ({{ by }}).\n\n{{ rights }}\n\n[Open {{ project }}]({{ link }})\n\nSign in with: {{ how }}."
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person's first name, or their user name",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "role",
+     "description": "The project role (Viewer, Tester, Developer, Maintainer, Admin)",
+     "kind": "text"
+    },
+    {
+     "name": "before",
+     "description": "The role before the change",
+     "kind": "text"
+    },
+    {
+     "name": "by",
+     "description": "Who or what made the change: a person, GitHub, a team",
+     "kind": "text"
+    },
+    {
+     "name": "rights",
+     "description": "What the role allows in each stage, in a box",
+     "kind": "block"
+    },
+    {
+     "name": "how",
+     "description": "How the person signs in (GitHub, a code by e-mail, a password)",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The project's page",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Huda",
+    "project": "Acme Retail",
+    "role": "Developer",
+    "before": "Tester",
+    "by": "Sara Nassar",
+    "rights": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:12px; color:#6C757D; background-color:#F8F9FA; border-radius:6px;\"><tr><td colspan=\"2\" style=\"padding:8px 0 0 0;\"></td></tr><tr><td colspan=\"2\" style=\"padding:0 14px 4px 14px; font-weight:bold; color:#454748;\">What you can do</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Production</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">See it, its history and status</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Staging</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">See and test in Odoo</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Development</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">Everything: code, logs, shell, backups</td></tr><tr><td colspan=\"2\" style=\"padding:0 0 8px 0;\"></td></tr></table>",
+     "text": "What you can do\nProduction: See it, its history and status\nStaging: See and test in Odoo\nDevelopment: Everything: code, logs, shell, backups"
+    },
+    "how": "Continue with GitHub",
+    "link": "https://panel.example.com/projects/acme-retail",
+    "panel_link": "https://panel.example.com"
+   }
+  },
+  {
+   "key": "access_granted_ar",
+   "name": "Project access given (Arabic)",
+   "description": "The same e-mail in Arabic.",
+   "recipients": "The person given the access (ACCESS_EMAILS)",
+   "kicker": "{{ project }}",
+   "preheader": "{{ role }} في {{ project }}",
+   "default": {
+    "subject": "يمكنك الآن العمل في {{ project }}",
+    "title": "أهلًا بك في {{ project }}",
+    "body": "مرحبًا {{ name }}،\n\nأصبح لك الدور **{{ role }}** في **{{ project }}** ({{ by }}).\n\n{{ rights }}\n\n[افتح {{ project }}]({{ link }})\n\nتسجّل الدخول بـ: {{ how }}."
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person's first name, or their user name",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "role",
+     "description": "The project role (Viewer, Tester, Developer, Maintainer, Admin)",
+     "kind": "text"
+    },
+    {
+     "name": "before",
+     "description": "The role before the change",
+     "kind": "text"
+    },
+    {
+     "name": "by",
+     "description": "Who or what made the change: a person, GitHub, a team",
+     "kind": "text"
+    },
+    {
+     "name": "rights",
+     "description": "What the role allows in each stage, in a box",
+     "kind": "block"
+    },
+    {
+     "name": "how",
+     "description": "How the person signs in (GitHub, a code by e-mail, a password)",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The project's page",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Huda",
+    "project": "Acme Retail",
+    "role": "Developer",
+    "before": "Tester",
+    "by": "Sara Nassar",
+    "rights": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:12px; color:#6C757D; background-color:#F8F9FA; border-radius:6px;\"><tr><td colspan=\"2\" style=\"padding:8px 0 0 0;\"></td></tr><tr><td colspan=\"2\" style=\"padding:0 14px 4px 14px; font-weight:bold; color:#454748;\">What you can do</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Production</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">See it, its history and status</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Staging</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">See and test in Odoo</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Development</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">Everything: code, logs, shell, backups</td></tr><tr><td colspan=\"2\" style=\"padding:0 0 8px 0;\"></td></tr></table>",
+     "text": "What you can do\nProduction: See it, its history and status\nStaging: See and test in Odoo\nDevelopment: Everything: code, logs, shell, backups"
+    },
+    "how": "Continue with GitHub",
+    "link": "https://panel.example.com/projects/acme-retail",
+    "panel_link": "https://panel.example.com"
+   }
+  },
+  {
+   "key": "access_changed",
+   "name": "Project role changed",
+   "description": "Someone's role in a project changed.",
+   "recipients": "The person whose role changed (ACCESS_EMAILS)",
+   "kicker": "{{ project }}",
+   "preheader": "{{ before }} -> {{ role }}",
+   "default": {
+    "subject": "Your role in {{ project }} is now {{ role }}",
+    "title": "Your role changed",
+    "body": "Hello {{ name }},\n\nYour role in **{{ project }}** changed from {{ before }} to **{{ role }}** ({{ by }}).\n\n{{ rights }}\n\n[Open {{ project }}]({{ link }})"
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person's first name, or their user name",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "role",
+     "description": "The project role (Viewer, Tester, Developer, Maintainer, Admin)",
+     "kind": "text"
+    },
+    {
+     "name": "before",
+     "description": "The role before the change",
+     "kind": "text"
+    },
+    {
+     "name": "by",
+     "description": "Who or what made the change: a person, GitHub, a team",
+     "kind": "text"
+    },
+    {
+     "name": "rights",
+     "description": "What the role allows in each stage, in a box",
+     "kind": "block"
+    },
+    {
+     "name": "how",
+     "description": "How the person signs in (GitHub, a code by e-mail, a password)",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The project's page",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Huda",
+    "project": "Acme Retail",
+    "role": "Developer",
+    "before": "Tester",
+    "by": "Sara Nassar",
+    "rights": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:12px; color:#6C757D; background-color:#F8F9FA; border-radius:6px;\"><tr><td colspan=\"2\" style=\"padding:8px 0 0 0;\"></td></tr><tr><td colspan=\"2\" style=\"padding:0 14px 4px 14px; font-weight:bold; color:#454748;\">What you can do</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Production</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">See it, its history and status</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Staging</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">See and test in Odoo</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Development</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">Everything: code, logs, shell, backups</td></tr><tr><td colspan=\"2\" style=\"padding:0 0 8px 0;\"></td></tr></table>",
+     "text": "What you can do\nProduction: See it, its history and status\nStaging: See and test in Odoo\nDevelopment: Everything: code, logs, shell, backups"
+    },
+    "how": "Continue with GitHub",
+    "link": "https://panel.example.com/projects/acme-retail",
+    "panel_link": "https://panel.example.com"
+   }
+  },
+  {
+   "key": "access_changed_ar",
+   "name": "Project role changed (Arabic)",
+   "description": "The same e-mail in Arabic.",
+   "recipients": "The person whose role changed (ACCESS_EMAILS)",
+   "kicker": "{{ project }}",
+   "preheader": "{{ before }} -> {{ role }}",
+   "default": {
+    "subject": "دورك في {{ project }} أصبح {{ role }}",
+    "title": "تغيّر دورك",
+    "body": "مرحبًا {{ name }}،\n\nتغيّر دورك في **{{ project }}** من {{ before }} إلى **{{ role }}** ({{ by }}).\n\n{{ rights }}\n\n[افتح {{ project }}]({{ link }})"
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person's first name, or their user name",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "role",
+     "description": "The project role (Viewer, Tester, Developer, Maintainer, Admin)",
+     "kind": "text"
+    },
+    {
+     "name": "before",
+     "description": "The role before the change",
+     "kind": "text"
+    },
+    {
+     "name": "by",
+     "description": "Who or what made the change: a person, GitHub, a team",
+     "kind": "text"
+    },
+    {
+     "name": "rights",
+     "description": "What the role allows in each stage, in a box",
+     "kind": "block"
+    },
+    {
+     "name": "how",
+     "description": "How the person signs in (GitHub, a code by e-mail, a password)",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The project's page",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Huda",
+    "project": "Acme Retail",
+    "role": "Developer",
+    "before": "Tester",
+    "by": "Sara Nassar",
+    "rights": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:12px; color:#6C757D; background-color:#F8F9FA; border-radius:6px;\"><tr><td colspan=\"2\" style=\"padding:8px 0 0 0;\"></td></tr><tr><td colspan=\"2\" style=\"padding:0 14px 4px 14px; font-weight:bold; color:#454748;\">What you can do</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Production</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">See it, its history and status</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Staging</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">See and test in Odoo</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Development</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">Everything: code, logs, shell, backups</td></tr><tr><td colspan=\"2\" style=\"padding:0 0 8px 0;\"></td></tr></table>",
+     "text": "What you can do\nProduction: See it, its history and status\nStaging: See and test in Odoo\nDevelopment: Everything: code, logs, shell, backups"
+    },
+    "how": "Continue with GitHub",
+    "link": "https://panel.example.com/projects/acme-retail",
+    "panel_link": "https://panel.example.com"
+   }
+  },
+  {
+   "key": "access_removed",
+   "name": "Project access removed",
+   "description": "Someone can no longer see a project.",
+   "recipients": "The person whose access ended (ACCESS_EMAILS)",
+   "kicker": "{{ project }}",
+   "preheader": "No more access to {{ project }}",
+   "default": {
+    "subject": "Your access to {{ project }} was removed",
+    "title": "Access removed",
+    "body": "Hello {{ name }},\n\nYou no longer have access to **{{ project }}** ({{ by }}). You had the role {{ before }}.\n\n> Not expected? Ask an admin of the project."
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person's first name, or their user name",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "role",
+     "description": "The project role (Viewer, Tester, Developer, Maintainer, Admin)",
+     "kind": "text"
+    },
+    {
+     "name": "before",
+     "description": "The role before the change",
+     "kind": "text"
+    },
+    {
+     "name": "by",
+     "description": "Who or what made the change: a person, GitHub, a team",
+     "kind": "text"
+    },
+    {
+     "name": "rights",
+     "description": "What the role allows in each stage, in a box",
+     "kind": "block"
+    },
+    {
+     "name": "how",
+     "description": "How the person signs in (GitHub, a code by e-mail, a password)",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The project's page",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Huda",
+    "project": "Acme Retail",
+    "role": "Developer",
+    "before": "Tester",
+    "by": "Sara Nassar",
+    "rights": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:12px; color:#6C757D; background-color:#F8F9FA; border-radius:6px;\"><tr><td colspan=\"2\" style=\"padding:8px 0 0 0;\"></td></tr><tr><td colspan=\"2\" style=\"padding:0 14px 4px 14px; font-weight:bold; color:#454748;\">What you can do</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Production</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">See it, its history and status</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Staging</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">See and test in Odoo</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Development</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">Everything: code, logs, shell, backups</td></tr><tr><td colspan=\"2\" style=\"padding:0 0 8px 0;\"></td></tr></table>",
+     "text": "What you can do\nProduction: See it, its history and status\nStaging: See and test in Odoo\nDevelopment: Everything: code, logs, shell, backups"
+    },
+    "how": "Continue with GitHub",
+    "link": "https://panel.example.com/projects/acme-retail",
+    "panel_link": "https://panel.example.com"
+   }
+  },
+  {
+   "key": "access_removed_ar",
+   "name": "Project access removed (Arabic)",
+   "description": "The same e-mail in Arabic.",
+   "recipients": "The person whose access ended (ACCESS_EMAILS)",
+   "kicker": "{{ project }}",
+   "preheader": "لم يعد لك وصول إلى {{ project }}",
+   "default": {
+    "subject": "أُزيل وصولك إلى {{ project }}",
+    "title": "أُزيل الوصول",
+    "body": "مرحبًا {{ name }}،\n\nلم يعد لك وصول إلى **{{ project }}** ({{ by }}). كان دورك {{ before }}.\n\n> لم تتوقع ذلك؟ تواصل مع أحد مديري المشروع."
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person's first name, or their user name",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "role",
+     "description": "The project role (Viewer, Tester, Developer, Maintainer, Admin)",
+     "kind": "text"
+    },
+    {
+     "name": "before",
+     "description": "The role before the change",
+     "kind": "text"
+    },
+    {
+     "name": "by",
+     "description": "Who or what made the change: a person, GitHub, a team",
+     "kind": "text"
+    },
+    {
+     "name": "rights",
+     "description": "What the role allows in each stage, in a box",
+     "kind": "block"
+    },
+    {
+     "name": "how",
+     "description": "How the person signs in (GitHub, a code by e-mail, a password)",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The project's page",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Huda",
+    "project": "Acme Retail",
+    "role": "Developer",
+    "before": "Tester",
+    "by": "Sara Nassar",
+    "rights": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:12px; color:#6C757D; background-color:#F8F9FA; border-radius:6px;\"><tr><td colspan=\"2\" style=\"padding:8px 0 0 0;\"></td></tr><tr><td colspan=\"2\" style=\"padding:0 14px 4px 14px; font-weight:bold; color:#454748;\">What you can do</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Production</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">See it, its history and status</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Staging</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">See and test in Odoo</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Development</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">Everything: code, logs, shell, backups</td></tr><tr><td colspan=\"2\" style=\"padding:0 0 8px 0;\"></td></tr></table>",
+     "text": "What you can do\nProduction: See it, its history and status\nStaging: See and test in Odoo\nDevelopment: Everything: code, logs, shell, backups"
+    },
+    "how": "Continue with GitHub",
+    "link": "https://panel.example.com/projects/acme-retail",
+    "panel_link": "https://panel.example.com"
+   }
+  },
+  {
+   "key": "access_request",
+   "name": "Temporary access asked",
+   "description": "Someone asks for a higher role for a few hours.",
+   "recipients": "The admins of the project",
+   "kicker": "{{ project }}",
+   "preheader": "{{ who }}: {{ role }} in {{ stage }} for {{ hours }} h",
+   "default": {
+    "subject": "{{ who }} asks for temporary access to {{ project }}",
+    "title": "Temporary access asked",
+    "body": "Hello {{ name }},\n\n**{{ who }}** asks for the role **{{ role }}** in **{{ stage }}** of **{{ project }}** for {{ hours }} hours.\n\n**Why:** {{ reason }}\n\n[Approve or refuse]({{ link }})\n\nIt ends by itself when the time is over."
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person the e-mail is for",
+     "kind": "text"
+    },
+    {
+     "name": "who",
+     "description": "The person who asked",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "role",
+     "description": "The role asked for",
+     "kind": "text"
+    },
+    {
+     "name": "stage",
+     "description": "The stage asked for",
+     "kind": "text"
+    },
+    {
+     "name": "hours",
+     "description": "For how many hours",
+     "kind": "text"
+    },
+    {
+     "name": "reason",
+     "description": "Why, in the person's words",
+     "kind": "text"
+    },
+    {
+     "name": "decision",
+     "description": "approved or refused (decided e-mail only)",
+     "kind": "text"
+    },
+    {
+     "name": "until",
+     "description": "When the access ends (decided e-mail only)",
+     "kind": "text"
+    },
+    {
+     "name": "decided_by",
+     "description": "Who decided (decided e-mail only)",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The project's Access tab",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Sara",
+    "who": "Karim Saleh",
+    "project": "Acme Retail",
+    "role": "Maintainer",
+    "stage": "production",
+    "hours": 2,
+    "reason": "Read the production logs of the failed import",
+    "decision": "approved",
+    "until": "Tuesday 18 November 2026, 11:41 UTC",
+    "decided_by": "Sara Nassar",
+    "link": "https://panel.example.com/projects/acme-retail/access",
+    "panel_link": "https://panel.example.com"
+   }
+  },
+  {
+   "key": "access_request_ar",
+   "name": "Temporary access asked (Arabic)",
+   "description": "The same e-mail in Arabic.",
+   "recipients": "The admins of the project",
+   "kicker": "{{ project }}",
+   "preheader": "{{ who }}: {{ role }} في {{ stage }} لمدة {{ hours }} س",
+   "default": {
+    "subject": "{{ who }} يطلب وصولًا مؤقتًا إلى {{ project }}",
+    "title": "طلب وصول مؤقت",
+    "body": "مرحبًا {{ name }}،\n\nيطلب **{{ who }}** الدور **{{ role }}** في **{{ stage }}** من **{{ project }}** لمدة {{ hours }} ساعات.\n\n**السبب:** {{ reason }}\n\n[وافق أو ارفض]({{ link }})\n\nينتهي تلقائيًا حين تنقضي المدة."
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person the e-mail is for",
+     "kind": "text"
+    },
+    {
+     "name": "who",
+     "description": "The person who asked",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "role",
+     "description": "The role asked for",
+     "kind": "text"
+    },
+    {
+     "name": "stage",
+     "description": "The stage asked for",
+     "kind": "text"
+    },
+    {
+     "name": "hours",
+     "description": "For how many hours",
+     "kind": "text"
+    },
+    {
+     "name": "reason",
+     "description": "Why, in the person's words",
+     "kind": "text"
+    },
+    {
+     "name": "decision",
+     "description": "approved or refused (decided e-mail only)",
+     "kind": "text"
+    },
+    {
+     "name": "until",
+     "description": "When the access ends (decided e-mail only)",
+     "kind": "text"
+    },
+    {
+     "name": "decided_by",
+     "description": "Who decided (decided e-mail only)",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The project's Access tab",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Sara",
+    "who": "Karim Saleh",
+    "project": "Acme Retail",
+    "role": "Maintainer",
+    "stage": "production",
+    "hours": 2,
+    "reason": "Read the production logs of the failed import",
+    "decision": "approved",
+    "until": "Tuesday 18 November 2026, 11:41 UTC",
+    "decided_by": "Sara Nassar",
+    "link": "https://panel.example.com/projects/acme-retail/access",
+    "panel_link": "https://panel.example.com"
+   }
+  },
+  {
+   "key": "access_request_decided",
+   "name": "Temporary access decided",
+   "description": "The answer to a request for temporary access.",
+   "recipients": "The person who asked",
+   "kicker": "{{ project }}",
+   "preheader": "{{ decision }}",
+   "default": {
+    "subject": "Your request for {{ project }} was {{ decision }}",
+    "title": "Your request was {{ decision }}",
+    "body": "Hello {{ name }},\n\n{{ decided_by }} {{ decision }} your request for the role **{{ role }}** in **{{ stage }}** of **{{ project }}**.\n\nWhen approved, it ends on {{ until }}.\n\n[Open {{ project }}]({{ link }})"
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person the e-mail is for",
+     "kind": "text"
+    },
+    {
+     "name": "who",
+     "description": "The person who asked",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "role",
+     "description": "The role asked for",
+     "kind": "text"
+    },
+    {
+     "name": "stage",
+     "description": "The stage asked for",
+     "kind": "text"
+    },
+    {
+     "name": "hours",
+     "description": "For how many hours",
+     "kind": "text"
+    },
+    {
+     "name": "reason",
+     "description": "Why, in the person's words",
+     "kind": "text"
+    },
+    {
+     "name": "decision",
+     "description": "approved or refused (decided e-mail only)",
+     "kind": "text"
+    },
+    {
+     "name": "until",
+     "description": "When the access ends (decided e-mail only)",
+     "kind": "text"
+    },
+    {
+     "name": "decided_by",
+     "description": "Who decided (decided e-mail only)",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The project's Access tab",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Sara",
+    "who": "Karim Saleh",
+    "project": "Acme Retail",
+    "role": "Maintainer",
+    "stage": "production",
+    "hours": 2,
+    "reason": "Read the production logs of the failed import",
+    "decision": "approved",
+    "until": "Tuesday 18 November 2026, 11:41 UTC",
+    "decided_by": "Sara Nassar",
+    "link": "https://panel.example.com/projects/acme-retail/access",
+    "panel_link": "https://panel.example.com"
+   }
+  },
+  {
+   "key": "access_request_decided_ar",
+   "name": "Temporary access decided (Arabic)",
+   "description": "The same e-mail in Arabic.",
+   "recipients": "The person who asked",
+   "kicker": "{{ project }}",
+   "preheader": "{{ decision }}",
+   "default": {
+    "subject": "طلبك في {{ project }}: {{ decision }}",
+    "title": "نتيجة طلبك",
+    "body": "مرحبًا {{ name }}،\n\nقرار {{ decided_by }} في طلبك للدور **{{ role }}** في **{{ stage }}** من **{{ project }}**: {{ decision }}.\n\nإن وُوفق عليه فهو ينتهي في {{ until }}.\n\n[افتح {{ project }}]({{ link }})"
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The person the e-mail is for",
+     "kind": "text"
+    },
+    {
+     "name": "who",
+     "description": "The person who asked",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "role",
+     "description": "The role asked for",
+     "kind": "text"
+    },
+    {
+     "name": "stage",
+     "description": "The stage asked for",
+     "kind": "text"
+    },
+    {
+     "name": "hours",
+     "description": "For how many hours",
+     "kind": "text"
+    },
+    {
+     "name": "reason",
+     "description": "Why, in the person's words",
+     "kind": "text"
+    },
+    {
+     "name": "decision",
+     "description": "approved or refused (decided e-mail only)",
+     "kind": "text"
+    },
+    {
+     "name": "until",
+     "description": "When the access ends (decided e-mail only)",
+     "kind": "text"
+    },
+    {
+     "name": "decided_by",
+     "description": "Who decided (decided e-mail only)",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The project's Access tab",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Sara",
+    "who": "Karim Saleh",
+    "project": "Acme Retail",
+    "role": "Maintainer",
+    "stage": "production",
+    "hours": 2,
+    "reason": "Read the production logs of the failed import",
+    "decision": "approved",
+    "until": "Tuesday 18 November 2026, 11:41 UTC",
+    "decided_by": "Sara Nassar",
+    "link": "https://panel.example.com/projects/acme-retail/access",
+    "panel_link": "https://panel.example.com"
+   }
+  },
+  {
+   "key": "access_review",
+   "name": "Access review",
+   "description": "Who has access to a project, sent to its admins every ACCESS_REVIEW_DAYS.",
+   "recipients": "The admins of the project (ACCESS_REVIEW)",
+   "kicker": "{{ project }}",
+   "preheader": "{{ count }} people have access",
+   "default": {
+    "subject": "Access review: {{ project }}",
+    "title": "Who has access",
+    "body": "Hello {{ name }},\n\nThese {{ count }} people can work in **{{ project }}** now:\n\n{{ people }}\n\nRemove anyone who no longer needs it.\n\n[Review the access]({{ link }})"
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The admin the review is for",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "people",
+     "description": "Who has access, their role and where it comes from",
+     "kind": "block"
+    },
+    {
+     "name": "count",
+     "description": "How many people have access",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The project's Access tab",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Sara",
+    "project": "Acme Retail",
+    "people": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" dir=\"ltr\" style=\"margin:0 0 16px 0; direction:ltr; text-align:left; font-size:13px; background-color:#F8F9FA; border-radius:6px;\"><tr><td style=\"padding:10px 14px 2px 14px; color:#212529; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:12px;\">Karim Saleh: Developer (GitHub: write)</td></tr><tr><td style=\"padding:2px 14px 10px 14px; color:#212529; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:12px;\">Lena Brandt: Maintainer (grant)</td></tr></table>",
+     "text": "  - Karim Saleh: Developer (GitHub: write)\n  - Lena Brandt: Maintainer (grant)"
+    },
+    "count": 2,
+    "link": "https://panel.example.com/projects/acme-retail/access",
+    "panel_link": "https://panel.example.com"
+   }
+  },
+  {
+   "key": "access_review_ar",
+   "name": "Access review (Arabic)",
+   "description": "The same e-mail in Arabic.",
+   "recipients": "The admins of the project (ACCESS_REVIEW)",
+   "kicker": "{{ project }}",
+   "preheader": "{{ count }} لهم وصول",
+   "default": {
+    "subject": "مراجعة الوصول: {{ project }}",
+    "title": "من له وصول",
+    "body": "مرحبًا {{ name }}،\n\nيستطيع هؤلاء ({{ count }}) العمل في **{{ project }}** الآن:\n\n{{ people }}\n\nأزل من لم يعد بحاجة إليه.\n\n[راجع الوصول]({{ link }})"
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The admin the review is for",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "people",
+     "description": "Who has access, their role and where it comes from",
+     "kind": "block"
+    },
+    {
+     "name": "count",
+     "description": "How many people have access",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The project's Access tab",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [],
+   "samples": {
+    "name": "Sara",
+    "project": "Acme Retail",
+    "people": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" dir=\"ltr\" style=\"margin:0 0 16px 0; direction:ltr; text-align:left; font-size:13px; background-color:#F8F9FA; border-radius:6px;\"><tr><td style=\"padding:10px 14px 2px 14px; color:#212529; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:12px;\">Karim Saleh: Developer (GitHub: write)</td></tr><tr><td style=\"padding:2px 14px 10px 14px; color:#212529; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:12px;\">Lena Brandt: Maintainer (grant)</td></tr></table>",
+     "text": "  - Karim Saleh: Developer (GitHub: write)\n  - Lena Brandt: Maintainer (grant)"
+    },
+    "count": 2,
+    "link": "https://panel.example.com/projects/acme-retail/access",
+    "panel_link": "https://panel.example.com"
+   }
   }
  ]
 }

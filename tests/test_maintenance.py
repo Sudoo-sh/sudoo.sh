@@ -185,7 +185,9 @@ def hub(monkeypatch: pytest.MonkeyPatch) -> Iterator[FakeHub]:
     fake.stop()
 
 
-def test_a_signed_command_records_the_item_and_reports_go_back(hub: FakeHub, inbox: list[Any]) -> None:
+def test_a_signed_command_records_the_item_and_reports_go_back(
+    hub: FakeHub, inbox: list[Any], passwords: dict[str, str]
+) -> None:
     marketplace.heartbeat()
     me = client.identity().installation_id
     item_id = hub.plan_maintenance(me)
@@ -265,7 +267,7 @@ def test_the_api_lets_administrators_choose(app: Flask, admin: Client, passwords
     assert developer.get("/api/v1/maintenance").status_code == 200
 
 
-def test_the_default_window_applies_when_nobody_chooses(inbox: list[Any]) -> None:
+def test_the_default_window_applies_when_nobody_chooses(inbox: list[Any], passwords: dict[str, str]) -> None:
     found = _received()
     maintenance.tick(now=found["received_at"] + 3600)
     assert (maintenance.get(found["id"]) or {})["status"] == "proposed"
@@ -290,7 +292,7 @@ def test_past_its_deadline_an_optional_item_fails_and_a_required_one_runs_soon()
     maintenance._RUNNING.release()
 
 
-def test_reminders_are_sent_once(inbox: list[Any]) -> None:
+def test_reminders_are_sent_once(inbox: list[Any], passwords: dict[str, str]) -> None:
     found = _received()
     start = maintenance.bounds(found)[0] + 2 * DAY
     maintenance.choose(found["id"], start, "admin1")

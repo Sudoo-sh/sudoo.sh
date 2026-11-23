@@ -899,7 +899,7 @@ def _instances_work(item: Document) -> Document | None:
             continue
         _step(item["id"], step)
         job = jobs.start(name, f"Maintenance: {title(item)}", "update" if item["kind"] == "odoo_images" else "restart",
-                         work, item["kind"], bool(settings.maintenance_backup_first), user=WHO)  # fmt: skip
+                         work, name, item["kind"], bool(settings.maintenance_backup_first), user=WHO)  # fmt: skip
         _wait(job)
         ok = job.status == "success"
         failed_once = failed_once or not ok
@@ -995,11 +995,10 @@ def _mail(item: Mapping[str, Any], key: str, default: bool = False) -> None:
 
         panel = panel_url() or ""
         people = [(name, account, f"{panel}/maintenance" if panel else "") for name, account in _admins()]
-        if key != "maintenance_planned" or settings.maintenance_remind_clients:
+        if settings.maintenance_remind_clients:
             portal = clients.portal_url().rstrip("/")
-            if settings.maintenance_remind_clients:
-                people += [(name, account, f"{portal}/maintenance" if portal else "")
-                           for name, account, _ in _clients(item)]  # fmt: skip
+            people += [(name, account, f"{portal}/maintenance" if portal else "")
+                       for name, account, _ in _clients(item)]  # fmt: skip
         for name, account, link in people:
             _send(item, key, name, account, link, default)
     except Exception as error:  # noqa: BLE001 - a missing e-mail never stops maintenance

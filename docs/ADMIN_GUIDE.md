@@ -3181,14 +3181,15 @@ project builds and imports do not work on Kubernetes instances yet (they stay on
 1. On the panel's server, as root, from the panel's release files:
 
    ```bash
-   sudo bash scripts/install-k3s.sh
+   sudo bash scripts/k3s-prepare.sh install
    ```
 
    It installs k3s (a pinned version; `--version` chooses another) with Pod Security `restricted` as every
    namespace's default, Secrets encrypted on disk, an audit log in `/var/log/k3s/`, and Traefik switched off (the
    panel's gateway serves visitors). It creates the namespace `sudoo-system`, the panel's ServiceAccount and its
    rights, and writes the panel's kubeconfig to `<ODOO_ROOT>/manager/kubernetes/kubeconfig.json` (mode 600).
-   `--print-manifests` only prints those rights, so you can read them first.
+   `print-manifests` instead of `install` only prints those rights, so you can read them first; `print-env` prints
+   the `.env` lines. The Sudoo.sh installer runs this same script when you choose Kubernetes.
 2. Add the lines it prints to the panel's `.env` (at least `KUBERNETES_ENGINE_BETA=true`) and restart the panel:
    `docker compose up -d panel`. All settings: [Configuration](CONFIGURATION.md#kubernetes-engine-beta).
 3. **New instance** now shows **Engine**: Docker or Kubernetes (beta).

@@ -2097,7 +2097,7 @@ class Settings(BaseSettings):
     kubernetes_mode: Literal["kubeconfig", "in-cluster"] = Field(
         "kubeconfig",
         description='How the panel reaches the cluster: "kubeconfig" (the file KUBERNETES_KUBECONFIG, as '
-        'scripts/install-k3s.sh writes it) or "in-cluster" (the panel runs in a pod with its ServiceAccount).',
+        'scripts/k3s-prepare.sh writes it) or "in-cluster" (the panel runs in a pod with its ServiceAccount).',
     )
     kubernetes_kubeconfig: str = Field(
         "",

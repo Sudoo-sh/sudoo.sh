@@ -439,3 +439,28 @@ def test_change_engine_moves_with_a_backup_and_puts_it_back_when_it_fails(
         assert calls == [*moving, f"restore {NAME}", "start odoo"]
     with pytest.raises(JobError, match="already"):
         operations.change_engine(job, instance, store.read_env(instance)["ENGINE"])  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------- the topology shared with Sudoo.sh
+
+
+def test_the_topology_contributor_describes_nodes_and_instances(fake: FakeApi, instance: str) -> None:
+    from sudoo.engines.kubernetes.topology import KubernetesTopology
+    from sudoo.topology import engines as topology
+    from sudoo.topology.contract import Replicas
+
+    engines.named("kubernetes")
+    assert isinstance(topology._CONTRIBUTORS.get("kubernetes"), KubernetesTopology)
+    contributor = KubernetesTopology()
+    nodes = contributor.nodes()
+    assert [(n.name, n.role, n.online, n.cores) for n in nodes] == [("server-0", "control-plane", True, 4),
+                                                                    ("agent-0", "worker", False, 2)]  # fmt: skip
+    assert nodes[0].cpu_percent == 12.5 and nodes[0].memory_used_bytes == 2 * 1024**3
+    kube = engines.named("kubernetes")
+    kube.apply(Job(), instance)  # type: ignore[arg-type]
+    kube.up(Job(), instance)  # type: ignore[arg-type]
+    fake.objects[("Deployment", NS, "odoo")]["status"] = {"readyReplicas": 1}
+    fake.objects[("Deployment", NS, "odoo")]["spec"]["template"]["spec"]["nodeName"] = "agent-0"
+    facts = contributor.instance(instance, store.read_env(instance))
+    assert facts is not None and facts.group == NS and facts.group_kind == "namespace" and facts.node == "agent-0"
+    assert facts.replicas == {"odoo": Replicas(1, 1), "postgres": Replicas(0, 1)}

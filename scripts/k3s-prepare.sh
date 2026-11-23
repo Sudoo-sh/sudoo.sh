@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
 # Sudoo.sh: a hardened single-node k3s server for the Kubernetes engine (beta), and the panel's access to it.
 #
-# Run it as root on the server where the panel runs (docs/ADMIN_GUIDE.md, "Kubernetes engine (beta)"):
+# Run it as root on the server where the panel runs (docs/ADMIN_GUIDE.md, "Kubernetes engine (beta)"). The
+# installer (sudoo-install.sh) embeds it from the release and runs `SUDOO_ODOO_ROOT=/opt/odoo bash k3s-prepare.sh
+# install`:
 #
-#     sudo bash scripts/install-k3s.sh [--version v1.36.6+k3s1] [--odoo-root /opt/odoo]
-#     bash scripts/install-k3s.sh --print-manifests       # only print the panel's access (RBAC and policy)
+#     sudo bash scripts/k3s-prepare.sh install [--version v1.36.6+k3s1] [--odoo-root /opt/odoo]
+#     bash scripts/k3s-prepare.sh print-manifests      # only print the panel's access (RBAC and policy)
+#     bash scripts/k3s-prepare.sh print-env            # only print the panel's .env lines (KEY=value), for the
+#                                                      # installer to add
 #
-# What it does:
+# Environment (the options win): SUDOO_ODOO_ROOT (/opt/odoo), SUDOO_K3S_VERSION (the pinned version below).
+# Exit codes: 0 done, 1 failed (the message says why), 2 wrong usage.
+#
+# What `install` does:
 #   1. installs k3s (pinned version) with Pod Security "restricted" as every namespace's default, Secrets encrypted
 #      at rest, an audit log, Traefik and the service load balancer switched off (the panel's gateway serves
 #      visitors), and the API, NodePorts and kubelet only where they must be;
@@ -20,19 +27,34 @@
 # when it is missing.
 set -euo pipefail
 
-K3S_VERSION="v1.36.6+k3s1"
-ODOO_ROOT="/opt/odoo"
-PRINT_ONLY=0
+K3S_VERSION="${SUDOO_K3S_VERSION:-v1.36.6+k3s1}"
+ODOO_ROOT="${SUDOO_ODOO_ROOT:-/opt/odoo}"
+ACTION="install"
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        install|print-manifests|print-env) ACTION="$1"; shift ;;
+        --print-manifests) ACTION="print-manifests"; shift ;;  # the earlier spelling
         --version) K3S_VERSION="$2"; shift 2 ;;
         --odoo-root) ODOO_ROOT="$2"; shift 2 ;;
-        --print-manifests) PRINT_ONLY=1; shift ;;
-        -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
-        *) echo "Unknown option: $1 (see --help)" >&2; exit 2 ;;
+        -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+        *) echo "Unknown argument: $1 (see --help)" >&2; exit 2 ;;
     esac
 done
+
+PUBLIC=$(hostname -I 2>/dev/null | awk '{print $1}')
+PUBLIC=${PUBLIC:-"<this server address>"}
+
+env_lines() {
+    echo "KUBERNETES_ENGINE_BETA=true"
+    echo "KUBERNETES_K3S_VERSION=$K3S_VERSION"
+    echo "KUBERNETES_JOIN_URL=https://${PUBLIC}:6443"
+}
+
+if [ "$ACTION" = print-env ]; then
+    env_lines
+    exit 0
+fi
 
 manifests() {
 cat <<'YAML'
@@ -216,7 +238,7 @@ spec:
 YAML
 }
 
-if [ "$PRINT_ONLY" = 1 ]; then
+if [ "$ACTION" = print-manifests ]; then
     manifests
     exit 0
 fi
@@ -332,17 +354,14 @@ cat > "$TARGET/kubeconfig.json" <<JSON
 JSON
 chmod 600 "$TARGET/kubeconfig.json"
 
-PUBLIC=$(hostname -I 2>/dev/null | awk '{print $1}')
-PUBLIC=${PUBLIC:-"<this server address>"}
 cat <<EOF
 
 k3s $K3S_VERSION runs, and the panel's access is ready: $TARGET/kubeconfig.json
 
-Next step: add these lines to the panel's .env, then restart the panel (docker compose up -d panel):
+Next step: add these lines to the panel's .env (\`bash $0 print-env\` prints them alone), then restart the panel
+(docker compose up -d panel):
 
-    KUBERNETES_ENGINE_BETA=true
-    KUBERNETES_K3S_VERSION=$K3S_VERSION
-    KUBERNETES_JOIN_URL=https://${PUBLIC}:6443
+$(env_lines | sed 's/^/    /')
 
 New instances can then choose the Kubernetes engine (New instance, Engine). Before you add nodes, open port 6443
 (TCP) and 8472 (UDP, flannel) between the servers only, never to the internet.

@@ -15,7 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   the Shell and Logs tabs, pausing and waking work as with Docker, and **Move to another engine** moves an instance
   between Docker and Kubernetes with a backup and a restore. Settings, **Kubernetes (beta)** lists the cluster's nodes
   and, with several servers, **Add a node** shows the `k3s agent` command with a join token, once.
-  `scripts/install-k3s.sh` installs a hardened k3s and the panel's access. Off until `KUBERNETES_ENGINE_BETA=true`;
+  `scripts/k3s-prepare.sh` installs a hardened k3s and the panel's access. Off until `KUBERNETES_ENGINE_BETA=true`;
   see [Kubernetes engine](docs/KUBERNETES_ENGINE.md).
 
 ### Upgrading

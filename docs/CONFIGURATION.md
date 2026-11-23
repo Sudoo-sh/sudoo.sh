@@ -744,7 +744,7 @@ gateway, domains, shells, mail catcher) from the panel; what belongs to its own 
 ## Kubernetes engine (beta)
 
 Instances on a k3s cluster instead of Docker Compose ([Kubernetes engine](KUBERNETES_ENGINE.md)). Off by default;
-`scripts/install-k3s.sh` installs k3s, gives the panel its access and prints the lines to add
+`scripts/k3s-prepare.sh` installs k3s, gives the panel its access and prints the lines to add
 ([Admin guide, Kubernetes engine](ADMIN_GUIDE.md#33-kubernetes-engine-beta)). Every setting is `.env` only: change it,
 then restart the panel.
 

@@ -59,9 +59,13 @@ def kind_of(env: Mapping[str, str]) -> str:
 
 def named(kind: str) -> Engine:
     if kind == KUBERNETES and kind not in _ENGINES:  # loaded on first use: Docker-only panels never import it
+        from sudoo.topology import engines as topology
+
         from .kubernetes import KubernetesEngine
+        from .kubernetes.topology import KubernetesTopology
 
         _ENGINES[kind] = KubernetesEngine()
+        topology.contribute(KUBERNETES, KubernetesTopology())  # nodes, namespaces and replicas (topology/engines.py)
     try:
         return _ENGINES[kind]
     except KeyError:

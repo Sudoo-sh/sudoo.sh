@@ -61,6 +61,11 @@ none = "sudoo.mail.none:NoMail"
 [project.entry-points."sudoo.rate_limiters"]
 memory = "sudoo.limits.memory:MemoryRateLimiter"
 
+[project.entry-points."sudoo.engines"]
+# where instances run (src/sudoo/engines/); the setup page and the installer look for "kubernetes" here
+docker = "sudoo.engines.docker:DockerEngine"
+kubernetes = "sudoo.engines.kubernetes:KubernetesEngine"
+
 [project.entry-points."sudoo.update_triggers"]
 polling = "sudoo.triggers.polling:Polling"
 github-webhook = "sudoo.triggers.github_webhook:GitHubWebhook"

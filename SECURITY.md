@@ -32,7 +32,7 @@ Please give a reasonable time to fix the problem before you talk about it public
 
 ## Scope
 
-In scope: the panel, its gateway service, the release images and the installer (`sudoo-install.sh`), `scripts/install-k3s.sh` and the cluster access it grants the panel (RBAC and the admission policy `sudoo-panel-scope`), and the way they store secrets and run commands.
+In scope: the panel, its gateway service, the release images and the installer (`sudoo-install.sh`), `scripts/k3s-prepare.sh` and the cluster access it grants the panel (RBAC and the admission policy `sudoo-panel-scope`), and the way they store secrets and run commands.
 
 Out of scope, because they are documented on purpose in [docs/SECURITY.md](docs/SECURITY.md) and the README's *Known Limitations*:
 

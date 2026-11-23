@@ -1,8 +1,8 @@
 """The Kubernetes engine against a real cluster (k3d or any k3s), through the panel's own restricted access.
 
 Skipped unless SUDOO_K3D_TESTS=1. SUDOO_K3D_KUBECONFIG is the panel's kubeconfig (JSON, the sudoo-panel
-ServiceAccount's token, as scripts/install-k3s.sh writes it); the cluster needs that access applied
-(`bash scripts/install-k3s.sh --print-manifests | kubectl apply -f -`) and its default network policy controller.
+ServiceAccount's token, as scripts/k3s-prepare.sh writes it); the cluster needs that access applied
+(`bash scripts/k3s-prepare.sh print-manifests | kubectl apply -f -`) and its default network policy controller.
 Two throw-away instances are created and their namespaces deleted afterwards. The first run downloads odoo:18.0 and
 postgres:16 on the cluster's nodes.
 

@@ -169,7 +169,7 @@ never one of these two, so it stays out.
 ## 6. The panel's access to the cluster
 
 With Docker, the panel holds the Docker socket, which is root on the server. With Kubernetes, the panel holds a
-ServiceAccount token (`sudoo-system/sudoo-panel`) whose rights are written by `scripts/install-k3s.sh`:
+ServiceAccount token (`sudoo-system/sudoo-panel`) whose rights are written by `scripts/k3s-prepare.sh`:
 
 | Grant | Where | Rights |
 | :--- | :--- | :--- |
@@ -380,4 +380,3 @@ Official minimum per k3s **server** node, before any application: **2 CPU cores 
 ([k3s: Requirements](https://docs.k3s.io/installation/requirements)). Three such servers, plus replicated storage
 (about 500 MB more per node for Longhorn), plus the instances themselves: plan the memory from the measured figures in
 [section 14](#14-resources-it-costs).
-

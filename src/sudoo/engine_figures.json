@@ -1,0 +1,19 @@
+{
+  "measured": true,
+  "about": "The one place for the engine figures the server check uses (server_check.py) and the setup page shows. The k3s minimum is from k3s's documentation. The k3s_measured block is a local measurement of a single-node k3s with this panel's Kubernetes engine (docs/KUBERNETES_ENGINE.md, section 14; perf/k3s_measure.py; docs/data/kubernetes-resources.json). The room for Odoo stays 1024 MB: a working instance with data, modules and visitors takes far more than the 211 MiB of an idle one with the base module only. The installer keeps the same figures in one block of sudoo-install.sh.",
+  "k3s_min_cpus": 2,
+  "k3s_min_memory_mb": 2048,
+  "k3s_source": "https://docs.k3s.io/installation/requirements",
+  "odoo_room_memory_mb": 1024,
+  "memory_share": 0.9,
+  "k3s_measured": {
+    "measured_at": "2026-11-23T17:34:48Z",
+    "k3s_version": "v1.36.6+k3s1",
+    "where": "local development machine, k3s in a Docker container (not a VPS)",
+    "idle_memory_mib": 599,
+    "idle_cpu_cores": 0.09,
+    "one_instance_memory_mib": 848,
+    "three_instances_memory_mib": 1231,
+    "per_idle_instance_memory_mib": 211
+  }
+}

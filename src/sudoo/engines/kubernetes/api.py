@@ -1,7 +1,7 @@
 """The Kubernetes API over plain HTTPS, with the panel's ServiceAccount token (no client library).
 
     Access.load()          where the API is and how the panel proves who it is: a kubeconfig file
-                           (KUBERNETES_KUBECONFIG, JSON, as scripts/install-k3s.sh writes it; a context's
+                           (KUBERNETES_KUBECONFIG, JSON, as scripts/k3s-prepare.sh writes it; a context's
                            cluster server and certificate authority, and its user's token or client certificate) or
                            the in-cluster ServiceAccount (KUBERNETES_MODE=in-cluster)
     Api.get/list/apply/patch/delete     JSON requests; apply is server-side apply (field manager "sudoo")
@@ -71,7 +71,7 @@ class Access:
             config = json.loads(kubeconfig.read_text())
         except FileNotFoundError:
             raise AccessError(
-                f"No kubeconfig at {kubeconfig}: run scripts/install-k3s.sh, which writes it, or set "
+                f"No kubeconfig at {kubeconfig}: run scripts/k3s-prepare.sh, which writes it, or set "
                 "KUBERNETES_KUBECONFIG."
             ) from None
         except ValueError:

@@ -281,4 +281,4 @@ main.page:focus { outline: none; } // focused only to move the keyboard back to 
 }
 // out of the way: above the Settings save bar, and hidden while toasts, a dialog, a drawer or a full-screen view are open
 body:has(.save-bar) .back-to-top { bottom: calc(max(var(--s5), env(safe-area-inset-bottom, 0px)) + 64px); }
-body:has(.toast, [data-slot="dialog-overlay"], [data-slot="sheet-overlay"], [data-slot="drawer-overlay"], .log-fullscreen) .back-to-top { opacity: 0; transform: translateY(8px) scale(0.96); pointer-events: none; }
+body:has(.toast, [data-slot="dialog-overlay"], [data-slot="sheet-overlay"], [data-slot="drawer-overlay"], .logs-full) .back-to-top { opacity: 0; transform: translateY(8px) scale(0.96); pointer-events: none; }

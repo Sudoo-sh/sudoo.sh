@@ -36,6 +36,13 @@ The chrome (sidebar, buttons, borders, labels) stays quiet and graphite, so the 
 marks the primary action, the selection and the one figure that matters. Nothing glows, nothing is decorated for
 its own sake, and the screen works without any animation.
 
+**Familiar places, our own look.** People who come from Odoo.sh find things where they expect them: a project's
+branches grouped by stage (production, staging, development) with a status dot and version on each, drag-and-drop
+between the stages, a branch that opens on its history with its command toolbar beside its name, the instance's tabs
+in the usual order, and a Builds page with each branch's recent builds side by side by stage. The structure is the
+familiar one; the look, the layout details and the words are Sudoo.sh's own (for example **Passed** and **Replaced**
+for a build, **Search branches**, **Open Odoo**), never copied.
+
 ---
 
 ## 2. Where things are
@@ -147,6 +154,14 @@ Implementation rules:
 - **Only `transform` and `opacity`** (and a small `filter: blur`) are animated; never width, height or position,
   except the segmented thumb's width.
 - **Nothing appears from `scale(0)`:** entries start at 0.96 to 0.97.
+- **A card that opens something** (a build opens its commit on GitHub) is one link: its title is the `<a>`, and an
+  `::after` stretches it over the card. What acts inside the card (a copy button, **Open Odoo**, a link to the history)
+  sits above it (`position: relative; z-index: 1`), so it does only what it says; there is never an `<a>` inside
+  another. Pointing at the card underlines its title and shows an external-link mark (a link that opens a new tab says
+  so in its tooltip); the keyboard focus rings the whole card. Without a target (a repository not on GitHub) the card
+  is plain text.
+- **Commit hashes** are seven characters in the monospace face (`components/CommitHash.tsx`): a press copies the whole
+  hash, the arrow beside it opens the commit on GitHub.
 - **Hover styles only for real pointers** (`@media (hover: hover) and (pointer: fine)`), so taps on a phone do not
   leave things highlighted.
 - **Reduced motion** keeps changes understandable: movement is removed and replaced by short fades (the page
@@ -210,7 +225,7 @@ SSH tunnel to a server).
 - [ ] Every value comes from a token, on the 4 px grid; equal things have equal sizes.
 - [ ] Icons from lucide at 16 px with a 1.5 stroke, coloured like their text.
 - [ ] No gradients on surfaces, glows, coloured shadows or emoji.
-- [ ] Sentence case, short labels without full stops, no exclamation marks.
+- [ ] Sentence case, short labels without full stops, no exclamation marks; our own words, not another product's.
 - [ ] Pressable things scale on press; hover styles are behind the hover mixin.
 - [ ] Motion follows the table in [Motion](#6-motion); it works with reduced motion.
 - [ ] Light and dark both checked; numbers tabular.

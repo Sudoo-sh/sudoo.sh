@@ -57,6 +57,7 @@ import { LockBanner } from "@/components/ProjectAccess";
 import { ResourcesCard } from "@/components/ResourcesCard";
 import { JobDrawer } from "@/components/JobDrawer";
 import { LogsPanel } from "@/components/LogsPanel";
+import { CommitHash } from "@/components/CommitHash";
 import { ConnectButton } from "@/components/ConnectAs";
 import { BackupCommentDialog, ImportDatabaseButton } from "@/components/ImportDatabase";
 import { Page, useCan } from "@/components/Shell";
@@ -214,6 +215,11 @@ export function InstanceView({
                 <span className="row mono xsmall" style={{ gap: 4 }}>
                   <GitBranch size={14} strokeWidth={1.5} /> <bdi dir="ltr">{instance.git.branch}</bdi>
                 </span>
+              )}
+              {/* the commit its current build runs: the short hash copies, its arrow opens the commit on GitHub */}
+              {!plain && instance.git.commit && (
+                <CommitHash icon sha={instance.recent_commits?.find((c) => c.sha === instance.git.commit!.sha)?.full_sha || instance.git.commit.sha}
+                  repository={instance.git.repository} />
               )}
               {instance.url && (!instance.lock || can("instances.logs")) && (
                 <a href={instance.url} target="_blank" rel="noreferrer" className="row truncate mono xsmall" style={{ gap: 4 }}>

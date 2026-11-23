@@ -28,3 +28,18 @@ export function commitPage(address: string | null | undefined, sha: string): str
   if (host.includes("bitbucket")) return `${page}/commits/${sha}`;
   return `${page}/commit/${sha}`; // GitHub, Gitea, Forgejo, Codeberg
 }
+
+/** A commit's page on GitHub (https://github.com/<owner>/<repo>/commit/<sha>), only for repositories on github.com:
+ *  null for any other host, an address a browser cannot open, or something that is not a commit hash. Build cards
+ *  and an instance's short hash link there; elsewhere they stay plain text. */
+export function githubCommitUrl(address: string | null | undefined, sha: string | null | undefined): string | null {
+  const page = repositoryPage(address);
+  if (!page || !sha || !/^[0-9a-f]{7,40}$/i.test(sha)) return null;
+  const url = new URL(page);
+  const path = url.pathname.split("/").filter(Boolean);
+  if (url.host.toLowerCase() !== "github.com" || path.length !== 2) return null;
+  return `https://github.com/${path[0]}/${path[1]}/commit/${sha.toLowerCase()}`;
+}
+
+/** A commit's short hash, as git and GitHub show it: its first seven characters. */
+export const shortSha = (sha: string) => sha.slice(0, 7);

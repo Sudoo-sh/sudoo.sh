@@ -29,6 +29,7 @@ instances between Docker and Kubernetes, the cost, and what is left for later ph
 13. [Moving instances between Docker and Kubernetes](#13-moving-instances-between-docker-and-kubernetes)
 14. [Resources it costs](#14-resources-it-costs)
 15. [Phases](#15-phases)
+16. [Real high availability (later phase)](#16-real-high-availability-later-phase)
 
 ---
 
@@ -38,13 +39,24 @@ Today the panel runs every instance as a Docker Compose project on the server it
 socket. That is simple and fast, and it stays the default. It has two limits:
 
 * **One server per panel** (or one agent per server with the premium package "servers"): an instance cannot use
-  another server's free memory, and a server that fails takes its instances with it.
+  another server's free memory.
 * **The Docker socket is root on the server.** The panel needs it to run containers, so anyone who takes over the
   panel's process owns the server.
 
-Kubernetes, in its small k3s distribution, solves both: the cluster places each instance on a node with room, new
-nodes join with one command, and the panel talks to the cluster's API with a ServiceAccount whose rights are limited
-to its own namespaces. k3s runs well on a single VPS, so you can start with one server and add nodes later.
+What k3s (a small Kubernetes) gives today:
+
+* **Easier growth.** A new server joins the cluster with one command from the panel, and new instances are placed on
+  a node with room.
+* **Stronger isolation.** The panel talks to the cluster's API with a ServiceAccount whose rights stop at its own
+  namespaces (RBAC and an admission policy, not the Docker socket), every instance has default-deny network policies,
+  and Pod Security `restricted` keeps containers from reaching the node.
+
+What it does **not** give, yet: **high availability.** Spreading instances or branches over several nodes is not the
+same as an instance surviving a failed server. With the `local-path` storage of this beta, a volume lives on one
+node's disk: when that node is lost, the instances whose volumes were there are lost with it, and they come back only
+from a backup. Two k3s servers are not highly available either: the cluster's embedded etcd needs an odd number of
+server nodes, at least three. What real high availability needs is in [section 16](#16-real-high-availability-later-phase),
+a later phase. k3s runs on a single VPS, so you can start with one server and add nodes later.
 
 ---
 
@@ -213,8 +225,9 @@ certificates, the tunnel and proxy exposures) works unchanged for Kubernetes ins
 * **Now: `local-path`**, the storage class k3s ships. Each volume is a folder on the node the pod first runs on, and
   the pod is tied to that node. Fast and simple; a node that is lost takes its instances' data with it, so backups
   matter as with Docker. The storage class is a setting (`KUBERNETES_STORAGE_CLASS`).
-* **Later: Longhorn** (phase 4): replicated volumes across nodes, so an instance can restart on another node, and
-  volume snapshots. It needs three nodes to be worth it and about 500 MB of memory per node.
+* **Later: Longhorn** (phase 5, [section 16](#16-real-high-availability-later-phase)): replicated volumes across
+  nodes, so an instance could restart on another node, and volume snapshots. It needs three nodes to be worth it and
+  about 500 MB of memory per node.
 
 Sizes: `KUBERNETES_DB_SIZE_GB`, `KUBERNETES_FILES_SIZE_GB` and `KUBERNETES_ADDONS_SIZE_GB` (local-path does not
 enforce them; the ResourceQuota counts them).
@@ -327,5 +340,26 @@ Docker and k3s use separate container runtimes on the same server: images are do
 | 1 | This design and the engine layer; existing behaviour behind the Docker engine | done |
 | 2 | Kubernetes engine MVP (beta): create, pause, start, restart, delete, backups, restores, shell, logs, status, nodes, join command, change of engine, installer | done (beta) |
 | 3 | The rest of the panel on Kubernetes: Enterprise add-ons, mail catcher, Connect as, code profiler, database upgrades, project builds and tests, imports, resource changes from the Resources card, drift checks, disk use per instance, an egress setting for production (outgoing e-mail, payment providers) | to do |
-| 4 | Several nodes in earnest: Longhorn, an instance restarting on another node, an ingress (Traefik or Gateway API) for clusters where the panel is not on a node, moves to another server's cluster, a node's drain from the panel | to do |
-| 5 | High availability: three k3s servers with embedded etcd, PostgreSQL replicas (CloudNativePG), zero-downtime updates of Odoo | to do |
+| 4 | Several nodes in earnest: an ingress (Traefik or Gateway API) for clusters where the panel is not on a node, moves to another server's cluster, a node's drain from the panel, storage classes besides `local-path` | to do |
+| 5 | Real high availability ([section 16](#16-real-high-availability-later-phase)): three k3s server nodes with embedded etcd, replicated storage or the data kept outside the cluster, instances that restart on another node | planned, not available |
+
+---
+
+## 16. Real high availability (later phase)
+
+> Planned, **not available**. Nothing in the panel or this beta keeps an instance running when its server fails.
+
+An instance survives a lost server only when both the cluster's control plane and the instance's data survive it:
+
+| What | What it needs | Reference |
+| :--- | :--- | :--- |
+| The cluster itself | **Three k3s server nodes** with embedded etcd (an odd number, so a majority remains when one is lost; two servers are no better than one) | [k3s: High availability with embedded DB](https://docs.k3s.io/datastore/ha-embedded) |
+| The instances' data | **Replicated storage** such as Longhorn (each volume kept on several nodes), or PostgreSQL and the filestore kept **outside the cluster** (a managed database and object or network storage) | [k3s: Volumes and storage](https://docs.k3s.io/add-ons/storage) |
+| The instances | Odoo restarting on another node when its node is lost, which needs the two lines above | |
+| The way in | The gateway on more than one node, with the public address moving between them | |
+
+Official minimum per k3s **server** node, before any application: **2 CPU cores and 2 GB of memory**
+([k3s: Requirements](https://docs.k3s.io/installation/requirements)). Three such servers, plus replicated storage
+(about 500 MB more per node for Longhorn), plus the instances themselves: plan the memory from the measured figures in
+[section 14](#14-resources-it-costs).
+

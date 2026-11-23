@@ -375,3 +375,67 @@ def test_the_api_while_the_beta_is_off(app: Any, admin: Client) -> None:
 def test_an_api_error_carries_its_status() -> None:
     error = ApiError("forbidden", 403, "Forbidden")
     assert error.status == 403 and error.reason == "Forbidden"
+
+
+# ---------------------------------------------------------------- moving between engines
+
+
+class FakeEngine:
+    def __init__(self, kind: str, calls: list[str], fail_up: bool = False) -> None:
+        self.kind, self.calls, self.fail_up = kind, calls, fail_up
+
+    def __getattr__(self, method: str) -> Any:
+        def record(*args: Any, **kwargs: Any) -> None:
+            self.calls.append(f"{self.kind}.{method}")
+            if method == "up" and self.fail_up:
+                from sudoo.core.jobs import JobError
+
+                raise JobError("does not start")
+
+        return record
+
+
+class StepsJob(Job):
+    def expect(self, steps: int) -> None:
+        pass
+
+    def note(self, text: str, level: str = "info") -> None:
+        self.lines.append(f"note: {text}")
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_change_engine_moves_with_a_backup_and_puts_it_back_when_it_fails(
+    instance: str, monkeypatch: pytest.MonkeyPatch, fails: bool
+) -> None:
+    from sudoo.core.jobs import JobError
+    from sudoo.instances import backups, operations
+
+    calls: list[str] = []
+    store.update_env(instance, ENGINE="docker")
+    monkeypatch.setattr(engines, "offered", lambda: ["docker", "kubernetes"])
+    fakes = {"docker": FakeEngine("docker", calls), "kubernetes": FakeEngine("kubernetes", calls, fail_up=fails)}
+    monkeypatch.setattr(engines, "named", lambda kind: fakes[kind])
+    saved = store.folder(instance) / f"{NAME}__{NAME}__x__manual.zip"
+    monkeypatch.setattr(
+        backups, "create", lambda job, name, kind, comment="": calls.append(f"backup {kind}") or [saved]
+    )
+    monkeypatch.setattr(backups, "all_backups", lambda: [{"file": saved.name, "db": NAME}])
+    monkeypatch.setattr(backups, "restore", lambda job, name, b, db: calls.append(f"restore {db}"))
+    monkeypatch.setattr(operations, "_finish_restore", lambda job, name: calls.append("start odoo"))
+    monkeypatch.setattr(operations.mail_catcher, "detach", lambda name: True)
+    monkeypatch.setattr(operations.integrity, "forget", lambda name: calls.append("forget docker record"))
+    moving = ["backup manual", "docker.stop", "docker.remove", "forget docker record", "kubernetes.prepare_images",
+              "kubernetes.apply", "kubernetes.up"]  # fmt: skip
+    job = StepsJob()
+    if fails:
+        with pytest.raises(JobError, match="runs on docker again"):
+            operations.change_engine(job, instance, "kubernetes")  # type: ignore[arg-type]
+        assert store.read_env(instance)["ENGINE"] == "docker"
+        assert calls == [*moving, "kubernetes.stop", "kubernetes.remove", "docker.prepare_images", "docker.apply",
+                         "docker.up", f"restore {NAME}", "start odoo"]  # fmt: skip
+    else:
+        operations.change_engine(job, instance, "kubernetes")  # type: ignore[arg-type]
+        assert store.read_env(instance)["ENGINE"] == "kubernetes"
+        assert calls == [*moving, f"restore {NAME}", "start odoo"]
+    with pytest.raises(JobError, match="already"):
+        operations.change_engine(job, instance, store.read_env(instance)["ENGINE"])  # type: ignore[arg-type]

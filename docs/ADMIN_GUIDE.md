@@ -2890,6 +2890,8 @@ your cluster's certificate authority, so the new node refuses any other server. 
 
 * Each node downloads the Odoo and PostgreSQL images the first time it runs them; the first instance on a node takes
   longer to start.
-* Volumes are folders on the node (`local-path`): an instance stays on the node it started on. Back up as usual.
+* Volumes are folders on the node (`local-path`): an instance stays on the node it started on, and if that node is
+  lost, its instances' data is lost with it. Back up as usual: more nodes give more room, not high availability
+  ([Kubernetes engine, section 16](KUBERNETES_ENGINE.md#16-real-high-availability-later-phase)).
 * Remove k3s with `/usr/local/bin/k3s-uninstall.sh` once no instance runs on it (move them to Docker first): it
   deletes every Kubernetes instance's data.

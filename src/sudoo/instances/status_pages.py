@@ -315,8 +315,8 @@ def _contact(lang: str, custom: str = "") -> str:
     who = words["the_admin"]
     name = settings.admin_contact_name
     if name and name.lower() != "the administrator":
-        who += f"، {name}"
-    return words["contact"].format(who=who) + (f" ({details})." if details else ".")
+        who += f"، \u2068{name}\u2069"  # isolated: a Latin name keeps its place in an Arabic sentence
+    return words["contact"].format(who=who) + (f" (\u2068{details}\u2069)." if details else ".")
 
 
 def flag(country: str | None) -> str:

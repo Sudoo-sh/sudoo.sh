@@ -297,7 +297,8 @@ function CountryPicker({ value, onChange }: { value: string[]; onChange: (value:
       )}
       <div className="search-field">
         <Search size={14} />
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t.searchCountries} aria-label={t.searchCountries} />
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t.searchCountries} aria-label={t.searchCountries}
+          style={{ paddingInlineStart: 30 }} />
       </div>
       <ul className="country-list" role="listbox" aria-multiselectable="true" aria-label={t.countries}>
         {shown.map((c) => {

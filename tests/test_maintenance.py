@@ -301,10 +301,10 @@ def test_reminders_are_sent_once(inbox: list[Any], passwords: dict[str, str]) ->
     assert inbox == []
     maintenance.tick(now=start - 23 * 3600)
     maintenance.tick(now=start - 22 * 3600)
-    assert [key for _, key, _ in inbox].count("maintenance_reminder") == 1
+    ada = [key for to, key, _ in inbox if to == "ada@example.com"]  # a super admin (others may exist)
+    assert ada.count("maintenance_reminder") == 1
     maintenance.tick(now=start - 1800)
-    assert [key for _, key, _ in inbox].count("maintenance_reminder") == 2
-    assert "ada@example.com" in {to for to, _, _ in inbox}
+    assert [key for to, key, _ in inbox if to == "ada@example.com"].count("maintenance_reminder") == 2
 
 
 # ---------------------------------------------------------------- running

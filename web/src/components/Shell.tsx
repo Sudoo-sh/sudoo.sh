@@ -24,6 +24,7 @@ import {
   UserRound,
   Users,
   UsersRound,
+  Wrench,
 } from "lucide-react";
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
@@ -46,6 +47,8 @@ import { CommandButton, CommandPalette } from "./CommandPalette";
 import { HelpButton } from "./HelpPanel";
 import { PageMotion } from "./PageMotion";
 import { PlanBanner } from "./PlanSettings";
+import { MaintenanceBanner } from "./Maintenance";
+import maintenanceWords from "@/i18n/maintenance";
 import { PremiumSlot, usePremiumRoutes } from "@/premium/components";
 import { Menu, MenuItem, MenuSeparator, useToast } from "./app/overlay";
 
@@ -85,6 +88,7 @@ function Sidebar() {
   const signOut = useSignOut();
   const all = useT(common);
   const t = all.nav;
+  const maintenance = useT(maintenanceWords).nav;
   const operations = can("backups.manage") || can("audit.view") || can("github.manage");
   // a page a premium feature adds to the menu (only Servers so far; Teams and Support access are always listed)
   const servers = usePremiumRoutes().some(({ route }) => route.path === "/servers");
@@ -106,6 +110,9 @@ function Sidebar() {
             {t.newInstance}
           </NavItem>
         )}
+        <NavItem to="/maintenance" icon={<Wrench />}>
+          {maintenance}
+        </NavItem>
         <NavItem to="/help" icon={<BookOpen />}>
           {t.help}
         </NavItem>
@@ -477,6 +484,7 @@ export function Shell() {
         <RecoveryCodesNotice />
         <PremiumSlot name="shell.banner" />
         <PlanBanner />
+        {pathname !== "/maintenance" && <MaintenanceBanner />}
         <Outlet />
       </div>
       <BackToTop />

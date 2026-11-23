@@ -21,6 +21,7 @@ import {
   ShieldOff,
   SquareTerminal,
   UserRound,
+  Wrench,
   X,
 } from "lucide-react";
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
@@ -43,12 +44,14 @@ import { Button, Callout, Empty, Field, Segmented, Skeleton, Status, Switch, Tag
 import { Menu, MenuItem, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
 import { SelectBox } from "@/components/app/select";
 import { LanguageSwitch } from "@/components/LanguageSwitch";
+import { MaintenanceBanner, MaintenanceList } from "@/components/Maintenance";
 import { useMe } from "@/components/Session";
 import { ThemeButton } from "@/components/ThemeButton";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { countIn, useLocale, useT } from "@/i18n";
 import words from "@/i18n/clients";
+import maintenanceWords from "@/i18n/maintenance";
 import { bytes, dateTime } from "@/lib/format";
 
 const AccountPage = lazy(() => import("./Account").then((m) => ({ default: m.AccountPage })));
@@ -72,6 +75,7 @@ export function ClientPortal() {
   const { data: portal } = usePortal();
   const { pathname } = useLocation();
   const signOut = useSignOut();
+  const maintenance = useT(maintenanceWords).nav;
   const project = matchPath("/p/:id/*", pathname) ?? matchPath("/p/:id", pathname);
   const id = project?.params.id ?? "";
   const shell = matchPath("/p/:id/shell/:instance", pathname);
@@ -83,6 +87,7 @@ export function ClientPortal() {
   else if (id) page = <ProjectPage id={id} />;
   else if (pathname === "/account") page = <Suspense fallback={<Skeleton height={240} />}><AccountPage /></Suspense>;
   else if (pathname === "/help") page = <HelpPage />;
+  else if (pathname === "/maintenance") page = <MaintenancePage />;
   else page = <Navigate to="/" replace />;
   return (
     <div className="portal">
@@ -97,6 +102,9 @@ export function ClientPortal() {
         <nav className="portal-nav" aria-label={t.title}>
           <NavLink to="/" className={() => `portal-link ${pathname === "/" || pathname.startsWith("/p/") ? "active" : ""}`} viewTransition>
             <FolderKanban /> <span>{t.projects}</span>
+          </NavLink>
+          <NavLink to="/maintenance" className={({ isActive }) => `portal-link ${isActive ? "active" : ""}`} viewTransition>
+            <Wrench /> <span>{maintenance}</span>
           </NavLink>
           <NavLink to="/help" className={({ isActive }) => `portal-link ${isActive ? "active" : ""}`} viewTransition>
             <CircleHelp /> <span>{t.help}</span>
@@ -123,7 +131,10 @@ export function ClientPortal() {
           </Menu>
         </span>
       </header>
-      <div className="portal-main">{page}</div>
+      <div className="portal-main">
+        {pathname !== "/maintenance" && pathname !== "/confirm" && <MaintenanceBanner client />}
+        {page}
+      </div>
     </div>
   );
 }
@@ -713,6 +724,17 @@ function ShellPage({ id, name }: { id: string; name: string }) {
 }
 
 // ---------------------------------------------------------------- how it works
+
+/** The maintenance planned on the client's projects; choosing its time where the provider allows it. */
+function MaintenancePage() {
+  const t = useT(maintenanceWords);
+  return (
+    <main className="page portal-page" tabIndex={-1}>
+      <div className="page-head"><div className="titles"><h1>{t.title}</h1><p>{t.clientLead}</p></div></div>
+      <MaintenanceList client />
+    </main>
+  );
+}
 
 function HelpPage() {
   const all = useT(words);

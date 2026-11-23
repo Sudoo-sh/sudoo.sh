@@ -353,3 +353,16 @@ def test_who_pushed_comes_from_the_push_payload() -> None:
     triggers.note_pusher("erp-dev", {"name": "Huda", "email": "h@x.io"})
     assert triggers._take_pusher("erp-dev") == {"name": "Huda", "email": "h@x.io"}
     assert triggers._take_pusher("erp-dev") is None
+
+
+def test_an_arabic_e_mail_reads_right_to_left_and_its_details_left_to_right() -> None:
+    from sudoo.mail.catalog import MESSAGES
+    from sudoo.mail.render import compose
+
+    arabic = compose("push_failed_ar", MESSAGES["push_failed_ar"].samples())
+    assert '<html lang="ar" dir="rtl">' in arabic.html and '<body dir="rtl"' in arabic.html
+    assert "text-align:right" in arabic.html
+    assert '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" dir="ltr"' in arabic.html
+    assert "Repository not found" in arabic.text and 'dir="' not in arabic.text  # the plain text is unchanged
+    english = compose("push_failed", MESSAGES["push_failed"].samples())
+    assert '<html lang="en">' in english.html and 'dir="rtl"' not in english.html

@@ -63,7 +63,7 @@ class Message:
 def _rows_table(rows: list[tuple[str, str]], heading: str = "") -> Markup:
     cells = "".join(
         f'<tr><td style="padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;">{html.escape(label)}</td>'
-        f'<td style="padding:2px 14px 2px 0; color:#212529;">{html.escape(value)}</td></tr>'
+        f'<td dir="auto" style="padding:2px 14px 2px 0; color:#212529;">{html.escape(value)}</td></tr>'
         for label, value in rows
         if value
     )
@@ -96,7 +96,7 @@ def code_block(code: str, minutes: int) -> Block:
         '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 16px 0;">'
         '<tr><td align="center" style="padding:8px 0 4px 0;"><div style="display:inline-block; '
         "background-color:#F8F9FA; border:1px solid #E7E9ED; border-radius:8px; padding:14px 28px; "
-        "font-family:Menlo, Consolas, 'Courier New', monospace; font-size:32px; font-weight:bold; letter-spacing:10px; "
+        "direction:ltr; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:32px; font-weight:bold; letter-spacing:10px; "
         f'color:#212529; -webkit-user-select:all; user-select:all; cursor:text;">{html.escape(code)}</div></td></tr>'
         '<tr><td align="center" style="padding:4px 0 0 0; font-size:12px; color:#8F8F8F;">Tap the code to select it, '
         f"then copy &middot; valid for {int(minutes)} minutes &middot; works once</td></tr></table>"
@@ -115,8 +115,9 @@ def lines_block(lines: list[str]) -> Block:
         for i, line in enumerate(lines)
     )
     box = (
-        '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 16px 0; '
-        f'font-size:13px; background-color:#F8F9FA; border-radius:6px;">{rows}</table>'
+        '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" dir="ltr" '
+        'style="margin:0 0 16px 0; direction:ltr; text-align:left; font-size:13px; background-color:#F8F9FA; '
+        f'border-radius:6px;">{rows}</table>'
     )
     return Block(Markup(box), "\n".join(f"  - {line}" for line in lines))
 

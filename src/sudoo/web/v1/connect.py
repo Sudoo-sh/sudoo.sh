@@ -6,7 +6,8 @@
                                                 single-use link valid for connect_as.TOKEN_SECONDS; production also
                                                 needs "confirm_stage": "production"
 
-Both need instances.credentials in the instance: signing in as anyone is as much as knowing the admin password.
+Both need instances.connect in the instance (project roles: Tester and up in staging and development, Maintainer in
+production; earlier projects: those who may see Odoo passwords).
 Every link given is audit-logged (who, instance, which Odoo user), and so is every use (instances/connect_as.py).
 """
 
@@ -35,13 +36,13 @@ def _users(name: str) -> list[dict[str, object]]:
 
 
 @blueprint.get("/instances/<name>/odoo-users")
-@require("instances.credentials")
+@require("instances.connect")
 def odoo_users(name: str) -> Response:
     return ok(_users(existing(name)))
 
 
 @blueprint.post("/instances/<name>/connect")
-@require("instances.credentials")
+@require("instances.connect")
 def connect(name: str) -> Response:
     existing(name)
     data = check.body()

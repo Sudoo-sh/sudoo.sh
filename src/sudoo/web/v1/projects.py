@@ -55,7 +55,22 @@
                                                      be read; {"status", "checks": [...], "checked_at"}
     GET    /api/v1/projects/<id>/access              who may see and work in the project: mode, grants, branches'
                                                      grants and locks, with names            (projects.access)
-    PUT    /api/v1/projects/<id>/access              {"mode", "grants", "branches"}: replaces them (locks stay)
+    PUT    /api/v1/projects/<id>/access              {"mode", "grants", "branches"}: replaces them (locks stay); a
+                                                     grant's type is "user", "team" or "github_team" ("org/slug")
+    PUT    /api/v1/projects/<id>/access/matrix       {"matrix": {"<level>": {"<stage>": [rights]}}} or null (the
+                                                     defaults): what each project role may do in each stage
+    GET    /api/v1/projects/<id>/access/people       who can do what: each account, its role, where it comes from,
+                                                     its rights per stage and its temporary access
+    GET    /api/v1/projects/<id>/access/model        what switching to project roles would change (a project made
+                                                     before them keeps the earlier model until switched)
+    POST   /api/v1/projects/<id>/access/model        {"model": "project_roles"}: switch, keeping each person's role
+                                                     with individual grants where needed
+    GET    /api/v1/projects/<id>/role-requests       temporary access: all of the project's for its admins, else
+                                                     one's own
+    POST   /api/v1/projects/<id>/role-requests       ask: {"stage", "level", "hours", "reason"} -> 201
+    POST   /api/v1/projects/<id>/role-requests/<rid>/approve   {"note"?} (projects.access)
+    POST   /api/v1/projects/<id>/role-requests/<rid>/refuse    {"note"?} (projects.access)
+    DELETE /api/v1/projects/<id>/role-requests/<rid>          withdraw one's own, or end it early -> 204
     PUT    /api/v1/projects/<id>/branches/<branch>/lock
                                                      lock the branch, or change who its lock allows: {"reason"?,
                                                      "allow": [{"type": "team"|"user", "id"}]}
@@ -86,7 +101,20 @@ from sudoo.config import settings
 from sudoo.core import events, jobs
 from sudoo.instances import backups, capacity, monitor, odoo, stages, store
 from sudoo.limits import quotas
-from sudoo.projects import access, adopt, branches, build_options, builds, clients, commit_status, staging
+from sudoo.projects import (
+    access,
+    adopt,
+    branches,
+    build_options,
+    builds,
+    clients,
+    commit_status,
+    elevation,
+    notices,
+    people,
+    project_roles,
+    staging,
+)
 from sudoo.repos import github, github_app
 
 from .. import validation as check
@@ -123,8 +151,8 @@ def _refuse_unless(permission: str, project: Mapping[str, Any] | None, what: str
     found = access.refusal(g.user, permission, project, branch)
     if found is None:
         return
-    if permission not in access.role_permissions(g.user):
-        refuse_unless(permission, what)  # the role lacks it: the usual refusal
+    if permission not in access.reach_permissions(g.user):
+        refuse_unless(permission, what)  # the role lacks it and no project gives it: the usual refusal
     log(f"refused: {what}", ok=False, detail=found[1])
     abort(*found)
 
@@ -270,7 +298,6 @@ def full_resource(
 
 @blueprint.get("/projects")
 def list_projects() -> Response:
-    _refuse_unless("instances.view", None, request.path)
     adopt.adopt_once()
     shown = access.visible(g.user, projects.all_projects())
     standalone = [name for name in sorted(set(store.names()) | set(jobs.being_created())) if not _project_id_of(name)]
@@ -790,6 +817,21 @@ def _sees(project: Mapping[str, Any], branch: str) -> bool:
     return access.sees_branch(g.user, project, branch)
 
 
+def _shown(project: Mapping[str, Any], branch: str, resource: dict[str, Any]) -> dict[str, Any]:
+    """A history entry for someone who may not read the branch's logs (production for developers): the step and
+    the reason of a failure, without its lines, its messages or its job."""
+    if access.allowed(g.user, "instances.logs", project, branch):
+        return resource
+    failure = resource.get("failure")
+    if isinstance(failure, dict):
+        resource["failure"] = {**failure, "details": [], "repository": None}
+    if "messages" in resource:
+        resource["messages"] = []
+    resource["job"] = None
+    resource.setdefault("links", {})["job"] = None
+    return resource
+
+
 @blueprint.get("/projects/<project_id>/builds")
 def list_builds(project_id: str) -> Response:
     """The last builds of every branch of the project the caller may see, newest first."""
@@ -805,7 +847,7 @@ def list_builds(project_id: str) -> Response:
     ]
     shown.sort(key=lambda found: (-projects.STAGE_RANK[found[0]], found[1].lower()))  # production first
     listed = [
-        {"branch": branch, "stage": stage, "builds": [history_resource(entry) for entry in entries]}
+        {"branch": branch, "stage": stage, "builds": [_shown(found, branch, history_resource(e)) for e in entries]}
         for stage, branch, entries in shown
     ]
     return ok(listed, meta={"per_branch": per_branch, "kept_per_branch": int(settings.project_builds_kept)})
@@ -817,7 +859,7 @@ def read_build(project_id: str, build_id: str) -> Response:
     entry = builds.find(build_id, project_id) if build_id.isalnum() and len(build_id) <= 40 else None
     if entry is None or not _sees(found, str(entry["branch"])):
         abort(404, "There is no such build in this project.")
-    return ok(history_resource(entry))
+    return ok(_shown(found, str(entry["branch"]), history_resource(entry)))
 
 
 @blueprint.get("/projects/<project_id>/branches/<path:branch>/history")
@@ -833,7 +875,7 @@ def branch_history(project_id: str, branch: str) -> Response:
     entries = builds.history(project_id, branch)
     if request.args.get("commits") not in ("1", "true"):  # recorded commits only for those who ask for them
         entries = [entry for entry in entries if entry["type"] != "commit"]
-    page = [history_resource(entry) for entry in entries[offset : offset + limit]]
+    page = [_shown(found, branch, history_resource(entry)) for entry in entries[offset : offset + limit]]
     return ok(page, meta={"total": len(entries), "limit": limit, "offset": offset})
 
 
@@ -915,8 +957,13 @@ MAX_BRANCH_RULES = 100
 LOCK_REASON_MAX = 200
 
 
+GITHUB_TEAM_RE = __import__("re").compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")
+
+
 def _subject_name(kind: str, value: str) -> str | None:
     """The name people read for a grant's team or account, None when it does not exist (any more)."""
+    if kind == "github_team":
+        return f"GitHub team {value}" if GITHUB_TEAM_RE.match(value) else None
     if kind == "team":
         team = teams.get(value)
         return str(team["name"]) if team else None
@@ -935,7 +982,9 @@ def _subjects(raw: Any, what: str, with_level: bool) -> list[dict[str, str]]:
         if not isinstance(entry, dict):
             abort(400, f'{what}: each entry is {{"type": "team" or "user", "id"}}.')
         kind = check.one_of(
-            check.text(entry, "type", max_length=10), access.GRANT_TYPES, f"{what}: type is team or user."
+            check.text(entry, "type", max_length=12),
+            access.GRANT_TYPES if with_level else ("team", "user"),
+            f"{what}: type is team, user" + (" or github_team (org/slug)." if with_level else "."),
         )
         value = check.text(entry, "id", max_length=120)
         if _subject_name(kind, value) is None:
@@ -971,6 +1020,10 @@ def access_resource(project: Mapping[str, Any]) -> dict[str, Any]:
         "locks": dict(sorted(locks.items())),
         "levels": list(access.LEVELS),
         "github": github_access.describe(project),
+        "model": access.model(project),
+        "roles": project_roles.describe(project),
+        "requests_enabled": bool(settings.access_requests),
+        "request_max_hours": int(settings.access_request_max_hours),
     }
 
 
@@ -1010,7 +1063,10 @@ def change_access(project_id: str) -> Response:
         if not access.allowed(g.user, "projects.access", after):  # nobody locks themselves out of a project
             abort(409, "After this change you could no longer manage this project's access. Grant yourself (or one of "
                        "your teams) the admin level first.")  # fmt: skip
-        projects.change(project_id, lambda p: {**p, "access": after["access"]})
+        _read_new_github_teams(grants, rules)
+        with notices.watch([project_id], by=accounts.display_name(g.user["name"], accounts.get(g.user["name"]) or {})):
+            projects.change(project_id, lambda p: {**p, "access": after["access"]})
+            access.forget_restrictions()
     access.forget_restrictions()
     restricted_branches = sorted(b for b, v in rules.items() if v["restricted"])
     log("project access changed", detail=f"{project_id}: mode {mode}, {len(grants)} grants, branch rules "
@@ -1031,7 +1087,7 @@ def _refuse_branch_rules(project: Mapping[str, Any], rules: Mapping[str, Any]) -
         )
         if same:
             continue
-        if "projects.access" not in access.role_permissions(g.user) & access.level_permissions(g.user, project, branch):
+        if not access.manages(g.user, project, branch):
             log(f"refused: change the access rule of {project['id']} {branch}", ok=False)
             abort(403, f"Your access to the branch {branch} does not let you change its rule.")
 
@@ -1145,3 +1201,161 @@ def check_github(project_id: str) -> Response:
     log("GitHub connection checked", detail=f"{project_id}: {status}" + (f" ({', '.join(problems)})" if problems
                                                                          else ""))  # fmt: skip
     return ok({"status": status, "checks": results, "checked_at": iso(time.time())})
+
+
+def _read_new_github_teams(grants: list[dict[str, str]], rules: Mapping[str, Any]) -> None:
+    """Read the members of GitHub teams named for the first time, so their grant applies at once."""
+    named = {g["id"].lower() for g in grants if g["type"] == "github_team"}
+    named |= {g["id"].lower() for rule in rules.values() for g in rule["grants"] if g["type"] == "github_team"}
+    known = github_access._stored_teams()
+    for team in sorted(named - set(known)):
+        github_access.refresh_team(team)
+
+
+@blueprint.put("/projects/<project_id>/access/matrix")
+def change_matrix(project_id: str) -> Response:
+    """What each project role may do in each stage of this project; null brings the defaults back."""
+    found = _project(project_id, "projects.access")
+    raw = check.body().get("matrix")
+    try:
+        kept = {} if raw is None else project_roles.checked(raw)
+    except ValueError as error:
+        abort(400, str(error))
+    with notices.watch([project_id], by=accounts.display_name(g.user["name"], accounts.get(g.user["name"]) or {})):
+        projects.change(project_id, lambda p: {**p, "access": {**access.access_of(p), "matrix": kept}})
+        access.forget_restrictions()
+    changed = ", ".join(f"{lv}.{sc}" for lv, scopes in kept.items() for sc in scopes) or "defaults"
+    log("project roles changed", detail=f"{project_id}: {changed}"[:300])
+    events.publish("project", project_id)
+    return ok(access_resource(projects.get(project_id) or found))
+
+
+@blueprint.get("/projects/<project_id>/access/people")
+def access_people(project_id: str) -> Response:
+    found = _project(project_id, "projects.access")
+    return ok(people.of_project(found))
+
+
+@blueprint.get("/projects/<project_id>/access/model")
+def model_preview(project_id: str) -> Response:
+    found = _project(project_id, "projects.access")
+    return ok(
+        {"model": access.model(found), "changes": people.conversion(found) if access.model(found) == "legacy" else []}
+    )
+
+
+@blueprint.post("/projects/<project_id>/access/model")
+def switch_model(project_id: str) -> Response:
+    """Switch a project made before project roles to them (there is no way back to the earlier model)."""
+    found = _project(project_id, "projects.access")
+    check.one_of(check.text(check.body(), "model", max_length=20), ("project_roles",), 'model: "project_roles".')
+    if access.model(found) == "project_roles":
+        abort(409, "This project already uses project roles.")
+    with notices.watch([project_id], by=accounts.display_name(g.user["name"], accounts.get(g.user["name"]) or {})):
+        changes = people.convert(project_id, g.user["name"])
+    kept = [c["user"] for c in changes if c["grant"]]
+    log("project switched to project roles", detail=f"{project_id}: {len(changes)} people, grants kept for "
+        f"{', '.join(kept) or 'nobody'}"[:300])  # fmt: skip
+    events.publish("project", project_id)
+    return ok({"model": "project_roles", "changes": changes})
+
+
+def request_resource(request: Mapping[str, Any]) -> dict[str, Any]:
+    who = accounts.get(str(request["user"])) or {}
+    return {
+        "id": request["id"],
+        "user": request["user"],
+        "name": accounts.display_name(str(request["user"]), who),
+        "stage": request["stage"],
+        "level": request["level"],
+        "hours": request["hours"],
+        "reason": request["reason"],
+        "status": request["status"],
+        "asked_at": iso(request.get("asked")),
+        "decided_by": request.get("decided_by"),
+        "decided_at": iso(request.get("decided")),
+        "expires_at": iso(request.get("expires")),
+        "note": request.get("note") or "",
+    }
+
+
+def _request(project_id: str, request_id: str) -> dict[str, Any]:
+    found = elevation.get(request_id) if request_id.replace("-", "").replace("_", "").isalnum() else None
+    if found is None or found.get("project") != project_id:
+        abort(404, "There is no such request.")
+    return found
+
+
+@blueprint.get("/projects/<project_id>/role-requests")
+def list_requests(project_id: str) -> Response:
+    found = _project(project_id)
+    manages = access.allowed(g.user, "projects.access", found)
+    listed = [r for r in elevation.of_project(project_id) if manages or r["user"] == g.user["name"]]
+    return ok([request_resource(r) for r in listed], meta={"can_decide": manages,
+                                                             "enabled": bool(settings.access_requests),
+                                                             "max_hours": int(settings.access_request_max_hours)})  # fmt: skip
+
+
+@blueprint.post("/projects/<project_id>/role-requests")
+def ask_access(project_id: str) -> Response:
+    found = _project(project_id)
+    if g.user.get("token_id"):
+        abort(403, "Temporary access is asked for by a person, not an API token.")
+    data = check.body()
+    hours = data.get("hours")
+    if not isinstance(hours, int | float) or isinstance(hours, bool):
+        abort(400, "hours: a number of hours.")
+    try:
+        made = elevation.ask(project_id, g.user["name"], check.text(data, "stage", max_length=20),
+                             check.text(data, "level", max_length=20), float(hours),
+                             check.text(data, "reason", max_length=500))  # fmt: skip
+    except ValueError as error:
+        abort(400, str(error))
+    log("temporary access asked", detail=f"{project_id}: {made['level']} in {made['stage']} for {made['hours']} h")
+    notices.request_asked(found, made)
+    return created(request_resource(made), f"{PREFIX}/projects/{project_id}/role-requests/{made['id']}")
+
+
+def _decide(project_id: str, request_id: str, approve: bool) -> Response:
+    found = _project(project_id, "projects.access")
+    current = _request(project_id, request_id)
+    if current["user"] == g.user["name"]:
+        abort(403, "Someone else must decide on your own request.")
+    try:
+        decided = elevation.decide(
+            request_id, g.user["name"], approve, check.text(check.body(), "note", max_length=300)
+        )
+    except ValueError as error:
+        abort(409, str(error))
+    log(
+        f"temporary access {'approved' if approve else 'refused'}",
+        detail=f"{project_id}: {decided['user']}, {decided['level']} in {decided['stage']} for {decided['hours']} h",
+    )
+    notices.request_decided(found, decided)
+    events.publish("project", project_id)
+    return ok(request_resource(decided))
+
+
+@blueprint.post("/projects/<project_id>/role-requests/<request_id>/approve")
+def approve_request(project_id: str, request_id: str) -> Response:
+    return _decide(project_id, request_id, True)
+
+
+@blueprint.post("/projects/<project_id>/role-requests/<request_id>/refuse")
+def refuse_request(project_id: str, request_id: str) -> Response:
+    return _decide(project_id, request_id, False)
+
+
+@blueprint.delete("/projects/<project_id>/role-requests/<request_id>")
+def end_request(project_id: str, request_id: str) -> Response:
+    found = _project(project_id)
+    current = _request(project_id, request_id)
+    if current["user"] != g.user["name"] and not access.allowed(g.user, "projects.access", found):
+        abort(403, "Only the person who asked, or an admin of the project, can end it.")
+    try:
+        elevation.end(request_id, g.user["name"])
+    except ValueError as error:
+        abort(409, str(error))
+    log("temporary access ended", detail=f"{project_id}: {current['user']}, {current['level']} in {current['stage']}")
+    events.publish("project", project_id)
+    return no_content()

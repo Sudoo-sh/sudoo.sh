@@ -782,3 +782,51 @@ def _ip() -> str | None:
     except Exception:  # noqa: BLE001 - outside the web app
         return None
     return None
+
+
+# ---------------------------------------------------------------- temporary access (projects/elevation.py)
+
+
+def elevation_refusal(request: Mapping[str, Any]) -> str | None:
+    """Why the client's switch refuses a temporary access request (asked, approved, or while it runs), or None. The
+    client decides alone: a project, or a branch of the stage asked for, that the client locked, or a project it
+    closed, stays closed to the person whatever role they are given for a while. Branches it closes one by one are
+    closed to everyone anyway: projects/access.permissions removes their rights after the role and any temporary
+    access."""
+    from sudoo import projects
+
+    project = projects.get(str(request.get("project") or ""))
+    if project is None:
+        return "This project no longer exists."
+    user = {"name": str(request.get("user") or ""), "role": "member"}
+    for branch in (None, *_stage_branches(project, str(request.get("stage") or ""))):
+        if client_lock(project, branch) is not None and not lock_lets_through(user, project, branch):
+            where = (
+                f"The branch {branch} of {project.get('name') or project['id']}"
+                if branch
+                else (f"The project {project.get('name') or project['id']}")
+            )
+            return f"{where} is locked by its client: temporary access cannot open it."
+    if closed(project) and not lets_through(user, project):
+        return (
+            f"The project {project.get('name') or project['id']} is closed by its client: ask the client for access (Request "
+            "access), not the project's admins for a role."
+        )
+    return None
+
+
+def _stage_branches(project: Mapping[str, Any], stage: str) -> list[str]:
+    from sudoo import projects
+
+    known = set(projects.by_branch(str(project["id"]))) | set(project.get("branches") or {})
+    return sorted(b for b in known if b and projects.branch_stage(project, b) == stage)
+
+
+def _register_with_elevation() -> None:
+    from . import elevation
+
+    if elevation_refusal not in elevation._conditions:
+        elevation.add_condition(elevation_refusal)
+
+
+_register_with_elevation()

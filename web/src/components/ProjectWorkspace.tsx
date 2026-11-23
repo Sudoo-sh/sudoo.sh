@@ -76,6 +76,7 @@ import promotionWords from "@/i18n/promotion";
 import teamWords from "@/i18n/teams";
 import { ago, count, statusLabel } from "@/lib/format";
 import { useMedia } from "@/lib/media";
+import { DURATION, easing } from "@/lib/motion";
 import { InstanceView } from "@/pages/Instance";
 
 const STAGES: Stage[] = ["production", "staging", "development"];
@@ -476,7 +477,7 @@ function BranchPane({
       branch={branch}
       instances={instances}
       mayOpen={!branch.lock || can(branch, "instances.logs")}
-      connectAs={can(branch, "instances.credentials")}
+      connectAs={can(branch, "instances.connect")}
       access={(name) => (can(branch, "instances.credentials") ? branchPath(project.id, branch.name, "access", name === branch.instances[0] ? null : name) : null)}
       onJob={onJob}
     />
@@ -661,7 +662,7 @@ export function ProjectWorkspace({
   // dropped on another stage: the dialog takes over and the branch stays in its group until the change is saved;
   // anywhere else it glides back to where it was
   const movesStage = !!dragging && !!overStage && overStage !== dragging.stage;
-  const dropAnimation: DropAnimation | null = reduced || movesStage ? null : { duration: 200, easing: "cubic-bezier(0.23, 1, 0.32, 1)" };
+  const dropAnimation: DropAnimation | null = reduced || movesStage ? null : { duration: DURATION.enter, easing: easing.spring };
   const endDrag = () => {
     setDragging(null);
     setOverStage(null);

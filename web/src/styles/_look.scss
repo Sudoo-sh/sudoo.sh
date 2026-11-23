@@ -171,13 +171,13 @@
   // the floating shadow, in place of the components' ring
   box-shadow: var(--shadow-float);
   // grows from what opened it, and shrinks back into it
-  --tw-enter-scale: 0.97;
+  --tw-enter-scale: 0.96;
   --tw-exit-scale: 0.97;
   --tw-enter-translate-y: 0;
   --tw-enter-translate-x: 0;
-  --tw-duration: var(--menu);
-  --tw-ease: var(--ease);
-  &[data-state="closed"] { --tw-duration: 120ms; }
+  --tw-duration: var(--dur-ui);
+  --tw-ease: var(--spring);
+  &[data-state="closed"] { --tw-duration: var(--dur-micro); --tw-ease: var(--ease); }
 }
 [data-slot="select-content"] {
   min-width: max(var(--radix-select-trigger-width, 0px), 160px);
@@ -370,13 +370,31 @@
 }
 [dir="rtl"] [data-slot="progress"] { scale: -1 1; }
 
-// a placeholder while something loads (shadcn's Skeleton): a soft shimmer, unseen for the first 150 ms
+// a placeholder while something loads (shadcn's Skeleton), in the shape of what is coming: a soft light sweeps
+// across it (a transform on its own layer, so it costs no repaint), unseen for the first 150 ms; the sweep follows
+// the reading direction
 [data-slot="skeleton"] {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   border-radius: var(--radius-tag);
-  background: linear-gradient(90deg, var(--raised) 25%, color-mix(in oklab, var(--raised) 40%, var(--surface)) 37%, var(--raised) 63%);
-  background-size: 400% 100%;
-  animation: shimmer 1.4s ease infinite, fade var(--quick) var(--ease) 150ms both;
+  background: var(--raised);
+  animation: fade var(--quick) var(--ease) 150ms both;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--surface) 55%, transparent), transparent);
+    transform: translateX(-100%);
+    animation: skeleton-sweep 1.4s ease-in-out infinite;
+    will-change: transform;
+  }
 }
+[dir="rtl"] [data-slot="skeleton"]::after { animation-direction: reverse; }
+@keyframes skeleton-sweep {
+  to { transform: translateX(100%); }
+}
+.skeleton-text { display: flex; flex-direction: column; gap: var(--s2); }
 
 // ---------------------------------------------------------------- dialogs, drawers, sheets and menus
 [data-slot="dialog-overlay"],
@@ -384,8 +402,9 @@
 [data-slot="drawer-overlay"] {
   background: var(--overlay);
   backdrop-filter: none;
-  --tw-duration: var(--enter);
+  --tw-duration: var(--dur-enter);
   --tw-ease: var(--ease);
+  &[data-state="closed"] { --tw-duration: var(--dur-ui); }
 }
 
 // a dialog (components/app/overlay.tsx Modal) is not anchored to a button: it comes up in the centre (scale, opacity
@@ -404,13 +423,14 @@
   box-shadow: var(--shadow-float);
   font-size: var(--text-14);
   line-height: inherit;
+  // pops in gently on the spring (the backdrop fades meanwhile), leaves quicker on a plain ease-out
   --tw-enter-scale: 0.96;
   --tw-enter-blur: 4px;
   --tw-exit-scale: 0.97;
   --tw-exit-blur: 2px;
-  --tw-duration: var(--enter);
-  --tw-ease: var(--ease);
-  &[data-state="closed"] { --tw-duration: 200ms; }
+  --tw-duration: var(--dur-surface);
+  --tw-ease: var(--spring);
+  &[data-state="closed"] { --tw-duration: var(--dur-ui); --tw-ease: var(--ease); }
   &[data-wide] { width: min(720px, calc(100% - 32px)); }
 }
 // the parts of a dialog, on a wider screen and in the phone's drawer alike

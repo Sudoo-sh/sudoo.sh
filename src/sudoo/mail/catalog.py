@@ -18,6 +18,11 @@ below stay as they are, so "Reset to default" only forgets the change. Texts are
     plugin_notice        a notice for the super admins about a plugin (licence ending, switched off, ...)
     push_failed          a deployment triggered by someone's push failed: to the person who pushed
                          (projects/push_failed.py); push_failed_ar is the same in Arabic
+    access_granted       project access given, changed or removed: to the person (projects/notices.py); also
+    access_changed       access_*_ar in Arabic
+    access_removed
+    access_request       temporary access asked: to the project's admins; access_request_decided: the answer
+    access_review        who has access to a project, every ACCESS_REVIEW_DAYS, to its admins
     client_access_request    someone of the panel's owner asks a client to open a closed project or branch
                          (projects/clients.py); client_access_request_ar in Arabic
     client_action_confirm    the link and code that confirm a client's major change in the portal
@@ -294,6 +299,218 @@ def _code_placeholders(purpose: str) -> tuple[Placeholder, ...]:
         Placeholder("device", "Browser and system, from the browser's description", "Firefox on macOS"),
         Placeholder("request", "When, from where and from which device, in a box", _SAMPLE_REQUEST, BLOCK),
     )
+
+
+_ACCESS_RIGHTS = details_block(
+    [("Production", "See it, its history and status"), ("Staging", "See and test in Odoo"),
+     ("Development", "Everything: code, logs, shell, backups")],
+    "What you can do",
+)  # fmt: skip
+_ACCESS_PLACEHOLDERS = (
+    Placeholder("name", "The person's first name, or their user name", "Huda"),
+    Placeholder("project", "The project", "Acme Retail"),
+    Placeholder("role", "The project role (Viewer, Tester, Developer, Maintainer, Admin)", "Developer"),
+    Placeholder("before", "The role before the change", "Tester"),
+    Placeholder("by", "Who or what made the change: a person, GitHub, a team", "Sara Nassar"),
+    Placeholder("rights", "What the role allows in each stage, in a box", _ACCESS_RIGHTS, BLOCK),
+    Placeholder("how", "How the person signs in (GitHub, a code by e-mail, a password)", "Continue with GitHub"),
+    Placeholder("link", "The project's page", "https://panel.example.com/projects/acme-retail", LINK),
+)
+_ELEVATION_PLACEHOLDERS = (
+    Placeholder("name", "The person the e-mail is for", "Sara"),
+    Placeholder("who", "The person who asked", "Karim Saleh"),
+    Placeholder("project", "The project", "Acme Retail"),
+    Placeholder("role", "The role asked for", "Maintainer"),
+    Placeholder("stage", "The stage asked for", "production"),
+    Placeholder("hours", "For how many hours", 2),
+    Placeholder("reason", "Why, in the person's words", "Read the production logs of the failed import"),
+    Placeholder("decision", "approved or refused (decided e-mail only)", "approved"),
+    Placeholder("until", "When the access ends (decided e-mail only)", "Tuesday 18 November 2026, 11:41 UTC"),
+    Placeholder("decided_by", "Who decided (decided e-mail only)", "Sara Nassar"),
+    Placeholder("link", "The project's Access tab", "https://panel.example.com/projects/acme-retail/access", LINK),
+)
+_REVIEW_PLACEHOLDERS = (
+    Placeholder("name", "The admin the review is for", "Sara"),
+    Placeholder("project", "The project", "Acme Retail"),
+    Placeholder(
+        "people",
+        "Who has access, their role and where it comes from",
+        lines_block(["Karim Saleh: Developer (GitHub: write)", "Lena Brandt: Maintainer (grant)"]),
+        BLOCK,
+    ),
+    Placeholder("count", "How many people have access", 2),
+    Placeholder("link", "The project's Access tab", "https://panel.example.com/projects/acme-retail/access", LINK),
+)
+
+
+def _access(key: str, name: str, description: str, recipients: str, kicker: str, preheader: str, subject: str,
+            title: str, body: str, placeholders: tuple[Placeholder, ...]) -> Message:  # fmt: skip
+    return Message(key=key, name=name, description=description, recipients=recipients, kicker=kicker,
+                   preheader=preheader, subject=subject, title=title, body=body, placeholders=placeholders)  # fmt: skip
+
+
+ACCESS_MESSAGES = (
+    _access(
+        "access_granted",
+        "Project access given",
+        "Someone can now work in a project, and as what.",
+        "The person given the access (ACCESS_EMAILS)",
+        "{{ project }}",
+        "{{ role }} in {{ project }}",
+        "You can now work in {{ project }}",
+        "Welcome to {{ project }}",
+        "Hello {{ name }},\n\nYou now have the role **{{ role }}** in **{{ project }}** ({{ by }}).\n\n"
+        "{{ rights }}\n\n[Open {{ project }}]({{ link }})\n\nSign in with: {{ how }}.",
+        _ACCESS_PLACEHOLDERS,
+    ),
+    _access(
+        "access_granted_ar",
+        "Project access given (Arabic)",
+        "The same e-mail in Arabic.",
+        "The person given the access (ACCESS_EMAILS)",
+        "{{ project }}",
+        "{{ role }} في {{ project }}",
+        "يمكنك الآن العمل في {{ project }}",
+        "أهلًا بك في {{ project }}",
+        "مرحبًا {{ name }}،\n\nأصبح لك الدور **{{ role }}** في **{{ project }}** ({{ by }}).\n\n"
+        "{{ rights }}\n\n[افتح {{ project }}]({{ link }})\n\nتسجّل الدخول بـ: {{ how }}.",
+        _ACCESS_PLACEHOLDERS,
+    ),
+    _access(
+        "access_changed",
+        "Project role changed",
+        "Someone's role in a project changed.",
+        "The person whose role changed (ACCESS_EMAILS)",
+        "{{ project }}",
+        "{{ before }} -> {{ role }}",
+        "Your role in {{ project }} is now {{ role }}",
+        "Your role changed",
+        "Hello {{ name }},\n\nYour role in **{{ project }}** changed from {{ before }} to **{{ role }}** "
+        "({{ by }}).\n\n{{ rights }}\n\n[Open {{ project }}]({{ link }})",
+        _ACCESS_PLACEHOLDERS,
+    ),
+    _access(
+        "access_changed_ar",
+        "Project role changed (Arabic)",
+        "The same e-mail in Arabic.",
+        "The person whose role changed (ACCESS_EMAILS)",
+        "{{ project }}",
+        "{{ before }} -> {{ role }}",
+        "دورك في {{ project }} أصبح {{ role }}",
+        "تغيّر دورك",
+        "مرحبًا {{ name }}،\n\nتغيّر دورك في **{{ project }}** من {{ before }} إلى **{{ role }}** "
+        "({{ by }}).\n\n{{ rights }}\n\n[افتح {{ project }}]({{ link }})",
+        _ACCESS_PLACEHOLDERS,
+    ),
+    _access(
+        "access_removed",
+        "Project access removed",
+        "Someone can no longer see a project.",
+        "The person whose access ended (ACCESS_EMAILS)",
+        "{{ project }}",
+        "No more access to {{ project }}",
+        "Your access to {{ project }} was removed",
+        "Access removed",
+        "Hello {{ name }},\n\nYou no longer have access to **{{ project }}** ({{ by }}). You had the role "
+        "{{ before }}.\n\n> Not expected? Ask an admin of the project.",
+        _ACCESS_PLACEHOLDERS,
+    ),
+    _access(
+        "access_removed_ar",
+        "Project access removed (Arabic)",
+        "The same e-mail in Arabic.",
+        "The person whose access ended (ACCESS_EMAILS)",
+        "{{ project }}",
+        "لم يعد لك وصول إلى {{ project }}",
+        "أُزيل وصولك إلى {{ project }}",
+        "أُزيل الوصول",
+        "مرحبًا {{ name }}،\n\nلم يعد لك وصول إلى **{{ project }}** ({{ by }}). كان دورك {{ before }}.\n\n"
+        "> لم تتوقع ذلك؟ تواصل مع أحد مديري المشروع.",
+        _ACCESS_PLACEHOLDERS,
+    ),
+    _access(
+        "access_request",
+        "Temporary access asked",
+        "Someone asks for a higher role for a few hours.",
+        "The admins of the project",
+        "{{ project }}",
+        "{{ who }}: {{ role }} in {{ stage }} for {{ hours }} h",
+        "{{ who }} asks for temporary access to {{ project }}",
+        "Temporary access asked",
+        "Hello {{ name }},\n\n**{{ who }}** asks for the role **{{ role }}** in **{{ stage }}** of "
+        "**{{ project }}** for {{ hours }} hours.\n\n**Why:** {{ reason }}\n\n"
+        "[Approve or refuse]({{ link }})\n\nIt ends by itself when the time is over.",
+        _ELEVATION_PLACEHOLDERS,
+    ),
+    _access(
+        "access_request_ar",
+        "Temporary access asked (Arabic)",
+        "The same e-mail in Arabic.",
+        "The admins of the project",
+        "{{ project }}",
+        "{{ who }}: {{ role }} في {{ stage }} لمدة {{ hours }} س",
+        "{{ who }} يطلب وصولًا مؤقتًا إلى {{ project }}",
+        "طلب وصول مؤقت",
+        "مرحبًا {{ name }}،\n\nيطلب **{{ who }}** الدور **{{ role }}** في **{{ stage }}** من "
+        "**{{ project }}** لمدة {{ hours }} ساعات.\n\n**السبب:** {{ reason }}\n\n"
+        "[وافق أو ارفض]({{ link }})\n\nينتهي تلقائيًا حين تنقضي المدة.",
+        _ELEVATION_PLACEHOLDERS,
+    ),
+    _access(
+        "access_request_decided",
+        "Temporary access decided",
+        "The answer to a request for temporary access.",
+        "The person who asked",
+        "{{ project }}",
+        "{{ decision }}",
+        "Your request for {{ project }} was {{ decision }}",
+        "Your request was {{ decision }}",
+        "Hello {{ name }},\n\n{{ decided_by }} {{ decision }} your request for the role **{{ role }}** in "
+        "**{{ stage }}** of **{{ project }}**.\n\nWhen approved, it ends on {{ until }}.\n\n"
+        "[Open {{ project }}]({{ link }})",
+        _ELEVATION_PLACEHOLDERS,
+    ),
+    _access(
+        "access_request_decided_ar",
+        "Temporary access decided (Arabic)",
+        "The same e-mail in Arabic.",
+        "The person who asked",
+        "{{ project }}",
+        "{{ decision }}",
+        "طلبك في {{ project }}: {{ decision }}",
+        "نتيجة طلبك",
+        "مرحبًا {{ name }}،\n\nقرار {{ decided_by }} في طلبك للدور **{{ role }}** في **{{ stage }}** من "
+        "**{{ project }}**: {{ decision }}.\n\nإن وُوفق عليه فهو ينتهي في {{ until }}.\n\n"
+        "[افتح {{ project }}]({{ link }})",
+        _ELEVATION_PLACEHOLDERS,
+    ),
+    _access(
+        "access_review",
+        "Access review",
+        "Who has access to a project, sent to its admins every " "ACCESS_REVIEW_DAYS.",
+        "The admins of the project (ACCESS_REVIEW)",
+        "{{ project }}",
+        "{{ count }} people have access",
+        "Access review: {{ project }}",
+        "Who has access",
+        "Hello {{ name }},\n\nThese {{ count }} people can work in **{{ project }}** now:\n\n{{ people }}\n\n"
+        "Remove anyone who no longer needs it.\n\n[Review the access]({{ link }})",
+        _REVIEW_PLACEHOLDERS,
+    ),
+    _access(
+        "access_review_ar",
+        "Access review (Arabic)",
+        "The same e-mail in Arabic.",
+        "The admins of the project (ACCESS_REVIEW)",
+        "{{ project }}",
+        "{{ count }} لهم وصول",
+        "مراجعة الوصول: {{ project }}",
+        "من له وصول",
+        "مرحبًا {{ name }}،\n\nيستطيع هؤلاء ({{ count }}) العمل في **{{ project }}** الآن:\n\n{{ people }}\n\n"
+        "أزل من لم يعد بحاجة إليه.\n\n[راجع الوصول]({{ link }})",
+        _REVIEW_PLACEHOLDERS,
+    ),
+)
 
 
 MESSAGES: dict[str, Message] = {
@@ -963,3 +1180,4 @@ MESSAGES: dict[str, Message] = {
         ),
     )
 }
+MESSAGES.update({message.key: message for message in ACCESS_MESSAGES})

@@ -52,6 +52,7 @@ export const PERMISSIONS: Record<Permission, string> = {
   "instances.upgrade": "Upgrade an instance's database to a newer Odoo version: test it on a new staging instance, then upgrade production (with its backup and rollback)",
   "instances.delete": "Delete instances",
   "instances.credentials": "See Odoo passwords and ports",
+  "instances.connect": "Open an instance's Odoo signed in as one of its users (Connect), and its login link",
   "instances.resources": "Set an instance's resources: Odoo workers, time and memory limits, container limits",
   "projects.resources": "Set a project's and its branches' resources (workers, timeouts, memory) within the administrator's maxima, and apply them",
   "caught_mail.view": "Read the e-mails caught from staging and development instances (the Mail tab)",
@@ -85,6 +86,7 @@ export const ROLES: RoleInfo[] = [
   { name: "maintainer", label: "Maintainer", description: "Creates instances and runs every action on them except deleting.", permissions: MAINTAIN },
   { name: "developer", label: "Developer", description: "Gets new code, restarts and starts instances, adds submodules.", permissions: DEVELOP },
   { name: "viewer", label: "Viewer", description: "Sees instances, their activity and logs.", permissions: VIEW },
+  { name: "member", label: "Member", description: "No rights by itself: each project's role (from its Access tab, a team or GitHub) decides what they do there.", permissions: [] },
   { name: "client", label: "Client", description: "Sees only its own projects, in the client portal, and opens or closes access to them.", permissions: [...VIEW, "backups.manage"] },
 ];
 const ROLES_OF = { admins: [], maintainers: ["maintainer"], developers: ["maintainer", "developer"] } as Record<string, string[]>;

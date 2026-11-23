@@ -360,8 +360,8 @@ def test_permission_mapping() -> None:
     assert github_access.level_of({"role_name": "admin"}) == ("admin", "admin")
     assert github_access.level_of({"role_name": "maintain"}) == ("maintainer", "maintain")
     assert github_access.level_of({"role_name": "write"}) == ("developer", "write")
-    assert github_access.level_of({"role_name": "triage"}) == ("view", "triage")
-    assert github_access.level_of({"role_name": "read"}) == ("view", "read")
+    assert github_access.level_of({"role_name": "triage"}) == ("tester", "triage")
+    assert github_access.level_of({"role_name": "read"}) == ("tester", "read")
     custom = {"role_name": "release-manager", "user": {"permissions": {"push": True, "pull": True}}}
     assert github_access.level_of(custom) == ("developer", "write")
     assert github_access.level_of({"permission": "none"}) == ("none", "none")

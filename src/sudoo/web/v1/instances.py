@@ -211,7 +211,7 @@ def instance(name: str) -> Response:
     """The instance; meta.permissions: what the caller may do in it (role ∩ project access, locked branch)."""
     resource = instance_resource(known(name), full=True)
     project, branch = access.scope_of_instance(name)
-    permitted = access.permissions(g.user, project, branch)
+    permitted = access.permissions(g.user, project, branch, access.instance_stage(name, project))
     if store.exists(name) and permitted & {"instances.shell", "instances.credentials"}:
         # for the commands a project's branch offers (SSH, psql): names only, never a password
         resource["containers"] = {

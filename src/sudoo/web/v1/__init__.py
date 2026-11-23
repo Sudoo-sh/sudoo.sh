@@ -16,6 +16,7 @@ role (roles.py), and the same permission checks apply.
     project_resources.py  a project's and a branch's resources: workers, timeouts, memory per stage; storage
     promotion.py   the pre-promotion checklist, comparing branches, the scheduled staging refresh, PR previews
     project_status.py  a project's Status tab (uptime, incidents) and its public status page
+    repo_guard.py  a project's repository guard: CI checks through a pull request, their results, branch rules
     notifications.py   a project's notification channels (Slack, Discord, Telegram, Teams, webhooks, e-mail)
     upgrades.py    database upgrades of instances to a newer Odoo version: pre-check, test, production, rollback
     clients.py     the client portal: a project's clients, access requests, emergency access (staff), and the
@@ -82,6 +83,7 @@ from . import (
     project_status,
     projects,
     promotion,
+    repo_guard,
     server,
     session,
     settings,
@@ -122,6 +124,7 @@ def register(app: Flask) -> None:
         project_resources,
         promotion,
         project_status,
+        repo_guard,
         notifications,
         domains,
         caught_mail,

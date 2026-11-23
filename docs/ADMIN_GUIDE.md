@@ -246,6 +246,9 @@ What it does, in order:
    before each certificate); it explains what it found and suggests Proxy or Tunnel when something is not right.
    Direct and Proxy then ask for the panel's name (`PANEL_DOMAIN`). The answer is written to `.env` as `EXPOSURE`;
    an update never asks again and never changes it.
+   Then it **chooses the engine** that runs the instances ([The engine](#the-engine)): it checks whether
+   Kubernetes can run here (the minimum), asks three short questions when it can, recommends an engine with the
+   reason, and asks which one, with **Docker** pre-selected. The choice is written to `.env` as `ENGINE`.
 2. **Checks the server** (read only): root, operating system, architecture, systemd, processor, memory, disk, clock,
    the panel's ports, the tools it needs, internet access (port 7844 only for a tunnel), Docker. When a check fails it
    stops, with the fix, before changing anything.
@@ -258,7 +261,9 @@ What it does, in order:
 5. **Writes the files**: `/opt/odoo/{manager,instances,enterprise,gateway,mail}` (root only), `/opt/odoo/manager/.env`
    from the release's settings template (values already there are kept), and `/opt/odoo/manager/compose.yaml`.
 6. **Starts** `sudoo-panel`, `sudoo-gateway`, `sudoo-mail` and `sudoo-web` and waits until all are healthy.
-7. Prints the panel's address and, on a new server, the **setup code** for the first account ([section 3](#3-the-first-account)).
+7. Prints the panel's address and, on a new server, the **setup link** with its setup code (and a QR code of it
+   when `qrencode` is installed), then a summary box ([section 3](#3-the-first-account)). Colours and spinners
+   appear only on a terminal; `NO_COLOR` gives plain text.
 
 It keeps a copy of itself as `/opt/odoo/manager/installer/sudoo-install.sh`, on the path as **`sudoo-install`**.
 
@@ -270,11 +275,42 @@ It keeps a copy of itself as `/opt/odoo/manager/installer/sudoo-install.sh`, on 
 | `--dry-run` | Show what would be done; change nothing. |
 | `--docker-source official` or `distro` | Where a missing Docker comes from. |
 | `--force` | Continue although a check failed (not recommended). |
+| `--engine docker`, `kubernetes` or `auto` | The engine, without the question. Without a terminal and without this option, the engine is Docker. `auto` takes the recommendation; `--needs grow,separation,team` (or `none`) answers the three questions. |
+| `--code XXXX-XXXX` | A one-time install code from your Sudoo.sh account: it pre-fills the link to the account, the company label, the version, the engine, the time zone and the language; the setup page shows them to check. The installer checks the hub's signature and takes nothing else. |
 | `--exposure direct`, `proxy` or `tunnel` | How people reach the server, without the question (for scripts). Without a terminal and without this option, a fresh installation takes `direct`; a busy port 80 or 443 then fails the check before anything is changed. `--domain NAME` sets the panel's name (`PANEL_DOMAIN`). |
 
 Settings you want from the start (another `PANEL_PORT`, `PANEL_DOMAIN=panel.example.com`, `EXPOSURE=proxy`...) can be
 written to `/opt/odoo/manager/.env` before installing; the installer keeps them (an `EXPOSURE` there is not asked
 again) and adds the rest.
+
+### The engine
+
+The engine runs the instances: **Docker**, or **Kubernetes** (k3s, beta). Kubernetes makes it easier to grow to more
+servers and isolates clients and teams more strongly; neither engine is high availability, which needs three servers
+and replicated storage (a later phase).
+
+The engine is chosen by need, not by the server's size. The figures are only a **minimum check** for Kubernetes:
+k3s's own 2 cores and 2 GB of memory ([k3s requirements](https://docs.k3s.io/installation/requirements)) plus room
+for Odoo (shown as *to be measured* until real measurements replace the placeholder), a server that is not a
+container (LXC, OpenVZ...) and Ubuntu 22.04+ or Debian 12+. Then three questions decide:
+
+- Will you add more servers later?
+- Do you need stronger separation between clients or teams?
+- Will one person or a team run it?
+
+Docker is recommended unless the answers point to Kubernetes (more servers later, or stronger separation), with the
+reason in one line, and **Docker stays pre-selected** while Kubernetes is beta. The installer only prepares a server
+for Kubernetes (a hardened k3s, from the release's script); a release without that script keeps Docker and remembers
+the choice (`ENGINE_WANTED=kubernetes`). Look and switch later on the server:
+
+```bash
+sudo sudoo-install engine              # the figures, whether Kubernetes can run, the engine in use
+sudo sudoo-install engine kubernetes   # prepare k3s and switch (asks first)
+sudo sudoo-install engine docker       # back to Docker
+```
+
+The setup page asks the same questions; when you choose another engine there than the one installed, it shows the
+command to run on the server instead of doing it from the browser.
 
 ### Manual installation
 
@@ -306,21 +342,40 @@ For developers, from a clone of the repository: the README's "From source" secti
 
 ## 3. The first account
 
-A new server has **no accounts and no default passwords**. The installer prints a setup code, for example:
+A new server has **no accounts and no default passwords**. The installer prints a setup link with a setup code, for
+example:
 
 ```
-Open the panel's address above and create your account with this setup code:
+Open the setup page to finish in your browser: ...
 
-    ABCD-EFGH-JKLM
+      https://203.0.113.10/setup#code=ABCD-EFGH-JKLM
+
+Setup code (the link carries it; type it if you open the panel's address yourself):  ABCD-EFGH-JKLM
 ```
 
-Open the panel's address in a browser. The first step shows the **licence agreement**: its summary, the full text
-and a link to the published version. Choose how you will use Sudoo.sh (**Personal projects**, **My company** or
-**Service provider**), tick **I have read and accept**, and for a company also **I accept it on behalf of my
-company, and I am authorised to bind it**, then **Accept and continue** ([section 22](#22-the-licence-agreement)).
-The **Set up Sudoo.sh** page then asks for the setup code, first name, last name,
-e-mail (required), phone (optional) and a password twice (12 to 128 characters, following the
-[password rules](USER_MANUAL.md#password-rules)). There is no user name field: the user name is made from the
+The code is in the part after `#`, which the browser never sends to a server; the page removes it from the address
+bar at once. The **setup page** walks through eight steps, with the progress at the top, **Back** and **Next**:
+
+1. **Welcome**: the setup code and the **licence agreement**: its summary, the full text and a link to the published
+   version. Choose how you will use Sudoo.sh (**Personal projects**, **My company** or **Service provider**), tick
+   **I have read and accept**, and for a company also **I accept it on behalf of my company, and I am authorised to
+   bind it**, then **Accept and continue** ([section 22](#22-the-licence-agreement)).
+2. **Server**: memory, processors, free disk, system, virtualisation and ports 80 and 443, measured now (**Check
+   again** measures again), whether Kubernetes can run, the three questions and the engine ([The engine](#the-engine)).
+3. **Address**: Direct, Proxy or Tunnel ([section 7](#7-public-addresses)), and the panel's name: the server's
+   address for now, your own name, or a sudoo.cloud name (with a linked account).
+4. **E-mail** (optional): your mail server (SMTP), with **Send a test** before anything is saved ([section 6](#6-e-mail)).
+5. **GitHub** (optional): whether to connect a GitHub App after the setup; GitHub's pages need you signed in, so the
+   last step takes you there ([section 15](#15-the-github-app)).
+6. **Account** (optional): link the panel to your Sudoo.sh account with a link code (an install code fills it in).
+7. **Super admin**: first name, last name, e-mail (required), phone (optional) and a password twice (12 to 128
+   characters, following the [password rules](USER_MANUAL.md#password-rules)), with what the confirm will do.
+8. **Done**: a summary, the engine command when you chose another engine, **Restart the panel now** when the address
+   changed, **Connect GitHub**, and **Open the panel**.
+
+Each step is kept on the server as a draft (`/opt/odoo/manager/setup-draft.json`, the mail password encrypted), so
+you can leave and come back, from another browser too, with the code. **Nothing is applied before the confirm** on
+step 7, which creates the account and applies the choices together. The setup page needs no user name either. There is no user name field: the user name is made from the
 e-mail address (`jane.doe@example.com` becomes `jane.doe`, then `-2`, `-3` when taken) and stays the
 account's internal key. It creates the first account, a **Super admin**, and signs it in. Everyone signs in with
 their e-mail address; the user name works too. The other accounts are then created on the **Accounts** page

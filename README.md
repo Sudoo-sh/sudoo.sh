@@ -342,6 +342,11 @@ Requirements: a Linux server (Ubuntu 22.04+ or Debian 12+; amd64 or arm64) with 
 of memory (about 1 to 1.5 GB per running instance), 20 GB of free disk, and outgoing HTTPS to GitHub, ghcr.io, Docker
 Hub, plus incoming TCP 80 and 443 for the default exposure (`direct`). The installer asks how people reach the server
 (Direct, Proxy or Tunnel; `--exposure direct|proxy|tunnel`) and checks the ports; a tunnel needs no incoming port.
+It then chooses the engine that runs the instances by need: **Docker**, or **Kubernetes** (k3s, beta: easier to grow
+to more servers, stronger isolation between clients and teams; not high availability, which needs three servers and
+replicated storage). The server's figures are only a minimum check; three questions (more servers later, stronger
+separation, one person or a team) decide, and Docker stays pre-selected (`--engine docker|kubernetes|auto`). Windows
+servers are planned, not supported yet: [Windows servers](docs/WINDOWS.md).
 
 ```bash
 curl -fsSL https://github.com/Sudoo-sh/sudoo.sh/releases/latest/download/sudoo-install.sh | sudo bash
@@ -360,13 +365,17 @@ release (`ghcr.io/sudoo-sh/sudoo-panel` and `sudoo-web`, pinned by digest), writ
 | `sudo sudoo-install update --rollback` | Goes back to the version that ran before the last update. |
 | `sudo sudoo-install update --version edge` | Follows `main` (images built from every commit), for test servers. |
 | `sudo sudoo-install status` | Version, containers, links. |
+| `sudo sudoo-install engine [docker\|kubernetes]` | The server's figures and the engine in use; with a name, switch to it (Kubernetes is prepared first). |
 | `sudo sudoo-install uninstall` | Removes the panel; `/opt/odoo` and the instances' data are kept (`--purge` deletes everything). |
 
 A server installed with the earlier `install.sh` is moved to the images by the same `update`, with the same
 containers, folders and settings. Everything about installing: [Administrator guide](docs/ADMIN_GUIDE.md#2-installing).
 
-The installer prints the panel's link and, on a new server, a **setup code**: open the link, enter the code and create
-the first account (a super admin). Show the code again with `docker exec sudoo-panel sudoo.sh setup-code`.
+The installer prints, on a new server, a **setup link** carrying the setup code (and a QR code of it when `qrencode`
+is installed). The setup page walks through eight steps (welcome and licence, the server check and engine, the
+address, e-mail, GitHub, your Sudoo.sh account, the first super admin, done); nothing is applied before the final
+confirm, and you can leave and come back. Show the code again with `docker exec sudoo-panel sudoo.sh setup-code`.
+`--code XXXX-XXXX` takes a one-time install code from your Sudoo.sh account that pre-fills these steps.
 
 ### Manual installation
 

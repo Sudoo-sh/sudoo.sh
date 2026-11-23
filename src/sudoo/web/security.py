@@ -187,6 +187,11 @@ HOOKS_PREFIX = "/hooks/"  # webhooks of update triggers: each checks its sender'
 PUBLIC_API = {
     ("GET", "/api/v1/setup"),
     ("POST", "/api/v1/setup"),
+    # the setup wizard: each checks the setup code itself (or, for the server check, a signed-in admin)
+    ("GET", "/api/v1/setup/server-check"),
+    ("GET", "/api/v1/setup/draft"),
+    ("PUT", "/api/v1/setup/draft"),
+    ("POST", "/api/v1/setup/test-email"),
     ("GET", "/api/v1/contact"),
     ("GET", "/api/v1/portal"),  # whether this is the client portal's address, its name and colour (sign-in page)
     ("POST", "/api/v1/session"),

@@ -37,6 +37,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **A setup wizard on the first-run page**: eight steps with the progress at the top, Back and Next: welcome and the
+  licence agreement, the server check (memory, processors, disk, system, virtualisation, ports 80 and 443, measured
+  again on demand) with the engine, the address (Direct, Proxy or Tunnel; the server's address, your own name or a
+  sudoo.cloud name), e-mail with a test (optional), GitHub (optional), your Sudoo.sh account (optional), the first
+  super admin, and a summary with **Open the panel**. Each step is kept as a draft on the server, so the setup can be
+  left and resumed from any browser with the setup code; nothing is applied before the final confirm. English and
+  Arabic, light and dark, with a step slide and check marks. The installer prints a setup link that carries the code.
+- **The engine, chosen by need**: Docker or Kubernetes (k3s, beta: easier to grow to more servers, stronger isolation
+  between clients and teams; neither is high availability, which needs three servers and replicated storage). The
+  server's figures are only a minimum check (k3s's own 2 cores and 2 GB plus room for Odoo, shown as to be measured
+  until real figures replace them); three questions decide (more servers later, stronger separation between clients
+  or teams, one person or a team), and Docker stays pre-selected while Kubernetes is beta. The engine is changed on the
+  server (`sudo sudoo-install engine kubernetes`); the setup page shows that command instead of doing it. New
+  settings `ENGINE`, `ENGINE_WANTED` and `ENGINE_K8S_DEFAULT`.
+- **Install codes**: a one-time code from your Sudoo.sh account (`--code`) pre-fills the link to the account, the
+  company label, the engine, the time zone and the language; the setup page shows them to check and uses the link
+  code once at the confirm.
+- **Windows servers**: an assessment and a proposed approach (a Hyper-V Ubuntu VM or WSL 2, then the normal
+  installer inside); planned, not supported yet ([docs/WINDOWS.md](docs/WINDOWS.md)).
 - **Share the topology with Sudoo.sh (opt-in)**: with `SHARE_TOPOLOGY_WITH_SUDOO` on (off by default, needs
   `MARKETPLACE`), the panel sends a signed snapshot every `TOPOLOGY_INTERVAL_SECONDS` (30) for Sudoo.sh staff's live
   infrastructure diagram: servers, the panel's parts, each instance's gateway, Odoo and PostgreSQL with replicas,

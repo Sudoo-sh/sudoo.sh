@@ -2225,6 +2225,65 @@ export interface OdooApp {
   enterprise: boolean;
 }
 
+// ---------------------------------------------------------------- first-run setup wizard (web/v1/setup_wizard.py)
+// (Engine, "docker" | "kubernetes", is declared with the instances above)
+
+/** The three questions that choose the engine: more servers later, stronger separation, a team runs it. */
+export interface SetupNeeds {
+  grow: boolean | null;
+  separation: boolean | null;
+  team: boolean | null;
+}
+export type SetupStep = "welcome" | "server" | "address" | "email" | "github" | "account" | "admin" | "done";
+
+/** GET /setup/server-check: what this server has and the engine recommended for it (read only). */
+export interface ServerCheck {
+  memory_mb: number;
+  processors: number;
+  disk_free_gb: number;
+  system: { name: string; id: string; version: string };
+  virtualisation: { name: string; kind: "none" | "vm" | "container" | "unknown"; from_installer: boolean };
+  ports: Record<"80" | "443", { free: boolean; sudoo: boolean }>;
+  needs: SetupNeeds;
+  recommendation: {
+    fits: boolean;
+    recommended: Engine;
+    default: Engine;
+    reason: string;
+    reason_code: "minimum" | "grow" | "separation" | "unanswered" | "team" | "one";
+    reasons: string[];
+    beta: boolean;
+  };
+  /** the minimum for Kubernetes (k3s's own plus room for Odoo); "measured" false while they are placeholders */
+  figures: { min_cpus: number; min_memory_mb: number; k3s_min_memory_mb: number; odoo_room_memory_mb: number; measured: boolean; source: string };
+  engine: { current: Engine; wanted: Engine | null; available: Engine[]; switch_command: string };
+  checked_at: number;
+}
+
+/** GET /setup/draft: the wizard's choices so far; nothing of it is applied before the final confirm. */
+export interface SetupDraft {
+  step: SetupStep;
+  language: "en" | "ar";
+  engine: Engine;
+  needs: SetupNeeds;
+  exposure: "direct" | "proxy" | "tunnel";
+  name: { kind: "server" | "domain" | "managed"; domain: string };
+  mail: { enabled: boolean; host: string; port: number; security: "starttls" | "ssl" | "none"; username: string; sender: string; password_set: boolean };
+  github: { connect: boolean };
+  account: { link: boolean; link_code: string; company_label: string; from_install_code?: boolean };
+  admin: Profile;
+}
+
+/** The "setup" part of POST /setup's answer: what the final confirm applied. */
+export interface SetupResult {
+  settings: string[];
+  restart_needed: boolean;
+  linked: { account_name: string | null } | null;
+  link_error: string | null;
+  github: boolean;
+  engine: { chosen: Engine; current: Engine; command: string | null };
+}
+
 // ---------------------------------------------------------------- maintenance windows (src/sudoo/maintenance.py)
 
 export type MaintenanceStatus = "proposed" | "scheduled" | "running" | "done" | "failed" | "cancelled";

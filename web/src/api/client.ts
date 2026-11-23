@@ -21,6 +21,12 @@ let csrfToken = "";
 export const setCsrfToken = (token: string) => {
   csrfToken = token;
 };
+let setupCode = "";
+/** The first-run setup code (pages/Setup.tsx): sent as X-Setup-Code with every call to /setup/... while the first
+ *  account does not exist yet (web/v1/setup_wizard.py), never in an address. */
+export const setSetupCode = (code: string) => {
+  setupCode = code;
+};
 /** The CSRF header for a change sent without call() (a piece of an uploaded file, components/ImportDatabase.tsx). */
 export const csrfHeaders = (): Record<string, string> => (csrfToken ? { "X-CSRF-Token": csrfToken } : {});
 
@@ -30,6 +36,7 @@ export async function call<T>(method: Method, path: string, body?: unknown, sign
   const headers: Record<string, string> = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (method !== "GET" && csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  if (setupCode && path.startsWith("/setup")) headers["X-Setup-Code"] = setupCode;
   let response: Response;
   try {
     response = await fetch(`/api/v1${path}`, {

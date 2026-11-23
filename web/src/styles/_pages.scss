@@ -2141,6 +2141,7 @@ tr.invited {
   align-items: center;
   .setup-radio {
     flex: none;
+    min-width: 0;
     margin-inline-start: auto;
     width: 18px;
     height: 18px;
@@ -2204,3 +2205,14 @@ tr.invited {
   .setup-card, .setup-fact, .setup-reveal, .setup-stepper .dot svg { animation: none; }
   .setup-done-mark circle, .setup-done-mark path { animation: none; stroke-dashoffset: 0; }
 }
+.setup-question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+  border-bottom: 1px solid var(--hairline);
+  &:last-child { border-bottom: 0; }
+  @media (max-width: 640px) { flex-direction: column; align-items: flex-start; }
+}
+.setup-minimum { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; margin: 0; }

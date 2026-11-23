@@ -204,17 +204,10 @@ class Settings(BaseSettings):
         description='"kubernetes" while Kubernetes was chosen but not prepared yet (the release had no k3s script); '
         "written and cleared by the installer.",
     )
-    engine_k8s_min_memory_gb: int = Field(
-        8,
-        ge=1,
-        le=4096,
-        description="The memory (GB) from which the server check recommends Kubernetes (90% of it counts: a server "
-        "sold as 8 GB reports a little less). The installer's own threshold is --k8s-min-memory.",
-    )
     engine_k8s_default: bool = Field(
         False,
-        description="Pre-select Kubernetes on the setup page where it is recommended. Off while the Kubernetes "
-        "engine is beta: Docker is pre-selected everywhere.",
+        description="Pre-select Kubernetes on the setup page where the answers recommend it. Off while the "
+        "Kubernetes engine is beta: Docker is pre-selected everywhere.",
     )
 
     # ------------------------------------------------------------------ exposure (plugin: exposure)
@@ -2144,7 +2137,6 @@ EDITABLE = (
     "managed_subdomain_company",
     "managed_subdomains_check_minutes",
     "panel_managed_name",
-    "engine_k8s_min_memory_gb",
     "engine_k8s_default",
     *OFFSITE_SETTINGS,
     *ALERT_SETTINGS,

@@ -219,19 +219,21 @@ ignored.
 
 ## Engine
 
-What runs the instances. The installer reads the server and recommends an engine: **Kubernetes (k3s, beta)** for a
-server with at least `ENGINE_K8S_MIN_MEMORY_GB` of memory that is not a container (LXC, OpenVZ...) and runs Ubuntu
-22.04+ or Debian 12+, else **Docker**, with the reason. While the Kubernetes engine is beta, Docker stays
-pre-selected everywhere. The setup page shows the same check (Server check); the engine itself is changed on the
-server with `sudo sudoo-install engine docker|kubernetes`, never from the browser
-([Administrator guide](ADMIN_GUIDE.md#2-installing)).
+What runs the instances: **Docker**, or **Kubernetes** (k3s, beta), which makes it easier to grow to more servers and
+isolates clients and teams more strongly. Neither is high availability: that needs three servers and replicated
+storage, a later phase. The engine is chosen by need: the server's figures are only a minimum check (k3s's own 2 cores
+and 2 GB, plus room for Odoo; the figures are in `src/sudoo/engine_figures.json` and shown as "to be measured" until
+real measurements replace them; not a container; Ubuntu 22.04+ or Debian 12+), and three questions decide (more
+servers later, stronger separation between clients or teams, one person or a team). Docker is recommended unless the
+answers point to Kubernetes, and stays pre-selected while it is beta. The installer asks them; the setup page asks them
+again (Server step); the engine itself is changed on the server with `sudo sudoo-install engine docker|kubernetes`,
+never from the browser ([Administrator guide](ADMIN_GUIDE.md#2-installing)).
 
 | Setting | Type | Default | Applies | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `ENGINE` | str | `docker` | .env only | `docker` or `kubernetes` (k3s, beta). Written by the installer once the engine is prepared. This release runs the instances on Docker until a Kubernetes engine package is installed. |
 | `ENGINE_WANTED` | str | empty | .env only | `kubernetes` while Kubernetes was chosen but not prepared yet (a release without the k3s script): `sudo sudoo-install engine kubernetes` prepares it once a release brings it. |
-| `ENGINE_K8S_MIN_MEMORY_GB` | int | `8` | **live** | The memory from which the server check recommends Kubernetes; 90% of it counts (a server sold as 8 GB reports a little less). |
-| `ENGINE_K8S_DEFAULT` | bool | `false` | **live** | Pre-select Kubernetes on the setup page where it is recommended. Off while the engine is beta. |
+| `ENGINE_K8S_DEFAULT` | bool | `false` | **live** | Pre-select Kubernetes on the setup page where the answers recommend it. Off while the engine is beta. |
 
 ## Public addresses (plugin: exposure)
 

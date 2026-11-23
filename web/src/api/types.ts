@@ -2132,6 +2132,12 @@ export interface OdooApp {
 // ---------------------------------------------------------------- first-run setup wizard (web/v1/setup_wizard.py)
 
 export type Engine = "docker" | "kubernetes";
+/** The three questions that choose the engine: more servers later, stronger separation, a team runs it. */
+export interface SetupNeeds {
+  grow: boolean | null;
+  separation: boolean | null;
+  team: boolean | null;
+}
 export type SetupStep = "welcome" | "server" | "address" | "email" | "github" | "account" | "admin" | "done";
 
 /** GET /setup/server-check: what this server has and the engine recommended for it (read only). */
@@ -2142,8 +2148,10 @@ export interface ServerCheck {
   system: { name: string; id: string; version: string };
   virtualisation: { name: string; kind: "none" | "vm" | "container" | "unknown"; from_installer: boolean };
   ports: Record<"80" | "443", { free: boolean; sudoo: boolean }>;
-  recommendation: { recommended: Engine; default: Engine; reason: string; reasons: string[]; beta: boolean };
-  thresholds: { k8s_min_memory_gb: number };
+  needs: SetupNeeds;
+  recommendation: { fits: boolean; recommended: Engine; default: Engine; reason: string; reasons: string[]; beta: boolean };
+  /** the minimum for Kubernetes (k3s's own plus room for Odoo); "measured" false while they are placeholders */
+  figures: { min_cpus: number; min_memory_mb: number; k3s_min_memory_mb: number; odoo_room_memory_mb: number; measured: boolean; source: string };
   engine: { current: Engine; wanted: Engine | null; available: Engine[]; switch_command: string };
   checked_at: number;
 }
@@ -2153,6 +2161,7 @@ export interface SetupDraft {
   step: SetupStep;
   language: "en" | "ar";
   engine: Engine;
+  needs: SetupNeeds;
   exposure: "direct" | "proxy" | "tunnel";
   name: { kind: "server" | "domain" | "managed"; domain: string };
   mail: { enabled: boolean; host: string; port: number; security: "starttls" | "ssl" | "none"; username: string; sender: string; password_set: boolean };

@@ -24,7 +24,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { Navigate, useNavigate } from "react-router";
 import { api, errorText, setCsrfToken, setSetupCode } from "@/api/client";
 import { keys, useLicenceText, useSetup } from "@/api/queries";
-import type { Engine, LicenceAcceptance as Acceptance, ServerCheck, Session, SetupDraft, SetupResult, SetupStep } from "@/api/types";
+import type { Engine, LicenceAcceptance as Acceptance, ServerCheck, Session, SetupDraft, SetupNeeds, SetupResult, SetupStep } from "@/api/types";
 import { LicenceAcceptance } from "@/components/LicenceAcceptance";
 import licenceWords from "@/i18n/licence";
 import { useSignOut } from "@/components/Shell";
@@ -116,10 +116,13 @@ function Wizard() {
     return loaded;
   }, []);
 
-  const runCheck = useCallback(async (fresh = false) => {
+  const runCheck = useCallback(async (fresh = false, needs?: SetupNeeds) => {
     setChecking(true);
+    const query = new URLSearchParams();
+    if (fresh) query.set("fresh", "1");
+    for (const [key, value] of Object.entries(needs ?? {})) if (value !== null) query.set(key, value ? "yes" : "no");
     try {
-      setCheck(await api.get<ServerCheck>(`/setup/server-check${fresh ? "?fresh=1" : ""}`));
+      setCheck(await api.get<ServerCheck>(`/setup/server-check${query.size ? `?${query}` : ""}`));
       setCheckFailed(false);
     } catch {
       setCheckFailed(true);
@@ -136,7 +139,7 @@ function Wizard() {
         const at = resumeAt(loaded.step, true);
         if (at !== "welcome") setResumed(true);
         setStep(at);
-        void runCheck();
+        void runCheck(false, loaded.needs);
       })
       .catch(() => setKept((k) => ({ ...k, licence: null })));
     // once, when the page opens
@@ -176,9 +179,9 @@ function Wizard() {
     setBusy(true);
     setError("");
     try {
-      await loadDraft(kept.code.trim().toUpperCase());
+      const loaded = await loadDraft(kept.code.trim().toUpperCase());
       setKept((k) => ({ ...k, code: k.code.trim().toUpperCase(), licence: acceptance }));
-      void runCheck();
+      void runCheck(false, loaded.needs);
       setBusy(false);
       setDirection("forward");
       setStep("server");
@@ -273,8 +276,9 @@ function Wizard() {
           )}
 
           {step === "server" && draft && (
-            <ServerStep heading={heading} check={check} failed={checkFailed} checking={checking} engine={draft.engine}
-              onEngine={(engine) => update({ engine })} onCheck={() => void runCheck(true)} />
+            <ServerStep heading={heading} check={check} failed={checkFailed} checking={checking} engine={draft.engine} needs={draft.needs}
+              onEngine={(engine) => update({ engine })} onCheck={() => void runCheck(true, draft.needs)}
+              onNeeds={(needs) => { update({ needs }); void runCheck(false, needs); }} />
           )}
 
           {step === "address" && draft && <AddressStep heading={heading} draft={draft} check={check} onChange={update} />}
@@ -343,7 +347,7 @@ function Wizard() {
 /** The part of the draft a step saves when Next is pressed. */
 function changesOf(step: SetupStep, draft: SetupDraft): Partial<SetupDraft> {
   switch (step) {
-    case "server": return { engine: draft.engine };
+    case "server": return { engine: draft.engine, needs: draft.needs };
     case "address": return { exposure: draft.exposure, name: draft.name };
     case "email": return { mail: draft.mail };
     case "github": return { github: draft.github };
@@ -377,19 +381,30 @@ function Fact({ icon, label, value, tone, note }: { icon: ReactNode; label: stri
 }
 
 function ServerStep({
-  heading, check, failed, checking, engine, onEngine, onCheck,
+  heading, check, failed, checking, engine, needs, onEngine, onCheck, onNeeds,
 }: {
   heading: React.RefObject<HTMLHeadingElement | null>;
   check: ServerCheck | null;
   failed: boolean;
   checking: boolean;
   engine: Engine;
+  needs: SetupNeeds;
   onEngine: (engine: Engine) => void;
   onCheck: () => void;
+  onNeeds: (needs: SetupNeeds) => void;
 }) {
   const t = useT(setupWords).server;
   const gb = (mb: number) => Math.round(mb / 1024);
   const advice = check?.recommendation;
+  const figures = check?.figures;
+  const yesNo = (key: "grow" | "separation") => (
+    <Segmented<"" | "yes" | "no">
+      value={needs[key] === null ? "" : needs[key] ? "yes" : "no"}
+      onChange={(value) => onNeeds({ ...needs, [key]: value === "yes" })}
+      options={[{ value: "yes", label: t.yes }, { value: "no", label: t.no }]}
+    />
+  );
+  const answered = Object.values(needs).some((value) => value !== null);
   const prepared = check ? check.engine.current : "docker";
   const port = (p: "80" | "443") => {
     const state = check?.ports[p];
@@ -415,25 +430,50 @@ function ServerStep({
         <Button size="sm" variant="ghost" icon={<RefreshCw className={checking ? "spinning" : undefined} />} disabled={checking} onClick={onCheck}>{t.again}</Button>
       </div>
 
+      {figures && (
+        <p className="faint small setup-minimum">
+          {t.minimum(figures.min_cpus, Math.round(figures.min_memory_mb / 1024))}{" "}
+          {!figures.measured && <Tag tone="caution">{t.toBeMeasured}</Tag>}
+        </p>
+      )}
+
+      {advice && !advice.fits ? (
+        <div className="setup-why">
+          <span className="faint small">{t.cannotRun}</span>
+          <ul>{advice.reasons.map((reason) => <li key={reason} dir="auto">{reason}</li>)}</ul>
+        </div>
+      ) : (
+        <div className="setup-section">
+          <h2>{t.questions}</h2>
+          <div className="setup-question"><span>{t.grow}</span>{yesNo("grow")}</div>
+          <div className="setup-question"><span>{t.separation}</span>{yesNo("separation")}</div>
+          <div className="setup-question">
+            <span>{t.team}</span>
+            <Segmented<"" | "one" | "team">
+              value={needs.team === null ? "" : needs.team ? "team" : "one"}
+              onChange={(value) => onNeeds({ ...needs, team: value === "team" })}
+              options={[{ value: "one", label: t.onePerson }, { value: "team", label: t.aTeam }]}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="setup-section">
         <h2>{t.engine}</h2>
         <p className="muted">{t.engineText}</p>
         <div className="setup-choices" role="radiogroup" aria-label={t.engine}>
           <EngineChoice name={t.docker} text={t.dockerText} icon={<Boxes />} chosen={engine === "docker"} recommended={advice?.recommended === "docker"} onChoose={() => onEngine("docker")} />
-          <EngineChoice name={t.kubernetes} beta text={t.kubernetesText(check?.thresholds.k8s_min_memory_gb ?? 8)} icon={<Ship />}
+          <EngineChoice name={t.kubernetes} beta text={t.kubernetesText} icon={<Ship />}
             chosen={engine === "kubernetes"} recommended={advice?.recommended === "kubernetes"} onChoose={() => onEngine("kubernetes")} />
         </div>
-        {advice && (
-          <div className="setup-why">
+        {advice && advice.fits && (
+          <div className="setup-why" aria-live="polite">
             <span className="faint small">{t.why}</span>
-            {advice.reasons.length ? (
-              <ul>{advice.reasons.map((reason) => <li key={reason} dir="auto">{reason}</li>)}</ul>
-            ) : (
-              <p dir="auto">{advice.reason}</p>
-            )}
+            <p dir="auto">{answered ? advice.reason : t.answerFirst}</p>
             {advice.beta && advice.recommended === "kubernetes" && <p className="faint small">{t.betaDefault}</p>}
           </div>
         )}
+        <p className="faint small">{t.noHa}</p>
         {check?.engine.wanted && <Callout>{t.wanted}</Callout>}
         {check && engine !== prepared && (
           <div className="setup-switch">

@@ -46,41 +46,76 @@ def code_headers(code: str) -> dict[str, str]:
     return {**ORIGIN, endpoints.SETUP_CODE_HEADER: code}
 
 
-def facts(memory_gb: float, virt: str = "kvm", kind: str = "vm", system: str = "Ubuntu 24.04.3 LTS") -> dict[str, Any]:
+def facts(
+    memory_gb: float, virt: str = "kvm", kind: str = "vm", system: str = "Ubuntu 24.04.3 LTS", cpus: int = 4
+) -> dict[str, Any]:
     os_id, version = server_check.parse_system(system)
     return {
         "memory_mb": int(memory_gb * 1024),
+        "processors": cpus,
         "virtualisation": {"name": virt, "kind": kind},
         "system": {"name": system, "id": os_id, "version": version},
     }
 
 
+NO_ANSWER: dict[str, bool | None] = {"grow": None, "separation": None, "team": None}
+
+
+def answers(grow: bool = False, separation: bool = False, team: bool = False) -> dict[str, bool | None]:
+    return {"grow": grow, "separation": separation, "team": team}
+
+
 # ---------------------------------------------------------------- the recommendation (the installer's rule)
 
 
-def test_kubernetes_is_recommended_for_8_gb_that_is_not_a_container_and_docker_stays_pre_selected() -> None:
-    advice = server_check.recommend(facts(16), 8, False)
-    assert advice["recommended"] == "kubernetes" and advice["default"] == "docker" and advice["beta"] is True
-    assert advice["reason"] == "this server has 16 GB of memory, is not a container and runs Ubuntu 24.04.3 LTS"
-    assert server_check.recommend(facts(16), 8, True)["default"] == "kubernetes"  # ENGINE_K8S_DEFAULT
+def test_the_figures_come_from_one_file_and_are_to_be_measured() -> None:
+    figure = server_check.figures()
+    assert figure["min_cpus"] == 2 and figure["k3s_min_memory_mb"] == 2048  # k3s's own documented minimum
+    assert figure["min_memory_mb"] == 2048 + figure["odoo_room_memory_mb"]
+    assert figure["measured"] is False
+    advice = server_check.recommend(facts(2), NO_ANSWER, False)
+    assert "(to be measured)" in advice["reason"]
 
 
-def test_a_server_sold_as_8_gb_counts_and_7_gb_does_not() -> None:
-    assert server_check.recommend(facts(7.75), 8, False)["recommended"] == "kubernetes"
-    small = server_check.recommend(facts(7), 8, False)
-    assert small["recommended"] == "docker"
-    assert small["reason"] == "Kubernetes needs at least 8 GB of memory; this server has 7 GB"
-    assert server_check.recommend(facts(7), 6, False)["recommended"] == "kubernetes"
+def test_by_need_not_by_size_docker_unless_the_answers_point_to_kubernetes() -> None:
+    big = facts(64, cpus=32)
+    assert server_check.recommend(big, NO_ANSWER, False)["recommended"] == "docker"
+    assert server_check.recommend(big, answers(team=True), False)["reason"].startswith("one server run by a team")
+    assert server_check.recommend(big, answers(), False)["reason"].startswith("one server run by one person")
+    grow = server_check.recommend(facts(4), answers(grow=True), False)
+    assert grow["recommended"] == "kubernetes" and grow["fits"] is True
+    assert grow["reason"] == "you plan to add servers, and Kubernetes makes growing to more servers easier"
+    separation = server_check.recommend(facts(4), answers(separation=True), False)
+    assert separation["recommended"] == "kubernetes" and "stronger separation" in separation["reason"]
 
 
-def test_every_reason_against_kubernetes_is_given() -> None:
-    advice = server_check.recommend(facts(3, "openvz", "container", "Rocky Linux 9.4"), 8, True)
-    assert advice["recommended"] == "docker" and advice["default"] == "docker"
+def test_docker_stays_pre_selected_while_kubernetes_is_beta() -> None:
+    grow = server_check.recommend(facts(4), answers(grow=True), False)
+    assert grow["default"] == "docker" and grow["beta"] is True
+    assert server_check.recommend(facts(4), answers(grow=True), True)["default"] == "kubernetes"  # ENGINE_K8S_DEFAULT
+
+
+def test_below_the_minimum_the_answers_do_not_matter_and_every_reason_is_given() -> None:
+    small = server_check.recommend(facts(2), answers(grow=True), True)
+    assert small["recommended"] == "docker" and small["fits"] is False and small["default"] == "docker"
+    assert small["reason"] == (
+        "Kubernetes needs at least 2 cores and 3 GB of memory (to be measured); this server has 4 cores and 2 GB"
+    )
+    assert server_check.recommend(facts(16, cpus=1), answers(grow=True), False)["fits"] is False
+    advice = server_check.recommend(facts(16, "openvz", "container", "Rocky Linux 9.4"), answers(grow=True), True)
     assert advice["reasons"] == [
-        "Kubernetes needs at least 8 GB of memory; this server has 3 GB",
         "Kubernetes (k3s) cannot run properly in a container, and this server is one (openvz)",
         "Kubernetes is prepared on Ubuntu 22.04+ and Debian 12+; this server runs Rocky Linux 9.4",
     ]
+    # a server sold as 3 GB reports a little less, and still counts
+    assert server_check.recommend(facts(2.8), answers(grow=True), False)["fits"] is True
+
+
+def test_no_promise_of_high_availability() -> None:
+    import re
+
+    text = Path(server_check.__file__).read_text() + (Path(__file__).parents[1] / "web/src/i18n/setup.ts").read_text()
+    assert not re.search(r"failover|highly available|high-availability", text, re.IGNORECASE)
 
 
 def test_systems() -> None:
@@ -109,7 +144,8 @@ def test_the_server_check_needs_the_setup_code(first_run: tuple[FlaskClient, str
     assert data["system"] == {"name": "Ubuntu 24.04.3 LTS", "id": "ubuntu", "version": "24.04"}
     assert data["virtualisation"] == {"name": "unknown", "kind": "unknown", "from_installer": False}
     assert set(data["ports"]) == {"80", "443"} and "free" in data["ports"]["80"]
-    assert data["recommendation"]["recommended"] in ("docker", "kubernetes")
+    assert data["recommendation"]["recommended"] == "docker" and data["needs"] == NO_ANSWER
+    assert data["figures"]["measured"] is False and data["figures"]["min_cpus"] == 2
     assert data["engine"]["current"] == "docker" and data["engine"]["available"] == ["docker"]
     assert data["engine"]["switch_command"] == "sudo sudoo-install engine {engine}"
 
@@ -120,8 +156,17 @@ def test_the_server_check_reads_what_the_installer_found(first_run: tuple[FlaskC
     record.write_text("VIRT=lxc\nVIRT_KIND=container\nOS_NAME=Ubuntu 24.04.3 LTS\n$(reboot)=x\nnot a line\n")
     data = client.get("/api/v1/setup/server-check?fresh=1", headers=code_headers(code)).get_json()["data"]
     assert data["virtualisation"] == {"name": "lxc", "kind": "container", "from_installer": True}
-    assert data["recommendation"]["recommended"] == "docker"
+    assert data["recommendation"]["recommended"] == "docker" and data["recommendation"]["fits"] is False
     assert any("container" in reason for reason in data["recommendation"]["reasons"])
+
+
+def test_the_server_check_takes_the_answers(first_run: tuple[FlaskClient, str]) -> None:
+    client, code = first_run
+    answer = client.get("/api/v1/setup/server-check?grow=yes&separation=no&team=maybe", headers=code_headers(code))
+    data = answer.get_json()["data"]
+    assert data["needs"] == {"grow": True, "separation": False, "team": None}
+    if data["recommendation"]["fits"]:
+        assert data["recommendation"]["recommended"] == "kubernetes"
 
 
 def test_the_server_check_changes_nothing_and_has_no_other_method(first_run: tuple[FlaskClient, str]) -> None:

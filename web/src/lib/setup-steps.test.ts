@@ -6,6 +6,7 @@ const DRAFT: SetupDraft = {
   step: "welcome",
   language: "en",
   engine: "docker",
+  needs: { grow: null, separation: null, team: null },
   exposure: "direct",
   name: { kind: "server", domain: "" },
   mail: { enabled: false, host: "", port: 587, security: "starttls", username: "", sender: "", password_set: false },

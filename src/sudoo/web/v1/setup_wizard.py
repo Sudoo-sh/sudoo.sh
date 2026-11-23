@@ -1,8 +1,11 @@
 """The setup wizard of the first-run page (setup_wizard.py) and the server check.
 
     GET    /api/v1/setup/server-check      the server's memory, processors, free disk, system, virtualisation, ports
-                                           80 and 443, the engine recommended for it and why, the engine in use and
-                                           the command that switches it; measured again on each call (at most every
+                                           80 and 443; whether Kubernetes can run (the minimum check, with the
+                                           figures, "measured" false while they are placeholders); the engine
+                                           recommended for the answers ?grow=, ?separation=, ?team= (yes or no:
+                                           more servers later, stronger separation, a team runs it) and why; the
+                                           engine in use and the command that switches it; measured again on each call (at most every
                                            few seconds). Read only. Before the first account: with the setup code
                                            (X-Setup-Code); after: a signed-in session with settings.manage
     GET    /api/v1/setup/draft             the choices so far (resumable): the panel's settings and an install code's
@@ -64,7 +67,13 @@ def require_setup_code_or_admin() -> None:
 @blueprint.get("/setup/server-check")
 def server_check_read() -> Response:
     require_setup_code_or_admin()
-    return ok(server_check.check(fresh=request.args.get("fresh") == "1"))
+    needs = {key: _answer(request.args.get(key)) for key in server_check.NEEDS}
+    return ok(server_check.check(needs, fresh=request.args.get("fresh") == "1"))
+
+
+def _answer(value: str | None) -> bool | None:
+    """yes, no, or not answered (anything else)."""
+    return True if value == "yes" else False if value == "no" else None
 
 
 @blueprint.get("/setup/draft")

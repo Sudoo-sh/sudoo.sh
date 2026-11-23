@@ -58,6 +58,7 @@ def defaults() -> dict[str, Any]:
         "step": "welcome",
         "language": code.get("LANGUAGE") or settings.default_language,
         "engine": code.get("ENGINE") or check_engine,
+        "needs": {"grow": None, "separation": None, "team": None},
         "exposure": (
             config.exposure_mode(settings.exposure)
             if config.exposure_mode(settings.exposure) in EXPOSURES
@@ -123,7 +124,18 @@ def _choice(value: Any, name: str, choices: tuple[str, ...]) -> str:
 
 def clean(changes: dict[str, Any]) -> tuple[dict[str, Any], dict[str, str]]:
     """The validated parts of a draft change and its secrets; raises DraftError for anything else."""
-    unknown = set(changes) - {"step", "language", "engine", "exposure", "name", "mail", "github", "account", "admin"}
+    unknown = set(changes) - {
+        "step",
+        "language",
+        "engine",
+        "needs",
+        "exposure",
+        "name",
+        "mail",
+        "github",
+        "account",
+        "admin",
+    }
     if unknown:
         raise DraftError(f"Unknown part of the setup: {', '.join(sorted(unknown))}.")
     out: dict[str, Any] = {}
@@ -134,6 +146,11 @@ def clean(changes: dict[str, Any]) -> tuple[dict[str, Any], dict[str, str]]:
         out["language"] = _choice(changes["language"], "language", ("en", "ar"))
     if "engine" in changes:
         out["engine"] = _choice(changes["engine"], "engine", server_check.ENGINES)
+    if "needs" in changes:
+        needs = changes["needs"] if isinstance(changes["needs"], dict) else {}
+        if set(needs) - set(server_check.NEEDS) or any(v not in (True, False, None) for v in needs.values()):
+            raise DraftError("needs: grow, separation and team, each true, false or null.")
+        out["needs"] = {key: needs.get(key) for key in server_check.NEEDS}
     if "exposure" in changes:
         out["exposure"] = _choice(changes["exposure"], "exposure", EXPOSURES)
     if "name" in changes:

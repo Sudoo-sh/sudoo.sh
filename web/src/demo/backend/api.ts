@@ -257,6 +257,7 @@ const setupDraft: Record<string, unknown> = {
   step: "welcome",
   language: defaultLanguage(),
   engine: "docker",
+  needs: { grow: null, separation: null, team: null },
   exposure: "direct",
   name: { kind: "server", domain: "" },
   mail: { enabled: false, host: "", port: 587, security: "starttls", username: "", sender: "", password_set: false },
@@ -264,26 +265,33 @@ const setupDraft: Record<string, unknown> = {
   account: { link: false, link_code: "", company_label: "", from_install_code: false },
   admin: { first_name: "", last_name: "", email: "", phone: "" },
 };
-route("GET", "/setup/server-check", () =>
-  ok({
+route("GET", "/setup/server-check", ({ query }) => {
+  const answer = (key: string) => (query.get(key) === "yes" ? true : query.get(key) === "no" ? false : null);
+  const needs = { grow: answer("grow"), separation: answer("separation"), team: answer("team") };
+  const recommended = needs.grow || needs.separation ? "kubernetes" : "docker";
+  const reason = needs.grow
+    ? "you plan to add servers, and Kubernetes makes growing to more servers easier"
+    : needs.separation
+      ? "you need stronger separation between clients or teams, and Kubernetes isolates them more"
+      : needs.team === null
+        ? "Docker unless you say otherwise: it is simpler to run, and Kubernetes is beta"
+        : needs.team
+          ? "one server run by a team is well served by Docker, which is simpler to run"
+          : "one server run by one person is well served by Docker, which is simpler to run";
+  return ok({
     memory_mb: 16012,
     processors: 4,
     disk_free_gb: 142,
     system: { name: "Ubuntu 24.04.3 LTS", id: "ubuntu", version: "24.04" },
     virtualisation: { name: "kvm", kind: "vm", from_installer: true },
     ports: { "80": { free: true, sudoo: false }, "443": { free: true, sudoo: false } },
-    recommendation: {
-      recommended: "kubernetes",
-      default: "docker",
-      reason: "this server has 16 GB of memory, is not a container and runs Ubuntu 24.04.3 LTS",
-      reasons: [],
-      beta: true,
-    },
-    thresholds: { k8s_min_memory_gb: 8 },
+    needs,
+    recommendation: { fits: true, recommended, default: "docker", reason, reasons: [], beta: true },
+    figures: { min_cpus: 2, min_memory_mb: 3072, k3s_min_memory_mb: 2048, odoo_room_memory_mb: 1024, measured: false, source: "https://docs.k3s.io/installation/requirements" },
     engine: { current: "docker", wanted: null, available: ["docker"], switch_command: "sudo sudoo-install engine {engine}" },
     checked_at: Date.now() / 1000,
-  }),
-);
+  });
+});
 route("GET", "/setup/draft", () => {
   if (setUp) throw new Problem(409, "The panel is set up already. Sign in instead.");
   return ok(setupDraft);

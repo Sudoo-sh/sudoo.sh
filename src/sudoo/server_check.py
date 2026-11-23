@@ -11,11 +11,14 @@ Measured here, from inside the panel's container, every time it is asked for (at
 The virtualisation (a virtual machine, a container such as LXC or OpenVZ) cannot be seen from inside a container:
 it comes from what the installer found (<ODOO_ROOT>/manager/installer/server-check, KEY=value), "unknown" without it.
 
-The recommendation is the installer's rule (sudoo-install.sh, recommend_engine), with the same defaults:
-Kubernetes (k3s, beta) for a server with at least ENGINE_K8S_MIN_MEMORY_GB of memory (MEMORY_SHARE of it counts: a
-server sold as 8 GB reports a little less) that is not a container and runs Ubuntu 22.04+ or Debian 12+; else Docker,
-with every reason. While the Kubernetes engine is beta Docker stays pre-selected: K8S_STABLE (False) is the one line
-to change when a release marks it stable; ENGINE_K8S_DEFAULT does the same on one panel.
+The engine is chosen by need, as the installer does (sudoo-install.sh, recommend_engine): the figures are only a
+minimum check (k3s's 2 cores and 2 GB plus room for Odoo, from engine_figures.json, shown as "to be measured" until
+real figures arrive; not a container; Ubuntu 22.04+ or Debian 12+), and three answers decide: more servers later,
+stronger separation between clients or teams, one person or a team. Docker is recommended unless the answers point
+to Kubernetes (easier to grow to more servers, stronger isolation). Neither is high availability, which needs three
+servers and replicated storage (a later phase). While the Kubernetes engine is beta Docker stays pre-selected:
+K8S_STABLE (False) is the one line to change when a release marks it stable; ENGINE_K8S_DEFAULT does the same on one
+panel.
 
 Nothing here changes anything: changing the engine is the installer's job (`sudo sudoo-install engine kubernetes`),
 never the browser's.
@@ -39,7 +42,9 @@ K8S_STABLE = False
 """False while the Kubernetes engine is beta: Docker is pre-selected everywhere. Change to True (one line, with the
 installer's K8S_STABLE) when a release marks it stable."""
 
-MEMORY_SHARE = 0.9
+FIGURES_FILE = Path(__file__).with_name("engine_figures.json")
+NEEDS = ("grow", "separation", "team")
+"""The three questions: more servers later, stronger separation between clients or teams, a team runs it."""
 ENGINES = ("docker", "kubernetes")
 ENGINE_GROUP = "sudoo.engines"
 """Entry points of engines other than Docker: a panel package that brings the Kubernetes engine registers
@@ -156,12 +161,33 @@ def memory_gb(mb: int) -> int:
     return (mb + 512) // 1024
 
 
-def recommend(facts: dict[str, Any], min_memory_gb: int, k8s_default: bool) -> dict[str, Any]:
-    """The installer's rule on these facts: {"recommended", "default", "reason", "reasons", "beta"}."""
+def figures() -> dict[str, Any]:
+    """The engine figures (engine_figures.json) and the minimum for Kubernetes they make."""
+    data = json.loads(FIGURES_FILE.read_text())
+    return {
+        "min_cpus": int(data["k3s_min_cpus"]),
+        "min_memory_mb": int(data["k3s_min_memory_mb"]) + int(data["odoo_room_memory_mb"]),
+        "k3s_min_memory_mb": int(data["k3s_min_memory_mb"]),
+        "odoo_room_memory_mb": int(data["odoo_room_memory_mb"]),
+        "memory_share": float(data["memory_share"]),
+        "measured": bool(data["measured"]),
+        "source": str(data["k3s_source"]),
+    }
+
+
+def recommend(facts: dict[str, Any], needs: dict[str, bool | None], k8s_default: bool) -> dict[str, Any]:
+    """The installer's rule: {"fits", "recommended", "default", "reason", "reasons", "beta"}; reasons are what keeps
+    Kubernetes from running well here (the minimum check)."""
+    figure = figures()
+    note = "" if figure["measured"] else " (to be measured)"
     reasons: list[str] = []
     gb = memory_gb(facts["memory_mb"])
-    if facts["memory_mb"] < min_memory_gb * 1024 * MEMORY_SHARE:
-        reasons.append(f"Kubernetes needs at least {min_memory_gb} GB of memory; this server has {gb} GB")
+    cpus = int(facts.get("processors", figure["min_cpus"]))
+    if cpus < figure["min_cpus"] or facts["memory_mb"] < figure["min_memory_mb"] * figure["memory_share"]:
+        reasons.append(
+            f"Kubernetes needs at least {figure['min_cpus']} cores and {memory_gb(figure['min_memory_mb'])} GB of "
+            f"memory{note}; this server has {cpus} cores and {gb} GB"
+        )
     if facts["virtualisation"]["kind"] == "container":
         reasons.append(
             "Kubernetes (k3s) cannot run properly in a container, and this server is one "
@@ -172,14 +198,24 @@ def recommend(facts: dict[str, Any], min_memory_gb: int, k8s_default: bool) -> d
             "Kubernetes is prepared on Ubuntu 22.04+ and Debian 12+; this server runs "
             f"{facts['system']['name'] or 'an unknown system'}"
         )
-    recommended = "docker" if reasons else "kubernetes"
-    reason = (
-        reasons[0]
-        if reasons
-        else (f"this server has {gb} GB of memory, is not a container and runs {facts['system']['name']}")
-    )
+    recommended = "docker"
+    if reasons:
+        reason = reasons[0]
+    elif needs.get("grow"):
+        recommended = "kubernetes"
+        reason = "you plan to add servers, and Kubernetes makes growing to more servers easier"
+    elif needs.get("separation"):
+        recommended = "kubernetes"
+        reason = "you need stronger separation between clients or teams, and Kubernetes isolates them more"
+    elif all(needs.get(key) is None for key in NEEDS):
+        reason = "Docker unless you say otherwise: it is simpler to run, and Kubernetes is beta"
+    elif needs.get("team"):
+        reason = "one server run by a team is well served by Docker, which is simpler to run"
+    else:
+        reason = "one server run by one person is well served by Docker, which is simpler to run"
     stable = K8S_STABLE or k8s_default
     return {
+        "fits": not reasons,
         "recommended": recommended,
         "default": "kubernetes" if recommended == "kubernetes" and stable else "docker",
         "reason": reason,
@@ -214,24 +250,29 @@ def facts() -> dict[str, Any]:
     }
 
 
-def check(fresh: bool = False) -> dict[str, Any]:
-    """The facts, the recommendation and the engine in use; measured again at most every CACHE_SECONDS."""
+def check(needs: dict[str, bool | None] | None = None, fresh: bool = False) -> dict[str, Any]:
+    """The facts (measured again at most every CACHE_SECONDS), the recommendation for these answers, the figures and
+    the engine in use."""
     global _cache
     with _lock:
-        if not fresh and _cache and time.monotonic() - _cache[0] < CACHE_SECONDS:
-            return json.loads(json.dumps(_cache[1]))
-        found = facts()
-        result = {
-            **found,
-            "recommendation": recommend(found, settings.engine_k8s_min_memory_gb, settings.engine_k8s_default),
-            "thresholds": {"k8s_min_memory_gb": settings.engine_k8s_min_memory_gb},
-            "engine": {
-                "current": settings.engine,
-                "wanted": settings.engine_wanted or None,
-                "available": engines_available(),
-                "switch_command": "sudo sudoo-install engine {engine}",
-            },
-            "checked_at": time.time(),
-        }
-        _cache = (time.monotonic(), result)
-        return json.loads(json.dumps(result))
+        if fresh or not _cache or time.monotonic() - _cache[0] >= CACHE_SECONDS:
+            _cache = (time.monotonic(), facts())
+        found: dict[str, Any] = json.loads(json.dumps(_cache[1]))
+    answers = {key: (needs or {}).get(key) for key in NEEDS}
+    figure = figures()
+    return {
+        **found,
+        "needs": answers,
+        "recommendation": recommend(found, answers, settings.engine_k8s_default),
+        "figures": {
+            key: figure[key]
+            for key in ("min_cpus", "min_memory_mb", "k3s_min_memory_mb", "odoo_room_memory_mb", "measured", "source")
+        },
+        "engine": {
+            "current": settings.engine,
+            "wanted": settings.engine_wanted or None,
+            "available": engines_available(),
+            "switch_command": "sudo sudoo-install engine {engine}",
+        },
+        "checked_at": time.time(),
+    }

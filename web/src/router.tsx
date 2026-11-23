@@ -7,7 +7,7 @@ import { createBrowserRouter } from "react-router";
 import type { Permission } from "./api/types";
 import { RequirePermission, RequireSession } from "./components/Session";
 import { Spinner } from "./components/app/basics";
-import { LoginPage } from "./pages/Login";
+import { GitHubReturnPage, LoginPage } from "./pages/Login";
 
 function page<M>(load: () => Promise<M>, pick: (module: M) => ComponentType, permission?: Permission) {
   return async () => {
@@ -33,6 +33,8 @@ const loading = (
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
+  // where GitHub sends the browser back after "Continue with GitHub" or linking a GitHub account (auth/github.py)
+  { path: "/login/github", element: <GitHubReturnPage /> },
   { path: "/invite", lazy: page(() => import("./pages/Invite"), (m) => m.InvitePage), hydrateFallbackElement: loading },
   // a project's public status page: read without signing in (status/pages.py)
   { path: "/status/:token", lazy: page(() => import("./pages/PublicStatus"), (m) => m.PublicStatusPage), hydrateFallbackElement: loading },

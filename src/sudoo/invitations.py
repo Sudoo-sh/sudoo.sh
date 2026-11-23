@@ -94,7 +94,9 @@ def password_allowed(mail_ready: bool) -> bool:
     return rule == "always" or (rule == "no_mail" and not mail_ready)
 
 
-def create(email: str, role: str, invited_by: str, first_name: str = "", last_name: str = "") -> tuple[str, Link]:
+def create(
+    email: str, role: str, invited_by: str, first_name: str = "", last_name: str = "", github_login: str = ""
+) -> tuple[str, Link]:
     """A new invitation; returns its id and its link. Raises ValueError saying why not."""
     email = email.strip()
     if role not in accounts.ROLES:
@@ -117,7 +119,11 @@ def create(email: str, role: str, invited_by: str, first_name: str = "", last_na
         {
             "email": email,
             "role": role,
-            **{key: value for key, value in (("first_name", first_name), ("last_name", last_name)) if value},
+            **{
+                key: value
+                for key, value in (("first_name", first_name), ("last_name", last_name), ("github_login", github_login))
+                if value
+            },
             "invited_by": invited_by,
             "created": now,
             "sent": now,
@@ -200,6 +206,22 @@ def use(token: str) -> Document | None:
     return used[0] if used else None
 
 
+def take(invitation_id: str) -> Document | None:
+    """Use an invitation up without its link, atomically: when its person signed in with GitHub and GitHub vouched
+    for the invited address or the GitHub login named in it (auth/github.py). Returns it, or None when it is gone or
+    expired."""
+    used: list[Document] = []
+
+    def apply(invitation: Document | None) -> Document | None:
+        if invitation is None or invitation.get("expires", 0) <= time.time():
+            return invitation
+        used.append(invitation)
+        return None
+
+    storage().change(INVITATIONS, invitation_id, apply)
+    return used[0] if used else None
+
+
 class SendLimit:
     """At most INVITATIONS_PER_HOUR invitations sent (new or again) per administrator in any hour."""
 
@@ -240,6 +262,7 @@ def resource_fields(invitation: Document) -> dict[str, Any]:
         "first_name": invitation.get("first_name"),
         "last_name": invitation.get("last_name"),
         "role": invitation.get("role"),
+        "github_login": invitation.get("github_login"),
         "invited_by": invitation.get("invited_by"),
         "sent_count": int(invitation.get("sent_count", 1)),
         "expired": invitation.get("expires", 0) <= time.time(),

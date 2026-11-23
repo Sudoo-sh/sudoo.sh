@@ -23,12 +23,14 @@ log = logging.getLogger(__name__)
 
 FIELD = "sign_in_email"  # the account's own choice: True, False, or absent (the server's default)
 
-METHODS = {
-    "": "Password",
-    "totp": "Password and authenticator app",
-    "email": "Password and e-mail code",
-    "recovery": "Password and recovery code",
-}
+FIRST = {"password": "Password", "email_code": "E-mail code", "github": "GitHub"}
+SECOND = {"totp": "authenticator app", "email": "e-mail code", "recovery": "recovery code"}
+
+
+def how(method: str = "", first: str = "password") -> str:
+    """'Password and authenticator app', 'GitHub', 'E-mail code and authenticator app', ..."""
+    second = SECOND.get(method)
+    return FIRST.get(first, "Password") + (f" and {second}" if second else "")
 
 
 def own_choice(account: Account) -> bool | None:
@@ -65,13 +67,13 @@ def _when(at: float) -> str:
     return f"{moment.strftime('%A %d %B %Y, %H:%M')} {settings.timezone}"
 
 
-def _send(username: str, address: str, origin: RequestInfo, method: str) -> None:
+def _send(username: str, address: str, origin: RequestInfo, method: str, first: str = "password") -> None:
     from sudoo.mail import send
     from sudoo.mail.catalog import details_block
     from sudoo.mail.render import panel_url
 
     when = _when(origin.at)
-    how = METHODS.get(method, "Password")
+    way = how(method, first)
     panel = panel_url()
     opt_out = (
         "You receive this e-mail at each sign-in. You can turn it off on your account page."
@@ -85,14 +87,14 @@ def _send(username: str, address: str, origin: RequestInfo, method: str) -> None
         time=when,
         ip=origin.ip,
         device=origin.browser,
-        method=how,
-        sign_in=details_block([("When", when), ("From", origin.ip), ("Device", origin.browser), ("How", how)]),
+        method=way,
+        sign_in=details_block([("When", when), ("From", origin.ip), ("Device", origin.browser), ("How", way)]),
         account_link=f"{panel}/account" if panel else "",
         opt_out=opt_out,
     )
 
 
-def send_later(username: str, account: Account, origin: RequestInfo, method: str = "") -> bool:
+def send_later(username: str, account: Account, origin: RequestInfo, method: str = "", first: str = "password") -> bool:
     """Send the e-mail in the background when it applies; True when it was started. Never raises."""
     try:
         from sudoo.mail import mailer
@@ -106,7 +108,7 @@ def send_later(username: str, account: Account, origin: RequestInfo, method: str
 
     def run() -> None:
         try:
-            _send(username, address, origin, method)
+            _send(username, address, origin, method, first)
         except Exception as error:  # noqa: BLE001 - a mail server that fails is reported, nothing else
             log.warning("sign-in e-mail to %s's address not sent: %r", username, error)
 

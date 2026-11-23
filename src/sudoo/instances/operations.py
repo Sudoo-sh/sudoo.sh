@@ -453,6 +453,9 @@ def delete(job: Job, name: str, without_backup: bool = False, no_backup: bool = 
     from sudoo.instances import custom_domains
 
     custom_domains.forget_instance(name)
+    from sudoo.instances import access_rules
+
+    access_rules.forget(name)  # a later instance of the same name starts without rules
     job.step("Removing the instance folder")
     shutil.rmtree(store.folder(name))
     STATE.remove(name)

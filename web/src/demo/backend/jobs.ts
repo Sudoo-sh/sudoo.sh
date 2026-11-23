@@ -15,6 +15,7 @@ export const reference = (job: Job): JobRef & { links: { self: string } } => ({
   action: job.action,
   status: job.status,
   progress_percent: job.progress_percent,
+  expected_steps: job.expected_steps ?? null,
   links: { self: `/api/v1/jobs/${job.id}` },
 });
 
@@ -64,6 +65,7 @@ export function startJob(plan: Plan): Job {
     kind: plan.kind,
     status: "queued",
     progress_percent: 0,
+    expected_steps: plan.steps.length,
     requested_by: session.user,
     started_at: iso(Date.now()),
     finished_at: null,

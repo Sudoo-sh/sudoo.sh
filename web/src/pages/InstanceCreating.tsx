@@ -94,7 +94,7 @@ export function CreatingInstance({ instance }: { instance: Instance }) {
           <p className="small muted">
             {queued ? t.queuedText : t.runningText}
           </p>
-          <JobSteps job={{ steps }} />
+          <JobSteps job={{ steps, expected_steps: job?.expected_steps ?? reference.expected_steps }} />
           {job?.notes.map((note, i) => (
             <Callout key={i} tone={note.level === "warning" ? "warning" : "info"}>
               {note.text}

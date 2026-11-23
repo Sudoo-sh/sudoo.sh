@@ -61,7 +61,8 @@ reset with **Use .env**.
 24. [Premium features](#premium-features)
 25. [Support access](#support-access)
 26. [Client portal](#client-portal)
-27. [Locations](#locations)
+27. [Maintenance windows](#maintenance-windows)
+28. [Locations](#locations)
 
 ---
 
@@ -270,10 +271,16 @@ reached.
 | `EMAIL_CODE_SENDS_PER_HOUR` | int | `10` | **live** | Sign-in codes by e-mail one address (IP) may ask for per hour (1 to 1000). Each account also gets at most one new code a minute. |
 | `GITHUB_SIGN_IN` | bool | `false` | **live** | Offer **Continue with GitHub** on the sign-in page. Needs the panel's GitHub App (**GitHub** page) with `https://<panel>/login/github` as a callback URL ([Admin guide](ADMIN_GUIDE.md#sign-in-with-github)). |
 | `GITHUB_SIGN_IN_ORGS` | str | empty | **live** | GitHub organisations, comma-separated, whose members may sign in with GitHub without an invitation; an account is created at their first sign-in. Empty: only people who have an account or an invitation. The App must be installed on these organisations. |
-| `GITHUB_SIGN_IN_ROLE` | `viewer`, `developer`, `maintainer`, `admin` | `developer` | **live** | The role of an account created for a member of `GITHUB_SIGN_IN_ORGS`. |
+| `GITHUB_SIGN_IN_ROLE` | `member`, `viewer`, `developer`, `maintainer`, `admin` | `member` | **live** | The panel role of an account created for a member of `GITHUB_SIGN_IN_ORGS`. `member` has no rights by itself: each project's role comes from GitHub or from the project's Access tab. |
 | `GITHUB_SIGN_IN_SKIPS_SECOND_FACTOR` | bool | `false` | **live** | Accept GitHub's own two-factor authentication in place of the panel's second factor, for people whose GitHub account has it on. Off: `REQUIRE_SECOND_FACTOR` applies after GitHub as after a password ([Security](SECURITY.md#sign-in-with-github-and-e-mail-codes)). |
-| `GITHUB_ACCESS_FROM_REPOSITORIES` | bool | `true` | **live** | With `GITHUB_SIGN_IN`: for accounts linked to GitHub (except super admins and administrators), a project's access follows their permission on its repository: admin gives admin, maintain gives maintainer, write gives developer, triage or read gives view, none hides the project. A grant to the person still wins. |
-| `GITHUB_ACCESS_CHECK_MINUTES` | int | `15` | **live** | How often those permissions are read from GitHub again (1 to 1440), besides at each sign-in. |
+| `GITHUB_ACCESS_FROM_REPOSITORIES` | bool | `true` | **live** | With `GITHUB_SIGN_IN`: for accounts linked to GitHub (except super admins and administrators), a project's role follows their permission on its repository: admin gives Admin, maintain Maintainer, write Developer, triage or read Tester, none hides the project. A grant to the person still wins. |
+| `GITHUB_ACCESS_CHECK_MINUTES` | int | `15` | **live** | How often those permissions, and the members of GitHub teams given a project role, are read from GitHub again (1 to 1440), besides at each sign-in. |
+| `PROJECT_ACCESS_MODEL` | `project_roles`, `legacy` | `project_roles` | **live** | The access model of new projects: project roles (Viewer, Tester, Developer, Maintainer, Admin, each with its rights per stage; [Admin guide](ADMIN_GUIDE.md#project-roles)) or `legacy` (the panel role limited by the project's grant, the same in every stage). Projects made before project roles existed keep `legacy` until an admin switches them on their **Access** tab. |
+| `ACCESS_EMAILS` | bool | `true` | **live** | E-mail people when they get access to a project, when their role there changes and when it ends (never twice for the same change). |
+| `ACCESS_REQUESTS` | bool | `true` | **live** | People may ask a project's admins for temporary access: a higher role in one stage, for a few hours, with a reason. |
+| `ACCESS_REQUEST_MAX_HOURS` | int | `8` | **live** | The longest temporary access that can be asked for (1 to 168 hours). |
+| `ACCESS_REVIEW` | bool | `true` | **live** | E-mail each project's admins, every `ACCESS_REVIEW_DAYS`, the list of who has access and why. |
+| `ACCESS_REVIEW_DAYS` | int | `30` | **live** | Days between two access reviews of a project (1 to 365). |
 | `MAILER` | str | `smtp` | **restart** | How the panel sends e-mail: `smtp` or `none`. |
 | `MAIL_FROM` | str | empty | **live** | Sender, for example `Sudoo.sh <no-reply@your-site.com>`; empty: `SMTP_USERNAME`. |
 | `SMTP_HOST` | str | empty | **live** | The mail server, for example `mail.your-site.com`. Empty: no e-mail, and no e-mail codes. |
@@ -397,6 +404,24 @@ seconds. Set them in the panel's `.env` or in the panel, as always.
 | `GATEWAY_MAX_CONNECTIONS` | int | `1000` | `.env` only | Visitors' connections open at once to one instance's gateway. A new one beyond it is answered `503 Service Unavailable` (`Retry-After: 5`) and closed. A browser tab of Odoo uses up to about 7. |
 | `GATEWAY_MAX_CONNECTIONS_TOTAL` | int | `4000` | `.env` only | Visitors' connections open at once to all gateways together; beyond it, the same `503`. Each one can use two of the panel's open files (the visitor's and the one to Odoo): keep this well below the open-files limit of the process that runs the gateways (`ulimit -n` in the `sudoo-gateway` container, or `sudoo-panel` with `GATEWAY_MODE=embedded`). |
 
+### Production access rules (beta)
+
+Who may open a production instance, by country and by address, applied by the gateway
+([User Manual](USER_MANUAL.md#production-access-rules-beta), [Administrator Guide](ADMIN_GUIDE.md#31-production-access-rules-beta),
+[Security](SECURITY.md#21-production-access-rules-beta)). The rules themselves are set per instance, in its **Settings**
+tab; these settings are for the whole panel. The gateway service gets them through `routes.json`, like the settings
+above.
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `ACCESS_RULES_BETA` | bool | `false` | **live** | Shows the feature (a **Beta** badge marks it) and lets the rules apply. Off: the feature is hidden, no rule applies and no country database is downloaded; rules already set are kept for when it is switched on again. |
+| `ACCESS_RULES_GEO_MISSING` | text | `open` | **live** | What a country rule does while the country database is missing: `open` lets the country part of the rule pass (the panel shows a warning on every instance with country rules), `closed` lets nobody in by country (address rules, exceptions and the panel's passes still work). |
+| `ACCESS_RULES_GEO_DOWNLOAD` | bool | `true` | **live** | Download the DB-IP Lite country database once a month (only while `ACCESS_RULES_BETA` is on). Off: nothing is downloaded, and a table already there keeps being used ([Administrator Guide](ADMIN_GUIDE.md#31-production-access-rules-beta)). |
+| `ACCESS_RULES_GEO_URL` | text | `https://download.db-ip.com/free/dbip-country-lite-{year}-{month}.csv.gz` | **live** | Where the monthly country database comes from; `{year}` and `{month}` are filled in. Must be `https://`. A DB-IP country CSV file (start address, end address, country code), compressed with gzip or not. |
+| `ACCESS_RULES_PASS_HOURS` | float | `8` | **live** | How long the pass given when someone opens a production instance from the panel (**Open Odoo**, **Connect as**) lets their browser through the rules, in hours (up to 24). Saving new rules ends every pass given before. |
+| `ACCESS_RULES_SHOW_IP` | bool | `false` | **live** | Show visitors their full address on the blocked page. Their country and a reference are always shown. |
+| `ACCESS_RULES_CONTACT` | text | (empty) | **live** | The "contact the administrator" line of the blocked page, up to 300 characters. Empty: made from `ADMIN_CONTACT_NAME`, `ADMIN_CONTACT_PHONE` and `ADMIN_CONTACT_EMAIL`, in the visitor's language. |
+
 ---
 
 ## Custom domains
@@ -503,6 +528,14 @@ project sets its own.
 | `PROJECT_PR_PREVIEWS` | bool | `false` | **live** | Pull requests get a development instance of their branch (a preview), linked from a comment on the pull request and deleted, without a backup, when it is closed or merged. Each project can change it. See [Pull-request previews](ADMIN_GUIDE.md#pull-request-previews). |
 | `PROJECT_PR_PREVIEW_LIMIT` | int | `3` | **live** | Previews one project may have at the same time; one more pull request then gets no preview (listed with the reason) until one is closed. 0 to 50; 0: no limit (`MAX_INSTANCES`, the running limit and the plan still apply). Each project can change it. |
 | `PROJECT_PR_PREVIEWS_FORKS` | bool | `false` | **live** | Pull requests from forks get previews too. Off by default: a fork's code is written by people outside your repository and runs on your server. Each project can change it. |
+| `PROJECT_GUARD_CHECKS` | bool | `false` | **live** | The repository guard's CI checks start turned on in a project that has not chosen yet; nothing reaches GitHub until a project Admin saves them. Each project can change it. See [Repository guard](ADMIN_GUIDE.md#repository-guard). |
+| `PROJECT_GUARD_STRICTNESS` | text | `standard` | **live** | How strict the repository guard's checks are by default: `relaxed` (errors that break things), `standard` (and the usual Odoo conventions) or `strict` (every rule). Each project can change it. See [Repository guard](ADMIN_GUIDE.md#repository-guard). |
+| `PROJECT_GUARD_PRODUCTION_APPROVALS` | int | `1` | **live** | Approvals a pull request into a production branch needs, in the branch rules the repository guard sets on GitHub. 0 to 10. Each project can change it. See [Repository guard](ADMIN_GUIDE.md#repository-guard). |
+| `PROJECT_GUARD_STAGING_APPROVALS` | int | `0` | **live** | Approvals a pull request into a staging branch needs, in the repository guard's branch rules. 0 to 10. Each project can change it. See [Repository guard](ADMIN_GUIDE.md#repository-guard). |
+| `PROJECT_GUARD_LINEAR_HISTORY` | bool | `false` | **live** | The repository guard's production branch rules require a linear history (no merge commits). Each project can change it. See [Repository guard](ADMIN_GUIDE.md#repository-guard). |
+| `PROJECT_GUARD_SIGNED_COMMITS` | bool | `false` | **live** | The repository guard's production branch rules require signed commits. Each project can change it. See [Repository guard](ADMIN_GUIDE.md#repository-guard). |
+| `PROJECT_GUARD_PUSHERS` | text | `roles` | **live** | Who may push or merge to production in the repository guard's branch rules: `roles` (GitHub's Admin and Maintain roles, the counterparts of the project's Admin and Maintainer levels) or `anyone` with write access. Each project can change it, and name teams or people instead. See [Repository guard](ADMIN_GUIDE.md#repository-guard). |
+| `PROJECT_GUARD_BLOCKS_PROMOTION` | bool | `false` | **live** | Failing CI checks of the repository guard stop a promotion to production (a red item of the pre-promotion checklist); off: they are shown in amber. Each project can change it. See [Repository guard](ADMIN_GUIDE.md#repository-guard). |
 
 ## Database upgrades
 
@@ -745,6 +778,9 @@ How the panel talks to the Sudoo.sh hub, which lists plugins, sells paid ones an
 | Setting | Type | Default | Applies | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `MARKETPLACE` | bool | `off` | **live** | Off by default until the marketplace opens. `on`: register with the hub, send a signed heartbeat every 15 minutes (version, core hash, fingerprint, installed plugins and coarse server figures) and install plugins from the Plugins page. `off`: the panel never contacts the hub; installed free plugins keep working, paid ones stop at their `run_until` (the last lease's end plus 96 hours, about 7 days). |
+| `SHARE_TOPOLOGY_WITH_SUDOO` | bool | `off` | **live** | Share this panel's topology with Sudoo.sh for its staff's live infrastructure view: servers, projects and instances with their parts (gateway, Odoo, PostgreSQL), statuses, replicas, CPU and memory, request and error rates. Pseudonymous ids, no names unless `TOPOLOGY_INCLUDE_NAMES`, no customer data. Needs `MARKETPLACE`. Switching it off deletes what the hub kept. See [Sharing the topology](MARKETPLACE.md#13-sharing-the-topology). |
+| `TOPOLOGY_INCLUDE_NAMES` | bool | `off` | **live** | With `SHARE_TOPOLOGY_WITH_SUDOO`: send the real names of servers, projects and instances too. Off: short pseudonyms only. |
+| `TOPOLOGY_INTERVAL_SECONDS` | int | `30` | **live** | Seconds between two topology snapshots (30 to 300); the hub may ask for a longer interval. |
 | `HUB_URL` | text | `https://hub.sudoo.sh` | `.env` only | The hub's address: `https://` (`http://` only for `localhost` while testing). The panel registers with each hub it is pointed at. |
 | `PUBLIC_IPV4` | text | empty | **live** | The server's public IPv4 address, sent with the heartbeat so Sudoo.sh can point managed subdomains at it. Empty: the address the server sends from, when it is a public one (behind NAT, set it). On another server of a panel with several servers, set in that server's own `.env`: its agent reports it to the main panel, which asks Sudoo.sh to point the names of that server's instances there (the main panel's value is never passed to agents). |
 | `PUBLIC_IPV6` | text | empty | **live** | The same for IPv6. |
@@ -802,6 +838,29 @@ how it works: [Admin guide, Client portal](ADMIN_GUIDE.md#30-client-portal), [Us
 | `CLIENT_REQUEST_EXPIRE_HOURS` | int | `72` | **live** | Hours after which a request the client did not answer lapses. |
 | `CLIENT_CONFIRMATIONS` | bool | `true` | **live** | Clients confirm every major change in the portal (opening or closing, locks, emergency access, approving a request, the people they let in) with a one-time link or a 6-digit code sent to their e-mail; the change waits until then. Needs e-mail to be set up. `false`: changes happen at once. |
 | `CLIENT_CONFIRM_MINUTES` | int | `15` | **live** | Minutes a confirmation link or code works (5 to 60). |
+
+---
+
+## Maintenance windows
+
+Maintenance Sudoo.sh plans on your panel (an update to a new panel version, new Odoo images, a restart, other work on
+the server), and when it runs. Settings page, **Maintenance**; how it works:
+[Admin guide, Maintenance windows](ADMIN_GUIDE.md#32-maintenance-windows). Times are in `TIMEZONE`.
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `MAINTENANCE_DEFAULT_WINDOW` | text | `01:00-05:00` | **live** | The default maintenance window, `HH:MM-HH:MM` (it may cross midnight). Maintenance nobody chose a time for runs at the start of the first one that fits before its deadline. |
+| `MAINTENANCE_DEFAULT_DAYS` | text | `mon,tue,wed,thu,fri,sat,sun` | **live** | The days the default window opens, comma-separated. |
+| `MAINTENANCE_TONIGHT_TIME` | text | `02:00` | **live** | When the **Tonight** and **This weekend** choices start (`HH:MM`). |
+| `MAINTENANCE_WEEKEND_DAY` | text | `sat` | **live** | The day **This weekend** falls on: `mon` ... `sun`. |
+| `MAINTENANCE_CHOOSE_HOURS` | int | `48` | **live** | Hours after maintenance arrives during which someone may choose its time; then the default window applies. |
+| `MAINTENANCE_CUTOFF_HOURS` | int | `12` | **live** | The default window also applies this many hours before the deadline, when nobody chose earlier. |
+| `MAINTENANCE_LEAD_MINUTES` | int | `30` | **live** | The soonest a chosen window may start, in minutes from now. |
+| `MAINTENANCE_REMINDER_HOURS` | text | `24,1` | **live** | Reminders by e-mail before maintenance starts, in hours, comma-separated (at most 6). Empty: no reminders. |
+| `MAINTENANCE_REMIND_CLIENTS` | bool | `true` | **live** | Clients of the projects a maintenance works on get its e-mails too: planned, reminders, result. |
+| `MAINTENANCE_CLIENT_CHOICE` | bool | `false` | **live** | Clients may choose the time of maintenance that works on their projects, in the client portal (confirmed by e-mail when `CLIENT_CONFIRMATIONS` is on). |
+| `MAINTENANCE_BACKUP_FIRST` | bool | `true` | **live** | Back up production and staging instances before maintenance updates their images. |
+| `MAINTENANCE_UPDATE_WAIT_HOURS` | number | `6` | **live** | How long a planned panel update waits for the new version to be installed (`sudoo-install update`) before it counts as failed. |
 
 ---
 

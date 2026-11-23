@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Sparkline } from "./charts/Sparkline";
-import { AnimatedNumber, Skeleton } from "./app/basics";
+import { Skeleton } from "./app/basics";
+import { AnimatedNumber } from "./app/motion";
 
 /** A figure with its label, a line of how it moved over the last hour, and what it compares to. */
 export function StatCard({
@@ -27,10 +28,9 @@ export function StatCard({
           <Skeleton height={32} width={72} />
         ) : value === null ? (
           "—"
-        ) : decimals ? (
-          value.toFixed(decimals)
         ) : (
-          <AnimatedNumber value={value} />
+          // counts up from 0 when the figure first arrives, then glides to each new value
+          <AnimatedNumber value={value} from={0} format={(n) => n.toFixed(decimals)} />
         )}
         {value != null && unit && <small>{unit}</small>}
       </span>

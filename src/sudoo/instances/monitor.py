@@ -190,7 +190,12 @@ def _host_memory() -> tuple[int, int]:
     return info["MemTotal"], info["MemTotal"] - info["MemAvailable"]
 
 
-PANEL_CONTAINERS = {"backend": "sudoo-panel", "web": "sudoo-web", "gateway": "sudoo-gateway"}  # compose.yaml's
+PANEL_CONTAINERS = {  # compose.yaml's
+    "backend": "sudoo-panel",
+    "web": "sudoo-web",
+    "gateway": "sudoo-gateway",
+    "mail": "sudoo-mail",
+}
 
 
 def _own_memory() -> int:

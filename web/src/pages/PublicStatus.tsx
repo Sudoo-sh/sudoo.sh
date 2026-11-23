@@ -10,6 +10,7 @@ import { LanguageSwitch } from "@/components/LanguageSwitch";
 import { dayTone, uptimeText } from "@/components/ProjectStatus";
 import { Mark } from "@/components/app/Brand";
 import { Callout, Skeleton } from "@/components/app/basics";
+import { PublicMaintenanceNotice } from "@/components/Maintenance";
 import { useT } from "@/i18n";
 import words from "@/i18n/status";
 import { ago, day as dayText } from "@/lib/format";
@@ -50,6 +51,7 @@ export function PublicStatusPage() {
           </section>
         ) : (
           <>
+            <PublicMaintenanceNotice items={data.maintenance ?? []} />
             <section className="status-banner card" data-state={data.state} aria-live="polite">
               <span className="status-banner-icon" aria-hidden="true">{icon}</span>
               <div className="spacer">

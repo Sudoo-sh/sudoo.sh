@@ -69,7 +69,8 @@ data; it shares one folder with the backend, `<ODOO_ROOT>/gateway` (root only):
 
 | File | Written by | What it is |
 | :--- | :--- | :--- |
-| `routes.json` | backend | Every instance's gateway and Odoo port and whether it is switched off, the address to listen on, the visitor-address header the exposure trusts, the gateway settings (also those changed in the panel), the names answered on ports 80 and 443 and, with `EXPOSURE=direct`, the panel's name, the server's own addresses and the web service's port. |
+| `routes.json` | backend | Every instance's gateway and Odoo port and whether it is switched off, the address to listen on, the visitor-address header the exposure trusts, the gateway settings (also those changed in the panel), the names answered on ports 80 and 443 and, with `EXPOSURE=direct`, the panel's name, the server's own addresses and the web service's port; the production access rules (beta) and the key of the panel's passes. |
+| `geo/` | backend | The country database of the access rules (`country.bin` and its manifest with a SHA-256, `country.json`), replaced atomically once a month (`instances/geoip.py`). |
 | `visits.json` | gateway | The last visit of every instance; the backend takes newer ones into the instance state (automatic pause, daily backups). |
 | `gateway.sock` | gateway | Control channel: `POST /sync` makes the gateway read `routes.json` and reconcile its listeners now, and answers with them, their errors and the requests counted since the last call (the backend adds them to the metrics); `GET /healthz` for the health check. |
 | `panel.sock` | backend | `POST /wake/<name>`: the gateway asks the backend to start a paused instance. |

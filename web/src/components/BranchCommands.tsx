@@ -70,7 +70,7 @@ export function BranchCommands({
   project: ProjectDetail;
   branch: ProjectBranch;
   instance: Instance | undefined;
-  can: (permission: "instances.shell" | "instances.update" | "instances.delete") => boolean;
+  can: (permission: "instances.shell" | "instances.database_shell" | "instances.update" | "instances.delete") => boolean;
   /** the instance's Shell tab in this branch */
   shellLink: string | null;
   onDialog: (dialog: BranchDialog) => void;
@@ -114,8 +114,8 @@ export function BranchCommands({
     <Button asChild size="sm"><Link to={shellLink} viewTransition><SquareTerminal /> {t.webShell}</Link></Button>
   );
 
-  // SSH and SQL need an instance
-  const visible = TABS.filter((name) => instance || (name !== "ssh" && name !== "sql"));
+  // SSH and SQL need an instance, and the rights for its stage (project roles: never production's for a developer)
+  const visible = TABS.filter((name) => (name !== "ssh" || (instance && can("instances.shell"))) && (name !== "sql" || (instance && can("instances.database_shell"))));
   const shown = visible.includes(tab) ? tab : "clone";
   // each tab: a line saying what its command does, what it asks for, the command, and the panel's own action
   let text: string | null = null;

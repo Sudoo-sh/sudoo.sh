@@ -5,6 +5,7 @@ import type { BranchCompare, CheckItem, ModuleChanges, Preview, PromotionCheck, 
 import { branchList, membersOf, productionInstance, type DemoProject } from "./projects";
 import { backups, commitsOf, setting } from "./state";
 import { DAY, HOUR, iso, MINUTE, OPENED } from "./util";
+import { promotionItem as guardItem } from "./repo-guard";
 
 const series = (version: string) => /^(\d+\.\d+)/.exec(version)?.[1] ?? version;
 
@@ -41,6 +42,7 @@ export function promotionCheck(project: DemoProject, branch: string, merge = fal
       text: `The latest build of ${branch} succeeded and its tests passed.`,
       build: { id: "demo-build", status: "success", at: iso(OPENED - 2 * HOUR), commit: commit ? { sha: commit.sha.slice(0, 7), subject: commit.subject } : null, tests: { status: "success", tests: 148, failed: 0 } },
     },
+    ...[guardItem(project, commit?.sha)].filter((item): item is NonNullable<typeof item> => item !== null),
     production
       ? age === null || (hours && age > hours)
         ? { key: "backup", status: "warning", instance: production.name, max_hours: hours, backup: newest ? { file: newest.file, created: newest.created } : null,

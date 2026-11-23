@@ -1,0 +1,33 @@
+# Managed by Sudoo.sh (repository guard).
+# The same checks as .github/workflows/sudoo-checks.yml, before each commit. Once per clone:
+#   pip install pre-commit && pre-commit install
+# docs/CHECKS.md explains each check.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-xml
+
+  - repo: https://github.com/PyCQA/flake8
+    rev: 1c7fec1973ed3a7c192dbe1e96906fbbd1dbe49e  # frozen: 7.5.0
+    hooks:
+      - id: flake8
+        args: [--max-line-length=120, --select=E,W,F,C90, '--extend-ignore=E501,W503']
+
+  - repo: https://github.com/OCA/pylint-odoo
+    rev: 30224d0a2ae20645b197776358a734d81197aafc  # frozen: v10.0.12
+    hooks:
+      - id: pylint_odoo
+        args: [--load-plugins=pylint_odoo, --disable=all, --enable=sql-injection,invalid-commit,method-required-super,no-write-in-compute,external-request-timeout,resource-not-exist,manifest-data-duplicated,license-allowed,manifest-required-author,manifest-required-key,manifest-version-format,attribute-deprecated,method-compute,method-inverse,method-search,context-overridden,missing-return,print-used,test-folder-imported,translation-required,translation-field,translation-positional-used,translation-not-lazy,manifest-deprecated-key,development-status-allowed,missing-readme,consider-merging-classes-inherited,prefer-env-translation,deprecated-odoo-model-method, --valid-odoo-versions=18.0, --score=n]
+
+  - repo: local
+    hooks:
+      - id: sudoo-addons
+        name: Odoo manifests, XML and CSV
+        entry: python3 .github/sudoo/check_addons.py --series 18.0 --strictness strict --manifests --xml-csv
+        language: system
+        pass_filenames: false
+        files: (__manifest__\.py|\.xml|\.csv)$

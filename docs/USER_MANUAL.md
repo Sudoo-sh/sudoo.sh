@@ -430,6 +430,57 @@ or the addresses), and tick the events you want. Saved addresses and tokens are 
 characters; type a new one to replace it. A webhook's signing secret is shown once, when it is made: copy it then.
 **Send test** sends a test at once; each channel says how its last delivery went.
 
+### Repository guard
+
+**Repository guard** (a card of the project's **Settings** tab) adds CI checks and pre-commit hooks to the project's
+GitHub repository, shows their results in the panel, and sets branch rules on GitHub. Everything is off until you turn
+it on, and every part can be turned off again. Everyone who sees the project sees the card; only the project's
+**Admins** (and super admins) can change it.
+
+**GitHub App permissions.** The guard works through the panel's GitHub App and needs more than reading code. The card
+lists what is missing and why: **Contents**, **Pull requests** and **Workflows: Read and write** for the checks'
+pull request, **Checks: Read** for the results, **Administration: Read and write** for branch rules. **Open the app's
+permissions** takes you to the app's settings on GitHub; after you save, an owner of the account accepts the new
+permissions with **Accept on the installation**. Reload the page afterwards. The guard never asks for them before
+you use it.
+
+**CI checks.**
+
+1. Turn on **Run CI checks on this repository** and choose the checks: **Lint Python code** (ruff or flake8),
+   **pylint-odoo** (the Odoo community's rules), **Manifests** (required keys, a licence Odoo knows, a version that
+   starts with the branch's Odoo series), **XML and CSV files are valid**, and optionally **Run the modules' tests in
+   Odoo's official image** (slower: each run installs the modules in a new PostgreSQL database).
+2. Choose the **Strictness**: **Relaxed** (errors that break things only), **Standard** or **Strict** (every rule).
+3. **Preview changes** shows each file the pull request would add, change or remove, with its content. Nothing changes.
+4. **Save and open a pull request**. The panel commits the files to its own branch, `sudoo/repository-guard`, and opens
+   a pull request into the default branch. The card shows its link and state (**Open**, **Merged**, **Closed**);
+   **Read its state again** asks GitHub. Saving again while it is open updates the same pull request.
+
+The pull request adds `.github/workflows/sudoo-checks.yml`, `.github/sudoo/check_addons.py`, `.pre-commit-config.yaml`
+and `docs/CHECKS.md`. Nothing runs until someone merges it, through your repository's own reviews. A file the
+repository already has, written by someone else, is left alone (the preview says **Left alone**). Turning a check
+off, or turning the checks off, opens a pull request that updates or removes the panel's files only.
+
+**Results in the panel.** Once the checks run, each build in **Builds** and in a branch's **History** shows a
+**Checks** badge (**Checks passed**, **1 check failed**, **Checks running**); it opens the commit's checks on GitHub.
+The pre-promotion checklist gets a **CI checks on GitHub** item. Turn on **Failing checks stop a promotion to
+production** to make a failing check a red item (off by default: it is then amber).
+
+**Branch rules on GitHub.**
+
+1. Choose what protects **Production**: **Approvals required** (1 by default), **The check sudoo-checks must pass**,
+   **Linear history**, **Signed commits**. Force-pushes and deleting the branch are always blocked. **Staging** has
+   the same choices with lighter defaults (no approval required).
+2. Choose **Who may push or merge to production**: **Admins and Maintainers** (GitHub's Admin and Maintain roles),
+   **Named teams and people**, or **Anyone with write access**.
+3. **Preview the rules** shows each rule now and after, side by side, and the rules on GitHub the panel did not make
+   (they are never changed). When GitHub's plan does not allow branch rules (private repositories on GitHub Free),
+   the preview says so.
+4. Type the repository's name (for example `acme/erp`) and click **Apply on GitHub**.
+
+**Turn off the rules** removes only the rules the panel made. See [Repository guard](ADMIN_GUIDE.md#repository-guard)
+for how it works and what each permission is for.
+
 ---
 
 ## 3. The Instances page

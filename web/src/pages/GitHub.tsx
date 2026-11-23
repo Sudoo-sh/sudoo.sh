@@ -35,6 +35,7 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
   const [kind, setKind] = useState<"personal" | "organization" | null>(null);
   const [organization, setOrganization] = useState("");
   const [createRepositories, setCreateRepositories] = useState(false);
+  const [repositoryGuard, setRepositoryGuard] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const t = useT(words).connect;
   const c = useT(common).common;
@@ -44,6 +45,7 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
       const made = await api.post<{ action: string; manifest: unknown }>("/github/app/manifest", {
         organization: kind === "organization" ? organization.trim() : "",
         create_repositories: kind === "organization" && createRepositories,
+        repository_guard: repositoryGuard,
       });
       postToGitHub(made.action, made.manifest);
     } catch (error) {
@@ -89,6 +91,12 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
           <div className="stack-xs">
             <Switch checked={createRepositories} onChange={setCreateRepositories} label={t.createRepositories} />
             <span className="xsmall faint">{t.createRepositoriesText}</span>
+          </div>
+        )}
+        {kind && (
+          <div className="stack-xs">
+            <Switch checked={repositoryGuard} onChange={setRepositoryGuard} label={t.repositoryGuard} />
+            <span className="xsmall faint">{t.repositoryGuardText}</span>
           </div>
         )}
         <p className="small muted">

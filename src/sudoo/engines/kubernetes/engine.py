@@ -175,7 +175,8 @@ class KubernetesEngine(Engine):
         conf_text = store.config_file(name).read_text()
         limits = resources.effective(name)
         ns = manifests.namespace_of(name)
-        replicas = self._replicas(client, ns)
+        # what runs now, so applying starts and stops nothing (a new namespace: nothing, and no rights there yet)
+        replicas = self._replicas(client, ns) if client.get("Namespace", ns) else {"odoo": 0, "db": 0}
         ports = [int(env["ODOO_PORT"])]
         if env.get("ODOO_WORKERS", "0") not in ("", "0") and env.get("ODOO_GEVENT_PORT", "").isdigit():
             ports.append(int(env["ODOO_GEVENT_PORT"]))
@@ -230,7 +231,8 @@ class KubernetesEngine(Engine):
         if read_record(name).get("addons") == fingerprint:
             return
         job.write("Copying the code into the add-ons volume\n")
-        script = 'find "$1" -mindepth 1 -delete && tar -x -C "$1"'
+        # the volume's own folder belongs to root: its mode and time stay as they are (-m, --no-overwrite-dir)
+        script = 'find "$1" -mindepth 1 -delete && tar -x -m --no-overwrite-dir -C "$1"'
         tar = ["tar", "-C", str(addons), "--exclude=.git", "-cf", "-", "."]
         with subprocess.Popen(tar, stdout=subprocess.PIPE) as producer:
             command = [*CLI, "run", name, "--", "sh", "-c", script, "sh", manifests.ADDONS_MOUNT]
@@ -316,7 +318,15 @@ class KubernetesEngine(Engine):
     # ------------------------------------------------------------ commands
 
     def exec_cmd(self, name: str, service: str, *args: str, stdin: bool = False) -> list[str]:
-        return [*CLI, "exec", name, service, *(["--stdin"] if stdin else []), "--", *args]
+        return [
+            *CLI,
+            "exec",
+            *(["--stdin"] if stdin else []),
+            name,
+            service,
+            "--",
+            *args,
+        ]  # options first: the rest is argv
 
     def odoo_cmd(self, name: str, *args: str) -> list[str]:
         return [*CLI, "run", name, "--", "odoo", *args]

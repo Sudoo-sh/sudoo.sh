@@ -98,7 +98,12 @@ async def run(
             elif channel == STDERR:
                 stderr(data)
             elif channel == ERROR and data:
-                code = exit_code(json.loads(data))
+                status = json.loads(data)
+                code = exit_code(status)
+                if code and not any(
+                    c.get("reason") == "ExitCode" for c in (status.get("details") or {}).get("causes") or []
+                ):
+                    stderr(f"{status.get('message') or 'exec failed'}\n".encode())  # the API's own failure
     finally:
         if feeder is not None:
             feeder.cancel()
@@ -106,7 +111,10 @@ async def run(
                 await feeder
         await socket.close()
         await session.close()
-    return 1 if code is None else code
+    if code is None:
+        stderr(b"the exec stream ended without the command's exit status\n")
+        return 1
+    return code
 
 
 class Session:

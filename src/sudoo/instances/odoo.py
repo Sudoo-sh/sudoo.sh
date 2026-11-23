@@ -380,6 +380,18 @@ def host(env: Mapping[str, str]) -> str:
     return engines.named(engines.kind_of(env)).odoo_host(env)
 
 
+def host_option(env: Mapping[str, str]) -> dict[str, str]:
+    """{"host": ...} for an instance whose Odoo is not on 127.0.0.1 (Kubernetes), else {}: responds() and
+    wait_until_ready() keep their Docker-only call where nothing else is needed."""
+    found = host(env)
+    return {} if found == "127.0.0.1" else {"host": found}
+
+
+def answers(env: Mapping[str, str], timeout: float = 2) -> bool:
+    """Whether the instance's Odoo answers HTTP now, wherever it runs."""
+    return responds(env["ODOO_PORT"], timeout, **host_option(env))
+
+
 def responds(port: int | str, timeout: float = 2, host: str = "127.0.0.1") -> bool:
     """True when Odoo answers HTTP on <host>:<port> (any status code means it is up); the host is 127.0.0.1 for
     Docker, the Service's cluster address for Kubernetes (gateway.odoo_host)."""

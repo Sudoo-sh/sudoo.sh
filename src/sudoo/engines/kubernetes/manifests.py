@@ -89,7 +89,7 @@ def container_resources(service: str, limits: Mapping[str, Any], requested: str)
             found["limits"]["memory"] = memory
             from sudoo.instances.resources import memory_bytes
 
-            if memory_bytes(requested) > int(memory):
+            if memory_bytes(requested.removesuffix("i")) > int(memory):  # "256Mi" in Docker units: "256M"
                 found["requests"]["memory"] = memory
         if cpus:
             found["limits"]["cpu"] = f"{int(cpus * 1000)}m"

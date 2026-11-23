@@ -646,6 +646,7 @@ route("GET", "/instance-plan", ({ query }) => {
     stage_defaults: { development: DEFAULTS("development"), staging: DEFAULTS("staging"), production: DEFAULTS("production") },
     production: productionInfo(),
     ...(fleet.choices() ? { servers: fleet.choices() } : {}),
+    engines: ["docker", "kubernetes"],
   });
 });
 route("GET", "/instance-quota", () => {
@@ -1278,6 +1279,32 @@ function managedSubdomains() {
   };
 }
 route("GET", "/server/managed-subdomains", () => ok(managedSubdomains()));
+
+// the Kubernetes engine (beta): a small k3s cluster of two nodes (src/sudoo/web/v1/kubernetes.py)
+const GIB = 1024 ** 3;
+function kubernetes() {
+  const node = (name: string, roles: string[], address: string, cpuUsed: number, memoryUsed: number) => ({
+    name, roles, ready: true, schedulable: true, version: "v1.36.6+k3s1", address, cpu: 8, memory_bytes: 16 * GIB,
+    cpu_used: cpuUsed, memory_used_bytes: memoryUsed, created: new Date(Date.now() - 40 * 86400_000).toISOString(),
+  });
+  return {
+    enabled: true, engines: ["docker", "kubernetes"], reachable: true, problem: null, join: { url_set: true, minutes: 60 },
+    nodes: [node("k3s-server-1", ["control-plane"], "10.0.0.2", 1.4, 6.2 * GIB), node("k3s-agent-1", ["agent"], "10.0.0.3", 0.8, 3.9 * GIB)],
+  };
+}
+route("GET", "/kubernetes", () => {
+  need("settings.manage");
+  return ok(kubernetes());
+});
+route("POST", "/kubernetes/join-command", () => {
+  need("settings.manage");
+  needPremium("servers");
+  const token = "K10" + "5e3a".repeat(16) + "::demo01.0123456789abcdef";
+  return ok({
+    command: `curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION='v1.36.6+k3s1' K3S_URL='https://203.0.113.24:6443' K3S_TOKEN='${token}' sh -s - agent`,
+    expires: Math.round(Date.now() / 1000) + 3600, version: "v1.36.6+k3s1",
+  });
+});
 route("POST", "/server/managed-subdomains/sync", () => {
   need("settings.manage");
   return ok(managedSubdomains());

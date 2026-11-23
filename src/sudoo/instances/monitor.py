@@ -272,7 +272,7 @@ def collect() -> None:
         STATUS[name] = {
             "running": running,
             "db_running": db_running,
-            "healthy": running and odoo.responds(env["ODOO_PORT"], host=odoo.host(env)),
+            "healthy": running and odoo.answers(env),
             "uptime": uptime,
             "cpu": round(cpu, 2),
             "memory": memory,

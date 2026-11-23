@@ -72,7 +72,7 @@ def _paused(name: str) -> bool:
 def _wait_until_ready(job: Job, name: str, strict: bool = False) -> None:
     """Wait until Odoo answers. When it does not in time: a warning, or with `strict` a failed step."""
     env = store.read_env(name)
-    if odoo.wait_until_ready(env["ODOO_PORT"], host=odoo.host(env)):
+    if odoo.wait_until_ready(env["ODOO_PORT"], **odoo.host_option(env)):
         monitor.mark_running(name)
     elif strict:
         raise JobError("Odoo did not answer after it was started")

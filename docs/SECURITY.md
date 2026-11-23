@@ -27,6 +27,7 @@
 18. [Servers](#18-servers)
 19. [Code profiler](#19-code-profiler)
 20. [Client portal](#20-client-portal)
+21. [Kubernetes engine (beta)](#21-kubernetes-engine-beta)
 
 ---
 
@@ -950,3 +951,25 @@ Clients of the panel's owner, and the switch each client owns for its projects (
 administrators: whoever has root on the server or access to its Docker socket can reach the containers, databases
 and files directly, or reset a client's password with `sudoo.sh reset-password`, without the panel seeing it. A
 client that needs stronger isolation runs its projects on a server of its own.
+
+---
+
+## 21. Kubernetes engine (beta)
+
+With the Docker engine the panel holds the Docker socket, which is root on the server. With the Kubernetes engine
+([Kubernetes engine](KUBERNETES_ENGINE.md#6-the-panels-access-to-the-cluster)) it holds a ServiceAccount token
+(`sudoo-system/sudoo-panel`) instead, written by `scripts/install-k3s.sh` into a kubeconfig of mode 600:
+
+| What | How it is limited |
+| :--- | :--- |
+| The panel's rights | ClusterRole `sudoo-panel`: namespaces, reading nodes and node metrics, RoleBindings, and `bind` of the ClusterRole `sudoo-instance` only. Inside each of its namespaces, a RoleBinding to `sudoo-instance` (pods with exec and logs, Deployments, StatefulSets, Jobs, Services, ConfigMaps, Secrets, volumes, NetworkPolicies, quotas). In `kube-system`: creating Secrets only, never reading them. |
+| Names | The ValidatingAdmissionPolicy `sudoo-panel-scope` refuses every change of the panel's ServiceAccount to a namespace not named `sudoo-<instance>` (or without `app.kubernetes.io/managed-by=sudoo`, or without Pod Security `enforce=restricted`), a RoleBinding outside those namespaces or to another role, and any Secret in `kube-system` that is not a k3s join token with an expiry. |
+| Pods | Pod Security `restricted` on every instance namespace (and by default on the cluster): non-root, no privilege escalation, every capability dropped, `RuntimeDefault` seccomp, no host paths, ports, network or processes. No pod gets a ServiceAccount token. Root shells are refused. |
+| Network | Each instance namespace denies everything by default; Odoo reaches only its own PostgreSQL (5432) and DNS, PostgreSQL accepts only its own Odoo pods, Odoo accepts only the nodes' addresses (the gateway). Odoo has no internet access, so it sends no e-mail. |
+| Secrets | `odoo.conf` and the database password are Secrets, encrypted at rest (`--secrets-encryption`); the API's audit log (`/var/log/k3s/audit.log`) records who changed what, without Secrets' contents. |
+| Join tokens | Made on request (`settings.manage`, the premium package "servers"), valid `KUBERNETES_JOIN_TOKEN_MINUTES`, shown once, never stored by the panel; the CA hash in them makes a new node refuse any other server. |
+
+**What this does not protect.** Whoever takes over the panel can still do anything to the Kubernetes instances (as to
+the Docker ones), and the panel keeps the Docker socket for Docker instances while both engines are used. Root on a
+node reaches every pod on it. The beta's runner Jobs and exec run as the images' own users, inside the instance's
+quota.

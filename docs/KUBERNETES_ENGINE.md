@@ -5,9 +5,10 @@
 panel's access to the cluster, how visitors reach Odoo, storage, backups, shells, logs, adding nodes, moving
 instances between Docker and Kubernetes, the cost, and what is left for later phases.
 
-> The Kubernetes engine is a **beta**, delivered in phases (section 15). It is off until you set
-> `KUBERNETES_ENGINE_BETA=true`, and Docker stays the default engine of every new instance. Instances you already
-> have keep running on Docker.
+> The Kubernetes engine is a **beta**. It is off until you set `KUBERNETES_ENGINE_BETA=true`
+> ([Configuration](CONFIGURATION.md#kubernetes-engine-beta), installation in the
+> [Admin guide](ADMIN_GUIDE.md#31-kubernetes-engine-beta)), and Docker stays the default engine of every new
+> instance. Instances you already have keep running on Docker.
 
 ---
 
@@ -324,7 +325,7 @@ Docker and k3s use separate container runtimes on the same server: images are do
 | Phase | What | State |
 | :--- | :--- | :--- |
 | 1 | This design and the engine layer; existing behaviour behind the Docker engine | done |
-| 2 | Kubernetes engine MVP (beta): create, pause, start, restart, delete, backups, restores, shell, logs, status, nodes, join command, change of engine, installer | next |
+| 2 | Kubernetes engine MVP (beta): create, pause, start, restart, delete, backups, restores, shell, logs, status, nodes, join command, change of engine, installer | done (beta) |
 | 3 | The rest of the panel on Kubernetes: Enterprise add-ons, mail catcher, Connect as, code profiler, database upgrades, project builds and tests, imports, resource changes from the Resources card, drift checks, disk use per instance, an egress setting for production (outgoing e-mail, payment providers) | to do |
 | 4 | Several nodes in earnest: Longhorn, an instance restarting on another node, an ingress (Traefik or Gateway API) for clusters where the panel is not on a node, moves to another server's cluster, a node's drain from the panel | to do |
 | 5 | High availability: three k3s servers with embedded etcd, PostgreSQL replicas (CloudNativePG), zero-downtime updates of Odoo | to do |

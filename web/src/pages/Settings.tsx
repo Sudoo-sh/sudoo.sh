@@ -8,6 +8,7 @@ import { RESOURCE_KNOBS, type Server, type Setting, type Stage } from "@/api/typ
 import { LicenceSettings } from "@/components/LicenceSettings";
 import { MarketplaceSettings } from "@/components/Marketplace";
 import { PlanSettings } from "@/components/PlanSettings";
+import { KubernetesCard } from "@/components/KubernetesCard";
 import { ManagedSubdomainsCard } from "@/components/ManagedSubdomainsCard";
 import { PlanCard, PremiumFeaturesCard, PremiumSlot } from "@/premium/components";
 import { usePremium } from "@/premium/loader";
@@ -611,6 +612,7 @@ export function SettingsPage() {
             {tab === "resources" && <ResourceSettings byKey={byKey} draft={draft} onChange={(key, v) => setDraft((d) => ({ ...d, [key]: v }))} />}
             {tab === "backups" && <PremiumSlot name="settings.offsite" props={{ dirty }} />}
             {tab === "domains" && <ManagedSubdomainsCard />}
+            {tab === "servers" && <KubernetesCard />}
             {tab === "marketplace" && (
               <Section title={t.marketplace.title} text={t.marketplace.text} icon={<Puzzle />}
                 actions={<Button asChild size="sm"><Link to="/plugins" viewTransition>{t.marketplace.open}</Link></Button>}>

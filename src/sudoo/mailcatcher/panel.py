@@ -32,8 +32,10 @@ _LOCK = threading.Lock()
 
 
 def catches(env: Mapping[str, str]) -> bool:
-    """Whether the instance's e-mail goes to the catcher: every stage but production."""
-    return not stages.is_production(env)
+    """Whether the instance's e-mail goes to the catcher: every stage but production, on Docker. An instance of the
+    Kubernetes engine (beta) cannot send e-mail at all: its network policy lets Odoo reach only its database
+    (docs/KUBERNETES_ENGINE.md, section 11)."""
+    return not stages.is_production(env) and env.get("ENGINE", "docker") == "docker"
 
 
 def password(name: str) -> str:

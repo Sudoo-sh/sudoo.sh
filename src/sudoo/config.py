@@ -1887,6 +1887,70 @@ class Settings(BaseSettings):
         return ZoneInfo(self.timezone)
 
     # ------------------------------------------------------------------ fixed intervals (not settings)
+    # ------------------------------------------------------------------ Kubernetes engine, beta (engines/kubernetes/)
+    kubernetes_engine_beta: bool = Field(
+        False,
+        description="Offer the Kubernetes engine (beta) for new instances, next to Docker (the default). Off: only "
+        "Docker; instances already on Kubernetes keep running there.",
+    )
+    kubernetes_mode: Literal["kubeconfig", "in-cluster"] = Field(
+        "kubeconfig",
+        description='How the panel reaches the cluster: "kubeconfig" (the file KUBERNETES_KUBECONFIG, as '
+        'scripts/install-k3s.sh writes it) or "in-cluster" (the panel runs in a pod with its ServiceAccount).',
+    )
+    kubernetes_kubeconfig: str = Field(
+        "",
+        description="The panel's kubeconfig (JSON, with the ServiceAccount's token); empty: "
+        "<ODOO_ROOT>/manager/kubernetes/kubeconfig.json.",
+    )
+    kubernetes_context: str = Field("", description="The kubeconfig's context to use; empty: its current context.")
+    kubernetes_request_timeout_seconds: float = Field(
+        30, ge=5, le=300, description="Seconds the panel waits for one answer of the Kubernetes API."
+    )
+    kubernetes_runner_start_seconds: int = Field(
+        900,
+        ge=30,
+        le=3600,
+        description="Seconds a runner Job (backups, restores, odoo -i) may take to start, the first download of the "
+        "Odoo image on a node included.",
+    )
+    kubernetes_storage_class: str = Field(
+        "local-path",
+        pattern=r"^[a-z0-9.-]{0,63}$",
+        description="Storage class of the instances' volumes (k3s ships local-path); empty: the cluster's default.",
+    )
+    kubernetes_db_size_gb: int = Field(10, ge=1, le=10000, description="Size asked for each database volume, in GB.")
+    kubernetes_files_size_gb: int = Field(
+        10, ge=1, le=10000, description="Size asked for each Odoo files volume (filestore, sessions), in GB."
+    )
+    kubernetes_addons_size_gb: int = Field(2, ge=1, le=1000, description="Size asked for each code volume, in GB.")
+    kubernetes_quota_cpu: float = Field(
+        8, ge=0.5, le=256, description="Processor limit of one instance's namespace, all its pods together (cores)."
+    )
+    kubernetes_quota_memory_mb: int = Field(
+        8192, ge=512, le=1048576, description="Memory limit of one instance's namespace, all its pods together (MB)."
+    )
+    kubernetes_quota_pods: int = Field(5, ge=3, le=50, description="Pods one instance's namespace may have at once.")
+    kubernetes_container_cpu: float = Field(
+        2, ge=0.1, le=64, description="Processor limit of a container that has none of its own (cores)."
+    )
+    kubernetes_container_memory_mb: int = Field(
+        2048, ge=128, le=262144, description="Memory limit of a container that has none of its own (MB)."
+    )
+    kubernetes_join_url: str = Field(
+        "",
+        pattern=r"^(https://[A-Za-z0-9.\-\[\]:]+)?$",
+        description="Address new nodes reach the k3s server's API at (https://<address>:6443), for the join command.",
+    )
+    kubernetes_join_token_minutes: int = Field(
+        60, ge=5, le=1440, description="Minutes a node's join token stays valid."
+    )
+    kubernetes_k3s_version: str = Field(
+        "",
+        pattern=r"^(v\d+\.\d+\.\d+\+k3s\d+)?$",
+        description="k3s version new nodes install (for example v1.36.6+k3s1); empty: the server's own.",
+    )
+
     pause_check_interval_seconds: int = 120
     integrity_check_interval_seconds: int = 20  # instances/integrity.py
     expiry_check_interval_seconds: int = 600
@@ -1904,6 +1968,14 @@ class Settings(BaseSettings):
     @property
     def manager_dir(self) -> Path:
         return self.odoo_root / "manager"
+
+    @property
+    def kubernetes_kubeconfig_path(self) -> Path:
+        return (
+            Path(self.kubernetes_kubeconfig)
+            if self.kubernetes_kubeconfig
+            else self.manager_dir / "kubernetes" / "kubeconfig.json"
+        )
 
     @property
     def gateway_dir(self) -> Path:

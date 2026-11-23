@@ -373,10 +373,19 @@ def public_address_cmds(name: str, url: str) -> list[list[str]]:
     return [engine.exec_cmd(name, "db", "psql", "-q", "-U", "odoo", "-d", db, "-c", sql) for db in databases(name)]
 
 
-def responds(port: int | str, timeout: float = 2) -> bool:
-    """True when Odoo answers HTTP on 127.0.0.1:<port> (any status code means it is up)."""
+def host(env: Mapping[str, str]) -> str:
+    """Where the instance's Odoo listens: 127.0.0.1 (Docker), or its Service's cluster address (Kubernetes)."""
+    from sudoo import engines
+
+    return engines.named(engines.kind_of(env)).odoo_host(env)
+
+
+def responds(port: int | str, timeout: float = 2, host: str = "127.0.0.1") -> bool:
+    """True when Odoo answers HTTP on <host>:<port> (any status code means it is up); the host is 127.0.0.1 for
+    Docker, the Service's cluster address for Kubernetes (gateway.odoo_host)."""
+    host = f"[{host}]" if ":" in host else host
     try:
-        urllib.request.urlopen(f"http://127.0.0.1:{port}/web/health", timeout=timeout)
+        urllib.request.urlopen(f"http://{host}:{port}/web/health", timeout=timeout)
         return True
     except urllib.error.HTTPError:
         return True
@@ -384,10 +393,10 @@ def responds(port: int | str, timeout: float = 2) -> bool:
         return False
 
 
-def wait_until_ready(port: int | str, timeout: float = 240) -> bool:
+def wait_until_ready(port: int | str, timeout: float = 240, host: str = "127.0.0.1") -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if responds(port):
+        if responds(port, host=host):
             return True
         time.sleep(3)
     return False

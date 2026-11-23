@@ -110,6 +110,9 @@ def build_routes(mode: str) -> str:
         websocket = gateway.websocket_port(env)
         if websocket:
             instances[name]["websocket_port"] = websocket
+        host = gateway.odoo_host(env)
+        if host != "127.0.0.1":  # absent for Docker instances, as in files of earlier panels
+            instances[name]["odoo_host"] = host
     return routes_document(mode, edge, values, instances, domain_routes(set(instances)))
 
 

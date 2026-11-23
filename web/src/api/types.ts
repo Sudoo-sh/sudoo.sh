@@ -393,11 +393,49 @@ export interface ManagedSubdomains {
   custom_domains: string;
 }
 
+/** Where an instance's Odoo and PostgreSQL run (src/sudoo/engines/) */
+export type Engine = "docker" | "kubernetes";
+
+/** A node of the Kubernetes engine's cluster (GET /kubernetes) */
+export interface KubernetesNode {
+  name: string;
+  roles: string[];
+  ready: boolean;
+  schedulable: boolean;
+  version: string;
+  address: string;
+  cpu: number;
+  memory_bytes: number;
+  cpu_used: number | null;
+  memory_used_bytes: number | null;
+  created: string | null;
+}
+
+/** GET /kubernetes: the Kubernetes engine (beta) and its cluster */
+export interface KubernetesOverview {
+  enabled: boolean;
+  engines: Engine[];
+  nodes: KubernetesNode[];
+  reachable: boolean;
+  problem: string | null;
+  join: { url_set: boolean; minutes: number };
+}
+
+/** POST /kubernetes/join-command: shown once */
+export interface KubernetesJoin {
+  command: string;
+  /** Unix time the token stops working */
+  expires: number;
+  version: string;
+}
+
 export interface Instance {
   name: string;
   status: InstanceStatus;
   /** the server it runs on (premium/servers.py) */
   server?: ServerReference;
+  /** where it runs on its server: docker, or kubernetes (beta) */
+  engine?: Engine;
   stage: Stage;
   /** the project (GitHub repository) it belongs to; null: standalone (plain Odoo) */
   project: ProjectReference | null;
@@ -1073,6 +1111,8 @@ export interface Plan {
   production: { limit: number; instances: string[]; refusal: string | null };
   /** where a new instance may go: the main server, and with several servers every online one with room */
   servers?: ServerChoice[];
+  /** the engines a new instance may run on: "docker", and "kubernetes" while its beta is on */
+  engines?: Engine[];
 }
 
 export type PlanDefaults = { delete_after_days: number; auto_update: boolean; auto_upgrade: boolean; auto_pause: boolean };

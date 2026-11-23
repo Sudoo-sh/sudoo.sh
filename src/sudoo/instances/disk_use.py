@@ -53,20 +53,20 @@ def due(name: str, now: float | None = None) -> bool:
 def measure(name: str, db_running: bool, odoo_running: bool) -> dict[str, Any]:
     """Measure the instance now (each part only when its container runs; the other keeps its last value), keep and
     return it."""
+    from sudoo import engines
     from sudoo.instances import odoo
 
+    engine = engines.of(name)
     found = measured(name)
     database = odoo.databases(name)[0]
     if db_running:
         out = capture(
-            ["docker", "exec", store.container(name, "db"), "psql", "-U", "odoo", "-d", "postgres", "-tAc",
-             f"SELECT pg_database_size('{database}')"]
+            engine.exec_cmd(name, "db", "psql", "-U", "odoo", "-d", "postgres", "-tAc",
+                            f"SELECT pg_database_size('{database}')")
         )  # fmt: skip
         found["db"] = parse_database_size(out) if out else found["db"]
     if odoo_running:
-        out = capture(
-            ["docker", "exec", store.container(name, "odoo"), "du", "-sb", f"/var/lib/odoo/filestore/{database}"]
-        )
+        out = capture(engine.exec_cmd(name, "odoo", "du", "-sb", f"/var/lib/odoo/filestore/{database}"))
         found["files"] = parse_du(out) if out else 0  # du fails when there is no filestore yet: nothing stored
     found["at"] = time.time()
     storage().put(COLLECTION, name, found)

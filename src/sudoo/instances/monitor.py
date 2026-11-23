@@ -25,7 +25,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from sudoo import exposure
+from sudoo import engines, exposure
 from sudoo.config import settings
 from sudoo.core import events, jobs
 from sudoo.core.shell import capture, succeeds
@@ -243,7 +243,9 @@ def collect() -> None:
         _STARTED[containers[container]["ID"]] = when
     started = {c: _STARTED[cid] for cid, c in running_now.items() if cid in _STARTED}
     measured_instances: dict[str, metrics.Usage] = {}
-    for name in store.names():
+    names = store.names()
+    observed = _observed_elsewhere(names)  # instances of other engines than Docker (Kubernetes)
+    for name in names:
         env = store.read_env(name)
         odoo_container = containers.get(store.container(name, "odoo"))
         db_container = containers.get(store.container(name, "db"))
@@ -252,6 +254,16 @@ def collect() -> None:
         cpu = sum(usage.get(c, (0, 0, 0))[0] for c in own) / cores
         memory = sum(usage.get(c, (0, 0, 0))[1] for c in own)
         limit = min(sum(usage.get(c, (0, 0, 0))[2] for c in own) or memory_total, memory_total)
+        db_running = bool(db_container and db_container["State"] == "running")
+        uptime = odoo_container["Status"] if odoo_container else ""
+        odoo_started = started.get(store.container(name, "odoo"))
+        other = observed.get(name)
+        if engines.kind_of(env) != engines.DOCKER:
+            running, db_running = bool(other and other.running), bool(other and other.db_running)
+            cpu = (other.cpu if other else 0.0) / cores
+            memory = other.memory if other else 0
+            limit = min((other.limit if other else 0) or memory_total, memory_total)
+            uptime, odoo_started = (other.uptime, other.started) if other else ("", None)
         busy = jobs.busy(name)
         commit, repo = _git_details(name, refresh=name in _WAS_BUSY and not busy)  # re-read after a job
         _WAS_BUSY.discard(name)
@@ -259,9 +271,9 @@ def collect() -> None:
             _WAS_BUSY.add(name)
         STATUS[name] = {
             "running": running,
-            "db_running": bool(db_container and db_container["State"] == "running"),
-            "healthy": running and odoo.responds(env["ODOO_PORT"]),
-            "uptime": odoo_container["Status"] if odoo_container else "",
+            "db_running": db_running,
+            "healthy": running and odoo.responds(env["ODOO_PORT"], host=odoo.host(env)),
+            "uptime": uptime,
             "cpu": round(cpu, 2),
             "memory": memory,
             "commit": commit,
@@ -270,9 +282,7 @@ def collect() -> None:
         HISTORY[name].append((int(now), round(cpu, 2), memory))
         stored = disk_usage(name)  # measured every STORAGE_MEASURE_MINUTES while it runs, kept while it is paused
         disk_bytes = (stored.get("db") or 0) + (stored.get("files") or 0) or None
-        measured_instances[name] = metrics.Usage(
-            running, cpu, memory, limit, started.get(store.container(name, "odoo")), disk_bytes
-        )
+        measured_instances[name] = metrics.Usage(running, cpu, memory, limit, odoo_started, disk_bytes)
 
     disk = shutil.disk_usage(settings.odoo_root)
     cpu = _host_cpu_percent()
@@ -306,6 +316,23 @@ def collect() -> None:
         measured_instances,
         panel,
     )
+
+
+def _observed_elsewhere(names: list[str]) -> dict[str, engines.Observation]:
+    """Figures of the instances whose engine measures them itself (engines/base.py observe); a cluster that does not
+    answer leaves its instances unmeasured this time (shown stopped), and is logged."""
+    by_kind: dict[str, list[str]] = {}
+    for name in names:
+        kind = engines.kind_of(store.read_env(name))
+        if kind != engines.DOCKER:
+            by_kind.setdefault(kind, []).append(name)
+    found: dict[str, engines.Observation] = {}
+    for kind, members in by_kind.items():
+        try:
+            found.update(engines.named(kind).observe(members))
+        except Exception as exc:  # noqa: BLE001 - the monitor keeps measuring the others
+            print(f"monitor: {kind} instances not measured: {exc!r}", flush=True)
+    return found
 
 
 def _started_at(names: list[str]) -> dict[str, float]:

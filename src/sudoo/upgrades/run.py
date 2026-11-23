@@ -321,7 +321,8 @@ def watch_once(now: float | None = None) -> list[str]:
         state = STATE.get(name)
         if state.get("paused") or state.get("switched_off"):
             continue
-        if odoo.responds(store.read_env(name)["ODOO_PORT"]):
+        env = store.read_env(name)
+        if odoo.responds(env["ODOO_PORT"], host=odoo.host(env)):
             _DOWN.pop(name, None)
             continue
         _DOWN[name] = _DOWN.get(name, 0) + 1

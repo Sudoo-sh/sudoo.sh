@@ -1,6 +1,7 @@
 // A project's Builds tab, the Odoo.sh way: one row per branch, grouped by stage, with the branch's last builds side
-// by side (newest first; they scroll sideways when there is no room). A card opens the branch's history; the live
-// build has Connect. The live event stream ("build") reads the builds again whenever one starts, ends or is dropped.
+// by side (newest first; they scroll sideways when there is no room). Pressing a card opens its commit on GitHub in a
+// new tab (the branch's history when the repository is not on GitHub); its short hash copies, the reason a build
+// failed opens the history, and the live build has Open Odoo. The live event stream ("build") reads the builds again whenever one starts, ends or is dropped.
 
 import { FolderGit2, Hammer, RotateCcw, Search } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -8,7 +9,8 @@ import { Link } from "react-router";
 import { useBuilds, useInstances } from "@/api/queries";
 import type { Build, Instance, ProjectBranch, ProjectDetail, Stage } from "@/api/types";
 import { RebuildDialog } from "@/components/BranchDialogs";
-import { BuildStatusTag, liveBuilds } from "@/components/BuildHistory";
+import { BuildStatusTag, CommitSubject, liveBuilds } from "@/components/BuildHistory";
+import { CommitHash } from "@/components/CommitHash";
 import { ConnectButton } from "@/components/ConnectAs";
 import { JobDrawer } from "@/components/JobDrawer";
 import { branchPath, dotOf, productionOf, useBranchCan } from "@/components/ProjectWorkspace";
@@ -20,20 +22,46 @@ import words from "@/i18n/builds";
 import failureWords from "@/i18n/failure";
 import { stepTitle } from "@/i18n/jobs";
 import { ago, duration, elapsed, fullDateTime, statusLabel } from "@/lib/format";
+import { githubCommitUrl } from "@/lib/git";
 
 const STAGES: Stage[] = ["production", "staging", "development"];
 const PER_BRANCH = 4;
 
-function BuildTile({ build, live, instance, mayOpen, access, to }: { build: Build; live: boolean; instance: Instance | undefined; mayOpen: boolean; access: string | null; to: string }) {
+function BuildTile({
+  build,
+  live,
+  instance,
+  repository,
+  mayOpen,
+  access,
+  to,
+}: {
+  build: Build;
+  live: boolean;
+  instance: Instance | undefined;
+  repository: string;
+  mayOpen: boolean;
+  access: string | null;
+  to: string;
+}) {
   const t = useT(words);
   const fw = useT(failureWords);
   const author = build.commit?.author || build.by || "";
+  // pressing the card opens its commit on GitHub (a new tab); without a commit on GitHub, the branch's history
+  const linked = !!build.commit && !!githubCommitUrl(repository, build.commit.full_sha || build.commit.sha);
   return (
-    <article className={`pb-tile ${build.status}`} data-live={live || undefined}>
-      <Link to={to} viewTransition className="pb-open">
-        <bdi className="pb-subject truncate" title={build.commit?.subject}>{build.commit?.subject ?? t.history.unknownCommit}</bdi>
-      </Link>
-      {author && <bdi className="pb-author truncate">{author}</bdi>}
+    <article className={`pb-tile ${build.status}`} data-live={live || undefined} data-linked={linked || undefined}>
+      {linked ? (
+        <CommitSubject commit={build.commit!} repository={repository} className="pb-subject truncate" />
+      ) : (
+        <Link to={to} viewTransition className="pb-open">
+          <bdi className="pb-subject truncate" title={build.commit?.subject}>{build.commit?.subject ?? t.history.unknownCommit}</bdi>
+        </Link>
+      )}
+      <div className="pb-who">
+        {author && <bdi className="pb-author truncate">{author}</bdi>}
+        {build.commit && <CommitHash sha={build.commit.full_sha || build.commit.sha} repository={repository} />}
+      </div>
       <dl className="pb-facts">
         <div>
           <dt>{t.builds.age}</dt>
@@ -106,7 +134,8 @@ function BranchRow({
       <div className="pb-tiles" tabIndex={builds.length > 1 ? 0 : undefined} aria-label={t.rowLabel(branch.name)}>
         {builds.length ? (
           builds.map((build) => (
-            <BuildTile key={build.id} build={build} live={live.has(build.id)} instance={instances.get(build.instance)} mayOpen={mayOpen} access={access(build.instance)} to={history} />
+            <BuildTile key={build.id} build={build} live={live.has(build.id)} instance={instances.get(build.instance)} repository={project.repository.url}
+              mayOpen={mayOpen} access={access(build.instance)} to={history} />
           ))
         ) : (
           <p className="pb-none">{t.noBuild}</p>

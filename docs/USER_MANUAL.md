@@ -170,10 +170,10 @@ failed update, changes made by hand, or a branch deleted on GitHub. Click a card
 ### A project's page
 
 **Branches** is the project's workspace. On the left, every branch of the repository (read from GitHub at most every
-30 seconds; the refresh button next to **Filter branches** reads them now), grouped under **Production**, **Staging**
+30 seconds; the refresh button next to **Search branches** reads them now), grouped under **Production**, **Staging**
 and **Development**. Each row shows the branch's name, its Odoo version (its instance's, else the branch's own, else
 the project's) and a dot for its instance: green online, red
-failing, amber working, a grey ring paused or switched off, a dashed ring no instance. **Filter branches** narrows the
+failing, amber working, a grey ring paused or switched off, a dashed ring no instance. **Search branches** narrows the
 list by name. On a phone the list folds into a button at the top that names the chosen branch.
 
 Choose a branch (in the list, or after dragging one) and it opens at `/projects/<project>/branches/<branch>`. The
@@ -205,10 +205,12 @@ it. The tab you chose stays chosen while the browser tab is open.
 **History** (the branch's first tab) lists, newest first and grouped by day, every build of the branch, as on Odoo.sh:
 one card per commit an instance was built from, with the author, when, what started it (a new instance, a push,
 **Get latest code**, a rebuild from production) and how long it took, the commit's subject and short hash (press it to
-copy the whole hash; the arrow opens the commit on GitHub), and its status: **Test: Success**, **Warning** (Odoo's log
+copy the whole hash; the arrow opens the commit on GitHub), and its status: **Passed**, **Warning** (Odoo's log
 had warnings or errors while loading the modules; **Show the messages** lists them), **Failed** (with **Why it
-failed**, below) or **Building**. Each instance has one live build, its newest successful one, with **Open Odoo** (its arrow offers
-**Connect as…** and **Access details**, to those who may see the credentials); older builds are marked **Dropped**. For staging and development, the live build says
+failed**, below) or **Building**. Press a build's card (or its subject) to open its commit on GitHub in a new tab;
+pointing at the card underlines the subject and shows the external-link mark. The buttons on the card do only what
+they say (copy the hash, **Open Odoo**, **View steps**). A repository that is not on GitHub has no commit link. Each instance has one live build, its newest successful one, with **Open Odoo** (its arrow offers
+**Connect as…** and **Access details**, to those who may see the credentials); older builds are marked **Replaced**. For staging and development, the live build says
 when the instance will be deleted. Stage changes (**Stage change: Development › Staging**, with what the new stage
 does) and restores appear in the same timeline. **View steps** opens the build's job; the panel keeps the last 300 jobs,
 so an older one says **Job no longer kept**. **Show older** reads further back; the panel keeps the last builds of each
@@ -225,7 +227,7 @@ manage the project: each repository with **Access OK** or **No access**, then th
 give the panel's GitHub App access to that repository (recommended; the button opens the App's installation on
 GitHub), or create a read-only deploy key for it and add it on GitHub. **Check again** reads the access again; once
 every repository can be read, **Retry the update** runs the update again. The **Builds** tab shows the step and the
-reason on each failed build; its card opens the branch's history.
+reason on each failed build; pressing the reason opens the branch's history.
 
 **E-mail to the person who pushed.** When a build started by a push fails, the person who pushed receives an e-mail
 with the project, the branch, the commit, what failed, the error details and what to do (for a repository the panel
@@ -275,9 +277,11 @@ opens the instance's **Backups** tab.
 
 **Builds** (the project's tab) shows every branch at once, under **Production**, **Staging** and **Development**: the
 branch's name and status dot, **GitHub** (the branch on GitHub) and, for a staging branch you may rebuild,
-**Rebuild**, then its last four builds side by side (scroll sideways for more): the commit's subject, its author, its
-age and duration, a coloured band for its status (green success, amber warning, red failed, grey dropped, moving
-stripes while building), and **Open Odoo** on the live build. Press a build to open the branch's history. **Filter
+**Rebuild**, then its last four builds side by side (scroll sideways for more): the commit's subject, its author and
+short hash, its age and duration, a coloured band for its status (green passed, amber warning, red failed, grey
+replaced, moving stripes while building), and **Open Odoo** on the live build. Press a build to open its commit on
+GitHub in a new tab (for a repository that is not on GitHub, the branch's history); its short hash copies the whole
+hash, and the reason on a failed build opens the branch's history. **Search
 branches** narrows the rows by name.
 
 **Backups** (administrators and super admins: those who manage backups) lists the backups of all the project's
@@ -471,7 +475,9 @@ connection to the server is lost for a moment, a small **Reconnecting** notice s
 
 ### The header
 
-At the top: the instance's name, stage and status, its Odoo version, edition, branch and link. While a job runs, a line
+At the top: the instance's name, stage and status, its Odoo version, edition, branch, the short hash of the commit its
+current build runs (press it to copy the whole hash; its arrow opens the commit on GitHub in a new tab, for a
+repository on GitHub) and its link. While a job runs, a line
 below the header shows it with its progress; click it to follow the steps.
 
 A warning appears when the instance's branch no longer exists on GitHub, or when its link has a problem.

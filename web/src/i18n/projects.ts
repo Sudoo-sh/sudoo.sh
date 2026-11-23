@@ -74,7 +74,7 @@ const en = {
   },
   workspace: {
     branches: "Branches",
-    filter: "Filter branches",
+    filter: "Search branches",
     noMatch: "No branch matches",
     noBranch: "No branch",
     showBranches: "Branches",
@@ -306,7 +306,7 @@ const ar: typeof en = {
   },
   workspace: {
     branches: "الفروع",
-    filter: "تصفية الفروع",
+    filter: "ابحث في الفروع",
     noMatch: "لا فرع مطابق",
     noBranch: "لا فرع",
     showBranches: "الفروع",

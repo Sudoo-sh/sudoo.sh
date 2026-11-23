@@ -6,10 +6,14 @@
                                                  "name" (optional: made from the e-mail address), "password"
                                                  (optional: generated), "must_change_password" (default true)};
                                                  the password is in this answer only -> 201
-    PATCH  /api/v1/users/<name>                  change the role or the profile (also your own)
+    PATCH  /api/v1/users/<name>                  change the role or the profile (also your own), how the account
+                                                 signs in: {"sign_in_methods": ["password", "email_code", "github"]}
+                                                 (null: the server's default), {"github_login"} (linked at the first
+                                                 sign-in with GitHub)
     POST   /api/v1/users/<name>/password         set a new password: {"password"} (optional: generated),
                                                  {"must_change_password"} (default true); returns it once
     DELETE /api/v1/users/<name>/second-factors   remove all second factors and recovery codes (a lost phone) -> 204
+    DELETE /api/v1/users/<name>/github           unlink the account's GitHub account -> 204
     DELETE /api/v1/users/<name>                  delete -> 204
     GET    /api/v1/audit                         audit-log entries, newest first unless sorted: limit (at most
                                                  2000), offset, sort (ts, user, event, instance, ip, ok; "-" first
@@ -21,7 +25,8 @@
                                                  (since defaults to a year before until), AUDIT_EXPORT_MAX_ROWS rows
                                                  at most (meta in X-Total-Count, X-Exported-Count); audit-logged
 
-Only a super admin creates, changes or deletes super admins; there is always at least one. Accounts created or reset
+Only a super admin creates, changes or deletes super admins; there is always at least one, and at least one of
+them keeps signing in with a password (auth/methods.py, break glass). Accounts created or reset
 here choose their own password at their next sign-in, unless must_change_password is false. New people are normally
 invited by e-mail instead (invitations.py); POST /users is refused unless INVITATION_PASSWORD_FALLBACK allows it
 ("no_mail", the default: only while e-mail is not set up).
@@ -36,6 +41,7 @@ from typing import Any
 from flask import Blueprint, Response, abort, g, request
 
 from sudoo import accounts, invitations, roles, teams
+from sudoo.auth import github, github_access, methods
 from sudoo.config import settings
 from sudoo.core import audit
 from sudoo.mail import mailer
@@ -43,7 +49,7 @@ from sudoo.projects import access
 
 from .. import validation as check
 from ..security import log, require
-from .account import factors_of
+from .account import factors_of, github_resource
 from .responses import PREFIX, created, iso, no_content, ok
 
 blueprint = Blueprint("users", __name__)
@@ -61,6 +67,11 @@ def user_resource(name: str, user: dict[str, Any]) -> dict[str, Any]:
         "password_changed_at": iso(user.get("password_changed")),
         "must_change_password": bool(user.get("must_change_password")),
         "second_factors": [f["name"] for f in factors_of(user) if f["enrolled"]],
+        "sign_in_methods": methods.of(user),
+        "sign_in_methods_chosen": methods.own_choice(user) is not None,
+        "github": github_resource(user),
+        "github_login": user.get(github.LOGIN_FIELD),
+        "has_password": bool(user.get("hash")),
         "links": {"self": f"{PREFIX}/users/{name}"},
     }
 
@@ -69,6 +80,26 @@ def _guard(role: str) -> None:
     """Only a super admin creates, changes or deletes super admins."""
     if role == "super_admin" and g.user["role"] != "super_admin":
         abort(403, "Only a super admin can manage super admin accounts.")
+
+
+def github_app_login(login: str) -> bool:
+    import re
+
+    return re.fullmatch(r"[A-Za-z0-9](?:-?[A-Za-z0-9]){0,38}", login) is not None
+
+
+def _refuse_without_break_glass(name: str, values: dict[str, Any] | None) -> None:
+    """Refuse a change (None: the deletion) that would leave no super admin signing in with a password."""
+    before = accounts.all_users()
+    after = dict(before)
+    if values is None:
+        after.pop(name, None)
+    else:
+        merged = {**before[name], **values}
+        after[name] = {k: v for k, v in merged.items() if v is not None}
+    problem = methods.break_glass_problem(before, after)
+    if problem:
+        abort(400, problem)
 
 
 def _account(name: str) -> dict[str, Any]:
@@ -168,6 +199,19 @@ def change_user(name: str) -> Response:
             if not others:
                 abort(400, "The last super admin must stay a super admin.")
         values["role"] = role
+    if "sign_in_methods" in data:
+        try:
+            values[methods.FIELD] = (
+                None if data["sign_in_methods"] is None else methods.checked(data["sign_in_methods"])
+            )
+        except ValueError as error:
+            abort(400, str(error))
+    if "github_login" in data:
+        login = check.text(data, "github_login", max_length=39).strip().lstrip("@")
+        if login and not github_app_login(login):
+            abort(400, "github_login: a GitHub user name (letters, digits and single dashes, at most 39).")
+        values[github.LOGIN_FIELD] = login
+    _refuse_without_break_glass(name, values)
     accounts.update(name, **{key: (value or None) for key, value in values.items()})
     if "role" in values:
         accounts.end_sessions(name)  # the new permissions apply from the next sign-in
@@ -200,6 +244,21 @@ def reset_second_factors(name: str) -> Response:
     return no_content()
 
 
+@blueprint.delete("/users/<name>/github")
+@require("accounts.manage")
+def unlink_github(name: str) -> Response:
+    account = _account(name)
+    _guard(roles.normalize(account["role"]))
+    link = github.link_of(account)
+    if link is None:
+        abort(404, "No GitHub account is linked to this account.")
+    github.unlink(name)
+    github_access.forget(name)
+    accounts.end_sessions(name)
+    log("GitHub account unlinked", detail=f"{name}: {link.get('login')} (GitHub id {link['id']})")
+    return no_content()
+
+
 @blueprint.delete("/users/<name>")
 @require("accounts.manage")
 def delete_user(name: str) -> Response:
@@ -207,10 +266,12 @@ def delete_user(name: str) -> Response:
     if name == g.user["name"]:
         abort(400, "You cannot delete the account you are signed in with.")
     _guard(roles.normalize(account["role"]))
+    _refuse_without_break_glass(name, None)
     try:
         accounts.delete(name)
     except ValueError as error:
         abort(400, str(error))
+    github_access.forget(name)
     in_teams = teams.forget_member(name)  # out of every team, grant and lock (projects/access.py)
     in_projects = access.forget_user(name)
     access.forget_restrictions()

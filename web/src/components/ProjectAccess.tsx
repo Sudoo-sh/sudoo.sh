@@ -7,7 +7,10 @@ import { useState } from "react";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useProjectAccess, useTeams, useUsers } from "@/api/queries";
 import type { AccessLevel, AccessSubject, BranchLock, Grant, ProjectAccess, ProjectBranch, ProjectDetail } from "@/api/types";
-import { Button, Callout, Field, Segmented, Skeleton } from "@/components/app/basics";
+import { Button, Callout, Field, Segmented, Skeleton, Tag } from "@/components/app/basics";
+import { GitHubMark } from "@/components/app/GitHubMark";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ago } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
 import { Modal, useToast } from "@/components/app/overlay";
@@ -116,6 +119,43 @@ function AccessSummary({ project, data }: { project: ProjectDetail; data: Projec
   );
 }
 
+/** Access from GitHub (auth/github_access.py): each linked person's permission on the repository and its level. */
+function GitHubAccessCard({ data }: { data: ProjectAccess }) {
+  const all = useT(words);
+  const t = all.fromGitHub;
+  const github = data.github;
+  if (!github) return null;
+  return (
+    <section className="card">
+      <div className="card-head"><GitHubMark size={18} /><h2 className="spacer">{t.title}</h2></div>
+      <div className="card-body stack-sm">
+        <p className="small muted">{github.enabled ? t.on(github.repository) : t.off}</p>
+        {github.people.length === 0 ? (
+          <p className="small faint">{t.nobody}</p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <Table>
+              <TableHeader><TableRow><TableHead>{t.person}</TableHead><TableHead>{t.permission}</TableHead><TableHead>{t.level}</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {github.people.map((p) => (
+                  <TableRow key={p.user}>
+                    <TableCell><bdi>{p.name}</bdi> <span className="xsmall faint"><bdi dir="ltr">@{p.github_login}</bdi></span></TableCell>
+                    <TableCell className="small mono">{p.covered === false ? <span className="faint">{t.notCovered}</span> : p.permission ?? <span className="faint">{t.notChecked}</span>}</TableCell>
+                    <TableCell className="small">
+                      {!p.applies ? <span className="faint">{github.enabled ? t.administrators : "-"}</span> : p.level ? <Tag>{all.levels[p.level]}</Tag> : <span className="faint">{t.notChecked}</span>}
+                      {p.checked && <div className="xsmall faint">{t.checked(ago(p.checked))}</div>}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export function AccessTab({ project, permitted }: { project: ProjectDetail; permitted: boolean }) {
   const t = useT(words);
   const { data, isPending, error } = useProjectAccess(project.id, permitted);
@@ -131,6 +171,7 @@ export function AccessTab({ project, permitted }: { project: ProjectDetail; perm
   return (
     <div className="stack tab-panel">
       <PremiumSlot name="project.access" props={{ project, permitted, access: data }} fallback={<AccessSummary project={project} data={data} />} />
+      <GitHubAccessCard data={data} />
       <section className="card">
         <div className="card-head"><h2>{t.access.locksTitle}</h2></div>
         <div className="card-body stack-sm">

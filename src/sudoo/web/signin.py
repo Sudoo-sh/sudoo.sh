@@ -1,11 +1,15 @@
 """Signing in, used by the session endpoints (v1/session.py).
 
 Signing in takes one or two steps:
-    1. e-mail address (or user name) and password, checked by the authenticator plugin (auth/). Without a second
-       factor this signs in.
+    1. the first factor, one of the account's sign-in methods (auth/methods.py): e-mail address (or user name) and
+       password, checked by the authenticator plugin (auth/); a code sent by e-mail (auth/email_sign_in.py); or
+       GitHub (auth/github.py). Without a second factor this signs in.
     2. when the account has a second factor: a code (e-mail, authenticator app), or one of the account's recovery
        codes in place of the app's code (auth/recovery.py). Between the two steps the
-       session only holds "pending": who passed step 1 and when (5 minutes at most); it opens nothing.
+       session only holds "pending": who passed step 1, how, and when (5 minutes at most); it opens nothing. After
+       an e-mail code, the e-mail code is not offered again as the second factor (the same mailbox would prove
+       nothing more). After GitHub, GITHUB_SIGN_IN_SKIPS_SECOND_FACTOR may accept GitHub's own two-factor
+       authentication instead (only when GitHub says the account has it on).
 
 Every successful sign-in e-mails the account's owner, in the background (auth/sign_in_notice.py).
 
@@ -16,13 +20,15 @@ A session can be signed in but restricted to one task before anything else opens
 
 from __future__ import annotations
 
+import contextlib
 import time
 from typing import Any
 
 from flask import abort, request, session
 
 from sudoo import accounts, auth
-from sudoo.auth import recovery, sign_in_notice
+from sudoo.auth import methods, recovery, sign_in_notice
+from sudoo.config import settings
 from sudoo.core import audit
 from sudoo.mail import MailError
 
@@ -37,11 +43,16 @@ def request_info() -> auth.RequestInfo:
     return auth.RequestInfo(client_ip(), request.headers.get("User-Agent", "")[:300], time.time())
 
 
-def restriction(account: dict[str, Any]) -> str | None:
+def _second_factors(account: dict[str, Any], first: str) -> list[str]:
+    """The account's second factors that prove something after `first` (not the e-mail code after an e-mail code)."""
+    return [m for m in auth.enrolled(account) if not (first == "email_code" and m == "email")]
+
+
+def restriction(account: dict[str, Any], first: str = "password", skip_second: bool = False) -> str | None:
     """What the account must do before anything else opens, or None."""
-    if account.get("must_change_password") and auth.authenticator().manages_passwords:
+    if first == "password" and account.get("must_change_password") and auth.authenticator().manages_passwords:
         return "password"
-    if auth.must_use_second_factor(account) and not auth.enrolled(account):
+    if not skip_second and auth.must_use_second_factor(account) and not _second_factors(account, first):
         return "second_factor"
     return None
 
@@ -53,13 +64,54 @@ def _refuse_if_throttled(ip: str, name: str) -> None:
         abort(429, f"Too many failed attempts. Try again in {max(1, wait // 60)} minutes.")
 
 
-def _signed_in(name: str, account: dict[str, Any], ip: str, method: str = "") -> None:
+FIRST_FACTOR_EVENTS = {
+    "password": "signed in",
+    "email_code": "signed in with an e-mail code",
+    "github": "signed in with GitHub",
+}
+
+
+def _signed_in(
+    name: str, account: dict[str, Any], ip: str, method: str = "", first: str = "password", skip_second: bool = False
+) -> None:
     accounts.THROTTLE.succeeded(ip, name)
     accounts.record_sign_in(name)
-    task = restriction(account)
+    task = restriction(account, first, skip_second)
     start_session(name, account["session_version"], restricted=task)
-    audit.record(name, ip, "signed in" + (f" (must first: {task.replace('_', ' ')})" if task else ""))
-    sign_in_notice.send_later(name, account, request_info(), method)
+    session["first"] = first
+    event = FIRST_FACTOR_EVENTS.get(first, "signed in")
+    audit.record(name, ip, event + (f" (must first: {task.replace('_', ' ')})" if task else ""))
+    sign_in_notice.send_later(name, account, request_info(), method, first)
+    _refresh_github_access(name, account)
+
+
+def _refresh_github_access(name: str, account: dict[str, Any]) -> None:
+    """Read the person's repository permissions again at each sign-in (auth/github_access.py)."""
+    from sudoo.auth import github, github_access
+
+    if github.link_of(account) is not None and github_access.applies(name):
+        with contextlib.suppress(Exception):  # the last known permissions apply; read again at the next interval
+            github_access.refresh(name)
+
+
+def first_factor_passed(
+    name: str, account: dict[str, Any], ip: str, first: str, skip_second: bool = False
+) -> dict[str, Any]:
+    """The first factor was right: sign in, or ask for the second one. Returns {"signed_in": True} or
+    {"second_factor": {"methods": [...], ...}}."""
+    found = [] if skip_second else _second_factors(account, first)
+    if not found:
+        _signed_in(name, account, ip, first=first, skip_second=skip_second)
+        return {"signed_in": True}
+    session.clear()
+    session["pending"] = {"user": name, "version": account["session_version"], "at": time.time(), "first": first}
+    challenge: dict[str, Any] = {"methods": [{"name": m, "label": auth.factors()[m].label} for m in found]}
+    if "totp" in found and recovery.available(account):  # in place of the app's code, when the phone is lost
+        challenge["methods"].append({"name": recovery.METHOD, "label": recovery.LABEL})
+    if found[0] == "email":  # nothing to open: send the code right away
+        challenge["sent_to"] = _challenge(name, account, "email")["sent_to"]
+    audit.record(name, ip, f"{methods.LABELS.get(first, first).lower()} accepted, waiting for the second factor")
+    return {"second_factor": challenge}
 
 
 def password_step(data: dict[str, Any]) -> dict[str, Any]:
@@ -77,19 +129,45 @@ def password_step(data: dict[str, Any]) -> dict[str, Any]:
         audit.record(name[:64], ip, "sign-in failed", ok=False)
         abort(401, "Wrong e-mail address or password.")
     account = auth.account_for(identity)
-    methods = auth.enrolled(account)
-    if not methods:
-        _signed_in(name, account, ip)
-        return {"signed_in": True}
-    session.clear()
-    session["pending"] = {"user": name, "version": account["session_version"], "at": time.time()}
-    challenge: dict[str, Any] = {"methods": [{"name": m, "label": auth.factors()[m].label} for m in methods]}
-    if "totp" in methods and recovery.available(account):  # in place of the app's code, when the phone is lost
-        challenge["methods"].append({"name": recovery.METHOD, "label": recovery.LABEL})
-    if methods[0] == "email":  # nothing to open: send the code right away
-        challenge["sent_to"] = _challenge(name, account, "email")["sent_to"]
-    audit.record(name, ip, "password accepted, waiting for the second factor")
-    return {"second_factor": challenge}
+    if not methods.allows(account, "password"):
+        audit.record(name, ip, "sign-in refused (password sign-in is off for this account)", ok=False)
+        abort(403, "This account does not sign in with a password. Use the other way offered to it.")
+    return first_factor_passed(name, account, ip, "password")
+
+
+def email_code_request(data: dict[str, Any]) -> dict[str, Any]:
+    """Passwordless, step 1: send a code to the address when an account may use it; the answer never says."""
+    from sudoo.auth import email_sign_in
+
+    if not methods.email_code_offered():
+        abort(409, "Sign-in codes by e-mail are not offered on this panel.")
+    address = check.text(data, "email", max_length=254).strip()
+    try:
+        sent = email_sign_in.request_code(address, request_info())
+    except ValueError as error:
+        abort(400, str(error))
+    except PermissionError as error:
+        abort(429, str(error))
+    audit.record(address.lower()[:64], client_ip(), "sign-in code by e-mail asked for")
+    return sent
+
+
+def email_code_step(data: dict[str, Any]) -> dict[str, Any]:
+    """Passwordless, step 2: the code. Wrong codes count like wrong passwords."""
+    from sudoo.auth import email_sign_in
+
+    if not methods.email_code_offered():
+        abort(409, "Sign-in codes by e-mail are not offered on this panel.")
+    address = check.text(data, "email", max_length=254).strip()
+    ip = client_ip()
+    name = accounts.find(address) or address.lower()[:64]
+    _refuse_if_throttled(ip, name)
+    found = email_sign_in.check_code(address, check.text(data, "code", max_length=12))
+    if found is None:
+        accounts.THROTTLE.failed(ip, name)
+        audit.record(name, ip, "sign-in refused (wrong or expired e-mail code)", ok=False)
+        abort(401, "The code is not correct, or it has expired.")
+    return first_factor_passed(found[0], found[1], ip, "email_code")
 
 
 def _pending() -> tuple[str, dict[str, Any]]:
@@ -105,9 +183,13 @@ def _pending() -> tuple[str, dict[str, Any]]:
     return pending["user"], account
 
 
+def _first() -> str:
+    return str((session.get("pending") or {}).get("first") or "password")
+
+
 def _challenge(name: str, account: dict[str, Any], method: str) -> dict[str, Any]:
     plugin = auth.factor(method)
-    if plugin is None or not plugin.enrolled(account):
+    if plugin is None or not plugin.enrolled(account) or (method == "email" and _first() == "email_code"):
         abort(400, "This account does not use this kind of code.")
     try:
         return plugin.challenge(name, account, request_info())
@@ -126,22 +208,28 @@ def send_code(method: str) -> dict[str, Any]:
 def second_factor_step(data: dict[str, Any]) -> None:
     """Step 2: the code, or a recovery code. Wrong codes count like wrong passwords (5 per 15 minutes)."""
     name, account = _pending()
+    first = _first()
     ip = client_ip()
     _refuse_if_throttled(ip, name)
     method = check.text(data, "method", max_length=20)
     if method == recovery.METHOD:
-        _recovery_step(name, account, ip, check.text(data, "code", max_length=40))
+        _recovery_step(name, account, ip, check.text(data, "code", max_length=40), first)
         return
     code = check.text(data, "code", max_length=12).replace(" ", "")
     plugin = auth.factor(method)
-    if plugin is None or not plugin.enrolled(account) or not code.isdigit() or not plugin.verify(name, account, code):
+    if (
+        plugin is None
+        or method not in _second_factors(account, first)
+        or not code.isdigit()
+        or not plugin.verify(name, account, code)
+    ):
         accounts.THROTTLE.failed(ip, name)
         audit.record(name, ip, f"second factor refused ({method})", ok=False)
         abort(401, "The code is not correct, or it has expired.")
-    _signed_in(name, account, ip, method)
+    _signed_in(name, account, ip, method, first)
 
 
-def _recovery_step(name: str, account: dict[str, Any], ip: str, code: str) -> None:
+def _recovery_step(name: str, account: dict[str, Any], ip: str, code: str, first: str = "password") -> None:
     """A recovery code in place of the authenticator app's code: it works once, then never again."""
     left = recovery.use(name, code) if recovery.available(account) and auth.factor("totp") else None
     if left is None:
@@ -149,4 +237,70 @@ def _recovery_step(name: str, account: dict[str, Any], ip: str, code: str) -> No
         audit.record(name, ip, "second factor refused (recovery code)", ok=False)
         abort(401, "This recovery code is not correct, or it was used already.")
     audit.record(name, ip, "recovery code used", detail=f"{left} left")
-    _signed_in(name, account, ip, recovery.METHOD)
+    _signed_in(name, account, ip, recovery.METHOD, first)
+
+
+# ---------------------------------------------------------------- GitHub (auth/github.py)
+
+GITHUB_STATE = "github_state"
+
+
+def github_start(purpose: str, panel_url: str, user: str | None = None) -> dict[str, Any]:
+    """Start signing in (or linking) with GitHub: the address of GitHub's page; the state goes in this session."""
+    from sudoo.auth import github
+
+    try:
+        state, url = github.start(purpose, panel_url, user)
+    except github.GitHubSignInError as error:
+        abort(error.status, str(error))
+    session[GITHUB_STATE] = state
+    return {"url": url}
+
+
+def github_finish(data: dict[str, Any]) -> dict[str, Any]:
+    """GitHub sent the browser back: {"signed_in": True}, {"second_factor": ...} or {"linked": login}."""
+    from sudoo.auth import github, github_access
+
+    state = check.text(data, "state", max_length=100)
+    code = check.text(data, "code", max_length=128)
+    expected = str(session.pop(GITHUB_STATE, "") or "")
+    ip = client_ip()
+    _refuse_if_throttled(ip, "github")
+    try:
+        flow, person = github.finish(state, code, expected)
+    except github.GitHubSignInError as error:
+        accounts.THROTTLE.failed(ip, "github")
+        audit.record("github", ip, "GitHub sign-in failed", ok=False, detail=str(error)[:200])
+        abort(error.status, str(error))
+    who = f"{person.login} (GitHub id {person.id})"
+    if flow.purpose == "link":
+        from .security import current_user
+
+        user = current_user()
+        if user is None or user["name"] != flow.user:
+            abort(401, "Your session has ended. Sign in again, then link GitHub from your account page.")
+        account = accounts.get(user["name"]) or {}
+        if not methods.allows(account, "github"):
+            abort(403, "Sign-in with GitHub is not turned on for your account. Ask an administrator.")
+        try:
+            github.link(user["name"], person)
+        except github.GitHubSignInError as error:
+            audit.record(user["name"], ip, "GitHub account not linked", ok=False, detail=f"{who}: {error}")
+            abort(error.status, str(error))
+        audit.record(user["name"], ip, "GitHub account linked", detail=who)
+        if github_access.applies(user["name"]):
+            github_access.refresh(user["name"])
+        return {"linked": person.login}
+    try:
+        name, how = github.account_for(person)
+    except github.GitHubSignInError as error:
+        accounts.THROTTLE.failed(ip, "github")
+        audit.record(person.login[:64], ip, "GitHub sign-in refused", ok=False, detail=f"{who}: {error}")
+        abort(error.status, str(error))
+    except ValueError as error:  # an account could not be created (a name or address problem)
+        abort(400, str(error))
+    if how != "linked":
+        audit.record(name, ip, f"GitHub account linked ({how})", detail=who)
+    account = accounts.get(name) or {}
+    skip = bool(settings.github_sign_in_skips_second_factor) and person.two_factor
+    return first_factor_passed(name, account, ip, "github", skip_second=skip)

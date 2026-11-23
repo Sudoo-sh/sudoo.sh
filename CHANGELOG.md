@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [3.3.4] - 2026-11-23
+
 ### Added
 
 - **A build opens its commit on GitHub**: press a build's card on a project's **Builds** tab, or in a branch's
@@ -17,6 +19,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **The commit an instance runs, in its header**: next to the branch, the short hash (seven characters) of the commit
   its current build runs. Press it to copy the whole hash; its arrow opens the commit on GitHub in a new tab.
+- **Sign in with GitHub, or with a code by e-mail.** The sign-in page offers **Continue with GitHub** (through the
+  panel's own GitHub App: web flow with `state` and PKCE, the person's token revoked at once and never stored) and
+  **Send me a code** (a 6-digit code by e-mail, no password), next to the password. Who may sign in with GitHub:
+  people with an account or invitation that names their GitHub user name or their verified primary GitHub address
+  (linked at the first sign-in), and optionally members of the organisations in `GITHUB_SIGN_IN_ORGS`, with the
+  role `GITHUB_SIGN_IN_ROLE`. Administrators choose each account's ways to sign in (Password, E-mail code, GitHub)
+  on the **Accounts** page; the defaults are `SIGN_IN_METHODS` (`password,github`) and, for client accounts,
+  `CLIENT_SIGN_IN_METHODS` (`email_code`). At least one super admin always keeps a password. `REQUIRE_SECOND_FACTOR`
+  still applies after GitHub; `GITHUB_SIGN_IN_SKIPS_SECOND_FACTOR` (off) may accept GitHub's own 2FA instead. People
+  link and unlink GitHub on **My account**; every sign-in, link and unlink is audited and the sign-in e-mail names
+  the way used. New Apps get the `/login/github` callback URL and **Email addresses** and **Members** read access
+  from the manifest; an App connected before needs the callback URL added once on GitHub (Admin guide).
+- **Project access from GitHub repository permissions** (`GITHUB_ACCESS_FROM_REPOSITORIES`, on with GitHub sign-in):
+  for a linked person, admin on the repository gives admin in the project, maintain maintainer, write developer,
+  triage or read view, none hides it. Read with the App's installation token at each sign-in and every
+  `GITHUB_ACCESS_CHECK_MINUTES` (15); a grant to the person still wins; administrators are not limited. The
+  project's **Access** tab lists each linked person's GitHub permission and level.
 
 - **Choose Odoo's apps for a new instance**, as on Odoo.sh: **New instance** and a branch's **Create instance** have
   a searchable picker of the standard **Odoo apps** of the chosen version (Sales, Invoicing, CRM, Inventory,
@@ -1314,7 +1333,8 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.3...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.4...HEAD
+[3.3.4]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.3...v3.3.4
 [3.3.3]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.2...v3.3.3
 [3.3.2]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.1...v3.3.2
 [3.3.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.0...v3.3.1

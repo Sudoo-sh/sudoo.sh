@@ -16,6 +16,21 @@
   .auth-card { width: min(380px, 100%); display: flex; flex-direction: column; gap: var(--s6); animation: rise var(--enter) var(--ease); }
   .auth-card.wide { width: min(520px, 100%); }
   .auth-card > header { display: flex; flex-direction: column; gap: var(--s2); p { color: var(--text-2); } }
+  .auth-card > header.row { flex-direction: row; align-items: center; gap: var(--s3); }
+  // "Continue with GitHub": a quiet, full-width button with GitHub's mark, above the e-mail form
+  .github-button { gap: var(--s2); font-weight: 500; }
+  // a hairline with "or" in its middle, between GitHub and the e-mail form
+  .auth-or {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    margin-block: calc(var(--s2) * -1);
+    color: var(--text-3);
+    font-size: var(--text-12);
+    &::before, &::after { content: ""; flex: 1; height: 1px; background: var(--hairline); }
+  }
+  // "Send me a code": the other way in with the same address, under the password form
+  .auth-alt { display: flex; flex-direction: column; align-items: center; gap: var(--s1); margin-top: calc(var(--s2) * -1); text-align: center; }
 }
 // the moment of the sign-in page: the product itself, a list of running branches
 .auth-preview {

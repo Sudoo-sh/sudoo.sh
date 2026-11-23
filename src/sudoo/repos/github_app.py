@@ -56,6 +56,10 @@ CREATE_PERMISSIONS = {"administration": "write"}  # creating repositories in an 
 STATUS_PERMISSIONS = {"statuses": "write"}  # reporting builds as commit statuses (projects/commit_status.py)
 STATUS_STATES = ("pending", "success", "failure", "error")
 PULL_PERMISSIONS = {"pull_requests": "write", "issues": "write"}  # pull-request previews: events and one comment each
+SIGN_IN_PERMISSIONS = {"email_addresses": "read", "members": "read"}
+"""Sign-in with GitHub (auth/github.py): the person's verified e-mail address, and their membership of the
+organisations of GITHUB_SIGN_IN_ORGS. Both are read with the person's own token, which is revoked at once."""
+SIGN_IN_CALLBACK = "/login/github"
 REPOSITORY_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 EVENTS = ["push", "create", "delete", "pull_request"]
 HOOK_PATH = "/hooks/github-app"
@@ -205,13 +209,15 @@ def app_name(host: str) -> str:
 def manifest(panel_url: str, hook_base: str, host: str, create_repositories: bool = False) -> dict[str, Any]:
     """The GitHub App manifest: private, read-only access to code, Commit statuses: write (builds reported on their
     commits, STATUS_PERMISSIONS), Pull requests and Issues: write (pull-request previews: their events and one comment
-    on each pull request with the preview's link, PULL_PERMISSIONS), push/create/delete/pull_request events to the
-    panel's webhook. With `create_repositories`, also
+    on each pull request with the preview's link, PULL_PERMISSIONS), e-mail addresses and organisation members: read
+    (sign-in with GitHub, SIGN_IN_PERMISSIONS) with the panel's /login/github as the callback URL,
+    push/create/delete/pull_request events to the panel's webhook. With `create_repositories`, also
     Administration: write, so the panel can create empty repositories for new projects in the organisations it is
     installed on (CREATE_PERMISSIONS)."""
     panel_url, hook_base = panel_url.rstrip("/"), hook_base.rstrip("/")
     permissions = {
-        **PERMISSIONS, **STATUS_PERMISSIONS, **PULL_PERMISSIONS, **(CREATE_PERMISSIONS if create_repositories else {}),
+        **PERMISSIONS, **STATUS_PERMISSIONS, **PULL_PERMISSIONS, **SIGN_IN_PERMISSIONS,
+        **(CREATE_PERMISSIONS if create_repositories else {}),
     }  # fmt: skip
     return {
         "name": app_name(host),
@@ -221,6 +227,7 @@ def manifest(panel_url: str, hook_base: str, host: str, create_repositories: boo
         + (" and creates empty repositories for new projects." if create_repositories else " (read-only code)."),
         "hook_attributes": {"url": hook_base + HOOK_PATH, "active": True},
         "redirect_url": f"{panel_url}/github/app/created",
+        "callback_urls": [panel_url + SIGN_IN_CALLBACK],  # sign-in with GitHub comes back here (auth/github.py)
         "setup_url": f"{panel_url}/github/app/installed",
         "setup_on_update": True,
         "public": False,

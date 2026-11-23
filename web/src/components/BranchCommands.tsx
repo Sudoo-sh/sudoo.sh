@@ -1,9 +1,10 @@
-// The command toolbar of a project's branch, the Odoo.sh way: a tab per task (Clone, Fork, Merge, SSH, SQL,
-// Submodule, Delete) and one command for this branch under it, ready to copy, with the panel's own action beside it
-// where there is one (the web shell, Add submodule, Delete instance). The tab chosen is kept for the session.
+// The command toolbar of a project's branch, the Odoo.sh way, in the project's header under Open on GitHub: a
+// segmented control with a tab per task (Clone, Fork, Merge, SSH, SQL, Submodule, Delete) and one command for this
+// branch under it, ready to copy, with the panel's own action beside it where there is one (the web shell, Add
+// submodule, Delete instance). The tab chosen is kept for the session.
 
 import { Check, Copy, Plus, SquareTerminal, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import type { Instance, ProjectBranch, ProjectDetail, Stage } from "@/api/types";
 import type { BranchDialog } from "@/components/BranchDialogs";
@@ -116,93 +117,66 @@ export function BranchCommands({
   // SSH and SQL need an instance
   const visible = TABS.filter((name) => instance || (name !== "ssh" && name !== "sql"));
   const shown = visible.includes(tab) ? tab : "clone";
-  let body;
+  // each tab: a line saying what its command does, what it asks for, the command, and the panel's own action
+  let text: string | null = null;
+  let inputs: ReactNode = null;
+  let command: { value: string; example?: boolean } | null = null;
+  let action: ReactNode = null;
   switch (shown) {
     case "clone":
-      body = (
-        <>
-          <p className="bc-text">{t.clone}</p>
-          <CommandField command={`git clone --recurse-submodules --branch ${branch.name} ${repository}`} />
-        </>
-      );
+      text = t.clone;
+      command = { value: `git clone --recurse-submodules --branch ${branch.name} ${repository}` };
       break;
     case "fork":
-      body = (
-        <>
-          <p className="bc-text">{t.fork}</p>
-          <div className="bc-inputs">
-            <Input dir="ltr" aria-label={t.forkName} placeholder="new-branch" value={forkName} maxLength={200} onChange={(e) => setForkName(e.target.value)}
-              aria-invalid={typed && !BRANCH_NAME.test(typed) ? true : undefined} />
-          </div>
-          <CommandField example command={`git checkout -b ${newBranch} origin/${branch.name} && git push -u origin ${newBranch}`} />
-        </>
+      text = t.fork;
+      inputs = (
+        <Input dir="ltr" aria-label={t.forkName} placeholder="new-branch" value={forkName} maxLength={200} onChange={(e) => setForkName(e.target.value)}
+          aria-invalid={typed && !BRANCH_NAME.test(typed) ? true : undefined} />
       );
+      command = { value: `git checkout -b ${newBranch} origin/${branch.name} && git push -u origin ${newBranch}`, example: true };
       break;
     case "merge":
-      body = (
-        <>
-          <p className="bc-text">{t.merge}</p>
-          {others.length > 0 && (
-            <div className="bc-inputs">
-              <SelectBox dir="ltr" size="sm" aria-label={t.mergeFrom} value={mergeFrom} onValueChange={setMergeFrom}>
-                {others.map((name) => <option key={name} value={name}>{name}</option>)}
-              </SelectBox>
-            </div>
-          )}
-          <CommandField example command={`git merge ${mergeFrom || "<branch>"} && git push -u origin ${branch.name}`} />
-        </>
+      text = t.merge;
+      inputs = others.length > 0 && (
+        <SelectBox dir="ltr" size="sm" aria-label={t.mergeFrom} value={mergeFrom} onValueChange={setMergeFrom}>
+          {others.map((name) => <option key={name} value={name}>{name}</option>)}
+        </SelectBox>
       );
+      command = { value: `git merge ${mergeFrom || "<branch>"} && git push -u origin ${branch.name}`, example: true };
       break;
     case "ssh":
-      body = names ? (
-        <>
-          <p className="bc-text">{t.ssh} {!names.host && t.sshNoHost}</p>
-          <CommandField command={`ssh ${names.host ?? "<server>"} docker exec -it ${names.odoo} bash`} />
-          {shell && <div className="bc-actions">{shell}</div>}
-        </>
-      ) : (
-        <p className="bc-text">{t.noNames}</p>
-      );
+      if (!names) break;
+      text = names.host ? t.ssh : `${t.ssh} ${t.sshNoHost}`;
+      command = { value: `ssh ${names.host ?? "<server>"} docker exec -it ${names.odoo} bash` };
+      action = shell;
       break;
     case "sql":
-      body = names ? (
-        <>
-          <p className="bc-text">{t.sql}</p>
-          <CommandField command={`docker exec -it ${names.db} psql -U ${names.db_user} ${instance!.odoo.database}`} />
-          {shell && <div className="bc-actions">{shell}</div>}
-        </>
-      ) : (
-        <p className="bc-text">{t.noNames}</p>
-      );
+      if (!names) break;
+      text = t.sql;
+      command = { value: `docker exec -it ${names.db} psql -U ${names.db_user} ${instance!.odoo.database}` };
+      action = shell;
       break;
     case "submodule":
-      body = (
-        <>
-          <p className="bc-text">{t.submodule}</p>
-          <CommandField example command={`git submodule add -b ${instance?.odoo.version ?? branch.odoo_version ?? project.odoo.version} https://github.com/OCA/web.git oca/web && git commit -m "Add OCA web" && git push`} />
-          {instance && can("instances.update") && (
-            <div className="bc-actions">
-              <Button size="sm" icon={<Plus />} disabled={!!instance.current_job} onClick={() => setAdding(true)}>{t.addSubmodule}</Button>
-            </div>
-          )}
-        </>
+      text = t.submodule;
+      command = {
+        value: `git submodule add -b ${instance?.odoo.version ?? branch.odoo_version ?? project.odoo.version} https://github.com/OCA/web.git oca/web && git commit -m "Add OCA web" && git push`,
+        example: true,
+      };
+      action = instance && can("instances.update") && (
+        <Button size="sm" icon={<Plus />} disabled={!!instance.current_job} onClick={() => setAdding(true)}>{t.addSubmodule}</Button>
       );
       break;
     case "delete":
-      body = (
-        <>
-          {instance && <p className="bc-text">{t.deleteText(instance.name)}</p>}
-          <CommandField command={`git push origin --delete ${branch.name}`} />
-          {instance && can("instances.delete") && (
-            <div className="bc-actions">
-              <Button size="sm" variant="danger" icon={<Trash2 />} onClick={() => onDialog({ kind: "delete", instance })}>{t.deleteInstance}</Button>
-            </div>
-          )}
-        </>
+      text = instance ? t.deleteText(instance.name) : null;
+      command = { value: `git push origin --delete ${branch.name}` };
+      action = instance && can("instances.delete") && (
+        <Button size="sm" variant="danger" icon={<Trash2 />} onClick={() => onDialog({ kind: "delete", instance })}>{t.deleteInstance}</Button>
       );
       break;
   }
 
+  // one line of tabs, one line with the command (with what it asks for and the panel's action), and one line saying
+  // what it does (cut short, whole on hover): the same height whatever the tab and the branch, so nothing moves
   return (
     <div className="bc" role="group" aria-label={t.label}>
       <div className="bc-tabs" role="tablist" aria-label={t.label} ref={tabs} onKeyDown={onKey}>
@@ -213,8 +187,13 @@ export function BranchCommands({
           </button>
         ))}
       </div>
-      <div className="bc-panel" id="bc-panel" role="tabpanel" aria-labelledby={`bc-tab-${shown}`} key={shown}>
-        {body}
+      <div className="bc-panel" id="bc-panel" role="tabpanel" aria-labelledby={`bc-tab-${shown}`} aria-describedby={text ? "bc-text" : undefined}>
+        <div className="bc-row" key={shown}>
+          {inputs && <div className="bc-inputs">{inputs}</div>}
+          {command ? <CommandField command={command.value} example={command.example} /> : <p className="bc-none truncate" title={t.noNames}>{t.noNames}</p>}
+          {action && <div className="bc-actions">{action}</div>}
+        </div>
+        <p className="bc-text truncate" id="bc-text" title={text ?? undefined}>{text}</p>
       </div>
       {adding && instance && (
         <SubmoduleDialog version={instance.odoo.version} onClose={() => setAdding(false)}

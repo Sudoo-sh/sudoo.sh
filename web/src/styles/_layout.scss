@@ -218,9 +218,17 @@
   p { color: var(--text-2); max-width: 68ch; }
   .actions { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; }
 }
+// with something under the actions (a project's branch commands) the actions sit at the top, and that column is as
+// wide as the commands need
+.page-head-split {
+  align-items: flex-start;
+  > .titles { flex: 1 1 280px; container-type: inline-size; }
+  > .page-head-side { display: flex; flex-direction: column; align-items: flex-end; gap: var(--s3); flex: 1 1 380px; max-width: 600px; min-width: 0; }
+}
 // on a phone the actions take a line of their own under the title instead of squeezing it
 @media (max-width: 640px) {
   .page-head > .actions { flex: 1 1 100%; }
+  .page-head-split > .page-head-side { flex: 1 1 100%; max-width: none; align-items: stretch; > .actions { justify-content: flex-start; } }
 }
 
 @media (max-width: 960px) {

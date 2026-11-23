@@ -176,18 +176,24 @@ the project's) and a dot for its instance: green online, red
 failing, amber working, a grey ring paused or switched off, a dashed ring no instance. **Filter branches** narrows the
 list by name. On a phone the list folds into a button at the top that names the chosen branch.
 
-Choose a branch and it opens on the right, at `/projects/<project>/branches/<branch>`: its name (with a button that
-copies it), its stage and tags (**default** for the repository's default branch, **deleted on GitHub** when it is
-gone), the branch's commands, and then its **History** followed by its instance's tabs (Overview, Activity, Code,
-Logs, Backups and the others, as on the instance's own page). A branch with several instances has a list to choose the
-instance; a branch without one shows its latest commit, **Create instance**, and its history when it has one. While
+Choose a branch (in the list, or after dragging one) and it opens at `/projects/<project>/branches/<branch>`. The
+chosen branch is part of the project's header, under the project's details: its name in a pill with a button that
+copies it, its stage and tags (**default** for the repository's default branch, the lock, **deleted on GitHub** when
+it is gone) and its menu (**…**); its commands are on the header's right, under **Open on GitHub**. When you choose
+another branch, its name, tags and command fade in where the previous ones were, and nothing else on the page moves.
+On a phone the header shows the branch's name, then its tags, then its commands across the whole width. On the right
+of the list come the branch's instance (its name, status and actions), then its **History** followed by its
+instance's tabs (Overview, Activity, Code, Logs, Backups and the others, as on the instance's own page). A branch with
+several instances has a list next to its name to choose the instance; a branch without one has **Create instance**
+next to its menu and shows its latest commit and its history when it has one. While
 an instance of the branch is being created (by you, or by the panel for a new branch), the branch shows its progress
 instead, and a second one cannot be created by mistake. Its
 settings appear once it has an instance: they describe how the running branch builds. The page opens on the
 production branch, else the first branch.
 
-**Commands.** At the top right of the branch, one tab per task and the command for this branch under it, with a
-button that copies it (**Example:** marks a command to adapt). **Clone** downloads the branch with its submodules.
+**Commands.** On the right of the project's header, one tab per task and the command for this branch under it, with
+a button that copies it (**Example:** marks a command to adapt), and a line under it saying what the command does
+(point at it to read it whole when it is cut short). **Clone** downloads the branch with its submodules.
 **Fork** makes a new branch from this one: type its name and the command follows. **Merge** merges another branch
 into this one (production by default, staging for a production branch; choose another in the list). **SSH** opens a
 shell in the instance's Odoo container through SSH to the server, and **SQL** opens its database in psql (both need

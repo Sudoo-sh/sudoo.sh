@@ -21,7 +21,7 @@
 .topbar { view-transition-name: topbar; }
 .topbar .crumbs { view-transition-name: crumbs; }
 .help-nav { view-transition-name: help-nav; }
-:root[data-nav="tab"] .tab-panel { view-transition-name: tab-panel; }
+:root:is([data-nav="tab"], [data-nav="branch"]) .tab-panel { view-transition-name: tab-panel; }
 // on a phone the sidebar is a drawer that closes while the page changes: it moves with the view
 @media (min-width: 961px) {
   .sidebar { view-transition-name: sidebar; }
@@ -60,8 +60,50 @@
   block-size: auto;
 }
 // between tabs, the rest of the page (title, tabs, banners) is the same: it stays, the tab underline simply moves
-:root[data-nav="tab"]::view-transition-old(root) { animation: none; opacity: 0; }
-:root[data-nav="tab"]::view-transition-new(root) { animation: none; }
+:root:is([data-nav="tab"], [data-nav="branch"])::view-transition-old(root) { animation: none; opacity: 0; }
+:root:is([data-nav="tab"], [data-nav="branch"])::view-transition-new(root) { animation: none; }
+
+// another branch of the same project (data-nav="branch"): as between tabs, plus the branch's part of the project's
+// header, its name and tags (.ph-branch) and its command (.bc-panel), cross-fading in place: the old one leaves
+// rising a little while the new one comes up from just below, both in --branch-swap. The two keep the same box
+// (the row and the panel span their column and keep one height), so each picture is shown at its own size and
+// nothing is stretched or moves around them. Reduced motion: the same cross-fade without the slide.
+:root {
+  --branch-swap: 180ms;
+  --branch-shift: 4px;
+}
+:root[data-nav="branch"] .ph-branch { view-transition-name: branch-identity; }
+:root[data-nav="branch"] .page-head-side .bc-panel { view-transition-name: branch-command; }
+::view-transition-group(branch-identity),
+::view-transition-group(branch-command) {
+  animation: none;
+}
+::view-transition-old(branch-identity),
+::view-transition-new(branch-identity),
+::view-transition-old(branch-command),
+::view-transition-new(branch-command) {
+  inline-size: auto;
+  block-size: auto;
+  mix-blend-mode: normal;
+}
+::view-transition-old(branch-identity),
+::view-transition-old(branch-command) {
+  animation: branch-out var(--branch-swap) var(--ease) both;
+}
+::view-transition-new(branch-identity),
+::view-transition-new(branch-command) {
+  animation: branch-in var(--branch-swap) var(--ease) both;
+}
+@keyframes branch-out {
+  to { opacity: 0; transform: translateY(calc(var(--branch-shift) * -1)); }
+}
+@keyframes branch-in {
+  from { opacity: 0; transform: translateY(var(--branch-shift)); }
+}
+// without the View Transitions API the new branch's row and command simply come up the same way
+@supports not (view-transition-name: none) {
+  .ph-branch, .page-head-side .bc-panel { animation: branch-in var(--branch-swap) var(--ease) both; }
+}
 
 // the frame: does not move and is not cross-faded; what differs in it (the highlighted item) changes at once
 ::view-transition-group(topbar),
@@ -169,7 +211,7 @@
   }
   .rise, .tab-enter, .auth .stagger > *, [data-slot="dialog-content"], [data-slot="sheet-content"], .menu, [data-slot="select-content"], .toast { animation: fade 150ms ease both !important; transform: none !important; }
   // the page transition stays a fade, quicker and without the rise
-  :root { --page-out: 80ms; --page-in: 120ms; --page-rise: 0px; }
+  :root { --page-out: 80ms; --page-in: 120ms; --page-rise: 0px; --branch-shift: 0px; }
   // loading placeholders keep their delay: it avoids a flash, it is not movement
   .nav-progress, .spinner[role="status"] { animation-delay: 150ms !important; }
   [data-slot="skeleton"] { animation-delay: 0ms, 150ms !important; }

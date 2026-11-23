@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **A project's chosen branch is in the project's header**: its name (with a copy button), tags and menu under the
+  project's details, and its commands (Clone, Fork, Merge, SSH, SQL, Submodule, Delete) as a compact toolbar under
+  **Open on GitHub**, instead of a separate block above the instance. Choosing another branch in the list cross-fades
+  them in place without moving the page; on a phone they follow one another across the whole width.
+
 ### Fixed
 
 - **The demo offers Odoo 16.0 to 20.0**, as a panel does with `ODOO_VERSIONS=auto`, in every version list (new instance,

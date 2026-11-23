@@ -1,5 +1,6 @@
 // A project's workspace, the Odoo.sh way: its branches in a sidebar, grouped by stage (production, staging,
-// development), and the chosen branch beside them with commands to copy and its instance's tabs. A branch dragged
+// development), and the chosen branch beside them with its instance's tabs; the branch's name, tags, menu and commands
+// to copy are in the project's header (BranchIdentity and BranchTools, given to `head`). A branch dragged
 // onto another stage asks for confirmation (StageDialog) before its stage changes; the branch's menu does the same
 // for keyboards and screen readers, and the drag itself works with a mouse, a finger (long press) and the keyboard.
 
@@ -284,7 +285,7 @@ function BranchMenu({
   const others = STAGES.filter((s) => s !== branch.stage);
   const view = (tab: string) => branchPath(project.id, branch.name, tab, instance?.name);
   return (
-    <Menu trigger={(toggle) => <Button icon={<Ellipsis />} onClick={toggle} aria-label={w.branchActions(branch.name)} />}>
+    <Menu trigger={(toggle) => <Button size="sm" variant="ghost" icon={<Ellipsis />} onClick={toggle} aria-label={w.branchActions(branch.name)} title={w.branchActions(branch.name)} />}>
       {(close) => (
         <>
           {instance && can("instances.logs") && (
@@ -352,16 +353,29 @@ function BranchMenu({
   );
 }
 
-// ---------------------------------------------------------------- the branch's pane
+// ---------------------------------------------------------------- the branch in the project's header
 
-function BranchPane({
+/** The chosen branch's part of the project's header (pages/Projects.tsx): its name, tags and menu under the project's
+ *  details, and its commands under Open on GitHub. */
+export type ProjectHeadBranch = { identity: ReactNode; tools: ReactNode };
+
+/** The instance shown in a branch: the one the address names (?instance=), else its first. */
+function useChosen(branch: ProjectBranch, instances: Map<string, Instance>) {
+  const [search] = useSearchParams();
+  const asked = search.get("instance");
+  const chosen = asked && branch.instances.includes(asked) ? asked : (branch.instances[0] ?? null);
+  return { chosen, instance: chosen ? instances.get(chosen) : undefined };
+}
+
+/** The branch's name (to copy), its instance when it has several, its tags and its menu. When another branch is
+ *  chosen this row cross-fades (styles/_motion.scss, data-nav="branch"); it keeps one line's height on a computer. */
+function BranchIdentity({
   project,
   branch,
   view,
   instances,
   backups,
   onDialog,
-  onJob,
 }: {
   project: ProjectDetail;
   branch: ProjectBranch;
@@ -369,20 +383,88 @@ function BranchPane({
   instances: Map<string, Instance>;
   backups: Map<string, number> | null;
   onDialog: (dialog: BranchDialog) => void;
-  onJob: (id: string) => void;
 }) {
   const t = useT(words).page;
   const w = useT(words).workspace;
   const l = useT(teamWords);
+  const c = useT(common).common;
   const can = useBranchCan();
   const navigate = useNavigate();
-  const [search] = useSearchParams();
   const { copied, copy } = useCopy();
-  const c = useT(common).common;
-  const asked = search.get("instance");
-  const chosen = asked && branch.instances.includes(asked) ? asked : (branch.instances[0] ?? null);
-  const instance = chosen ? instances.get(chosen) : undefined;
+  const { chosen, instance } = useChosen(branch, instances);
+  return (
+    <div className="ph-branch" role="group" aria-label={w.branchArea(branch.name)}>
+      <span className="ph-branch-name">
+        <GitBranch className="ph-branch-icon" aria-hidden />
+        <bdi dir="ltr" className="truncate" title={branch.name}>{branch.name}</bdi>
+        <Button size="sm" variant="ghost" icon={copied ? <Check /> : <Copy />} onClick={() => copy(branch.name)} aria-label={w.copyName} title={copied ? c.copied : w.copyName} />
+      </span>
+      {branch.instances.length > 1 && chosen && (
+        <SelectBox dir="ltr" size="sm" aria-label={w.instance} value={chosen}
+          onValueChange={(name) => navigate(branchPath(project.id, branch.name, view, name), { viewTransition: true })}>
+          {branch.instances.map((name) => <option key={name} value={name}>{name}</option>)}
+        </SelectBox>
+      )}
+      <span className="ph-branch-tags xsmall">
+        <StageTag stage={branch.stage} />
+        {branch.default && <Tag>{t.defaultBranch}</Tag>}
+        {branch.lock && <LockTag lock={branch.lock} branch={branch.name} />}
+        {branch.restricted && <span title={l.lock.restrictedHint}><Tag icon={<EyeOff />}>{l.lock.restricted}</Tag></span>}
+        {branch.on_github === false && <Tag tone="negative">{t.deletedOnGitHub}</Tag>}
+        {branch.auto_created && branch.instances.includes(branch.auto_created) && <span className="faint">{t.autoCreated}</span>}
+        {/* in the tags' group, so that it never wraps to a line of its own */}
+        <BranchMenu project={project} branch={branch} instance={instance} backups={chosen ? (backups?.get(chosen) ?? null) : null} onDialog={onDialog} />
+      </span>
+      {!chosen && can(branch, "instances.create") && branch.on_github !== false && (
+        <Button size="sm" variant="primary" icon={<Plus />} onClick={() => onDialog({ kind: "create", branch })}>{t.createInstance}</Button>
+      )}
+    </div>
+  );
+}
+
+/** The branch's command toolbar (BranchCommands), for the instance shown. */
+function BranchTools({
+  project,
+  branch,
+  instances,
+  onDialog,
+  onJob,
+}: {
+  project: ProjectDetail;
+  branch: ProjectBranch;
+  instances: Map<string, Instance>;
+  onDialog: (dialog: BranchDialog) => void;
+  onJob: (id: string) => void;
+}) {
+  const can = useBranchCan();
+  const { chosen, instance } = useChosen(branch, instances);
   // the instance in full (the page below reads it too): the names its SSH and SQL commands need
+  const { data: detail } = useInstance(chosen ?? "", !!chosen);
+  return (
+    <BranchCommands project={project} branch={branch} instance={detail ?? instance} can={(p) => can(branch, p)}
+      shellLink={chosen ? branchPath(project.id, branch.name, "shell", chosen === branch.instances[0] ? null : chosen) : null}
+      onDialog={onDialog} onJob={onJob} />
+  );
+}
+
+// ---------------------------------------------------------------- the branch's pane
+
+function BranchPane({
+  project,
+  branch,
+  view,
+  instances,
+  onJob,
+}: {
+  project: ProjectDetail;
+  branch: ProjectBranch;
+  view: string;
+  instances: Map<string, Instance>;
+  onJob: (id: string) => void;
+}) {
+  const w = useT(words).workspace;
+  const can = useBranchCan();
+  const { chosen, instance } = useChosen(branch, instances);
   const { data: detail } = useInstance(chosen ?? "", !!chosen);
   const hb = useT(buildWords).history;
   // the branch's History comes first (the address without a view); the instance's own overview is "overview"
@@ -424,41 +506,8 @@ function BranchPane({
   // without an instance the branch's History shows only when it has entries (a branch that ran before)
   const { data: pastHistory } = useBranchHistory(project.id, branch.name, 1, 0, !chosen);
   return (
+    // the branch's name, tags, menu and commands are in the project's header (BranchIdentity, BranchTools)
     <section className="ws-pane" aria-label={branch.name}>
-      <div className="ws-pane-head">
-        <div className="ws-pane-title">
-          <div className="row" style={{ gap: 6, minWidth: 0 }}>
-            <GitBranch className="ws-branch-icon" />
-            <h2 className="ws-branch-name truncate"><bdi dir="ltr">{branch.name}</bdi></h2>
-            <Button size="sm" variant="ghost" icon={copied ? <Check /> : <Copy />} onClick={() => copy(branch.name)} aria-label={w.copyName} title={copied ? c.copied : w.copyName} />
-          </div>
-          <div className="row-wrap xsmall">
-            <StageTag stage={branch.stage} />
-            {branch.default && <Tag>{t.defaultBranch}</Tag>}
-            {branch.lock && <LockTag lock={branch.lock} branch={branch.name} />}
-            {branch.restricted && <span title={l.lock.restrictedHint}><Tag icon={<EyeOff />}>{l.lock.restricted}</Tag></span>}
-            {branch.on_github === false && <Tag tone="negative">{t.deletedOnGitHub}</Tag>}
-            {branch.auto_created && branch.instances.includes(branch.auto_created) && <span className="faint">{t.autoCreated}</span>}
-          </div>
-        </div>
-        <div className="ws-pane-tools">
-        <div className="actions">
-          {branch.instances.length > 1 && chosen && (
-            <SelectBox dir="ltr" size="sm" aria-label={w.instance} value={chosen}
-              onValueChange={(name) => navigate(branchPath(project.id, branch.name, view, name), { viewTransition: true })}>
-              {branch.instances.map((name) => <option key={name} value={name}>{name}</option>)}
-            </SelectBox>
-          )}
-          {!chosen && can(branch, "instances.create") && branch.on_github !== false && (
-            <Button variant="primary" icon={<Plus />} onClick={() => onDialog({ kind: "create", branch })}>{t.createInstance}</Button>
-          )}
-          <BranchMenu project={project} branch={branch} instance={instance} backups={chosen ? (backups?.get(chosen) ?? null) : null} onDialog={onDialog} />
-        </div>
-        <BranchCommands project={project} branch={branch} instance={detail ?? instance} can={(p) => can(branch, p)}
-          shellLink={chosen ? branchPath(project.id, branch.name, "shell", chosen === branch.instances[0] ? null : chosen) : null}
-          onDialog={onDialog} onJob={onJob} />
-        </div>
-      </div>
       {chosen ? (
         <InsidePage.Provider value={true}>
           <InstanceView
@@ -542,6 +591,7 @@ export function ProjectWorkspace({
   onRefresh,
   refreshing,
   backups: mayManageBackups,
+  head,
 }: {
   project: ProjectDetail;
   meta: ProjectMeta;
@@ -552,6 +602,8 @@ export function ProjectWorkspace({
   onRefresh: () => void;
   refreshing: boolean;
   backups: boolean;
+  /** the project's header and tabs, with the chosen branch's part when there is one */
+  head: (branch?: ProjectHeadBranch) => ReactNode;
 }) {
   const t = useT(words).page;
   const w = useT(words).workspace;
@@ -622,6 +674,8 @@ export function ProjectWorkspace({
 
   if (branches.length === 0)
     return (
+      <>
+        {head()}
       <div className="stack">
         {meta.branches_error && <Callout tone="warning">{t.cannotRead} {meta.branches_error}</Callout>}
         <div className="card">
@@ -635,10 +689,18 @@ export function ProjectWorkspace({
           </div>
         </div>
       </div>
+      </>
     );
 
   const listOpen = !phone || open;
   return (
+    <>
+    {head(current ? {
+      // keyed by the branch: its commands' own state (a fork's name, the branch to merge) starts again
+      identity: <BranchIdentity key={current.name} project={project} branch={current} view={view} instances={instances}
+        backups={backupCounts} onDialog={setDialog} />,
+      tools: <BranchTools key={current.name} project={project} branch={current} instances={instances} onDialog={setDialog} onJob={setJobId} />,
+    } : undefined)}
     <div className="stack">
       {capacity?.warning && capacity.message && (
         <Callout tone="warning">
@@ -724,8 +786,7 @@ export function ProjectWorkspace({
           )}
         </aside>
         {current && (
-          <BranchPane key={current.name} project={project} branch={current} view={view} instances={instances}
-            backups={backupCounts} onDialog={setDialog} onJob={setJobId} />
+          <BranchPane key={current.name} project={project} branch={current} view={view} instances={instances} onJob={setJobId} />
         )}
       </div>
       {dialog?.kind === "lock" && <LockDialog project={project} branch={dialog.branch} onClose={() => setDialog(null)} />}
@@ -741,5 +802,6 @@ export function ProjectWorkspace({
       {newBranch && <NewBranchDialog project={project} stage={newBranch} from={current?.name ?? ""} onClose={() => setNewBranch(null)} />}
       {jobId && <JobDrawer id={jobId} onClose={() => setJobId(null)} />}
     </div>
+    </>
   );
 }

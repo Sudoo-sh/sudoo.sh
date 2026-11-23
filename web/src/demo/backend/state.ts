@@ -148,7 +148,7 @@ export const REPOS: DemoRepo[] = [
     name: "zahra-clinic",
     description: "Zahra Clinic: appointments, patient records and lab results",
     defaultBranch: "main",
-    branches: ["main", "appointments", "lab-results"],
+    branches: ["main", "appointments", "lab-results", "odoo-20"],
     modules: ["zahra_appointments", "zahra_patients", "zahra_lab", "zahra_invoicing"],
     pushedAgo: 5 * HOUR,
     commits: [
@@ -163,7 +163,7 @@ export const REPOS: DemoRepo[] = [
     name: "odoo-common",
     description: "Shared add-ons used in every client project",
     defaultBranch: "18.0",
-    branches: ["17.0", "18.0", "19.0"],
+    branches: ["17.0", "18.0", "19.0", "20.0"],
     modules: ["integrator_base", "integrator_mail_layout"],
     pushedAgo: 3 * DAY,
     commits: [["Mail layout with the client's colours", "Lena"]],
@@ -306,6 +306,7 @@ const SEEDS: Seed[] = [
   { repo: "nile-logistics", branch: "upgrade-18", stage: "development", version: "18.0", edition: "community", status: "online", createdAgo: 9 * DAY, createdBy: "karim", visitedAgo: 47 * MINUTE, profile: { cpu: 0.8, memory: 0.88 * GIB, rpm: 4, ms: 132, errors: 1.6 }, upFor: 3 * HOUR, deleteAfter: 30 },
   { repo: "zahra-clinic", branch: "main", stage: "production", version: "19.0", edition: "enterprise", status: "online", createdAgo: 31 * DAY, createdBy: "omar", visitedAgo: 1 * MINUTE, profile: { cpu: 3.4, memory: 1.33 * GIB, rpm: 38, ms: 57, errors: 0.02 }, upFor: 6 * DAY, autoUpdate: false, autoPause: false, deleteAfter: 0 },
   { repo: "zahra-clinic", branch: "appointments", stage: "staging", version: "19.0", edition: "enterprise", status: "online", createdAgo: 15 * DAY, createdBy: "lena", visitedAgo: 18 * MINUTE, profile: { cpu: 1.2, memory: 0.97 * GIB, rpm: 11, ms: 66, errors: 0 }, upFor: 2 * HOUR, deleteAfter: 90 },
+  { repo: "zahra-clinic", branch: "odoo-20", stage: "development", version: "20.0", edition: "enterprise", status: "online", createdAgo: 2 * DAY, createdBy: "sara", visitedAgo: 25 * MINUTE, profile: { cpu: 0.9, memory: 0.86 * GIB, rpm: 5, ms: 74, errors: 0 }, upFor: 5 * HOUR, deleteAfter: 30 },
   { name: "odoo-19-0-community-7c2e", stage: "development", version: "19.0", edition: "community", status: "switched_off", createdAgo: 2 * DAY, createdBy: "sara", visitedAgo: 1 * DAY, profile: { cpu: 0.4, memory: 0.6 * GIB, rpm: 1, ms: 70, errors: 0 }, upFor: 0, deleteAfter: 7, autoUpdate: false },
 ];
 

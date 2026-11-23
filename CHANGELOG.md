@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **The demo offers Odoo 16.0 to 20.0**, as a panel does with `ODOO_VERSIONS=auto`, in every version list (new instance,
+  Create instance, database upgrades), and has a sample Odoo 20 branch, `odoo-20` of Zahra Clinic.
+
 ## [3.3.0] - 2026-11-23
 
 ### Added

@@ -9,7 +9,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from sudoo import exposure, projects
+from sudoo import engines, exposure, projects
 from sudoo.config import settings
 from sudoo.core import jobs
 from sudoo.core.cache import VersionedMemo
@@ -260,6 +260,7 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
         "name": name,
         "status": status,  # creating, online, starting, busy, paused, switched_off, stopped, unknown
         "server": server_reference(),  # this server; another server's instances: premium/servers.py
+        "engine": engines.kind_of(env),  # docker, or kubernetes (beta): engines/
         "stage": stages.of(env),  # production, staging, development (instances/stages.py)
         "project": project_reference(env.get("PROJECT")),  # None: standalone (plain Odoo)
         "lock": branch_lock(env.get("PROJECT"), env.get("GIT_BRANCH")),  # the branch's lock (projects/access.py)

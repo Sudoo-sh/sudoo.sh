@@ -68,13 +68,13 @@ def answers(grow: bool = False, separation: bool = False, team: bool = False) ->
 # ---------------------------------------------------------------- the recommendation (the installer's rule)
 
 
-def test_the_figures_come_from_one_file_and_are_to_be_measured() -> None:
+def test_the_figures_come_from_one_file_and_are_measured() -> None:
     figure = server_check.figures()
     assert figure["min_cpus"] == 2 and figure["k3s_min_memory_mb"] == 2048  # k3s's own documented minimum
     assert figure["min_memory_mb"] == 2048 + figure["odoo_room_memory_mb"]
-    assert figure["measured"] is False
+    assert figure["measured"] is True  # the Kubernetes engine's local measurement (docs/KUBERNETES_ENGINE.md, 14)
     advice = server_check.recommend(facts(2), NO_ANSWER, False)
-    assert "(to be measured)" in advice["reason"]
+    assert "(to be measured)" not in advice["reason"]
 
 
 def test_by_need_not_by_size_docker_unless_the_answers_point_to_kubernetes() -> None:
@@ -98,9 +98,7 @@ def test_docker_stays_pre_selected_while_kubernetes_is_beta() -> None:
 def test_below_the_minimum_the_answers_do_not_matter_and_every_reason_is_given() -> None:
     small = server_check.recommend(facts(2), answers(grow=True), True)
     assert small["recommended"] == "docker" and small["fits"] is False and small["default"] == "docker"
-    assert small["reason"] == (
-        "Kubernetes needs at least 2 cores and 3 GB of memory (to be measured); this server has 4 cores and 2 GB"
-    )
+    assert small["reason"] == ("Kubernetes needs at least 2 cores and 3 GB of memory; this server has 4 cores and 2 GB")
     assert server_check.recommend(facts(16, cpus=1), answers(grow=True), False)["fits"] is False
     advice = server_check.recommend(facts(16, "openvz", "container", "Rocky Linux 9.4"), answers(grow=True), True)
     assert advice["reasons"] == [
@@ -127,7 +125,8 @@ def test_systems() -> None:
 
 def test_the_beta_switch_is_one_constant() -> None:
     assert server_check.K8S_STABLE is False
-    assert server_check.engines_available() == ["docker"]  # no Kubernetes engine package in this release
+    # the Kubernetes engine (beta) is in this release: its entry point sudoo.engines / kubernetes
+    assert server_check.engines_available() == ["docker", "kubernetes"]
 
 
 # ---------------------------------------------------------------- the server check
@@ -145,8 +144,8 @@ def test_the_server_check_needs_the_setup_code(first_run: tuple[FlaskClient, str
     assert data["virtualisation"] == {"name": "unknown", "kind": "unknown", "from_installer": False}
     assert set(data["ports"]) == {"80", "443"} and "free" in data["ports"]["80"]
     assert data["recommendation"]["recommended"] == "docker" and data["needs"] == NO_ANSWER
-    assert data["figures"]["measured"] is False and data["figures"]["min_cpus"] == 2
-    assert data["engine"]["current"] == "docker" and data["engine"]["available"] == ["docker"]
+    assert data["figures"]["measured"] is True and data["figures"]["min_cpus"] == 2
+    assert data["engine"]["current"] == "docker" and data["engine"]["available"] == ["docker", "kubernetes"]
     assert data["engine"]["switch_command"] == "sudo sudoo-install engine {engine}"
 
 

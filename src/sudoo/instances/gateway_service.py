@@ -178,11 +178,20 @@ def parse_routes(data: Any) -> Routes:
                 _port(entry.get("odoo_port")),
                 entry.get("switched_off") is True,
                 None if websocket is None else _port(websocket),
+                _odoo_host(entry.get("odoo_host", "127.0.0.1")),
             ),
         )
     access = data.get("access")  # absent in files of earlier panels: no rules
     access_gate.parse_section(access)  # refused here when not valid, with the rest of the file
     return Routes(mode, edge, dict(values), instances, _parse_domains(data.get("domains"), instances, ports), access)
+
+
+def _odoo_host(value: Any) -> str:
+    """An instance's Odoo address: an IP address only (the Kubernetes engine's Service address), never a name."""
+    try:
+        return str(ipaddress.ip_address(str(value)))
+    except ValueError:
+        raise ValueError(f"not an address: {str(value)[:60]!r}") from None
 
 
 def _parse_domains(raw: Any, instances: dict[str, tuple[int, gateway.Route]], ports: set[int]) -> gateway.DomainRoutes:

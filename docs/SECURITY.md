@@ -30,6 +30,7 @@
 21. [Production access rules (beta)](#21-production-access-rules-beta)
 22. [Maintenance windows](#22-maintenance-windows)
 23. [Topology shared with Sudoo.sh](#23-topology-shared-with-sudoosh)
+24. [Kubernetes engine (beta)](#24-kubernetes-engine-beta)
 
 ---
 
@@ -1060,3 +1061,25 @@ The live infrastructure view of Sudoo.sh staff ([Marketplace, Sharing the topolo
 | Someone else sends or reads the snapshot | It goes in a request signed with the installation key, and the hub's answer is signed; the hub keeps it with the installation and shows it to staff only. |
 | What was shared stays after opting out | Switching it off sends a signed `DELETE` (tried again until the hub answers), and the panel forgets its pseudonym key, so later ids cannot be matched with earlier ones. |
 | Too much is sent | One snapshot is at most 256 KiB, every 30 seconds at the most often; the hub refuses larger ones and can ask for a longer interval or stop it. |
+
+---
+
+## 24. Kubernetes engine (beta)
+
+With the Docker engine the panel holds the Docker socket, which is root on the server. With the Kubernetes engine
+([Kubernetes engine](KUBERNETES_ENGINE.md#6-the-panels-access-to-the-cluster)) it holds a ServiceAccount token
+(`sudoo-system/sudoo-panel`) instead, written by `scripts/k3s-prepare.sh` into a kubeconfig of mode 600:
+
+| What | How it is limited |
+| :--- | :--- |
+| The panel's rights | ClusterRole `sudoo-panel`: namespaces, reading nodes and node metrics, RoleBindings, and `bind` of the ClusterRole `sudoo-instance` only. Inside each of its namespaces, a RoleBinding to `sudoo-instance` (pods with exec and logs, Deployments, StatefulSets, Jobs, Services, ConfigMaps, Secrets, volumes, NetworkPolicies, quotas). In `kube-system`: creating Secrets only, never reading them. |
+| Names | The ValidatingAdmissionPolicy `sudoo-panel-scope` refuses every change of the panel's ServiceAccount to a namespace not named `sudoo-<instance>` (or without `app.kubernetes.io/managed-by=sudoo`, or without Pod Security `enforce=restricted`), a RoleBinding outside those namespaces or to another role, and any Secret in `kube-system` that is not a k3s join token with an expiry. |
+| Pods | Pod Security `restricted` on every instance namespace (and by default on the cluster): non-root, no privilege escalation, every capability dropped, `RuntimeDefault` seccomp, no host paths, ports, network or processes. No pod gets a ServiceAccount token. Root shells are refused. |
+| Network | Each instance namespace denies everything by default; Odoo reaches only its own PostgreSQL (5432) and DNS, PostgreSQL accepts only its own Odoo pods, Odoo accepts only the nodes' addresses (the gateway). Odoo has no internet access, so it sends no e-mail. |
+| Secrets | `odoo.conf` and the database password are Secrets, encrypted at rest (`--secrets-encryption`); the API's audit log (`/var/log/k3s/audit.log`) records who changed what, without Secrets' contents. |
+| Join tokens | Made on request (`settings.manage`, the premium package "servers"), valid `KUBERNETES_JOIN_TOKEN_MINUTES`, shown once, never stored by the panel; the CA hash in them makes a new node refuse any other server. |
+
+**What this does not protect.** Whoever takes over the panel can still do anything to the Kubernetes instances (as to
+the Docker ones), and the panel keeps the Docker socket for Docker instances while both engines are used. Root on a
+node reaches every pod on it. The beta's runner Jobs and exec run as the images' own users, inside the instance's
+quota.

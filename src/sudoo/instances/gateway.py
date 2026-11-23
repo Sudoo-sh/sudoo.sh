@@ -112,6 +112,7 @@ class Route:
     odoo_port: int
     switched_off: bool = False
     websocket_port: int | None = None  # Odoo's gevent server, when it runs with workers (resources.py)
+    odoo_host: str = "127.0.0.1"  # the Kubernetes engine: the instance's Service address in the cluster
 
 
 class Edge(Protocol):
@@ -202,6 +203,13 @@ class Host(Protocol):
         ...
 
 
+def odoo_host(env: Mapping[str, str]) -> str:
+    """Where the instance's Odoo listens (instances/odoo.py host)."""
+    from sudoo.instances import odoo
+
+    return odoo.host(env)
+
+
 def websocket_port(env: Mapping[str, str]) -> int | None:
     """Where the instance's WebSockets go when its containers run with Odoo workers (ODOO_WORKERS, written by the
     panel when it starts them): Odoo's gevent server (ODOO_GEVENT_PORT); None: to the Odoo port, threaded mode."""
@@ -217,7 +225,9 @@ class PanelHost:
         if not store.exists(name):
             return None
         env = store.read_env(name)
-        return Route(int(env["ODOO_PORT"]), bool(STATE.get(name).get("switched_off")), websocket_port(env))
+        return Route(
+            int(env["ODOO_PORT"]), bool(STATE.get(name).get("switched_off")), websocket_port(env), odoo_host(env)
+        )
 
     def edge(self) -> Edge:
         return exposure.provider()
@@ -516,14 +526,15 @@ async def _to_instance(request: web.Request, name: str, edge: Edge) -> web.Strea
         return status_pages.render(request, name, "off")
     if request.path == CONNECT_PATH:
         return await _connect(request, name, edge)
-    odoo_url = f"http://127.0.0.1:{route.odoo_port}"
+    host = f"[{route.odoo_host}]" if ":" in route.odoo_host else route.odoo_host
+    odoo_url = f"http://{host}:{route.odoo_port}"
     try:
         if request.headers.get("Upgrade", "").lower() == "websocket":
             if route.websocket_port:  # Odoo with workers serves WebSockets on its gevent port only
-                odoo_url = f"http://127.0.0.1:{route.websocket_port}"
+                odoo_url = f"http://{host}:{route.websocket_port}"
             return await _forward_websocket(request, odoo_url, edge)
         if route.websocket_port and request.path.startswith(LONGPOLLING_PATH):  # Odoo 15 and earlier, with workers
-            odoo_url = f"http://127.0.0.1:{route.websocket_port}"
+            odoo_url = f"http://{host}:{route.websocket_port}"
         return await _forward_http(request, odoo_url, name, edge)
     except _OdooDown:
         return await HOST.not_ready(request, name)

@@ -3,7 +3,8 @@
 An instance lives in INSTANCES_DIR/<name>/:
     .env                  its settings (version, edition, ports, database, automation switches); mode 600,
                           the Odoo master password in it is encrypted (vault.py)
-    docker-compose.yml    its two containers: odoo and db (PostgreSQL)
+    docker-compose.yml    its two containers: odoo and db (PostgreSQL); kubernetes.json instead for an instance of
+                          the Kubernetes engine (ENGINE=kubernetes in .env, engines/kubernetes/)
     config/odoo.conf      Odoo configuration
     addons/               clone of its GitHub repository (with submodules); for plain Odoo (SOURCE=plain in .env)
                           an empty folder (a git repository without a remote, so git commands stay inside it)
@@ -33,6 +34,7 @@ ENV_KEY_RE = re.compile(r"[A-Z][A-Z0-9_]*")
 # and paragraph separators (str.splitlines() breaks lines on some of them, and other readers may too)
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
 _COMPOSE = "docker-compose.yml"
+_KUBERNETES = "kubernetes.json"  # an instance of the Kubernetes engine (engines/kubernetes/engine.py)
 
 
 def folder(name: str) -> Path:
@@ -51,7 +53,10 @@ def _instances_dir() -> str:
 
 def exists(name: str) -> bool:
     # plain strings rather than Path objects: this runs for every visit and for every instance of every list
-    return bool(NAME_RE.match(name or "")) and os.path.exists(os.path.join(_instances_dir(), name, _COMPOSE))
+    if not NAME_RE.match(name or ""):
+        return False
+    folder = os.path.join(_instances_dir(), name)
+    return os.path.exists(os.path.join(folder, _COMPOSE)) or os.path.exists(os.path.join(folder, _KUBERNETES))
 
 
 def names() -> list[str]:

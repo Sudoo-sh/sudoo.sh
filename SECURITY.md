@@ -1,6 +1,7 @@
 # Security Policy
 
-The panel manages Docker on its server and stores the credentials of its GitHub App, deploy keys and Odoo master passwords, so security problems are taken seriously. Thank you for reporting them responsibly.
+The panel manages Docker on its server (and, with the Kubernetes engine beta, a k3s cluster through a ServiceAccount
+limited to its own namespaces instead of the Docker socket: [docs/SECURITY.md](docs/SECURITY.md#24-kubernetes-engine-beta)) and stores the credentials of its GitHub App, deploy keys and Odoo master passwords, so security problems are taken seriously. Thank you for reporting them responsibly.
 
 ## Supported versions
 
@@ -31,7 +32,7 @@ Please give a reasonable time to fix the problem before you talk about it public
 
 ## Scope
 
-In scope: the panel, its gateway service, the release images and the installer (`sudoo-install.sh`), and the way they store secrets and run commands.
+In scope: the panel, its gateway service, the release images and the installer (`sudoo-install.sh`), `scripts/k3s-prepare.sh` and the cluster access it grants the panel (RBAC and the admission policy `sudoo-panel-scope`), and the way they store secrets and run commands.
 
 Out of scope, because they are documented on purpose in [docs/SECURITY.md](docs/SECURITY.md) and the README's *Known Limitations*:
 

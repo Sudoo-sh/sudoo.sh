@@ -42,6 +42,7 @@ def test_an_instance_without_an_engine_runs_on_docker(instance: str) -> None:
     assert engines.kind_of({}) == "docker"
     assert isinstance(engines.of(instance), DockerEngine)
     assert engines.kinds()[0] == "docker"
+    assert engines.offered() == ["docker"]  # KUBERNETES_ENGINE_BETA is off by default
     with pytest.raises(engines.UnknownEngine):
         engines.named("nomad")
 

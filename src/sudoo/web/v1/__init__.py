@@ -35,6 +35,7 @@ role (roles.py), and the same permission checks apply.
     mail_templates.py  the texts of the e-mails the panel sends
     maintenance.py the maintenance Sudoo.sh plans on the panel, and choosing its time (staff and clients)
     server.py      the server's resource use, the panel's address and plugins
+    kubernetes.py  the Kubernetes engine (beta): the cluster's nodes, the command that adds one
     users.py       roles, accounts and the audit log
     invitations.py invitations of new people by e-mail, and accepting one
     tokens.py      API tokens
@@ -73,6 +74,7 @@ from . import (
     imports,
     instances,
     invitations,
+    kubernetes,
     licence,
     logs,
     mail_templates,
@@ -140,6 +142,7 @@ def register(app: Flask) -> None:
         maintenance,
         alerts,
         server,
+        kubernetes,
         users,
         invitations,
         tokens,

@@ -6,6 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added (beta)
+
+- **Kubernetes engine (beta)**: instances can run on k3s, even on a single server, next to Docker (still the
+  default). Each instance gets its own namespace with Pod Security `restricted`, network policies that let Odoo reach
+  only its own database, quotas, its own volumes and Secrets; the panel reaches the cluster with a ServiceAccount
+  limited to its own namespaces (checked by an admission policy) instead of the Docker socket. Backups, restores,
+  the Shell and Logs tabs, pausing and waking work as with Docker, and **Move to another engine** moves an instance
+  between Docker and Kubernetes with a backup and a restore. Settings, **Kubernetes (beta)** lists the cluster's nodes
+  and, with several servers, **Add a node** shows the `k3s agent` command with a join token, once.
+  `scripts/k3s-prepare.sh` installs a hardened k3s and the panel's access. Off until `KUBERNETES_ENGINE_BETA=true`;
+  see [Kubernetes engine](docs/KUBERNETES_ENGINE.md).
+
 ### Upgrading
 
 - **Projects keep their access.** Projects made before this version keep the earlier access model (the panel role

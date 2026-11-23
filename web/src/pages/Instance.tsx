@@ -2,7 +2,9 @@ import {
   Activity,
   Archive,
   ArrowUpCircle,
+  ArrowRightLeft,
   ArrowUpRight,
+  Boxes,
   Box,
   Check,
   Code2,
@@ -62,6 +64,7 @@ import { AccessRulesCard } from "@/components/AccessRules";
 import { LogsPanel } from "@/components/LogsPanel";
 import { CommitHash } from "@/components/CommitHash";
 import { ConnectButton } from "@/components/ConnectAs";
+import { EngineMoveDialog, otherEngine, useOfferedEngines } from "@/components/EngineMove";
 import { BackupCommentDialog, ImportDatabaseButton } from "@/components/ImportDatabase";
 import { Page, useCan } from "@/components/Shell";
 import { StatCard } from "@/components/StatCard";
@@ -75,6 +78,7 @@ import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/instance";
 import toolWords from "@/i18n/tools";
+import engineWords from "@/i18n/kubernetes";
 import { jobTitle } from "@/i18n/jobs";
 import { ago, bytes, count, dateTime, duration, elapsed, fullDateTime, ms, number, percent } from "@/lib/format";
 import { commitPage } from "@/lib/git";
@@ -167,7 +171,9 @@ export function InstanceView({
   const t = all.head;
   const j = all.jobs;
   const b = all.banners;
-  const [dialog, setDialog] = useState<null | "upgrade" | "branch" | "delete" | "submodule" | "rollback" | "connect" | "pause" | "switch-off">(null);
+  const [dialog, setDialog] = useState<null | "upgrade" | "branch" | "delete" | "submodule" | "rollback" | "connect" | "pause" | "switch-off" | "engine">(null);
+  const e = useT(engineWords);
+  const { data: offered } = useOfferedEngines(instance?.odoo.version ?? "", !!instance && can("instances.move"));
 
   if (error && !instance) return <MissingInstance name={name} error={error} />;
   if (instance?.status === "creating" && instance.current_job) return <CreatingInstance instance={instance} />;
@@ -215,6 +221,9 @@ export function InstanceView({
               )}
               <Tag mono>{instance.odoo.version}</Tag>
               <Tag>{instance.odoo.edition === "enterprise" ? "Enterprise" : "Community"}</Tag>
+              {instance.engine === "kubernetes" && (
+                <span title={e.onKubernetes}><Tag tone="accent" icon={<Boxes />}>{e.kubernetes}</Tag></span>
+              )}
               {plain ? (
                 <span className="row xsmall" style={{ gap: 4 }}>
                   <Box size={14} strokeWidth={1.5} /> {t.plain}
@@ -314,6 +323,11 @@ export function InstanceView({
                         </MenuItem>
                       )}
                     </>
+                  )}
+                  {can("instances.move") && otherEngine(instance, offered) && (
+                    <MenuItem disabled={busy} onSelect={item(() => setDialog("engine"))}>
+                      <ArrowRightLeft /> {e.move}
+                    </MenuItem>
                   )}
                   {can("instances.delete") && (
                     <MenuItem danger disabled={busy} onSelect={item(() => setDialog("delete"))}>
@@ -438,6 +452,10 @@ export function InstanceView({
       {(dialog === "pause" || dialog === "switch-off") && (
         <StopProductionDialog name={name} action={dialog} onClose={() => setDialog(null)}
           onRun={() => act(dialog, dialog === "pause" ? j.pause : j.switchOff)} />
+      )}
+      {dialog === "engine" && otherEngine(instance, offered) && (
+        <EngineMoveDialog instance={instance} to={otherEngine(instance, offered)!} onClose={() => setDialog(null)}
+          onRun={() => act("change-engine", e.moveJob, { engine: otherEngine(instance, offered), ...(production ? { confirm_production: true } : {}) })} />
       )}
       {dialog === "rollback" && instance.rollback && (
         <RollbackDialog instance={instance} onClose={() => setDialog(null)} onRun={() => act("rollback", j.rollback)} />

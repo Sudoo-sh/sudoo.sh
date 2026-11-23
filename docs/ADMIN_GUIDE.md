@@ -42,6 +42,7 @@ domains and certificates, off-site copies of backups.
 30. [Client portal](#30-client-portal)
 31. [Production access rules (beta)](#31-production-access-rules-beta)
 32. [Maintenance windows](#32-maintenance-windows)
+33. [Kubernetes engine (beta)](#33-kubernetes-engine-beta)
 
 ---
 
@@ -3214,3 +3215,68 @@ Instances on other servers are skipped (their agents do not run maintenance yet)
 
 **Afterwards.** Each step's result is shown on the Maintenance page and sent to Sudoo.sh, signed. Administrators and
 clients are e-mailed the result (`maintenance_result`). Everything is in the audit log.
+
+---
+
+## 33. Kubernetes engine (beta)
+
+> A **beta**: try it on a server you can rebuild. Docker stays the default engine, and the instances you have stay on
+> Docker until you move them. How it works and why: [Kubernetes engine](KUBERNETES_ENGINE.md).
+
+The Kubernetes engine runs an instance in its own namespace of a k3s cluster instead of as a Docker Compose project.
+The panel reaches the cluster with a ServiceAccount whose rights stop at its own namespaces, instead of the Docker
+socket, and the cluster can grow by nodes you add from the panel.
+
+**What you need:** at least 8 GB of memory on the server (k3s itself takes about 1 to 1.5 GB), Ubuntu or Debian, and
+the panel installed. Enterprise instances, the mail catcher, Connect as, the code profiler, database upgrades,
+project builds and imports do not work on Kubernetes instances yet (they stay on Docker).
+
+### Installing k3s
+
+1. On the panel's server, as root, from the panel's release files:
+
+   ```bash
+   sudo bash scripts/k3s-prepare.sh install
+   ```
+
+   It installs k3s (a pinned version; `--version` chooses another) with Pod Security `restricted` as every
+   namespace's default, Secrets encrypted on disk, an audit log in `/var/log/k3s/`, and Traefik switched off (the
+   panel's gateway serves visitors). It creates the namespace `sudoo-system`, the panel's ServiceAccount and its
+   rights, and writes the panel's kubeconfig to `<ODOO_ROOT>/manager/kubernetes/kubeconfig.json` (mode 600).
+   `print-manifests` instead of `install` only prints those rights, so you can read them first; `print-env` prints
+   the `.env` lines. The Sudoo.sh installer runs this same script when you choose Kubernetes.
+2. Add the lines it prints to the panel's `.env` (at least `KUBERNETES_ENGINE_BETA=true`) and restart the panel:
+   `docker compose up -d panel`. All settings: [Configuration](CONFIGURATION.md#kubernetes-engine-beta).
+3. **New instance** now shows **Engine**: Docker or Kubernetes (beta).
+
+### Moving an instance between Docker and Kubernetes
+
+On the instance, **Move to another engine** (permission `instances.move`). The instance is switched off, backed up,
+removed from its engine, created on the other one from that backup and started; its name, link, database, files and
+passwords stay. If it does not start, it is put back where it was from the same backup. Production asks you to
+confirm.
+
+### Adding nodes
+
+Settings, **Kubernetes (beta)** lists the cluster's nodes: status, version, processor and memory, and what is used
+now. **Add a node** (several servers, a premium feature of Business plans) shows the command to run on the new
+server once, with a join token that works for `KUBERNETES_JOIN_TOKEN_MINUTES` (60):
+
+```bash
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION='v1.36.6+k3s1' \
+  K3S_URL='https://<your server>:6443' K3S_TOKEN='K10...' sh -s - agent
+```
+
+Set `KUBERNETES_JOIN_URL` to the address the new server reaches this one at, and open TCP 6443 and UDP 8472 between
+your servers only (a private network or the firewall), never to the internet. The token starts with the hash of
+your cluster's certificate authority, so the new node refuses any other server. The panel does not keep it.
+
+### Good to know
+
+* Each node downloads the Odoo and PostgreSQL images the first time it runs them; the first instance on a node takes
+  longer to start.
+* Volumes are folders on the node (`local-path`): an instance stays on the node it started on, and if that node is
+  lost, its instances' data is lost with it. Back up as usual: more nodes give more room, not high availability
+  ([Kubernetes engine, section 16](KUBERNETES_ENGINE.md#16-real-high-availability-later-phase)).
+* Remove k3s with `/usr/local/bin/k3s-uninstall.sh` once no instance runs on it (move them to Docker first): it
+  deletes every Kubernetes instance's data.

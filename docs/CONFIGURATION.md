@@ -63,7 +63,8 @@ reset with **Use .env**.
 26. [Support access](#support-access)
 27. [Client portal](#client-portal)
 28. [Maintenance windows](#maintenance-windows)
-29. [Locations](#locations)
+29. [Kubernetes engine (beta)](#kubernetes-engine-beta)
+30. [Locations](#locations)
 
 ---
 
@@ -223,8 +224,8 @@ ignored.
 What runs the instances: **Docker**, or **Kubernetes** (k3s, beta), which makes it easier to grow to more servers and
 isolates clients and teams more strongly. Neither is high availability: that needs three servers and replicated
 storage, a later phase. The engine is chosen by need: the server's figures are only a minimum check (k3s's own 2 cores
-and 2 GB, plus room for Odoo; the figures are in `src/sudoo/engine_figures.json` and shown as "to be measured" until
-real measurements replace them; not a container; Ubuntu 22.04+ or Debian 12+), and three questions decide (more
+and 2 GB, plus room for Odoo; the figures are in `src/sudoo/engine_figures.json`, with k3s's own use measured locally
+([Kubernetes engine, section 14](KUBERNETES_ENGINE.md#14-resources-it-costs)); not a container; Ubuntu 22.04+ or Debian 12+), and three questions decide (more
 servers later, stronger separation between clients or teams, one person or a team). Docker is recommended unless the
 answers point to Kubernetes, and stays pre-selected while it is beta. The installer asks them; the setup page asks them
 again (Server step); the engine itself is changed on the server with `sudo sudoo-install engine docker|kubernetes`,
@@ -756,6 +757,36 @@ used: instances show them as their server.
 Each agent takes the panel's instance settings (pausing, backups, time zone, stages, resources, images, capacity,
 gateway, domains, shells, mail catcher) from the panel; what belongs to its own server stays in its own `.env`
 (folders, ports, exposure, Enterprise add-ons). Secrets never leave the panel.
+
+---
+
+## Kubernetes engine (beta)
+
+Instances on a k3s cluster instead of Docker Compose ([Kubernetes engine](KUBERNETES_ENGINE.md)). Off by default;
+`scripts/k3s-prepare.sh` installs k3s, gives the panel its access and prints the lines to add
+([Admin guide, Kubernetes engine](ADMIN_GUIDE.md#33-kubernetes-engine-beta)). Every setting is `.env` only: change it,
+then restart the panel.
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `KUBERNETES_ENGINE_BETA` | bool | `false` | `.env` only | Offer the Kubernetes engine for new instances, next to Docker (still the default). `false`: only Docker; instances already on Kubernetes keep running there. |
+| `KUBERNETES_MODE` | text | `kubeconfig` | `.env` only | How the panel reaches the cluster: `kubeconfig` (the file below) or `in-cluster` (the panel runs in a pod with its ServiceAccount). |
+| `KUBERNETES_KUBECONFIG` | text | empty | `.env` only | The panel's kubeconfig, JSON, with its ServiceAccount's token (the installer writes it). Empty: `<ODOO_ROOT>/manager/kubernetes/kubeconfig.json`. |
+| `KUBERNETES_CONTEXT` | text | empty | `.env` only | The kubeconfig's context to use. Empty: its current context. |
+| `KUBERNETES_REQUEST_TIMEOUT_SECONDS` | float | `30` | `.env` only | Seconds the panel waits for one answer of the Kubernetes API (5 to 300). |
+| `KUBERNETES_RUNNER_START_SECONDS` | int | `900` | `.env` only | Seconds a runner Job (backups, restores, `odoo -i`) may take to start, the first download of the Odoo image on a node included (30 to 3600). |
+| `KUBERNETES_STORAGE_CLASS` | text | `local-path` | `.env` only | Storage class of the instances' volumes (k3s ships `local-path`). Empty: the cluster's default. |
+| `KUBERNETES_DB_SIZE_GB` | int | `10` | `.env` only | Size asked for each database volume, in GB. |
+| `KUBERNETES_FILES_SIZE_GB` | int | `10` | `.env` only | Size asked for each Odoo files volume (filestore, sessions), in GB. |
+| `KUBERNETES_ADDONS_SIZE_GB` | int | `2` | `.env` only | Size asked for each code volume, in GB. |
+| `KUBERNETES_QUOTA_CPU` | float | `8` | `.env` only | Processor limit of one instance's namespace, all its pods together, in cores. |
+| `KUBERNETES_QUOTA_MEMORY_MB` | int | `8192` | `.env` only | Memory limit of one instance's namespace, all its pods together, in MB. |
+| `KUBERNETES_QUOTA_PODS` | int | `5` | `.env` only | Pods one instance's namespace may have at once (Odoo, PostgreSQL and runner Jobs; 3 to 50). |
+| `KUBERNETES_CONTAINER_CPU` | float | `2` | `.env` only | Processor limit of a container that has none of its own (the instance's Resources card sets them), in cores. |
+| `KUBERNETES_CONTAINER_MEMORY_MB` | int | `2048` | `.env` only | Memory limit of a container that has none of its own, in MB. |
+| `KUBERNETES_JOIN_URL` | text | empty | `.env` only | Address new nodes reach the k3s server's API at (`https://<address>:6443`), written into the join command. |
+| `KUBERNETES_JOIN_TOKEN_MINUTES` | int | `60` | `.env` only | Minutes a node's join token stays valid (5 to 1440). |
+| `KUBERNETES_K3S_VERSION` | text | empty | `.env` only | k3s version new nodes install (for example `v1.36.6+k3s1`). Empty: the server's own. |
 
 ---
 

@@ -71,7 +71,8 @@ def _paused(name: str) -> bool:
 
 def _wait_until_ready(job: Job, name: str, strict: bool = False) -> None:
     """Wait until Odoo answers. When it does not in time: a warning, or with `strict` a failed step."""
-    if odoo.wait_until_ready(store.read_env(name)["ODOO_PORT"]):
+    env = store.read_env(name)
+    if odoo.wait_until_ready(env["ODOO_PORT"], 240, **odoo.host_option(env)):
         monitor.mark_running(name)
     elif strict:
         raise JobError("Odoo did not answer after it was started")
@@ -92,7 +93,7 @@ def _start_odoo(job: Job, name: str, restart: bool = False, strict: bool = False
     refresh_addons_path(job, name)
     resources.write_conf(name)  # workers and limits in odoo.conf, as the compose file gets them
     mail_catcher.prepare(name)  # staging and development: e-mail goes to the mail catcher
-    integrity.apply(job, name)  # current settings and hardening; Compose recreates what changed
+    engines.of(name).apply(job, name)  # current settings and hardening; Compose recreates what changed
     exposure.ensure(name)
     engines.of(name).up(job, name, timeout=900, orphans=True)
     if restart:
@@ -136,9 +137,12 @@ def create(job: Job, plan: dict[str, Any]) -> None:
     except Exception:
         job.write("\nRemoving the half-created instance so the same name can be used again.\n")
         compose_file, env_file = folder / "docker-compose.yml", folder / ".env"
+        kind = plan.get("engine") or engines.DOCKER
 
         def containers() -> None:
-            if compose_file.exists():
+            if kind != engines.DOCKER:
+                engines.named(kind).remove(job, name, timeout=300, checked=False)
+            elif compose_file.exists():
                 mail_catcher.detach(name)  # Docker keeps a network something is connected to
                 engines.of(name).remove(job, name, timeout=300, checked=False)
 
@@ -180,6 +184,7 @@ def planned_instance_id(plan: dict[str, Any]) -> str | None:
 def _create(job: Job, plan: dict[str, Any]) -> None:
     name, db, version = plan["name"], plan["db_name"], plan["version"]
     enterprise = plan["edition"] == "enterprise"
+    engine = engines.named(plan.get("engine") or engines.DOCKER)
     addons = store.addons_dir(name)
     job.expect(
         7  # Odoo image, preparing, database container, Odoo database, public link, starting Odoo, waiting
@@ -193,10 +198,13 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     )
     source = _backup_to_start_from(job, plan)
     foreign = source is not None and source["instance"] != name
-    _download_images(job, version)
+    engine.prepare_images(job, version)
     job.step("Preparing the instance")
     (store.folder(name) / "config").mkdir()
-    _remove_leftovers(job, name)
+    if engine.kind == engines.DOCKER:
+        _remove_leftovers(job, name)
+    else:
+        engine.remove_leftovers(job, name)
     if plan["repo"]:
         job.step("Downloading the code from GitHub")
         try:
@@ -242,6 +250,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
             "INSTANCE_ID": planned_instance_id(plan) or secrets.token_hex(16),
             "ENTERPRISE_FOLDER": str(enterprise_folder or ""),
             "STAGE": plan.get("stage") or stages.DEFAULT,
+            **({engines.ENV_KEY: engine.kind} if engine.kind != engines.DOCKER else {}),
             **({"PROJECT": plan["project"]} if plan.get("project") else {}),  # projects/: its repository's project
         },
     )
@@ -253,7 +262,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     mail_catcher.prepare(name)  # staging and development: e-mail goes to the mail catcher
     STATE.update(name, last_visit=time.time(), paused=False, switched_off=False)
 
-    integrity.apply(job, name)  # the images just downloaded, pinned by digest; hardened compose file; protected files
+    engine.apply(job, name)  # the images just downloaded, pinned by digest; hardened compose file; protected files
 
     job.step("Starting the database")
     engines.of(name).up(job, name, "db", timeout=300)
@@ -649,6 +658,66 @@ def _finish_restore(job: Job, name: str) -> None:
     _start_odoo(job, name)
 
 
+def change_engine(job: Job, name: str, kind: str) -> None:
+    """Move the instance to another engine of this server (Docker or Kubernetes) with a backup and a restore, the
+    way a move between servers works: switched off (the downtime starts), backed up, removed from its engine (its
+    folder, code and state stay), created on the other engine, the backup restored (the same instance: not
+    neutralised) and Odoo started. When a step fails, it is put back on its engine from the same backup."""
+    old = engines.kind_of(store.read_env(name))
+    if kind == old:
+        raise JobError(f"The instance runs on {kind} already.")
+    if kind not in engines.offered():
+        raise JobError(f"The {kind} engine is not offered on this panel (KUBERNETES_ENGINE_BETA).")
+    if kind == engines.KUBERNETES and store.read_env(name).get("EDITION") == "enterprise":
+        raise JobError("Enterprise instances cannot run on the Kubernetes engine yet (beta).")
+    job.expect(7)
+    job.step("Switching the instance off")
+    STATE.update(name, switched_off=True, paused=False)
+    events.publish("instance", name)
+    job.step("Backing up the database and files")
+    saved = backups.create(job, name, "manual", comment=f"Before moving from {old} to {kind}")
+    taken = [b for b in backups.all_backups() if b["file"] in {path.name for path in saved}]
+    job.note(f"Backup taken before the move: {', '.join(path.name for path in saved)}")
+    job.step(f"Removing the instance from {old}")
+    _leave_engine(job, name, old)
+    try:
+        _arrive_on_engine(job, name, kind, taken)
+    except Exception as error:
+        job.write(f"\nThe move failed ({error!r}); putting the instance back on {old}.\n")
+        job.step(f"Putting the instance back on {old}")
+        _leave_engine(job, name, kind, checked=False)
+        _arrive_on_engine(job, name, old, taken)
+        raise JobError(f"The instance could not start on {kind}; it runs on {old} again, from the backup.") from None
+    job.note(f"The instance now runs on {kind}.")
+
+
+def _leave_engine(job: Job, name: str, kind: str, checked: bool = True) -> None:
+    engine = engines.named(kind)
+    engine.stop(job, name, checked=False)
+    engine.remove(job, name, checked=checked)
+    monitor.mark_stopped(name)
+    if kind == engines.DOCKER:
+        mail_catcher.detach(name)
+        integrity.forget(name)  # no compose file to compare any more
+
+
+def _arrive_on_engine(job: Job, name: str, kind: str, taken: list[dict[str, Any]]) -> None:
+    store.update_env(name, **{engines.ENV_KEY: kind})
+    engine = engines.named(kind)
+    engine.prepare_images(job, store.read_env(name)["ODOO_VERSION"])
+    job.step(f"Creating the instance on {kind}")
+    engine.apply(job, name)
+    for leftover in ("docker-compose.yml", "kubernetes.json"):  # the other engine's file: one engine at a time
+        if (kind == engines.DOCKER) == (leftover == "kubernetes.json"):
+            (store.folder(name) / leftover).unlink(missing_ok=True)
+    engine.up(job, name, "db", timeout=900)
+    job.step("Restoring the backup")
+    for backup in taken:
+        backups.restore(job, name, backup, backup["db"])
+    STATE.update(name, switched_off=False)
+    _finish_restore(job, name)
+
+
 def expires_at(env: dict[str, str]) -> int | None:
     """When the instance is deleted automatically (a timestamp), or None when it is kept (always in production)."""
     days = stages.lifetime_days(env)
@@ -755,7 +824,7 @@ def apply_resources(
     if paused:
         job.step("Writing the new resources")
         resources.write_conf(name)
-        integrity.apply(job, name)
+        engines.of(name).apply(job, name)
         job.note("The instance is paused: it uses the new resources when it next starts.")
         return
     if production:
@@ -788,7 +857,7 @@ def update_images(job: Job, name: str) -> None:
     job.expect(3)
     job.step("Downloading the images")
     paused = _paused(name)
-    integrity.apply(job, name, pull=True)
+    engines.of(name).apply(job, name, pull=True)
     if paused:
         job.note("The instance stays paused and uses the new images when someone opens it.")
         return

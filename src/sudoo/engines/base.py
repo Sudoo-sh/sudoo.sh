@@ -38,7 +38,7 @@ class Observation:
     running: bool  # Odoo runs
     db_running: bool
     uptime: str = ""  # a few words for people ("Up 3 hours"), "" when stopped
-    cpu: float = 0.0  # share of the server's processor, 0..1 of every core together
+    cpu: float = 0.0  # percent of one core, both services together (as docker stats counts it)
     memory: int = 0  # bytes used by both services
     limit: int = 0  # bytes they may use together (0: unknown)
     started: float | None = None  # when Odoo started (Unix time)

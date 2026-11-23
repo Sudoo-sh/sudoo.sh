@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Archive, ArrowUpRight, Blocks, Box, Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Layers, Lock, Package, SlidersHorizontal } from "lucide-react";
+import { Archive, ArrowUpRight, Blocks, Box, Boxes, Building2, CircleCheck, CircleX, Container, Cpu, FolderGit2, GitBranch, Layers, Lock, Package, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useCapacity, usePlan, useQuota, useSettings, useVersions } from "@/api/queries";
-import type { GitHubRepository, Job, RepoAccess, Stage } from "@/api/types";
+import type { Engine, GitHubRepository, Job, RepoAccess, Stage } from "@/api/types";
 import { BackupPicker } from "@/components/BackupPicker";
 import { ModulePicker, useModuleChoice } from "@/components/ModulePicker";
 import { Page, PageHead, useCan } from "@/components/Shell";
@@ -16,6 +16,7 @@ import { useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import words from "@/i18n/new-instance";
 import moduleWords from "@/i18n/modules";
+import engineWords from "@/i18n/kubernetes";
 import { PremiumSlot } from "@/premium/components";
 import { ago, number } from "@/lib/format";
 
@@ -116,6 +117,8 @@ export function NewInstancePage() {
   const [useBackup, setUseBackup] = useState(false);
   const [stage, setStage] = useState<Stage>("development");
   const [server, setServer] = useState(""); // "": the project's default server, else the main one (several servers)
+  const [engine, setEngine] = useState<Engine>("docker"); // the Kubernetes engine is offered while its beta is on
+  const e = useT(engineWords);
   const production = stage === "production";
   const t = useT(words);
 
@@ -211,6 +214,10 @@ export function NewInstancePage() {
     if (!enterpriseAvailable) setEdition("community");
   }, [enterpriseAvailable]);
   useEffect(() => setFromBackup(null), [version, edition]); // the picker only shows backups that fit both
+  const kubernetesOffered = plan?.engines?.includes("kubernetes") ?? false;
+  useEffect(() => {
+    if (!kubernetesOffered || edition === "enterprise") setEngine("docker"); // Community only on Kubernetes (beta)
+  }, [kubernetesOffered, edition]);
 
   const create = useCall(
     () =>
@@ -230,6 +237,7 @@ export function NewInstancePage() {
         auto_pause: autoPause && !production,
         ...(useBackup && fromBackup ? { from_backup: fromBackup } : {}),
         ...(server ? { server } : {}),
+        ...(engine !== "docker" ? { engine } : {}),
       }),
     [keys.instances, ["quota"]],
   );
@@ -415,6 +423,31 @@ export function NewInstancePage() {
               <ModulePicker choice={moduleChoice} note={useBackup ? m.fromBackup : undefined} />
             </div>
           </section>
+
+          {kubernetesOffered && (
+            <section className="card">
+              <div className="card-head">
+                <Cpu />
+                <div className="spacer">
+                  <h2>{e.engine}</h2>
+                  <div className="sub">{e.engineText}</div>
+                </div>
+              </div>
+              <div className="card-body">
+                <div className="grid-2" role="radiogroup" aria-label={e.engine}>
+                  <button type="button" className="choice" role="radio" aria-checked={engine === "docker"} aria-pressed={engine === "docker"} onClick={() => setEngine("docker")}>
+                    <Container />
+                    <span><span className="t">{e.docker}</span><br /><span className="d">{e.dockerText}</span></span>
+                  </button>
+                  <button type="button" className="choice" role="radio" aria-checked={engine === "kubernetes"} aria-pressed={engine === "kubernetes"}
+                    disabled={edition === "enterprise"} onClick={() => setEngine("kubernetes")}>
+                    <Boxes />
+                    <span><span className="t">{e.kubernetes} <Tag tone="accent">{e.beta}</Tag></span><br /><span className="d">{e.kubernetesText}</span></span>
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* several servers (premium): which server the instance goes to */}
           <PremiumSlot name="instance.create.server" props={{ value: server, onChange: setServer, servers: plan?.servers ?? [], fromBackup: useBackup }} />

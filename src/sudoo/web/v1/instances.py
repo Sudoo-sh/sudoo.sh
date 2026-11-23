@@ -66,7 +66,7 @@ from typing import Any, cast
 
 from flask import Blueprint, Response, abort, g, request
 
-from sudoo import addons, entitlements, link_deadline, projects, roles
+from sudoo import addons, engines, entitlements, link_deadline, projects, roles
 from sudoo.config import settings
 from sudoo.core import events, jobs, vault
 from sudoo.core.state import STATE
@@ -118,6 +118,7 @@ ACTIONS = {
     "restore": ("Restore a backup", "restore", "instances.restore"),
     "rollback": ("Roll back the restore", "restore", "instances.restore"),
     "delete": ("Delete instance", "delete", "instances.delete"),
+    "change-engine": ("Move to another engine", "move", "instances.move"),
 }
 
 
@@ -297,6 +298,7 @@ def plan() -> Response:
             "stage_defaults": {each: stages.defaults(each) for each in stages.STAGES},
             "production": production_capacity(),
             "servers": servers.choices(),  # where a new instance may go (the main server first)
+            "engines": engines.offered(),  # docker, and kubernetes while its beta is on
         }
     )
 
@@ -414,6 +416,15 @@ def _start_creation(
     refuse_unlinked("creating instances", "instance creation refused (panel not linked)")
     modules = check.initial_modules(data)  # before anything counts toward the limits
     server_id = _placement(data, project, repo, from_backup, from_production)
+    engine = check.one_of(
+        check.text(data, "engine", default=engines.DOCKER, max_length=20),
+        engines.offered(),
+        "Choose an engine this panel offers (Kubernetes is a beta: KUBERNETES_ENGINE_BETA).",
+    )
+    if engine != engines.DOCKER and server_id != servers.MAIN:
+        abort(400, "The Kubernetes engine (beta) runs instances of the main server only.")
+    if engine != engines.DOCKER and edition == "enterprise":
+        abort(400, "Enterprise instances cannot run on the Kubernetes engine yet (beta).")
     if server_id == servers.MAIN:  # another server's agent checks its own running instances
         _refuse_over_capacity("instance creation refused (running instances)")
     defaults = stages.defaults(stage)
@@ -457,6 +468,8 @@ def _start_creation(
         project=project,
     )
     name = plan_data["name"]
+    if engine != engines.DOCKER:
+        plan_data["engine"] = engine
     if server_id != servers.MAIN:
         return _start_remote_creation(server_id, plan_data)
     job = planning.start(plan_data, g.user["name"])
@@ -687,6 +700,7 @@ PRODUCTION_CONFIRMED = {
     "switch-off": "switch off",
     "restore": "restore a backup into",
     "rollback": "roll back",
+    "change-engine": "move to another engine (it is switched off during the move)",
 }
 """Actions on a production instance that need "confirm_production": true (deleting has its own confirmation)."""
 
@@ -744,6 +758,15 @@ def _job_for(action: str, name: str, data: Mapping[str, Any]) -> tuple[Callable[
         elif backups.latest(name) is None:
             abort(409, "This instance has no backup to restore.")
         return operations.restore, (name, file_name)
+    if action == "change-engine":
+        kind = check.one_of(
+            check.text(data, "engine", max_length=20), engines.offered(), "Choose an engine this panel offers."
+        )
+        if kind == engines.kind_of(store.read_env(name)):
+            abort(409, f"{name} runs on {kind} already.")
+        if kind == engines.KUBERNETES and store.read_env(name).get("EDITION") == "enterprise":
+            abort(409, "Enterprise instances cannot run on the Kubernetes engine yet (beta).")
+        return operations.change_engine, (name, kind)
     if action == "rollback":
         if not backups.rollback_snapshot(name):
             abort(

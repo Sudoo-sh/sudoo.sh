@@ -15,6 +15,7 @@ Everything about Sudoo.sh, in one place. The same pages are on GitHub and inside
 | A developer connecting another system to an instance | [API and webhooks](API.md) |
 | A developer changing the panel | [Architecture](ARCHITECTURE.md), [Design](DESIGN.md) and [Security](SECURITY.md) |
 | Reviewing security | [Security](SECURITY.md) |
+| Running Sudoo.sh on a Windows server (planned, not supported yet) | [Windows servers](WINDOWS.md) |
 
 ---
 

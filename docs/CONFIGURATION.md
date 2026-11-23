@@ -39,30 +39,31 @@ reset with **Use .env**.
 2. [Odoo](#odoo)
 3. [Instance containers](#instance-containers)
 4. [Enterprise add-ons (plugin)](#enterprise-add-ons-plugin)
-5. [Public addresses (plugin: exposure)](#public-addresses-plugin-exposure)
-6. [Code updates (plugins)](#code-updates-plugins)
-7. [Storage, sign-in and e-mail (plugins)](#storage-sign-in-and-e-mail-plugins)
-8. [Limits](#limits)
-9. [Gateway](#gateway)
-10. [Custom domains](#custom-domains)
-11. [Ports](#ports)
-12. [Behaviour](#behaviour)
-13. [Database upgrades](#database-upgrades)
-14. [Off-site copies](#off-site-copies)
-15. [Alerts](#alerts)
-16. [Project status and notifications](#project-status-and-notifications)
-17. [Web shell](#web-shell)
-18. [Code profiler](#code-profiler)
-19. [Audit log](#audit-log)
-20. [Servers](#servers)
-21. [Mail catcher](#mail-catcher)
-22. [Help panel](#help-panel)
-23. [Marketplace](#marketplace)
-24. [Premium features](#premium-features)
-25. [Support access](#support-access)
-26. [Client portal](#client-portal)
-27. [Maintenance windows](#maintenance-windows)
-28. [Locations](#locations)
+5. [Engine](#engine)
+6. [Public addresses (plugin: exposure)](#public-addresses-plugin-exposure)
+7. [Code updates (plugins)](#code-updates-plugins)
+8. [Storage, sign-in and e-mail (plugins)](#storage-sign-in-and-e-mail-plugins)
+9. [Limits](#limits)
+10. [Gateway](#gateway)
+11. [Custom domains](#custom-domains)
+12. [Ports](#ports)
+13. [Behaviour](#behaviour)
+14. [Database upgrades](#database-upgrades)
+15. [Off-site copies](#off-site-copies)
+16. [Alerts](#alerts)
+17. [Project status and notifications](#project-status-and-notifications)
+18. [Web shell](#web-shell)
+19. [Code profiler](#code-profiler)
+20. [Audit log](#audit-log)
+21. [Servers](#servers)
+22. [Mail catcher](#mail-catcher)
+23. [Help panel](#help-panel)
+24. [Marketplace](#marketplace)
+25. [Premium features](#premium-features)
+26. [Support access](#support-access)
+27. [Client portal](#client-portal)
+28. [Maintenance windows](#maintenance-windows)
+29. [Locations](#locations)
 
 ---
 
@@ -216,6 +217,24 @@ ignored.
 | `ENTERPRISE_MARKER` | str | `web_enterprise` | **live** | Module whose presence proves the add-ons are there. |
 
 ---
+
+## Engine
+
+What runs the instances: **Docker**, or **Kubernetes** (k3s, beta), which makes it easier to grow to more servers and
+isolates clients and teams more strongly. Neither is high availability: that needs three servers and replicated
+storage, a later phase. The engine is chosen by need: the server's figures are only a minimum check (k3s's own 2 cores
+and 2 GB, plus room for Odoo; the figures are in `src/sudoo/engine_figures.json` and shown as "to be measured" until
+real measurements replace them; not a container; Ubuntu 22.04+ or Debian 12+), and three questions decide (more
+servers later, stronger separation between clients or teams, one person or a team). Docker is recommended unless the
+answers point to Kubernetes, and stays pre-selected while it is beta. The installer asks them; the setup page asks them
+again (Server step); the engine itself is changed on the server with `sudo sudoo-install engine docker|kubernetes`,
+never from the browser ([Administrator guide](ADMIN_GUIDE.md#2-installing)).
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `ENGINE` | str | `docker` | .env only | `docker` or `kubernetes` (k3s, beta). Written by the installer once the engine is prepared. This release runs the instances on Docker until a Kubernetes engine package is installed. |
+| `ENGINE_WANTED` | str | empty | .env only | `kubernetes` while Kubernetes was chosen but not prepared yet (a release without the k3s script): `sudo sudoo-install engine kubernetes` prepares it once a release brings it. |
+| `ENGINE_K8S_DEFAULT` | bool | `false` | **live** | Pre-select Kubernetes on the setup page where the answers recommend it. Off while the engine is beta. |
 
 ## Public addresses (plugin: exposure)
 

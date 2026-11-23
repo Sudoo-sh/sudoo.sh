@@ -215,6 +215,10 @@ There are **no default accounts**: a new server has no account at all, so there 
 * While no account exists, the panel makes a one-time **setup code** (three groups of four letters and digits, for
   example `K7QH-3MXP-9TAD`) and keeps it in `/opt/odoo/manager/setup_code`, mode 600 (root only). The installer
   prints it; `docker exec sudoo-panel sudoo.sh setup-code` shows it again.
+* The setup wizard's other calls (`/api/v1/setup/server-check`, `/draft`, `/test-email`) need the same code in the
+  `X-Setup-Code` header (never in an address; the setup link carries it after `#`, which browsers never send), count
+  wrong codes towards the same limit, and apply nothing: the draft is applied only by the final confirm. After the
+  first account, only the server check stays, read only, for super admins.
 * The **Set up Sudoo.sh** page (`POST /api/v1/setup`) creates the first account, a **Super admin**, only with that
   code, and signs in. It asks for an e-mail address (the user name is made from it) and a password that follows
   the [password rules](#password-rules). The code is compared in constant time and deleted once the account exists; after that the

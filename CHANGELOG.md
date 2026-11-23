@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Upgrading
+
+- **Projects keep their access.** Projects made before this version keep the earlier access model (the panel role
+  limited by the project's grant, the same in every stage) until an admin switches them on their Access tab, so
+  nobody gains or loses access by the upgrade. **Switch to project roles** first shows, person by person, the role
+  each gets and the rights that change, and keeps everyone's role with a grant on the project where the default would
+  differ. Projects made after the upgrade use project roles (`PROJECT_ACCESS_MODEL`).
+- Connecting to an instance's Odoo (connect-as) now needs its own permission, `instances.connect`; the panel roles
+  that could see Odoo passwords keep it. Accounts made for members of `GITHUB_SIGN_IN_ORGS` now get the new panel role
+  **Member** by default (`GITHUB_SIGN_IN_ROLE`).
+
 ### Fixed
 
 - **The Terminal always says it is Sudoo.sh**: a terminal narrower than the banner shows "SUDOO.SH" on one line
@@ -22,6 +33,59 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   deletes what the hub kept. The figures come from an engine interface, so the Kubernetes engine can report
   namespaces, nodes and replicas in the same contract. The mail catcher now counts in the panel's own footprint.
   Settings page, **Support**; see docs/MARKETPLACE.md and docs/SECURITY.md.
+- **Production access rules (beta)**, off until `ACCESS_RULES_BETA` is switched on: a production instance can let
+  only visitors from chosen countries, from chosen IPv4/IPv6 addresses and ranges, or either, open its back office
+  (the default; the public website and shop stay open) or its whole site, with exceptions for payment and webhook
+  callbacks and paths or addresses of your own. The gateway applies them with the visitor address it already trusts
+  in each exposure mode. Opening the instance from the panel (Open Odoo, Connect as) goes through a short signed
+  pass that works from anywhere. A change is previewed first (does your own address still get in?), then confirmed
+  with the instance's name and a one-time code by e-mail or authenticator app; it is audited and the other people
+  who may change the rules are e-mailed. Visitors turned away get a calm 403 page in English or Arabic. Countries
+  come from the DB-IP Lite database (CC BY 4.0), downloaded monthly; while it is missing, country rules fail open by
+  default (`ACCESS_RULES_GEO_MISSING`). New settings: `ACCESS_RULES_*`. API:
+  `/api/v1/instances/<name>/access-rules` (with `/preview` and `/code`) and `/api/v1/instances/<name>/open-link`.
+- **Status pages redesigned**: "Starting up", "Update in progress", "Upgrading", "Switched off" and the others have an
+  animated illustration each, follow the visitor's language (English or Arabic) and light or dark setting, and show
+  the running job's current step, progress and an estimated time left, from a small public status address
+  (`/__sudoo/status`: state and step only, rate-limited). API clients get the same 503 with `Retry-After` as before.
+- The job drawer and an instance's header show a job under way more clearly: the current step highlighted, which step
+  of how many, the progress bar and text, and the time it has run. Jobs carry `expected_steps`.
+- **Project roles per stage: Viewer, Tester, Developer, Maintainer, Admin.** Inside a project, a person's project role
+  decides what they may do in production, staging and development: a Developer works freely in development, tests
+  staging without its data and sees only production's status; a Maintainer also reads production's logs, connects to
+  it, downloads its backups and restarts it, never its shell, database, restores or deletion; Admin does everything.
+  Each project's Access tab shows the matrix, and its admins can change any cell. Panel roles keep the panel-wide
+  rights; administrators have every right in every project; a new panel role, **Member**, has none by itself.
+- **GitHub teams and repository permissions give project roles**: admin gives Admin, maintain Maintainer, write
+  Developer, triage or read Tester; a GitHub team (`org/team`) can be given a role on the Access tab, its members read
+  from GitHub with the App's token (Members: read). A role given to the person wins; otherwise the highest of GitHub,
+  panel teams and GitHub teams.
+- **Temporary access**: ask a project's admins for a higher role in one stage for a few hours, with a reason; they
+  approve or refuse it by e-mail notice and on the Access tab; it ends by itself (`ACCESS_REQUESTS`,
+  `ACCESS_REQUEST_MAX_HOURS`).
+- **Access e-mails** when someone gets access to a project, when their role changes and when it ends, once per change
+  and in the person's language (`ACCESS_EMAILS`); a regular **access review** to each project's admins
+  (`ACCESS_REVIEW`, `ACCESS_REVIEW_DAYS`); a **Who can do what** list on the Access tab; refusals that say which role
+  cannot do what, and where, and how to ask for temporary access.
+
+- **Repository guard** (a project's Settings tab), off until a project Admin turns it on. **CI checks**: the panel
+  opens a pull request (from its own branch `sudoo/repository-guard`, never a push to a branch people use) adding a
+  GitHub Actions workflow (ruff or flake8, pylint-odoo, manifest, XML and CSV checks, and optionally the modules'
+  tests in Odoo's official image with PostgreSQL; one run per Odoo series of the branch; every action pinned by
+  commit), a pre-commit configuration with the same hooks, and `docs/CHECKS.md`; choose the checks and a strictness,
+  preview the files, and turning a check off opens a pull request that updates or removes them. The pull request's
+  link and state are shown. **Results**: each build in Builds and History gets a **Checks** badge, and the
+  pre-promotion checklist a **CI checks** item that can stop a promotion while checks fail (off by default).
+  **Branch rules**: rulesets (classic branch protection as the fallback) for production and staging: a pull request
+  with N approvals, the checks passing, no force-push or deletion, optionally a linear history and signed commits,
+  and who may push or merge to production (GitHub's Admin and Maintain roles, or named teams and people), shown as
+  current against new before they are applied, with the repository's name typed for production; **Turn off** removes
+  only the rules the panel made. GitHub's plan limits are explained. The extra GitHub App permissions are listed
+  with links to grant them, and **Connect GitHub** can ask for them up front (**Also allow the repository guard**).
+  API: `/api/v1/projects/<id>/guard`. Its defaults are panel settings, each overridable per project:
+  `PROJECT_GUARD_CHECKS`, `PROJECT_GUARD_STRICTNESS`, `PROJECT_GUARD_PRODUCTION_APPROVALS`,
+  `PROJECT_GUARD_STAGING_APPROVALS`, `PROJECT_GUARD_LINEAR_HISTORY`, `PROJECT_GUARD_SIGNED_COMMITS`,
+  `PROJECT_GUARD_PUSHERS` and `PROJECT_GUARD_BLOCKS_PROMOTION`.
 - **Client portal, with a switch the client owns**: a new **Client** role for your clients, invited by e-mail to one
   or more projects. A client sees only its projects (branches, each instance's status and **Open Odoo**, its backups
   when given, its activity log), at the panel's address or at a portal address of its own (`PORTAL_DOMAIN`, served
@@ -62,6 +126,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   the filters in use stay listed above the log. Following pauses when you scroll up, with **Jump to latest**; earlier
   lines load as you scroll to the top. Only the lines in view are drawn, so 100,000 lines stay smooth.
 - The log stream (`.../logs/stream`) filters whole entries, sends each line's id (`ids`) and only follows `odoo.log`.
+- **Motion throughout the panel**, short and only where it explains something: menus and lists to choose from grow
+  from their button on a spring; dialogs pop in gently over a fading backdrop and leave quicker; toasts slide in from
+  the right (the left in Arabic) and the others glide aside; the tabs' underline slides to the chosen tab; an
+  instance card's name moves into the instance page's title; cards lift a little under the pointer; lists and the
+  dashboard's figures come in one after the other on first load (at most eight steps) and the figures count up;
+  copy buttons and the theme button turn their icon into the next one; a field that turns invalid shakes once;
+  loading skeletons get a lighter shimmer; only something running has a pulsing status dot. With reduced motion
+  everything shows at once or fades. The motion tokens, wrappers and rules are in the design guide.
 
 ## [3.3.4] - 2026-11-23
 

@@ -53,7 +53,8 @@ export function start() {
   document.documentElement.dataset.demo = "";
 }
 
-const PERSPECTIVES: { role: Role }[] = [{ role: "super_admin" }, { role: "admin" }, { role: "developer" }, { role: "viewer" }, { role: "client" }];
+// "member" is shown as Tester: a member's role in the demo's projects is Tester (demo/backend/access.ts)
+const PERSPECTIVES: { role: Role }[] = [{ role: "super_admin" }, { role: "admin" }, { role: "maintainer" }, { role: "developer" }, { role: "viewer" }, { role: "member" }, { role: "client" }];
 
 /** The demo's banner: always at the top, one line. What this is, where to install it, and whose eyes to look with. */
 export function DemoBanner({ router }: { router: Pick<DataRouter, "state" | "subscribe"> }) {

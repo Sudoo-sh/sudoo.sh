@@ -17,6 +17,7 @@ const en = {
     noProduction: "There is no production branch yet: this branch would be the first.",
     items: {
       build: "Latest build and tests",
+      ci: "CI checks on GitHub",
       backup: "Production backup",
       modules: "Module changes",
       migrations: "Pending migrations",
@@ -26,6 +27,7 @@ const en = {
     },
     status: { ok: "Passed", warning: "Worth reading", blocked: "Stops the promotion" },
     backUpNow: "Back up now",
+    openChecks: "Open the checks on GitHub",
     backingUp: "Backup started",
     backingUpText: "Check again when it has finished.",
     notBackedUp: "The backup did not start",
@@ -139,6 +141,7 @@ const ar: typeof en = {
     noProduction: "لا فرع إنتاج بعد: سيكون هذا الفرع الأول.",
     items: {
       build: "آخر بناء واختباراته",
+      ci: "فحوصات CI في GitHub",
       backup: "النسخة الاحتياطية للإنتاج",
       modules: "تغييرات الوحدات",
       migrations: "الترحيلات المنتظرة",
@@ -148,6 +151,7 @@ const ar: typeof en = {
     },
     status: { ok: "ناجح", warning: "يستحق القراءة", blocked: "يمنع الترقية" },
     backUpNow: "النسخ الاحتياطي الآن",
+    openChecks: "افتح الفحوصات في GitHub",
     backingUp: "بدأ النسخ الاحتياطي",
     backingUpText: "افحص من جديد حين ينتهي.",
     notBackedUp: "لم يبدأ النسخ الاحتياطي",

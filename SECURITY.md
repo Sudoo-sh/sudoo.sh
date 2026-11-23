@@ -38,6 +38,7 @@ Out of scope, because they are documented on purpose in [docs/SECURITY.md](docs/
 - Odoo instances open with the login `admin` / `admin`; they are for demonstrations, not real data.
 - Public addresses are public to anyone who has them; with `EXPOSURE=tunnel` they change on restart and https ends at the tunnel service's edge; with `EXPOSURE=direct` and no name set, the panel uses its own certificate, which browsers warn about.
 - The vault key is on the same server as the secrets it protects.
+- Production access rules (beta) by country: a VPN or a server in an allowed country gets past them; they are a convenience barrier (address rules are stronger).
 - Problems in Odoo itself, Docker, PostgreSQL, the certificate authority or the tunnel service. Please report those to their own projects.
 
 The full description of how the panel is protected, and what is deliberately not protected, is in [docs/SECURITY.md](docs/SECURITY.md).

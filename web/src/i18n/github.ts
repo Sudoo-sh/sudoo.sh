@@ -22,6 +22,8 @@ const en = {
     createButton: "Create GitHub App",
     createRepositories: "Also allow creating repositories",
     createRepositoriesText: "Adds Administration: write, so a new project can start from a new, empty repository in the organisation. The code stays read-only.",
+    repositoryGuard: "Also allow the repository guard",
+    repositoryGuardText: "Adds Administration, Contents, Pull requests and Workflows: write and Checks: read, so projects can propose CI checks through pull requests and set branch rules. You can add them later instead, only when a project turns the guard on.",
   },
   installations: {
     title: "Installed on",
@@ -118,6 +120,8 @@ const ar: typeof en = {
     createButton: "Create GitHub App",
     createRepositories: "السماح بإنشاء المستودعات أيضًا",
     createRepositoriesText: "يضيف صلاحية Administration: write، ليبدأ المشروع الجديد من مستودع جديد فارغ في المؤسسة. وتبقى الشيفرة للقراءة فقط.",
+    repositoryGuard: "السماح بحارس المستودع أيضًا",
+    repositoryGuardText: "يضيف صلاحيات الكتابة Administration وContents وPull requests وWorkflows وقراءة Checks، لتقترح المشاريع فحوصات CI عبر طلبات السحب وتضع قواعد الفروع. ويمكنك إضافتها لاحقًا بدلًا من ذلك، فقط حين يشغّل مشروع الحارس.",
   },
   installations: {
     title: "مثبّت على",

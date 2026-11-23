@@ -27,7 +27,8 @@
 18. [Servers](#18-servers)
 19. [Code profiler](#19-code-profiler)
 20. [Client portal](#20-client-portal)
-21. [Topology shared with Sudoo.sh](#21-topology-shared-with-sudoosh)
+21. [Production access rules (beta)](#21-production-access-rules-beta)
+22. [Topology shared with Sudoo.sh](#22-topology-shared-with-sudoosh)
 
 ---
 
@@ -449,6 +450,30 @@ The panel's GitHub App ([Administrator guide](ADMIN_GUIDE.md#15-the-github-app))
 * The web app's Content-Security-Policy allows forms to be posted to `https://github.com` (`form-action`), needed
   to send the manifest; nothing else from GitHub is loaded or allowed.
 
+### The repository guard: writes go through pull requests
+
+A project's repository guard ([Administrator guide](ADMIN_GUIDE.md#repository-guard)) is the only part of the panel
+that writes to a repository. It is built so that the panel can never change code that people run without a person
+agreeing first:
+
+* **No push to a branch people use.** The check files are committed only to `sudoo/repository-guard`, a branch the
+  panel creates and alone writes, and reach the default branch only through a pull request. That pull request goes
+  through the repository's own reviews and branch rules, and someone with write access merges it, or closes it. A
+  workflow file can run code with the repository's secrets on every push, so it is never added behind anyone's back.
+* **Files of others are left alone.** The panel overwrites or removes only files that start with its marker
+  ("Managed by Sudoo.sh (repository guard)").
+* **Least privilege, asked for late.** The extra permissions (Contents, Pull requests, Workflows and Administration:
+  write, Checks: read) are not in the default manifest; an owner adds and accepts them when a project uses the
+  guard. Each call asks GitHub for a token with only what it needs (the pull-request token cannot change rules, the
+  rules token cannot write files), and none of them is cached on disk. The generated workflow's own token may only
+  read the repository (`permissions: contents: read`), and every action in it is pinned to a full commit hash.
+* **Branch rules are previewed and confirmed.** Rules are shown as current against new before they are applied, and
+  rules that change production need the repository's name typed. The panel changes and removes only rulesets named
+  `Sudoo.sh guard: ...` and the classic protection it created itself; a branch protected by someone else is never
+  touched. Dry runs change nothing.
+* **Only project Admins and super admins** (`projects.access` in the project) change the guard; Sudoo.sh support
+  cannot. Every change, and every refusal by GitHub, is in the audit log.
+
 Every caller is also limited in requests per minute (`RATE_LIMIT_READS_PER_MINUTE`, `RATE_LIMIT_CHANGES_PER_MINUTE`,
 per user, token or address), and instance creation can be limited in number and frequency (`MAX_INSTANCES`,
 `MAX_INSTANCES_PER_USER`, `CREATE_COOLDOWN_MINUTES`); see [Configuration](CONFIGURATION.md#limits).
@@ -523,9 +548,22 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 
 ### Teams, project access and locked branches
 
-Inside a project, every check goes through one function (`projects/access.py`): the permission must be in the
-caller's **role** and in the **level** the project gives them (role ∩ grant), and the branch must not be **locked**
-against them. Permissions about the whole panel (accounts, tokens, settings, the audit log, plugins, GitHub, off-site
+**Project roles** (projects made since project roles exist, and earlier ones once switched): inside a project the caller's
+**project role** decides alone, per stage, from the project's matrix (`projects/project_roles.py`): a Developer may
+open development's shell but sees nothing of production's data; a Maintainer reads production's logs and downloads
+its backups but never opens its shell or database, restores or deletes it. The panel role no longer limits a project:
+it keeps the panel-wide permissions only, gives the default role in a project open to everyone, and the role
+**Member** gives nothing. Super admins and administrators have every right in every project. Locks apply on top, to
+everyone. Every endpoint, the shell ticket, the live events (a build's failure lines and messages are removed for
+whoever may not read the branch's logs), lists (projects, instances, jobs, backups) and connect-as ask the same
+function with the instance's own stage. Temporary access (`projects/elevation.py`) adds the rights of one role in one
+stage, approved by someone else with `projects.access`, ending by itself and checked again at every use against the
+conditions other parts register (the client portal's switches). A GitHub team's members and a person's repository
+permission are read with the GitHub App's installation token and count as none once older than three intervals.
+
+**The earlier model** (projects made before project roles, until switched): every check goes through the same function: the
+permission must be in the caller's **role** and in the **level** the project gives them (role ∩ grant), and the
+branch must not be **locked** against them. Permissions about the whole panel (accounts, tokens, settings, the audit log, plugins, GitHub, off-site
 storage, teams) depend on the role alone.
 
 | Level | Project permissions it can give (never beyond the role) |
@@ -954,7 +992,43 @@ client that needs stronger isolation runs its projects on a server of its own.
 
 ---
 
-## 21. Topology shared with Sudoo.sh
+## 21. Production access rules (beta)
+
+Production access rules ([Administrator Guide](ADMIN_GUIDE.md#31-production-access-rules-beta)) let a production
+instance refuse visitors outside some countries or addresses. They are a second wall in front of Odoo's own sign-in,
+not a replacement for it.
+
+### Threat model
+
+| Threat | What stops it |
+| :--- | :--- |
+| Someone outside the allowed places guesses or reuses a password at `/web/login`, or calls the APIs (`/json/2`, `/xmlrpc`, `/jsonrpc`) or the database manager | The gateway refuses the request before Odoo sees it (403). |
+| A visitor forges `X-Forwarded-For`, `X-Real-IP` or `CF-Connecting-IP` to look like an allowed address | The address is the one the gateway already trusts for each exposure mode (the connection itself with `direct`, the proxy's header with `proxy`, Cloudflare's header with `tunnel`); a header the visitor sent is never believed otherwise. With `proxy`, your proxy must overwrite that header. |
+| Path tricks (`/WEB//login`, `/shop/../web/login`, `/web%2Flogin`, `/web%252Flogin`) to slip past "back office only" | Paths are decoded (twice-encoded too), `.` and `..` resolved, slashes merged and lower-cased before they are compared. |
+| A forged, expired, replayed or borrowed pass | Passes are HMAC-SHA256 signed with a key derived from the vault key; the gateway checks the signature in constant time, the instance, the host name, the rules' version and the expiry; the link's token works once (the gateway remembers its nonce until it expires). The cookie is `HttpOnly`, `SameSite=Lax`, `Secure` over https, for that host only, and never reaches Odoo. New rules end every earlier pass. |
+| Someone with a stolen panel password changes the rules | A change needs a person in the panel (no API token), the instance's name typed and a one-time code by e-mail or from an authenticator app (5 wrong codes: 10 minutes' wait); the other people who may change the rules are e-mailed and the audit log records it. |
+| Someone is locked out by a mistake | The preview shows, before anything is saved, whether the person's own address still gets in; opening the instance from the panel works through a pass for those whose project role lets them open production (`instances.connect`), except while the client has closed access. |
+
+### What it does not protect against
+
+* **VPNs and rented servers.** A country is where an address is registered, not where a person is. Anyone can
+  appear to be in an allowed country with a VPN, a proxy or a cloud server there. Countries are a convenience
+  barrier; use address rules for what matters.
+* **Database mistakes.** The DB-IP Lite database is wrong for some addresses, and mobile networks and satellite links
+  may appear in another country.
+* **Fail open.** While the country database is missing, country rules let everyone through by default
+  (`ACCESS_RULES_GEO_MISSING=open`), so a broken download never locks a company out of its own ERP. Set `closed` when
+  a missing database must mean "no country is allowed".
+* **"Back office only" leaves the website open.** Routes the website shares with the back office (for example
+  `/mail/...`) answer everyone; they need a signed-in session, which cannot be opened from outside the rules. Choose
+  **Whole site** when nothing should answer.
+* **Passes on a shared computer.** A pass cookie lasts `ACCESS_RULES_PASS_HOURS` in the browser it was given to.
+* The public status address of an instance (`/__sudoo/status`) says only its state and the title and progress of
+  the step its job is on, rate-limited per address; never logs or names.
+
+---
+
+## 22. Topology shared with Sudoo.sh
 
 The live infrastructure view of Sudoo.sh staff ([Marketplace, Sharing the topology](MARKETPLACE.md#13-sharing-the-topology)).
 

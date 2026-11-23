@@ -137,7 +137,21 @@ def create_team() -> Response:
 @blueprint.patch("/teams/<team_id>")
 @require("teams.manage")
 def change_team(team_id: str) -> Response:
-    """Taking members out is always possible; any other change comes with the teams package."""
+    """Taking members out is always possible; any other change comes with the teams package. Members whose project
+    roles change get the access e-mails (projects/notices.py)."""
+    with _watch():
+        return _change_team(team_id)
+
+
+def _watch() -> Any:
+    from sudoo import accounts, projects
+    from sudoo.projects import notices
+
+    by = accounts.display_name(g.user["name"], accounts.get(g.user["name"]) or {})
+    return notices.watch([p["id"] for p in projects.all_projects()], by=by)
+
+
+def _change_team(team_id: str) -> Response:
     before = _team(team_id)
     data = check.body()
     if set(data) == {"members"} and set(_members(data)) <= set(before.get("members") or []):
@@ -157,6 +171,11 @@ def change_team(team_id: str) -> Response:
 @blueprint.delete("/teams/<team_id>")
 @require("teams.manage")
 def delete_team(team_id: str) -> Response:
+    with _watch():
+        return _delete_team(team_id)
+
+
+def _delete_team(team_id: str) -> Response:
     _team(team_id)
     try:
         team = teams.remove(team_id)

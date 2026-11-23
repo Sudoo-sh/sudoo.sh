@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useT } from "@/i18n";
 import words from "@/i18n/builds";
 import { githubCommitUrl, shortSha } from "@/lib/git";
+import { MorphIcon } from "./app/motion";
 
 export function CommitHash({ sha, repository, icon = false }: { sha: string; repository: string | null | undefined; icon?: boolean }) {
   const t = useT(words).history;
@@ -26,7 +27,8 @@ export function CommitHash({ sha, repository, icon = false }: { sha: string; rep
       <button type="button" className="ch-copy" onClick={copy} title={copied ? t.copied : t.copySha} aria-label={`${t.copySha}: ${short}`}>
         {icon && <GitCommitHorizontal className="ch-icon" aria-hidden />}
         <code dir="ltr">{short}</code>
-        {copied ? <Check className="ch-state" aria-hidden /> : <Copy className="ch-state" aria-hidden />}
+        {/* the copy icon turns into a check for a moment */}
+        <MorphIcon className="ch-state" icons={{ copy: <Copy />, done: <Check /> }} active={copied ? "done" : "copy"} />
       </button>
       {url && (
         <a className="ch-link" href={url} target="_blank" rel="noreferrer" title={t.onGitHub} aria-label={`${t.onGitHub}: ${short}`}>

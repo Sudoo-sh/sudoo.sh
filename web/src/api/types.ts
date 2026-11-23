@@ -1,6 +1,6 @@
 // The documents of /api/v1, as docs/PANEL_API.md describes them. Times are ISO 8601 strings in UTC.
 
-export type Role = "super_admin" | "admin" | "maintainer" | "developer" | "viewer" | "client";
+export type Role = "super_admin" | "admin" | "maintainer" | "developer" | "viewer" | "member" | "client";
 export type Permission =
   | "instances.view"
   | "instances.logs"
@@ -14,6 +14,7 @@ export type Permission =
   | "instances.upgrade"
   | "instances.delete"
   | "instances.credentials"
+  | "instances.connect"
   | "instances.resources"
   | "projects.resources"
   | "caught_mail.view"
@@ -170,6 +171,8 @@ export interface JobRef {
   action: string;
   status: JobStatus;
   progress_percent: number | null;
+  /** how many steps the job announced it takes; missing from older panels and for jobs that do not know */
+  expected_steps?: number | null;
 }
 
 /** One step of a job. While it runs, `progress` says how far it is in plain words ("Downloading Odoo 19.0: 2 of 5
@@ -707,9 +710,10 @@ export interface ActivityEntry {
 }
 
 export type AccessMode = "panel_roles" | "restricted";
-export type AccessLevel = "none" | "view" | "developer" | "maintainer" | "admin";
+export type AccessLevel = "none" | "view" | "tester" | "developer" | "maintainer" | "admin";
 export interface AccessSubject {
-  type: "team" | "user";
+  /** github_team: a team of a GitHub organisation, "org/slug" (its members are read from GitHub) */
+  type: "team" | "user" | "github_team";
   id: string;
   /** the team's or account's name; null when it no longer exists */
   name?: string | null;
@@ -744,8 +748,57 @@ export interface ProjectAccess {
       level: AccessLevel | null;
       covered: boolean | null;
       checked: number | null;
+      /** the repository's team that gives the permission, when one does */
+      via?: string | null;
     }[];
   };
+  /** project_roles: per-stage roles; legacy: the panel role limited by the level (projects made before them) */
+  model: "project_roles" | "legacy";
+  roles: ProjectRoles;
+  requests_enabled: boolean;
+  request_max_hours: number;
+}
+
+export type RoleScope = "production" | "staging" | "development" | "project";
+/** What each project role may do in each stage (projects/project_roles.py); `changed`: rows this project changed */
+export interface ProjectRoles {
+  levels: AccessLevel[];
+  editable: AccessLevel[];
+  stages: RoleScope[];
+  rights: { stage: Permission[]; project: Permission[] };
+  labels: Record<string, string>;
+  matrix: Record<string, Record<RoleScope, Permission[]>>;
+  changed: Record<string, RoleScope[]>;
+}
+
+/** GET /projects/<id>/access/people: who can do what */
+export interface AccessPerson {
+  user: string;
+  name: string;
+  panel_role: Role;
+  level: AccessLevel;
+  source: "admin" | "grant" | "team" | "github" | "role" | "none";
+  source_label: string;
+  stages: Record<"production" | "staging" | "development", Permission[]>;
+  project: Permission[];
+  temporary: { id: string; stage: Stage; level: AccessLevel; expires: number | null }[];
+}
+
+/** Temporary access asked for in a project (a higher project role in one stage, projects/elevation.py) */
+export interface RoleRequest {
+  id: string;
+  user: string;
+  name: string;
+  stage: Stage;
+  level: AccessLevel;
+  hours: number;
+  reason: string;
+  status: "pending" | "approved" | "refused" | "withdrawn" | "expired";
+  asked_at: string | null;
+  decided_by: string | null;
+  decided_at: string | null;
+  expires_at: string | null;
+  note: string;
 }
 
 /** A team: a named group of accounts that project access is given to (GET /teams) */
@@ -1895,7 +1948,7 @@ export interface SupportStatus {
 // ---------------------------------------------------------------- promotion (web/v1/promotion.py)
 
 export type CheckStatus = "ok" | "warning" | "blocked";
-export type CheckKey = "build" | "backup" | "modules" | "migrations" | "odoo" | "lock" | "capacity";
+export type CheckKey = "build" | "ci" | "backup" | "modules" | "migrations" | "odoo" | "lock" | "capacity";
 
 export interface ModuleVersion {
   name: string;
@@ -1938,6 +1991,8 @@ export interface CheckItem {
   branch_series?: string[];
   production_series?: string[];
   branches?: string[];
+  /** the "ci" item: the CI results of the latest build's commit (repository guard) */
+  ci?: { state: string; total?: number; failed?: number; pending?: number; url?: string } | null;
 }
 
 /** GET /projects/<id>/branches/<branch>/promotion-check */

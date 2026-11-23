@@ -56,6 +56,11 @@ CREATE_PERMISSIONS = {"administration": "write"}  # creating repositories in an 
 STATUS_PERMISSIONS = {"statuses": "write"}  # reporting builds as commit statuses (projects/commit_status.py)
 STATUS_STATES = ("pending", "success", "failure", "error")
 PULL_PERMISSIONS = {"pull_requests": "write", "issues": "write"}  # pull-request previews: events and one comment each
+GUARD_PERMISSIONS = {
+    "administration": "write", "contents": "write", "pull_requests": "write", "workflows": "write", "checks": "read",
+}  # fmt: skip
+"""The repository guard (repo_guard/): rulesets and branch protection, the pull request with the check files (a
+workflow among them), reading the checks' results. Asked for only when the manifest is made with repository_guard."""
 SIGN_IN_PERMISSIONS = {"email_addresses": "read", "members": "read"}
 """Sign-in with GitHub (auth/github.py): the person's verified e-mail address, and their membership of the
 organisations of GITHUB_SIGN_IN_ORGS. Both are read with the person's own token, which is revoked at once."""
@@ -206,25 +211,30 @@ def app_name(host: str) -> str:
     return f"Sudoo.sh {label[: NAME_LIMIT - len('Sudoo.sh ') - 5]}-{suffix}"
 
 
-def manifest(panel_url: str, hook_base: str, host: str, create_repositories: bool = False) -> dict[str, Any]:
+def manifest(
+    panel_url: str, hook_base: str, host: str, create_repositories: bool = False, repository_guard: bool = False
+) -> dict[str, Any]:
     """The GitHub App manifest: private, read-only access to code, Commit statuses: write (builds reported on their
     commits, STATUS_PERMISSIONS), Pull requests and Issues: write (pull-request previews: their events and one comment
     on each pull request with the preview's link, PULL_PERMISSIONS), e-mail addresses and organisation members: read
     (sign-in with GitHub, SIGN_IN_PERMISSIONS) with the panel's /login/github as the callback URL,
     push/create/delete/pull_request events to the panel's webhook. With `create_repositories`, also
     Administration: write, so the panel can create empty repositories for new projects in the organisations it is
-    installed on (CREATE_PERMISSIONS)."""
+    installed on (CREATE_PERMISSIONS). With `repository_guard`, also what the repository guard needs
+    (GUARD_PERMISSIONS: Administration, Contents, Pull requests and Workflows: write, Checks: read)."""
     panel_url, hook_base = panel_url.rstrip("/"), hook_base.rstrip("/")
     permissions = {
         **PERMISSIONS, **STATUS_PERMISSIONS, **PULL_PERMISSIONS, **SIGN_IN_PERMISSIONS,
         **(CREATE_PERMISSIONS if create_repositories else {}),
+        **(GUARD_PERMISSIONS if repository_guard else {}),
     }  # fmt: skip
     return {
         "name": app_name(host),
         "url": panel_url,
         "description": "Access for the Sudoo.sh panel: it downloads branches to run them as Odoo instances, reports "
         "builds on their commits"
-        + (" and creates empty repositories for new projects." if create_repositories else " (read-only code)."),
+        + (" and creates empty repositories for new projects." if create_repositories else " (read-only code).")
+        + (" It may also propose CI checks and set branch rules (repository guard)." if repository_guard else ""),
         "hook_attributes": {"url": hook_base + HOOK_PATH, "active": True},
         "redirect_url": f"{panel_url}/github/app/created",
         "callback_urls": [panel_url + SIGN_IN_CALLBACK],  # sign-in with GitHub comes back here (auth/github.py)

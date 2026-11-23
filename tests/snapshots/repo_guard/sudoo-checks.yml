@@ -1,0 +1,145 @@
+# Managed by Sudoo.sh (repository guard).
+# Changes made here are replaced the next time the panel updates the checks: change them in the panel
+# (the project's Settings tab, Repository guard). docs/CHECKS.md explains each check.
+name: Sudoo.sh checks
+
+on:
+  pull_request:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sudoo-checks-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  versions:
+    name: Odoo series of this branch
+    runs-on: ubuntu-latest
+    outputs:
+      odoo: ${{ steps.pick.outputs.odoo }}
+    steps:
+      - id: pick
+        env:
+          BRANCH: ${{ github.base_ref || github.ref_name }}
+          VERSIONS: '{"branches": {"17.0": ["17.0"]},"default": ["18.0"]}'
+        run: |
+          python3 - <<'EOF'
+          import json, os
+          table = json.loads(os.environ["VERSIONS"])
+          chosen = table["branches"].get(os.environ["BRANCH"], table["default"])
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write("odoo=" + json.dumps(chosen) + "\n")
+          EOF
+
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install "ruff==0.17.6"
+      - run: ruff check --no-cache --line-length 120 --select E,W,F --ignore E501 .
+
+  pylint-odoo:
+    name: pylint-odoo (${{ matrix.odoo }})
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        odoo: ${{ fromJSON(needs.versions.outputs.odoo) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install "pylint-odoo==10.0.12"
+      - name: Run pylint-odoo on every module
+        run: |
+          mapfile -t modules < <(find . -name __manifest__.py -not -path "./.git/*" -printf "%h\n" | sort)
+          if [ "${#modules[@]}" -eq 0 ]; then echo "No Odoo modules found."; exit 0; fi
+          pylint --load-plugins=pylint_odoo --disable=all --enable=sql-injection,invalid-commit,method-required-super,no-write-in-compute,external-request-timeout,resource-not-exist,manifest-data-duplicated,license-allowed,manifest-required-author,manifest-required-key,manifest-version-format,attribute-deprecated,method-compute,method-inverse,method-search,context-overridden,missing-return,print-used,test-folder-imported,translation-required --valid-odoo-versions=${{ matrix.odoo }} --score=n "${modules[@]}"
+
+  addons:
+    name: Manifests, XML and CSV (${{ matrix.odoo }})
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        odoo: ${{ fromJSON(needs.versions.outputs.odoo) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python .github/sudoo/check_addons.py --series "${{ matrix.odoo }}" --strictness standard --manifests --xml-csv
+
+  tests:
+    name: Odoo tests (${{ matrix.odoo }})
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        odoo: ${{ fromJSON(needs.versions.outputs.odoo) }}
+    container:
+      image: odoo:${{ matrix.odoo }}
+      options: --user root
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the modules and run their tests
+        run: |
+          modules=$(python3 .github/sudoo/check_addons.py --list-modules)
+          if [ -z "$modules" ]; then echo "No Odoo modules found."; exit 0; fi
+          paths=$(python3 .github/sudoo/check_addons.py --addons-paths)
+          odoo --db_host db --db_port 5432 --db_user odoo --db_password odoo -d sudoo_checks \
+            --addons-path "/usr/lib/python3/dist-packages/odoo/addons,$paths" \
+            -i "$modules" --test-enable --stop-after-init --log-level test --http-port 8070 2>&1 | tee odoo.log
+          if grep -qE "^[0-9-]+ [0-9:,]+ [0-9]+ (ERROR|CRITICAL) " odoo.log; then
+            echo "Odoo logged errors while installing or testing the modules (see above)."
+            exit 1
+          fi
+
+  sudoo-checks:
+    name: sudoo-checks
+    if: always()
+    needs: [lint, pylint-odoo, addons, tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every check passed
+        if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
+        run: echo "Every check passed."
+      - name: A check failed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "At least one check failed: open it above to see why."
+          exit 1

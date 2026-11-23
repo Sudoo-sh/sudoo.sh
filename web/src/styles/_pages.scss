@@ -1248,7 +1248,7 @@ tr.invited {
   background: var(--surface);
   box-shadow: var(--shadow-float);
   transform: scale(1.02);
-  transition: transform var(--quick) var(--ease), box-shadow var(--quick) var(--ease);
+  transition: transform var(--dur-ui) var(--spring-bounce), box-shadow var(--dur-ui) var(--ease);
   @starting-style { transform: scale(1); box-shadow: none; }
 }
 .ws-dot {
@@ -1258,7 +1258,8 @@ tr.invited {
   border-radius: 50%;
   &.online { background: var(--positive); }
   &.failed { background: var(--negative); }
-  &.busy { background: var(--caution); animation: running 1.4s var(--ease) infinite; }
+  &.busy { position: relative; background: var(--caution);
+    &::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: inherit; animation: dot-pulse 1.6s var(--ease) infinite; } }
   &.asleep { border: 1.5px solid var(--idle); }
   &.none { border: 1.5px dashed var(--hairline-strong); }
 }

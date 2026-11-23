@@ -28,6 +28,7 @@ import { STAGE_LABEL } from "@/components/StageTag";
 import { Button, Empty, Skeleton } from "@/components/app/basics";
 import { CommitHash } from "@/components/CommitHash";
 import { ConnectButton } from "@/components/ConnectAs";
+import { ChecksBadge } from "@/components/RepoGuard";
 import { WhyItFailed } from "@/components/WhyItFailed";
 import { intlTag, useLocale, useT } from "@/i18n";
 import words from "@/i18n/builds";
@@ -108,6 +109,8 @@ function When({ at }: { at: string | null }) {
 // ---------------------------------------------------------------- the entries
 
 type Context = {
+  /** the project's id (the Checks badge reads its CI results) */
+  project: string;
   repository: string;
   live: Set<string>;
   instances: Map<string, Instance>;
@@ -185,6 +188,7 @@ function BuildCard({ build, ctx, branch }: { build: Build; ctx: Context; branch:
         </div>
         <div className="bh-side">
           <BuildStatusTag status={build.status} />
+          <ChecksBadge project={ctx.project} sha={build.commit?.full_sha} />
           {live && instance?.url && ctx.mayOpen && <ConnectButton instance={instance} connectAs={ctx.connectAs} access={ctx.access(build.instance)} size="sm" />}
         </div>
       </div>
@@ -349,7 +353,7 @@ export function BranchHistory({
   }, [results.map((r) => r.dataUpdatedAt).join()]);
   const loadingMore = results.some((r) => r.isFetching && !r.data);
   const live = useMemo(() => liveBuilds(entries.filter((e): e is Build => e.type === "build")), [entries]);
-  const ctx: Context = { repository: project.repository.url, live, instances, access, mayOpen, connectAs, onJob };
+  const ctx: Context = { project: project.id, repository: project.repository.url, live, instances, access, mayOpen, connectAs, onJob };
 
   if (first?.isPending)
     return (

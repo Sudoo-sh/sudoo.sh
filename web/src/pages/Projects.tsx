@@ -37,6 +37,7 @@ import { ProjectNotifications } from "@/components/ProjectNotifications";
 import { ProjectStatus, ProjectStatusTabs } from "@/components/ProjectStatus";
 import { ProjectWorkspace, type ProjectHeadBranch } from "@/components/ProjectWorkspace";
 import { PullRequestPreviews } from "@/components/PullRequestPreviews";
+import { RepoGuard } from "@/components/RepoGuard";
 import { StagingRefresh } from "@/components/StagingRefresh";
 import { Page, PageHead, useCan, useSubCrumb } from "@/components/Shell";
 import { STAGE_ICON, STAGE_LABEL } from "@/components/StageTag";
@@ -44,6 +45,7 @@ import { Button, Callout, Empty, Field, Skeleton, Status, Switch, Tag } from "@/
 import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
 import { Modal, useToast } from "@/components/app/overlay";
+import { TabInk } from "@/components/app/motion";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import buildWords from "@/i18n/builds";
@@ -289,6 +291,7 @@ function SettingsTab({ project, meta }: { project: ProjectDetail; meta: ProjectM
         </div>
       </section>
       <GitHubCheckCard project={project} />
+      <RepoGuard project={project} />
       <section className="card">
         <div className="card-head"><h2 className="spacer">{s.access}</h2>
           {can("projects.access") && <Button asChild size="sm"><Link to={`/projects/${project.id}/access`} viewTransition><ShieldCheck /> {s.manageAccess}</Link></Button>}
@@ -412,6 +415,7 @@ export function ProjectPage() {
             <UserRoundCheck /> {c.clientsTitle}
           </Link>
         )}
+        <TabInk />
       </nav>
       {tab !== "clients" && <ClosedNotice projectId={project.id} projectName={project.name} branch={null} access={project.client_access} />}
     </>

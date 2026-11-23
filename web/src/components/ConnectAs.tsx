@@ -8,6 +8,7 @@ import { ArrowUpRight, ChevronDown, KeyRound, LogIn, Search, UserRound } from "l
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { api, errorText } from "@/api/client";
+import { openThroughPass } from "@/api/access-rules";
 import { useCall } from "@/api/queries";
 import type { Instance } from "@/api/types";
 import { useT } from "@/i18n";
@@ -39,8 +40,15 @@ export function ConnectButton({ instance, connectAs = true, access, size }: { in
   const [open, setOpen] = useState(false);
   if (!instance.url) return null;
   const asleep = ASLEEP.includes(instance.status);
+  const url = instance.url;
+  // production: through the panel's pass, which its access rules (beta) accept from anywhere (api/access-rules.ts)
+  const viaPass = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (instance.stage !== "production" || event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+    event.preventDefault();
+    void openThroughPass(instance.name, url);
+  };
   const main = (
-    <Button asChild variant="primary" size={size}><a href={instance.url} target="_blank" rel="noreferrer">
+    <Button asChild variant="primary" size={size}><a href={url} target="_blank" rel="noreferrer" onClick={viaPass}>
       {t.open} <ArrowUpRight className="flip-rtl" />
     </a></Button>
   );

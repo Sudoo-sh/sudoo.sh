@@ -133,8 +133,8 @@ By default super admins and administrators must use a second factor. A super adm
   the address.
 * **My account, Ways to sign in** shows how your account may sign in. There you link your GitHub account
   (**Link GitHub**) or unlink it (**Unlink**, which asks for your password when you have one). After you sign in
-  with GitHub, your access to each project may follow your permission on its GitHub repository: write gives
-  Developer, maintain Maintainer, admin Admin, triage or read view only. Removed from the repository, you no longer
+  with GitHub, your role in each project may follow your permission on its GitHub repository: write gives
+  Developer, maintain Maintainer, admin Admin, triage or read Tester. Removed from the repository, you no longer
   see the project.
 * After **5 wrong passwords** for the same account from the same place, or 20 from the same place, signing in is
   blocked for **15 minutes**. Wait, or ask an administrator to set a new password for you.
@@ -430,6 +430,60 @@ choose Slack, Discord, Telegram, Microsoft Teams, Webhook or E-mail, paste the a
 or the addresses), and tick the events you want. Saved addresses and tokens are never shown again, only their last 4
 characters; type a new one to replace it. A webhook's signing secret is shown once, when it is made: copy it then.
 **Send test** sends a test at once; each channel says how its last delivery went.
+
+### Repository guard
+
+**Repository guard** (a card of the project's **Settings** tab) adds CI checks and pre-commit hooks to the project's
+GitHub repository, shows their results in the panel, and sets branch rules on GitHub. Everything is off until you turn
+it on, and every part can be turned off again. Everyone who sees the project sees the card; only the project's
+**Admins** (and super admins) can change it.
+
+What you do not change on the card follows the panel's settings (**Settings**, **Instances**, **Projects**,
+the **Repository guard** lines), which a super admin sets for every project.
+
+**GitHub App permissions.** The guard works through the panel's GitHub App and needs more than reading code. The card
+lists what is missing and why: **Contents**, **Pull requests** and **Workflows: Read and write** for the checks'
+pull request, **Checks: Read** for the results, **Administration: Read and write** for branch rules. **Open the app's
+permissions** takes you to the app's settings on GitHub; after you save, an owner of the account accepts the new
+permissions with **Accept on the installation**. Reload the page afterwards. The guard never asks for them before
+you use it.
+
+**CI checks.**
+
+1. Turn on **Run CI checks on this repository** and choose the checks: **Lint Python code** (ruff or flake8),
+   **pylint-odoo** (the Odoo community's rules), **Manifests** (required keys, a licence Odoo knows, a version that
+   starts with the branch's Odoo series), **XML and CSV files are valid**, and optionally **Run the modules' tests in
+   Odoo's official image** (slower: each run installs the modules in a new PostgreSQL database).
+2. Choose the **Strictness**: **Relaxed** (errors that break things only), **Standard** or **Strict** (every rule).
+3. **Preview changes** shows each file the pull request would add, change or remove, with its content. Nothing changes.
+4. **Save and open a pull request**. The panel commits the files to its own branch, `sudoo/repository-guard`, and opens
+   a pull request into the default branch. The card shows its link and state (**Open**, **Merged**, **Closed**);
+   **Read its state again** asks GitHub. Saving again while it is open updates the same pull request.
+
+The pull request adds `.github/workflows/sudoo-checks.yml`, `.github/sudoo/check_addons.py`, `.pre-commit-config.yaml`
+and `docs/CHECKS.md`. Nothing runs until someone merges it, through your repository's own reviews. A file the
+repository already has, written by someone else, is left alone (the preview says **Left alone**). Turning a check
+off, or turning the checks off, opens a pull request that updates or removes the panel's files only.
+
+**Results in the panel.** Once the checks run, each build in **Builds** and in a branch's **History** shows a
+**Checks** badge (**Checks passed**, **1 check failed**, **Checks running**); it opens the commit's checks on GitHub.
+The pre-promotion checklist gets a **CI checks on GitHub** item. Turn on **Failing checks stop a promotion to
+production** to make a failing check a red item (off by default: it is then amber).
+
+**Branch rules on GitHub.**
+
+1. Choose what protects **Production**: **Approvals required** (1 by default), **The check sudoo-checks must pass**,
+   **Linear history**, **Signed commits**. Force-pushes and deleting the branch are always blocked. **Staging** has
+   the same choices with lighter defaults (no approval required).
+2. Choose **Who may push or merge to production**: **Admins and Maintainers** (GitHub's Admin and Maintain roles),
+   **Named teams and people**, or **Anyone with write access**.
+3. **Preview the rules** shows each rule now and after, side by side, and the rules on GitHub the panel did not make
+   (they are never changed). When GitHub's plan does not allow branch rules (private repositories on GitHub Free),
+   the preview says so.
+4. Type the repository's name (for example `acme/erp`) and click **Apply on GitHub**.
+
+**Turn off the rules** removes only the rules the panel made. See [Repository guard](ADMIN_GUIDE.md#repository-guard)
+for how it works and what each permission is for.
 
 ---
 
@@ -757,6 +811,54 @@ with their certificates: the new server serves them at once, the old one stops. 
 server, so each one shows "moved here from <server>" with the record to create now; change it at the domain's DNS
 provider. The panel checks on its own (and with **Check now**) and the note goes once the domain points at the new
 server.
+
+---
+
+### Production access rules (beta)
+
+On a production instance, the **Settings** tab can have a **Production access rules** card, marked **Beta**. It is
+there when the administrator has switched the feature on (`ACCESS_RULES_BETA`). The rules say who can open the
+instance:
+
+* **Who can open it**: people in the **Countries** you choose (search the list by name or code; each has its flag),
+  people on the **Addresses** and ranges you list (your office, your VPN; IPv4 or IPv6, such as `203.0.113.0/24`,
+  each with a label), or **Either**.
+* **What it protects**: **Back office only** (sign-in, the back office, the APIs and the database manager; the
+  public website and shop stay open to everyone) or **Whole site**.
+* **Always allowed**: payment providers' notifications and automation webhooks are on by default, so payments and
+  integrations keep working; add customers' portal sign-in, live chat, links in e-mails, your own paths or
+  addresses (an uptime monitor) as needed.
+
+Super admins, the project's administrators and the project's client can change them; the others see them. A change
+takes three steps:
+
+1. **Rules**: make your choices, then **Check the rules**.
+2. **Check**: see whether your current address would still get in, test another address (a colleague's), and see
+   which sample paths a visitor outside the rules could still open. Nothing is saved yet.
+3. **Confirm**: type the instance's name and a one-time code, sent by e-mail or shown by your authenticator app,
+   then **Apply the rules**. They apply within seconds; the other people who may change them get an e-mail.
+
+**Open Odoo** and **Connect as** keep working from anywhere for the people whose project role lets them open production (unless the client has closed access): the panel
+gives your browser a short pass that the gateway accepts, valid for a few hours on that instance only.
+
+A visitor turned away sees a calm page saying "This site isn't available from your location / network", with their
+country, a reference to give the administrator and how to reach them. Countries are a convenience barrier: anyone can
+appear to be in another country with a VPN. Address rules are stronger. Country data: IP geolocation by DB-IP.
+
+### Status pages
+
+When an instance cannot answer, its visitors see a page from the gateway instead of an error: **Starting up**
+(a paused instance waking), **Starting soon** (while the panel restarts), **Update in progress**, **Upgrading**,
+**Switched off**, **Locked** or **Not found**. Each has a small animated picture, follows the visitor's language
+(English or Arabic) and light or dark setting, and stays still for people who asked for less motion.
+
+While a job runs (an update, a restart, a creation), the page shows the step it is on, its progress, which step of
+how many, how long it has waited and, when the panel knows how long the same work took before, about how long is
+left. It opens Odoo by itself as soon as Odoo is ready. Programs that call the instance (APIs, webhooks) get the same
+`503` answer with `Retry-After: 4` as before, and try again.
+
+In the panel, the instance's header shows the same job at a glance: its current step, a progress bar and the time
+it has run. Click it for every step; a failed job still explains **Why it failed**.
 
 ---
 
@@ -1296,7 +1398,25 @@ removed.
 
 ### Project access and locked branches
 
-What someone may do in a project is **their role, limited by the level they have there**. A level never gives more
+Projects use **project roles**: your role in a project decides what you may do in each of its stages, whatever your
+role in the panel (super admins and administrators can do everything everywhere).
+
+| Role | Development | Staging | Production | The project |
+| :--- | :--- | :--- | :--- | :--- |
+| **Viewer** | see branches, status, history, builds | the same | the same | nothing |
+| **Tester** | see, and open Odoo signed in (**Connect**) to try it | the same | nothing: production is not shown | nothing |
+| **Developer** | everything: logs, shell, database, backups, Connect, passwords, create, update, delete, restore | see, Connect to test, logs; no shell, database, backups or passwords | only that it exists, its history, builds and status | nothing |
+| **Maintainer** | as Developer | as Developer in development, staging data included | logs and monitoring, Connect (with the production confirmation), backups (list and download), restart and new code; never its shell, database, restores, deletion | nothing |
+| **Admin** | everything | everything | everything | settings, stages, access, roles and locks |
+
+Your project's admins may have changed what a role allows; the project's **Access** tab shows the exact rights. When
+something is refused, the message says which role cannot do what, and where. If you need more for a while, open the
+project's **Access** tab, **Temporary access**, **Request access**: choose the stage, the role, how many hours, and say
+why. The project's admins get an e-mail; once approved, the extra rights apply at once and end by themselves. You get
+an e-mail when you are given access to a project, when your role there changes and when it ends.
+
+The rest of this section describes projects made before project roles, until an admin switches them: there, what
+someone may do in a project is **their panel role, limited by the level they have there**. A level never gives more
 than the role: a Viewer given the level Admin is still a Viewer.
 
 | Level | What it allows (within the role) |

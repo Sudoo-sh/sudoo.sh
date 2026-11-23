@@ -4,6 +4,7 @@ Who may call (security.py): the web app with its session cookie (and X-CSRF-Toke
 with an API token and a signature on every request (api_tokens.py, docs/PANEL_API.md). Either way the caller is an
 role (roles.py), and the same permission checks apply.
 
+    access_rules.py  production access rules (beta) and the links that open an instance through a pass
     alerts.py      the alerts of the bell, test alerts
     session.py     sign in (password, then a second factor when needed) and out, own password, contact
     account.py     own account and second factors
@@ -16,6 +17,7 @@ role (roles.py), and the same permission checks apply.
     project_resources.py  a project's and a branch's resources: workers, timeouts, memory per stage; storage
     promotion.py   the pre-promotion checklist, comparing branches, the scheduled staging refresh, PR previews
     project_status.py  a project's Status tab (uptime, incidents) and its public status page
+    repo_guard.py  a project's repository guard: CI checks through a pull request, their results, branch rules
     notifications.py   a project's notification channels (Slack, Discord, Telegram, Teams, webhooks, e-mail)
     upgrades.py    database upgrades of instances to a newer Odoo version: pre-check, test, production, rollback
     clients.py     the client portal: a project's clients, access requests, emergency access (staff), and the
@@ -30,6 +32,7 @@ role (roles.py), and the same permission checks apply.
     settings.py    the panel's settings, changed while it runs
     licence.py     the Sudoo.sh Licence Agreement: its text, acceptances
     mail_templates.py  the texts of the e-mails the panel sends
+    maintenance.py the maintenance Sudoo.sh plans on the panel, and choosing its time (staff and clients)
     server.py      the server's resource use, the panel's address and plugins
     kubernetes.py  the Kubernetes engine (beta): the cluster's nodes, the command that adds one
     users.py       roles, accounts and the audit log
@@ -56,6 +59,7 @@ from sudoo.core import events as bus
 from sudoo.core import jobs
 
 from . import (
+    access_rules,
     account,
     alerts,
     backups,
@@ -73,6 +77,7 @@ from . import (
     licence,
     logs,
     mail_templates,
+    maintenance,
     notifications,
     plan,
     plugins,
@@ -82,6 +87,7 @@ from . import (
     project_status,
     projects,
     promotion,
+    repo_guard,
     server,
     session,
     settings,
@@ -116,18 +122,21 @@ def register(app: Flask) -> None:
         instances,
         logs,
         connect,
+        access_rules,
         imports,
         profiler,
         projects,
         project_resources,
         promotion,
         project_status,
+        repo_guard,
         notifications,
         domains,
         caught_mail,
         settings,
         licence,
         mail_templates,
+        maintenance,
         alerts,
         server,
         kubernetes,

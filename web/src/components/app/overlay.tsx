@@ -1,4 +1,4 @@
-import { CircleAlert, CircleCheck, Info, X } from "lucide-react";
+import { CircleAlert, Info, X } from "lucide-react";
 import {
   createContext,
   lazy,
@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ComponentProps,
@@ -21,8 +22,10 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import { PHONE, useMedia } from "@/lib/media";
+import { DURATION, glide, measure } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { Button } from "./basics";
+import { SuccessCheck } from "./motion";
 
 const ModalDrawer = lazy(() => import("./modal-drawer").then((module) => ({ default: module.ModalDrawer })));
 
@@ -223,21 +226,37 @@ const ToastContext = createContext<(tone: Tone, title: string, text?: string) =>
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const push = useCallback((tone: Tone, title: string, text?: string) => {
-    const id = Date.now() + Math.random();
-    setToasts((list) => [...list.slice(-3), { id, tone, title, text }]);
-    const shown = tone === "error" ? 7000 : 4000;
-    setTimeout(() => setToasts((list) => list.map((t) => (t.id === id ? { ...t, closing: true } : t))), shown);
-    setTimeout(() => setToasts((list) => list.filter((t) => t.id !== id)), shown + 320);
+  const stack = useRef<HTMLDivElement>(null);
+  // FLIP: where the toasts are just before a change, so the ones that stay glide to their new place (a new toast
+  // pushes the others up smoothly instead of making them jump)
+  const before = useRef<Map<string, DOMRect>>(new Map());
+  const change = useCallback((update: (list: Toast[]) => Toast[]) => {
+    before.current = stack.current ? measure(toastNodes(stack.current), toastKey) : new Map();
+    setToasts(update);
   }, []);
-  const icon = { success: <CircleCheck />, error: <CircleAlert />, info: <Info /> };
+  useLayoutEffect(() => {
+    if (stack.current && before.current.size) glide(toastNodes(stack.current), before.current, toastKey);
+    before.current = new Map();
+  }, [toasts]);
+  const push = useCallback(
+    (tone: Tone, title: string, text?: string) => {
+      const id = Date.now() + Math.random();
+      change((list) => [...list.slice(-3), { id, tone, title, text }]);
+      const shown = tone === "error" ? 7000 : 4000;
+      // it leaves the way it came (quicker than it arrived), then the space it took closes
+      setTimeout(() => setToasts((list) => list.map((t) => (t.id === id ? { ...t, closing: true } : t))), shown);
+      setTimeout(() => change((list) => list.filter((t) => t.id !== id)), shown + DURATION.ui);
+    },
+    [change],
+  );
+  const icon = { success: <SuccessCheck />, error: <CircleAlert />, info: <Info /> };
   return (
     <ToastContext.Provider value={push}>
       {children}
       {createPortal(
-        <div className="toasts" aria-live="polite">
+        <div className="toasts" aria-live="polite" ref={stack}>
           {toasts.map((toast) => (
-            <div key={toast.id} className={`toast ${toast.tone}`} data-closing={toast.closing || undefined}>
+            <div key={toast.id} data-id={toast.id} className={`toast ${toast.tone}`} data-closing={toast.closing || undefined}>
               {icon[toast.tone]}
               <div>
                 <div className="title">{toast.title}</div>
@@ -251,5 +270,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     </ToastContext.Provider>
   );
 }
+const toastNodes = (stack: HTMLElement) => [...stack.children] as HTMLElement[];
+const toastKey = (element: HTMLElement) => element.dataset.id;
 
 export const useToast = () => useContext(ToastContext);

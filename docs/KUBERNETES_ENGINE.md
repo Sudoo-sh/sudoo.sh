@@ -7,7 +7,7 @@ instances between Docker and Kubernetes, the cost, and what is left for later ph
 
 > The Kubernetes engine is a **beta**. It is off until you set `KUBERNETES_ENGINE_BETA=true`
 > ([Configuration](CONFIGURATION.md#kubernetes-engine-beta), installation in the
-> [Admin guide](ADMIN_GUIDE.md#31-kubernetes-engine-beta)), and Docker stays the default engine of every new
+> [Admin guide](ADMIN_GUIDE.md#33-kubernetes-engine-beta)), and Docker stays the default engine of every new
 > instance. Instances you already have keep running on Docker.
 
 ---

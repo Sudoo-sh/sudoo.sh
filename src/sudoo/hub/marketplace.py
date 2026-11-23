@@ -12,9 +12,11 @@ Heartbeat
     allows) is kept with its dates (entitlements.remember), and its `production_keep` applied.
 
 Commands
-    The heartbeat's answer also carries the hub's commands not acknowledged yet, each signed on its own. The one
-    command today is `remove_paid_plugins` (the server was unlinked from its account): back up, remove the listed
-    paid plugins, acknowledge (plugin_manager.carry_out). A command already carried out is only acknowledged again.
+    The heartbeat's answer also carries the hub's commands not acknowledged yet, each signed on its own:
+    `remove_paid_plugins` (the server was unlinked from its account): back up, remove the listed paid plugins,
+    acknowledge (plugin_manager.carry_out); `maintenance`: planned maintenance, recorded (or refused by the
+    allow-list) and acknowledged at once, run at the time chosen (maintenance.py, which also reads the lease's
+    "maintenance" claim). A command already carried out is only acknowledged again.
 
 When the hub cannot be reached
     Nothing stops: instances, free plugins and the panel keep working; the Plugins page says the marketplace cannot
@@ -335,6 +337,12 @@ def _heartbeat_once() -> dict[str, Any]:
     premium_loader.after_lease()  # installs or updates the premium features the plan includes (a job)
     commands = answer.get("commands")
     carry_out(commands if isinstance(commands, list) else [], verified)
+    from sudoo import maintenance
+
+    try:  # the signed claim: items not received yet, cancellations, windows chosen on app.sudoo.sh
+        maintenance.sync(verified.claims.get("maintenance"))
+    except Exception:  # noqa: BLE001 - tried again at the next heartbeat
+        log.exception("marketplace: the lease's maintenance could not be read")
     _changed()
     return current
 
@@ -455,6 +463,12 @@ def carry_out(commands: list[Any], verified: crypto.Lease | None = None) -> None
             continue
         if kind == "remove_paid_plugins":
             plugin_manager.start_command(command_id, command["payload"])
+        elif kind == "maintenance":  # recorded here (the allow-list may refuse it); it runs at the chosen time
+            from sudoo import maintenance
+
+            status, detail = maintenance.receive(command_id, command["payload"])
+            record_command(command_id, kind=kind, status=status, detail=detail, at=time.time())
+            acknowledge(command_id, status, detail)
         else:
             record_command(command_id, kind=kind, status="failed", detail="This panel does not know this command.",
                            at=time.time())  # fmt: skip

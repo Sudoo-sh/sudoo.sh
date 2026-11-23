@@ -35,7 +35,7 @@ describe("promotion", () => {
     expect(status).toBe(200);
     const check = data as PromotionCheck;
     expect(check.production.branch).toBe("main");
-    expect(check.items.map((i) => i.key)).toEqual(["build", "backup", "modules", "migrations", "odoo", "lock", "capacity"]);
+    expect(check.items.map((i) => i.key)).toEqual(["build", "ci", "backup", "modules", "migrations", "odoo", "lock", "capacity"]);
     expect(check.items.find((i) => i.key === "migrations")?.status).toBe("warning");
     expect(check.blocking).toBe(false);
   });

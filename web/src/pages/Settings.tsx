@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
 import { Modal, useToast } from "@/components/app/overlay";
+import { TabInk } from "@/components/app/motion";
 import { useLocale, useT } from "@/i18n";
 import { bytes } from "@/lib/format";
 import common from "@/i18n/common";
@@ -26,7 +27,7 @@ import words from "@/i18n/settings";
 /** `test`: the group has a "Send a test alert" button, by e-mail or to that webhook. */
 type GroupId = Exclude<keyof (typeof words)["en"]["groups"], never>;
 type Group = { id: GroupId | `webhook${1 | 2 | 3}`; keys: string[]; test?: "email" | 1 | 2 | 3 };
-type TabId = "plan" | "support" | "clients" | "general" | "instances" | "resources" | "odoo" | "backups" | "security" | "domains" | "email" | "servers" | "alerts" | "github" | "marketplace" | "advanced" | "about";
+type TabId = "plan" | "support" | "clients" | "maintenance" | "general" | "instances" | "resources" | "odoo" | "backups" | "security" | "domains" | "email" | "servers" | "alerts" | "github" | "marketplace" | "advanced" | "about";
 
 const webhookGroup = (n: 1 | 2 | 3): Group => ({
   id: `webhook${n}`,
@@ -53,7 +54,8 @@ const TABS: { id: TabId; groups: Group[] }[] = [
         id: "projects",
         keys: ["project_production_branches", "project_auto_development", "project_max_auto_development", "project_development_demo_data", "project_staging_on_push", "project_branch_deleted", "project_upgrade_test_on_push", "project_builds_kept",
           "project_development_on_new_commit", "project_module_install", "project_modules", "project_test_suite", "project_test_tags", "project_staging_tests", "project_test_timeout_minutes", "project_commit_statuses", "project_email_pusher",
-          "project_promotion_backup_hours", "project_promotion_blocks", "project_pr_previews", "project_pr_preview_limit", "project_pr_previews_forks"],
+          "project_promotion_backup_hours", "project_promotion_blocks", "project_pr_previews", "project_pr_preview_limit", "project_pr_previews_forks",
+          "project_guard_checks", "project_guard_strictness", "project_guard_production_approvals", "project_guard_staging_approvals", "project_guard_linear_history", "project_guard_signed_commits", "project_guard_pushers", "project_guard_blocks_promotion"],
       },
       { id: "howMany", keys: ["max_instances", "max_instances_per_user", "create_cooldown_minutes", "max_initial_modules"] },
       { id: "capacity", keys: ["capacity_reserve_mb", "capacity_reserve_percent", "capacity_instance_memory_mb", "capacity_warning_percent", "max_running_instances"] },
@@ -87,11 +89,13 @@ const TABS: { id: TabId; groups: Group[] }[] = [
     groups: [
       { id: "signIn", keys: ["require_second_factor", "second_factors", "session_idle_minutes", "session_max_hours", "auth"] },
       { id: "signInWays", keys: ["sign_in_methods", "client_sign_in_methods", "email_code_sign_in", "email_code_sends_per_hour", "github_sign_in", "github_sign_in_orgs", "github_sign_in_role", "github_sign_in_skips_second_factor", "github_access_from_repositories", "github_access_check_minutes"] },
+      { id: "projectRoles", keys: ["project_access_model", "access_emails", "access_requests", "access_request_max_hours", "access_review", "access_review_days"] },
       { id: "signInEmail", keys: ["sign_in_email", "sign_in_email_opt_out", "recovery_codes_count"] },
       { id: "invitations", keys: ["invitation_hours", "invitation_password_fallback", "invitations_per_hour"] },
       { id: "requests", keys: ["rate_limit_reads_per_minute", "rate_limit_changes_per_minute", "rate_limiter"] },
       { id: "webShell", keys: ["shell_enabled", "shell_roles", "shell_production", "shell_root", "shell_idle_minutes", "shell_max_minutes", "shell_max_per_user", "shell_max_per_instance", "shell_ticket_seconds"] },
       { id: "shellRecordings", keys: ["shell_recording", "shell_recording_days", "shell_recording_max_mb", "shell_recordings_total_mb"] },
+      { id: "accessRules", keys: ["access_rules_beta", "access_rules_geo_missing", "access_rules_geo_download", "access_rules_geo_url", "access_rules_pass_hours", "access_rules_show_ip", "access_rules_contact"] },
       { id: "profiler", keys: ["profiler_enabled", "profiler_roles", "profiler_production", "profiler_max_minutes", "profiler_keep", "profiler_rate", "profiler_image", "audit_export_max_rows"] },
     ],
   },
@@ -141,12 +145,25 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       { id: "premium", keys: ["premium_auto_install", "premium_check_hours", "premium_retry_minutes", "premium_watch_minutes", "premium_binding_renew_days", "premium_max_package_mb", "public_ipv4", "public_ipv6"] },
     ],
   },
-  { id: "support", groups: [{ id: "supportAccess", keys: ["support_access", "support_access_max_hours"] }] },
+  {
+    id: "support",
+    groups: [
+      { id: "supportAccess", keys: ["support_access", "support_access_max_hours"] },
+      { id: "topologyShare", keys: ["share_topology_with_sudoo", "topology_include_names", "topology_interval_seconds"] },
+    ],
+  },
   {
     id: "clients",
     groups: [
       { id: "portalAddress", keys: ["portal_domain", "portal_name"] },
       { id: "clientSwitch", keys: ["client_open_hours", "client_open_max_hours", "client_request_hours", "client_request_max_hours", "client_request_expire_hours", "client_emergency_access", "client_emergency_minutes", "client_confirmations", "client_confirm_minutes"] },
+    ],
+  },
+  {
+    id: "maintenance",
+    groups: [
+      { id: "maintenanceWindows", keys: ["maintenance_default_window", "maintenance_default_days", "maintenance_tonight_time", "maintenance_weekend_day", "maintenance_choose_hours", "maintenance_cutoff_hours", "maintenance_lead_minutes"] },
+      { id: "maintenanceRuns", keys: ["maintenance_reminder_hours", "maintenance_remind_clients", "maintenance_client_choice", "maintenance_backup_first", "maintenance_update_wait_hours"] },
     ],
   },
   { id: "advanced", groups: [{ id: "monitoring", keys: ["metrics_interval_seconds", "cloudflared_image"] }] },
@@ -346,6 +363,7 @@ function TabList({ tab, onSelect, marks }: { tab: TabId; onSelect: (id: TabId) =
           </button>
         );
       })}
+      <TabInk />
     </div>
   );
 }

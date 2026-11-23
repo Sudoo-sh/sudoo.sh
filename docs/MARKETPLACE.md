@@ -21,8 +21,9 @@ is not protected.
 10. [How the panel talks to the hub](#10-how-the-panel-talks-to-the-hub)
 11. [How a package is checked](#11-how-a-package-is-checked)
 12. [Where plugins are kept, and what is protected](#12-where-plugins-are-kept-and-what-is-protected)
-13. [Settings and commands](#13-settings-and-commands)
-14. [Troubleshooting](#14-troubleshooting)
+13. [Sharing the topology](#13-sharing-the-topology)
+14. [Settings and commands](#14-settings-and-commands)
+15. [Troubleshooting](#15-troubleshooting)
 
 ---
 
@@ -276,7 +277,48 @@ What it does **not** protect, said plainly:
 
 ---
 
-## 13. Settings and commands
+## 13. Sharing the topology
+
+Sudoo.sh staff can follow a panel's infrastructure live (a diagram of its servers, instances and the traffic between
+their parts) only when the panel's administrator **opts in**. It is off by default.
+
+| Setting | What it does |
+| :--- | :--- |
+| `SHARE_TOPOLOGY_WITH_SUDOO` | Off by default. On (with `MARKETPLACE` on): the panel sends a snapshot every `TOPOLOGY_INTERVAL_SECONDS` (30 by default). Off again: the panel asks the hub to delete what it kept and forgets its pseudonym key. |
+| `TOPOLOGY_INCLUDE_NAMES` | Off by default: every server, project and instance is a short pseudonym. On: their real names are sent too, and Sudoo.sh staff see them only with a separate permission, each look recorded in the hub's audit log. |
+| `TOPOLOGY_INTERVAL_SECONDS` | 30 to 300 seconds; the hub may ask for longer. |
+
+Settings page: **Support**, group **Topology shared with Sudoo.sh**.
+
+**What a snapshot holds** (schema `sudoo.topology/v1`, at most 256 KiB): the engine (`docker`, later `kubernetes`);
+each server or node with its role, status, cores, CPU and memory use; the panel's parts (backend, web service,
+gateway, mail catcher, connectors, agents of other servers) with their health and footprint; each instance's
+project (as an id), stage, status, health, Odoo version and edition, its compose project or namespace (as an id),
+its components (gateway, Odoo, PostgreSQL) with replicas, health, CPU and memory; and the edges between them with
+the requests and errors per minute the gateway counted (Odoo to PostgreSQL is marked as estimated: it follows Odoo's
+requests).
+
+**What it never holds:** addresses, domains, branch names, commits, users, e-mail, settings, secrets, logs, or
+anything stored in an instance. Statuses, stages and versions are checked against fixed lists before they are sent.
+
+**Ids.** Every id is an HMAC of the thing's name under a random key that stays on the panel: stable from one
+snapshot to the next (so rates can be followed over time), meaningless anywhere else, and different after sharing
+is switched off and on again.
+
+**How it is sent.** `POST /api/v1/installations/topology`, signed like every hub request and separate from the
+heartbeat; the answer is signed by the hub. `DELETE` on the same path withdraws it. The hub keeps the latest snapshot
+and about an hour of rates per installation. When more than 256 KiB would be sent, stopped instances are left out
+first, then the quietest ones, and the snapshot says how many.
+
+**Other engines.** The figures come from what the monitor already measures, so sharing adds no Docker command.
+Each instance runs on the engine its `.env` names (`ENGINE`, Docker when absent). An engine that runs instances
+elsewhere (the Kubernetes engine) adds what only it knows through `sudoo.topology.engines.contribute()`: its nodes
+(control plane and workers, readiness, CPU and memory), each instance's namespace and node, and the replicas of
+its gateway, Odoo and PostgreSQL. Instances on Docker keep one compose project each, so one snapshot can show both.
+
+---
+
+## 14. Settings and commands
 
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
@@ -304,7 +346,7 @@ The API behind the page is described in [Panel API](PANEL_API.md#plugins-and-the
 
 ---
 
-## 14. Troubleshooting
+## 15. Troubleshooting
 
 | Message | What to do |
 | :--- | :--- |

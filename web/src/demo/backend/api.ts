@@ -16,10 +16,12 @@ import * as mail from "./mail";
 import * as caught from "./caught-mail";
 import * as offsite from "./offsite";
 import * as statusPages from "./status";
+import * as accessRules from "./access-rules";
+import * as guard from "./repo-guard";
 import { branchBuilds, branchHistory, findEntry, recordStageChange } from "./builds";
 import { branchOptions, changeBranchOptions, clean as cleanOption, problem as optionsProblem, statusesAvailable } from "./build-options";
 import { branchList, membersOf, productionInstance, projectResource, projects, stageOf, type DemoProject } from "./projects";
-import { CLIENT_ME, described, levelIn, LEVELS, mayUnlock, needIn, openAccess, permissionsIn, seesProject, setLocks, teamResource, teams, type DemoAccess } from "./access";
+import { CLIENT_ME, described, EDITABLE_LEVELS, elevations, levelIn, LEVELS, matrixOf, mayUnlock, needIn, openAccess, permissionsIn, PROJECT_RIGHTS, ROLE_DEFAULTS, seesProject, setLocks, STAGE_RIGHTS, STAGES, teamResource, teams, type DemoAccess, type Scope } from "./access";
 import { acceptLicence, LICENCE, licencePending, licenceStatus } from "./licence";
 import { catalog, categories, marketplace, recommendations } from "./marketplace";
 import { currentPlan, ENTITLEMENTS, gatedBy, needPremium, premiumOverview } from "./premium";
@@ -104,7 +106,9 @@ const none = (): Answer => ({ status: 204 });
 const accepted = (job: Job): Answer => ({ status: 202, body: { data: job }, headers: { Location: `/api/v1/jobs/${job.id}` } });
 
 const CONTACT = "Please contact the administrator, Operations team (ops@example.com).";
-const can = (permission: Permission) => roleInfo(session.role).permissions.includes(permission);
+/** The role's permissions and, under project roles, what some project gives (access.reach_permissions). */
+const can = (permission: Permission) =>
+  roleInfo(session.role).permissions.includes(permission) || [...projects.values()].some((p) => p.access.model === "project_roles" && permissionsIn(p.access).includes(permission));
 function need(permission: Permission, path = "") {
   if (!can(permission)) {
     record(ME, `refused: ${path}`, { ok: false });
@@ -117,6 +121,8 @@ function needOn(name: string, permission: Permission, path = "", role = true) {
   if (role) need(permission, path);
   const instance = instances.get(name);
   const project = instance?.project ? projects.get(instance.project.id) : undefined;
+  if (role && !project && !roleInfo(session.role).permissions.includes(permission)) // outside every project: the role alone
+    throw new Problem(403, `Your role cannot do this (${PERMISSIONS[permission].toLowerCase()}). ${CONTACT}`);
   if (instance && project) {
     try {
       needIn(project.access, permission, instance.name, instance.git.branch);
@@ -131,7 +137,9 @@ function needOn(name: string, permission: Permission, path = "", role = true) {
 /** The instances the visitor may see (a restricted project or branch hides its own). */
 function visible(instance: Instance): boolean {
   const project = instance.project ? projects.get(instance.project.id) : undefined;
-  return !project || levelIn(project.access, instance.git.branch) !== "none";
+  if (!project) return roleInfo(session.role).permissions.includes("instances.view");
+  if (project.access.model === "project_roles") return permissionsIn(project.access, instance.git.branch).includes("instances.view");
+  return levelIn(project.access, instance.git.branch) !== "none";
 }
 
 /** Things that would leave the demo or touch the real world are refused with a short explanation. */
@@ -152,7 +160,8 @@ export function me(): Session {
     phone: user.phone,
     role: role.name,
     role_label: role.label,
-    permissions: [...role.permissions].sort(),
+    // as the panel: the role's, and what some project gives (project roles)
+    permissions: [...new Set([...role.permissions, ...[...projects.values()].flatMap((p) => permissionsIn(p.access))])].sort(),
     csrf_token: session.csrf,
     restricted: null,
     must_set_up_second_factor: false,
@@ -504,21 +513,25 @@ const DEMO_USERS = [
 ];
 
 route("GET", "/instances/:name/odoo-users", ({ params }) => {
-  needOn(params.name!, "instances.credentials");
+  needOn(params.name!, "instances.connect");
   const instance = instanceOf(params.name!);
   if (ASLEEP.includes(instance.status)) throw new Problem(409, "The database is not running. Start the instance first.");
   return ok(DEMO_USERS);
 });
 
 route("POST", "/instances/:name/connect", ({ params, body }) => {
-  needOn(params.name!, "instances.credentials");
+  needOn(params.name!, "instances.connect");
   const instance = instanceOf(params.name!);
   const user = DEMO_USERS.find((u) => u.id === body.uid);
   if (typeof body.uid !== "number") throw new Problem(400, "Choose the Odoo user to connect as.");
   if (instance.stage === "production" && body.confirm_stage !== "production") throw new Problem(400, 'This is a production instance: type "production" to confirm.');
   if (!user) throw new Problem(404, "This Odoo user does not exist or is not an active internal user.");
   record(ME, "connect as link given" + (instance.stage === "production" ? " (production)" : ""), { instance: instance.name, detail: `${user.login} (id ${user.id})` });
-  return created({ url: `${instance.url}/__sudoo/connect?token=${hex(43)}`, expires_at: iso(Date.now() + 60 * 1000), login: user.login });
+  const connect = `/__sudoo/connect?token=${hex(43)}`;
+  const url = instance.stage === "production" && accessRules.hasRules(instance.name)
+    ? `${instance.url}/__sudoo/pass?token=${hex(64)}&next=${encodeURIComponent(connect)}`
+    : `${instance.url}${connect}`;
+  return created({ url, expires_at: iso(Date.now() + 60 * 1000), login: user.login });
 });
 
 interface DemoUpload { id: string; instance: string; file_name: string; format: string; size: number; received: number }
@@ -1127,6 +1140,43 @@ route("DELETE", "/shells/:id", ({ params }) => {
 route("GET", "/shells/:id/recording", ({ params }) => {
   need("shells.supervise", "/shells");
   return ok(recordingOf(params.id!));
+});
+
+// ---------------------------------------------------------------- production access rules (beta)
+const mayChangeRules = () => session.role === "super_admin" || session.role === "admin";
+route("GET", "/instances/:name/access-rules", ({ params }) => {
+  needOn(params.name!, "instances.view");
+  const instance = instanceOf(params.name!);
+  return ok(accessRules.accessState(instance.name, instance.stage === "production", mayChangeRules()));
+});
+route("POST", "/instances/:name/access-rules/preview", ({ params, body }) => {
+  needOn(params.name!, "instances.view");
+  instanceOf(params.name!);
+  return ok(accessRules.preview(body.rules, typeof body.test_address === "string" && body.test_address ? body.test_address : undefined));
+});
+route("POST", "/instances/:name/access-rules/code", ({ params, body }) => {
+  const instance = instanceOf(params.name!);
+  if (!mayChangeRules()) throw new Problem(403, "Only the project's administrators, super admins and the project's client can change production access rules, in the panel (not with an API token).");
+  if (instance.stage !== "production") throw new Problem(409, "Access rules are for production instances. Move this instance to production first.");
+  record(ME, "access rules: confirmation code asked", { instance: instance.name, detail: String(body.method) });
+  return ok(accessRules.sendCode(instance.name, body.method === "app" ? "app" : "email"));
+});
+route("PUT", "/instances/:name/access-rules", ({ params, body }) => {
+  const instance = instanceOf(params.name!);
+  if (!mayChangeRules()) throw new Problem(403, "Only the project's administrators, super admins and the project's client can change production access rules, in the panel (not with an API token).");
+  const saved = accessRules.change(instance.name, body, ME);
+  record(ME, "access rules changed", { instance: instance.name, detail: accessRules.summary(saved) });
+  return ok(accessRules.accessState(instance.name, instance.stage === "production", true));
+});
+route("POST", "/instances/:name/open-link", ({ params, body }) => {
+  needOn(params.name!, "instances.view");
+  const instance = instanceOf(params.name!);
+  const target = typeof body.target === "string" && body.target.startsWith("/") ? body.target : "/odoo";
+  if (instance.stage === "production" && accessRules.hasRules(instance.name)) {
+    record(ME, "access rules: pass given", { instance: instance.name, detail: `to ${target}` });
+    return ok({ url: `${instance.url}/__sudoo/pass?token=${hex(64)}&next=${encodeURIComponent(target)}`, pass: true });
+  }
+  return ok({ url: instance.url, pass: false });
 });
 
 route("GET", "/instances/:name/domains", ({ params }) => {
@@ -1983,7 +2033,7 @@ function projectMeta(project: DemoProject) {
 
 const PROJECT_SCOPED: Permission[] = [
   "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "instances.restore",
-  "instances.delete", "instances.credentials", "instances.resources", "instances.shell", "instances.database_shell",
+  "instances.delete", "instances.credentials", "instances.connect", "instances.resources", "instances.shell", "instances.database_shell",
   "caught_mail.view", "caught_mail.manage", "backups.manage", "offsite.restore", "offsite.delete", "domains.manage",
   "projects.manage", "projects.access", "projects.resources",
 ];
@@ -2691,6 +2741,67 @@ route("POST", "/projects/:id/notifications/:channel/signing-secret", ({ params }
   return ok(statusPages.newSigningSecret(statusPages.channelOf(project.id, params.channel!)));
 });
 
+// ---------------------------------------------------------------- the repository guard (web/v1/repo_guard.py)
+
+const guardsProject = (project: DemoProject) => can("projects.access") && permissionsIn(project.access).includes("projects.access");
+function guardChanger(id: string) {
+  const project = projectOf(id);
+  needInProject(project, "projects.access");
+  return project;
+}
+route("GET", "/projects/:id/guard", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "instances.view");
+  return ok(guard.guardView(project, guardsProject(project)));
+});
+route("PATCH", "/projects/:id/guard", ({ params, body }) => {
+  const project = guardChanger(params.id!);
+  const view = guard.setBlock(project, body.block_promotion, true);
+  record(ME, `repository guard: failing checks ${view.block_promotion ? "block" : "do not block"} promotion`, { detail: project.id });
+  return ok(view);
+});
+route("POST", "/projects/:id/guard/checks/preview", ({ params, body }) => {
+  const project = guardChanger(params.id!);
+  return ok(guard.previewChecks(project, guard.cleanChecks(body.checks, guard.currentChecks(project))));
+});
+route("PUT", "/projects/:id/guard/checks", ({ params, body }) => {
+  const project = guardChanger(params.id!);
+  const checks = guard.cleanChecks(body.checks, guard.currentChecks(project));
+  if (body.dry_run === true) return ok({ ...guard.previewChecks(project, checks), result: "dry_run" });
+  const result = guard.syncChecks(project, checks);
+  record(ME, `repository guard: checks ${checks.enabled ? "on" : "off"} (${result.result})`, { detail: `${project.id}: ${result.pull?.url ?? "no pull request"}` });
+  return ok(result);
+});
+route("POST", "/projects/:id/guard/pull/refresh", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.manage");
+  return ok(guard.refreshPull(project));
+});
+route("GET", "/projects/:id/guard/results", ({ params, query }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "instances.view");
+  const shas = (query.get("sha") ?? "").split(",").filter(Boolean);
+  // the demo's commits have short hashes; the panel takes full ones only
+  if (shas.length > 30 || shas.some((s) => !/^[0-9a-f]{7,40}$/.test(s))) throw new Problem(400, "sha: up to 30 full commit hashes, comma-separated.");
+  return ok(guard.results(project, shas));
+});
+route("POST", "/projects/:id/guard/rules/preview", ({ params, body }) => {
+  const project = guardChanger(params.id!);
+  return ok(guard.planRules(project, guard.cleanRules(body.rules, guard.currentRules(project)), body.turn_off === true));
+});
+route("PUT", "/projects/:id/guard/rules", ({ params, body }) => {
+  const project = guardChanger(params.id!);
+  const result = guard.changeRules(project, guard.cleanRules(body.rules, guard.currentRules(project)), body.confirm, false, body.dry_run === true);
+  if (result.result === "applied") record(ME, "repository guard: branch rules applied", { detail: `${project.id}: ${result.changes} changes with rulesets` });
+  return ok(result);
+});
+route("DELETE", "/projects/:id/guard/rules", ({ params, body }) => {
+  const project = guardChanger(params.id!);
+  const result = guard.changeRules(project, guard.currentRules(project), body.confirm, true, body.dry_run === true);
+  if (result.result === "removed") record(ME, "repository guard: branch rules removed", { detail: `${project.id}: ${result.changes} removed` });
+  return ok(result);
+});
+
 // ---------------------------------------------------------------- teams, access and locks (projects/access.py)
 
 const usedIn = (teamId: string) =>
@@ -2776,7 +2887,55 @@ function accessResource(project: DemoProject) {
     locks: Object.fromEntries(Object.entries(a.locks).map(([b, v]) => [b, { ...v, allow: described(v.allow) }])),
     levels: LEVELS,
     github: githubAccess(project),
+    model: a.model,
+    roles: rolesResource(a),
+    requests_enabled: setting("access_requests") !== false,
+    request_max_hours: Number(setting("access_request_max_hours") ?? 8),
   };
+}
+
+const RIGHT_LABELS: Record<string, string> = {};
+function rolesResource(a: DemoAccess) {
+  const matrix = matrixOf(a);
+  const scopes: Scope[] = [...STAGES, "project"];
+  return {
+    levels: LEVELS.filter((l) => l !== "none"),
+    editable: EDITABLE_LEVELS,
+    stages: scopes,
+    rights: { stage: STAGE_RIGHTS, project: PROJECT_RIGHTS },
+    labels: RIGHT_LABELS,
+    matrix: Object.fromEntries(LEVELS.filter((l) => l !== "none").map((l) => [l, matrix[l]])),
+    changed: Object.fromEntries(Object.entries(a.matrix ?? {}).map(([l, sc]) => [l, Object.keys(sc ?? {})])),
+  };
+}
+
+/** Who can do what (projects/people.py), as the demo's visitor sees each account: its role and source. */
+function peopleOf(project: DemoProject) {
+  const matrix = matrixOf(project.access);
+  const DEFAULT: Record<string, AccessLevel> = { super_admin: "admin", admin: "admin", maintainer: "maintainer", developer: "developer", viewer: "view", member: "tester" };
+  const nile = project.id === "nile-logistics";
+  return users.map((u) => {
+    const own = project.access.grants.find((g) => g.type === "user" && g.id === u.name);
+    const team = nile && ["karim", "ines"].includes(u.name);
+    const level: AccessLevel = ["super_admin", "admin"].includes(u.role) ? "admin" : own?.level ?? (team ? "developer" : DEFAULT[u.role] ?? "none");
+    const source = ["super_admin", "admin"].includes(u.role) ? "admin" : own ? "grant" : team ? "team" : u.github && u.name === "lena" ? "github" : "role";
+    const label = source === "team" ? "team Nile squad" : source === "github" ? "GitHub: maintain, via team example-integrator/backend" : "";
+    return {
+      user: u.name, name: u.display_name, panel_role: u.role, level, source, source_label: label,
+      stages: Object.fromEntries(STAGES.map((s) => [s, matrix[level][s]])),
+      project: matrix[level].project,
+      temporary: elevations.filter((e) => e.user === u.name && e.project === project.id && e.status === "approved" && (e.expires ?? 0) > Date.now())
+        .map((e) => ({ id: e.id, stage: e.stage, level: e.level, expires: (e.expires ?? 0) / 1000 })),
+    };
+  });
+}
+
+function requestResource(e: (typeof elevations)[number]) {
+  const user = users.find((u) => u.name === e.user);
+  const over = e.status === "approved" && (e.expires ?? 0) <= Date.now();
+  return { id: e.id, user: e.user, name: user?.display_name ?? e.user, stage: e.stage, level: e.level, hours: e.hours, reason: e.reason,
+    status: over ? "expired" : e.status, asked_at: iso(e.asked), decided_by: e.decided_by ?? null, decided_at: e.decided_by ? iso(e.asked) : null,
+    expires_at: e.expires ? iso(e.expires) : null, note: "" };
 }
 
 /** Access from GitHub: each linked person's permission on the project's repository, and the level it gives. */
@@ -2800,10 +2959,10 @@ function cleanSubjects<T extends boolean>(raw: unknown, what: string, withLevel:
   if (!Array.isArray(raw)) throw new Problem(400, `${what}: a list of entries.`);
   const found = new Map<string, Record<string, string>>();
   for (const entry of raw as Record<string, unknown>[]) {
-    const type = entry.type === "team" || entry.type === "user" ? entry.type : null;
-    if (!type) throw new Problem(400, `${what}: type is team or user.`);
+    const type = entry.type === "team" || entry.type === "user" || (withLevel && entry.type === "github_team") ? entry.type : null;
+    if (!type) throw new Problem(400, `${what}: type is team, user or github_team.`);
     const id = String(entry.id ?? "");
-    const known = type === "team" ? teams.has(id) : users.some((u) => u.name === id);
+    const known = type === "github_team" ? /^[\w-]+\/[\w.-]+$/.test(id) : type === "team" ? teams.has(id) : users.some((u) => u.name === id);
     if (!known) throw new Problem(400, `${what}: there is no ${type === "team" ? "team" : "account"} '${id}'.`);
     const item: Record<string, string> = { type, id };
     if (withLevel) {
@@ -3022,3 +3181,80 @@ const TITLES: Record<number, string> = { 400: "Bad Request", 401: "Unauthorized"
 function problem(status: number, detail: string, path: string): Answer {
   return { status, body: { type: "about:blank", title: TITLES[status] ?? "Error", status, detail, instance: `/api/v1${path}`, request_id: hex(16) } };
 }
+
+
+// ---------------------------------------------------------------- project roles (projects/project_roles.py)
+
+route("PUT", "/projects/:id/access/matrix", ({ params, body }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.access");
+  const raw = body.matrix as Record<string, Record<string, Permission[]>> | null;
+  const kept: DemoAccess["matrix"] = {};
+  for (const [level, scopes] of Object.entries(raw ?? {})) {
+    if (!EDITABLE_LEVELS.includes(level as AccessLevel)) throw new Problem(400, `matrix: '${level}' cannot be changed; levels: ${EDITABLE_LEVELS.join(", ")}.`);
+    for (const [scope, rights] of Object.entries(scopes)) {
+      const before = ROLE_DEFAULTS[level as AccessLevel][scope as Scope];
+      if (JSON.stringify([...rights].sort()) !== JSON.stringify([...before].sort())) (kept[level as AccessLevel] ??= {})[scope as Scope] = rights;
+    }
+  }
+  project.access = { ...project.access, matrix: kept };
+  record(ME, "project roles changed", { detail: `${project.id}: ${Object.keys(kept).join(", ") || "defaults"}` });
+  publishProject(project);
+  return ok(accessResource(project));
+});
+route("GET", "/projects/:id/access/people", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.access");
+  return ok(peopleOf(project));
+});
+route("GET", "/projects/:id/access/model", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.access");
+  return ok({ model: project.access.model, changes: [] });
+});
+route("POST", "/projects/:id/access/model", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.access");
+  project.access = { ...project.access, model: "project_roles" };
+  publishProject(project);
+  return ok({ model: "project_roles", changes: [] });
+});
+route("GET", "/projects/:id/role-requests", ({ params }) => {
+  const project = projectOf(params.id!);
+  const manages = permissionsIn(project.access).includes("projects.access");
+  return ok(elevations.filter((e) => e.project === project.id && (manages || e.user === ME)).map(requestResource).reverse());
+});
+route("POST", "/projects/:id/role-requests", ({ params, body }) => {
+  const project = projectOf(params.id!);
+  const reason = String(body.reason ?? "").trim();
+  const hours = Number(body.hours);
+  const max = Number(setting("access_request_max_hours") ?? 8);
+  if (reason.length < 10) throw new Problem(400, "reason: say why you need it, in 10 to 500 characters.");
+  if (!(hours > 0 && hours <= max)) throw new Problem(400, `hours: more than 0, at most ${max} (ACCESS_REQUEST_MAX_HOURS).`);
+  const made = { id: hex(12), project: project.id, user: ME, stage: body.stage as Stage, level: body.level as AccessLevel, hours, reason, status: "pending", asked: Date.now() };
+  elevations.push(made);
+  record(ME, "temporary access asked", { detail: `${project.id}: ${made.level} in ${made.stage} for ${hours} h` });
+  return created(requestResource(made));
+});
+for (const how of ["approve", "refuse"] as const)
+  route("POST", `/projects/:id/role-requests/:rid/${how}`, ({ params }) => {
+    const project = projectOf(params.id!);
+    needInProject(project, "projects.access");
+    const found = elevations.find((e) => e.id === params.rid && e.project === project.id);
+    if (!found || found.status !== "pending") throw new Problem(409, "This request is not waiting for a decision any more.");
+    found.status = how === "approve" ? "approved" : "refused";
+    found.decided_by = ME;
+    if (how === "approve") found.expires = Date.now() + found.hours * HOUR;
+    record(ME, `temporary access ${how === "approve" ? "approved" : "refused"}`, { detail: `${project.id}: ${found.user}` });
+    publishProject(project);
+    return ok(requestResource(found));
+  });
+route("DELETE", "/projects/:id/role-requests/:rid", ({ params }) => {
+  const project = projectOf(params.id!);
+  const found = elevations.find((e) => e.id === params.rid && e.project === project.id);
+  if (!found) throw new Problem(404, "There is no such request.");
+  found.status = "withdrawn";
+  found.expires = Date.now();
+  publishProject(project);
+  return none();
+});

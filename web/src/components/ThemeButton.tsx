@@ -8,11 +8,13 @@ import common from "@/i18n/common";
 import { applyTheme, storedTheme, type ThemeChoice } from "@/lib/theme";
 import { revealTheme } from "@/lib/theme-reveal";
 import { Button } from "./app/basics";
+import { MorphIcon } from "./app/motion";
 
 export function ThemeButton() {
   const [theme, setTheme] = useState<ThemeChoice>(storedTheme);
   const next: Record<ThemeChoice, ThemeChoice> = { system: "light", light: "dark", dark: "system" };
-  const icon = { system: <Monitor />, light: <Sun />, dark: <Moon /> }[theme];
+  // the icon turns into the next one in place
+  const icon = <MorphIcon icons={{ system: <Monitor />, light: <Sun />, dark: <Moon /> }} active={theme} />;
   const label = useT(common).theme[theme];
   return (
     <Button

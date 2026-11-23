@@ -403,8 +403,10 @@ class Settings(BaseSettings):
         description="GitHub organisations, comma-separated, whose members may sign in with GitHub without an "
         "invitation; their account is created at the first sign-in. Empty: only people with an account or invitation.",
     )
-    github_sign_in_role: Literal["viewer", "developer", "maintainer", "admin"] = Field(
-        "developer", description="The role of an account created for a member of GITHUB_SIGN_IN_ORGS."
+    github_sign_in_role: Literal["member", "viewer", "developer", "maintainer", "admin"] = Field(
+        "member",
+        description="The panel role of an account created for a member of GITHUB_SIGN_IN_ORGS. Member: no rights by "
+        "itself; each project's role comes from GitHub or from its Access tab.",
     )
     github_sign_in_skips_second_factor: bool = Field(
         False,
@@ -413,13 +415,31 @@ class Settings(BaseSettings):
     )
     github_access_from_repositories: bool = Field(
         True,
-        description="For accounts linked to GitHub (except administrators), a project's access follows their "
-        "permission on its repository: admin gives maintainer, maintain or write developer, triage or read view, "
-        "none nothing. Only with GITHUB_SIGN_IN.",
+        description="For accounts linked to GitHub (except administrators), a project's role follows their "
+        "permission on its repository: admin gives Admin, maintain Maintainer, write Developer, triage or read "
+        "Tester, none nothing. Only with GITHUB_SIGN_IN.",
     )
     github_access_check_minutes: int = Field(
-        15, ge=1, le=1440, description="How often repository permissions are read from GitHub again."
+        15, ge=1, le=1440, description="How often repository permissions and GitHub team members are read again."
     )
+    project_access_model: Literal["project_roles", "legacy"] = Field(
+        "project_roles",
+        description='The access model of new projects: "project_roles" (Viewer, Tester, Developer, Maintainer, '
+        'Admin, per stage) or "legacy" (the panel role limited by the project\'s grant, the same in every stage).',
+    )
+    access_emails: bool = Field(
+        True, description="E-mail people when they get access to a project, when their role changes, and when it ends."
+    )
+    access_requests: bool = Field(
+        True, description="People may ask a project's admins for temporary access (a higher role in one stage)."
+    )
+    access_request_max_hours: int = Field(
+        8, ge=1, le=168, description="The longest temporary access that can be asked for, in hours."
+    )
+    access_review: bool = Field(
+        True, description="E-mail each project's admins, every ACCESS_REVIEW_DAYS, who has access to it."
+    )
+    access_review_days: int = Field(30, ge=1, le=365, description="Days between two access reviews of a project.")
     brand_color: str = Field(
         "#714B67", pattern=r"^#[0-9A-Fa-f]{6}$", description="Accent colour of e-mails, as #RRGGBB."
     )
@@ -976,6 +996,50 @@ class Settings(BaseSettings):
         description="Pull requests from forks get previews too. Off by default: a fork's code is written by people "
         "outside the repository and runs on this server (each project can change it).",
     )
+    project_guard_checks: bool = Field(
+        False,
+        description="The repository guard's CI checks start turned on for a project that has not chosen (turning "
+        "them on still only shows them; the pull request is opened when someone saves). Each project can change it.",
+    )
+    project_guard_strictness: Literal["relaxed", "standard", "strict"] = Field(
+        "standard",
+        description="How strict the repository guard's checks are by default: relaxed (errors that break things), "
+        "standard (and the usual Odoo conventions) or strict (every rule). Each project can change it.",
+    )
+    project_guard_production_approvals: int = Field(
+        1,
+        ge=0,
+        le=10,
+        description="Approvals a pull request into a production branch needs, in the branch rules the repository "
+        "guard sets on GitHub (0 to 10). Each project can change it.",
+    )
+    project_guard_staging_approvals: int = Field(
+        0,
+        ge=0,
+        le=10,
+        description="Approvals a pull request into a staging branch needs, in the repository guard's branch rules "
+        "(0 to 10). Each project can change it.",
+    )
+    project_guard_linear_history: bool = Field(
+        False,
+        description="The repository guard's production rules require a linear history (no merge commits). Each "
+        "project can change it.",
+    )
+    project_guard_signed_commits: bool = Field(
+        False,
+        description="The repository guard's production rules require signed commits. Each project can change it.",
+    )
+    project_guard_pushers: Literal["roles", "anyone"] = Field(
+        "roles",
+        description="Who may push or merge to production in the repository guard's branch rules: roles (GitHub's "
+        "Admin and Maintain roles) or anyone (with write access). Each project can change it, and name teams or "
+        "people instead.",
+    )
+    project_guard_blocks_promotion: bool = Field(
+        False,
+        description="Failing CI checks of the repository guard stop a promotion to production (a red item of the "
+        "pre-promotion checklist); off: they are shown in amber. Each project can change it.",
+    )
 
     @field_validator("project_modules")
     @classmethod
@@ -1035,6 +1099,49 @@ class Settings(BaseSettings):
     admin_contact_name: str = Field("the administrator", description="Who users are told to contact.")
     admin_contact_phone: str = ""
     admin_contact_email: str = ""
+
+    # ------------------------------------------------------------------ production access rules (instances/access_rules.py)
+    access_rules_beta: bool = Field(
+        False,
+        description="Production access rules (beta): let production instances limit who may open them, by country "
+        "and by address. Off: the feature is hidden and no rule applies (rules already set are kept).",
+    )
+    access_rules_geo_missing: Literal["open", "closed"] = Field(
+        "open",
+        description='When the country database is missing: "open" lets the country part of a rule pass (a warning '
+        'shows in the panel), "closed" lets nobody in by country (address rules and passes still work).',
+    )
+    access_rules_geo_download: bool = Field(
+        True,
+        description="Download the DB-IP Lite country database once a month while the access rules are switched on. "
+        "Off: nothing is downloaded; a table already there keeps being used.",
+    )
+    access_rules_geo_url: str = Field(
+        "https://download.db-ip.com/free/dbip-country-lite-{year}-{month}.csv.gz",
+        description="Where the monthly country database is downloaded from ({year} and {month} are filled in); an "
+        "https:// address of a DB-IP country CSV file, gzip-compressed or not.",
+    )
+    access_rules_pass_hours: float = Field(
+        8,
+        gt=0,
+        le=24,
+        description="How long the pass given when someone opens a production instance from the panel lets their "
+        "browser through its access rules, in hours.",
+    )
+    access_rules_show_ip: bool = Field(
+        False, description="Show visitors their full address on the blocked page (their country is always shown)."
+    )
+    access_rules_contact: str = Field(
+        "",
+        max_length=300,
+        description="The line on the blocked page that says whom to contact; empty: built from ADMIN_CONTACT_NAME, "
+        "ADMIN_CONTACT_PHONE and ADMIN_CONTACT_EMAIL.",
+    )
+
+    @field_validator("access_rules_geo_url")
+    @classmethod
+    def _access_rules_geo_url(cls, value: str) -> str:
+        return _plain_https(value, required=True)
 
     metrics_interval_seconds: float = Field(
         5, ge=2, le=60, description="Seconds between two measurements of the server and the instances."
@@ -1431,6 +1538,86 @@ class Settings(BaseSettings):
         description="Hours after which an access request the client did not answer lapses (the person asks again).",
     )
 
+    # ------------------------------------------------------------------ maintenance windows (maintenance.py)
+    maintenance_default_window: str = Field(
+        "01:00-05:00",
+        pattern=r"^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$",
+        description="The default maintenance window (HH:MM-HH:MM in TIMEZONE; it may cross midnight): planned "
+        "maintenance nobody chose a time for runs at the start of the first one that fits.",
+    )
+    maintenance_default_days: str = Field(
+        "mon,tue,wed,thu,fri,sat,sun",
+        description="The days the default maintenance window opens (comma-separated: mon,tue,wed,thu,fri,sat,sun).",
+    )
+    maintenance_tonight_time: str = Field(
+        "02:00",
+        pattern=r"^([01]\d|2[0-3]):[0-5]\d$",
+        description='When the "Tonight" and "This weekend" choices start (HH:MM in TIMEZONE).',
+    )
+    maintenance_weekend_day: Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"] = Field(
+        "sat", description='The day the "This weekend" choice falls on.'
+    )
+    maintenance_choose_hours: int = Field(
+        48,
+        ge=1,
+        le=720,
+        description="Hours after planned maintenance arrives during which someone may choose its time before the "
+        "default window applies.",
+    )
+    maintenance_cutoff_hours: int = Field(
+        12,
+        ge=0,
+        le=720,
+        description="The default window also applies this many hours before the deadline, if nobody chose earlier.",
+    )
+    maintenance_lead_minutes: int = Field(
+        30, ge=0, le=1440, description="The soonest a chosen maintenance window may start, in minutes from now."
+    )
+    maintenance_reminder_hours: str = Field(
+        "24,1",
+        description="Reminders before maintenance starts, in hours (comma-separated); empty: no reminders.",
+    )
+    maintenance_remind_clients: bool = Field(
+        True,
+        description="Clients of the projects a maintenance works on get its e-mails too (planned, reminders, result).",
+    )
+    maintenance_client_choice: bool = Field(
+        False,
+        description="Clients may choose the time of maintenance that works on their projects, in the client portal "
+        "(confirmed by e-mail when CLIENT_CONFIRMATIONS is on).",
+    )
+    maintenance_backup_first: bool = Field(
+        True, description="Back up production and staging instances before maintenance updates their images."
+    )
+    maintenance_update_wait_hours: float = Field(
+        6,
+        gt=0,
+        le=168,
+        description="How long a planned panel update waits for the new version to be installed (sudoo-install "
+        "update) before it counts as failed, in hours.",
+    )
+
+    @field_validator("maintenance_default_days")
+    @classmethod
+    def _maintenance_days(cls, value: str) -> str:
+        days = [part.strip().lower() for part in value.split(",") if part.strip()]
+        known = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+        if not days or any(day not in known for day in days):
+            raise ValueError("must be days such as mon,tue,wed,thu,fri,sat,sun")
+        return ",".join(day for day in known if day in days)
+
+    @field_validator("maintenance_reminder_hours")
+    @classmethod
+    def _maintenance_reminders(cls, value: str) -> str:
+        parts = [part.strip() for part in value.split(",") if part.strip()]
+        try:
+            hours = [float(part) for part in parts]
+        except ValueError:
+            raise ValueError("must be hours separated by commas, such as 24,1") from None
+        if len(hours) > 6 or any(not 0 < h <= 720 for h in hours):
+            raise ValueError("must be up to 6 durations between 0 and 720 hours, such as 24,1")
+        return ",".join(f"{h:g}" for h in sorted(set(hours), reverse=True))
+
     # ------------------------------------------------------------------ web shell (webshell/, docs/ADMIN_GUIDE.md "Web shell")
     shell_enabled: bool = Field(
         True,
@@ -1708,6 +1895,20 @@ class Settings(BaseSettings):
         False,
         description="Use the Sudoo.sh marketplace: register with the hub, send a signed heartbeat every 15 minutes, "
         "install plugins. Off: the panel never contacts the hub; installed free plugins keep working.",
+    )
+    share_topology_with_sudoo: bool = Field(
+        False,
+        description="Share this panel's topology with Sudoo.sh (servers, instances and their parts, statuses, "
+        "replicas, CPU and memory, request and error rates; pseudonymous ids, no customer data) for its staff's "
+        "infrastructure view. Needs MARKETPLACE. Off: nothing is sent, and what was shared is deleted.",
+    )
+    topology_include_names: bool = Field(
+        False,
+        description="With SHARE_TOPOLOGY_WITH_SUDOO: include the real names of servers, projects and instances. Off: "
+        "short pseudonyms only.",
+    )
+    topology_interval_seconds: int = Field(
+        30, ge=30, le=300, description="Seconds between two topology snapshots sent to Sudoo.sh (when shared)."
     )
     hub_url: str = Field(
         "https://hub.sudoo.sh",
@@ -2053,6 +2254,9 @@ RESOURCE_SETTINGS = tuple(
 OFFSITE_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("offsite_"))
 """Every setting of off-site copies (offsite/); changing them also needs the permission offsite.configure."""
 
+ACCESS_RULES_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("access_rules_"))
+"""Every setting of production access rules (instances/access_rules.py); all of them can be changed in the panel."""
+
 SHELL_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("shell_"))
 """Every web shell setting (webshell/); all of them can be changed in the panel."""
 
@@ -2071,6 +2275,9 @@ CLIENT_SETTINGS = tuple(name for name in Settings.model_fields if name.startswit
 STATUS_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith(("status_", "notification")))
 """Every setting of project status checks (status/) and notifications (notifications/); all can be changed in the
 panel."""
+
+MAINTENANCE_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("maintenance_"))
+"""Every setting of maintenance windows (maintenance.py); all of them can be changed in the panel."""
 
 MAIL_CATCHER_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("mail_catcher_"))
 """Every setting of the mail catcher (mailcatcher/); all of them can be changed in the panel."""
@@ -2098,6 +2305,7 @@ EDITABLE = (
     "gateway_max_upload_mb",
     "gateway_idle_timeout_seconds",
     "gateway_websocket_max_message_mb",
+    *ACCESS_RULES_SETTINGS,
     "idle_hours",
     "auto_pause",
     "auto_update",
@@ -2163,11 +2371,20 @@ EDITABLE = (
     "github_sign_in_skips_second_factor",
     "github_access_from_repositories",
     "github_access_check_minutes",
+    "project_access_model",
+    "access_emails",
+    "access_requests",
+    "access_request_max_hours",
+    "access_review",
+    "access_review_days",
     "cloudflared_image",
     "admin_contact_name",
     "admin_contact_phone",
     "admin_contact_email",
     "marketplace",
+    "share_topology_with_sudoo",
+    "topology_include_names",
+    "topology_interval_seconds",
     "premium_auto_install",
     "public_ipv4",
     "public_ipv6",
@@ -2207,6 +2424,7 @@ EDITABLE = (
     "support_access_max_hours",
     *CLIENT_SETTINGS,
     *SERVER_SETTINGS,
+    *MAINTENANCE_SETTINGS,
 )
 """Settings that can be changed in the panel, taking effect at once."""
 

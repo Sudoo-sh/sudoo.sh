@@ -82,7 +82,7 @@ def plan(user: dict[str, str], name: str, target: str, *, as_root: bool = False,
         raise Refused(403, "token", "A shell is opened by a person in the panel, not with an API token.")
     if target not in TARGETS:
         raise Refused(400, "target", 'Choose "shell", "odoo-shell" or "psql".')
-    if PERMISSION[target] not in access.role_permissions(user):
+    if PERMISSION[target] not in access.reach_permissions(user):
         needed = roles.PERMISSIONS[PERMISSION[target]].lower()
         raise Refused(403, "permission", f"Your role cannot do this ({needed}). {settings.contact_sentence()}")
     if not store.NAME_RE.match(name) or not store.exists(name):

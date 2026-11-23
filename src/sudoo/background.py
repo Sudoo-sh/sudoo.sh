@@ -33,6 +33,7 @@ from sudoo.instances import (
 from sudoo.mailcatcher import panel as mail_catcher
 from sudoo.premium import loader as premium_loader
 from sudoo.repos import github, github_app
+from sudoo.topology import share as topology_share
 
 
 def start() -> None:
@@ -54,6 +55,7 @@ def start() -> None:
         _remove_expired_snapshots,
         _keep_github_webhook_current,
         marketplace.heartbeat_forever,
+        topology_share.share_forever,
         plugin_manager.watch_forever,
         premium_loader.watch_forever,
         domain_worker.run_forever,
@@ -61,6 +63,7 @@ def start() -> None:
         mail_catcher.maintain_forever,
         _watch_upgrades,
         _github_access,
+        _access_reviews,
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     alerts.start()
@@ -74,6 +77,9 @@ def start() -> None:
     from sudoo.projects import clients
 
     threading.Thread(target=clients.run_forever, daemon=True, name="client-portal").start()
+    from sudoo import maintenance
+
+    threading.Thread(target=maintenance.run_forever, daemon=True, name="maintenance").start()
 
     from sudoo import notifications
     from sudoo.status import checks as status_checks
@@ -83,10 +89,22 @@ def start() -> None:
     _start_premium_jobs()
     gateway.start(wake=start_wake_job)
     live.on_change(_domain_settings_changed)
+    _start_access_rules()
     threading.Thread(target=exposure.ensure_all, daemon=True, name="connectors").start()
     triggers.start_all()
     threading.Thread(target=_adopt_instances, daemon=True, name="projects").start()
     threading.Thread(target=_check_project_branches, daemon=True, name="project-branches").start()
+
+
+def _start_access_rules() -> None:
+    """Production access rules (beta): the monthly country database, and the gateway told at once when a setting
+    they use changes."""
+    from sudoo.instances import access_rules, geoip
+
+    threading.Thread(target=geoip.update_forever, daemon=True, name="country-database").start()
+    live.on_change(
+        lambda changed: access_rules.apply() if any(k.startswith("access_rules_") for k in changed) else None
+    )
 
 
 def start_agent() -> None:
@@ -111,6 +129,7 @@ def start_agent() -> None:
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     gateway.start(wake=start_wake_job)
     live.on_change(_domain_settings_changed)
+    _start_access_rules()
     threading.Thread(target=exposure.ensure_all, daemon=True, name="connectors").start()
 
 
@@ -134,6 +153,13 @@ def _github_access() -> None:
     from sudoo.auth import github_access
 
     github_access.run_forever()
+
+
+def _access_reviews() -> None:
+    """Every hour: the access reviews that are due (projects/notices.py)."""
+    from sudoo.projects import notices
+
+    notices.review_forever()
 
 
 def _watch_upgrades() -> None:

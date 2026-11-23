@@ -1,0 +1,133 @@
+// Maintenance windows (components/Maintenance.tsx): the banner slides in under the top bar, the list's cards, the
+// quick choices of the time picker. Light and dark come from the tokens; motion stays subtle and is off for people
+// who ask for less (the reduced-motion rule of _motion.scss).
+
+.maintenance-banner {
+  .maintenance-banner-row {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    padding: var(--s2) var(--s3);
+    border: 1px solid var(--brand-ring);
+    border-radius: var(--radius-control);
+    background: var(--brand-soft);
+    color: var(--text);
+    font-size: var(--text-13);
+    transition: opacity 240ms var(--ease), transform 240ms var(--ease);
+    @starting-style { opacity: 0; transform: translateY(-8px); }
+  }
+  .maintenance-banner-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--brand);
+    color: var(--surface);
+    flex: none;
+    svg { width: 14px; height: 14px; }
+  }
+  &[data-status="running"] .maintenance-banner-icon svg { animation: maintenance-turn 2.4s var(--ease-move) infinite; }
+  .maintenance-banner-link { color: var(--brand-ink); font-weight: 500; white-space: nowrap; }
+}
+
+@keyframes maintenance-turn {
+  0%, 60% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.maintenance-list {
+  display: grid;
+  gap: var(--s4);
+}
+
+.maintenance-card {
+  display: grid;
+  gap: var(--s3);
+  transition: opacity 200ms var(--ease), transform 200ms var(--ease);
+  @starting-style { opacity: 0; transform: translateY(4px); }
+  &[data-status="running"] { border-color: var(--brand-ring); }
+  &[data-status="done"], &[data-status="cancelled"] { opacity: 0.85; }
+  h2 { font-size: 16px; }
+}
+
+.maintenance-facts {
+  display: grid;
+  grid-template-columns: minmax(80px, max-content) 1fr;
+  gap: var(--s2) var(--s4);
+  margin: 0;
+  dt { color: var(--text-3); font-size: var(--text-13); }
+  dd { margin: 0; }
+  @media (max-width: 560px) {
+    grid-template-columns: 1fr;
+    dt { margin-top: var(--s2); }
+  }
+}
+
+.maintenance-countdown { color: var(--brand-ink); font-variant-numeric: tabular-nums; }
+
+.maintenance-picker {
+  display: grid;
+  gap: var(--s3);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--hairline);
+}
+
+.maintenance-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--s2);
+}
+
+.maintenance-preset {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px var(--s2);
+  padding: var(--s3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  text-align: start;
+  cursor: pointer;
+  transition: border-color var(--quick) var(--ease), background-color var(--quick) var(--ease), transform var(--quick) var(--ease);
+  svg { grid-row: span 2; width: 18px; height: 18px; color: var(--brand); }
+  .maintenance-preset-name { font-weight: 500; }
+  &:hover:not(:disabled) { border-color: var(--brand-ring); background: var(--brand-soft); }
+  &:active:not(:disabled) { transform: scale(0.97); }
+  &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 2px; }
+  &:disabled { opacity: 0.6; cursor: default; }
+}
+
+.maintenance-custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s3);
+  > :first-child { flex: 1 1 240px; }
+}
+
+.maintenance-approval {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  p { flex-basis: 100%; margin: 0; }
+}
+
+.maintenance-steps {
+  ul { list-style: none; margin: var(--s2) 0 0; padding: 0; display: grid; gap: var(--s1); }
+  li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
+  .maintenance-step-name { font-family: var(--mono); font-size: var(--text-13); }
+}
+
+.public-maintenance {
+  margin-bottom: var(--s4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .maintenance-banner .maintenance-banner-row,
+  .maintenance-card { transition: none; }
+  .maintenance-banner[data-status="running"] .maintenance-banner-icon svg { animation: none; }
+}

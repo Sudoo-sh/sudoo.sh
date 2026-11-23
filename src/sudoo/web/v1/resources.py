@@ -26,6 +26,7 @@ def job_reference(job: jobs.Job) -> dict[str, Any]:
         "action": job.action,
         "status": job.status,
         "progress_percent": job.progress_percent(),
+        "expected_steps": job.expected_steps,
         "links": {"self": f"{PREFIX}/jobs/{job.id}"},
     }
 
@@ -77,6 +78,7 @@ def job_resource(job: jobs.Job) -> dict[str, Any]:
         "kind": job.kind,
         "status": job.status,  # queued, running, success, failed
         "progress_percent": job.progress_percent(),  # None when the number of steps is not known in advance
+        "expected_steps": job.expected_steps,
         "requested_by": job.user,
         "started_at": iso(job.started),
         "finished_at": iso(job.finished),

@@ -40,7 +40,9 @@ domains and certificates, off-site copies of backups.
 28. [Code profiler](#28-code-profiler)
 29. [Audit log](#29-audit-log)
 30. [Client portal](#30-client-portal)
-31. [Kubernetes engine (beta)](#31-kubernetes-engine-beta)
+31. [Production access rules (beta)](#31-production-access-rules-beta)
+32. [Maintenance windows](#32-maintenance-windows)
+33. [Kubernetes engine (beta)](#33-kubernetes-engine-beta)
 
 ---
 
@@ -1360,21 +1362,86 @@ holds a signed-in GitHub session can sign in. Keep it off for panels that run pr
 **Project access from GitHub.** With `GITHUB_ACCESS_FROM_REPOSITORIES` on (the default when GitHub sign-in is on), a
 linked person's access to a project follows their permission on the project's repository:
 
-| GitHub permission | Level in the project |
+| GitHub permission | Project role |
 | :--- | :--- |
-| admin | admin |
-| maintain | maintainer |
-| write | developer |
-| triage, read | view |
+| admin | Admin |
+| maintain | Maintainer |
+| write | Developer |
+| triage, read | Tester (Viewer in a project that keeps the earlier access model) |
 | none | none: the project is hidden |
+
+GitHub works the permission out from everything that gives it, the repository's teams included; the project's
+**Who can do what** names the team ("via team acme/backend") when one gives it.
 
 * The permission is read with the app's own installation token at each sign-in and every
   `GITHUB_ACCESS_CHECK_MINUTES` (15). Someone removed from the repository loses the project at the next reading.
-* A grant to the person on the project's **Access** tab always wins (also "none"); otherwise the higher of GitHub's
-  level and their teams' grants applies. Their panel role stays the most they can do.
+* A grant to the person on the project's **Access** tab always wins (also "none"); otherwise the highest of GitHub's
+  role, their panel teams' grants and their GitHub teams' grants applies ([Project roles](#project-roles)).
 * Super admins and administrators are not limited by it. A repository the app is not installed on is not checked:
   the panel's own rules apply to it.
 * The project's **Access** tab lists each linked person with their GitHub permission and level.
+
+### Project roles
+
+Inside a project, what someone may do is decided by their **project role**, per stage. Panel roles keep only the
+panel-wide rights (accounts, settings, tokens, the audit log, plugins, GitHub, servers): super admins and
+administrators have every right in every project, and a new panel role, **Member**, has no rights by itself.
+
+| Role | Development | Staging | Production | The project |
+| :--- | :--- | :--- | :--- | :--- |
+| **Viewer** | see branches, status, history, builds | the same | the same | nothing |
+| **Tester** | see, and open Odoo signed in (**Connect**) to try it | the same | nothing: production is not shown | nothing |
+| **Developer** | everything: logs, shell, database, backups, Connect, passwords, create, update, delete, restore | see, Connect to test, logs; no shell, database, backups or passwords | only that it exists, its history, builds and status | nothing |
+| **Maintainer** | as Developer | as Developer in development, staging data included | logs and monitoring, Connect (with the production confirmation), backups (list and download), restart and new code; never its shell, database, restores, deletion | nothing |
+| **Admin** | everything | everything | everything | settings, stages, access, roles and locks |
+
+**Where a role comes from**, highest first:
+
+1. A role given to the person on the project's **Access** tab: it always wins, also "No access".
+2. Otherwise the highest of: the roles given to their panel teams, the roles given to **GitHub teams** they are in
+   (type **GitHub team** on the Access tab, `organisation/team-slug`), and their GitHub repository permission
+   (above).
+3. Otherwise, in a project open to everyone, their panel role's usual role: Viewer, Developer or Maintainer for
+   those panel roles, nothing for Members.
+
+Locks still close a branch to everyone they do not allow, administrators included.
+
+**Changing what a role may do.** Each project's **Access** tab shows the matrix: one row per right and stage, one
+column per role. An admin of the project ticks or unticks any cell (Admin is fixed) and saves; **Back to the
+defaults** removes the project's changes. Only the changed cells are stored, so better defaults of later versions
+still reach the others.
+
+**GitHub teams.** Their members are read with the GitHub App's installation token, which needs **Organization
+permissions, Members: Read-only** (added once on the App's settings page; each installation's owner accepts it).
+They are read again every `GITHUB_ACCESS_CHECK_MINUTES`: joining or leaving the team on GitHub changes the access in
+the panel, with the e-mails below.
+
+**Access e-mails** (`ACCESS_EMAILS`): people are told when they get access to a project, when their role there
+changes and when it ends, whoever made the change (a person, a team, GitHub). The last role each person was told
+about is kept, so a change is told once. The texts are on the **E-mail templates** page, in English and Arabic
+(`access_granted`, `access_changed`, `access_removed` and their `_ar` versions); each person gets their own
+language.
+
+**Temporary access** (`ACCESS_REQUESTS`, `ACCESS_REQUEST_MAX_HOURS`): anyone with access to a project can ask, on its
+Access tab, for a higher role in one stage for a few hours, with a reason ("Maintainer in production for 2 hours to
+read the import's logs"). The project's admins get an e-mail and approve or refuse it on the same tab; nobody
+decides on their own request. An approved request adds the rights of that role in that stage only, and ends by
+itself. Other parts of the panel can add conditions that refuse it, at the request, at the approval and at each
+use; the client portal uses this for its client's switches. Every step is in the audit log.
+
+**Access review** (`ACCESS_REVIEW`, `ACCESS_REVIEW_DAYS`): every 30 days each project's admins receive the list of
+who has access, with their role and where it comes from. The first review of a project is sent one interval after
+the upgrade, never at once.
+
+**Who can do what.** The Access tab lists every person with access, their role, where it comes from (given, a team,
+a GitHub team, GitHub, their panel role, administrator) and how many rights they have in each stage (the list shows
+when the pointer rests on it). `GET /api/v1/projects/<id>/access/people` gives the same.
+
+**Upgrading.** Projects made before this version keep the **earlier access model** (the panel role limited by the
+project's grant, the same in every stage), so nobody gains or loses access by the upgrade. Each such project's Access
+tab offers **Switch to project roles**: it first shows, person by person, the role they get and the rights that
+change, and keeps everyone's role with a grant on the project where the default would differ. The switch cannot be
+undone (grants can be changed afterwards). New projects use project roles (`PROJECT_ACCESS_MODEL`).
 
 ### Ways to sign in
 
@@ -2339,6 +2406,7 @@ into the production branch on GitHub. Each item is green, amber or red, with the
 | Odoo version | the branch and production run the same Odoo series | | another series, or modules written for another series |
 | Lock | no lock on either branch | a lock that lets you through | a lock that does not |
 | Capacity | room in the project, the plan and the server | the server is near its capacity (production never pauses) | the project's or the plan's production limit |
+| CI checks (with the [repository guard](#repository-guard)'s checks on) | the checks of the latest build's commit passed on GitHub | running, none, unreadable, or failed while **Failing checks stop a promotion** is off | failed, with **Failing checks stop a promotion** on |
 
 Red items stop the move while `PROJECT_PROMOTION_BLOCKS` is on. Someone with `projects.manage` in the branch can tick
 **Promote anyway**; the move is then made and the audit log records "promotion checklist overridden" with the red
@@ -2393,6 +2461,84 @@ development instance of its branch:
 
 The project's Settings tab lists the previews with their status. Each creation, refusal and deletion is in the audit
 log.
+
+### Repository guard
+
+A project's **Repository guard** (Settings tab; `repo_guard/` in the code, `/api/v1/projects/<id>/guard` in the
+[API](PANEL_API.md#repository-guard)) adds CI checks to the project's repository, reads their results, and sets branch
+rules on GitHub. Everything is off by default, per project, and every part can be turned off again. Only the
+project's Admins and super admins change it (`projects.access` in the project); every change is in the audit log
+("repository guard: ...").
+
+**Defaults are settings.** What a project starts with comes from the panel's settings (**Settings**, **Instances**,
+**Projects**; [Configuration](CONFIGURATION.md#projects)): `PROJECT_GUARD_CHECKS` (checks on or off),
+`PROJECT_GUARD_STRICTNESS`, `PROJECT_GUARD_PRODUCTION_APPROVALS` (1) and `PROJECT_GUARD_STAGING_APPROVALS` (0),
+`PROJECT_GUARD_LINEAR_HISTORY` and `PROJECT_GUARD_SIGNED_COMMITS` (production), `PROJECT_GUARD_PUSHERS` (`roles` or
+`anyone`) and `PROJECT_GUARD_BLOCKS_PROMOTION`. A project keeps only the values it changes; everything else follows the
+settings, also when they change later. Turning the checks on by default only pre-fills the form: nothing reaches
+GitHub until a project Admin saves, and results are read only once the panel's pull request exists.
+
+**The permissions it needs.** On top of what the panel's GitHub App already has:
+
+| Permission | Level | For |
+| :--- | :--- | :--- |
+| Contents | Read and write | committing the check files to the panel's own branch, `sudoo/repository-guard` |
+| Pull requests | Read and write | opening, updating and closing the pull request with the check files |
+| Workflows | Read and write | GitHub refuses any change under `.github/workflows` without it |
+| Checks | Read | reading the checks' results for builds and the pre-promotion checklist |
+| Administration | Read and write | creating, changing and removing the panel's rulesets (or classic branch protection) |
+| Members (organisation) | Read | already asked for by sign-in with GitHub; used to find the id of a named team |
+
+The panel never asks for them before a project uses the guard. When one is missing, the card names it and links to
+the app's **Permissions and events** page and to the installation, where an owner accepts it. Apps connected from now
+on can ask for all of them at once: **Connect GitHub** has **Also allow the repository guard** (the manifest's
+`default_permissions` then include `administration`, `contents`, `pull_requests` and `workflows: write` and
+`checks: read`; `github_app.GUARD_PERMISSIONS`). Each call asks GitHub for a token with only what that call needs; the
+code-reading token stays read-only.
+
+**The checks.** The panel commits the files to `sudoo/repository-guard` (a branch only the panel writes; it is
+replaced by each new proposal) and opens a pull request into the default branch. It never pushes to a branch people
+work on. The files:
+
+* `.github/workflows/sudoo-checks.yml`: on every push and pull request. A first job picks the Odoo series of the
+  branch (the project's, or the branch's own version); lint (ruff or flake8), pylint-odoo, the manifest, XML and CSV
+  checks and the tests run once per series (the matrix). The tests run in the official `odoo:<series>` image with a
+  PostgreSQL service; any `ERROR` or `CRITICAL` line in Odoo's log fails them. Every action is pinned to a full commit
+  hash, the Python tools to exact versions, and the workflow's token may only read the repository. The last job,
+  `sudoo-checks`, fails when any other failed: it is the check branch rules require.
+* `.github/sudoo/check_addons.py`: the manifest, XML and CSV checks (standard library only).
+* `.pre-commit-config.yaml`: the same linters before each commit, each hook pinned to a commit.
+* `docs/CHECKS.md`: what each check does and how to run them locally.
+
+Each file starts with "Managed by Sudoo.sh (repository guard)". A file without that line is never overwritten or
+removed. Turning checks off opens a pull request that updates or removes the panel's files; when the repository
+already matches the choices, an open pull request of the panel is closed and its branch deleted.
+
+**Results.** The panel reads a commit's check runs and commit statuses (its own `sudoo/<stage>` statuses left out) at
+most once a minute and shows them on builds. With **Failing checks stop a promotion to production** on (off by
+default), a failing result of the branch's latest build is a red item of the pre-promotion checklist; otherwise it is
+amber. Running, missing or unreadable results are amber.
+
+**Branch rules.** The panel prefers rulesets and falls back to classic branch protection:
+
+| Rule | Ruleset (`Sudoo.sh guard: production`, `... staging`) | Classic branch protection |
+| :--- | :--- | :--- |
+| Pull request with N approvals | `pull_request` rule | required reviews |
+| `sudoo-checks` must pass | `required_status_checks` | required status checks |
+| No force-push, no deletion | `non_fast_forward`, `deletion` | `allow_force_pushes`, `allow_deletions` off |
+| Linear history, signed commits | `required_linear_history`, `required_signatures` | the same settings |
+| Admins and Maintainers only | `Sudoo.sh guard: production merges`: an `update` rule with GitHub's Admin and Maintain repository roles as its bypass list | not possible (roles cannot be named): the preview says so |
+| Named teams | the same ruleset, the teams as bypass list (organisations only) | push restrictions |
+| Named people | not possible in rulesets: **Automatic** switches to classic protection | push restrictions (organisations only) |
+
+**Automatic** uses rulesets, and classic protection when rulesets are not available or people are named. A ruleset is
+the panel's when its name starts with `Sudoo.sh guard: `; classic protection has no name, so the panel records the
+branches it protected and never changes a branch that was protected before (the preview shows it as left alone).
+**Turn off the rules** removes only those. Private repositories on GitHub Free have neither rulesets nor branch
+protection: GitHub answers "Upgrade to GitHub Pro or make this repository public", and the preview explains it.
+
+Applying rules that change production needs the repository's name typed as confirmation (`confirm` in the API).
+Every preview, and `"dry_run": true` on the API, shows what would change without changing anything.
 
 ### Many branches at once
 
@@ -2834,7 +2980,190 @@ projects on its own server.
 
 ---
 
-## 31. Kubernetes engine (beta)
+## 31. Production access rules (beta)
+
+A production instance can say who may open it: people in some countries, people on some addresses or ranges (your
+office, your VPN), or either. The gateway applies the rules before anything reaches Odoo. This is a **beta**: the
+feature is off until you switch it on, and it is marked **Beta** wherever it shows.
+
+### Switching it on
+
+1. Set `ACCESS_RULES_BETA` to on (**Settings**, **Security**, **Production access rules (beta)**, or `.env`).
+2. The panel downloads the country database within a minute (see below). Until it has it, country rules let
+   everyone through and every instance with country rules shows a warning (`ACCESS_RULES_GEO_MISSING=open`, the
+   default), or let nobody in by country (`closed`).
+3. Open a production instance, **Settings** tab, **Production access rules**, **Set up rules**.
+
+Turning `ACCESS_RULES_BETA` off hides the feature and stops every rule at once; the rules stay saved. Rules apply only
+while the instance is in the production stage: moving it to staging or development keeps them but stops them.
+
+### What the rules can say
+
+| Part | Choices |
+| :--- | :--- |
+| Who can open it | **Countries** (two-letter codes, chosen from a searchable list with flags), **Addresses** (IPv4 and IPv6 addresses and ranges such as `203.0.113.0/24`, each with a label), or **Either**. |
+| What it protects | **Back office only** (the default) or **Whole site**. |
+| Always allowed | Paths and addresses that pass whatever the rules say: payment providers' notifications (`/payment/`) and automation webhooks (`/web/hook/`) are on by default; customers' portal sign-in, live chat with website visitors and links in e-mails can be added, and any path of your own. |
+
+**Back office only** covers what someone needs to work inside Odoo or to read its data, and leaves the public website
+and the shop open:
+
+| Blocked from outside the rules | Left open |
+| :--- | :--- |
+| `/web` and everything below it (sign-in, `/web/login`, `/web/signup`, the RPC routes, sessions, the database manager `/web/database/...`) | `/web/assets/`, `/web/bundle/`, `/web/static/`, `/web/image`, `/web/content`, `/web/binary/company_logo`, `/web/webclient/translations`, `/web/webclient/locale`, `/web/health` (the website uses them too) |
+| `/odoo` (the back office's addresses since Odoo 17.2) | Every other path: `/`, `/shop`, `/my`, `/blog`, `/website/...`, `/payment/...` |
+| `/json` (the JSON-2 API), `/xmlrpc`, `/jsonrpc` | |
+| `/websocket`, `/longpolling`, `/bus` (live notifications) | |
+| `/report` (printed reports), `/doc` (the API documentation), `/__sudoo/connect` (Connect as links) | |
+
+Paths are compared after decoding (also twice-encoded characters), with `.` and `..` resolved, repeated slashes
+merged and in lower case, so `/WEB//login`, `/shop/../web/login` and `/web%2Flogin` are all the back office.
+
+Customers who sign in to the portal use `/web/login` too: with **Back office only**, they can sign in only from the
+allowed places unless you add **Customers' portal sign-in** to the exceptions. Routes the website and the back office
+share (for example `/mail/...`) stay open with **Back office only**; they need a signed-in session, which cannot be
+opened from outside the rules. Choose **Whole site** when nothing should answer outside them.
+
+### Changing the rules
+
+Only super admins, the project's administrators (those who may change its access) and, with the client portal, the
+project's client can change them, and only in the panel: API tokens cannot. A change takes three steps:
+
+1. **Rules**: the choices above.
+2. **Check**: the panel shows, before saving anything, whether your current address would still get in (with its
+   country), lets you test any other address, and lists sample paths with **Open** or **Blocked** for a visitor
+   outside the rules.
+3. **Confirm**: type the instance's name and a one-time code, sent by e-mail or read from your authenticator app
+   (each code works once; after 5 wrong codes, wait 10 minutes).
+
+The change applies within two seconds and ends every pass given before. The other people who may change the rules
+(and the client) get an e-mail (`access_rules_changed`, English or Arabic as each account prefers; texts on the
+**E-mail templates** page). The audit log records every code asked, every change and every refusal.
+
+### Opening production from the panel: the pass
+
+**Open Odoo** and **Connect as** on a production instance with active rules go through a pass, so the people who
+work in the panel get in from anywhere:
+
+1. The panel checks that the person's project role lets them open Odoo in production (`instances.connect` in the
+   production column of the project's roles: Maintainer and Admin by default) and that the client has not closed
+   access (client portal: a closed or expired switch, or a client lock). While it is closed nobody gets a pass, and
+   the gateway refuses the passes given before. Otherwise no pass is given, and the audit log says why.
+2. It signs a token with a key derived from the vault key: the instance, the host name, the version of the rules,
+   a random nonce and an expiry two minutes later. The gateway service gets the key in `routes.json`.
+3. The browser opens `https://<instance>/__sudoo/pass?token=...&next=/odoo`. The gateway checks the signature, the
+   host, the version, the expiry and that the nonce was not used, then sets a cookie for that host only (`HttpOnly`,
+   `SameSite=Lax`, `Secure` over https) valid for `ACCESS_RULES_PASS_HOURS` (8 by default) and sends the browser on.
+   The cookie never reaches Odoo.
+
+Each pass given, used or refused is an audit log entry (`access rules: pass given`, `pass accepted`,
+`pass refused: expired`...).
+
+### The visitor's address
+
+The rules use exactly the address the gateway already trusts for `X-Forwarded-For`:
+
+| `EXPOSURE` | The visitor's address |
+| :--- | :--- |
+| `direct`, `host-ports`, and custom domains on ports 80 and 443 | The connection's own address. Headers the visitor sends are ignored. |
+| `proxy` | The header your proxy sets (`PROXY_CLIENT_IP_HEADER`; with `X-Forwarded-For`, its last address). Your proxy must replace any copy the visitor sent. |
+| `tunnel` | Cloudflare's `CF-Connecting-IP`, from the connector. |
+
+### The country database
+
+Countries come from **DB-IP Lite** (IP to Country Lite, [db-ip.com](https://db-ip.com)), licensed under
+[Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/): no account and no payment, and
+the attribution "IP geolocation by DB-IP" is shown next to every country rule.
+
+* While `ACCESS_RULES_BETA` and `ACCESS_RULES_GEO_DOWNLOAD` are on, the panel checks every 6 hours whether a newer
+  month is available and downloads it from `ACCESS_RULES_GEO_URL` (this month's file, else last month's while the new
+  one is not published).
+* It turns the CSV file into a compact range table and refuses implausibly small files. The table and a manifest
+  with its SHA-256 are written into `<ODOO_ROOT>/gateway/geo/` (`country.bin`, `country.json`), each replaced
+  atomically. The gateway (and the panel) load a new table only when its checksum matches.
+* A server that cannot reach db-ip.com: download the month's `dbip-country-lite-YYYY-MM.csv.gz` on another machine,
+  serve it over https on your own network, and set `ACCESS_RULES_GEO_URL` to that address (with `{year}` and
+  `{month}` in it, or the file's own name). The panel then takes it from there once a month as usual.
+
+### The blocked page
+
+A visitor turned away gets HTTP 403: a page in their language (English or Arabic, by the browser's
+`Accept-Language`), light or dark as their system is, with a small animated illustration (no motion when they asked
+for less), their country, a reference to quote and the contact line (`ACCESS_RULES_CONTACT`, else made from
+`ADMIN_CONTACT_*`). Their address is shown only with `ACCESS_RULES_SHOW_IP`. API clients get a JSON 403
+(`{"error": "access_denied", "message", "country", "reference"}`) when they ask for JSON, plain text otherwise. The
+gateway's log has one line per blocked request with the same reference (at most 20 a minute per instance):
+
+```
+Access rules: blocked 3FA2C91B acme-main 198.51.100.20 US /odoo
+```
+
+### Honest limits
+
+Countries are a convenience barrier: anyone can appear to be in another country with a VPN or a rented server, and
+the database can be wrong for some addresses. Address rules are much stronger; use them for what matters. See
+[Security](SECURITY.md#21-production-access-rules-beta).
+
+---
+
+## 32. Maintenance windows
+
+Sometimes Sudoo.sh plans work on your panel that needs a restart or a short downtime: an update to a new panel
+version, new Odoo images, a restart, or work on the server itself. You choose when it runs. Settings:
+[Configuration, Maintenance windows](CONFIGURATION.md#maintenance-windows).
+
+**How it reaches you.** The panel must be linked to Sudoo.sh (`MARKETPLACE` on). Planned maintenance arrives with the
+signed answer to the panel's heartbeat: as the signed command `maintenance` and in the signed lease. Nothing else
+from Sudoo.sh is run. The panel checks every item against its own allow-list: one of four kinds (`panel_update`,
+`odoo_images`, `restart`, `custom`), on the panel, servers, instances or projects, with valid names, a version for a
+panel update and nothing else. An item outside the list is refused, and Sudoo.sh is told why. Super admins and admins
+are e-mailed (`maintenance_planned`), and a banner shows at the top of the panel.
+
+**Choosing the time.** Open **Maintenance** in the menu. Each item shows what is done, why (in your language), what
+it works on, how long it takes, and when it may start: from its earliest start to its deadline (the latest start).
+Super admins and admins (permission `maintenance.manage`) choose:
+
+1. **Tonight**: the next `MAINTENANCE_TONIGHT_TIME` (02:00 by default).
+2. **This weekend**: the next `MAINTENANCE_WEEKEND_DAY` at the same time.
+3. **Default window**: the next `MAINTENANCE_DEFAULT_WINDOW` (01:00-05:00 every day by default).
+4. **Another time**: any start between the bounds, at least `MAINTENANCE_LEAD_MINUTES` from now.
+
+Times are in `TIMEZONE`. The account's owner may also choose on app.sudoo.sh; the choice made last wins. If nobody
+chooses within `MAINTENANCE_CHOOSE_HOURS` of its arrival, or `MAINTENANCE_CUTOFF_HOURS` before its deadline, the panel
+picks the first default window that fits and says so by e-mail. If the deadline has passed (the panel was off), an
+optional item fails, and a required one runs as soon as possible.
+
+**Clients.** Clients of the projects an item works on see it in the client portal (only their own instances) and get
+its e-mails (`MAINTENANCE_REMIND_CLIENTS`). With `MAINTENANCE_CLIENT_CHOICE` on, they may choose its time too,
+confirmed by e-mail like their other major changes.
+
+**Reminders.** `MAINTENANCE_REMINDER_HOURS` (24 and 1 hours by default) before it starts, administrators and the
+clients of affected projects get a reminder. Visitors of an instance during the work see a **Scheduled maintenance**
+page, and the project's public status page shows upcoming maintenance.
+
+**How it runs.** One item at a time, at its window:
+
+- **Instances** (new Odoo images, restarts): through the usual jobs, one instance at a time. Development first, then
+  staging, production last. Before new images, production and staging instances are backed up
+  (`MAINTENANCE_BACKUP_FIRST`). Afterwards Odoo must answer, otherwise the step fails. After a failure, no production
+  instance is touched. A paused instance stays paused; it starts with the new images when someone opens it.
+- **Closed and locked projects**: an instance whose branch its client closed or locked is skipped, unless that client
+  let this maintenance run (in the portal, confirmed by e-mail). A branch your team locked is skipped too.
+- **A restart of the panel**: the backend restarts once no job runs. Instances keep serving.
+- **A panel update**: the panel asks for it in `<ODOO_ROOT>/manager/update-request.json` and waits up to
+  `MAINTENANCE_UPDATE_WAIT_HOURS` for the new version. Install it with `sudo sudoo-install update --version X.Y.Z`.
+  Once the panel runs that version, the item is done.
+- **Other work** (`custom`): Sudoo.sh does it during the window; the item ends when the window ends.
+
+Instances on other servers are skipped (their agents do not run maintenance yet). The Cloudflare connectors
+(`sudoo-connector-*`) are never started, stopped or recreated by maintenance.
+
+**Afterwards.** Each step's result is shown on the Maintenance page and sent to Sudoo.sh, signed. Administrators and
+clients are e-mailed the result (`maintenance_result`). Everything is in the audit log.
+
+---
+
+## 33. Kubernetes engine (beta)
 
 > A **beta**: try it on a server you can rebuild. Docker stays the default engine, and the instances you have stay on
 > Docker until you move them. How it works and why: [Kubernetes engine](KUBERNETES_ENGINE.md).

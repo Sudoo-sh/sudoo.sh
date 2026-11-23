@@ -25,6 +25,7 @@ import { SelectBox } from "@/components/app/select";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import { statusLabel } from "@/lib/format";
+import { MorphIcon } from "./motion";
 
 type Variant = "primary" | "danger" | "ghost" | "soft" | "default";
 
@@ -202,6 +203,17 @@ export const Skeleton = ({ height = 16, width = "100%" }: { height?: number; wid
   <UISkeleton style={{ height, width }} />
 );
 
+/** Lines of text still loading, in the shape they will have: the last one shorter, as a paragraph ends. */
+export function SkeletonText({ lines = 3, height = 14 }: { lines?: number; height?: number }) {
+  return (
+    <div className="skeleton-text">
+      {Array.from({ length: lines }, (_, i) => (
+        <Skeleton key={i} height={height} width={i === lines - 1 && lines > 1 ? "62%" : "100%"} />
+      ))}
+    </div>
+  );
+}
+
 export function Empty({ icon, title, children, action }: { icon: ReactNode; title: string; children?: ReactNode; action?: ReactNode }) {
   return (
     <div className="empty">
@@ -228,10 +240,14 @@ export function CopyField({ value, block, secret }: { value: string; block?: boo
   const t = useT(common).common;
   const [copied, setCopied] = useState(false);
   const [shown, setShown] = useState(!secret);
+  const timer = useRef<number>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
   const copy = async () => {
     await navigator.clipboard.writeText(value);
     setCopied(true);
-    setTimeout(() => setCopied(false), 1400);
+    // a second press while the check shows keeps it a little longer instead of queueing another change
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setCopied(false), 1400);
   };
   return (
     <span className={`copy ${block ? "block" : ""}`}>
@@ -241,29 +257,11 @@ export function CopyField({ value, block, secret }: { value: string; block?: boo
           {shown ? t.hide : t.show}
         </Button>
       )}
-      <Button size="sm" variant="ghost" icon={copied ? <Check /> : <CopyIcon />} onClick={copy} aria-label={t.copy} title={t.copy} />
+      {/* the copy icon turns into a check for a moment */}
+      <Button size="sm" variant="ghost" icon={<MorphIcon icons={{ copy: <CopyIcon />, done: <Check /> }} active={copied ? "done" : "copy"} />} onClick={copy} aria-label={t.copy} title={t.copy} />
     </span>
   );
 }
 
-/** A number that glides to its new value instead of jumping. */
-export function AnimatedNumber({ value, format = (n) => n.toFixed(0) }: { value: number; format?: (n: number) => string }) {
-  const [shown, setShown] = useState(value);
-  const from = useRef(value);
-  useEffect(() => {
-    const start = performance.now();
-    const begin = from.current;
-    let frame = 0;
-    const step = (now: number) => {
-      const t = Math.min(1, (now - start) / 600);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const current = begin + (value - begin) * eased;
-      setShown(current);
-      from.current = current;
-      if (t < 1) frame = requestAnimationFrame(step);
-    };
-    frame = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frame);
-  }, [value]);
-  return <>{format(shown)}</>;
-}
+// the number that glides to its new value lives with the rest of the motion system; it stays importable from here
+export { AnimatedNumber } from "./motion";

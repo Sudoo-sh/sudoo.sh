@@ -46,7 +46,7 @@ import { keys, useCall, useCapacity, useCredentials, useHistory, useInstance, us
 import type { Instance, InstanceBackup, Job, Permission, Stage } from "@/api/types";
 import { BackupPicker } from "@/components/BackupPicker";
 import { LiveChart } from "@/components/charts/LiveChart";
-import { JobLine, Monogram } from "@/components/InstanceCard";
+import { Monogram } from "@/components/InstanceCard";
 import { StageTag } from "@/components/StageTag";
 import { DomainsCore } from "@/components/DomainsCore";
 import { PremiumSlot } from "@/premium/components";
@@ -59,6 +59,8 @@ import { LockBanner } from "@/components/ProjectAccess";
 import { ClosedNotice } from "@/components/ClientAccess";
 import { ResourcesCard } from "@/components/ResourcesCard";
 import { JobDrawer } from "@/components/JobDrawer";
+import { JobBanner } from "@/components/JobProgress";
+import { AccessRulesCard } from "@/components/AccessRules";
 import { LogsPanel } from "@/components/LogsPanel";
 import { CommitHash } from "@/components/CommitHash";
 import { ConnectButton } from "@/components/ConnectAs";
@@ -71,6 +73,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
 import { Menu, MenuItem, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
+import { TabInk, useHero } from "@/components/app/motion";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/instance";
@@ -104,12 +107,14 @@ export function useRun(name: string, openJob: (id: string) => void) {
   );
 }
 
-const TABS: { id: string; label: keyof (typeof words)["en"]["tabs"]; icon: React.ReactNode; permission?: Permission }[] = [
+const BACKUP_RIGHTS: Permission[] = ["backups.manage", "instances.operate", "instances.restore"];
+// `anyOf`: shown when the caller has one of these in the instance's stage (project roles: a developer has no backups in production)
+const TABS: { id: string; label: keyof (typeof words)["en"]["tabs"]; icon: React.ReactNode; permission?: Permission; anyOf?: Permission[] }[] = [
   { id: "", label: "overview", icon: <Activity /> },
   { id: "activity", label: "activity", icon: <Layers /> },
   { id: "code", label: "code", icon: <Code2 /> },
   { id: "logs", label: "logs", icon: <ScrollText />, permission: "instances.logs" },
-  { id: "backups", label: "backups", icon: <Archive /> },
+  { id: "backups", label: "backups", icon: <Archive />, anyOf: BACKUP_RIGHTS },
   { id: "domains", label: "domains", icon: <Globe /> },
   { id: "settings", label: "settings", icon: <Settings2 />, permission: "instances.operate" },
   { id: "access", label: "access", icon: <KeyRound />, permission: "instances.credentials" },
@@ -161,6 +166,8 @@ export function InstanceView({
   const run = useRun(name, setJobId);
   const capacity = useCapacity();
   const all = useT(words);
+  // the title an instance card's name moves into when the page opens (components/app/motion.tsx useHero)
+  const hero = useHero<HTMLElement>(`instance:${name}`);
   const t = all.head;
   const j = all.jobs;
   const b = all.banners;
@@ -196,7 +203,7 @@ export function InstanceView({
               {embedded ? (
                 <h2 className="truncate instance-title"><bdi>{instance.name}</bdi></h2>
               ) : (
-                <h1 className="truncate"><bdi>{instance.name}</bdi></h1>
+                <h1 className="truncate"><bdi className="hero-text" ref={hero}>{instance.name}</bdi></h1>
               )}
               <StageTag stage={instance.stage} />
               <Status status={instance.status} />
@@ -243,7 +250,7 @@ export function InstanceView({
             (.header-secondary, styles/_layout.scss) */}
         <div className="actions">
           {instance.url && !asleep && (!instance.lock || can("instances.logs")) && (
-            <ConnectButton instance={instance} connectAs={can("instances.credentials")} />
+            <ConnectButton instance={instance} connectAs={can("instances.connect")} />
           )}
           {can("instances.update") &&
             (asleep ? (
@@ -339,11 +346,7 @@ export function InstanceView({
       {instance.project && (
         <ClosedNotice projectId={instance.project.id} projectName={instance.project.name} branch={instance.git.branch} access={instance.client_access && { ...instance.client_access, lets_you_through: can("instances.logs") }} />
       )}
-      {instance.current_job && (
-        <button className="card pad" style={{ textAlign: "start", cursor: "pointer" }} onClick={() => setJobId(instance.current_job!.id)}>
-          <JobLine job={instance.current_job} />
-        </button>
-      )}
+      {instance.current_job && <JobBanner job={instance.current_job} onOpen={() => setJobId(instance.current_job!.id)} />}
       {instance.rollback && can("instances.restore") && (
         <div className="rollback-banner" role="status">
           <Undo2 />
@@ -410,7 +413,7 @@ export function InstanceView({
             {lead.icon} {lead.label}
           </Link>
         )}
-        {TABS.filter((t) => (!t.permission || can(t.permission)) && !(plain && t.id === "code") && !(production && t.id === "mail")).map((t) => (
+        {TABS.filter((t) => (!t.permission || can(t.permission)) && (!t.anyOf || t.anyOf.some((p) => can(p))) && !(plain && t.id === "code") && !(production && t.id === "mail")).map((t) => (
           <Link key={t.id} to={tabLink(t.id)} viewTransition className={tab === t.id ? "active" : ""} aria-current={tab === t.id ? "page" : undefined}>
             {t.icon} {all.tabs[t.label]}
           </Link>
@@ -420,6 +423,7 @@ export function InstanceView({
             {trail.icon} {trail.label}
           </Link>
         )}
+        <TabInk />
       </nav>
 
       <div className="rise tab-panel" key={tab}>
@@ -436,7 +440,7 @@ export function InstanceView({
         {tab === "shell" && can("instances.shell") && <ShellTab instance={instance} />}
         {tab === "tools" && can("instances.profile") && <ToolsTab instance={instance} />}
         {tab === "upgrade" && can("instances.upgrade") && <UpgradeTab instance={instance} onJob={setJobId} />}
-        {tab === "backups" && <BackupsCard instance={instance} busy={busy} act={act} />}
+        {tab === "backups" && BACKUP_RIGHTS.some((p) => can(p)) && <BackupsCard instance={instance} busy={busy} act={act} />}
       </div>
 
       {jobId && <JobDrawer id={jobId} onClose={() => setJobId(null)} />}
@@ -975,6 +979,7 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
           </Modal>
         )}
       </div>
+      <AccessRulesCard instance={instance} />
       <ResourcesCard instance={instance} />
     </div>
   );

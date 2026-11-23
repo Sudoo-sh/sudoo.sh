@@ -4,7 +4,9 @@ GET    /api/v1/github/app                          the GitHub App: connected?, i
                                                    most once a minute), webhook
 POST   /api/v1/github/app/manifest                 start Connect GitHub: the manifest and where to post it;
                                                    {"create_repositories": true} also asks for Administration:
-                                                   write (new projects can get an empty repository)
+                                                   write (new projects can get an empty repository);
+                                                   {"repository_guard": true} also what the repository guard
+                                                   needs (github_app.GUARD_PERMISSIONS)
 POST   /api/v1/github/app                          finish it: {"code", "state"} from GitHub's redirect -> 201
 DELETE /api/v1/github/app                          disconnect (forget the credentials); links to delete it on GitHub
 POST   /api/v1/github/app/installations            record {"installation_id"} after installing on GitHub -> 201
@@ -102,7 +104,11 @@ def start_connect() -> Response:
     panel = panel_address()
     hook_base = (exposure.address(exposure.PANEL) or panel).rstrip("/")
     manifest = app.manifest(
-        panel, hook_base, urlsplit(panel).hostname or "", create_repositories=check.flag(data, "create_repositories")
+        panel,
+        hook_base,
+        urlsplit(panel).hostname or "",
+        create_repositories=check.flag(data, "create_repositories"),
+        repository_guard=check.flag(data, "repository_guard"),
     )
     state = secrets.token_urlsafe(32)
     action = _github(lambda: app.new_app_url(organization or None, state))

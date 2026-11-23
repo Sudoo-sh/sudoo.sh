@@ -63,6 +63,7 @@ export const router = createBrowserRouter([
           { path: "/accounts", lazy: page(() => import("./pages/Accounts"), (m) => m.AccountsPage, "accounts.manage") },
           { path: "/teams", lazy: page(() => import("./premium/pages"), (m) => m.TeamsRoute, "teams.manage") },
           { path: "/tokens", lazy: page(() => import("./pages/Tokens"), (m) => m.TokensPage, "tokens.manage") },
+          { path: "/maintenance", lazy: page(() => import("./pages/Maintenance"), (m) => m.MaintenancePage, "instances.view") },
           { path: "/backups", lazy: page(() => import("./pages/Backups"), (m) => m.BackupsPage, "backups.manage") },
           { path: "/support-access", lazy: page(() => import("./premium/pages"), (m) => m.SupportAccessRoute, "support_access.manage") },
           { path: "/servers/*", lazy: page(() => import("./premium/pages"), (m) => m.ServersRoute, "settings.manage") },

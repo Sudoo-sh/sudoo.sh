@@ -2149,7 +2149,15 @@ export interface ServerCheck {
   virtualisation: { name: string; kind: "none" | "vm" | "container" | "unknown"; from_installer: boolean };
   ports: Record<"80" | "443", { free: boolean; sudoo: boolean }>;
   needs: SetupNeeds;
-  recommendation: { fits: boolean; recommended: Engine; default: Engine; reason: string; reasons: string[]; beta: boolean };
+  recommendation: {
+    fits: boolean;
+    recommended: Engine;
+    default: Engine;
+    reason: string;
+    reason_code: "minimum" | "grow" | "separation" | "unanswered" | "team" | "one";
+    reasons: string[];
+    beta: boolean;
+  };
   /** the minimum for Kubernetes (k3s's own plus room for Odoo); "measured" false while they are placeholders */
   figures: { min_cpus: number; min_memory_mb: number; k3s_min_memory_mb: number; odoo_room_memory_mb: number; measured: boolean; source: string };
   engine: { current: Engine; wanted: Engine | null; available: Engine[]; switch_command: string };

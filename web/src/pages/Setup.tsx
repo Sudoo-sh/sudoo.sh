@@ -48,11 +48,14 @@ interface Kept {
   code: string;
   licence: Acceptance | null;
   reached: SetupStep;
+  /** after the final confirm: what was applied and the choices, so the last step survives the page being drawn
+   *  again (signed in now, the panel may switch to the account's language); the code is forgotten then */
+  done?: { result: SetupResult; draft: SetupDraft };
 }
 function readKept(): Kept {
   try {
     const kept = JSON.parse(sessionStorage.getItem(STORE) ?? "null") as Partial<Kept> | null;
-    return { code: kept?.code ?? "", licence: kept?.licence ?? null, reached: kept?.reached ?? "welcome" };
+    return { code: kept?.code ?? "", licence: kept?.licence ?? null, reached: kept?.reached ?? "welcome", done: kept?.done };
   } catch {
     return { code: "", licence: null, reached: "welcome" };
   }
@@ -72,7 +75,7 @@ function keep(kept: Kept | null) {
 export function SetupPage() {
   const { data: setup, isPending } = useSetup();
   if (isPending) return <div style={{ display: "grid", placeItems: "center", height: "100vh" }}><Spinner /></div>;
-  if (!setup?.needed) return <Navigate to="/login" replace />;
+  if (!setup?.needed && !readKept().done) return <Navigate to="/login" replace />; // the last step is shown once after the confirm
   return <Wizard />;
 }
 
@@ -88,9 +91,9 @@ function Wizard() {
     return fromLink ? { ...stored, code: fromLink } : stored;
   });
   const [fromLink] = useState(() => !!codeFromHash(location.hash));
-  const [step, setStep] = useState<SetupStep>("welcome");
+  const [step, setStep] = useState<SetupStep>(() => (readKept().done ? "done" : "welcome"));
   const [direction, setDirection] = useState<"forward" | "backward">("forward");
-  const [draft, setDraft] = useState<SetupDraft | null>(null);
+  const [draft, setDraft] = useState<SetupDraft | null>(() => readKept().done?.draft ?? null);
   const [check, setCheck] = useState<ServerCheck | null>(null);
   const [checkFailed, setCheckFailed] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -99,14 +102,14 @@ function Wizard() {
   const [resumed, setResumed] = useState(false);
   const [smtpPassword, setSmtpPassword] = useState("");
   const [password, setPassword] = useState<[string, string]>(["", ""]);
-  const [result, setResult] = useState<SetupResult | null>(null);
+  const [result, setResult] = useState<SetupResult | null>(() => readKept().done?.result ?? null);
   const heading = useRef<HTMLHeadingElement>(null);
 
   // the code leaves the address bar at once: it is kept in this tab only
   useEffect(() => {
     if (location.hash) history.replaceState(null, "", location.pathname + location.search);
   }, []);
-  useEffect(() => keep(result ? null : kept), [kept, result]);
+  useEffect(() => keep(kept), [kept]);
   useEffect(() => setSetupCode(kept.code), [kept.code]);
 
   const loadDraft = useCallback(async (code: string) => {
@@ -133,7 +136,7 @@ function Wizard() {
 
   // a setup opened again (a reload, another tab with the same code): the saved choices, at the saved step
   useEffect(() => {
-    if (!kept.code || !kept.licence) return;
+    if (!kept.code || !kept.licence || kept.done) return;
     loadDraft(kept.code)
       .then((loaded) => {
         const at = resumeAt(loaded.step, true);
@@ -208,11 +211,13 @@ function Wizard() {
       });
       setCsrfToken(me.csrf_token);
       setSetupCode("");
+      // kept before the session is set: signed in, the page may be drawn anew in the account's language
+      keep({ code: "", licence: null, reached: "done", done: { result: me.setup, draft } });
       client.setQueryData(keys.session, me);
       setResult(me.setup);
       setDirection("forward");
       setStep("done");
-      setKept((k) => ({ ...k, reached: "done" }));
+      setKept({ code: "", licence: null, reached: "done", done: { result: me.setup, draft } });
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -221,6 +226,7 @@ function Wizard() {
   };
 
   const finish = () => {
+    keep(null);
     client.setQueryData(["setup"], (old: object | undefined) => ({ ...(old ?? {}), needed: false }));
     navigate("/", { replace: true, viewTransition: true });
   };
@@ -469,7 +475,11 @@ function ServerStep({
         {advice && advice.fits && (
           <div className="setup-why" aria-live="polite">
             <span className="faint small">{t.why}</span>
-            <p dir="auto">{answered ? advice.reason : t.answerFirst}</p>
+            <p>
+              {answered && advice.reason_code in t.reasons
+                ? t.reasons[advice.reason_code as keyof typeof t.reasons]
+                : answered ? advice.reason : t.answerFirst}
+            </p>
             {advice.beta && advice.recommended === "kubernetes" && <p className="faint small">{t.betaDefault}</p>}
           </div>
         )}

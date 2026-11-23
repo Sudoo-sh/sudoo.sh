@@ -83,7 +83,7 @@ def test_by_need_not_by_size_docker_unless_the_answers_point_to_kubernetes() -> 
     assert server_check.recommend(big, answers(team=True), False)["reason"].startswith("one server run by a team")
     assert server_check.recommend(big, answers(), False)["reason"].startswith("one server run by one person")
     grow = server_check.recommend(facts(4), answers(grow=True), False)
-    assert grow["recommended"] == "kubernetes" and grow["fits"] is True
+    assert grow["recommended"] == "kubernetes" and grow["fits"] is True and grow["reason_code"] == "grow"
     assert grow["reason"] == "you plan to add servers, and Kubernetes makes growing to more servers easier"
     separation = server_check.recommend(facts(4), answers(separation=True), False)
     assert separation["recommended"] == "kubernetes" and "stronger separation" in separation["reason"]

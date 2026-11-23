@@ -176,8 +176,9 @@ def figures() -> dict[str, Any]:
 
 
 def recommend(facts: dict[str, Any], needs: dict[str, bool | None], k8s_default: bool) -> dict[str, Any]:
-    """The installer's rule: {"fits", "recommended", "default", "reason", "reasons", "beta"}; reasons are what keeps
-    Kubernetes from running well here (the minimum check)."""
+    """The installer's rule: {"fits", "recommended", "default", "reason", "reason_code", "reasons", "beta"}; reasons
+    are what keeps Kubernetes from running well here (the minimum check); reason_code (minimum, grow, separation,
+    unanswered, team, one) lets the page say the reason in its own language."""
     figure = figures()
     note = "" if figure["measured"] else " (to be measured)"
     reasons: list[str] = []
@@ -198,20 +199,23 @@ def recommend(facts: dict[str, Any], needs: dict[str, bool | None], k8s_default:
             "Kubernetes is prepared on Ubuntu 22.04+ and Debian 12+; this server runs "
             f"{facts['system']['name'] or 'an unknown system'}"
         )
-    recommended = "docker"
+    recommended, code = "docker", "minimum"
     if reasons:
         reason = reasons[0]
     elif needs.get("grow"):
-        recommended = "kubernetes"
+        recommended, code = "kubernetes", "grow"
         reason = "you plan to add servers, and Kubernetes makes growing to more servers easier"
     elif needs.get("separation"):
-        recommended = "kubernetes"
+        recommended, code = "kubernetes", "separation"
         reason = "you need stronger separation between clients or teams, and Kubernetes isolates them more"
     elif all(needs.get(key) is None for key in NEEDS):
+        code = "unanswered"
         reason = "Docker unless you say otherwise: it is simpler to run, and Kubernetes is beta"
     elif needs.get("team"):
+        code = "team"
         reason = "one server run by a team is well served by Docker, which is simpler to run"
     else:
+        code = "one"
         reason = "one server run by one person is well served by Docker, which is simpler to run"
     stable = K8S_STABLE or k8s_default
     return {
@@ -219,6 +223,7 @@ def recommend(facts: dict[str, Any], needs: dict[str, bool | None], k8s_default:
         "recommended": recommended,
         "default": "kubernetes" if recommended == "kubernetes" and stable else "docker",
         "reason": reason,
+        "reason_code": code,
         "reasons": reasons,
         "beta": not K8S_STABLE,
     }

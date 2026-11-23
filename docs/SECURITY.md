@@ -27,6 +27,7 @@
 18. [Servers](#18-servers)
 19. [Code profiler](#19-code-profiler)
 20. [Client portal](#20-client-portal)
+21. [Topology shared with Sudoo.sh](#21-topology-shared-with-sudoosh)
 
 ---
 
@@ -950,3 +951,18 @@ Clients of the panel's owner, and the switch each client owns for its projects (
 administrators: whoever has root on the server or access to its Docker socket can reach the containers, databases
 and files directly, or reset a client's password with `sudoo.sh reset-password`, without the panel seeing it. A
 client that needs stronger isolation runs its projects on a server of its own.
+
+---
+
+## 21. Topology shared with Sudoo.sh
+
+The live infrastructure view of Sudoo.sh staff ([Marketplace, Sharing the topology](MARKETPLACE.md#13-sharing-the-topology)).
+
+| Threat | Protection |
+| :--- | :--- |
+| The panel reports its infrastructure without the administrator knowing | Off by default (`SHARE_TOPOLOGY_WITH_SUDOO`); it needs `MARKETPLACE` too. Changing it is a setting change, in the panel's audit log. |
+| Customer data leaves the server | A snapshot holds coarse figures only: roles, statuses, replicas, CPU and memory, Odoo versions, request and error rates. No addresses, domains, branches, commits, users, e-mail, settings, secrets, logs or instance content. Statuses, stages and versions are checked against fixed lists; any other value becomes `unknown`. |
+| Sudoo.sh learns names it does not need | Ids are pseudonyms: an HMAC of the name under a key kept on the panel. Real names are sent only with `TOPOLOGY_INCLUDE_NAMES`, and on the hub reading them needs a separate staff permission, each look recorded in the audit log. |
+| Someone else sends or reads the snapshot | It goes in a request signed with the installation key, and the hub's answer is signed; the hub keeps it with the installation and shows it to staff only. |
+| What was shared stays after opting out | Switching it off sends a signed `DELETE` (tried again until the hub answers), and the panel forgets its pseudonym key, so later ids cannot be matched with earlier ones. |
+| Too much is sent | One snapshot is at most 256 KiB, every 30 seconds at the most often; the hub refuses larger ones and can ask for a longer interval or stop it. |

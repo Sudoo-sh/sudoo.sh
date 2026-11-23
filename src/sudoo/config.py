@@ -1709,6 +1709,20 @@ class Settings(BaseSettings):
         description="Use the Sudoo.sh marketplace: register with the hub, send a signed heartbeat every 15 minutes, "
         "install plugins. Off: the panel never contacts the hub; installed free plugins keep working.",
     )
+    share_topology_with_sudoo: bool = Field(
+        False,
+        description="Share this panel's topology with Sudoo.sh (servers, instances and their parts, statuses, "
+        "replicas, CPU and memory, request and error rates; pseudonymous ids, no customer data) for its staff's "
+        "infrastructure view. Needs MARKETPLACE. Off: nothing is sent, and what was shared is deleted.",
+    )
+    topology_include_names: bool = Field(
+        False,
+        description="With SHARE_TOPOLOGY_WITH_SUDOO: include the real names of servers, projects and instances. Off: "
+        "short pseudonyms only.",
+    )
+    topology_interval_seconds: int = Field(
+        30, ge=30, le=300, description="Seconds between two topology snapshots sent to Sudoo.sh (when shared)."
+    )
     hub_url: str = Field(
         "https://hub.sudoo.sh",
         description="Address of the Sudoo.sh hub (https; http only for localhost while testing).",
@@ -2096,6 +2110,9 @@ EDITABLE = (
     "admin_contact_phone",
     "admin_contact_email",
     "marketplace",
+    "share_topology_with_sudoo",
+    "topology_include_names",
+    "topology_interval_seconds",
     "premium_auto_install",
     "public_ipv4",
     "public_ipv6",

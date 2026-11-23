@@ -140,7 +140,13 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       { id: "premium", keys: ["premium_auto_install", "premium_check_hours", "premium_retry_minutes", "premium_watch_minutes", "premium_binding_renew_days", "premium_max_package_mb", "public_ipv4", "public_ipv6"] },
     ],
   },
-  { id: "support", groups: [{ id: "supportAccess", keys: ["support_access", "support_access_max_hours"] }] },
+  {
+    id: "support",
+    groups: [
+      { id: "supportAccess", keys: ["support_access", "support_access_max_hours"] },
+      { id: "topologyShare", keys: ["share_topology_with_sudoo", "topology_include_names", "topology_interval_seconds"] },
+    ],
+  },
   {
     id: "clients",
     groups: [

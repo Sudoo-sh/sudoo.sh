@@ -1668,8 +1668,8 @@
  {
   "key": "github_sign_in_role",
   "env": "GITHUB_SIGN_IN_ROLE",
-  "value": "developer",
-  "env_value": "developer",
+  "value": "member",
+  "env_value": "member",
   "changed_in_panel": false,
   "editable": true,
   "applies": "now",
@@ -1677,7 +1677,7 @@
   "secret": false,
   "type": "string",
   "minimum": null,
-  "description": "The role of an account created for a member of GITHUB_SIGN_IN_ORGS."
+  "description": "The panel role of an account created for a member of GITHUB_SIGN_IN_ORGS. Member: no rights by itself; each project's role comes from GitHub or from its Access tab."
  },
  {
   "key": "github_sign_in_skips_second_factor",
@@ -1705,7 +1705,7 @@
   "secret": false,
   "type": "boolean",
   "minimum": null,
-  "description": "For accounts linked to GitHub (except administrators), a project's access follows their permission on its repository: admin gives maintainer, maintain or write developer, triage or read view, none nothing. Only with GITHUB_SIGN_IN."
+  "description": "For accounts linked to GitHub (except administrators), a project's role follows their permission on its repository: admin gives Admin, maintain Maintainer, write Developer, triage or read Tester, none nothing. Only with GITHUB_SIGN_IN."
  },
  {
   "key": "github_access_check_minutes",
@@ -1719,7 +1719,91 @@
   "secret": false,
   "type": "integer",
   "minimum": 1,
-  "description": "How often repository permissions are read from GitHub again."
+  "description": "How often repository permissions and GitHub team members are read again."
+ },
+ {
+  "key": "project_access_model",
+  "env": "PROJECT_ACCESS_MODEL",
+  "value": "project_roles",
+  "env_value": "project_roles",
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "string",
+  "minimum": null,
+  "description": "The access model of new projects: \"project_roles\" (Viewer, Tester, Developer, Maintainer, Admin, per stage) or \"legacy\" (the panel role limited by the project's grant, the same in every stage)."
+ },
+ {
+  "key": "access_emails",
+  "env": "ACCESS_EMAILS",
+  "value": true,
+  "env_value": true,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "boolean",
+  "minimum": null,
+  "description": "E-mail people when they get access to a project, when their role changes, and when it ends."
+ },
+ {
+  "key": "access_requests",
+  "env": "ACCESS_REQUESTS",
+  "value": true,
+  "env_value": true,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "boolean",
+  "minimum": null,
+  "description": "People may ask a project's admins for temporary access (a higher role in one stage)."
+ },
+ {
+  "key": "access_request_max_hours",
+  "env": "ACCESS_REQUEST_MAX_HOURS",
+  "value": 8,
+  "env_value": 8,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "integer",
+  "minimum": 1,
+  "description": "The longest temporary access that can be asked for, in hours."
+ },
+ {
+  "key": "access_review",
+  "env": "ACCESS_REVIEW",
+  "value": true,
+  "env_value": true,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "boolean",
+  "minimum": null,
+  "description": "E-mail each project's admins, every ACCESS_REVIEW_DAYS, who has access to it."
+ },
+ {
+  "key": "access_review_days",
+  "env": "ACCESS_REVIEW_DAYS",
+  "value": 30,
+  "env_value": 30,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "integer",
+  "minimum": 1,
+  "description": "Days between two access reviews of a project."
  },
  {
   "key": "brand_color",

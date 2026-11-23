@@ -56,6 +56,7 @@ export function seedProjects() {
       autoCreated: id === "acme-retail" ? { "pos-refunds": "acme-retail-pos-refunds" } : {},
       access: seededAccess(id),
     });
+    projects.get(id)!.access.stages = stages;
     setLocks(id, projects.get(id)!.access, () => undefined);
   }
   seedBuildOptions();
@@ -108,7 +109,9 @@ export function stageOf(project: DemoProject, branch: string): Stage {
 export function branchList(project: DemoProject, everything = false): ProjectBranch[] {
   const members = membersOf(project.id);
   return branchNames(project)
-    .filter((name) => everything || levelIn(project.access, name) !== "none")
+    .filter((name) => everything || (project.access.model === "project_roles"
+      ? permissionsIn({ ...project.access, stages: { ...project.access.stages, [name]: stageOf(project, name) } }, name).includes("instances.view")
+      : levelIn(project.access, name) !== "none"))
     .map((name) => {
       const own = members.filter((i) => i.git.branch === name);
       const commit = own[0]?.recent_commits?.[0] ?? (project.repo ? commitsOf(project.repo, name)[0] : undefined);

@@ -1358,21 +1358,86 @@ holds a signed-in GitHub session can sign in. Keep it off for panels that run pr
 **Project access from GitHub.** With `GITHUB_ACCESS_FROM_REPOSITORIES` on (the default when GitHub sign-in is on), a
 linked person's access to a project follows their permission on the project's repository:
 
-| GitHub permission | Level in the project |
+| GitHub permission | Project role |
 | :--- | :--- |
-| admin | admin |
-| maintain | maintainer |
-| write | developer |
-| triage, read | view |
+| admin | Admin |
+| maintain | Maintainer |
+| write | Developer |
+| triage, read | Tester (Viewer in a project that keeps the earlier access model) |
 | none | none: the project is hidden |
+
+GitHub works the permission out from everything that gives it, the repository's teams included; the project's
+**Who can do what** names the team ("via team acme/backend") when one gives it.
 
 * The permission is read with the app's own installation token at each sign-in and every
   `GITHUB_ACCESS_CHECK_MINUTES` (15). Someone removed from the repository loses the project at the next reading.
-* A grant to the person on the project's **Access** tab always wins (also "none"); otherwise the higher of GitHub's
-  level and their teams' grants applies. Their panel role stays the most they can do.
+* A grant to the person on the project's **Access** tab always wins (also "none"); otherwise the highest of GitHub's
+  role, their panel teams' grants and their GitHub teams' grants applies ([Project roles](#project-roles)).
 * Super admins and administrators are not limited by it. A repository the app is not installed on is not checked:
   the panel's own rules apply to it.
 * The project's **Access** tab lists each linked person with their GitHub permission and level.
+
+### Project roles
+
+Inside a project, what someone may do is decided by their **project role**, per stage. Panel roles keep only the
+panel-wide rights (accounts, settings, tokens, the audit log, plugins, GitHub, servers): super admins and
+administrators have every right in every project, and a new panel role, **Member**, has no rights by itself.
+
+| Role | Development | Staging | Production | The project |
+| :--- | :--- | :--- | :--- | :--- |
+| **Viewer** | see branches, status, history, builds | the same | the same | nothing |
+| **Tester** | see, and open Odoo signed in (**Connect**) to try it | the same | nothing: production is not shown | nothing |
+| **Developer** | everything: logs, shell, database, backups, Connect, passwords, create, update, delete, restore | see, Connect to test, logs; no shell, database, backups or passwords | only that it exists, its history, builds and status | nothing |
+| **Maintainer** | as Developer | as Developer in development, staging data included | logs and monitoring, Connect (with the production confirmation), backups (list and download), restart and new code; never its shell, database, restores, deletion | nothing |
+| **Admin** | everything | everything | everything | settings, stages, access, roles and locks |
+
+**Where a role comes from**, highest first:
+
+1. A role given to the person on the project's **Access** tab: it always wins, also "No access".
+2. Otherwise the highest of: the roles given to their panel teams, the roles given to **GitHub teams** they are in
+   (type **GitHub team** on the Access tab, `organisation/team-slug`), and their GitHub repository permission
+   (above).
+3. Otherwise, in a project open to everyone, their panel role's usual role: Viewer, Developer or Maintainer for
+   those panel roles, nothing for Members.
+
+Locks still close a branch to everyone they do not allow, administrators included.
+
+**Changing what a role may do.** Each project's **Access** tab shows the matrix: one row per right and stage, one
+column per role. An admin of the project ticks or unticks any cell (Admin is fixed) and saves; **Back to the
+defaults** removes the project's changes. Only the changed cells are stored, so better defaults of later versions
+still reach the others.
+
+**GitHub teams.** Their members are read with the GitHub App's installation token, which needs **Organization
+permissions, Members: Read-only** (added once on the App's settings page; each installation's owner accepts it).
+They are read again every `GITHUB_ACCESS_CHECK_MINUTES`: joining or leaving the team on GitHub changes the access in
+the panel, with the e-mails below.
+
+**Access e-mails** (`ACCESS_EMAILS`): people are told when they get access to a project, when their role there
+changes and when it ends, whoever made the change (a person, a team, GitHub). The last role each person was told
+about is kept, so a change is told once. The texts are on the **E-mail templates** page, in English and Arabic
+(`access_granted`, `access_changed`, `access_removed` and their `_ar` versions); each person gets their own
+language.
+
+**Temporary access** (`ACCESS_REQUESTS`, `ACCESS_REQUEST_MAX_HOURS`): anyone with access to a project can ask, on its
+Access tab, for a higher role in one stage for a few hours, with a reason ("Maintainer in production for 2 hours to
+read the import's logs"). The project's admins get an e-mail and approve or refuse it on the same tab; nobody
+decides on their own request. An approved request adds the rights of that role in that stage only, and ends by
+itself. Other parts of the panel can add conditions that refuse it, at the request, at the approval and at each
+use; the client portal uses this for its client's switches. Every step is in the audit log.
+
+**Access review** (`ACCESS_REVIEW`, `ACCESS_REVIEW_DAYS`): every 30 days each project's admins receive the list of
+who has access, with their role and where it comes from. The first review of a project is sent one interval after
+the upgrade, never at once.
+
+**Who can do what.** The Access tab lists every person with access, their role, where it comes from (given, a team,
+a GitHub team, GitHub, their panel role, administrator) and how many rights they have in each stage (the list shows
+when the pointer rests on it). `GET /api/v1/projects/<id>/access/people` gives the same.
+
+**Upgrading.** Projects made before this version keep the **earlier access model** (the panel role limited by the
+project's grant, the same in every stage), so nobody gains or loses access by the upgrade. Each such project's Access
+tab offers **Switch to project roles**: it first shows, person by person, the role they get and the rights that
+change, and keeps everyone's role with a grant on the project where the default would differ. The switch cannot be
+undone (grants can be changed afterwards). New projects use project roles (`PROJECT_ACCESS_MODEL`).
 
 ### Ways to sign in
 

@@ -90,7 +90,14 @@ def _refresh_github_access(name: str, account: dict[str, Any]) -> None:
     from sudoo.auth import github, github_access
 
     if github.link_of(account) is not None and github_access.applies(name):
-        with contextlib.suppress(Exception):  # the last known permissions apply; read again at the next interval
+        from sudoo import projects
+        from sudoo.projects import notices
+
+        # the last known permissions apply when GitHub fails; they are read again at the next interval
+        with (
+            contextlib.suppress(Exception),
+            notices.watch([p["id"] for p in projects.all_projects()], by="GitHub"),
+        ):
             github_access.refresh(name)
 
 

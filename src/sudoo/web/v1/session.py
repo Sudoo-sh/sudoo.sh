@@ -39,6 +39,7 @@ from sudoo import accounts, auth, licence, roles
 from sudoo.auth import methods, recovery
 from sudoo.config import settings
 from sudoo.core import audit
+from sudoo.projects import access
 
 from .. import signin
 from .. import validation as check
@@ -57,7 +58,8 @@ def me() -> dict[str, Any]:
         **{key: account.get(key) for key in accounts.PROFILE_FIELDS},
         "role": g.user["role"],
         "role_label": roles.label(g.user["role"]),
-        "permissions": sorted(roles.permissions(g.user["role"])),
+        # the role's, and under project roles what some project gives (each page asks the project again)
+        "permissions": sorted(access.reach_permissions(g.user)),
         "csrf_token": session.get("csrf"),
         "restricted": session.get("restricted"),
         "must_set_up_second_factor": session.get("restricted") == "second_factor",

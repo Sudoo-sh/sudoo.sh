@@ -20,8 +20,9 @@ import words from "@/i18n/teams";
 import { allowedNames } from "./LockTag";
 import { PlanCard, PremiumSlot } from "@/premium/components";
 import { useCan } from "./Shell";
+import { ModelCard, PeopleCard, RequestsCard, RolesMatrix } from "./ProjectRoles";
 
-export const LEVELS: AccessLevel[] = ["none", "view", "developer", "maintainer", "admin"];
+export const LEVELS: AccessLevel[] = ["none", "view", "tester", "developer", "maintainer", "admin"];
 
 /** Choose a team or a person (and a level): for locks here, and for grants in the teams package. */
 export function SubjectPicker({
@@ -37,12 +38,14 @@ export function SubjectPicker({
   const can = useCan();
   const { data: teams } = useTeams();
   const { data: users } = useUsers();
-  const [kind, setKind] = useState<"team" | "user">("team");
+  const [kind, setKind] = useState<"team" | "user" | "github_team">("team");
   const [id, setId] = useState("");
   const [level, setLevel] = useState<AccessLevel>("developer");
   const isTaken = (type: string, value: string) => taken.some((e) => e.type === type && e.id === value);
   const options =
-    kind === "team"
+    kind === "github_team"
+      ? (/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/.test(id) && !isTaken("github_team", id) ? [{ id, label: `${t.githubTeam} ${id}` }] : [])
+      : kind === "team"
       ? (teams ?? []).filter((team) => !isTaken("team", team.id)).map((team) => ({ id: team.id, label: team.name }))
       : can("accounts.manage")
         ? (users ?? []).filter((u) => !isTaken("user", u.name)).map((u) => ({ id: u.name, label: `${u.display_name} (${u.name})` }))
@@ -55,18 +58,23 @@ export function SubjectPicker({
         options={[
           { value: "team", label: t.access.addTeam, icon: <UsersRound /> },
           { value: "user", label: t.access.addPerson },
+          ...(withLevel ? [{ value: "github_team" as const, label: t.githubTeam, icon: <GitHubMark /> }] : []),
         ]}
       />
-      <SelectBox value={id} onValueChange={(value) => setId(value)} aria-label={kind === "team" ? t.access.team : t.access.person}>
-        <option value="">{t.access.choose}</option>
-        {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-      </SelectBox>
+      {kind === "github_team" ? (
+        <Input dir="ltr" spellCheck={false} placeholder={t.githubTeamHint} aria-label={t.githubTeam} value={id} onChange={(e) => setId(e.target.value.trim())} />
+      ) : (
+        <SelectBox value={id} onValueChange={(value) => setId(value)} aria-label={kind === "team" ? t.access.team : t.access.person}>
+          <option value="">{t.access.choose}</option>
+          {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+        </SelectBox>
+      )}
       {withLevel && (
         <SelectBox value={level} onValueChange={(value) => setLevel(value as AccessLevel)} aria-label={t.access.level}>
           {LEVELS.map((l) => <option key={l} value={l}>{t.levels[l]}</option>)}
         </SelectBox>
       )}
-      <Button size="sm" icon={<Plus />} disabled={!id}
+      <Button size="sm" icon={<Plus />} disabled={!id || !options.some((o) => o.id === id)}
         onClick={() => { onAdd({ type: kind, id, name: options.find((o) => o.id === id)?.label ?? id, ...(withLevel ? { level } : {}) }); setId(""); }}>
         {t.access.add}
       </Button>
@@ -140,7 +148,8 @@ function GitHubAccessCard({ data }: { data: ProjectAccess }) {
                 {github.people.map((p) => (
                   <TableRow key={p.user}>
                     <TableCell><bdi>{p.name}</bdi> <span className="xsmall faint"><bdi dir="ltr">@{p.github_login}</bdi></span></TableCell>
-                    <TableCell className="small mono">{p.covered === false ? <span className="faint">{t.notCovered}</span> : p.permission ?? <span className="faint">{t.notChecked}</span>}</TableCell>
+                    <TableCell className="small mono">{p.covered === false ? <span className="faint">{t.notCovered}</span> : p.permission ?? <span className="faint">{t.notChecked}</span>}
+                      {p.via && <div className="xsmall faint">{all.githubTeam} {p.via}</div>}</TableCell>
                     <TableCell className="small">
                       {!p.applies ? <span className="faint">{github.enabled ? t.administrators : "-"}</span> : p.level ? <Tag>{all.levels[p.level]}</Tag> : <span className="faint">{t.notChecked}</span>}
                       {p.checked && <div className="xsmall faint">{t.checked(ago(p.checked))}</div>}
@@ -163,6 +172,7 @@ export function AccessTab({ project, permitted }: { project: ProjectDetail; perm
     return (
       <div className="stack tab-panel">
         <Callout tone="info">{t.access.cannotManage}</Callout>
+        <RequestsCard project={project} maxHours={8} enabled />
       </div>
     );
   if (error) return <div className="stack tab-panel"><Callout tone="warning">{errorText(error)}</Callout></div>;
@@ -170,8 +180,12 @@ export function AccessTab({ project, permitted }: { project: ProjectDetail; perm
   const locks = Object.entries(data.locks);
   return (
     <div className="stack tab-panel">
+      {data.model === "legacy" && <ModelCard project={project} />}
       <PremiumSlot name="project.access" props={{ project, permitted, access: data }} fallback={<AccessSummary project={project} data={data} />} />
+      {data.model === "project_roles" && <RolesMatrix project={project} data={data} editable={permitted} />}
+      <PeopleCard project={project} />
       <GitHubAccessCard data={data} />
+      {data.model === "project_roles" && <RequestsCard project={project} maxHours={data.request_max_hours} enabled={data.requests_enabled} />}
       <section className="card">
         <div className="card-head"><h2>{t.access.locksTitle}</h2></div>
         <div className="card-body stack-sm">

@@ -212,7 +212,12 @@ def change_user(name: str) -> Response:
             abort(400, "github_login: a GitHub user name (letters, digits and single dashes, at most 39).")
         values[github.LOGIN_FIELD] = login
     _refuse_without_break_glass(name, values)
-    accounts.update(name, **{key: (value or None) for key, value in values.items()})
+    from sudoo import projects
+    from sudoo.projects import notices
+
+    watched = [p["id"] for p in projects.all_projects()] if "role" in values else []
+    with notices.watch(watched, by=accounts.display_name(g.user["name"], accounts.get(g.user["name"]) or {})):
+        accounts.update(name, **{key: (value or None) for key, value in values.items()})
     if "role" in values:
         accounts.end_sessions(name)  # the new permissions apply from the next sign-in
     log("account changed", detail=f"{name}: {', '.join(sorted(values))}")

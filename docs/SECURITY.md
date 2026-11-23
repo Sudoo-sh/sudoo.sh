@@ -521,9 +521,22 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 
 ### Teams, project access and locked branches
 
-Inside a project, every check goes through one function (`projects/access.py`): the permission must be in the
-caller's **role** and in the **level** the project gives them (role ∩ grant), and the branch must not be **locked**
-against them. Permissions about the whole panel (accounts, tokens, settings, the audit log, plugins, GitHub, off-site
+**Project roles** (projects made since project roles exist, and earlier ones once switched): inside a project the caller's
+**project role** decides alone, per stage, from the project's matrix (`projects/project_roles.py`): a Developer may
+open development's shell but sees nothing of production's data; a Maintainer reads production's logs and downloads
+its backups but never opens its shell or database, restores or deletes it. The panel role no longer limits a project:
+it keeps the panel-wide permissions only, gives the default role in a project open to everyone, and the role
+**Member** gives nothing. Super admins and administrators have every right in every project. Locks apply on top, to
+everyone. Every endpoint, the shell ticket, the live events (a build's failure lines and messages are removed for
+whoever may not read the branch's logs), lists (projects, instances, jobs, backups) and connect-as ask the same
+function with the instance's own stage. Temporary access (`projects/elevation.py`) adds the rights of one role in one
+stage, approved by someone else with `projects.access`, ending by itself and checked again at every use against the
+conditions other parts register (the client portal's switches). A GitHub team's members and a person's repository
+permission are read with the GitHub App's installation token and count as none once older than three intervals.
+
+**The earlier model** (projects made before project roles, until switched): every check goes through the same function: the
+permission must be in the caller's **role** and in the **level** the project gives them (role ∩ grant), and the
+branch must not be **locked** against them. Permissions about the whole panel (accounts, tokens, settings, the audit log, plugins, GitHub, off-site
 storage, teams) depend on the role alone.
 
 | Level | Project permissions it can give (never beyond the role) |

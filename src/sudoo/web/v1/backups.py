@@ -45,6 +45,8 @@ def list_backups() -> Response:
         found = [b for b in found if b["instance"] in members]
     existing = {b["instance"] for b in found if store.exists(b["instance"])}
     hidden = existing - set(access.visible_instances(g.user, existing))
+    if not access.sees_everything(g.user):  # project roles: backups only where the caller may manage them
+        hidden |= {name for name in existing - hidden if not access.allowed_instance(g.user, "backups.manage", name)}
     shown = [b for b in found if b["instance"] not in hidden]
     return ok([backup_resource(b) for b in shown if _orphan_refusal(b) is None])
 

@@ -132,8 +132,8 @@ By default super admins and administrators must use a second factor. A super adm
   the address.
 * **My account, Ways to sign in** shows how your account may sign in. There you link your GitHub account
   (**Link GitHub**) or unlink it (**Unlink**, which asks for your password when you have one). After you sign in
-  with GitHub, your access to each project may follow your permission on its GitHub repository: write gives
-  Developer, maintain Maintainer, admin Admin, triage or read view only. Removed from the repository, you no longer
+  with GitHub, your role in each project may follow your permission on its GitHub repository: write gives
+  Developer, maintain Maintainer, admin Admin, triage or read Tester. Removed from the repository, you no longer
   see the project.
 * After **5 wrong passwords** for the same account from the same place, or 20 from the same place, signing in is
   blocked for **15 minutes**. Wait, or ask an administrator to set a new password for you.
@@ -1259,7 +1259,25 @@ removed.
 
 ### Project access and locked branches
 
-What someone may do in a project is **their role, limited by the level they have there**. A level never gives more
+Projects use **project roles**: your role in a project decides what you may do in each of its stages, whatever your
+role in the panel (super admins and administrators can do everything everywhere).
+
+| Role | Development | Staging | Production | The project |
+| :--- | :--- | :--- | :--- | :--- |
+| **Viewer** | see branches, status, history, builds | the same | the same | nothing |
+| **Tester** | see, and open Odoo signed in (**Connect**) to try it | the same | nothing: production is not shown | nothing |
+| **Developer** | everything: logs, shell, database, backups, Connect, passwords, create, update, delete, restore | see, Connect to test, logs; no shell, database, backups or passwords | only that it exists, its history, builds and status | nothing |
+| **Maintainer** | as Developer | as Developer in development, staging data included | logs and monitoring, Connect (with the production confirmation), backups (list and download), restart and new code; never its shell, database, restores, deletion | nothing |
+| **Admin** | everything | everything | everything | settings, stages, access, roles and locks |
+
+Your project's admins may have changed what a role allows; the project's **Access** tab shows the exact rights. When
+something is refused, the message says which role cannot do what, and where. If you need more for a while, open the
+project's **Access** tab, **Temporary access**, **Request access**: choose the stage, the role, how many hours, and say
+why. The project's admins get an e-mail; once approved, the extra rights apply at once and end by themselves. You get
+an e-mail when you are given access to a project, when your role there changes and when it ends.
+
+The rest of this section describes projects made before project roles, until an admin switches them: there, what
+someone may do in a project is **their panel role, limited by the level they have there**. A level never gives more
 than the role: a Viewer given the level Admin is still a Viewer.
 
 | Level | What it allows (within the role) |

@@ -181,7 +181,7 @@ def _published_frame(event: Event) -> bytes:
 def _topics(request: web.Request, user: dict[str, str]) -> frozenset[str] | None:
     """The topics asked for (None: all), without those the caller may not receive (RESTRICTED)."""
     asked = {t.strip() for t in request.query.get("topics", "").split(",") if t.strip()}
-    allowed = access.role_permissions(user)
+    allowed = access.reach_permissions(user)
     hidden = {topic for topic, permission in RESTRICTED.items() if permission not in allowed}
     if not hidden:
         return frozenset(asked & TOPICS) if asked else None
@@ -212,7 +212,14 @@ def for_caller(user: dict[str, str], event: Event, data: Any) -> Any:
         from sudoo import projects as model
 
         found = model.get(str(data.get("project") or ""))
-        return data if found is not None and access.sees_branch(user, found, str(data.get("branch") or "")) else None
+        branch = str(data.get("branch") or "")
+        if found is None or not access.sees_branch(user, found, branch):
+            return None
+        if access.allowed(user, "instances.logs", found, branch):
+            return data
+        failure = data.get("failure")  # without the branch's logs: the step and the reason only (projects._shown)
+        hidden = {**failure, "details": [], "repository": None} if isinstance(failure, dict) else failure
+        return {**data, "messages": [], "job": None, "failure": hidden}
     if topic == "metrics" and isinstance(data, dict):
         return {**data, "instances": access.visible_map(user, data.get("instances") or {})}
     if topic == "project" and isinstance(data, dict) and not data.get("deleted"):

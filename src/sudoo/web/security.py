@@ -497,7 +497,7 @@ def refuse_unless(permission: str, what: str, instance: str | None = None) -> No
     name = instance or _instance_in_path()
     if name is not None:
         found = access.instance_refusal(g.user, permission, name)
-    elif permission not in access.role_permissions(g.user):
+    elif permission not in access.reach_permissions(g.user):  # each project's role is checked again by the endpoint
         found = (403, "")
     else:
         found = None
@@ -505,7 +505,7 @@ def refuse_unless(permission: str, what: str, instance: str | None = None) -> No
         return
     status, message = found
     audit.record(g.user["name"], client_ip(), f"refused: {what}", instance=name, ok=False)
-    if permission not in access.role_permissions(g.user):
+    if (not message or message.startswith("Your role cannot")) and permission not in access.reach_permissions(g.user):
         needed = roles.PERMISSIONS[permission].lower()
         abort(403, f"Your role cannot do this ({needed}). {settings.contact_sentence()}")
     abort(status, message)

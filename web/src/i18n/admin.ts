@@ -52,6 +52,7 @@ const en = {
       maintainer: "Creates instances and runs every action on them except deleting.",
       developer: "Gets new code, restarts and starts instances, adds submodules.",
       viewer: "Sees instances, their activity and logs.",
+      member: "No rights by itself: each project's role, from its Access tab, a team or GitHub, decides.",
     } as Record<string, string>,
   },
   invite: {
@@ -261,6 +262,7 @@ const ar: typeof en = {
       maintainer: "ينشئ البيئات وينفّذ كل الإجراءات عليها عدا الحذف.",
       developer: "يجلب الشيفرة الجديدة، ويعيد تشغيل البيئات ويشغّلها، ويضيف الوحدات الفرعية.",
       viewer: "يرى البيئات ونشاطها وسجلاتها.",
+      member: "لا صلاحيات له بذاته: يقرّرها دوره في كل مشروع، من تبويب الوصول أو فريق أو GitHub.",
     },
   },
   invite: {

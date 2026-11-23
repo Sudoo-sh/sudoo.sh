@@ -298,7 +298,8 @@ def create(*, repository: str, odoo_version: str, edition: str, origin: str, use
             "options": {},
             "branches": {},
             "seen": None,
-            "access": {"mode": "panel_roles"},
+            # project roles (projects/project_roles.py), or the earlier model when PROJECT_ACCESS_MODEL says so
+            "access": {"mode": "panel_roles", "model": settings.project_access_model},
         }
         storage().put(COLLECTION, project["id"], project)
         return project

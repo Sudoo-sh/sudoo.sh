@@ -148,8 +148,12 @@ def _series_of(names: list[str]) -> set[str]:
 def odoo_item(project: Mapping[str, Any], branch: str, production: str | None,
               result: Mapping[str, Any] | None) -> dict[str, Any]:  # fmt: skip
     members = projects.by_branch(project["id"]).get(branch, [])
-    mine = _series_of(members) or {backups.series(str(project.get("odoo_version") or "")) or ""}
-    target = _series_of([production]) if production else {backups.series(str(project.get("odoo_version"))) or ""}
+    mine = _series_of(members) or {backups.series(projects.branch_version(project, branch)) or ""}
+    if production:
+        target = _series_of([production])
+    else:  # no production instance: the version of the production branch, when the project has one
+        found = [b for b in projects.production_branches(project) if b != branch]
+        target = {backups.series(projects.branch_version(project, found[0] if found else "")) or ""}
     data = {"branch_series": sorted(mine), "production_series": sorted(target)}
     if mine != target:
         return _item("odoo", BLOCKED, f"{branch} runs Odoo {', '.join(sorted(mine))}, production Odoo "

@@ -4,11 +4,12 @@
 import { Plus, RotateCcw, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { api, errorText } from "@/api/client";
-import { keys, useCall } from "@/api/queries";
+import { keys, useCall, useInstance, usePlan, useVersions } from "@/api/queries";
 import type { Instance, Job, ProjectBranch, ProjectDetail, ProjectMeta, Stage } from "@/api/types";
 import { PromotionChecklist, promotionKey, usePromotionCheck } from "@/components/PromotionChecklist";
 import { STAGE_LABEL } from "@/components/StageTag";
 import { Button, Callout, Field, Switch } from "@/components/app/basics";
+import { SelectBox } from "@/components/app/select";
 import { Input } from "@/components/ui/input";
 import { Modal, useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
@@ -16,6 +17,7 @@ import common from "@/i18n/common";
 import words from "@/i18n/projects";
 import promotionWords from "@/i18n/promotion";
 import { ago } from "@/lib/format";
+import { odooSeries } from "@/lib/naming";
 
 export function BranchCommit({ branch }: { branch: ProjectBranch }) {
   const t = useT(words).page;
@@ -97,19 +99,37 @@ export function CreateDialog({ project, branch, production, onClose, onJob }: { 
   const [demo, setDemo] = useState(project.options.development_demo_data);
   const [modules, setModules] = useState(true);
   const [name, setName] = useState("");
-  const edition = project.odoo.edition === "enterprise" ? "Enterprise" : "Community";
-  const blocked = branch.stage === "staging" && !production;
+  // the name field shows the name the server would give (GET /instance-plan) until someone types in it
+  const [nameEdited, setNameEdited] = useState(false);
+  const { data: plan } = usePlan(project.repository.url, branch.name, "");
+  // the branch's own Odoo version, else the project's; another one chosen here becomes the branch's
+  const recorded = branch.odoo_version ?? project.odoo.version;
+  const [version, setVersion] = useState(recorded);
+  const { data: versions } = useVersions();
+  const offered = (versions ?? []).map((v) => v.version);
+  const choices = offered.includes(recorded) ? offered : [recorded, ...offered];
+  const enterprise = project.odoo.edition === "enterprise";
+  const edition = enterprise ? "Enterprise" : "Community";
+  // the branch as the project reads it now: an instance made meanwhile (for a new branch, by someone else) stops this one
+  const started = project.branches_list.find((b) => b.name === branch.name)?.instances ?? branch.instances;
+  const blocked = (branch.stage === "staging" && !production) || started.length > 0;
+  // staging copies production's data, only into the same Odoo series: in another one it starts empty
+  const { data: productionInstance } = useInstance(production ?? "", branch.stage === "staging" && !!production);
+  const productionVersion = productionInstance?.odoo.version;
+  const otherSeries = branch.stage === "staging" && !!productionVersion && odooSeries(productionVersion) !== odooSeries(version);
   const create = useCall(
     () =>
       api.post<Job>(`/projects/${project.id}/branches/${branch.name}/instances`, {
-        ...(name.trim() ? { name: name.trim() } : {}),
+        ...(nameEdited && name.trim() ? { name: name.trim() } : {}),
+        // sent when changed, and for a staging instance that starts empty (another series than production's)
+        ...(version !== recorded || otherSeries ? { odoo_version: version } : {}),
         ...(branch.stage === "development" ? { demo } : {}),
         install_modules: modules,
       }),
     [keys.project(project.id), keys.instances],
   );
   return (
-    <Modal title={d.title(branch.name)} description={d.text(STAGE_LABEL[branch.stage], project.odoo.version, edition)} onClose={onClose}
+    <Modal title={d.title(branch.name)} description={d.text(STAGE_LABEL[branch.stage], version, edition)} onClose={onClose}
       footer={<><Button onClick={onClose}>{c.cancel}</Button>
         <Button variant="primary" icon={<Plus />} loading={create.isPending} disabled={blocked}
           onClick={() => create.mutate(undefined, {
@@ -117,11 +137,22 @@ export function CreateDialog({ project, branch, production, onClose, onJob }: { 
             onError: (e) => toast("error", t.page.notCreated, errorText(e)),
           })}>{d.create}</Button></>}>
       <div className="stack">
+        {started.length > 0 && <Callout tone="warning">{d.started(started[0]!)}</Callout>}
         {branch.stage === "production" && <Callout tone="info">{d.production}</Callout>}
-        {branch.stage === "staging" && (production ? <Callout tone="info">{d.staging(production)}</Callout> : <Callout tone="warning">{d.stagingWithout}</Callout>)}
+        {branch.stage === "staging" && (!production ? <Callout tone="warning">{d.stagingWithout}</Callout>
+          : otherSeries ? <Callout tone="warning">{d.otherSeries(production, productionVersion ?? "", version)}</Callout>
+          : <Callout tone="info">{d.staging(production)}</Callout>)}
         {branch.stage === "development" && <p className="small muted">{d.development}</p>}
+        <Field label={d.version} hint={d.versionHint}>
+          <SelectBox dir="ltr" value={version} onValueChange={setVersion}>
+            {choices.map((v) => (
+              <option key={v} value={v} disabled={enterprise && v !== recorded && versions?.find((o) => o.version === v)?.enterprise === false}>{v}</option>
+            ))}
+          </SelectBox>
+        </Field>
         <Field label={d.name} hint={d.nameHint}>
-          <Input dir="ltr" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
+          <Input dir="ltr" clearable value={nameEdited ? name : (plan?.name ?? "")} maxLength={40}
+            onChange={(e) => { setNameEdited(true); setName(e.target.value); }} />
         </Field>
         {branch.stage === "development" && <Switch checked={demo} onChange={setDemo} label={d.demo} />}
         <Switch checked={modules} onChange={setModules} label={d.modules} />

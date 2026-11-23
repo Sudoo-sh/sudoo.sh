@@ -559,17 +559,7 @@
 .log-placeholder { min-height: 200px; }
 
 // ---------------------------------------------------------------- Connect as and Import database
-// two buttons joined as one: the action, and a narrow menu of related actions (components/ConnectAs.tsx)
-.split-button {
-  display: inline-flex;
-  align-items: stretch;
-  > :first-child, > :first-child > * { border-start-end-radius: 0; border-end-end-radius: 0; }
-  > .menu-anchor > button {
-    border-start-start-radius: 0;
-    border-end-start-radius: 0;
-    border-inline-start: 1px solid color-mix(in srgb, var(--primary-foreground, #fff) 28%, transparent);
-  }
-}
+// (the split button "Open Odoo" is in _look.scss: it reshapes the buttons, whose look is there)
 .connect-find { flex: none; max-width: none; }
 .user-pick {
   display: flex;

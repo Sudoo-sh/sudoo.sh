@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Each branch can have its own Odoo version**, as on Odoo.sh. The **Create instance** dialog of a project's
+  branch has an **Odoo version** list (the versions the panel offers), starting on the branch's own version, else
+  the project's; another choice is kept on the branch, and its later instances (made by hand, for new branches, for
+  pull requests) get it too. A staging branch given a version of another series than production's starts with an
+  empty database, and the dialog warns about it. The branch's **Branch settings** tab shows the Odoo version its
+  instance runs, with a link to the **Upgrade** tab. API: `POST .../branches/<branch>/instances` takes
+  `"odoo_version"`; a project's `branches_list` gives each branch's `odoo_version`.
+- Text fields that suggest a name (an instance's name on **New instance** and in **Create instance**, a new
+  project's name, a submodule's folder) are filled in with the name the server would give, and have a small **x**
+  that clears them.
 - **Why it failed**: a failed job or build shows the step that failed, the reason in plain words and **Error
   details**, only the lines that explain the failure (the Odoo error and the end of its traceback, the git or
   submodule message, the failing tests, the Python package that could not be installed), cleaned of server paths,
@@ -25,6 +35,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Open Odoo** is one joined control everywhere (one outer radius, a thin divider, its menu narrow, also in Arabic):
+  the instance's header, a branch's history and the project's builds. Its menu holds **Connect as…** and, in the
+  history and the builds, **Access details**; the separate **Connect** button is gone. On a phone the instance's
+  header puts its actions on a line of their own, and **Restart** and **Get latest code** move into the **More
+  actions** menu.
+- Opening a menu, a list or a dialog no longer moves the page sideways: the scrollbar's room is kept all the time.
+- A branch without an instance no longer shows its settings (build options, tests, resources), only its latest
+  commit, **Create instance** and its history when it has one; a quiet line says the settings appear once it has an
+  instance.
 - **Jobs' technical logs are server logs**: no user of the panel sees them any more, whatever their role. They go to
   the backend's log (`docker logs sudoo-panel`), each line prefixed with the job id and the instance. Removed:
   `GET /api/v1/jobs/<id>/log`, `?include=log` on `GET /jobs/<id>`, the `job.output` live event, the job logs
@@ -36,6 +55,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   missing image is downloaded as a step of its own ("Downloading Odoo 19.0, first time on this server").
   **Update Odoo and PostgreSQL images** moves an instance to the newest image on the server, downloading only a
   missing one.
+
+### Fixed
+
+- A new branch could get two instances: the one the panel creates for a new branch, and a second one when someone
+  clicked **Create instance** before the page showed the first. Creating an instance of a branch that has one, or
+  while one is being created for it, is now refused (409), under the same lock as the panel's own creation; the
+  branch's page shows the creation as soon as it starts, and the **Create instance** dialog says so if it happens
+  while the dialog is open. `"another": true` creates one more on purpose.
+- A long instance name made from the repository and the branch is shortened at a whole word
+  (`odootec-demos-v19-car-rent`, not `odootec-demos-v19-car-rent-d`); the suggested name in the forms follows it.
 
 ## [3.2.0] - 2026-11-22
 

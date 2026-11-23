@@ -89,7 +89,8 @@ def _github_commit(project: Mapping[str, Any], sha: str) -> dict[str, str] | Non
 
 def listing(project: Mapping[str, Any], refresh: bool = False) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """The project's branches and facts about the listing: ([{"name", "stage", "default", "on_github", "commit",
-    "instances", "auto_created"}], {"default", "error", "read_at"}). Sorted by stage (production first), then name."""
+    "instances", "auto_created", "odoo_version"}], {"default", "error", "read_at"}); "odoo_version" is the branch's own
+    version (null: it follows the project's). Sorted by stage (production first), then name."""
     found, default, error = heads(project, refresh)
     grouped = projects.by_branch(project["id"])
     recorded = project.get("branches") or {}
@@ -114,6 +115,7 @@ def listing(project: Mapping[str, Any], refresh: bool = False) -> tuple[list[dic
                 "commit": commit,
                 "instances": members,
                 "auto_created": recorded.get(name, {}).get("auto_created"),
+                "odoo_version": recorded.get(name, {}).get("odoo_version") or None,
             }
         )
     result.sort(key=lambda b: (-projects.STAGE_RANK[b["stage"]], not b["default"], b["name"].lower()))

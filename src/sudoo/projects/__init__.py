@@ -4,15 +4,17 @@ A project is a document in the storage (collection "projects", key: the project'
 
     id, name            "acme-erp" (letters, digits, hyphens; never changes) and the name people read
     repository          "Owner/Repo" as GitHub spells it (repository_id: the same in lower case, unique)
-    odoo_version, edition   what new instances of its branches get
+    odoo_version, edition   what new instances of its branches get (a branch can choose its own version: below)
     origin              how it came: "linked" (an existing repository), "created" (a new, empty repository made from
                         the panel), "adopted" (made from existing instances when projects arrived, or by creating an
                         instance of a repository that had no project yet)
     created_at, created_by
     options             the project's own choices; a missing (or null) one follows the panel's setting (OPTIONS)
-    branches            {branch: {"stage", "changed_at", "changed_by", "auto_created", "options"}}: the stage of
-                        each branch someone chose (or the panel recorded), which instance the panel created by
-                        itself, and the branch's own build options (projects/build_options.py)
+    branches            {branch: {"stage", "changed_at", "changed_by", "auto_created", "options", "odoo_version"}}:
+                        the stage of each branch someone chose (or the panel recorded), which instance the panel
+                        created by itself, the branch's own build options (projects/build_options.py) and its own
+                        Odoo version (recorded when someone creates its instance with one; missing or null: the
+                        project's), which every new instance of the branch gets (branch_version)
     seen                the branches found on GitHub at the last look (projects/automation.py): a branch missing
                         from it is new, one that disappears was deleted
     access              who may work in it: {"mode": "panel_roles"} today (projects/access.py)
@@ -154,6 +156,12 @@ def branch_stage(project: Mapping[str, Any], branch: str, members: Iterable[str]
     names = list(members) if members is not None else by_branch(project["id"]).get(branch, [])
     found = [stage_of_instance(name) for name in names]
     return max(found, key=STAGE_RANK.__getitem__) if found else stages.DEVELOPMENT
+
+
+def branch_version(project: Mapping[str, Any], branch: str) -> str:
+    """The Odoo version new instances of `branch` get: the branch's own (recorded on it), else the project's."""
+    own = ((project.get("branches") or {}).get(branch) or {}).get("odoo_version")
+    return str(own) if own else str(project.get("odoo_version") or "")
 
 
 def production_branches(project: Mapping[str, Any]) -> list[str]:

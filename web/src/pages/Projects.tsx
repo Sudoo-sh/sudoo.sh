@@ -46,6 +46,7 @@ import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import buildWords from "@/i18n/builds";
 import words from "@/i18n/projects";
+import { repositoryShortName } from "@/lib/naming";
 import { RepositoryPicker } from "./NewInstance";
 
 const STAGES: Stage[] = ["production", "staging", "development"];
@@ -436,6 +437,8 @@ export function NewProjectPage() {
   const [isPrivate, setPrivate] = useState(true);
   const [description, setDescription] = useState("");
   const [name, setName] = useState("");
+  // the project's name shows the repository's own name (what the server calls it when none is given) until typed in
+  const [nameEdited, setNameEdited] = useState(false);
   const [version, setVersion] = useState("");
   const [edition, setEdition] = useState<"community" | "enterprise">("community");
   const owners = useRepositoryOwners(mode === "create" && can("github.manage"));
@@ -449,7 +452,7 @@ export function NewProjectPage() {
         ...(mode === "link"
           ? { repository: repository.trim() }
           : { create: { owner: chosenOwner?.account ?? "", name: repoName.trim(), private: isPrivate, description: description.trim() } }),
-        ...(name.trim() ? { name: name.trim() } : {}),
+        ...(nameEdited && name.trim() ? { name: name.trim() } : {}),
         odoo_version: chosenVersion,
         edition: enterpriseAvailable ? edition : "community",
       }),
@@ -467,6 +470,7 @@ export function NewProjectPage() {
       setChecking(false);
     }
   };
+  const suggestedName = repositoryShortName(mode === "link" ? repository : `${chosenOwner?.account ?? "owner"}/${repoName}`);
   const shownRepo = mode === "link" ? repository.trim().replace(/^https:\/\/github\.com\//, "") : `${chosenOwner?.account ?? "…"}/${repoName.trim() || "…"}`;
   return (
     <Page>
@@ -541,7 +545,8 @@ export function NewProjectPage() {
           <div className="card-head"><Boxes /><h2>{t.steps[1]}</h2></div>
           <div className="card-body form-grid">
             <Field label={t.projectName} hint={t.projectNameHint}>
-              <Input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
+              <Input clearable value={nameEdited ? name : suggestedName} maxLength={60}
+                onChange={(e) => { setNameEdited(true); setName(e.target.value); }} />
             </Field>
             <Field label={t.version}>
               <SelectBox dir="ltr" value={chosenVersion} onValueChange={(value) => setVersion(value)}>

@@ -8,7 +8,8 @@ import { Link } from "react-router";
 import { useBuilds, useInstances } from "@/api/queries";
 import type { Build, Instance, ProjectBranch, ProjectDetail, Stage } from "@/api/types";
 import { RebuildDialog } from "@/components/BranchDialogs";
-import { BuildStatusTag, ConnectButton, liveBuilds } from "@/components/BuildHistory";
+import { BuildStatusTag, liveBuilds } from "@/components/BuildHistory";
+import { ConnectButton } from "@/components/ConnectAs";
 import { JobDrawer } from "@/components/JobDrawer";
 import { branchPath, dotOf, productionOf, useBranchCan } from "@/components/ProjectWorkspace";
 import { STAGE_ICON, STAGE_LABEL } from "@/components/StageTag";
@@ -52,7 +53,7 @@ function BuildTile({ build, live, instance, mayOpen, access, to }: { build: Buil
       )}
       <div className="pb-foot">
         <BuildStatusTag status={build.status} />
-        {live && instance?.url && mayOpen && <ConnectButton url={instance.url} access={access} size="sm" />}
+        {live && instance?.url && mayOpen && <ConnectButton instance={instance} connectAs={!!access} access={access} size="sm" />}
       </div>
     </article>
   );

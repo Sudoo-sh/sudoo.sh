@@ -1,6 +1,6 @@
 // A branch's history, the Odoo.sh way: its builds (one commit an instance was built from), stage changes and
 // restores, newest first and grouped by day; a commit a branch did not build (its Behaviour upon new commits is
-// Do nothing) is a small card of its own, and a build that ran tests says how many passed or which module failed. The live build (an instance's newest successful one) has Connect; a
+// Do nothing) is a small card of its own, and a build that ran tests says how many passed or which module failed. The live build (an instance's newest successful one) has Open Odoo; a
 // failed build says why it failed (the step, the reason, the error details and, for a repository the panel cannot
 // read, the fix), with Odoo's messages to unfold; every entry with a job opens its steps. The live event
 // stream ("build") reads the timeline again whenever an entry is added or changes.
@@ -10,7 +10,6 @@ import {
   ArchiveRestore,
   ArrowUpRight,
   Check,
-  ChevronDown,
   ChevronRight,
   CircleCheck,
   CircleX,
@@ -18,7 +17,6 @@ import {
   Copy,
   FlaskConical,
   History as HistoryIcon,
-  KeyRound,
   LoaderCircle,
   Milestone,
   ScrollText,
@@ -30,7 +28,7 @@ import { branchHistoryQuery } from "@/api/queries";
 import type { Build, BuildStatus, CommitEntry, HistoryEntry, Instance, ProjectBranch, ProjectDetail, RestoreEntry, StageChange } from "@/api/types";
 import { STAGE_LABEL } from "@/components/StageTag";
 import { Button, Empty, Skeleton } from "@/components/app/basics";
-import { Menu, MenuItem } from "@/components/app/overlay";
+import { ConnectButton } from "@/components/ConnectAs";
 import { WhyItFailed } from "@/components/WhyItFailed";
 import { intlTag, useLocale, useT } from "@/i18n";
 import words from "@/i18n/builds";
@@ -87,32 +85,6 @@ export function BuildStatusTag({ status }: { status: BuildStatus }) {
   );
 }
 
-/** Connect: opens the instance; its arrow offers Open and, for those who may see them, the credentials. */
-export function ConnectButton({ url, access, size }: { url: string; access?: string | null; size?: "sm" }) {
-  const c = useT(words).connect;
-  return (
-    <span className="split-button">
-      <Button asChild variant="primary" size={size}>
-        <a href={url} target="_blank" rel="noreferrer">{c.connect}</a>
-      </Button>
-      <Menu trigger={(toggle) => <Button variant="primary" size={size} icon={<ChevronDown />} onClick={toggle} aria-label={c.more} title={c.more} />}>
-        {(close) => (
-          <>
-            <MenuItem asChild>
-              <a href={url} target="_blank" rel="noreferrer" onClick={close}><ArrowUpRight className="flip-rtl" /> {c.open}</a>
-            </MenuItem>
-            {access && (
-              <MenuItem asChild>
-                <Link to={access} viewTransition onClick={close}><KeyRound /> {c.access}</Link>
-              </MenuItem>
-            )}
-          </>
-        )}
-      </Menu>
-    </span>
-  );
-}
-
 /** A commit's short hash: a press copies the whole hash; the arrow beside it opens the commit on GitHub. */
 function Sha({ commit, repository }: { commit: NonNullable<Build["commit"]>; repository: string }) {
   const t = useT(words).history;
@@ -154,6 +126,8 @@ type Context = {
   access: (instance: string) => string | null;
   /** whether the caller may open the instance (a locked branch hides it from those it does not allow) */
   mayOpen: boolean;
+  /** whether the caller may open Odoo as one of its users (Connect as…) */
+  connectAs: boolean;
   onJob: (id: string) => void;
 };
 
@@ -220,7 +194,7 @@ function BuildCard({ build, ctx, branch }: { build: Build; ctx: Context; branch:
         </div>
         <div className="bh-side">
           <BuildStatusTag status={build.status} />
-          {live && instance?.url && ctx.mayOpen && <ConnectButton url={instance.url} access={ctx.access(build.instance)} size="sm" />}
+          {live && instance?.url && ctx.mayOpen && <ConnectButton instance={instance} connectAs={ctx.connectAs} access={ctx.access(build.instance)} size="sm" />}
         </div>
       </div>
       <div className="bh-commit">
@@ -351,6 +325,7 @@ export function BranchHistory({
   instances,
   access,
   mayOpen,
+  connectAs = false,
   onJob,
 }: {
   project: ProjectDetail;
@@ -358,6 +333,7 @@ export function BranchHistory({
   instances: Map<string, Instance>;
   access: (instance: string) => string | null;
   mayOpen: boolean;
+  connectAs?: boolean;
   onJob: (id: string) => void;
 }) {
   const t = useT(words).history;
@@ -382,7 +358,7 @@ export function BranchHistory({
   }, [results.map((r) => r.dataUpdatedAt).join()]);
   const loadingMore = results.some((r) => r.isFetching && !r.data);
   const live = useMemo(() => liveBuilds(entries.filter((e): e is Build => e.type === "build")), [entries]);
-  const ctx: Context = { repository: project.repository.url, live, instances, access, mayOpen, onJob };
+  const ctx: Context = { repository: project.repository.url, live, instances, access, mayOpen, connectAs, onJob };
 
   if (first?.isPending)
     return (

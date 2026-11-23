@@ -569,6 +569,8 @@ export interface ProjectBranch {
   commit: { sha: string; full_sha: string; subject: string; when: string; author: string } | null;
   instances: string[];
   auto_created: string | null;
+  /** the branch's own Odoo version, which its new instances get; null: the project's */
+  odoo_version: string | null;
   lock: BranchLock | null;
   /** seen only by the teams and people its own grants name */
   restricted: boolean;

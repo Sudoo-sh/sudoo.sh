@@ -55,7 +55,7 @@ def copy_problem(production: str | None, version: str, edition: str) -> str | No
     env = store.read_env(production)
     if backups.series(env["ODOO_VERSION"]) != backups.series(version):
         return (
-            f"Production ({production}) runs Odoo {env['ODOO_VERSION']}, this project's new instances Odoo {version}: "
+            f"Production ({production}) runs Odoo {env['ODOO_VERSION']}, the new staging instance Odoo {version}: "
             "a copy can only go into the same Odoo version."
         )
     if env.get("EDITION", "community") != edition:

@@ -4,8 +4,9 @@
 // for "production" to be typed first. Every link is recorded in the audit log.
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, ChevronDown, LogIn, Search, UserRound } from "lucide-react";
+import { ArrowUpRight, ChevronDown, KeyRound, LogIn, Search, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router";
 import { api, errorText } from "@/api/client";
 import { useCall } from "@/api/queries";
 import type { Instance } from "@/api/types";
@@ -29,30 +30,39 @@ interface ConnectLink {
 
 const ASLEEP = ["paused", "switched_off", "stopped"];
 
-/** "Open Odoo" with a menu holding "Connect as…" (the instance's header, as on Odoo.sh); only "Open Odoo" for those
- *  who may not see the instance's credentials (`connectAs` false). */
-export function ConnectButton({ instance, connectAs = true }: { instance: Instance; connectAs?: boolean }) {
+/** The one way to open an instance, everywhere (its header, a branch's history, a project's builds): "Open Odoo",
+ *  joined to a narrow menu with "Connect as…" (`connectAs`: those who may see the instance's credentials) and, where
+ *  a page gives one, a link to the instance's access details (`access`). Only "Open Odoo" when the menu would be
+ *  empty. `size` "sm" in lists. */
+export function ConnectButton({ instance, connectAs = true, access, size }: { instance: Instance; connectAs?: boolean; access?: string | null; size?: "sm" }) {
   const t = useT(toolWords).connect;
   const [open, setOpen] = useState(false);
   if (!instance.url) return null;
   const asleep = ASLEEP.includes(instance.status);
-  if (!connectAs)
-    return (
-      <Button asChild variant="primary"><a href={instance.url} target="_blank" rel="noreferrer">
-        {t.open} <ArrowUpRight className="flip-rtl" />
-      </a></Button>
-    );
+  const main = (
+    <Button asChild variant="primary" size={size}><a href={instance.url} target="_blank" rel="noreferrer">
+      {t.open} <ArrowUpRight className="flip-rtl" />
+    </a></Button>
+  );
+  if (!connectAs && !access) return main;
   return (
     <>
       <span className="split-button">
-        <Button asChild variant="primary"><a href={instance.url} target="_blank" rel="noreferrer">
-          {t.open} <ArrowUpRight className="flip-rtl" />
-        </a></Button>
-        <Menu trigger={(toggle) => <Button variant="primary" icon={<ChevronDown />} onClick={toggle} aria-label={t.connectAs} />}>
+        {main}
+        <Menu trigger={(toggle) => <Button variant="primary" size={size} icon={<ChevronDown />} onClick={toggle} aria-label={t.more} title={t.more} />}>
           {(close) => (
-            <MenuItem disabled={asleep} onSelect={() => { close(); setOpen(true); }}>
-              <LogIn /> {t.connectAs}
-            </MenuItem>
+            <>
+              {connectAs && (
+                <MenuItem disabled={asleep} onSelect={() => { close(); setOpen(true); }}>
+                  <LogIn /> {t.connectAs}
+                </MenuItem>
+              )}
+              {access && (
+                <MenuItem asChild>
+                  <Link to={access} viewTransition onClick={close}><KeyRound /> {t.access}</Link>
+                </MenuItem>
+              )}
+            </>
           )}
         </Menu>
       </span>

@@ -603,7 +603,7 @@ route("GET", "/instance-quota", () => {
   need("instances.view");
   return ok({ instances: instances.size, max_instances: null, own_instances: [...instances.values()].filter((i) => i.created_by === ME).length, max_instances_per_user: null, cooldown_minutes: null, next_creation_at: null });
 });
-route("GET", "/versions", () => ok(["17.0", "18.0", "19.0"].map((version) => ({ version, enterprise: true }))));
+route("GET", "/versions", () => ok(DEMO_VERSIONS.map((version) => ({ version, enterprise: true }))));
 
 route("POST", "/instances", ({ body }) => {
   need("instances.create", "/api/v1/instances");
@@ -2290,18 +2290,28 @@ route("POST", "/projects/:id/branches/:*branch/instances", ({ params, body }) =>
   needInProject(project, "instances.create", branch);
   if (!branchList(project).some((b) => b.name === branch && b.on_github !== false)) throw new Problem(404, `${project.repository} has no branch ${branch} on GitHub.`);
   const stage = stageOf(project, branch);
+  const members = membersOf(project.id).filter((i) => i.git.branch === branch);
+  if (members.length && body.another !== true) throw new Problem(409, `${branch} has an instance already (${members[0]!.name}). Open it, or send "another": true to create one more.`);
+  const chosen = typeof body.odoo_version === "string" ? body.odoo_version : "";
+  if (chosen && !DEMO_VERSIONS.includes(chosen)) throw new Problem(400, "Choose an Odoo version from the list.");
+  const version = chosen || project.versions?.[branch] || project.version;
   let fromProduction: Instance | null = null;
   if (stage === "staging") {
-    need("instances.restore");
-    fromProduction = productionInstance(project);
-    if (!fromProduction) throw new Problem(409, "This project has no production instance to copy. Create the instance of its production branch first (or give a branch the production stage), or make this branch a development branch.");
+    const production = productionInstance(project);
+    // a branch's own version of another series than production's: the staging instance starts empty
+    const ownVersion = Boolean(chosen || project.versions?.[branch]);
+    if (!(ownVersion && production && production.odoo.version !== version)) {
+      need("instances.restore");
+      fromProduction = production;
+      if (!fromProduction) throw new Problem(409, "This project has no production instance to copy. Create the instance of its production branch first (or give a branch the production stage), or make this branch a development branch.");
+    }
   }
   const lifetime = stage === "production" ? 0 : stage === "staging" ? Number(projectResource(project).options.staging_lifetime_days) : Number(projectResource(project).options.development_lifetime_days);
-  return createInstance(
+  const created = createInstance(
     {
       repo: `https://github.com/${project.repository}`,
       branch,
-      version: project.version,
+      version,
       edition: project.edition,
       stage,
       name: body.name,
@@ -2311,6 +2321,13 @@ route("POST", "/projects/:id/branches/:*branch/instances", ({ params, body }) =>
     },
     { project: project.id, fromProduction },
   );
+  if (chosen) {
+    const versions = { ...project.versions };
+    if (chosen === project.version) delete versions[branch];
+    else versions[branch] = chosen;
+    project.versions = versions;
+  }
+  return created;
 });
 
 route("POST", "/projects/:id/branches/:*branch/rebuild", ({ params, body }) => {

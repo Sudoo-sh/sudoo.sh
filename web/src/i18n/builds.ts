@@ -46,12 +46,6 @@ const en = {
     manual: "Get latest code",
     rebuild: "Rebuilt from production",
   },
-  connect: {
-    connect: "Connect",
-    more: "More ways to connect",
-    open: "Open",
-    access: "Credentials",
-  },
   builds: {
     tab: "Builds",
     filter: "Filter branches",
@@ -111,12 +105,6 @@ const ar: typeof en = {
     push: "دفع",
     manual: "جلب أحدث شيفرة",
     rebuild: "أُعيد بناؤه من الإنتاج",
-  },
-  connect: {
-    connect: "اتصال",
-    more: "طرق أخرى للاتصال",
-    open: "فتح",
-    access: "بيانات الدخول",
   },
   builds: {
     tab: "الأبنية",

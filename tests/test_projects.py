@@ -22,7 +22,7 @@ from sudoo.config import Settings, live, settings
 from sudoo.core import jobs
 from sudoo.core.jobs import Job, JobError
 from sudoo.core.state import STATE
-from sudoo.instances import backups, monitor, operations, store
+from sudoo.instances import backups, monitor, naming, operations, store
 from sudoo.limits import quotas
 from sudoo.projects import access, adopt, automation, branches, staging
 from sudoo.repos import github
@@ -331,7 +331,10 @@ def test_create_instances_for_branches(admin: Client, developer: Client, started
     # a production branch: no lifetime, no pause, no demo data
     projects.change(pid, lambda p: {**p, "branches": {**p["branches"], "main": {"stage": "production"}}})
     live.change({"max_production_instances": 0, "project_production_branches": 0})
-    client.post(f"/api/v1/projects/{pid}/branches/main/instances", json={}, headers=headers)
+    # main has its instance (erp-main): one more only when asked for
+    refused = client.post(f"/api/v1/projects/{pid}/branches/main/instances", json={}, headers=headers)
+    assert refused.status_code == 409 and "erp-main" in refused.get_json()["detail"]
+    client.post(f"/api/v1/projects/{pid}/branches/main/instances", json={"another": True}, headers=headers)
     plan = _plan(started)
     assert plan["stage"] == "production" and plan["delete_after_days"] == 0 and plan["auto_pause"] is False
 
@@ -340,6 +343,103 @@ def test_create_instances_for_branches(admin: Client, developer: Client, started
         dev_client.post(f"/api/v1/projects/{pid}/branches/feature/instances", json={}, headers=dev_headers).status_code
         == 403
     )
+
+
+def test_a_branch_has_its_own_odoo_version() -> None:
+    project = projects.create(
+        repository="Acme/ERP", odoo_version="18.0", edition="community", origin="linked", user="t"
+    )
+    assert projects.branch_version(project, "feature") == "18.0"  # no record: the project's
+    projects.record_branch(project["id"], "feature", stage="development", odoo_version=None)
+    assert projects.branch_version(projects.get(project["id"]) or {}, "feature") == "18.0"
+    projects.record_branch(project["id"], "feature", odoo_version="19.0")
+    found = projects.get(project["id"]) or {}
+    assert projects.branch_version(found, "feature") == "19.0" and projects.branch_version(found, "main") == "18.0"
+    assert found["branches"]["feature"]["stage"] == "development"  # the other facts stay
+
+
+def test_creating_an_instance_records_the_chosen_odoo_version(admin: Client, started: list[Any]) -> None:
+    client, headers = admin
+    pid = projects.create(repository="Acme/ERP", odoo_version="18.0", edition="community", origin="linked", user="t")[
+        "id"
+    ]
+    HEADS["https://github.com/Acme/ERP"] = {"main": "a" * 40, "feature": "b" * 40, "qa": "c" * 40}
+    url = f"/api/v1/projects/{pid}/branches/feature/instances"
+
+    refused = client.post(url, json={"odoo_version": "12.0"}, headers=headers)
+    assert refused.status_code == 400 and started == []
+    assert "odoo_version" not in ((projects.get(pid) or {}).get("branches") or {}).get("feature", {})
+
+    answer = client.post(url, json={"odoo_version": "19.0"}, headers=headers)
+    assert answer.status_code == 202, answer.get_json()
+    assert _plan(started)["version"] == "19.0"
+    assert (projects.get(pid) or {})["branches"]["feature"]["odoo_version"] == "19.0"
+    listed = client.get(f"/api/v1/projects/{pid}", headers=headers).get_json()["data"]["branches_list"]
+    assert {b["name"]: b["odoo_version"] for b in listed} == {"main": None, "feature": "19.0", "qa": None}
+    # left out: the branch's own version
+    assert client.post(url, json={}, headers=headers).status_code == 202
+    assert _plan(started)["version"] == "19.0"
+    # the project's version again: the branch follows the project from now on
+    assert client.post(url, json={"odoo_version": "18.0"}, headers=headers).status_code == 202
+    assert _plan(started)["version"] == "18.0"
+    assert projects.branch_version(projects.get(pid) or {}, "feature") == "18.0"
+    assert not (projects.get(pid) or {})["branches"]["feature"].get("odoo_version")
+
+    # staging copies production's data, only into the same Odoo series: in another one it starts empty
+    _instance("erp-main", "production", "Acme/ERP", "main", PROJECT=pid)
+    projects.record_branch(pid, "main", stage="production")
+    projects.record_branch(pid, "qa", stage="staging")
+    staged = f"/api/v1/projects/{pid}/branches/qa/instances"
+    assert client.post(staged, json={"odoo_version": "18.0"}, headers=headers).status_code == 202
+    assert _plan(started)["from_production"] == "erp-main"
+    answer = client.post(staged, json={"odoo_version": "19.0"}, headers=headers)
+    assert answer.status_code == 202, answer.get_json()
+    plan = _plan(started)
+    assert plan["from_production"] is None and plan["version"] == "19.0" and plan["stage"] == "staging"
+    assert (projects.get(pid) or {})["branches"]["qa"]["odoo_version"] == "19.0"
+    # the project's own version differing from production's is still refused (nothing was chosen for the branch)
+    projects.change(pid, lambda p: {**p, "odoo_version": "20.0"})
+    projects.record_branch(pid, "release", stage="staging")
+    HEADS["https://github.com/Acme/ERP"]["release"] = "d" * 40
+    branches.forget(pid)
+    refused = client.post(f"/api/v1/projects/{pid}/branches/release/instances", json={}, headers=headers)
+    assert refused.status_code == 409 and "same Odoo version" in refused.get_json()["detail"]
+
+
+def test_a_branch_being_created_gets_no_second_instance(
+    admin: Client, started: list[Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A new branch's instance created by the panel (automation.branch_created) while someone clicks Create instance on
+    the same branch: the click is refused, under the same locks."""
+    client, headers = admin
+    pid = _linked(["main"])
+    HEADS["https://github.com/Acme/ERP"] = {"main": "a" * 40, "v19_car_rent_demo": "b" * 40}
+    made = automation.branch_created("acme/erp", "v19_car_rent_demo")
+    assert made is not None and _plan(started)["branch"] == "v19_car_rent_demo"
+    # the creation job is queued or running (the recorded jobs never run): the branch knows its instance
+    job = Job(made, "Create instance", "create", "system")
+    job.details.update({"project": pid, "branch": "v19_car_rent_demo"})
+    monkeypatch.setattr(jobs, "being_created", lambda: [made])
+    monkeypatch.setattr(jobs, "creating", lambda name: job if name == made else None)
+    url = f"/api/v1/projects/{pid}/branches/v19_car_rent_demo/instances"
+    refused = client.post(url, json={}, headers=headers)
+    assert refused.status_code == 409 and "already being created" in refused.get_json()["detail"]
+    assert len(started) == 1
+    # asked for on purpose: a second instance of the branch
+    assert client.post(url, json={"another": True}, headers=headers).status_code == 202
+    _plan(started)
+
+
+def test_long_instance_names_end_on_a_whole_word() -> None:
+    assert naming.shorten("odootec-demos-v19-car-rent-demo") == "odootec-demos-v19-car-rent"
+    assert naming.shorten("acme-erp-main") == "acme-erp-main"
+    assert naming.shorten("odootec-demos-v19-car-rent-d") == "odootec-demos-v19-car-rent-d"  # fits: unchanged
+    assert naming.shorten("a" * 40) == "a" * 28  # no word to keep whole: cut where the limit falls
+    assert naming.shorten("abcdefghijklmnopqrstuvwxyz-0123456789") == "abcdefghijklmnopqrstuvwxyz"
+    assert naming.shorten("odootec-demos-v19-car-rent-demo", 26) == "odootec-demos-v19-car-rent"
+    name, database = naming.plan_name("https://github.com/OdooTec/odootec-demos", "v19_car_rent_demo", "")
+    assert name == "odootec-demos-v19-car-rent" and database == "odootec_demos_v19_car_rent"
+    assert len(name) <= naming.NAME_MAX
 
 
 def test_creating_an_instance_of_a_repository_puts_it_in_its_project(admin: Client, started: list[Any]) -> None:
@@ -693,6 +793,15 @@ def test_a_new_branch_gets_a_development_instance(webhook: Any, started: list[An
     # switched off for the project
     projects.change(pid, lambda p: {**p, "options": {"auto_development": False}})
     assert automation.branch_created("acme/erp", "feature-c") is None and len(started) == 1
+
+
+def test_a_new_branch_gets_the_branchs_own_odoo_version(started: list[Any]) -> None:
+    pid = _linked(["main"])
+    assert automation.branch_created("acme/erp", "feature-a") is not None
+    assert _plan(started)["version"] == "18.0"  # the project's
+    projects.record_branch(pid, "feature-b", odoo_version="19.0")  # chosen before the branch reached the panel
+    assert automation.branch_created("acme/erp", "feature-b") is not None
+    assert _plan(started)["version"] == "19.0"
 
 
 def test_the_first_look_creates_nothing(started: list[Any]) -> None:

@@ -55,6 +55,7 @@ const en = {
   units: EN_UNITS,
   common: {
     cancel: "Cancel",
+    clear: "Clear",
     save: "Save",
     saved: "Saved",
     saveChanges: "Save changes",
@@ -196,6 +197,7 @@ const ar: Common = {
   units: AR_UNITS,
   common: {
     cancel: "إلغاء",
+    clear: "مسح",
     save: "حفظ",
     saved: "حُفظ",
     saveChanges: "احفظ التغييرات",

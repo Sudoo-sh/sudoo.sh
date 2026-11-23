@@ -1,8 +1,8 @@
 // The terminal of the web shell: xterm.js (MIT), loaded only when a shell or a recording is opened (a chunk of its
 // own, about 90 KB compressed), from the panel itself (no CDN).
 //
-// Colours and font come from the design tokens (--shell-*, --mono in styles/_tokens.scss) and follow the theme as
-// it changes. The page's Content-Security-Policy allows no inline styles, and xterm.js writes a few <style> elements
+// Colours and font come from the design tokens (--shell-*, --mono in styles/_tokens.scss): a dark terminal in both
+// themes, with a plum cursor and selection. The page's Content-Security-Policy allows no inline styles, and xterm.js writes a few <style> elements
 // (its sizes and colours); the browser ignores them, so their text is copied into constructed stylesheets
 // (document.adoptedStyleSheets), which the policy allows, and kept in step with them.
 
@@ -82,6 +82,8 @@ export function openTerminal(host: HTMLElement, { readOnly = false }: { readOnly
     allowProposedApi: false,
     theme: theme(),
     macOptionIsMeta: true,
+    // box and block characters (the welcome's banner, tables) drawn by xterm.js itself, whole whatever the font
+    customGlyphs: true,
     rightClickSelectsWord: true,
   });
   const fitter = new FitAddon();

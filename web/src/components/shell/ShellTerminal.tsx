@@ -5,13 +5,15 @@
 // Also the player of a recording (ShellPlayer), for super admins.
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ClipboardPaste, Copy, Download, Eraser, Maximize2, Minimize2, Play, RotateCw, ShieldAlert, X } from "lucide-react";
+import { Check, ClipboardPaste, Copy, Download, Eraser, Maximize2, Minimize2, Play, RotateCw, ShieldAlert, Wrench, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, errorText } from "@/api/client";
-import type { ShellRecording, ShellSession, ShellTarget, ShellTicket } from "@/api/types";
+import type { ShellRecording, ShellSession, ShellTarget, ShellTicket, Stage } from "@/api/types";
 import { Button, Callout, Skeleton, Tag } from "@/components/app/basics";
 import { Modal, useToast } from "@/components/app/overlay";
+import { STAGE_ICON } from "@/components/StageTag";
 import { useT } from "@/i18n";
+import common from "@/i18n/common";
 import words from "@/i18n/shell";
 import { dateTime } from "@/lib/format";
 import type { ShellScreen } from "./xterm";
@@ -23,6 +25,7 @@ interface Ready {
   container_user: string;
   root: boolean;
   production: boolean;
+  stage: Stage;
   recorded: boolean;
 }
 type Phase = { kind: "connecting" } | { kind: "open"; ready: Ready } | { kind: "closed"; reason: string; detail?: string };
@@ -56,8 +59,25 @@ function useFullScreen(frame: React.RefObject<HTMLDivElement | null>) {
   return [full, toggle] as const;
 }
 
-export function ShellTerminal({ instance, target, asRoot, confirmed, onReconnect, onClose }: {
+/** The instance's stage in the shell's bar, in the stage's colour (the same as the prompt's in the terminal:
+ *  production red, staging amber, development green), so production is plain before anything is read. */
+function ShellStagePill({ stage }: { stage: Stage }) {
+  const label = useT(common).stages[stage]?.label ?? stage;
+  const Icon = STAGE_ICON[stage] ?? Wrench;
+  return (
+    <span className="shell-stage" data-stage={stage}>
+      <Icon strokeWidth={1.75} aria-hidden="true" />
+      {label}
+    </span>
+  );
+}
+
+export function ShellTerminal({ instance, stage, showUser, target, asRoot, confirmed, onReconnect, onClose }: {
   instance: string;
+  /** the instance's stage, shown before the shell is open (the shell then says it again) */
+  stage: Stage;
+  /** whether the bar's tooltip names the container's user (for those who supervise shells) */
+  showUser: boolean;
   target: ShellTarget;
   asRoot: boolean;
   /** the person confirmed opening it in production, this time */
@@ -191,14 +211,16 @@ export function ShellTerminal({ instance, target, asRoot, confirmed, onReconnect
         <span className="shell-state">
           <span className="dot" aria-hidden="true" />
           {ready ? (
-            <span className="truncate">{t.connectedTo(<b key="i" className="mono">{ready.instance}</b>, <b key="u" className="mono">{ready.container_user}</b>)}</span>
+            <span className="truncate" title={showUser ? t.runsAs(ready.container_user) : undefined}>
+              {t.connectedTo(<b key="i" className="mono">{ready.instance}</b>)}
+            </span>
           ) : closed ? (
             t.closedTitle
           ) : (
             t.connecting
           )}
         </span>
-        {ready?.production && <Tag tone="caution">{t.production}</Tag>}
+        <ShellStagePill stage={ready?.stage ?? stage} />
         {ready?.root && <Tag tone="negative" icon={<ShieldAlert />}>{t.root}</Tag>}
         {ready?.recorded && <span title={t.recordedHint}><Tag tone="accent">{t.recorded}</Tag></span>}
         <span className="spacer" />

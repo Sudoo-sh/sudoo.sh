@@ -735,15 +735,51 @@ shell of Odoo.sh. It is for people who know the command line: what you type runs
 
 1. Choose what to open:
    - **Terminal**: a command line (bash) in the instance's Odoo container, as its own user `odoo`, in the folder of
-     the instance's add-ons (`/mnt/extra-addons`, read-only). `odoo --version`, `ls`, `python3` and the like work.
+     the instance's code (read-only), shown as `~`. `odoo --version`, `ls`, `python3` and the like work, and so do
+     the [useful commands](#the-terminals-welcome-and-useful-commands) below.
    - **odoo shell**: Odoo's Python shell, already connected to the instance's database (`env`, `self`).
    - **psql**: SQL on the instance's database, in its database container. Only super admins and administrators
      see it.
    - **As root** (super admins, only when an administrator switched root shells on): the terminal runs as root
      inside the container. The container keeps its limits: root there is not root on the server.
 2. Click **Open shell**. On a **production** instance, the panel asks you to confirm every time.
-3. The bar above the terminal says **Connected to** *instance* **as** *user*. **Recorded** means that what you type
-   and see is recorded and super admins can play it back (by default: production instances and root shells).
+3. The bar above the terminal says **Connected to** *instance*, with the instance's stage in its colour:
+   **production in red**, **staging in amber**, **development in green**. **Recorded** means that what you type and
+   see is recorded and super admins can play it back (by default: production instances and root shells).
+
+#### The Terminal's welcome and useful commands
+
+When the **Terminal** opens, it greets you before the prompt:
+
+- the Sudoo.sh banner (left out when the terminal is narrower than it, about 52 columns);
+- which instance you are in and its stage ("You are connected to the **staging** instance **shop-staging**"), with
+  its Odoo version and edition, project and branch;
+- on **production**: "This is production: changes affect live users."; on staging and development: e-mail sent
+  from the instance goes to the mail catcher;
+- the **useful commands** that work in this terminal (`sudoo-help` shows them again):
+
+| Command | What it does |
+| :--- | :--- |
+| `odoo-shell` | Odoo's Python shell on the instance's database, with its configuration. |
+| `odoo-update <modules>` | Updates the modules (commas or spaces between them) on the instance's database, then stops. |
+| `odoo-install <modules>` | Installs the modules, then stops. |
+| `psql` | SQL on the instance's database, already signed in. |
+| `cd` | Back to the code (`~`) from anywhere. |
+| `sudoo-help` | Shows the list again. |
+
+`odoo-update` and `odoo-install` run a second Odoo next to the one serving visitors, without a web server or
+scheduled actions, and say whether it went well; the running Odoo picks the change up. On a production instance they
+first ask you to type the instance's name. In a root terminal the Odoo commands are not offered (root cannot read the
+instance's configuration there): open the Terminal as `odoo` for them. Logs, restarts and caught e-mail stay in the
+panel's own tabs.
+
+The prompt is `<instance> [<stage>/<version>]:<folder>$`, in bold and in the stage's colour, for example
+`shop-prod [production/18.0]:~/sale_custom$`. The instance's code is `~`; the container's own name, the server's
+paths, addresses and ports are never shown, and `hostname` answers with the instance's name.
+
+Your own `~/.bashrc` in the container (if you keep one in Odoo's data folder) is read first, then the panel's welcome
+and prompt, so your aliases and history keep working. Set `NO_COLOR=1` (in that `~/.bashrc`) for a terminal without
+colours. Nothing in the welcome reaches the network: it shows at once.
 
 Using it:
 

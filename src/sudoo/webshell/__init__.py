@@ -4,6 +4,7 @@
     tickets.py      one-time tickets: the authenticated POST that opens the way for one WebSocket
     sessions.py     open shells, their limits, and the bridge between the WebSocket and the process
     docker_exec.py  the process itself, through the Docker Engine API (asyncio), and ending it
+    welcome.py      the Terminal's welcome, useful commands and stage-coloured prompt (welcome.bash, given to bash)
     recordings.py   encrypted recordings of what was shown and typed, and the list of past shells
 
 The HTTP side is web/v1/shell.py (tickets, open and past shells, recordings); the WebSocket is web/v1/shell_socket.py,

@@ -23,7 +23,8 @@ function offset(at: number, timeZone: string): number {
       .formatToParts(new Date(at))
       .map((p) => [p.type, p.value]),
   );
-  return Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second) - at;
+  const n = (key: string) => Number(parts[key] ?? 0);
+  return Date.UTC(n("year"), n("month") - 1, n("day"), n("hour"), n("minute"), n("second")) - at;
 }
 
 /** An ISO time with the zone's offset, as the panel sends it. */
@@ -39,13 +40,13 @@ function iso(at: number | null | undefined): string | null {
 
 /** The first HH:MM in the zone, on one of `days`, between `after` and `until`. */
 function nextAt(clock: string, after: number, until: number, days?: string[]): number | null {
-  const [h, m] = clock.split(":").map(Number);
+  const [h = 0, m = 0] = clock.split(":").map(Number);
   for (let i = 0; i < 400; i++) {
     const day = new Date(after + i * DAY + offset(after, zone()));
     const wall = Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), h, m);
     const at = wall - offset(wall, zone());
     if (at > until) return null;
-    if (at >= after && (!days || days.includes(DAYS[new Date(wall).getUTCDay()]))) return at;
+    if (at >= after && (!days || days.includes(DAYS[new Date(wall).getUTCDay()] ?? ""))) return at;
   }
   return null;
 }
@@ -61,7 +62,7 @@ function refresh(item: MaintenanceItem): MaintenanceItem {
   const choosable = item.status === "proposed" || item.status === "scheduled";
   const [lo, hi] = bounds(item);
   const night = String(setting("maintenance_tonight_time") ?? "02:00");
-  const window = String(setting("maintenance_default_window") ?? "01:00-05:00").split("-")[0];
+  const window = String(setting("maintenance_default_window") ?? "01:00-05:00").split("-")[0] ?? "01:00";
   const days = String(setting("maintenance_default_days") ?? DAYS.join(",")).split(",");
   const starts: Record<MaintenancePreset, number | null> = {
     tonight: nextAt(night, lo, hi),
@@ -82,7 +83,7 @@ function refresh(item: MaintenanceItem): MaintenanceItem {
 }
 
 function meta(client: boolean): MaintenanceMeta {
-  const [start, end] = String(setting("maintenance_default_window") ?? "01:00-05:00").split("-");
+  const [start = "01:00", end = "05:00"] = String(setting("maintenance_default_window") ?? "01:00-05:00").split("-");
   const length = (((+end.slice(0, 2) * 60 + +end.slice(3)) - (+start.slice(0, 2) * 60 + +start.slice(3)) + 1440) % 1440) || 1440;
   return {
     timezone: zone(),

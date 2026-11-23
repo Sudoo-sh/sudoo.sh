@@ -68,8 +68,8 @@ export function MaintenanceBanner({ client = false, to = "/maintenance" }: { cli
   const now = useNow();
   const { data } = useMaintenance(client);
   const open = (data?.items ?? []).filter((item) => OPEN.has(item.status));
-  if (!data || !open.length) return null;
   const item = open.find((i) => i.status === "running") ?? open[0];
+  if (!data || !item) return null;
   const what = item.title[locale];
   const text =
     item.status === "running"

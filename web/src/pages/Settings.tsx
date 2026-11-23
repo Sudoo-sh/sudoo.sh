@@ -25,7 +25,7 @@ import words from "@/i18n/settings";
 /** `test`: the group has a "Send a test alert" button, by e-mail or to that webhook. */
 type GroupId = Exclude<keyof (typeof words)["en"]["groups"], never>;
 type Group = { id: GroupId | `webhook${1 | 2 | 3}`; keys: string[]; test?: "email" | 1 | 2 | 3 };
-type TabId = "plan" | "support" | "clients" | "general" | "instances" | "resources" | "odoo" | "backups" | "security" | "domains" | "email" | "servers" | "alerts" | "github" | "marketplace" | "advanced" | "about";
+type TabId = "plan" | "support" | "clients" | "maintenance" | "general" | "instances" | "resources" | "odoo" | "backups" | "security" | "domains" | "email" | "servers" | "alerts" | "github" | "marketplace" | "advanced" | "about";
 
 const webhookGroup = (n: 1 | 2 | 3): Group => ({
   id: `webhook${n}`,

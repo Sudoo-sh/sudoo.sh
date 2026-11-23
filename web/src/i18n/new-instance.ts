@@ -4,7 +4,7 @@ import { ltr } from "./plural.ts";
 
 const en = {
   title: "New instance",
-  text: "Pick a branch, or plain Odoo. Sudoo.sh downloads the code, starts Odoo with its own database, installs your modules and gives it a link.",
+  text: "Pick a branch, or plain Odoo, and the Odoo apps to install. Sudoo.sh downloads the code, starts Odoo with its own database, installs your modules and gives it a link.",
   limitReached: "An instance limit is reached. Delete an instance first.",
   cooldown: (minutes: string, when: string) => `One instance per ${minutes} minutes: you can create the next one ${when}.`,
   code: "Code",
@@ -72,7 +72,7 @@ const en = {
 
 const ar: typeof en = {
   title: "بيئة جديدة",
-  text: "اختر فرعًا، أو Odoo مجرّدًا. ينزّل Sudoo.sh الشيفرة، ويشغّل Odoo بقاعدة بيانات خاصة به، ويثبّت وحداتك، ويمنحه رابطًا.",
+  text: "اختر فرعًا، أو Odoo مجرّدًا، وتطبيقات Odoo المطلوب تثبيتها. ينزّل Sudoo.sh الشيفرة، ويشغّل Odoo بقاعدة بيانات خاصة به، ويثبّت وحداتك، ويمنحه رابطًا.",
   limitReached: "بلغت البيئات حدّها الأقصى. احذف بيئة أولًا.",
   cooldown: (minutes, when) => `بيئة واحدة كل ${minutes} دقيقة: يمكنك إنشاء التالية ${when}.`,
   code: "الشيفرة",

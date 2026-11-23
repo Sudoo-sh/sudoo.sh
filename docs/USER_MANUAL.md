@@ -248,7 +248,7 @@ The menu (**…**) next to the branch's name has its actions:
 
 | Action | What it does | Who |
 | :--- | :--- | :--- |
-| **Create instance** | A new instance of the branch, in the branch's stage, with the branch's Odoo version and the project's edition. **Odoo version** starts on the branch's own version, else the project's; choose another and the branch keeps it, so its later instances (made by hand, for new commits or for pull requests) get it too. **Name** is filled in with the name the panel would give (repository and branch); type another, or clear it with the **x**. Development: a fresh database, with Odoo's demo data unless you switch it off. Staging: a neutralised copy of the project's production instance (below); when you choose an Odoo version of another series than production's, production's data cannot go into it, a warning says so and the staging instance starts with an empty database. Production: a fresh database without demo data. | instances.create (staging also instances.restore) |
+| **Create instance** | A new instance of the branch, in the branch's stage, with the branch's Odoo version and the project's edition. **Odoo version** starts on the branch's own version, else the project's; choose another and the branch keeps it, so its later instances (made by hand, for new commits or for pull requests) get it too. **Name** is filled in with the name the panel would give (repository and branch); type another, or clear it with the **x**. Development: a fresh database, with Odoo's demo data unless you switch it off. Staging: a neutralised copy of the project's production instance (below); when you choose an Odoo version of another series than production's, production's data cannot go into it, a warning says so and the staging instance starts with an empty database. Production: a fresh database without demo data. **Install the repository's modules** (on by default) installs what the project's **Modules to install in new instances** says for a development branch (the repository's modules otherwise); **Odoo apps to install** adds Odoo's apps and other modules as on **New instance** ([section 5](#5-creating-an-instance)). | instances.create (staging also instances.restore) |
 | **Logs**, **Backups** | Opens the instance's Odoo log, or its backups (with how many there are). | everyone (Logs: instances.logs) |
 | **Move to** a stage | Changes the branch's stage and moves its instances with it, like dragging it. Making a branch production asks you to confirm what changes: its instances never pause, never expire, are backed up every day and get new code only through a backup and an automatic rollback. A project has one production branch unless the administrator allows more. Leaving production asks for a confirmation too. | maintainers and up |
 | **Rebuild from production** | Staging only: replaces its database and files with a new neutralised copy of production, then takes the branch's latest code. Everything done in staging since its last rebuild is lost. | instances.restore |
@@ -323,8 +323,10 @@ commits through the safe update.
   **New build** (development: a new database built from scratch, the old data is gone; staging: a new copy of
   production) or **Do nothing** (the commit is only listed in the branch's history, as **Commit received**, until
   you click **Get latest code**).
-* **Module installation** for new development databases: **the repository's modules**, **all modules** (every module
-  Odoo has, with the repository's; no tests) or **a list** of module names.
+* **Modules to install in new instances** (development databases): **the repository's modules**, **all modules**
+  (every module Odoo has, with the repository's; no tests) or **a list** of module names. The instances the panel
+  creates by itself (for a new branch, for a pull request's preview) get these modules, and so does an instance you
+  create by hand with **Install the repository's modules** on.
 * **Test suite:** **off**, **the repository's modules** (the tests of its installed modules) or **custom tags**
   (Odoo's `--test-tags`, such as `/sale_custom,-slow`). Tests run before the instance opens; a failed test marks the
   build **failed** ("At least one test failed when loading the modules (module_x)") with the failing lines, and the
@@ -867,24 +869,39 @@ Click **New instance** in the sidebar (roles that may create instances). Under *
 8. **Stage**: **Production**, **Staging** or **Development** (the default). The stage sets the options below to
    its own defaults; see [Stages](#stages-production-staging-and-development). When the server already has as many
    production instances as it allows, a warning says so and **Production** cannot be created.
-9. **Options**:
+9. **Odoo apps to install**: choose which of Odoo's apps the new database gets besides your repository's modules
+   (those follow **Install the repository's modules** under **Options**), all installed in the same run. Type in
+   **Search apps** to narrow the list:
+
+   * **Odoo apps**: the standard apps of the chosen version, such as Sales, Invoicing, CRM, Inventory, Purchase,
+     Manufacturing, Website, eCommerce, Point of Sale, Project, Employees and Discuss. Enterprise apps (Accounting,
+     Helpdesk, Planning, Studio and more) are listed only for an Enterprise instance.
+   * **Other modules**: type any other technical names, separated by commas, and click **Add**: a module of an OCA
+     submodule (`web_responsive`), or a standard module that is not listed (`l10n_fr`).
+
+   The chosen ones are shown above the list; click the **×** on one to remove it, or **No Odoo apps** to clear
+   them. You do not need to pick dependencies: Odoo installs what each module needs by itself. An administrator can
+   change how many may be chosen (**Settings**, **Modules chosen for a new instance, at most**, 200 by default).
+   With no apps chosen and **Install the repository's modules** off, the database has Odoo's base only.
+10. **Options**:
 
    | Option | Effect |
    | :--- | :--- |
-   | **Install the repository's modules** | Installs the repository's own modules (not those of submodules) after the database is created. |
+   | **Install the repository's modules** | Installs the repository's own modules (not those of submodules) after the database is created, together with the Odoo apps you chose. On by default. |
    | **Load demo data** | Sample customers, products and orders, useful for presentations. |
    | **Get new code automatically** | New commits on the branch are applied by themselves ([section 6](#6-keeping-the-code-up-to-date)). |
    | **Pause when nobody uses it** | The instance pauses after some hours without visits, to free memory. |
    | **Lifetime** | Deleted that many days after creation (30 by default, 90 for staging), with a backup first; or **Keep until deleted by hand**. Not shown for production. |
 
-10. **Start from a backup** (optional; administrators and super admins): switch it on and pick a backup from the
+11. **Start from a backup** (optional; administrators and super admins): switch it on and pick a backup from the
    list, grouped by instance. Only backups of the chosen Odoo version (and, for Enterprise backups, an Enterprise
    instance) are listed. The new instance starts with that backup's data and files instead of an empty database,
    loaded under its own database name. A backup of another instance is neutralised: no e-mail goes out and no
    scheduled actions run until you switch them back on in Odoo. **Install the repository's modules** then installs
-   only the modules the backup does not have yet; **Load demo data** does not apply. The backup's administrator
+   only the modules the backup does not have yet, and the same goes for the Odoo apps you chose; **Load demo data**
+   does not apply. The backup's administrator
    (the first user, usually `admin`) gets the instance's admin password, so the **Access** tab works for it.
-11. Click **Create instance**.
+12. Click **Create instance**.
 
 If the server has a limit on the number of instances, or a waiting time between two new instances, a warning above
 the form says so before you start, and the numbers under the button show how many exist.

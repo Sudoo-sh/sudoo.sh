@@ -1708,6 +1708,20 @@
   "description": "Minutes a user must wait between two creations; 0: no wait."
  },
  {
+  "key": "max_initial_modules",
+  "env": "MAX_INITIAL_MODULES",
+  "value": 200,
+  "env_value": 200,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "integer",
+  "minimum": 1,
+  "description": "Modules one may choose to install in a new instance's database at most (the module picker of New instance and Create instance; Odoo installs their dependencies too)."
+ },
+ {
   "key": "capacity_reserve_mb",
   "env": "CAPACITY_RESERVE_MB",
   "value": 1024,

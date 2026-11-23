@@ -91,6 +91,7 @@ const AR_EXACT: Record<string, string> = {
   "Switching off": "الإطفاء",
   "Switching the plugin off": "تعطيل الإضافة",
   "The repository's modules are all installed already": "كل وحدات المستودع مثبّتة بالفعل",
+  "The chosen modules are all installed already": "كل الوحدات المختارة مثبّتة بالفعل",
   "Waiting for Odoo to be ready": "انتظار جاهزية Odoo",
   "Rolling back to the state before the restore": "التراجع إلى الحالة السابقة للاستعادة",
   // off-site copies (offsite/)
@@ -135,6 +136,7 @@ const AR_PATTERNS: Pattern[] = [
   [/^Setting up the module (\S+)$/, (module) => `تجهيز الوحدة ${ltr(module!)}`],
   [/^Downloading the code of (.+) \((.+)\) from GitHub$/, (repo, branch) => `تنزيل شيفرة ${ltr(repo!)} (${ltr(branch!)}) من GitHub`],
   [/^Installing the repository's modules \((\d+)\)$/, (n) => `تثبيت وحدات المستودع (${n})`],
+  [/^Installing the chosen modules \((\d+)\)$/, (n) => `تثبيت الوحدات المختارة (${n})`],
   [/^Loading the backup of (.+) of (.+) into database (.+)$/, (instance, taken, db) => `تحميل نسخة ${ltr(instance!)} الاحتياطية من ${taken} في قاعدة البيانات ${ltr(db!)}`],
   [/^Loading the backup of (.+) into database (.+)$/, (instance, db) => `تحميل نسخة ${ltr(instance!)} الاحتياطية في قاعدة البيانات ${ltr(db!)}`],
   [/^Preparing the Odoo (\S+) Enterprise add-ons$/, (version) => `تجهيز إضافات Odoo ${ltr(version!)} Enterprise`],

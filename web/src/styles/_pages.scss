@@ -579,6 +579,61 @@
   .notices { padding: var(--s4) var(--s4) 0; }
 }
 
+// A new instance's modules (components/ModulePicker.tsx): the chosen ones as chips, then the groups to choose from in
+// one scrolling list; technical names stay left to right in Arabic
+.module-picker {
+  min-width: 0;
+  .mp-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s2); }
+  .mp-chips { gap: var(--s1) var(--s2); max-height: 7.5rem; overflow-y: auto; }
+  .chip { transition: transform var(--press) var(--ease), background var(--quick) var(--ease); }
+  .chip:active { transform: scale(0.97); }
+  .mp-list {
+    display: grid;
+    gap: var(--s3);
+    max-height: 22rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--s2) var(--s3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-control);
+    background: var(--surface);
+  }
+  .mp-group {
+    display: flex;
+    align-items: center;
+    gap: var(--s1);
+    position: sticky;
+    top: calc(-1 * var(--s2));
+    z-index: 1;
+    margin: 0;
+    padding: var(--s2) 0 var(--s1);
+    background: var(--surface);
+    color: var(--text-2);
+    font-size: var(--text-12);
+    font-weight: 600;
+    svg { width: 14px; height: 14px; color: var(--text-3); }
+  }
+  .mp-row {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    min-width: 0;
+    padding: 6px var(--s1);
+    border-radius: calc(var(--radius-control) - 2px);
+    font-size: var(--text-14);
+    cursor: pointer;
+    transition: background var(--quick) var(--ease);
+    &:hover { background: var(--raised); }
+    [data-slot="checkbox"] { flex: none; }
+    .mp-name { flex: none; font-size: var(--text-13); }
+    .mp-title { flex: 1 1 auto; min-width: 0; color: var(--text-3); }
+    [data-slot="badge"] { flex: none; margin-inline-start: auto; }
+  }
+}
+@media (max-width: 520px) {
+  .module-picker .mp-row { flex-wrap: wrap; row-gap: 0; .mp-title { flex-basis: 100%; padding-inline-start: 24px; } }
+}
+
 // New instance: repositories of the GitHub App, searched by the repository field
 .repo-picker {
   list-style: none;

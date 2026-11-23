@@ -27,6 +27,25 @@ def masked(address: str) -> str:
     return f"{local[:1]}***@{domain}"
 
 
+def send_code(address: str, name: str, code: str, origin: RequestInfo, template: str) -> None:
+    """E-mail a code (mail/catalog.py: sign_in_code, email_confirmation or email_sign_in_code) with when, from where
+    and from which device it was asked for. Raises MailError."""
+    when = datetime.fromtimestamp(origin.at or time.time(), UTC).strftime("%A %d %B %Y, %H:%M UTC")
+    minutes = codes.VALID_SECONDS // 60
+    send(
+        address,
+        template,
+        name=name,
+        code=code,
+        minutes=minutes,
+        code_box=code_block(code, minutes),
+        time=when,
+        ip=origin.ip,
+        device=origin.browser,
+        request=details_block([("When", when), ("From", origin.ip), ("Device", origin.browser)], "Requested"),
+    )
+
+
 class EmailCode:
     name = "email"
     label = "E-mail code"
@@ -42,21 +61,7 @@ class EmailCode:
         return "email" in account.get("second_factors", {}) and bool(account.get("email"))
 
     def _send(self, address: str, username: str, code: str, origin: RequestInfo, *, setup: bool) -> None:
-        """The e-mail with the code (mail/catalog.py: sign_in_code or email_confirmation)."""
-        when = datetime.fromtimestamp(origin.at or time.time(), UTC).strftime("%A %d %B %Y, %H:%M UTC")
-        minutes = codes.VALID_SECONDS // 60
-        send(
-            address,
-            "email_confirmation" if setup else "sign_in_code",
-            name=username,
-            code=code,
-            minutes=minutes,
-            code_box=code_block(code, minutes),
-            time=when,
-            ip=origin.ip,
-            device=origin.browser,
-            request=details_block([("When", when), ("From", origin.ip), ("Device", origin.browser)], "Requested"),
-        )
+        send_code(address, username, code, origin, "email_confirmation" if setup else "sign_in_code")
 
     def challenge(self, username: str, account: Account, origin: RequestInfo) -> dict[str, Any]:
         code = codes.new((username, "sign-in"))

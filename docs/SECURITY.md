@@ -257,6 +257,36 @@ A password can leak; a second factor means a leaked password alone does not open
   (`DELETE /api/v1/account/sessions`) ends every other session of the account.
 * More factors (SMS, hardware keys) can be added as plugins ([Plugins](PLUGINS.md#8-more-plugin-types)).
 
+### Sign-in with GitHub and e-mail codes
+
+Besides the password, an account may sign in with a code sent by e-mail or with GitHub, as an administrator chooses
+for it (`SIGN_IN_METHODS`, [Admin guide](ADMIN_GUIDE.md#ways-to-sign-in)). Each is a first factor:
+`REQUIRE_SECOND_FACTOR` applies after it as after a password.
+
+**Threat model of GitHub sign-in:**
+
+| Threat | What stops it |
+| :--- | :--- |
+| A forged or replayed return from GitHub (login CSRF: signing someone into the attacker's account) | A random `state` (256 bits) bound to the browser's session cookie (`SameSite=Strict`, `HttpOnly`) and used once; the flow expires after 10 minutes. A return the browser did not start is refused. |
+| A code intercepted on its way back (a log, a referrer, a malicious extension) | PKCE (S256): exchanging the code also needs a 512-bit verifier that never leaves the server's memory, plus the app's client secret. |
+| A stolen user token | The token is used for the few calls sign-in needs and revoked at once (`DELETE /applications/<client id>/token`); it is never written anywhere. Repository permissions are read later with the app's own installation token. The app's client secret is stored encrypted with the vault key. |
+| Taking over an account by e-mail address | An account is linked by e-mail address only when it is the person's **verified primary** address on GitHub. Otherwise only a GitHub user name an administrator typed links an account, at the first sign-in. |
+| A renamed or re-registered GitHub login | Once linked, the account is found by GitHub's numeric user id, which never changes; the stored login is only shown. A login an administrator typed is used once, for the first link: type it shortly before the person signs in. |
+| Strangers | Only linked accounts, accounts or invitations that name the person, and members of the organisations listed in `GITHUB_SIGN_IN_ORGS` get in; everyone else is refused and audited. |
+| GitHub unreachable, or the app deleted | Break glass: at least one super admin always keeps a password, and the panel refuses changes that would take the last one away. |
+| Losing access on GitHub | With `GITHUB_ACCESS_FROM_REPOSITORIES`, repository permissions are read again at each sign-in and every `GITHUB_ACCESS_CHECK_MINUTES`; a permission not read for three intervals (one hour at least) counts as none. |
+
+`GITHUB_SIGN_IN_SKIPS_SECOND_FACTOR` (off by default) trusts GitHub's own two-factor authentication instead of the
+panel's, and only when GitHub reports it on for the account. The trade-off: one less code, but anyone with a
+signed-in GitHub session on a device gets into the panel too, and GitHub's account recovery becomes the panel's.
+
+**E-mail codes** (no password) are 6 digits, valid 10 minutes, used once, kept only as a hash, with 5 tries; a new
+one at most once a minute per account and `EMAIL_CODE_SENDS_PER_HOUR` per address. The page answers the same, and
+the e-mail is sent in the background, whether or not an account uses the address, so it does not tell who has an
+account. Wrong codes count like wrong passwords. After an e-mail code, an e-mail code is not accepted as the second
+factor: the same mailbox would prove nothing more. Whoever controls the mailbox controls such an account, so keep
+this way for people whose mailbox is protected well (it is the default for client accounts only).
+
 ---
 
 ## 4. Stored secrets: the vault

@@ -25,6 +25,9 @@ A project's access (its "access" document)
                 (production visible to leads only)
     locks       {branch: {"by", "at", "reason", "allow": [{"type", "id"}]}}: a locked branch
 
+    For an account linked to GitHub (auth/github_access.py), the permission on the project's repository gives a
+    level too: their own grant still wins, otherwise the higher of GitHub's level and their teams'.
+
     The level that applies to a person: their own grant when there is one (an individual grant always wins, also a
     "none"), else the highest level of their teams' grants; the branch's grants first, then the project's; with no
     grant at all, "admin" (role decides) in a panel_roles project and "none" in a restricted project or branch.
@@ -239,9 +242,28 @@ def level(user: Mapping[str, Any], project: Mapping[str, Any] | None, branch: st
         return "none"
     if found is None:
         found = _pick(access_of(project).get("grants") or (), name, member_of)
+    from_github = _github_level(name, project)
+    if from_github is not None:  # auth/github_access.py: an individual grant wins, else the higher of GitHub and teams
+        if found is not None and _individual(project, branch, name):
+            return found
+        return from_github if found is None or LEVELS.index(from_github) > LEVELS.index(found) else found
     if found is None:
         found = "none" if mode(project) == "restricted" else "admin"
     return found
+
+
+def _github_level(name: str | None, project: Mapping[str, Any]) -> str | None:
+    from sudoo.auth import github_access
+
+    return github_access.level_for(name, project)
+
+
+def _individual(project: Mapping[str, Any], branch: str | None, name: str | None) -> bool:
+    """Whether the person has a grant of their own in the branch or the project (it then wins over GitHub)."""
+    if name is None:
+        return False
+    lists = [branch_access(project, branch).get("grants") or (), access_of(project).get("grants") or ()]
+    return any(g.get("type") == "user" and g.get("id") == name for grants in lists for g in grants)
 
 
 def lock_of(project: Mapping[str, Any] | None, branch: str | None) -> dict[str, Any] | None:
@@ -550,7 +572,13 @@ def sees_everything(user: Mapping[str, Any]) -> bool:
     """Whether nothing is hidden from `user` (the fast path of lists and live events)."""
     if user.get("support") or is_client(user):
         return False
-    return "instances.view" in role_permissions(user) and (is_super_admin(user) or not any_restriction())
+    if is_super_admin(user):
+        return "instances.view" in role_permissions(user)
+    from sudoo.auth import github_access
+
+    if github_access.applies(person(user)):
+        return False
+    return "instances.view" in role_permissions(user) and not any_restriction()
 
 
 def visible_map(user: Mapping[str, Any], found: Mapping[str, Any]) -> dict[str, Any]:

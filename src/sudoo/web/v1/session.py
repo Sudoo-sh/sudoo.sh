@@ -17,6 +17,16 @@
                                                    panel's once PORTAL_DOMAIN is set) (public)
     POST   /api/v1/session/second-factor           the code: {"method", "code"} -> 201 signed in (public)
     POST   /api/v1/session/second-factor/<method>  send a new code (e-mail) (public, between the two steps)
+    GET    /api/v1/session/options                 which ways to sign in the page offers: {"password", "email_code",
+                                                   "github"} (public)
+    POST   /api/v1/session/email-code              {"email"}: send a sign-in code when an account uses the address;
+                                                   the same answer either way (public)
+    POST   /api/v1/session/email-code/verify       {"email", "code"} -> 201 signed in, or 200 with "second_factor"
+                                                   (public)
+    POST   /api/v1/session/github                  start Continue with GitHub -> {"url"} of GitHub's page (public)
+    POST   /api/v1/session/github/callback         {"code", "state"} GitHub sent back to /login/github -> 201 signed
+                                                   in, 200 with "second_factor", or 200 {"linked"} when linking from
+                                                   the account page (public; auth/github.py)
     GET    /api/v1/session                         the signed-in account, its permissions and the CSRF token
     DELETE /api/v1/session                         sign out -> 204
     PUT    /api/v1/session/password                change own password: {"current", "new"} -> 204
@@ -31,13 +41,14 @@ from typing import Any
 from flask import Blueprint, Response, abort, g, request, session
 
 from sudoo import accounts, auth, licence, roles
-from sudoo.auth import recovery
+from sudoo.auth import methods, recovery
 from sudoo.config import settings
 from sudoo.core import audit
 
 from .. import signin
 from .. import validation as check
 from ..security import PORTAL, audience, client_ip, end_current_session, log, start_session
+from .github import panel_address
 from .responses import no_content, ok
 
 blueprint = Blueprint("session", __name__)
@@ -166,12 +177,44 @@ def portal() -> Response:
 
 @blueprint.post("/session")
 def sign_in() -> Response:
-    result = signin.password_step(check.body())
+    return _first_step_answer(signin.password_step(check.body()))
+
+
+def _first_step_answer(result: dict[str, Any]) -> Response:
     if result.get("signed_in"):
         return _signed_in_answer()
     if result.get("redirect"):  # staff at the client portal, or a client at the panel's address: nothing started
         return ok({"redirect": result["redirect"]})
     return ok({"second_factor": result["second_factor"]})
+
+
+@blueprint.get("/session/options")
+def sign_in_options() -> Response:
+    return ok(methods.offered())
+
+
+@blueprint.post("/session/email-code")
+def email_code() -> Response:
+    return ok(signin.email_code_request(check.body()))
+
+
+@blueprint.post("/session/email-code/verify")
+def email_code_verify() -> Response:
+    return _first_step_answer(signin.email_code_step(check.body()))
+
+
+@blueprint.post("/session/github")
+def github_start() -> Response:
+    check.body()
+    return ok(signin.github_start("sign-in", panel_address()))
+
+
+@blueprint.post("/session/github/callback")
+def github_callback() -> Response:
+    result = signin.github_finish(check.body())
+    if "linked" in result:
+        return ok({"linked": result["linked"]})
+    return _first_step_answer(result)
 
 
 @blueprint.post("/session/second-factor")

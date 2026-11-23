@@ -212,7 +212,9 @@ def test_manifest_flow_stores_the_app_encrypted(admin: Client, no_app: type[Fake
     assert data["action"] == f"https://github.com/organizations/Acme/settings/apps/new?state={data['state']}"
     manifest = data["manifest"]
     assert manifest["default_permissions"] == {"contents": "read", "metadata": "read", "statuses": "write",
-                                               "pull_requests": "write", "issues": "write"}  # fmt: skip
+                                               "pull_requests": "write", "issues": "write",
+                                               "email_addresses": "read", "members": "read"}  # fmt: skip
+    assert manifest["callback_urls"] == ["http://localhost/login/github"]
     assert manifest["default_events"] == ["push", "create", "delete", "pull_request"] and manifest["public"] is False
     assert manifest["redirect_url"] == "http://localhost/github/app/created"
     assert manifest["hook_attributes"]["url"].endswith("/hooks/github-app")
@@ -562,7 +564,8 @@ def test_manifest_can_ask_for_repository_creation() -> None:
     assert "administration" not in github_app.manifest("https://p", "https://p", "p")["default_permissions"]
     asked = github_app.manifest("https://p", "https://p", "p", create_repositories=True)["default_permissions"]
     assert asked == {"contents": "read", "metadata": "read", "statuses": "write", "pull_requests": "write",
-                     "issues": "write", "administration": "write"}  # fmt: skip
+                     "issues": "write", "email_addresses": "read", "members": "read",
+                     "administration": "write"}  # fmt: skip
 
 
 def test_repository_creation_says_what_is_missing(no_app: type[FakeGitHub]) -> None:

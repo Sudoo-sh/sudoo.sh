@@ -3,8 +3,11 @@
     GET    /api/v1/invitations                  pending and expired invitations; "meta" says whether e-mail is
                                                 ready, whether a password may still be set instead
                                                 (INVITATION_PASSWORD_FALLBACK) and how long links work
-    POST   /api/v1/invitations                  invite: {"email", "role", "first_name", "last_name"} (names
-                                                optional); e-mails the link -> 201
+    POST   /api/v1/invitations                  invite: {"email", "role", "first_name", "last_name",
+                                                "github_login"} (all but the first two optional); e-mails the
+                                                link -> 201. The person may also accept by signing in with
+                                                GitHub as that login, or with the invited address verified on
+                                                GitHub (auth/github.py)
     POST   /api/v1/invitations/<id>/resend      a new link (the old one stops working) and a new expiry, e-mailed
     DELETE /api/v1/invitations/<id>             revoke -> 204
 
@@ -120,6 +123,13 @@ def invite() -> Response:
     _guard(role)
     email = check.text(data, "email", max_length=254).strip()
     names = {key: check.text(data, key, max_length=60).strip() for key in ("first_name", "last_name")}
+    login = check.text(data, "github_login", max_length=39).strip().lstrip("@")
+    if login:
+        from .users import github_app_login
+
+        if not github_app_login(login):
+            abort(400, "github_login: a GitHub user name (letters, digits and single dashes, at most 39).")
+        names["github_login"] = login
     _may_send()
     try:
         invitation_id, link = invitations.create(email, role, g.user["name"], names["first_name"], names["last_name"])

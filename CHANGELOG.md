@@ -25,6 +25,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Sign in with GitHub, or with a code by e-mail.** The sign-in page offers **Continue with GitHub** (through the
+  panel's own GitHub App: web flow with `state` and PKCE, the person's token revoked at once and never stored) and
+  **Send me a code** (a 6-digit code by e-mail, no password), next to the password. Who may sign in with GitHub:
+  people with an account or invitation that names their GitHub user name or their verified primary GitHub address
+  (linked at the first sign-in), and optionally members of the organisations in `GITHUB_SIGN_IN_ORGS`, with the
+  role `GITHUB_SIGN_IN_ROLE`. Administrators choose each account's ways to sign in (Password, E-mail code, GitHub)
+  on the **Accounts** page; the defaults are `SIGN_IN_METHODS` (`password,github`) and, for client accounts,
+  `CLIENT_SIGN_IN_METHODS` (`email_code`). At least one super admin always keeps a password. `REQUIRE_SECOND_FACTOR`
+  still applies after GitHub; `GITHUB_SIGN_IN_SKIPS_SECOND_FACTOR` (off) may accept GitHub's own 2FA instead. People
+  link and unlink GitHub on **My account**; every sign-in, link and unlink is audited and the sign-in e-mail names
+  the way used. New Apps get the `/login/github` callback URL and **Email addresses** and **Members** read access
+  from the manifest; an App connected before needs the callback URL added once on GitHub (Admin guide).
+- **Project access from GitHub repository permissions** (`GITHUB_ACCESS_FROM_REPOSITORIES`, on with GitHub sign-in):
+  for a linked person, admin on the repository gives admin in the project, maintain maintainer, write developer,
+  triage or read view, none hides it. Read with the App's installation token at each sign-in and every
+  `GITHUB_ACCESS_CHECK_MINUTES` (15); a grant to the person still wins; administrators are not limited. The
+  project's **Access** tab lists each linked person's GitHub permission and level.
+
 - **Choose Odoo's apps for a new instance**, as on Odoo.sh: **New instance** and a branch's **Create instance** have
   a searchable picker of the standard **Odoo apps** of the chosen version (Sales, Invoicing, CRM, Inventory,
   Website...; Enterprise apps only for Enterprise) and an **Other modules** field for any technical name (a module of

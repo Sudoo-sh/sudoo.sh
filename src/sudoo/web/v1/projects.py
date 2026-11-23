@@ -81,6 +81,7 @@ from typing import Any
 from flask import Blueprint, Response, abort, g, request
 
 from sudoo import accounts, addons, projects, teams
+from sudoo.auth import github_access
 from sudoo.config import settings
 from sudoo.core import events, jobs
 from sudoo.instances import backups, capacity, monitor, odoo, stages, store
@@ -969,6 +970,7 @@ def access_resource(project: Mapping[str, Any]) -> dict[str, Any]:
         },
         "locks": dict(sorted(locks.items())),
         "levels": list(access.LEVELS),
+        "github": github_access.describe(project),
     }
 
 

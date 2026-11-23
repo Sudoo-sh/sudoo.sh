@@ -7,6 +7,24 @@ import type { ReactNode } from "react";
 import { iso, ltr } from "./plural.ts";
 
 const en = {
+  signIn: {
+    title: "Sign-in",
+    useDefault: "Use the panel's usual ways",
+    defaultHint: (ways: string) => `Now: ${ways}. Settings, Sign-in and security, changes them for every account without a choice`,
+    methods: { password: "Password", email_code: "Code by e-mail", github: "GitHub" } as Record<string, string>,
+    methodHints: {
+      password: "E-mail address and password",
+      email_code: "A 6-digit code sent to the account's address, no password",
+      github: "Continue with GitHub, with the linked GitHub account",
+    } as Record<string, string>,
+    noMethod: "Choose at least one way",
+    githubLogin: "GitHub user name",
+    githubLoginHint: "Optional. Their GitHub account is linked when they first continue with GitHub",
+    linked: (login: string) => `GitHub: @${login}`,
+    unlink: "Unlink GitHub",
+    unlinked: (name: string) => `GitHub unlinked from ${name}`,
+    notUnlinked: "Not unlinked",
+  },
   accounts: {
     title: "Accounts",
     lead: "Each account has a role that decides what it can do. Super admins can do everything, viewers can only look.",
@@ -199,6 +217,24 @@ const en = {
 };
 
 const ar: typeof en = {
+  signIn: {
+    title: "تسجيل الدخول",
+    useDefault: "استخدم الطرق المعتادة في اللوحة",
+    defaultHint: (ways) => `حاليًا: ${ways}. تغيّرها الإعدادات، تسجيل الدخول والأمان، لكل حساب بلا اختيار خاص`,
+    methods: { password: "كلمة المرور", email_code: "رمز بالبريد الإلكتروني", github: "GitHub" },
+    methodHints: {
+      password: "البريد الإلكتروني وكلمة المرور",
+      email_code: "رمز من 6 أرقام يُرسل إلى عنوان الحساب، بلا كلمة مرور",
+      github: "المتابعة باستخدام GitHub، بحساب GitHub المرتبط",
+    },
+    noMethod: "اختر طريقة واحدة على الأقل",
+    githubLogin: "اسم المستخدم في GitHub",
+    githubLoginHint: "اختياري. يُربط حسابه في GitHub حين يتابع باستخدام GitHub أول مرة",
+    linked: (login) => `GitHub: ‎@${login}`,
+    unlink: "ألغِ ربط GitHub",
+    unlinked: (name) => `أُلغي ربط GitHub من ${name}`,
+    notUnlinked: "لم يُلغَ الربط",
+  },
   accounts: {
     title: "الحسابات",
     lead: "لكل حساب دور يحدد ما يمكنه فعله. المسؤول الأعلى يفعل كل شيء، والمشاهد يكتفي بالاطلاع.",

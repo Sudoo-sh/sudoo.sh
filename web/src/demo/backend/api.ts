@@ -2,7 +2,7 @@
 // same envelopes ({"data", "meta"}), 202 + the job for background work, 204 for deletions, RFC 9457 problem details
 // for errors, and the same permission checks per role. It changes the in-memory state and starts simulated jobs.
 
-import type { Account, Backup, CatalogPlugin, Instance, Invitation, Job, Permission, ProjectOptions, Session, Stage, Upgrade, UpgradeMethod, UpgradeReport, User } from "@/api/types";
+import type { AccessLevel, Account, Backup, CatalogPlugin, Instance, Invitation, Job, Permission, ProjectOptions, Session, Stage, Upgrade, UpgradeMethod, UpgradeReport, User } from "@/api/types";
 import { browserLocale, isLocale, storedLocale, type Locale } from "@/i18n";
 import { publish } from "./bus";
 import { docPage, DOCS } from "./docs";
@@ -226,9 +226,25 @@ function account(): Account {
       can_turn_off: Boolean(setting("sign_in_email_opt_out") ?? true),
       mail_ready: true,
     },
+    sign_in_methods: {
+      methods: user.sign_in_methods,
+      own_choice: user.sign_in_methods_chosen,
+      usable: user.sign_in_methods.filter((m) => m !== "password" || user.has_password),
+      offered: signInOptions(),
+      github: user.github,
+      github_login: user.github_login,
+    },
     language: { value: language(), own_choice: ownLanguage, default: defaultLanguage() },
   };
 }
+
+/** What the sign-in page offers: in the demo, every way (the settings can turn GitHub and e-mail codes off). */
+const signInOptions = () => ({
+  password: true,
+  email_code: setting("email_code_sign_in") !== false,
+  github: setting("github_sign_in") !== false,
+});
+let linkingGitHub = false; // the demo's "GitHub" sends back here: linking from the account page, or signing in
 
 // first-run setup can be tried by opening /setup: the demo then answers as a panel without accounts, once
 let setUp = false;
@@ -283,6 +299,48 @@ route("POST", "/session/second-factor", () => {
   return created(me());
 });
 route("POST", "/session/second-factor/:method", () => ok({ sent_to: "s***@example.com" }));
+route("GET", "/session/options", () => ok(signInOptions()));
+route("POST", "/session/email-code", ({ body }) => {
+  const email = String(body.email ?? "").trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Problem(400, "Enter a valid e-mail address.");
+  return ok({ sent_to: `${email[0]}***@${email.split("@")[1]}` });
+});
+route("POST", "/session/email-code/verify", ({ body }) => {
+  if (!/^\d{6}$/.test(String(body.code ?? ""))) throw new Problem(401, "The code is not correct, or it has expired.");
+  session.signedIn = true;
+  remember();
+  record(ME, "signed in with an e-mail code");
+  return created(me());
+});
+// the demo has no GitHub: its "authorize" page is the panel's own return page, as if GitHub had answered at once
+route("POST", "/session/github", () => {
+  linkingGitHub = false;
+  return ok({ url: "/login/github?code=demo-code-from-github&state=demo" });
+});
+route("POST", "/session/github/callback", () => {
+  const user = users.find((u) => u.name === ME)!;
+  if (linkingGitHub && session.signedIn) {
+    linkingGitHub = false;
+    user.github = { id: 5101, login: "sara-nassar", email: user.email, linked_at: iso(Date.now()) };
+    record(ME, "GitHub account linked", { detail: "sara-nassar (GitHub id 5101)" });
+    return ok({ linked: "sara-nassar" });
+  }
+  session.signedIn = true;
+  remember();
+  record(ME, "signed in with GitHub");
+  return created(me());
+});
+route("POST", "/account/github", () => {
+  linkingGitHub = true;
+  return ok({ url: "/login/github?code=demo-code-from-github&state=demo" });
+});
+route("DELETE", "/account/github", () => {
+  const user = users.find((u) => u.name === ME)!;
+  if (!user.github) throw new Problem(404, "No GitHub account is linked.");
+  record(ME, "GitHub account unlinked", { detail: user.github.login });
+  user.github = null;
+  return none();
+});
 route("DELETE", "/session", () => {
   session.signedIn = false;
   remember();
@@ -1370,7 +1428,7 @@ route("POST", "/users", ({ body }) => {
   for (let n = 2; users.some((u) => u.name === name); n++) name = `${name.replace(/-\d+$/, "")}-${n}`;
   const first = String(body.first_name ?? "") || null;
   const last = String(body.last_name ?? "") || null;
-  const user: User = { name, display_name: [first, last].filter(Boolean).join(" ") || name, first_name: first, last_name: last, email, phone: String(body.phone ?? "") || null, role, role_label: roleInfo(role).label, last_sign_in_at: null, password_changed_at: iso(Date.now()), must_change_password: body.password ? body.must_change_password !== false : true, second_factors: [] };
+  const user: User = { name, display_name: [first, last].filter(Boolean).join(" ") || name, first_name: first, last_name: last, email, phone: String(body.phone ?? "") || null, role, role_label: roleInfo(role).label, last_sign_in_at: null, password_changed_at: iso(Date.now()), must_change_password: body.password ? body.must_change_password !== false : true, second_factors: [], sign_in_methods: ["password", "github"], sign_in_methods_chosen: false, github: null, github_login: null, has_password: true };
   users.push(user);
   record(ME, "account created", { detail: `${name} (${role})` });
   return created({ ...user, password: String(body.password ?? "") || generated() });
@@ -1386,6 +1444,16 @@ route("PATCH", "/users/:name", ({ params, body }) => {
     if (user.name === ME) session.role = user.role;
   }
   for (const key of ["first_name", "last_name", "email", "phone"] as const) if (key in body) user[key] = String(body[key] ?? "") || null;
+  if ("sign_in_methods" in body) {
+    const chosen = body.sign_in_methods as User["sign_in_methods"] | null;
+    const next = chosen ?? ["password", "github"];
+    if (!next.length) throw new Problem(400, 'sign_in_methods: a list of one or more of "password", "email_code" and "github".');
+    const keeps = users.some((u) => u.role === "super_admin" && u.has_password && (u === user ? next : u.sign_in_methods).includes("password"));
+    if (!keeps) throw new Problem(400, "At least one super admin must keep signing in with a password, so the panel stays reachable when e-mail or GitHub does not work.");
+    user.sign_in_methods = next;
+    user.sign_in_methods_chosen = chosen !== null;
+  }
+  if ("github_login" in body) user.github_login = String(body.github_login ?? "").replace(/^@/, "") || null;
   user.display_name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.name;
   record(ME, "account changed", { detail: user.name });
   return ok(user);
@@ -1397,6 +1465,14 @@ route("POST", "/users/:name/password", ({ params, body }) => {
   user.must_change_password = body.password ? body.must_change_password !== false : true;
   user.password_changed_at = iso(Date.now());
   return ok({ password: String(body.password ?? "") || generated() });
+});
+route("DELETE", "/users/:name/github", ({ params }) => {
+  need("accounts.manage");
+  const user = userOf(params.name!);
+  if (!user.github) throw new Problem(404, "No GitHub account is linked to this account.");
+  record(ME, "GitHub account unlinked", { detail: `${user.name}: ${user.github.login}` });
+  user.github = null;
+  return none();
 });
 route("DELETE", "/users/:name/second-factors", ({ params }) => {
   need("accounts.manage");
@@ -2685,6 +2761,23 @@ function accessResource(project: DemoProject) {
     branches: Object.fromEntries(Object.entries(a.branches).map(([b, v]) => [b, { restricted: v.restricted, grants: described(v.grants) }])),
     locks: Object.fromEntries(Object.entries(a.locks).map(([b, v]) => [b, { ...v, allow: described(v.allow) }])),
     levels: LEVELS,
+    github: githubAccess(project),
+  };
+}
+
+/** Access from GitHub: each linked person's permission on the project's repository, and the level it gives. */
+function githubAccess(project: DemoProject) {
+  const on = setting("github_sign_in") !== false && setting("github_access_from_repositories") !== false;
+  const permission: Record<string, [string, AccessLevel]> = { "lena-b": ["maintain", "maintainer"], karimsaleh: ["write", "developer"], "sara-nassar": ["admin", "admin"] };
+  return {
+    enabled: on,
+    repository: project.repository,
+    people: users
+      .filter((u) => u.github)
+      .map((u) => {
+        const [word, level] = permission[u.github!.login] ?? ["read", "view"];
+        return { user: u.name, name: u.display_name, github_login: u.github!.login, applies: on && !["super_admin", "admin"].includes(u.role), permission: word, level, covered: true, checked: Date.now() / 1000 - 4 * 60 };
+      }),
   };
 }
 

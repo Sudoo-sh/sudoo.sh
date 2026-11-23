@@ -14,6 +14,9 @@ DELETE /api/v1/account/second-factors/<name>    remove it; {"password"} confirms
 POST   /api/v1/account/recovery-codes           new recovery codes, replacing the old ones; {"password"} confirms
                                                 -> 201 {"codes", ...}, shown this once
 DELETE /api/v1/account/sessions                 sign out every other session of the account -> 204
+POST   /api/v1/account/github                   link a GitHub account: -> {"url"} of GitHub's page; GitHub sends
+                                                the browser back to /login/github (auth/github.py)
+DELETE /api/v1/account/github                   unlink it; {"password"} confirms when the account has one -> 204
 
 An e-mail address another account uses is refused. Replacing a second factor, or changing the sign-in e-mail
 address, ends the account's other sessions; the one making the change continues.
@@ -26,13 +29,14 @@ from typing import Any
 from flask import Blueprint, Response, abort, g, session
 
 from sudoo import accounts, auth, roles
-from sudoo.auth import recovery, sign_in_notice
+from sudoo.auth import github, github_access, methods, recovery, sign_in_notice
 from sudoo.config import settings
 from sudoo.mail import MailError
 
 from .. import signin
 from .. import validation as check
 from ..security import client_ip, log
+from .github import panel_address
 from .responses import iso, no_content, ok
 
 blueprint = Blueprint("account", __name__)
@@ -81,6 +85,7 @@ def read() -> Response:
             "recovery_codes": recovery_resource(account),
             "recovery_codes_needed": recovery.needed(account),
             "sign_in_email": sign_in_notice.preference(account),
+            "sign_in_methods": sign_in_methods_resource(account),
             "language": {
                 "value": accounts.language(account),
                 "own_choice": accounts.own_language(account),
@@ -88,6 +93,25 @@ def read() -> Response:
             },
         }
     )
+
+
+def github_resource(account: dict[str, Any]) -> dict[str, Any] | None:
+    link = github.link_of(account)
+    return link and {"id": link["id"], "login": link.get("login"), "email": link.get("email"),
+                     "linked_at": iso(link.get("linked"))}  # fmt: skip
+
+
+def sign_in_methods_resource(account: dict[str, Any]) -> dict[str, Any]:
+    """How the account may sign in: its methods (chosen by an administrator, or the server's default), which of them
+    work now, what the server offers, and its GitHub account."""
+    return {
+        "methods": methods.of(account),
+        "own_choice": methods.own_choice(account) is not None,
+        "usable": methods.usable(account),
+        "offered": methods.offered(),
+        "github": github_resource(account),
+        "github_login": account.get(github.LOGIN_FIELD),
+    }
 
 
 def recovery_resource(account: dict[str, Any]) -> dict[str, Any] | None:
@@ -198,7 +222,9 @@ def finish(name: str) -> Response:
     if replacing or email_changed:
         _end_other_sessions()
     if session.get("restricted") == "second_factor":
-        session["restricted"] = signin.restriction(accounts.get(g.user["name"]) or {})
+        session["restricted"] = signin.restriction(
+            accounts.get(g.user["name"]) or {}, session.get("first") or "password"
+        )
     log(f"second factor {'replaced' if replacing else 'set up'} ({name})")
     meta = None
     if name == "totp" and recovery.needed(_account()):  # new to the app: codes for the day the phone is lost
@@ -238,4 +264,31 @@ def sign_out_elsewhere() -> Response:
     """Sign out every other session of the account (a browser left signed in, a sign-in that was not yours)."""
     _end_other_sessions()
     log("signed out every other session")
+    return no_content()
+
+
+@blueprint.post("/account/github")
+def link_github() -> Response:
+    """Start linking a GitHub account to this account (it then signs in with GitHub too)."""
+    check.body()
+    if not methods.allows(_account(), "github"):
+        abort(403, "Sign-in with GitHub is not turned on for your account. " + settings.contact_sentence())
+    return ok(signin.github_start("link", panel_address(), g.user["name"]))
+
+
+@blueprint.delete("/account/github")
+def unlink_github() -> Response:
+    account = _account()
+    link = github.link_of(account)
+    if link is None:
+        abort(404, "No GitHub account is linked.")
+    if account.get("hash") and methods.allows(account, "password"):
+        _confirm_password("GitHub unlink")
+    rest = [m for m in methods.usable({**account, github.FIELD: None}) if m != "github"]
+    if not rest:
+        abort(400, "GitHub is the only way this account signs in. Ask an administrator for another way first.")
+    github.unlink(g.user["name"])
+    github_access.forget(g.user["name"])
+    _end_other_sessions()
+    log("GitHub account unlinked", detail=f"{link.get('login')} (GitHub id {link['id']})")
     return no_content()

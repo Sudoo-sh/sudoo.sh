@@ -238,6 +238,25 @@ class Settings(BaseSettings):
     def _exposure(cls, value: str) -> str:
         return value.strip().lower()
 
+    @field_validator("sign_in_methods", "client_sign_in_methods")
+    @classmethod
+    def _sign_in_methods(cls, value: str) -> str:
+        chosen = [part.strip().lower() for part in value.split(",") if part.strip()]
+        unknown = [part for part in chosen if part not in ("password", "email_code", "github")]
+        if unknown or not chosen:
+            raise ValueError('must list one or more of "password", "email_code" and "github", comma-separated')
+        return ",".join(dict.fromkeys(chosen))
+
+    @field_validator("github_sign_in_orgs")
+    @classmethod
+    def _github_orgs(cls, value: str) -> str:
+        import re
+
+        chosen = [part.strip() for part in value.split(",") if part.strip()]
+        if any(not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})", part) for part in chosen):
+            raise ValueError("must be GitHub organisation names, comma-separated")
+        return ",".join(dict.fromkeys(chosen))
+
     @field_validator("panel_domain", "portal_domain")
     @classmethod
     def _panel_domain(cls, value: str) -> str:
@@ -355,6 +374,51 @@ class Settings(BaseSettings):
     )
     sign_in_email_opt_out: bool = Field(
         True, description="People may turn the sign-in e-mail off for their own account."
+    )
+    sign_in_methods: str = Field(
+        "password,github",
+        description='How accounts sign in unless an administrator chose otherwise for one, comma-separated: "password", '
+        '"email_code" (a code sent by e-mail, no password) and "github" (Continue with GitHub).',
+    )
+    client_sign_in_methods: str = Field(
+        "email_code",
+        description="The same for client accounts (people invited to follow their projects): by default a code sent "
+        "by e-mail.",
+    )
+    email_code_sign_in: bool = Field(
+        True,
+        description="Offer Send me a code on the sign-in page (when e-mail is set up), for the accounts that may use "
+        "it.",
+    )
+    email_code_sends_per_hour: int = Field(
+        10, ge=1, le=1000, description="Sign-in codes by e-mail one address (IP) may ask for per hour."
+    )
+    github_sign_in: bool = Field(
+        False,
+        description="Offer Continue with GitHub on the sign-in page. Needs the panel's GitHub App (GitHub page) with "
+        "the panel's /login/github address as a callback URL.",
+    )
+    github_sign_in_orgs: str = Field(
+        "",
+        description="GitHub organisations, comma-separated, whose members may sign in with GitHub without an "
+        "invitation; their account is created at the first sign-in. Empty: only people with an account or invitation.",
+    )
+    github_sign_in_role: Literal["viewer", "developer", "maintainer", "admin"] = Field(
+        "developer", description="The role of an account created for a member of GITHUB_SIGN_IN_ORGS."
+    )
+    github_sign_in_skips_second_factor: bool = Field(
+        False,
+        description="Accept GitHub's own two-factor authentication in place of the panel's second factor, for people "
+        "whose GitHub account has it on.",
+    )
+    github_access_from_repositories: bool = Field(
+        True,
+        description="For accounts linked to GitHub (except administrators), a project's access follows their "
+        "permission on its repository: admin gives maintainer, maintain or write developer, triage or read view, "
+        "none nothing. Only with GITHUB_SIGN_IN.",
+    )
+    github_access_check_minutes: int = Field(
+        15, ge=1, le=1440, description="How often repository permissions are read from GitHub again."
     )
     brand_color: str = Field(
         "#714B67", pattern=r"^#[0-9A-Fa-f]{6}$", description="Accent colour of e-mails, as #RRGGBB."
@@ -2008,6 +2072,16 @@ EDITABLE = (
     "invitations_per_hour",
     "sign_in_email",
     "sign_in_email_opt_out",
+    "sign_in_methods",
+    "client_sign_in_methods",
+    "email_code_sign_in",
+    "email_code_sends_per_hour",
+    "github_sign_in",
+    "github_sign_in_orgs",
+    "github_sign_in_role",
+    "github_sign_in_skips_second_factor",
+    "github_access_from_repositories",
+    "github_access_check_minutes",
     "cloudflared_image",
     "admin_contact_name",
     "admin_contact_phone",

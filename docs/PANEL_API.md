@@ -1390,6 +1390,26 @@ POST /api/v1/session/second-factor  {"method": "totp", "code": "123456"}
 
 Between the two calls the session opens nothing, for 5 minutes at most.
 
+`GET /api/v1/session/options` (public) says which other ways the page offers, `{"password", "email_code", "github"}`
+(true or false). Each is a first step like the password; the second factor follows the same way:
+
+```
+POST /api/v1/session/email-code         {"email": "sam@example.com"}
+  -> 200 {"data": {"sent_to": "s***@example.com"}}       the same answer whether or not an account uses it
+POST /api/v1/session/email-code/verify  {"email": "sam@example.com", "code": "123456"}
+  -> 201 signed in, or 200 {"second_factor": ...}
+
+POST /api/v1/session/github             {}
+  -> 200 {"data": {"url": "https://github.com/login/oauth/authorize?..."}}    the browser goes there
+POST /api/v1/session/github/callback    {"code", "state"}      what GitHub sent back to /login/github
+  -> 201 signed in, 200 {"second_factor": ...}, or 200 {"linked": "<login>"} after POST /api/v1/account/github
+```
+
+The state is bound to the session cookie that started the flow and works once (10 minutes). Wrong e-mail codes
+count like wrong passwords; refused GitHub sign-ins are 403 with the reason. An account whose methods do not include
+the one used is refused with 403 (`PATCH /api/v1/users/<name>` `{"sign_in_methods": [...]}` chooses them;
+`DELETE /api/v1/users/<name>/github` unlinks GitHub; `DELETE /api/v1/account/github` unlinks one's own).
+
 A signed-in session can be **restricted** (`"restricted"` in the answer). Only `/api/v1/session`,
 `/api/v1/account` and `/api/v1/contact` answer until the task is done:
 

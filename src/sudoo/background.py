@@ -60,6 +60,7 @@ def start() -> None:
         managed_names.run_forever,
         mail_catcher.maintain_forever,
         _watch_upgrades,
+        _github_access,
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     alerts.start()
@@ -126,6 +127,13 @@ def _start_premium_jobs() -> None:
             start_job()
         except Exception as error:  # noqa: BLE001 - one package never stops the others
             print(f"premium: {name} not started: {error!r}", flush=True)
+
+
+def _github_access() -> None:
+    """Every minute: read again the repository permissions that are due (auth/github_access.py)."""
+    from sudoo.auth import github_access
+
+    github_access.run_forever()
 
 
 def _watch_upgrades() -> None:

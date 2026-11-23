@@ -5,6 +5,7 @@ title and the text of each one; the changes are kept in the panel's storage (ove
 below stay as they are, so "Reset to default" only forgets the change. Texts are in the plain format of textformat.py.
 
     sign_in_code         the 6-digit code that finishes a sign-in (second factor "email")
+    email_sign_in_code   the 6-digit code that signs in without a password (sign-in method "email_code")
     email_confirmation   the code that confirms an address for e-mail codes
     sign_in_notice       "new sign-in to your account", after each sign-in (SIGN_IN_EMAIL)
     invitation           an invitation to the panel, with a link to choose a password (invitations.py)
@@ -279,6 +280,26 @@ MESSAGES: dict[str, Message] = {
                 "password in Sudoo.sh."
             ),
             placeholders=_code_placeholders("finishes signing in"),
+            required=("code", "code_box"),
+        ),
+        Message(
+            key="email_sign_in_code",
+            name="Sign-in code (no password)",
+            description="The code that signs in without a password, for accounts that sign in with an e-mail code.",
+            recipients="The person signing in",
+            kicker="Sign in",
+            preheader="{{ code }} - valid for {{ minutes }} minutes",
+            subject="{{ code }} is your Sudoo.sh sign-in code",
+            title="Your sign-in code",
+            body=(
+                "Hello {{ name }},\n\n"
+                "Type this code in Sudoo.sh to sign in. You do not need a password.\n\n"
+                "{{ code_box }}\n\n"
+                "[Open Sudoo.sh]({{ panel_link }})\n\n"
+                "{{ request }}\n\n"
+                "> Did not ask for a code? You can ignore this e-mail: nobody signs in without it. Never share it."
+            ),
+            placeholders=_code_placeholders("signs in"),
             required=("code", "code_box"),
         ),
         Message(

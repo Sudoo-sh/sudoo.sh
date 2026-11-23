@@ -1313,6 +1313,82 @@ added.
 Every step (connection started, refused, connected, installed, refreshed, forgotten, disconnected, webhook address
 changed) is recorded in the audit log.
 
+### Sign-in with GitHub
+
+The same app can also identify people, so staff and developers sign in with **Continue with GitHub** instead of a
+password. The panel uses GitHub's web flow with a one-time `state` and PKCE, and GitHub sends the browser back to the
+panel's own address, `<panel address>/login/github`. The person's GitHub token is used for a few seconds (who they
+are, their verified e-mail address, their organisations) and revoked at once; it is never stored. What the panel
+keeps on the account: the GitHub user id, the login and the verified primary e-mail address.
+
+**An app connected from now on** is created with everything sign-in needs: `/login/github` as its callback URL,
+**Email addresses: read** (account permission) and **Members: read** (organisation permission).
+
+**An app connected before this version** needs one step on GitHub, once:
+
+1. Open the app's settings on GitHub (the **Settings on GitHub** link on the panel's **GitHub access** page).
+2. Under **Identifying and authorizing users**, add the **Callback URL** `https://<panel address>/login/github`
+   (several are allowed: add one per address the panel is opened at). Leave **Request user authorization (OAuth)
+   during installation** off. Click **Save changes**.
+3. Optional but recommended, under **Permissions & events**: **Account permissions, Email addresses: Read-only**
+   (without it nobody is linked by e-mail address, only by GitHub login) and, when you use
+   `GITHUB_SIGN_IN_ORGS`, **Organization permissions, Members: Read-only**. Save; each installation's owner then
+   accepts the new permissions on GitHub (GitHub e-mails them).
+
+Then turn it on: **Settings, Sign-in and security, GitHub sign-in**, `GITHUB_SIGN_IN` on.
+
+**Who may sign in with GitHub:**
+
+| Who | What happens at the first sign-in |
+| :--- | :--- |
+| Someone with an account whose **GitHub user name** you typed (Accounts, **Sign-in**) | The account is linked to that GitHub account |
+| Someone with an account whose e-mail address is their **verified** primary address on GitHub | Linked. An address GitHub has not verified never links anything |
+| Someone with a pending invitation naming their GitHub user name or their verified address | The invitation is accepted and the account created, with the invited role |
+| A member of one of `GITHUB_SIGN_IN_ORGS` | An account is created with `GITHUB_SIGN_IN_ROLE` |
+| Anyone else | Refused, and recorded in the audit log |
+
+After the first sign-in, the account is found by its GitHub user id, which never changes, so renaming the GitHub
+account changes nothing. People link or unlink GitHub themselves on their account page; an administrator can unlink
+it on the **Accounts** page.
+
+**Second factor.** GitHub counts as the first factor, like a password: `REQUIRE_SECOND_FACTOR` still asks for the
+panel's code afterwards. With `GITHUB_SIGN_IN_SKIPS_SECOND_FACTOR` on, people whose GitHub account has two-factor
+authentication on skip the panel's code. That is easier, but the panel then trusts GitHub's 2FA and session: whoever
+holds a signed-in GitHub session can sign in. Keep it off for panels that run production data.
+
+**Project access from GitHub.** With `GITHUB_ACCESS_FROM_REPOSITORIES` on (the default when GitHub sign-in is on), a
+linked person's access to a project follows their permission on the project's repository:
+
+| GitHub permission | Level in the project |
+| :--- | :--- |
+| admin | admin |
+| maintain | maintainer |
+| write | developer |
+| triage, read | view |
+| none | none: the project is hidden |
+
+* The permission is read with the app's own installation token at each sign-in and every
+  `GITHUB_ACCESS_CHECK_MINUTES` (15). Someone removed from the repository loses the project at the next reading.
+* A grant to the person on the project's **Access** tab always wins (also "none"); otherwise the higher of GitHub's
+  level and their teams' grants applies. Their panel role stays the most they can do.
+* Super admins and administrators are not limited by it. A repository the app is not installed on is not checked:
+  the panel's own rules apply to it.
+* The project's **Access** tab lists each linked person with their GitHub permission and level.
+
+### Ways to sign in
+
+Each account signs in with one or more of **Password**, **E-mail code** (a 6-digit code sent to its address, no
+password) and **GitHub**. Without a choice, staff accounts use `SIGN_IN_METHODS` (`password,github`) and client
+accounts `CLIENT_SIGN_IN_METHODS` (`email_code`). Change them for one account on the **Accounts** page, **Sign-in**.
+
+* **Break glass:** at least one super admin always keeps a password. The panel refuses to take Password away from
+  the last super admin that has one, to demote or delete them, or to set `SIGN_IN_METHODS` without `password` unless
+  a super admin has Password chosen on their own account.
+* E-mail codes need e-mail to be set up and `EMAIL_CODE_SIGN_IN` on. The sign-in page answers the same whether an
+  account uses the address or not. Each address may ask for `EMAIL_CODE_SENDS_PER_HOUR` codes an hour; wrong codes
+  count like wrong passwords. After an e-mail code, the e-mail code is not accepted again as the second factor.
+* Every sign-in, link and unlink is in the audit log, and the sign-in e-mail says which way was used.
+
 ---
 
 ## 16. Alerts

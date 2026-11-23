@@ -3,7 +3,7 @@
 const en = {
   about: "About this demo",
   demo: "Demo",
-  signInAny: "Sign in with any e-mail address and password.",
+  signInAny: "Sign in with any e-mail address and password, any 6-digit code, or GitHub.",
   firstRun: "Or try first-run setup.",
   setupAny: "First-run setup: any setup code works.",
   sampleData: "with sample data. Nothing here is real.",
@@ -27,7 +27,7 @@ const en = {
 const ar: typeof en = {
   about: "عن هذا العرض التجريبي",
   demo: "عرض تجريبي",
-  signInAny: "سجّل الدخول بأي بريد إلكتروني وكلمة مرور.",
+  signInAny: "سجّل الدخول بأي بريد إلكتروني وكلمة مرور، أو بأي رمز من 6 أرقام، أو باستخدام GitHub.",
   firstRun: "أو جرّب الإعداد الأول.",
   setupAny: "الإعداد الأول: أي رمز إعداد يصلح.",
   sampleData: "ببيانات تجريبية. لا شيء هنا حقيقي.",

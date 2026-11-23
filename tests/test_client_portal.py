@@ -54,6 +54,8 @@ def _instance(name: str, project_id: str, branch: str, stage: str) -> None:
 def _account(name: str, role: str) -> None:
     if accounts.get(name) is None:
         accounts.create(name, role, PASSWORD.format(name), first_name=name, email=f"{name}@example.com")
+        if role == "client":  # clients sign in with e-mail codes by default (CLIENT_SIGN_IN_METHODS); passwords here
+            accounts.update(name, sign_in_methods=["password", "email_code"])
 
 
 def _sign_in(app: Flask, name: str, host: str = "localhost") -> Client:

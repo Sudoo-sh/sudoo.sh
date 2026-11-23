@@ -191,6 +191,11 @@ PUBLIC_API = {
     ("GET", "/api/v1/portal"),  # whether this is the client portal's address, its name and colour (sign-in page)
     ("POST", "/api/v1/session"),
     ("POST", "/api/v1/session/second-factor"),
+    ("GET", "/api/v1/session/options"),  # which ways to sign in the page offers
+    ("POST", "/api/v1/session/email-code"),  # a sign-in code by e-mail, without a password (auth/email_sign_in.py)
+    ("POST", "/api/v1/session/email-code/verify"),
+    ("POST", "/api/v1/session/github"),  # Continue with GitHub (auth/github.py)
+    ("POST", "/api/v1/session/github/callback"),
     ("POST", "/api/v1/invitation"),  # an invitee: who is invited, then accepting (web/v1/invitations.py)
     ("POST", "/api/v1/invitation/accept"),
     ("GET", "/api/v1/licence/text"),  # the agreement this release bundles, shown at first-run setup

@@ -75,6 +75,9 @@ def start() -> None:
     from sudoo.projects import clients
 
     threading.Thread(target=clients.run_forever, daemon=True, name="client-portal").start()
+    from sudoo import maintenance
+
+    threading.Thread(target=maintenance.run_forever, daemon=True, name="maintenance").start()
 
     from sudoo import notifications
     from sudoo.status import checks as status_checks

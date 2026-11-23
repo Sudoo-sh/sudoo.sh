@@ -42,6 +42,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   (`/__sudoo/status`: state and step only, rate-limited). API clients get the same 503 with `Retry-After` as before.
 - The job drawer and an instance's header show a job under way more clearly: the current step highlighted, which step
   of how many, the progress bar and text, and the time it has run. Jobs carry `expected_steps`.
+- **Maintenance windows**: when Sudoo.sh plans work that needs a restart or a short downtime (an update to a new panel
+  version, new Odoo images, a restart, other work on the server), the panel shows a banner and a **Maintenance** page
+  with the reason and the duration, and super admins and admins choose when it runs: tonight, this weekend, the
+  default window or another time before its deadline. Nobody chose: the default maintenance window applies
+  (`MAINTENANCE_DEFAULT_WINDOW`, 01:00-05:00 every day). Reminders by e-mail (24 and 1 hours before), a
+  **Scheduled maintenance** page for visitors during it, and upcoming maintenance on public status pages. It runs
+  through the usual jobs, one instance at a time, production last, after a backup, and checks that Odoo answers.
+  Clients see the maintenance of their projects in the portal; a closed or locked project is skipped unless its client
+  lets it run, and clients may choose the time when you allow it (`MAINTENANCE_CLIENT_CHOICE`). Items arrive only
+  signed from the hub and must pass an allow-list; results go back to the hub, signed. New permission
+  `maintenance.manage`, settings `MAINTENANCE_*`, e-mails `maintenance_planned`, `maintenance_reminder` and
+  `maintenance_result` (English and Arabic).
 - **Project roles per stage: Viewer, Tester, Developer, Maintainer, Admin.** Inside a project, a person's project role
   decides what they may do in production, staging and development: a Developer works freely in development, tests
   staging without its data and sees only production's status; a Maintainer also reads production's logs, connects to

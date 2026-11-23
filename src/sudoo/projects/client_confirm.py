@@ -1,7 +1,8 @@
 """Confirmation by e-mail of a client's major actions in the portal (projects/clients.py).
 
 Opening or closing the switch (project or branch), locking or unlocking, turning emergency access on or off,
-approving an access request, and naming or removing the people a closure lets through: each waits until the client
+approving an access request, naming or removing the people a closure lets through, and choosing the time of
+maintenance or letting it run on a closed project (web/v1/maintenance.py): each waits until the client
 confirms it. The portal asks; the panel keeps the action as a confirmation (storage collection
 "client_confirmations") and e-mails the client (template client_action_confirm, or _ar in Arabic) a one-time link and
 a 6-digit code:
@@ -47,7 +48,7 @@ COLLECTION = "client_confirmations"
 PURPOSE = "client-action"
 TEMPLATE = "client_action_confirm"
 PATH = "/confirm"
-KINDS = ("switch", "lock", "emergency", "approve", "allow")
+KINDS = ("switch", "lock", "emergency", "approve", "allow", "maintenance_window", "maintenance_approve")
 FORGET_SECONDS = 7 * 86400
 
 

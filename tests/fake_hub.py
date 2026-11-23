@@ -6,7 +6,7 @@ path, installation, timestamp, nonce and body hash; 5-minute window; nonces once
 /installations/*) and **signs every answer** to a signed request (refusals and package downloads included) with its
 active key. It lists its keys with states and endorsements and can rotate or revoke them; registers installations
 with their fingerprint, flags a heartbeat from another machine, answers heartbeats with 72-hour EdDSA leases
-(licences with run_until and perpetual, commands, flags), links and unlinks (queueing a signed remove_paid_plugins
+(licences with run_until and perpetual, commands, flags, planned maintenance), links and unlinks (queueing a signed remove_paid_plugins
 command), takes acknowledgements, revokes keys (401 key_revoked), serves the panel catalogue with each plugin's
 action, plans with monthly equivalents and savings, icons and recommendations, the billing context, install answers
 and signed packages (optionally through a redirect, as with S3), and opens checkout sessions that the test then pays,
@@ -278,6 +278,9 @@ class FakeHub:
         self.panel_names_offered = True
         self.panel_label = "panel"
         self.panel_name: dict[str, Any] | None = None
+        # planned maintenance (sudoo-hub "Maintenance windows"): the lease's "maintenance" items, and the reports
+        self.maintenance: dict[str, dict[str, Any]] = {}
+        self.maintenance_reports: list[tuple[str, dict[str, Any]]] = []
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
@@ -401,6 +404,8 @@ class FakeHub:
             "flags": flags,
             "next_heartbeat": now + 900,
         }
+        if self.maintenance:
+            claims["maintenance"] = [dict(item) for item in self.maintenance.values()]
         if self.entitlements is not None:
             claims["entitlements"] = {"valid_until": min(expires, now + 24 * 3600), **self.entitlements}
         signing_input = f"{b64url(json.dumps(header).encode())}.{b64url(json.dumps(claims).encode())}"
@@ -487,6 +492,22 @@ class FakeHub:
                 "download_path": f"/api/v1/catalog/{listing.id}/download/{version}", "package_sha256": sha,
                 "package_size": len(listing.versions[version]), "signature": signature,
                 "signing_key_id": self.key_id, "requires": [], "license": self.licences.get(listing.id)}  # fmt: skip
+
+    def plan_maintenance(self, installation: str, **definition: Any) -> str:
+        """What staff do on the hub: a maintenance item (in the lease) and its signed command "maintenance"."""
+        now = int(time.time())
+        item_id = str(uuid.uuid4())
+        payload = {"maintenance_id": item_id, "kind": "restart", "scope": "panel", "targets": [], "version": None,
+                   "reason": {"en": "A planned restart of the server.", "ar": "إعادة تشغيل مخطّطة للخادم."},
+                   "estimated_minutes": 30, "earliest_start": now + 3600, "deadline": now + 7 * 86400,
+                   "required": True, **definition}  # fmt: skip
+        self.commands[str(uuid.uuid4())] = {"kind": "maintenance", "issued_at": now, "payload": payload,
+                                            "acked": False, "installation": installation}  # fmt: skip
+        item = {k: v for k, v in payload.items() if k != "maintenance_id"}
+        self.maintenance[item_id] = {"id": item_id, **item, "status": "proposed", "window_start": None,
+                                     "window_end": None, "window_source": None, "chosen_by": None,
+                                     "updated_at": now}  # fmt: skip
+        return item_id
 
     def unlink(self, installation: str, reason: str = "unlinked") -> None:
         """What the hub does on POST /unlink or DELETE /account/installations/{id}."""
@@ -899,6 +920,24 @@ class FakeHub:
                     if hub.linked is not None:
                         hub.unlink(installation)
                     return self._send(204)
+                if self.path.startswith("/api/v1/maintenance/") and self.path.endswith("/report"):
+                    installation = self._signed(body)
+                    if installation is None:
+                        return None
+                    item_id = self.path.split("/")[4]
+                    item = hub.maintenance.get(item_id)
+                    if item is None:
+                        return self._problem(404, "There is no such maintenance for this installation.")
+                    if item["status"] in ("done", "failed", "cancelled"):
+                        return self._problem(409, "This maintenance has ended.", "maintenance_closed")
+                    hub.maintenance_reports.append((item_id, data))
+                    item["status"] = data["status"]
+                    if data.get("window_start"):
+                        item["window_start"] = int(datetime.fromisoformat(data["window_start"]).timestamp())
+                        item["window_end"] = int(datetime.fromisoformat(data["window_end"]).timestamp())
+                        item["window_source"] = data.get("window_source")
+                    item["updated_at"] = int(time.time())
+                    return self._send(200, item)
                 if self.path.startswith("/api/v1/commands/") and self.path.endswith("/ack"):
                     installation = self._signed(body)
                     if installation is None:

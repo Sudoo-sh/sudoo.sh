@@ -234,6 +234,10 @@ class PanelHost:
 
     async def situation(self, name: str) -> status_pages.Situation:
         page, since = wake_decision(name)
+        if page == "busy":  # a job of planned maintenance: the visitor is told it was planned (maintenance.py)
+            from sudoo import maintenance
+
+            page = "maintenance" if maintenance.running_on(name) else page
         return status_pages.Situation(page, since, public_progress(name))
 
     async def connect(self, name: str, token: str, ip: str) -> tuple[str | None, str]:

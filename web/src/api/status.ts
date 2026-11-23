@@ -1,9 +1,9 @@
 // A project's status (GET /projects/<id>/status), its public page, and its notification channels
 // (/projects/<id>/notifications): the shapes the API answers (src/sudoo/web/v1/project_status.py, notifications.py)
 // and the queries that read them.
-
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./client";
+import type { PublicMaintenance } from "./types";
 
 export type TargetState = "up" | "degraded" | "down";
 export type TargetKind = "instance" | "backups" | "offsite" | "server";
@@ -69,6 +69,8 @@ export interface PublicStatus {
   state: Overall;
   targets: Pick<StatusTarget, "kind" | "name" | "state" | "uptime" | "days">[];
   at: number;
+  /** planned maintenance of the project's instances (src/sudoo/maintenance.py), running or within 14 days */
+  maintenance?: PublicMaintenance[];
 }
 
 export type ChannelType = "slack" | "discord" | "teams" | "telegram" | "webhook" | "email";

@@ -41,6 +41,7 @@ domains and certificates, off-site copies of backups.
 29. [Audit log](#29-audit-log)
 30. [Client portal](#30-client-portal)
 31. [Production access rules (beta)](#31-production-access-rules-beta)
+32. [Maintenance windows](#32-maintenance-windows)
 
 ---
 
@@ -3101,3 +3102,60 @@ Access rules: blocked 3FA2C91B acme-main 198.51.100.20 US /odoo
 Countries are a convenience barrier: anyone can appear to be in another country with a VPN or a rented server, and
 the database can be wrong for some addresses. Address rules are much stronger; use them for what matters. See
 [Security](SECURITY.md#21-production-access-rules-beta).
+
+---
+
+## 32. Maintenance windows
+
+Sometimes Sudoo.sh plans work on your panel that needs a restart or a short downtime: an update to a new panel
+version, new Odoo images, a restart, or work on the server itself. You choose when it runs. Settings:
+[Configuration, Maintenance windows](CONFIGURATION.md#maintenance-windows).
+
+**How it reaches you.** The panel must be linked to Sudoo.sh (`MARKETPLACE` on). Planned maintenance arrives with the
+signed answer to the panel's heartbeat: as the signed command `maintenance` and in the signed lease. Nothing else
+from Sudoo.sh is run. The panel checks every item against its own allow-list: one of four kinds (`panel_update`,
+`odoo_images`, `restart`, `custom`), on the panel, servers, instances or projects, with valid names, a version for a
+panel update and nothing else. An item outside the list is refused, and Sudoo.sh is told why. Super admins and admins
+are e-mailed (`maintenance_planned`), and a banner shows at the top of the panel.
+
+**Choosing the time.** Open **Maintenance** in the menu. Each item shows what is done, why (in your language), what
+it works on, how long it takes, and when it may start: from its earliest start to its deadline (the latest start).
+Super admins and admins (permission `maintenance.manage`) choose:
+
+1. **Tonight**: the next `MAINTENANCE_TONIGHT_TIME` (02:00 by default).
+2. **This weekend**: the next `MAINTENANCE_WEEKEND_DAY` at the same time.
+3. **Default window**: the next `MAINTENANCE_DEFAULT_WINDOW` (01:00-05:00 every day by default).
+4. **Another time**: any start between the bounds, at least `MAINTENANCE_LEAD_MINUTES` from now.
+
+Times are in `TIMEZONE`. The account's owner may also choose on app.sudoo.sh; the choice made last wins. If nobody
+chooses within `MAINTENANCE_CHOOSE_HOURS` of its arrival, or `MAINTENANCE_CUTOFF_HOURS` before its deadline, the panel
+picks the first default window that fits and says so by e-mail. If the deadline has passed (the panel was off), an
+optional item fails, and a required one runs as soon as possible.
+
+**Clients.** Clients of the projects an item works on see it in the client portal (only their own instances) and get
+its e-mails (`MAINTENANCE_REMIND_CLIENTS`). With `MAINTENANCE_CLIENT_CHOICE` on, they may choose its time too,
+confirmed by e-mail like their other major changes.
+
+**Reminders.** `MAINTENANCE_REMINDER_HOURS` (24 and 1 hours by default) before it starts, administrators and the
+clients of affected projects get a reminder. Visitors of an instance during the work see a **Scheduled maintenance**
+page, and the project's public status page shows upcoming maintenance.
+
+**How it runs.** One item at a time, at its window:
+
+- **Instances** (new Odoo images, restarts): through the usual jobs, one instance at a time. Development first, then
+  staging, production last. Before new images, production and staging instances are backed up
+  (`MAINTENANCE_BACKUP_FIRST`). Afterwards Odoo must answer, otherwise the step fails. After a failure, no production
+  instance is touched. A paused instance stays paused; it starts with the new images when someone opens it.
+- **Closed and locked projects**: an instance whose branch its client closed or locked is skipped, unless that client
+  let this maintenance run (in the portal, confirmed by e-mail). A branch your team locked is skipped too.
+- **A restart of the panel**: the backend restarts once no job runs. Instances keep serving.
+- **A panel update**: the panel asks for it in `<ODOO_ROOT>/manager/update-request.json` and waits up to
+  `MAINTENANCE_UPDATE_WAIT_HOURS` for the new version. Install it with `sudo sudoo-install update --version X.Y.Z`.
+  Once the panel runs that version, the item is done.
+- **Other work** (`custom`): Sudoo.sh does it during the window; the item ends when the window ends.
+
+Instances on other servers are skipped (their agents do not run maintenance yet). The Cloudflare connectors
+(`sudoo-connector-*`) are never started, stopped or recreated by maintenance.
+
+**Afterwards.** Each step's result is shown on the Maintenance page and sent to Sudoo.sh, signed. Administrators and
+clients are e-mailed the result (`maintenance_result`). Everything is in the audit log.

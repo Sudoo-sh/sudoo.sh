@@ -42,6 +42,7 @@ Every endpoint needs a **permission** (for example `instances.create`). A person
 12. [Web shell](#12-web-shell)
 13. [Code profiler](#13-code-profiler)
 14. [Client portal](#14-client-portal)
+15. [Maintenance windows](#15-maintenance-windows)
 
 ---
 
@@ -1632,3 +1633,39 @@ waiting in `confirmations` (and the project's lock in `locked`; each switch has 
 `GET /portal` (public) says whether the address is the portal's (`portal`), with `name` (`PORTAL_NAME`) and
 `brand_color`; `POST /session` answers 200 `{"redirect": {"address", "url"}}` when the account signs in at the other
 address.
+
+---
+
+## 15. Maintenance windows
+
+How it works: [Admin guide, Maintenance windows](ADMIN_GUIDE.md#32-maintenance-windows). Items arrive only from the
+hub, signed. Times are ISO 8601 with the offset of `TIMEZONE`; a `start` without an offset is read in `TIMEZONE`.
+
+An item: `id`, `kind` (`panel_update`, `odoo_images`, `restart`, `custom`), `scope` (`panel`, `server`, `instance`,
+`project`), `targets`, `version`, `title` and `reason` (`en`, `ar`), `estimated_minutes`, `earliest_start`,
+`deadline` (the latest start), `required`, `status` (`proposed`, `scheduled`, `running`, `done`, `failed`,
+`cancelled`), `window` (`start`, `end`, `source`: `panel`, `client`, `account` or `default`, `chosen_by`,
+`chosen_at`; `null` before a choice), `choose_from` and `choose_until`, `presets` (`id`: `tonight`, `weekend` or
+`default`, `start`, `end`), `auto_at` and `default_start` (when and where the default window applies), `instances`
+(`name`, `stage`, `project`, `held`: why it would be skipped), `approvals` (projects whose client let it run),
+`steps` (`name`, `instance`, `stage`, `status`, `job`, `detail`), `detail`, `received_at`, `started_at`,
+`finished_at`.
+
+| Method and path | Body | Answer |
+| :--- | :--- | :--- |
+| `GET /maintenance` | | 200, the open items and those that ended in the last 30 days; `meta`: `timezone`, `lead_minutes`, `default_window`, `default_days`, `tonight_time`, `weekend_day`, `reminder_hours`, `client_choice`, `may_choose` (`instances.view`) |
+| `PUT /maintenance/<id>/window` | `{"preset": "tonight" \| "weekend" \| "default"}` or `{"start": "2026-11-29T02:00"}` | 200, the item (`maintenance.manage`); 409 once it runs or ended; 422 outside its bounds |
+| `GET /client/maintenance` | | 200 (a client): the items that work on its projects, with only its instances, `projects` and `held` (its closed or locked ones); `meta` as above with `confirmations` |
+| `PUT /client/maintenance/<id>/window` | as above | 200 `{"done": true}`, or **202** `{"confirmation"}` while `CLIENT_CONFIRMATIONS` is on; 403 unless `MAINTENANCE_CLIENT_CHOICE` |
+| `POST /client/maintenance/<id>/approve` | `{"project"?}` | the same: lets it run on that closed or locked project |
+
+`GET /public-status/<token>` also has `maintenance`: running or scheduled within 14 days on the project's instances
+(`kind`, `title`, `status`, `window_start`, `window_end`; never the reason).
+
+**The hub's side** (signed both ways, [Security](SECURITY.md#22-maintenance-windows)): the heartbeat's answer carries
+the command `maintenance` (its payload: `maintenance_id`, `kind`, `scope`, `targets`, `version`, `reason`,
+`estimated_minutes`, `earliest_start`, `deadline`, `required`), acknowledged `done` when recorded or `failed` with the
+allow-list's reason, and the lease's claim `maintenance` (each item with `status`, `window_start`, `window_end`,
+`window_source`, `chosen_by`, `updated_at`). The panel reports with `POST /api/v1/maintenance/<id>/report`
+(`status`: `scheduled` with `window_start`, `window_end`, `window_source`, `chosen_by`; `running`, `done` or
+`failed` with `steps` and `detail`).

@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [3.3.1] - 2026-11-23
+
 ### Fixed
 
 - **The server's figures on a server that is itself a container** (LXC and similar, as some providers and company
@@ -13,8 +15,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   instead of 3 GB, so "Running 2 of about 29" instead of about 3; the processor use of all the host's processors;
   the host's uptime). `compose.yaml` now mounts the server's own `/proc/meminfo`, `/proc/stat` and `/proc/1/stat`
   read-only at `/host/proc`, and the monitor reads them; on an ordinary server the figures do not change.
-
-### Fixed
 
 - **The demo offers Odoo 16.0 to 20.0**, as a panel does with `ODOO_VERSIONS=auto`, in every version list (new instance,
   Create instance, database upgrades), and has a sample Odoo 20 branch, `odoo-20` of Zahra Clinic.
@@ -1261,7 +1261,8 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.0...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.1...HEAD
+[3.3.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.0...v3.3.1
 [3.3.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.2.0...v3.3.0
 [3.2.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.1.1...v3.2.0
 [3.1.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.1.0...v3.1.1

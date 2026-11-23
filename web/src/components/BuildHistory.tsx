@@ -8,13 +8,11 @@
 import { useQueries } from "@tanstack/react-query";
 import {
   ArchiveRestore,
-  ArrowUpRight,
-  Check,
   ChevronRight,
   CircleCheck,
   CircleX,
   CircleDot,
-  Copy,
+  ExternalLink,
   FlaskConical,
   History as HistoryIcon,
   LoaderCircle,
@@ -22,18 +20,20 @@ import {
   ScrollText,
   TriangleAlert,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import { branchHistoryQuery } from "@/api/queries";
 import type { Build, BuildStatus, CommitEntry, HistoryEntry, Instance, ProjectBranch, ProjectDetail, RestoreEntry, StageChange } from "@/api/types";
 import { STAGE_LABEL } from "@/components/StageTag";
 import { Button, Empty, Skeleton } from "@/components/app/basics";
+import { CommitHash } from "@/components/CommitHash";
 import { ConnectButton } from "@/components/ConnectAs";
 import { WhyItFailed } from "@/components/WhyItFailed";
 import { intlTag, useLocale, useT } from "@/i18n";
 import words from "@/i18n/builds";
 import failureWords from "@/i18n/failure";
 import { ago, dateTime, duration, fullDateTime } from "@/lib/format";
+import { githubCommitUrl, shortSha } from "@/lib/git";
 
 const PAGE = 25;
 const LIVE: BuildStatus[] = ["success", "warning"];
@@ -85,28 +85,17 @@ export function BuildStatusTag({ status }: { status: BuildStatus }) {
   );
 }
 
-/** A commit's short hash: a press copies the whole hash; the arrow beside it opens the commit on GitHub. */
-function Sha({ commit, repository }: { commit: NonNullable<Build["commit"]>; repository: string }) {
+/** A commit's subject, linked to the commit on GitHub (a new tab) when the repository is on GitHub: the link covers
+ *  its whole card (styles: .commit-link in _pages.scss), and what acts inside the card sits above it. */
+export function CommitSubject({ commit, repository, className }: { commit: NonNullable<Build["commit"]>; repository: string; className: string }) {
   const t = useT(words).history;
-  const [copied, setCopied] = useState(false);
-  const timer = useRef<number>(undefined);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-  const copy = async () => {
-    await navigator.clipboard.writeText(commit.full_sha || commit.sha);
-    setCopied(true);
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setCopied(false), 1400);
-  };
+  const url = githubCommitUrl(repository, commit.full_sha || commit.sha);
+  if (!url) return <bdi className={className} dir="auto" title={commit.subject}>{commit.subject}</bdi>;
   return (
-    <span className="bh-sha">
-      <button type="button" onClick={copy} title={copied ? t.copied : t.copySha} aria-label={`${t.copySha}: ${commit.sha}`}>
-        <code dir="ltr">{commit.sha}</code>
-        {copied ? <Check /> : <Copy />}
-      </button>
-      <a href={`${repository}/commit/${commit.full_sha || commit.sha}`} target="_blank" rel="noreferrer" title={t.onGitHub} aria-label={t.onGitHub}>
-        <ArrowUpRight className="flip-rtl" />
-      </a>
-    </span>
+    <a className={`${className} commit-link`} href={url} target="_blank" rel="noreferrer" title={t.openCommit(shortSha(commit.sha))}>
+      <bdi dir="auto">{commit.subject}</bdi>
+      <ExternalLink className="commit-link-icon" aria-hidden />
+    </a>
   );
 }
 
@@ -174,8 +163,10 @@ function BuildCard({ build, ctx, branch }: { build: Build; ctx: Context; branch:
   const live = ctx.live.has(build.id);
   const author = build.commit?.author || (build.by && build.by !== "system" ? build.by : t.history.system);
   const ends = live && instance?.expires_at && branch.stage !== "production" ? instance.expires_at : null;
+  // a card whose commit is on GitHub opens it there when pressed (its subject is the link)
+  const linked = !!build.commit && !!githubCommitUrl(ctx.repository, build.commit.full_sha || build.commit.sha);
   return (
-    <article className={`bh-card ${build.status}`} data-live={live || undefined}>
+    <article className={`bh-card ${build.status}`} data-live={live || undefined} data-linked={linked || undefined}>
       <div className="bh-card-head">
         <Avatar name={author} />
         <div className="bh-who">
@@ -200,8 +191,8 @@ function BuildCard({ build, ctx, branch }: { build: Build; ctx: Context; branch:
       <div className="bh-commit">
         {build.commit ? (
           <>
-            <bdi className="bh-subject">{build.commit.subject}</bdi>
-            <Sha commit={build.commit} repository={ctx.repository} />
+            <CommitSubject commit={build.commit} repository={ctx.repository} className="bh-subject" />
+            <CommitHash sha={build.commit.full_sha || build.commit.sha} repository={ctx.repository} />
           </>
         ) : (
           <span className="faint">{t.history.unknownCommit}</span>
@@ -255,7 +246,7 @@ function TestsLine({ tests }: { tests: NonNullable<Build["tests"]> }) {
 function CommitCard({ entry, ctx, settings }: { entry: CommitEntry; ctx: Context; settings: string }) {
   const t = useT(words).history;
   return (
-    <article className="bh-card note bh-commit-card">
+    <article className="bh-card note bh-commit-card" data-linked={(entry.commit && githubCommitUrl(ctx.repository, entry.commit.full_sha || entry.commit.sha)) ? true : undefined}>
       <div className="bh-note-head">
         <span className="bh-kind">{t.commitReceived}</span>
         <span className="bh-skip">{t.notBuiltTag}</span>
@@ -263,8 +254,8 @@ function CommitCard({ entry, ctx, settings }: { entry: CommitEntry; ctx: Context
         <span className="bh-meta"><When at={entry.at} /></span>
       </div>
       <div className="bh-commit">
-        {entry.commit?.subject && <bdi className="bh-subject">{entry.commit.subject}</bdi>}
-        {entry.commit && <Sha commit={entry.commit} repository={ctx.repository} />}
+        {entry.commit?.subject && <CommitSubject commit={entry.commit} repository={ctx.repository} className="bh-subject" />}
+        {entry.commit && <CommitHash sha={entry.commit.full_sha || entry.commit.sha} repository={ctx.repository} />}
       </div>
       <p className="small muted">
         {t.notBuilt} <Link to={settings} viewTransition>{t.branchSettings}</Link>

@@ -25,6 +25,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **A build opens its commit on GitHub**: press a build's card on a project's **Builds** tab, or in a branch's
+  **History**, and the commit it was built from opens on GitHub in a new tab
+  (`https://github.com/<owner>/<repository>/commit/<hash>`). Pointing at the card underlines its subject and shows an
+  external-link mark. The buttons on the card keep doing only what they say: the short hash copies the whole hash,
+  **Open Odoo** opens the instance, the reason a build failed opens the branch's history, **View steps** its job. A
+  repository that is not on GitHub gets no commit link (the Builds card then opens the branch's history, as before).
+
+- **The commit an instance runs, in its header**: next to the branch, the short hash (seven characters) of the commit
+  its current build runs. Press it to copy the whole hash; its arrow opens the commit on GitHub in a new tab.
 - **Sign in with GitHub, or with a code by e-mail.** The sign-in page offers **Continue with GitHub** (through the
   panel's own GitHub App: web flow with `state` and PKCE, the person's token revoked at once and never stored) and
   **Send me a code** (a 6-digit code by e-mail, no password), next to the password. Who may sign in with GitHub:
@@ -53,6 +62,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `GET /api/v1/odoo-apps` and a branch's modules with `GET /api/v1/repositories/modules`. A new setting,
   `MAX_INITIAL_MODULES` (200), limits how many may be chosen. The project option that decides the modules of new
   development databases is now called **Modules to install in new instances**.
+
+### Changed
+
+- **A project's pages keep their layout and read more calmly**: the stage groups of the branch list (**Production**,
+  **Staging**, **Development**) are in sentence case and stand out a little more, so the branches can be scanned at a
+  glance. A build's status reads **Passed** instead of "Test: Success", an older build **Replaced** instead of
+  "Dropped", and the branch search field **Search branches**.
 
 ## [3.3.3] - 2026-11-23
 

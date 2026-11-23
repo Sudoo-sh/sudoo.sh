@@ -1946,7 +1946,7 @@ export interface SupportStatus {
 // ---------------------------------------------------------------- promotion (web/v1/promotion.py)
 
 export type CheckStatus = "ok" | "warning" | "blocked";
-export type CheckKey = "build" | "backup" | "modules" | "migrations" | "odoo" | "lock" | "capacity";
+export type CheckKey = "build" | "ci" | "backup" | "modules" | "migrations" | "odoo" | "lock" | "capacity";
 
 export interface ModuleVersion {
   name: string;
@@ -1989,6 +1989,8 @@ export interface CheckItem {
   branch_series?: string[];
   production_series?: string[];
   branches?: string[];
+  /** the "ci" item: the CI results of the latest build's commit (repository guard) */
+  ci?: { state: string; total?: number; failed?: number; pending?: number; url?: string } | null;
 }
 
 /** GET /projects/<id>/branches/<branch>/promotion-check */

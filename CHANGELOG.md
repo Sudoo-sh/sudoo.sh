@@ -43,6 +43,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   (`ACCESS_REVIEW`, `ACCESS_REVIEW_DAYS`); a **Who can do what** list on the Access tab; refusals that say which role
   cannot do what, and where, and how to ask for temporary access.
 
+- **Repository guard** (a project's Settings tab), off until a project Admin turns it on. **CI checks**: the panel
+  opens a pull request (from its own branch `sudoo/repository-guard`, never a push to a branch people use) adding a
+  GitHub Actions workflow (ruff or flake8, pylint-odoo, manifest, XML and CSV checks, and optionally the modules'
+  tests in Odoo's official image with PostgreSQL; one run per Odoo series of the branch; every action pinned by
+  commit), a pre-commit configuration with the same hooks, and `docs/CHECKS.md`; choose the checks and a strictness,
+  preview the files, and turning a check off opens a pull request that updates or removes them. The pull request's
+  link and state are shown. **Results**: each build in Builds and History gets a **Checks** badge, and the
+  pre-promotion checklist a **CI checks** item that can stop a promotion while checks fail (off by default).
+  **Branch rules**: rulesets (classic branch protection as the fallback) for production and staging: a pull request
+  with N approvals, the checks passing, no force-push or deletion, optionally a linear history and signed commits,
+  and who may push or merge to production (GitHub's Admin and Maintain roles, or named teams and people), shown as
+  current against new before they are applied, with the repository's name typed for production; **Turn off** removes
+  only the rules the panel made. GitHub's plan limits are explained. The extra GitHub App permissions are listed
+  with links to grant them, and **Connect GitHub** can ask for them up front (**Also allow the repository guard**).
+  API: `/api/v1/projects/<id>/guard`. Its defaults are panel settings, each overridable per project:
+  `PROJECT_GUARD_CHECKS`, `PROJECT_GUARD_STRICTNESS`, `PROJECT_GUARD_PRODUCTION_APPROVALS`,
+  `PROJECT_GUARD_STAGING_APPROVALS`, `PROJECT_GUARD_LINEAR_HISTORY`, `PROJECT_GUARD_SIGNED_COMMITS`,
+  `PROJECT_GUARD_PUSHERS` and `PROJECT_GUARD_BLOCKS_PROMOTION`.
 - **Client portal, with a switch the client owns**: a new **Client** role for your clients, invited by e-mail to one
   or more projects. A client sees only its projects (branches, each instance's status and **Open Odoo**, its backups
   when given, its activity log), at the panel's address or at a portal address of its own (`PORTAL_DOMAIN`, served

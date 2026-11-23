@@ -336,6 +336,9 @@ def remove(project_id: str) -> None:
 
     notifications.remove_project(project_id)  # a later project with the same id starts without them
     pages.remove(project_id)
+    from sudoo import repo_guard
+
+    repo_guard.forget(project_id)
 
 
 def for_repository(repository: str, odoo_version: str, edition: str, user: str) -> Document:

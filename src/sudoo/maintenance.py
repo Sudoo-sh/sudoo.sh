@@ -203,9 +203,12 @@ def items(shown_days: int = SHOWN_DAYS, now: float | None = None) -> list[Docume
     found = [
         doc
         for doc in storage().all(COLLECTION).values()
-        if doc.get("status") in OPEN or float(doc.get("finished_at") or doc.get("received_at") or 0) > now - shown_days * 86400
+        if doc.get("status") in OPEN
+        or float(doc.get("finished_at") or doc.get("received_at") or 0) > now - shown_days * 86400
     ]
-    return sorted(found, key=lambda d: (d.get("status") not in OPEN, float(d.get("window_start") or d.get("earliest_start") or 0)))
+    return sorted(
+        found, key=lambda d: (d.get("status") not in OPEN, float(d.get("window_start") or d.get("earliest_start") or 0))
+    )
 
 
 def affected(item: Mapping[str, Any]) -> list[str]:
@@ -459,7 +462,8 @@ def _adopt_account_window(current: Document, raw: Mapping[str, Any], now: float)
     start = raw.get("window_start")
     if not isinstance(start, int) or isinstance(start, bool):
         return
-    changed_at = raw.get("updated_at") if isinstance(raw.get("updated_at"), int) else now
+    updated = raw.get("updated_at")
+    changed_at = float(updated) if isinstance(updated, int) else now
     if current.get("window_start") == start or float(current.get("chosen_at") or 0) >= float(changed_at):
         return
     if any(r.get("status") == "scheduled" for r in current.get("outbox") or []):
@@ -487,6 +491,7 @@ def _cancel(current: Document, now: float) -> None:
 
 def _set_window(item_id: str, start: float, source: str, chosen_by: str | None, now: float,
                 report: bool = True) -> Document:  # fmt: skip
+
     def apply(doc: Document | None) -> Document | None:
         if doc is None or doc.get("status") not in CHOOSABLE:
             return doc
@@ -719,7 +724,10 @@ def start_run(item_id: str) -> bool:
 
 def _forget(now: float) -> None:
     for key, doc in list(storage().all(COLLECTION).items()):
-        if doc.get("status") not in OPEN and float(doc.get("finished_at") or doc.get("received_at") or 0) < now - FORGET_DAYS * 86400:
+        if (
+            doc.get("status") not in OPEN
+            and float(doc.get("finished_at") or doc.get("received_at") or 0) < now - FORGET_DAYS * 86400
+        ):
             storage().delete(COLLECTION, key)
 
 
@@ -797,8 +805,12 @@ def _request_update(item: Document) -> Document | None:
         return _finish(item["id"], "done", f"The panel runs version {version} already.", time.time(),
                        steps_status="done")  # fmt: skip
     request_file = settings.manager_dir / REQUEST_FILE
-    request_file.write_text(json.dumps({"version": version, "maintenance": item["id"], "requested_at": round(time.time())}))
-    _step(item["id"], {"key": "update", "name": f"Waiting for the panel to be updated to {version}", "status": "running"})
+    request_file.write_text(
+        json.dumps({"version": version, "maintenance": item["id"], "requested_at": round(time.time())})
+    )
+    _step(
+        item["id"], {"key": "update", "name": f"Waiting for the panel to be updated to {version}", "status": "running"}
+    )
     audit.record(WHO, None, "panel update requested", detail=f"version {version} (sudoo-install update)")
     return get(item["id"])
 
@@ -928,6 +940,7 @@ def _wait(job: Any, limit_hours: float = 12) -> None:
 
 def _finish(item_id: str, status: str, detail: str, now: float, report: bool = True,
             steps_status: str | None = None) -> Document | None:  # fmt: skip
+
     def apply(doc: Document | None) -> Document | None:
         if doc is None or doc.get("status") in ("done", "failed", "cancelled"):
             return doc
@@ -999,7 +1012,11 @@ def _send(item: Mapping[str, Any], key: str, name: str, account: dict[str, Any],
     arabic = accounts.language(account) == "ar"
     language = "ar" if arabic else "en"
     names = affected(item)
-    where = ("اللوحة" if arabic else "The panel") if not names else ", ".join(names[:10]) + (" …" if len(names) > 10 else "")
+    where = (
+        ("اللوحة" if arabic else "The panel")
+        if not names
+        else ", ".join(names[:10]) + (" …" if len(names) > 10 else "")
+    )
     start = item.get("window_start")
     hours = max(0.0, (float(start or 0) - time.time()) / 3600)
     values = {
@@ -1025,7 +1042,9 @@ def _send(item: Mapping[str, Any], key: str, name: str, account: dict[str, Any],
 def _chosen_words(item: Mapping[str, Any], arabic: bool, default: bool) -> str:
     source = item.get("window_source")
     if default or source == "default":
-        return "اختارت اللوحة نافذة الصيانة الافتراضية." if arabic else "The panel chose the default maintenance window."
+        return (
+            "اختارت اللوحة نافذة الصيانة الافتراضية." if arabic else "The panel chose the default maintenance window."
+        )
     if not source:
         return ""
     who = str(item.get("chosen_by") or "")
@@ -1034,9 +1053,9 @@ def _chosen_words(item: Mapping[str, Any], arabic: bool, default: bool) -> str:
 
 def _result_words(status: str, arabic: bool) -> str:
     words = {
-        "done": ("Done", "تمّت"),
-        "failed": ("Failed", "فشلت"),
-        "cancelled": ("Cancelled", "أُلغيت"),
+        "done": ("done", "تمّت"),
+        "failed": ("failed", "فشلت"),
+        "cancelled": ("cancelled", "أُلغيت"),
     }.get(status, (status, status))
     return words[1] if arabic else words[0]
 
@@ -1050,7 +1069,9 @@ def _ip() -> str | None:
 # ---------------------------------------------------------------- what the API shows
 
 
-def resource(item: Mapping[str, Any], now: float | None = None, projects_shown: Iterable[str] | None = None) -> dict[str, Any]:
+def resource(
+    item: Mapping[str, Any], now: float | None = None, projects_shown: Iterable[str] | None = None
+) -> dict[str, Any]:
     """An item as the panel's people see it (`projects_shown`: a client sees only its own projects' instances)."""
     now = time.time() if now is None else now
     names = affected(item)
@@ -1075,21 +1096,30 @@ def resource(item: Mapping[str, Any], now: float | None = None, projects_shown: 
         "deadline": iso(item["deadline"]),
         "required": bool(item.get("required")),
         "status": item.get("status"),
-        "window": None if not item.get("window_start") else {
-            "start": iso(item["window_start"]),
-            "end": iso(item.get("window_end")),
-            "source": item.get("window_source"),
-            "chosen_by": item.get("chosen_by"),
-            "chosen_at": iso(item.get("chosen_at")),
-        },
+        "window": (
+            None
+            if not item.get("window_start")
+            else {
+                "start": iso(item["window_start"]),
+                "end": iso(item.get("window_end")),
+                "source": item.get("window_source"),
+                "chosen_by": item.get("chosen_by"),
+                "chosen_at": iso(item.get("chosen_at")),
+            }
+        ),
         "choose_from": iso(lo) if choosable and lo <= hi else None,
         "choose_until": iso(hi) if choosable and lo <= hi else None,
         "presets": presets(item, now) if choosable else [],
         "auto_at": iso(auto_at(item)) if item.get("status") == "proposed" else None,
         "default_start": iso(default_start(item, now)) if item.get("status") == "proposed" else None,
-        "instances": [{"name": n, "stage": _stage(n), "project": _project_of(n)[0], "held": hold(item, n)} for n in names],
-        "approvals": sorted(item.get("approvals") or {}) if shown_projects is None
-        else sorted(p for p in item.get("approvals") or {} if p in shown_projects),
+        "instances": [
+            {"name": n, "stage": _stage(n), "project": _project_of(n)[0], "held": hold(item, n)} for n in names
+        ],
+        "approvals": (
+            sorted(item.get("approvals") or {})
+            if shown_projects is None
+            else sorted(p for p in item.get("approvals") or {} if p in shown_projects)
+        ),
         "steps": [{k: s.get(k) for k in ("name", "instance", "stage", "status", "job", "detail")} for s in steps],
         "detail": item.get("detail"),
         "received_at": iso(item.get("received_at")),

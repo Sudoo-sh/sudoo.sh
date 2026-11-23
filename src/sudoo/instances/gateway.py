@@ -224,6 +224,10 @@ class PanelHost:
 
     async def not_ready(self, request: web.Request, name: str) -> web.StreamResponse:
         page, since = wake_decision(name)
+        if page == "busy":  # a job of planned maintenance: the visitor is told it was planned
+            from sudoo import maintenance
+
+            page = "maintenance" if maintenance.running_on(name) else page
         return status_pages.render(request, name, page, since=since)
 
     async def connect(self, name: str, token: str, ip: str) -> tuple[str | None, str]:

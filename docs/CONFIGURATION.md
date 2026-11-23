@@ -61,7 +61,8 @@ reset with **Use .env**.
 24. [Premium features](#premium-features)
 25. [Support access](#support-access)
 26. [Client portal](#client-portal)
-27. [Locations](#locations)
+27. [Maintenance windows](#maintenance-windows)
+28. [Locations](#locations)
 
 ---
 
@@ -802,6 +803,29 @@ how it works: [Admin guide, Client portal](ADMIN_GUIDE.md#30-client-portal), [Us
 | `CLIENT_REQUEST_EXPIRE_HOURS` | int | `72` | **live** | Hours after which a request the client did not answer lapses. |
 | `CLIENT_CONFIRMATIONS` | bool | `true` | **live** | Clients confirm every major change in the portal (opening or closing, locks, emergency access, approving a request, the people they let in) with a one-time link or a 6-digit code sent to their e-mail; the change waits until then. Needs e-mail to be set up. `false`: changes happen at once. |
 | `CLIENT_CONFIRM_MINUTES` | int | `15` | **live** | Minutes a confirmation link or code works (5 to 60). |
+
+---
+
+## Maintenance windows
+
+Maintenance Sudoo.sh plans on your panel (an update to a new panel version, new Odoo images, a restart, other work on
+the server), and when it runs. Settings page, **Maintenance**; how it works:
+[Admin guide, Maintenance windows](ADMIN_GUIDE.md#31-maintenance-windows). Times are in `TIMEZONE`.
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `MAINTENANCE_DEFAULT_WINDOW` | text | `01:00-05:00` | **live** | The default maintenance window, `HH:MM-HH:MM` (it may cross midnight). Maintenance nobody chose a time for runs at the start of the first one that fits before its deadline. |
+| `MAINTENANCE_DEFAULT_DAYS` | text | `mon,tue,wed,thu,fri,sat,sun` | **live** | The days the default window opens, comma-separated. |
+| `MAINTENANCE_TONIGHT_TIME` | text | `02:00` | **live** | When the **Tonight** and **This weekend** choices start (`HH:MM`). |
+| `MAINTENANCE_WEEKEND_DAY` | text | `sat` | **live** | The day **This weekend** falls on: `mon` ... `sun`. |
+| `MAINTENANCE_CHOOSE_HOURS` | int | `48` | **live** | Hours after maintenance arrives during which someone may choose its time; then the default window applies. |
+| `MAINTENANCE_CUTOFF_HOURS` | int | `12` | **live** | The default window also applies this many hours before the deadline, when nobody chose earlier. |
+| `MAINTENANCE_LEAD_MINUTES` | int | `30` | **live** | The soonest a chosen window may start, in minutes from now. |
+| `MAINTENANCE_REMINDER_HOURS` | text | `24,1` | **live** | Reminders by e-mail before maintenance starts, in hours, comma-separated (at most 6). Empty: no reminders. |
+| `MAINTENANCE_REMIND_CLIENTS` | bool | `true` | **live** | Clients of the projects a maintenance works on get its e-mails too: planned, reminders, result. |
+| `MAINTENANCE_CLIENT_CHOICE` | bool | `false` | **live** | Clients may choose the time of maintenance that works on their projects, in the client portal (confirmed by e-mail when `CLIENT_CONFIRMATIONS` is on). |
+| `MAINTENANCE_BACKUP_FIRST` | bool | `true` | **live** | Back up production and staging instances before maintenance updates their images. |
+| `MAINTENANCE_UPDATE_WAIT_HOURS` | number | `6` | **live** | How long a planned panel update waits for the new version to be installed (`sudoo-install update`) before it counts as failed. |
 
 ---
 

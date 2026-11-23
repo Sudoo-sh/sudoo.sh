@@ -1431,6 +1431,86 @@ class Settings(BaseSettings):
         description="Hours after which an access request the client did not answer lapses (the person asks again).",
     )
 
+    # ------------------------------------------------------------------ maintenance windows (maintenance.py)
+    maintenance_default_window: str = Field(
+        "01:00-05:00",
+        pattern=r"^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$",
+        description="The default maintenance window (HH:MM-HH:MM in TIMEZONE; it may cross midnight): planned "
+        "maintenance nobody chose a time for runs at the start of the first one that fits.",
+    )
+    maintenance_default_days: str = Field(
+        "mon,tue,wed,thu,fri,sat,sun",
+        description="The days the default maintenance window opens (comma-separated: mon,tue,wed,thu,fri,sat,sun).",
+    )
+    maintenance_tonight_time: str = Field(
+        "02:00",
+        pattern=r"^([01]\d|2[0-3]):[0-5]\d$",
+        description='When the "Tonight" and "This weekend" choices start (HH:MM in TIMEZONE).',
+    )
+    maintenance_weekend_day: Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"] = Field(
+        "sat", description='The day the "This weekend" choice falls on.'
+    )
+    maintenance_choose_hours: int = Field(
+        48,
+        ge=1,
+        le=720,
+        description="Hours after planned maintenance arrives during which someone may choose its time before the "
+        "default window applies.",
+    )
+    maintenance_cutoff_hours: int = Field(
+        12,
+        ge=0,
+        le=720,
+        description="The default window also applies this many hours before the deadline, if nobody chose earlier.",
+    )
+    maintenance_lead_minutes: int = Field(
+        30, ge=0, le=1440, description="The soonest a chosen maintenance window may start, in minutes from now."
+    )
+    maintenance_reminder_hours: str = Field(
+        "24,1",
+        description="Reminders before maintenance starts, in hours (comma-separated); empty: no reminders.",
+    )
+    maintenance_remind_clients: bool = Field(
+        True,
+        description="Clients of the projects a maintenance works on get its e-mails too (planned, reminders, result).",
+    )
+    maintenance_client_choice: bool = Field(
+        False,
+        description="Clients may choose the time of maintenance that works on their projects, in the client portal "
+        "(confirmed by e-mail when CLIENT_CONFIRMATIONS is on).",
+    )
+    maintenance_backup_first: bool = Field(
+        True, description="Back up production and staging instances before maintenance updates their images."
+    )
+    maintenance_update_wait_hours: float = Field(
+        6,
+        gt=0,
+        le=168,
+        description="How long a planned panel update waits for the new version to be installed (sudoo-install "
+        "update) before it counts as failed, in hours.",
+    )
+
+    @field_validator("maintenance_default_days")
+    @classmethod
+    def _maintenance_days(cls, value: str) -> str:
+        days = [part.strip().lower() for part in value.split(",") if part.strip()]
+        known = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+        if not days or any(day not in known for day in days):
+            raise ValueError("must be days such as mon,tue,wed,thu,fri,sat,sun")
+        return ",".join(day for day in known if day in days)
+
+    @field_validator("maintenance_reminder_hours")
+    @classmethod
+    def _maintenance_reminders(cls, value: str) -> str:
+        parts = [part.strip() for part in value.split(",") if part.strip()]
+        try:
+            hours = [float(part) for part in parts]
+        except ValueError:
+            raise ValueError("must be hours separated by commas, such as 24,1") from None
+        if len(hours) > 6 or any(not 0 < h <= 720 for h in hours):
+            raise ValueError("must be up to 6 durations between 0 and 720 hours, such as 24,1")
+        return ",".join(f"{h:g}" for h in sorted(set(hours), reverse=True))
+
     # ------------------------------------------------------------------ web shell (webshell/, docs/ADMIN_GUIDE.md "Web shell")
     shell_enabled: bool = Field(
         True,
@@ -2000,6 +2080,9 @@ STATUS_SETTINGS = tuple(name for name in Settings.model_fields if name.startswit
 """Every setting of project status checks (status/) and notifications (notifications/); all can be changed in the
 panel."""
 
+MAINTENANCE_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("maintenance_"))
+"""Every setting of maintenance windows (maintenance.py); all of them can be changed in the panel."""
+
 MAIL_CATCHER_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("mail_catcher_"))
 """Every setting of the mail catcher (mailcatcher/); all of them can be changed in the panel."""
 
@@ -2135,6 +2218,7 @@ EDITABLE = (
     "support_access_max_hours",
     *CLIENT_SETTINGS,
     *SERVER_SETTINGS,
+    *MAINTENANCE_SETTINGS,
 )
 """Settings that can be changed in the panel, taking effect at once."""
 

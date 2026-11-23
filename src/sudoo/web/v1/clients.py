@@ -476,6 +476,10 @@ def _describe_action(kind: str, action: Mapping[str, Any]) -> str:
         )
         hours = action.get("hours") or request_found.get("hours")
         return f"Approve the access request of {request_found.get('by')}: {who} for {hours:g} hours"
+    if kind.startswith("maintenance_"):
+        from . import maintenance
+
+        return maintenance.describe(kind, dict(action))
     return kind
 
 
@@ -495,6 +499,10 @@ def _run(kind: str, project_id: str, action: Mapping[str, Any], by: str) -> Any:
     if kind == "approve":
         return clients.decide(str(action["request"]), by, True, action.get("hours"), action.get("people"),
                               str(action.get("note") or ""))  # fmt: skip
+    if kind in ("maintenance_window", "maintenance_approve"):
+        from . import maintenance
+
+        return maintenance.run(kind, project_id, dict(action), by)
     raise clients.ClientError("Unknown action.", 400)
 
 

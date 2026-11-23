@@ -1929,7 +1929,7 @@ route("GET", "/projects/:id", ({ params }) => {
 route("POST", "/projects", ({ body }) => {
   need("projects.manage", "/api/v1/projects");
   const version = String(body.odoo_version ?? "");
-  if (!["17.0", "18.0", "19.0"].includes(version)) throw new Problem(400, "Choose an Odoo version from the list.");
+  if (!DEMO_VERSIONS.includes(version)) throw new Problem(400, "Choose an Odoo version from the list.");
   const edition = body.edition === "enterprise" ? "enterprise" : "community";
   const create = body.create as Record<string, unknown> | undefined;
   let repository: string;
@@ -1961,7 +1961,8 @@ route("POST", "/projects", ({ body }) => {
 
 // ---------------------------------------------------------------- database upgrades (src/sudoo/upgrades/)
 
-const DEMO_VERSIONS = ["17.0", "18.0", "19.0"];
+// as the panel offers them with ODOO_VERSIONS=auto and ODOO_MIN_VERSION=16.0 (src/sudoo/instances/odoo.py versions())
+const DEMO_VERSIONS = ["16.0", "17.0", "18.0", "19.0", "20.0"];
 const OPENUPGRADE_REPOSITORY = "https://github.com/OCA/OpenUpgrade";
 const ODOO_TERMS = "https://www.odoo.com/documentation/18.0/legal/terms/enterprise.html#upgrade-services";
 interface DemoUpgrade {

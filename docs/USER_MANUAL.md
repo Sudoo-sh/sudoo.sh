@@ -27,6 +27,7 @@ your computer.
 14. [When something goes wrong](#14-when-something-goes-wrong)
 15. [Questions and answers](#15-questions-and-answers)
 16. [Client portal](#16-client-portal)
+17. [Maintenance](#17-maintenance)
 
 Words used in this manual:
 
@@ -1778,3 +1779,21 @@ administrators add a client there (**Add a client**: an existing client account 
 invitation; the client may be given backups and a shell) and take one out. Nobody of your team can lift a client's
 closure, change or reset a client's account while it keeps something closed, or add another client to a closed
 project. See [Admin guide, Client portal](ADMIN_GUIDE.md#30-client-portal).
+
+---
+
+## 17. Maintenance
+
+When Sudoo.sh plans an update or a restart of your panel, a banner shows at the top of every page, with the time it
+starts and a countdown once a time is chosen. Open **Maintenance** to see what is done, why, which instances it works
+on and how long it takes.
+
+Super admins and admins choose when it runs: **Tonight**, **This weekend**, the **Default window**, or another time
+between its earliest start and its deadline. If nobody chooses, the panel picks the default window and e-mails you.
+
+During the work an instance may restart for a minute or two; visitors see a **Scheduled maintenance** page that opens
+Odoo again by itself. Production instances are updated last, after a backup.
+
+**Clients** see the maintenance of their projects under **Maintenance** in the client portal. When the project is
+closed or locked, the maintenance skips it unless the client lets it run there. If the provider allows it, the client
+can choose the time too. Both are confirmed by e-mail. See [Admin guide, Maintenance windows](ADMIN_GUIDE.md#31-maintenance-windows).

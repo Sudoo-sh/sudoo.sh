@@ -14,6 +14,7 @@
   @include meta.load-css("promotion");
   @include meta.load-css("portal");
   @include meta.load-css("logs");
+  @include meta.load-css("guard");
 }
 
 @include meta.load-css("look");

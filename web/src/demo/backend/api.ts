@@ -16,6 +16,7 @@ import * as mail from "./mail";
 import * as caught from "./caught-mail";
 import * as offsite from "./offsite";
 import * as statusPages from "./status";
+import * as guard from "./repo-guard";
 import { branchBuilds, branchHistory, findEntry, recordStageChange } from "./builds";
 import { branchOptions, changeBranchOptions, clean as cleanOption, problem as optionsProblem, statusesAvailable } from "./build-options";
 import { branchList, membersOf, productionInstance, projectResource, projects, stageOf, type DemoProject } from "./projects";
@@ -2662,6 +2663,67 @@ route("POST", "/projects/:id/notifications/:channel/signing-secret", ({ params }
   const project = projectOf(params.id!);
   needInProject(project, "projects.manage");
   return ok(statusPages.newSigningSecret(statusPages.channelOf(project.id, params.channel!)));
+});
+
+// ---------------------------------------------------------------- the repository guard (web/v1/repo_guard.py)
+
+const guardsProject = (project: DemoProject) => can("projects.access") && permissionsIn(project.access).includes("projects.access");
+function guardChanger(id: string) {
+  const project = projectOf(id);
+  needInProject(project, "projects.access");
+  return project;
+}
+route("GET", "/projects/:id/guard", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "instances.view");
+  return ok(guard.guardView(project, guardsProject(project)));
+});
+route("PATCH", "/projects/:id/guard", ({ params, body }) => {
+  const project = guardChanger(params.id!);
+  const view = guard.setBlock(project, body.block_promotion, true);
+  record(ME, `repository guard: failing checks ${view.block_promotion ? "block" : "do not block"} promotion`, { detail: project.id });
+  return ok(view);
+});
+route("POST", "/projects/:id/guard/checks/preview", ({ params, body }) => {
+  const project = guardChanger(params.id!);
+  return ok(guard.previewChecks(project, guard.cleanChecks(body.checks, guard.currentChecks(project))));
+});
+route("PUT", "/projects/:id/guard/checks", ({ params, body }) => {
+  const project = guardChanger(params.id!);
+  const checks = guard.cleanChecks(body.checks, guard.currentChecks(project));
+  if (body.dry_run === true) return ok({ ...guard.previewChecks(project, checks), result: "dry_run" });
+  const result = guard.syncChecks(project, checks);
+  record(ME, `repository guard: checks ${checks.enabled ? "on" : "off"} (${result.result})`, { detail: `${project.id}: ${result.pull?.url ?? "no pull request"}` });
+  return ok(result);
+});
+route("POST", "/projects/:id/guard/pull/refresh", ({ params }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.manage");
+  return ok(guard.refreshPull(project));
+});
+route("GET", "/projects/:id/guard/results", ({ params, query }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "instances.view");
+  const shas = (query.get("sha") ?? "").split(",").filter(Boolean);
+  // the demo's commits have short hashes; the panel takes full ones only
+  if (shas.length > 30 || shas.some((s) => !/^[0-9a-f]{7,40}$/.test(s))) throw new Problem(400, "sha: up to 30 full commit hashes, comma-separated.");
+  return ok(guard.results(project, shas));
+});
+route("POST", "/projects/:id/guard/rules/preview", ({ params, body }) => {
+  const project = guardChanger(params.id!);
+  return ok(guard.planRules(project, guard.cleanRules(body.rules, guard.currentRules(project)), body.turn_off === true));
+});
+route("PUT", "/projects/:id/guard/rules", ({ params, body }) => {
+  const project = guardChanger(params.id!);
+  const result = guard.changeRules(project, guard.cleanRules(body.rules, guard.currentRules(project)), body.confirm, false, body.dry_run === true);
+  if (result.result === "applied") record(ME, "repository guard: branch rules applied", { detail: `${project.id}: ${result.changes} changes with rulesets` });
+  return ok(result);
+});
+route("DELETE", "/projects/:id/guard/rules", ({ params, body }) => {
+  const project = guardChanger(params.id!);
+  const result = guard.changeRules(project, guard.currentRules(project), body.confirm, true, body.dry_run === true);
+  if (result.result === "removed") record(ME, "repository guard: branch rules removed", { detail: `${project.id}: ${result.changes} removed` });
+  return ok(result);
 });
 
 // ---------------------------------------------------------------- teams, access and locks (projects/access.py)

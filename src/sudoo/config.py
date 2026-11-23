@@ -976,6 +976,50 @@ class Settings(BaseSettings):
         description="Pull requests from forks get previews too. Off by default: a fork's code is written by people "
         "outside the repository and runs on this server (each project can change it).",
     )
+    project_guard_checks: bool = Field(
+        False,
+        description="The repository guard's CI checks start turned on for a project that has not chosen (turning "
+        "them on still only shows them; the pull request is opened when someone saves). Each project can change it.",
+    )
+    project_guard_strictness: Literal["relaxed", "standard", "strict"] = Field(
+        "standard",
+        description="How strict the repository guard's checks are by default: relaxed (errors that break things), "
+        "standard (and the usual Odoo conventions) or strict (every rule). Each project can change it.",
+    )
+    project_guard_production_approvals: int = Field(
+        1,
+        ge=0,
+        le=10,
+        description="Approvals a pull request into a production branch needs, in the branch rules the repository "
+        "guard sets on GitHub (0 to 10). Each project can change it.",
+    )
+    project_guard_staging_approvals: int = Field(
+        0,
+        ge=0,
+        le=10,
+        description="Approvals a pull request into a staging branch needs, in the repository guard's branch rules "
+        "(0 to 10). Each project can change it.",
+    )
+    project_guard_linear_history: bool = Field(
+        False,
+        description="The repository guard's production rules require a linear history (no merge commits). Each "
+        "project can change it.",
+    )
+    project_guard_signed_commits: bool = Field(
+        False,
+        description="The repository guard's production rules require signed commits. Each project can change it.",
+    )
+    project_guard_pushers: Literal["roles", "anyone"] = Field(
+        "roles",
+        description="Who may push or merge to production in the repository guard's branch rules: roles (GitHub's "
+        "Admin and Maintain roles) or anyone (with write access). Each project can change it, and name teams or "
+        "people instead.",
+    )
+    project_guard_blocks_promotion: bool = Field(
+        False,
+        description="Failing CI checks of the repository guard stop a promotion to production (a red item of the "
+        "pre-promotion checklist); off: they are shown in amber. Each project can change it.",
+    )
 
     @field_validator("project_modules")
     @classmethod

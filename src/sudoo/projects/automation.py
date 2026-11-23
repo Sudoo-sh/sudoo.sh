@@ -80,8 +80,12 @@ def creation_refusal(project: Mapping[str, Any], branch: str) -> str | None:
     """Why no development instance is created by itself for `branch`, or None."""
     if not projects.option(project, "auto_development"):
         return "the project does not create instances for new branches"
-    if access.lock_of(project, branch) is not None:
-        return "the branch is locked"
+    if access.held(project, branch) is not None:
+        return (
+            "the branch is locked"
+            if access.lock_of(project, branch) is not None
+            else "the branch is closed by its client"
+        )
     if link_deadline.restricted():
         return "the panel is not linked to a Sudoo.sh account and the days to link it have passed"
     if projects.by_branch(project["id"]).get(branch):
@@ -172,7 +176,7 @@ def branch_deleted(repository: str, branch: str, user: str = "system") -> list[s
                 action = "archive"  # staging may hold work of testers: never deleted for this
             if action != "keep" and jobs.busy(name):
                 action = "keep"  # it is busy: left as it is, the warning shows that the branch is gone
-            if action != "keep" and access.lock_of(project, branch) is not None:
+            if action != "keep" and access.held(project, branch) is not None:
                 action = "keep"  # a locked branch: nothing is done to its instances automatically
             if action == "archive":
                 jobs.start(name, "Archive (branch deleted on GitHub)", "stop", archive, name, branch, user=user)
@@ -226,7 +230,7 @@ def update_for(name: str) -> tuple[str, str, Any, tuple[Any, ...]] | None:
     stage = stages.of(env)
     if project is None or stage == stages.PRODUCTION:
         return None
-    if access.lock_of(project, projects.branch_of(name)) is not None:
+    if access.held(project, projects.branch_of(name)) is not None:
         return None  # a locked branch: triggers.request_update skips it anyway
     if stage == stages.DEVELOPMENT:
         if _behaviour(project, name, stage) == "new_build" and not store.plain(env):
@@ -251,7 +255,7 @@ def update_for(name: str) -> tuple[str, str, Any, tuple[Any, ...]] | None:
 
         return "Automatic upgrade test", "upgrade-test", upgrade_run.rerun, (name, tested, None)
     production = staging.production_instance(project)
-    if production and access.lock_of(project, projects.branch_of(production)) is not None:
+    if production and access.held(project, projects.branch_of(production)) is not None:
         return None  # production is locked: its data is not copied automatically, the usual update instead
     if _behaviour(project, name, stage) != "new_build" or staging.rebuild_refusal(name):
         return None

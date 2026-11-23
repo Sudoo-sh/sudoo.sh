@@ -77,6 +77,9 @@ def password_step(data: dict[str, Any]) -> dict[str, Any]:
         audit.record(name[:64], ip, "sign-in failed", ok=False)
         abort(401, "Wrong e-mail address or password.")
     account = auth.account_for(identity)
+    elsewhere = _other_address(name, account, ip)
+    if elsewhere is not None:
+        return {"redirect": elsewhere}
     methods = auth.enrolled(account)
     if not methods:
         _signed_in(name, account, ip)
@@ -90,6 +93,27 @@ def password_step(data: dict[str, Any]) -> dict[str, Any]:
         challenge["sent_to"] = _challenge(name, account, "email")["sent_to"]
     audit.record(name, ip, "password accepted, waiting for the second factor")
     return {"second_factor": challenge}
+
+
+def _other_address(name: str, account: dict[str, Any], ip: str) -> dict[str, str] | None:
+    """Where this account signs in instead, after a correct password, or None: staff at the panel's address, never
+    at the client portal's (PORTAL_DOMAIN); clients at the portal's once it has one. Nothing is started here."""
+    from sudoo import roles
+    from sudoo.config import settings
+    from sudoo.mail.render import panel_url
+    from sudoo.projects import clients
+
+    from .security import PANEL, PORTAL, audience
+
+    here = audience(request.host)
+    client = roles.normalize(str(account.get("role"))) == roles.CLIENT
+    if here == PORTAL and not client:
+        audit.record(name, ip, "sign-in sent to the panel's address (staff at the client portal)")
+        return {"address": PANEL, "url": (panel_url() or "").rstrip("/")}
+    if here == PANEL and client and settings.portal_domain:
+        audit.record(name, ip, "sign-in sent to the client portal (a client at the panel's address)")
+        return {"address": PORTAL, "url": clients.portal_url().rstrip("/")}
+    return None
 
 
 def _pending() -> tuple[str, dict[str, Any]]:

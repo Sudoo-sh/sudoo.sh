@@ -130,12 +130,12 @@ def targets(project: Mapping[str, Any]) -> dict[str, list[str]]:
 
 def skip_reason(project: Mapping[str, Any], branch: str, name: str) -> str | None:
     """Why instance `name` of `branch` is not refreshed now, or None."""
-    if access.lock_of(project, branch) is not None:
-        return "the branch is locked"
+    if access.held(project, branch) is not None:
+        return "the branch is locked" if access.lock_of(project, branch) else "the branch is closed by its client"
     production = staging.production_instance(project)
     production_branch = projects.branch_of(production) if production else None
-    if production_branch and access.lock_of(project, production_branch) is not None:
-        return "production's branch is locked"
+    if production_branch and access.held(project, production_branch) is not None:
+        return "production's branch is locked or closed by its client"
     if jobs.busy(name):
         return "it is busy with another job"
     refused = staging.rebuild_refusal(name)

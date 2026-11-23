@@ -84,7 +84,7 @@ from sudoo.config import settings
 from sudoo.core import events, jobs
 from sudoo.instances import backups, capacity, monitor, odoo, stages, store
 from sudoo.limits import quotas
-from sudoo.projects import access, adopt, branches, build_options, builds, commit_status, staging
+from sudoo.projects import access, adopt, branches, build_options, builds, clients, commit_status, staging
 from sudoo.repos import github, github_app
 
 from .. import validation as check
@@ -219,6 +219,8 @@ def project_resource(project: Mapping[str, Any], user: Mapping[str, Any] | None 
             ),
             "locked_branches": sorted(b for b in found_access.get("locks") or {} if b not in hidden),
         },
+        # the client's switch of the project as a whole (projects/clients.py), or None: no client
+        "client_access": clients.describe(project, None, user),
         "links": {"self": f"{PREFIX}/projects/{project['id']}"},
     }
 
@@ -241,6 +243,7 @@ def full_resource(
     for branch in listed:
         branch["lock"] = access.describe_lock(access.lock_of(project, branch["name"]))
         branch["restricted"] = bool(access.branch_access(project, branch["name"]).get("restricted"))
+        branch["client_access"] = clients.describe(project, branch["name"], user)
         if user is not None:
             branch["permissions"] = sorted(
                 access.permissions(user, project, branch["name"]) & access.PROJECT_PERMISSIONS
@@ -1019,8 +1022,7 @@ def _refuse_branch_rules(project: Mapping[str, Any], rules: Mapping[str, Any]) -
         )
         if same:
             continue
-        level = access.level(g.user, project, branch)
-        if "projects.access" not in access.role_permissions(g.user) & access.LEVEL_PERMISSIONS[level]:
+        if "projects.access" not in access.role_permissions(g.user) & access.level_permissions(g.user, project, branch):
             log(f"refused: change the access rule of {project['id']} {branch}", ok=False)
             abort(403, f"Your access to the branch {branch} does not let you change its rule.")
 

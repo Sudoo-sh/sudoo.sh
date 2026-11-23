@@ -78,9 +78,12 @@ def _may_send() -> None:
         abort(429, f"Too many invitations sent in the last hour. Try again in {max(1, wait // 60)} minutes.")
 
 
-def _send(link: invitations.Link, invitation: Document) -> None:
-    """E-mail the invitation; raises MailError."""
-    base = (panel_url() or request.host_url).rstrip("/")
+def send_invitation(link: invitations.Link, invitation: Document) -> None:
+    """E-mail the invitation; raises MailError. A client's link opens the client portal (PORTAL_DOMAIN)."""
+    from sudoo.projects import clients
+
+    base = (clients.portal_url() if invitation.get("role") == roles.CLIENT else panel_url()) or request.host_url
+    base = base.rstrip("/")
     inviter = accounts.get(g.user["name"]) or {}
     expires = datetime.fromtimestamp(float(invitation["expires"]), UTC).strftime("%A %d %B %Y, %H:%M UTC")
     send(
@@ -119,12 +122,12 @@ def invite() -> Response:
     names = {key: check.text(data, key, max_length=60).strip() for key in ("first_name", "last_name")}
     _may_send()
     try:
-        invitation_id, link = invitations.create(email, role, g.user["name"], **names)
+        invitation_id, link = invitations.create(email, role, g.user["name"], names["first_name"], names["last_name"])
     except ValueError as error:
         abort(400, str(error))
     invitation = invitations.get(invitation_id) or {}
     try:
-        _send(link, invitation)
+        send_invitation(link, invitation)
     except MailError as error:
         invitations.revoke(invitation_id)
         log("invitation not sent", detail=f"{email}: {error}", ok=False)
@@ -143,7 +146,7 @@ def resend(invitation_id: str) -> Response:
     link = invitations.renew(invitation_id)
     invitation = invitations.get(invitation_id) or {}
     try:
-        _send(link, invitation)
+        send_invitation(link, invitation)
     except MailError as error:
         log("invitation not sent again", detail=f"{found.get('email')}: {error}", ok=False)
         abort(502, f"The invitation could not be sent: {error}")
@@ -198,6 +201,20 @@ def _invitee(invitation_id: str, invitation: Document) -> dict[str, Any]:
     }
 
 
+def _join_projects(username: str, invitation: Document) -> None:
+    """A client invited to projects becomes their client (projects/clients.py); one that cannot (deleted since, or
+    closed by another client) is audit-logged and left out."""
+    from sudoo.projects import clients
+
+    for project in invitation.get("projects") or ():
+        try:
+            clients.add_client(str(project.get("id")), username, str(invitation.get("invited_by") or "system"),
+                               backups=bool(project.get("backups")), shell=bool(project.get("shell")))  # fmt: skip
+        except clients.ClientError as error:
+            audit.record(username, client_ip(), "client not added to the project", ok=False,
+                         detail=f"{project.get('id')}: {error}")  # fmt: skip
+
+
 @blueprint.post("/invitation")
 def read_invitation() -> Response:
     _token, invitation_id, invitation = _valid(check.body())
@@ -237,6 +254,7 @@ def accept() -> Response:
         accounts.create(username, role, password, must_change=False, **profile)
     except ValueError as error:
         abort(400, str(error))
+    _join_projects(username, used)
     account = accounts.get(username) or {}
     accounts.record_sign_in(username)
     start_session(username, account["session_version"], restricted=signin.restriction(account))

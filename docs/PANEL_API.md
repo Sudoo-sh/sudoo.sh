@@ -41,6 +41,7 @@ Every endpoint needs a **permission** (for example `instances.create`). A person
 11. [Limits](#11-limits)
 12. [Web shell](#12-web-shell)
 13. [Code profiler](#13-code-profiler)
+14. [Client portal](#14-client-portal)
 
 ---
 
@@ -1466,3 +1467,45 @@ access and locked branches apply). How it works: [Admin guide](ADMIN_GUIDE.md#28
 | `GET /instances/<name>/profiles/<id>` | | 200, the recording and its `tree`: `total` (samples), `seconds`, `threads` (`name`, `samples`), `root` (the call tree: `n` name, `w` file and line, `v` samples, `c` children; the first level is the threads, calls under 0.02% of the samples are left out) and `top` (the functions with the most samples in their own code: `name`, `where`, `self`, `total`) |
 | `GET /instances/<name>/profiles/<id>/download` | | 200, the speedscope file (`application/json`, attachment), for speedscope.app or another viewer; the processes' command lines are removed from it. Audit-logged |
 | `DELETE /instances/<name>/profiles/<id>` | | **204**. Audit-logged |
+
+---
+
+## 14. Client portal
+
+How it works: [Admin guide, Client portal](ADMIN_GUIDE.md#30-client-portal). A project's resource has
+`client_access` (the project's switch, or `null` without a client), and so has each branch of
+`GET /projects/<id>` and each instance: `state` (`open`, `closed`, `timed`), `until`, `scope` (`project`, or `branch`
+for a branch's own switch), `changed_by`, `changed_at`, `emergency_allowed`, `clients`, and `lets_you_through` where
+the answer is for you. Inside a closure the usual calls answer 403 with "closed by its client".
+
+The panel's people:
+
+| Method and path | Body | Answer |
+| :--- | :--- | :--- |
+| `GET /projects/<id>/clients` | | 200, `clients`, `invited`, `project` and `branches` (switches), `allow`, `emergency_allowed`, `passes`, `requests`; `meta`: `may_manage`, `may_force`, `emergency_minutes`, `request_hours`, `request_max_hours`, `portal_url` (`instances.view` in the project) |
+| `POST /projects/<id>/clients` | `{"email", "first_name"?, "last_name"?, "backups"?, "shell"?}` | **201**: an existing client account is added, a new address invited (`clients.manage` and `projects.access` in the project; 402 without the premium teams package, 403 without the plan's `client_portal`; 409 for a staff address or a closed project) |
+| `PATCH /projects/<id>/clients/<name>` | `{"backups"?, "shell"?}` | 200 (as POST) |
+| `DELETE /projects/<id>/clients/<name>` | | **204** (`clients.manage`; 409 for the only client of a closed project) |
+| `GET /projects/<id>/access-requests` | | 200, the requests: `id`, `branch`, `by`, `reason`, `hours`, `status` (`pending`, `approved`, `refused`, `lapsed`), `asked_at`, `decided_by`, `decided_at`, `people`, `until`, `note` |
+| `POST /projects/<id>/access-requests` | `{"branch"?, "reason", "hours"?}` | **201**, the request; 409 when it is open or you asked already. The clients are e-mailed |
+| `POST /projects/<id>/emergency-access` | `{"branch"?, "reason", "confirm"}` (`confirm`: the branch's name, or the project's id) | **201**, the access (`id`, `kind`, `branch`, `people`, `until`, `reason`); 403 unless a signed-in super admin, or when the client turned it off. The clients are e-mailed at once |
+
+The client (a client account's session; nothing else is open to it):
+
+| Method and path | Body | Answer |
+| :--- | :--- | :--- |
+| `GET /client/projects` | | 200, its projects: `id`, `name`, `switch`, `closed_branches`, `pending_requests`, `emergency_active`, `instances` |
+| `GET /client/projects/<id>` | | 200, the project with `branches` (`name`, `stage`, `switch`, `instances`: `name`, `status`, `stage`, `url`, `odoo`), `allow`, `people` (whom it may name), `emergency_allowed`, `passes`, `requests`, `notices` (emergency access of the last 7 days), `given`; `meta`: `open_hours`, `open_max_hours`, `request_max_hours`, `emergency_minutes` |
+| `PUT /client/projects/<id>/switch` | `{"branch"?, "state", "hours"?, "inherit"?}` | 200, the switches |
+| `PUT /client/projects/<id>/allow` | `{"people": [names]}` | 200 |
+| `PUT /client/projects/<id>/emergency` | `{"allowed": bool}` | 200 |
+| `DELETE /client/projects/<id>/passes/<pass>` | | **204** |
+| `POST /client/requests/<id>/approve` | `{"hours"?, "people"?, "note"?}` | 200, the request |
+| `POST /client/requests/<id>/refuse` | `{"note"?}` | 200, the request |
+| `GET /client/projects/<id>/backups` | | 200, its instances' backups where it was given them (download: `GET /backups/<file>`) |
+| `GET /client/projects/<id>/activity` | `?kind=all\|access&limit&offset` | 200, the project's audit entries (`at`, `user`, `event`, `allowed`, `branch`, `instance`, `detail`, `address` (its own only), `emergency`) |
+| `GET /client/projects/<id>/activity/export` | `?kind=` | 200, CSV (the audit export's columns), a year at most |
+
+`GET /portal` (public) says whether the address is the portal's (`portal`), with `name` (`PORTAL_NAME`) and
+`brand_color`; `POST /session` answers 200 `{"redirect": {"address", "url"}}` when the account signs in at the other
+address.

@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Client portal, with a switch the client owns**: a new **Client** role for your clients, invited by e-mail to one
+  or more projects. A client sees only its projects (branches, each instance's status and **Open Odoo**, its backups
+  when given, its activity log), at the panel's address or at a portal address of its own (`PORTAL_DOMAIN`, served
+  with its certificate like the panel's name, with your company's name, `PORTAL_NAME`); sessions never cross between
+  the two addresses. The client opens or closes each project and branch, or opens it for a time; closed, nobody of
+  your team can open, change, back up, restore, open a shell or read logs and passwords, super admins included, and
+  nobody but the client can lift it, while backups, monitoring, certificates and production go on. Your team asks
+  with **Request access** (the client gets an e-mail, in English or Arabic, and approves for chosen people and hours,
+  or refuses); a super admin can use **Emergency access** for an hour by writing a reason, unless the client turned
+  it off, and the client is told at once. Everything is in the client's activity log, with CSV export. Every
+  duration and default is a setting. Adding clients is part of the Business plan. The switch is a control inside
+  the panel; the docs say plainly what server administrators can still reach.
+
 ## [3.3.3] - 2026-11-23
 
 ### Added

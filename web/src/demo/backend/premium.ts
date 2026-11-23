@@ -135,6 +135,7 @@ const GATED: { id: PremiumId; method: RegExp; path: RegExp }[] = [
   { id: "servers", method: /^POST$/, path: /^\/instances\/[^/]+\/move$/ },
   { id: "teams", method: /^(POST|PATCH)$/, path: /^\/teams(\/[^/]+)?$/ },
   { id: "teams", method: /^PUT$/, path: /^\/projects\/[^/]+\/access$/ },
+  { id: "teams", method: /^POST$/, path: /^\/projects\/[^/]+\/clients$/ }, // adding a client (Business, as the panel)
 ];
 
 /** The package an API call belongs to, when it belongs to one. */

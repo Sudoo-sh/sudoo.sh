@@ -193,6 +193,27 @@ def test_the_panels_name_gets_its_certificate_from_the_acme_authority(
         custom_domains.cert_file("panel.example.com").unlink(missing_ok=True)
 
 
+def test_the_client_portals_name_is_a_second_name_of_the_panel(direct: Direct, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = FakeAcme(certificates.challenge_answer)
+    monkeypatch.setattr(domain_worker, "TRANSPORT", fake)
+    monkeypatch.setattr(acme, "DIRECTORIES", {"production": f"{BASE}/directory", "staging": f"{BASE}/directory"})
+    monkeypatch.setattr(acme, "POLL_SECONDS", 0.0)
+    live.change(
+        {"panel_domain": "panel.example.com", "portal_domain": "portal.example.com", "domain_http_probe": False}
+    )
+    try:
+        routes = gateway_link.domain_routes(set())
+        assert routes.hosts["portal.example.com"] == gateway.DomainHost("", False, panel=True)  # to the web service
+        panel_address.round_()
+        assert panel_address.state(panel_address.PORTAL_KEY)["status"] == "active"
+        assert gateway_link.domain_routes(set()).hosts["portal.example.com"].certificate
+        assert panel_address.resource()["portal"]["url"] == "https://portal.example.com"
+    finally:
+        live.change({"domain_http_probe": None, "portal_domain": None})
+        for name in ("panel.example.com", "portal.example.com"):
+            custom_domains.cert_file(name).unlink(missing_ok=True)
+
+
 # ---------------------------------------------------------------- the gateway forwards the panel's visits
 
 

@@ -130,6 +130,11 @@ def domain_routes(instances: set[str] | None = None) -> gateway.DomainRoutes:
         name = panel_address.domain()
         if name and name not in hosts:
             hosts[name] = gateway.DomainHost("", panel_address.certificate_ready(), panel=True)
+        portal = panel_address.portal_domain()  # the client portal: a second name of the panel (PORTAL_DOMAIN)
+        if portal and portal not in hosts:
+            hosts[portal] = gateway.DomainHost(
+                "", panel_address.certificate_ready(panel_address.PORTAL_KEY), panel=True
+            )
         panel_port = settings.panel_port
         server_names = frozenset(panel_address.wanted_names())
     return gateway.DomainRoutes(settings.domain_http_port, settings.domain_https_port, hosts, panel_port, server_names)

@@ -900,7 +900,7 @@ def _locked(name: str) -> bool:
     from sudoo.projects import access  # late: projects/ imports the instances package
 
     try:
-        return access.instance_lock(name) is not None
+        return access.instance_lock(name, closures=False) is not None  # a visit starts a closed one
     except Exception:  # noqa: BLE001 - a broken project document must not stop the visitor's page
         return False
 

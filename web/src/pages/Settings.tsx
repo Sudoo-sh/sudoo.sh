@@ -25,7 +25,7 @@ import words from "@/i18n/settings";
 /** `test`: the group has a "Send a test alert" button, by e-mail or to that webhook. */
 type GroupId = Exclude<keyof (typeof words)["en"]["groups"], never>;
 type Group = { id: GroupId | `webhook${1 | 2 | 3}`; keys: string[]; test?: "email" | 1 | 2 | 3 };
-type TabId = "plan" | "support" | "general" | "instances" | "resources" | "odoo" | "backups" | "security" | "domains" | "email" | "servers" | "alerts" | "github" | "marketplace" | "advanced" | "about";
+type TabId = "plan" | "support" | "clients" | "general" | "instances" | "resources" | "odoo" | "backups" | "security" | "domains" | "email" | "servers" | "alerts" | "github" | "marketplace" | "advanced" | "about";
 
 const webhookGroup = (n: 1 | 2 | 3): Group => ({
   id: `webhook${n}`,
@@ -140,6 +140,13 @@ const TABS: { id: TabId; groups: Group[] }[] = [
     ],
   },
   { id: "support", groups: [{ id: "supportAccess", keys: ["support_access", "support_access_max_hours"] }] },
+  {
+    id: "clients",
+    groups: [
+      { id: "portalAddress", keys: ["portal_domain", "portal_name"] },
+      { id: "clientSwitch", keys: ["client_open_hours", "client_open_max_hours", "client_request_hours", "client_request_max_hours", "client_request_expire_hours", "client_emergency_access", "client_emergency_minutes"] },
+    ],
+  },
   { id: "advanced", groups: [{ id: "monitoring", keys: ["metrics_interval_seconds", "cloudflared_image"] }] },
   { id: "about", groups: [] },
 ];

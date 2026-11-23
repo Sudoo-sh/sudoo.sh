@@ -3,6 +3,7 @@ import { ArrowLeft, LifeBuoy, Lock, Mail, Smartphone } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, errorText, setCsrfToken } from "@/api/client";
+import { usePortal } from "@/api/clients";
 import { keys, useSession, useSetup } from "@/api/queries";
 import type { SecondFactorChallenge, Session } from "@/api/types";
 import { Brand } from "@/components/app/Brand";
@@ -12,6 +13,8 @@ import { OtpInput } from "@/components/app/OtpInput";
 import { LanguageSwitch } from "@/components/LanguageSwitch";
 import { useT } from "@/i18n";
 import auth from "@/i18n/auth";
+import clientWords from "@/i18n/clients";
+import { redirectTarget, signInLookFor } from "@/lib/frame";
 
 const PREVIEW = [
   { name: "sales-main", branch: "main", version: "19.0", status: "var(--positive)", when: "now" },
@@ -66,6 +69,10 @@ export function LoginPage() {
   const [shake, setShake] = useState(false);
   const [resendIn, setResendIn] = useState(0);
   const t = useT(auth).login;
+  const p = useT(clientWords).portal;
+  const { data: portalInfo } = usePortal();
+  const look = signInLookFor(portalInfo);
+  const [elsewhere, setElsewhere] = useState<string | null>(null);
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -92,8 +99,16 @@ export function LoginPage() {
     setBusy(true);
     setError("");
     try {
-      const answer = await api.post<Session | { second_factor: SecondFactorChallenge }>("/session", { username, password });
-      if ("second_factor" in answer) {
+      const answer = await api.post<Session | { second_factor: SecondFactorChallenge } | { redirect: { address: string; url: string } }>(
+        "/session",
+        { username, password },
+      );
+      if ("redirect" in answer) {
+        // the account signs in at the other address (staff at the panel's, clients at the portal's): nothing started
+        setElsewhere(answer.redirect.address === "panel" ? p.staffHere : p.clientHere);
+        const target = redirectTarget(answer.redirect);
+        if (target) setTimeout(() => window.location.assign(target), 1500);
+      } else if ("second_factor" in answer) {
         setChallenge(answer.second_factor);
         setMethod(answer.second_factor.methods[0]!.name);
         if (answer.second_factor.sent_to) setResendIn(60);
@@ -134,16 +149,25 @@ export function LoginPage() {
   };
 
   return (
-    <div className="auth">
+    <div className={look === "portal" ? "auth portal-auth" : "auth"}>
       <section className="auth-panel">
         <div className="auth-card" key={challenge ? "code" : "password"}>
           <div className="row"><Brand to="/login" /><span className="spacer" /><LanguageSwitch /></div>
           {!challenge ? (
             <>
-              <header>
-                <h1>{t.title}</h1>
-                <p>{t.text}</p>
-              </header>
+              {look === "portal" ? (
+                <header>
+                  {portalInfo?.name && <p className="small muted portal-auth-name">{p.of(portalInfo.name)}</p>}
+                  <h1>{p.signInTitle}</h1>
+                  <p>{p.signInText}</p>
+                </header>
+              ) : (
+                <header>
+                  <h1>{t.title}</h1>
+                  <p>{t.text}</p>
+                </header>
+              )}
+              {elsewhere && <Callout tone="info">{elsewhere}</Callout>}
               <form className="stack" onSubmit={submitPassword}>
                 <Field label={t.email} htmlFor="username">
                   <div className="input-group">
@@ -224,7 +248,7 @@ export function LoginPage() {
           )}
         </div>
       </section>
-      <Preview />
+      {look === "panel" && <Preview />}
     </div>
   );
 }

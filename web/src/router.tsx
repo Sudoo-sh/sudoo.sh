@@ -45,7 +45,7 @@ export const router = createBrowserRouter([
       { path: "/setup-second-factor", lazy: page(() => import("./pages/Account"), (m) => m.SetupSecondFactorPage) },
       { path: "/licence", lazy: page(() => import("./pages/Licence"), (m) => m.LicencePage) },
       {
-        lazy: async () => ({ Component: (await import("./components/Shell")).Shell }),
+        lazy: async () => ({ Component: (await import("./components/Frame")).Frame }),
         children: [
           { path: "/", lazy: page(() => import("./pages/Dashboard"), (m) => m.DashboardPage) },
           { path: "/projects", lazy: page(() => import("./pages/Projects"), (m) => m.ProjectsPage) },

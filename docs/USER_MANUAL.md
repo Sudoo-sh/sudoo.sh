@@ -26,6 +26,7 @@ your computer.
 13. [Help pages and appearance](#13-help-pages-and-appearance)
 14. [When something goes wrong](#14-when-something-goes-wrong)
 15. [Questions and answers](#15-questions-and-answers)
+16. [Client portal](#16-client-portal)
 
 Words used in this manual:
 
@@ -1143,6 +1144,9 @@ Every account has one role. The role decides which pages, buttons and menu items
 | Backups page (download, delete) | yes | yes | no | no | no |
 | Accounts, API tokens, audit log | yes | yes | no | no | no |
 | Teams; a project's access (grants, restricted projects and branches); lock and unlock branches ([Teams](#teams), [Project access and locked branches](#project-access-and-locked-branches)) | yes | yes | no | no | no |
+| Add clients to projects and take them out ([Client portal](#16-client-portal)) | yes | yes | no | no | no |
+| Ask a client for access to a closed project or branch | yes | yes | yes | yes | yes |
+| Emergency access to a project a client closed, where the client allows it | yes | no | no | no | no |
 | Create, change and delete super admins | yes | no | no | no | no |
 | Settings, restart the panel | yes | no | no | no | no |
 | E-mail templates (the texts of the e-mails the panel sends) | yes | no | no | no | no |
@@ -1163,6 +1167,9 @@ open a shell.
 
 Inside a project, a role is the most someone can do: the project's access can narrow it for a team or a person, hide
 a project or a branch, or lock a branch ([Project access and locked branches](#project-access-and-locked-branches)).
+
+A **Client** account is not part of your team: it sees only the projects it is a client of, in the client portal,
+and opens or closes access to them; nothing in the table above applies to it ([Client portal](#16-client-portal)).
 
 When you try something your role does not allow, the panel says which permission is missing. Ask an administrator.
 
@@ -1640,3 +1647,58 @@ restart.
 **Is my data safe in an instance?**
 Instances are for showing and testing Odoo. Anyone with the link and the Odoo login can sign in. Do not put real
 customer data in them.
+
+---
+
+## 16. Client portal
+
+The client portal is what your **clients** see: the Odoo projects you run for them, and a switch that decides
+whether your team may open them. A client signs in at the portal's own address when your administrator set one
+(`PORTAL_DOMAIN`, such as `portal.example.com`), otherwise at the panel's address; either way a client account sees the
+portal and nothing else of the panel.
+
+### For the client
+
+**Your projects** lists each project you are a client of, with its switch (**Open**, **Closed** or **Open until** a
+time), the branches you closed, the requests waiting for you, and a mark while emergency access is in use. Open a
+project to see:
+
+* **Access by your provider's team**: the switch of the project as a whole.
+  * **Open**: your provider's team works with their usual access.
+  * **Closed**: only you and the people you let in may open, change, back up, restore, open a shell, read logs or
+    see passwords. Everyone else, your provider's super admins included, is refused, and each attempt is in your
+    activity log. Daily backups, monitoring and certificates go on, and production keeps serving. Closing also ends
+    the access you gave before.
+  * **Open for a time**: 1, 4 or 24 hours (your provider may offer others), or a number of hours you type; then it
+    closes again by itself.
+* **Branches**: each branch follows the project unless you give it its own setting, for example production closed
+  while development stays open. Each instance shows its status and **Open Odoo**.
+* **Access requests**: your provider's team asks before opening something you closed, with a reason and a
+  duration. **Approve** lets them in (you may choose other people of their team and a shorter time) and it closes
+  again by itself; **Refuse** keeps it closed. You get an e-mail for each request.
+* **Who can get in now**: the approved requests and emergency access in use, with **End now**.
+* **People you let in**: people of your provider's team who may work here even while it is closed.
+* **Emergency access**: allowed by default. If production breaks, one of your provider's super admins can get in
+  for a short time (an hour unless they changed it) by writing a reason and typing the branch's or project's name.
+  You get an e-mail at once and it shows in red at the top of the project and of your log. Turn it off and nobody of
+  your provider can get in while you keep the project closed, even in an emergency.
+* **Backups**, when your provider gave them to you: download a copy of your database and files.
+* **Activity log**: everything done in the project: opening and closing, requests and answers, emergencies, and
+  every time someone opened data (passwords viewed, shells, backups downloaded, restores), allowed or refused.
+  **Access only** keeps the access events; **Export CSV** downloads it (a year at most).
+
+**What the switch protects.** Closing a project stops everyone in the panel, its super admins included, and every
+attempt is recorded. It is a control inside the panel: whoever administers the server itself (its root account or
+Docker) can still reach the data without the panel. For stronger isolation, run your projects on a server of your
+own.
+
+### For your team
+
+A project with a client shows **Closed by client** on a closed branch and its instances, and a notice with
+**Request access** on the project, the branch and the instance: write why you need it and for how many hours; the
+client gets an e-mail and answers in the portal. Super admins also see **Emergency access** while the client allows
+it. The project's **Clients** tab lists its clients, the requests and their answers, and the access in use;
+administrators add a client there (**Add a client**: an existing client account at once, a new address by e-mail
+invitation; the client may be given backups and a shell) and take one out. Nobody of your team can lift a client's
+closure, change or reset a client's account while it keeps something closed, or add another client to a closed
+project. See [Admin guide, Client portal](ADMIN_GUIDE.md#30-client-portal).

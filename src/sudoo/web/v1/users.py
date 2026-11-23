@@ -21,7 +21,9 @@
                                                  (since defaults to a year before until), AUDIT_EXPORT_MAX_ROWS rows
                                                  at most (meta in X-Total-Count, X-Exported-Count); audit-logged
 
-Only a super admin creates, changes or deletes super admins; there is always at least one. Accounts created or reset
+Only a super admin creates, changes or deletes super admins; there is always at least one. A client account stays a
+client (and staff never become clients); while a client has closed one of its projects or branches, its account is
+not changed, reset or deleted by anyone (projects/clients.py). Accounts created or reset
 here choose their own password at their next sign-in, unless must_change_password is false. New people are normally
 invited by e-mail instead (invitations.py); POST /users is refused unless INVITATION_PASSWORD_FALLBACK allows it
 ("no_mail", the default: only while e-mail is not set up).
@@ -69,6 +71,17 @@ def _guard(role: str) -> None:
     """Only a super admin creates, changes or deletes super admins."""
     if role == "super_admin" and g.user["role"] != "super_admin":
         abort(403, "Only a super admin can manage super admin accounts.")
+
+
+def _client_guard(name: str) -> None:
+    """409 while `name` is a client of a project or branch it closed: staff would take its place
+    (projects/clients.py); audit-logged."""
+    from sudoo.projects import clients
+
+    refused = clients.account_refusal(name)
+    if refused:
+        log("refused: change a client's account (its project is closed)", ok=False, detail=name)
+        abort(409, refused)
 
 
 def _account(name: str) -> dict[str, Any]:
@@ -160,9 +173,13 @@ def change_user(name: str) -> Response:
         abort(400, problem)
     if "email" in values and accounts.email_taken(values["email"], other_than=name):
         abort(400, "Another account already uses this e-mail address.")
+    if name != g.user["name"]:
+        _client_guard(name)
     if "role" in data:
         role = check.one_of(check.text(data, "role"), roles.ROLES, "Choose a role from the list.")
         _guard(role)
+        if role != account["role"] and roles.CLIENT in (role, account["role"]):
+            abort(409, "A client account stays a client, and staff never become clients: create another account.")
         if account["role"] == "super_admin" and role != "super_admin":
             others = [n for n, u in accounts.all_users().items() if u["role"] == "super_admin" and n != name]
             if not others:
@@ -182,6 +199,7 @@ def reset_password(name: str) -> Response:
     if name == g.user["name"]:
         abort(400, "Use Change password for your own account.")
     _guard(roles.normalize(account["role"]))
+    _client_guard(name)
     data = check.body()
     typed, must_change = _password(data, name, account)
     password = typed or accounts.generate_password()
@@ -194,6 +212,7 @@ def reset_password(name: str) -> Response:
 @require("accounts.manage")
 def reset_second_factors(name: str) -> Response:
     _guard(roles.normalize(_account(name)["role"]))
+    _client_guard(name)
     accounts.update(name, second_factors=None, totp_pending=None, recovery_codes=None)  # the codes go with the app
     accounts.end_sessions(name)
     log("second factors removed", detail=name)
@@ -207,6 +226,7 @@ def delete_user(name: str) -> Response:
     if name == g.user["name"]:
         abort(400, "You cannot delete the account you are signed in with.")
     _guard(roles.normalize(account["role"]))
+    _client_guard(name)
     try:
         accounts.delete(name)
     except ValueError as error:

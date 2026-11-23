@@ -54,6 +54,7 @@ import { ToolsTab } from "@/components/ToolsTab";
 import { UpgradeTab } from "@/components/UpgradeTab";
 import { MailTab } from "@/components/MailTab";
 import { LockBanner } from "@/components/ProjectAccess";
+import { ClosedNotice } from "@/components/ClientAccess";
 import { ResourcesCard } from "@/components/ResourcesCard";
 import { JobDrawer } from "@/components/JobDrawer";
 import { LogsPanel } from "@/components/LogsPanel";
@@ -116,7 +117,7 @@ const TABS: { id: string; label: keyof (typeof words)["en"]["tabs"]; icon: React
 /** What the caller may do in this instance: their role, narrowed by the project's access and the branch's lock. */
 function useCanIn(instance: Instance | undefined) {
   const roleCan = useCan();
-  const { data } = useInstancePermissions(instance?.name ?? "", JSON.stringify(instance?.lock ?? null));
+  const { data } = useInstancePermissions(instance?.name ?? "", JSON.stringify([instance?.lock ?? null, instance?.client_access ?? null]));
   return (permission: Permission) => roleCan(permission) && (!data || data.includes(permission));
 }
 
@@ -315,6 +316,9 @@ export function InstanceView({
       </div>
 
       {instance.lock && <LockBanner lock={instance.lock} allowed={can("instances.logs")} />}
+      {instance.project && (
+        <ClosedNotice projectId={instance.project.id} projectName={instance.project.name} branch={instance.git.branch} access={instance.client_access && { ...instance.client_access, lets_you_through: can("instances.logs") }} />
+      )}
       {instance.current_job && (
         <button className="card pad" style={{ textAlign: "start", cursor: "pointer" }} onClick={() => setJobId(instance.current_job!.id)}>
           <JobLine job={instance.current_job} />

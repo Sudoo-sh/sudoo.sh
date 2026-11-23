@@ -13,6 +13,7 @@ The panel's ServiceAccount may create Secrets in kube-system and nothing else th
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import re
 import secrets
@@ -121,14 +122,18 @@ def join_command() -> dict[str, Any]:
                 "namespace": "kube-system",
                 "labels": manifests.MANAGED,
             },
-            "stringData": {
-                "token-id": token_id,
-                "token-secret": token_secret,
-                "expiration": expires.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "usage-bootstrap-authentication": "true",
-                "usage-bootstrap-signing": "true",
-                "auth-extra-groups": TOKEN_GROUP,
-                "description": "Sudoo.sh: add a node",
+            # data, not stringData: the admission policy checks the values the API stores
+            "data": {
+                key: base64.b64encode(value.encode()).decode()
+                for key, value in {
+                    "token-id": token_id,
+                    "token-secret": token_secret,
+                    "expiration": expires.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "usage-bootstrap-authentication": "true",
+                    "usage-bootstrap-signing": "true",
+                    "auth-extra-groups": TOKEN_GROUP,
+                    "description": "Sudoo.sh: add a node",
+                }.items()
             },
         }
     )

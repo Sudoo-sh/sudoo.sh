@@ -148,6 +148,7 @@ subjects:
     namespace: sudoo-system
 ---
 # What role-based access cannot say: which names. Every change the panel's ServiceAccount asks for is checked here.
+# (Secret values are base64 here: c3lzdGVt... is system:bootstrappers:k3s:default-node-token.)
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
@@ -202,7 +203,7 @@ spec:
          has(object.data) &&
          object.data.exists(k, k == 'expiration') &&
          object.data.exists(k, k == 'auth-extra-groups') &&
-         object.data['auth-extra-groups'] == b'system:bootstrappers:k3s:default-node-token')
+         object.data['auth-extra-groups'] == 'c3lzdGVtOmJvb3RzdHJhcHBlcnM6azNzOmRlZmF1bHQtbm9kZS10b2tlbg==')
       message: "In kube-system the panel creates k3s join tokens only, with an expiry."
 ---
 apiVersion: admissionregistration.k8s.io/v1

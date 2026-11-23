@@ -1,5 +1,6 @@
-// Jobs as the panel runs them: queued, then one step after another with their log lines streaming, then done. Each
-// change goes out as the live events the real server sends ("job", "job.output", "instance"), and the instance
+// Jobs as the panel runs them: queued, then one step after another (an image download with its progress), then
+// done. Each change goes out as the live events the real server sends ("job", "instance"); the technical log stays
+// on the "server" (never sent, as on a real panel), and the instance
 // changes when the job ends (a new commit, paused, restored...).
 
 import type { Instance, InstanceBackup, Job, JobRef } from "@/api/types";
@@ -73,7 +74,6 @@ export function startJob(plan: Plan): Job {
   addJob(job, "");
   const instance = plan.panel ? null : instances.get(plan.instance);
   const context = plan.context ?? (instance ? contextOf(instance) : { name: plan.instance, database: "", version: "", edition: "community" as const });
-  const lines = { count: 0 };
 
   const sync = () => {
     publish("job", job.id, job);
@@ -83,10 +83,7 @@ export function startJob(plan: Plan): Job {
     }
   };
   const write = (text: string) => {
-    const pieces = text.split("\n").length - 1;
-    logs.set(job.id, (logs.get(job.id) ?? "") + text);
-    publish("job.output", job.id, { job: job.id, offset: lines.count, next_offset: lines.count + pieces, text });
-    lines.count += pieces;
+    logs.set(job.id, (logs.get(job.id) ?? "") + text); // the "server's log": never sent
   };
 
   if (instance) {
@@ -107,16 +104,24 @@ export function startJob(plan: Plan): Job {
     sync();
     for (const [i, title] of plan.steps.entries()) {
       for (const step of job.steps) if (step.status === "running") step.status = "done";
-      job.steps.push({ title, status: "running" });
+      job.steps.push({ title, status: "running", started_at: iso(Date.now()), progress: null, progress_percent: null });
       job.progress_percent = progress(job, plan.steps.length);
       write(`\n== ${title}\n`);
       sync();
       const output = stepLines(title, context);
       const seconds = Array.isArray(plan.seconds) ? (plan.seconds[i] ?? 2) : (plan.seconds ?? 2.2);
       const each = (seconds * SECOND) / (output.length + 1);
-      for (const line of output) {
+      const download = /^Downloading (Odoo \S+)/.exec(title);
+      const step = job.steps[job.steps.length - 1]!;
+      for (const [k, line] of output.entries()) {
         await pause(each * (0.6 + Math.random() * 0.8));
         write(`${line}\n`);
+        if (download) {
+          // the progress a real download shows on its step (instances/integrity.py pull_progress)
+          step.progress = `Downloading ${download[1]}: ${k + 1} of ${output.length} parts`;
+          step.progress_percent = Math.round((100 * (k + 1)) / output.length);
+          sync();
+        }
       }
       await pause(each);
     }

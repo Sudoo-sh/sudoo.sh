@@ -83,8 +83,12 @@ class GitHubWebhook:
         created = automation.branch_created(repository, branch) if payload.get("created") else None
         updated = self.instances_following(repository, branch)
         assert self._request_update is not None
+        from sudoo import triggers  # late: the package imports this module
+
+        pusher = triggers.pusher_of(payload)
         for name in updated:
             if name != created:
+                triggers.note_pusher(name, pusher)
                 self._request_update(name, f"push to {repository} {branch}")
         return jsonify(ok=True, instances=updated, created=created)
 

@@ -1,16 +1,41 @@
 import { Check, ScrollText, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { ApiError } from "@/api/client";
-import { useJob, useJobLog } from "@/api/queries";
-import type { Job } from "@/api/types";
+import { useJob } from "@/api/queries";
+import type { Job, JobStep } from "@/api/types";
 import { useT } from "@/i18n";
 import instanceWords from "@/i18n/instance";
-import { jobTitle, stepTitle } from "@/i18n/jobs";
+import { jobTitle, progressText, stepTitle } from "@/i18n/jobs";
 import { ago, elapsed } from "@/lib/format";
-import { LogView } from "./LogView";
 import { Callout, Empty, Progress, Spinner, Status } from "./app/basics";
 import { Drawer } from "./app/overlay";
+import { WhyItFailed } from "./WhyItFailed";
 
-/** A job's steps as a timeline: done, failed, or the one running now. */
+/** Re-render every second while `on`, so a running step's time keeps counting between events. */
+function useSecondTick(on: boolean) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!on) return;
+    const timer = window.setInterval(() => setTick((n) => n + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [on]);
+}
+
+/** The running step: how far it is in plain words (a download's parts, the module Odoo works on), its percentage
+ *  when known, and how long it has run, so a long step never looks frozen. */
+function StepProgress({ step }: { step: JobStep }) {
+  useSecondTick(step.status === "running");
+  if (step.status !== "running") return null;
+  const parts = [
+    step.progress ? progressText(step.progress) : null,
+    step.progress_percent != null ? `${step.progress_percent}%` : null,
+    step.started_at ? elapsed(step.started_at) : null,
+  ].filter(Boolean);
+  if (!parts.length) return null;
+  return <span className="step-progress" aria-live="polite">{parts.join(" · ")}</span>;
+}
+
+/** A job's steps as a timeline: done, failed, or the one running now with its progress. */
 export function JobSteps({ job }: { job: Pick<Job, "steps"> }) {
   const t = useT(instanceWords).job;
   return (
@@ -22,6 +47,7 @@ export function JobSteps({ job }: { job: Pick<Job, "steps"> }) {
           </span>
           <span className={step.status === "running" ? "" : "muted"}>
             {stepTitle(step.title)}
+            <StepProgress step={step} />
           </span>
         </li>
       ))}
@@ -30,13 +56,12 @@ export function JobSteps({ job }: { job: Pick<Job, "steps"> }) {
   );
 }
 
-/** A job: its steps as a timeline, notes, the reason it failed, and its technical log, all live. */
+/** A job: its steps as a timeline with the running step's progress, notes, and why it failed, all live. Its technical
+ *  log is never shown: it stays in the server's log. */
 export function JobDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const { data: job, error } = useJob(id);
   // a job is kept for a while (the last 300): an older one, linked from a build's history, is gone
   const gone = error instanceof ApiError && error.status === 404;
-  const { data: log } = useJobLog(gone ? null : id);
-  const running = job?.status === "running" || job?.status === "queued";
   const t = useT(instanceWords).job;
   return (
     <Drawer
@@ -63,15 +88,15 @@ export function JobDrawer({ id, onClose }: { id: string; onClose: () => void }) 
       ) : (
         <div className="stack">
           <Progress value={job.progress_percent} status={job.status} />
-          {job.error && <Callout tone="danger">{job.error}</Callout>}
+          {job.status === "failed" && (
+            <WhyItFailed failure={job.failure} fallback={job.error} instance={job.instance.includes(":") ? null : job.instance} />
+          )}
           {job.notes.map((note, i) => (
             <Callout key={i} tone={note.level === "warning" ? "warning" : "info"}>
               {note.text}
             </Callout>
           ))}
           <JobSteps job={job} />
-          <h2 className="small muted">{t.technicalLog}</h2>
-          <LogView text={log?.text ?? ""} live={running} steps={job.steps} />
         </div>
       )}
     </Drawer>

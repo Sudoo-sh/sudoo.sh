@@ -44,6 +44,7 @@ from typing import Any
 
 from sudoo.config import settings
 from sudoo.core import events, vault
+from sudoo.core.hints import GENERAL_HINT
 from sudoo.core.shell import redact
 from sudoo.storage import Document, storage
 
@@ -615,7 +616,7 @@ def on_job_end(job: Any) -> int:
     except Exception:  # noqa: BLE001 - the instance is gone
         return 0
     return emit("backup_failed", project_id, title=f"Backup of {job.instance} failed",
-                text=str(job.hint or "The backup failed; open its job to see why."), instance=job.instance,
+                text=str(job.hint or GENERAL_HINT), instance=job.instance,
                 branch=projects.branch_of(job.instance) or None, severity="problem",
                 path=f"/i/{job.instance}/activity?job={job.id}")  # fmt: skip
 

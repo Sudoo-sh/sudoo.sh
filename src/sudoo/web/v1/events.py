@@ -10,7 +10,7 @@ Topics: "instance" (an instance changed; data is the instance), "instance.delete
 data is the project as GET /api/v1/projects lists it, or {"id", "deleted": true}), "build" (an entry of a branch's
 history was added or changed: a build, a stage change, a restore, as GET /api/v1/projects/<id>/builds/<id> shows
 it, or {"id", "project", "branch", "removed": true}), "job" (a job started, moved to
-another step or ended), "job.output" (new log text of a job), "metrics" (resource use, every METRICS_INTERVAL_SECONDS),
+another step, reported progress or ended; never its technical log, which stays in the server's log), "metrics" (resource use, every METRICS_INTERVAL_SECONDS),
 "settings", "plugins" (an installed plugin changed), "marketplace" (the connection to the hub changed); the last
 two carry no details, only that something changed; and "alert" (a new or changed alert, as GET /api/v1/alerts shows
 it; only for callers that may read the audit log), "offsite" (an off-site copy changed; its id, no details; only
@@ -64,7 +64,6 @@ TOPICS = frozenset(
         "build",
         "domains",
         "job",
-        "job.output",
         "metrics",
         "settings",
         "plugins",
@@ -201,7 +200,7 @@ def for_caller(user: dict[str, str], event: Event, data: Any) -> Any:
     topic, key = event.topic, event.key
     if topic in ("instance", "instance.deleted", "domains"):
         return data if access.sees_instance(user, key) else None
-    if topic in ("job", "job.output"):
+    if topic == "job":
         job = jobs.JOBS.get(key)
         instance = job.instance if job is not None else (data.get("instance") if isinstance(data, dict) else None)
         if not instance:  # a job whose instance is not known here (another server's): only for who sees everything

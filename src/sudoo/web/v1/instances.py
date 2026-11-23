@@ -33,8 +33,7 @@
                                                      the name and database a new instance would get
     GET    /api/v1/instance-quota                    how many instances the caller may still create, and when
     GET    /api/v1/jobs?instance=&limit=&offset=     recent jobs, newest first
-    GET    /api/v1/jobs/<id>?include=log             a job
-    GET    /api/v1/jobs/<id>/log?offset=             its technical log from a line on
+    GET    /api/v1/jobs/<id>                         a job (its steps, notes and result; never its technical log)
     GET    /api/v1/versions                          Odoo versions and Enterprise availability
 
 Every endpoint names the permission it needs (roles.py); each action has its own (ACTIONS). Putting another
@@ -74,7 +73,7 @@ from sudoo.repos import github
 from sudoo.repos.gitrepo import origin_url
 
 from .. import validation as check
-from ..security import can, log, message_for_user, refuse_unless, require
+from ..security import log, message_for_user, refuse_unless, require
 from .backups import refuse_unusable
 from .resources import instance_resource, job_resource
 from .responses import PREFIX, ok, page
@@ -903,26 +902,10 @@ def _job(job_id: str, permission: str = "instances.view") -> jobs.Job:
 @blueprint.get("/jobs/<job_id>")
 @require("instances.view")
 def job(job_id: str) -> Response:
-    shown = _job(job_id)
-    include_log = request.args.get("include") == "log" and (
-        can("instances.logs")
-        if jobs.is_panel_job(shown.instance)
-        else access.allowed_instance(g.user, "instances.logs", shown.instance)
-    )
-    found = job_resource(shown, include_log=include_log)
+    found = job_resource(_job(job_id))  # never its technical log: that stays in the server's log
     if found["error"]:
         found["error"] = message_for_user(found["error"])
     return ok(found)
-
-
-@blueprint.get("/jobs/<job_id>/log")
-@require("instances.logs")
-def job_log(job_id: str) -> Response:
-    """The job's log from line `offset` on; `meta.next_offset` is where to continue."""
-    found = _job(job_id, "instances.logs")
-    offset = check.whole_number(request.args.get("offset", "0"), "offset")
-    lines = found.log[:]
-    return ok({"text": "".join(lines[offset:])}, meta={"offset": offset, "next_offset": len(lines)})
 
 
 # ---------------------------------------------------------------- versions

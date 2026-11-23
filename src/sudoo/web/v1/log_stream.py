@@ -5,22 +5,21 @@ there), like the shells' WebSockets: a log followed for an hour is a coroutine, 
 Same callers and checks as the live events (session cookie with Origin, or an API token with a signature), and
 instances.logs in the instance (projects/access.py), as GET /api/v1/instances/<name>/logs.
 
-`log` is one of instances/logs.NAMES (default odoo.log); `tail` the number of earlier lines sent first (0-5000,
-default 300); `q` keeps only the lines containing that text, ignoring case (plain text, never a pattern). Events:
+`log` is one of instances/logs.NAMES (odoo.log, the default; jobs' technical logs are server logs, never streamed);
+`tail` the number of earlier lines sent first (0-5000, default 300); `q` keeps only the lines containing that text, ignoring case (plain text, never a pattern). Events:
 
-    event: lines   data: {"lines": [...]}           id: where to resume (a time stamp for odoo.log, an offset in
-                                                    the job's log otherwise)
-    event: end     data: {"reason": "max_duration" | "stopped" | "finished"}
+    event: lines   data: {"lines": [...]}           id: where to resume (a time stamp)
+    event: end     data: {"reason": "max_duration" | "stopped"}
 
 The stream ends after MAX_SECONDS ("max_duration"): the client opens it again with Last-Event-ID (or ?after=<id>)
 and continues where it stopped, so a forgotten tab cannot hold a connection for ever. It also ends when Odoo's
-container stops ("stopped") or a job's log is complete ("finished"). Lines are read from Docker only as fast as
-they can be sent: a slow client slows the reading (the pipe fills and Docker waits), nothing piles up in memory.
+container stops ("stopped"). Lines are read from Docker only as fast as they can be sent: a slow client slows the reading (the pipe fills and Docker waits), nothing piles up in memory.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import re
 from typing import Any
@@ -38,7 +37,6 @@ MAX_STREAMS = 100
 HEARTBEAT_SECONDS = 20
 BATCH_LINES = 200
 BATCH_SECONDS = 0.25
-JOB_POLL_SECONDS = 0.5
 MAX_TAIL = 5000
 _RECHECK_SECONDS = 60
 _LINE_LIMIT = 4 * 2**20  # a longer line ends the stream rather than fill the memory
@@ -108,13 +106,8 @@ async def handle(request: web.Request) -> web.StreamResponse:
         await response.prepare(request)
         await response.write(b"retry: 2000\n\n")
         follow = Follow(response, logs.matcher(query), user, session)
-        try:
-            if log == logs.ODOO_LOG:
-                await follow.odoo(name, int(raw_tail), _resume_from(request))
-            else:
-                await follow.job(name, log, int(raw_tail), _resume_from(request))
-        except ConnectionResetError:
-            pass  # the client went away
+        with contextlib.suppress(ConnectionResetError):  # the client went away
+            await follow.odoo(name, int(raw_tail), _resume_from(request))
         return response
     finally:
         _OPEN[key] -= 1
@@ -211,47 +204,6 @@ class Follow:
             if proc.returncode is None:
                 proc.kill()
             await proc.wait()
-
-    async def job(self, name: str, log: str, tail: int, after: str) -> None:
-        job = await self.loop.run_in_executor(None, logs.latest_job, name, log)
-        if job is None:
-            await self.end("finished")
-            return
-        if re.fullmatch(r"[0-9]{1,12}", after):
-            offset = int(after)
-        else:
-            offset = len(job.log)
-            earlier = "".join(job.log[:offset]).splitlines()
-            chosen = [line for line in earlier if self.keep(line)][-tail:] if tail else []
-            self.last_id = str(offset)
-            self.batch = chosen
-            await self.flush()
-        carry = ""
-        while True:
-            chunks = job.log[offset:]
-            if chunks:
-                offset += len(chunks)
-                text = carry + "".join(chunks)
-                parts = text.split("\n")
-                carry = parts.pop()
-                for line in parts:
-                    await self.add(line, str(offset))
-                self.last_id = str(offset)
-                await self.flush()
-            elif job.status not in ("queued", "running"):
-                if carry:
-                    await self.add(carry, str(offset))
-                await self.end("finished")
-                return
-            if self.remaining() <= 0:
-                await self.end("max_duration")
-                return
-            if not await self.allowed():
-                return
-            if self.loop.time() - self.sent_at >= HEARTBEAT_SECONDS:
-                await self.response.write(b": ping\n\n")
-                self.sent_at = self.loop.time()
-            await asyncio.sleep(JOB_POLL_SECONDS)
 
 
 def open_streams() -> int:

@@ -1817,3 +1817,45 @@ tr.invited {
   .bh-spin, .pb-tile.building::before { animation: none !important; }
   .bh-lines, .bc-panel { animation: none !important; }
 }
+
+// ---------------------------------------------------------------- "Why it failed" (components/WhyItFailed.tsx)
+.why-failed h3 { margin: 0; }
+.why-lines {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  max-height: 320px;
+  overflow: auto;
+  border-radius: var(--radius-control);
+  background: var(--log-bg);
+  color: var(--log-text);
+  font-family: var(--mono);
+  font-size: var(--text-12);
+  line-height: 1.6;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  unicode-bidi: isolate;
+}
+.why-fix {
+  padding: var(--s3);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-control);
+}
+.why-repos { list-style: none; margin: 0; padding: 0; }
+.why-ways { margin: 0; padding-inline-start: var(--s4); }
+.why-ways > li > p { margin: 2px 0 var(--s2); }
+// a running step's progress (components/JobDrawer.tsx JobSteps)
+.step-progress {
+  display: block;
+  font-size: var(--text-12);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.pb-why {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--negative);
+  text-decoration: none;
+}

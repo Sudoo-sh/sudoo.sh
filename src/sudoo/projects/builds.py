@@ -39,7 +39,8 @@ from typing import Any
 
 from sudoo import projects
 from sudoo.config import settings
-from sudoo.core import events, jobs
+from sudoo.core import events, failure, jobs
+from sudoo.core.hints import GENERAL_HINT
 from sudoo.core.jobs import Job
 from sudoo.instances import stages, store
 from sudoo.repos import gitrepo
@@ -351,7 +352,7 @@ def outcome(job: Job, trigger: str) -> tuple[str, str, list[str]]:
     """(status, result, messages) of a finished build job. The build's tests (projects/testing.py,
     job.details["tests"]) come first; Odoo's log outside the tests says whether it built with warnings."""
     if job.status == "failed":
-        return "failed", (job.hint or "The build failed; the job's log says why.")[:500], []
+        return "failed", (job.hint or GENERAL_HINT)[:500], []
     tests = job.details.get("tests") or {}
     if tests.get("status") == "failed":
         return "failed", str(tests.get("result") or AT_LEAST_ONE)[:500], list(tests.get("messages") or [])
@@ -370,6 +371,18 @@ def outcome(job: Job, trigger: str) -> tuple[str, str, list[str]]:
         return "warning", str(tests.get("result"))[:500], list(tests.get("messages") or [])
     done = DONE.get(trigger, "Built")
     return "success", f"{done}. {tests['result']}" if tests.get("result") else done, []
+
+
+def build_failure(job: Job, status: str, result: str) -> dict[str, Any] | None:
+    """ "Why it failed" of a failed build (core/failure.py): the job's own when the job failed, else the failing
+    tests (the job succeeded, the build did not); None when it did not fail."""
+    if status != "failed":
+        return None
+    if job.failure:
+        return dict(job.failure)
+    tests = job.details.get("tests") or {}
+    step = next((s["title"] for s in job.steps if "test" in s["title"].lower()), None)
+    return failure.describe(step, result, "", tests if tests.get("status") == "failed" else None)
 
 
 TEST_KEYS = ("status", "tests", "failed", "errors", "warnings", "modules")
@@ -394,6 +407,7 @@ def job_ended(job: Job) -> None:
         _finish(job, project_id, branch, build_id, found.get("code"))
     elif job.kind == "restore":
         status, result, _ = outcome(job, "")
+        found_failure = build_failure(job, status, result)
         _add(
             {
                 "type": "restore",
@@ -405,6 +419,7 @@ def job_ended(job: Job) -> None:
                 "action": job.action,
                 "status": status if status == "failed" else "success",
                 "result": result if status == "failed" else job.action,
+                **({"failure": found_failure} if found_failure else {}),
             }
         )
     if job.kind == "delete" and job.status == "success":
@@ -430,6 +445,7 @@ def _finish(job: Job, project_id: str, branch: str, build_id: str, code_before: 
     if store.exists(job.instance):  # a failed update was put back: the commit it tried is the one fetched
         commit = gitrepo.commit(store.addons_dir(job.instance), "@{upstream}" if job.status == "failed" else "HEAD")
     status, result, messages = outcome(job, trigger)
+    found_failure = build_failure(job, status, result)
     _update(
         project_id,
         branch,
@@ -437,10 +453,20 @@ def _finish(job: Job, project_id: str, branch: str, build_id: str, code_before: 
         status=status,
         result=result,
         messages=messages,
+        **({"failure": found_failure} if found_failure else {}),
         finished_at=job.finished or time.time(),
         **({"commit": commit} if commit else {}),
         **({"tests": tests_summary(job.details["tests"])} if job.details.get("tests") else {}),
     )
+    if found_failure and trigger == "push":  # tell who pushed (projects/push_failed.py)
+        from sudoo.projects import push_failed
+
+        try:
+            notified = push_failed.notify(job, project_id, branch, commit, found_failure)
+        except Exception as error:  # noqa: BLE001 - the build's result stands whatever happens to the e-mail
+            job.write(f"Could not e-mail who pushed: {error!r}\n")
+            notified = {"emailed": False, "reason": "mail_failed"}
+        _update(project_id, branch, build_id, notified=notified)
     if status in LIVE:
         _drop(project_id, job.instance, keep=build_id, branch=None)
     from sudoo.projects import commit_status

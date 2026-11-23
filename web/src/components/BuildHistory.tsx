@@ -1,7 +1,8 @@
 // A branch's history, the Odoo.sh way: its builds (one commit an instance was built from), stage changes and
 // restores, newest first and grouped by day; a commit a branch did not build (its Behaviour upon new commits is
 // Do nothing) is a small card of its own, and a build that ran tests says how many passed or which module failed. The live build (an instance's newest successful one) has Open Odoo; a
-// failed build says why, with Odoo's messages to unfold; every entry with a job opens its log. The live event
+// failed build says why it failed (the step, the reason, the error details and, for a repository the panel cannot
+// read, the fix), with Odoo's messages to unfold; every entry with a job opens its steps. The live event
 // stream ("build") reads the timeline again whenever an entry is added or changes.
 
 import { useQueries } from "@tanstack/react-query";
@@ -28,8 +29,10 @@ import type { Build, BuildStatus, CommitEntry, HistoryEntry, Instance, ProjectBr
 import { STAGE_LABEL } from "@/components/StageTag";
 import { Button, Empty, Skeleton } from "@/components/app/basics";
 import { ConnectButton } from "@/components/ConnectAs";
+import { WhyItFailed } from "@/components/WhyItFailed";
 import { intlTag, useLocale, useT } from "@/i18n";
 import words from "@/i18n/builds";
+import failureWords from "@/i18n/failure";
 import { ago, dateTime, duration, fullDateTime } from "@/lib/format";
 
 const PAGE = 25;
@@ -132,8 +135,18 @@ function LogLink({ job, ctx }: { job: string | null; ctx: Context }) {
   const t = useT(words).history;
   if (!job) return null;
   return (
-    <Button size="sm" variant="ghost" icon={<ScrollText />} onClick={() => ctx.onJob(job)}>{t.viewLog}</Button>
+    <Button size="sm" variant="ghost" icon={<ScrollText />} onClick={() => ctx.onJob(job)}>{t.viewSteps}</Button>
   );
+}
+
+/** Whether the person who pushed was e-mailed about a failed build of their push (projects/push_failed.py). */
+function Notified({ notified }: { notified: Build["notified"] }) {
+  const t = useT(failureWords).notified;
+  if (!notified) return null;
+  if (notified.emailed) return <p className="xsmall muted">{t.emailed}</p>;
+  if (notified.reason === "no_address") return <p className="xsmall muted">{t.noAddress}</p>;
+  if (notified.reason === "mail_failed") return <p className="xsmall muted">{t.mailFailed}</p>;
+  return null;
 }
 
 function Messages({ lines }: { lines: string[] }) {
@@ -194,9 +207,14 @@ function BuildCard({ build, ctx, branch }: { build: Build; ctx: Context; branch:
           <span className="faint">{t.history.unknownCommit}</span>
         )}
       </div>
-      {(build.status === "failed" || build.status === "warning") && build.result && (
-        <p className={`bh-result ${build.status}`}>{build.result}</p>
+      {build.status === "failed" && build.failure ? (
+        <WhyItFailed failure={build.failure} fallback={build.result} instance={ctx.instances.has(build.instance) ? build.instance : null} />
+      ) : (
+        (build.status === "failed" || build.status === "warning") && build.result && (
+          <p className={`bh-result ${build.status}`}>{build.result}</p>
+        )
       )}
+      {build.status === "failed" && <Notified notified={build.notified} />}
       {build.tests && <TestsLine tests={build.tests} />}
       <Messages lines={build.messages} />
       {(build.job || ends) && (

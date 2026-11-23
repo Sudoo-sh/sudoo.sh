@@ -81,6 +81,11 @@ def current_text(message: Message) -> Text:
     return text
 
 
+def is_rtl(key: str) -> bool:
+    """Whether the e-mail `key` is written in a right-to-left language (its Arabic version: the key ends in _ar)."""
+    return key.endswith("_ar")
+
+
 def compose(key: str, values: dict[str, Any], text: Text | None = None) -> Composed:
     """The e-mail `key` with these placeholder values, in its current text (or `text`, for a preview)."""
     message = MESSAGES[key]
@@ -99,6 +104,7 @@ def compose(key: str, values: dict[str, Any], text: Text | None = None) -> Compo
         "panel_host": urlsplit(link).netloc if link else "",
         "contact": settings.admin_contact,
         "accent": settings.brand_color,
+        "rtl": is_rtl(key),
     }
     page = _environment(settings.mail_templates_dir).get_template("message.html").render(context)
     return Composed(subject, f"{body_text}\n\n{FOOTER}\n", page)

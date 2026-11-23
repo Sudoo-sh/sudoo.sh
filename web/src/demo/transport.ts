@@ -2,10 +2,10 @@
 // (backend/api.ts), so the web app runs unchanged and nothing is sent anywhere. Links and downloads that would leave
 // the demo are stopped with a short explanation instead.
 
-import { answer, jobOfLog, odooLog } from "./backend/api";
+import { answer, odooLog } from "./backend/api";
 import { subscribe, type Topic } from "./backend/bus";
 import { DemoShellSocket } from "./backend/shell";
-import { ASLEEP, instances, logs, roleInfo, session } from "./backend/state";
+import { ASLEEP, instances, roleInfo, session } from "./backend/state";
 import { websiteLink } from "./referrer";
 
 const ours = (url: URL) => url.origin === location.origin && (url.pathname.startsWith("/api/") || url.pathname === "/healthz");
@@ -97,7 +97,7 @@ class DemoEventSource extends EventTarget {
 const LOG_STREAM = /^\/api\/v1\/instances\/([^/]+)\/logs\/stream$/;
 
 /** GET /api/v1/instances/<name>/logs/stream: Odoo's sample log, a few new lines every second or two (filtered as the
- *  server filters: plain text, any case); a job's log is sent whole and ends. */
+ *  server filters: plain text, any case). */
 class DemoLogSource extends EventTarget {
   static readonly CONNECTING = 0;
   static readonly OPEN = 1;
@@ -130,13 +130,7 @@ class DemoLogSource extends EventTarget {
         const opened = new Event("open");
         this.onopen?.(opened);
         this.dispatchEvent(opened);
-        if (log !== "odoo.log") {
-          const job = jobOfLog(name, log);
-          const text = job ? (logs.get(job.id) ?? "") : "";
-          this.send("lines", { lines: text.split("\n").filter(keep).slice(-tail || undefined) });
-          this.send("end", { reason: "finished" });
-          return;
-        }
+        if (log !== "odoo.log") return this.fail(); // jobs' technical logs are never streamed
         if (ASLEEP.includes(instance.status)) {
           this.send("lines", { lines: [] });
           this.send("end", { reason: "stopped" });

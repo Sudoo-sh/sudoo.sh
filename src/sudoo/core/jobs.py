@@ -1,20 +1,29 @@
 """Background actions ("jobs") such as creating, restarting or updating an instance.
 
 Every action runs in its own thread. Actions on the same instance run one after another (a lock per instance);
-actions on different instances run in parallel. A job records user-facing steps, notes and the full technical
-log, which the panel shows while it runs and afterwards (the last 300 jobs are kept in memory).
+actions on different instances run in parallel. A job records user-facing steps (each with an optional progress line
+such as "Downloading Odoo 19.0: 2 of 5 parts"), notes, its result and, when it fails, a plain-language hint; the
+panel shows those while it runs and afterwards (the last 300 jobs are kept in memory).
 
-Every change of a job is published as a live event (core/events.py): "job" when it starts, moves to another step,
-adds a note or ends, and "job.output" with new log text at most twice a second.
+The technical log of a job (the commands it runs and everything they print) is a server log: it is never sent to
+the panel's users, whatever their role. Every line goes to the panel's own process log (`docker logs sudoo-panel`),
+prefixed with the job id and the instance, with addresses' passwords and every masked secret replaced. The job also
+keeps it in memory for the panel's own use (the failure hint, a build's Odoo warnings, test results).
+
+Every change of a job is published as a live event (core/events.py), "job": when it starts, moves to another step,
+reports progress, adds a note or ends.
 """
 
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 import queue
+import re
 import signal
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -22,7 +31,7 @@ from collections import OrderedDict, defaultdict
 from collections.abc import Callable
 from typing import Any
 
-from sudoo.core import events
+from sudoo.core import events, failure
 from sudoo.core.hints import friendly_hint
 from sudoo.core.shell import redact
 
@@ -34,11 +43,34 @@ _GENERATIONS: defaultdict[str, int] = defaultdict(int)  # instance name -> jobs 
 _KEEP = 300
 _END_LISTENERS: list[Callable[[Job], None]] = []
 _START_LISTENERS: list[Callable[[Job], None]] = []
-_OUTPUT_EVERY_SECONDS = 0.5
+_PROGRESS_EVERY_SECONDS = 1.0  # a step's progress line is published at most this often
+
+
+# Odoo's log while it installs or upgrades a module: "... INFO db odoo.modules.loading: loading sale/views/x.xml"
+_ODOO_LOADING = re.compile(r"\bodoo\.modules\.loading: loading ([A-Za-z0-9_]+)/")
+
+
+def _server_log() -> logging.Logger:
+    """The logger of jobs' technical logs: the panel's standard error (docker logs sudoo-panel), one line each."""
+    logger = logging.getLogger("sudoo.jobs")
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
+    return logger
+
+
+SERVER_LOG = _server_log()
 
 
 class JobError(Exception):
     """A step failed; the message is shown to the user."""
+
+
+class CommandFailed(JobError):
+    """A command run by Job.run ended with an error: its message is technical, for the server's log only."""
 
 
 class Job:
@@ -49,14 +81,16 @@ class Job:
         self.kind = kind  # machine name, e.g. "restart"
         self.user = user  # account name, or "visitor" / "system" for automatic jobs
         self.status = "queued"
-        self.steps: list[dict[str, str]] = []
+        self.steps: list[dict[str, Any]] = []
         self.notes: list[dict[str, str]] = []
         self.log: list[str] = []
         self.result: dict[str, Any] = {}
         self.hint: str | None = None
+        self.failure: dict[str, Any] | None = None  # "Why it failed" (core/failure.py): step, reason, error details
+        self._failed_at: tuple[str | None, int, int] | None = None  # (step, log from, log to) of the failure
         self.started = time.time()
         self.finished: float | None = None
-        self._published_lines = 0  # log lines already sent as "job.output" events
+        self._progress_at = 0.0  # when the progress of a step was last published
         self.expected_steps: int | None = None  # set by operations that know how many steps they take
         self.details: dict[str, Any] = {}  # what the caller knows in advance (a creation's plan, without secrets)
         self._masked: list[str] = []  # secrets never written to the log (mask)
@@ -80,44 +114,67 @@ class Job:
         """Tell connected clients that this job changed."""
         events.publish("job", self.id)
 
-    def publish_output(self) -> None:
-        """Send the log lines written since the last call as one "job.output" event."""
-        end = len(self.log)
-        if end > self._published_lines:
-            text = "".join(self.log[self._published_lines : end])
-            events.publish(
-                "job.output",
-                self.id,
-                {
-                    "job": self.id,
-                    "instance": self.instance,
-                    "offset": self._published_lines,
-                    "next_offset": end,
-                    "text": text,
-                },
-            )
-            self._published_lines = end
-
     def mask(self, secret: str) -> None:
         """Never write `secret` into the log (a subscription code a command might print): it shows as ********."""
         if secret and secret not in self._masked:
             self._masked.append(secret)
 
     def write(self, text: str) -> None:
-        """Add `text` to the log, with the user name and password of any address in it masked, and every secret
-        given to mask()."""
+        """Add `text` to the technical log, with the user name and password of any address in it masked, and every
+        secret given to mask(); each line also goes to the server's log (never to the panel's users)."""
         for secret in self._masked:
             text = text.replace(secret, "********")
-        self.log.append(redact(text))
+        text = redact(text)
+        self.log.append(text)
+        for line in text.splitlines():
+            if line.strip():
+                SERVER_LOG.info("job %s %s: %s", self.id, self.instance, line.rstrip())
 
     def step(self, title: str) -> None:
         """Start a new user-facing step; the previous one is marked done."""
         for step in self.steps:
             if step["status"] == "running":
                 step["status"] = "done"
-        self.steps.append({"title": title, "status": "running"})
+        self.steps.append({"title": title, "status": "running", "started": time.time(), "log_from": len(self.log)})
         self.write(f"\n== {title}\n")
         self.changed()
+
+    def mark_failure(self) -> None:
+        """Remember the step running now and the part of the technical log it wrote as where the job failed (a step
+        that puts things back afterwards writes more; it is not the failure). The first call counts."""
+        if self._failed_at is not None:
+            return
+        running = next((step for step in reversed(self.steps) if step["status"] == "running"), None)
+        start = int(running.get("log_from", 0)) if running else 0
+        self._failed_at = (running["title"] if running else None, start, len(self.log))
+
+    def failure_log(self) -> str:
+        """The part of the technical log written by the failed step (all of it before mark_failure)."""
+        if self._failed_at is None:
+            return "".join(self.log)
+        return "".join(self.log[self._failed_at[1] : self._failed_at[2]])
+
+    def failed_step(self) -> str | None:
+        if self._failed_at is not None and self._failed_at[0]:
+            return self._failed_at[0]
+        return next((step["title"] for step in self.steps if step["status"] == "failed"), None)
+
+    def progress(self, text: str, percent: int | None = None) -> None:
+        """Show how far the running step is, in plain words ("Downloading Odoo 19.0: 2 of 5 parts") and optionally as
+        a percentage. Published as a "job" event when it changed, at most once a second (a change in between shows
+        with the next one, or when the step ends)."""
+        running = next((step for step in reversed(self.steps) if step["status"] == "running"), None)
+        if running is None:
+            return
+        percent = None if percent is None else max(0, min(100, int(percent)))
+        if running.get("progress") == text and running.get("percent") == percent:
+            return
+        running["progress"] = text
+        running["percent"] = percent
+        now = time.monotonic()
+        if now - self._progress_at >= _PROGRESS_EVERY_SECONDS:
+            self._progress_at = now
+            self.changed()
 
     def note(self, text: str, level: str = "info") -> None:
         """A message for the user that does not stop the job ("info" or "warning")."""
@@ -128,7 +185,7 @@ class Job:
     def run(self, cmd: list[str], timeout: float | None = None, input: str | None = None) -> None:
         """Run a command, stream its output into the log, raise JobError when it fails."""
         if self.run_unchecked(cmd, timeout, input) != 0:
-            raise JobError(f"command failed: {' '.join(redact(a) for a in cmd[:4])} ...")
+            raise CommandFailed(f"command failed: {' '.join(redact(a) for a in cmd[:4])} ...")
 
     def run_unchecked(self, cmd: list[str], timeout: float | None = None, input: str | None = None) -> int:
         """Run a command, stream its output into the log, return its exit code.
@@ -207,11 +264,19 @@ class Job:
             self.write(line)
             if on_line is not None:
                 on_line(line)
+            else:
+                self._odoo_progress(line)
         try:  # the output is closed; the command itself may still be running
             return proc.wait(timeout=None if deadline is None else max(0.05, deadline - time.monotonic()))
         except subprocess.TimeoutExpired:
             _stop(proc, container)
             raise JobError("this step took too long and was stopped") from None
+
+    def _odoo_progress(self, line: str) -> None:
+        """While Odoo installs or upgrades modules, the module it is working on, as the step's progress."""
+        found = _ODOO_LOADING.search(line)
+        if found:
+            self.progress(f"Setting up the module {found[1]}")
 
     def summary(self) -> dict[str, Any]:
         return {
@@ -284,7 +349,6 @@ def start(
         JOBS[job.id] = job
         while len(JOBS) > _KEEP:
             JOBS.popitem(last=False)
-    _start_output_publisher()
     job.changed()
     if kind == "create" and not is_panel_job(instance):
         events.publish("instance", instance)  # the new instance appears at once, as being created
@@ -307,19 +371,28 @@ def _run(job: Job, fn: Callable[..., object], args: tuple[Any, ...]) -> None:
                 step["status"] = "done"
             job.status = "success"
         except Exception as exc:  # noqa: BLE001 - every failure is reported to the user in the job
+            job.mark_failure()
             for step in job.steps:
                 if step["status"] == "running":
                     step["status"] = "failed"
             job.status = "failed"
             job.write(f"\nERROR: {exc}\n")
-            # a panel job (plugins) refuses in plain words already: show them rather than a general hint
-            plain = isinstance(exc, JobError) and is_panel_job(job.instance) and str(exc)
+            # a panel job (plugins) refuses in plain words already: show them rather than a general hint (never the
+            # technical message of a command that failed)
+            plain = (
+                isinstance(exc, JobError) and not isinstance(exc, CommandFailed) and is_panel_job(job.instance)
+            ) and str(exc)
             job.hint = plain or friendly_hint("".join(job.log))
+            try:
+                job.failure = failure.describe(job.failed_step(), job.hint, job.failure_log(), job.details.get("tests"))
+            except Exception as error:  # noqa: BLE001 - the reason is shown anyway, without details
+                job.write(f"Could not pick the error details: {error!r}\n")
+                job.failure = {"step": job.failed_step(), "reason": job.hint, "kind": "other", "details": [],
+                               "repository": None}  # fmt: skip
         finally:
             job.finished = time.time()
             ACTIVE_JOB.pop(job.instance, None)
             _GENERATIONS[job.instance] += 1  # before the events below: clients that reload see the new state
-            job.publish_output()
             job.changed()
             if job.kind == "delete" and job.status == "success":
                 events.publish("instance.deleted", job.instance, {"name": job.instance})
@@ -349,24 +422,6 @@ def on_end(listener: Callable[[Job], None]) -> None:
     """Call `listener(job)` in the job's thread after every job ends (succeeded or failed): alerts/ uses it."""
     if listener not in _END_LISTENERS:
         _END_LISTENERS.append(listener)
-
-
-_publisher_started = threading.Event()
-
-
-def _start_output_publisher() -> None:
-    """Once: a thread that sends the new log text of running jobs as live events."""
-    if _publisher_started.is_set():
-        return
-    _publisher_started.set()
-
-    def publish_forever() -> None:
-        while True:
-            time.sleep(_OUTPUT_EVERY_SECONDS)
-            for job in list(ACTIVE_JOB.values()):
-                job.publish_output()
-
-    threading.Thread(target=publish_forever, daemon=True, name="job-output").start()
 
 
 def creating(instance: str) -> Job | None:

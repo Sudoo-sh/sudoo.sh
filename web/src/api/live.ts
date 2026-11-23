@@ -5,7 +5,7 @@
 
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { keys, type JobLog } from "./queries";
+import { keys } from "./queries";
 import type { Alert, BuildEvent, Columns, Domains, Instance, Job, Metrics, MetricsHistory, Project } from "./types";
 
 export type LiveState = "connecting" | "open" | "closed";
@@ -101,17 +101,6 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
       }
       break;
     }
-    case "job.output": {
-      const piece = data as { job: string; offset: number; next_offset: number; text: string };
-      const current = client.getQueryData<JobLog>(keys.jobLog(piece.job));
-      if (!current) break;
-      if (current.next === piece.offset) {
-        client.setQueryData<JobLog>(keys.jobLog(piece.job), { text: current.text + piece.text, next: piece.next_offset });
-      } else if (current.next < piece.offset) {
-        client.invalidateQueries({ queryKey: keys.jobLog(piece.job) });
-      }
-      break;
-    }
     case "metrics": {
       const metrics = data as Metrics;
       client.setQueryData(keys.metrics, metrics);
@@ -174,7 +163,7 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
 
 /** Creation jobs already heard of (the "job" topic): the projects are read again once for each. */
 const creationsSeen = new Set<string>();
-const TOPICS = ["instance", "instance.deleted", "project", "build", "domains", "job", "job.output", "metrics", "settings", "plugins", "marketplace", "premium", "support", "alert", "offsite", "reset"];
+const TOPICS = ["instance", "instance.deleted", "project", "build", "domains", "job", "metrics", "settings", "plugins", "marketplace", "premium", "support", "alert", "offsite", "reset"];
 
 export interface Sync {
   state: LiveState;

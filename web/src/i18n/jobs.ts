@@ -127,6 +127,12 @@ const AR_PATTERNS: Pattern[] = [
   [/^Removing submodule (.+)$/, (path) => `إزالة الوحدة الفرعية ${ltr(path!)}`],
   [/^Creating the Odoo (Enterprise|Community) database \(about 1-2 minutes\)$/, (edition) => `إنشاء قاعدة بيانات Odoo ${edition} (دقيقة إلى دقيقتين تقريبًا)`],
   [/^Downloading Odoo (\S+) image$/, (version) => `تنزيل صورة Odoo ${ltr(version!)}`],
+  [/^Downloading Odoo (\S+), first time on this server$/, (version) => `تنزيل Odoo ${ltr(version!)}، أول مرة على هذا الخادم`],
+  [/^Using the Odoo (\S+) image on this server$/, (version) => `استخدام صورة Odoo ${ltr(version!)} الموجودة على هذا الخادم`],
+  // a running step's progress (Job.progress: integrity.pull_progress, Odoo's module loading)
+  [/^Downloading (.+): (\d+) of (\d+) parts$/, (image, done, total) => `تنزيل ${ltr(image!)}: ${done} من ${total} أجزاء`],
+  [/^Unpacking (.+): (\d+) of (\d+) parts$/, (image, done, total) => `فك ضغط ${ltr(image!)}: ${done} من ${total} أجزاء`],
+  [/^Setting up the module (\S+)$/, (module) => `تجهيز الوحدة ${ltr(module!)}`],
   [/^Downloading the code of (.+) \((.+)\) from GitHub$/, (repo, branch) => `تنزيل شيفرة ${ltr(repo!)} (${ltr(branch!)}) من GitHub`],
   [/^Installing the repository's modules \((\d+)\)$/, (n) => `تثبيت وحدات المستودع (${n})`],
   [/^Loading the backup of (.+) of (.+) into database (.+)$/, (instance, taken, db) => `تحميل نسخة ${ltr(instance!)} الاحتياطية من ${taken} في قاعدة البيانات ${ltr(db!)}`],
@@ -165,5 +171,7 @@ function translate(text: string): string {
 export const jobTitle = (action: string) => translate(action);
 /** A job step's title, in the panel's language when known. */
 export const stepTitle = (title: string) => translate(title);
+/** A running step's progress ("Downloading Odoo 19.0: 2 of 5 parts"), in the panel's language when known. */
+export const progressText = (text: string) => translate(text);
 
 export default { en: {}, ar: {} };

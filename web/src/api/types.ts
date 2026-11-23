@@ -145,9 +145,31 @@ export interface JobRef {
   progress_percent: number | null;
 }
 
+/** One step of a job. While it runs, `progress` says how far it is in plain words ("Downloading Odoo 19.0: 2 of 5
+ * parts"), with a percentage when known. A job's technical log is never sent: it stays in the server's log. */
+export interface JobStep {
+  title: string;
+  status: "running" | "done" | "failed";
+  /** missing from panels older than this web app */
+  started_at?: string | null;
+  progress?: string | null;
+  progress_percent?: number | null;
+}
+
+/** Why a job or a build failed (core/failure.py): the step, the plain reason, and only the lines that explain it */
+export interface Failure {
+  step: string | null;
+  reason: string;
+  kind: "repository" | "git" | "requirements" | "tests" | "odoo" | "other";
+  /** cleaned lines (no server paths, addresses or secrets), at most 60; empty when nothing explains it */
+  details: string[];
+  /** for kind "repository": the repository the panel could not read (owner/name) */
+  repository: string | null;
+}
+
 /** An instance's job in progress: the reference with its steps so far */
 export interface CurrentJob extends JobRef {
-  steps: { title: string; status: "running" | "done" | "failed" }[];
+  steps: JobStep[];
 }
 
 export interface Job extends JobRef {
@@ -156,9 +178,11 @@ export interface Job extends JobRef {
   requested_by: string;
   started_at: string | null;
   finished_at: string | null;
-  steps: { title: string; status: "running" | "done" | "failed" }[];
+  steps: JobStep[];
   notes: { text: string; level: "info" | "warning" }[];
   error: string | null;
+  /** when it failed (missing from panels older than this web app) */
+  failure?: Failure | null;
 }
 
 export interface Usage {
@@ -389,6 +413,8 @@ export interface Instance {
   restorable_backup?: string | null;
   /** while the state before the last restore is kept (ROLLBACK_HOURS): what Rollback puts back, and until when */
   rollback?: { backups: string[]; taken_at: string; until: string } | null;
+  /** a newer copy of its Odoo image is on this server: "Update Odoo and PostgreSQL images" moves it there */
+  newer_odoo_image?: boolean;
   /** for callers who may open a shell or see the credentials: the names a command needs (never a password) */
   containers?: { odoo: string; db: string; db_user: string; host: string | null };
 }
@@ -420,6 +446,8 @@ export interface ProjectOptions {
   staging_tests: boolean;
   /** builds are reported on GitHub as commit statuses (when the GitHub App may write them) */
   commit_statuses: boolean;
+  /** a failed deployment of a push e-mails the person who pushed (projects/push_failed.py) */
+  email_pusher: boolean;
   /** pull requests get a development instance of their branch (projects/previews.py) */
   pr_previews: boolean;
   /** previews at the same time; 0: no limit */
@@ -578,8 +606,12 @@ export interface Build extends HistoryEntryBase {
   result: string;
   /** Odoo's warning and error lines (the first ten) */
   messages: string[];
-  /** the job; its log is at links.job while the panel keeps it (the last 300 jobs) */
+  /** the job (its steps) while the panel keeps it (the last 300 jobs) */
   job: string | null;
+  /** why it failed; null unless it did */
+  failure?: Failure | null;
+  /** a build of a push that failed: whether the person who pushed was e-mailed (projects/push_failed.py) */
+  notified?: { emailed: boolean; reason?: "option_off" | "no_address" | "already" | "mail_failed" | "no_project"; at?: number } | null;
   queued_at: string | null;
   started_at: string | null;
   finished_at: string | null;
@@ -619,6 +651,7 @@ export interface RestoreEntry extends HistoryEntryBase {
   action: string | null;
   result: string;
   job: string | null;
+  failure?: Failure | null;
 }
 
 /** A commit pushed to a branch that builds nothing on new commits (on_new_commit "nothing"); the history lists
@@ -1157,6 +1190,8 @@ export interface RepoAccess {
     ok: boolean;
     problem: string | null;
     via?: "deploy-key" | "github-app" | "public";
+    /** owner/name, for creating a deploy key */
+    repo?: string | null;
     /** what keeps the GitHub App from this repository and where to fix it; url is a panel path when it starts with "/" */
     fix?: { reason: string; url: string; label: string } | null;
   }[];

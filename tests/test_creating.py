@@ -84,7 +84,10 @@ def test_creating_instance_is_shown_before_its_files_exist(admin: Client) -> Non
         assert found["created_by"] == "admin1"
         current = found["current_job"]
         assert current["id"] == job.id and current["status"] == "running" and current["progress_percent"] == 0
-        assert current["steps"] == [{"title": "Downloading Odoo 18.0 image", "status": "running"}]
+        assert [(step["title"], step["status"]) for step in current["steps"]] == [
+            ("Downloading Odoo 18.0 image", "running")
+        ]
+        assert current["steps"][0]["started_at"] and current["steps"][0]["progress"] is None
         assert found["recent_jobs"][0]["id"] == job.id and found["backups"] == [] and found["recent_commits"] == []
 
         listed = client.get("/api/v1/instances").get_json()["data"]
@@ -124,7 +127,11 @@ def test_failed_creation_answers_404_and_keeps_its_job(admin: Client) -> None:
     assert NAME not in [i["name"] for i in client.get("/api/v1/instances").get_json()["data"]]
     kept = client.get(f"/api/v1/jobs/{job.id}").get_json()["data"]
     assert kept["status"] == "failed" and kept["instance"] == NAME and kept["error"]
-    assert kept["steps"] == [{"title": "Downloading Odoo 18.0 image", "status": "failed"}]
+    assert [(step["title"], step["status"]) for step in kept["steps"]] == [("Downloading Odoo 18.0 image", "failed")]
+    assert "log" not in kept and "docker" not in str(kept)  # neither the technical log nor the command
+    assert kept["failure"]["step"] == "Downloading Odoo 18.0 image" and kept["failure"]["reason"] == kept["error"]
+    assert client.get(f"/api/v1/jobs/{job.id}?include=log").get_json()["data"].get("log") is None
+    assert client.get(f"/api/v1/jobs/{job.id}/log").status_code == 404
 
 
 def test_creating_instance_with_files_keeps_status_creating(admin: Client) -> None:

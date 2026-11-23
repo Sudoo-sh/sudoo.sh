@@ -90,7 +90,7 @@ from sudoo.repos import github, github_app
 from .. import validation as check
 from ..security import log, refuse_unless, refuse_without_feature, refuse_without_premium
 from . import instances as instances_api
-from .resources import job_resource
+from .resources import failure_resource, job_resource
 from .responses import PREFIX, created, iso, no_content, ok
 
 blueprint = Blueprint("projects", __name__)
@@ -106,7 +106,7 @@ OPTION_CHOICES = {
 }
 OPTION_FLAGS = (
     "auto_development", "development_demo_data", "upgrade_test_on_push", "staging_tests", "commit_statuses",
-    "pr_previews", "pr_previews_forks",
+    "pr_previews", "pr_previews_forks", "email_pusher",
 )  # fmt: skip
 OPTION_TEXTS = ("modules", "test_tags")  # checked by projects/build_options.clean
 OPTION_NUMBERS = {
@@ -739,6 +739,9 @@ def history_resource(entry: Mapping[str, Any]) -> dict[str, Any]:
             "action": entry.get("action") or None,
             "result": entry.get("result") or "",
             "job": job_id or None,
+            # why it failed: the step, the reason and only the lines that explain it (core/failure.py)
+            "failure": failure_resource(entry.get("failure")) if entry.get("status") == "failed" else None,
+            "notified": entry.get("notified") or None,
         }
         links["instance"] = f"{PREFIX}/instances/{entry.get('instance')}" if entry.get("instance") else None
     if entry["type"] == "build":

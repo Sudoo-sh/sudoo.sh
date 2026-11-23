@@ -120,8 +120,8 @@ def rebuild(job: Job, name: str) -> None:
         command = odoo.run_cmd(name, "-d", database, "-u", ",".join(modules), "--stop-after-init", "--no-http")
         if job.run_unchecked(command, timeout=3600):
             job.note(
-                "Some of the repository's modules could not be upgraded on the copy. Odoo works; a developer can "
-                "read why in the technical log.",
+                "Some of the repository's modules could not be upgraded on the copy. Odoo works; your administrator can "
+                "read why in the server's log.",
                 "warning",
             )
     from sudoo.projects import testing  # late: testing imports this package's neighbours

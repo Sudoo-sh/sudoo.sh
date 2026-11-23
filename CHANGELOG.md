@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-11-23
+
 ### Added
 
 - **Each branch can have its own Odoo version**, as on Odoo.sh. The **Create instance** dialog of a project's
@@ -1246,7 +1248,8 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.2.0...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.0...HEAD
+[3.3.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.2.0...v3.3.0
 [3.2.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.1.1...v3.2.0
 [3.1.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.1.0...v3.1.1
 [3.1.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.0.1...v3.1.0

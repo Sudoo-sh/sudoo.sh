@@ -9,8 +9,9 @@
     POST   /api/v1/instances                         create; {"from_backup"} optional; without "repo": plain Odoo
                                                      (no code, no branch, no update); "stage" (development by
                                                      default; production within stages.production_limit());
-                                                     "modules": [names] installs exactly those (else
-                                                     "install_modules": the repository's modules)
+                                                     "install_modules": the repository's modules;
+                                                     "modules": [names] more modules (Odoo's apps...) installed
+                                                     in the same run
                                                      -> 202, Location: job
     PATCH  /api/v1/instances/<name>                  change automation settings, lifetime and stage (a lifetime
                                                      that ends sooner also needs instances.delete; leaving
@@ -34,8 +35,8 @@
     GET    /api/v1/instance-plan?repo=&branch=&name=&version=&edition=
                                                      the name and database a new instance would get
     GET    /api/v1/instance-quota                    how many instances the caller may still create, and when
-    GET    /api/v1/repositories/modules?url=&branch= the Odoo modules of a repository's branch (submodules too),
-                                                     and those the module picker selects first; nothing is created
+    GET    /api/v1/repositories/modules?url=&branch= the Odoo modules of a repository's branch (submodules too);
+                                                     nothing is created
     GET    /api/v1/odoo-apps?version=&edition=       the standard Odoo apps the module picker offers
     GET    /api/v1/jobs?instance=&limit=&offset=     recent jobs, newest first
     GET    /api/v1/jobs/<id>                         a job (its steps, notes and result; never its technical log)
@@ -307,7 +308,7 @@ STAGE_MESSAGE = "Choose a stage: production, staging or development."
 @require("instances.create")
 def repository_modules() -> Response:
     """The Odoo modules of a repository's branch (its submodules' too), read from the panel's copy of the repository
-    without creating anything, with those the module picker selects first ("default")."""
+    without creating anything (for API users: the panel's own form offers Odoo's apps only)."""
     address = check.repo_address(check.text(request.args, "url"))
     branch = check.branch(check.text(request.args, "branch", default="main"))
     found = projects.by_repository(github.repo_name(address) or "")
@@ -324,25 +325,7 @@ def repository_modules() -> Response:
         abort(404, str(error))
     except mirror.GitError as error:
         abort(502, str(error))
-    result["default"] = _default_modules(found, branch, result["modules"])
     return ok(result)
-
-
-def _default_modules(project: Mapping[str, Any] | None, branch: str, modules: list[dict[str, Any]]) -> dict[str, Any]:
-    """What the picker selects first: a development branch's project choice (module_install "list": its modules;
-    "all": every module, which only the panel can install, so nothing is sent unless the selection changes), else
-    the repository's applications, else all its own modules."""
-    recommended = repository_module_list.recommended(modules)
-    if project is not None and projects.branch_stage(project, branch) == stages.DEVELOPMENT:
-        from sudoo.projects import build_options
-
-        options = build_options.effective(project, branch, stages.DEVELOPMENT)
-        if options["module_install"] == "list":
-            return {"source": "project_list", "modules": [m for m in str(options["modules"]).split(",") if m]}
-        if options["module_install"] == "all":
-            return {"source": "project_all", "modules": recommended}
-    applications = any(m.get("application") and not m.get("submodule") for m in modules)
-    return {"source": "applications" if applications else "repository", "modules": recommended}
 
 
 @blueprint.get("/odoo-apps")

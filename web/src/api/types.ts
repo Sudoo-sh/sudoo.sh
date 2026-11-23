@@ -1907,8 +1907,6 @@ export interface RepositoryModules {
   branch: string;
   commit: string;
   modules: RepositoryModule[];
-  /** what the module picker selects first */
-  default: { source: "applications" | "repository" | "project_list" | "project_all"; modules: string[] };
   problems: string[];
 }
 

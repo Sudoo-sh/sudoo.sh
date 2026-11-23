@@ -191,7 +191,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
         7  # Odoo image, preparing, database container, Odoo database, public link, starting Odoo, waiting
         + bool(plan["repo"])
         + enterprise
-        + bool(plan.get("modules") if plan.get("modules") is not None else plan["install_modules"] and plan["repo"])
+        + bool(plan.get("modules") or (plan["install_modules"] and plan["repo"]))
         + (settings.odoo_admin_password != "admin" or bool(plan.get("from_backup") or plan.get("from_production")))
         + bool(plan.get("from_backup") or plan.get("from_production"))  # neutralising another instance's data
         + bool(plan.get("from_production"))  # copying production
@@ -282,12 +282,12 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
         init += demo_args(version, bool(plan["demo"]))  # the flag depends on the version (core/odoo_args.py)
         job.run(odoo.run_cmd(name, *init), timeout=1800)
 
-    chosen = plan.get("modules")  # the modules picked when the instance was created, else the panel's choice
-    if chosen is not None:
-        modules = [str(module) for module in chosen]
-    else:
-        modules = _modules_to_install(job, name, db) if plan["install_modules"] and plan["repo"] else []
-    what = "the chosen modules" if chosen is not None else "the repository's modules"
+    # the repository's modules (or its project branch's choice), and the Odoo apps and other modules picked when the
+    # instance was created: all in one run
+    chosen = [str(module) for module in plan.get("modules") or []]
+    own = _modules_to_install(job, name, db) if plan["install_modules"] and plan["repo"] else []
+    modules = list(dict.fromkeys([*own, *chosen]))
+    what = "the chosen modules" if chosen else "the repository's modules"
     if modules and source:  # the backup's database may have them already: those are kept as they are
         installed = backups.installed_modules(name, db)
         already = [module for module in modules if module in installed]

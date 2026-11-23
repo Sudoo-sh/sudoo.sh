@@ -30,13 +30,13 @@ describe("module picker", () => {
     seedProjects();
   });
 
-  test("a branch's modules, its submodules' too, with its applications selected first", async () => {
+  test("a branch's modules, its submodules' too", async () => {
     const url = encodeURIComponent(repoUrl("acme-retail"));
     const { status, data } = await call("GET", "/repositories/modules", undefined, `url=${url}&branch=main`);
     expect(status).toBe(200);
     const found = data as RepositoryModules;
     expect(found.modules.some((m) => m.submodule === "oca/pos")).toBe(true);
-    expect(found.default.modules).toEqual(["acme_pos_refunds"]);
+    expect(found.modules[0]).toMatchObject({ name: "acme_pos_refunds", application: true, submodule: null });
     expect((await call("GET", "/repositories/modules", undefined, `url=${url}&branch=nope`)).status).toBe(404);
   });
 
@@ -47,7 +47,7 @@ describe("module picker", () => {
     expect(enterprise.some((a) => a.name === "helpdesk")).toBe(true);
   });
 
-  test("creating with modules installs exactly those; wrong names are refused", async () => {
+  test("creating with Odoo apps installs them with the repository's modules; wrong names are refused", async () => {
     vi.useFakeTimers();
     const body = { version: "18.0", edition: "community", name: "picked-demo", modules: ["crm", "sale_management"] };
     const { status, data } = await call("POST", "/instances", body);
@@ -57,5 +57,12 @@ describe("module picker", () => {
     vi.useRealTimers();
     expect(job.steps.map((s) => s.title)).toContain("Installing the chosen modules (2)");
     expect((await call("POST", "/instances", { ...body, name: "picked-two", modules: ["-u all"] })).status).toBe(400);
+    vi.useFakeTimers();
+    const both = { ...body, name: "picked-three", repo: repoUrl("acme-retail"), branch: "main", install_modules: true, modules: ["crm"] };
+    const made = (await call("POST", "/instances", both)).data as Job;
+    await vi.advanceTimersByTimeAsync(120_000);
+    const steps = ((await call("GET", `/jobs/${made.id}`)).data as Job).steps.map((s) => s.title);
+    vi.useRealTimers();
+    expect(steps).toContain("Installing the chosen modules (5)");
   });
 });

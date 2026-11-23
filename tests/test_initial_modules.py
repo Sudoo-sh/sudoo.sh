@@ -1,7 +1,8 @@
-"""Choosing the modules a new instance's database gets: the module list of a repository's branch (GET
-/api/v1/repositories/modules, read from the panel's copy of the repository, submodules included), the standard Odoo
-apps (GET /api/v1/odoo-apps), "modules" when creating (exactly those installed with -i), the older "install_modules"
-switch, refused names, and the project's choice for the instances the panel creates itself. Docker is never run."""
+"""Choosing what a new instance's database gets: the repository's modules (the "install_modules" switch, as before)
+and, in the same first run, Odoo's apps and other modules ("modules": GET /api/v1/odoo-apps lists the apps). Also
+the module list of a repository's branch for API users (GET /api/v1/repositories/modules, read from the panel's copy
+of the repository, submodules included), refused names, and the project's choice for the instances the panel creates
+itself. Docker is never run."""
 
 from __future__ import annotations
 
@@ -149,23 +150,12 @@ def test_the_modules_of_a_branch_with_its_submodules(admin: Client, repositories
     }
     assert by_name["shared_base"]["submodule"] == "shared" and by_name["shared_base"]["path"] == "shared/shared_base"
     assert found["problems"] == []
-    # the repository's own applications are selected first (never its submodules')
-    assert found["default"] == {"source": "applications", "modules": ["acme_sale"]}
     # nothing was created
     assert not store.folder("picked").exists()
 
     missing = client.get(f"/api/v1/repositories/modules?url={ADDRESS}&branch=nope")
     assert missing.status_code == 404 and "no branch nope" in missing.get_json()["detail"]
     assert client.get("/api/v1/repositories/modules?url=https://gitlab.com/a/b&branch=main").status_code == 400
-
-
-def test_without_applications_every_module_of_the_repository_is_selected_first() -> None:
-    listed = [
-        {"name": "a", "application": False, "submodule": None},
-        {"name": "b", "application": False, "submodule": None},
-        {"name": "c", "application": True, "submodule": "oca"},
-    ]
-    assert repository_modules.recommended(listed) == ["a", "b"]
 
 
 def test_listing_modules_needs_the_right_to_create_instances(app: Any, repositories: dict[str, Path]) -> None:
@@ -176,15 +166,6 @@ def test_listing_modules_needs_the_right_to_create_instances(app: Any, repositor
     viewer, _ = sign_in(app, "modviewer", "harbor-quartz-fennel-38")
     assert viewer.get(f"/api/v1/repositories/modules?url={ADDRESS}&branch=main").status_code == 403
     assert viewer.get("/api/v1/odoo-apps?version=18.0&edition=community").status_code == 403
-
-
-def test_a_project_branch_selects_its_projects_list_first(admin: Client, repositories: dict[str, Path]) -> None:
-    client, _ = admin
-    project = projects.create(repository="acme/shop", odoo_version="18.0", edition="community", origin="linked",
-                              user="t")  # fmt: skip
-    projects.change(project["id"], lambda p: {**p, "options": {"module_install": "list", "modules": "crm,acme_report"}})
-    found = client.get(f"/api/v1/repositories/modules?url={ADDRESS}&branch=feature-x").get_json()["data"]
-    assert found["default"] == {"source": "project_list", "modules": ["crm", "acme_report"]}
 
 
 def test_the_odoo_apps_follow_the_version_and_the_edition(admin: Client) -> None:
@@ -204,16 +185,22 @@ def test_the_odoo_apps_follow_the_version_and_the_edition(admin: Client) -> None
 # ---------------------------------------------------------------- creating
 
 
-def test_creating_with_modules_plans_exactly_those(admin: Client, started: list[Any]) -> None:
+def test_creating_with_odoo_apps_plans_them_beside_the_switch(admin: Client, started: list[Any]) -> None:
     client, headers = admin
     body = {"version": "18.0", "edition": "community", "name": "picked"}
     answer = client.post("/api/v1/instances", json={**body, "modules": ["sale_management", "crm", "crm"]},
                          headers=headers)  # fmt: skip
     assert answer.status_code == 202, answer.get_json()
     plan = _plan(started)
-    assert plan["modules"] == ["sale_management", "crm"] and plan["install_modules"] is True
+    assert plan["modules"] == ["sale_management", "crm"] and plan["install_modules"] is False
 
-    # an empty list: an empty database
+    # with the repository's modules: both
+    both = {**body, "repo": ADDRESS, "branch": "main", "install_modules": True, "modules": ["crm"]}
+    assert client.post("/api/v1/instances", json=both, headers=headers).status_code == 202
+    plan = _plan(started)
+    assert plan["modules"] == ["crm"] and plan["install_modules"] is True
+
+    # an empty list and the switch off: an empty database
     assert client.post("/api/v1/instances", json={**body, "modules": []}, headers=headers).status_code == 202
     plan = _plan(started)
     assert plan["modules"] == [] and plan["install_modules"] is False
@@ -224,10 +211,10 @@ def test_the_older_switch_still_works(admin: Client, started: list[Any]) -> None
     body = {"repo": ADDRESS, "branch": "main", "version": "18.0", "edition": "community", "name": "picked"}
     assert client.post("/api/v1/instances", json={**body, "install_modules": True}, headers=headers).status_code == 202
     plan = _plan(started)
-    assert plan["modules"] is None and plan["install_modules"] is True
+    assert plan["modules"] == [] and plan["install_modules"] is True
     assert client.post("/api/v1/instances", json=body, headers=headers).status_code == 202
     plan = _plan(started)
-    assert plan["modules"] is None and plan["install_modules"] is False
+    assert plan["modules"] == [] and plan["install_modules"] is False
 
 
 @pytest.mark.parametrize(
@@ -299,10 +286,24 @@ PLAN = {
 }
 
 
-def test_a_creation_with_modules_installs_exactly_those(monkeypatch: pytest.MonkeyPatch) -> None:
-    plan = {**PLAN, "ports": store.reserve_ports({}), "install_modules": True, "modules": ["sale_management", "crm"]}
+def test_a_creation_with_odoo_apps_installs_exactly_those(monkeypatch: pytest.MonkeyPatch) -> None:
+    plan = {**PLAN, "ports": store.reserve_ports({}), "install_modules": False, "modules": ["sale_management", "crm"]}
     commands = _run_creation(monkeypatch, plan)
     assert _installs(commands) == ["sale_management,crm"]
+
+
+def test_the_repositorys_modules_and_odoo_apps_install_in_one_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(operations, "own_modules", lambda addons: ["acme_sale", "acme_report"])
+    plan = {**PLAN, "repo": ADDRESS, "branch": "main", "ports": store.reserve_ports({}), "install_modules": True,
+            "modules": ["crm", "acme_sale"]}  # fmt: skip
+    assert _installs(_run_creation(monkeypatch, plan)) == ["acme_sale,acme_report,crm"]
+
+
+def test_the_switch_off_leaves_the_repositorys_modules_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(operations, "own_modules", lambda addons: ["acme_sale", "acme_report"])
+    plan = {**PLAN, "repo": ADDRESS, "branch": "main", "ports": store.reserve_ports({}), "install_modules": False,
+            "modules": ["crm"]}  # fmt: skip
+    assert _installs(_run_creation(monkeypatch, plan)) == ["crm"]
 
 
 def test_a_creation_with_an_empty_list_installs_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -327,6 +328,6 @@ def test_a_new_branch_gets_the_projects_modules(monkeypatch: pytest.MonkeyPatch,
     made = automation.branch_created("acme/shop", "feature-x")
     assert made == "shop-feature-x"
     plan = _plan(started)
-    assert plan["modules"] is None and plan["install_modules"] is True  # the panel's choice: the project's options
+    assert plan["modules"] == [] and plan["install_modules"] is True  # the panel's choice: the project's options
     plan["ports"] = store.reserve_ports({})
     assert _installs(_run_creation(monkeypatch, plan)) == ["crm,acme_report"]

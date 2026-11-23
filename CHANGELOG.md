@@ -8,17 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- **Choose the modules a new instance installs**, as on Odoo.sh: **New instance** and a branch's **Create instance**
-  have a searchable module picker with three groups: your repository's modules (read from the chosen branch without
-  creating anything, submodules included, with each manifest's name; its applications are selected first, else all
-  its own modules), the standard **Odoo apps** of the chosen version (Enterprise apps only for Enterprise), and
-  **Other** technical names. The chosen ones show as chips with an × to remove them, with **Select all of the
-  repository** and **None (empty database)**; Odoo installs the dependencies itself. The API takes
-  `"modules": [...]` on both creation endpoints (exactly those are installed with `-i`; the older `install_modules`
-  still works when it is not sent), lists a branch's modules with `GET /api/v1/repositories/modules` and the Odoo
-  apps with `GET /api/v1/odoo-apps`. A new setting, `MAX_INITIAL_MODULES` (200), limits how many may be chosen. The
-  project option that decides the modules of the instances the panel creates by itself is now called **Modules to
-  install in new instances**, and a branch's **Create instance** starts from it.
+- **Choose Odoo's apps for a new instance**, as on Odoo.sh: **New instance** and a branch's **Create instance** have
+  a searchable picker of the standard **Odoo apps** of the chosen version (Sales, Invoicing, CRM, Inventory,
+  Website...; Enterprise apps only for Enterprise) and an **Other modules** field for any technical name (a module of
+  an OCA submodule, a standard module not listed). The chosen ones show as chips with an × to remove them, and
+  **No Odoo apps** clears them; Odoo installs the dependencies itself. They are installed in the same run as the
+  repository's modules, which still follow **Install the repository's modules** (on by default). The API takes
+  `"modules": [...]` on both creation endpoints beside `install_modules`, lists the apps with
+  `GET /api/v1/odoo-apps` and a branch's modules with `GET /api/v1/repositories/modules`. A new setting,
+  `MAX_INITIAL_MODULES` (200), limits how many may be chosen. The project option that decides the modules of new
+  development databases is now called **Modules to install in new instances**.
 
 ## [3.3.3] - 2026-11-23
 

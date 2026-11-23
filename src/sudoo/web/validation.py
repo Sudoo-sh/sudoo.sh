@@ -155,9 +155,8 @@ def module_list(value: str) -> list[str]:
 
 
 def initial_modules(data: Mapping[str, Any], key: str = "modules") -> list[str] | None:
-    """The modules a new database gets: a list of technical names (duplicates dropped, order kept), at most
-    MAX_INITIAL_MODULES; None when the field is missing or null (the panel then decides, as before). An empty list
-    means an empty database."""
+    """Modules a new database gets besides the repository's (Odoo's apps, other technical names): a list of names
+    (duplicates dropped, order kept), at most MAX_INITIAL_MODULES; None when the field is missing or null."""
     value = data.get(key)
     if value is None:
         return None

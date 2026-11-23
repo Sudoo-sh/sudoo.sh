@@ -1,4 +1,4 @@
-"""The Odoo modules of a repository's branch, read without creating anything (the module picker of a new instance).
+"""The Odoo modules of a repository's branch, read without creating anything (GET /api/v1/repositories/modules).
 
 It reads the panel's own copy of the repository (repos/mirror.py: a bare clone without file contents, reached the
 usual way: the GitHub App's token, a deploy key or anonymously), lists the folders with a __manifest__.py at the
@@ -11,14 +11,12 @@ another module, nor in hidden, setup or node_modules folders; one that says "ins
 
     of_branch(address, branch)  {"repository", "branch", "commit", "modules", "problems"}; raises mirror.GitError
                                 (BranchMissing when the branch is not on GitHub)
-    recommended(modules)        what the picker selects first: the repository's applications, else all its modules
 """
 
 from __future__ import annotations
 
 import subprocess
 import threading
-from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -230,11 +228,3 @@ def of_branch(address: str, branch: str, refresh: bool = False) -> dict[str, Any
         "modules": [dict(module) for module in cached["modules"]],
         "problems": list(cached["problems"]),
     }
-
-
-def recommended(modules: Sequence[Mapping[str, Any]]) -> list[str]:
-    """The repository's own applications ("application": True); when it has none, all its own modules (those of its
-    submodules are never selected first: today's "install the repository's modules" leaves them out too)."""
-    own = [module for module in modules if not module.get("submodule")]
-    applications = [str(module["name"]) for module in own if module.get("application")]
-    return applications or [str(module["name"]) for module in own]

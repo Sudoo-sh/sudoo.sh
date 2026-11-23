@@ -118,8 +118,9 @@ export function CreateDialog({ project, branch, production, onClose, onJob }: { 
   const { data: productionInstance } = useInstance(production ?? "", branch.stage === "staging" && !!production);
   const productionVersion = productionInstance?.odoo.version;
   const otherSeries = branch.stage === "staging" && !!productionVersion && odooSeries(productionVersion) !== odooSeries(version);
-  // the modules of the new database; until the branch's are known, the project's choice applies (nothing sent)
-  const modules = useModuleChoice({ repo: project.repository.url, branch: branch.name, version, edition: project.odoo.edition });
+  // Odoo apps and other modules installed with the repository's (the switch below)
+  const apps = useModuleChoice({ version, edition: project.odoo.edition });
+  const [modules, setModules] = useState(true);
   const m = useT(moduleWords);
   const create = useCall(
     () =>
@@ -128,14 +129,15 @@ export function CreateDialog({ project, branch, production, onClose, onJob }: { 
         // sent when changed, and for a staging instance that starts empty (another series than production's)
         ...(version !== recorded || otherSeries ? { odoo_version: version } : {}),
         ...(branch.stage === "development" ? { demo } : {}),
-        ...modules.request,
+        install_modules: modules,
+        ...apps.request,
       }),
     [keys.project(project.id), keys.instances],
   );
   return (
     <Modal wide title={d.title(branch.name)} description={d.text(STAGE_LABEL[branch.stage], version, edition)} onClose={onClose}
       footer={<><Button onClick={onClose}>{c.cancel}</Button>
-        <Button variant="primary" icon={<Plus />} loading={create.isPending} disabled={blocked || modules.tooMany}
+        <Button variant="primary" icon={<Plus />} loading={create.isPending} disabled={blocked || apps.tooMany}
           onClick={() => create.mutate(undefined, {
             onSuccess: (job) => { toast("success", t.page.created(job.instance), t.page.createdText); onClose(); onJob(job.id); },
             onError: (e) => toast("error", t.page.notCreated, errorText(e)),
@@ -159,8 +161,9 @@ export function CreateDialog({ project, branch, production, onClose, onJob }: { 
             onChange={(e) => { setNameEdited(true); setName(e.target.value); }} />
         </Field>
         {branch.stage === "development" && <Switch checked={demo} onChange={setDemo} label={d.demo} />}
+        <Switch checked={modules} onChange={setModules} label={d.modules} />
         <Field label={m.title}>
-          <ModulePicker choice={modules} note={branch.stage === "staging" && production && !otherSeries ? m.fromBackup : undefined} />
+          <ModulePicker choice={apps} note={branch.stage === "staging" && production && !otherSeries ? m.fromBackup : undefined} />
         </Field>
       </div>
     </Modal>

@@ -39,9 +39,9 @@ def build(
 ) -> dict[str, Any]:
     """The plan: name, database, ports (reserved: release them if the plan is not used), and what to start from.
 
-    `switches`: auto_update, auto_upgrade, auto_pause, delete_after_days. `modules`: exactly the modules the new
-    database gets (an empty list: none; a repository is not needed for Odoo's own apps); None leaves it to
-    `install_modules` (the repository's modules, or its project branch's choice, operations._modules_to_install).
+    `switches`: auto_update, auto_upgrade, auto_pause, delete_after_days. `install_modules`: the repository's
+    modules (or its project branch's choice, operations._modules_to_install). `modules`: more modules (Odoo's apps,
+    any other technical name) installed with them in the same first run; a repository is not needed for those.
     `from_production`: a production instance
     whose data a new staging instance copies (neutralised). `project`: its id; for an instance of a repository
     without one, the repository's project is found or created."""
@@ -59,10 +59,10 @@ def build(
         "version": version,
         "edition": edition,
         "demo": demo,
-        # an agent of an older version on another server knows only install_modules: a list asks it for the
-        # repository's modules, an empty list for none
-        "install_modules": bool(modules) if modules is not None else install_modules,
-        "modules": list(modules) if modules is not None else None,
+        "install_modules": install_modules,
+        # an agent of an older version on another server does not know it: it installs the repository's modules
+        # (install_modules) and leaves these out
+        "modules": list(modules or []),
         "delete_after_days": int(switches["delete_after_days"]),
         **{key: bool(switches[key]) for key in ("auto_update", "auto_upgrade", "auto_pause")},
         "stage": stage,

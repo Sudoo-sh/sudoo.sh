@@ -1,6 +1,6 @@
-// The module picker in the demo: a branch's modules (GET /repositories/modules) made from the demo repositories, the
-// standard Odoo apps (GET /odoo-apps, the same list as src/sudoo/instances/odoo_apps.py) and the panel's check of a
-// "modules" list sent when creating an instance.
+// The module picker in the demo: the standard Odoo apps (GET /odoo-apps, the same list as
+// src/sudoo/instances/odoo_apps.py), the panel's check of a "modules" list sent when creating an instance, and a
+// branch's modules for API users (GET /repositories/modules) made from the demo repositories.
 
 import type { OdooApp, RepositoryModule, RepositoryModules } from "@/api/types";
 import { findRepo, setting } from "./state";
@@ -71,13 +71,11 @@ export function repositoryModules(url: string, branch: string): RepositoryModule
   const subs: RepositoryModule[] = Object.entries(SUBMODULES[repo?.name ?? ""] ?? {}).flatMap(([path, modules]) =>
     modules.map((name) => ({ name, title: titled(name), summary: "", application: false, path: `${path}/${name}`, submodule: path })),
   );
-  const applications = own.filter((m) => m.application).map((m) => m.name);
   return {
     repository: url.replace(/^(https:\/\/github\.com\/|git@github\.com:)/, "").replace(/\.git$/, ""),
     branch,
     commit: hash(`${url}@${branch}`).toString(16).padStart(8, "0").repeat(5).slice(0, 40),
     modules: [...own, ...subs],
-    default: { source: applications.length ? "applications" : "repository", modules: applications.length ? applications : own.map((m) => m.name) },
     problems: [],
   };
 }

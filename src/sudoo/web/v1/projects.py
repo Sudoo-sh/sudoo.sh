@@ -644,7 +644,7 @@ def create_instance(project_id: str, branch: str) -> Response:
                 **switches,
                 "demo": demo,
                 "install_modules": check.flag(data, "install_modules", True),
-                # the modules picked (exactly those); without it the branch's build options decide (module_install)
+                # Odoo apps and other modules installed with the repository's (the branch's build options decide those)
                 "modules": data.get("modules"),
             },
             f"https://github.com/{found['repository']}",

@@ -32,6 +32,27 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      # the server's own memory, processor and start time, read-only (instances/monitor.py): inside a container
+      # /proc describes the kernel's whole machine, which is the provider's host when the server is itself a
+      # container (LXC and similar); bound from the server's side they are the server's figures
+      - type: bind
+        source: /proc/meminfo
+        target: /host/proc/meminfo
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /proc/stat
+        target: /host/proc/stat
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /proc/1/stat
+        target: /host/proc/1/stat
+        read_only: true
+        bind:
+          create_host_path: false
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:$${API_PORT:-9002}/healthz || exit 1"]
       interval: 10s

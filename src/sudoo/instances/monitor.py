@@ -22,6 +22,7 @@ import threading
 import time
 from collections import defaultdict, deque
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from sudoo import exposure
@@ -154,9 +155,22 @@ def _bytes(text: str | None) -> int:
     return int(float(match.group(1)) * _UNITS.get(match.group(2).lower(), 1)) if match else 0
 
 
+# The server's own /proc files, mounted read-only by compose.yaml at /host/proc. Inside a container, /proc/meminfo,
+# /proc/stat and /proc/uptime describe the kernel's whole machine: on a server that is itself a container (LXC,
+# OpenVZ, some VPS offers) that is the provider's host (16 GB instead of the server's 3 GB, all its processors,
+# its uptime). Files bound from the server's side are the server's view (with LXCFS, the server's own figures);
+# on an ordinary server both are the same. Without the mounts (an older compose.yaml, development) /proc is read.
+HOST_PROC = Path("/host/proc")
+
+
+def _proc(name: str) -> Path:
+    mounted = HOST_PROC / name
+    return mounted if mounted.is_file() else Path("/proc") / name
+
+
 def _host_cpu_percent() -> float:
     global _previous_cpu
-    with open("/proc/stat") as fh:
+    with open(_proc("stat")) as fh:
         values = [int(v) for v in fh.readline().split()[1:]]
     idle, total = values[3] + values[4], sum(values)
     percent = 0.0
@@ -169,7 +183,7 @@ def _host_cpu_percent() -> float:
 
 def _host_memory() -> tuple[int, int]:
     info: dict[str, int] = {}
-    with open("/proc/meminfo") as fh:
+    with open(_proc("meminfo")) as fh:
         for line in fh:
             key, value = line.split(":", 1)
             info[key] = int(value.split()[0]) * 1024
@@ -309,8 +323,18 @@ def _started_at(names: list[str]) -> dict[str, float]:
 
 
 def _host_uptime() -> int:
-    with open("/proc/uptime") as fh:
-        return int(float(fh.read().split()[0]))
+    """Seconds since the server started: from the start of its first process (/host/proc/1/stat, the server's
+    init, in clock ticks after the kernel's boot) when it is mounted, so a server that is a container counts from
+    its own start, not from its host's boot; else /proc/uptime."""
+    try:
+        with open(HOST_PROC / "1" / "stat") as fh:
+            started_ticks = int(fh.read().rsplit(")", 1)[1].split()[19])
+        with open(_proc("stat")) as fh:
+            boot = next(int(line.split()[1]) for line in fh if line.startswith("btime "))
+        return max(0, int(time.time() - (boot + started_ticks / os.sysconf("SC_CLK_TCK"))))
+    except (OSError, ValueError, IndexError, StopIteration):
+        with open("/proc/uptime") as fh:
+            return int(float(fh.read().split()[0]))
 
 
 def follow_public_addresses() -> None:

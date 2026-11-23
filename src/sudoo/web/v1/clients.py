@@ -24,6 +24,12 @@ The client (a client account, in the portal; security.CLIENT_ENDPOINTS)
     PUT    /api/v1/client/projects/<id>/switch           {"branch"?, "state": open|closed|timed, "hours"?, "inherit"?}
     PUT    /api/v1/client/projects/<id>/allow            {"people": [account names]}: who a closure lets through
     PUT    /api/v1/client/projects/<id>/emergency        {"allowed": bool}
+    PUT    /api/v1/client/projects/<id>/lock             {"branch"?, "locked": bool, "reason"?}: the client's lock
+    POST   /api/v1/client/confirmations/<id>             {"code"} or {"token"}: confirm an action that waits -> 200
+    DELETE /api/v1/client/confirmations/<id>             cancel it -> 204
+    The switch, the lock, emergency access, the people let in and approving a request answer 202 {"confirmation"}
+    while CLIENT_CONFIRMATIONS is on: they wait until the client confirms them by e-mail
+    (projects/client_confirm.py); otherwise 200 at once.
     DELETE /api/v1/client/projects/<id>/passes/<pass>    end an approved or emergency access now -> 204
     POST   /api/v1/client/requests/<id>/approve          {"hours"?, "people"?, "note"?}
     POST   /api/v1/client/requests/<id>/refuse           {"note"?}
@@ -44,14 +50,14 @@ import time
 from collections.abc import Mapping
 from typing import Any
 
-from flask import Blueprint, Response, abort, g, request
+from flask import Blueprint, Response, abort, g, request, session
 
 from sudoo import accounts, invitations, projects, roles
 from sudoo.config import settings
 from sudoo.core import audit
 from sudoo.instances import backups, stages, store
 from sudoo.mail import MailError, mailer
-from sudoo.projects import access, clients
+from sudoo.projects import access, client_confirm, clients
 from sudoo.repos import github
 from sudoo.storage import Document
 
@@ -430,14 +436,85 @@ def my_project(project_id: str) -> Response:
             "requests": [_request_resource(r) for r in clients.requests(project_id)[:50]],
             "notices": notices,
             "given": {"backups": bool(me.get("backups")), "shell": bool(me.get("shell"))},
+            "locked": (clients.describe(found) or {}).get("locked"),
+            "confirmations": [
+                client_confirm.resource(c) for c in client_confirm.pending(project_id, str(access.person(g.user)))
+            ],
         },
         meta={
             "open_hours": clients.open_choices(),
             "open_max_hours": settings.client_open_max_hours,
             "request_max_hours": settings.client_request_max_hours,
             "emergency_minutes": settings.client_emergency_minutes,
+            "confirmations": client_confirm.required(),
+            "confirm_minutes": settings.client_confirm_minutes,
         },
     )
+
+
+def _describe_action(kind: str, action: Mapping[str, Any]) -> str:
+    """The action in a sentence for the client's e-mail and log."""
+    where = f"the branch {action['branch']}" if action.get("branch") else "the whole project"
+    if kind == "switch":
+        if action.get("inherit"):
+            return f"Let {where} follow the project's access again"
+        state = action["state"]
+        if state == "timed":
+            return f"Open {where} for {action['hours']:g} hours"
+        return f"{'Close' if state == 'closed' else 'Open'} {where}"
+    if kind == "lock":
+        return f"{'Lock' if action['locked'] else 'Unlock'} {where}"
+    if kind == "emergency":
+        return "Allow emergency access" if action["allowed"] else "Turn emergency access off"
+    if kind == "allow":
+        names = [accounts.display_name(n, accounts.get(n) or {}) for n in action["people"]]
+        return "Let in, even while closed: " + (", ".join(names) or "nobody")
+    if kind == "approve":
+        request_found = clients.request_of(str(action["request"])) or {}
+        who = ", ".join(
+            accounts.display_name(n, accounts.get(n) or {}) for n in action.get("people") or [request_found.get("by")]
+        )
+        hours = action.get("hours") or request_found.get("hours")
+        return f"Approve the access request of {request_found.get('by')}: {who} for {hours:g} hours"
+    return kind
+
+
+def _run(kind: str, project_id: str, action: Mapping[str, Any], by: str) -> Any:
+    """Make the change (once confirmed, or at once without confirmations). Raises clients.ClientError."""
+    if kind == "switch":
+        return clients.set_switch(project_id, action.get("branch"), str(action["state"]), by, action.get("hours"),
+                                  bool(action.get("inherit")))  # fmt: skip
+    if kind == "lock":
+        return clients.set_lock(
+            project_id, action.get("branch"), bool(action["locked"]), by, str(action.get("reason") or "")
+        )
+    if kind == "emergency":
+        return clients.set_emergency(project_id, bool(action["allowed"]), by)
+    if kind == "allow":
+        return clients.set_allow(project_id, list(action["people"]), by)
+    if kind == "approve":
+        return clients.decide(str(action["request"]), by, True, action.get("hours"), action.get("people"),
+                              str(action.get("note") or ""))  # fmt: skip
+    raise clients.ClientError("Unknown action.", 400)
+
+
+def _act(project: Mapping[str, Any], kind: str, action: dict[str, Any]) -> Response:
+    """Run the action, or (CLIENT_CONFIRMATIONS) ask the client to confirm it by e-mail: 202 with the confirmation."""
+    me = str(access.person(g.user))
+    project_id = str(project["id"])
+    if not client_confirm.required():
+        try:
+            _run(kind, project_id, action, me)
+        except clients.ClientError as error:
+            _fail(error)
+        return ok({"done": True, **_switches(projects.get(project_id) or project)})
+    try:
+        made = client_confirm.ask(
+            project, me, str(session.get("sid") or ""), kind, action, _describe_action(kind, action)
+        )
+    except client_confirm.ConfirmError as error:
+        abort(error.status, str(error))
+    return ok({"done": False, "confirmation": client_confirm.resource(made)}, status=202)
 
 
 @blueprint.put("/client/projects/<project_id>/switch")
@@ -450,11 +527,22 @@ def set_switch(project_id: str) -> Response:
     if inherit and branch is None:
         abort(400, "inherit applies to a branch.")
     hours = _hours(data, "hours", None)
-    try:
-        clients.set_switch(project_id, branch, state, str(access.person(g.user)), hours, inherit)
-    except clients.ClientError as error:
-        _fail(error)
-    return ok(_switches(projects.get(project_id) or found))
+    if state == "timed" and (hours is None or not 0 < hours <= settings.client_open_max_hours):
+        abort(400, f"Choose how long to open it: at most {settings.client_open_max_hours} hours.")
+    return _act(found, "switch", {"branch": branch, "state": state, "hours": hours, "inherit": inherit})
+
+
+@blueprint.put("/client/projects/<project_id>/lock")
+def set_lock(project_id: str) -> Response:
+    found = _mine(project_id)
+    data = check.body()
+    branch = _branch_arg(data, found)
+    if not isinstance(data.get("locked"), bool):
+        abort(400, "locked: true or false.")
+    reason = check.text(data, "reason", max_length=clients.REASON_MAX)
+    if not data["locked"] and clients.client_lock(found, branch) is None:
+        abort(409, "This is not locked.")
+    return _act(found, "lock", {"branch": branch, "locked": bool(data["locked"]), "reason": reason})
 
 
 @blueprint.put("/client/projects/<project_id>/allow")
@@ -467,21 +555,48 @@ def set_allow(project_id: str) -> Response:
     unknown = [p for p in people if p not in known]
     if unknown:
         abort(400, f"Name people of the team who see this project ({', '.join(unknown[:5])} do not).")
-    try:
-        changed = clients.set_allow(project_id, people, str(access.person(g.user)))
-    except clients.ClientError as error:
-        _fail(error)
-    return ok([_account_resource(str(e.get("id"))) for e in clients.part(changed).get("allow") or ()])
+    return _act(found, "allow", {"people": sorted(dict.fromkeys(people))})
 
 
 @blueprint.put("/client/projects/<project_id>/emergency")
 def set_emergency(project_id: str) -> Response:
-    _mine(project_id)
+    found = _mine(project_id)
     data = check.body()
     if not isinstance(data.get("allowed"), bool):
         abort(400, "allowed: true or false.")
-    changed = clients.set_emergency(project_id, bool(data["allowed"]), str(access.person(g.user)))
-    return ok({"emergency_allowed": clients.emergency_allowed(changed)})
+    return _act(found, "emergency", {"allowed": bool(data["allowed"])})
+
+
+@blueprint.post("/client/confirmations/<confirmation_id>")
+def confirm_action(confirmation_id: str) -> Response:
+    """{"code"} or {"token"} (the link's): run the action that waited, in the session that asked."""
+    if not access.is_client(g.user):
+        abort(404, "There is no such confirmation.")
+    data = check.body()
+    me = str(access.person(g.user))
+    try:
+        found = client_confirm.confirm(confirmation_id[:40], me, str(session.get("sid") or ""),
+                                       code=check.text(data, "code", max_length=12),
+                                       token=check.text(data, "token", max_length=100))  # fmt: skip
+    except client_confirm.ConfirmError as error:
+        abort(error.status, str(error))
+    project = _mine(str(found["project"]))
+    try:
+        _run(str(found["kind"]), str(project["id"]), found.get("action") or {}, me)
+    except clients.ClientError as error:
+        _fail(error)
+    return ok({"done": True, "confirmation": client_confirm.resource(found), "project": project["id"]})
+
+
+@blueprint.delete("/client/confirmations/<confirmation_id>")
+def cancel_action(confirmation_id: str) -> Response:
+    if not access.is_client(g.user):
+        abort(404, "There is no such confirmation.")
+    try:
+        client_confirm.cancel(confirmation_id[:40], str(access.person(g.user)))
+    except client_confirm.ConfirmError as error:
+        abort(error.status, str(error))
+    return no_content()
 
 
 @blueprint.delete("/client/projects/<project_id>/passes/<pass_id>")
@@ -516,11 +631,12 @@ def approve(request_id: str) -> Response:
         if any(p not in known for p in people):
             abort(400, "Name people of the team who see this project.")
     note = check.text(data, "note", max_length=clients.REASON_MAX)
-    try:
-        decided = clients.decide(request_id, str(access.person(g.user)), True, hours, people, note)
-    except clients.ClientError as error:
-        _fail(error)
-    return ok(_request_resource(decided))
+    if hours is not None and not 0 < hours <= settings.client_request_max_hours:
+        abort(400, f"Give at most {settings.client_request_max_hours} hours.")
+    if found.get("status") != "pending":
+        abort(409, f"This request was {found.get('status')} already.")
+    project = _mine(str(found.get("project")))
+    return _act(project, "approve", {"request": request_id, "hours": hours, "people": people, "note": note})
 
 
 @blueprint.post("/client/requests/<request_id>/refuse")

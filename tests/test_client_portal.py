@@ -18,7 +18,7 @@ from sudoo import accounts, projects
 from sudoo.config import live
 from sudoo.core import audit
 from sudoo.instances import store
-from sudoo.projects import access, clients
+from sudoo.projects import access, client_confirm, clients
 from sudoo.storage import storage
 
 Client = tuple[FlaskClient, dict[str, str]]
@@ -95,6 +95,32 @@ def project() -> Iterator[str]:
     for key in list(storage().all(clients.REQUESTS)):
         storage().delete(clients.REQUESTS, key)
     access.forget_restrictions()
+
+
+class Ready:
+    ready = True
+
+
+@pytest.fixture
+def inbox(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str, dict[str, Any]]]:
+    """E-mail set up, and every e-mail the panel would send: (to, template, values)."""
+    import sudoo.mail
+
+    sent: list[tuple[str, str, dict[str, Any]]] = []
+    monkeypatch.setattr(sudoo.mail, "mailer", lambda: Ready())
+    monkeypatch.setattr(sudoo.mail, "send", lambda to, key, **values: sent.append((to, key, values)))
+    return sent
+
+
+def _confirmed(client: Client, answer: Any, inbox: list[tuple[str, str, dict[str, Any]]], use: str = "code") -> Any:
+    """Confirm the action `answer` (202) asked for, with the e-mailed code (or link)."""
+    web, headers = client
+    assert answer.status_code == 202, answer.get_json()
+    confirmation = answer.get_json()["data"]["confirmation"]["id"]
+    to, key, values = [m for m in inbox if m[1] == "client_action_confirm"][-1]
+    assert to.startswith("cp-client")
+    body = {"code": values["code"]} if use == "code" else {"token": values["link"].split("#", 1)[1].split(".", 1)[1]}
+    return web.post(f"/api/v1/client/confirmations/{confirmation}", json=body, headers=headers)
 
 
 def _other(project_id: str) -> str:
@@ -185,10 +211,9 @@ def test_open_for_a_time_closes_again(app: Flask, project: str, monkeypatch: pyt
 
 
 def test_request_then_approve_lets_the_person_in_for_the_time_given(
-    app: Flask, project: str, monkeypatch: pytest.MonkeyPatch
+    app: Flask, project: str, monkeypatch: pytest.MonkeyPatch, inbox: list[tuple[str, str, dict[str, Any]]]
 ) -> None:
-    sent: list[tuple[str, str, dict[str, Any]]] = []
-    monkeypatch.setattr("sudoo.mail.send", lambda to, key, **values: sent.append((to, key, values)))
+    sent = inbox
     clients.set_switch(project, "main", "closed", "cp-client")
     staff = _sign_in(app, "cp-admin")
     web, headers = staff
@@ -196,15 +221,17 @@ def test_request_then_approve_lets_the_person_in_for_the_time_given(
     answer = web.post(f"/api/v1/projects/{project}/access-requests", json=body, headers=headers)
     assert answer.status_code == 201, answer.get_json()
     request_id = answer.get_json()["data"]["id"]
-    assert sent and sent[0][0] == "cp-client@example.com" and sent[0][1] == "client_access_request"
+    assert ("cp-client@example.com", "client_access_request") in [(to, key) for to, key, _ in sent]
     assert web.post(f"/api/v1/projects/{project}/access-requests", json=body, headers=headers).status_code == 409
     assert web.get("/api/v1/instances/cp-main/credentials").status_code == 403  # nothing opens before the answer
     client, client_headers = _sign_in(app, "cp-client")
     shown = client.get(f"/api/v1/client/projects/{project}").get_json()["data"]
     assert [r["id"] for r in shown["requests"] if r["status"] == "pending"] == [request_id]
-    approved = client.post(f"/api/v1/client/requests/{request_id}/approve", json={"hours": 1}, headers=client_headers)
+    asked = client.post(f"/api/v1/client/requests/{request_id}/approve", json={"hours": 1}, headers=client_headers)
+    assert not access.allowed_instance(ADMIN, "instances.credentials", "cp-main")  # waits for the e-mail
+    approved = _confirmed((client, client_headers), asked, sent)
     assert approved.status_code == 200, approved.get_json()
-    assert approved.get_json()["data"]["people"][0]["name"] == "cp-admin"
+    assert clients.request_of(request_id)["users"] == ["cp-admin"]  # type: ignore[index]
     assert access.allowed_instance(ADMIN, "instances.credentials", "cp-main")
     assert not access.allowed_instance(SUPER, "instances.credentials", "cp-main")  # only those named
     later = time.time() + 3601
@@ -257,11 +284,15 @@ def test_emergency_access_when_allowed(
     assert notices and notices[0]["kind"] == "emergency"
 
 
-def test_emergency_access_turned_off_by_the_client(app: Flask, project: str, admin: Client) -> None:
+def test_emergency_access_turned_off_by_the_client(
+    app: Flask, project: str, admin: Client, inbox: list[tuple[str, str, dict[str, Any]]]
+) -> None:
     clients.set_switch(project, None, "closed", "cp-client")
     client, client_headers = _sign_in(app, "cp-client")
     answer = client.put(f"/api/v1/client/projects/{project}/emergency", json={"allowed": False}, headers=client_headers)
-    assert answer.status_code == 200 and answer.get_json()["data"]["emergency_allowed"] is False
+    assert clients.emergency_allowed(projects.get(project))  # not yet: it waits for the e-mail
+    assert _confirmed((client, client_headers), answer, inbox, use="link").status_code == 200
+    assert not clients.emergency_allowed(projects.get(project))
     web, headers = admin
     refused = web.post(f"/api/v1/projects/{project}/emergency-access",
                        json={"reason": "Production is down for everyone", "confirm": project}, headers=headers)  # fmt: skip
@@ -352,3 +383,103 @@ def test_a_session_never_crosses_between_the_two_addresses(app: Flask, project: 
     other = app.test_client()
     other.set_cookie("sudoo_session", found.value, domain="localhost")
     assert other.get("/api/v1/session").status_code == 401  # the portal's cookie at the panel's address
+
+
+# ---------------------------------------------------------------- confirmation by e-mail
+
+
+def test_a_major_change_waits_for_the_e_mail_confirmation(
+    app: Flask, project: str, inbox: list[tuple[str, str, dict[str, Any]]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = _sign_in(app, "cp-client")
+    web, headers = client
+    path = f"/api/v1/client/projects/{project}/switch"
+    answer = web.put(path, json={"state": "closed"}, headers=headers)
+    assert answer.status_code == 202
+    assert not clients.closed(projects.get(project))  # nothing happened yet
+    shown = web.get(f"/api/v1/client/projects/{project}").get_json()["data"]["confirmations"]
+    assert [c["summary"] for c in shown] == ["Close the whole project"]  # "waiting for your e-mail confirmation"
+    confirmation = shown[0]["id"]
+    wrong = web.post(f"/api/v1/client/confirmations/{confirmation}", json={"code": "000000"}, headers=headers)
+    assert wrong.status_code == 401
+    # another session of the same client cannot confirm it
+    other, other_headers = _sign_in(app, "cp-client")
+    code = [m for m in inbox if m[1] == "client_action_confirm"][-1][2]["code"]
+    assert other.post(f"/api/v1/client/confirmations/{confirmation}", json={"code": code},
+                      headers=other_headers).status_code == 403  # fmt: skip
+    done = web.post(f"/api/v1/client/confirmations/{confirmation}", json={"code": code}, headers=headers)
+    assert done.status_code == 200 and clients.closed(projects.get(project))
+    again = web.post(f"/api/v1/client/confirmations/{confirmation}", json={"code": code}, headers=headers)
+    assert again.status_code == 410  # single use
+    # the time runs out: nothing happens
+    answer = web.put(path, json={"state": "open"}, headers=headers)
+    waiting = answer.get_json()["data"]["confirmation"]["id"]
+    storage().change(client_confirm.COLLECTION, waiting, lambda found: {**found, "expires": time.time() - 1})
+    expired = _confirmed(client, answer, inbox)
+    assert expired.status_code == 410 and clients.closed(projects.get(project))
+    events = [e["event"] for e in audit.search({"project": project}, "ts", True, 50, 0)[0]]
+    assert "client action waiting for e-mail confirmation" in events and "client action confirmed by e-mail" in events
+
+
+def test_without_e_mail_major_changes_are_refused(app: Flask, project: str) -> None:
+    web, headers = _sign_in(app, "cp-client")
+    answer = web.put(f"/api/v1/client/projects/{project}/switch", json={"state": "closed"}, headers=headers)
+    assert answer.status_code == 409 and "e-mail" in answer.get_json()["detail"]
+    live.change({"client_confirmations": False})
+    try:
+        assert web.put(f"/api/v1/client/projects/{project}/switch", json={"state": "closed"},
+                       headers=headers).status_code == 200  # fmt: skip
+        assert clients.closed(projects.get(project))
+    finally:
+        live.change({"client_confirmations": None})
+
+
+# ---------------------------------------------------------------- client locks
+
+
+def test_a_client_lock_closes_a_branch_to_everyone_but_the_client(
+    app: Flask, project: str, admin: Client, inbox: list[tuple[str, str, dict[str, Any]]]
+) -> None:
+    client = _sign_in(app, "cp-client")
+    web, headers = client
+    clients.set_allow(project, ["cp-admin"], "cp-client")  # named people do not pass a lock
+    answer = web.put(f"/api/v1/client/projects/{project}/lock", json={"branch": "main", "locked": True,
+                                                                     "reason": "Year-end closing"}, headers=headers)  # fmt: skip
+    assert clients.client_lock(projects.get(project), "main") is None  # waits for the e-mail
+    assert _confirmed(client, answer, inbox).status_code == 200
+    found = projects.get(project)
+    assert clients.client_lock(found, "main") is not None and clients.client_lock(found, "dev") is None
+    for user in (SUPER, ADMIN):
+        refused = access.instance_refusal(user, "instances.credentials", "cp-main")
+        assert refused is not None and "locked by its client" in refused[1]
+        assert access.allowed_instance(user, "instances.credentials", "cp-dev")
+    assert access.allowed_instance(CLIENT, "instances.view", "cp-main")
+    assert access.held(found, "main") is not None  # no automatic deploys
+    staff, staff_headers = admin
+    assert staff.delete(f"/api/v1/projects/{project}/branches/main/lock", headers=staff_headers).status_code in (
+        403,
+        404,
+    )
+    assert clients.client_lock(projects.get(project), "main") is not None  # staff cannot lift it
+    # unlocking waits for the e-mail too
+    answer = web.put(
+        f"/api/v1/client/projects/{project}/lock", json={"branch": "main", "locked": False}, headers=headers
+    )
+    assert clients.client_lock(projects.get(project), "main") is not None
+    assert _confirmed(client, answer, inbox).status_code == 200
+    assert clients.client_lock(projects.get(project), "main") is None
+    assert access.allowed_instance(SUPER, "instances.credentials", "cp-main")
+
+
+def test_a_project_lock_stops_automatic_deploys_and_lets_only_emergency_through(
+    app: Flask, project: str, admin: Client, inbox: list[tuple[str, str, dict[str, Any]]]
+) -> None:
+    clients.set_lock(project, None, True, "cp-client")
+    found = projects.get(project)
+    assert access.held(found, "dev") is not None and access.instance_lock("cp-dev") is not None
+    assert not access.allowed_instance(SUPER, "instances.credentials", "cp-dev")
+    web, headers = admin
+    answer = web.post(f"/api/v1/projects/{project}/emergency-access",
+                      json={"reason": "Production is down for everyone", "confirm": project}, headers=headers)  # fmt: skip
+    assert answer.status_code == 201, answer.get_json()
+    assert access.allowed_instance(SUPER, "instances.credentials", "cp-dev")  # emergency, while the client allows it

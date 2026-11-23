@@ -564,6 +564,24 @@ export interface ClientAccess {
   clients: number;
   /** a closure lets the caller through (a client, someone it named, an approved request, an emergency) */
   lets_you_through?: boolean;
+  /** the client's lock of the branch or of the whole project, or null */
+  locked?: { by: string | null; at: string | null; reason: string; scope: "project" | "branch" } | null;
+}
+/** A client's major change waiting for its confirmation by e-mail (projects/client_confirm.py). */
+export interface ClientConfirmation {
+  id: string;
+  kind: "switch" | "lock" | "emergency" | "approve" | "allow";
+  summary: string;
+  asked_at: string;
+  expires_at: string;
+  status: "pending" | "confirmed" | "expired" | "cancelled";
+  /** only in the demo, where no e-mail is sent: the code */
+  demo_code?: string;
+}
+/** What a client's change answers: done at once, or waiting for the e-mail confirmation (202). */
+export interface ClientActionAnswer {
+  done: boolean;
+  confirmation?: ClientConfirmation;
 }
 export interface PersonRef {
   name: string;
@@ -657,12 +675,17 @@ export interface ClientProject extends ClientProjectSummary {
   requests: AccessRequest[];
   notices: AccessPass[];
   given: { backups: boolean; shell: boolean };
+  /** the client's lock of the whole project, or null */
+  locked: ClientAccess["locked"];
+  confirmations: ClientConfirmation[];
 }
 export interface ClientProjectMeta {
   open_hours: number[];
   open_max_hours: number;
   request_max_hours: number;
   emergency_minutes: number;
+  confirmations: boolean;
+  confirm_minutes: number;
 }
 export interface ClientBackup {
   file: string;

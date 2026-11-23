@@ -2811,8 +2811,19 @@ a lifetime, archiving when a branch is deleted on GitHub). A visit still starts 
 keeps something closed, nobody can add another client to that project, take its last client out, or change, reset,
 take the second factors of or delete the client's account.
 
-The e-mails are on **E-mail templates**: **Access request (client portal)** and **Emergency access (client portal)**,
-each with its Arabic version, sent in the client's language. Everything is in the audit log, scoped to the project,
+**Client locks.** A client can also lock a branch or the whole project. A client lock is as strong as a closed switch
+(nobody in the panel lifts it, super admins included), lets through only the project's clients and emergency access
+while the client allows it (never the people it named or approved requests), and stops automatic deploys and every
+other automatic change of what it locks, whatever the switch says.
+
+**Confirmation by e-mail.** With `CLIENT_CONFIRMATIONS` on (the default), every major change a client makes in the
+portal (the switch, locks and unlocks, emergency access, approving a request, the people it lets in) waits until the
+client confirms it with a one-time link or a 6-digit code sent to its e-mail address, within `CLIENT_CONFIRM_MINUTES`
+(15) and in the same browser session that asked. It needs e-mail to be set up; without it these changes are refused
+with a sentence that says why. Asking, confirming, a wrong code or session, cancelling and expiry are in the audit log.
+
+The e-mails are on **E-mail templates**: **Access request (client portal)**, **Emergency access (client portal)** and
+**Confirm a change (client portal)**, each with its Arabic version, sent in the client's language. Everything is in the audit log, scoped to the project,
 and the client reads it as its activity log (its CSV export uses the audit log's).
 
 **The limit.** The switch is an audited control inside the panel. Whoever has root on the server, or access to its

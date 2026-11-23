@@ -11,7 +11,10 @@ import {
   CircleHelp,
   Download,
   FolderKanban,
+  Lock,
+  LockOpen,
   LogOut,
+  Mail,
   ScrollText,
   ShieldAlert,
   ShieldCheck,
@@ -20,7 +23,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { lazy, Suspense, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Link, matchPath, Navigate, NavLink, useLocation, useNavigate } from "react-router";
 import { api, errorText } from "@/api/client";
 import {
@@ -34,7 +37,7 @@ import {
   usePortal,
 } from "@/api/clients";
 import { keys } from "@/api/queries";
-import type { AccessRequest, ClientAccess, ClientProject, ClientProjectMeta, Instance, SwitchState } from "@/api/types";
+import type { AccessRequest, ClientAccess, ClientActionAnswer, ClientConfirmation, ClientProject, ClientProjectMeta, Instance, SwitchState } from "@/api/types";
 import { Mark } from "@/components/app/Brand";
 import { Button, Callout, Empty, Field, Segmented, Skeleton, Status, Switch, Tag } from "@/components/app/basics";
 import { Menu, MenuItem, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
@@ -75,6 +78,7 @@ export function ClientPortal() {
   let page: ReactNode;
   if (pathname === "/" || pathname === "/p") page = <HomePage />;
   else if (shell?.params.id && shell.params.instance) page = <ShellPage id={shell.params.id} name={shell.params.instance} />;
+  else if (pathname === "/confirm") page = <ConfirmPage />;
   else if (id && pathname.endsWith("/activity")) page = <ActivityPage id={id} />;
   else if (id) page = <ProjectPage id={id} />;
   else if (pathname === "/account") page = <Suspense fallback={<Skeleton height={240} />}><AccountPage /></Suspense>;
@@ -237,6 +241,7 @@ function SwitchControl({ access, meta, busy, onSet }: {
 
 function ApproveDialog({ request, project, onClose, onDone }: { request: AccessRequest; project: ClientProject; onClose: () => void; onDone: () => void }) {
   const t = useT(words).requests;
+  const c = useT(words).confirm;
   const toast = useToast();
   const [hours, setHours] = useState(String(request.hours));
   const [people, setPeople] = useState<string[]>([request.by.name]);
@@ -245,8 +250,9 @@ function ApproveDialog({ request, project, onClose, onDone }: { request: AccessR
   const approve = async () => {
     setBusy(true);
     try {
-      await clientCalls.approve(request.id, { hours: Number(hours), people, note });
-      toast("success", t.approved);
+      const answer = await clientCalls.approve(request.id, { hours: Number(hours), people, note });
+      if (answer.done) toast("success", t.approved);
+      else toast("info", c.checkMail, c.checkMailText);
       onDone();
       onClose();
     } catch (error) {
@@ -325,11 +331,13 @@ function ProjectPage({ id }: { id: string }) {
       </main>
     );
   const { project, meta } = data;
-  const run = async (call: () => Promise<unknown>, done: string) => {
+  const run = async (call: () => Promise<ClientActionAnswer | unknown>, done: string) => {
     setBusy(true);
     try {
-      await call();
-      toast("success", done);
+      const answer = (await call()) as ClientActionAnswer | undefined;
+      // a major change waits for the client's confirmation by e-mail (202)
+      if (answer && answer.done === false) toast("info", all.confirm.checkMail, all.confirm.checkMailText);
+      else toast("success", done);
       after();
     } catch (err) {
       toast("error", t.notChanged, errorText(err));
@@ -343,6 +351,8 @@ function ProjectPage({ id }: { id: string }) {
   const answered = project.requests.filter((r) => r.status !== "pending").slice(0, 10);
   const allowNames = project.allow.map((a) => a.name);
   const saveAllow = (names: string[]) => run(() => clientCalls.setAllow(id, names), all.allow.saved);
+  const setLock = (branch: string | null, locked: boolean) =>
+    run(() => clientCalls.setLock(id, { branch, locked }), locked ? all.locks.locked : all.locks.unlocked);
   const now = Date.now();
   const emergencies = project.notices.filter((n) => Date.parse(n.until) > now - 24 * 3600_000);
   return (
@@ -363,6 +373,12 @@ function ProjectPage({ id }: { id: string }) {
           {n.reason && all.emergency.reason(n.reason)}
         </Callout>
       ))}
+
+      {project.confirmations.length > 0 && <Waiting id={id} items={project.confirmations} minutes={meta.confirm_minutes} />}
+
+      {project.locked && (
+        <Callout tone="warning"><b>{all.locks.projectLocked}</b> {all.locks.text}</Callout>
+      )}
 
       {pending.length > 0 && (
         <section className="card portal-requests">
@@ -391,6 +407,13 @@ function ProjectPage({ id }: { id: string }) {
           <SwitchControl key={`${project.switch?.state}-${project.switch?.until}`} access={project.switch} meta={meta} busy={busy}
             onSet={(state, hours) => setSwitch(null, state, hours)} />
         </div>
+        <div className="card-foot">
+          <span className="small muted spacer">{project.locked ? all.locks.projectLocked : all.locks.lockHint}</span>
+          <Button size="sm" variant={project.locked ? "default" : "danger"} icon={project.locked ? <LockOpen /> : <Lock />} loading={busy}
+            onClick={() => setLock(null, !project.locked)}>
+            {project.locked ? all.locks.unlockProject : all.locks.lockProject}
+          </Button>
+        </div>
       </section>
 
       <section className="card">
@@ -403,8 +426,14 @@ function ProjectPage({ id }: { id: string }) {
                 <bdi dir="ltr" className="mono"><b>{b.name}</b></bdi>
                 <Tag>{t.stage[b.stage] ?? b.stage}</Tag>
                 <StateTag access={b.switch} />
+                {b.switch?.locked && <Tag tone="negative" icon={<Lock />}>{all.locks.tag}</Tag>}
                 {b.switch?.scope === "project" && <span className="xsmall faint">{all.states.followsProject}</span>}
                 <span className="spacer" />
+                {!project.locked && (
+                  <Button size="sm" variant="ghost" icon={b.switch?.locked ? <LockOpen /> : <Lock />} loading={busy} onClick={() => setLock(b.name, !b.switch?.locked)}>
+                    {b.switch?.locked ? all.locks.unlock : all.locks.lock}
+                  </Button>
+                )}
                 <SelectBox size="sm" style={{ width: 200 }} aria-label={t.branchMenu(b.name)} value={b.switch?.scope === "branch" ? (b.switch.state === "timed" ? "timed" : b.switch.state) : "follow"}
                   onValueChange={(value) => {
                     if (value === "follow") void setSwitch(b.name, "open", undefined, true);
@@ -523,6 +552,89 @@ function ProjectPage({ id }: { id: string }) {
       <Limit />
       {approving && <ApproveDialog request={approving} project={project} onClose={() => setApproving(null)} onDone={after} />}
       {refusing && <RefuseDialog request={refusing} onClose={() => setRefusing(null)} onDone={after} />}
+    </main>
+  );
+}
+
+// ---------------------------------------------------------------- confirmation by e-mail
+
+/** "Waiting for your e-mail confirmation": each change that waits, with the code to type and Cancel. */
+function Waiting({ id, items, minutes }: { id: string; items: ClientConfirmation[]; minutes: number }) {
+  const t = useT(words).confirm;
+  const toast = useToast();
+  const after = useAfterChange(id);
+  const [codes, setCodes] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState("");
+  const confirm = async (item: ClientConfirmation) => {
+    setBusy(item.id);
+    try {
+      await clientCalls.confirm(item.id, { code: codes[item.id] ?? "" });
+      toast("success", t.done);
+      after();
+    } catch (error) {
+      toast("error", t.notDone, errorText(error));
+    } finally {
+      setBusy("");
+    }
+  };
+  const cancel = async (item: ClientConfirmation) => {
+    await clientCalls.cancel(item.id).catch(() => undefined);
+    after();
+  };
+  return (
+    <section className="card portal-waiting" aria-live="polite">
+      <div className="card-head"><Mail /><h2 className="spacer">{t.title}</h2></div>
+      <div className="card-body stack">
+        <p className="small muted">{t.text(minutes)}</p>
+        {items.map((item) => (
+          <div key={item.id} className="portal-request">
+            <div className="stack-sm spacer">
+              <b><bdi>{item.summary}</bdi></b>
+              <span className="xsmall faint">{t.until(dateTime(item.expires_at))}</span>
+              {item.demo_code && <span className="xsmall faint">{t.demoCode(item.demo_code)}</span>}
+            </div>
+            <div className="row-wrap">
+              <Input dir="ltr" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" aria-label={t.code}
+                className="mono" style={{ width: 110 }} value={codes[item.id] ?? ""} onChange={(e) => setCodes({ ...codes, [item.id]: e.target.value.replace(/\D/g, "") })} />
+              <Button size="sm" variant="primary" loading={busy === item.id} disabled={(codes[item.id] ?? "").length !== 6} onClick={() => confirm(item)}>{t.confirm}</Button>
+              <Button size="sm" variant="ghost" onClick={() => cancel(item)}>{t.cancel}</Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** /confirm#<id>.<secret>: the link of the e-mail, opened in the browser that asked. */
+function ConfirmPage() {
+  const t = useT(words).confirm;
+  const client = useQueryClient();
+  const [state, setState] = useState<{ status: "working" | "done" | "failed"; text?: string; project?: string }>({ status: "working" });
+  useEffect(() => {
+    const [confirmationId, token] = window.location.hash.replace(/^#/, "").split(".", 2);
+    if (!confirmationId || !token) {
+      setState({ status: "failed", text: t.badLink });
+      return;
+    }
+    history.replaceState(null, "", "/confirm"); // the secret leaves the address bar
+    clientCalls.confirm(confirmationId, { token }).then(
+      (answer) => {
+        setState({ status: "done", project: answer.project });
+        void client.invalidateQueries({ queryKey: ["client"] });
+      },
+      (error: unknown) => setState({ status: "failed", text: errorText(error) }),
+    );
+  }, [client, t.badLink]);
+  return (
+    <main className="page portal-page" tabIndex={-1}>
+      <div className="page-head"><div className="titles"><h1>{t.title}</h1></div></div>
+      {state.status === "working" ? <Skeleton height={60} /> : state.status === "done" ? (
+        <Callout tone="success">{t.done}</Callout>
+      ) : (
+        <Callout tone="warning">{state.text}</Callout>
+      )}
+      <Button asChild><Link to={state.project ? `/p/${encodeURIComponent(state.project)}` : "/"}><ArrowLeft className="flip-rtl" /> {useT(words).project.back}</Link></Button>
     </main>
   );
 }

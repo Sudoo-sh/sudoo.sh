@@ -62,7 +62,8 @@ Clients and their switch (projects/clients.py)
     (LOCKED_PERMISSIONS), super admins included, and nobody can lift it but the client: it lets through the project's
     clients, the people the client named, and the people of an active pass (an approved access request, or a super
     admin's emergency access where the client allows it). Sudoo.sh support is never let through. Automatic changes
-    stop as for a lock (held); a visit still starts a paused instance.
+    stop as for a lock (held); a visit still starts a paused instance. A client lock of a branch or of the whole
+    project is as strong and lets through only the clients and emergency access; it stops automatic deploys too.
 
 API tokens
     A token acts for the account that created it (its owner): its permissions are its scope's role ∩ the owner's
@@ -297,8 +298,13 @@ def level_permissions(
 
 
 def closed_to(user: Mapping[str, Any], project: Mapping[str, Any] | None, branch: str | None = None) -> bool:
-    """Whether the client's switch closes `branch` (None: the project) to `user` (projects/clients.py)."""
-    return project is not None and clients.closed(project, branch) and not clients.lets_through(user, project, branch)
+    """Whether the client's switch, or a client lock, closes `branch` (None: the project) to `user`
+    (projects/clients.py)."""
+    if project is None:
+        return False
+    if clients.client_lock(project, branch) is not None and not clients.lock_lets_through(user, project, branch):
+        return True
+    return clients.closed(project, branch) and not clients.lets_through(user, project, branch)
 
 
 def permissions(
@@ -355,6 +361,8 @@ def refusal(
         return 403, f"The branch {branch} is locked by {by}: only the people and teams the lock allows may do this."
     if permission in LOCKED_PERMISSIONS and closed_to(user, project, branch):
         what = f"The branch {branch}" if branch else f"The project {project.get('name', project.get('id'))}"
+        if clients.client_lock(project, branch) is not None and not clients.lock_lets_through(user, project, branch):
+            return 403, f"{what} is locked by its client: only the client may do this, or unlock it."
         return 403, (
             f"{what} is closed by its client: only the client and the people it lets in may do this. Ask the "
             "client for access (Request access)."
@@ -479,7 +487,8 @@ def _chosen_permissions(
 ) -> frozenset[str]:
     found = role_permissions(user)
     lock = lock_of(project, branch)
-    if lock is not None or clients.closed(project, branch):  # support is never let through either
+    if lock is not None or clients.closed(project, branch) or clients.client_lock(project, branch) is not None:
+        # support is never let through either
         return found - LOCKED_PERMISSIONS
     return found
 
@@ -516,6 +525,9 @@ def held(project: Mapping[str, Any] | None, branch: str | None) -> dict[str, Any
     lock = lock_of(project, branch)
     if lock is not None:
         return lock
+    locked = clients.client_lock(project, branch)
+    if locked is not None:
+        return {**locked, "client": True, "client_lock": True}
     found = clients.closure(project, branch)
     return {**found, "client": True} if found is not None else None
 

@@ -3,8 +3,8 @@
 // emergency access off). The "Client" perspective shows her portal; the others show the staff side: the closed
 // branch, Request access, emergency access for super admins, and the project's Clients tab.
 
-import type { AccessPass, AccessRequest, ActivityEntry, ClientBackup, ClientInstance, ClientProject, ClientProjectSummary, PersonRef, SwitchState } from "@/api/types";
-import { CLIENT_ME, closedIn, describeSwitch, setLocks, type DemoAccess, type DemoClient, type DemoPass } from "./access";
+import type { AccessPass, AccessRequest, ActivityEntry, ClientBackup, ClientConfirmation, ClientInstance, ClientProject, ClientProjectSummary, PersonRef, SwitchState } from "@/api/types";
+import { CLIENT_ME, clientLock, closedIn, describeSwitch, setLocks, type DemoAccess, type DemoClient, type DemoPass } from "./access";
 import { created, none, ok, route } from "./api";
 import { announce } from "./jobs";
 import { branchNames, membersOf, projects, stageOf, type DemoProject } from "./projects";
@@ -83,6 +83,8 @@ export function seedClients() {
     requests.push({ id: hex(10), project: "zahra-clinic", branch: null, by: "ines", reason: "Test the appointment reminders on a copy.", hours: 8, status: "refused", at: OPENED - 4 * DAY, decided_by: CLIENT_ME, decided_at: OPENED - 4 * DAY + HOUR, note: "Next week, please." });
     log("client access closed", "zahra-clinic", null, "closed", OPENED - 5 * DAY, CLIENT_ME);
     log("emergency access turned off", "zahra-clinic", null, "zahra-clinic", OPENED - 5 * DAY + MINUTE, CLIENT_ME);
+    zahra.access.client.locks = { main: { by: CLIENT_ME, at: OPENED - 3 * DAY, reason: "Year-end closing" } };
+    log("client locked", "zahra-clinic", "main", "the branch main", OPENED - 3 * DAY, CLIENT_ME);
     setLocks("zahra-clinic", zahra.access, () => undefined);
   }
 }
@@ -145,6 +147,8 @@ function detail(project: DemoProject & { access: DemoAccess & { client: DemoClie
     requests: requests.filter((r) => r.project === project.id).sort((a, b) => b.at - a.at).map(requestResource),
     notices: client.passes.filter((p) => p.kind === "emergency" && p.at > Date.now() - 7 * DAY).map(passResource),
     given: { backups: me.backups, shell: me.shell },
+    locked: describeSwitch(project.access, null, false)?.locked ?? null,
+    confirmations: confirmations.filter((c) => c.project === project.id && c.until > Date.now()).map(confirmationResource),
   };
 }
 
@@ -166,8 +170,39 @@ route("GET", "/client/projects", () => {
 });
 
 route("GET", "/client/projects/:id", ({ params }) =>
-  ok(detail(myProject(params.id!)), { open_hours: OPEN_HOURS, open_max_hours: 720, request_max_hours: 168, emergency_minutes: EMERGENCY_MINUTES }),
+  ok(detail(myProject(params.id!)), { open_hours: OPEN_HOURS, open_max_hours: 720, request_max_hours: 168, emergency_minutes: EMERGENCY_MINUTES, confirmations: true, confirm_minutes: CONFIRM_MINUTES }),
 );
+
+// Every major change waits for the client's confirmation by e-mail (projects/client_confirm.py); the demo sends no
+// e-mail and shows the code in the portal instead.
+interface DemoConfirmation {
+  id: string;
+  project: string;
+  kind: ClientConfirmation["kind"];
+  summary: string;
+  at: number;
+  until: number;
+  code: string;
+  run: () => void;
+}
+const confirmations: DemoConfirmation[] = [];
+const CONFIRM_MINUTES = 15;
+
+const confirmationResource = (c: DemoConfirmation): ClientConfirmation => ({
+  id: c.id, kind: c.kind, summary: c.summary, asked_at: iso(c.at)!, expires_at: iso(c.until)!, status: "pending", demo_code: c.code,
+});
+
+function waitFor(project: DemoProject, kind: DemoConfirmation["kind"], summary: string, run: () => void) {
+  const made: DemoConfirmation = {
+    id: hex(10), project: project.id, kind, summary, at: Date.now(), until: Date.now() + CONFIRM_MINUTES * MINUTE,
+    code: String(Math.floor(100000 + Math.random() * 900000)), run,
+  };
+  confirmations.push(made);
+  log("client action waiting for e-mail confirmation", project.id, null, summary);
+  return { status: 202, body: { data: { done: false, confirmation: confirmationResource(made) } } };
+}
+
+const where = (branch: string | null) => (branch ? `the branch ${branch}` : "the whole project");
 
 route("PUT", "/client/projects/:id/switch", ({ params, body }) => {
   const project = myProject(params.id!);
@@ -177,33 +212,71 @@ route("PUT", "/client/projects/:id/switch", ({ params, body }) => {
   if (!["open", "closed", "timed"].includes(state)) throw new Problem(400, "state: open, closed or timed.");
   const hours = Number(body.hours ?? 0);
   if (state === "timed" && !(hours > 0 && hours <= 720)) throw new Problem(400, "Choose how long to open it: at most 720 hours.");
-  const sw = { state, until: state === "timed" ? Date.now() + hours * HOUR : null, by: CLIENT_ME, at: Date.now() };
-  if (branch && body.inherit) delete client.branches[branch];
-  else if (branch) client.branches[branch] = sw;
-  else client.sw = sw;
-  if (state === "closed") client.passes = client.passes.filter((p) => p.until > Date.now() && branch !== null && p.branch !== null && p.branch !== branch);
-  log(body.inherit ? "client access follows the project again" : state === "timed" ? "client access opened for a time" : `client access ${state === "closed" ? "closed" : "opened"}`,
-    project.id, branch, state === "timed" ? `open for ${hours} h` : state);
-  changed(project);
-  return ok({ project: describeSwitch(project.access, null), branches: {} });
+  const summary = body.inherit ? `Let ${where(branch)} follow the project's access again` : state === "timed" ? `Open ${where(branch)} for ${hours} hours` : `${state === "closed" ? "Close" : "Open"} ${where(branch)}`;
+  return waitFor(project, "switch", summary, () => {
+    const sw = { state, until: state === "timed" ? Date.now() + hours * HOUR : null, by: CLIENT_ME, at: Date.now() };
+    if (branch && body.inherit) delete client.branches[branch];
+    else if (branch) client.branches[branch] = sw;
+    else client.sw = sw;
+    if (state === "closed") client.passes = client.passes.filter((p) => p.until > Date.now() && branch !== null && p.branch !== null && p.branch !== branch);
+    log(body.inherit ? "client access follows the project again" : state === "timed" ? "client access opened for a time" : `client access ${state === "closed" ? "closed" : "opened"}`,
+      project.id, branch, state === "timed" ? `open for ${hours} h` : state);
+  });
+});
+
+route("PUT", "/client/projects/:id/lock", ({ params, body }) => {
+  const project = myProject(params.id!);
+  const client = project.access.client;
+  const branch = (body.branch as string | null | undefined) ?? null;
+  const locked = Boolean(body.locked);
+  return waitFor(project, "lock", `${locked ? "Lock" : "Unlock"} ${where(branch)}`, () => {
+    const locks = { ...(client.locks ?? {}) };
+    if (locked) locks[branch ?? "*"] = { by: CLIENT_ME, at: Date.now(), reason: String(body.reason ?? "") };
+    else delete locks[branch ?? "*"];
+    client.locks = locks;
+    log(locked ? "client locked" : "client unlocked", project.id, branch, where(branch));
+  });
 });
 
 route("PUT", "/client/projects/:id/allow", ({ params, body }) => {
   const project = myProject(params.id!);
   const people = (body.people as string[] | undefined) ?? [];
   if (people.some((p) => !users.some((u) => u.name === p && u.role !== "client"))) throw new Problem(400, "Name people of the team who see this project.");
-  project.access.client.allow = [...new Set(people)];
-  log("client's named people changed", project.id, null, people.map((p) => person(p).display_name).join(", ") || "nobody");
-  changed(project);
-  return ok(project.access.client.allow.map(person));
+  const names = people.map((p) => person(p).display_name).join(", ") || "nobody";
+  return waitFor(project, "allow", `Let in, even while closed: ${names}`, () => {
+    project.access.client.allow = [...new Set(people)];
+    log("client's named people changed", project.id, null, names);
+  });
 });
 
 route("PUT", "/client/projects/:id/emergency", ({ params, body }) => {
   const project = myProject(params.id!);
-  project.access.client.emergency = Boolean(body.allowed);
-  log(body.allowed ? "emergency access allowed" : "emergency access turned off", project.id, null, project.id);
-  changed(project);
-  return ok({ emergency_allowed: project.access.client.emergency });
+  const allowed = Boolean(body.allowed);
+  return waitFor(project, "emergency", allowed ? "Allow emergency access" : "Turn emergency access off", () => {
+    project.access.client.emergency = allowed;
+    log(allowed ? "emergency access allowed" : "emergency access turned off", project.id, null, project.id);
+  });
+});
+
+route("POST", "/client/confirmations/:id", ({ params, body }) => {
+  const found = confirmations.find((c) => c.id === params.id);
+  if (!found || session.role !== "client") throw new Problem(404, "There is no such confirmation.");
+  if (found.until <= Date.now()) throw new Problem(410, "This confirmation expired: do it again to get a new e-mail.");
+  if (String(body.code ?? "") !== found.code) throw new Problem(401, "The code is not correct, or it has expired.");
+  confirmations.splice(confirmations.indexOf(found), 1);
+  found.run();
+  log("client action confirmed by e-mail", found.project, null, found.summary);
+  const project = projects.get(found.project);
+  if (project) changed(project);
+  return ok({ done: true, project: found.project });
+});
+
+route("DELETE", "/client/confirmations/:id", ({ params }) => {
+  const found = confirmations.find((c) => c.id === params.id);
+  if (!found) throw new Problem(404, "There is no such confirmation waiting.");
+  confirmations.splice(confirmations.indexOf(found), 1);
+  log("client action not confirmed (cancelled)", found.project, null, found.summary);
+  return none();
 });
 
 route("DELETE", "/client/projects/:id/passes/:pass", ({ params }) => {
@@ -229,11 +302,13 @@ route("POST", "/client/requests/:id/approve", ({ params, body }) => {
   const hours = Number(body.hours ?? found.hours);
   const people = (body.people as string[] | undefined) ?? [found.by];
   if (!(hours > 0 && hours <= 168)) throw new Problem(400, "Give at most 168 hours.");
-  Object.assign(found, { status: "approved", decided_by: CLIENT_ME, decided_at: Date.now(), users: people, until: Date.now() + hours * HOUR, hours, note: String(body.note ?? "") || undefined });
-  project.access.client.passes.push({ id: hex(8), kind: "request", users: people, branch: found.branch, until: found.until!, by: CLIENT_ME, at: Date.now(), reason: found.reason });
-  log("access request approved", project.id, found.branch, `${people.map((p) => person(p).display_name).join(", ")} for ${hours} h`);
-  changed(project);
-  return ok(requestResource(found));
+  const names = people.map((p) => person(p).display_name).join(", ");
+  return waitFor(project, "approve", `Approve the access request of ${person(found.by).display_name}: ${names} for ${hours} hours`, () => {
+    if (found.status !== "pending") return;
+    Object.assign(found, { status: "approved", decided_by: CLIENT_ME, decided_at: Date.now(), users: people, until: Date.now() + hours * HOUR, hours, note: String(body.note ?? "") || undefined });
+    project.access.client.passes.push({ id: hex(8), kind: "request", users: people, branch: found.branch, until: found.until!, by: CLIENT_ME, at: Date.now(), reason: found.reason });
+    log("access request approved", project.id, found.branch, `${names} for ${hours} h`);
+  });
 });
 
 route("POST", "/client/requests/:id/refuse", ({ params, body }) => {
@@ -343,7 +418,7 @@ route("POST", "/projects/:id/emergency-access", ({ params, body }) => {
   const branch = (body.branch as string | null | undefined) ?? null;
   const client = project.access.client;
   if (session.role !== "super_admin") throw new Problem(403, "Only a super admin, signed in, may use emergency access.");
-  if (!client || !closedIn(project.access, branch)) throw new Problem(409, "This is open: no emergency access is needed.");
+  if (!client || (!closedIn(project.access, branch) && !clientLock(project.access, branch))) throw new Problem(409, "This is open: no emergency access is needed.");
   if (!client.emergency) throw new Problem(403, "The client turned emergency access off for this project: nobody in the panel can force access. Ask the client.");
   const reason = String(body.reason ?? "").trim();
   if (reason.length < 10) throw new Problem(400, "Say why (at least 10 characters): the client reads it.");

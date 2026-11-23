@@ -800,6 +800,8 @@ how it works: [Admin guide, Client portal](ADMIN_GUIDE.md#30-client-portal), [Us
 | `CLIENT_REQUEST_HOURS` | int | `4` | **live** | The duration an access request asks for unless the person changes it, in hours. |
 | `CLIENT_REQUEST_MAX_HOURS` | int | `168` | **live** | The longest an access request may ask for (and a client may give), in hours. |
 | `CLIENT_REQUEST_EXPIRE_HOURS` | int | `72` | **live** | Hours after which a request the client did not answer lapses. |
+| `CLIENT_CONFIRMATIONS` | bool | `true` | **live** | Clients confirm every major change in the portal (opening or closing, locks, emergency access, approving a request, the people they let in) with a one-time link or a 6-digit code sent to their e-mail; the change waits until then. Needs e-mail to be set up. `false`: changes happen at once. |
+| `CLIENT_CONFIRM_MINUTES` | int | `15` | **live** | Minutes a confirmation link or code works (5 to 60). |
 
 ---
 

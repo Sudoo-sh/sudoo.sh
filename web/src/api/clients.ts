@@ -6,6 +6,7 @@ import { api, call } from "./client";
 import type {
   AccessRequest,
   ActivityEntry,
+  ClientActionAnswer,
   ClientBackup,
   ClientProject,
   ClientProjectMeta,
@@ -73,12 +74,17 @@ export const useProjectClients = (id: string, enabled = true) =>
 
 export const clientCalls = {
   setSwitch: (id: string, body: { branch?: string | null; state: string; hours?: number; inherit?: boolean }) =>
-    api.put(`/client/projects/${enc(id)}/switch`, body),
-  setAllow: (id: string, people: string[]) => api.put(`/client/projects/${enc(id)}/allow`, { people }),
-  setEmergency: (id: string, allowed: boolean) => api.put(`/client/projects/${enc(id)}/emergency`, { allowed }),
+    api.put<ClientActionAnswer>(`/client/projects/${enc(id)}/switch`, body),
+  setLock: (id: string, body: { branch?: string | null; locked: boolean; reason?: string }) =>
+    api.put<ClientActionAnswer>(`/client/projects/${enc(id)}/lock`, body),
+  setAllow: (id: string, people: string[]) => api.put<ClientActionAnswer>(`/client/projects/${enc(id)}/allow`, { people }),
+  setEmergency: (id: string, allowed: boolean) => api.put<ClientActionAnswer>(`/client/projects/${enc(id)}/emergency`, { allowed }),
+  confirm: (confirmationId: string, body: { code?: string; token?: string }) =>
+    api.post<{ done: boolean; project: string }>(`/client/confirmations/${enc(confirmationId)}`, body),
+  cancel: (confirmationId: string) => api.del(`/client/confirmations/${enc(confirmationId)}`),
   endPass: (id: string, passId: string) => api.del(`/client/projects/${enc(id)}/passes/${enc(passId)}`),
   approve: (requestId: string, body: { hours?: number; people?: string[]; note?: string }) =>
-    api.post<AccessRequest>(`/client/requests/${enc(requestId)}/approve`, body),
+    api.post<ClientActionAnswer>(`/client/requests/${enc(requestId)}/approve`, body),
   refuse: (requestId: string, note: string) => api.post<AccessRequest>(`/client/requests/${enc(requestId)}/refuse`, { note }),
   ask: (id: string, body: { branch?: string | null; reason: string; hours: number }) =>
     api.post<AccessRequest>(`/projects/${enc(id)}/access-requests`, body),

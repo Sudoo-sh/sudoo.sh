@@ -145,7 +145,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
     id: "clients",
     groups: [
       { id: "portalAddress", keys: ["portal_domain", "portal_name"] },
-      { id: "clientSwitch", keys: ["client_open_hours", "client_open_max_hours", "client_request_hours", "client_request_max_hours", "client_request_expire_hours", "client_emergency_access", "client_emergency_minutes"] },
+      { id: "clientSwitch", keys: ["client_open_hours", "client_open_max_hours", "client_request_hours", "client_request_max_hours", "client_request_expire_hours", "client_emergency_access", "client_emergency_minutes", "client_confirmations", "client_confirm_minutes"] },
     ],
   },
   { id: "advanced", groups: [{ id: "monitoring", keys: ["metrics_interval_seconds", "cloudflared_image"] }] },

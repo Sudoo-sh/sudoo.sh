@@ -95,6 +95,10 @@
   border-bottom: 1px solid var(--hairline);
   &:last-child { border-bottom: 0; padding-bottom: 0; }
 }
+.portal-waiting {
+  border-color: color-mix(in oklab, var(--brand) 45%, var(--hairline));
+  box-shadow: 0 0 0 3px var(--brand-ring);
+}
 .portal-branch {
   display: flex;
   flex-direction: column;

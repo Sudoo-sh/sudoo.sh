@@ -20,6 +20,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   it off, and the client is told at once. Everything is in the client's activity log, with CSV export. Every
   duration and default is a setting. Adding clients is part of the Business plan. The switch is a control inside
   the panel; the docs say plainly what server administrators can still reach.
+- **Client locks and confirmation by e-mail**: a client can lock a branch or the whole project from the portal; a
+  lock is as strong as closing (nobody of your team lifts it, super admins included), lets only the client and
+  emergency access through, and stops automatic deploys. Every major change a client makes (opening or closing,
+  locks, emergency access, approvals, the people it lets in) waits for a one-time link or 6-digit code sent to its
+  e-mail, valid 15 minutes (`CLIENT_CONFIRM_MINUTES`) in the same browser session; the portal shows **Waiting for
+  your e-mail confirmation**. New editable e-mail texts in English and Arabic; `CLIENT_CONFIRMATIONS` turns it off.
 
 ## [3.3.4] - 2026-11-23
 

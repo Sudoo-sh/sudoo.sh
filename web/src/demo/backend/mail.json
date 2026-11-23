@@ -1210,6 +1210,130 @@
    }
   },
   {
+   "key": "client_action_confirm",
+   "name": "Confirm a change (client portal)",
+   "description": "A client asked for a major change in the portal (opening or closing, a lock, emergency access, an approval, the people it lets in): it waits until the client confirms it with this link or code.",
+   "recipients": "The client who asked (client portal)",
+   "kicker": "{{ project }}",
+   "preheader": "Confirm: {{ action }}",
+   "default": {
+    "subject": "Confirm in {{ project }}: {{ action }}",
+    "title": "Confirm this change",
+    "body": "Hello {{ name }},\n\nYou asked for this change in **{{ project }}**:\n\n**{{ action }}**\n\nIt happens only once you confirm it, in the browser where you asked, within {{ minutes }} minutes. Open the link, or type the code in the portal.\n\n[Confirm the change]({{ link }})\n\nYour code: **{{ code }}**\n\n> Did not ask for this? Do nothing: nothing changes, and the link stops working by itself."
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The client's name",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "action",
+     "description": "The change asked for",
+     "kind": "text"
+    },
+    {
+     "name": "code",
+     "description": "The 6-digit code (works once)",
+     "kind": "text"
+    },
+    {
+     "name": "minutes",
+     "description": "How many minutes the link and the code work",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The confirmation link (works once, in the same browser)",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [
+    "code"
+   ],
+   "samples": {
+    "name": "Lina Haddad",
+    "project": "Nile Logistics",
+    "action": "Close the branch main",
+    "code": "482913",
+    "minutes": 15,
+    "link": "https://portal.example.com/confirm#sample",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
+   "key": "client_action_confirm_ar",
+   "name": "Confirm a change (client portal, Arabic)",
+   "description": "The same e-mail in Arabic, for clients whose account (or the panel) uses Arabic.",
+   "recipients": "The client who asked (client portal)",
+   "kicker": "{{ project }}",
+   "preheader": "أكّد: {{ action }}",
+   "default": {
+    "subject": "أكّد في {{ project }}: {{ action }}",
+    "title": "أكّد هذا التغيير",
+    "body": "مرحبًا {{ name }}،\n\nطلبت هذا التغيير في **{{ project }}**:\n\n**{{ action }}**\n\nلا يحدث إلا بعد أن تؤكّده، في المتصفح الذي طلبته منه، خلال {{ minutes }} دقيقة. افتح الرابط، أو اكتب الرمز في البوابة.\n\n[أكّد التغيير]({{ link }})\n\nرمزك: **{{ code }}**\n\n> لم تطلب هذا؟ لا تفعل شيئًا: لن يتغيّر شيء، ويتوقف الرابط عن العمل من تلقاء نفسه."
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The client's name",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "action",
+     "description": "The change asked for",
+     "kind": "text"
+    },
+    {
+     "name": "code",
+     "description": "The 6-digit code (works once)",
+     "kind": "text"
+    },
+    {
+     "name": "minutes",
+     "description": "How many minutes the link and the code work",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The confirmation link (works once, in the same browser)",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [
+    "code"
+   ],
+   "samples": {
+    "name": "Lina Haddad",
+    "project": "Nile Logistics",
+    "action": "Close the branch main",
+    "code": "482913",
+    "minutes": 15,
+    "link": "https://portal.example.com/confirm#sample",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
    "key": "test",
    "name": "Test e-mail",
    "description": "Proves the mail settings work (Settings, E-mail, Send a test; sudoo.sh test-email).",

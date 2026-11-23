@@ -20,6 +20,8 @@ below stay as they are, so "Reset to default" only forgets the change. Texts are
                          (projects/push_failed.py); push_failed_ar is the same in Arabic
     client_access_request    someone of the panel's owner asks a client to open a closed project or branch
                          (projects/clients.py); client_access_request_ar in Arabic
+    client_action_confirm    the link and code that confirm a client's major change in the portal
+                         (projects/client_confirm.py); client_action_confirm_ar in Arabic
     client_emergency_access  a super admin forced access to a client's closed project or branch, at once;
                          client_emergency_access_ar in Arabic
     test                 the test e-mail of Settings, E-mail and `sudoo.sh test-email`
@@ -193,6 +195,20 @@ _CLIENT_PLACEHOLDERS = (
 )
 _REQUEST_PLACEHOLDERS = (*_CLIENT_PLACEHOLDERS, Placeholder("hours", "How many hours they ask for", 4))
 _EMERGENCY_PLACEHOLDERS = (*_CLIENT_PLACEHOLDERS, Placeholder("minutes", "How many minutes the access lasts", 60))
+
+_CONFIRM_PLACEHOLDERS = (
+    Placeholder("name", "The client's name", "Lina Haddad"),
+    Placeholder("project", "The project", "Nile Logistics"),
+    Placeholder("action", "The change asked for", "Close the branch main"),
+    Placeholder("code", "The 6-digit code (works once)", "482913"),
+    Placeholder("minutes", "How many minutes the link and the code work", 15),
+    Placeholder(
+        "link",
+        "The confirmation link (works once, in the same browser)",
+        "https://portal.example.com/confirm#sample",
+        LINK,
+    ),
+)
 
 _PUSH_PLACEHOLDERS = (
     Placeholder("name", "The name of who pushed", "Huda"),
@@ -744,6 +760,51 @@ MESSAGES: dict[str, Message] = {
             ),
             placeholders=_EMERGENCY_PLACEHOLDERS,
             required=("reason",),
+        ),
+        Message(
+            key="client_action_confirm",
+            name="Confirm a change (client portal)",
+            description="A client asked for a major change in the portal (opening or closing, a lock, emergency access, "
+            "an approval, the people it lets in): it waits until the client confirms it with this link or code.",
+            recipients="The client who asked (client portal)",
+            kicker="{{ project }}",
+            preheader="Confirm: {{ action }}",
+            subject="Confirm in {{ project }}: {{ action }}",
+            title="Confirm this change",
+            body=(
+                "Hello {{ name }},\n\n"
+                "You asked for this change in **{{ project }}**:\n\n"
+                "**{{ action }}**\n\n"
+                "It happens only once you confirm it, in the browser where you asked, within {{ minutes }} minutes. "
+                "Open the link, or type the code in the portal.\n\n"
+                "[Confirm the change]({{ link }})\n\n"
+                "Your code: **{{ code }}**\n\n"
+                "> Did not ask for this? Do nothing: nothing changes, and the link stops working by itself."
+            ),
+            placeholders=_CONFIRM_PLACEHOLDERS,
+            required=("code",),
+        ),
+        Message(
+            key="client_action_confirm_ar",
+            name="Confirm a change (client portal, Arabic)",
+            description="The same e-mail in Arabic, for clients whose account (or the panel) uses Arabic.",
+            recipients="The client who asked (client portal)",
+            kicker="{{ project }}",
+            preheader="أكّد: {{ action }}",
+            subject="أكّد في {{ project }}: {{ action }}",
+            title="أكّد هذا التغيير",
+            body=(
+                "مرحبًا {{ name }}،\n\n"
+                "طلبت هذا التغيير في **{{ project }}**:\n\n"
+                "**{{ action }}**\n\n"
+                "لا يحدث إلا بعد أن تؤكّده، في المتصفح الذي طلبته منه، خلال {{ minutes }} دقيقة. "
+                "افتح الرابط، أو اكتب الرمز في البوابة.\n\n"
+                "[أكّد التغيير]({{ link }})\n\n"
+                "رمزك: **{{ code }}**\n\n"
+                "> لم تطلب هذا؟ لا تفعل شيئًا: لن يتغيّر شيء، ويتوقف الرابط عن العمل من تلقاء نفسه."
+            ),
+            placeholders=_CONFIRM_PLACEHOLDERS,
+            required=("code",),
         ),
         Message(
             key="test",

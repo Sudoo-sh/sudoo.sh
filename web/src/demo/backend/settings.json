@@ -4256,6 +4256,34 @@
   "description": "Most entries one export of the audit log (CSV or XLSX) contains; an export covers a year at most."
  },
  {
+  "key": "client_confirmations",
+  "env": "CLIENT_CONFIRMATIONS",
+  "value": true,
+  "env_value": true,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "boolean",
+  "minimum": null,
+  "description": "Clients confirm every major action in the portal (opening or closing, locks, emergency access, approvals, the people they let in) with a one-time link or a 6-digit code sent to their e-mail address; the action waits until then. Needs e-mail to be set up."
+ },
+ {
+  "key": "client_confirm_minutes",
+  "env": "CLIENT_CONFIRM_MINUTES",
+  "value": 15,
+  "env_value": 15,
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "integer",
+  "minimum": 5,
+  "description": "Minutes a client's confirmation link or code works."
+ },
+ {
   "key": "portal_domain",
   "env": "PORTAL_DOMAIN",
   "value": "portal.example-integrators.com",

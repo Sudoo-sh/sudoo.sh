@@ -1719,6 +1719,10 @@ project to see:
   again by itself; **Refuse** keeps it closed. You get an e-mail for each request.
 * **Who can get in now**: the approved requests and emergency access in use, with **End now**.
 * **People you let in**: people of your provider's team who may work here even while it is closed.
+* **Locks**: **Lock the project**, or **Lock** on a branch. A lock is as strong as **Closed**: nobody of your
+  provider's team can open or change what you locked, super admins included, and nothing is deployed to it
+  automatically, whatever the switch says. Unlike the switch, a lock lets nobody else through: not the people you
+  let in, not approved requests; only emergency access while you allow it. Only you can unlock it.
 * **Emergency access**: allowed by default. If production breaks, one of your provider's super admins can get in
   for a short time (an hour unless they changed it) by writing a reason and typing the branch's or project's name.
   You get an e-mail at once and it shows in red at the top of the project and of your log. Turn it off and nobody of
@@ -1727,6 +1731,13 @@ project to see:
 * **Activity log**: everything done in the project: opening and closing, requests and answers, emergencies, and
   every time someone opened data (passwords viewed, shells, backups downloaded, restores), allowed or refused.
   **Access only** keeps the access events; **Export CSV** downloads it (a year at most).
+
+**Confirming by e-mail.** Every major change (opening or closing, locks and unlocks, emergency access on or off,
+approving a request, the people you let in) waits until you confirm it: you get an e-mail with a link and a 6-digit
+code, and the portal shows **Waiting for your e-mail confirmation** with a field for the code and **Cancel**. Open the
+link, or type the code, in the same browser where you asked, within 15 minutes (unless your provider changed it).
+Each link and code works once; nothing changes if you do not confirm. Refusing a request and ending someone's access
+now happen at once, since they only take access away.
 
 **What the switch protects.** Closing a project stops everyone in the panel, its super admins included, and every
 attempt is recorded. It is a control inside the panel: whoever administers the server itself (its root account or

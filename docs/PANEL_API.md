@@ -1554,15 +1554,24 @@ The client (a client account's session; nothing else is open to it):
 | :--- | :--- | :--- |
 | `GET /client/projects` | | 200, its projects: `id`, `name`, `switch`, `closed_branches`, `pending_requests`, `emergency_active`, `instances` |
 | `GET /client/projects/<id>` | | 200, the project with `branches` (`name`, `stage`, `switch`, `instances`: `name`, `status`, `stage`, `url`, `odoo`), `allow`, `people` (whom it may name), `emergency_allowed`, `passes`, `requests`, `notices` (emergency access of the last 7 days), `given`; `meta`: `open_hours`, `open_max_hours`, `request_max_hours`, `emergency_minutes` |
-| `PUT /client/projects/<id>/switch` | `{"branch"?, "state", "hours"?, "inherit"?}` | 200, the switches |
-| `PUT /client/projects/<id>/allow` | `{"people": [names]}` | 200 |
-| `PUT /client/projects/<id>/emergency` | `{"allowed": bool}` | 200 |
+| `PUT /client/projects/<id>/switch` | `{"branch"?, "state", "hours"?, "inherit"?}` | 200, or **202** (below) |
+| `PUT /client/projects/<id>/allow` | `{"people": [names]}` | 200, or **202** (below) |
+| `PUT /client/projects/<id>/emergency` | `{"allowed": bool}` | 200, or **202** (below) |
+| `PUT /client/projects/<id>/lock` | `{"branch"?, "locked": bool, "reason"?}` | 200, or **202** (below): the client's lock of the branch, or of the whole project without `branch` |
+| `POST /client/confirmations/<id>` | `{"code"}` or `{"token"}` (the link's secret) | 200 `{"done": true, "project"}`: the change that waited is made; 401 for a wrong code, 403 from another session, 410 used or expired |
+| `DELETE /client/confirmations/<id>` | | **204**: the change that waited is dropped |
 | `DELETE /client/projects/<id>/passes/<pass>` | | **204** |
-| `POST /client/requests/<id>/approve` | `{"hours"?, "people"?, "note"?}` | 200, the request |
+| `POST /client/requests/<id>/approve` | `{"hours"?, "people"?, "note"?}` | 200, or **202** (below) |
 | `POST /client/requests/<id>/refuse` | `{"note"?}` | 200, the request |
 | `GET /client/projects/<id>/backups` | | 200, its instances' backups where it was given them (download: `GET /backups/<file>`) |
 | `GET /client/projects/<id>/activity` | `?kind=all\|access&limit&offset` | 200, the project's audit entries (`at`, `user`, `event`, `allowed`, `branch`, `instance`, `detail`, `address` (its own only), `emergency`) |
 | `GET /client/projects/<id>/activity/export` | `?kind=` | 200, CSV (the audit export's columns), a year at most |
+
+While `CLIENT_CONFIRMATIONS` is on, the switch, locks, emergency access, the people let in and approvals answer
+**202** `{"done": false, "confirmation": {"id", "kind", "summary", "asked_at", "expires_at", "status"}}`: the change
+waits until the client confirms it (`POST /client/confirmations/<id>`), and `GET /client/projects/<id>` lists those
+waiting in `confirmations` (and the project's lock in `locked`; each switch has `locked` too). With it off they answer
+200 `{"done": true}` at once.
 
 `GET /portal` (public) says whether the address is the portal's (`portal`), with `name` (`PORTAL_NAME`) and
 `brand_color`; `POST /session` answers 200 `{"redirect": {"address", "url"}}` when the account signs in at the other

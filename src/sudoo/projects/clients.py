@@ -19,6 +19,7 @@ A project's client part (project["access"]["client"])
                 the client turns it off and on
     passes      [{"id", "kind": "request" | "emergency", "users", "branch", "until", "by", "at", "reason",
                 "request"}]: who a closure lets through until when, after an approved request or an emergency
+    locks       {"*" | branch: {"by", "at", "reason"}}: the client's locks of the whole project ("*") or of a branch
     changed_by, changed_at
 
 The switch
@@ -29,6 +30,19 @@ The switch
     branch, or for every branch when it names none). Sudoo.sh support is never let through. The panel's own safety
     work goes on (daily backups, monitoring, certificates; production keeps serving) and automatic changes stop, as
     for a locked branch (access.held). A visit still starts a paused instance: it changes nothing.
+
+Client locks
+    The client may also lock a branch or the whole project, whatever its switch says. A client lock is as strong as a
+    closed switch (nobody in the panel lifts it, super admins included) and narrower in who it lets through: only the
+    project's clients and a super admin's emergency access while the client allows it; never the people the client
+    named, approved requests or Sudoo.sh support. Automatic deploys and every other automatic change of the branch
+    stop (access.held), as for a locked branch.
+
+Confirmation by e-mail (projects/client_confirm.py)
+    Every major action of a client (the switch, locks, emergency access, approving a request, the people it lets in)
+    waits until the client confirms it with a one-time link or a 6-digit code sent to its e-mail address
+    (CLIENT_CONFIRMATIONS, CLIENT_CONFIRM_MINUTES). The functions below make the change; the API calls them only once
+    the action is confirmed.
 
 Access requests (storage collection "access_requests", one document per request)
     {"id", "project", "branch", "by", "reason", "hours", "status", "at", "decided_by", "decided_at", "users",
@@ -184,7 +198,41 @@ def any_closed(project: Mapping[str, Any] | None) -> bool:
     """Whether the project or one of its branches is closed now."""
     if project is None:
         return False
+    if any_client_lock(project):
+        return True
     return closed(project) or any(closed(project, b) for b in part(project).get("branches") or {})
+
+
+def client_lock(project: Mapping[str, Any] | None, branch: str | None = None) -> dict[str, Any] | None:
+    """The client's lock that applies to `branch` (None: the project as a whole): the project's ("*") first, else the
+    branch's own; None when neither."""
+    locks = part(project).get("locks") or {}
+    found = locks.get("*") or (locks.get(branch) if branch else None)
+    if not isinstance(found, dict):
+        return None
+    return {**found, "scope": "project" if locks.get("*") else "branch"}
+
+
+def any_client_lock(project: Mapping[str, Any] | None) -> bool:
+    return bool(part(project).get("locks"))
+
+
+def lock_lets_through(user: Mapping[str, Any], project: Mapping[str, Any], branch: str | None = None) -> bool:
+    """Whether a client lock lets `user` through: the project's clients, and a super admin's emergency access while
+    it lasts. Nobody else."""
+    from sudoo.projects import access
+
+    name = access.person(user)
+    if name is None:
+        return False
+    if entry(project, name) is not None:
+        return True
+    return any(
+        p.get("kind") == "emergency"
+        and name in (p.get("users") or ())
+        and (not p.get("branch") or p.get("branch") == branch)
+        for p in active_passes(project)
+    )
 
 
 def active_passes(project: Mapping[str, Any] | None, now: float | None = None) -> list[dict[str, Any]]:
@@ -245,6 +293,7 @@ def describe(
         return None
     found = switch(project, branch)
     is_closed = closed(project, branch)
+    lock = client_lock(project, branch)
     shown: dict[str, Any] = {
         "state": "closed" if is_closed else found["state"],
         "until": _iso(found.get("until")) if found["state"] == "timed" and not is_closed else None,
@@ -253,9 +302,21 @@ def describe(
         "changed_at": _iso(found.get("changed_at")),
         "emergency_allowed": emergency_allowed(project),
         "clients": len(entries(project)),
+        "locked": (
+            {
+                "by": lock.get("by"),
+                "at": _iso(lock.get("at")),
+                "reason": lock.get("reason") or "",
+                "scope": lock["scope"],
+            }
+            if lock
+            else None
+        ),
     }
     if user is not None:
-        shown["lets_you_through"] = lets_through(user, project, branch)
+        shown["lets_you_through"] = (not is_closed or lets_through(user, project, branch)) and (
+            lock is None or lock_lets_through(user, project, branch)
+        )
     return shown
 
 
@@ -381,6 +442,31 @@ def set_switch(project_id: str, branch: str | None, state: str, by: str, hours: 
                      f"again at {_when(until)}")  # fmt: skip
     else:
         audit.record(by, _ip(), f"client access {'closed' if state == 'closed' else 'opened'}", detail=where)
+    return changed
+
+
+def set_lock(project_id: str, branch: str | None, locked: bool, by: str, reason: str = "") -> Document:
+    """Lock or unlock the whole project (branch None) or a branch, as the client."""
+    key = branch or "*"
+    reason = " ".join(reason.split())[:REASON_MAX]
+
+    def apply(found: dict[str, Any]) -> dict[str, Any]:
+        locks = dict(found.get("locks") or {})
+        if locked:
+            locks[key] = {"by": by, "at": int(_now()), "reason": reason}
+        else:
+            locks.pop(key, None)
+        found["locks"] = locks
+        return found
+
+    changed = _change(project_id, apply)
+    where = _where(project_id, branch)
+    audit.record(
+        by,
+        _ip(),
+        "client locked" if locked else "client unlocked",
+        detail=f"{where}" + (f": {reason}" if reason and locked else ""),
+    )
     return changed
 
 
@@ -551,7 +637,7 @@ def emergency(project: Mapping[str, Any], branch: str | None, by: str, reason: s
     """A super admin forces access to a closed project or branch (see the module's description); returns the pass."""
     reason = " ".join(reason.split())
     wanted = branch or str(project["id"])
-    if not closed(project, branch):
+    if not closed(project, branch) and client_lock(project, branch) is None:
         raise ClientError("This is open: no emergency access is needed.")
     if not emergency_allowed(project):
         audit.record(by, _ip(), "emergency access refused (turned off by the client)", ok=False,

@@ -21,6 +21,7 @@ import { useCan, useMe } from "./Session";
 /** The "Closed by client" tag of a branch or an instance. */
 export function ClientTag({ access }: { access: ClientAccess | null | undefined }) {
   const t = useT(words);
+  if (access?.locked) return <span title={t.staff.lockedText}><Tag tone="negative" icon={<ShieldOff />}>{t.staff.lockedTag}</Tag></span>;
   if (!access || access.state === "open") return null;
   if (access.state === "timed")
     return <span title={t.staff.timed(dateTime(access.until))}><Tag icon={<ShieldCheck />}>{t.states.timed}</Tag></span>;
@@ -118,19 +119,20 @@ export function ClosedNotice({
   const t = useT(words).staff;
   const me = useMe();
   const [dialog, setDialog] = useState<"request" | "emergency" | null>(null);
-  if (!access || access.state !== "closed" || me.role === "client") return null;
+  if (!access || (access.state !== "closed" && !access.locked) || me.role === "client") return null;
+  const locked = Boolean(access.locked);
   // a branch that follows the project's switch: asking for the project asks for every branch
-  const asked = access.scope === "branch" ? branch : null;
+  const asked = (access.locked ? access.locked.scope === "branch" : access.scope === "branch") ? branch : null;
   const where = asked ?? projectName;
   const name = asked ?? projectId;
   return (
     <>
       <Callout tone="warning">
-        <b>{asked ? t.closedBranch(asked) : t.closedProject(projectName)}</b>{" "}
-        {access.lets_you_through ? t.letThrough : t.closedText}
+        <b>{locked ? t.lockedNotice(where) : asked ? t.closedBranch(asked) : t.closedProject(projectName)}</b>{" "}
+        {access.lets_you_through ? t.letThrough : locked ? t.lockedText : t.closedText}
         {!access.lets_you_through && (
           <span className="row-wrap" style={{ marginTop: 8 }}>
-            <Button size="sm" icon={<KeyRound />} onClick={() => setDialog("request")}>{t.request}</Button>
+            {!locked && <Button size="sm" icon={<KeyRound />} onClick={() => setDialog("request")}>{t.request}</Button>}
             {me.role === "super_admin" && access.emergency_allowed && (
               <Button size="sm" variant="ghost" icon={<ShieldAlert />} onClick={() => setDialog("emergency")}>{t.emergencyButton}</Button>
             )}

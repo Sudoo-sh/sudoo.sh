@@ -1415,6 +1415,15 @@ class Settings(BaseSettings):
     client_request_max_hours: int = Field(
         168, ge=1, le=8760, description="The longest duration an access request may ask for, in hours."
     )
+    client_confirmations: bool = Field(
+        True,
+        description="Clients confirm every major action in the portal (opening or closing, locks, emergency access, "
+        "approvals, the people they let in) with a one-time link or a 6-digit code sent to their e-mail address; "
+        "the action waits until then. Needs e-mail to be set up.",
+    )
+    client_confirm_minutes: int = Field(
+        15, ge=5, le=60, description="Minutes a client's confirmation link or code works."
+    )
     client_request_expire_hours: int = Field(
         72,
         ge=1,

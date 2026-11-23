@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-11-23
+
 ### Added (beta)
 
 - **Kubernetes engine (beta)**: instances can run on k3s, even on a single server, next to Docker (still the
@@ -1506,7 +1508,8 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.4...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.4.0...HEAD
+[3.4.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.4...v3.4.0
 [3.3.4]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.3...v3.3.4
 [3.3.3]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.2...v3.3.3
 [3.3.2]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.1...v3.3.2

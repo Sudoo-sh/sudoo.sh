@@ -251,6 +251,59 @@ let linkingGitHub = false; // the demo's "GitHub" sends back here: linking from 
 let setUp = false;
 route("GET", "/setup", () => ok({ needed: !setUp && location.pathname === "/setup", contact: CONTACT, default_language: defaultLanguage() }));
 route("GET", "/contact", () => ok({ sentence: CONTACT, name: "Operations team", phone: "", email: "ops@example.com", default_language: defaultLanguage() }));
+// the setup wizard (web/v1/setup_wizard.py): a 16 GB virtual machine with Ubuntu, so the engine step recommends
+// Kubernetes (beta) while Docker stays pre-selected; the draft lives in memory until the final confirm
+const setupDraft: Record<string, unknown> = {
+  step: "welcome",
+  language: defaultLanguage(),
+  engine: "docker",
+  exposure: "direct",
+  name: { kind: "server", domain: "" },
+  mail: { enabled: false, host: "", port: 587, security: "starttls", username: "", sender: "", password_set: false },
+  github: { connect: false },
+  account: { link: false, link_code: "", company_label: "", from_install_code: false },
+  admin: { first_name: "", last_name: "", email: "", phone: "" },
+};
+route("GET", "/setup/server-check", () =>
+  ok({
+    memory_mb: 16012,
+    processors: 4,
+    disk_free_gb: 142,
+    system: { name: "Ubuntu 24.04.3 LTS", id: "ubuntu", version: "24.04" },
+    virtualisation: { name: "kvm", kind: "vm", from_installer: true },
+    ports: { "80": { free: true, sudoo: false }, "443": { free: true, sudoo: false } },
+    recommendation: {
+      recommended: "kubernetes",
+      default: "docker",
+      reason: "this server has 16 GB of memory, is not a container and runs Ubuntu 24.04.3 LTS",
+      reasons: [],
+      beta: true,
+    },
+    thresholds: { k8s_min_memory_gb: 8 },
+    engine: { current: "docker", wanted: null, available: ["docker"], switch_command: "sudo sudoo-install engine {engine}" },
+    checked_at: Date.now() / 1000,
+  }),
+);
+route("GET", "/setup/draft", () => {
+  if (setUp) throw new Problem(409, "The panel is set up already. Sign in instead.");
+  return ok(setupDraft);
+});
+route("PUT", "/setup/draft", ({ body }) => {
+  for (const [key, value] of Object.entries(body)) {
+    if (!(key in setupDraft)) throw new Problem(400, `Unknown part of the setup: ${key}.`);
+    const current = setupDraft[key];
+    if (key === "mail" && value && typeof value === "object") {
+      const { password, ...rest } = value as Record<string, unknown>;
+      setupDraft.mail = { ...(current as object), ...rest, password_set: !!password || (current as { password_set: boolean }).password_set };
+    } else setupDraft[key] = current && typeof current === "object" && value && typeof value === "object" ? { ...current, ...value } : value;
+  }
+  return ok(setupDraft);
+});
+route("POST", "/setup/test-email", ({ body }) => {
+  const to = String(body.to ?? "");
+  if (!to.includes("@")) throw new Problem(400, "Enter the e-mail address to send the test to.");
+  return ok({ sent_to: to });
+});
 route("POST", "/setup", ({ body }) => {
   if (setUp) throw new Problem(409, "This panel is set up already.");
   if (!String(body.setup_code ?? "").trim()) throw new Problem(403, "The setup code is not correct. Show it again with: sudoo.sh setup-code");
@@ -262,7 +315,18 @@ route("POST", "/setup", ({ body }) => {
   remember();
   record(ME, "first-run setup: super admin account created");
   record(ME, "accepted the Sudoo.sh Licence Agreement", { detail: `version ${LICENCE.version}` });
-  return created(me());
+  const draft = setupDraft as { engine: string; exposure: string; github: { connect: boolean }; account: { link: boolean } };
+  return created({
+    ...me(),
+    setup: {
+      settings: ["default_language"],
+      restart_needed: draft.exposure !== "direct",
+      linked: draft.account.link ? { account_name: "Acme Trading" } : null,
+      link_error: null,
+      github: draft.github.connect,
+      engine: { chosen: draft.engine, current: "docker", command: draft.engine === "docker" ? null : `sudo sudoo-install engine ${draft.engine}` },
+    },
+  });
 });
 // Premium features (src/sudoo/premium): those the demo's plan includes run when the demo was built with their web
 // files (premium.ts); the others show their plan card, and their API paths answer 402 (dispatching, below).

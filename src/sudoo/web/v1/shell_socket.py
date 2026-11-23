@@ -30,7 +30,10 @@ from urllib.parse import urlsplit
 
 from aiohttp import web
 
+from sudoo import engines
 from sudoo.core import audit
+from sudoo.engines.base import TerminalError
+from sudoo.instances import store
 from sudoo.webshell import docker_exec, policy, recordings, sessions, tickets
 from sudoo.webshell.policy import Refused
 
@@ -117,11 +120,11 @@ async def handle(request: web.Request) -> web.StreamResponse:
         await _blocking(_refused, user["name"], ip, name, str(refused))
         return _problem(request, refused.status, "Too Many Requests", str(refused))
     try:
-        policy.check_container(await docker_exec.inspect_container(plan.container), plan)
-    except (Refused, docker_exec.DockerError) as error:
+        await engines.of(name).terminal().check(plan)
+    except (Refused, TerminalError) as error:
         sessions.unregister(session.id)
         status = error.status if isinstance(error, Refused) else 503
-        if isinstance(error, docker_exec.DockerError) and error.status == 404:
+        if isinstance(error, TerminalError) and error.status == 404:
             status, error = 409, Refused(
                 409, "not-running", "The instance is not running: start it, then open the shell."
             )
@@ -234,7 +237,11 @@ async def end_left_over() -> None:
     for document in unfinished:
         container, user, session_id = document.get("container"), document.get("container_user"), document.get("id")
         if isinstance(container, str) and isinstance(user, str) and isinstance(session_id, str):
-            await docker_exec.hang_up(container, session_id, user)
+            instance = document.get("instance")
+            if isinstance(instance, str) and store.exists(instance):
+                await engines.of(instance).terminal().hang_up(container, session_id, user)
+            else:
+                await docker_exec.hang_up(container, session_id, user)
         await _blocking(recordings.save, {**document, "ended": round(time.time()), "reason": "stopping"})
 
 

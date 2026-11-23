@@ -322,7 +322,9 @@ def set_addons_path(name: str, paths: list[str]) -> str:
 
 def run_cmd(name: str, *args: str) -> list[str]:
     """Command that runs `odoo <args>` once in a temporary container of the instance (database must be up)."""
-    return store.compose(name, "run", "--rm", "--no-deps", "-T", "odoo", "odoo", *args)
+    from sudoo import engines
+
+    return engines.of(name).odoo_cmd(name, *args)
 
 
 def databases(name: str) -> list[str]:
@@ -333,10 +335,12 @@ def wait_for_database(name: str, timeout: float = 30) -> bool:
     """Wait until the instance's PostgreSQL accepts connections. Asked over TCP inside the container: on a new
     database volume the image first runs a temporary server on the socket only (to initialise it), which answers and
     then stops; the real one is the one that also listens on TCP."""
+    from sudoo import engines
+
+    engine = engines.of(name)
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if succeeds(["docker", "exec", store.container(name, "db"), "pg_isready", "-q", "-h", "127.0.0.1", "-U",
-                     "odoo"]):  # fmt: skip
+        if succeeds(engine.exec_cmd(name, "db", "pg_isready", "-q", "-h", "127.0.0.1", "-U", "odoo")):
             return True
         time.sleep(1)
     return False
@@ -362,11 +366,11 @@ def public_address_cmds(name: str, url: str) -> list[list[str]]:
     does not replace it with the address an administrator logs in from. report.url makes PDF reports load their
     styles from Odoo itself instead of through the public address.
     """
+    from sudoo import engines
+
     sql = parameter_sql({"web.base.url": url, "web.base.url.freeze": "True", "report.url": "http://localhost:8069"})
-    return [
-        ["docker", "exec", store.container(name, "db"), "psql", "-q", "-U", "odoo", "-d", db, "-c", sql]
-        for db in databases(name)
-    ]
+    engine = engines.of(name)
+    return [engine.exec_cmd(name, "db", "psql", "-q", "-U", "odoo", "-d", db, "-c", sql) for db in databases(name)]
 
 
 def responds(port: int | str, timeout: float = 2) -> bool:
@@ -390,7 +394,12 @@ def wait_until_ready(port: int | str, timeout: float = 240) -> bool:
 
 
 def recent_log(name: str, lines: int = 300) -> str:
-    return capture(store.compose(name, "logs", "--no-color", "--tail", str(lines), "odoo"), timeout=30)
+    from sudoo import engines
+
+    engine = engines.of(name)
+    if engine.kind == engines.DOCKER:
+        return capture(store.compose(name, "logs", "--no-color", "--tail", str(lines), "odoo"), timeout=30)
+    return "\n".join(line.partition(" ")[2] for line in capture(engine.logs_cmd(name, lines), timeout=30).splitlines())
 
 
 # --------------------------------------------------------------------------- versions and editions

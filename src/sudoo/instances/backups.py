@@ -58,6 +58,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import IO, Any, cast
 
+from sudoo import engines
 from sudoo.config import settings
 from sudoo.core.cache import FileMemo
 from sudoo.core.jobs import Job, JobError
@@ -148,7 +149,7 @@ def _revision(name: str) -> str:
 
 def _database_up(job: Job, name: str) -> None:
     # --no-recreate: a backup starts the database as it is; containers change only when the instance starts
-    job.run(store.compose(name, "up", "-d", "--no-recreate", "db"), timeout=300)
+    engines.of(name).up(job, name, "db", timeout=300, recreate=False)
     if not odoo.wait_for_database(name, timeout=60):
         raise JobError("the database did not start")
 
@@ -163,14 +164,15 @@ def _backup_database(job: Job, name: str, db: str, facts: dict[str, str], stamp:
     with tempfile.TemporaryDirectory(dir=settings.backups_dir) as tmp:
         dump, files = Path(tmp) / "dump.sql", Path(tmp) / "filestore.tar"
         _run_to_file(
-            ["docker", "exec", store.container(name, "db"), "pg_dump", "-U", "odoo", "--no-owner",
-             f"--lock-wait-timeout={PG_DUMP_LOCK_WAIT}", db],  # fmt: skip
+            engines.of(name).exec_cmd(
+                name, "db", "pg_dump", "-U", "odoo", "--no-owner", f"--lock-wait-timeout={PG_DUMP_LOCK_WAIT}", db
+            ),
             dump,
             "database dump",
         )
-        # docker cp also works while Odoo is stopped; "-" writes the folder as a tar stream
+        # also while Odoo is stopped; a tar stream whose entries start with the folder's name
         _run_to_file(
-            ["docker", "cp", f"{store.container(name, 'odoo')}:/var/lib/odoo/filestore/{db}", "-"],
+            engines.of(name).copy_out_cmd(name, "odoo", f"/var/lib/odoo/filestore/{db}"),
             files,
             "file storage copy",
         )
@@ -467,25 +469,26 @@ def recreate_database(job: Job, name: str, db: str) -> None:
     if not DB_NAME_RE.fullmatch(db):  # it goes into SQL: only names the panel gives
         raise JobError(f"{db[:70]!r} is not a database name this panel uses")
     _database_up(job, name)
-    container = store.container(name, "db")
+    engine = engines.of(name)
     job.write(f"Replacing database {db}\n")
     for sql in (
         f'DROP DATABASE IF EXISTS "{db}" WITH (FORCE)',
         f"CREATE DATABASE \"{db}\" OWNER odoo ENCODING 'UTF8' TEMPLATE template0",
     ):
-        job.run(["docker", "exec", container, "psql", "-q", "-U", "odoo", "-d", "postgres", "-c", sql], timeout=600)
+        job.run(engine.exec_cmd(name, "db", "psql", "-q", "-U", "odoo", "-d", "postgres", "-c", sql), timeout=600)
 
 
 def load_sql(name: str, db: str, dump: IO[bytes]) -> None:
     """Load a plain SQL dump (pg_dump without owner) into database `db` of instance `name`."""
-    container = store.container(name, "db")
-    _feed(["docker", "exec", "-i", container, "psql", "-q", "-X", "-U", "odoo", "-d", db], dump, "database")
+    command = engines.of(name).exec_cmd(name, "db", "psql", "-q", "-X", "-U", "odoo", "-d", db, stdin=True)
+    _feed(command, dump, "database")
 
 
 def check_database(job: Job, name: str, db: str) -> None:
     """Fail unless database `db` of instance `name` is an Odoo database (it has res_users)."""
-    container = store.container(name, "db")
-    job.run(["docker", "exec", container, "psql", "-q", "-U", "odoo", "-d", db, "-c", "SELECT 1 FROM res_users"])
+    job.run(
+        engines.of(name).exec_cmd(name, "db", "psql", "-q", "-U", "odoo", "-d", db, "-c", "SELECT 1 FROM res_users")
+    )
 
 
 def replace_filestore(job: Job, name: str, db: str, archive: zipfile.ZipFile | None) -> None:
@@ -505,13 +508,7 @@ def replace_filestore(job: Job, name: str, db: str, archive: zipfile.ZipFile | N
         # the folder is the script's argument ($1), never part of the script's text
         script = 'rm -rf "$1" && mkdir -p "$1" && tar -x -C "$1" && chown -R odoo: "$1"'
         target = f"/var/lib/odoo/filestore/{db}"
-        # root in a short-lived container, with only what replacing files owned by Odoo's user needs (the
-        # instance's containers drop every capability otherwise)
-        capabilities = [arg for cap in odoo.FILESTORE_CAPABILITIES for arg in ("--cap-add", cap)]
-        command = store.compose(
-            name, "run", "--rm", "--no-deps", "-T", "--user", "root", *capabilities, "--entrypoint", "sh"
-        )
-        _feed([*command, "odoo", "-c", script, "sh", target], tar_file, "filestore")
+        _feed(engines.of(name).filestore_cmd(name, script, target), tar_file, "filestore")
 
 
 _NEUTRALIZE_SQL = (
@@ -537,7 +534,6 @@ def neutralize(job: Job, name: str, db: str) -> str:
     so it is not taken for the original by Odoo's services and old sessions do not work. Returns a sentence for
     the job's notes."""
     version = series(store.read_env(name).get("ODOO_VERSION")) or "0.0"
-    container = store.container(name, "db")
     how = ""
     if int(version.split(".")[0]) >= 16:  # "odoo neutralize" exists since Odoo 16 and knows every module's needs
         if job.run_unchecked(odoo.run_cmd(name, "neutralize", "-d", db), timeout=1800) == 0:
@@ -549,7 +545,9 @@ def neutralize(job: Job, name: str, db: str) -> str:
         sql = _NEUTRALIZE_SQL + odoo.parameter_sql({"database.is_neutralized": "True"}) + sql
         how = "switching off its mail servers and scheduled actions"
     job.run(
-        ["docker", "exec", container, "psql", "-q", "-X", "-v", "ON_ERROR_STOP=1", "-U", "odoo", "-d", db, "-c", sql]
+        engines.of(name).exec_cmd(
+            name, "db", "psql", "-q", "-X", "-v", "ON_ERROR_STOP=1", "-U", "odoo", "-d", db, "-c", sql
+        )
     )
     return (
         f"The data comes from another instance, so it was neutralised ({how}): it sends no e-mail and runs no "
@@ -560,7 +558,7 @@ def neutralize(job: Job, name: str, db: str) -> str:
 def installed_modules(name: str, db: str) -> set[str]:
     """Modules installed in database `db` of instance `name` (its database container must be running)."""
     sql = "SELECT name FROM ir_module_module WHERE state = 'installed'"
-    found = capture(["docker", "exec", store.container(name, "db"), "psql", "-U", "odoo", "-d", db, "-tAc", sql])
+    found = capture(engines.of(name).exec_cmd(name, "db", "psql", "-U", "odoo", "-d", db, "-tAc", sql))
     return {line.strip() for line in found.splitlines() if line.strip()}
 
 

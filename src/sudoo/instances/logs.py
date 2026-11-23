@@ -36,7 +36,6 @@ from typing import Any
 import regex
 
 from sudoo.core.shell import redact
-from sudoo.instances import store
 
 ODOO_LOG = "odoo.log"
 INSTALL_LOG = "install.log"
@@ -295,19 +294,12 @@ def cursor(value: str, key: str) -> str:
 def odoo_log_command(
     name: str, tail: int, follow: bool = False, since: str | None = None, until: str | None = None
 ) -> list[str]:
-    """docker logs of the instance's Odoo container: the last `tail` lines (all when `since` is given: those after
-    that time; with `until`, those before it), each with its time stamp (RFC 3339; streams resume from it), then new
-    ones when `follow`."""
-    cmd = ["docker", "logs", "--timestamps"]
-    if since:
-        cmd += ["--since", since]
-    else:
-        cmd += ["--tail", str(tail)]
-    if until:
-        cmd += ["--until", until]
-    if follow:
-        cmd.append("--follow")
-    return [*cmd, store.container(name, "odoo")]
+    """Odoo's log through the instance's engine (docker logs of its Odoo container): the last `tail` lines (all
+    when `since` is given: those after that time; with `until`, those before it), each with its time stamp (RFC 3339;
+    streams resume from it), then new ones when `follow`."""
+    from sudoo import engines
+
+    return engines.of(name).logs_cmd(name, tail, follow, since, until)
 
 
 def _docker_lines(cmd: list[str]) -> Iterator[tuple[str, str]]:

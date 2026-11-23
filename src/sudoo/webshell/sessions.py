@@ -13,7 +13,7 @@ A shell closes (reason) when its process ends ("exit"), the browser goes ("close
 SHELL_IDLE_MINUTES ("idle"), it is open for SHELL_MAX_MINUTES ("max-length"), its panel session ends or the
 person may no longer open it ("not-allowed", checked every RECHECK_SECONDS), a super admin ends it ("ended"), the
 panel stops ("stopping"), its recording is full ("recording-full") or something fails ("error"). Whatever the
-reason, every process of the shell is then ended (docker_exec.hang_up).
+reason, every process of the shell is then ended (the engine's terminal: hang_up).
 
 Limits: SHELL_MAX_PER_USER shells per person, SHELL_MAX_PER_INSTANCE per instance and MAX_OPEN on the panel,
 counted with the tickets not used yet. The processes run inside the instance's container, so its memory, processor
@@ -34,9 +34,11 @@ from typing import Any
 
 from aiohttp import WSMsgType, web
 
+from sudoo import engines
 from sudoo.config import settings
+from sudoo.engines.base import Terminal, TerminalError, TerminalStream
 
-from . import docker_exec, tickets
+from . import tickets
 from .policy import Plan, Refused
 from .recordings import MB, Recorder
 
@@ -166,7 +168,8 @@ async def serve(ws: web.WebSocketResponse, session: Session, still_allowed: Call
     loop = asyncio.get_running_loop()
     session._loop, session._stopped = loop, asyncio.Event()
     plan = session.plan
-    stream: docker_exec.Stream | None = None
+    stream: TerminalStream | None = None
+    terminal: Terminal | None = None
     recorder: Recorder | None = None
     created = False
     try:
@@ -179,17 +182,17 @@ async def serve(ws: web.WebSocketResponse, session: Session, still_allowed: Call
             "LANG": "C.UTF-8",
             "SUDOO_SHELL": session.id,
         }
-        exec_id = await docker_exec.create(
-            plan.container,
+        terminal = engines.of(plan.instance).terminal()
+        exec_id = await terminal.create(
+            plan,
             list(plan.argv),
-            user=plan.container_user,
             env=env,
             workdir=plan.workdir,
             cols=session.cols,
             rows=session.rows,
         )
         created = True
-        stream = await docker_exec.start(exec_id)
+        stream = await terminal.start(exec_id)
         if plan.recorded:
             header = {
                 "version": 2,
@@ -204,8 +207,8 @@ async def serve(ws: web.WebSocketResponse, session: Session, still_allowed: Call
             recorder = await loop.run_in_executor(None, Recorder, session.id, header, limit)
         await ws.send_str(json.dumps({"type": "ready", **_summary(session)}))
         if session.reason is None:
-            await _bridge(ws, session, stream, exec_id, recorder, still_allowed)
-    except docker_exec.DockerError as error:
+            await _bridge(ws, session, terminal, stream, exec_id, recorder, still_allowed)
+    except TerminalError as error:
         session.stop("error", str(error))
     except ConnectionResetError:
         session.stop("closed")
@@ -220,8 +223,8 @@ async def serve(ws: web.WebSocketResponse, session: Session, still_allowed: Call
         if recorder is not None:
             recorder.note(f"closed: {session.reason or 'closed'}")
             session.recording_bytes = recorder.close()
-        if created:
-            await asyncio.shield(docker_exec.hang_up(plan.container, session.id, plan.container_user))
+        if created and terminal is not None:
+            await asyncio.shield(terminal.hang_up(plan.container, session.id, plan.container_user))
         if not ws.closed:  # say why; the caller closes the socket once the shell is written down
             with contextlib.suppress(ConnectionResetError):
                 await ws.send_str(json.dumps({"type": "closed", "reason": session.reason, "detail": session.detail}))
@@ -249,7 +252,8 @@ def _summary(session: Session) -> dict[str, Any]:
 async def _bridge(
     ws: web.WebSocketResponse,
     session: Session,
-    stream: docker_exec.Stream,
+    terminal: Terminal,
+    stream: TerminalStream,
     exec_id: str,
     recorder: Recorder | None,
     still_allowed: Callable[[], bool],
@@ -278,7 +282,7 @@ async def _bridge(
                 last_input = loop.time()
                 await stream.write(message.data)
             elif message.type == WSMsgType.TEXT:
-                await _control(message.data, session, exec_id, recorder)
+                await _control(message.data, session, terminal, exec_id, recorder)
             else:
                 break
         session.stop("closed")
@@ -327,11 +331,11 @@ async def _quietly(work: Awaitable[None], session: Session) -> None:
         await work
     except (ConnectionResetError, ConnectionError, OSError):
         session.stop("closed")
-    except docker_exec.DockerError as error:
+    except TerminalError as error:
         session.stop("error", str(error))
 
 
-async def _control(raw: str, session: Session, exec_id: str, recorder: Recorder | None) -> None:
+async def _control(raw: str, session: Session, terminal: Terminal, exec_id: str, recorder: Recorder | None) -> None:
     """A text message from the browser: only {"type": "resize"} is known; anything else is ignored."""
     try:
         message = json.loads(raw)
@@ -345,8 +349,8 @@ async def _control(raw: str, session: Session, exec_id: str, recorder: Recorder 
     session.cols, session.rows = size
     if recorder is not None:
         recorder.resize(*size)
-    with contextlib.suppress(docker_exec.DockerError):  # the process has just ended: the shell closes anyway
-        await docker_exec.resize(exec_id, *size)
+    with contextlib.suppress(TerminalError):  # the process has just ended: the shell closes anyway
+        await terminal.resize(exec_id, *size)
 
 
 async def close_socket(ws: web.WebSocketResponse, session: Session) -> None:

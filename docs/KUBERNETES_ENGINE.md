@@ -379,4 +379,3 @@ Official minimum per k3s **server** node, before any application: **2 CPU cores 
 ([k3s: Requirements](https://docs.k3s.io/installation/requirements)). Three such servers, plus replicated storage
 (about 500 MB more per node for Longhorn), plus the instances themselves: plan the memory from the measured figures in
 [section 14](#14-resources-it-costs).
-

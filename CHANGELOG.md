@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Terminal always says it is Sudoo.sh**: a terminal narrower than the banner shows "SUDOO.SH" on one line
+  above the welcome, and a terminal whose size is not known yet (the browser has not sent it) gets the full banner
+  instead of none.
+
 ### Added
 
 - **Choose Odoo's apps for a new instance**, as on Odoo.sh: **New instance** and a branch's **Create instance** have

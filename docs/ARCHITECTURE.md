@@ -208,6 +208,9 @@ Each decision lists what was chosen, why, what it costs, and the alternatives th
 - **Why:** instances are fully independent: one can be restarted, paused, broken or deleted without touching the
   others, and deleting removes everything it had.
 - **Cost:** each PostgreSQL uses some memory (about 50 to 100 MB), more than one shared database server would.
+- **Engines:** the operations reach Docker through an engine (`src/sudoo/engines/`), the Docker engine being the
+  default; a Kubernetes engine (beta) runs the same instance as one namespace instead
+  ([Kubernetes engine](KUBERNETES_ENGINE.md)).
 - **Considered:** one PostgreSQL for all instances (less memory, but one instance's problem or restore could affect
   the others, and deleting would need careful clean-up).
 
@@ -546,5 +549,6 @@ Each decision lists what was chosen, why, what it costs, and the alternatives th
 | Long actions are jobs with named steps. | "Downloading the code from GitHub", "Starting Odoo" |
 | The web app takes its look from tokens and talks to the backend only through `/api/v1`. | Colours, sizes and motion in `web/src/styles/_tokens.scss`; data through `web/src/api/queries.ts`. |
 | Every permission check names a permission. | `@require("instances.create")`, `refuse_unless("instances.delete", ...)` |
+| Where an instance runs goes through its engine, never straight to Docker. | `engines.of(name).up(job, name, "db")`, `engines.of(name).exec_cmd(name, "db", "psql", ...)` ([Kubernetes engine](KUBERNETES_ENGINE.md#2-the-engine-layer)) |
 
 The full file list is in the [project overview](../README.md#components).

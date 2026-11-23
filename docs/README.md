@@ -81,6 +81,7 @@ starts with an everyday comparison, then shows what it looks like on a Sudoo.sh 
 | [Administrator guide](ADMIN_GUIDE.md) | Server, installation, settings, files, links, backups, Enterprise, troubleshooting |
 | [API and webhooks](API.md) | Odoo's APIs through an instance's link, with examples |
 | [Architecture](ARCHITECTURE.md) | Components, request flow, life of an instance, decisions and their reasons |
+| [Kubernetes engine (beta)](KUBERNETES_ENGINE.md) | The engine layer, running instances on k3s, isolation, the panel's cluster access, nodes, phases |
 | [Security](SECURITY.md) | What is protected, how, and what is not |
 | [Configuration](CONFIGURATION.md) | Every setting, with its type and default |
 | [Performance](PERFORMANCE.md) | How fast the panel and the gateway are, how it is measured, and what keeps them fast |

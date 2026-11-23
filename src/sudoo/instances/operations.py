@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from sudoo import addons as addons_sources
-from sudoo import exposure
+from sudoo import engines, exposure
 from sudoo.config import settings
 from sudoo.core import events, vault
 from sudoo.core.hints import panel_hint, specific_hint
@@ -60,13 +60,7 @@ def refresh_addons_path(job: Job, name: str) -> None:
 
 def _remove_leftovers(job: Job, name: str) -> None:
     """Remove containers and volumes of an earlier instance with the same name, so nothing old is reused."""
-    label = f"label=com.docker.compose.project=odoo-{name}"
-    containers = capture(["docker", "ps", "-aq", "--filter", label]).split()
-    volumes = capture(["docker", "volume", "ls", "-q", "--filter", label]).split()
-    if containers:
-        job.run(["docker", "rm", "-f", *containers])
-    if volumes:
-        job.run(["docker", "volume", "rm", "-f", *volumes])
+    engines.of(name).remove_leftovers(job, name)
 
 
 def _paused(name: str) -> bool:
@@ -100,9 +94,9 @@ def _start_odoo(job: Job, name: str, restart: bool = False, strict: bool = False
     mail_catcher.prepare(name)  # staging and development: e-mail goes to the mail catcher
     integrity.apply(job, name)  # current settings and hardening; Compose recreates what changed
     exposure.ensure(name)
-    job.run(compose(name, "up", "-d", "--remove-orphans"), timeout=900)
+    engines.of(name).up(job, name, timeout=900, orphans=True)
     if restart:
-        job.run(compose(name, "restart", "odoo"), timeout=300)
+        engines.of(name).restart(job, name, "odoo")
     _catch_mail(job, name)
     STATE.update(name, paused=False, switched_off=False)
     STATE.record_visit(name)
@@ -146,7 +140,7 @@ def create(job: Job, plan: dict[str, Any]) -> None:
         def containers() -> None:
             if compose_file.exists():
                 mail_catcher.detach(name)  # Docker keeps a network something is connected to
-                job.run_unchecked(compose(name, "down", "-v", "--remove-orphans"), timeout=300)
+                engines.of(name).remove(job, name, timeout=300, checked=False)
 
         def link() -> None:
             if env_file.exists():  # they need its ports, in .env (written after the images and the code)
@@ -262,7 +256,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     integrity.apply(job, name)  # the images just downloaded, pinned by digest; hardened compose file; protected files
 
     job.step("Starting the database")
-    job.run(compose(name, "up", "-d", "db"), timeout=300)
+    engines.of(name).up(job, name, "db", timeout=300)
 
     if source:
         taken = datetime.fromtimestamp(source["created"], settings.zone).strftime("%Y-%m-%d %H:%M")
@@ -335,7 +329,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
         job.note("No public address yet: the instance gets one with its managed name or a custom domain.")
 
     job.step("Starting Odoo")
-    job.run(compose(name, "up", "-d"), timeout=600)
+    engines.of(name).up(job, name)
     _catch_mail(job, name)
     _wait_until_ready(job, name)
     job.result = {"name": name, "url": url, "login": login, "password": settings.odoo_admin_password, "db": db}
@@ -429,9 +423,8 @@ def _record_admin_login(name: str, db: str) -> str:
     """Read the login of the administrator (user 2) of database `db` and keep it as ODOO_ADMIN_LOGIN (shown with the
     instance's credentials). When it cannot be read, the login kept so far is left as it is and returned."""
     sql = "SELECT login FROM res_users WHERE id = 2"
-    container = store.container(name, "db")
     kept = store.read_env(name).get("ODOO_ADMIN_LOGIN") or "admin"
-    login = capture(["docker", "exec", container, "psql", "-U", "odoo", "-d", db, "-tAc", sql]).strip()
+    login = capture(engines.of(name).exec_cmd(name, "db", "psql", "-U", "odoo", "-d", db, "-tAc", sql)).strip()
     # the database belongs to the instance (its add-ons and its Odoo administrator can change it): only a short,
     # single-line login is kept, anything else leaves the recorded one as it is
     if len(login) > ADMIN_LOGIN_MAX_LENGTH or store.unsafe_env_value(login):
@@ -454,7 +447,7 @@ def delete(job: Job, name: str, without_backup: bool = False, no_backup: bool = 
         _backup_before_deletion(job, name, without_backup)
     job.step("Removing Odoo, its database and its files")
     mail_catcher.detach(name)  # Docker keeps a network something is connected to
-    job.run(compose(name, "down", "-v", "--remove-orphans"), timeout=600)
+    engines.of(name).remove(job, name)
     gateway.remove(name)
     exposure.remove(name)
     from sudoo.instances import custom_domains
@@ -521,7 +514,7 @@ def expire(job: Job, name: str) -> None:
                     "give it another lifetime."
                 )
             )
-            job.run_unchecked(compose(name, "stop"), timeout=300)
+            engines.of(name).stop(job, name, checked=False)
             STATE.update(name, switched_off=True, paused=False, expiry_stopped=True)
             monitor.mark_stopped(name)
             audit.record("system", None, "automatic deletion stopped, instance switched off", name, ok=False,
@@ -536,7 +529,7 @@ def backup(job: Job, name: str, kind: str = "manual", comment: str = "") -> None
         STATE.update(name, used_since=None)  # visits from now on count for the next one
     saved = backups.create(job, name, kind, comment)
     if paused:
-        job.run(compose(name, "stop"), timeout=300)  # leave a paused instance paused
+        engines.of(name).stop(job, name)  # leave a paused instance paused
     job.note(f"Backup saved: {', '.join(path.name for path in saved)}")
 
 
@@ -590,7 +583,7 @@ def restore(job: Job, name: str, file_name: str | None = None) -> None:
     hours = f"{settings.rollback_hours:g}"
     job.note(f"The state before the restore is kept for {hours} hours as {', '.join(p.name for p in saved)}")
     job.step("Stopping Odoo")
-    job.run(compose(name, "stop", "odoo"), timeout=300)
+    engines.of(name).stop(job, name, "odoo")
     origin = chosen["instance"] if chosen["instance"] != name else f"an earlier instance named {name}"
     job.step(f"Restoring the backup of {taken}" + (f" from {origin}" if foreign else ""))
     backups.restore(job, name, chosen, db)
@@ -635,7 +628,7 @@ def _rollback(job: Job, name: str, snapshot: list[dict[str, Any]]) -> None:
         # cannot be backed up: that must not block it
         job.note(f"The current state could not be saved first ({error}); rolling back anyway.", "warning")
     job.step("Stopping Odoo")
-    job.run(compose(name, "stop", "odoo"), timeout=300)
+    engines.of(name).stop(job, name, "odoo")
     job.step(f"Rolling back to {taken}, before the restore")
     for chosen in snapshot:
         backups.restore(job, name, chosen)
@@ -679,14 +672,14 @@ def wake(job: Job, name: str) -> None:
 
 def pause(job: Job, name: str) -> None:
     job.step("Pausing to free server resources")
-    job.run(compose(name, "stop"), timeout=300)
+    engines.of(name).stop(job, name)
     STATE.update(name, paused=True, switched_off=False)
     monitor.mark_stopped(name)
 
 
 def switch_off(job: Job, name: str) -> None:
     job.step("Switching off")
-    job.run(compose(name, "stop"), timeout=300)
+    engines.of(name).stop(job, name)
     STATE.update(name, switched_off=True, paused=False)
     monitor.mark_stopped(name)
 
@@ -825,14 +818,14 @@ def upgrade_modules(job: Job, name: str, modules: list[str], stay_paused: bool =
 def _upgrade(job: Job, name: str, modules: list[str]) -> None:
     job.step(f"Upgrading modules: {', '.join(modules)}")
     refresh_addons_path(job, name)
-    job.run(compose(name, "up", "-d", "db"), timeout=300)
-    job.run(compose(name, "stop", "odoo"), timeout=300)
+    engines.of(name).up(job, name, "db", timeout=300)
+    engines.of(name).stop(job, name, "odoo")
     for db in odoo.databases(name):
         job.run(odoo.run_cmd(name, "-d", db, "-u", ",".join(modules), "--stop-after-init", "--no-http"), timeout=3600)
 
 
 def _stay_paused(job: Job, name: str) -> None:
-    job.run(compose(name, "stop"), timeout=300)
+    engines.of(name).stop(job, name)
     job.note("The instance stays paused and uses the new code when someone opens it.")
 
 
@@ -955,14 +948,14 @@ def _put_back(job: Job, name: str, run: _Update, paused: bool, submodules_only: 
     try:
         _reset_code(job, store.addons_dir(name), run.before)
         if run.database_touched and run.backup:
-            job.run(compose(name, "stop", "odoo"), timeout=300)
+            engines.of(name).stop(job, name, "odoo")
             for path in run.backup:
                 found = backups.FILE_RE.match(path.name)
                 backups.restore(job, name, {"file": path.name, "db": found["db"] if found else ""})
         if paused:
             refresh_addons_path(job, name)
             if run.database_touched:
-                job.run(compose(name, "stop"), timeout=300)
+                engines.of(name).stop(job, name)
         else:
             _start_odoo(job, name, restart=True, strict=True)
     except Exception as undo_error:  # noqa: BLE001 - said in the job's message, which ends it
@@ -1077,8 +1070,8 @@ def connect_repository(job: Job, name: str, repo: str, branch: str, install_modu
     if modules:
         job.step(f"Installing the repository's modules ({len(modules)})")
         refresh_addons_path(job, name)
-        job.run(compose(name, "up", "-d", "db"), timeout=300)
-        job.run(compose(name, "stop", "odoo"), timeout=300)
+        engines.of(name).up(job, name, "db", timeout=300)
+        engines.of(name).stop(job, name, "odoo")
         for db in odoo.databases(name):
             if job.run_unchecked(
                 odoo.run_cmd(name, "-d", db, "-i", ",".join(modules), "--stop-after-init", "--no-http"), timeout=3600
@@ -1089,7 +1082,7 @@ def connect_repository(job: Job, name: str, repo: str, branch: str, install_modu
                     "warning",
                 )
         if paused:
-            job.run(compose(name, "stop"), timeout=300)
+            engines.of(name).stop(job, name)
     elif install_modules:
         job.note("The repository has no Odoo modules to install.")
     job.note(f"Connected to {repo}, branch {branch}. Get latest code and Switch branch work from now on.")

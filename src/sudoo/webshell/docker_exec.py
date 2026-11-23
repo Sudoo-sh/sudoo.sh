@@ -27,6 +27,8 @@ from urllib.parse import quote
 
 import aiohttp
 
+from sudoo.engines.base import TerminalError
+
 READ_BYTES = 32 * 1024
 _TIMEOUT = aiohttp.ClientTimeout(total=15)
 
@@ -50,12 +52,8 @@ exit 0
 """
 
 
-class DockerError(Exception):
+class DockerError(TerminalError):
     """The Docker Engine refused or failed a call; `status` is its HTTP status (0: not reachable)."""
-
-    def __init__(self, message: str, status: int = 0) -> None:
-        super().__init__(message)
-        self.status = status
 
 
 def socket_path() -> str:

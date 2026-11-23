@@ -1214,15 +1214,50 @@ tr.invited {
   &[aria-expanded="true"] .ws-chevron { transform: rotate(180deg); }
 }
 .ws-pane { display: flex; flex-direction: column; gap: var(--s5); min-width: 0; }
-.ws-pane-head {
+// the chosen branch in the project's header (ProjectWorkspace.tsx BranchIdentity), under the project's details: its
+// name in a pill, its instance when it has several, its tags and its menu, on one line on a computer
+.ph-branch {
   display: flex;
-  align-items: flex-start;
-  gap: var(--s4);
+  align-items: center;
   flex-wrap: wrap;
-  .ws-pane-title { display: flex; flex-direction: column; gap: var(--s2); flex: 1; min-width: 0; }
-  .ws-branch-icon { width: 18px; height: 18px; flex: none; color: var(--text-3); }
-  .ws-branch-name { margin: 0; min-width: 0; font-family: var(--mono); font-size: var(--text-18); font-weight: 600; }
-  .actions { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; }
+  gap: var(--s2);
+  min-width: 0;
+  min-height: 32px;
+  margin-top: var(--s1);
+  .select { width: auto; max-width: 220px; height: 28px; font-family: var(--mono); font-size: var(--text-12); }
+}
+.ph-branch-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  height: 30px;
+  padding-inline: 10px 1px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--text-13);
+  font-weight: 600;
+  .ph-branch-icon { width: 14px; height: 14px; flex: none; color: var(--brand); }
+  .btn { width: 26px; height: 26px; border-radius: 999px; svg { width: 13px; height: 13px; } }
+}
+.ph-branch-tags { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--s2); min-width: 0; }
+// where the titles' column is narrow (the commands beside it on a small computer, a phone) the row keeps room for two
+// lines, so a longer name or more tags on the next branch does not push the page down
+@container (max-width: 560px) {
+  .ph-branch { min-height: 72px; align-content: flex-start; }
+}
+// squeezed further (the commands beside it on a 1024-pixel screen), three
+@container (max-width: 330px) {
+  .ph-branch { min-height: 104px; }
+}
+// on a phone the name has its own line (its copy button at the end) and the tags and the menu the next one, whatever
+// the branch: two lines that do not change when another branch is chosen
+@media (max-width: 640px) {
+  .ph-branch-name { flex: 1 1 100%; justify-content: flex-start; > bdi { flex: 1; } }
 }
 .ws-command {
   display: flex;
@@ -1322,19 +1357,14 @@ tr.invited {
 .teams-table td:first-child { min-width: 200px; }
 
 // ---------------------------------------------------------------- a branch's commands (BranchCommands.tsx)
-// Odoo.sh's toolbar at the top right of the branch: small tabs, and one command under them
+// Odoo.sh's toolbar, in the project's header under Open on GitHub: a segmented control, one line with the command,
+// one line saying what it does. Fixed heights, so changing tab or branch moves nothing.
 
-.ws-pane-tools {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--s2);
-  flex: 0 1 560px;
-  min-width: 0;
-}
-.bc { display: flex; flex-direction: column; gap: var(--s2); width: 100%; min-width: 0; padding: var(--s2); border: 1px solid var(--hairline); border-radius: var(--radius-card); background: var(--surface); }
+.bc { display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; }
 .bc-tabs {
   display: flex;
+  align-self: flex-end;
+  max-width: 100%;
   gap: 2px;
   padding: 2px;
   border-radius: var(--radius-control);
@@ -1362,22 +1392,26 @@ tr.invited {
     &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 1px; }
   }
 }
-.bc-panel {
+.bc-panel { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bc-row {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: var(--s2);
   min-width: 0;
+  height: 32px;
   animation: fade var(--quick) var(--ease) both;
+  > .bc-field, > .bc-none { flex: 1; }
 }
-.bc-text { margin: 0; font-size: var(--text-12); color: var(--text-3); }
-.bc-inputs { display: flex; gap: var(--s2); .input, .select { height: 30px; font-family: var(--mono); font-size: var(--text-12); } }
-.bc-actions { display: flex; flex-wrap: wrap; gap: var(--s2); justify-content: flex-end; }
+.bc-text { margin: 0; height: 18px; font-size: var(--text-12); line-height: 18px; color: var(--text-3); }
+.bc-none { margin: 0; min-width: 0; font-size: var(--text-12); color: var(--text-3); }
+.bc-inputs { display: flex; flex: 0 1 160px; min-width: 96px; gap: var(--s2); .input, .select { width: 100%; height: 32px; font-family: var(--mono); font-size: var(--text-12); } }
+.bc-actions { display: flex; flex: none; gap: var(--s2); }
 .bc-field {
   display: flex;
   align-items: center;
   gap: var(--s2);
   min-width: 0;
-  height: 36px;
+  height: 32px;
   padding-inline: var(--s3) var(--s1);
   border: 1px solid var(--hairline);
   border-radius: var(--radius-control);
@@ -1397,8 +1431,13 @@ tr.invited {
     &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 2px; border-radius: 4px; }
   }
 }
-@media (max-width: 767px) {
-  .ws-pane-tools { flex: 1 1 100%; align-items: stretch; .actions { justify-content: flex-end; } }
+// on a phone the command takes the whole line and the field, the action and the line saying what it does follow it
+@media (max-width: 640px) {
+  .bc-tabs { align-self: stretch; }
+  .bc-row { flex-wrap: wrap; height: auto; > .bc-field, > .bc-none { flex: 1 1 100%; } }
+  .bc-inputs { flex: 1 1 auto; }
+  .bc-actions { flex: 1 1 auto; justify-content: flex-end; }
+  .bc-text { display: -webkit-box; height: 36px; white-space: normal; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 }
 
 // ---------------------------------------------------------------- a branch's history (BuildHistory.tsx)
@@ -1815,7 +1854,7 @@ tr.invited {
 }
 @media (prefers-reduced-motion: reduce) {
   .bh-spin, .pb-tile.building::before { animation: none !important; }
-  .bh-lines, .bc-panel { animation: none !important; }
+  .bh-lines, .bc-row { animation: none !important; }
 }
 
 // ---------------------------------------------------------------- "Why it failed" (components/WhyItFailed.tsx)

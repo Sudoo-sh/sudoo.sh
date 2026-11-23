@@ -531,15 +531,37 @@ export function Page({ children, wide }: { children: ReactNode; wide?: boolean }
 /** Something shown next to the titles of the pages inside it (a premium page's plans, in the demo). */
 export const PageMark = createContext<ReactNode>(null);
 
-export function PageHead({ title, children, actions }: { title: ReactNode; children?: ReactNode; actions?: ReactNode }) {
+/** A page's title, its line under it and its actions. `below` goes under the titles and `side` under the actions,
+ *  which then sit at the top (a project's chosen branch and its commands). */
+export function PageHead({
+  title,
+  children,
+  actions,
+  below,
+  side,
+}: {
+  title: ReactNode;
+  children?: ReactNode;
+  actions?: ReactNode;
+  below?: ReactNode;
+  side?: ReactNode;
+}) {
   const mark = useContext(PageMark);
   return (
-    <div className="page-head">
+    <div className={side ? "page-head page-head-split" : "page-head"}>
       <div className="titles">
         {mark ? <div className="row-wrap" style={{ gap: 12 }}><h1>{title}</h1>{mark}</div> : <h1>{title}</h1>}
         {children && <p>{children}</p>}
+        {below}
       </div>
-      {actions && <div className="actions">{actions}</div>}
+      {side ? (
+        <div className="page-head-side">
+          {actions && <div className="actions">{actions}</div>}
+          {side}
+        </div>
+      ) : (
+        actions && <div className="actions">{actions}</div>
+      )}
     </div>
   );
 }

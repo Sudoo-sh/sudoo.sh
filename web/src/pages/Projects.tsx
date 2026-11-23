@@ -33,7 +33,7 @@ import { ProjectResources } from "@/components/ProjectResources";
 import { ProjectBuilds } from "@/components/ProjectBuilds";
 import { ProjectNotifications } from "@/components/ProjectNotifications";
 import { ProjectStatus, ProjectStatusTabs } from "@/components/ProjectStatus";
-import { ProjectWorkspace } from "@/components/ProjectWorkspace";
+import { ProjectWorkspace, type ProjectHeadBranch } from "@/components/ProjectWorkspace";
 import { PullRequestPreviews } from "@/components/PullRequestPreviews";
 import { StagingRefresh } from "@/components/StagingRefresh";
 import { Page, PageHead, useCan, useSubCrumb } from "@/components/Shell";
@@ -361,10 +361,14 @@ export function ProjectPage() {
       setRefreshing(false);
     }
   };
-  return (
-    <Page wide>
+  // the project's header and its tabs; on the Branches tab the workspace adds the chosen branch to it (its name, tags
+  // and menu under the project's details, its commands under Open on GitHub)
+  const head = (branchArea?: ProjectHeadBranch) => (
+    <>
       <PageHead
         title={project.name}
+        below={branchArea?.identity}
+        side={branchArea?.tools}
         actions={
           <Button asChild><a href={project.repository.url} target="_blank" rel="noreferrer">
             <FolderGit2 /> {t.openOnGitHub} <ArrowUpRight className="flip-rtl" />
@@ -400,6 +404,11 @@ export function ProjectPage() {
           </Link>
         )}
       </nav>
+    </>
+  );
+  return (
+    <Page wide>
+      {tab !== "" && head()}
       {tab === "access" ? (
         <AccessTab key={project.id} project={project} permitted={mayManageAccess} />
       ) : tab === "backups" && mayManageBackups ? (
@@ -413,7 +422,8 @@ export function ProjectPage() {
       ) : tab === "settings" ? (
         <SettingsTab key={project.id} project={project} meta={meta} />
       ) : (
-        <ProjectWorkspace project={project} meta={meta} selected={branch} view={view} onRefresh={refresh} refreshing={refreshing} backups={mayManageBackups} />
+        <ProjectWorkspace project={project} meta={meta} selected={branch} view={view} onRefresh={refresh} refreshing={refreshing} backups={mayManageBackups}
+          head={head} />
       )}
     </Page>
   );

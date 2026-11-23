@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **A project's chosen branch is in the project's header**: its name (with a copy button), tags and menu under the
+  project's details, and its commands (Clone, Fork, Merge, SSH, SQL, Submodule, Delete) as a compact toolbar under
+  **Open on GitHub**, instead of a separate block above the instance. Choosing another branch in the list cross-fades
+  them in place without moving the page; on a phone they follow one another across the whole width.
+
 ## [3.3.1] - 2026-11-23
 
 ### Fixed

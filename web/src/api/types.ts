@@ -1,6 +1,6 @@
 // The documents of /api/v1, as docs/PANEL_API.md describes them. Times are ISO 8601 strings in UTC.
 
-export type Role = "super_admin" | "admin" | "maintainer" | "developer" | "viewer";
+export type Role = "super_admin" | "admin" | "maintainer" | "developer" | "viewer" | "client";
 export type Permission =
   | "instances.view"
   | "instances.logs"
@@ -36,7 +36,8 @@ export type Permission =
   | "shells.supervise"
   | "servers.manage"
   | "instances.move"
-  | "support_access.manage";
+  | "support_access.manage"
+  | "clients.manage";
 
 export interface Profile {
   first_name: string | null;
@@ -70,6 +71,8 @@ export interface Session extends Profile {
   language: "en" | "ar";
   /** a super admin must accept the Sudoo.sh Licence Agreement before anything else (/licence) */
   licence_required: boolean;
+  /** the address this session belongs to: the panel's, or the client portal's (PORTAL_DOMAIN) */
+  address?: "panel" | "portal";
 }
 
 export type LicenceUse = "personal" | "company" | "service_provider";
@@ -400,6 +403,8 @@ export interface Instance {
   project: ProjectReference | null;
   /** its branch's lock (projects/access.py), or null */
   lock?: BranchLock | null;
+  /** its client's switch of its branch (projects/clients.py), or null: the project has no client */
+  client_access?: ClientAccess | null;
   url: string | null;
   /** its managed name (every plan), or null */
   managed_name?: ManagedName | null;
@@ -541,7 +546,164 @@ export interface Project {
   default_server?: string;
   /** panel_roles: everyone's role applies; restricted: only the teams and people granted see it */
   access: { mode: AccessMode; grants: number; restricted_branches: string[]; locked_branches: string[] };
+  /** the client's switch of the project as a whole (projects/clients.py), or null: no client */
+  client_access?: ClientAccess | null;
   links: { self: string };
+}
+
+/** A client's switch of a project or a branch (projects/clients.py). "timed": open until `until`. */
+export type SwitchState = "open" | "closed" | "timed";
+export interface ClientAccess {
+  state: SwitchState;
+  until: string | null;
+  /** "branch": the branch's own switch; "project": it follows the project's */
+  scope: "project" | "branch";
+  changed_by: string | null;
+  changed_at: string | null;
+  emergency_allowed: boolean;
+  clients: number;
+  /** a closure lets the caller through (a client, someone it named, an approved request, an emergency) */
+  lets_you_through?: boolean;
+  /** the client's lock of the branch or of the whole project, or null */
+  locked?: { by: string | null; at: string | null; reason: string; scope: "project" | "branch" } | null;
+}
+/** A client's major change waiting for its confirmation by e-mail (projects/client_confirm.py). */
+export interface ClientConfirmation {
+  id: string;
+  kind: "switch" | "lock" | "emergency" | "approve" | "allow";
+  summary: string;
+  asked_at: string;
+  expires_at: string;
+  status: "pending" | "confirmed" | "expired" | "cancelled";
+  /** only in the demo, where no e-mail is sent: the code */
+  demo_code?: string;
+}
+/** What a client's change answers: done at once, or waiting for the e-mail confirmation (202). */
+export interface ClientActionAnswer {
+  done: boolean;
+  confirmation?: ClientConfirmation;
+}
+export interface PersonRef {
+  name: string;
+  display_name: string;
+  role?: string;
+}
+export interface AccessRequest {
+  id: string;
+  project: string;
+  branch: string | null;
+  by: PersonRef;
+  reason: string;
+  hours: number;
+  status: "pending" | "approved" | "refused" | "lapsed";
+  asked_at: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  people: PersonRef[];
+  until: string | null;
+  note: string | null;
+}
+/** Who a closure lets through until when: an approved request or an emergency. */
+export interface AccessPass {
+  id: string;
+  kind: "request" | "emergency";
+  branch: string | null;
+  people: PersonRef[];
+  by: string;
+  at: string;
+  until: string;
+  reason: string | null;
+}
+/** GET /projects/<id>/clients: what staff see of a project's clients. */
+export interface ProjectClients {
+  clients: (PersonRef & { email: string | null; backups: boolean; shell: boolean; added_by: string | null; added_at: string | null })[];
+  invited: { id: string; email: string | null; expires_at: string | null }[];
+  project: ClientAccess | null;
+  branches: Record<string, ClientAccess | null>;
+  allow: PersonRef[];
+  emergency_allowed: boolean;
+  passes: AccessPass[];
+  requests: AccessRequest[];
+}
+export interface ProjectClientsMeta {
+  may_manage: boolean;
+  may_force: boolean;
+  emergency_minutes: number;
+  request_hours: number;
+  request_max_hours: number;
+  portal_url: string | null;
+}
+/** GET /portal: what the sign-in page needs to look like the client portal. */
+export interface PortalInfo {
+  address: "panel" | "portal";
+  portal: boolean;
+  portal_configured: boolean;
+  name: string | null;
+  brand_color: string;
+  default_language: "en" | "ar";
+}
+export interface ClientProjectSummary {
+  id: string;
+  name: string;
+  switch: ClientAccess | null;
+  closed_branches: string[];
+  pending_requests: number;
+  emergency_active: boolean;
+  instances: number;
+}
+export interface ClientInstance {
+  name: string;
+  status: InstanceStatus;
+  stage: Stage | null;
+  url: string | null;
+  odoo: string | null;
+  branch: string | null;
+  current_job?: string | null;
+}
+export interface ClientBranch {
+  name: string;
+  stage: Stage;
+  switch: ClientAccess | null;
+  instances: ClientInstance[];
+}
+export interface ClientProject extends ClientProjectSummary {
+  branches: ClientBranch[];
+  allow: PersonRef[];
+  people: PersonRef[];
+  emergency_allowed: boolean;
+  passes: AccessPass[];
+  requests: AccessRequest[];
+  notices: AccessPass[];
+  given: { backups: boolean; shell: boolean };
+  /** the client's lock of the whole project, or null */
+  locked: ClientAccess["locked"];
+  confirmations: ClientConfirmation[];
+}
+export interface ClientProjectMeta {
+  open_hours: number[];
+  open_max_hours: number;
+  request_max_hours: number;
+  emergency_minutes: number;
+  confirmations: boolean;
+  confirm_minutes: number;
+}
+export interface ClientBackup {
+  file: string;
+  instance: string;
+  kind: BackupKind;
+  size_bytes: number;
+  created_at: string;
+}
+export interface ActivityEntry {
+  at: string;
+  user: string;
+  event: string;
+  allowed: boolean;
+  branch: string | null;
+  instance: string | null;
+  detail: string | null;
+  address: string | null;
+  emergency: boolean;
 }
 
 export type AccessMode = "panel_roles" | "restricted";
@@ -611,6 +773,8 @@ export interface ProjectBranch {
   /** the branch's own Odoo version, which its new instances get; null: the project's */
   odoo_version: string | null;
   lock: BranchLock | null;
+  /** the client's switch of this branch (projects/clients.py), or null: the project has no client */
+  client_access?: ClientAccess | null;
   /** seen only by the teams and people its own grants name */
   restricted: boolean;
   /** what the caller may do in this branch (role ∩ access, the lock) */

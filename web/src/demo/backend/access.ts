@@ -1,8 +1,10 @@
-// Teams, per-project and per-branch access and locked branches, as src/sudoo/projects/access.py decides them: what
-// someone may do in a project is their role ∩ their level there; a locked branch is closed to everyone its lock does
-// not allow (super admins included, until they unlock it). The demo's visitor is the only one who acts.
+// Teams, per-project and per-branch access, locked branches and clients' switches, as src/sudoo/projects/access.py
+// and clients.py decide them: what someone may do in a project is their role ∩ their level there; a locked branch is
+// closed to everyone its lock does not allow (super admins included, until they unlock it); a branch or project its
+// client closed is closed to everyone the client does not let through (super admins included, who cannot lift it).
+// The demo's visitor is the only one who acts; as a client, the visitor is CLIENT_ME.
 
-import type { AccessLevel, AccessMode, AccessSubject, BranchLock, Grant, Instance, Permission, Team } from "@/api/types";
+import type { AccessLevel, AccessMode, AccessSubject, BranchLock, ClientAccess, Grant, Instance, Permission, SwitchState, Team } from "@/api/types";
 import { instances, ME, roleInfo, session, users } from "./state";
 import { iso, OPENED, DAY, Problem } from "./util";
 
@@ -11,6 +13,96 @@ export interface DemoAccess {
   grants: Grant[];
   branches: Record<string, { restricted: boolean; grants: Grant[] }>;
   locks: Record<string, BranchLock>;
+  /** the project's client part (projects/clients.py), when it has clients */
+  client?: DemoClient;
+}
+
+/** The client the demo's visitor is in the "Client" perspective. */
+export const CLIENT_ME = "maya";
+
+export interface DemoSwitch {
+  state: SwitchState;
+  until: number | null;
+  by: string;
+  at: number;
+}
+export interface DemoPass {
+  id: string;
+  kind: "request" | "emergency";
+  users: string[];
+  branch: string | null;
+  until: number;
+  by: string;
+  at: number;
+  reason: string;
+}
+export interface DemoClient {
+  clients: { id: string; backups: boolean; shell: boolean }[];
+  sw: DemoSwitch;
+  branches: Record<string, DemoSwitch>;
+  allow: string[];
+  emergency: boolean;
+  passes: DemoPass[];
+  /** the client's locks: "*" the whole project, or a branch */
+  locks?: Record<string, { by: string; at: number; reason: string }>;
+}
+
+/** The client's lock of a branch (the project's first), or null. */
+export function clientLock(access: DemoAccess, branch?: string | null) {
+  const locks = access.client?.locks ?? {};
+  const found = locks["*"] ?? (branch ? locks[branch] : undefined);
+  return found ? { ...found, scope: (locks["*"] ? "project" : "branch") as "project" | "branch" } : null;
+}
+
+/** A client lock lets through only the clients and a super admin's emergency access. */
+export function lockLetsThrough(access: DemoAccess, branch?: string | null): boolean {
+  const client = access.client;
+  if (!client) return true;
+  const me = visitor();
+  if (client.clients.some((c) => c.id === me)) return true;
+  return client.passes.some((p) => p.kind === "emergency" && p.until > Date.now() && p.users.includes(me) && (!p.branch || p.branch === branch));
+}
+
+/** The switch that applies to a branch (its own, else the project's) and where it comes from. */
+export function switchOf(client: DemoClient, branch?: string | null): { sw: DemoSwitch; scope: "project" | "branch" } {
+  const own = branch ? client.branches[branch] : undefined;
+  return own ? { sw: own, scope: "branch" } : { sw: client.sw, scope: "project" };
+}
+
+export function closedIn(access: DemoAccess, branch?: string | null): boolean {
+  if (!access.client) return false;
+  const { sw } = switchOf(access.client, branch);
+  return sw.state === "closed" || (sw.state === "timed" && (sw.until ?? 0) <= Date.now());
+}
+
+const visitor = () => (session.role === "client" ? CLIENT_ME : ME);
+
+export function letsThrough(access: DemoAccess, branch?: string | null): boolean {
+  const client = access.client;
+  if (!client) return true;
+  const me = visitor();
+  if (client.clients.some((c) => c.id === me) || client.allow.includes(me)) return true;
+  return client.passes.some((p) => p.until > Date.now() && p.users.includes(me) && (!p.branch || p.branch === branch));
+}
+
+/** A project's or branch's switch as the API shows it (clients.describe), or null without a client part. */
+export function describeSwitch(access: DemoAccess, branch?: string | null, withYou = true): ClientAccess | null {
+  const client = access.client;
+  if (!client) return null;
+  const { sw, scope } = switchOf(client, branch);
+  const closed = closedIn(access, branch);
+  const lock = clientLock(access, branch);
+  return {
+    locked: lock ? { by: lock.by, at: iso(lock.at), reason: lock.reason, scope: lock.scope } : null,
+    state: closed ? "closed" : sw.state,
+    until: sw.state === "timed" && !closed ? iso(sw.until) : null,
+    scope,
+    changed_by: sw.by,
+    changed_at: iso(sw.at),
+    emergency_allowed: client.emergency,
+    clients: client.clients.length,
+    ...(withYou ? { lets_you_through: (!closed || letsThrough(access, branch)) && (!lock || lockLetsThrough(access, branch)) } : {}),
+  };
 }
 
 interface DemoTeam {
@@ -76,6 +168,7 @@ function pick(grants: Grant[]): AccessLevel | null {
 }
 
 export function levelIn(access: DemoAccess, branch?: string | null): AccessLevel {
+  if (session.role === "client") return access.client?.clients.some((c) => c.id === CLIENT_ME) ? "view" : "none";
   if (isSuper()) return "admin";
   const rule = branch ? access.branches[branch] : undefined;
   let found = rule ? pick(rule.grants) : null;
@@ -93,9 +186,12 @@ export function permissionsIn(access: DemoAccess, branch?: string | null): Permi
   const role = roleInfo(session.role).permissions;
   const level = LEVEL_PERMISSIONS[levelIn(access, branch)];
   const lock = branch ? access.locks[branch] : undefined;
+  const given: Permission[] = session.role === "client" && access.client?.clients.find((c) => c.id === CLIENT_ME)?.backups ? ["backups.manage"] : [];
+  const closed = (closedIn(access, branch) && !letsThrough(access, branch)) || (!!clientLock(access, branch) && !lockLetsThrough(access, branch));
   return role.filter((p) => {
-    if (!PROJECT_PERMISSIONS.includes(p)) return true;
-    if (!level.includes(p)) return false;
+    if (!PROJECT_PERMISSIONS.includes(p)) return session.role !== "client";
+    if (!level.includes(p) && !given.includes(p)) return false;
+    if (closed && p !== "instances.view") return false;
     return !lock || p === "instances.view" || lockAllows(lock);
   });
 }
@@ -109,12 +205,17 @@ export function needIn(access: DemoAccess, permission: Permission, name: string,
   const lock = branch ? access.locks[branch] : undefined;
   if (lock && LEVEL_PERMISSIONS[level].includes(permission))
     throw new Problem(403, `The branch ${branch} is locked by ${lock.locked_by}: only the people and teams the lock allows may do this.`);
+  if (clientLock(access, branch) && !lockLetsThrough(access, branch) && LEVEL_PERMISSIONS[level].includes(permission))
+    throw new Problem(403, `${branch ? `The branch ${branch}` : "This project"} is locked by its client: only the client may do this, or unlock it.`);
+  if (closedIn(access, branch) && !letsThrough(access, branch) && LEVEL_PERMISSIONS[level].includes(permission))
+    throw new Problem(403, `${branch ? `The branch ${branch}` : "This project"} is closed by its client: only the client and the people it lets in may do this. Ask the client for access (Request access).`);
   throw new Problem(403, `Your access to ${name} does not include this (${level}).`);
 }
 
 export function mayUnlock(access: DemoAccess, branch: string): boolean {
   const level = LEVEL_PERMISSIONS[levelIn(access, branch)];
   if (!roleInfo(session.role).permissions.includes("projects.access") || !level.includes("projects.access")) return false;
+  if (closedIn(access, branch) && !letsThrough(access, branch)) return false;
   const lock = access.locks[branch];
   return !lock || isSuper() || lockAllows(lock);
 }
@@ -141,13 +242,15 @@ export function teamResource(team: DemoTeam, usedIn: { id: string; name: string 
   };
 }
 
-/** Each instance carries its branch's lock, as the panel's instance resource does. */
+/** Each instance carries its branch's lock and its client's switch, as the panel's instance resource does. */
 export function setLocks(projectId: string, access: DemoAccess, announce: (i: Instance) => void) {
   for (const instance of instances.values()) {
     if (instance.project?.id !== projectId) continue;
     const lock = instance.git.branch ? (access.locks[instance.git.branch] ?? null) : null;
-    if (JSON.stringify(instance.lock ?? null) !== JSON.stringify(lock)) {
+    const closure = describeSwitch(access, instance.git.branch, false);
+    if (JSON.stringify(instance.lock ?? null) !== JSON.stringify(lock) || JSON.stringify(instance.client_access ?? null) !== JSON.stringify(closure)) {
       instance.lock = lock ? { ...lock, allow: described(lock.allow) } : null;
+      instance.client_access = closure;
       announce(instance);
     }
   }

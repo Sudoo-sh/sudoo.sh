@@ -8,6 +8,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Client portal, with a switch the client owns**: a new **Client** role for your clients, invited by e-mail to one
+  or more projects. A client sees only its projects (branches, each instance's status and **Open Odoo**, its backups
+  when given, its activity log), at the panel's address or at a portal address of its own (`PORTAL_DOMAIN`, served
+  with its certificate like the panel's name, with your company's name, `PORTAL_NAME`); sessions never cross between
+  the two addresses. The client opens or closes each project and branch, or opens it for a time; closed, nobody of
+  your team can open, change, back up, restore, open a shell or read logs and passwords, super admins included, and
+  nobody but the client can lift it, while backups, monitoring, certificates and production go on. Your team asks
+  with **Request access** (the client gets an e-mail, in English or Arabic, and approves for chosen people and hours,
+  or refuses); a super admin can use **Emergency access** for an hour by writing a reason, unless the client turned
+  it off, and the client is told at once. Everything is in the client's activity log, with CSV export. Every
+  duration and default is a setting. Adding clients is part of the Business plan. The switch is a control inside
+  the panel; the docs say plainly what server administrators can still reach.
+- **Client locks and confirmation by e-mail**: a client can lock a branch or the whole project from the portal; a
+  lock is as strong as closing (nobody of your team lifts it, super admins included), lets only the client and
+  emergency access through, and stops automatic deploys. Every major change a client makes (opening or closing,
+  locks, emergency access, approvals, the people it lets in) waits for a one-time link or 6-digit code sent to its
+  e-mail, valid 15 minutes (`CLIENT_CONFIRM_MINUTES`) in the same browser session; the portal shows **Waiting for
+  your e-mail confirmation**. New editable e-mail texts in English and Arabic; `CLIENT_CONFIRMATIONS` turns it off.
 - **Module installs and Module updates in the Logs tab** (`install.log`, `update.log`): what Odoo wrote while it
   installed or updated modules in the instance's latest creations, rebuilds, updates and module upgrades. Only Odoo's
   own lines and their tracebacks are kept, redacted; the panel's commands, paths and steps never appear.

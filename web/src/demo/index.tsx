@@ -18,6 +18,7 @@ import { me, remember, switchRole } from "./backend/api";
 import { seedDomains } from "./backend/domains";
 import { seedProjects } from "./backend/projects";
 import { seedTeams } from "./backend/access";
+import { seedClients } from "./backend/clients";
 import { setBackendNotifier } from "./backend/notices";
 import { seedServers } from "./backend/servers";
 import { seedSupport } from "./backend/support";
@@ -41,6 +42,7 @@ export function start() {
   seedAll();
   seedTeams();
   seedProjects();
+  seedClients();
   seedDomains();
   seedServers();
   seedSupport();
@@ -51,7 +53,7 @@ export function start() {
   document.documentElement.dataset.demo = "";
 }
 
-const PERSPECTIVES: { role: Role }[] = [{ role: "super_admin" }, { role: "admin" }, { role: "developer" }, { role: "viewer" }];
+const PERSPECTIVES: { role: Role }[] = [{ role: "super_admin" }, { role: "admin" }, { role: "developer" }, { role: "viewer" }, { role: "client" }];
 
 /** The demo's banner: always at the top, one line. What this is, where to install it, and whose eyes to look with. */
 export function DemoBanner({ router }: { router: Pick<DataRouter, "state" | "subscribe"> }) {

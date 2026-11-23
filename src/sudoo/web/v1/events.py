@@ -51,7 +51,7 @@ from sudoo.core.events import BUS, Event
 from sudoo.instances import gateway
 from sudoo.projects import access
 
-from ..security import api_caller, client_ip_of, user_of_session
+from ..security import api_caller, audience, client_ip_of, user_of_session
 from . import log_stream, shell_socket
 
 PATH = "/api/v1/events"
@@ -74,8 +74,11 @@ TOPICS = frozenset(
         "managed_names",
         "support",
         "premium",
+        "client",
     }
 )
+CLIENT_TOPICS = frozenset({"instance", "instance.deleted", "project", "build", "job", "client"})
+"""The topics a client account receives (projects/clients.py): about its own projects only."""
 RESTRICTED = {
     "alert": "audit.view",
     "offsite": "backups.manage",
@@ -147,7 +150,7 @@ def _caller(request: web.Request) -> tuple[dict[str, str] | None, dict[str, Any]
     if origin and origin.split("://", 1)[-1] != request.headers.get("X-Forwarded-Host", request.host):
         return None, None, _problem(403, "Forbidden", "Request blocked: it did not come from this panel.")
     session = _session_of(request)
-    user = user_of_session(session) if session else None
+    user = user_of_session(session, audience=audience(request.host)) if session else None
     if user is None:
         return None, None, _problem(401, "Unauthorized", "Your session has ended. Please sign in again.")
     return user, session, None
@@ -183,6 +186,8 @@ def _topics(request: web.Request, user: dict[str, str]) -> frozenset[str] | None
     asked = {t.strip() for t in request.query.get("topics", "").split(",") if t.strip()}
     allowed = access.role_permissions(user)
     hidden = {topic for topic, permission in RESTRICTED.items() if permission not in allowed}
+    if access.is_client(user):  # a client: news of its own projects only
+        hidden |= TOPICS - CLIENT_TOPICS
     if not hidden:
         return frozenset(asked & TOPICS) if asked else None
     return frozenset((asked or TOPICS) & TOPICS - hidden)
@@ -205,6 +210,8 @@ def for_caller(user: dict[str, str], event: Event, data: Any) -> Any:
         instance = job.instance if job is not None else (data.get("instance") if isinstance(data, dict) else None)
         if not instance:  # a job whose instance is not known here (another server's): only for who sees everything
             return None
+        if jobs.is_panel_job(str(instance)) and access.is_client(user):
+            return None
         if not jobs.is_panel_job(str(instance)) and not access.sees_instance(user, str(instance)):
             return None
         return data
@@ -224,6 +231,11 @@ def for_caller(user: dict[str, str], event: Event, data: Any) -> Any:
         if found is None or not access.sees_project(user, found):
             return {"id": key, "deleted": True}
         return project_resource(found, user)
+    if topic == "client":  # a project's client part changed: only for who sees the project
+        from sudoo import projects as model
+
+        found = model.get(key)
+        return data if found is not None and access.sees_project(user, found) else None
     return data
 
 

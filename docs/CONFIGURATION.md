@@ -60,7 +60,8 @@ reset with **Use .env**.
 23. [Marketplace](#marketplace)
 24. [Premium features](#premium-features)
 25. [Support access](#support-access)
-26. [Locations](#locations)
+26. [Client portal](#client-portal)
+27. [Locations](#locations)
 
 ---
 
@@ -779,6 +780,28 @@ Letting Sudoo.sh support into the panel for a while, through the panel's own con
 | :--- | :--- | :--- | :--- | :--- |
 | `SUPPORT_ACCESS` | bool | `true` | **live** | Super admins and administrators may grant support access. `false`: none can be granted, and every grant ends at once. |
 | `SUPPORT_ACCESS_MAX_HOURS` | int | `72` | **live** | The longest a grant may last, in hours (1 to 72): the choices 1 hour, 1 day and 3 days are offered up to it. |
+
+---
+
+## Client portal
+
+Your clients' own view of their projects, and the access switch each client owns. Settings page, **Client portal**;
+how it works: [Admin guide, Client portal](ADMIN_GUIDE.md#30-client-portal), [User manual, Client portal](USER_MANUAL.md#16-client-portal),
+[Security, Client portal](SECURITY.md#20-client-portal). Adding clients to projects is part of the Business plan.
+
+| Setting | Type | Default | Applies | Meaning |
+| :--- | :--- | :--- | :--- | :--- |
+| `PORTAL_DOMAIN` | text | empty | **live** | `direct` and `proxy`: a second name of the panel for clients, such as `portal.example.com`, pointed at this server (or your proxy). There the web app shows the client portal and only clients sign in; `direct` serves it on port 443 with a certificate from the ACME authority. Empty: clients use the panel's own address. |
+| `PORTAL_NAME` | text | empty | **live** | Your company's name, shown to clients at the top of the portal and on its sign-in page (60 characters at most). Empty: no company name. |
+| `CLIENT_EMERGENCY_ACCESS` | bool | `true` | **live** | Clients' projects start with emergency access allowed: a super admin may open a closed project or branch for a short time by typing a reason, and the client is told at once. Each client can turn it off for its projects. |
+| `CLIENT_EMERGENCY_MINUTES` | int | `60` | **live** | How long emergency access lasts, in minutes (5 to 1440). |
+| `CLIENT_OPEN_HOURS` | text | `1,4,24` | **live** | The durations offered to clients for **Open for a time**, in hours, comma-separated (at most 8). Clients may also type their own, up to `CLIENT_OPEN_MAX_HOURS`. |
+| `CLIENT_OPEN_MAX_HOURS` | int | `720` | **live** | The longest a client can open a project or branch for at once, in hours. |
+| `CLIENT_REQUEST_HOURS` | int | `4` | **live** | The duration an access request asks for unless the person changes it, in hours. |
+| `CLIENT_REQUEST_MAX_HOURS` | int | `168` | **live** | The longest an access request may ask for (and a client may give), in hours. |
+| `CLIENT_REQUEST_EXPIRE_HOURS` | int | `72` | **live** | Hours after which a request the client did not answer lapses. |
+| `CLIENT_CONFIRMATIONS` | bool | `true` | **live** | Clients confirm every major change in the portal (opening or closing, locks, emergency access, approving a request, the people they let in) with a one-time link or a 6-digit code sent to their e-mail; the change waits until then. Needs e-mail to be set up. `false`: changes happen at once. |
+| `CLIENT_CONFIRM_MINUTES` | int | `15` | **live** | Minutes a confirmation link or code works (5 to 60). |
 
 ---
 

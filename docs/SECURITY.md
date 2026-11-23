@@ -26,6 +26,7 @@
 17. [Support access](#17-support-access)
 18. [Servers](#18-servers)
 19. [Code profiler](#19-code-profiler)
+20. [Client portal](#20-client-portal)
 
 ---
 
@@ -927,3 +928,25 @@ Odoo processes. It is contained like this:
   which may contain passwords, are removed before it is stored (mode 600).
 * Recording needs `instances.profile` in the instance; production is confirmed every time and can be switched off
   (`PROFILER_PRODUCTION`); starting, stopping, downloading and deleting are in the audit log.
+
+---
+
+## 20. Client portal
+
+Clients of the panel's owner, and the switch each client owns for its projects ([Admin guide](ADMIN_GUIDE.md#30-client-portal)).
+
+| Threat | Protection |
+| :--- | :--- |
+| A client sees more than its projects | A client account has the level "client" only in the projects it is a client of and "none" everywhere else, outside every project included; it may call only its own session and account and the portal's API (`CLIENT_ENDPOINTS`, checked before any view runs: every other path answers 403, audit-logged); its live events carry only its projects' instances, jobs, builds and client news, never the server's figures. |
+| Someone of the owner's team opens a closed project | The closure takes from everyone it does not let through everything a lock takes (credentials, logs, shells, caught e-mails, changes, backups, restores, deletion, access and locks), checked on every request by the same access checks as everything else; super admins have no way past it in the panel, and Sudoo.sh support is never let through. Each refusal is in the project's audit log, which the client reads. |
+| Someone of the team gives themselves a way in | Only the client changes the switch, the people it lets in, emergency access, and answers requests. While something is closed nobody can add a client to the project, take its last client out, or change, reset, take the second factors of or delete a client's account (they would take its place), and a client's role never changes. |
+| Emergency access is abused | It needs a signed-in super admin (never an API token), the client's permission (on by default, the client turns it off), a written reason and the branch's or project's name typed; it lasts `CLIENT_EMERGENCY_MINUTES` and lets only that person in; every client is e-mailed at once and it shows at the top of the client's log. |
+| A session crosses addresses | A session belongs to the address it started at (the panel's or `PORTAL_DOMAIN`'s, recorded in the signed cookie) and is refused at the other one, by the API, the live events and the shell's socket. The cookie is host-only, `HttpOnly`, `SameSite=Strict` and `Secure` over https. Staff never sign in at the portal's address and clients never at the panel's once the portal has one. |
+| A client's session is taken over, or the client is tricked into a change | Every major change waits for a confirmation sent to the client's e-mail address: a one-time link (only an HMAC of its secret is kept) or a 6-digit code (hashed, five wrong tries), valid `CLIENT_CONFIRM_MINUTES`, used once, and only in the session that asked; two clicks run it once. Someone with the session alone cannot open, close, unlock, approve or let anyone in. |
+| Staff work around a client's lock | A client lock is checked with the closure: it takes the same permissions from everyone but the project's clients and emergency access (never named people, approved requests or support); staff cannot unlock it, and automatic deploys and other automatic changes stop. |
+| An approval or an opening outlives its purpose | Each has an end time checked on every request, not by a timer; a background pass records it in the log when it closes. Closing again ends every access it gave. |
+
+**The limit, stated plainly.** The switch is an audited control inside the panel, not a wall against the server's
+administrators: whoever has root on the server or access to its Docker socket can reach the containers, databases
+and files directly, or reset a client's password with `sudoo.sh reset-password`, without the panel seeing it. A
+client that needs stronger isolation runs its projects on a server of its own.

@@ -75,7 +75,7 @@ def test_only_a_super_admin_manages_super_admins(app: Flask, admin: Client) -> N
     assert client.delete("/api/v1/users/admin1", headers=headers).status_code == 403
     assert client.get("/api/v1/settings").status_code == 403  # settings are for super admins
     roles = client.get("/api/v1/roles").get_json()["data"]["roles"]
-    assert [r["name"] for r in roles] == ["super_admin", "admin", "maintainer", "developer", "viewer"]
+    assert [r["name"] for r in roles] == ["super_admin", "admin", "maintainer", "developer", "viewer", "client"]
 
 
 def test_generated_passwords_must_be_replaced(app: Flask, admin: Client) -> None:

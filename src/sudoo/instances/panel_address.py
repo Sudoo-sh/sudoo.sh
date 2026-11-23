@@ -19,6 +19,10 @@ direct mode (an instance without a managed name or custom domain: https://<serve
 
 The state of the name's certificate is a document in the storage (collection "panel_address", key "certificate"):
 the domain, status (waiting, active, failed), reason, attempts, next_attempt_at, renew_at, certificate facts.
+
+The client portal's name (PORTAL_DOMAIN, projects/clients.py) is served the same way, as a second name of the panel:
+the gateway answers it on ports 80 and 443 and forwards it to the web service, its certificate is got and renewed
+here (key "portal"), and the web app shows the client portal there (web/security.py: audience).
 """
 
 from __future__ import annotations
@@ -35,6 +39,7 @@ from sudoo.storage import storage
 
 COLLECTION = "panel_address"
 KEY = "certificate"
+PORTAL_KEY = "portal"
 SERVER_DAYS = 397  # the panel's own certificate: as long as browsers accept, made again 30 days before the end
 SERVER_RENEW_DAYS = 30
 
@@ -112,16 +117,38 @@ def server_host() -> str:
     return _url_host(found[0]) if found else ""
 
 
-def state() -> dict[str, Any]:
-    found = storage().get(COLLECTION, KEY) or {}
-    return found if found.get("domain") == domain() else {}
+def portal_domain() -> str:
+    """The client portal's name (PORTAL_DOMAIN), when it is not the panel's own; "" when none."""
+    name = str(settings.portal_domain or "")
+    return name if name and name != domain() else ""
 
 
-def certificate_ready() -> bool:
+def _name_of(key: str) -> str:
+    return portal_domain() if key == PORTAL_KEY else domain()
+
+
+def state(key: str = KEY) -> dict[str, Any]:
+    found = storage().get(COLLECTION, key) or {}
+    return found if found.get("domain") == _name_of(key) else {}
+
+
+def certificate_ready(key: str = KEY) -> bool:
     from sudoo.instances import custom_domains
 
-    name = domain()
-    return bool(name) and state().get("status") == "active" and custom_domains.certificate_present(name)
+    name = _name_of(key)
+    return bool(name) and state(key).get("status") == "active" and custom_domains.certificate_present(name)
+
+
+def portal_resource() -> dict[str, Any]:
+    """What Settings shows about the client portal's address."""
+    found = state(PORTAL_KEY)
+    name = portal_domain()
+    return {
+        "domain": name or None,
+        "url": f"https://{name}" if name else None,
+        "status": (found.get("status") or "waiting") if name and direct() else None,
+        "reason": found.get("reason"),
+    }
 
 
 def url() -> str | None:
@@ -207,30 +234,39 @@ def ensure_server_certificate(now: float | None = None) -> bool:
 # ---------------------------------------------------------------- the name's certificate (ACME)
 
 
-def _save(values: dict[str, Any]) -> None:
-    storage().put(COLLECTION, KEY, {"domain": domain(), **values})
+def _save(values: dict[str, Any], key: str = KEY) -> None:
+    storage().put(COLLECTION, key, {"domain": _name_of(key), **values})
 
 
-def due(now: float) -> bool:
-    if not direct() or not domain():
+def due(now: float, key: str = KEY) -> bool:
+    if not direct() or not _name_of(key):
         return False
-    found = state()
+    found = state(key)
     if found.get("status") == "active":
         return bool(now >= float(found.get("renew_at") or 0))
     return bool(float(found.get("next_attempt_at") or 0) <= now)
 
 
 def round_(now: float | None = None) -> None:
-    """Get or renew the certificate of the panel's name when it is due (called by the domain worker's rounds)."""
-    from sudoo.instances import custom_domains, domain_worker
+    """Get or renew the certificates of the panel's names (its own, the client portal's) when they are due (called by
+    the domain worker's rounds)."""
+    from sudoo.instances import custom_domains
 
     now = time.time() if now is None else now
     if direct() and ensure_server_certificate(now):  # the server's addresses changed, or it ends soon
         custom_domains.refresh_gateway()
-    if not due(now):
+    _certificate_round(KEY, "the panel", now)
+    _certificate_round(PORTAL_KEY, "the client portal", now)
+
+
+def _certificate_round(key: str, label: str, now: float) -> None:
+    """Get or renew the certificate of one of the panel's names (its own, or the client portal's) when it is due."""
+    from sudoo.instances import custom_domains, domain_worker
+
+    if not due(now, key):
         return
-    name = domain()
-    found = state()
+    name = _name_of(key)
+    found = state(key)
     attempts = int(found.get("attempts") or 0) + 1
     problem = domain_worker.probe(name, "http") if settings.domain_http_probe else None
     if problem is None:
@@ -241,8 +277,9 @@ def round_(now: float | None = None) -> None:
         else:
             _save({"status": "active", "reason": None, "attempts": 0, "next_attempt_at": None,
                    "renew_at": domain_worker.renew_at(facts.not_before, facts.not_after),
-                   "certificate": {"issued_at": now, "expires_at": facts.not_after, "issuer": facts.issuer}})  # fmt: skip
-            audit.record("panel", None, "certificate issued", None, detail=f"{name} (the panel), {facts.issuer}")
+                   "certificate": {"issued_at": now, "expires_at": facts.not_after, "issuer": facts.issuer}},
+                  key)  # fmt: skip
+            audit.record("panel", None, "certificate issued", None, detail=f"{name} ({label}), {facts.issuer}")
             custom_domains.refresh_gateway()
             return
     wait = domain_worker.backoff(
@@ -250,8 +287,8 @@ def round_(now: float | None = None) -> None:
     )
     keep = found.get("status") == "active" and custom_domains.certificate_present(name)
     _save({**found, "status": "active" if keep else "failed", "reason": problem, "attempts": attempts,
-           "next_attempt_at": now + wait, "renew_at": now + wait if keep else None})  # fmt: skip
-    audit.record("panel", None, "certificate not issued", None, ok=False, detail=f"{name} (the panel): {problem}")
+           "next_attempt_at": now + wait, "renew_at": now + wait if keep else None}, key)  # fmt: skip
+    audit.record("panel", None, "certificate not issued", None, ok=False, detail=f"{name} ({label}): {problem}")
 
 
 def resource() -> dict[str, Any]:
@@ -268,4 +305,5 @@ def resource() -> dict[str, Any]:
         "reason": found.get("reason"),
         "server_addresses": server_addresses(),
         "managed_name": panel_name.resource(),
+        "portal": portal_resource(),
     }

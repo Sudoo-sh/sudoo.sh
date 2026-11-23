@@ -95,9 +95,16 @@ def password_allowed(mail_ready: bool) -> bool:
 
 
 def create(
-    email: str, role: str, invited_by: str, first_name: str = "", last_name: str = "", github_login: str = ""
+    email: str,
+    role: str,
+    invited_by: str,
+    first_name: str = "",
+    last_name: str = "",
+    github_login: str = "",
+    projects: list[dict[str, Any]] | None = None,
 ) -> tuple[str, Link]:
-    """A new invitation; returns its id and its link. Raises ValueError saying why not."""
+    """A new invitation; returns its id and its link. Raises ValueError saying why not. `projects`: a client's
+    projects ({"id", "backups", "shell"}), which it becomes a client of when it accepts (projects/clients.py)."""
     email = email.strip()
     if role not in accounts.ROLES:
         raise ValueError("Choose a role from the list.")
@@ -130,9 +137,22 @@ def create(
             "sent_count": 1,
             "expires": now + lifetime_seconds(),
             "secret_hash": digest,
+            **({"projects": list(projects)} if projects else {}),
         },
     )
     return invitation_id, Link(invitation_id, f"{invitation_id}.{secret}")
+
+
+def add_project(invitation_id: str, project: dict[str, Any]) -> Document | None:
+    """Add a project to a client's invitation (or change what it is given there); returns the invitation."""
+
+    def apply(invitation: Document | None) -> Document | None:
+        if invitation is None:
+            return None
+        listed = [p for p in invitation.get("projects") or () if p.get("id") != project["id"]]
+        return {**invitation, "projects": [*listed, project]}
+
+    return storage().change(INVITATIONS, invitation_id, apply)
 
 
 def renew(invitation_id: str) -> Link:
@@ -262,6 +282,7 @@ def resource_fields(invitation: Document) -> dict[str, Any]:
         "first_name": invitation.get("first_name"),
         "last_name": invitation.get("last_name"),
         "role": invitation.get("role"),
+        "projects": [str(p.get("id")) for p in invitation.get("projects") or ()],
         "github_login": invitation.get("github_login"),
         "invited_by": invitation.get("invited_by"),
         "sent_count": int(invitation.get("sent_count", 1)),

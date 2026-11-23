@@ -19,7 +19,7 @@ import * as statusPages from "./status";
 import { branchBuilds, branchHistory, findEntry, recordStageChange } from "./builds";
 import { branchOptions, changeBranchOptions, clean as cleanOption, problem as optionsProblem, statusesAvailable } from "./build-options";
 import { branchList, membersOf, productionInstance, projectResource, projects, stageOf, type DemoProject } from "./projects";
-import { described, levelIn, LEVELS, mayUnlock, needIn, openAccess, permissionsIn, seesProject, setLocks, teamResource, teams, type DemoAccess } from "./access";
+import { CLIENT_ME, described, levelIn, LEVELS, mayUnlock, needIn, openAccess, permissionsIn, seesProject, setLocks, teamResource, teams, type DemoAccess } from "./access";
 import { acceptLicence, LICENCE, licencePending, licenceStatus } from "./licence";
 import { catalog, categories, marketplace, recommendations } from "./marketplace";
 import { currentPlan, ENTITLEMENTS, gatedBy, needPremium, premiumOverview } from "./premium";
@@ -140,10 +140,11 @@ const offline = (what: string) => new Problem(409, `${what} is not available in 
 // ---------------------------------------------------------------- session and account
 
 export function me(): Session {
-  const user = users.find((u) => u.name === ME)!;
+  // in the "Client" perspective the visitor is the client CLIENT_ME (Maya, of Acme Retail)
+  const user = users.find((u) => u.name === (session.role === "client" ? CLIENT_ME : ME))!;
   const role = roleInfo(session.role);
   return {
-    user: ME,
+    user: user.name,
     display_name: user.display_name,
     first_name: user.first_name,
     last_name: user.last_name,
@@ -159,12 +160,14 @@ export function me(): Session {
     brand_color: String(setting("brand_color") ?? "#714B67"),
     language: language(),
     licence_required: role.name === "super_admin" && licencePending(),
+    address: "panel",
   };
 }
 
 /** The banner's role switcher: the signed-in account takes another role, as an administrator would give it. */
 export function switchRole(role: Session["role"]) {
   session.role = role;
+  if (role === "client") return; // the visitor becomes the client Maya; Sara keeps her role
   const user = users.find((u) => u.name === ME)!;
   user.role = role;
   user.role_label = roleInfo(role).label;
@@ -201,7 +204,7 @@ const factors = () => {
 };
 
 function account(): Account {
-  const user = users.find((u) => u.name === ME)!;
+  const user = users.find((u) => u.name === (session.role === "client" ? CLIENT_ME : ME))!;
   return {
     name: user.name,
     display_name: user.display_name,
@@ -2956,7 +2959,7 @@ route("GET", "/plan", () => {
 
 // ---------------------------------------------------------------- dispatching
 
-const PUBLIC = ["/setup", "/contact", "/session", "/session/second-factor", "/invitation", "/public-status"];
+const PUBLIC = ["/setup", "/contact", "/portal", "/session", "/session/second-factor", "/invitation", "/public-status"];
 
 export function remember() {
   try {
@@ -2965,6 +2968,8 @@ export function remember() {
     /* private window: the demo starts over on a reload */
   }
 }
+
+export { created, none, ok, route };
 
 export async function answer(method: string, path: string, query: URLSearchParams, body: unknown): Promise<Answer> {
   for (const r of routes) {

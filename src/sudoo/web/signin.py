@@ -98,7 +98,11 @@ def first_factor_passed(
     name: str, account: dict[str, Any], ip: str, first: str, skip_second: bool = False
 ) -> dict[str, Any]:
     """The first factor was right: sign in, or ask for the second one. Returns {"signed_in": True} or
-    {"second_factor": {"methods": [...], ...}}."""
+    {"second_factor": {"methods": [...], ...}}, or {"redirect": {...}} when the account signs in at the other
+    address (staff at the client portal's, clients at the panel's once it has one): nothing is started then."""
+    elsewhere = _other_address(name, account, ip)
+    if elsewhere is not None:
+        return {"redirect": elsewhere}
     found = [] if skip_second else _second_factors(account, first)
     if not found:
         _signed_in(name, account, ip, first=first, skip_second=skip_second)
@@ -168,6 +172,27 @@ def email_code_step(data: dict[str, Any]) -> dict[str, Any]:
         audit.record(name, ip, "sign-in refused (wrong or expired e-mail code)", ok=False)
         abort(401, "The code is not correct, or it has expired.")
     return first_factor_passed(found[0], found[1], ip, "email_code")
+
+
+def _other_address(name: str, account: dict[str, Any], ip: str) -> dict[str, str] | None:
+    """Where this account signs in instead, after a correct password, or None: staff at the panel's address, never
+    at the client portal's (PORTAL_DOMAIN); clients at the portal's once it has one. Nothing is started here."""
+    from sudoo import roles
+    from sudoo.config import settings
+    from sudoo.mail.render import panel_url
+    from sudoo.projects import clients
+
+    from .security import PANEL, PORTAL, audience
+
+    here = audience(request.host)
+    client = roles.normalize(str(account.get("role"))) == roles.CLIENT
+    if here == PORTAL and not client:
+        audit.record(name, ip, "sign-in sent to the panel's address (staff at the client portal)")
+        return {"address": PANEL, "url": (panel_url() or "").rstrip("/")}
+    if here == PANEL and client and settings.portal_domain:
+        audit.record(name, ip, "sign-in sent to the client portal (a client at the panel's address)")
+        return {"address": PORTAL, "url": clients.portal_url().rstrip("/")}
+    return None
 
 
 def _pending() -> tuple[str, dict[str, Any]]:

@@ -5,7 +5,7 @@
     github       Continue with GitHub, for an account linked to a GitHub account (github.py)
 
 An administrator chooses them per account (the field "sign_in_methods"); an account without a choice uses the
-server's default: SIGN_IN_METHODS for staff accounts, CLIENT_SIGN_IN_METHODS for client accounts (an account whose
+server's default: SIGN_IN_METHODS for staff accounts, CLIENT_SIGN_IN_METHODS for client accounts (the role "client", or an account whose
 "kind" is "client"). A method is offered only where the server can use it: e-mail codes need e-mail to be set up
 (and EMAIL_CODE_SIGN_IN), GitHub needs GITHUB_SIGN_IN and the panel's GitHub App. The second factor rules
 (REQUIRE_SECOND_FACTOR) apply after any of them.
@@ -49,7 +49,8 @@ def own_choice(account: Mapping[str, Any]) -> list[str] | None:
 
 def of(account: Mapping[str, Any]) -> list[str]:
     """The methods the account may use: its own choice, else the default for its kind."""
-    return own_choice(account) or defaults(str(account.get("kind") or "staff"))
+    kind = account.get("kind") or (CLIENT_KIND if account.get("role") == CLIENT_KIND else "staff")
+    return own_choice(account) or defaults(str(kind))
 
 
 def allows(account: Mapping[str, Any], method: str) -> bool:

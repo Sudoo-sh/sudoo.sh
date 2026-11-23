@@ -39,6 +39,7 @@ domains and certificates, off-site copies of backups.
 27. [Servers](#27-servers)
 28. [Code profiler](#28-code-profiler)
 29. [Audit log](#29-audit-log)
+30. [Client portal](#30-client-portal)
 
 ---
 
@@ -2750,3 +2751,82 @@ filtered to the project (`/activity?project=<id>`).
 entries at most (100,000 by default). Each export is itself an entry (`audit log exported`, with the format, how many
 entries and the filters). The panel keeps the newest 200,000 entries. API: `GET /api/v1/audit`,
 `GET /api/v1/audit/facets` and `GET /api/v1/audit/export` ([Panel API](PANEL_API.md#accounts-roles-and-the-audit-log)).
+
+---
+
+## 30. Client portal
+
+> Adding clients to projects is part of the Business plan; it comes with the premium teams package
+> ([Premium features](PREMIUM.md)). What protects clients (their switch, requests, emergency access and its refusal,
+> the activity log) works on every plan, also after a downgrade.
+
+The client portal gives your clients their own view of the projects you run for them, and the switch that closes
+them to your team (how clients use it: [User manual, Client portal](USER_MANUAL.md#16-client-portal)).
+
+### The portal's address
+
+Without anything set, clients sign in at the panel's own address and get the portal by their role. To give them an
+address of their own:
+
+1. Point a name at the server, for example `portal.example.com` (A and AAAA records, like the panel's name).
+2. Set `PORTAL_DOMAIN=portal.example.com` (**Settings › Client portal**, or `.env`), and `PORTAL_NAME` to your
+   company's name, shown at the top of the portal and on its sign-in page.
+3. With `EXPOSURE=direct` the gateway answers the name on ports 80 and 443 and gets its certificate from the ACME
+   authority, as for the panel's own name (Settings shows its state). With `EXPOSURE=proxy`, send the name to the
+   panel's port from your proxy, keeping the `Host` header. A tunnel serves only the panel's address.
+
+The portal is the same panel, served on a second name. At the portal's address only clients sign in: anyone else
+who signs in there with a correct password is sent to the panel's address, and a client who signs in at the panel's
+address is sent to the portal (nothing is started at the wrong one). A session belongs to the address it started at
+and never works at the other one. A managed name under Sudoo.sh's domain (`portal.<company>.sudoo.cloud`) needs the
+hub to keep its DNS records; until it does, use a name of your own.
+
+### Inviting clients
+
+Open a project's **Clients** tab and click **Add a client** (administrators and super admins: the permission
+`clients.manage`, and the project's access). An address that belongs to a client account adds it at once; a new address
+gets an invitation by e-mail (it opens the portal's address), and the client joins the project when it accepts.
+Choose whether the client may download the project's backups and open a shell in its Odoo containers (only while
+shells are on, `SHELL_ENABLED`). Add the same client to more projects the same way; **Remove** takes it out (not the
+last client of a project it closed). A client account (role **Client**) sees its projects and nothing else of the
+panel: no settings, accounts, other projects or instances outside its projects. A client stays a client: its role
+cannot be changed to a staff role, nor the other way round.
+
+### The switch, requests and emergency access
+
+| What | Who | Notes |
+| :--- | :--- | :--- |
+| Open, close, open for a time | the project's clients | per project and per branch; `CLIENT_OPEN_HOURS` are the durations offered, `CLIENT_OPEN_MAX_HOURS` the longest |
+| Name people who pass a closure | the project's clients | people of your team who see the project |
+| Ask for access | anyone of your team who sees the project | reason and hours (`CLIENT_REQUEST_HOURS` by default, `CLIENT_REQUEST_MAX_HOURS` at most); a request nobody answered lapses after `CLIENT_REQUEST_EXPIRE_HOURS` |
+| Approve, refuse, end access now | the project's clients | an approval names people and hours |
+| Emergency access | a signed-in super admin (never an API token) | only while the client allows it (`CLIENT_EMERGENCY_ACCESS` for new projects); a reason and the branch's or project's name typed; lasts `CLIENT_EMERGENCY_MINUTES`; the clients are e-mailed at once |
+
+A closure works like a locked branch for everyone it does not let through, super admins included, with one
+difference: **nobody but the client can lift it**. It lets through the project's clients, the people they named, the
+people of an approved request (for its branch, or the whole project) and a super admin's emergency access while it
+lasts; never Sudoo.sh support. The panel's own work goes on as for a locked branch: daily backups, monitoring and
+certificates continue, production keeps serving, and automatic changes stop (pushes, rebuilds, deletion at the end of
+a lifetime, archiving when a branch is deleted on GitHub). A visit still starts a paused instance. While a client
+keeps something closed, nobody can add another client to that project, take its last client out, or change, reset,
+take the second factors of or delete the client's account.
+
+**Client locks.** A client can also lock a branch or the whole project. A client lock is as strong as a closed switch
+(nobody in the panel lifts it, super admins included), lets through only the project's clients and emergency access
+while the client allows it (never the people it named or approved requests), and stops automatic deploys and every
+other automatic change of what it locks, whatever the switch says.
+
+**Confirmation by e-mail.** With `CLIENT_CONFIRMATIONS` on (the default), every major change a client makes in the
+portal (the switch, locks and unlocks, emergency access, approving a request, the people it lets in) waits until the
+client confirms it with a one-time link or a 6-digit code sent to its e-mail address, within `CLIENT_CONFIRM_MINUTES`
+(15) and in the same browser session that asked. It needs e-mail to be set up; without it these changes are refused
+with a sentence that says why. Asking, confirming, a wrong code or session, cancelling and expiry are in the audit log.
+
+The e-mails are on **E-mail templates**: **Access request (client portal)**, **Emergency access (client portal)** and
+**Confirm a change (client portal)**, each with its Arabic version, sent in the client's language. Everything is in the audit log, scoped to the project,
+and the client reads it as its activity log (its CSV export uses the audit log's).
+
+**The limit.** The switch is an audited control inside the panel. Whoever has root on the server, or access to its
+Docker, can reach the instances' containers, databases and files without the panel (and could reset a client's
+password from the command line). Say so to clients who ask; a client that needs stronger isolation runs its
+projects on its own server.

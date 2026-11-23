@@ -28,6 +28,7 @@ when your plan includes them:
 | Feature | Plans |
 | :--- | :--- |
 | Teams and access per project and per branch | Pro and Business |
+| Client portal: adding clients to projects (with the teams package) | Business |
 | Custom domains (your own names, with certificates) | Business |
 | Off-site copies of backups | Pro and Business |
 | Support access (letting Sudoo.sh support in for a while) | Pro and Business |

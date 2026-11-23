@@ -16,6 +16,7 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
+  UserRoundCheck,
   Trash2,
 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
@@ -24,6 +25,7 @@ import { api, ApiError, errorText } from "@/api/client";
 import { keys, useCall, useInstances, useProject, useProjects, useRepositoryOwners, useVersions } from "@/api/queries";
 import type { Instance, Project, ProjectDetail, ProjectMeta, ProjectOptions, Stage } from "@/api/types";
 import { AccessTab } from "@/components/ProjectAccess";
+import { ClientsTab, ClosedNotice } from "@/components/ClientAccess";
 import { GitHubCheckCard } from "@/components/GitHubCheckCard";
 import { ProjectAuditLink } from "@/components/ProjectAuditLink";
 import { InstanceCard } from "@/components/InstanceCard";
@@ -46,6 +48,7 @@ import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import buildWords from "@/i18n/builds";
 import words from "@/i18n/projects";
+import clientWords from "@/i18n/clients";
 import { repositoryShortName } from "@/lib/naming";
 import { RepositoryPicker } from "./NewInstance";
 
@@ -324,11 +327,12 @@ function SettingsTab({ project, meta }: { project: ProjectDetail; meta: ProjectM
 export function ProjectPage() {
   const { id = "", tab: pageTab = "", branch, view = "" } = useParams();
   // a branch (/projects/<id>/branches/<branch>/<view>) is shown in the Branches tab, the workspace
-  const tab = branch === undefined && ["builds", "status", "notifications", "settings", "backups", "access"].includes(pageTab) ? pageTab : "";
+  const tab = branch === undefined && ["builds", "status", "notifications", "settings", "backups", "access", "clients"].includes(pageTab) ? pageTab : "";
   const can = useCan();
   const { data, isPending, error, refetch } = useProject(id);
   const t = useT(words).page;
   const b = useT(buildWords).builds;
+  const c = useT(clientWords).staff;
   const [refreshing, setRefreshing] = useState(false);
   useSubCrumb(data?.project.name ?? null);
   if (isPending)
@@ -403,7 +407,13 @@ export function ProjectPage() {
             <ShieldCheck /> {t.accessTab}
           </Link>
         )}
+        {(project.client_access || can("clients.manage")) && (
+          <Link to={`/projects/${project.id}/clients`} viewTransition className={`tab ${tab === "clients" ? "active" : ""}`} aria-current={tab === "clients" ? "page" : undefined}>
+            <UserRoundCheck /> {c.clientsTitle}
+          </Link>
+        )}
       </nav>
+      {tab !== "clients" && <ClosedNotice projectId={project.id} projectName={project.name} branch={null} access={project.client_access} />}
     </>
   );
   return (
@@ -411,6 +421,8 @@ export function ProjectPage() {
       {tab !== "" && head()}
       {tab === "access" ? (
         <AccessTab key={project.id} project={project} permitted={mayManageAccess} />
+      ) : tab === "clients" ? (
+        <ClientsTab key={project.id} project={project} />
       ) : tab === "backups" && mayManageBackups ? (
         <ProjectBackups key={project.id} project={project} />
       ) : tab === "status" ? (

@@ -28,7 +28,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   current against new before they are applied, with the repository's name typed for production; **Turn off** removes
   only the rules the panel made. GitHub's plan limits are explained. The extra GitHub App permissions are listed
   with links to grant them, and **Connect GitHub** can ask for them up front (**Also allow the repository guard**).
-  API: `/api/v1/projects/<id>/guard`.
+  API: `/api/v1/projects/<id>/guard`. Its defaults are panel settings, each overridable per project:
+  `PROJECT_GUARD_CHECKS`, `PROJECT_GUARD_STRICTNESS`, `PROJECT_GUARD_PRODUCTION_APPROVALS`,
+  `PROJECT_GUARD_STAGING_APPROVALS`, `PROJECT_GUARD_LINEAR_HISTORY`, `PROJECT_GUARD_SIGNED_COMMITS`,
+  `PROJECT_GUARD_PUSHERS` and `PROJECT_GUARD_BLOCKS_PROMOTION`.
 - **Client portal, with a switch the client owns**: a new **Client** role for your clients, invited by e-mail to one
   or more projects. A client sees only its projects (branches, each instance's status and **Open Odoo**, its backups
   when given, its activity log), at the panel's address or at a portal address of its own (`PORTAL_DOMAIN`, served

@@ -4,6 +4,7 @@ const en = {
   title: "Repository guard",
   text: "Adds CI checks and pre-commit hooks to this project's GitHub repository through a pull request, shows their results on builds, and sets branch rules on GitHub. Everything is off until you turn it on, and can be turned off again.",
   readOnly: "Only the project's Admins can change the repository guard.",
+  defaultsHint: "What you do not change here follows the panel's settings (Settings, Instances, Projects).",
   // the GitHub App's permissions
   permissions: "GitHub App permissions",
   permissionsText: "The guard needs more than reading code. GitHub asks an owner of the account to accept new permissions; until then, the parts that need them stay unavailable.",
@@ -144,6 +145,7 @@ const ar: typeof en = {
   title: "حارس المستودع",
   text: "يضيف فحوصات CI وخطافات pre-commit إلى مستودع GitHub لهذا المشروع عبر طلب سحب، ويعرض نتائجها على الأبنية، ويضع قواعد للفروع على GitHub. كل شيء معطّل حتى تشغّله، ويمكن إيقافه مجددًا.",
   readOnly: "لا يغيّر حارس المستودع إلا مسؤولو المشروع.",
+  defaultsHint: "ما لا تغيّره هنا يتبع إعدادات اللوحة (الإعدادات، البيئات، المشاريع).",
   permissions: "صلاحيات تطبيق GitHub",
   permissionsText: "يحتاج الحارس أكثر من قراءة الشيفرة. يطلب GitHub من مالك الحساب قبول الصلاحيات الجديدة، وحتى ذلك الحين تبقى الأجزاء التي تحتاجها غير متاحة.",
   noApp: "اربط تطبيق GitHub أولًا (الوصول إلى GitHub): يعمل الحارس من خلاله.",

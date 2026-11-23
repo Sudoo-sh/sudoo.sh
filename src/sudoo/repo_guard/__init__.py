@@ -14,9 +14,14 @@ turned off again.
 It needs more of the GitHub App than reading code (repo_guard/github.PERMISSIONS); the panel shows what is missing
 and where to grant it, and never asks for it before the feature is used.
 
+Defaults are panel settings (PROJECT_GUARD_*: checks on or off, strictness, approvals for production and staging,
+linear history and signed commits on production, who may merge to production, whether failing checks stop a
+promotion). A project keeps only the values it chose that differ from them, so it follows the panel's settings for
+everything else, also when they change later.
+
 Storage: collection "repo_guard", one document per project (key: its id):
-    {"checks": {...}, "block_promotion": bool, "rules": {...}, "pull": {...} | None, "applied": {...} | None,
-     "changed_by", "changed_at"}
+    {"checks": {own values}, "block_promotion": bool | None, "rules": {own values}, "pull": {...} | None,
+     "applied": {...} | None, "changed_by", "changed_at"}
 """
 
 from __future__ import annotations
@@ -27,6 +32,7 @@ import time
 from collections.abc import Mapping
 from typing import Any
 
+from sudoo.config import settings
 from sudoo.instances import backups
 from sudoo.repo_guard import files, rules
 from sudoo.repo_guard import github as gh
@@ -66,17 +72,68 @@ def stored(project_id: str) -> Document:
     return storage().get(COLLECTION, project_id) or {}
 
 
+def default_checks() -> dict[str, Any]:
+    """The checks a project starts with: the panel's settings (PROJECT_GUARD_CHECKS, PROJECT_GUARD_STRICTNESS)."""
+    return {**files.DEFAULT_CHECKS, "enabled": bool(settings.project_guard_checks),
+            "strictness": str(settings.project_guard_strictness)}  # fmt: skip
+
+
+def default_rules() -> dict[str, Any]:
+    """The branch rules a project starts with: the panel's PROJECT_GUARD_* settings."""
+    found = _merge(rules.DEFAULT_RULES, None)
+    found["production"].update(
+        approvals=int(settings.project_guard_production_approvals),
+        linear_history=bool(settings.project_guard_linear_history),
+        signed_commits=bool(settings.project_guard_signed_commits),
+    )
+    found["staging"]["approvals"] = int(settings.project_guard_staging_approvals)
+    found["pushers"]["mode"] = str(settings.project_guard_pushers)
+    return found
+
+
+def default_block_promotion() -> bool:
+    return bool(settings.project_guard_blocks_promotion)
+
+
+def _own(values: Mapping[str, Any], defaults: Mapping[str, Any]) -> dict[str, Any]:
+    """What `values` sets differently from `defaults` (nested), the only part a project keeps."""
+    found: dict[str, Any] = {}
+    for key, value in values.items():
+        default = defaults.get(key)
+        if isinstance(value, Mapping) and isinstance(default, Mapping):
+            inner = _own(value, default)
+            if inner:
+                found[key] = inner
+        elif value != default:
+            found[key] = value
+    return found
+
+
 def config(project_id: str) -> dict[str, Any]:
-    """The project's choices, with the defaults for what it never chose."""
+    """The project's choices, with the panel's settings for what it did not choose."""
     found = stored(project_id)
+    block = found.get("block_promotion")
     return {
-        "checks": _merge(files.DEFAULT_CHECKS, found.get("checks")),
-        "block_promotion": bool(found.get("block_promotion", False)),
-        "rules": _merge(rules.DEFAULT_RULES, found.get("rules")),
+        "checks": _merge(default_checks(), found.get("checks")),
+        "block_promotion": default_block_promotion() if block is None else bool(block),
+        "rules": _merge(default_rules(), found.get("rules")),
     }
 
 
+def own_values(project_id: str) -> dict[str, Any]:
+    """The values the project chose itself (the rest follows the panel's settings)."""
+    found = stored(project_id)
+    return {key: found.get(key) for key in ("checks", "rules", "block_promotion") if found.get(key) not in (None, {})}
+
+
 def _save(project_id: str, user: str, **values: Any) -> Document:
+    if "checks" in values:
+        values["checks"] = _own(values["checks"], default_checks())
+    if "rules" in values:
+        values["rules"] = _own(values["rules"], default_rules())
+    if "block_promotion" in values and values["block_promotion"] == default_block_promotion():
+        values["block_promotion"] = None
+
     def update(found: Document | None) -> Document:
         return {**(found or {}), **values, "changed_by": user, "changed_at": int(time.time())}
 
@@ -202,6 +259,12 @@ def describe(project: Mapping[str, Any]) -> dict[str, Any]:
     found = stored(str(project["id"]))
     return {
         **config(str(project["id"])),
+        "own": own_values(str(project["id"])),
+        "defaults": {
+            "checks": default_checks(),
+            "rules": default_rules(),
+            "block_promotion": default_block_promotion(),
+        },
         "pull": found.get("pull"),
         "applied": found.get("applied"),
         "changed_by": found.get("changed_by"),
@@ -346,6 +409,12 @@ def refresh_pull(project: Mapping[str, Any]) -> dict[str, Any] | None:
 # ---------------------------------------------------------------- CI results
 
 
+def checks_active(project_id: str) -> bool:
+    """Whether the project's checks are on and were proposed to the repository (a project that only follows the
+    panel's "checks on" setting and never saved them has nothing on GitHub to read)."""
+    return bool(config(project_id)["checks"]["enabled"]) and bool(stored(project_id).get("pull"))
+
+
 def results_available(project: Mapping[str, Any]) -> bool:
     owner = owner_of(project)
     return github_app.connected() and gh.installation(owner) is not None and not gh.missing(owner, "results")
@@ -354,7 +423,7 @@ def results_available(project: Mapping[str, Any]) -> bool:
 def results(project: Mapping[str, Any], shas: list[str], now: float | None = None) -> dict[str, Any]:
     """{sha: result (github.commit_results) or {"state": "unknown", "error"}} for each commit, read at most once a
     minute; {} when the project's checks are off or the app may not read check runs."""
-    if not config(str(project["id"]))["checks"]["enabled"] or not results_available(project):
+    if not checks_active(str(project["id"])) or not results_available(project):
         return {}
     now = now if now is not None else time.time()
     owner = owner_of(project)
@@ -389,7 +458,7 @@ def promotion_item(project: Mapping[str, Any], sha: str | None, branch: str) -> 
     """The pre-promotion checklist's "ci" item for the commit `sha` of `branch`, or None when the project's checks
     are off. Red only when the project blocks promotion on failing checks; amber otherwise."""
     chosen = config(str(project["id"]))
-    if not chosen["checks"]["enabled"]:
+    if not checks_active(str(project["id"])):
         return None
     block = chosen["block_promotion"]
     if not results_available(project):

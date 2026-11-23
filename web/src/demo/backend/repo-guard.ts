@@ -4,7 +4,7 @@
 
 import type { ChecksPreview, CiResult, Guard, GuardChecks, GuardFile, GuardRules, RulesPlan, RuleTarget } from "@/api/guard";
 import { branchList, type DemoProject } from "./projects";
-import { ME } from "./state";
+import { ME, setting } from "./state";
 import { hash, Problem } from "./util";
 
 const REQUIRED = "sudoo-checks";
@@ -34,15 +34,28 @@ const guards = new Map<string, DemoGuard>();
 const now = () => Math.floor(Date.now() / 1000);
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
+/** What a project starts with: the panel's settings (PROJECT_GUARD_*), as on the server. */
+function defaults(): { checks: GuardChecks; rules: GuardRules; block: boolean } {
+  const rules = clone(DEFAULT_RULES);
+  rules.production.approvals = Number(setting("project_guard_production_approvals") ?? 1);
+  rules.production.linear_history = setting("project_guard_linear_history") === true;
+  rules.production.signed_commits = setting("project_guard_signed_commits") === true;
+  rules.staging.approvals = Number(setting("project_guard_staging_approvals") ?? 0);
+  rules.pushers.mode = setting("project_guard_pushers") === "anyone" ? "anyone" : "roles";
+  const strictness = String(setting("project_guard_strictness") ?? "standard") as GuardChecks["strictness"];
+  return { checks: { ...DEFAULT_CHECKS, enabled: setting("project_guard_checks") === true, strictness }, rules, block: setting("project_guard_blocks_promotion") === true };
+}
+
 function guardOf(project: DemoProject): DemoGuard {
   let found = guards.get(project.id);
   if (!found) {
     const seeded = project.id === "acme-retail";
-    const checks = { ...DEFAULT_CHECKS, enabled: seeded };
-    const rules = { ...clone(DEFAULT_RULES), enabled: seeded };
+    const start = defaults();
+    const checks = { ...start.checks, enabled: seeded || start.checks.enabled };
+    const rules = { ...start.rules, enabled: seeded };
     found = {
       checks,
-      block_promotion: false,
+      block_promotion: start.block,
       rules,
       pull: seeded ? { number: 42, url: `https://github.com/${project.repository}/pull/42`, state: "open", purpose: "add", base: "main", by: ME, at: now() - 3 * 3600, files: PATHS } : null,
       applied: null,
@@ -77,6 +90,8 @@ export function guardView(project: DemoProject, mayChange: boolean): Guard {
     rules: clone(g.rules),
     pull: g.pull,
     applied: g.applied,
+    own: {},
+    defaults: (({ checks, rules, block }) => ({ checks, rules, block_promotion: block }))(defaults()),
     changed_by: ME,
     changed_at: now() - 3 * 3600,
     repository: project.repository,
@@ -194,14 +209,15 @@ export function resultOf(project: DemoProject, sha: string): CiResult {
 }
 
 export function results(project: DemoProject, shas: string[]): Record<string, CiResult> {
-  if (!guardOf(project).checks.enabled) return {};
+  const g = guardOf(project);
+  if (!g.checks.enabled || !g.pull) return {};
   return Object.fromEntries(shas.map((sha) => [sha, resultOf(project, sha)]));
 }
 
 /** The pre-promotion checklist's "ci" item, or null when the project's checks are off. */
 export function promotionItem(project: DemoProject, sha: string | undefined) {
   const g = guardOf(project);
-  if (!g.checks.enabled) return null;
+  if (!g.checks.enabled || !g.pull) return null;
   if (!sha) return { key: "ci" as const, status: "warning" as const, text: "The branch has no built commit whose checks could be read.", ci: null };
   const found = resultOf(project, sha);
   const ci = { state: found.state, total: found.total, failed: found.failed, pending: found.pending, url: found.url };

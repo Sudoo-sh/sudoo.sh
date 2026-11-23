@@ -58,6 +58,9 @@ export interface Guard {
   checks: GuardChecks;
   block_promotion: boolean;
   rules: GuardRules;
+  /** the values the project chose itself; everything else follows the panel's settings (PROJECT_GUARD_*) */
+  own: { checks?: Partial<GuardChecks>; rules?: Partial<GuardRules>; block_promotion?: boolean };
+  defaults: { checks: GuardChecks; rules: GuardRules; block_promotion: boolean };
   pull: GuardPull | null;
   applied: { method: string; rulesets: Record<string, number>; protections: string[]; at: number; by: string } | null;
   changed_by: string | null;

@@ -438,6 +438,9 @@ GitHub repository, shows their results in the panel, and sets branch rules on Gi
 it on, and every part can be turned off again. Everyone who sees the project sees the card; only the project's
 **Admins** (and super admins) can change it.
 
+What you do not change on the card follows the panel's settings (**Settings**, **Instances**, **Projects**,
+the **Repository guard** lines), which a super admin sets for every project.
+
 **GitHub App permissions.** The guard works through the panel's GitHub App and needs more than reading code. The card
 lists what is missing and why: **Contents**, **Pull requests** and **Workflows: Read and write** for the checks'
 pull request, **Checks: Read** for the results, **Administration: Read and write** for branch rules. **Open the app's

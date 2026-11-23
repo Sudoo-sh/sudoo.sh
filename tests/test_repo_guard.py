@@ -19,6 +19,7 @@ from flask import Flask
 from flask.testing import FlaskClient
 
 from sudoo import projects, repo_guard
+from sudoo.config import live
 from sudoo.core import audit
 from sudoo.projects import promotion
 from sudoo.repo_guard import addon_checks, files, rules
@@ -30,6 +31,7 @@ Client = tuple[FlaskClient, dict[str, str]]
 SNAPSHOTS = Path(__file__).resolve().parent / "snapshots" / "repo_guard"
 REPO = "Acme/books"
 SHA_OK, SHA_BAD = "a" * 40, "b" * 40
+PULL = {"number": 1, "url": f"https://github.com/{REPO}/pull/1", "state": "merged"}
 GUARD = {"contents": "write", "pull_requests": "write", "workflows": "write", "checks": "read",
          "administration": "write", "metadata": "read", "statuses": "write", "members": "read"}  # fmt: skip
 
@@ -487,7 +489,7 @@ def test_results_and_the_promotion_item(fake: FakeGitHub, monkeypatch: pytest.Mo
                                 {"name": "Odoo tests (18.0)", "status": "in_progress", "conclusion": None}]  # fmt: skip
     assert repo_guard.results(project, [SHA_OK]) == {}  # checks off: nothing is read
     assert promotion.ci_items(project, "qa") == []
-    storage().put(repo_guard.COLLECTION, project["id"], {"checks": _checks()})
+    storage().put(repo_guard.COLLECTION, project["id"], {"checks": _checks(), "pull": PULL})
     found = repo_guard.results(project, [SHA_OK, SHA_BAD])
     assert found[SHA_OK]["state"] == "success" and found[SHA_OK]["total"] == 1  # the panel's own status left out
     assert found[SHA_BAD]["state"] == "failure" and found[SHA_BAD]["failed"] == 1 and found[SHA_BAD]["pending"] == 1
@@ -499,7 +501,7 @@ def test_results_and_the_promotion_item(fake: FakeGitHub, monkeypatch: pytest.Mo
     monkeypatch.setattr(promotion, "latest_build", lambda project_id, branch: entry)
     item = promotion.ci_items(project, "qa")[0]
     assert item["key"] == "ci" and item["status"] == "warning"  # failing, but promotion is not blocked
-    storage().put(repo_guard.COLLECTION, project["id"], {"checks": _checks(), "block_promotion": True})
+    storage().put(repo_guard.COLLECTION, project["id"], {"checks": _checks(), "pull": PULL, "block_promotion": True})
     assert promotion.ci_items(project, "qa")[0]["status"] == "blocked"
     entry["commit"] = {"full_sha": SHA_OK}
     assert promotion.ci_items(project, "qa")[0]["status"] == "ok"
@@ -557,3 +559,57 @@ def test_named_teams_compare_by_name(fake: FakeGitHub) -> None:
     found = repo_guard.preview_rules(project, teams)
     merges = next(t for t in found["targets"] if t["key"] == "production_merges")
     assert merges["action"] == "unchanged" and merges["after"]["pushers"] == "team release-managers"
+
+
+# ---------------------------------------------------------------- defaults are panel settings
+
+
+def test_defaults_come_from_the_panels_settings(fake: FakeGitHub) -> None:
+    project = _project()
+    try:
+        live.change({"project_guard_checks": True, "project_guard_strictness": "strict",
+                     "project_guard_production_approvals": 2, "project_guard_staging_approvals": 1,
+                     "project_guard_linear_history": True, "project_guard_signed_commits": True,
+                     "project_guard_pushers": "anyone", "project_guard_blocks_promotion": True})  # fmt: skip
+        chosen = repo_guard.config(project["id"])
+        assert chosen["checks"]["enabled"] is True and chosen["checks"]["strictness"] == "strict"
+        production = chosen["rules"]["production"]
+        assert production["approvals"] == 2 and production["linear_history"] and production["signed_commits"]
+        assert chosen["rules"]["staging"]["approvals"] == 1 and chosen["rules"]["pushers"]["mode"] == "anyone"
+        assert chosen["block_promotion"] is True
+        # following the setting is not "active": nothing was proposed to the repository yet
+        assert not repo_guard.checks_active(project["id"]) and promotion.ci_items(project, "qa") == []
+        # a project keeps only what it changes; the rest keeps following the panel
+        repo_guard.sync_checks(project, {**chosen["checks"], "linter": "flake8"}, "ada")
+        assert repo_guard.stored(project["id"])["checks"] == {"linter": "flake8"}
+        repo_guard.set_block_promotion(project, False, "ada")
+        live.change({"project_guard_strictness": "relaxed", "project_guard_blocks_promotion": False})
+        chosen = repo_guard.config(project["id"])
+        assert chosen["checks"]["strictness"] == "relaxed" and chosen["checks"]["linter"] == "flake8"
+        assert chosen["block_promotion"] is False
+        view = repo_guard.describe(project)
+        assert view["own"]["checks"] == {"linter": "flake8"} and view["defaults"]["checks"]["strictness"] == "relaxed"
+        # the rules applied with the panel's approvals
+        repo_guard.apply_rules(project, repo_guard.config(project["id"])["rules"], "ada", confirm=REPO)
+        body = next(r for r in fake.rulesets.values() if r["name"] == rules.NAMES["production"])
+        pull_rule = next(r for r in body["rules"] if r["type"] == "pull_request")
+        assert pull_rule["parameters"]["required_approving_review_count"] == 2
+        assert rules.NAMES["production_merges"] not in {r["name"] for r in fake.rulesets.values()}  # anyone
+    finally:
+        live.change(dict.fromkeys(live.overrides()))
+
+
+def test_guard_settings_are_documented_and_checked() -> None:
+    from pydantic import ValidationError
+
+    from sudoo.config import Settings
+
+    for bad in ({"project_guard_strictness": "extreme"}, {"project_guard_production_approvals": 11},
+                {"project_guard_pushers": "named"}):  # fmt: skip
+        with pytest.raises(ValidationError):
+            Settings(**bad)
+    configuration = (Path(__file__).resolve().parent.parent / "docs" / "CONFIGURATION.md").read_text()
+    example = (Path(__file__).resolve().parent.parent / ".env.example").read_text()
+    for name in Settings.model_fields:
+        if name.startswith("project_guard_"):
+            assert f"`{name.upper()}`" in configuration and f"{name.upper()}=" in example

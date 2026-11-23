@@ -36,7 +36,8 @@ const BADGE_TONE = { success: "positive", failure: "negative", pending: "caution
 export function ChecksBadge({ project, sha }: { project: string; sha: string | null | undefined }) {
   const t = useT(words).badge;
   const guard = useGuard(project);
-  const enabled = Boolean(sha && /^[0-9a-f]{7,40}$/.test(sha) && guard.data?.checks.enabled);
+  // checks proposed to the repository (following the panel's "checks on" setting alone puts nothing on GitHub)
+  const enabled = Boolean(sha && /^[0-9a-f]{7,40}$/.test(sha) && guard.data?.checks.enabled && guard.data.pull);
   const query = useQuery({
     queryKey: [...guardKey(project), "results", sha],
     queryFn: () => api.get<Record<string, CiResult>>(`${path(project)}/results?sha=${sha}`),
@@ -434,6 +435,7 @@ export function RepoGuard({ project }: { project: ProjectDetail }) {
       <div className="card-head"><h2 className="spacer">{t.title}</h2>{guard && (guard.checks.enabled || guard.applied) && <Tag tone="positive" icon={<ShieldCheck />}>{guard.applied ? t.rules : t.checks}</Tag>}</div>
       <div className="card-body stack">
         <p className="small muted">{t.text}</p>
+        <p className="xsmall faint">{t.defaultsHint}</p>
         {body}
       </div>
     </section>

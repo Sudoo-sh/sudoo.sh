@@ -2402,6 +2402,14 @@ rules on GitHub. Everything is off by default, per project, and every part can b
 project's Admins and super admins change it (`projects.access` in the project); every change is in the audit log
 ("repository guard: ...").
 
+**Defaults are settings.** What a project starts with comes from the panel's settings (**Settings**, **Instances**,
+**Projects**; [Configuration](CONFIGURATION.md#projects)): `PROJECT_GUARD_CHECKS` (checks on or off),
+`PROJECT_GUARD_STRICTNESS`, `PROJECT_GUARD_PRODUCTION_APPROVALS` (1) and `PROJECT_GUARD_STAGING_APPROVALS` (0),
+`PROJECT_GUARD_LINEAR_HISTORY` and `PROJECT_GUARD_SIGNED_COMMITS` (production), `PROJECT_GUARD_PUSHERS` (`roles` or
+`anyone`) and `PROJECT_GUARD_BLOCKS_PROMOTION`. A project keeps only the values it changes; everything else follows the
+settings, also when they change later. Turning the checks on by default only pre-fills the form: nothing reaches
+GitHub until a project Admin saves, and results are read only once the panel's pull request exists.
+
 **The permissions it needs.** On top of what the panel's GitHub App already has:
 
 | Permission | Level | For |

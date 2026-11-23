@@ -122,6 +122,18 @@ class RawInstance:
 
 
 @dataclass(frozen=True, slots=True)
+class InstanceFacts:
+    """What an engine that runs instances elsewhere (a Kubernetes cluster) knows of one of them, beyond what the
+    monitor measures: where it runs, its group and the replicas of each component (missing kinds: one, as with
+    Docker)."""
+
+    node: str  # a RawNode's name (from the contributor's nodes())
+    group: str  # the namespace
+    group_kind: str = "namespace"
+    replicas: dict[str, Replicas] = field(default_factory=dict)  # by component kind: gateway, odoo, postgres
+
+
+@dataclass(frozen=True, slots=True)
 class RawTopology:
     """Everything an engine reports at one moment."""
 

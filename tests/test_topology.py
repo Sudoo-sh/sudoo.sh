@@ -24,6 +24,7 @@ from sudoo.topology.contract import (
     HEALTH,
     INSTANCE_STATUSES,
     SCHEMA,
+    InstanceFacts,
     RawComponent,
     RawInstance,
     RawNode,
@@ -232,7 +233,9 @@ def test_free_text_from_an_engine_never_reaches_the_snapshot() -> None:
     )
     snapshot = builder.build(raw)
     (item,) = snapshot["instances"]
-    assert snapshot["engine"] == "docker" and snapshot["nodes"][0]["role"] == "worker" and snapshot["panel"]["parts"] == []
+    assert (
+        snapshot["engine"] == "docker" and snapshot["nodes"][0]["role"] == "worker" and snapshot["panel"]["parts"] == []
+    )
     assert item["status"] == "unknown" and item["stage"] == "development" and item["group"]["kind"] == "compose"
     assert item["odoo_version"] is None and item["edition"] is None and item["components"] == []
 
@@ -295,3 +298,32 @@ def test_the_hub_can_stop_it(monkeypatch: pytest.MonkeyPatch) -> None:
     live.change({"marketplace": True, "share_topology_with_sudoo": True})
     assert share.step() == share.DISABLED_WAIT_SECONDS
     assert share.state()["error"] == "topology_disabled"
+
+
+class KubernetesContributor:
+    """What the Kubernetes engine adds for its instances (engines.contribute): its nodes, namespaces and replicas."""
+
+    def nodes(self) -> list[RawNode]:
+        return [RawNode("k3s-cp", "control-plane", cores=4, cpu_percent=10.0), RawNode("k3s-w1", "worker", cores=8)]
+
+    def instance(self, name: str, env: dict[str, str]) -> InstanceFacts | None:
+        if name != SHOP:
+            return None
+        return InstanceFacts(node="k3s-w1", group=f"sudoo-{name}", replicas={"odoo": Replicas(2, 3)})
+
+
+def test_an_engine_contributes_nodes_namespaces_and_replicas() -> None:
+    env = store.read_env(SHOP)
+    store.write_env(SHOP, {**env, "ENGINE": "kubernetes"})
+    engines.contribute("kubernetes", KubernetesContributor())
+    try:
+        snapshot = _docker()
+        roles = sorted(n["role"] for n in snapshot["nodes"])
+        assert roles == ["control-plane", "main", "worker"]
+        shop = _by_name(snapshot, SHOP)
+        assert shop["group"]["kind"] == "namespace" and shop["node"] == privacy.pseudonym("node", "k3s-w1")
+        assert shop["components"][1]["replicas"] == {"ready": 2, "desired": 3} and shop["health"] == "degraded"
+        assert _by_name(snapshot, TEST)["group"]["kind"] == "compose"  # still on Docker
+        assert snapshot["engine"] == "docker"  # mixed: Docker and Kubernetes instances
+    finally:
+        engines.contribute("kubernetes", None)

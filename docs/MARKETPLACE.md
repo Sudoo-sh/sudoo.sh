@@ -310,9 +310,11 @@ heartbeat; the answer is signed by the hub. `DELETE` on the same path withdraws 
 and about an hour of rates per installation. When more than 256 KiB would be sent, stopped instances are left out
 first, then the quietest ones, and the snapshot says how many.
 
-**Other engines.** The figures come from the engine that runs the instances (`sudoo.topology.engines`): Docker
-today, through what the monitor already measures, so sharing adds no Docker command. An engine that runs instances
-elsewhere (the Kubernetes engine) registers itself and reports namespaces, nodes and replicas in the same contract.
+**Other engines.** The figures come from what the monitor already measures, so sharing adds no Docker command.
+Each instance runs on the engine its `.env` names (`ENGINE`, Docker when absent). An engine that runs instances
+elsewhere (the Kubernetes engine) adds what only it knows through `sudoo.topology.engines.contribute()`: its nodes
+(control plane and workers, readiness, CPU and memory), each instance's namespace and node, and the replicas of
+its gateway, Odoo and PostgreSQL. Instances on Docker keep one compose project each, so one snapshot can show both.
 
 ---
 

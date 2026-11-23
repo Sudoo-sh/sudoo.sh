@@ -1,20 +1,40 @@
 """Where the topology's figures come from: the engine that runs the instances.
 
-An engine is any object with `read() -> RawTopology` (contract.py). The Docker engine below reads what the panel
-already measures (instances/monitor.py every MONITOR_INTERVAL, the gateway's request counts in
-instances/metrics.py) and runs no command of its own, so reading it is cheap. Another engine (the Kubernetes
-engine) registers itself with `use(engine)` when it starts; the snapshot then describes its namespaces, nodes and
-replicas in the same contract, and the hub and the staff console need no change.
+The source below reads what the panel already measures (instances/monitor.py every MONITOR_INTERVAL, the
+gateway's request counts in instances/metrics.py) and runs no command of its own, so reading it is cheap. Each
+instance runs on the engine its .env names (`ENGINE`, absent: docker), so one panel may run some instances with
+Docker and others in a Kubernetes cluster. An engine whose instances run elsewhere adds what only it knows through a
+**contributor**, registered once for its kind:
+
+    contribute("kubernetes", contributor)
+
+    contributor.nodes() -> list[RawNode]                 the cluster's nodes: role control-plane or worker, online
+                                                         (Ready), cores, CPU % and memory (metrics-server)
+    contributor.instance(name, env) -> InstanceFacts | None
+                                                         where the instance runs (the node of its Odoo pod), its
+                                                         namespace, and the replicas of gateway, odoo and postgres
+                                                         (ready and desired); None: not known (yet)
+
+Both are called from the topology loop's thread, at most every CACHE_SECONDS, and must not raise for one missing
+instance (return None). The snapshot then describes namespaces, nodes and replicas in the same contract; the hub and
+the staff console need no change. `use(source)` replaces the whole source (tests, or an engine that reports
+everything itself).
 """
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any, Protocol
 
 from sudoo.config import settings
 
-from .contract import RawComponent, RawInstance, RawNode, RawPart, RawTopology, Replicas
+from .contract import InstanceFacts, RawComponent, RawInstance, RawNode, RawPart, RawTopology, Replicas
+
+log = logging.getLogger("sudoo.topology")
+
+ENGINE_KEY = "ENGINE"  # in an instance's .env, as sudoo.engines reads it
+DOCKER = "docker"
 
 
 class Engine(Protocol):
@@ -23,7 +43,22 @@ class Engine(Protocol):
     def read(self) -> RawTopology: ...
 
 
+class Contributor(Protocol):
+    def nodes(self) -> list[RawNode]: ...
+
+    def instance(self, name: str, env: dict[str, str]) -> InstanceFacts | None: ...
+
+
 _CURRENT: list[Engine] = []
+_CONTRIBUTORS: dict[str, Contributor] = {}
+
+
+def contribute(kind: str, contributor: Contributor | None) -> None:
+    """What the engine `kind` adds to the topology of its instances (None: nothing any more)."""
+    if contributor is None:
+        _CONTRIBUTORS.pop(kind, None)
+    else:
+        _CONTRIBUTORS[kind] = contributor
 
 
 def use(engine: Engine | None) -> None:
@@ -35,6 +70,17 @@ def current() -> Engine:
     return _CURRENT[0] if _CURRENT else DockerEngine()
 
 
+def _facts(kind: str, name: str, env: dict[str, str]) -> InstanceFacts | None:
+    contributor = _CONTRIBUTORS.get(kind)
+    if contributor is None:
+        return None
+    try:
+        return contributor.instance(name, env)
+    except Exception:  # noqa: BLE001 - one instance the engine cannot describe keeps the defaults
+        log.warning("topology: the %s engine could not describe %s", kind, name, exc_info=True)
+        return None
+
+
 def _float(value: Any) -> float | None:
     return float(value) if isinstance(value, int | float) and not isinstance(value, bool) else None
 
@@ -44,7 +90,8 @@ def _int(value: Any) -> int | None:
 
 
 class DockerEngine:
-    """One Compose project per instance on this server, plus the instances other servers' agents report."""
+    """One Compose project per instance on this server, plus the instances other servers' agents report, plus what
+    the contributors of other engines (Kubernetes) add for their instances."""
 
     name = "docker"
 
@@ -80,7 +127,14 @@ class DockerEngine:
         if not any(part.kind == "backend" for part in parts):
             parts.insert(0, RawPart(kind="backend", node=main))
 
+        for kind, contributor in sorted(_CONTRIBUTORS.items()):
+            try:
+                for contributed in contributor.nodes():
+                    nodes.setdefault(contributed.name, contributed)
+            except Exception:  # noqa: BLE001 - a cluster that cannot be read leaves its nodes out this time
+                log.warning("topology: the %s engine's nodes could not be read", kind, exc_info=True)
         project_names = {str(p.get("id")): str(p.get("name") or p.get("id")) for p in projects.all_projects()}
+        kinds_seen: set[str] = set()
         instances: list[RawInstance] = []
         for name in store.names():
             try:
@@ -94,28 +148,36 @@ class DockerEngine:
             db_up = bool(measured.get("db_running"))
             healthy = bool(measured.get("healthy"))
             project = env.get("PROJECT") or None
+            kind = env.get(ENGINE_KEY) or DOCKER
+            kinds_seen.add(kind)
+            facts = _facts(kind, name, env)
+            replicas = facts.replicas if facts else {}
             instances.append(
                 RawInstance(
                     name=name,
-                    node=main,
+                    node=facts.node if facts else main,
                     status=status,
                     stage=stages.of(env),
-                    group_kind="compose",
-                    group=f"odoo-{name}",
+                    group_kind=facts.group_kind if facts else "compose",
+                    group=facts.group if facts else f"odoo-{name}",
                     project=project,
                     project_name=project_names.get(project or ""),
                     odoo_version=env.get("ODOO_VERSION") or None,
                     edition="enterprise" if env.get("EDITION") == "enterprise" else "community",
                     components=(
-                        RawComponent("gateway", Replicas(1, 1), healthy=True),
+                        RawComponent("gateway", replicas.get("gateway", Replicas(1, 1)), healthy=True),
                         RawComponent(
                             "odoo",
-                            Replicas(int(odoo_up), 1),
+                            replicas.get("odoo", Replicas(int(odoo_up), 1)),
                             healthy=healthy if odoo_up else None,
                             cpu_percent=_float(measured.get("cpu")),
                             memory_bytes=_int(measured.get("memory")),
                         ),
-                        RawComponent("postgres", Replicas(int(db_up), 1), healthy=db_up if odoo_up else None),
+                        RawComponent(
+                            "postgres",
+                            replicas.get("postgres", Replicas(int(db_up), 1)),
+                            healthy=db_up if odoo_up else None,
+                        ),
                     ),
                     requests_per_minute=_float(figures.get("requests_per_minute")),
                     error_rate_percent=_float(figures.get("error_rate_percent")),
@@ -149,13 +211,15 @@ class DockerEngine:
                     edition="enterprise" if env.get("EDITION") == "enterprise" else "community",
                     components=(
                         RawComponent("gateway", Replicas(1, 1), healthy=True),
-                        RawComponent("odoo", Replicas(int(running), 1), healthy=(status == "online") if running else None),
+                        RawComponent(
+                            "odoo", Replicas(int(running), 1), healthy=(status == "online") if running else None
+                        ),
                         RawComponent("postgres", Replicas(int(running), 1), healthy=True if running else None),
                     ),
                 )
             )
         return RawTopology(
-            engine=self.name,
+            engine="kubernetes" if kinds_seen and kinds_seen <= {"kubernetes"} else self.name,
             nodes=tuple(nodes.values()),
             parts=tuple(parts),
             instances=tuple(instances),

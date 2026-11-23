@@ -333,6 +333,7 @@ JSON
 chmod 600 "$TARGET/kubeconfig.json"
 
 PUBLIC=$(hostname -I 2>/dev/null | awk '{print $1}')
+PUBLIC=${PUBLIC:-"<this server address>"}
 cat <<EOF
 
 k3s $K3S_VERSION runs, and the panel's access is ready: $TARGET/kubeconfig.json
@@ -341,7 +342,7 @@ Next step: add these lines to the panel's .env, then restart the panel (docker c
 
     KUBERNETES_ENGINE_BETA=true
     KUBERNETES_K3S_VERSION=$K3S_VERSION
-    KUBERNETES_JOIN_URL=https://${PUBLIC:-<this server's address>}:6443
+    KUBERNETES_JOIN_URL=https://${PUBLIC}:6443
 
 New instances can then choose the Kubernetes engine (New instance, Engine). Before you add nodes, open port 6443
 (TCP) and 8472 (UDP, flannel) between the servers only, never to the internet.

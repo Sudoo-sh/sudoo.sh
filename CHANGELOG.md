@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [3.3.2] - 2026-11-23
+
 ### Changed
 
 - **A project's chosen branch is in the project's header**: its name (with a copy button), tags and menu under the
@@ -1268,7 +1270,8 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.1...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.2...HEAD
+[3.3.2]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.1...v3.3.2
 [3.3.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.0...v3.3.1
 [3.3.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.2.0...v3.3.0
 [3.2.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.1.1...v3.2.0

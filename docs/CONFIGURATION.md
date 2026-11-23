@@ -345,6 +345,7 @@ SMTP_PASSWORD=...
 | `MAX_INSTANCES` | int | `0` | **live** | Instances on this server at most, those being created included; 0: no limit. |
 | `MAX_INSTANCES_PER_USER` | int | `0` | **live** | Instances one person or API token may have created (or be creating) and not yet deleted; 0: no limit. |
 | `CREATE_COOLDOWN_MINUTES` | float | `0` | **live** | Minutes one person or token must wait between two creations, for example `60`; 0: no wait. |
+| `MAX_INITIAL_MODULES` | int | `200` | **live** | Modules one may choose to install in a new instance's database at most (the module picker of New instance and Create instance, 1 to 2000); Odoo installs their dependencies as well. |
 
 Answers over a request limit are `429 Too Many Requests` with `Retry-After`; every limited answer carries
 `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`.

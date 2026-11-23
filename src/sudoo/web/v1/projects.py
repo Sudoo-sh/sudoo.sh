@@ -22,7 +22,8 @@
                                                      with "promote_anyway": true (audit-logged; promotion.py)
     POST   /api/v1/projects/<id>/branches/<branch>/instances
                                                      a new instance of the branch in the branch's stage ({"name"?,
-                                                     "demo"?, "install_modules"?, "odoo_version"?, "another"?}); 409 when
+                                                     "demo"?, "install_modules"?, "modules"?, "odoo_version"?,
+                                                     "another"?}); 409 when
                                                      the branch has an instance or one is being created, unless
                                                      "another": true; staging starts
                                                      from a neutralised copy of production; "odoo_version" (one of
@@ -642,7 +643,13 @@ def create_instance(project_id: str, branch: str) -> Response:
                   if creating else f"{branch} has an instance already ({members[0]}). Open it, or send "
                   '"another": true to create one more.')  # fmt: skip
         response = instances_api._start_creation(
-            {**switches, "demo": demo, "install_modules": check.flag(data, "install_modules", True)},
+            {
+                **switches,
+                "demo": demo,
+                "install_modules": check.flag(data, "install_modules", True),
+                # Odoo apps and other modules installed with the repository's (the branch's build options decide those)
+                "modules": data.get("modules"),
+            },
             f"https://github.com/{found['repository']}",
             branch,
             version,

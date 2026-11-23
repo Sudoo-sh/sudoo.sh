@@ -112,6 +112,7 @@ hidden from the token, 404). It may call these endpoints and nothing else:
 | `GET /instances/<name>/mail...` | Caught e-mails (reading only) |
 | `GET /jobs`, `GET /jobs/<id>` | Jobs: their steps, progress and why they failed |
 | `GET /instance-quota`, `GET /instance-plan` | How many it may still create, and the name a new one would get |
+| `GET /repositories/modules`, `GET /odoo-apps` | The modules a new instance may get ([Choosing the modules](#choosing-the-modules)) |
 | `GET /events` | The [live event stream](#8-live-events) |
 | `POST /instances` | Create a **development** instance; another `stage` or `from_backup` is refused with 403 |
 | `POST /projects/<id>/branches/<branch>/instances` | Create an instance of a **development** branch; staging and production branches are refused with 403 |
@@ -255,6 +256,8 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `DELETE /instances/<name>` | `instances.delete`; with `without_backup` also `backups.manage` | `{"confirm": "<name>"}` (a production instance also `"confirm_stage": "production"`), and `"without_backup": true` to delete even when the backup fails (audit-logged) | **202**, the job; a backup is taken first, and without `without_backup` a failed backup stops the deletion |
 | `GET /instance-plan?repo=&branch=&name=&version=&edition=&stage=` | `instances.create` | | 200, the name and database a new instance would get, the defaults of `stage` (development when not given) and of every stage (`stage_defaults`), and `production`: `limit`, `instances`, `refusal` (why one more production instance is refused, or `null`); without `repo` and `name`, a name for plain Odoo with a random part (`odoo-19-0-community-3f9a`), new on each call |
 | `GET /instance-quota` | `instances.view` | | 200, how many instances the caller may still create, and when ([Limits](#11-limits)) |
+| `GET /repositories/modules?url=&branch=` | `instances.create` (in a project's branch: there) | | 200, the Odoo modules of the branch (for API users; the panel's form does not use it), read without creating anything ([Choosing the modules](#choosing-the-modules)); 404 when GitHub has no such branch, 502 when the repository cannot be read |
+| `GET /odoo-apps?version=&edition=` | `instances.create` | | 200, the standard Odoo apps offered for that version and edition: `[{"name", "title", "enterprise"}]`; `meta.max_modules`: how many modules a new instance may get |
 | `GET /jobs?instance=&limit=30&offset=0` | `instances.view` | | 200, recent jobs, newest first |
 | `GET /jobs/<id>` | `instances.view` | | 200, the job: its steps with their progress, notes, result and `failure`; never its technical log, which stays in the server's log (`docker logs sudoo-panel`) |
 | `GET /versions` | `instances.view` | | 200, `[{"version": "19.0", "enterprise": true}, ...]` |
@@ -311,7 +314,7 @@ instance; `null` for plain Odoo). See [Projects and branches](ADMIN_GUIDE.md#24-
 | `PUT /projects/<id>/staging-refresh` | `projects.manage` and `instances.restore` | `{"frequency": "weekly", "time": "03:00", "weekday": 6, "branches": ["staging"]}` | 200, the schedule; a time already past waits for the next one. 400 for a value it does not accept |
 | `POST /projects/<id>/staging-refresh/run` | `instances.restore` | | **202** (200 when nothing started), `{"started": [instances], "skipped": [{"instance", "reason"}]}`: each started instance has a job "Scheduled refresh from production"; 403 when production's branch is locked against the caller |
 | `GET /projects/<id>/previews` | `instances.view` | | 200, the project's [pull-request previews](ADMIN_GUIDE.md#pull-request-previews), newest first: `number`, `title`, `url`, `branch`, `repository`, `fork`, `head_sha`, `instance` (`null` when there is none or it is hidden from the caller), `instance_exists`, `existing` (the branch's instance from before the pull request: never deleted for it), `status` (`creating`, `building`, `ready`, `failed`, `deleted`, `refused`), `reason`, `commented`, `opened_at`; `meta`: `enabled`, `limit`, `forks`, `app_connected`, `can_comment` (the GitHub App may comment on pull requests), `created` |
-| `POST /projects/<id>/branches/<branch>/instances` | `instances.create`; staging also `instances.restore` | `{"name"?, "demo"? (development only; the project's option by default), "install_modules"? (true), "odoo_version"? (one of `GET /versions`)}` | **202**, the creation's job: an instance of the branch in the branch's stage, with the branch's Odoo version (`"odoo_version"` when given, which the branch keeps from then on; else the branch's own; else the project's) and the project's edition and lifetime. Staging starts from a neutralised copy of the project's production instance (**409** when it has none, or another Odoo version or edition; **403** when the caller may not restore production's instance); a staging branch with its own Odoo version of another series than production's starts with an empty database instead. **400** for a version the panel does not offer; **409** when the branch has an instance, or one is being created for it (the panel's own for a new branch included), unless the body has `"another": true`; 404 when GitHub has no such branch |
+| `POST /projects/<id>/branches/<branch>/instances` | `instances.create`; staging also `instances.restore` | `{"name"?, "demo"? (development only; the project's option by default), "install_modules"? (true), "modules"? (more modules, [Choosing the modules](#choosing-the-modules)), "odoo_version"? (one of `GET /versions`)}` | **202**, the creation's job: an instance of the branch in the branch's stage, with the branch's Odoo version (`"odoo_version"` when given, which the branch keeps from then on; else the branch's own; else the project's) and the project's edition and lifetime. Staging starts from a neutralised copy of the project's production instance (**409** when it has none, or another Odoo version or edition; **403** when the caller may not restore production's instance); a staging branch with its own Odoo version of another series than production's starts with an empty database instead. **400** for a version the panel does not offer; **409** when the branch has an instance, or one is being created for it (the panel's own for a new branch included), unless the body has `"another": true`; 404 when GitHub has no such branch |
 | `POST /projects/<id>/branches/<branch>/rebuild` | `instances.restore` | `{"instance"?}` (the branch's first instance by default) | **202**, the job "Rebuild from production"; 409 for an instance that is not staging, or a project without a production instance; 403 when production's branch is locked against the caller, or the caller may not restore production's instance |
 | `GET /projects/<id>/builds?per_branch=10` | `instances.view` | | 200, per branch the caller may see (production first): `branch`, `stage`, `builds`: its last `per_branch` builds (1 to 200, default 10), newest first. A build: `id`, `type` (`build`), `project`, `branch`, `instance`, `trigger` (`create`, `push`, `manual`, `rebuild`), `status` (`building`, `success`, `warning`, `failed`, `dropped`), `commit` (`sha`, `full_sha`, `subject`, `author`, `when`; `null` until known), `by`, `at`, `queued_at`, `started_at`, `finished_at`, `duration_seconds`, `dropped_at`, `result` (a sentence), `messages` (Odoo's warning and error lines), `tests` (`null` when the build ran none; else `status`, `tests`, `failed`, `errors`, `warnings` and `modules`, the modules with a failing test), `action`, `job`, `failure` (`null` unless it failed; as a job's `failure`), `notified` (a failed build of a push: `{"emailed": true, "at"}`, or `{"emailed": false, "reason"}` with `no_address`, `option_off`, `already` or `mail_failed`; else `null`) and `links` (`self`, `job`, `instance`; a job is kept in memory for the last 300 jobs). `meta`: `per_branch`, `kept_per_branch` (`PROJECT_BUILDS_KEPT`). See [Build history](ADMIN_GUIDE.md#build-history) |
 | `GET /projects/<id>/branches/<branch>/options` | `instances.view` in the branch | | 200, the branch's build options ([Build options and tests](ADMIN_GUIDE.md#build-options-and-tests)): `project`, `branch`, `stage`, `options` (what applies: `on_new_commit` `update`, `new_build` or `nothing`; `module_install` `repository`, `all` or `list`; `modules`; `test_suite` `off`, `selection` or `custom`; `test_tags`; `demo_data`), `sources` (where each comes from: `branch`, `project`, or why it is forced: `production`, `module_install`, `empty_list`, `empty_tags`), `own` (the values the branch sets), `project_defaults` (what it gets without them), `changed_by`, `changed_at`, `commit_statuses` (`enabled`: the project's option, `available`: the GitHub App may write statuses, `context`: `sudoo/<stage>`) |
@@ -844,6 +847,7 @@ Creating an instance takes the same fields as the **New instance** form:
   "edition": "community",
   "name": "",
   "install_modules": true,
+  "modules": ["sale_management", "crm"],
   "demo": false,
   "delete_after_days": 30,
   "stage": "development",
@@ -878,8 +882,8 @@ production) and `auto_update` (`PRODUCTION_AUTO_UPDATE` for production). A produ
 `from_backup` is optional: the new instance starts with that backup's database and files (loaded under the new
 database name) instead of an empty database. It needs `instances.restore` and `backups.manage` besides
 `instances.create`; an unknown file answers 404, a backup of another Odoo series (or an Enterprise backup for a
-Community instance) 400. `demo` is ignored then, and `install_modules` installs only the repository's modules the
-backup does not have. A backup of another instance is neutralised (no e-mail, no scheduled actions; the job's notes
+Community instance) 400. `demo` is ignored then, and of the modules asked for (the repository's with
+`install_modules`, and `modules`) only those the backup does not have are installed. A backup of another instance is neutralised (no e-mail, no scheduled actions; the job's notes
 say so).
 
 Actions (`POST /instances/<name>/actions/<action>`); each needs its own permission:
@@ -908,6 +912,40 @@ By role: a Developer may run the `instances.update` actions, a Maintainer every 
 admin or Administrator all of them. On a production instance, `pause`, `switch-off`, `restore` and `rollback` also
 need `"confirm_production": true` in the body, and `delete` needs `"confirm_stage": "production"` besides the name;
 without them the answer is 400 and nothing starts.
+
+#### Choosing the modules
+
+`install_modules` installs the repository's own modules once the database exists (for a development branch of a
+project, what the project's **Modules to install in new instances** says: the repository's modules, every module, or
+a list); `false` by default for `POST /instances`, `true` for `POST /projects/<id>/branches/<branch>/instances`.
+`modules` is optional: more modules installed in the same run (`odoo -i` with the repository's and these), such as
+Odoo's apps (`GET /odoo-apps?version=19.0&edition=enterprise` lists the standard ones, the Enterprise apps only for
+`enterprise`) or a module of a submodule; Odoo installs their dependencies itself. It works for plain Odoo too. Each
+name is lower-case letters, digits and `_` (at most 64 characters), duplicates count once, and there may be at most
+`MAX_INITIAL_MODULES` (200 by default); anything else answers **400** before anything is created. Without the
+repository's modules and with an empty (or no) `modules`, the database has Odoo's base only.
+
+For API users, `GET /repositories/modules?url=<address>&branch=<branch>` lists the branch's modules from the
+panel's own copy of the repository (the GitHub App's token, a deploy key or anonymously, as for creating), its
+submodules included, without creating anything:
+
+```json
+{
+  "repository": "acme-co/sales",
+  "branch": "main",
+  "commit": "3f9a0c1e...",
+  "modules": [
+    {"name": "sales_custom", "title": "Sales custom", "summary": "", "application": true,
+     "path": "addons/sales_custom", "submodule": null},
+    {"name": "web_responsive", "title": "Web Responsive", "summary": "", "application": false,
+     "path": "oca/web/web_responsive", "submodule": "oca/web"}
+  ],
+  "problems": []
+}
+```
+
+`problems` lists the submodules that could not be read. A module marked `"installable": False` is left out, as are
+those Odoo would not find (inside another module, in hidden or `setup` folders, more than four folders deep).
 
 #### Following a log
 

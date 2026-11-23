@@ -58,7 +58,7 @@ const en = {
   newBuildProject: "How a new development database is made in this project, and which tests every build runs. Each branch can change them in its Branch settings.",
   useDefaults: "Use the project's defaults",
   useDefaultsHint: "Clear it to give this branch settings of its own.",
-  modules: "Module installation",
+  modules: "Modules to install in new instances",
   moduleInstall: {
     repository: "Install all the modules of the repository",
     all: "Install every Odoo module and the repository's (tests are off)",
@@ -158,7 +158,7 @@ const ar: typeof en = {
   newBuildProject: "كيف تُنشأ قاعدة بيانات تطوير جديدة في هذا المشروع، وما الاختبارات التي يشغّلها كل بناء. ويمكن لكل فرع تغييرها من إعدادات الفرع.",
   useDefaults: "استخدام القيم الافتراضية للمشروع",
   useDefaultsHint: "ألغِ التحديد لتعطي هذا الفرع إعدادات خاصة به.",
-  modules: "تثبيت الوحدات",
+  modules: "الوحدات المطلوب تثبيتها في البيئات الجديدة",
   moduleInstall: {
     repository: "تثبيت كل وحدات المستودع",
     all: "تثبيت كل وحدات Odoo ووحدات المستودع (دون اختبارات)",

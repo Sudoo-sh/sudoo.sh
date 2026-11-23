@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { Archive, ArrowUpRight, Box, Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Layers, Lock, Package, SlidersHorizontal } from "lucide-react";
+import { Archive, ArrowUpRight, Blocks, Box, Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Layers, Lock, Package, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useCapacity, usePlan, useQuota, useSettings, useVersions } from "@/api/queries";
 import type { GitHubRepository, Job, RepoAccess, Stage } from "@/api/types";
 import { BackupPicker } from "@/components/BackupPicker";
+import { ModulePicker, useModuleChoice } from "@/components/ModulePicker";
 import { Page, PageHead, useCan } from "@/components/Shell";
 import { STAGE_ICON, STAGES } from "@/components/StageTag";
 import { Tag, Button, Callout, Field, Switch } from "@/components/app/basics";
@@ -14,6 +15,7 @@ import { SelectBox } from "@/components/app/select";
 import { useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import words from "@/i18n/new-instance";
+import moduleWords from "@/i18n/modules";
 import { PremiumSlot } from "@/premium/components";
 import { ago, number } from "@/lib/format";
 
@@ -200,6 +202,9 @@ export function NewInstancePage() {
     setAutoPause(defaults.auto_pause);
     setLifetime(defaults.delete_after_days);
   };
+  // Odoo apps and other modules installed with the repository's (the switch under Options)
+  const moduleChoice = useModuleChoice({ version, edition });
+  const m = useT(moduleWords);
   const productionRefused = production ? plan?.production?.refusal ?? null : null;
   const enterpriseAvailable = versions?.find((v) => v.version === version)?.enterprise ?? false;
   useEffect(() => {
@@ -217,6 +222,7 @@ export function NewInstancePage() {
         // a repository's instance left with the suggested name: the server names it the same way
         name: (nameEdited ? name.trim() : "") || (plain ? (plan?.name ?? "") : ""),
         install_modules: installModules && !plain,
+        ...moduleChoice.request,
         demo: demo && !useBackup,
         stage,
         delete_after_days: production ? 0 : lifetime ?? 30,
@@ -239,6 +245,7 @@ export function NewInstancePage() {
     !full &&
     !capacity?.blocked &&
     !productionRefused &&
+    !moduleChoice.tooMany &&
     (!useBackup || !!fromBackup);
 
   const submit = () =>
@@ -396,6 +403,16 @@ export function NewInstancePage() {
                 })}
               </div>
               {productionRefused && <Callout tone="warning">{productionRefused}</Callout>}
+            </div>
+          </section>
+
+          <section className="card">
+            <div className="card-head">
+              <Blocks />
+              <h2>{m.title}</h2>
+            </div>
+            <div className="card-body">
+              <ModulePicker choice={moduleChoice} note={useBackup ? m.fromBackup : undefined} />
             </div>
           </section>
 

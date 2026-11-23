@@ -21,6 +21,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   duration and default is a setting. Adding clients is part of the Business plan. The switch is a control inside
   the panel; the docs say plainly what server administrators can still reach.
 
+## [3.3.4] - 2026-11-23
+
+### Added
+
+- **Choose Odoo's apps for a new instance**, as on Odoo.sh: **New instance** and a branch's **Create instance** have
+  a searchable picker of the standard **Odoo apps** of the chosen version (Sales, Invoicing, CRM, Inventory,
+  Website...; Enterprise apps only for Enterprise) and an **Other modules** field for any technical name (a module of
+  an OCA submodule, a standard module not listed). The chosen ones show as chips with an × to remove them, and
+  **No Odoo apps** clears them; Odoo installs the dependencies itself. They are installed in the same run as the
+  repository's modules, which still follow **Install the repository's modules** (on by default). The API takes
+  `"modules": [...]` on both creation endpoints beside `install_modules`, lists the apps with
+  `GET /api/v1/odoo-apps` and a branch's modules with `GET /api/v1/repositories/modules`. A new setting,
+  `MAX_INITIAL_MODULES` (200), limits how many may be chosen. The project option that decides the modules of new
+  development databases is now called **Modules to install in new instances**.
+
 ## [3.3.3] - 2026-11-23
 
 ### Added
@@ -1299,7 +1314,8 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.3...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.4...HEAD
+[3.3.4]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.3...v3.3.4
 [3.3.3]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.2...v3.3.3
 [3.3.2]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.1...v3.3.2
 [3.3.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.0...v3.3.1

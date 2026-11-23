@@ -68,6 +68,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
 import { Menu, MenuItem, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
+import { TabInk, useHero } from "@/components/app/motion";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/instance";
@@ -159,6 +160,8 @@ export function InstanceView({
   const run = useRun(name, setJobId);
   const capacity = useCapacity();
   const all = useT(words);
+  // the title an instance card's name moves into when the page opens (components/app/motion.tsx useHero)
+  const hero = useHero<HTMLElement>(`instance:${name}`);
   const t = all.head;
   const j = all.jobs;
   const b = all.banners;
@@ -192,7 +195,7 @@ export function InstanceView({
               {embedded ? (
                 <h2 className="truncate instance-title"><bdi>{instance.name}</bdi></h2>
               ) : (
-                <h1 className="truncate"><bdi>{instance.name}</bdi></h1>
+                <h1 className="truncate"><bdi className="hero-text" ref={hero}>{instance.name}</bdi></h1>
               )}
               <StageTag stage={instance.stage} />
               <Status status={instance.status} />
@@ -408,6 +411,7 @@ export function InstanceView({
             {trail.icon} {trail.label}
           </Link>
         )}
+        <TabInk />
       </nav>
 
       <div className="rise tab-panel" key={tab}>

@@ -1,6 +1,8 @@
 import { ArrowUpRight, Box, GitBranch } from "lucide-react";
 import { Link } from "react-router";
-import { useJob } from "@/api/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { api } from "@/api/client";
+import { keys, useJob } from "@/api/queries";
 import type { Instance, Job } from "@/api/types";
 import { ago, monogram, number, percent } from "@/lib/format";
 import { useT } from "@/i18n";
@@ -9,6 +11,7 @@ import { jobTitle, stepTitle } from "@/i18n/jobs";
 import { LockTag } from "./LockTag";
 import { StageTag } from "./StageTag";
 import { Button, Progress, Status, Tag } from "./app/basics";
+import { startHero, useHero } from "./app/motion";
 
 export function Monogram({ name, large }: { name: string; large?: boolean }) {
   return <span className={`monogram ${large ? "lg" : ""}`}>{monogram(name).letters}</span>;
@@ -37,13 +40,21 @@ export function JobLine({ job }: { job: Pick<Job, "action" | "status" | "progres
 export function InstanceCard({ instance }: { instance: Instance }) {
   const usage = instance.usage;
   const t = useT(dashboard).card;
+  const hero = useHero<HTMLSpanElement>(`instance:${instance.name}`);
+  // the instance's page is read as the pointer comes to the card, so its title is there when the page opens and the
+  // card's name can move into it (useHero); a page still loading simply fades in
+  const client = useQueryClient();
+  const warm = () => void client.prefetchQuery({ queryKey: keys.instance(instance.name), queryFn: () => api.get<Instance>(`/instances/${instance.name}`), staleTime: 10_000 });
   return (
-    <article className="card link instance-card">
+    <article className="card link instance-card" onPointerEnter={warm} onFocus={warm}>
       <div className="ic-head">
         <Monogram name={instance.name} />
         <div style={{ minWidth: 0, flex: 1 }}>
           {/* the whole card opens the instance: this link covers it (.ic-open::after), the Open button sits above */}
-          <Link to={`/i/${instance.name}`} viewTransition className="ic-name ic-open truncate">{instance.name}</Link>
+          {/* its name moves into the instance page's title as the page opens (useHero) */}
+          <Link to={`/i/${instance.name}`} viewTransition className="ic-name ic-open truncate" onClick={() => startHero(`instance:${instance.name}`, hero.current)}>
+            <span className="hero-text" ref={hero}>{instance.name}</span>
+          </Link>
           <div className="ic-sub">
             {instance.source === "plain" ? <Box /> : <GitBranch />}
             {instance.source === "plain" ? <span className="truncate">{t.plain}</span> : <bdi className="truncate" dir="ltr">{instance.git.branch}</bdi>}

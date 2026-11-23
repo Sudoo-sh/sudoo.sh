@@ -45,6 +45,7 @@ import { Button, Callout, Empty, Field, Skeleton, Status, Switch, Tag } from "@/
 import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
 import { Modal, useToast } from "@/components/app/overlay";
+import { TabInk } from "@/components/app/motion";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import buildWords from "@/i18n/builds";
@@ -414,6 +415,7 @@ export function ProjectPage() {
             <UserRoundCheck /> {c.clientsTitle}
           </Link>
         )}
+        <TabInk />
       </nav>
       {tab !== "clients" && <ClosedNotice projectId={project.id} projectName={project.name} branch={null} access={project.client_access} />}
     </>

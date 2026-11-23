@@ -324,6 +324,8 @@ DEVELOPER_ENDPOINTS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
         ("POST", f"instances/{_NAME}/actions/{_NAME}"),  # which actions: v1/instances.DEVELOPER_ACTIONS
         ("GET", "instance-quota"),
         ("GET", "instance-plan"),
+        ("GET", "repositories/modules"),  # the module picker of a new instance
+        ("GET", "odoo-apps"),
         ("GET", "jobs"),
         ("GET", f"jobs/{_NAME}"),
         ("GET", f"jobs/{_NAME}/log"),

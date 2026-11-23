@@ -4,7 +4,7 @@ import { ltr } from "./plural.ts";
 
 const en = {
   title: "New instance",
-  text: "Pick a branch, or plain Odoo. Sudoo.sh downloads the code, starts Odoo with its own database, installs your modules and gives it a link.",
+  text: "Pick a branch, or plain Odoo, and the modules to install. Sudoo.sh downloads the code, starts Odoo with its own database, installs the modules and gives it a link.",
   limitReached: "An instance limit is reached. Delete an instance first.",
   cooldown: (minutes: string, when: string) => `One instance per ${minutes} minutes: you can create the next one ${when}.`,
   code: "Code",
@@ -41,8 +41,6 @@ const en = {
   backupText: (version: string) =>
     `The new instance starts with this backup's data instead of an empty database. Only backups of Odoo ${ltr(version)} fit. A backup of another instance is neutralised: no e-mail goes out and no scheduled actions run until you switch them back on in Odoo.`,
   options: "Options",
-  installMissing: "Install the repository's modules the backup lacks",
-  install: "Install the repository's modules",
   demo: "Load demo data",
   autoUpdate: "Get new code automatically",
   productionNote: "A production instance is never paused or deleted automatically, and is backed up every day.",
@@ -72,7 +70,7 @@ const en = {
 
 const ar: typeof en = {
   title: "بيئة جديدة",
-  text: "اختر فرعًا، أو Odoo مجرّدًا. ينزّل Sudoo.sh الشيفرة، ويشغّل Odoo بقاعدة بيانات خاصة به، ويثبّت وحداتك، ويمنحه رابطًا.",
+  text: "اختر فرعًا، أو Odoo مجرّدًا، والوحدات المطلوب تثبيتها. ينزّل Sudoo.sh الشيفرة، ويشغّل Odoo بقاعدة بيانات خاصة به، ويثبّت الوحدات، ويمنحه رابطًا.",
   limitReached: "بلغت البيئات حدّها الأقصى. احذف بيئة أولًا.",
   cooldown: (minutes, when) => `بيئة واحدة كل ${minutes} دقيقة: يمكنك إنشاء التالية ${when}.`,
   code: "الشيفرة",
@@ -109,8 +107,6 @@ const ar: typeof en = {
   backupText: (version) =>
     `تبدأ البيئة الجديدة ببيانات هذه النسخة الاحتياطية بدلًا من قاعدة بيانات فارغة. تناسبها نسخ Odoo ${ltr(version)} فقط. وتُحيَّد النسخة الاحتياطية لبيئة أخرى: لا يُرسل أي بريد ولا تعمل الإجراءات المجدولة حتى تعيد تفعيلها في Odoo.`,
   options: "الخيارات",
-  installMissing: "ثبّت وحدات المستودع التي تنقص النسخة الاحتياطية",
-  install: "ثبّت وحدات المستودع",
   demo: "حمّل البيانات التجريبية",
   autoUpdate: "اجلب الشيفرة الجديدة تلقائيًا",
   productionNote: "بيئة الإنتاج لا تتوقف مؤقتًا ولا تُحذف تلقائيًا أبدًا، وتُنسخ احتياطيًا كل يوم.",

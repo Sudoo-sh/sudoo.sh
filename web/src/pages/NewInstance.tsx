@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { Archive, ArrowUpRight, Box, Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Layers, Lock, Package, SlidersHorizontal } from "lucide-react";
+import { Archive, ArrowUpRight, Blocks, Box, Building2, CircleCheck, CircleX, FolderGit2, GitBranch, Layers, Lock, Package, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useCapacity, usePlan, useQuota, useSettings, useVersions } from "@/api/queries";
 import type { GitHubRepository, Job, RepoAccess, Stage } from "@/api/types";
 import { BackupPicker } from "@/components/BackupPicker";
+import { ModulePicker, useModuleChoice } from "@/components/ModulePicker";
 import { Page, PageHead, useCan } from "@/components/Shell";
 import { STAGE_ICON, STAGES } from "@/components/StageTag";
 import { Tag, Button, Callout, Field, Switch } from "@/components/app/basics";
@@ -14,6 +15,7 @@ import { SelectBox } from "@/components/app/select";
 import { useToast } from "@/components/app/overlay";
 import { useT } from "@/i18n";
 import words from "@/i18n/new-instance";
+import moduleWords from "@/i18n/modules";
 import { PremiumSlot } from "@/premium/components";
 import { ago, number } from "@/lib/format";
 
@@ -105,7 +107,6 @@ export function NewInstancePage() {
   const [nameEdited, setNameEdited] = useState(false);
   const [version, setVersion] = useState("");
   const [edition, setEdition] = useState<"community" | "enterprise">("community");
-  const [installModules, setInstallModules] = useState(true);
   const [demo, setDemo] = useState(false);
   const [autoUpdate, setAutoUpdate] = useState(true);
   const [autoPause, setAutoPause] = useState(true);
@@ -200,6 +201,15 @@ export function NewInstancePage() {
     setAutoPause(defaults.auto_pause);
     setLifetime(defaults.delete_after_days);
   };
+  // the modules of the new database: the branch's own (read once the branch is known), Odoo apps, other names
+  const moduleChoice = useModuleChoice({
+    repo: plain || !branches || repoError ? "" : debouncedRepo,
+    branch: plain ? "" : branch,
+    version,
+    edition,
+    fallback: { install_modules: true },
+  });
+  const m = useT(moduleWords);
   const productionRefused = production ? plan?.production?.refusal ?? null : null;
   const enterpriseAvailable = versions?.find((v) => v.version === version)?.enterprise ?? false;
   useEffect(() => {
@@ -216,7 +226,7 @@ export function NewInstancePage() {
         // plain Odoo without a name: the suggested one shown (odoo-<version>-<edition>-<random>)
         // a repository's instance left with the suggested name: the server names it the same way
         name: (nameEdited ? name.trim() : "") || (plain ? (plan?.name ?? "") : ""),
-        install_modules: installModules && !plain,
+        ...(plain ? { modules: moduleChoice.selected } : moduleChoice.request),
         demo: demo && !useBackup,
         stage,
         delete_after_days: production ? 0 : lifetime ?? 30,
@@ -239,6 +249,7 @@ export function NewInstancePage() {
     !full &&
     !capacity?.blocked &&
     !productionRefused &&
+    !moduleChoice.tooMany &&
     (!useBackup || !!fromBackup);
 
   const submit = () =>
@@ -399,6 +410,16 @@ export function NewInstancePage() {
             </div>
           </section>
 
+          <section className="card">
+            <div className="card-head">
+              <Blocks />
+              <h2>{m.title}</h2>
+            </div>
+            <div className="card-body">
+              <ModulePicker choice={moduleChoice} note={useBackup ? m.fromBackup : undefined} />
+            </div>
+          </section>
+
           {/* several servers (premium): which server the instance goes to */}
           <PremiumSlot name="instance.create.server" props={{ value: server, onChange: setServer, servers: plan?.servers ?? [], fromBackup: useBackup }} />
 
@@ -427,7 +448,6 @@ export function NewInstancePage() {
           <section className="card">
             <div className="card-head"><SlidersHorizontal /><h2>{t.options}</h2></div>
             <div className="card-body stack">
-              {!plain && <Switch checked={installModules} onChange={setInstallModules} label={useBackup ? t.installMissing : t.install} />}
               {!useBackup && <Switch checked={demo} onChange={setDemo} label={t.demo} />}
               {!plain && <Switch checked={autoUpdate} onChange={setAutoUpdate} label={t.autoUpdate} />}
               {production ? (

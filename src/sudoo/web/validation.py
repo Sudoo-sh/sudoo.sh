@@ -22,11 +22,13 @@ from typing import Any
 from flask import abort, request
 
 from sudoo import accounts
+from sudoo.config import settings
 from sudoo.instances import backups, store
 from sudoo.repos import github
 
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 MODULES_RE = re.compile(r"^[a-z0-9_]{1,64}(,[a-z0-9_]{1,64}){0,99}$")
+MODULE_NAME_RE = re.compile(r"^[a-z0-9_]{1,64}$")
 SUBMODULE_PATH_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._/-]{0,100}$")
 CUSTOM_NAME_RE = re.compile(r"^[A-Za-z0-9 ._-]{1,40}$")
 
@@ -150,6 +152,28 @@ def module_list(value: str) -> list[str]:
     if not MODULES_RE.match(modules):
         abort(400, "Enter technical module names separated by commas, for example: sale_custom,stock_custom")
     return modules.split(",")
+
+
+def initial_modules(data: Mapping[str, Any], key: str = "modules") -> list[str] | None:
+    """The modules a new database gets: a list of technical names (duplicates dropped, order kept), at most
+    MAX_INITIAL_MODULES; None when the field is missing or null (the panel then decides, as before). An empty list
+    means an empty database."""
+    value = data.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        abort(400, f"The field '{key}' must be a list of technical module names, for example [\"sale_management\"].")
+    names = list(dict.fromkeys(item.strip() for item in value if item.strip()))
+    wrong = [name for name in names if not MODULE_NAME_RE.match(name)]
+    if wrong:
+        abort(
+            400,
+            f"{wrong[0][:64]!r} is not a technical module name: lower-case letters, digits and _, for example "
+            "sale_custom.",
+        )
+    if len(names) > settings.max_initial_modules:
+        abort(400, f"Choose at most {settings.max_initial_modules} modules (Odoo installs their dependencies itself).")
+    return names
 
 
 def submodule_path(value: str) -> str:

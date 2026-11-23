@@ -8,7 +8,9 @@
     GET    /api/v1/instances/<name>/logs?lines=      the end of Odoo's log
     POST   /api/v1/instances                         create; {"from_backup"} optional; without "repo": plain Odoo
                                                      (no code, no branch, no update); "stage" (development by
-                                                     default; production within stages.production_limit())
+                                                     default; production within stages.production_limit());
+                                                     "modules": [names] installs exactly those (else
+                                                     "install_modules": the repository's modules)
                                                      -> 202, Location: job
     PATCH  /api/v1/instances/<name>                  change automation settings, lifetime and stage (a lifetime
                                                      that ends sooner also needs instances.delete; leaving
@@ -32,6 +34,9 @@
     GET    /api/v1/instance-plan?repo=&branch=&name=&version=&edition=
                                                      the name and database a new instance would get
     GET    /api/v1/instance-quota                    how many instances the caller may still create, and when
+    GET    /api/v1/repositories/modules?url=&branch= the Odoo modules of a repository's branch (submodules too),
+                                                     and those the module picker selects first; nothing is created
+    GET    /api/v1/odoo-apps?version=&edition=       the standard Odoo apps the module picker offers
     GET    /api/v1/jobs?instance=&limit=&offset=     recent jobs, newest first
     GET    /api/v1/jobs/<id>                         a job (its steps, notes and result; never its technical log)
     GET    /api/v1/versions                          Odoo versions and Enterprise availability
@@ -64,12 +69,25 @@ from sudoo import addons, entitlements, link_deadline, projects, roles
 from sudoo.config import settings
 from sudoo.core import events, jobs, vault
 from sudoo.core.state import STATE
-from sudoo.instances import backups, capacity, metrics, naming, odoo, operations, planning, resources, stages, store
+from sudoo.instances import (
+    backups,
+    capacity,
+    metrics,
+    naming,
+    odoo,
+    odoo_apps,
+    operations,
+    planning,
+    resources,
+    stages,
+    store,
+)
 from sudoo.limits import quotas
 from sudoo.mailcatcher import panel as mail_catcher
 from sudoo.premium import servers
 from sudoo.projects import access
-from sudoo.repos import github
+from sudoo.repos import github, mirror
+from sudoo.repos import modules as repository_module_list
 from sudoo.repos.gitrepo import origin_url
 
 from .. import validation as check
@@ -285,6 +303,61 @@ def plan() -> Response:
 STAGE_MESSAGE = "Choose a stage: production, staging or development."
 
 
+@blueprint.get("/repositories/modules")
+@require("instances.create")
+def repository_modules() -> Response:
+    """The Odoo modules of a repository's branch (its submodules' too), read from the panel's copy of the repository
+    without creating anything, with those the module picker selects first ("default")."""
+    address = check.repo_address(check.text(request.args, "url"))
+    branch = check.branch(check.text(request.args, "branch", default="main"))
+    found = projects.by_repository(github.repo_name(address) or "")
+    if found is not None:  # the same access as creating an instance of that branch
+        _refuse_in_branch("instances.create", found, branch, f"list the modules of {found['id']} {branch}")
+    else:
+        refused = access.refusal(g.user, "instances.create", None)
+        if refused is not None:
+            log("refused: list the modules of a repository outside every project", ok=False, detail=refused[1])
+            abort(*refused)
+    try:
+        result = repository_module_list.of_branch(address, branch, refresh=request.args.get("refresh") == "true")
+    except repository_module_list.BranchMissing as error:
+        abort(404, str(error))
+    except mirror.GitError as error:
+        abort(502, str(error))
+    result["default"] = _default_modules(found, branch, result["modules"])
+    return ok(result)
+
+
+def _default_modules(project: Mapping[str, Any] | None, branch: str, modules: list[dict[str, Any]]) -> dict[str, Any]:
+    """What the picker selects first: a development branch's project choice (module_install "list": its modules;
+    "all": every module, which only the panel can install, so nothing is sent unless the selection changes), else
+    the repository's applications, else all its own modules."""
+    recommended = repository_module_list.recommended(modules)
+    if project is not None and projects.branch_stage(project, branch) == stages.DEVELOPMENT:
+        from sudoo.projects import build_options
+
+        options = build_options.effective(project, branch, stages.DEVELOPMENT)
+        if options["module_install"] == "list":
+            return {"source": "project_list", "modules": [m for m in str(options["modules"]).split(",") if m]}
+        if options["module_install"] == "all":
+            return {"source": "project_all", "modules": recommended}
+    applications = any(m.get("application") and not m.get("submodule") for m in modules)
+    return {"source": "applications" if applications else "repository", "modules": recommended}
+
+
+@blueprint.get("/odoo-apps")
+@require("instances.create")
+def standard_apps() -> Response:
+    """The standard Odoo apps the module picker offers for a version and edition (instances/odoo_apps.py)."""
+    version = check.text(request.args, "version", max_length=20)
+    edition = check.one_of(
+        check.text(request.args, "edition", default="community", max_length=20),
+        ("community", "enterprise"),
+        "Choose Community or Enterprise.",
+    )
+    return ok(odoo_apps.apps(version, edition), meta={"max_modules": settings.max_initial_modules})
+
+
 def production_capacity() -> dict[str, Any]:
     """How many production instances there may be and are, and why one more is refused (None when it is not)."""
     return {
@@ -356,6 +429,7 @@ def _start_creation(
     """Check the limits and start the creation (the caller holds quotas.LOCK). `project`: the project's id when the
     instance is made for one of its branches (web/v1/projects.py); `from_production`: see planning.build."""
     refuse_unlinked("creating instances", "instance creation refused (panel not linked)")
+    modules = check.initial_modules(data)  # before anything counts toward the limits
     server_id = _placement(data, project, repo, from_backup, from_production)
     if server_id == servers.MAIN:  # another server's agent checks its own running instances
         _refuse_over_capacity("instance creation refused (running instances)")
@@ -394,6 +468,7 @@ def _start_creation(
         custom_name=custom_name,
         demo=check.flag(data, "demo"),
         install_modules=check.flag(data, "install_modules"),
+        modules=modules,
         from_backup=from_backup,
         from_production=from_production,
         project=project,
@@ -408,7 +483,8 @@ def _start_creation(
         detail=f"Odoo {version} {edition}, {stage}"
         + ("" if repo else " (plain, no repository)")
         + (f" from {from_backup}" if from_backup else "")
-        + (f" from a copy of {from_production}" if from_production else ""),
+        + (f" from a copy of {from_production}" if from_production else "")
+        + (f", modules: {', '.join(modules)[:300] or 'none'}" if modules is not None else ""),
     )
     response = _accepted(job)
     response.headers["Content-Location"] = f"{PREFIX}/instances/{name}"

@@ -191,7 +191,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
         7  # Odoo image, preparing, database container, Odoo database, public link, starting Odoo, waiting
         + bool(plan["repo"])
         + enterprise
-        + bool(plan["install_modules"] and plan["repo"])
+        + bool(plan.get("modules") if plan.get("modules") is not None else plan["install_modules"] and plan["repo"])
         + (settings.odoo_admin_password != "admin" or bool(plan.get("from_backup") or plan.get("from_production")))
         + bool(plan.get("from_backup") or plan.get("from_production"))  # neutralising another instance's data
         + bool(plan.get("from_production"))  # copying production
@@ -282,7 +282,12 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
         init += demo_args(version, bool(plan["demo"]))  # the flag depends on the version (core/odoo_args.py)
         job.run(odoo.run_cmd(name, *init), timeout=1800)
 
-    modules = _modules_to_install(job, name, db) if plan["install_modules"] and plan["repo"] else []
+    chosen = plan.get("modules")  # the modules picked when the instance was created, else the panel's choice
+    if chosen is not None:
+        modules = [str(module) for module in chosen]
+    else:
+        modules = _modules_to_install(job, name, db) if plan["install_modules"] and plan["repo"] else []
+    what = "the chosen modules" if chosen is not None else "the repository's modules"
     if modules and source:  # the backup's database may have them already: those are kept as they are
         installed = backups.installed_modules(name, db)
         already = [module for module in modules if module in installed]
@@ -290,15 +295,15 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
         if already:
             job.note(f"Already installed in the backup, so not installed again: {', '.join(already)}")
         if not modules:
-            job.step("The repository's modules are all installed already")
+            job.step(f"{what[0].upper()}{what[1:]} are all installed already")
     if modules:
-        job.step(f"Installing the repository's modules ({len(modules)})")
+        job.step(f"Installing {what} ({len(modules)})")
         if job.run_unchecked(
             odoo.run_cmd(name, "-d", db, "-i", ",".join(modules), "--stop-after-init", "--no-http"), timeout=3600
         ):
             job.note(
-                "Some of the repository's modules could not be installed. Odoo works; install them from Apps "
-                "after your administrator has read the server's log.",
+                f"Some of {what} could not be installed. Odoo works; install them from Apps after your administrator "
+                "has read the server's log.",
                 "warning",
             )
 

@@ -1890,3 +1890,31 @@ export interface GitHubCheckResult {
   checks: GitHubCheck[];
   checked_at: string;
 }
+
+/** A module of a repository's branch (GET /repositories/modules): its folder holds a __manifest__.py. */
+export interface RepositoryModule {
+  name: string;
+  title: string;
+  summary: string;
+  application: boolean;
+  path: string;
+  /** the submodule it comes from, or null for the repository's own */
+  submodule: string | null;
+}
+
+export interface RepositoryModules {
+  repository: string;
+  branch: string;
+  commit: string;
+  modules: RepositoryModule[];
+  /** what the module picker selects first */
+  default: { source: "applications" | "repository" | "project_list" | "project_all"; modules: string[] };
+  problems: string[];
+}
+
+/** A standard Odoo app offered by the module picker (GET /odoo-apps). */
+export interface OdooApp {
+  name: string;
+  title: string;
+  enterprise: boolean;
+}

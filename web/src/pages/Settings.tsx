@@ -54,7 +54,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
           "project_development_on_new_commit", "project_module_install", "project_modules", "project_test_suite", "project_test_tags", "project_staging_tests", "project_test_timeout_minutes", "project_commit_statuses", "project_email_pusher",
           "project_promotion_backup_hours", "project_promotion_blocks", "project_pr_previews", "project_pr_preview_limit", "project_pr_previews_forks"],
       },
-      { id: "howMany", keys: ["max_instances", "max_instances_per_user", "create_cooldown_minutes"] },
+      { id: "howMany", keys: ["max_instances", "max_instances_per_user", "create_cooldown_minutes", "max_initial_modules"] },
       { id: "capacity", keys: ["capacity_reserve_mb", "capacity_reserve_percent", "capacity_instance_memory_mb", "capacity_warning_percent", "max_running_instances"] },
       { id: "containers", keys: ["odoo_memory_limit", "odoo_cpu_limit", "db_memory_limit", "db_cpu_limit", "container_pids_limit", "container_log_max_size", "container_log_max_files", "log_download_max_lines", "drift_action"] },
       { id: "gateway", keys: ["gateway_max_upload_mb", "gateway_idle_timeout_seconds", "gateway_websocket_max_message_mb"] },

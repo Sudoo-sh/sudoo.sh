@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useInstance, usePlan, useVersions } from "@/api/queries";
 import type { Instance, Job, ProjectBranch, ProjectDetail, ProjectMeta, Stage } from "@/api/types";
+import { ModulePicker, useModuleChoice } from "@/components/ModulePicker";
 import { PromotionChecklist, promotionKey, usePromotionCheck } from "@/components/PromotionChecklist";
 import { STAGE_LABEL } from "@/components/StageTag";
 import { Button, Callout, Field, Switch } from "@/components/app/basics";
@@ -16,6 +17,7 @@ import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import words from "@/i18n/projects";
 import promotionWords from "@/i18n/promotion";
+import moduleWords from "@/i18n/modules";
 import { ago } from "@/lib/format";
 import { odooSeries } from "@/lib/naming";
 
@@ -97,7 +99,6 @@ export function CreateDialog({ project, branch, production, onClose, onJob }: { 
   const c = useT(common).common;
   const toast = useToast();
   const [demo, setDemo] = useState(project.options.development_demo_data);
-  const [modules, setModules] = useState(true);
   const [name, setName] = useState("");
   // the name field shows the name the server would give (GET /instance-plan) until someone types in it
   const [nameEdited, setNameEdited] = useState(false);
@@ -117,6 +118,9 @@ export function CreateDialog({ project, branch, production, onClose, onJob }: { 
   const { data: productionInstance } = useInstance(production ?? "", branch.stage === "staging" && !!production);
   const productionVersion = productionInstance?.odoo.version;
   const otherSeries = branch.stage === "staging" && !!productionVersion && odooSeries(productionVersion) !== odooSeries(version);
+  // the modules of the new database; until the branch's are known, the project's choice applies (nothing sent)
+  const modules = useModuleChoice({ repo: project.repository.url, branch: branch.name, version, edition: project.odoo.edition });
+  const m = useT(moduleWords);
   const create = useCall(
     () =>
       api.post<Job>(`/projects/${project.id}/branches/${branch.name}/instances`, {
@@ -124,14 +128,14 @@ export function CreateDialog({ project, branch, production, onClose, onJob }: { 
         // sent when changed, and for a staging instance that starts empty (another series than production's)
         ...(version !== recorded || otherSeries ? { odoo_version: version } : {}),
         ...(branch.stage === "development" ? { demo } : {}),
-        install_modules: modules,
+        ...modules.request,
       }),
     [keys.project(project.id), keys.instances],
   );
   return (
-    <Modal title={d.title(branch.name)} description={d.text(STAGE_LABEL[branch.stage], version, edition)} onClose={onClose}
+    <Modal wide title={d.title(branch.name)} description={d.text(STAGE_LABEL[branch.stage], version, edition)} onClose={onClose}
       footer={<><Button onClick={onClose}>{c.cancel}</Button>
-        <Button variant="primary" icon={<Plus />} loading={create.isPending} disabled={blocked}
+        <Button variant="primary" icon={<Plus />} loading={create.isPending} disabled={blocked || modules.tooMany}
           onClick={() => create.mutate(undefined, {
             onSuccess: (job) => { toast("success", t.page.created(job.instance), t.page.createdText); onClose(); onJob(job.id); },
             onError: (e) => toast("error", t.page.notCreated, errorText(e)),
@@ -155,7 +159,9 @@ export function CreateDialog({ project, branch, production, onClose, onJob }: { 
             onChange={(e) => { setNameEdited(true); setName(e.target.value); }} />
         </Field>
         {branch.stage === "development" && <Switch checked={demo} onChange={setDemo} label={d.demo} />}
-        <Switch checked={modules} onChange={setModules} label={d.modules} />
+        <Field label={m.title}>
+          <ModulePicker choice={modules} note={branch.stage === "staging" && production && !otherSeries ? m.fromBackup : undefined} />
+        </Field>
       </div>
     </Modal>
   );

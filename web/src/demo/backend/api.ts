@@ -24,6 +24,7 @@ import { acceptLicence, LICENCE, licencePending, licenceStatus } from "./licence
 import { catalog, categories, marketplace, recommendations } from "./marketplace";
 import { currentPlan, ENTITLEMENTS, gatedBy, needPremium, premiumOverview } from "./premium";
 import * as fleet from "./servers";
+import { checkModules, maxModules, odooApps, repositoryModules } from "./modules";
 import * as support from "./support";
 import { endShell, issueTicket, recordingOf, shellOptions, shellSessions } from "./shell";
 import { deleteProfile, profileOf, profilerState, startProfiler, stopProfiler } from "./profiler";
@@ -605,6 +606,15 @@ route("GET", "/instance-quota", () => {
 });
 route("GET", "/versions", () => ok(DEMO_VERSIONS.map((version) => ({ version, enterprise: true }))));
 
+route("GET", "/repositories/modules", ({ query }) => {
+  need("instances.create");
+  return ok(repositoryModules(query.get("url") ?? "", query.get("branch") || "main"));
+});
+route("GET", "/odoo-apps", ({ query }) => {
+  need("instances.create");
+  return ok(odooApps(query.get("version") ?? "", query.get("edition") ?? "community"), { max_modules: maxModules() });
+});
+
 route("POST", "/instances", ({ body }) => {
   need("instances.create", "/api/v1/instances");
   return createInstance(body);
@@ -625,6 +635,7 @@ function createInstance(
   if (custom && !/^[a-z][a-z0-9-]{1,39}$/.test(custom)) throw new Problem(400, "A name has 2 to 40 lower-case letters, digits and dashes, and starts with a letter.");
   if (custom && instances.has(custom)) throw new Problem(409, `An instance named ${custom} exists already.`);
   if (stage === "production" && productionInfo().refusal) throw new Problem(409, productionInfo().refusal!);
+  const chosenModules = checkModules(body.modules); // exactly these, else the repository's (install_modules)
   const fromBackup = body.from_backup ? backups.find((b) => b.file === body.from_backup) : null;
   if (body.from_backup && !fromBackup) throw new Problem(404, "This backup does not exist.");
   const name = custom || planName(repo, branch, "", version, edition);
@@ -674,7 +685,11 @@ function createInstance(
   fleet.placeNew(instance, body.server);
   instances.set(name, instance);
   profiles.set(name, newProfile(name, stage === "production"));
-  let steps = CREATE_STEPS(instance, body.install_modules !== false);
+  let steps = CREATE_STEPS(instance, chosenModules === null && body.install_modules !== false);
+  if (chosenModules?.length) {
+    const at = steps.findIndex((s) => s.startsWith("Creating the Odoo")) + 1;
+    steps = [...steps.slice(0, at), `Installing the chosen modules (${chosenModules.length})`, ...steps.slice(at)];
+  }
   if (extra.fromProduction) {
     const at = steps.findIndex((s) => s.startsWith("Creating the Odoo"));
     steps = [`Copying the data of ${extra.fromProduction.name} (production)`, ...steps.slice(0, at), `Loading the backup of ${extra.fromProduction.name} into database ${instance.odoo.database}`, "Neutralising the copied data", "Setting the admin password", ...steps.slice(at + 1)];
@@ -2318,6 +2333,7 @@ route("POST", "/projects/:id/branches/:*branch/instances", ({ params, body }) =>
       name: body.name,
       demo: stage === "development" ? body.demo ?? projectResource(project).options.development_demo_data : false,
       install_modules: body.install_modules,
+      modules: body.modules,
       delete_after_days: lifetime,
     },
     { project: project.id, fromProduction },

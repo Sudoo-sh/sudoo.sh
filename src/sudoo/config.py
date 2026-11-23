@@ -372,6 +372,13 @@ class Settings(BaseSettings):
     create_cooldown_minutes: float = Field(
         0, ge=0, description="Minutes a user must wait between two creations; 0: no wait."
     )
+    max_initial_modules: int = Field(
+        200,
+        ge=1,
+        le=2000,
+        description="Modules one may choose to install in a new instance's database at most (the module picker of "
+        "New instance and Create instance; Odoo installs their dependencies too).",
+    )
 
     # ------------------------------------------------------------------ capacity (instances/capacity.py)
     capacity_reserve_mb: int = Field(
@@ -1871,6 +1878,7 @@ EDITABLE = (
     "max_instances",
     "max_instances_per_user",
     "create_cooldown_minutes",
+    "max_initial_modules",
     "capacity_reserve_mb",
     "capacity_reserve_percent",
     "capacity_instance_memory_mb",

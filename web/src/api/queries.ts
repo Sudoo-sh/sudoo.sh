@@ -86,7 +86,6 @@ export const keys = {
   resources: (name: string) => ["resources", name] as const,
   jobs: (instance?: string) => ["jobs", instance ?? null] as const,
   job: (id: string) => ["job", id] as const,
-  jobLog: (id: string) => ["job-log", id] as const,
   metrics: ["metrics"] as const,
   history: ["metrics-history"] as const,
   settings: ["settings"] as const,
@@ -248,21 +247,6 @@ export const useJobs = (instance?: string, enabled = true) =>
 
 export const useJob = (id: string | null) =>
   useQuery({ queryKey: keys.job(id ?? ""), queryFn: () => api.get<Job>(`/jobs/${id}`), enabled: !!id });
-
-export interface JobLog {
-  text: string;
-  next: number;
-}
-export const useJobLog = (id: string | null) =>
-  useQuery({
-    queryKey: keys.jobLog(id ?? ""),
-    enabled: !!id,
-    staleTime: Infinity,
-    queryFn: async (): Promise<JobLog> => {
-      const page = await api.page<{ text: string }>(`/jobs/${id}/log?offset=0`);
-      return { text: page.data.text, next: Number(page.meta?.next_offset ?? 0) };
-    },
-  });
 
 export const useMetrics = () => useQuery({ queryKey: keys.metrics, queryFn: () => api.get<Metrics>("/metrics") });
 /** How many instances the server runs comfortably (kept current by the "metrics" live event); null until measured. */

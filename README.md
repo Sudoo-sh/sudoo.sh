@@ -172,7 +172,7 @@ command to use it: people receive a link.
    [Helpdesk Tests](https://apps.odoo.com/apps/modules/20.0/sudoo_helpdesk) (per ticket). They use a token of the
    least-privilege [instances scope](docs/PANEL_API.md#the-instances-scope). Source and documentation:
    [Sudoo-sh/sudoo-odoo](https://github.com/Sudoo-sh/sudoo-odoo).
-13. **Explains itself**: plain-language messages when something fails, the technical log next to it, and this
+13. **Explains itself**: plain-language messages when something fails, the few lines that explain it next to them, and this
    documentation inside the panel under **Help**.
 14. **Set up from the website**: every setting, from second factors and limits to the e-mail account, on the
    **Settings** page, with `.env` as the base. Light and dark themes, and your own accent colour.

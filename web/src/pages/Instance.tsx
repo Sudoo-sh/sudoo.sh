@@ -336,6 +336,18 @@ export function InstanceView({
           )}
         </Callout>
       )}
+      {instance.newer_odoo_image && (
+        <Callout tone="info">
+          <b>{b.newerImage(instance.odoo.version)}</b> {b.newerImageText}
+          {can("instances.operate") && (
+            <div>
+              <Button size="sm" icon={<Container />} disabled={busy} onClick={() => act("update-images", j.updateImages)}>
+                {t.updateImages}
+              </Button>
+            </div>
+          )}
+        </Callout>
+      )}
       {instance.gateway_error && <Callout tone="danger">{instance.gateway_error}</Callout>}
       {instance.drift && (
         <Callout tone="danger">

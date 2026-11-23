@@ -7,12 +7,12 @@ import { Box, GitBranch, Plus } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ApiError } from "@/api/client";
-import { keys, useJob, useJobLog, useJobs } from "@/api/queries";
+import { keys, useJob, useJobs } from "@/api/queries";
 import type { Instance, Job } from "@/api/types";
 import { Monogram } from "@/components/InstanceCard";
 import { JobSteps } from "@/components/JobDrawer";
-import { LogView } from "@/components/LogView";
 import { Page, useCan } from "@/components/Shell";
+import { WhyItFailed } from "@/components/WhyItFailed";
 import { Button, Callout, Progress, Skeleton, Status, Tag } from "@/components/app/basics";
 import { useT } from "@/i18n";
 import instanceWords from "@/i18n/instance";
@@ -62,24 +62,7 @@ function Head({ name, status, instance }: { name: string; status: ReactNode; ins
   );
 }
 
-function TechnicalLog({ id, live }: { id: string; live: boolean }) {
-  const can = useCan();
-  const { data: log } = useJobLog(can("instances.logs") ? id : null);
-  const t = useT(instanceWords).job;
-  if (!can("instances.logs")) return null;
-  return (
-    <section className="card">
-      <div className="card-head">
-        <h2>{t.technicalLog}</h2>
-      </div>
-      <div className="card-body">
-        <LogView text={log?.text ?? ""} live={live} />
-      </div>
-    </section>
-  );
-}
-
-/** The instance page while the instance is being created: its status, the job's steps, progress and log, live. */
+/** The instance page while the instance is being created: its status, the job's steps and progress, live. */
 export function CreatingInstance({ instance }: { instance: Instance }) {
   const reference = instance.current_job!;
   const { data: job } = useJob(reference.id);
@@ -119,12 +102,11 @@ export function CreatingInstance({ instance }: { instance: Instance }) {
           ))}
         </div>
       </section>
-      <TechnicalLog id={reference.id} live />
     </Page>
   );
 }
 
-/** A creation that failed: why (the job's hint), the step where it stopped, its log, and a way back. */
+/** A creation that failed: why it failed (the step, the reason, the error details) and a way back. */
 export function CreationFailed({ name, job, instance }: { name: string; job: Job; instance?: Instance }) {
   const can = useCan();
   const t = useT(instanceWords).creating;
@@ -132,8 +114,9 @@ export function CreationFailed({ name, job, instance }: { name: string; job: Job
     <Page>
       <Head name={name} instance={instance} status={<Status status="failed" label={t.notCreated} />} />
       <Callout tone="danger">
-        <b>{t.failed}</b> {job.error ?? t.logSays}
+        <b>{t.failed}</b>
       </Callout>
+      <WhyItFailed failure={job.failure} fallback={job.error ?? t.noReason} instance={null} />
       <section className="card">
         <div className="card-head">
           <h2>{jobTitle(job.action)}</h2>
@@ -154,7 +137,6 @@ export function CreationFailed({ name, job, instance }: { name: string; job: Job
           </div>
         </div>
       </section>
-      <TechnicalLog id={job.id} live={false} />
     </Page>
   );
 }

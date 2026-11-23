@@ -436,7 +436,7 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 | Permission | Allows | Super admin | Administrator | Maintainer | Developer | Viewer |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
 | `instances.view` | See instances, their figures and activity | yes | yes | yes | yes | yes |
-| `instances.logs` | Read Odoo's log and jobs' technical logs | yes | yes | yes | yes | yes |
+| `instances.logs` | Read Odoo's log | yes | yes | yes | yes | yes |
 | `instances.update` | Get new code, update submodules, restart, start, add submodules | yes | yes | yes | yes | |
 | `instances.operate` | Pause, switch off, upgrade modules, switch branch, back up, remove submodules, change automation, make the lifetime longer | yes | yes | yes | | |
 | `instances.create` | Create instances | yes | yes | yes | | |
@@ -520,8 +520,15 @@ storage, teams) depend on the role alone.
   locked production branch keeps serving.
 * **Lists and live events** leave out the projects, branches, instances, jobs, backups and off-site copies the caller
   may not see, and the live stream filters each event per caller (metrics included); a project the caller lost
-  access to is sent as deleted. Job events and job logs whose instance the panel cannot tell go only to callers from
-  whom nothing is hidden.
+  access to is sent as deleted. Job events whose instance the panel cannot tell go only to callers from whom
+  nothing is hidden.
+* **Jobs' technical logs stay on the server.** No endpoint, live event, download, alert or e-mail sends a job's
+  technical log (the commands it runs and what they print), whatever the caller's role: it goes to the backend's own
+  log (`docker logs sudoo-panel`), each line prefixed with the job and the instance, with addresses' passwords and
+  masked secrets replaced. People see the steps, the progress, the notes, the result and "Why it failed", whose error
+  details are only the lines that explain the failure, with server paths, IP addresses, container names, tokens and
+  credentials in addresses removed (`core/failure.py`). Odoo's own log (the **Logs** tab) is still shown to roles with
+  `instances.logs`.
 * **Branch rules.** Adding, changing or removing a branch's own rule (its grants, whether it is restricted) needs
   `projects.access` in that branch, so an administrator a restricted branch leaves out cannot lift the restriction or
   grant themselves into it.

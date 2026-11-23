@@ -330,7 +330,7 @@ def new_build(job: Job, name: str) -> None:
     if modules and job.run_unchecked(
         odoo.run_cmd(name, "-d", db, "-i", ",".join(modules), "--stop-after-init", "--no-http"), timeout=3600
     ):
-        job.note("Some modules could not be installed. Odoo works; the technical log says why.", "warning")
+        job.note("Some modules could not be installed. Odoo works; the server's log says why.", "warning")
     if settings.odoo_admin_password != "admin" or env.get("ODOO_ADMIN_PASSWORD", "admin") != "admin":
         operations._set_admin_password(job, name, db)
     url = exposure.address(name)

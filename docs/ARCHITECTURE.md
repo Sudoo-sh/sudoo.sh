@@ -32,7 +32,7 @@ each part was chosen.
 | **Storage** | The panel's own data (accounts, tokens, audit log, instance state) in SQLite, behind a storage plugin. | `sudoo/storage/` |
 | **Background work** | Threads in the panel's process: resource monitor (every `METRICS_INTERVAL_SECONDS`, 5 s, reading a continuous `docker stats` stream), automatic pause (every 2 min), automatic deletion (every 10 min), daily backups (checked every minute, run once `DAILY_BACKUP_TIME` has passed in `TIMEZONE`), GitHub polling (every `POLL_MINUTES`), alerts (the end of every job, and the server and instances every `METRICS_INTERVAL_SECONDS`; e-mail, webhooks, the bell). | `sudoo/background.py`, `instances/monitor.py`, `sudoo/alerts/` |
 | **Backups** | Odoo-format zips (`dump.sql`, `filestore/`, `manifest.json`) in `BACKUPS_DIR`, named `<instance>__<database>__<YYYYMMDD-HHMMSS>__<kind>.zip`. Seven kinds: `manual`, `daily`, `deletion`, `before-restore`, `before-rollback`, `before-repair`, `before-update`; each instance keeps only its latest `daily`, `before-restore`, `before-rollback`, `before-repair` and `before-update` (taken before a code update, put back when it fails: `SAFE_UPDATES`), `before-restore` and `before-rollback` for `ROLLBACK_HOURS`. Restoring replaces an instance's database and filestore in place; a backup of another instance of the same Odoo series is loaded under the target's database name and neutralised. | `sudoo/instances/backups.py`, `instances/operations.py` |
-| **Jobs** | Every action (create, update, restart...) runs as a job in its own thread, with steps, notes and a log. One job at a time per instance; others wait. | `sudoo/core/jobs.py`, `instances/operations.py` |
+| **Jobs** | Every action (create, update, restart...) runs as a job in its own thread, with steps (and a progress line on the running one), notes, a result and, when it fails, "Why it failed". Its technical log is a server log, never shown to users ([Jobs and their logs](#jobs-and-their-logs)). One job at a time per instance; others wait. | `sudoo/core/jobs.py`, `instances/operations.py` |
 | **Exposure plugin** | Makes the panel and each gateway reachable from outside ([Public addresses](concepts/PUBLIC_ADDRESSES.md)). `direct` (the default of new installations): the gateway answers ports 80 and 443 itself with ACME certificates. `proxy`: the owner's reverse proxy in front, local ports and a trusted header with the visitor's address. `tunnel` (earlier name `cloudflare-quick`): one `cloudflared` connector container per target, opening an outgoing connection. `host-ports` (earlier option): the ports opened on the server. | `sudoo/exposure/`, `instances/panel_address.py` |
 | **Add-on source plugin** | Provides the Enterprise add-ons of a version: an existing folder (`folder`) or a branch of a git repository (`git`). | `sudoo/addons/` |
 | **Settings** | Every setting, typed and checked (pydantic-settings). Almost all can be changed on the Settings page while the panel runs, kept on top of `.env` with secrets encrypted. | `sudoo/config.py` |
@@ -131,6 +131,24 @@ Besides its files, each instance has a small record in the panel's storage (`cor
 | `branch_missing` | The branch no longer exists on GitHub. |
 
 Visits are kept in memory and written at most every 30 seconds; the other fields are written at once.
+
+### Jobs and their logs
+
+A job (`core/jobs.py`) records what people see: its **steps** (each with when it started and, while it runs, a
+**progress** line in plain words and a percentage when known: "Downloading Odoo 19.0: 2 of 5 parts" from the image
+download, "Setting up the module sale" from Odoo's log while it installs or upgrades modules), its **notes**, its
+**result** and, when it fails, **Why it failed** (`core/failure.py`): the step that failed, a plain-language reason
+(`core/hints.py`; "Something went wrong in this step. The server's log has the details; your administrator can read
+it." when nothing more specific applies) and the **error details**: only the lines that explain the failure, picked
+by kind (repository access, git, Python requirements, tests, Odoo's errors with the tail of their traceback), at most
+60, with addresses' passwords, tokens, the server's paths, IP addresses and container names removed. These go
+through the API and the live event `job`.
+
+The **technical log** (every command and everything it prints) is a server log. No endpoint, event, e-mail, alert or
+download sends it to anyone, whatever their role. Each line goes to the backend's own log, prefixed with the job id
+and the instance (`docker logs sudoo-panel`, `job 1a2b3c4d5e6f acme-dev: ...`), with `redact()` and the job's
+masked secrets applied. The job also keeps it in memory, for the panel itself: the hints, the error details, a
+build's Odoo warnings and test results. The instance's **Logs** tab shows Odoo's own log only (`odoo.log`).
 
 **Backups and restores.** Jobs of kind `backup` take a `manual` backup (**Back up now**), a `daily` one (the daily
 loop) or a `deletion` one (first step of a deletion). A backup starts only the database container of a paused
@@ -523,7 +541,7 @@ Each decision lists what was chosen, why, what it costs, and the alternatives th
 | Type hints everywhere; formatting by black; lint by ruff; mypy in strict-enough mode (`disallow_untyped_defs`). | `def address(self, target: Target) -> str \| None:` |
 | Commands are lists of arguments, never shell strings. | `["git", "clone", "-b", branch, "--", url, path]` |
 | One way to do each thing; no silent fallbacks. | A repository with a key is fetched over SSH, every other one over HTTPS, nothing else. |
-| Errors shown to people are sentences that say what to do. | "This branch name is not valid." rather than a stack trace; the technical log is one click away. |
+| Errors shown to people are sentences that say what to do. | "This branch name is not valid." rather than a stack trace; "Why it failed" shows the few lines that explain it, and the full technical log is in the server's log. |
 | Long actions are jobs with named steps. | "Downloading the code from GitHub", "Starting Odoo" |
 | The web app takes its look from tokens and talks to the backend only through `/api/v1`. | Colours, sizes and motion in `web/src/styles/_tokens.scss`; data through `web/src/api/queries.ts`. |
 | Every permission check names a permission. | `@require("instances.create")`, `refuse_unless("instances.delete", ...)` |

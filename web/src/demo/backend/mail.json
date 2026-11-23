@@ -673,6 +673,190 @@
    }
   },
   {
+   "key": "push_failed",
+   "name": "Deployment of a push failed",
+   "description": "A build triggered by a push failed (an automatic update, a rebuild on push): sent to the person who pushed, once per branch and commit (each project can turn it off).",
+   "recipients": "The person who pushed (GitHub's push, or the commit's author); never a noreply address",
+   "kicker": "{{ project }}",
+   "preheader": "{{ reason }}",
+   "default": {
+    "subject": "Your push to {{ branch }} in {{ project }} could not be deployed",
+    "title": "Your push could not be deployed",
+    "body": "Hello {{ name }},\n\nYour push to **{{ branch }}** in **{{ project }}** could not be deployed.\n\n{{ facts }}\n\n**What failed:** {{ reason }}\n\n{{ details }}\n\n**What to do:** {{ what_to_do }}\n\n[Open the branch]({{ link }})\n\nYou receive this because you pushed this commit. The project's managers can turn these e-mails off."
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The name of who pushed",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "branch",
+     "description": "The branch pushed to",
+     "kind": "text"
+    },
+    {
+     "name": "commit",
+     "description": "The commit: short SHA and message",
+     "kind": "text"
+    },
+    {
+     "name": "step",
+     "description": "The step that failed",
+     "kind": "text"
+    },
+    {
+     "name": "reason",
+     "description": "What failed, in plain words",
+     "kind": "text"
+    },
+    {
+     "name": "facts",
+     "description": "Project, branch, commit and step, in a box",
+     "kind": "block"
+    },
+    {
+     "name": "details",
+     "description": "Only the lines that explain the failure (never the whole log), in a monospace box",
+     "kind": "block"
+    },
+    {
+     "name": "what_to_do",
+     "description": "What to do, for this kind of failure",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The branch's page in the panel",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [
+    "reason"
+   ],
+   "samples": {
+    "name": "Huda",
+    "project": "Acme ERP",
+    "branch": "feature-invoices",
+    "commit": "3f2a91c Add the invoice report",
+    "step": "Downloading the code from GitHub",
+    "reason": "GitHub says this repository does not exist, or it is private and has no deploy key yet.",
+    "facts": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:12px; color:#6C757D; background-color:#F8F9FA; border-radius:6px;\"><tr><td colspan=\"2\" style=\"padding:8px 0 0 0;\"></td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Project</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">Acme ERP</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Branch</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">feature-invoices</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Commit</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">3f2a91c Add the invoice report</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Step</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">Downloading the code from GitHub</td></tr><tr><td colspan=\"2\" style=\"padding:0 0 8px 0;\"></td></tr></table>",
+     "text": "Project: Acme ERP\nBranch: feature-invoices\nCommit: 3f2a91c Add the invoice report\nStep: Downloading the code from GitHub"
+    },
+    "details": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:13px; background-color:#F8F9FA; border-radius:6px;\"><tr><td style=\"padding:10px 14px 2px 14px; color:#212529; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:12px;\">ERROR: Repository not found.</td></tr><tr><td style=\"padding:2px 14px 2px 14px; color:#212529; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:12px;\">fatal: Could not read from remote repository.</td></tr><tr><td style=\"padding:2px 14px 10px 14px; color:#212529; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:12px;\">fatal: clone of &#x27;git@github.com:acme/payments.git&#x27; into submodule path &#x27;payments&#x27; failed</td></tr></table>",
+     "text": "  - ERROR: Repository not found.\n  - fatal: Could not read from remote repository.\n  - fatal: clone of 'git@github.com:acme/payments.git' into submodule path 'payments' failed"
+    },
+    "what_to_do": "The panel cannot read the repository acme/payments. Give the panel's GitHub App access to it, or add a read-only deploy key for it. Then retry the update from the branch page.",
+    "link": "https://panel.example.com/projects/acme/branches/feature-invoices/history",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
+   "key": "push_failed_ar",
+   "name": "Deployment of a push failed (Arabic)",
+   "description": "The same e-mail in Arabic, for people whose panel account (or the panel) uses Arabic.",
+   "recipients": "The person who pushed (GitHub's push, or the commit's author); never a noreply address",
+   "kicker": "{{ project }}",
+   "preheader": "{{ reason }}",
+   "default": {
+    "subject": "تعذّر نشر دفعك إلى {{ branch }} في {{ project }}",
+    "title": "تعذّر نشر دفعك",
+    "body": "مرحبًا {{ name }}،\n\nتعذّر نشر دفعك إلى **{{ branch }}** في **{{ project }}**.\n\n{{ facts }}\n\n**ما الذي فشل:** {{ reason }}\n\n{{ details }}\n\n**ما العمل:** {{ what_to_do }}\n\n[افتح الفرع]({{ link }})\n\nتصلك هذه الرسالة لأنك دفعت هذا الإيداع. يستطيع مديرو المشروع إيقاف هذه الرسائل."
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The name of who pushed",
+     "kind": "text"
+    },
+    {
+     "name": "project",
+     "description": "The project",
+     "kind": "text"
+    },
+    {
+     "name": "branch",
+     "description": "The branch pushed to",
+     "kind": "text"
+    },
+    {
+     "name": "commit",
+     "description": "The commit: short SHA and message",
+     "kind": "text"
+    },
+    {
+     "name": "step",
+     "description": "The step that failed",
+     "kind": "text"
+    },
+    {
+     "name": "reason",
+     "description": "What failed, in plain words",
+     "kind": "text"
+    },
+    {
+     "name": "facts",
+     "description": "Project, branch, commit and step, in a box",
+     "kind": "block"
+    },
+    {
+     "name": "details",
+     "description": "Only the lines that explain the failure (never the whole log), in a monospace box",
+     "kind": "block"
+    },
+    {
+     "name": "what_to_do",
+     "description": "What to do, for this kind of failure",
+     "kind": "text"
+    },
+    {
+     "name": "link",
+     "description": "The branch's page in the panel",
+     "kind": "link"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [
+    "reason"
+   ],
+   "samples": {
+    "name": "Huda",
+    "project": "Acme ERP",
+    "branch": "feature-invoices",
+    "commit": "3f2a91c Add the invoice report",
+    "step": "Downloading the code from GitHub",
+    "reason": "GitHub says this repository does not exist, or it is private and has no deploy key yet.",
+    "facts": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:12px; color:#6C757D; background-color:#F8F9FA; border-radius:6px;\"><tr><td colspan=\"2\" style=\"padding:8px 0 0 0;\"></td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Project</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">Acme ERP</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Branch</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">feature-invoices</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Commit</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">3f2a91c Add the invoice report</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Step</td><td style=\"padding:2px 14px 2px 0; color:#212529;\">Downloading the code from GitHub</td></tr><tr><td colspan=\"2\" style=\"padding:0 0 8px 0;\"></td></tr></table>",
+     "text": "Project: Acme ERP\nBranch: feature-invoices\nCommit: 3f2a91c Add the invoice report\nStep: Downloading the code from GitHub"
+    },
+    "details": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:13px; background-color:#F8F9FA; border-radius:6px;\"><tr><td style=\"padding:10px 14px 2px 14px; color:#212529; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:12px;\">ERROR: Repository not found.</td></tr><tr><td style=\"padding:2px 14px 2px 14px; color:#212529; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:12px;\">fatal: Could not read from remote repository.</td></tr><tr><td style=\"padding:2px 14px 10px 14px; color:#212529; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:12px;\">fatal: clone of &#x27;git@github.com:acme/payments.git&#x27; into submodule path &#x27;payments&#x27; failed</td></tr></table>",
+     "text": "  - ERROR: Repository not found.\n  - fatal: Could not read from remote repository.\n  - fatal: clone of 'git@github.com:acme/payments.git' into submodule path 'payments' failed"
+    },
+    "what_to_do": "The panel cannot read the repository acme/payments. Give the panel's GitHub App access to it, or add a read-only deploy key for it. Then retry the update from the branch page.",
+    "link": "https://panel.example.com/projects/acme/branches/feature-invoices/history",
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
    "key": "test",
    "name": "Test e-mail",
    "description": "Proves the mail settings work (Settings, E-mail, Send a test; sudoo.sh test-email).",

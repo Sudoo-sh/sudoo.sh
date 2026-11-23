@@ -131,7 +131,9 @@ def test_creation_job_does_not_clone(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(jobs.Job, "run", fake_run)
     monkeypatch.setattr(operations, "_remove_leftovers", lambda job, name: None)
     monkeypatch.setattr(integrity, "present", lambda image: False)
-    monkeypatch.setattr(integrity, "pull_image", lambda job, image: commands.append(["docker", "pull", image]))
+    monkeypatch.setattr(
+        integrity, "pull_image", lambda job, image, timeout=1800: commands.append(["docker", "pull", image])
+    )
     monkeypatch.setattr(integrity, "apply", stop)
     plan = {
         "name": "made-here", "db_name": "made_here", "repo": "", "branch": "", "version": "18.0",
@@ -144,7 +146,10 @@ def test_creation_job_does_not_clone(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(Stop):
         operations._create(job, plan)
     # the images come first, in a step of their own, so a first download shows what takes the time
-    assert [step["title"] for step in job.steps] == ["Downloading Odoo 18.0 image", "Preparing the instance"]
+    assert [step["title"] for step in job.steps] == [
+        "Downloading Odoo 18.0, first time on this server",
+        "Preparing the instance",
+    ]
     assert commands[:2] == [["docker", "pull", "odoo:18.0"], ["docker", "pull", "postgres:16"]]
     assert not any("clone" in cmd for cmd in commands)
     assert ["git", "init", "-q", "-b", "main", str(store.addons_dir("made-here"))] in commands

@@ -87,13 +87,13 @@ def test_reconnecting_clients_get_the_latest_state_of_what_they_missed() -> None
         subscription, before = events.BUS.subscribe()
         first = events.publish("job", "j1", {"step": 1})
         events.publish("job", "j1", {"step": 2})
-        events.publish("job.output", "j1", {"text": "a"})
-        events.publish("job.output", "j1", {"text": "b"})
+        events.publish("instance", "acme", {"n": 1})
+        events.publish("instance", "acme", {"n": 2})
         assert first is not None
         missed = events.BUS.missed(first.id - 1, events.BUS.last_id, None)
         assert missed is not None
         assert [e.data for e in missed if e.topic == "job"] == [{"step": 2}]  # only the latest state
-        assert [e.data["text"] for e in missed if e.topic == "job.output"] == ["a", "b"]  # every piece of log
+        assert [e.data for e in missed if e.topic == "instance"] == [{"n": 2}]
         events.BUS.unsubscribe(subscription)
         for number in range(1001):  # more than are kept: a client that missed them must reload
             events.publish("metrics", "", {"n": number})

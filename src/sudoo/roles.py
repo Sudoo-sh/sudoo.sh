@@ -56,7 +56,7 @@ from sudoo.config import settings
 
 PERMISSIONS: dict[str, str] = {
     "instances.view": "See instances, their figures and activity",
-    "instances.logs": "Read Odoo's log and jobs' technical logs",
+    "instances.logs": "Read Odoo's log",
     "instances.update": "Get new code, restart, start, add submodules",
     "instances.operate": "Pause, switch off, upgrade, switch branch, back up, change automation",
     "instances.create": "Create instances",

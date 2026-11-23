@@ -44,7 +44,6 @@ import {
   instances,
   instanceUrl,
   jobs,
-  logs,
   MANAGED_BASE,
   MANAGED_COMPANY,
   managedName,
@@ -414,22 +413,11 @@ route("GET", "/instances/:name/logs", ({ params, query }) => {
 });
 // ---------------------------------------------------------------- logs, Connect as, Import database
 
-const LOG_KINDS: Record<string, string> = { "install.log": "create", "update.log": "update", "upgrade.log": "upgrade" };
-
-/** The newest job of the instance whose log is `log` (install.log, update.log, upgrade.log). */
-export function jobOfLog(name: string, log: string): Job | undefined {
-  return jobs.find((j) => j.instance === name && j.kind === LOG_KINDS[log]);
-}
-
+// jobs' technical logs are server logs: never listed or served, only Odoo's own log is
 route("GET", "/instances/:name/logs/files", ({ params }) => {
   needOn(params.name!, "instances.logs");
   instanceOf(params.name!);
-  const found = [{ name: "odoo.log", job: null, status: null, started_at: null }];
-  for (const log of Object.keys(LOG_KINDS)) {
-    const job = jobOfLog(params.name!, log);
-    if (job) found.push({ name: log, job: job.id as never, status: job.status as never, started_at: job.started_at as never });
-  }
-  return ok(found);
+  return ok([{ name: "odoo.log", job: null, status: null, started_at: null }]);
 });
 
 const DEMO_USERS = [
@@ -1134,14 +1122,6 @@ route("GET", "/jobs/:id", ({ params }) => {
   const job = jobs.find((j) => j.id === params.id);
   if (!job) throw new Problem(404, "This job does not exist.");
   return ok(job);
-});
-route("GET", "/jobs/:id/log", ({ params, query }) => {
-  need("instances.logs");
-  const text = logs.get(params.id!) ?? "";
-  const lines = text.split("\n");
-  const offset = Number(query.get("offset") ?? 0);
-  const total = lines.length - 1;
-  return ok({ text: lines.slice(offset, total).map((l) => `${l}\n`).join("") }, { next_offset: total });
 });
 
 // ---------------------------------------------------------------- server, metrics, settings, alerts

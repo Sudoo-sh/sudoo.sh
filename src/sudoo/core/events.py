@@ -32,7 +32,7 @@ _QUEUE = 2000  # events waiting for one client before it counts as too slow
 @dataclass(frozen=True, slots=True)
 class Event:
     id: int
-    topic: str  # "instance", "instance.deleted", "job", "job.output", "metrics", "settings"
+    topic: str  # "instance", "instance.deleted", "job", "metrics", "settings"
     key: str
     data: Any
     at: float = field(default_factory=time.time)
@@ -124,11 +124,8 @@ class EventBus:
             chosen = [e for e in self._recent if after < e.id <= until and (topics is None or e.topic in topics)]
         latest: dict[tuple[str, str], Event] = {}
         for event in chosen:
-            if event.topic == "job.output":  # log text adds up: every piece counts
-                latest[(event.topic, str(event.id))] = event
-            else:
-                latest.pop((event.topic, event.key), None)
-                latest[(event.topic, event.key)] = event
+            latest.pop((event.topic, event.key), None)
+            latest[(event.topic, event.key)] = event
         return list(latest.values())
 
     def data_of(self, event: Event) -> Any:

@@ -15,6 +15,8 @@ below stay as they are, so "Reset to default" only forgets the change. Texts are
     offsite_failed       a backup could not be copied off-site, or an off-site copy failed its check (an alert)
     offsite_missing      a production instance has had no successful off-site copy for too long (an alert)
     plugin_notice        a notice for the super admins about a plugin (licence ending, switched off, ...)
+    push_failed          a deployment triggered by someone's push failed: to the person who pushed
+                         (projects/push_failed.py); push_failed_ar is the same in Arabic
     test                 the test e-mail of Settings, E-mail and `sudoo.sh test-email`
 
 Block placeholders (the code box, the details of a request, the list of alerts) are drawn by the functions at the
@@ -173,6 +175,57 @@ _SAMPLE_ALERTS = [
         "severity": "problem",
     },
 ]
+
+
+_PUSH_PLACEHOLDERS = (
+    Placeholder("name", "The name of who pushed", "Huda"),
+    Placeholder("project", "The project", "Acme ERP"),
+    Placeholder("branch", "The branch pushed to", "feature-invoices"),
+    Placeholder("commit", "The commit: short SHA and message", "3f2a91c Add the invoice report"),
+    Placeholder("step", "The step that failed", "Downloading the code from GitHub"),
+    Placeholder(
+        "reason",
+        "What failed, in plain words",
+        "GitHub says this repository does not exist, or it is private and has no deploy key yet.",
+    ),
+    Placeholder(
+        "facts",
+        "Project, branch, commit and step, in a box",
+        details_block(
+            [
+                ("Project", "Acme ERP"),
+                ("Branch", "feature-invoices"),
+                ("Commit", "3f2a91c Add the invoice report"),
+                ("Step", "Downloading the code from GitHub"),
+            ]
+        ),
+        BLOCK,
+    ),
+    Placeholder(
+        "details",
+        "Only the lines that explain the failure (never the whole log), in a monospace box",
+        lines_block(
+            [
+                "ERROR: Repository not found.",
+                "fatal: Could not read from remote repository.",
+                "fatal: clone of 'git@github.com:acme/payments.git' into submodule path 'payments' failed",
+            ]
+        ),
+        BLOCK,
+    ),
+    Placeholder(
+        "what_to_do",
+        "What to do, for this kind of failure",
+        "The panel cannot read the repository acme/payments. Give the panel's GitHub App access to it, or add a "
+        "read-only deploy key for it. Then retry the update from the branch page.",
+    ),
+    Placeholder(
+        "link",
+        "The branch's page in the panel",
+        "https://panel.example.com/projects/acme/branches/feature-invoices/history",
+        LINK,
+    ),
+)
 
 
 def _code_placeholders(purpose: str) -> tuple[Placeholder, ...]:
@@ -523,6 +576,51 @@ MESSAGES: dict[str, Message] = {
                 Placeholder("plugins_link", "The Plugins page", "https://panel.example.com/plugins", LINK),
             ),
             required=("notice_text",),
+        ),
+        Message(
+            key="push_failed",
+            name="Deployment of a push failed",
+            description="A build triggered by a push failed (an automatic update, a rebuild on push): sent to the "
+            "person who pushed, once per branch and commit (each project can turn it off).",
+            recipients="The person who pushed (GitHub's push, or the commit's author); never a noreply address",
+            kicker="{{ project }}",
+            preheader="{{ reason }}",
+            subject="Your push to {{ branch }} in {{ project }} could not be deployed",
+            title="Your push could not be deployed",
+            body=(
+                "Hello {{ name }},\n\n"
+                "Your push to **{{ branch }}** in **{{ project }}** could not be deployed.\n\n"
+                "{{ facts }}\n\n"
+                "**What failed:** {{ reason }}\n\n"
+                "{{ details }}\n\n"
+                "**What to do:** {{ what_to_do }}\n\n"
+                "[Open the branch]({{ link }})\n\n"
+                "You receive this because you pushed this commit. The project's managers can turn these e-mails off."
+            ),
+            placeholders=_PUSH_PLACEHOLDERS,
+            required=("reason",),
+        ),
+        Message(
+            key="push_failed_ar",
+            name="Deployment of a push failed (Arabic)",
+            description="The same e-mail in Arabic, for people whose panel account (or the panel) uses Arabic.",
+            recipients="The person who pushed (GitHub's push, or the commit's author); never a noreply address",
+            kicker="{{ project }}",
+            preheader="{{ reason }}",
+            subject="تعذّر نشر دفعك إلى {{ branch }} في {{ project }}",
+            title="تعذّر نشر دفعك",
+            body=(
+                "مرحبًا {{ name }}،\n\n"
+                "تعذّر نشر دفعك إلى **{{ branch }}** في **{{ project }}**.\n\n"
+                "{{ facts }}\n\n"
+                "**ما الذي فشل:** {{ reason }}\n\n"
+                "{{ details }}\n\n"
+                "**ما العمل:** {{ what_to_do }}\n\n"
+                "[افتح الفرع]({{ link }})\n\n"
+                "تصلك هذه الرسالة لأنك دفعت هذا الإيداع. يستطيع مديرو المشروع إيقاف هذه الرسائل."
+            ),
+            placeholders=_PUSH_PLACEHOLDERS,
+            required=("reason",),
         ),
         Message(
             key="test",

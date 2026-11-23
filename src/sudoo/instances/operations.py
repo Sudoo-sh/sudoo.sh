@@ -298,7 +298,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
         ):
             job.note(
                 "Some of the repository's modules could not be installed. Odoo works; install them from Apps "
-                "after a developer has looked at the technical log.",
+                "after your administrator has read the server's log.",
                 "warning",
             )
 
@@ -359,16 +359,20 @@ def _before_serving(job: Job, name: str, db: str | None = None) -> None:
 
 
 def _download_images(job: Job, version: str) -> None:
-    """The first step of a creation: download the Odoo and PostgreSQL images (or check for newer ones), with the
-    download's progress in the log, so a first instance of a version shows what takes the time."""
+    """The first step of a creation: the Odoo and PostgreSQL images. The copies already on this server are used at
+    once (the background refresh keeps them current, background.py); a missing one is downloaded, with its progress
+    shown on the step."""
     odoo_image = f"{settings.odoo_image}:{version}"
-    new = not integrity.present(odoo_image)
-    job.step(f"Downloading Odoo {version} image" if new else f"Checking for a newer Odoo {version} image")
-    if new:
-        job.write(f"{odoo_image} is not on this server yet: the first download can take several minutes.\n")
+    missing = [image for image in (odoo_image, settings.postgres_image) if not integrity.present(image)]
+    if odoo_image in missing:
+        job.step(f"Downloading Odoo {version}, first time on this server")
+    elif missing:
+        job.step("Downloading the images")
+    else:
+        job.step(f"Using the Odoo {version} image on this server")
     started = time.monotonic()
     for image in (odoo_image, settings.postgres_image):
-        integrity.pull_image(job, image)
+        integrity.ensure_image(job, image)
     job.write(f"Images ready in {round(time.monotonic() - started)} s.\n")
 
 
@@ -924,7 +928,7 @@ def _back_up_before_update(job: Job, name: str, run: _Update) -> None:
 
 UPDATE_BACKUP_FAILED = (
     "The backup taken before the update failed, so the update was not applied. Something in the instance may keep "
-    "its backup from working; the technical log shows what."
+    "its backup from working; the server's log shows what."
 )
 
 
@@ -933,6 +937,7 @@ def _put_back(job: Job, name: str, run: _Update, paused: bool, submodules_only: 
     Odoo on that version. Always raises JobError with a sentence that says what happened."""
     from sudoo.core import audit
 
+    job.mark_failure()  # the failed step and its log, before the rollback writes its own ("Why it failed")
     hint = specific_hint("".join(job.log))  # what explains the failure, before the rollback writes its own log
     previous = run.before["."][:7]
     target = "the latest submodules" if submodules_only else (run.target[:7] or "the latest code")
@@ -953,11 +958,11 @@ def _put_back(job: Job, name: str, run: _Update, paused: bool, submodules_only: 
         else:
             _start_odoo(job, name, restart=True, strict=True)
     except Exception as undo_error:  # noqa: BLE001 - said in the job's message, which ends it
-        problem = str(undo_error)
+        problem = str(undo_error) or type(undo_error).__name__
+        job.write(f"Putting the instance back failed: {problem}\n")  # the details: the server's log only
     if problem:
         message = (
-            f"The update to {target} failed at {run.stage}, and putting the instance back to {previous} failed "
-            f"too ({problem})."
+            f"The update to {target} failed at {run.stage}, and putting the instance back to {previous} failed " "too."
         )
         if run.backup:
             files = ", ".join(path.name for path in run.backup)
@@ -1072,7 +1077,7 @@ def connect_repository(job: Job, name: str, repo: str, branch: str, install_modu
             ):
                 job.note(
                     "Some of the repository's modules could not be installed. Odoo works; install them from Apps "
-                    "after a developer has looked at the technical log.",
+                    "after your administrator has read the server's log.",
                     "warning",
                 )
         if paused:

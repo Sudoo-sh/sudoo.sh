@@ -14,7 +14,7 @@ from sudoo.config import settings
 from sudoo.core import jobs
 from sudoo.core.cache import VersionedMemo
 from sudoo.core.state import STATE
-from sudoo.instances import backups, gateway, metrics, monitor, operations, stages, store
+from sudoo.instances import backups, gateway, integrity, metrics, monitor, operations, stages, store
 from sudoo.repos.gitrepo import commits, origin_url, submodules
 
 from .responses import PREFIX, iso
@@ -30,13 +30,47 @@ def job_reference(job: jobs.Job) -> dict[str, Any]:
     }
 
 
+def job_steps(job: jobs.Job) -> list[dict[str, Any]]:
+    """The job's steps as users see them: title, status, when it started, and while it runs how far it is (a plain
+    sentence and, when known, a percentage). Never the job's technical log, which stays on the server."""
+    shown = []
+    for step in job.steps:
+        running = step["status"] == "running"
+        shown.append(
+            {
+                "title": step["title"],
+                "status": step["status"],
+                "started_at": iso(step.get("started")),
+                "progress": step.get("progress") if running else None,
+                "progress_percent": step.get("percent") if running else None,
+            }
+        )
+    return shown
+
+
+def failure_resource(found: dict[str, Any] | None) -> dict[str, Any] | None:
+    """ "Why it failed" (core/failure.py): {"step", "reason", "kind", "details": [lines], "repository"}; None when
+    nothing failed. The details are the few lines that explain the failure, cleaned; never the technical log."""
+    if not found:
+        return None
+    return {
+        "step": found.get("step"),
+        "reason": found.get("reason") or "",
+        "kind": found.get("kind") or "other",
+        "details": list(found.get("details") or []),
+        "repository": found.get("repository"),
+    }
+
+
 def current_job(job: jobs.Job) -> dict[str, Any]:
     """An instance's job in progress: its reference with the steps so far."""
-    return job_reference(job) | {"steps": [{"title": step["title"], "status": step["status"]} for step in job.steps]}
+    return job_reference(job) | {"steps": job_steps(job)}
 
 
-def job_resource(job: jobs.Job, include_log: bool = False) -> dict[str, Any]:
-    resource: dict[str, Any] = {
+def job_resource(job: jobs.Job) -> dict[str, Any]:
+    """A job as the API and the live events show it: its steps, notes, result and, when it failed, the plain-language
+    hint. The technical log is never part of it (docker logs sudoo-panel has it)."""
+    return {
         "id": job.id,
         "instance": job.instance,
         "action": job.action,
@@ -46,17 +80,15 @@ def job_resource(job: jobs.Job, include_log: bool = False) -> dict[str, Any]:
         "requested_by": job.user,
         "started_at": iso(job.started),
         "finished_at": iso(job.finished),
-        "steps": [{"title": step["title"], "status": step["status"]} for step in job.steps],
+        "steps": job_steps(job),
         "notes": job.notes,
         "error": job.hint if job.status == "failed" else None,
+        "failure": failure_resource(job.failure) if job.status == "failed" else None,
         "links": {
             "self": f"{PREFIX}/jobs/{job.id}",
             "instance": None if jobs.is_panel_job(job.instance) else f"{PREFIX}/instances/{job.instance}",
         },
     }
-    if include_log:
-        resource["log"] = "".join(job.log)
-    return resource
 
 
 def _usage(name: str) -> dict[str, Any]:
@@ -194,6 +226,7 @@ def creating_resource(job: jobs.Job, full: bool = False) -> dict[str, Any]:
             "backups": [],
             "restorable_backup": None,
             "rollback": None,
+            "newer_odoo_image": False,
             "recent_jobs": [job_reference(job)],
         }
     return resource
@@ -276,6 +309,8 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
             ],
             "restorable_backup": (latest or {}).get("file"),
             "rollback": rollback(name),
+            # a newer copy of its Odoo image is on this server: "Update Odoo and PostgreSQL images" moves it there
+            "newer_odoo_image": integrity.newer_odoo_image(name),
             "recent_jobs": [
                 job_reference(job)
                 for job in reversed(jobs.JOBS.values())

@@ -68,21 +68,14 @@ def test_split_stamp() -> None:
     assert logs.split_stamp("no stamp here") == ("", "no stamp here")
 
 
-def test_available_lists_job_logs() -> None:
-    job = jobs.Job("logbox", "Create", "create", "admin1")
-    job.log.append("cloning\n")
-    jobs.JOBS[job.id] = job
-    found = logs.available("logbox")
-    assert [entry["name"] for entry in found] == ["odoo.log", "install.log"]
-    assert found[1]["job"] == job.id
-
-
-def test_tail_of_a_job_log_with_filter() -> None:
+def test_job_logs_are_never_listed_or_read() -> None:
+    """The technical logs of jobs are server logs (docker logs sudoo-panel): the Logs tab only has odoo.log."""
     job = jobs.Job("logbox", "Get latest code", "update", "admin1")
-    job.log.extend(["Collecting requests\n", "pip install ok\n", "ERROR: no matching distribution\n"])
+    job.log.extend(["Collecting requests\n", "ERROR: no matching distribution\n"])
     jobs.JOBS[job.id] = job
-    assert list(logs.tail("logbox", "update.log", 10, "error")) == ["ERROR: no matching distribution\n"]
-    assert list(logs.tail("logbox", "update.log", 1)) == ["ERROR: no matching distribution\n"]
+    assert [entry["name"] for entry in logs.available("logbox")] == ["odoo.log"]
+    assert logs.NAMES == ("odoo.log",)
+    assert list(logs.tail("logbox", "update.log", 10)) == []
 
 
 def test_files_endpoint(admin: Client) -> None:
@@ -178,14 +171,11 @@ def test_follow_ends_after_the_maximum_duration(app: Flask, admin: Client, monke
     assert frames[-1][2] == {"reason": "max_duration"}
 
 
-def test_follow_a_job_log(app: Flask, admin: Client) -> None:
+def test_a_job_log_cannot_be_followed(app: Flask, admin: Client) -> None:
     job = jobs.Job("logbox", "Create", "create", "admin1")
     job.log.extend(["one\n", "two\nthree\n"])
-    job.status = "success"
     jobs.JOBS[job.id] = job
     cookie = admin[0].get_cookie("sudoo_session")
     assert cookie is not None
-    frames = _frames(_follow(app, cookie.value, "?log=install.log&tail=2")[1])
-    lines = [line for event, _, data in frames if event == "lines" for line in data["lines"]]  # type: ignore[index]
-    assert lines == ["two", "three"] and frames[-1][2] == {"reason": "finished"}
-    assert frames[0][1] == "2"  # the offset in the job's log to continue from
+    status, _body = _follow(app, cookie.value, "?log=install.log&tail=2")
+    assert status == 400

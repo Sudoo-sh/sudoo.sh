@@ -143,8 +143,8 @@ def odoo_service(job: Job, name: str, db: str, target: str, aim: str, code: Secr
     result = upgraded_dump(work)
     if code_exit != 0 or result is None:
         raise JobError(
-            "Odoo's upgrade service did not return an upgraded database. Its messages are in the technical log; "
-            "upgrade-report.html and Odoo's support (odoo.com/help) say more about a failed request."
+            "Odoo's upgrade service did not return an upgraded database. Its messages are in the server's log (your "
+            "administrator can read it); upgrade-report.html and Odoo's support (odoo.com/help) say more about a failed request."
         )
     job.note(f"Odoo's upgrade service returned the database upgraded to Odoo {target}.")
     return result
@@ -214,7 +214,7 @@ def own_modules_upgrade(job: Job, name: str, db: str) -> None:
     job.write(f"Upgrading the repository's modules: {', '.join(modules)}\n")
     command = odoo.run_cmd(name, "-d", db, "-u", ",".join(modules), "--stop-after-init", "--no-http")
     if job.run_unchecked(command, timeout=_seconds()):
-        raise JobError("The repository's modules could not be upgraded on the new version; see the technical log.")
+        raise JobError("The repository's modules could not be upgraded on the new version; the server's log says why.")
 
 
 # ---------------------------------------------------------------- OpenUpgrade (Community)
@@ -244,7 +244,7 @@ def openupgrade(job: Job, name: str, db: str, target: str) -> None:
                             "--stop-after-init", "--no-http")  # fmt: skip
     if job.run_unchecked(command, timeout=_seconds()):
         raise JobError(
-            "OpenUpgrade could not upgrade the database. Its messages are in the technical log: a module it does not "
+            "OpenUpgrade could not upgrade the database. Its messages are in the server's log: a module it does not "
             "cover, or a repository module that is not ported yet, is the usual reason."
         )
 

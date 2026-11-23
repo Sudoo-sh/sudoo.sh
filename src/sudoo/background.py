@@ -33,6 +33,7 @@ from sudoo.instances import (
 from sudoo.mailcatcher import panel as mail_catcher
 from sudoo.premium import loader as premium_loader
 from sudoo.repos import github, github_app
+from sudoo.topology import share as topology_share
 
 
 def start() -> None:
@@ -54,6 +55,7 @@ def start() -> None:
         _remove_expired_snapshots,
         _keep_github_webhook_current,
         marketplace.heartbeat_forever,
+        topology_share.share_forever,
         plugin_manager.watch_forever,
         premium_loader.watch_forever,
         domain_worker.run_forever,

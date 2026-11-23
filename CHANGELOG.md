@@ -25,6 +25,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Share the topology with Sudoo.sh (opt-in)**: with `SHARE_TOPOLOGY_WITH_SUDOO` on (off by default, needs
+  `MARKETPLACE`), the panel sends a signed snapshot every `TOPOLOGY_INTERVAL_SECONDS` (30) for Sudoo.sh staff's live
+  infrastructure diagram: servers, the panel's parts, each instance's gateway, Odoo and PostgreSQL with replicas,
+  health, CPU and memory, and the request and error rates between them (contract `sudoo.topology/v1`, at most
+  256 KiB). Ids are pseudonyms; real names only with `TOPOLOGY_INCLUDE_NAMES`; no customer data. Switching it off
+  deletes what the hub kept. The figures come from an engine interface, so the Kubernetes engine can report
+  namespaces, nodes and replicas in the same contract. The mail catcher now counts in the panel's own footprint.
+  Settings page, **Support**; see docs/MARKETPLACE.md and docs/SECURITY.md.
 - **Production access rules (beta)**, off until `ACCESS_RULES_BETA` is switched on: a production instance can let
   only visitors from chosen countries, from chosen IPv4/IPv6 addresses and ranges, or either, open its back office
   (the default; the public website and shop stay open) or its whole site, with exceptions for payment and webhook

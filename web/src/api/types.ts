@@ -37,7 +37,8 @@ export type Permission =
   | "servers.manage"
   | "instances.move"
   | "support_access.manage"
-  | "clients.manage";
+  | "clients.manage"
+  | "maintenance.manage";
 
 export interface Profile {
   first_name: string | null;

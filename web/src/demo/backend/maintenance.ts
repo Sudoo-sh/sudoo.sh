@@ -96,7 +96,7 @@ function meta(client: boolean): MaintenanceMeta {
     client_choice: clientChoice(),
     default_minutes: length,
     default_start: start,
-    may_choose: client ? clientChoice() : can("settings.manage"),
+    may_choose: client ? clientChoice() : can("maintenance.manage"),
     ...(client ? { confirmations: false } : {}),
   };
 }
@@ -173,7 +173,7 @@ route("GET", "/maintenance", () => {
 });
 
 route("PUT", "/maintenance/:id/window", ({ params, body }) => {
-  if (!can("settings.manage")) throw new Problem(403, "Your role cannot choose the time of maintenance.");
+  if (!can("maintenance.manage")) throw new Problem(403, "Your role cannot choose the time of maintenance.");
   const item = find(params.id!);
   choose(item, startOf(item, body), "Sara Nassar", "panel");
   return ok(refresh(item));

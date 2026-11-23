@@ -5,7 +5,7 @@ The panel's people
                                                    quick choices and the bounds of each (instances.view); meta: the
                                                    time zone, the default window, whether the caller may choose
     PUT  /api/v1/maintenance/<id>/window           {"preset": tonight|weekend|default} or {"start": ISO time}:
-                                                   choose when it runs (settings.manage)
+                                                   choose when it runs (maintenance.manage)
 
 The client (in the portal; security.CLIENT_ENDPOINTS)
     GET  /api/v1/client/maintenance                the items that work on its projects (only its own instances)
@@ -64,12 +64,12 @@ def list_items() -> Response:
     now = time.time()
     return ok(
         [maintenance.resource(item, now) for item in maintenance.items()],
-        meta={**maintenance.settings_view(), "may_choose": can("settings.manage")},
+        meta={**maintenance.settings_view(), "may_choose": can("maintenance.manage")},
     )
 
 
 @blueprint.put("/maintenance/<item_id>/window")
-@require("settings.manage")
+@require("maintenance.manage")
 def choose(item_id: str) -> Response:
     found = _item(item_id)
     start = _choice(found)

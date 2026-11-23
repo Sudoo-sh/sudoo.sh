@@ -26,7 +26,7 @@ An item (storage collection "maintenance", one document per item; the hub's id)
     outbox      reports for the hub not sent yet (POST /api/v1/maintenance/<id>/report, signed)
 
 Choosing the time
-    Anyone with settings.manage chooses a window in [max(earliest_start, now + MAINTENANCE_LEAD_MINUTES), deadline]:
+    Anyone with maintenance.manage (super admins and admins) chooses a window in [max(earliest_start, now + MAINTENANCE_LEAD_MINUTES), deadline]:
     tonight (MAINTENANCE_TONIGHT_TIME), the weekend (MAINTENANCE_WEEKEND_DAY at the same time), the default window
     (MAINTENANCE_DEFAULT_WINDOW on MAINTENANCE_DEFAULT_DAYS) or any time. Clients of affected projects may choose too
     when MAINTENANCE_CLIENT_CHOICE is on (confirmed by e-mail like their other major changes). When nobody chose

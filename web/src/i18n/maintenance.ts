@@ -57,7 +57,7 @@ const en = {
     saved: "Maintenance time chosen",
     change: "Change the time",
     range: (from: string, until: string) => `Any start from ${from} to ${until}.`,
-    viewOnly: "An administrator with access to the settings chooses the time.",
+    viewOnly: "An administrator chooses the time.",
     clientOff: "Your provider chooses the time of maintenance.",
   },
   client: {
@@ -135,7 +135,7 @@ const ar: typeof en = {
     saved: "اختير موعد الصيانة",
     change: "غيّر الموعد",
     range: (from, until) => `أي بداية من ${from} إلى ${until}.`,
-    viewOnly: "يختار الموعد مسؤول لديه صلاحية الإعدادات.",
+    viewOnly: "يختار الموعد أحد المسؤولين.",
     clientOff: "يختار مزوّد الخدمة موعد الصيانة.",
   },
   client: {

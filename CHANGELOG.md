@@ -40,6 +40,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **A build opens its commit on GitHub**: press a build's card on a project's **Builds** tab, or in a branch's
+  **History**, and the commit it was built from opens on GitHub in a new tab
+  (`https://github.com/<owner>/<repository>/commit/<hash>`). Pointing at the card underlines its subject and shows an
+  external-link mark. The buttons on the card keep doing only what they say: the short hash copies the whole hash,
+  **Open Odoo** opens the instance, the reason a build failed opens the branch's history, **View steps** its job. A
+  repository that is not on GitHub gets no commit link (the Builds card then opens the branch's history, as before).
+
+- **The commit an instance runs, in its header**: next to the branch, the short hash (seven characters) of the commit
+  its current build runs. Press it to copy the whole hash; its arrow opens the commit on GitHub in a new tab.
+- **Sign in with GitHub, or with a code by e-mail.** The sign-in page offers **Continue with GitHub** (through the
+  panel's own GitHub App: web flow with `state` and PKCE, the person's token revoked at once and never stored) and
+  **Send me a code** (a 6-digit code by e-mail, no password), next to the password. Who may sign in with GitHub:
+  people with an account or invitation that names their GitHub user name or their verified primary GitHub address
+  (linked at the first sign-in), and optionally members of the organisations in `GITHUB_SIGN_IN_ORGS`, with the
+  role `GITHUB_SIGN_IN_ROLE`. Administrators choose each account's ways to sign in (Password, E-mail code, GitHub)
+  on the **Accounts** page; the defaults are `SIGN_IN_METHODS` (`password,github`) and, for client accounts,
+  `CLIENT_SIGN_IN_METHODS` (`email_code`). At least one super admin always keeps a password. `REQUIRE_SECOND_FACTOR`
+  still applies after GitHub; `GITHUB_SIGN_IN_SKIPS_SECOND_FACTOR` (off) may accept GitHub's own 2FA instead. People
+  link and unlink GitHub on **My account**; every sign-in, link and unlink is audited and the sign-in e-mail names
+  the way used. New Apps get the `/login/github` callback URL and **Email addresses** and **Members** read access
+  from the manifest; an App connected before needs the callback URL added once on GitHub (Admin guide).
+- **Project access from GitHub repository permissions** (`GITHUB_ACCESS_FROM_REPOSITORIES`, on with GitHub sign-in):
+  for a linked person, admin on the repository gives admin in the project, maintain maintainer, write developer,
+  triage or read view, none hides it. Read with the App's installation token at each sign-in and every
+  `GITHUB_ACCESS_CHECK_MINUTES` (15); a grant to the person still wins; administrators are not limited. The
+  project's **Access** tab lists each linked person's GitHub permission and level.
 - **A setup wizard on the first-run page**: eight steps with the progress at the top, Back and Next: welcome and the
   licence agreement, the server check (memory, processors, disk, system, virtualisation, ports 80 and 443, measured
   again on demand) with the engine, the address (Direct, Proxy or Tunnel; the server's address, your own name or a
@@ -180,37 +206,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   copy buttons and the theme button turn their icon into the next one; a field that turns invalid shakes once;
   loading skeletons get a lighter shimmer; only something running has a pulsing status dot. With reduced motion
   everything shows at once or fades. The motion tokens, wrappers and rules are in the design guide.
+- **A project's pages keep their layout and read more calmly**: the stage groups of the branch list (**Production**,
+  **Staging**, **Development**) are in sentence case and stand out a little more, so the branches can be scanned at a
+  glance. A build's status reads **Passed** instead of "Test: Success", an older build **Replaced** instead of
+  "Dropped", and the branch search field **Search branches**.
+
 
 ## [3.3.4] - 2026-11-23
 
 ### Added
-
-- **A build opens its commit on GitHub**: press a build's card on a project's **Builds** tab, or in a branch's
-  **History**, and the commit it was built from opens on GitHub in a new tab
-  (`https://github.com/<owner>/<repository>/commit/<hash>`). Pointing at the card underlines its subject and shows an
-  external-link mark. The buttons on the card keep doing only what they say: the short hash copies the whole hash,
-  **Open Odoo** opens the instance, the reason a build failed opens the branch's history, **View steps** its job. A
-  repository that is not on GitHub gets no commit link (the Builds card then opens the branch's history, as before).
-
-- **The commit an instance runs, in its header**: next to the branch, the short hash (seven characters) of the commit
-  its current build runs. Press it to copy the whole hash; its arrow opens the commit on GitHub in a new tab.
-- **Sign in with GitHub, or with a code by e-mail.** The sign-in page offers **Continue with GitHub** (through the
-  panel's own GitHub App: web flow with `state` and PKCE, the person's token revoked at once and never stored) and
-  **Send me a code** (a 6-digit code by e-mail, no password), next to the password. Who may sign in with GitHub:
-  people with an account or invitation that names their GitHub user name or their verified primary GitHub address
-  (linked at the first sign-in), and optionally members of the organisations in `GITHUB_SIGN_IN_ORGS`, with the
-  role `GITHUB_SIGN_IN_ROLE`. Administrators choose each account's ways to sign in (Password, E-mail code, GitHub)
-  on the **Accounts** page; the defaults are `SIGN_IN_METHODS` (`password,github`) and, for client accounts,
-  `CLIENT_SIGN_IN_METHODS` (`email_code`). At least one super admin always keeps a password. `REQUIRE_SECOND_FACTOR`
-  still applies after GitHub; `GITHUB_SIGN_IN_SKIPS_SECOND_FACTOR` (off) may accept GitHub's own 2FA instead. People
-  link and unlink GitHub on **My account**; every sign-in, link and unlink is audited and the sign-in e-mail names
-  the way used. New Apps get the `/login/github` callback URL and **Email addresses** and **Members** read access
-  from the manifest; an App connected before needs the callback URL added once on GitHub (Admin guide).
-- **Project access from GitHub repository permissions** (`GITHUB_ACCESS_FROM_REPOSITORIES`, on with GitHub sign-in):
-  for a linked person, admin on the repository gives admin in the project, maintain maintainer, write developer,
-  triage or read view, none hides it. Read with the App's installation token at each sign-in and every
-  `GITHUB_ACCESS_CHECK_MINUTES` (15); a grant to the person still wins; administrators are not limited. The
-  project's **Access** tab lists each linked person's GitHub permission and level.
 
 - **Choose Odoo's apps for a new instance**, as on Odoo.sh: **New instance** and a branch's **Create instance** have
   a searchable picker of the standard **Odoo apps** of the chosen version (Sales, Invoicing, CRM, Inventory,
@@ -222,13 +226,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `GET /api/v1/odoo-apps` and a branch's modules with `GET /api/v1/repositories/modules`. A new setting,
   `MAX_INITIAL_MODULES` (200), limits how many may be chosen. The project option that decides the modules of new
   development databases is now called **Modules to install in new instances**.
-
-### Changed
-
-- **A project's pages keep their layout and read more calmly**: the stage groups of the branch list (**Production**,
-  **Staging**, **Development**) are in sentence case and stand out a little more, so the branches can be scanned at a
-  glance. A build's status reads **Passed** instead of "Test: Success", an older build **Replaced** instead of
-  "Dropped", and the branch search field **Search branches**.
 
 ## [3.3.3] - 2026-11-23
 

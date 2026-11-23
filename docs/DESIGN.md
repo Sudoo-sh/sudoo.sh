@@ -55,13 +55,15 @@ web/src/styles/
 ├── _tokens.scss       every colour, size, radius, shadow, material and motion value, light and dark
 ├── _mixins.scss       hover (only for real pointers) and press feedback
 ├── _base.scss         page, type, helpers
-├── _motion.scss       page transitions, keyframes, reduced motion
+├── _motion.scss       page transitions, the motion system's utilities, keyframes, reduced motion
 ├── _components.scss   cards, status, forms, tabs, tables, toasts, logs, the shell, and the classes premium pages use
 ├── _layout.scss       sidebar, top bar, page header
 ├── _pages.scss        sign-in, figures, charts, instance cards, settings rows, help pages
 └── _look.scss         the Sudoo.sh look on the shadcn components (buttons, fields, lists, menus, dialogs, sheets, tables)
 web/src/components/ui/   shadcn/ui components, added with the shadcn CLI (components.json) and used unchanged
 web/src/components/app/  the panel's pieces built on them (basics.tsx, overlay.tsx, select.tsx, OtpInput.tsx, Brand.tsx)
+web/src/components/app/motion.tsx   the motion system's wrappers (Reveal, Stagger, Presence, AnimatedNumber, MorphIcon, TabInk, useHero)
+web/src/lib/motion.ts   the same tokens for the Web Animations API, reduced motion, interruptible play() and FLIP
 web/src/components/charts/LiveChart.tsx   the charts
 ```
 
@@ -89,7 +91,7 @@ Drawer (from the bottom edge) below 640px; the sidebar is a Sheet up to 960px; e
 | Shape | `--radius-tag` 6, `--radius-control` 8, `--radius-card` 14, `--radius-panel` 16 | Inner radius = outer radius minus the padding |
 | Space | `--s1` to `--s12` | A 4 px grid; equal things get equal sizes |
 | Materials | `--material`, `--material-blur` | Translucent chrome, see [Materials](#5-materials-and-depth) |
-| Motion | `--ease`, `--ease-move`, `--ease-drawer`, `--press`, `--quick`, `--menu`, `--enter`, `--sheet` | See [Motion](#6-motion) |
+| Motion | `--spring`, `--spring-bounce`, `--ease`, `--ease-move`, `--ease-drawer`, `--dur-micro`, `--dur-ui`, `--dur-enter`, `--dur-surface`, `--dur-exit`, `--stagger-step`, `--stagger-max`, `--lift`, `--rise`, `--shadow-lift` (and the older `--press`, `--quick`, `--menu`, `--enter`, `--sheet`) | See [Motion](#6-motion) |
 
 Dark mode redefines the same tokens (the `dark` mixin in `_tokens.scss`): it follows the system, or the choice made
 with the theme button at the bottom of the sidebar. A theme change fades over 300 ms instead of flashing.
@@ -129,30 +131,52 @@ text stronger.
 the content moves, the frame stays still (see the table). Menus, sheets and toasts appear occasionally and get a
 short, purposeful animation. The first-run and sign-in screens, seen rarely, bring their blocks in one after the other.
 
+Every animation does one of three jobs: it **explains a change** (where something came from or went), it **answers**
+(a press, a hover, a success, a mistake), or it **keeps continuity** (moving between pages, a list that changes).
+Nothing moves for decoration, and nothing loops except something that is loading or running right now.
+
 | Thing | Motion | Curve and duration |
 | :--- | :--- | :--- |
 | Any press (buttons, cards, rows, choices, segments) | Scales to 0.97 (0.985 for large surfaces) on press, before the click | `--ease`, 160 ms |
-| Menus | Grow from the button that opened them (`transform-origin` at the trigger), shrink back into it; drawn above the page (a portal), below the button or above it when there is no room | `--ease`, 180 ms in, 120 ms out |
-| Dialogs | Not anchored to a trigger: materialize in the centre (scale 0.96, opacity, 4 px blur) | `--ease`, 240 ms |
+| Menus and lists to choose from | Grow from the button that opened them (scale 0.96 from `transform-origin` at the trigger, which follows the side they line up with, so Arabic mirrors it), shrink back into it; drawn above the page (a portal), below the button or above it when there is no room | `--spring`, 180 ms in; `--ease`, 120 ms out |
+| Dialogs | Not anchored to a trigger: the backdrop fades while the panel pops in gently in the centre (scale 0.96, opacity, 4 px blur) | `--spring`, 300 ms in (backdrop 220 ms); `--ease`, 180 ms out |
 | Drawer | In from the right edge and out the same way (spatial consistency) | `--ease-drawer` (the iOS sheet curve), 400 ms in, 280 ms out |
-| Toasts | Rise from the bottom edge, sink back when they go | `--ease`, 320 ms |
-| Moving between pages | The View Transitions API (`viewTransition` on links and `navigate`). One page at a time: the old view fades out, and only when it is gone does the new one fade in, rising 4 px, so two titles or two intros are never on screen together. Nothing is shared or cross-faded between two pages; only the frame stays still: the sidebar, the top bar (its breadcrumb fades out and in with the content) and the Help pages' list, where the highlight simply moves. Between the tabs of one page (an instance's tabs, Plugins), only the tab's content (`.tab-panel`) fades out and in; the title and the tabs stay (`lib/navigation.ts` sets `data-nav="tab"` or `"page"` on `<html>` before the old view is captured). The content is the viewport's snapshot, so a scrolled page does not jump. Browsers without the API change the page at once | 120 ms out (ease-out), then 190 ms in (`--ease`); reduced motion: 80 ms out, 120 ms in, no rise |
+| Toasts | Slide in from the inline-end edge (the right; the left in Arabic) and out the same way; the others glide to their new places (FLIP) instead of jumping; a success draws its check | `--spring`, 300 ms in; `--ease`, 180 ms out |
+| Moving between pages | The View Transitions API (`viewTransition` on links and `navigate`). One page at a time: the old view fades out, and only when it is gone does the new one fade in, rising 4 px, so two titles or two intros are never on screen together. Nothing else is shared or cross-faded between two pages (the one exception: an instance card's name moving into its page's title, below); only the frame stays still: the sidebar, the top bar (its breadcrumb fades out and in with the content) and the Help pages' list, where the highlight simply moves. Between the tabs of one page (an instance's tabs, Plugins), only the tab's content (`.tab-panel`) fades out and in; the title and the tabs stay (`lib/navigation.ts` sets `data-nav="tab"` or `"page"` on `<html>` before the old view is captured). The content is the viewport's snapshot, so a scrolled page does not jump. Browsers without the API change the page at once | 120 ms out (ease-out), then 190 ms in (`--ease`); reduced motion: 80 ms out, 120 ms in, no rise |
 | Another branch of a project | As between tabs (`data-nav="branch"`), plus the branch's part of the project's header: its name and tags (`.ph-branch`) and its command (`.bc-panel`) cross-fade in place, the old one rising 4 px as it leaves and the new one rising 4 px into place. Both keep their box (full width, fixed height), so nothing around them moves. Without the API they fade in | 180 ms (`--branch-swap`, `--ease`); reduced motion: the same fade, no slide |
-| Loading placeholders | Skeletons and a page's spinner stay invisible for 150 ms, then fade in, so a quick load never flashes; a 2 px bar at the top appears after 150 ms while a page's code is still loading | `--ease`, `--quick` after 150 ms |
+| Loading placeholders | Where the shape of what is coming is known, a skeleton in that shape (`Skeleton`, `SkeletonText`) with a soft light sweeping across it (a transform, in the reading direction) instead of a spinner. Skeletons and a page's spinner stay invisible for 150 ms, then fade in, so a quick load never flashes; a 2 px bar at the top appears after 150 ms while a page's code is still loading | `--ease`, `--quick` after 150 ms |
 | Segmented control | The thumb slides to the chosen option | `--ease-move`, 280 ms |
 | Switch | The thumb stretches while pressed, as on iOS | `--ease`, 160 ms |
-| Numbers | Tween to the new value | ease-out, 600 ms |
+| Tabs | The underline slides to the chosen tab (`TabInk`, a 1 px line scaled to the tab's width: transform only) | `--spring`, 300 ms |
+| Lists and grids | On first load the items come in one after the other (fade and a 6 px rise), 25 ms apart and at most eight steps; an item added later comes in on its own; an item that stays is never animated again. `Presence collapse` opens and closes the room of an item added or removed | `--spring`, 220 ms; leaving 140 ms |
+| Cards that open something | Lift 2 px under the pointer with a softer, wider shadow (dark mode: the hairline firms up); a press pushes them back down | 160 ms |
+| An instance card opening its page | Its name moves and grows into the page's title while the rest of the page does its out-then-in fade (shared element: `useHero`); going back it returns to its card | `--spring`, 300 ms |
+| Numbers | Tween to the new value in tabular figures; a dashboard's figure counts up from 0 when it first arrives | ease-out, 600 ms |
+| Charts | Drawn at once (Chart.js draws nothing twice), then the chart fades in | `--ease`, 300 ms |
+| Copying, and other icons that change | The icon turns into the next one in place (a copy icon into a check, the theme's sun into a moon): scale 0.5, fade and a 2 px blur | `--spring-bounce`, 180 ms in; 140 ms out |
+| A field that turns invalid | Shakes once, 4 px each way; its message comes in under it | ease-out, 280 ms |
+| Keyboard focus | The ring draws in from a little further out | `--ease`, 180 ms |
+| Empty states | Settle in, the icon popping softly | `--spring`, 220 ms |
 | Progress | Constant motion | linear |
-| A running job's status dot | The only looping motion: it says something is happening right now | 1.4 s |
+| Status dot of something running (creating, starting, working, a running job) | The only looping motion besides loading: a soft ring breathes out of the dot; it says something is happening right now. Queued, online, paused and failed stay still | 1.6 s |
 
 Implementation rules:
 
-- **Ease-out** for things entering and leaving, **ease-in-out** for things moving on screen, never ease-in.
+- **Springs** for things arriving and moving: `--spring` (a damping ratio of 0.8, about 1.5% overshoot) and, for
+  small things that pop (an icon, a picked-up row), `--spring-bounce` (0.62, about 8%). They are CSS `linear()`
+  curves; where `linear()` is not supported they fall back to `--ease`.
+- **Ease-out** for things leaving, **ease-in-out** for things moving on screen, never ease-in.
+- **Durations:** 120 to 220 ms for most of the interface (`--dur-micro`, `--dur-ui`, `--dur-enter`), up to 300 ms for
+  large surfaces (`--dur-surface`); **exits are quicker than entrances** (`--dur-exit`, 140 ms).
 - **Dialogs, sheets, menus and lists** come in and leave with the components' enter and exit animations, tuned in
   `_look.scss` to the values above; the element is removed once the exit animation has played
   (`components/app/overlay.tsx`). Toasts and the other pieces use transitions (`@starting-style`).
 - **Only `transform` and `opacity`** (and a small `filter: blur`) are animated; never width, height or position,
-  except the segmented thumb's width.
+  except the segmented thumb's width and the room `Presence collapse` opens (`grid-template-rows`). A focus ring's
+  offset and a check's stroke are the other small exceptions.
+- **Interruptible:** transitions rather than queued animations wherever something can change its mind; `play()` in
+  `lib/motion.ts` cancels the animation it started on an element before it starts the next, so quick repeated
+  presses never queue motion.
 - **Nothing appears from `scale(0)`:** entries start at 0.96 to 0.97.
 - **A card that opens something** (a build opens its commit on GitHub) is one link: its title is the `<a>`, and an
   `::after` stretches it over the card. What acts inside the card (a copy button, **Open Odoo**, a link to the history)
@@ -165,11 +189,58 @@ Implementation rules:
 - **Hover styles only for real pointers** (`@media (hover: hover) and (pointer: fine)`), so taps on a phone do not
   leave things highlighted.
 - **Reduced motion** keeps changes understandable: movement is removed and replaced by short fades (the page
-  transition stays an out-then-in fade, quicker and without its rise; loading placeholders keep their 150 ms delay, which is not movement).
+  transition stays an out-then-in fade, quicker and without its rise; loading placeholders keep their 150 ms delay,
+  which is not movement). No rise, lift, stagger, shake, pop, sliding underline, flying title or shimmer; numbers
+  show their new value at once; icons that change cross-fade; the theme fades instead of growing in a circle.
 - **A new page starts at its top,** and going back returns to where you were (`ScrollRestoration`, in
   `components/PageMotion.tsx`).
 - **Status chrome only when it matters:** no "live" or "synced" badge; a small "Reconnecting" notice appears only
   when the connection to the server has been lost for more than three seconds.
+
+### The motion system
+
+The tokens live in `_tokens.scss`, the CSS in `_motion.scss`, the script side in `lib/motion.ts` and the wrappers in
+`components/app/motion.tsx`. A page wraps what it already draws; the shared components (buttons, menus, dialogs,
+toasts, tabs, lists to choose from, cards, tags, empty states, skeletons) already move this way.
+
+| Token | Value | For |
+| :--- | :--- | :--- |
+| `--spring` | `linear()` spring, damping 0.8 | Things arriving and moving |
+| `--spring-bounce` | `linear()` spring, damping 0.62 | Small things that pop |
+| `--dur-micro` | 120 ms | Hover, focus, colour, a menu leaving |
+| `--dur-ui` | 180 ms | Menus, popovers, icons that change, a toast leaving |
+| `--dur-enter` | 220 ms | List items, cards, a toast arriving |
+| `--dur-surface` | 300 ms | Dialogs and other large surfaces; the most anything takes |
+| `--dur-exit` | 140 ms | Anything leaving |
+| `--stagger-step`, `--stagger-max` | 25 ms, 7 | A list's items one after the other, eight steps at most |
+| `--lift`, `--shadow-lift` | -2 px, a soft shadow | A card under the pointer |
+| `--rise` | 6 px | How far something arriving travels |
+
+| Wrapper | Use it for |
+| :--- | :--- |
+| `<Reveal index>` | One block that comes in when it is first drawn (the n-th of a list waits its turn) |
+| `<Stagger>` (or the class `stagger-in`) | A list or grid whose items come in one after the other on first load; `.instance-grid`, `.project-grid` and the figure grids (`.grid-4.stagger`, `.grid-5.stagger`) already do |
+| `<Presence show collapse>` | Something that appears and disappears: it stays while it leaves, and with `collapse` the room it takes opens and closes |
+| `<AnimatedNumber value from format>` | A figure that changes (tabular figures; `from={0}` counts up the first time) |
+| `<MorphIcon icons active>` | An icon that turns into another in place (copy into check) |
+| `<SuccessCheck>` | A success that draws its check |
+| `<TabInk>` | Inside a `.tabs` row: the underline slides to the chosen tab |
+| `useHero(key)` and `startHero(key, element)` | One element that moves from one page into the next (a card's title into the page's title) |
+| `play()`, `shake()`, `glide()` (`lib/motion.ts`) | Web Animations with the same tokens; interruptible; FLIP for a list that reflows |
+
+Do:
+
+- Give every animation a reason you could say in one sentence (where it came from, that it worked, what changed).
+- Use the tokens, never a new duration or curve; if one is missing, add it to `_tokens.scss` and here.
+- Make the leaving quicker than the arriving, and let a new action interrupt the one before.
+- Check light, dark, Arabic (things that come from a side come from the other side) and reduced motion.
+
+Don't:
+
+- Animate width, height, top or left (use transform), or a shadow on many elements at once.
+- Loop anything that is not loading or running; pulse a status that is only waiting.
+- Stagger more than eight steps, or animate an item again because the list re-rendered.
+- Add an animation library: CSS first, then the Web Animations API.
 
 ---
 
@@ -188,7 +259,8 @@ Implementation rules:
 - **Muted grid and monospace labels;** the time axis shows seconds while the chart covers only a few minutes.
 - **Live without redrawing:** each sample from the event stream is written into the chart, and the points glide to
   their new places (300 ms). Colours are read from the tokens (`charts/theme.ts`) and follow the theme.
-- **Light to draw:** a chart appears at once with the hour it was given (no entrance animation, nothing drawn twice),
+- **Light to draw:** a chart is drawn at once with the hour it was given (no entrance animation of Chart.js,
+  nothing drawn twice; only the finished chart fades in),
   draws an hour from at most 360 points (sparklines 120, LTTB decimation keeps the shape), and gives its points
   fixed colours, so a page with several charts stays responsive on a slow phone ([Performance](PERFORMANCE.md)).
 

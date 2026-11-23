@@ -181,7 +181,7 @@ export function LiveChart({
   }, [t, series]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div style={{ position: "relative", height }}>
+    <div className="chart-frame" style={{ position: "relative", height }}>
       <canvas ref={canvas} role="img" aria-label={series.map((s) => s.label).join(", ")} />
       {t.length < 2 && <div className="chart-empty">{words.collecting}</div>}
     </div>

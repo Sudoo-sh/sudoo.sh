@@ -6,7 +6,8 @@
                                                 single-use link valid for connect_as.TOKEN_SECONDS; production also
                                                 needs "confirm_stage": "production"
 
-Both need instances.credentials in the instance: signing in as anyone is as much as knowing the admin password.
+Both need instances.connect in the instance (project roles: Tester and up in staging and development, Maintainer in
+production; earlier projects: those who may see Odoo passwords).
 Every link given is audit-logged (who, instance, which Odoo user), and so is every use (instances/connect_as.py).
 """
 
@@ -17,7 +18,7 @@ from datetime import UTC, datetime
 from flask import Blueprint, Response, abort, g
 
 from sudoo import exposure
-from sudoo.instances import connect_as, stages, store
+from sudoo.instances import access_rules, connect_as, stages, store
 
 from .. import validation as check
 from ..security import log, require
@@ -35,13 +36,13 @@ def _users(name: str) -> list[dict[str, object]]:
 
 
 @blueprint.get("/instances/<name>/odoo-users")
-@require("instances.credentials")
+@require("instances.connect")
 def odoo_users(name: str) -> Response:
     return ok(_users(existing(name)))
 
 
 @blueprint.post("/instances/<name>/connect")
-@require("instances.credentials")
+@require("instances.connect")
 def connect(name: str) -> Response:
     existing(name)
     data = check.body()
@@ -64,9 +65,11 @@ def connect(name: str) -> Response:
         instance=name,
         detail=f"{target['login']} (id {uid})",
     )
+    # a production instance with access rules: through a pass, so the link works from anywhere (access_rules.py)
+    url, _ = access_rules.pass_url(g.user, name, address, f"{connect_as.PATH}?token={token}")
     return ok(
         {
-            "url": f"{address.rstrip('/')}{connect_as.PATH}?token={token}",
+            "url": url,
             "expires_at": datetime.fromtimestamp(expires, UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "login": target["login"],
         },

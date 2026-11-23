@@ -74,6 +74,7 @@ PERMISSIONS: dict[str, str] = {
     "then upgrade production (with its backup and rollback)",
     "instances.delete": "Delete instances",
     "instances.credentials": "See Odoo passwords and ports",
+    "instances.connect": "Open an instance's Odoo signed in as one of its users (Connect), and its login link",
     "instances.resources": "Set an instance's resources: Odoo workers, time and memory limits, container limits",
     "projects.resources": "Set a project's and its branches' resources (workers, timeouts, memory) within the "
     "administrator's maxima, and apply them",
@@ -101,6 +102,7 @@ PERMISSIONS: dict[str, str] = {
     "support_access.manage": "Grant Sudoo.sh support temporary access to the panel, see it and withdraw it",
     "clients.manage": "Invite clients to projects and take them out (the client portal); only clients open and "
     "close access to their projects",
+    "maintenance.manage": "Choose when maintenance Sudoo.sh planned on the panel runs (an update, new images, a restart)",
 }
 
 
@@ -118,6 +120,7 @@ _MAINTAIN = _DEVELOP | {
     "instances.restore",
     "instances.create",
     "instances.credentials",
+    "instances.connect",
     "github.manage",
     "projects.manage",
 }
@@ -133,6 +136,11 @@ ROLES: dict[str, Role] = {
     "maintainer": Role("Maintainer", "Creates instances and runs every action on them except deleting.", _MAINTAIN),
     "developer": Role("Developer", "Gets new code, restarts and starts instances, adds submodules.", _DEVELOP),
     "viewer": Role("Viewer", "Sees instances, their activity and logs.", _VIEW),
+    "member": Role(
+        "Member",
+        "No rights by itself: each project's role (from its Access tab, a team or GitHub) decides what they do there.",
+        frozenset(),
+    ),
     CLIENT: Role("Client", "Sees only its own projects, in the client portal, and opens or closes access to them.",
                  _CLIENT),  # fmt: skip
 }

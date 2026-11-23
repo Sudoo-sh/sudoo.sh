@@ -298,7 +298,8 @@ def create(*, repository: str, odoo_version: str, edition: str, origin: str, use
             "options": {},
             "branches": {},
             "seen": None,
-            "access": {"mode": "panel_roles"},
+            # project roles (projects/project_roles.py), or the earlier model when PROJECT_ACCESS_MODEL says so
+            "access": {"mode": "panel_roles", "model": settings.project_access_model},
         }
         storage().put(COLLECTION, project["id"], project)
         return project
@@ -335,6 +336,9 @@ def remove(project_id: str) -> None:
 
     notifications.remove_project(project_id)  # a later project with the same id starts without them
     pages.remove(project_id)
+    from sudoo import repo_guard
+
+    repo_guard.forget(project_id)
 
 
 def for_repository(repository: str, odoo_version: str, edition: str, user: str) -> Document:

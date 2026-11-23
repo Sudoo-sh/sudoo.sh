@@ -135,6 +135,7 @@ const en = {
     maintainer: "Maintainer",
     developer: "Developer",
     viewer: "Viewer",
+    member: "Member",
     client: "Client",
   } as Record<string, string>,
   language: {
@@ -277,6 +278,7 @@ const ar: Common = {
     maintainer: "مشرف صيانة",
     developer: "مطوّر",
     viewer: "مشاهد",
+    member: "عضو",
     client: "عميل",
   },
   language: {

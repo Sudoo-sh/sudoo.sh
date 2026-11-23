@@ -1248,7 +1248,7 @@ tr.invited {
   background: var(--surface);
   box-shadow: var(--shadow-float);
   transform: scale(1.02);
-  transition: transform var(--quick) var(--ease), box-shadow var(--quick) var(--ease);
+  transition: transform var(--dur-ui) var(--spring-bounce), box-shadow var(--dur-ui) var(--ease);
   @starting-style { transform: scale(1); box-shadow: none; }
 }
 .ws-dot {
@@ -1258,7 +1258,8 @@ tr.invited {
   border-radius: 50%;
   &.online { background: var(--positive); }
   &.failed { background: var(--negative); }
-  &.busy { background: var(--caution); animation: running 1.4s var(--ease) infinite; }
+  &.busy { position: relative; background: var(--caution);
+    &::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: inherit; animation: dot-pulse 1.6s var(--ease) infinite; } }
   &.asleep { border: 1.5px solid var(--idle); }
   &.none { border: 1.5px dashed var(--hairline-strong); }
 }
@@ -2049,7 +2050,7 @@ tr.invited {
       height: 2px;
       border-radius: 1px;
       background: var(--hairline-strong);
-      transition: background var(--enter) var(--ease);
+      transition: background var(--dur-ui) var(--ease);
     }
     &[data-state="done"]:not(:first-child)::before, &[data-state="current"]:not(:first-child)::before { background: var(--brand); }
   }
@@ -2078,8 +2079,8 @@ tr.invited {
     font-variant-numeric: tabular-nums;
     font-size: var(--text-12);
     font-weight: 600;
-    transition: background var(--enter) var(--ease), border-color var(--enter) var(--ease), box-shadow var(--enter) var(--ease);
-    svg { width: 15px; height: 15px; stroke-width: 2.75; animation: check-pop 320ms var(--ease) both; }
+    transition: background var(--dur-ui) var(--ease), border-color var(--dur-ui) var(--ease), box-shadow var(--dur-ui) var(--ease);
+    svg { width: 15px; height: 15px; stroke-width: 2.75; animation: check-pop var(--dur-ui) var(--spring-bounce) both; }
   }
   [data-state="current"] { button { color: var(--text); font-weight: 500; } .dot { border-color: var(--brand); color: var(--brand); box-shadow: 0 0 0 4px var(--brand-ring); } }
   [data-state="done"] .dot { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
@@ -2101,7 +2102,7 @@ tr.invited {
   border-radius: var(--radius-panel);
   background: var(--surface);
   box-shadow: var(--shadow-float);
-  animation: step-forward 300ms var(--ease) both;
+  animation: step-forward var(--dur-surface) var(--spring) both;
   &[data-direction="backward"] { animation-name: step-backward; }
   h1 { font-size: 1.5rem; letter-spacing: -0.02em; outline: none; }
   h2 { font-size: var(--text-15); font-weight: 600; }
@@ -2125,8 +2126,8 @@ tr.invited {
   padding: var(--s3) var(--s4);
   border-radius: var(--radius-card);
   background: var(--raised);
-  animation: rise var(--enter) var(--ease) both;
-  @for $i from 1 through 6 { &:nth-child(#{$i}) { animation-delay: #{($i - 1) * 40}ms; } }
+  animation: rise var(--dur-enter) var(--spring) both;
+  @for $i from 1 through 6 { &:nth-child(#{$i}) { animation-delay: calc(var(--stagger-step) * #{$i - 1}); } }
   > svg { width: 18px; height: 18px; color: var(--text-3); stroke-width: 1.5; margin-bottom: var(--s1); }
   .label { color: var(--text-3); font-size: var(--text-12); }
   .value { font-size: var(--text-15); font-weight: 600; overflow-wrap: anywhere; }
@@ -2147,7 +2148,7 @@ tr.invited {
     height: 18px;
     border-radius: 50%;
     border: 1.5px solid var(--hairline-strong);
-    transition: border-width var(--quick) var(--ease), border-color var(--quick) var(--ease);
+    transition: border-width var(--dur-micro) var(--ease), border-color var(--dur-micro) var(--ease);
   }
   &[aria-pressed="true"] .setup-radio { border: 5px solid var(--brand); }
 }
@@ -2163,7 +2164,7 @@ tr.invited {
 }
 [dir="rtl"] .setup-why { border-radius: var(--radius-control) 0 0 var(--radius-control); }
 .setup-switch { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s4); border: 1px dashed var(--hairline-strong); border-radius: var(--radius-card); }
-.setup-reveal { display: flex; flex-direction: column; gap: var(--s4); animation: rise var(--enter) var(--ease) both; }
+.setup-reveal { display: flex; flex-direction: column; gap: var(--s4); animation: rise var(--dur-enter) var(--spring) both; }
 .setup-test { display: flex; align-items: flex-end; gap: var(--s3); > :first-child { flex: 1; } @media (max-width: 640px) { flex-direction: column; align-items: stretch; } }
 .setup-blocker { color: var(--caution); font-size: var(--text-13); margin: 0; }
 .setup-footer {
@@ -2193,12 +2194,13 @@ tr.invited {
 .setup-done-mark {
   align-self: center;
   svg { width: 64px; height: 64px; fill: none; stroke: var(--brand); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
-  circle { stroke-dasharray: 151; stroke-dashoffset: 151; animation: draw 600ms var(--ease) 100ms forwards; }
-  path { stroke-dasharray: 36; stroke-dashoffset: 36; animation: draw 360ms var(--ease) 560ms forwards; }
+  // the circle, then the check: two surface-length strokes, one after the other
+  circle { stroke-dasharray: 151; stroke-dashoffset: 151; animation: draw var(--dur-surface) var(--ease) var(--dur-micro) forwards; }
+  path { stroke-dasharray: 36; stroke-dashoffset: 36; animation: draw var(--dur-enter) var(--spring) calc(var(--dur-micro) + var(--dur-surface)) forwards; }
 }
 .spinning { animation: spin 0.9s linear infinite; }
-@keyframes step-forward { from { opacity: 0; transform: translateX(24px); } }
-@keyframes step-backward { from { opacity: 0; transform: translateX(-24px); } }
+@keyframes step-forward { from { opacity: 0; transform: translateX(calc(var(--rise) * 4)); } }
+@keyframes step-backward { from { opacity: 0; transform: translateX(calc(var(--rise) * -4)); } }
 @keyframes check-pop { from { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.15); } }
 @keyframes draw { to { stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) {

@@ -12,6 +12,7 @@ import { RebuildDialog } from "@/components/BranchDialogs";
 import { BuildStatusTag, CommitSubject, liveBuilds } from "@/components/BuildHistory";
 import { CommitHash } from "@/components/CommitHash";
 import { ConnectButton } from "@/components/ConnectAs";
+import { ChecksBadge } from "@/components/RepoGuard";
 import { JobDrawer } from "@/components/JobDrawer";
 import { branchPath, dotOf, productionOf, useBranchCan } from "@/components/ProjectWorkspace";
 import { STAGE_ICON, STAGE_LABEL } from "@/components/StageTag";
@@ -35,7 +36,9 @@ function BuildTile({
   mayOpen,
   access,
   to,
+  project,
 }: {
+  project: string;
   build: Build;
   live: boolean;
   instance: Instance | undefined;
@@ -81,6 +84,7 @@ function BuildTile({
       )}
       <div className="pb-foot">
         <BuildStatusTag status={build.status} />
+        <ChecksBadge project={project} sha={build.commit?.full_sha} />
         {live && instance?.url && mayOpen && <ConnectButton instance={instance} connectAs={!!access} access={access} size="sm" />}
       </div>
     </article>
@@ -134,7 +138,7 @@ function BranchRow({
       <div className="pb-tiles" tabIndex={builds.length > 1 ? 0 : undefined} aria-label={t.rowLabel(branch.name)}>
         {builds.length ? (
           builds.map((build) => (
-            <BuildTile key={build.id} build={build} live={live.has(build.id)} instance={instances.get(build.instance)} repository={project.repository.url}
+            <BuildTile key={build.id} project={project.id} build={build} live={live.has(build.id)} instance={instances.get(build.instance)} repository={project.repository.url}
               mayOpen={mayOpen} access={access(build.instance)} to={history} />
           ))
         ) : (

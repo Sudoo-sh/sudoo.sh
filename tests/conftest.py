@@ -29,6 +29,8 @@ os.environ.update(
     # the whole suite makes many changes from one address within a minute; test_auth.py tests the limits itself
     RATE_LIMIT_CHANGES_PER_MINUTE="100000",
     PREMIUM_AUTO_INSTALL="false",  # test_premium.py turns it on where it is tested
+    # the earlier access model in the tests made before project roles; test_project_roles.py tests project roles
+    PROJECT_ACCESS_MODEL="legacy",
 )
 
 from flask import Flask  # noqa: E402

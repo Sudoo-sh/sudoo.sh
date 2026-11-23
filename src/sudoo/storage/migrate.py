@@ -15,7 +15,10 @@ from .base import Storage
 _COLLECTIONS = {"users.json": "users", "api_tokens.json": "api_tokens", "state.json": "instance_state"}
 
 
-SCHEMA = 3  # 2: the five roles of roles.py; 3: no values of secret settings in the audit log
+SCHEMA = 4
+"""2: the five roles of roles.py; 3: no values of secret settings in the audit log; 4: projects made before project
+roles keep the earlier access model ("legacy": panel role ∩ grant) until an admin switches them, so nobody gains or
+loses access by the upgrade (projects/people.convert)."""
 
 
 def migrate(storage: Storage, folder: Path) -> None:
@@ -31,6 +34,12 @@ def migrate(storage: Storage, folder: Path) -> None:
         rewrite = getattr(storage, "rewrite_audit_details", None)  # optional: the built-in SQLite storage has it
         if rewrite is not None:
             rewrite("settings changed", hide_secret_settings)
+    if meta["version"] < 4:
+        for key, project in storage.all("projects").items():
+            raw = project.get("access")
+            current: dict[str, object] = raw if isinstance(raw, dict) else {}
+            if "model" not in current:
+                storage.put("projects", key, {**project, "access": {**current, "model": "legacy"}})
     if meta["version"] != SCHEMA:
         storage.put("meta", "schema", {"version": SCHEMA})
 

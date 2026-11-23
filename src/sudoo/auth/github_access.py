@@ -1,18 +1,25 @@
 """Project access from GitHub: for an account linked to GitHub, a project's level follows the person's permission on
 the project's repository (GITHUB_ACCESS_FROM_REPOSITORIES, with GITHUB_SIGN_IN).
 
-    GitHub permission        level in the project (projects/access.py)
-    admin                    admin
-    maintain                 maintainer
-    write (push)             developer
-    triage, read             view
+    GitHub permission        project role (projects/access.py, project_roles.py)
+    admin                    Admin
+    maintain                 Maintainer
+    write (push)             Developer
+    triage, read             Tester (Viewer in a project that keeps the earlier access model)
     none                     none: the project is not shown
+
+GitHub computes the permission from everything that gives it: the person's own invitation, the organisation's base
+permission and the repository's teams. When a team of the repository gives it, the "who can do what" view names
+the team ("via"). Teams of a GitHub organisation can also be given a project role directly on the Access tab
+(grants of type "github_team", "org/team-slug"): their members are read with the installation token
+(GET /orgs/{org}/teams/{slug}/members, Organization permission Members: read) as often as the permissions, so
+joining or leaving the team on GitHub changes the access in the panel.
 
 How it combines with the panel's own rules (projects/access.level):
     - an individual grant to the person always wins (also a "none"): administrators can override GitHub per person;
-    - otherwise the higher of GitHub's level and the person's teams' grants;
+    - otherwise the highest of GitHub's level, the person's panel teams' grants and their GitHub teams' grants;
     - a restricted branch still needs its own grant;
-    - the person's panel role is the most they can do anyway (role ∩ level);
+    - locks still apply;
     - super admins and administrators are not limited by it (they manage the panel).
 
 The permission is read with the GitHub App's installation token (GET /repos/{owner}/{repo}/collaborators/{login}/
@@ -42,8 +49,11 @@ from sudoo.storage import storage
 from . import github
 
 COLLECTION = "github_access"
-BY_ROLE = {"admin": "admin", "maintain": "maintainer", "write": "developer", "triage": "view", "read": "view"}
-BY_PERMISSION = {"admin": "admin", "write": "developer", "read": "view", "none": "none"}
+BY_ROLE = {"admin": "admin", "maintain": "maintainer", "write": "developer", "triage": "tester", "read": "tester"}
+BY_PERMISSION = {"admin": "admin", "write": "developer", "read": "tester", "none": "none"}
+TEAMS = "github_teams"  # "org/slug" -> {"members": [logins, lower case], "checked"}
+REPOSITORY_TEAMS = "github_repository_teams"  # "owner/repo" -> {"teams": [{"id": "org/slug", "permission"}]}
+_teams: dict[str, dict[str, Any]] | None = None
 
 _cache: dict[str, dict[str, Any]] = {}
 _lock = threading.Lock()
@@ -136,7 +146,8 @@ def refresh(name: str) -> list[str]:
                 if key in before:
                     after[key] = {**before[key], "failed": now}
                 continue
-            after[key] = {"level": found[0], "permission": found[1], "checked": now, "covered": True}
+            after[key] = {"level": found[0], "permission": found[1], "checked": now, "covered": True,
+                          "via": _via_team(repository, str(link["login"]), found[1])}  # fmt: skip
         old = (before.get(key) or {}).get("level")
         if after[key]["level"] != old:
             changed.append(str(project.get("id")))
@@ -222,6 +233,7 @@ def describe(project: Mapping[str, Any]) -> dict[str, Any]:
                 "level": entry.get("level") if entry.get("covered", True) else None,
                 "covered": entry.get("covered", True) if entry else None,
                 "checked": entry.get("checked"),
+                "via": entry.get("via"),
             }
         )
     return {"enabled": active(), "repository": project.get("repository"), "people": people}
@@ -243,9 +255,143 @@ def due() -> list[str]:
 
 
 def run_forever() -> None:
-    """Every minute: read again the permissions that are due (background.py)."""
+    """Every minute: read again the permissions and GitHub teams that are due (background.py); access e-mails go to
+    the people whose role changed (projects/notices.py)."""
     while True:
         time.sleep(60)
-        for name in due():
+        with contextlib.suppress(Exception):
+            refresh_due()
+
+
+def refresh_due() -> None:
+    from sudoo import projects
+    from sudoo.projects import notices
+
+    names = due()
+    if not names and not github.configured():
+        return
+    with notices.watch([p["id"] for p in projects.all_projects()], by="GitHub"):
+        if github.configured():
+            refresh_teams()
+        for name in names:
             with contextlib.suppress(Exception):  # tried again next time
                 refresh(name)
+
+
+# ---------------------------------------------------------------- GitHub teams
+
+
+def _team_members(team: str) -> list[str] | None:
+    """The logins (lower case) of a GitHub team "org/slug", read with the organisation's installation token; None when
+    it cannot be read (no installation, GitHub failed). A team that does not exist has no members."""
+    org, _, slug = team.partition("/")
+    token = github_app.token_for(org)
+    if token is None or not slug:
+        return None
+    found: list[str] = []
+    for page in range(1, 11):
+        try:
+            answer = github_app.request(
+                "GET", f"/orgs/{org}/teams/{slug}/members?per_page=100&page={page}", bearer=token
+            )
+        except github_app.GitHubError as error:
+            return [] if error.status == 404 else None
+        batch = [str(m.get("login") or "").lower() for m in answer or [] if isinstance(m, dict)]
+        found.extend(b for b in batch if b)
+        if len(batch) < 100:
+            break
+    return found
+
+
+def _stored_teams() -> dict[str, dict[str, Any]]:
+    global _teams
+    with _lock:
+        if _teams is None:
+            _teams = storage().all(TEAMS)
+        return _teams
+
+
+def granted_teams() -> set[str]:
+    """Every GitHub team named in a grant of a project (lower case)."""
+    from sudoo import projects
+    from sudoo.projects import access
+
+    found: set[str] = set()
+    for project in projects.all_projects():
+        current = access.access_of(project)
+        lists = [current.get("grants") or ()]
+        lists += [rule.get("grants") or () for rule in (current.get("branches") or {}).values()]
+        found |= {str(g.get("id") or "").lower() for grants in lists for g in grants if g.get("type") == "github_team"}
+    return found
+
+
+def refresh_team(team: str) -> bool:
+    """Read a team's members again; True when they changed."""
+    team = team.lower()
+    members = _team_members(team)
+    if members is None:
+        return False
+    before = (_stored_teams().get(team) or {}).get("members")
+    record = {"members": sorted(set(members)), "checked": time.time()}
+    storage().put(TEAMS, team, record)
+    with _lock:
+        if _teams is not None:
+            _teams[team] = record
+    if before is not None and sorted(before) != record["members"]:
+        audit.record("github", "", "GitHub team members changed", detail=f"{team}: {len(before)} -> {len(members)}")
+    return before is None or sorted(before) != record["members"]
+
+
+def refresh_teams(force: bool = False) -> list[str]:
+    """Read again the members of every granted team that is due; the teams whose members changed."""
+    interval = settings.github_access_check_minutes * 60
+    now = time.time()
+    changed = []
+    for team in sorted(granted_teams()):
+        checked = float((_stored_teams().get(team) or {}).get("checked") or 0)
+        if (force or now - checked >= interval) and refresh_team(team):
+            changed.append(team)
+    return changed
+
+
+def teams_of(name: str | None) -> frozenset[str]:
+    """The granted GitHub teams the account belongs to, by its linked GitHub login (never for administrators: they
+    have every right anyway). Members read longer ago than three intervals count as none."""
+    if not name or not github.configured():
+        return frozenset()
+    account = accounts.get(name) or {}
+    link = github.link_of(account)
+    if link is None:
+        return frozenset()
+    login = str(link.get("login") or "").lower()
+    oldest = time.time() - max_age()
+    return frozenset(
+        team
+        for team, record in _stored_teams().items()
+        if float(record.get("checked") or 0) >= oldest and login in (record.get("members") or ())
+    )
+
+
+def _via_team(repository: str, login: str, permission: str) -> str | None:
+    """The repository's team that gives `login` this permission, when one does (shown as "via team ...")."""
+    owner, _, repo = repository.partition("/")
+    token = github_app.token_for(owner)
+    if token is None or permission in ("none", ""):
+        return None
+    try:
+        teams = github_app.request("GET", f"/repos/{owner}/{repo}/teams?per_page=100", bearer=token) or []
+    except github_app.GitHubError:
+        return None
+    for team in teams if isinstance(teams, list) else []:
+        if not isinstance(team, dict) or team.get("permission") not in (
+            permission,
+            {"write": "push", "read": "pull"}.get(permission),
+        ):
+            continue
+        name = f"{owner}/{team.get('slug')}".lower()
+        members = (_stored_teams().get(name) or {}).get("members")
+        if members is None:
+            members = _team_members(name) or []
+        if login.lower() in members:
+            return name
+    return None

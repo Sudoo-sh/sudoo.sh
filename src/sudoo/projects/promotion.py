@@ -4,6 +4,9 @@ Each item is green ("ok"), amber ("warning": worth reading, never blocks) or red
 
     build       the branch's latest build: success green; with warnings, still building or never built amber;
                 failed (or its tests failed) red
+    ci          only when the project's repository guard runs CI checks (repo_guard/): the checks of the latest
+                build's commit on GitHub passed green; running, missing or unreadable amber; failed amber, or red
+                when the project blocks promotion on failing checks (its guard's block_promotion, off by default)
     backup      production's newest backup of its own: younger than PROJECT_PROMOTION_BACKUP_HOURS green, older or
                 none amber ("Back up now" in the web app); no production instance yet: green
     modules     modules added, removed and with a new version between production and the branch (their
@@ -67,6 +70,20 @@ def build_item(project_id: str, branch: str) -> dict[str, Any]:
     if tests.get("status") == "success":
         return _item("build", OK, f"The latest build of {branch} succeeded and its tests passed.", **shown)
     return _item("build", OK, f"The latest build of {branch} succeeded.", **shown)
+
+
+def ci_items(project: Mapping[str, Any], branch: str) -> list[dict[str, Any]]:
+    """The "ci" item (repo_guard.promotion_item) of the latest build's commit; none when the guard's checks are off.
+    GitHub failing never fails the checklist: the item is amber then."""
+    from sudoo import repo_guard  # late: the guard reads projects
+
+    entry = latest_build(str(project["id"]), branch)
+    sha = str(((entry or {}).get("commit") or {}).get("full_sha") or "") or None
+    try:
+        found = repo_guard.promotion_item(project, sha, branch)
+    except Exception as error:  # noqa: BLE001 - an unreadable result is a warning, never a broken checklist
+        found = _item("ci", WARNING, f"The CI checks' results could not be read ({error}).", ci=None)
+    return [found] if found else []
 
 
 def backup_item(production: str | None, now: float | None = None) -> dict[str, Any]:
@@ -217,7 +234,7 @@ def check(project: Mapping[str, Any], branch: str, user: Mapping[str, Any] | Non
             result = compare.compare(project, production_branch, branch, refresh=refresh)
         except compare.CompareError as error:
             problem = str(error)
-    items = [build_item(str(project["id"]), branch), backup_item(production)]
+    items = [build_item(str(project["id"]), branch), *ci_items(project, branch), backup_item(production)]
     if deep:
         if production_branch and production_branch != branch:
             items += module_items(result, problem)

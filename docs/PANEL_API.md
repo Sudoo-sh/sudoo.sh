@@ -42,6 +42,7 @@ Every endpoint needs a **permission** (for example `instances.create`). A person
 12. [Web shell](#12-web-shell)
 13. [Code profiler](#13-code-profiler)
 14. [Client portal](#14-client-portal)
+15. [Maintenance windows](#15-maintenance-windows)
 
 ---
 
@@ -230,7 +231,12 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `GET /instances/<name>/logs/stream?log=odoo.log&tail=300&<filters>` | `instances.logs` | | Server-Sent Events: the last `tail` lines (0 to 5000), then new ones as they are written; the filters below keep whole entries. Events `lines` (`{"lines": [...], "ids": [...]}`, `ids` one per line) and `end` (`{"reason": "max_duration"}` after 5 minutes, `"stopped"` when Odoo's container stops, `"slow_pattern"` when the pattern took too long); every event's `id` is where to continue: send it back as `Last-Event-ID` or `?after=`. Only `odoo.log` is followed (400 for another). A caller follows at most 4 logs at once (429) ([Following a log](#following-a-log)) |
 | `GET /instances/<name>/logs/download?log=odoo.log&<filters>` | `instances.logs` | | 200, the log as a text file (`text/plain`, attachment): its last `LOG_DOWNLOAD_MAX_LINES` lines, only the entries the filters keep; audit-logged with the filters |
 | `GET /instances/<name>/odoo-users` | `instances.credentials` | | 200, the active internal Odoo users: `[{"id", "login", "name"}]` (read again after 30 seconds); 409 when the database is not running |
-| `POST /instances/<name>/connect` | `instances.credentials` | `{"uid": 7}`; a production instance also `"confirm_stage": "production"` | **201**, `{"url", "expires_at", "login"}`: a link that opens Odoo signed in as that user, once, within 60 seconds ([Connect as](#connect-as)); audit-logged, and so is its use |
+| `POST /instances/<name>/connect` | `instances.credentials` | `{"uid": 7}`; a production instance also `"confirm_stage": "production"` | **201**, `{"url", "expires_at", "login"}`: a link that opens Odoo signed in as that user, once, within 60 seconds ([Connect as](#connect-as)); audit-logged, and so is its use. With active access rules the link goes through the panel's pass first |
+| `GET /instances/<name>/access-rules` | `instances.view` | | 200, the production access rules (beta): `{"available", "production", "active", "rules", "can_change", "channels", "geo", "geo_missing", "you", "presets", "back_office", "public_under_web"}`; only `{"available": false}` while `ACCESS_RULES_BETA` is off ([Administrator Guide](ADMIN_GUIDE.md#31-production-access-rules-beta)) |
+| `POST /instances/<name>/access-rules/preview` | `instances.view` | `{"rules", "test_address"?}` | 200, `{"you", "test", "samples", "warnings", "geo"}`: what the rules would do, nothing saved; 400 for rules that are not valid |
+| `POST /instances/<name>/access-rules/code` | `instances.view` and may change the rules (super admins, the project's administrators, its client; never a token) | `{"method": "email" \| "app"}` | 200, `{"method", "sent_to"?}`; 409 for an instance that is not in production, 429 when asked again within a minute |
+| `PUT /instances/<name>/access-rules` | the same | `{"rules", "confirm_name", "method", "code"}` | 200, the same as GET; 400 for a wrong name or code, 429 after 5 wrong codes in 10 minutes; audit-logged |
+| `POST /instances/<name>/open-link` | `instances.view` | `{"target"?: "/odoo"}` | 200, `{"url", "pass"}`: the address that opens the instance, through a signed pass when its access rules apply and the caller may open it (audit-logged) |
 | `POST /instances/<name>/imports` | `instances.restore` | `{"file_name": "prod.zip", "size": 734003200}` | **201**, a new upload `{"id", "file_name", "format", "size", "received", "complete", "chunk_size"}`; 400 for a file that is not `.zip`, `.dump`, `.sql` or `.sql.gz`, 413 beyond `IMPORT_MAX_GB` ([Import database](#import-database)) |
 | `GET /instances/<name>/imports/<id>` | `instances.restore` | | 200, the upload: how much arrived |
 | `PUT /instances/<name>/imports/<id>?offset=0` | `instances.restore` | the next piece as `application/octet-stream` (at most 8 MB) | 200, the upload; **409** with `meta.received` when `offset` is not where the upload stands |
@@ -309,7 +315,7 @@ instance; `null` for plain Odoo). See [Projects and branches](ADMIN_GUIDE.md#24-
 | `PATCH /projects/<id>` | `projects.manage` | any of `name`, `odoo_version` and `edition` (for new instances), `options`: `{"auto_development": false, "max_auto_development": 5, "development_demo_data": true, "staging_on_push": "rebuild" or "keep_data", "branch_deleted": "keep", "archive" or "delete", "development_lifetime_days": 7, "staging_lifetime_days": 30, "development_on_new_commit": "update", "new_build" or "nothing", "module_install": "repository", "all" or "list", "modules": "sale_custom,stock_custom", "test_suite": "off", "selection" or "custom", "test_tags": "/sale_custom,-slow", "staging_tests": false, "commit_statuses": true, "email_pusher": true, "pr_previews": false, "pr_preview_limit": 3, "pr_previews_forks": false}`; `null` follows the panel's setting again | 200, the project; 400 for an unknown option or value, a module name or test tag Odoo would not accept, `module_install` `list` without `modules`, or `test_suite` `custom` without `test_tags` |
 | `DELETE /projects/<id>` | `projects.manage` | `{"confirm": "<id>"}` | **204**; 409 while it has instances. The repository on GitHub is never touched |
 | `PUT /projects/<id>/branches/<branch>/stage` | `projects.manage` | `{"stage": "production", "confirm_production": true}` | 200, the branch; every instance of it moves to the stage (the checks of `PATCH /instances/<name>`). Making a branch production, or moving it out of production, needs `"confirm_production": true` (400), and moving it out also `instances.delete` (403); **409** beyond `PROJECT_PRODUCTION_BRANCHES` in the project or `MAX_PRODUCTION_INSTANCES` on the server, and when the pre-promotion checklist has red items (below) unless the body has `"promote_anyway": true` (audit-logged as "promotion checklist overridden"; never while `PROJECT_PROMOTION_BLOCKS` is off). A branch name may contain `/` |
-| `GET /projects/<id>/branches/<branch>/promotion-check?refresh=1&mode=merge` | `instances.view` in the branch | | 200, the [pre-promotion checklist](ADMIN_GUIDE.md#promoting-to-production) of the branch going into production (`mode=merge`: being merged into production's branch on GitHub, without the capacity item): `branch`, `mode` (`move` or `merge`), `production` (`branch`, `instance`; `null` when there is none), `items`: each `key` (`build`, `backup`, `modules`, `migrations`, `odoo`, `lock`, `capacity`), `status` (`ok`, `warning`, `blocked`), `text` (the explanation) and its facts (`build`: `id`, `status`, `at`, `commit`, `tests`; `backup`: `file`, `created`, `instance`, `max_hours`, `busy`; `modules`: `added`, `removed`, `changed`, `known`, with `ahead` and `behind`; `migrations`: `module`, `version`, `scripts`; `branch_series` and `production_series`; `branches` (locked)); `blocked` (the keys of the red items), `blocking` (whether they stop the move), `compare` (`ahead`, `behind`, `files_changed`, `github_url`, `source`; `null` when the branches could not be compared), `checked_at`. `refresh=1` reads GitHub again |
+| `GET /projects/<id>/branches/<branch>/promotion-check?refresh=1&mode=merge` | `instances.view` in the branch | | 200, the [pre-promotion checklist](ADMIN_GUIDE.md#promoting-to-production) of the branch going into production (`mode=merge`: being merged into production's branch on GitHub, without the capacity item): `branch`, `mode` (`move` or `merge`), `production` (`branch`, `instance`; `null` when there is none), `items`: each `key` (`build`, `ci` (only with the [repository guard](#repository-guard)'s checks on: `ci` has `state`, `total`, `failed`, `pending`, `url`), `backup`, `modules`, `migrations`, `odoo`, `lock`, `capacity`), `status` (`ok`, `warning`, `blocked`), `text` (the explanation) and its facts (`build`: `id`, `status`, `at`, `commit`, `tests`; `backup`: `file`, `created`, `instance`, `max_hours`, `busy`; `modules`: `added`, `removed`, `changed`, `known`, with `ahead` and `behind`; `migrations`: `module`, `version`, `scripts`; `branch_series` and `production_series`; `branches` (locked)); `blocked` (the keys of the red items), `blocking` (whether they stop the move), `compare` (`ahead`, `behind`, `files_changed`, `github_url`, `source`; `null` when the branches could not be compared), `checked_at`. `refresh=1` reads GitHub again |
 | `GET /projects/<id>/compare?base=<branch>&head=<branch>&refresh=1` | `instances.view` in both branches | | 200, what merging `head` into `base` brings: `ahead`, `behind`, `commits` (of `head` not in `base`, newest first, at most 50: `sha`, `full_sha`, `subject`, `author`, `when`), `files_changed`, `modules` (`added` and `removed`: `name`, `version`; `changed`: `name`, `from`, `to`, `bump` `up`, `down`, `same` or `unknown`; `known`: false when only GitHub's compare API answered, without versions), `migrations` (`module`, `version`, `scripts`), `source` (`git` or `github`), `base` and `head` (`branch`, `sha`), `github_url`, `odoo_series`. 400 for the same branch twice, 404 when GitHub has no such branch, 502 when the repository cannot be read |
 | `GET /projects/<id>/staging-refresh` | `instances.view` | | 200, the [scheduled staging refresh](ADMIN_GUIDE.md#scheduled-staging-refresh): `frequency` (`off`, `daily`, `weekly`), `time` (`HH:MM` in the panel's time zone), `weekday` (0 Monday to 6 Sunday), `branches` (empty: every staging branch), `last_run` (the last refresh that started a rebuild, null before the first), `next_run`, `changed_by`; `meta.branches`: the staging branches and their staging instances, `meta.timezone` |
 | `PUT /projects/<id>/staging-refresh` | `projects.manage` and `instances.restore` | `{"frequency": "weekly", "time": "03:00", "weekday": 6, "branches": ["staging"]}` | 200, the schedule; a time already past waits for the next one. 400 for a value it does not accept |
@@ -334,6 +340,25 @@ locked branch takes every project permission but `instances.view` from whoever i
 (`/instances/<name>/...`, its jobs, backups, off-site copies, shell tickets): an instance hidden from the caller
 answers 404 like one that does not exist, a refused permission 403 with the reason, and lists leave hidden ones out.
 `GET /instances/<name>` has `meta.permissions`, what the caller may do in it, and every instance has `lock`.
+
+### Repository guard
+
+A project's [repository guard](ADMIN_GUIDE.md#repository-guard): CI checks added through a pull request, their
+results, and branch rules on GitHub. Changes need `projects.access` in the project (its Admins and super admins; never
+Sudoo.sh support) and are audit-logged. GitHub refusing answers 409 (a permission or plan) or 502 (unreachable) with
+GitHub's reason.
+
+| Method and path | Permission | Body | Answer |
+| :--- | :--- | :--- | :--- |
+| `GET /projects/<id>/guard` | `instances.view` | | 200, `checks` (`enabled`, `lint`, `linter` `ruff` or `flake8`, `pylint_odoo`, `manifest`, `xml_csv`, `tests`, `strictness` `relaxed`, `standard` or `strict`), `block_promotion`, `own` (the values the project chose; the rest follows the `PROJECT_GUARD_*` settings), `defaults` (those settings, as `checks`, `rules`, `block_promotion`), `rules` (`enabled`, `method` `auto`, `rulesets` or `branch_protection`, `production` and `staging`: `approvals`, `require_checks`, `linear_history`, `signed_commits`, staging also `enabled`; `pushers`: `mode` `anyone`, `roles` or `named`, `teams`, `users`), `pull` (the panel's pull request: `number`, `url`, `state` `open`, `closed` or `merged`, `purpose`, `files`, `by`, `at`; `null`), `applied` (`method`, `rulesets`, `protections`, `by`, `at`; `null`), `versions`, `required_check`, `files`, `may_change`, `github` (`app_connected`, `installed`, `permissions`: each `key`, `level`, `feature`, `why`, `granted`, `ok`; `missing` per feature; `app_permissions_url`, `installation_url`, `install_url`). Nothing is read from GitHub |
+| `PATCH /projects/<id>/guard` | `projects.access` | `{"block_promotion": true}` | 200, the guard as above |
+| `POST /projects/<id>/guard/checks/preview` | `projects.access` | `{"checks": {...}}` (keys left out keep their value) | 200, `files`: each `path`, `action` (`add`, `update`, `remove`, `unchanged`, `kept`: written by someone else, left alone), `content`, `reason`; `base`, `note`, `changes`. Nothing changes |
+| `PUT /projects/<id>/guard/checks` | `projects.access` | `{"checks": {...}, "dry_run"?: true}` | 200, the files as above, `pull`, `result` (`opened`, `updated`, `up_to_date`: nothing to change, an open pull request of the panel is closed; `dry_run`); 400 for an unknown key or value; 409 when the GitHub App lacks Contents, Pull requests or Workflows: write |
+| `POST /projects/<id>/guard/pull/refresh` | `projects.manage` | | 200, the pull request as GitHub has it now |
+| `GET /projects/<id>/guard/results?sha=<sha>,<sha>` | `instances.view` | | 200, `{"<sha>": {"state", "total", "failed", "pending", "runs", "url"}}` (`state`: `success`, `failure`, `pending`, `none` or `unknown`) for up to 30 full commit hashes, read from GitHub at most once a minute; `{}` while the checks are off or the app lacks Checks: read |
+| `POST /projects/<id>/guard/rules/preview` | `projects.access` | `{"rules": {...}, "turn_off"?: true}` | 200, `repository`, `method`, `available`, `limitations` (`reason`: `plan`, `people_in_rulesets`, `personal_repository`, `roles_in_protection`, `method_changed`; `message`), `targets` (each `key`, `kind` `ruleset` or `protection`, `name`, `action` `create`, `update`, `delete`, `unchanged` or `blocked`, `changes`: `field`, `label`, `before`, `after`), `untouched` (rules the panel did not make), `branches`, `affects_production`, `changes`. Nothing changes |
+| `PUT /projects/<id>/guard/rules` | `projects.access` | `{"rules": {...}, "confirm": "<owner/repo>", "dry_run"?: true}` | 200, the plan as above with `result` `applied` (or `dry_run`) and `applied`; 400 without the repository's name when production changes; 409 when GitHub's plan does not allow branch rules or the app lacks Administration: write |
+| `DELETE /projects/<id>/guard/rules` | `projects.access` | `{"confirm": "<owner/repo>", "dry_run"?: true}` | 200, the plan with `result` `removed`: only the panel's rulesets and branch protection are removed |
 
 ### The plan
 
@@ -541,7 +566,7 @@ An account:
 | `GET /repositories/branches?url=` | `instances.view` | | 200, `{"branches", "default"}`; through the GitHub App's API when it covers the repository; 400 with what keeps the server from the repository (below) |
 | `GET /repositories/access?url=&branch=` | `instances.view` | | 200, whether the server can read the repository and each submodule, and how (`via`: `deploy-key`, `github-app` or `public`); a line that cannot be read has `problem` and, when the GitHub App explains it, `fix` (below); `meta.can_manage_keys`, `meta.github_app` |
 | `GET /github/app` | `github.manage` | | 200, `{"connected", "app", "trigger_running", "expected_hook_url", "deploy_keys"}`; `meta.can_manage` (below). The installations are read from GitHub first when the last reading is more than a minute old |
-| `POST /github/app/manifest` | `settings.manage` | `{"organization", "create_repositories"?}` (empty organisation: the personal account; `create_repositories`: also Administration: write) | 200, `{"action", "manifest", "state"}`: post `manifest` as a form field to `action` from the browser; the state is kept in the session for one hour |
+| `POST /github/app/manifest` | `settings.manage` | `{"organization", "create_repositories"?, "repository_guard"?}` (empty organisation: the personal account; `create_repositories`: also Administration: write; `repository_guard`: also what the [repository guard](#repository-guard) needs) | 200, `{"action", "manifest", "state"}`: post `manifest` as a form field to `action` from the browser; the state is kept in the session for one hour |
 | `POST /github/app` | `settings.manage` | `{"code", "state"}` from GitHub's redirect to `/github/app/created` | **201**, the app; 400 when the state does not match the session's or the code expired |
 | `DELETE /github/app` | `settings.manage` | | 200, `{"settings_url", "installations"}`: GitHub pages to uninstall and delete the app; the panel forgets its credentials |
 | `POST /github/app/installations` | `settings.manage` | `{"installation_id"}` from GitHub's redirect to `/github/app/installed` | **201**, the installation, after GitHub confirms it belongs to the app |
@@ -1419,6 +1444,13 @@ POST /api/v1/session/second-factor  {"method": "totp", "code": "123456"}
 
 Between the two calls the session opens nothing, for 5 minutes at most.
 
+Project roles (`GET /api/v1/projects/<id>/access` has `model`, `roles` and the matrix): `PUT .../access/matrix`
+`{"matrix": {"developer": {"staging": ["instances.view", "instances.connect"]}}}` (null: the defaults), `GET
+.../access/people` (who can do what), `GET`/`POST .../access/model` (preview and switch a project of the earlier
+model), and temporary access: `GET`/`POST /api/v1/projects/<id>/role-requests` (`{"stage", "level", "hours",
+"reason"}`), `POST .../role-requests/<rid>/approve|refuse`, `DELETE .../role-requests/<rid>`. A refused right in a
+project answers 403 with a sentence that names the role, the right and the stage.
+
 `GET /api/v1/session/options` (public) says which other ways the page offers, `{"password", "email_code", "github"}`
 (true or false). Each is a first step like the password; the second factor follows the same way:
 
@@ -1605,3 +1637,39 @@ waiting in `confirmations` (and the project's lock in `locked`; each switch has 
 `GET /portal` (public) says whether the address is the portal's (`portal`), with `name` (`PORTAL_NAME`) and
 `brand_color`; `POST /session` answers 200 `{"redirect": {"address", "url"}}` when the account signs in at the other
 address.
+
+---
+
+## 15. Maintenance windows
+
+How it works: [Admin guide, Maintenance windows](ADMIN_GUIDE.md#32-maintenance-windows). Items arrive only from the
+hub, signed. Times are ISO 8601 with the offset of `TIMEZONE`; a `start` without an offset is read in `TIMEZONE`.
+
+An item: `id`, `kind` (`panel_update`, `odoo_images`, `restart`, `custom`), `scope` (`panel`, `server`, `instance`,
+`project`), `targets`, `version`, `title` and `reason` (`en`, `ar`), `estimated_minutes`, `earliest_start`,
+`deadline` (the latest start), `required`, `status` (`proposed`, `scheduled`, `running`, `done`, `failed`,
+`cancelled`), `window` (`start`, `end`, `source`: `panel`, `client`, `account` or `default`, `chosen_by`,
+`chosen_at`; `null` before a choice), `choose_from` and `choose_until`, `presets` (`id`: `tonight`, `weekend` or
+`default`, `start`, `end`), `auto_at` and `default_start` (when and where the default window applies), `instances`
+(`name`, `stage`, `project`, `held`: why it would be skipped), `approvals` (projects whose client let it run),
+`steps` (`name`, `instance`, `stage`, `status`, `job`, `detail`), `detail`, `received_at`, `started_at`,
+`finished_at`.
+
+| Method and path | Body | Answer |
+| :--- | :--- | :--- |
+| `GET /maintenance` | | 200, the open items and those that ended in the last 30 days; `meta`: `timezone`, `lead_minutes`, `default_window`, `default_days`, `tonight_time`, `weekend_day`, `reminder_hours`, `client_choice`, `may_choose` (`instances.view`) |
+| `PUT /maintenance/<id>/window` | `{"preset": "tonight" \| "weekend" \| "default"}` or `{"start": "2026-11-29T02:00"}` | 200, the item (`maintenance.manage`); 409 once it runs or ended; 422 outside its bounds |
+| `GET /client/maintenance` | | 200 (a client): the items that work on its projects, with only its instances, `projects` and `held` (its closed or locked ones); `meta` as above with `confirmations` |
+| `PUT /client/maintenance/<id>/window` | as above | 200 `{"done": true}`, or **202** `{"confirmation"}` while `CLIENT_CONFIRMATIONS` is on; 403 unless `MAINTENANCE_CLIENT_CHOICE` |
+| `POST /client/maintenance/<id>/approve` | `{"project"?}` | the same: lets it run on that closed or locked project |
+
+`GET /public-status/<token>` also has `maintenance`: running or scheduled within 14 days on the project's instances
+(`kind`, `title`, `status`, `window_start`, `window_end`; never the reason).
+
+**The hub's side** (signed both ways, [Security](SECURITY.md#22-maintenance-windows)): the heartbeat's answer carries
+the command `maintenance` (its payload: `maintenance_id`, `kind`, `scope`, `targets`, `version`, `reason`,
+`estimated_minutes`, `earliest_start`, `deadline`, `required`), acknowledged `done` when recorded or `failed` with the
+allow-list's reason, and the lease's claim `maintenance` (each item with `status`, `window_start`, `window_end`,
+`window_source`, `chosen_by`, `updated_at`). The panel reports with `POST /api/v1/maintenance/<id>/report`
+(`status`: `scheduled` with `window_start`, `window_end`, `window_source`, `chosen_by`; `running`, `done` or
+`failed` with `steps` and `detail`).

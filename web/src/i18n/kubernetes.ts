@@ -23,7 +23,7 @@ const en = {
   // Settings › Servers
   cluster: "Kubernetes (beta)",
   clusterText: "The k3s cluster the Kubernetes engine runs instances on, and its nodes.",
-  off: (script: string, setting: string) => `The Kubernetes engine is off. Install k3s with ${script}, then set ${setting} in the panel's .env.`,
+  off: (script: string, setting: string) => `The Kubernetes engine is off. Run ${script} on the server: it installs k3s and sets ${setting} in the panel's .env.`,
   unreachable: "The panel cannot reach the cluster:",
   nodes: "Nodes",
   node: "Node",
@@ -68,7 +68,7 @@ const ar: typeof en = {
   moveJob: "النقل إلى محرّك آخر",
   cluster: "Kubernetes (تجريبي)",
   clusterText: "عنقود k3s الذي يشغّل عليه محرّك Kubernetes المثيلات، وعُقده.",
-  off: (script: string, setting: string) => `محرّك Kubernetes متوقف. ثبّت k3s بالأمر ${script} ثم اضبط ${setting} في ملف ‎.env للوحة.`,
+  off: (script: string, setting: string) => `محرّك Kubernetes متوقف. شغّل الأمر ${script} على الخادم: يثبّت k3s ويضبط ${setting} في ملف ‎.env للوحة.`,
   unreachable: "لا تصل اللوحة إلى العنقود:",
   nodes: "العُقد",
   node: "العقدة",

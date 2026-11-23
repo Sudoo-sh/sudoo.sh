@@ -63,7 +63,7 @@ export function KubernetesCard() {
         {isPending || !data ? (
           <Skeleton height={80} />
         ) : !data.enabled ? (
-          <p className="small muted">{t.off("scripts/k3s-prepare.sh", "KUBERNETES_ENGINE_BETA=true")}</p>
+          <p className="small muted">{t.off("sudo sudoo-install engine kubernetes", "KUBERNETES_ENGINE_BETA=true")}</p>
         ) : !data.reachable ? (
           <Callout tone="warning">{t.unreachable} {data.problem}</Callout>
         ) : (

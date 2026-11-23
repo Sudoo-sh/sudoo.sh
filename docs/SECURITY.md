@@ -26,7 +26,8 @@
 17. [Support access](#17-support-access)
 18. [Servers](#18-servers)
 19. [Code profiler](#19-code-profiler)
-20. [Production access rules (beta)](#20-production-access-rules-beta)
+20. [Client portal](#20-client-portal)
+21. [Production access rules (beta)](#21-production-access-rules-beta)
 
 ---
 
@@ -448,6 +449,30 @@ The panel's GitHub App ([Administrator guide](ADMIN_GUIDE.md#15-the-github-app))
 * The web app's Content-Security-Policy allows forms to be posted to `https://github.com` (`form-action`), needed
   to send the manifest; nothing else from GitHub is loaded or allowed.
 
+### The repository guard: writes go through pull requests
+
+A project's repository guard ([Administrator guide](ADMIN_GUIDE.md#repository-guard)) is the only part of the panel
+that writes to a repository. It is built so that the panel can never change code that people run without a person
+agreeing first:
+
+* **No push to a branch people use.** The check files are committed only to `sudoo/repository-guard`, a branch the
+  panel creates and alone writes, and reach the default branch only through a pull request. That pull request goes
+  through the repository's own reviews and branch rules, and someone with write access merges it, or closes it. A
+  workflow file can run code with the repository's secrets on every push, so it is never added behind anyone's back.
+* **Files of others are left alone.** The panel overwrites or removes only files that start with its marker
+  ("Managed by Sudoo.sh (repository guard)").
+* **Least privilege, asked for late.** The extra permissions (Contents, Pull requests, Workflows and Administration:
+  write, Checks: read) are not in the default manifest; an owner adds and accepts them when a project uses the
+  guard. Each call asks GitHub for a token with only what it needs (the pull-request token cannot change rules, the
+  rules token cannot write files), and none of them is cached on disk. The generated workflow's own token may only
+  read the repository (`permissions: contents: read`), and every action in it is pinned to a full commit hash.
+* **Branch rules are previewed and confirmed.** Rules are shown as current against new before they are applied, and
+  rules that change production need the repository's name typed. The panel changes and removes only rulesets named
+  `Sudoo.sh guard: ...` and the classic protection it created itself; a branch protected by someone else is never
+  touched. Dry runs change nothing.
+* **Only project Admins and super admins** (`projects.access` in the project) change the guard; Sudoo.sh support
+  cannot. Every change, and every refusal by GitHub, is in the audit log.
+
 Every caller is also limited in requests per minute (`RATE_LIMIT_READS_PER_MINUTE`, `RATE_LIMIT_CHANGES_PER_MINUTE`,
 per user, token or address), and instance creation can be limited in number and frequency (`MAX_INSTANCES`,
 `MAX_INSTANCES_PER_USER`, `CREATE_COOLDOWN_MINUTES`); see [Configuration](CONFIGURATION.md#limits).
@@ -522,9 +547,22 @@ refuses the call anyway, with 403 naming the missing permission, and the refusal
 
 ### Teams, project access and locked branches
 
-Inside a project, every check goes through one function (`projects/access.py`): the permission must be in the
-caller's **role** and in the **level** the project gives them (role ∩ grant), and the branch must not be **locked**
-against them. Permissions about the whole panel (accounts, tokens, settings, the audit log, plugins, GitHub, off-site
+**Project roles** (projects made since project roles exist, and earlier ones once switched): inside a project the caller's
+**project role** decides alone, per stage, from the project's matrix (`projects/project_roles.py`): a Developer may
+open development's shell but sees nothing of production's data; a Maintainer reads production's logs and downloads
+its backups but never opens its shell or database, restores or deletes it. The panel role no longer limits a project:
+it keeps the panel-wide permissions only, gives the default role in a project open to everyone, and the role
+**Member** gives nothing. Super admins and administrators have every right in every project. Locks apply on top, to
+everyone. Every endpoint, the shell ticket, the live events (a build's failure lines and messages are removed for
+whoever may not read the branch's logs), lists (projects, instances, jobs, backups) and connect-as ask the same
+function with the instance's own stage. Temporary access (`projects/elevation.py`) adds the rights of one role in one
+stage, approved by someone else with `projects.access`, ending by itself and checked again at every use against the
+conditions other parts register (the client portal's switches). A GitHub team's members and a person's repository
+permission are read with the GitHub App's installation token and count as none once older than three intervals.
+
+**The earlier model** (projects made before project roles, until switched): every check goes through the same function: the
+permission must be in the caller's **role** and in the **level** the project gives them (role ∩ grant), and the
+branch must not be **locked** against them. Permissions about the whole panel (accounts, tokens, settings, the audit log, plugins, GitHub, off-site
 storage, teams) depend on the role alone.
 
 | Level | Project permissions it can give (never beyond the role) |
@@ -929,9 +967,33 @@ Odoo processes. It is contained like this:
 * Recording needs `instances.profile` in the instance; production is confirmed every time and can be switched off
   (`PROFILER_PRODUCTION`); starting, stopping, downloading and deleting are in the audit log.
 
-## 20. Production access rules (beta)
+---
 
-Production access rules ([Administrator Guide](ADMIN_GUIDE.md#30-production-access-rules-beta)) let a production
+## 20. Client portal
+
+Clients of the panel's owner, and the switch each client owns for its projects ([Admin guide](ADMIN_GUIDE.md#30-client-portal)).
+
+| Threat | Protection |
+| :--- | :--- |
+| A client sees more than its projects | A client account has the level "client" only in the projects it is a client of and "none" everywhere else, outside every project included; it may call only its own session and account and the portal's API (`CLIENT_ENDPOINTS`, checked before any view runs: every other path answers 403, audit-logged); its live events carry only its projects' instances, jobs, builds and client news, never the server's figures. |
+| Someone of the owner's team opens a closed project | The closure takes from everyone it does not let through everything a lock takes (credentials, logs, shells, caught e-mails, changes, backups, restores, deletion, access and locks), checked on every request by the same access checks as everything else; super admins have no way past it in the panel, and Sudoo.sh support is never let through. Each refusal is in the project's audit log, which the client reads. |
+| Someone of the team gives themselves a way in | Only the client changes the switch, the people it lets in, emergency access, and answers requests. While something is closed nobody can add a client to the project, take its last client out, or change, reset, take the second factors of or delete a client's account (they would take its place), and a client's role never changes. |
+| Emergency access is abused | It needs a signed-in super admin (never an API token), the client's permission (on by default, the client turns it off), a written reason and the branch's or project's name typed; it lasts `CLIENT_EMERGENCY_MINUTES` and lets only that person in; every client is e-mailed at once and it shows at the top of the client's log. |
+| A session crosses addresses | A session belongs to the address it started at (the panel's or `PORTAL_DOMAIN`'s, recorded in the signed cookie) and is refused at the other one, by the API, the live events and the shell's socket. The cookie is host-only, `HttpOnly`, `SameSite=Strict` and `Secure` over https. Staff never sign in at the portal's address and clients never at the panel's once the portal has one. |
+| A client's session is taken over, or the client is tricked into a change | Every major change waits for a confirmation sent to the client's e-mail address: a one-time link (only an HMAC of its secret is kept) or a 6-digit code (hashed, five wrong tries), valid `CLIENT_CONFIRM_MINUTES`, used once, and only in the session that asked; two clicks run it once. Someone with the session alone cannot open, close, unlock, approve or let anyone in. |
+| Staff work around a client's lock | A client lock is checked with the closure: it takes the same permissions from everyone but the project's clients and emergency access (never named people, approved requests or support); staff cannot unlock it, and automatic deploys and other automatic changes stop. |
+| An approval or an opening outlives its purpose | Each has an end time checked on every request, not by a timer; a background pass records it in the log when it closes. Closing again ends every access it gave. |
+
+**The limit, stated plainly.** The switch is an audited control inside the panel, not a wall against the server's
+administrators: whoever has root on the server or access to its Docker socket can reach the containers, databases
+and files directly, or reset a client's password with `sudoo.sh reset-password`, without the panel seeing it. A
+client that needs stronger isolation runs its projects on a server of its own.
+
+---
+
+## 21. Production access rules (beta)
+
+Production access rules ([Administrator Guide](ADMIN_GUIDE.md#31-production-access-rules-beta)) let a production
 instance refuse visitors outside some countries or addresses. They are a second wall in front of Odoo's own sign-in,
 not a replacement for it.
 
@@ -944,7 +1006,7 @@ not a replacement for it.
 | Path tricks (`/WEB//login`, `/shop/../web/login`, `/web%2Flogin`, `/web%252Flogin`) to slip past "back office only" | Paths are decoded (twice-encoded too), `.` and `..` resolved, slashes merged and lower-cased before they are compared. |
 | A forged, expired, replayed or borrowed pass | Passes are HMAC-SHA256 signed with a key derived from the vault key; the gateway checks the signature in constant time, the instance, the host name, the rules' version and the expiry; the link's token works once (the gateway remembers its nonce until it expires). The cookie is `HttpOnly`, `SameSite=Lax`, `Secure` over https, for that host only, and never reaches Odoo. New rules end every earlier pass. |
 | Someone with a stolen panel password changes the rules | A change needs a person in the panel (no API token), the instance's name typed and a one-time code by e-mail or from an authenticator app (5 wrong codes: 10 minutes' wait); the other people who may change the rules are e-mailed and the audit log records it. |
-| Someone is locked out by a mistake | The preview shows, before anything is saved, whether the person's own address still gets in; opening the instance from the panel always works through a pass, for those whose role allows it. |
+| Someone is locked out by a mistake | The preview shows, before anything is saved, whether the person's own address still gets in; opening the instance from the panel works through a pass for those whose project role lets them open production (`instances.connect`), except while the client has closed access. |
 
 ### What it does not protect against
 

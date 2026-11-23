@@ -41,6 +41,7 @@ Every endpoint needs a **permission** (for example `instances.create`). A person
 11. [Limits](#11-limits)
 12. [Web shell](#12-web-shell)
 13. [Code profiler](#13-code-profiler)
+14. [Client portal](#14-client-portal)
 
 ---
 
@@ -230,7 +231,7 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `GET /instances/<name>/logs/download?log=odoo.log&<filters>` | `instances.logs` | | 200, the log as a text file (`text/plain`, attachment): its last `LOG_DOWNLOAD_MAX_LINES` lines, only the entries the filters keep; audit-logged with the filters |
 | `GET /instances/<name>/odoo-users` | `instances.credentials` | | 200, the active internal Odoo users: `[{"id", "login", "name"}]` (read again after 30 seconds); 409 when the database is not running |
 | `POST /instances/<name>/connect` | `instances.credentials` | `{"uid": 7}`; a production instance also `"confirm_stage": "production"` | **201**, `{"url", "expires_at", "login"}`: a link that opens Odoo signed in as that user, once, within 60 seconds ([Connect as](#connect-as)); audit-logged, and so is its use. With active access rules the link goes through the panel's pass first |
-| `GET /instances/<name>/access-rules` | `instances.view` | | 200, the production access rules (beta): `{"available", "production", "active", "rules", "can_change", "channels", "geo", "geo_missing", "you", "presets", "back_office", "public_under_web"}`; only `{"available": false}` while `ACCESS_RULES_BETA` is off ([Administrator Guide](ADMIN_GUIDE.md#30-production-access-rules-beta)) |
+| `GET /instances/<name>/access-rules` | `instances.view` | | 200, the production access rules (beta): `{"available", "production", "active", "rules", "can_change", "channels", "geo", "geo_missing", "you", "presets", "back_office", "public_under_web"}`; only `{"available": false}` while `ACCESS_RULES_BETA` is off ([Administrator Guide](ADMIN_GUIDE.md#31-production-access-rules-beta)) |
 | `POST /instances/<name>/access-rules/preview` | `instances.view` | `{"rules", "test_address"?}` | 200, `{"you", "test", "samples", "warnings", "geo"}`: what the rules would do, nothing saved; 400 for rules that are not valid |
 | `POST /instances/<name>/access-rules/code` | `instances.view` and may change the rules (super admins, the project's administrators, its client; never a token) | `{"method": "email" \| "app"}` | 200, `{"method", "sent_to"?}`; 409 for an instance that is not in production, 429 when asked again within a minute |
 | `PUT /instances/<name>/access-rules` | the same | `{"rules", "confirm_name", "method", "code"}` | 200, the same as GET; 400 for a wrong name or code, 429 after 5 wrong codes in 10 minutes; audit-logged |
@@ -313,7 +314,7 @@ instance; `null` for plain Odoo). See [Projects and branches](ADMIN_GUIDE.md#24-
 | `PATCH /projects/<id>` | `projects.manage` | any of `name`, `odoo_version` and `edition` (for new instances), `options`: `{"auto_development": false, "max_auto_development": 5, "development_demo_data": true, "staging_on_push": "rebuild" or "keep_data", "branch_deleted": "keep", "archive" or "delete", "development_lifetime_days": 7, "staging_lifetime_days": 30, "development_on_new_commit": "update", "new_build" or "nothing", "module_install": "repository", "all" or "list", "modules": "sale_custom,stock_custom", "test_suite": "off", "selection" or "custom", "test_tags": "/sale_custom,-slow", "staging_tests": false, "commit_statuses": true, "email_pusher": true, "pr_previews": false, "pr_preview_limit": 3, "pr_previews_forks": false}`; `null` follows the panel's setting again | 200, the project; 400 for an unknown option or value, a module name or test tag Odoo would not accept, `module_install` `list` without `modules`, or `test_suite` `custom` without `test_tags` |
 | `DELETE /projects/<id>` | `projects.manage` | `{"confirm": "<id>"}` | **204**; 409 while it has instances. The repository on GitHub is never touched |
 | `PUT /projects/<id>/branches/<branch>/stage` | `projects.manage` | `{"stage": "production", "confirm_production": true}` | 200, the branch; every instance of it moves to the stage (the checks of `PATCH /instances/<name>`). Making a branch production, or moving it out of production, needs `"confirm_production": true` (400), and moving it out also `instances.delete` (403); **409** beyond `PROJECT_PRODUCTION_BRANCHES` in the project or `MAX_PRODUCTION_INSTANCES` on the server, and when the pre-promotion checklist has red items (below) unless the body has `"promote_anyway": true` (audit-logged as "promotion checklist overridden"; never while `PROJECT_PROMOTION_BLOCKS` is off). A branch name may contain `/` |
-| `GET /projects/<id>/branches/<branch>/promotion-check?refresh=1&mode=merge` | `instances.view` in the branch | | 200, the [pre-promotion checklist](ADMIN_GUIDE.md#promoting-to-production) of the branch going into production (`mode=merge`: being merged into production's branch on GitHub, without the capacity item): `branch`, `mode` (`move` or `merge`), `production` (`branch`, `instance`; `null` when there is none), `items`: each `key` (`build`, `backup`, `modules`, `migrations`, `odoo`, `lock`, `capacity`), `status` (`ok`, `warning`, `blocked`), `text` (the explanation) and its facts (`build`: `id`, `status`, `at`, `commit`, `tests`; `backup`: `file`, `created`, `instance`, `max_hours`, `busy`; `modules`: `added`, `removed`, `changed`, `known`, with `ahead` and `behind`; `migrations`: `module`, `version`, `scripts`; `branch_series` and `production_series`; `branches` (locked)); `blocked` (the keys of the red items), `blocking` (whether they stop the move), `compare` (`ahead`, `behind`, `files_changed`, `github_url`, `source`; `null` when the branches could not be compared), `checked_at`. `refresh=1` reads GitHub again |
+| `GET /projects/<id>/branches/<branch>/promotion-check?refresh=1&mode=merge` | `instances.view` in the branch | | 200, the [pre-promotion checklist](ADMIN_GUIDE.md#promoting-to-production) of the branch going into production (`mode=merge`: being merged into production's branch on GitHub, without the capacity item): `branch`, `mode` (`move` or `merge`), `production` (`branch`, `instance`; `null` when there is none), `items`: each `key` (`build`, `ci` (only with the [repository guard](#repository-guard)'s checks on: `ci` has `state`, `total`, `failed`, `pending`, `url`), `backup`, `modules`, `migrations`, `odoo`, `lock`, `capacity`), `status` (`ok`, `warning`, `blocked`), `text` (the explanation) and its facts (`build`: `id`, `status`, `at`, `commit`, `tests`; `backup`: `file`, `created`, `instance`, `max_hours`, `busy`; `modules`: `added`, `removed`, `changed`, `known`, with `ahead` and `behind`; `migrations`: `module`, `version`, `scripts`; `branch_series` and `production_series`; `branches` (locked)); `blocked` (the keys of the red items), `blocking` (whether they stop the move), `compare` (`ahead`, `behind`, `files_changed`, `github_url`, `source`; `null` when the branches could not be compared), `checked_at`. `refresh=1` reads GitHub again |
 | `GET /projects/<id>/compare?base=<branch>&head=<branch>&refresh=1` | `instances.view` in both branches | | 200, what merging `head` into `base` brings: `ahead`, `behind`, `commits` (of `head` not in `base`, newest first, at most 50: `sha`, `full_sha`, `subject`, `author`, `when`), `files_changed`, `modules` (`added` and `removed`: `name`, `version`; `changed`: `name`, `from`, `to`, `bump` `up`, `down`, `same` or `unknown`; `known`: false when only GitHub's compare API answered, without versions), `migrations` (`module`, `version`, `scripts`), `source` (`git` or `github`), `base` and `head` (`branch`, `sha`), `github_url`, `odoo_series`. 400 for the same branch twice, 404 when GitHub has no such branch, 502 when the repository cannot be read |
 | `GET /projects/<id>/staging-refresh` | `instances.view` | | 200, the [scheduled staging refresh](ADMIN_GUIDE.md#scheduled-staging-refresh): `frequency` (`off`, `daily`, `weekly`), `time` (`HH:MM` in the panel's time zone), `weekday` (0 Monday to 6 Sunday), `branches` (empty: every staging branch), `last_run` (the last refresh that started a rebuild, null before the first), `next_run`, `changed_by`; `meta.branches`: the staging branches and their staging instances, `meta.timezone` |
 | `PUT /projects/<id>/staging-refresh` | `projects.manage` and `instances.restore` | `{"frequency": "weekly", "time": "03:00", "weekday": 6, "branches": ["staging"]}` | 200, the schedule; a time already past waits for the next one. 400 for a value it does not accept |
@@ -338,6 +339,25 @@ locked branch takes every project permission but `instances.view` from whoever i
 (`/instances/<name>/...`, its jobs, backups, off-site copies, shell tickets): an instance hidden from the caller
 answers 404 like one that does not exist, a refused permission 403 with the reason, and lists leave hidden ones out.
 `GET /instances/<name>` has `meta.permissions`, what the caller may do in it, and every instance has `lock`.
+
+### Repository guard
+
+A project's [repository guard](ADMIN_GUIDE.md#repository-guard): CI checks added through a pull request, their
+results, and branch rules on GitHub. Changes need `projects.access` in the project (its Admins and super admins; never
+Sudoo.sh support) and are audit-logged. GitHub refusing answers 409 (a permission or plan) or 502 (unreachable) with
+GitHub's reason.
+
+| Method and path | Permission | Body | Answer |
+| :--- | :--- | :--- | :--- |
+| `GET /projects/<id>/guard` | `instances.view` | | 200, `checks` (`enabled`, `lint`, `linter` `ruff` or `flake8`, `pylint_odoo`, `manifest`, `xml_csv`, `tests`, `strictness` `relaxed`, `standard` or `strict`), `block_promotion`, `own` (the values the project chose; the rest follows the `PROJECT_GUARD_*` settings), `defaults` (those settings, as `checks`, `rules`, `block_promotion`), `rules` (`enabled`, `method` `auto`, `rulesets` or `branch_protection`, `production` and `staging`: `approvals`, `require_checks`, `linear_history`, `signed_commits`, staging also `enabled`; `pushers`: `mode` `anyone`, `roles` or `named`, `teams`, `users`), `pull` (the panel's pull request: `number`, `url`, `state` `open`, `closed` or `merged`, `purpose`, `files`, `by`, `at`; `null`), `applied` (`method`, `rulesets`, `protections`, `by`, `at`; `null`), `versions`, `required_check`, `files`, `may_change`, `github` (`app_connected`, `installed`, `permissions`: each `key`, `level`, `feature`, `why`, `granted`, `ok`; `missing` per feature; `app_permissions_url`, `installation_url`, `install_url`). Nothing is read from GitHub |
+| `PATCH /projects/<id>/guard` | `projects.access` | `{"block_promotion": true}` | 200, the guard as above |
+| `POST /projects/<id>/guard/checks/preview` | `projects.access` | `{"checks": {...}}` (keys left out keep their value) | 200, `files`: each `path`, `action` (`add`, `update`, `remove`, `unchanged`, `kept`: written by someone else, left alone), `content`, `reason`; `base`, `note`, `changes`. Nothing changes |
+| `PUT /projects/<id>/guard/checks` | `projects.access` | `{"checks": {...}, "dry_run"?: true}` | 200, the files as above, `pull`, `result` (`opened`, `updated`, `up_to_date`: nothing to change, an open pull request of the panel is closed; `dry_run`); 400 for an unknown key or value; 409 when the GitHub App lacks Contents, Pull requests or Workflows: write |
+| `POST /projects/<id>/guard/pull/refresh` | `projects.manage` | | 200, the pull request as GitHub has it now |
+| `GET /projects/<id>/guard/results?sha=<sha>,<sha>` | `instances.view` | | 200, `{"<sha>": {"state", "total", "failed", "pending", "runs", "url"}}` (`state`: `success`, `failure`, `pending`, `none` or `unknown`) for up to 30 full commit hashes, read from GitHub at most once a minute; `{}` while the checks are off or the app lacks Checks: read |
+| `POST /projects/<id>/guard/rules/preview` | `projects.access` | `{"rules": {...}, "turn_off"?: true}` | 200, `repository`, `method`, `available`, `limitations` (`reason`: `plan`, `people_in_rulesets`, `personal_repository`, `roles_in_protection`, `method_changed`; `message`), `targets` (each `key`, `kind` `ruleset` or `protection`, `name`, `action` `create`, `update`, `delete`, `unchanged` or `blocked`, `changes`: `field`, `label`, `before`, `after`), `untouched` (rules the panel did not make), `branches`, `affects_production`, `changes`. Nothing changes |
+| `PUT /projects/<id>/guard/rules` | `projects.access` | `{"rules": {...}, "confirm": "<owner/repo>", "dry_run"?: true}` | 200, the plan as above with `result` `applied` (or `dry_run`) and `applied`; 400 without the repository's name when production changes; 409 when GitHub's plan does not allow branch rules or the app lacks Administration: write |
+| `DELETE /projects/<id>/guard/rules` | `projects.access` | `{"confirm": "<owner/repo>", "dry_run"?: true}` | 200, the plan with `result` `removed`: only the panel's rulesets and branch protection are removed |
 
 ### The plan
 
@@ -545,7 +565,7 @@ An account:
 | `GET /repositories/branches?url=` | `instances.view` | | 200, `{"branches", "default"}`; through the GitHub App's API when it covers the repository; 400 with what keeps the server from the repository (below) |
 | `GET /repositories/access?url=&branch=` | `instances.view` | | 200, whether the server can read the repository and each submodule, and how (`via`: `deploy-key`, `github-app` or `public`); a line that cannot be read has `problem` and, when the GitHub App explains it, `fix` (below); `meta.can_manage_keys`, `meta.github_app` |
 | `GET /github/app` | `github.manage` | | 200, `{"connected", "app", "trigger_running", "expected_hook_url", "deploy_keys"}`; `meta.can_manage` (below). The installations are read from GitHub first when the last reading is more than a minute old |
-| `POST /github/app/manifest` | `settings.manage` | `{"organization", "create_repositories"?}` (empty organisation: the personal account; `create_repositories`: also Administration: write) | 200, `{"action", "manifest", "state"}`: post `manifest` as a form field to `action` from the browser; the state is kept in the session for one hour |
+| `POST /github/app/manifest` | `settings.manage` | `{"organization", "create_repositories"?, "repository_guard"?}` (empty organisation: the personal account; `create_repositories`: also Administration: write; `repository_guard`: also what the [repository guard](#repository-guard) needs) | 200, `{"action", "manifest", "state"}`: post `manifest` as a form field to `action` from the browser; the state is kept in the session for one hour |
 | `POST /github/app` | `settings.manage` | `{"code", "state"}` from GitHub's redirect to `/github/app/created` | **201**, the app; 400 when the state does not match the session's or the code expired |
 | `DELETE /github/app` | `settings.manage` | | 200, `{"settings_url", "installations"}`: GitHub pages to uninstall and delete the app; the panel forgets its credentials |
 | `POST /github/app/installations` | `settings.manage` | `{"installation_id"}` from GitHub's redirect to `/github/app/installed` | **201**, the installation, after GitHub confirms it belongs to the app |
@@ -1419,6 +1439,13 @@ POST /api/v1/session/second-factor  {"method": "totp", "code": "123456"}
 
 Between the two calls the session opens nothing, for 5 minutes at most.
 
+Project roles (`GET /api/v1/projects/<id>/access` has `model`, `roles` and the matrix): `PUT .../access/matrix`
+`{"matrix": {"developer": {"staging": ["instances.view", "instances.connect"]}}}` (null: the defaults), `GET
+.../access/people` (who can do what), `GET`/`POST .../access/model` (preview and switch a project of the earlier
+model), and temporary access: `GET`/`POST /api/v1/projects/<id>/role-requests` (`{"stage", "level", "hours",
+"reason"}`), `POST .../role-requests/<rid>/approve|refuse`, `DELETE .../role-requests/<rid>`. A refused right in a
+project answers 403 with a sentence that names the role, the right and the stage.
+
 `GET /api/v1/session/options` (public) says which other ways the page offers, `{"password", "email_code", "github"}`
 (true or false). Each is a first step like the password; the second factor follows the same way:
 
@@ -1554,3 +1581,54 @@ access and locked branches apply). How it works: [Admin guide](ADMIN_GUIDE.md#28
 | `GET /instances/<name>/profiles/<id>` | | 200, the recording and its `tree`: `total` (samples), `seconds`, `threads` (`name`, `samples`), `root` (the call tree: `n` name, `w` file and line, `v` samples, `c` children; the first level is the threads, calls under 0.02% of the samples are left out) and `top` (the functions with the most samples in their own code: `name`, `where`, `self`, `total`) |
 | `GET /instances/<name>/profiles/<id>/download` | | 200, the speedscope file (`application/json`, attachment), for speedscope.app or another viewer; the processes' command lines are removed from it. Audit-logged |
 | `DELETE /instances/<name>/profiles/<id>` | | **204**. Audit-logged |
+
+---
+
+## 14. Client portal
+
+How it works: [Admin guide, Client portal](ADMIN_GUIDE.md#30-client-portal). A project's resource has
+`client_access` (the project's switch, or `null` without a client), and so has each branch of
+`GET /projects/<id>` and each instance: `state` (`open`, `closed`, `timed`), `until`, `scope` (`project`, or `branch`
+for a branch's own switch), `changed_by`, `changed_at`, `emergency_allowed`, `clients`, and `lets_you_through` where
+the answer is for you. Inside a closure the usual calls answer 403 with "closed by its client".
+
+The panel's people:
+
+| Method and path | Body | Answer |
+| :--- | :--- | :--- |
+| `GET /projects/<id>/clients` | | 200, `clients`, `invited`, `project` and `branches` (switches), `allow`, `emergency_allowed`, `passes`, `requests`; `meta`: `may_manage`, `may_force`, `emergency_minutes`, `request_hours`, `request_max_hours`, `portal_url` (`instances.view` in the project) |
+| `POST /projects/<id>/clients` | `{"email", "first_name"?, "last_name"?, "backups"?, "shell"?}` | **201**: an existing client account is added, a new address invited (`clients.manage` and `projects.access` in the project; 402 without the premium teams package, 403 without the plan's `client_portal`; 409 for a staff address or a closed project) |
+| `PATCH /projects/<id>/clients/<name>` | `{"backups"?, "shell"?}` | 200 (as POST) |
+| `DELETE /projects/<id>/clients/<name>` | | **204** (`clients.manage`; 409 for the only client of a closed project) |
+| `GET /projects/<id>/access-requests` | | 200, the requests: `id`, `branch`, `by`, `reason`, `hours`, `status` (`pending`, `approved`, `refused`, `lapsed`), `asked_at`, `decided_by`, `decided_at`, `people`, `until`, `note` |
+| `POST /projects/<id>/access-requests` | `{"branch"?, "reason", "hours"?}` | **201**, the request; 409 when it is open or you asked already. The clients are e-mailed |
+| `POST /projects/<id>/emergency-access` | `{"branch"?, "reason", "confirm"}` (`confirm`: the branch's name, or the project's id) | **201**, the access (`id`, `kind`, `branch`, `people`, `until`, `reason`); 403 unless a signed-in super admin, or when the client turned it off. The clients are e-mailed at once |
+
+The client (a client account's session; nothing else is open to it):
+
+| Method and path | Body | Answer |
+| :--- | :--- | :--- |
+| `GET /client/projects` | | 200, its projects: `id`, `name`, `switch`, `closed_branches`, `pending_requests`, `emergency_active`, `instances` |
+| `GET /client/projects/<id>` | | 200, the project with `branches` (`name`, `stage`, `switch`, `instances`: `name`, `status`, `stage`, `url`, `odoo`), `allow`, `people` (whom it may name), `emergency_allowed`, `passes`, `requests`, `notices` (emergency access of the last 7 days), `given`; `meta`: `open_hours`, `open_max_hours`, `request_max_hours`, `emergency_minutes` |
+| `PUT /client/projects/<id>/switch` | `{"branch"?, "state", "hours"?, "inherit"?}` | 200, or **202** (below) |
+| `PUT /client/projects/<id>/allow` | `{"people": [names]}` | 200, or **202** (below) |
+| `PUT /client/projects/<id>/emergency` | `{"allowed": bool}` | 200, or **202** (below) |
+| `PUT /client/projects/<id>/lock` | `{"branch"?, "locked": bool, "reason"?}` | 200, or **202** (below): the client's lock of the branch, or of the whole project without `branch` |
+| `POST /client/confirmations/<id>` | `{"code"}` or `{"token"}` (the link's secret) | 200 `{"done": true, "project"}`: the change that waited is made; 401 for a wrong code, 403 from another session, 410 used or expired |
+| `DELETE /client/confirmations/<id>` | | **204**: the change that waited is dropped |
+| `DELETE /client/projects/<id>/passes/<pass>` | | **204** |
+| `POST /client/requests/<id>/approve` | `{"hours"?, "people"?, "note"?}` | 200, or **202** (below) |
+| `POST /client/requests/<id>/refuse` | `{"note"?}` | 200, the request |
+| `GET /client/projects/<id>/backups` | | 200, its instances' backups where it was given them (download: `GET /backups/<file>`) |
+| `GET /client/projects/<id>/activity` | `?kind=all\|access&limit&offset` | 200, the project's audit entries (`at`, `user`, `event`, `allowed`, `branch`, `instance`, `detail`, `address` (its own only), `emergency`) |
+| `GET /client/projects/<id>/activity/export` | `?kind=` | 200, CSV (the audit export's columns), a year at most |
+
+While `CLIENT_CONFIRMATIONS` is on, the switch, locks, emergency access, the people let in and approvals answer
+**202** `{"done": false, "confirmation": {"id", "kind", "summary", "asked_at", "expires_at", "status"}}`: the change
+waits until the client confirms it (`POST /client/confirmations/<id>`), and `GET /client/projects/<id>` lists those
+waiting in `confirmations` (and the project's lock in `locked`; each switch has `locked` too). With it off they answer
+200 `{"done": true}` at once.
+
+`GET /portal` (public) says whether the address is the portal's (`portal`), with `name` (`PORTAL_NAME`) and
+`brand_color`; `POST /session` answers 200 `{"redirect": {"address", "url"}}` when the account signs in at the other
+address.

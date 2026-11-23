@@ -16,6 +16,10 @@ only a named set of permissions:
                                   e-mails caught from staging and development instances (deleting and releasing
                                   them is for administrators)
     viewer        Viewer          sees instances, their activity and logs
+    client        Client          a client of the panel's owner (projects/clients.py): sees only the projects it is
+                                  a client of (their branches, instances, links and its activity log), opens and
+                                  closes access to them and answers access requests; downloads backups and opens a
+                                  shell only where it was given them; nothing of the panel itself
 
 Shells (webshell/): super admins and administrators open terminals in instances' containers (instances.shell,
 instances.database_shell); the SHELL_ROLES setting adds maintainers, or maintainers and developers, for the Odoo
@@ -70,6 +74,7 @@ PERMISSIONS: dict[str, str] = {
     "then upgrade production (with its backup and rollback)",
     "instances.delete": "Delete instances",
     "instances.credentials": "See Odoo passwords and ports",
+    "instances.connect": "Open an instance's Odoo signed in as one of its users (Connect), and its login link",
     "instances.resources": "Set an instance's resources: Odoo workers, time and memory limits, container limits",
     "projects.resources": "Set a project's and its branches' resources (workers, timeouts, memory) within the "
     "administrator's maxima, and apply them",
@@ -95,6 +100,8 @@ PERMISSIONS: dict[str, str] = {
     "servers.manage": "Add, approve, revoke and remove servers; change their name, region and room",
     "instances.move": "Move instances to another server",
     "support_access.manage": "Grant Sudoo.sh support temporary access to the panel, see it and withdraw it",
+    "clients.manage": "Invite clients to projects and take them out (the client portal); only clients open and "
+    "close access to their projects",
 }
 
 
@@ -112,10 +119,15 @@ _MAINTAIN = _DEVELOP | {
     "instances.restore",
     "instances.create",
     "instances.credentials",
+    "instances.connect",
     "github.manage",
     "projects.manage",
 }
 _ADMIN = frozenset(PERMISSIONS) - {"settings.manage", "mail.manage", "offsite.configure", "shells.supervise"}
+CLIENT = "client"
+_CLIENT = frozenset({"instances.view", "instances.logs", "backups.manage", "instances.shell"})
+"""The most a client may do, and only in the projects it is a client of: its level there (projects/access.py) gives
+backups and the shell only when it was given them."""
 
 ROLES: dict[str, Role] = {
     "super_admin": Role("Super admin", "Everything, including the panel's settings.", frozenset(PERMISSIONS)),
@@ -123,6 +135,13 @@ ROLES: dict[str, Role] = {
     "maintainer": Role("Maintainer", "Creates instances and runs every action on them except deleting.", _MAINTAIN),
     "developer": Role("Developer", "Gets new code, restarts and starts instances, adds submodules.", _DEVELOP),
     "viewer": Role("Viewer", "Sees instances, their activity and logs.", _VIEW),
+    "member": Role(
+        "Member",
+        "No rights by itself: each project's role (from its Access tab, a team or GitHub) decides what they do there.",
+        frozenset(),
+    ),
+    CLIENT: Role("Client", "Sees only its own projects, in the client portal, and opens or closes access to them.",
+                 _CLIENT),  # fmt: skip
 }
 CONNECTED_APP = "connected_app"
 _CONNECTED_APP = frozenset(
@@ -155,6 +174,8 @@ TOKEN_ROLES: dict[str, Role] = {
 }
 LABELS = {name: role.label for name, role in ROLES.items()}
 ADMINISTRATORS = frozenset({"super_admin", "admin"})  # "admins" in REQUIRE_SECOND_FACTOR
+STAFF = frozenset(ROLES) - {CLIENT}
+"""The panel owner's people: every role but clients."""
 
 
 def normalize(role: str) -> str:
@@ -174,6 +195,8 @@ def permissions(role: str) -> frozenset[str]:
         return TOKEN_ROLES[role].permissions
     role = normalize(role)
     found = ROLES[role].permissions
+    if role == CLIENT:  # a shell only while shells are on; never the profiler
+        return found if settings.shell_enabled else found - SHELL_PERMISSIONS
     if not settings.profiler_enabled:  # the profiler switched off: nobody has it (the Tools tab disappears)
         found = found - {PROFILE}
     elif role in SHELL_ROLES.get(settings.profiler_roles, ()):

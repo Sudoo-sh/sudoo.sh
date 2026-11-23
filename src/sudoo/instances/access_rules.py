@@ -19,13 +19,14 @@ A rule set (stored per instance, collection "access_rules")
     version      raised by every change; a pass carries it, so new rules end the passes given before
 
 Who may change them (may_change): super admins and the project's administrators (projects.access in the instance),
-and, once the client portal is there, the project's clients. Never an API token: a change needs a person who types
+and the project's clients (client portal). Never an API token: a change needs a person who types
 the instance's name and a one-time code (access_confirm.py). Every change, refusal, code and pass is audit-logged;
 the people on the other side are told by e-mail (notify()).
 
 Passes (pass_url): opening a production instance from the panel (Open Odoo, Connect as) goes through a signed pass
 when its rules are active, so the person gets in from anywhere. Given only when the person may open production
-(may_open_production) and never while the client has closed access (client_closed).
+(may_open_production: instances.connect in the instance's stage) and never while the client has closed access
+(client_closed); while it is closed, the gateway also refuses every pass given before ("no_passes").
 """
 
 from __future__ import annotations
@@ -251,6 +252,8 @@ def routes_section() -> dict[str, Any]:
         for name, found in storage().all(COLLECTION).items():
             if found.get("enabled") and store.NAME_RE.match(name) and is_production(name):
                 instances[name] = gateway_policy(get(name))
+                if client_closed(name):  # the client closed access: no pass works, earlier ones neither
+                    instances[name]["no_passes"] = True
     return {
         "format": access_gate.FORMAT,
         "pass_key": pass_key().hex(),
@@ -301,60 +304,42 @@ def _project_of(name: str) -> tuple[Mapping[str, Any] | None, str | None]:
     return access.scope_of_instance(name)
 
 
-def is_client(user: Mapping[str, Any]) -> bool:
-    """A client account of the client portal. TODO(client-portal, PR #148): uses projects/clients.py once merged."""
-    try:
-        from sudoo.projects import clients  # type: ignore[attr-defined, unused-ignore]
-    except ImportError:
-        return False
-    found = getattr(clients, "is_client", None)
-    return bool(found(user)) if callable(found) else False
-
-
 def client_of(user: Mapping[str, Any], name: str) -> bool:
-    """Whether `user` is a client of the instance's project (client portal)."""
-    if not is_client(user):
-        return False
-    try:
-        from sudoo.projects import access, clients  # type: ignore[attr-defined, unused-ignore]
-    except ImportError:
+    """Whether `user` is a client of the instance's project (client portal, projects/clients.py)."""
+    from sudoo.projects import access, clients
+
+    if not clients.is_client(user):
         return False
     project, _ = _project_of(name)
-    entry = getattr(clients, "entry", None)
-    return bool(project and callable(entry) and entry(project, access.person(user)))
+    return bool(project and clients.entry(project, access.person(user)))
 
 
 def clients_of(name: str) -> list[str]:
-    """The client accounts of the instance's project (client portal), for the e-mails; [] before it exists."""
-    try:
-        from sudoo.projects import clients  # type: ignore[attr-defined, unused-ignore]
-    except ImportError:
-        return []
+    """The client accounts of the instance's project, for the e-mails."""
+    from sudoo.projects import clients
+
     project, _ = _project_of(name)
-    entries = getattr(clients, "entries", None)
-    if not project or not callable(entries):
-        return []
-    return [str(e["id"]) for e in entries(project) if e.get("id")]
+    return [str(e["id"]) for e in clients.entries(project)] if project else []
 
 
-def client_closed(user: Mapping[str, Any], name: str) -> bool:
-    """Whether the client's access switch closes the instance's branch to `user` now. TODO(client-portal, PR #148):
-    access.closed_to() exists once the client portal is merged; until then nothing is ever closed."""
-    from sudoo.projects import access
+def client_closed(name: str) -> bool:
+    """Whether the client has closed access to the instance's branch now: its switch (closed, or a timed opening
+    that ended) or a client lock, for the project or the branch. Strict: nobody gets a pass then, whoever the
+    closure would otherwise let through."""
+    from sudoo.projects import clients
 
-    closed_to = getattr(access, "closed_to", None)
-    if not callable(closed_to):
-        return False
     project, branch = _project_of(name)
+    if project is None:
+        return False
     try:
-        return bool(closed_to(user, project, branch))
+        return clients.closed(project, branch) or clients.client_lock(project, branch) is not None
     except Exception:  # noqa: BLE001 - a broken project document closes rather than opens
         return True
 
 
 def may_change(user: Mapping[str, Any], name: str) -> bool:
-    """Super admins, the project's administrators (projects.access in this instance) and the project's clients.
-    Never an API token. TODO(project-roles): a dedicated project role may replace projects.access here."""
+    """Super admins, the project's administrators (projects.access in this instance: the Admin project role) and
+    the project's clients. Never an API token."""
     from sudoo.projects import access
 
     if str(user.get("name", "")).startswith("api:") or user.get("token_id") or user.get("support"):
@@ -366,15 +351,20 @@ def may_change(user: Mapping[str, Any], name: str) -> bool:
     return access.allowed_instance(user, "projects.access", name)
 
 
+OPEN_PERMISSION = "instances.connect"
+"""What the person's project role must give in the instance's stage to get a pass: opening Odoo signed in
+(project roles: Maintainer and Admin in production by default; the project's matrix can change it)."""
+
+
 def may_open_production(user: Mapping[str, Any], name: str) -> tuple[bool, str]:
-    """(True, "") when the person's role lets them open this production instance from the panel, else (False, why).
-    TODO(project-roles): uses instances.view until project roles add a dedicated production permission."""
+    """(True, "") when the person may open this production instance from the panel through a pass, else (False,
+    why): their project role allows opening it (OPEN_PERMISSION), and the client has not closed access to it."""
     from sudoo.projects import access
 
-    if not access.allowed_instance(user, "instances.view", name):
-        return False, "Your role does not give you access to this production instance."
-    if client_closed(user, name):
+    if client_closed(name):
         return False, "The client has closed access to this production instance."
+    if not access.allowed_instance(user, OPEN_PERMISSION, name):
+        return False, "Your role in this project does not let you open its production instance."
     return True, ""
 
 

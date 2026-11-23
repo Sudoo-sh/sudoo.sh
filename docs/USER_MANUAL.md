@@ -26,6 +26,7 @@ your computer.
 13. [Help pages and appearance](#13-help-pages-and-appearance)
 14. [When something goes wrong](#14-when-something-goes-wrong)
 15. [Questions and answers](#15-questions-and-answers)
+16. [Client portal](#16-client-portal)
 
 Words used in this manual:
 
@@ -132,8 +133,8 @@ By default super admins and administrators must use a second factor. A super adm
   the address.
 * **My account, Ways to sign in** shows how your account may sign in. There you link your GitHub account
   (**Link GitHub**) or unlink it (**Unlink**, which asks for your password when you have one). After you sign in
-  with GitHub, your access to each project may follow your permission on its GitHub repository: write gives
-  Developer, maintain Maintainer, admin Admin, triage or read view only. Removed from the repository, you no longer
+  with GitHub, your role in each project may follow your permission on its GitHub repository: write gives
+  Developer, maintain Maintainer, admin Admin, triage or read Tester. Removed from the repository, you no longer
   see the project.
 * After **5 wrong passwords** for the same account from the same place, or 20 from the same place, signing in is
   blocked for **15 minutes**. Wait, or ask an administrator to set a new password for you.
@@ -429,6 +430,60 @@ choose Slack, Discord, Telegram, Microsoft Teams, Webhook or E-mail, paste the a
 or the addresses), and tick the events you want. Saved addresses and tokens are never shown again, only their last 4
 characters; type a new one to replace it. A webhook's signing secret is shown once, when it is made: copy it then.
 **Send test** sends a test at once; each channel says how its last delivery went.
+
+### Repository guard
+
+**Repository guard** (a card of the project's **Settings** tab) adds CI checks and pre-commit hooks to the project's
+GitHub repository, shows their results in the panel, and sets branch rules on GitHub. Everything is off until you turn
+it on, and every part can be turned off again. Everyone who sees the project sees the card; only the project's
+**Admins** (and super admins) can change it.
+
+What you do not change on the card follows the panel's settings (**Settings**, **Instances**, **Projects**,
+the **Repository guard** lines), which a super admin sets for every project.
+
+**GitHub App permissions.** The guard works through the panel's GitHub App and needs more than reading code. The card
+lists what is missing and why: **Contents**, **Pull requests** and **Workflows: Read and write** for the checks'
+pull request, **Checks: Read** for the results, **Administration: Read and write** for branch rules. **Open the app's
+permissions** takes you to the app's settings on GitHub; after you save, an owner of the account accepts the new
+permissions with **Accept on the installation**. Reload the page afterwards. The guard never asks for them before
+you use it.
+
+**CI checks.**
+
+1. Turn on **Run CI checks on this repository** and choose the checks: **Lint Python code** (ruff or flake8),
+   **pylint-odoo** (the Odoo community's rules), **Manifests** (required keys, a licence Odoo knows, a version that
+   starts with the branch's Odoo series), **XML and CSV files are valid**, and optionally **Run the modules' tests in
+   Odoo's official image** (slower: each run installs the modules in a new PostgreSQL database).
+2. Choose the **Strictness**: **Relaxed** (errors that break things only), **Standard** or **Strict** (every rule).
+3. **Preview changes** shows each file the pull request would add, change or remove, with its content. Nothing changes.
+4. **Save and open a pull request**. The panel commits the files to its own branch, `sudoo/repository-guard`, and opens
+   a pull request into the default branch. The card shows its link and state (**Open**, **Merged**, **Closed**);
+   **Read its state again** asks GitHub. Saving again while it is open updates the same pull request.
+
+The pull request adds `.github/workflows/sudoo-checks.yml`, `.github/sudoo/check_addons.py`, `.pre-commit-config.yaml`
+and `docs/CHECKS.md`. Nothing runs until someone merges it, through your repository's own reviews. A file the
+repository already has, written by someone else, is left alone (the preview says **Left alone**). Turning a check
+off, or turning the checks off, opens a pull request that updates or removes the panel's files only.
+
+**Results in the panel.** Once the checks run, each build in **Builds** and in a branch's **History** shows a
+**Checks** badge (**Checks passed**, **1 check failed**, **Checks running**); it opens the commit's checks on GitHub.
+The pre-promotion checklist gets a **CI checks on GitHub** item. Turn on **Failing checks stop a promotion to
+production** to make a failing check a red item (off by default: it is then amber).
+
+**Branch rules on GitHub.**
+
+1. Choose what protects **Production**: **Approvals required** (1 by default), **The check sudoo-checks must pass**,
+   **Linear history**, **Signed commits**. Force-pushes and deleting the branch are always blocked. **Staging** has
+   the same choices with lighter defaults (no approval required).
+2. Choose **Who may push or merge to production**: **Admins and Maintainers** (GitHub's Admin and Maintain roles),
+   **Named teams and people**, or **Anyone with write access**.
+3. **Preview the rules** shows each rule now and after, side by side, and the rules on GitHub the panel did not make
+   (they are never changed). When GitHub's plan does not allow branch rules (private repositories on GitHub Free),
+   the preview says so.
+4. Type the repository's name (for example `acme/erp`) and click **Apply on GitHub**.
+
+**Turn off the rules** removes only the rules the panel made. See [Repository guard](ADMIN_GUIDE.md#repository-guard)
+for how it works and what each permission is for.
 
 ---
 
@@ -783,7 +838,7 @@ takes three steps:
 3. **Confirm**: type the instance's name and a one-time code, sent by e-mail or shown by your authenticator app,
    then **Apply the rules**. They apply within seconds; the other people who may change them get an e-mail.
 
-**Open Odoo** and **Connect as** keep working from anywhere for the people who may open this instance: the panel
+**Open Odoo** and **Connect as** keep working from anywhere for the people whose project role lets them open production (unless the client has closed access): the panel
 gives your browser a short pass that the gateway accepts, valid for a few hours on that instance only.
 
 A visitor turned away sees a calm page saying "This site isn't available from your location / network", with their
@@ -1256,6 +1311,9 @@ Every account has one role. The role decides which pages, buttons and menu items
 | Backups page (download, delete) | yes | yes | no | no | no |
 | Accounts, API tokens, audit log | yes | yes | no | no | no |
 | Teams; a project's access (grants, restricted projects and branches); lock and unlock branches ([Teams](#teams), [Project access and locked branches](#project-access-and-locked-branches)) | yes | yes | no | no | no |
+| Add clients to projects and take them out ([Client portal](#16-client-portal)) | yes | yes | no | no | no |
+| Ask a client for access to a closed project or branch | yes | yes | yes | yes | yes |
+| Emergency access to a project a client closed, where the client allows it | yes | no | no | no | no |
 | Create, change and delete super admins | yes | no | no | no | no |
 | Settings, restart the panel | yes | no | no | no | no |
 | E-mail templates (the texts of the e-mails the panel sends) | yes | no | no | no | no |
@@ -1276,6 +1334,9 @@ open a shell.
 
 Inside a project, a role is the most someone can do: the project's access can narrow it for a team or a person, hide
 a project or a branch, or lock a branch ([Project access and locked branches](#project-access-and-locked-branches)).
+
+A **Client** account is not part of your team: it sees only the projects it is a client of, in the client portal,
+and opens or closes access to them; nothing in the table above applies to it ([Client portal](#16-client-portal)).
 
 When you try something your role does not allow, the panel says which permission is missing. Ask an administrator.
 
@@ -1337,7 +1398,25 @@ removed.
 
 ### Project access and locked branches
 
-What someone may do in a project is **their role, limited by the level they have there**. A level never gives more
+Projects use **project roles**: your role in a project decides what you may do in each of its stages, whatever your
+role in the panel (super admins and administrators can do everything everywhere).
+
+| Role | Development | Staging | Production | The project |
+| :--- | :--- | :--- | :--- | :--- |
+| **Viewer** | see branches, status, history, builds | the same | the same | nothing |
+| **Tester** | see, and open Odoo signed in (**Connect**) to try it | the same | nothing: production is not shown | nothing |
+| **Developer** | everything: logs, shell, database, backups, Connect, passwords, create, update, delete, restore | see, Connect to test, logs; no shell, database, backups or passwords | only that it exists, its history, builds and status | nothing |
+| **Maintainer** | as Developer | as Developer in development, staging data included | logs and monitoring, Connect (with the production confirmation), backups (list and download), restart and new code; never its shell, database, restores, deletion | nothing |
+| **Admin** | everything | everything | everything | settings, stages, access, roles and locks |
+
+Your project's admins may have changed what a role allows; the project's **Access** tab shows the exact rights. When
+something is refused, the message says which role cannot do what, and where. If you need more for a while, open the
+project's **Access** tab, **Temporary access**, **Request access**: choose the stage, the role, how many hours, and say
+why. The project's admins get an e-mail; once approved, the extra rights apply at once and end by themselves. You get
+an e-mail when you are given access to a project, when your role there changes and when it ends.
+
+The rest of this section describes projects made before project roles, until an admin switches them: there, what
+someone may do in a project is **their panel role, limited by the level they have there**. A level never gives more
 than the role: a Viewer given the level Admin is still a Viewer.
 
 | Level | What it allows (within the role) |
@@ -1753,3 +1832,69 @@ restart.
 **Is my data safe in an instance?**
 Instances are for showing and testing Odoo. Anyone with the link and the Odoo login can sign in. Do not put real
 customer data in them.
+
+---
+
+## 16. Client portal
+
+The client portal is what your **clients** see: the Odoo projects you run for them, and a switch that decides
+whether your team may open them. A client signs in at the portal's own address when your administrator set one
+(`PORTAL_DOMAIN`, such as `portal.example.com`), otherwise at the panel's address; either way a client account sees the
+portal and nothing else of the panel.
+
+### For the client
+
+**Your projects** lists each project you are a client of, with its switch (**Open**, **Closed** or **Open until** a
+time), the branches you closed, the requests waiting for you, and a mark while emergency access is in use. Open a
+project to see:
+
+* **Access by your provider's team**: the switch of the project as a whole.
+  * **Open**: your provider's team works with their usual access.
+  * **Closed**: only you and the people you let in may open, change, back up, restore, open a shell, read logs or
+    see passwords. Everyone else, your provider's super admins included, is refused, and each attempt is in your
+    activity log. Daily backups, monitoring and certificates go on, and production keeps serving. Closing also ends
+    the access you gave before.
+  * **Open for a time**: 1, 4 or 24 hours (your provider may offer others), or a number of hours you type; then it
+    closes again by itself.
+* **Branches**: each branch follows the project unless you give it its own setting, for example production closed
+  while development stays open. Each instance shows its status and **Open Odoo**.
+* **Access requests**: your provider's team asks before opening something you closed, with a reason and a
+  duration. **Approve** lets them in (you may choose other people of their team and a shorter time) and it closes
+  again by itself; **Refuse** keeps it closed. You get an e-mail for each request.
+* **Who can get in now**: the approved requests and emergency access in use, with **End now**.
+* **People you let in**: people of your provider's team who may work here even while it is closed.
+* **Locks**: **Lock the project**, or **Lock** on a branch. A lock is as strong as **Closed**: nobody of your
+  provider's team can open or change what you locked, super admins included, and nothing is deployed to it
+  automatically, whatever the switch says. Unlike the switch, a lock lets nobody else through: not the people you
+  let in, not approved requests; only emergency access while you allow it. Only you can unlock it.
+* **Emergency access**: allowed by default. If production breaks, one of your provider's super admins can get in
+  for a short time (an hour unless they changed it) by writing a reason and typing the branch's or project's name.
+  You get an e-mail at once and it shows in red at the top of the project and of your log. Turn it off and nobody of
+  your provider can get in while you keep the project closed, even in an emergency.
+* **Backups**, when your provider gave them to you: download a copy of your database and files.
+* **Activity log**: everything done in the project: opening and closing, requests and answers, emergencies, and
+  every time someone opened data (passwords viewed, shells, backups downloaded, restores), allowed or refused.
+  **Access only** keeps the access events; **Export CSV** downloads it (a year at most).
+
+**Confirming by e-mail.** Every major change (opening or closing, locks and unlocks, emergency access on or off,
+approving a request, the people you let in) waits until you confirm it: you get an e-mail with a link and a 6-digit
+code, and the portal shows **Waiting for your e-mail confirmation** with a field for the code and **Cancel**. Open the
+link, or type the code, in the same browser where you asked, within 15 minutes (unless your provider changed it).
+Each link and code works once; nothing changes if you do not confirm. Refusing a request and ending someone's access
+now happen at once, since they only take access away.
+
+**What the switch protects.** Closing a project stops everyone in the panel, its super admins included, and every
+attempt is recorded. It is a control inside the panel: whoever administers the server itself (its root account or
+Docker) can still reach the data without the panel. For stronger isolation, run your projects on a server of your
+own.
+
+### For your team
+
+A project with a client shows **Closed by client** on a closed branch and its instances, and a notice with
+**Request access** on the project, the branch and the instance: write why you need it and for how many hours; the
+client gets an e-mail and answers in the portal. Super admins also see **Emergency access** while the client allows
+it. The project's **Clients** tab lists its clients, the requests and their answers, and the access in use;
+administrators add a client there (**Add a client**: an existing client account at once, a new address by e-mail
+invitation; the client may be given backups and a shell) and take one out. Nobody of your team can lift a client's
+closure, change or reset a client's account while it keeps something closed, or add another client to a closed
+project. See [Admin guide, Client portal](ADMIN_GUIDE.md#30-client-portal).

@@ -257,7 +257,7 @@ class Settings(BaseSettings):
             raise ValueError("must be GitHub organisation names, comma-separated")
         return ",".join(dict.fromkeys(chosen))
 
-    @field_validator("panel_domain")
+    @field_validator("panel_domain", "portal_domain")
     @classmethod
     def _panel_domain(cls, value: str) -> str:
         import re
@@ -266,6 +266,26 @@ class Settings(BaseSettings):
         label = r"(?!-)[a-z0-9-]{1,63}(?<!-)"
         if value and (len(value) > 253 or not re.fullmatch(rf"{label}(\.{label})+", value)):
             raise ValueError("must be a host name such as panel.example.com")
+        return value
+
+    @field_validator("client_open_hours")
+    @classmethod
+    def _client_open_hours(cls, value: str) -> str:
+        parts = [part.strip() for part in value.split(",") if part.strip()]
+        try:
+            hours = [float(part) for part in parts]
+        except ValueError:
+            raise ValueError("must be hours separated by commas, such as 1,4,24") from None
+        if not hours or len(hours) > 8 or any(not 0 < h <= 8760 for h in hours):
+            raise ValueError("must be 1 to 8 durations between 0 and 8760 hours, such as 1,4,24")
+        return ",".join(f"{h:g}" for h in hours)
+
+    @field_validator("portal_name")
+    @classmethod
+    def _portal_name(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if any(ch in value for ch in "<>{}"):
+            raise ValueError("must be plain text")
         return value
 
     @field_validator("public_host")
@@ -383,8 +403,10 @@ class Settings(BaseSettings):
         description="GitHub organisations, comma-separated, whose members may sign in with GitHub without an "
         "invitation; their account is created at the first sign-in. Empty: only people with an account or invitation.",
     )
-    github_sign_in_role: Literal["viewer", "developer", "maintainer", "admin"] = Field(
-        "developer", description="The role of an account created for a member of GITHUB_SIGN_IN_ORGS."
+    github_sign_in_role: Literal["member", "viewer", "developer", "maintainer", "admin"] = Field(
+        "member",
+        description="The panel role of an account created for a member of GITHUB_SIGN_IN_ORGS. Member: no rights by "
+        "itself; each project's role comes from GitHub or from its Access tab.",
     )
     github_sign_in_skips_second_factor: bool = Field(
         False,
@@ -393,13 +415,31 @@ class Settings(BaseSettings):
     )
     github_access_from_repositories: bool = Field(
         True,
-        description="For accounts linked to GitHub (except administrators), a project's access follows their "
-        "permission on its repository: admin gives maintainer, maintain or write developer, triage or read view, "
-        "none nothing. Only with GITHUB_SIGN_IN.",
+        description="For accounts linked to GitHub (except administrators), a project's role follows their "
+        "permission on its repository: admin gives Admin, maintain Maintainer, write Developer, triage or read "
+        "Tester, none nothing. Only with GITHUB_SIGN_IN.",
     )
     github_access_check_minutes: int = Field(
-        15, ge=1, le=1440, description="How often repository permissions are read from GitHub again."
+        15, ge=1, le=1440, description="How often repository permissions and GitHub team members are read again."
     )
+    project_access_model: Literal["project_roles", "legacy"] = Field(
+        "project_roles",
+        description='The access model of new projects: "project_roles" (Viewer, Tester, Developer, Maintainer, '
+        'Admin, per stage) or "legacy" (the panel role limited by the project\'s grant, the same in every stage).',
+    )
+    access_emails: bool = Field(
+        True, description="E-mail people when they get access to a project, when their role changes, and when it ends."
+    )
+    access_requests: bool = Field(
+        True, description="People may ask a project's admins for temporary access (a higher role in one stage)."
+    )
+    access_request_max_hours: int = Field(
+        8, ge=1, le=168, description="The longest temporary access that can be asked for, in hours."
+    )
+    access_review: bool = Field(
+        True, description="E-mail each project's admins, every ACCESS_REVIEW_DAYS, who has access to it."
+    )
+    access_review_days: int = Field(30, ge=1, le=365, description="Days between two access reviews of a project.")
     brand_color: str = Field(
         "#714B67", pattern=r"^#[0-9A-Fa-f]{6}$", description="Accent colour of e-mails, as #RRGGBB."
     )
@@ -956,6 +996,50 @@ class Settings(BaseSettings):
         description="Pull requests from forks get previews too. Off by default: a fork's code is written by people "
         "outside the repository and runs on this server (each project can change it).",
     )
+    project_guard_checks: bool = Field(
+        False,
+        description="The repository guard's CI checks start turned on for a project that has not chosen (turning "
+        "them on still only shows them; the pull request is opened when someone saves). Each project can change it.",
+    )
+    project_guard_strictness: Literal["relaxed", "standard", "strict"] = Field(
+        "standard",
+        description="How strict the repository guard's checks are by default: relaxed (errors that break things), "
+        "standard (and the usual Odoo conventions) or strict (every rule). Each project can change it.",
+    )
+    project_guard_production_approvals: int = Field(
+        1,
+        ge=0,
+        le=10,
+        description="Approvals a pull request into a production branch needs, in the branch rules the repository "
+        "guard sets on GitHub (0 to 10). Each project can change it.",
+    )
+    project_guard_staging_approvals: int = Field(
+        0,
+        ge=0,
+        le=10,
+        description="Approvals a pull request into a staging branch needs, in the repository guard's branch rules "
+        "(0 to 10). Each project can change it.",
+    )
+    project_guard_linear_history: bool = Field(
+        False,
+        description="The repository guard's production rules require a linear history (no merge commits). Each "
+        "project can change it.",
+    )
+    project_guard_signed_commits: bool = Field(
+        False,
+        description="The repository guard's production rules require signed commits. Each project can change it.",
+    )
+    project_guard_pushers: Literal["roles", "anyone"] = Field(
+        "roles",
+        description="Who may push or merge to production in the repository guard's branch rules: roles (GitHub's "
+        "Admin and Maintain roles) or anyone (with write access). Each project can change it, and name teams or "
+        "people instead.",
+    )
+    project_guard_blocks_promotion: bool = Field(
+        False,
+        description="Failing CI checks of the repository guard stop a promotion to production (a red item of the "
+        "pre-promotion checklist); off: they are shown in amber. Each project can change it.",
+    )
 
     @field_validator("project_modules")
     @classmethod
@@ -1400,6 +1484,58 @@ class Settings(BaseSettings):
         le=72,
         description="The longest support access can be granted for, in hours (the choices are 1 hour, 1 day and 3 "
         "days, up to this).",
+    )
+
+    # ------------------------------------------------------------------ client portal (projects/clients.py, docs/ADMIN_GUIDE.md "Client portal")
+    portal_domain: str = Field(
+        "",
+        description="direct and proxy: a second name of the panel for clients (portal.example.com), pointed at this "
+        "server (or your proxy). There, the web app shows the client portal and only clients sign in; direct serves "
+        "it on port 443 with a certificate from the ACME authority. Empty: clients use the panel's own address.",
+    )
+    portal_name: str = Field(
+        "",
+        max_length=60,
+        description="Your company's name, shown to clients at the top of the client portal and on its sign-in page; "
+        "empty: the portal shows no company name.",
+    )
+    client_emergency_access: bool = Field(
+        True,
+        description="New clients' projects start with emergency access allowed: a super admin may open a project "
+        "the client closed, for a short time, by typing a reason (the client is told at once). Each client can turn "
+        "it off for its projects in the portal.",
+    )
+    client_emergency_minutes: int = Field(
+        60, ge=5, le=1440, description="How long emergency access to a closed project lasts, in minutes."
+    )
+    client_open_hours: str = Field(
+        "1,4,24",
+        description='The durations offered to clients for "Open for a time", in hours (comma-separated); they may '
+        "also type their own, up to client_open_max_hours.",
+    )
+    client_open_max_hours: int = Field(
+        720, ge=1, le=8760, description="The longest a client can open a project or branch for at once, in hours."
+    )
+    client_request_hours: int = Field(
+        4, ge=1, le=8760, description="The duration an access request asks for unless the person changes it, in hours."
+    )
+    client_request_max_hours: int = Field(
+        168, ge=1, le=8760, description="The longest duration an access request may ask for, in hours."
+    )
+    client_confirmations: bool = Field(
+        True,
+        description="Clients confirm every major action in the portal (opening or closing, locks, emergency access, "
+        "approvals, the people they let in) with a one-time link or a 6-digit code sent to their e-mail address; "
+        "the action waits until then. Needs e-mail to be set up.",
+    )
+    client_confirm_minutes: int = Field(
+        15, ge=5, le=60, description="Minutes a client's confirmation link or code works."
+    )
+    client_request_expire_hours: int = Field(
+        72,
+        ge=1,
+        le=720,
+        description="Hours after which an access request the client did not answer lapses (the person asks again).",
     )
 
     # ------------------------------------------------------------------ web shell (webshell/, docs/ADMIN_GUIDE.md "Web shell")
@@ -1967,6 +2103,9 @@ SERVER_SETTINGS = tuple(name for name in Settings.model_fields if name.startswit
 PROJECT_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith("project_"))
 """Every setting of projects (projects/); all of them can be changed in the panel."""
 
+CLIENT_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith(("client_", "portal_")))
+"""Every setting of the client portal (projects/clients.py); all of them can be changed in the panel."""
+
 STATUS_SETTINGS = tuple(name for name in Settings.model_fields if name.startswith(("status_", "notification")))
 """Every setting of project status checks (status/) and notifications (notifications/); all can be changed in the
 panel."""
@@ -2063,6 +2202,12 @@ EDITABLE = (
     "github_sign_in_skips_second_factor",
     "github_access_from_repositories",
     "github_access_check_minutes",
+    "project_access_model",
+    "access_emails",
+    "access_requests",
+    "access_request_max_hours",
+    "access_review",
+    "access_review_days",
     "cloudflared_image",
     "admin_contact_name",
     "admin_contact_phone",
@@ -2105,6 +2250,7 @@ EDITABLE = (
     "audit_export_max_rows",
     "support_access",
     "support_access_max_hours",
+    *CLIENT_SETTINGS,
     *SERVER_SETTINGS,
 )
 """Settings that can be changed in the panel, taking effect at once."""

@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Upgrading
+
+- **Projects keep their access.** Projects made before this version keep the earlier access model (the panel role
+  limited by the project's grant, the same in every stage) until an admin switches them on their Access tab, so
+  nobody gains or loses access by the upgrade. **Switch to project roles** first shows, person by person, the role
+  each gets and the rights that change, and keeps everyone's role with a grant on the project where the default would
+  differ. Projects made after the upgrade use project roles (`PROJECT_ACCESS_MODEL`).
+- Connecting to an instance's Odoo (connect-as) now needs its own permission, `instances.connect`; the panel roles
+  that could see Odoo passwords keep it. Accounts made for members of `GITHUB_SIGN_IN_ORGS` now get the new panel role
+  **Member** by default (`GITHUB_SIGN_IN_ROLE`).
+
+### Fixed
+
+- **The Terminal always says it is Sudoo.sh**: a terminal narrower than the banner shows "SUDOO.SH" on one line
+  above the welcome, and a terminal whose size is not known yet (the browser has not sent it) gets the full banner
+  instead of none.
+
 ### Added
 
 - **Production access rules (beta)**, off until `ACCESS_RULES_BETA` is switched on: a production instance can let
@@ -25,6 +42,60 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   (`/__sudoo/status`: state and step only, rate-limited). API clients get the same 503 with `Retry-After` as before.
 - The job drawer and an instance's header show a job under way more clearly: the current step highlighted, which step
   of how many, the progress bar and text, and the time it has run. Jobs carry `expected_steps`.
+- **Project roles per stage: Viewer, Tester, Developer, Maintainer, Admin.** Inside a project, a person's project role
+  decides what they may do in production, staging and development: a Developer works freely in development, tests
+  staging without its data and sees only production's status; a Maintainer also reads production's logs, connects to
+  it, downloads its backups and restarts it, never its shell, database, restores or deletion; Admin does everything.
+  Each project's Access tab shows the matrix, and its admins can change any cell. Panel roles keep the panel-wide
+  rights; administrators have every right in every project; a new panel role, **Member**, has none by itself.
+- **GitHub teams and repository permissions give project roles**: admin gives Admin, maintain Maintainer, write
+  Developer, triage or read Tester; a GitHub team (`org/team`) can be given a role on the Access tab, its members read
+  from GitHub with the App's token (Members: read). A role given to the person wins; otherwise the highest of GitHub,
+  panel teams and GitHub teams.
+- **Temporary access**: ask a project's admins for a higher role in one stage for a few hours, with a reason; they
+  approve or refuse it by e-mail notice and on the Access tab; it ends by itself (`ACCESS_REQUESTS`,
+  `ACCESS_REQUEST_MAX_HOURS`).
+- **Access e-mails** when someone gets access to a project, when their role changes and when it ends, once per change
+  and in the person's language (`ACCESS_EMAILS`); a regular **access review** to each project's admins
+  (`ACCESS_REVIEW`, `ACCESS_REVIEW_DAYS`); a **Who can do what** list on the Access tab; refusals that say which role
+  cannot do what, and where, and how to ask for temporary access.
+
+- **Repository guard** (a project's Settings tab), off until a project Admin turns it on. **CI checks**: the panel
+  opens a pull request (from its own branch `sudoo/repository-guard`, never a push to a branch people use) adding a
+  GitHub Actions workflow (ruff or flake8, pylint-odoo, manifest, XML and CSV checks, and optionally the modules'
+  tests in Odoo's official image with PostgreSQL; one run per Odoo series of the branch; every action pinned by
+  commit), a pre-commit configuration with the same hooks, and `docs/CHECKS.md`; choose the checks and a strictness,
+  preview the files, and turning a check off opens a pull request that updates or removes them. The pull request's
+  link and state are shown. **Results**: each build in Builds and History gets a **Checks** badge, and the
+  pre-promotion checklist a **CI checks** item that can stop a promotion while checks fail (off by default).
+  **Branch rules**: rulesets (classic branch protection as the fallback) for production and staging: a pull request
+  with N approvals, the checks passing, no force-push or deletion, optionally a linear history and signed commits,
+  and who may push or merge to production (GitHub's Admin and Maintain roles, or named teams and people), shown as
+  current against new before they are applied, with the repository's name typed for production; **Turn off** removes
+  only the rules the panel made. GitHub's plan limits are explained. The extra GitHub App permissions are listed
+  with links to grant them, and **Connect GitHub** can ask for them up front (**Also allow the repository guard**).
+  API: `/api/v1/projects/<id>/guard`. Its defaults are panel settings, each overridable per project:
+  `PROJECT_GUARD_CHECKS`, `PROJECT_GUARD_STRICTNESS`, `PROJECT_GUARD_PRODUCTION_APPROVALS`,
+  `PROJECT_GUARD_STAGING_APPROVALS`, `PROJECT_GUARD_LINEAR_HISTORY`, `PROJECT_GUARD_SIGNED_COMMITS`,
+  `PROJECT_GUARD_PUSHERS` and `PROJECT_GUARD_BLOCKS_PROMOTION`.
+- **Client portal, with a switch the client owns**: a new **Client** role for your clients, invited by e-mail to one
+  or more projects. A client sees only its projects (branches, each instance's status and **Open Odoo**, its backups
+  when given, its activity log), at the panel's address or at a portal address of its own (`PORTAL_DOMAIN`, served
+  with its certificate like the panel's name, with your company's name, `PORTAL_NAME`); sessions never cross between
+  the two addresses. The client opens or closes each project and branch, or opens it for a time; closed, nobody of
+  your team can open, change, back up, restore, open a shell or read logs and passwords, super admins included, and
+  nobody but the client can lift it, while backups, monitoring, certificates and production go on. Your team asks
+  with **Request access** (the client gets an e-mail, in English or Arabic, and approves for chosen people and hours,
+  or refuses); a super admin can use **Emergency access** for an hour by writing a reason, unless the client turned
+  it off, and the client is told at once. Everything is in the client's activity log, with CSV export. Every
+  duration and default is a setting. Adding clients is part of the Business plan. The switch is a control inside
+  the panel; the docs say plainly what server administrators can still reach.
+- **Client locks and confirmation by e-mail**: a client can lock a branch or the whole project from the portal; a
+  lock is as strong as closing (nobody of your team lifts it, super admins included), lets only the client and
+  emergency access through, and stops automatic deploys. Every major change a client makes (opening or closing,
+  locks, emergency access, approvals, the people it lets in) waits for a one-time link or 6-digit code sent to its
+  e-mail, valid 15 minutes (`CLIENT_CONFIRM_MINUTES`) in the same browser session; the portal shows **Waiting for
+  your e-mail confirmation**. New editable e-mail texts in English and Arabic; `CLIENT_CONFIRMATIONS` turns it off.
 - **Module installs and Module updates in the Logs tab** (`install.log`, `update.log`): what Odoo wrote while it
   installed or updated modules in the instance's latest creations, rebuilds, updates and module upgrades. Only Odoo's
   own lines and their tracebacks are kept, redacted; the panel's commands, paths and steps never appear.
@@ -47,6 +118,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   the filters in use stay listed above the log. Following pauses when you scroll up, with **Jump to latest**; earlier
   lines load as you scroll to the top. Only the lines in view are drawn, so 100,000 lines stay smooth.
 - The log stream (`.../logs/stream`) filters whole entries, sends each line's id (`ids`) and only follows `odoo.log`.
+- **Motion throughout the panel**, short and only where it explains something: menus and lists to choose from grow
+  from their button on a spring; dialogs pop in gently over a fading backdrop and leave quicker; toasts slide in from
+  the right (the left in Arabic) and the others glide aside; the tabs' underline slides to the chosen tab; an
+  instance card's name moves into the instance page's title; cards lift a little under the pointer; lists and the
+  dashboard's figures come in one after the other on first load (at most eight steps) and the figures count up;
+  copy buttons and the theme button turn their icon into the next one; a field that turns invalid shakes once;
+  loading skeletons get a lighter shimmer; only something running has a pulsing status dot. With reduced motion
+  everything shows at once or fades. The motion tokens, wrappers and rules are in the design guide.
 
 ## [3.3.4] - 2026-11-23
 

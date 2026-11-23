@@ -360,8 +360,8 @@ def test_permission_mapping() -> None:
     assert github_access.level_of({"role_name": "admin"}) == ("admin", "admin")
     assert github_access.level_of({"role_name": "maintain"}) == ("maintainer", "maintain")
     assert github_access.level_of({"role_name": "write"}) == ("developer", "write")
-    assert github_access.level_of({"role_name": "triage"}) == ("view", "triage")
-    assert github_access.level_of({"role_name": "read"}) == ("view", "read")
+    assert github_access.level_of({"role_name": "triage"}) == ("tester", "triage")
+    assert github_access.level_of({"role_name": "read"}) == ("tester", "read")
     custom = {"role_name": "release-manager", "user": {"permissions": {"push": True, "pull": True}}}
     assert github_access.level_of(custom) == ("developer", "write")
     assert github_access.level_of({"permission": "none"}) == ("none", "none")
@@ -469,6 +469,31 @@ def test_email_code_sign_in(app: Flask, mailbox: Mailbox, admin: Any) -> None:
                                      headers=ORIGIN)  # fmt: skip
     assert refused.status_code == 403
     assert any(e["event"] == "signed in with an e-mail code" for e in storage().logs(user=name, limit=5))
+
+
+def test_a_client_signs_in_with_an_e_mail_code_at_the_portal_only(app: Flask, mailbox: Mailbox) -> None:
+    """Clients use CLIENT_SIGN_IN_METHODS (codes by e-mail) through the same e-mail sign-in; at the panel's address,
+    once the portal has its own, the code is accepted but nothing is started there: the client is sent to the portal."""
+    from sudoo.auth import methods
+
+    name = _account(role="client", email="portal.client@example.com")
+    assert methods.of(accounts.get(name) or {}) == ["email_code"]
+    live.change({"portal_domain": "portal.example.com"})
+    path = "/api/v1/session/email-code"
+    panel = app.test_client()
+    assert panel.post(path, json={"email": "portal.client@example.com"}, headers=ORIGIN).status_code == 200
+    _, code = mailbox.sent[-1]
+    sent = panel.post(f"{path}/verify", json={"email": "portal.client@example.com", "code": code}, headers=ORIGIN)
+    assert sent.status_code == 200 and sent.get_json()["data"]["redirect"]["address"] == "portal"
+    assert panel.get("/api/v1/session").status_code == 401
+    portal = app.test_client()
+    here = {"Origin": "http://portal.example.com"}
+    url = "http://portal.example.com"
+    assert portal.post(path, json={"email": "portal.client@example.com"}, headers=here, base_url=url).status_code == 200
+    _, code = mailbox.sent[-1]
+    good = portal.post(f"{path}/verify", json={"email": "portal.client@example.com", "code": code}, headers=here,
+                       base_url=url)  # fmt: skip
+    assert good.status_code == 201 and good.get_json()["data"]["address"] == "portal"
 
 
 def test_email_codes_are_limited_per_address(app: Flask, mailbox: Mailbox) -> None:

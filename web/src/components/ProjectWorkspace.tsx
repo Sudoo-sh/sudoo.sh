@@ -57,6 +57,7 @@ import { CompareDialog } from "@/components/BranchCompare";
 import { JobDrawer } from "@/components/JobDrawer";
 import { PromotionDialog } from "@/components/PromotionChecklist";
 import { LockTag } from "@/components/LockTag";
+import { ClientTag } from "@/components/ClientAccess";
 import { LockDialog, UnlockDialog } from "@/components/ProjectAccess";
 import { useProjectBackups } from "@/components/ProjectBackups";
 import { InsidePage, useCan } from "@/components/Shell";
@@ -75,6 +76,7 @@ import promotionWords from "@/i18n/promotion";
 import teamWords from "@/i18n/teams";
 import { ago, count, statusLabel } from "@/lib/format";
 import { useMedia } from "@/lib/media";
+import { DURATION, easing } from "@/lib/motion";
 import { InstanceView } from "@/pages/Instance";
 
 const STAGES: Stage[] = ["production", "staging", "development"];
@@ -409,6 +411,7 @@ function BranchIdentity({
         <StageTag stage={branch.stage} />
         {branch.default && <Tag>{t.defaultBranch}</Tag>}
         {branch.lock && <LockTag lock={branch.lock} branch={branch.name} />}
+        <ClientTag access={branch.client_access} />
         {branch.restricted && <span title={l.lock.restrictedHint}><Tag icon={<EyeOff />}>{l.lock.restricted}</Tag></span>}
         {branch.on_github === false && <Tag tone="negative">{t.deletedOnGitHub}</Tag>}
         {branch.auto_created && branch.instances.includes(branch.auto_created) && <span className="faint">{t.autoCreated}</span>}
@@ -474,7 +477,7 @@ function BranchPane({
       branch={branch}
       instances={instances}
       mayOpen={!branch.lock || can(branch, "instances.logs")}
-      connectAs={can(branch, "instances.credentials")}
+      connectAs={can(branch, "instances.connect")}
       access={(name) => (can(branch, "instances.credentials") ? branchPath(project.id, branch.name, "access", name === branch.instances[0] ? null : name) : null)}
       onJob={onJob}
     />
@@ -659,7 +662,7 @@ export function ProjectWorkspace({
   // dropped on another stage: the dialog takes over and the branch stays in its group until the change is saved;
   // anywhere else it glides back to where it was
   const movesStage = !!dragging && !!overStage && overStage !== dragging.stage;
-  const dropAnimation: DropAnimation | null = reduced || movesStage ? null : { duration: 200, easing: "cubic-bezier(0.23, 1, 0.32, 1)" };
+  const dropAnimation: DropAnimation | null = reduced || movesStage ? null : { duration: DURATION.enter, easing: easing.spring };
   const endDrag = () => {
     setDragging(null);
     setOverStage(null);

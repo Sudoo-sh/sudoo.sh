@@ -168,6 +168,15 @@ def branch_lock(project_id: str | None, branch: str | None) -> dict[str, Any] | 
     return access.describe_lock(access.lock_of(found, branch)) if found and branch else None
 
 
+def branch_client_access(project_id: str | None, branch: str | None) -> dict[str, Any] | None:
+    """The client's switch of the branch an instance follows (projects/clients.py), or None: the project has no
+    client."""
+    from sudoo.projects import clients
+
+    found = projects.get(project_id or "")
+    return clients.describe(found, branch or None) if found else None
+
+
 def server_reference() -> dict[str, Any]:
     """The server an instance of this process runs on: the main server (an agent's answers are given the server's
     own reference by the panel)."""
@@ -188,6 +197,7 @@ def creating_resource(job: jobs.Job, full: bool = False) -> dict[str, Any]:
         "stage": plan.get("stage") or stages.DEFAULT,
         "project": project_reference(plan.get("project")),
         "lock": branch_lock(plan.get("project"), plan.get("branch")),
+        "client_access": branch_client_access(plan.get("project"), plan.get("branch")),
         "url": None,
         "odoo": {
             "version": plan.get("version", ""),
@@ -253,6 +263,7 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
         "stage": stages.of(env),  # production, staging, development (instances/stages.py)
         "project": project_reference(env.get("PROJECT")),  # None: standalone (plain Odoo)
         "lock": branch_lock(env.get("PROJECT"), env.get("GIT_BRANCH")),  # the branch's lock (projects/access.py)
+        "client_access": branch_client_access(env.get("PROJECT"), env.get("GIT_BRANCH")),  # projects/clients.py
         "url": exposure.address(name),
         "odoo": {"version": env["ODOO_VERSION"], "edition": env["EDITION"], "database": env["DB_NAME"]},
         # "plain": Odoo without a repository (store.plain; instances made before SOURCE was recorded: no remote)

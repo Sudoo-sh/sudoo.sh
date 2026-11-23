@@ -113,12 +113,22 @@
   font-size: var(--text-13);
   color: var(--text-2);
   white-space: nowrap;
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+  .dot { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; transition: background-color var(--dur-ui) var(--ease); }
   &.online { --c: var(--positive); }
-  &.creating, &.starting, &.busy, &.running, &.queued { --c: var(--working); .dot { animation: running 1.4s var(--ease) infinite; } }
+  // something running right now (creating, starting, working, a running job): a soft ring breathes out of the dot;
+  // waiting in the queue is the same colour but still
+  &.creating, &.starting, &.busy, &.running {
+    .dot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--c); animation: dot-pulse 1.6s var(--ease) infinite; }
+  }
+  &.creating, &.starting, &.busy, &.running, &.queued { --c: var(--working); }
   &.paused { --c: var(--caution); }
   &.failed { --c: var(--negative); }
   &.success { --c: var(--positive); }
+}
+
+@keyframes dot-pulse {
+  0% { opacity: 0.5; transform: scale(1); }
+  70%, 100% { opacity: 0; transform: scale(2.6); }
 }
 
 // ---------------------------------------------------------------- forms
@@ -337,12 +347,20 @@
   background: var(--surface);
   border: 1px solid var(--hairline);
   box-shadow: var(--shadow-float);
-  // from the bottom edge, and back down when it goes
-  transition: opacity 320ms var(--ease), transform 320ms var(--ease);
-  @starting-style { opacity: 0; transform: translateY(100%); }
-  &[data-closing] { opacity: 0; transform: translateY(40%); }
+  // in from the inline-end edge (the right; the left in Arabic) on the spring, back out the same way and quicker;
+  // the others glide to their new places (components/app/overlay.tsx ToastProvider)
+  --toast-from: calc(100% + var(--s5));
+  transition: opacity var(--dur-enter) var(--ease), transform var(--dur-surface) var(--spring);
+  @starting-style { opacity: 0; transform: translateX(var(--toast-from)); }
+  &[data-closing] {
+    opacity: 0;
+    transform: translateX(var(--toast-from));
+    transition-duration: var(--dur-ui);
+    transition-timing-function: var(--ease);
+  }
   > svg { flex: none; width: 16px; height: 16px; margin-top: 2px; stroke-width: 1.75; }
   &.success > svg { color: var(--positive); }
+  [dir="rtl"] & { --toast-from: calc(-100% - var(--s5)); }
   &.error > svg { color: var(--negative); }
   &.info > svg { color: var(--text-3); }
   .title { font-weight: 500; }

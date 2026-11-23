@@ -204,6 +204,7 @@ class Policy:
     exception_paths: tuple[str, ...]
     exception_networks: tuple[IpNetwork, ...]
     version: int = 1
+    no_passes: bool = False  # the client closed access: passes from the panel do not count
 
 
 @dataclass(frozen=True)
@@ -250,6 +251,7 @@ def parse_policy(raw: Mapping[str, Any]) -> Policy:
         exception_paths=clean_paths,
         exception_networks=tuple(parse_network(str(n)) for n in exceptions),
         version=version,
+        no_passes=raw.get("no_passes") is True,
     )
 
 
@@ -495,7 +497,7 @@ def check(request: web.Request, name: str, trusted_header: str | None, https: bo
     address_text = visitor_ip(request, trusted_header)
     address = parse_ip(address_text)
     country = geoip.lookup(address)  # with an address rule, only shown on the blocked page
-    has_pass = _cookie_pass(request, name, policy, config)
+    has_pass = not policy.no_passes and _cookie_pass(request, name, policy, config)
     decision = decide(
         policy, address, request.raw_path, country=country, geo_ready=geoip.ready(), geo_missing=config.geo_missing,
         has_pass=has_pass,
@@ -537,6 +539,8 @@ def _pass_link(
         config.pass_key, request.query.get("token", ""), kind="t", instance=name, host=request.host,
         version=policy.version,
     )  # fmt: skip
+    if payload is not None and policy.no_passes:
+        payload, why = None, "closed by the client"
     if payload is not None and not use_nonce(str(payload.get("n")), float(payload["e"]) + 1):
         payload, why = None, "used already"
     event = {"instance": name, "ip": address[:64], "at": int(time.time()), "ok": payload is not None, "why": why}

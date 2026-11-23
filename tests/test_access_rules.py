@@ -737,26 +737,87 @@ def test_open_odoo_and_connect_as_go_through_a_pass(app: Flask, admin: Client, b
     )
 
 
-def test_no_pass_for_a_role_without_production_or_while_the_client_closed_it(
-    monkeypatch: pytest.MonkeyPatch, beta: Any
-) -> None:
+def test_no_pass_for_a_role_that_cannot_open_production(beta: Any) -> None:
+    """A pass needs instances.connect in the instance's stage (project roles: Maintainer and up in production)."""
+    from sudoo import accounts, projects
     from sudoo.projects import access
 
-    _set_rules(PROD)
-    admin = {"name": "admin1", "role": "super_admin"}
-    url, given = access_rules.pass_url(admin, PROD, f"https://{PROD}.example.com")
-    assert given
-    monkeypatch.setattr(access, "allowed_instance", lambda user, permission, name: False)
-    url, given = access_rules.pass_url(admin, PROD, f"https://{PROD}.example.com")
-    assert not given and url == f"https://{PROD}.example.com"
-    monkeypatch.undo()
-    live.change({"access_rules_beta": True})
-    monkeypatch.setattr(access, "closed_to", lambda user, project, branch: True, raising=False)
-    assert access_rules.may_open_production(admin, PROD) == (
-        False,
-        "The client has closed access to this production instance.",
+    project = projects.create(
+        repository="Acme/Rules", odoo_version="18.0", edition="community", origin="linked", user="t"
     )
-    assert not access_rules.pass_url(admin, PROD, f"https://{PROD}.example.com")[1]
+    store.write_env(PROD, {**store.read_env(PROD), "PROJECT": project["id"], "GIT_BRANCH": "main"})
+    accounts.create("ar-dev", "developer", "amber-forest-ladder-64")
+    try:
+        _set_rules(PROD)
+        access.forget_restrictions()
+        address = f"https://{PROD}.example.com"
+        assert access_rules.pass_url({"name": "admin1", "role": "super_admin"}, PROD, address)[1]
+        developer = {"name": "ar-dev", "role": "developer"}
+        assert not access.allowed_instance(developer, access_rules.OPEN_PERMISSION, PROD)
+        url, given = access_rules.pass_url(developer, PROD, address)
+        assert not given and url == address
+        events = [e["event"] for e in audit.latest(limit=5, instance=PROD)]
+        assert "access rules: pass refused" in events
+    finally:
+        accounts.delete("ar-dev")
+        projects.remove(project["id"])
+        access.forget_restrictions()
+
+
+def test_no_pass_while_the_client_closed_access(beta: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Strict: while the client's switch is closed nobody gets a pass, the gateway refuses the ones given before, and
+    closing it tells the gateway at once (projects/clients.py calls access_rules.apply)."""
+    from sudoo import projects
+    from sudoo.projects import access, clients
+
+    project = projects.create(
+        repository="Acme/Closed", odoo_version="18.0", edition="community", origin="linked", user="t"
+    )
+    store.write_env(PROD, {**store.read_env(PROD), "PROJECT": project["id"], "GIT_BRANCH": "main"})
+    applied: list[int] = []
+    original = access_rules.apply
+    monkeypatch.setattr(access_rules, "apply", lambda: (applied.append(1), original())[1])
+    try:
+        _set_rules(PROD)
+        access.forget_restrictions()
+        admin = {"name": "admin1", "role": "super_admin"}
+        address = f"https://{PROD}.example.com"
+        assert access_rules.pass_url(admin, PROD, address)[1]
+        assert "no_passes" not in access_rules.routes_section()["instances"][PROD]
+        applied.clear()
+        clients.set_switch(str(project["id"]), None, "closed", "client")
+        assert applied, "closing access did not reach the gateway"
+        assert access_rules.client_closed(PROD)
+        assert access_rules.may_open_production(admin, PROD) == (
+            False,
+            "The client has closed access to this production instance.",
+        )
+        assert not access_rules.pass_url(admin, PROD, address)[1]
+        assert access_rules.routes_section()["instances"][PROD]["no_passes"] is True
+        assert access_gate.CONFIG.policies[PROD].no_passes  # the gateway already knows
+        clients.set_switch(str(project["id"]), None, "open", "client")
+        assert not access_rules.client_closed(PROD) and access_rules.pass_url(admin, PROD, address)[1]
+    finally:
+        projects.remove(project["id"])
+        access.forget_restrictions()
+
+
+def test_the_gateway_refuses_passes_while_closed(geo: None) -> None:
+    policy = _raw_policy(countries=["PS"], version=5)
+    section = {"format": 1, "pass_key": KEY.hex(), "instances": {"prod": {**policy, "no_passes": True}}}
+    config = access_gate.parse_section(section)
+    assert config.policies["prod"].no_passes
+    cookie = access_gate.sign(
+        KEY, {"k": "c", "i": "prod", "h": "erp.example.com", "e": int(time.time()) + 60, "n": "x", "p": 5}
+    )
+    access_gate.load(section)
+    try:
+        answer = access_gate.check(
+            _request("/odoo", {"Cookie": f"{access_gate.PASS_COOKIE}={cookie}"}), "prod", None, True
+        )
+        assert answer is not None and answer.status == 403
+    finally:
+        access_gate.load(None)
 
 
 def test_rules_apply_only_to_production(beta: Any) -> None:

@@ -39,7 +39,8 @@ domains and certificates, off-site copies of backups.
 27. [Servers](#27-servers)
 28. [Code profiler](#28-code-profiler)
 29. [Audit log](#29-audit-log)
-30. [Production access rules (beta)](#30-production-access-rules-beta)
+30. [Client portal](#30-client-portal)
+31. [Production access rules (beta)](#31-production-access-rules-beta)
 
 ---
 
@@ -1359,21 +1360,86 @@ holds a signed-in GitHub session can sign in. Keep it off for panels that run pr
 **Project access from GitHub.** With `GITHUB_ACCESS_FROM_REPOSITORIES` on (the default when GitHub sign-in is on), a
 linked person's access to a project follows their permission on the project's repository:
 
-| GitHub permission | Level in the project |
+| GitHub permission | Project role |
 | :--- | :--- |
-| admin | admin |
-| maintain | maintainer |
-| write | developer |
-| triage, read | view |
+| admin | Admin |
+| maintain | Maintainer |
+| write | Developer |
+| triage, read | Tester (Viewer in a project that keeps the earlier access model) |
 | none | none: the project is hidden |
+
+GitHub works the permission out from everything that gives it, the repository's teams included; the project's
+**Who can do what** names the team ("via team acme/backend") when one gives it.
 
 * The permission is read with the app's own installation token at each sign-in and every
   `GITHUB_ACCESS_CHECK_MINUTES` (15). Someone removed from the repository loses the project at the next reading.
-* A grant to the person on the project's **Access** tab always wins (also "none"); otherwise the higher of GitHub's
-  level and their teams' grants applies. Their panel role stays the most they can do.
+* A grant to the person on the project's **Access** tab always wins (also "none"); otherwise the highest of GitHub's
+  role, their panel teams' grants and their GitHub teams' grants applies ([Project roles](#project-roles)).
 * Super admins and administrators are not limited by it. A repository the app is not installed on is not checked:
   the panel's own rules apply to it.
 * The project's **Access** tab lists each linked person with their GitHub permission and level.
+
+### Project roles
+
+Inside a project, what someone may do is decided by their **project role**, per stage. Panel roles keep only the
+panel-wide rights (accounts, settings, tokens, the audit log, plugins, GitHub, servers): super admins and
+administrators have every right in every project, and a new panel role, **Member**, has no rights by itself.
+
+| Role | Development | Staging | Production | The project |
+| :--- | :--- | :--- | :--- | :--- |
+| **Viewer** | see branches, status, history, builds | the same | the same | nothing |
+| **Tester** | see, and open Odoo signed in (**Connect**) to try it | the same | nothing: production is not shown | nothing |
+| **Developer** | everything: logs, shell, database, backups, Connect, passwords, create, update, delete, restore | see, Connect to test, logs; no shell, database, backups or passwords | only that it exists, its history, builds and status | nothing |
+| **Maintainer** | as Developer | as Developer in development, staging data included | logs and monitoring, Connect (with the production confirmation), backups (list and download), restart and new code; never its shell, database, restores, deletion | nothing |
+| **Admin** | everything | everything | everything | settings, stages, access, roles and locks |
+
+**Where a role comes from**, highest first:
+
+1. A role given to the person on the project's **Access** tab: it always wins, also "No access".
+2. Otherwise the highest of: the roles given to their panel teams, the roles given to **GitHub teams** they are in
+   (type **GitHub team** on the Access tab, `organisation/team-slug`), and their GitHub repository permission
+   (above).
+3. Otherwise, in a project open to everyone, their panel role's usual role: Viewer, Developer or Maintainer for
+   those panel roles, nothing for Members.
+
+Locks still close a branch to everyone they do not allow, administrators included.
+
+**Changing what a role may do.** Each project's **Access** tab shows the matrix: one row per right and stage, one
+column per role. An admin of the project ticks or unticks any cell (Admin is fixed) and saves; **Back to the
+defaults** removes the project's changes. Only the changed cells are stored, so better defaults of later versions
+still reach the others.
+
+**GitHub teams.** Their members are read with the GitHub App's installation token, which needs **Organization
+permissions, Members: Read-only** (added once on the App's settings page; each installation's owner accepts it).
+They are read again every `GITHUB_ACCESS_CHECK_MINUTES`: joining or leaving the team on GitHub changes the access in
+the panel, with the e-mails below.
+
+**Access e-mails** (`ACCESS_EMAILS`): people are told when they get access to a project, when their role there
+changes and when it ends, whoever made the change (a person, a team, GitHub). The last role each person was told
+about is kept, so a change is told once. The texts are on the **E-mail templates** page, in English and Arabic
+(`access_granted`, `access_changed`, `access_removed` and their `_ar` versions); each person gets their own
+language.
+
+**Temporary access** (`ACCESS_REQUESTS`, `ACCESS_REQUEST_MAX_HOURS`): anyone with access to a project can ask, on its
+Access tab, for a higher role in one stage for a few hours, with a reason ("Maintainer in production for 2 hours to
+read the import's logs"). The project's admins get an e-mail and approve or refuse it on the same tab; nobody
+decides on their own request. An approved request adds the rights of that role in that stage only, and ends by
+itself. Other parts of the panel can add conditions that refuse it, at the request, at the approval and at each
+use; the client portal uses this for its client's switches. Every step is in the audit log.
+
+**Access review** (`ACCESS_REVIEW`, `ACCESS_REVIEW_DAYS`): every 30 days each project's admins receive the list of
+who has access, with their role and where it comes from. The first review of a project is sent one interval after
+the upgrade, never at once.
+
+**Who can do what.** The Access tab lists every person with access, their role, where it comes from (given, a team,
+a GitHub team, GitHub, their panel role, administrator) and how many rights they have in each stage (the list shows
+when the pointer rests on it). `GET /api/v1/projects/<id>/access/people` gives the same.
+
+**Upgrading.** Projects made before this version keep the **earlier access model** (the panel role limited by the
+project's grant, the same in every stage), so nobody gains or loses access by the upgrade. Each such project's Access
+tab offers **Switch to project roles**: it first shows, person by person, the role they get and the rights that
+change, and keeps everyone's role with a grant on the project where the default would differ. The switch cannot be
+undone (grants can be changed afterwards). New projects use project roles (`PROJECT_ACCESS_MODEL`).
 
 ### Ways to sign in
 
@@ -2338,6 +2404,7 @@ into the production branch on GitHub. Each item is green, amber or red, with the
 | Odoo version | the branch and production run the same Odoo series | | another series, or modules written for another series |
 | Lock | no lock on either branch | a lock that lets you through | a lock that does not |
 | Capacity | room in the project, the plan and the server | the server is near its capacity (production never pauses) | the project's or the plan's production limit |
+| CI checks (with the [repository guard](#repository-guard)'s checks on) | the checks of the latest build's commit passed on GitHub | running, none, unreadable, or failed while **Failing checks stop a promotion** is off | failed, with **Failing checks stop a promotion** on |
 
 Red items stop the move while `PROJECT_PROMOTION_BLOCKS` is on. Someone with `projects.manage` in the branch can tick
 **Promote anyway**; the move is then made and the audit log records "promotion checklist overridden" with the red
@@ -2392,6 +2459,84 @@ development instance of its branch:
 
 The project's Settings tab lists the previews with their status. Each creation, refusal and deletion is in the audit
 log.
+
+### Repository guard
+
+A project's **Repository guard** (Settings tab; `repo_guard/` in the code, `/api/v1/projects/<id>/guard` in the
+[API](PANEL_API.md#repository-guard)) adds CI checks to the project's repository, reads their results, and sets branch
+rules on GitHub. Everything is off by default, per project, and every part can be turned off again. Only the
+project's Admins and super admins change it (`projects.access` in the project); every change is in the audit log
+("repository guard: ...").
+
+**Defaults are settings.** What a project starts with comes from the panel's settings (**Settings**, **Instances**,
+**Projects**; [Configuration](CONFIGURATION.md#projects)): `PROJECT_GUARD_CHECKS` (checks on or off),
+`PROJECT_GUARD_STRICTNESS`, `PROJECT_GUARD_PRODUCTION_APPROVALS` (1) and `PROJECT_GUARD_STAGING_APPROVALS` (0),
+`PROJECT_GUARD_LINEAR_HISTORY` and `PROJECT_GUARD_SIGNED_COMMITS` (production), `PROJECT_GUARD_PUSHERS` (`roles` or
+`anyone`) and `PROJECT_GUARD_BLOCKS_PROMOTION`. A project keeps only the values it changes; everything else follows the
+settings, also when they change later. Turning the checks on by default only pre-fills the form: nothing reaches
+GitHub until a project Admin saves, and results are read only once the panel's pull request exists.
+
+**The permissions it needs.** On top of what the panel's GitHub App already has:
+
+| Permission | Level | For |
+| :--- | :--- | :--- |
+| Contents | Read and write | committing the check files to the panel's own branch, `sudoo/repository-guard` |
+| Pull requests | Read and write | opening, updating and closing the pull request with the check files |
+| Workflows | Read and write | GitHub refuses any change under `.github/workflows` without it |
+| Checks | Read | reading the checks' results for builds and the pre-promotion checklist |
+| Administration | Read and write | creating, changing and removing the panel's rulesets (or classic branch protection) |
+| Members (organisation) | Read | already asked for by sign-in with GitHub; used to find the id of a named team |
+
+The panel never asks for them before a project uses the guard. When one is missing, the card names it and links to
+the app's **Permissions and events** page and to the installation, where an owner accepts it. Apps connected from now
+on can ask for all of them at once: **Connect GitHub** has **Also allow the repository guard** (the manifest's
+`default_permissions` then include `administration`, `contents`, `pull_requests` and `workflows: write` and
+`checks: read`; `github_app.GUARD_PERMISSIONS`). Each call asks GitHub for a token with only what that call needs; the
+code-reading token stays read-only.
+
+**The checks.** The panel commits the files to `sudoo/repository-guard` (a branch only the panel writes; it is
+replaced by each new proposal) and opens a pull request into the default branch. It never pushes to a branch people
+work on. The files:
+
+* `.github/workflows/sudoo-checks.yml`: on every push and pull request. A first job picks the Odoo series of the
+  branch (the project's, or the branch's own version); lint (ruff or flake8), pylint-odoo, the manifest, XML and CSV
+  checks and the tests run once per series (the matrix). The tests run in the official `odoo:<series>` image with a
+  PostgreSQL service; any `ERROR` or `CRITICAL` line in Odoo's log fails them. Every action is pinned to a full commit
+  hash, the Python tools to exact versions, and the workflow's token may only read the repository. The last job,
+  `sudoo-checks`, fails when any other failed: it is the check branch rules require.
+* `.github/sudoo/check_addons.py`: the manifest, XML and CSV checks (standard library only).
+* `.pre-commit-config.yaml`: the same linters before each commit, each hook pinned to a commit.
+* `docs/CHECKS.md`: what each check does and how to run them locally.
+
+Each file starts with "Managed by Sudoo.sh (repository guard)". A file without that line is never overwritten or
+removed. Turning checks off opens a pull request that updates or removes the panel's files; when the repository
+already matches the choices, an open pull request of the panel is closed and its branch deleted.
+
+**Results.** The panel reads a commit's check runs and commit statuses (its own `sudoo/<stage>` statuses left out) at
+most once a minute and shows them on builds. With **Failing checks stop a promotion to production** on (off by
+default), a failing result of the branch's latest build is a red item of the pre-promotion checklist; otherwise it is
+amber. Running, missing or unreadable results are amber.
+
+**Branch rules.** The panel prefers rulesets and falls back to classic branch protection:
+
+| Rule | Ruleset (`Sudoo.sh guard: production`, `... staging`) | Classic branch protection |
+| :--- | :--- | :--- |
+| Pull request with N approvals | `pull_request` rule | required reviews |
+| `sudoo-checks` must pass | `required_status_checks` | required status checks |
+| No force-push, no deletion | `non_fast_forward`, `deletion` | `allow_force_pushes`, `allow_deletions` off |
+| Linear history, signed commits | `required_linear_history`, `required_signatures` | the same settings |
+| Admins and Maintainers only | `Sudoo.sh guard: production merges`: an `update` rule with GitHub's Admin and Maintain repository roles as its bypass list | not possible (roles cannot be named): the preview says so |
+| Named teams | the same ruleset, the teams as bypass list (organisations only) | push restrictions |
+| Named people | not possible in rulesets: **Automatic** switches to classic protection | push restrictions (organisations only) |
+
+**Automatic** uses rulesets, and classic protection when rulesets are not available or people are named. A ruleset is
+the panel's when its name starts with `Sudoo.sh guard: `; classic protection has no name, so the panel records the
+branches it protected and never changes a branch that was protected before (the preview shows it as left alone).
+**Turn off the rules** removes only those. Private repositories on GitHub Free have neither rulesets nor branch
+protection: GitHub answers "Upgrade to GitHub Pro or make this repository public", and the preview explains it.
+
+Applying rules that change production needs the repository's name typed as confirmation (`confirm` in the API).
+Every preview, and `"dry_run": true` on the API, shows what would change without changing anything.
 
 ### Many branches at once
 
@@ -2754,7 +2899,86 @@ entries and the filters). The panel keeps the newest 200,000 entries. API: `GET 
 
 ---
 
-## 30. Production access rules (beta)
+## 30. Client portal
+
+> Adding clients to projects is part of the Business plan; it comes with the premium teams package
+> ([Premium features](PREMIUM.md)). What protects clients (their switch, requests, emergency access and its refusal,
+> the activity log) works on every plan, also after a downgrade.
+
+The client portal gives your clients their own view of the projects you run for them, and the switch that closes
+them to your team (how clients use it: [User manual, Client portal](USER_MANUAL.md#16-client-portal)).
+
+### The portal's address
+
+Without anything set, clients sign in at the panel's own address and get the portal by their role. To give them an
+address of their own:
+
+1. Point a name at the server, for example `portal.example.com` (A and AAAA records, like the panel's name).
+2. Set `PORTAL_DOMAIN=portal.example.com` (**Settings › Client portal**, or `.env`), and `PORTAL_NAME` to your
+   company's name, shown at the top of the portal and on its sign-in page.
+3. With `EXPOSURE=direct` the gateway answers the name on ports 80 and 443 and gets its certificate from the ACME
+   authority, as for the panel's own name (Settings shows its state). With `EXPOSURE=proxy`, send the name to the
+   panel's port from your proxy, keeping the `Host` header. A tunnel serves only the panel's address.
+
+The portal is the same panel, served on a second name. At the portal's address only clients sign in: anyone else
+who signs in there with a correct password is sent to the panel's address, and a client who signs in at the panel's
+address is sent to the portal (nothing is started at the wrong one). A session belongs to the address it started at
+and never works at the other one. A managed name under Sudoo.sh's domain (`portal.<company>.sudoo.cloud`) needs the
+hub to keep its DNS records; until it does, use a name of your own.
+
+### Inviting clients
+
+Open a project's **Clients** tab and click **Add a client** (administrators and super admins: the permission
+`clients.manage`, and the project's access). An address that belongs to a client account adds it at once; a new address
+gets an invitation by e-mail (it opens the portal's address), and the client joins the project when it accepts.
+Choose whether the client may download the project's backups and open a shell in its Odoo containers (only while
+shells are on, `SHELL_ENABLED`). Add the same client to more projects the same way; **Remove** takes it out (not the
+last client of a project it closed). A client account (role **Client**) sees its projects and nothing else of the
+panel: no settings, accounts, other projects or instances outside its projects. A client stays a client: its role
+cannot be changed to a staff role, nor the other way round.
+
+### The switch, requests and emergency access
+
+| What | Who | Notes |
+| :--- | :--- | :--- |
+| Open, close, open for a time | the project's clients | per project and per branch; `CLIENT_OPEN_HOURS` are the durations offered, `CLIENT_OPEN_MAX_HOURS` the longest |
+| Name people who pass a closure | the project's clients | people of your team who see the project |
+| Ask for access | anyone of your team who sees the project | reason and hours (`CLIENT_REQUEST_HOURS` by default, `CLIENT_REQUEST_MAX_HOURS` at most); a request nobody answered lapses after `CLIENT_REQUEST_EXPIRE_HOURS` |
+| Approve, refuse, end access now | the project's clients | an approval names people and hours |
+| Emergency access | a signed-in super admin (never an API token) | only while the client allows it (`CLIENT_EMERGENCY_ACCESS` for new projects); a reason and the branch's or project's name typed; lasts `CLIENT_EMERGENCY_MINUTES`; the clients are e-mailed at once |
+
+A closure works like a locked branch for everyone it does not let through, super admins included, with one
+difference: **nobody but the client can lift it**. It lets through the project's clients, the people they named, the
+people of an approved request (for its branch, or the whole project) and a super admin's emergency access while it
+lasts; never Sudoo.sh support. The panel's own work goes on as for a locked branch: daily backups, monitoring and
+certificates continue, production keeps serving, and automatic changes stop (pushes, rebuilds, deletion at the end of
+a lifetime, archiving when a branch is deleted on GitHub). A visit still starts a paused instance. While a client
+keeps something closed, nobody can add another client to that project, take its last client out, or change, reset,
+take the second factors of or delete the client's account.
+
+**Client locks.** A client can also lock a branch or the whole project. A client lock is as strong as a closed switch
+(nobody in the panel lifts it, super admins included), lets through only the project's clients and emergency access
+while the client allows it (never the people it named or approved requests), and stops automatic deploys and every
+other automatic change of what it locks, whatever the switch says.
+
+**Confirmation by e-mail.** With `CLIENT_CONFIRMATIONS` on (the default), every major change a client makes in the
+portal (the switch, locks and unlocks, emergency access, approving a request, the people it lets in) waits until the
+client confirms it with a one-time link or a 6-digit code sent to its e-mail address, within `CLIENT_CONFIRM_MINUTES`
+(15) and in the same browser session that asked. It needs e-mail to be set up; without it these changes are refused
+with a sentence that says why. Asking, confirming, a wrong code or session, cancelling and expiry are in the audit log.
+
+The e-mails are on **E-mail templates**: **Access request (client portal)**, **Emergency access (client portal)** and
+**Confirm a change (client portal)**, each with its Arabic version, sent in the client's language. Everything is in the audit log, scoped to the project,
+and the client reads it as its activity log (its CSV export uses the audit log's).
+
+**The limit.** The switch is an audited control inside the panel. Whoever has root on the server, or access to its
+Docker, can reach the instances' containers, databases and files without the panel (and could reset a client's
+password from the command line). Say so to clients who ask; a client that needs stronger isolation runs its
+projects on its own server.
+
+---
+
+## 31. Production access rules (beta)
 
 A production instance can say who may open it: people in some countries, people on some addresses or ranges (your
 office, your VPN), or either. The gateway applies the rules before anything reaches Odoo. This is a **beta**: the
@@ -2819,8 +3043,10 @@ The change applies within two seconds and ends every pass given before. The othe
 **Open Odoo** and **Connect as** on a production instance with active rules go through a pass, so the people who
 work in the panel get in from anywhere:
 
-1. The panel checks that the person may open this production instance (their role in the project) and that the
-   client has not closed access to it (client portal). Otherwise no pass is given, and the audit log says why.
+1. The panel checks that the person's project role lets them open Odoo in production (`instances.connect` in the
+   production column of the project's roles: Maintainer and Admin by default) and that the client has not closed
+   access (client portal: a closed or expired switch, or a client lock). While it is closed nobody gets a pass, and
+   the gateway refuses the passes given before. Otherwise no pass is given, and the audit log says why.
 2. It signs a token with a key derived from the vault key: the instance, the host name, the version of the rules,
    a random nonce and an expiry two minutes later. The gateway service gets the key in `routes.json`.
 3. The browser opens `https://<instance>/__sudoo/pass?token=...&next=/odoo`. The gateway checks the signature, the
@@ -2874,4 +3100,4 @@ Access rules: blocked 3FA2C91B acme-main 198.51.100.20 US /odoo
 
 Countries are a convenience barrier: anyone can appear to be in another country with a VPN or a rented server, and
 the database can be wrong for some addresses. Address rules are much stronger; use them for what matters. See
-[Security](SECURITY.md#20-production-access-rules-beta).
+[Security](SECURITY.md#21-production-access-rules-beta).

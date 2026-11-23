@@ -34,7 +34,7 @@ from sudoo.core import audit
 from sudoo.webshell import docker_exec, policy, recordings, sessions, tickets
 from sudoo.webshell.policy import Refused
 
-from ..security import client_ip_of, user_of_session
+from ..security import audience, client_ip_of, user_of_session
 
 PATH = "/api/v1/instances/{name}/shell/socket"
 PROTOCOL = "sudoo.shell.v1"
@@ -87,7 +87,7 @@ async def handle(request: web.Request) -> web.StreamResponse:
         return _problem(request, 400, "Bad Request", f'Offer the subprotocols "{PROTOCOL}" and "ticket.<ticket>".')
     ticket = tickets.take(token)  # used up now, whatever happens next
     session_data = _session_of(request) or {}
-    user = await _blocking(user_of_session, session_data) if session_data else None
+    user = await _blocking(user_of_session, session_data, True, audience(request.host)) if session_data else None
     if user is None:
         return _problem(request, 401, "Unauthorized", "Your session has ended. Please sign in again.")
     if ticket is None:

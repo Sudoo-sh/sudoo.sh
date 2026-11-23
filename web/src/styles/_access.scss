@@ -27,7 +27,7 @@
 .chips { display: flex; flex-wrap: wrap; gap: var(--s1); }
 .access-summary .chip { cursor: default; }
 .chip.removable {
-  transition: transform var(--quick) var(--ease), border-color var(--quick) var(--ease);
+  transition: transform var(--dur-micro) var(--ease), border-color var(--dur-micro) var(--ease);
   &:active { transform: scale(0.97); }
   &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 1px; }
 }
@@ -47,7 +47,7 @@
     flex: 1;
     padding-bottom: var(--s2);
     border-bottom: 2px solid var(--hairline);
-    transition: color var(--quick) var(--ease), border-color 240ms var(--ease);
+    transition: color var(--dur-micro) var(--ease), border-color var(--dur-enter) var(--ease);
   }
   .n {
     display: grid;
@@ -104,11 +104,11 @@
     border-radius: 6px;
     font-size: var(--text-13);
     cursor: pointer;
-    transition: background-color var(--quick) var(--ease);
+    transition: background-color var(--dur-micro) var(--ease);
     @include hover { background: var(--raised); }
     &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: -2px; }
     &[data-chosen] { background: var(--brand-soft); }
-    &.empty { cursor: default; justify-content: center; }
+    &.no-match { cursor: default; justify-content: center; }
   }
   .flag { font-size: 16px; line-height: 1; }
   code { font: 11px/1 var(--mono); }
@@ -193,7 +193,7 @@
   cursor: pointer;
   font: inherit;
   color: inherit;
-  transition: transform var(--quick) var(--ease), border-color var(--quick) var(--ease);
+  transition: transform var(--dur-ui) var(--spring), border-color var(--dur-micro) var(--ease);
   @include hover { border-color: var(--hairline-strong); }
   &:active { transform: scale(0.99); }
   &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 2px; }

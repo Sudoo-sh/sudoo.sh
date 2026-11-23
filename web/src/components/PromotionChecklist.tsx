@@ -109,6 +109,9 @@ function Item({ item, onBackup }: { item: CheckItem; onBackup: () => void }) {
         <p className="pc-text">{item.text}</p>
         {item.key === "backup" && item.busy && <p className="pc-text faint">{t.busy}</p>}
         {canBackUp && <div className="pc-actions"><BackUpNow item={item} onStarted={onBackup} /></div>}
+        {item.key === "ci" && item.ci?.url && (
+          <p className="pc-text"><a href={item.ci.url} target="_blank" rel="noreferrer">{t.openChecks}</a></p>
+        )}
         {item.key === "modules" && item.modules && <Modules modules={item.modules} />}
         {item.key === "migrations" && item.migrations && <Migrations migrations={item.migrations} />}
       </div>

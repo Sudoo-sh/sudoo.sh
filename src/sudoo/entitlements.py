@@ -26,10 +26,12 @@ Production branches
 
 Features
     teams (Teams), per_project_access (a project's grants, restricted projects and branches), custom_domains (adding
-    a custom domain) and offsite_backups (turning off-site copies on, testing the storage): refused with a sentence
+    a custom domain), offsite_backups (turning off-site copies on, testing the storage) and client_portal (adding a
+    client to a project, Business only: projects/clients.py): refused with a sentence
     that names the plans that have them, the pricing page and the account site. What was set up before keeps working:
     existing domains keep serving and renewing, off-site copies already made stay, existing restrictions and
-    locks stay enforced (removing them is always possible).
+    locks stay enforced (removing them is always possible), and so do clients' switches, requests and emergency
+    access, which never depend on the plan.
 
 Usage
     The heartbeat reports what the panel counts (usage_report): servers (this one), projects, production branches.
@@ -55,19 +57,27 @@ FREE: dict[str, Any] = {
     "teams": False,
     "priority_support": False,
     "support_level": "community",
-    "features": {"per_project_access": False, "custom_domains": False, "offsite_backups": False},
+    "features": {
+        "per_project_access": False,
+        "custom_domains": False,
+        "offsite_backups": False,
+        "client_portal": False,
+    },
     "addons": {},
     "banned": False,
 }
 """The Free plan of the Sudoo.sh Licence Agreement: what an unlinked panel may run."""
 
-FEATURES = ("teams", "per_project_access", "custom_domains", "offsite_backups")
+FEATURES = ("teams", "per_project_access", "custom_domains", "offsite_backups", "client_portal")
 FEATURE_NAMES = {
     "teams": "Teams",
     "per_project_access": "Access per project and per branch",
     "custom_domains": "Custom domains",
     "offsite_backups": "Off-site backups",
+    "client_portal": "The client portal",
 }
+FEATURE_PLANS = {"client_portal": "Business"}
+"""The plans that have a feature, when not Pro and Business."""
 SOURCES = ("hub", "grace", "expired", "unlinked", "default")
 
 
@@ -296,8 +306,9 @@ def feature_refusal(feature: str) -> str | None:
     if found.has(feature):
         return None
     linked = "" if found.linked else " This panel is not linked to a Sudoo.sh account, so it has the Free plan."
-    return upsell(f"{FEATURE_NAMES[feature]} {'is' if feature == 'per_project_access' else 'are'} available on Pro and "
-                  f"Business.{linked}")  # fmt: skip
+    verb = "is" if feature in ("per_project_access", "client_portal") else "are"
+    plans = FEATURE_PLANS.get(feature, "Pro and Business")
+    return upsell(f"{FEATURE_NAMES[feature]} {verb} available on {plans}.{linked}")
 
 
 # ---------------------------------------------------------------- usage

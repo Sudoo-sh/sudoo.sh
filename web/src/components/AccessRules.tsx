@@ -315,7 +315,7 @@ function CountryPicker({ value, onChange }: { value: string[]; onChange: (value:
             </li>
           );
         })}
-        {!shown.length && <li className="faint small empty">{t.noCountry}</li>}
+        {!shown.length && <li className="faint small no-match">{t.noCountry}</li>}
       </ul>
     </div>
   );

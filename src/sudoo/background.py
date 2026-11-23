@@ -61,6 +61,7 @@ def start() -> None:
         mail_catcher.maintain_forever,
         _watch_upgrades,
         _github_access,
+        _access_reviews,
     ):
         threading.Thread(target=loop, daemon=True, name=loop.__name__).start()
     alerts.start()
@@ -71,6 +72,9 @@ def start() -> None:
 
     previews.listen()
     threading.Thread(target=refresh.run_forever, daemon=True, name="staging-refresh").start()
+    from sudoo.projects import clients
+
+    threading.Thread(target=clients.run_forever, daemon=True, name="client-portal").start()
 
     from sudoo import notifications
     from sudoo.status import checks as status_checks
@@ -146,6 +150,13 @@ def _github_access() -> None:
     github_access.run_forever()
 
 
+def _access_reviews() -> None:
+    """Every hour: the access reviews that are due (projects/notices.py)."""
+    from sudoo.projects import notices
+
+    notices.review_forever()
+
+
 def _watch_upgrades() -> None:
     """Every 30 seconds: a production upgrade still in its rollback window is put back when Odoo stops answering
     (upgrades/run.py)."""
@@ -176,7 +187,7 @@ def _adopt_instances() -> None:
 
 _DOMAIN_SETTINGS = {
     "custom_domains", "domain_http_probe", "acme_directory", "domain_dns_target", "panel_domain", "public_host",
-    "managed_subdomains", "panel_managed_name",
+    "managed_subdomains", "panel_managed_name", "portal_domain",
 }  # fmt: skip
 _PANEL_NAME_SETTINGS = {"panel_domain", "public_host", "managed_subdomains", "panel_managed_name"}
 

@@ -186,6 +186,175 @@
   to { background-position: -200% 0; }
 }
 
+// ---------------------------------------------------------------- the motion system
+// Tokens in _tokens.scss (--spring, --spring-bounce, --dur-*, --stagger-*, --lift, --rise), the script side in
+// lib/motion.ts, the wrappers in components/app/motion.tsx. Only transform and opacity move (a focus ring's offset
+// and an SVG stroke are the small exceptions); exits are quicker than entrances; reduced motion is at the end.
+
+@keyframes arrive {
+  from { opacity: 0; transform: translateY(var(--rise)); }
+}
+@keyframes leave {
+  to { opacity: 0; transform: translateY(calc(var(--rise) / 2)); }
+}
+
+// Reveal: comes in once, when it is first drawn (its delay is set by the component)
+.reveal { animation: arrive var(--dur-enter) var(--spring) var(--reveal-delay, 0ms) backwards; }
+
+// Lists that come in one after the other on first load, 25 ms apart and at most eight steps: Stagger, and the
+// panel's own grids of cards and figures (an item added later comes in on its own; one that stays is left alone).
+// `backwards` only: once in, nothing of the animation stays on the item, so its hover and press are its own.
+.stagger-in > *,
+.instance-grid > *,
+.project-grid > *,
+:is(.grid-4, .grid-5).stagger > * {
+  --i: var(--stagger-max);
+  animation: arrive var(--dur-enter) var(--spring) backwards;
+  animation-delay: calc(var(--i) * var(--stagger-step));
+  @for $i from 1 through 8 {
+    &:nth-child(#{$i}) { --i: #{$i - 1}; }
+  }
+}
+
+// Presence: arrives as Reveal does and leaves quicker, sinking a little; with `collapse` the room it takes opens and
+// closes too (rows from 0fr to 1fr: the one place where a size moves, so what follows slides instead of jumping)
+.presence {
+  transition: opacity var(--dur-enter) var(--ease), transform var(--dur-enter) var(--spring);
+  @starting-style { opacity: 0; transform: translateY(var(--rise)); }
+  &[data-state="closed"] {
+    opacity: 0;
+    transform: translateY(calc(var(--rise) / 2));
+    transition-duration: var(--dur-exit);
+    transition-timing-function: var(--ease);
+    pointer-events: none;
+  }
+}
+.presence.collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--dur-enter) var(--ease), opacity var(--dur-enter) var(--ease);
+  @starting-style { grid-template-rows: 0fr; opacity: 0; }
+  &[data-state="closed"] { grid-template-rows: 0fr; transform: none; }
+  > .collapse-inner { min-height: 0; overflow: hidden; }
+}
+
+// cards that open something lift 2 px under the pointer, with a softer, wider shadow (dark mode: the hairline
+// firms up instead); pressing pushes them back down (the press scale in _mixins.scss)
+@media (hover: hover) and (pointer: fine) {
+  .card.link {
+    transition-property: transform, box-shadow, border-color, background-color;
+    transition-duration: var(--dur-ui);
+    transition-timing-function: var(--spring);
+    &:hover:not(:active) { transform: translateY(var(--lift)); box-shadow: var(--shadow-lift); border-color: var(--hairline-strong); }
+  }
+}
+
+// focus rings draw in (from a little further out, transparent) instead of appearing at once; keyboard focus only
+@keyframes ring-in {
+  from { outline-color: transparent; outline-offset: 5px; }
+}
+:is(a, button, [role="tab"], [role="switch"], [role="menuitem"], [role="option"], summary, [tabindex="0"]):focus-visible {
+  animation: ring-in var(--dur-ui) var(--ease) backwards;
+}
+
+// a field that turns invalid shakes once, 4 px each way (nothing with reduced motion); its message comes in
+@keyframes shake-x {
+  20% { transform: translateX(-4px); }
+  45% { transform: translateX(4px); }
+  70% { transform: translateX(-2px); }
+  90% { transform: translateX(1px); }
+}
+.shake { animation: shake-x 280ms ease-out; }
+[data-slot="field"][data-invalid="true"] > :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], .input-group, .input-clearable) {
+  animation: shake-x 280ms ease-out;
+}
+[data-slot="field-error"] { animation: arrive var(--dur-ui) var(--spring) backwards; }
+
+// an empty state settles in (it replaces a list that just emptied, or a page with nothing yet)
+.empty {
+  animation: arrive var(--dur-enter) var(--spring) backwards;
+  > svg { animation: pop-in var(--dur-surface) var(--spring-bounce) 60ms backwards; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.8); }
+}
+
+// MorphIcon: the icons share one box; the one shown is whole, the others small, faded and a little blurred
+.morph-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  > .morph-icon-item {
+    grid-area: 1 / 1;
+    display: inline-flex;
+    opacity: 0;
+    transform: scale(0.5);
+    filter: blur(2px);
+    transition: opacity var(--dur-exit) var(--ease), transform var(--dur-exit) var(--ease), filter var(--dur-exit) var(--ease);
+    &[data-active] {
+      opacity: 1;
+      transform: none;
+      filter: none;
+      transition-duration: var(--dur-ui);
+      transition-timing-function: var(--spring-bounce);
+    }
+  }
+}
+
+// SuccessCheck: the circle, then the check, draw themselves in
+.success-check {
+  circle, path { stroke-dasharray: 1; stroke-dashoffset: 0; }
+  circle { animation: draw var(--dur-surface) var(--ease) backwards; }
+  path { animation: draw var(--dur-ui) var(--ease) 160ms backwards; }
+}
+@keyframes draw {
+  from { stroke-dashoffset: 1; }
+}
+
+// TabInk: the chosen tab's underline slides to the next one (transform only: a 1 px line scaled to the tab's width)
+.tabs { position: relative; }
+.tab-ink {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 2px;
+  background: var(--text);
+  transform-origin: 0 0;
+  pointer-events: none;
+  opacity: 0;
+  &[data-shown] { opacity: 1; }
+  &[data-ready] { transition: transform var(--dur-surface) var(--spring), opacity var(--dur-micro) var(--ease); }
+}
+.tabs:has(> .tab-ink[data-shown]) :is(a, button)::after { display: none; }
+
+// charts come in with a short fade once they are drawn (Chart.js draws them at once, without its own animation)
+.chart-frame, .sparkline { animation: fade var(--dur-surface) var(--ease) backwards; }
+
+// shared-element continuity (components/app/motion.tsx useHero): an instance card's name moves and grows into the
+// instance page's title while the rest of the page does its out-then-in fade; going back it returns to its card
+.hero-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+::view-transition-group(hero) {
+  animation-duration: var(--dur-surface);
+  animation-timing-function: var(--spring);
+}
+::view-transition-old(hero),
+::view-transition-new(hero) {
+  animation-duration: var(--dur-surface);
+  block-size: 100%;
+  inline-size: auto;
+}
+// when only one side has it (another page opened from the instance's), it fades with the page
+::view-transition-old(hero):only-child { animation: page-out var(--page-out) ease-out both; }
+::view-transition-new(hero):only-child { animation: page-in var(--page-in) var(--ease) var(--page-out) both; }
+
 // a tab's content coming in where the page itself does not change (Settings): the same short rise as a page, on the
 // content only; the title, the breadcrumb and the tabs stay still
 .tab-enter { animation: page-in var(--page-in) var(--ease) both; }
@@ -204,6 +373,7 @@
 
 // reduced motion: no movement, but changes still fade so they can be followed
 @media (prefers-reduced-motion: reduce) {
+  :root { --rise: 0px; --lift: 0px; --stagger-step: 0ms; }
   *, *::before, *::after {
     animation-delay: 0ms !important;
     transition-property: opacity, color, background-color, border-color !important;
@@ -212,9 +382,15 @@
   .rise, .tab-enter, .auth .stagger > *, [data-slot="dialog-content"], [data-slot="sheet-content"], .menu, [data-slot="select-content"], .toast { animation: fade 150ms ease both !important; transform: none !important; }
   // the page transition stays a fade, quicker and without the rise
   :root { --page-out: 80ms; --page-in: 120ms; --page-rise: 0px; --branch-shift: 0px; }
-  // loading placeholders keep their delay: it avoids a flash, it is not movement
+  // loading placeholders keep their delay: it avoids a flash, it is not movement; the shimmer stands still
   .nav-progress, .spinner[role="status"] { animation-delay: 150ms !important; }
-  [data-slot="skeleton"] { animation-delay: 0ms, 150ms !important; }
+  [data-slot="skeleton"] { animation-delay: 150ms !important; }
+  [data-slot="skeleton"]::after { animation: none !important; opacity: 0; }
+  // no shake, no pop, no drawing, no sliding ink, no flying title: the new state shows (or fades) in place
+  .shake, [data-slot="field"][data-invalid="true"] > *, .empty > svg, .success-check *, :focus-visible { animation: none !important; }
+  .morph-icon > .morph-icon-item { transform: none !important; filter: none !important; }
+  .card.link:hover { transform: none !important; }
+  ::view-transition-group(hero) { animation: none !important; }
 }
 
 // ---------------------------------------------------------------- changing the theme
@@ -222,7 +398,7 @@
 // the whole page is one picture (nothing is captured on its own), the old one stays fully visible under the circle,
 // and nothing else moves meanwhile. Only while .theme-reveal is on <html>, so moving between pages is unchanged.
 :root.theme-reveal * { view-transition-name: none !important; }
-:root.theme-reveal *,
+:root.theme-reveal *:not(.morph-icon-item),
 :root.theme-reveal *::before,
 :root.theme-reveal *::after { transition: none !important; }
 :root.theme-reveal::view-transition-old(root),

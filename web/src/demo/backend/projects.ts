@@ -3,7 +3,7 @@
 // repositories; their stages from what was recorded, else from their instances.
 
 import type { Instance, Project, ProjectBranch, ProjectOptions, Stage } from "@/api/types";
-import { described, levelIn, permissionsIn, PROJECT_PERMISSIONS, seededAccess, setLocks, type DemoAccess } from "./access";
+import { described, describeSwitch, levelIn, permissionsIn, PROJECT_PERMISSIONS, seededAccess, setLocks, type DemoAccess } from "./access";
 import { commitsOf, instances, OWNER, PROJECT_NAMES, REPOS, setting, type DemoRepo } from "./state";
 import { resetBuilds } from "./builds";
 import { seedBuildOptions } from "./build-options";
@@ -56,6 +56,7 @@ export function seedProjects() {
       autoCreated: id === "acme-retail" ? { "pos-refunds": "acme-retail-pos-refunds" } : {},
       access: seededAccess(id),
     });
+    projects.get(id)!.access.stages = stages;
     setLocks(id, projects.get(id)!.access, () => undefined);
   }
   seedBuildOptions();
@@ -108,7 +109,9 @@ export function stageOf(project: DemoProject, branch: string): Stage {
 export function branchList(project: DemoProject, everything = false): ProjectBranch[] {
   const members = membersOf(project.id);
   return branchNames(project)
-    .filter((name) => everything || levelIn(project.access, name) !== "none")
+    .filter((name) => everything || (project.access.model === "project_roles"
+      ? permissionsIn({ ...project.access, stages: { ...project.access.stages, [name]: stageOf(project, name) } }, name).includes("instances.view")
+      : levelIn(project.access, name) !== "none"))
     .map((name) => {
       const own = members.filter((i) => i.git.branch === name);
       const commit = own[0]?.recent_commits?.[0] ?? (project.repo ? commitsOf(project.repo, name)[0] : undefined);
@@ -123,6 +126,7 @@ export function branchList(project: DemoProject, everything = false): ProjectBra
         odoo_version: project.versions?.[name] ?? null,
         lock: project.access.locks[name] ? { ...project.access.locks[name]!, allow: described(project.access.locks[name]!.allow) } : null,
         restricted: Boolean(project.access.branches[name]?.restricted),
+        client_access: describeSwitch(project.access, name),
         permissions: permissionsIn(project.access, name).filter((p) => PROJECT_PERMISSIONS.includes(p)),
       };
     })
@@ -160,6 +164,7 @@ export function projectResource(project: DemoProject): Project {
       restricted_branches: Object.entries(project.access.branches).filter(([b, v]) => v.restricted && shown.has(b)).map(([b]) => b).sort(),
       locked_branches: Object.keys(project.access.locks).filter((b) => shown.has(b)).sort(),
     },
+    client_access: describeSwitch(project.access, null),
     links: { self: `/api/v1/projects/${project.id}` },
   };
 }

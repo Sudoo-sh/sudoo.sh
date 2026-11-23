@@ -1,6 +1,6 @@
 """Short-lived one-time codes (sent by e-mail, or later SMS): created, checked, used once.
 
-Codes are kept in memory as hashes, valid for 10 minutes and for 5 wrong tries; a restart forgets them, and the
+Codes are kept in memory as hashes, valid for 10 minutes (unless the caller says otherwise) and for 5 wrong tries; a restart forgets them, and the
 person asks for a new one. A new code can be sent once a minute.
 """
 
@@ -35,15 +35,16 @@ def _digest(code: str) -> str:
     return hashlib.sha256(code.encode()).hexdigest()
 
 
-def new(key: tuple[str, str], value: str = "") -> str:
-    """A new 6-digit code for `key` (user, purpose). Raises ValueError when asked again within a minute."""
+def new(key: tuple[str, str], value: str = "", valid_seconds: int = VALID_SECONDS) -> str:
+    """A new 6-digit code for `key` (user, purpose), valid `valid_seconds`. Raises ValueError when asked again within
+    a minute."""
     now = time.time()
     with _LOCK:
         previous = _CODES.get(key)
         if previous and now - previous.sent < RESEND_SECONDS:
             raise ValueError(f"A code was just sent. Wait {int(RESEND_SECONDS - (now - previous.sent)) + 1} seconds.")
         code = f"{secrets.randbelow(10**6):06d}"
-        _CODES[key] = _Code(_digest(code), now + VALID_SECONDS, now, value=value)
+        _CODES[key] = _Code(_digest(code), now + valid_seconds, now, value=value)
         for old in [k for k, c in _CODES.items() if c.expires < now]:
             del _CODES[old]
     return code

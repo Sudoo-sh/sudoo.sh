@@ -87,9 +87,21 @@ The setup code works once: after the first account exists, the page no longer ap
 
 ### Signing in
 
+The sign-in page offers up to three ways in. Which of them work for your account is chosen by an administrator.
+
 1. Open the panel's link.
-2. Enter your **e-mail address** in the **E-mail** field and your **password**, then click **Sign in**. Your user
-   name also works in this field, for example for an older account that has no e-mail address.
+2. Sign in one of these ways:
+   * **Continue with GitHub** (shown when the panel offers it): GitHub asks you once to authorise the panel's app,
+     then sends you back signed in. The first time, your account is linked to your GitHub account when an
+     administrator typed your GitHub user name for it, when your e-mail address here is your verified primary
+     address on GitHub, or when you are a member of a GitHub organisation the panel accepts.
+   * **E-mail and password**: enter your **e-mail address** in the **E-mail** field and your **password**, then click
+     **Sign in**. Your user name also works in this field, for example for an older account that has no e-mail
+     address.
+   * **Send me a code** (shown when e-mail is set up): enter your e-mail address and click **Send me a code** instead
+     of typing a password. If an account here signs in that way with this address, a 6-digit code arrives within a
+     minute; type it to sign in. It works once, for 10 minutes. **Send a new code** becomes available after 60
+     seconds.
 3. If your account has a second factor, the **Enter your code** step follows:
    * **E-mail code**: a 6-digit code is sent to your e-mail address at once. **Send a new code** becomes available
      after 60 seconds.
@@ -116,7 +128,13 @@ By default super admins and administrators must use a second factor. A super adm
 ### Good to know
 
 * A wrong e-mail address and a wrong password give the same message: "Wrong e-mail address or password." The panel
-  does not tell which of the two was wrong.
+  does not tell which of the two was wrong. **Send me a code** answers the same way whether or not an account uses
+  the address.
+* **My account, Ways to sign in** shows how your account may sign in. There you link your GitHub account
+  (**Link GitHub**) or unlink it (**Unlink**, which asks for your password when you have one). After you sign in
+  with GitHub, your access to each project may follow your permission on its GitHub repository: write gives
+  Developer, maintain Maintainer, admin Admin, triage or read view only. Removed from the repository, you no longer
+  see the project.
 * After **5 wrong passwords** for the same account from the same place, or 20 from the same place, signing in is
   blocked for **15 minutes**. Wait, or ask an administrator to set a new password for you.
 * After each sign-in the panel e-mails you when, from which address and from which browser and system your account

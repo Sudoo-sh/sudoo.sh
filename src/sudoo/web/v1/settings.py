@@ -114,9 +114,34 @@ def check_exposure(value: Any) -> None:
         abort(400, "EXPOSURE=proxy needs PANEL_DOMAIN or PUBLIC_HOST: the name your proxy serves the panel under.")
 
 
+def _keep_break_glass(value: Any) -> None:
+    """SIGN_IN_METHODS without "password" must leave a super admin that still signs in with one (auth/methods.py):
+    one whose own methods, chosen by an administrator, include it."""
+    from sudoo.auth import methods
+
+    chosen = live.env.sign_in_methods if value is None else str(value)
+    if "password" in [part.strip().lower() for part in chosen.split(",")]:
+        return
+    users = accounts.all_users()
+    if not any(methods.has_break_glass(user) for user in users.values()):
+        return  # nothing to keep (or nothing left already)
+    keeps = any(
+        user.get("role") == "super_admin" and user.get("hash") and "password" in (methods.own_choice(user) or [])
+        for user in users.values()
+    )
+    if not keeps:
+        abort(
+            400,
+            "SIGN_IN_METHODS: at least one super admin must keep signing in with a password. Choose Password for one "
+            "on the Accounts page first.",
+        )
+
+
 def _change(values: dict[str, Any]) -> None:
     if "exposure" in values:
         check_exposure(values["exposure"])
+    if "sign_in_methods" in values:
+        _keep_break_glass(values["sign_in_methods"])
     offsite = sorted(set(values) & set(config.OFFSITE_SETTINGS))
     if offsite:  # where backups go off the server: its own permission, besides settings.manage
         refuse_unless("offsite.configure", f"change {', '.join(k.upper() for k in offsite)}")

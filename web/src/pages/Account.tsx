@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { BellRing, CircleCheck, Languages, KeyRound, LogOut, Mail, MonitorSmartphone, RefreshCw, ShieldCheck, Smartphone, Trash2, UserRound } from "lucide-react";
+import { BellRing, CircleCheck, Languages, KeyRound, LogIn, LogOut, Mail, MonitorSmartphone, RefreshCw, ShieldCheck, Smartphone, Trash2, UserRound } from "lucide-react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
@@ -9,6 +9,7 @@ import type { Factor } from "@/api/types";
 import { Page, PageHead, useMe } from "@/components/Shell";
 import { PasswordFields, passwordReady } from "@/components/PasswordFields";
 import { Brand } from "@/components/app/Brand";
+import { GitHubMark } from "@/components/app/GitHubMark";
 import { RecoveryCodesRow, RecoveryCodesSheet } from "@/components/RecoveryCodes";
 import { Tag, Button, Callout, CopyField, Field, Skeleton, Switch } from "@/components/app/basics";
 import { Input } from "@/components/ui/input";
@@ -343,6 +344,82 @@ function SecurityCard() {
   );
 }
 
+/** How this account signs in (chosen by an administrator, or the panel's default), and its GitHub account. */
+function SignInCard() {
+  const { data: account, refetch } = useAccount();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
+  const [password, setPassword] = useState("");
+  const t = useT(accountWords).signIn;
+  const c = useT(common).common;
+  if (!account) return <Skeleton height={160} />;
+  const ways = account.sign_in_methods;
+  const link = async () => {
+    setBusy(true);
+    try {
+      const { url } = await api.post<{ url: string }>("/account/github", {});
+      window.location.assign(url);
+    } catch (e) {
+      toast("error", t.notLinked2, errorText(e));
+      setBusy(false);
+    }
+  };
+  const unlink = async () => {
+    setBusy(true);
+    try {
+      await api.del("/account/github", ways.github && account.password_managed_here ? { password } : undefined);
+      await refetch();
+      setUnlinking(false);
+      setPassword("");
+      toast("success", t.unlinked);
+    } catch (e) {
+      toast("error", t.notUnlinked, errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const ICONS: Record<string, React.ReactNode> = { password: <KeyRound size={16} />, email_code: <Mail size={16} />, github: <GitHubMark /> };
+  return (
+    <section className="card">
+      <div className="card-head"><LogIn size={18} /><div className="spacer"><h2>{t.title}</h2><div className="sub">{ways.own_choice ? t.chosen : t.byDefault}</div></div></div>
+      <div className="card-body stack">
+        {ways.methods.map((method) => {
+          const offered = ways.offered[method];
+          return (
+            <div key={method} className="row" style={{ alignItems: "flex-start" }}>
+              <span className="muted" style={{ paddingTop: 2 }}>{ICONS[method]}</span>
+              <span className="spacer">
+                <span className="t" style={{ fontWeight: 500 }}>{t.methods[method]}</span>
+                <br />
+                <span className="small muted">
+                  {!offered ? t.off : method === "github" ? (ways.github ? t.linkedAs(ways.github.login) : t.notLinked) : method === "password" && !ways.usable.includes("password") ? t.noPassword : t.methodText[method]}
+                </span>
+              </span>
+              {method === "github" && offered && (ways.github
+                ? <Button size="sm" variant="ghost" onClick={() => setUnlinking(true)}>{t.unlink}</Button>
+                : <Button size="sm" icon={<GitHubMark />} loading={busy} onClick={link}>{t.link}</Button>)}
+            </div>
+          );
+        })}
+      </div>
+      {unlinking && (
+        <Modal title={t.unlinkTitle} onClose={() => setUnlinking(false)}
+          footer={<><Button onClick={() => setUnlinking(false)}>{c.cancel}</Button><Button variant="danger" loading={busy} onClick={unlink}>{t.unlink}</Button></>}>
+          <div className="stack">
+            <p className="small muted">{t.unlinkText}</p>
+            {account.password_managed_here && ways.usable.includes("password") && (
+              <Field label={t.password} htmlFor="unlink-password">
+                <Input id="unlink-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              </Field>
+            )}
+          </div>
+        </Modal>
+      )}
+    </section>
+  );
+}
+
 /** The panel's language for this account, kept on the server so it follows the person to every browser. */
 function LanguageCard() {
   const { data: account } = useAccount();
@@ -384,6 +461,7 @@ export function AccountPage() {
           <div className="card-body"><Factors /></div>
         </section>
         <div className="stack">
+          <SignInCard />
           <PasswordCard />
           <SecurityCard />
         </div>

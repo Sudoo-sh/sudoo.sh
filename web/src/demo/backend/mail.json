@@ -83,6 +83,87 @@
    }
   },
   {
+   "key": "email_sign_in_code",
+   "name": "Sign-in code (no password)",
+   "description": "The code that signs in without a password, for accounts that sign in with an e-mail code.",
+   "recipients": "The person signing in",
+   "kicker": "Sign in",
+   "preheader": "{{ code }} - valid for {{ minutes }} minutes",
+   "default": {
+    "subject": "{{ code }} is your Sudoo.sh sign-in code",
+    "title": "Your sign-in code",
+    "body": "Hello {{ name }},\n\nType this code in Sudoo.sh to sign in. You do not need a password.\n\n{{ code_box }}\n\n[Open Sudoo.sh]({{ panel_link }})\n\n{{ request }}\n\n> Did not ask for a code? You can ignore this e-mail: nobody signs in without it. Never share it."
+   },
+   "placeholders": [
+    {
+     "name": "name",
+     "description": "The account's user name",
+     "kind": "text"
+    },
+    {
+     "name": "code",
+     "description": "The 6-digit code that signs in",
+     "kind": "text"
+    },
+    {
+     "name": "minutes",
+     "description": "How many minutes the code is valid",
+     "kind": "text"
+    },
+    {
+     "name": "code_box",
+     "description": "The code, large and easy to copy",
+     "kind": "block"
+    },
+    {
+     "name": "time",
+     "description": "When it was asked for",
+     "kind": "text"
+    },
+    {
+     "name": "ip",
+     "description": "The address it was asked from",
+     "kind": "text"
+    },
+    {
+     "name": "device",
+     "description": "Browser and system, from the browser's description",
+     "kind": "text"
+    },
+    {
+     "name": "request",
+     "description": "When, from where and from which device, in a box",
+     "kind": "block"
+    },
+    {
+     "name": "panel_link",
+     "description": "The address of the panel",
+     "kind": "link"
+    }
+   ],
+   "required": [
+    "code",
+    "code_box"
+   ],
+   "samples": {
+    "name": "sam",
+    "code": "482913",
+    "minutes": 10,
+    "code_box": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0;\"><tr><td align=\"center\" style=\"padding:8px 0 4px 0;\"><div style=\"display:inline-block; background-color:#F8F9FA; border:1px solid #E7E9ED; border-radius:8px; padding:14px 28px; direction:ltr; font-family:Menlo, Consolas, 'Courier New', monospace; font-size:32px; font-weight:bold; letter-spacing:10px; color:#212529; -webkit-user-select:all; user-select:all; cursor:text;\">482913</div></td></tr><tr><td align=\"center\" style=\"padding:4px 0 0 0; font-size:12px; color:#8F8F8F;\">Tap the code to select it, then copy &middot; valid for 10 minutes &middot; works once</td></tr></table>",
+     "text": "    482913\n\nValid for 10 minutes, works once."
+    },
+    "time": "Tuesday 18 November 2026, 09:41 UTC",
+    "ip": "203.0.113.9",
+    "device": "Firefox on macOS",
+    "request": {
+     "html": "<table role=\"presentation\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin:0 0 16px 0; font-size:12px; color:#6C757D; background-color:#F8F9FA; border-radius:6px;\"><tr><td colspan=\"2\" style=\"padding:8px 0 0 0;\"></td></tr><tr><td colspan=\"2\" style=\"padding:0 14px 4px 14px; font-weight:bold; color:#454748;\">Requested</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">When</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">Tuesday 18 November 2026, 09:41 UTC</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">From</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">203.0.113.9</td></tr><tr><td style=\"padding:2px 14px; color:#8F8F8F; width:96px; vertical-align:top;\">Device</td><td dir=\"auto\" style=\"padding:2px 14px 2px 0; color:#212529;\">Firefox on macOS</td></tr><tr><td colspan=\"2\" style=\"padding:0 0 8px 0;\"></td></tr></table>",
+     "text": "Requested\nWhen: Tuesday 18 November 2026, 09:41 UTC\nFrom: 203.0.113.9\nDevice: Firefox on macOS"
+    },
+    "panel_link": "https://demo.sudoo.sh"
+   }
+  },
+  {
    "key": "email_confirmation",
    "name": "E-mail address confirmation",
    "description": "The code that confirms an address when someone sets up e-mail codes.",

@@ -138,6 +138,30 @@ export interface SecondFactorChallenge {
   sent_to?: string;
 }
 
+/** The ways to sign in: password, a code by e-mail (no password), GitHub (auth/methods.py) */
+export type SignInMethod = "password" | "email_code" | "github";
+
+/** GET /session/options: which ways the sign-in page offers */
+export type SignInOptions = Record<SignInMethod, boolean>;
+
+/** The GitHub account linked to a panel account (only its id, login and verified address are kept) */
+export interface GitHubLink {
+  id: number;
+  login: string;
+  email: string | null;
+  linked_at: string | null;
+}
+
+/** How an account signs in: its methods (an administrator's choice, or the server's default) and which work now */
+export interface SignInMethods {
+  methods: SignInMethod[];
+  own_choice: boolean;
+  usable: SignInMethod[];
+  offered: SignInOptions;
+  github: GitHubLink | null;
+  github_login: string | null;
+}
+
 export interface JobRef {
   id: string;
   action: string;
@@ -545,6 +569,21 @@ export interface ProjectAccess {
   branches: Record<string, { restricted: boolean; grants: Grant[] }>;
   locks: Record<string, BranchLock>;
   levels: AccessLevel[];
+  /** project access from GitHub repository permissions (auth/github_access.py) */
+  github: {
+    enabled: boolean;
+    repository: string;
+    people: {
+      user: string;
+      name: string;
+      github_login: string;
+      applies: boolean;
+      permission: string | null;
+      level: AccessLevel | null;
+      covered: boolean | null;
+      checked: number | null;
+    }[];
+  };
 }
 
 /** A team: a named group of accounts that project access is given to (GET /teams) */
@@ -903,6 +942,7 @@ export interface Account extends Profile {
   recovery_codes: RecoveryCodes | null;
   recovery_codes_needed: boolean;
   sign_in_email: SignInEmail;
+  sign_in_methods: SignInMethods;
   /** the web app's language: in use, the person's own choice (null: the server's default) and that default */
   language: { value: "en" | "ar"; own_choice: "en" | "ar" | null; default: "en" | "ar" };
 }
@@ -968,6 +1008,7 @@ export interface Invitation {
   invited_at: string;
   sent_at: string;
   expires_at: string;
+  github_login?: string | null;
   /** only in the demo, where no e-mail is sent: the invitation's link */
   link?: string;
 }
@@ -998,6 +1039,13 @@ export interface User extends Profile {
   password_changed_at: string | null;
   must_change_password: boolean;
   second_factors: string[];
+  sign_in_methods: SignInMethod[];
+  /** false: the server's default (SIGN_IN_METHODS) applies */
+  sign_in_methods_chosen: boolean;
+  github: GitHubLink | null;
+  /** the GitHub user name an administrator expects, linked at the first sign-in with GitHub */
+  github_login: string | null;
+  has_password: boolean;
 }
 
 export interface DocsContents {

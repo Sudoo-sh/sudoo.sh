@@ -57,7 +57,7 @@ def _github[T](call: Callable[[], T]) -> T:
         abort(status, str(error))
 
 
-def _panel_url() -> str:
+def panel_address() -> str:
     """The panel's address as the browser sees it (its Origin, already checked by security.py), else the public one."""
     origin = request.headers.get("Origin", "")
     if urlsplit(origin).scheme in ("http", "https") and urlsplit(origin).netloc:
@@ -99,7 +99,7 @@ def start_connect() -> Response:
         abort(409, "A GitHub App is already connected. Disconnect it first.")
     data = check.body()
     organization = check.text(data, "organization", max_length=39)
-    panel = _panel_url()
+    panel = panel_address()
     hook_base = (exposure.address(exposure.PANEL) or panel).rstrip("/")
     manifest = app.manifest(
         panel, hook_base, urlsplit(panel).hostname or "", create_repositories=check.flag(data, "create_repositories")

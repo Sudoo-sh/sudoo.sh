@@ -3,7 +3,9 @@ import { useState } from "react";
 import { api, errorText } from "@/api/client";
 import { useCall, useInvitations, useRoles, useUsers } from "@/api/queries";
 import { Link } from "react-router";
-import type { Invitation, InvitationPolicy, Role, User } from "@/api/types";
+import type { Invitation, InvitationPolicy, Role, SignInMethod, User } from "@/api/types";
+import { GitHubMark } from "@/components/app/GitHubMark";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Page, PageHead, useMe } from "@/components/Shell";
 import { PasswordFields, passwordReady } from "@/components/PasswordFields";
 import { Button, Callout, CopyField, Empty, Field, Segmented, Skeleton, Switch, Tag } from "@/components/app/basics";
@@ -70,6 +72,36 @@ const choiceBody = (choice: PasswordChoice) =>
 type Form = { role: Role; first_name: string; last_name: string; email: string; phone: string };
 const EMPTY: Form = { role: "developer", first_name: "", last_name: "", email: "", phone: "" };
 type Made = { title: string; password: string; mustChange: boolean };
+const METHODS: SignInMethod[] = ["password", "email_code", "github"];
+
+/** How one account signs in: the panel's usual ways, or a choice of its own (auth/methods.py). */
+function SignInFields({ methods, fallback, onChange }: { methods: SignInMethod[] | null; fallback: SignInMethod[]; onChange: (methods: SignInMethod[] | null) => void }) {
+  const t = useT(words).signIn;
+  const shown = methods ?? fallback;
+  const toggle = (method: SignInMethod, on: boolean) => onChange(METHODS.filter((m) => (m === method ? on : shown.includes(m))));
+  return (
+    <fieldset className="stack-sm">
+      <legend className="label">{t.title}</legend>
+      <label className="check-row">
+        <Checkbox checked={methods === null} onCheckedChange={(value) => onChange(value === true ? null : [...fallback])} />
+        <span>{t.useDefault}</span>
+      </label>
+      {methods === null ? (
+        <p className="xsmall faint">{t.defaultHint(fallback.map((m) => t.methods[m]).join(" · "))}</p>
+      ) : (
+        <div className="stack-sm" style={{ paddingInlineStart: 28 }}>
+          {METHODS.map((method) => (
+            <label key={method} className="check-row">
+              <Checkbox checked={shown.includes(method)} onCheckedChange={(value) => toggle(method, value === true)} />
+              <span>{t.methods[method]} <span className="xsmall faint">{t.methodHints[method]}</span></span>
+            </label>
+          ))}
+          {!shown.length && <p className="xsmall" style={{ color: "var(--negative)" }}>{t.noMethod}</p>}
+        </div>
+      )}
+    </fieldset>
+  );
+}
 
 /** Edit an account, or add one: by invitation (the person chooses their own password from the e-mailed link), or,
  *  when the Invitations settings allow it (by default only while e-mail is not set up), with a password set here. */
@@ -81,6 +113,8 @@ function AccountForm({ user, policy, onClose, onDone }: { user?: User; policy?: 
     user ? { role: user.role, first_name: user.first_name ?? "", last_name: user.last_name ?? "", email: user.email ?? "", phone: user.phone ?? "" } : EMPTY,
   );
   const [password, setPassword] = useState<PasswordChoice>(GENERATE);
+  const [methods, setMethods] = useState<SignInMethod[] | null>(user?.sign_in_methods_chosen ? user.sign_in_methods : null);
+  const [githubLogin, setGithubLogin] = useState(user?.github_login ?? "");
   const canInvite = !!policy?.mail_ready;
   const [mode, setMode] = useState<"invite" | "password">(canInvite || !policy?.password_allowed ? "invite" : "password");
   const [busy, setBusy] = useState(false);
@@ -92,18 +126,23 @@ function AccountForm({ user, policy, onClose, onDone }: { user?: User; policy?: 
   const inviting = !user && mode === "invite";
   const person: Person = { username: user?.name, email: form.email, names: [form.first_name, form.last_name] };
   const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email.trim());
-  const ready = emailOk && (!!user || (inviting ? canInvite : choiceReady(password, person)));
+  const ready = emailOk && (methods === null || methods.length > 0) && (!!user || (inviting ? canInvite : choiceReady(password, person)));
   const save = async () => {
     if (self && form.role !== user!.role && !confirm(t.form.confirmOwnRole)) return;
     setBusy(true);
     try {
       const body = { ...form, email: form.email.trim() };
       if (user) {
-        await api.patch(`/users/${user.name}`, body);
+        const changed = methods !== null ? methods : user.sign_in_methods_chosen ? null : undefined;
+        await api.patch(`/users/${user.name}`, {
+          ...body,
+          ...(changed !== undefined ? { sign_in_methods: changed } : {}),
+          ...(user.github ? {} : { github_login: githubLogin.trim() }),
+        });
         toast("success", t.form.saved(user.name));
         onDone();
       } else if (inviting) {
-        await api.post<Invitation>("/invitations", { email: body.email, role: body.role, first_name: body.first_name, last_name: body.last_name });
+        await api.post<Invitation>("/invitations", { email: body.email, role: body.role, first_name: body.first_name, last_name: body.last_name, github_login: githubLogin.trim() });
         toast("success", t.invite.sent(body.email));
         onDone();
       } else {
@@ -165,6 +204,17 @@ function AccountForm({ user, policy, onClose, onDone }: { user?: User; policy?: 
             ))}
           </div>
         </div>
+        {(inviting || (user && !user.github)) && (
+          <Field label={t.signIn.githubLogin} hint={t.signIn.githubLoginHint}>
+            <div className="input-group">
+              <GitHubMark />
+              <Input dir="ltr" autoComplete="off" spellCheck={false} placeholder="octocat" maxLength={40} value={githubLogin} onChange={(e) => setGithubLogin(e.target.value)} />
+            </div>
+          </Field>
+        )}
+        {user && (
+          <SignInFields methods={methods} fallback={user.sign_in_methods_chosen ? ["password", "github"] : user.sign_in_methods} onChange={setMethods} />
+        )}
         {!user && !inviting && (
           <div className="field">
             <span className="label">{t.form.password}</span>
@@ -261,6 +311,8 @@ export function AccountsPage() {
   const refresh = [["users"]] as const;
   const resetFactors = useCall((user: string) => api.del(`/users/${user}/second-factors`), refresh);
   const remove = useCall((user: string) => api.del(`/users/${user}`), refresh);
+  const unlink = useCall((user: string) => api.del(`/users/${user}/github`), refresh);
+  const s = useT(words).signIn;
   const resend = useCall((id: string) => api.post<Invitation>(`/invitations/${id}/resend`), [["invitations"]]);
   const revoke = useCall((id: string) => api.del(`/invitations/${id}`), [["invitations"]]);
   const i = useT(words).invite;
@@ -297,6 +349,7 @@ export function AccountsPage() {
                   <TableCell>
                     <Tag tone={u.role === "super_admin" ? "accent" : undefined}>{all.roles[u.role] ?? u.role_label}</Tag>
                     {u.must_change_password && <span className="xsmall faint">{t.pendingPassword}</span>}
+                    {u.github && <div className="xsmall faint row" style={{ gap: 4 }}><GitHubMark size={12} /> <bdi dir="ltr">@{u.github.login}</bdi></div>}
                   </TableCell>
                   <TableCell className="small">{u.second_factors.length ? u.second_factors.map((f) => t.factors[f] ?? f).join(t.separator) : <span className="faint">{t.noFactor}</span>}</TableCell>
                   <TableCell className="small muted">{ago(u.last_sign_in_at)}</TableCell>
@@ -309,6 +362,11 @@ export function AccountsPage() {
                             {u.name !== me.user && (
                               <>
                                 <MenuItem onSelect={() => { close(); setResetting(u); }}><KeyRound /> {t.setPassword}</MenuItem>
+                                {u.github && (
+                                  <MenuItem onSelect={() => { close(); unlink.mutate(u.name, { onSuccess: () => toast("success", s.unlinked(u.name)), onError: fail(s.notUnlinked) }); }}>
+                                    <GitHubMark /> {s.unlink}
+                                  </MenuItem>
+                                )}
                                 <MenuItem disabled={!u.second_factors.length} onSelect={() => { close(); resetFactors.mutate(u.name, { onSuccess: () => toast("success", t.factorsRemoved(u.name)), onError: fail(t.notRemoved) }); }}>
                                   <ShieldOff /> {t.removeFactors}
                                 </MenuItem>

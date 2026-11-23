@@ -4,6 +4,7 @@ Who may call (security.py): the web app with its session cookie (and X-CSRF-Toke
 with an API token and a signature on every request (api_tokens.py, docs/PANEL_API.md). Either way the caller is an
 role (roles.py), and the same permission checks apply.
 
+    access_rules.py  production access rules (beta) and the links that open an instance through a pass
     alerts.py      the alerts of the bell, test alerts
     session.py     sign in (password, then a second factor when needed) and out, own password, contact
     account.py     own account and second factors
@@ -57,6 +58,7 @@ from sudoo.core import events as bus
 from sudoo.core import jobs
 
 from . import (
+    access_rules,
     account,
     alerts,
     backups,
@@ -118,6 +120,7 @@ def register(app: Flask) -> None:
         instances,
         logs,
         connect,
+        access_rules,
         imports,
         profiler,
         projects,

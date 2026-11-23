@@ -94,6 +94,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       { id: "requests", keys: ["rate_limit_reads_per_minute", "rate_limit_changes_per_minute", "rate_limiter"] },
       { id: "webShell", keys: ["shell_enabled", "shell_roles", "shell_production", "shell_root", "shell_idle_minutes", "shell_max_minutes", "shell_max_per_user", "shell_max_per_instance", "shell_ticket_seconds"] },
       { id: "shellRecordings", keys: ["shell_recording", "shell_recording_days", "shell_recording_max_mb", "shell_recordings_total_mb"] },
+      { id: "accessRules", keys: ["access_rules_beta", "access_rules_geo_missing", "access_rules_geo_download", "access_rules_geo_url", "access_rules_pass_hours", "access_rules_show_ip", "access_rules_contact"] },
       { id: "profiler", keys: ["profiler_enabled", "profiler_roles", "profiler_production", "profiler_max_minutes", "profiler_keep", "profiler_rate", "profiler_image", "audit_export_max_rows"] },
     ],
   },

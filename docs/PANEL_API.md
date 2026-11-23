@@ -231,7 +231,12 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `GET /instances/<name>/logs/stream?log=odoo.log&tail=300&<filters>` | `instances.logs` | | Server-Sent Events: the last `tail` lines (0 to 5000), then new ones as they are written; the filters below keep whole entries. Events `lines` (`{"lines": [...], "ids": [...]}`, `ids` one per line) and `end` (`{"reason": "max_duration"}` after 5 minutes, `"stopped"` when Odoo's container stops, `"slow_pattern"` when the pattern took too long); every event's `id` is where to continue: send it back as `Last-Event-ID` or `?after=`. Only `odoo.log` is followed (400 for another). A caller follows at most 4 logs at once (429) ([Following a log](#following-a-log)) |
 | `GET /instances/<name>/logs/download?log=odoo.log&<filters>` | `instances.logs` | | 200, the log as a text file (`text/plain`, attachment): its last `LOG_DOWNLOAD_MAX_LINES` lines, only the entries the filters keep; audit-logged with the filters |
 | `GET /instances/<name>/odoo-users` | `instances.credentials` | | 200, the active internal Odoo users: `[{"id", "login", "name"}]` (read again after 30 seconds); 409 when the database is not running |
-| `POST /instances/<name>/connect` | `instances.credentials` | `{"uid": 7}`; a production instance also `"confirm_stage": "production"` | **201**, `{"url", "expires_at", "login"}`: a link that opens Odoo signed in as that user, once, within 60 seconds ([Connect as](#connect-as)); audit-logged, and so is its use |
+| `POST /instances/<name>/connect` | `instances.credentials` | `{"uid": 7}`; a production instance also `"confirm_stage": "production"` | **201**, `{"url", "expires_at", "login"}`: a link that opens Odoo signed in as that user, once, within 60 seconds ([Connect as](#connect-as)); audit-logged, and so is its use. With active access rules the link goes through the panel's pass first |
+| `GET /instances/<name>/access-rules` | `instances.view` | | 200, the production access rules (beta): `{"available", "production", "active", "rules", "can_change", "channels", "geo", "geo_missing", "you", "presets", "back_office", "public_under_web"}`; only `{"available": false}` while `ACCESS_RULES_BETA` is off ([Administrator Guide](ADMIN_GUIDE.md#31-production-access-rules-beta)) |
+| `POST /instances/<name>/access-rules/preview` | `instances.view` | `{"rules", "test_address"?}` | 200, `{"you", "test", "samples", "warnings", "geo"}`: what the rules would do, nothing saved; 400 for rules that are not valid |
+| `POST /instances/<name>/access-rules/code` | `instances.view` and may change the rules (super admins, the project's administrators, its client; never a token) | `{"method": "email" \| "app"}` | 200, `{"method", "sent_to"?}`; 409 for an instance that is not in production, 429 when asked again within a minute |
+| `PUT /instances/<name>/access-rules` | the same | `{"rules", "confirm_name", "method", "code"}` | 200, the same as GET; 400 for a wrong name or code, 429 after 5 wrong codes in 10 minutes; audit-logged |
+| `POST /instances/<name>/open-link` | `instances.view` | `{"target"?: "/odoo"}` | 200, `{"url", "pass"}`: the address that opens the instance, through a signed pass when its access rules apply and the caller may open it (audit-logged) |
 | `POST /instances/<name>/imports` | `instances.restore` | `{"file_name": "prod.zip", "size": 734003200}` | **201**, a new upload `{"id", "file_name", "format", "size", "received", "complete", "chunk_size"}`; 400 for a file that is not `.zip`, `.dump`, `.sql` or `.sql.gz`, 413 beyond `IMPORT_MAX_GB` ([Import database](#import-database)) |
 | `GET /instances/<name>/imports/<id>` | `instances.restore` | | 200, the upload: how much arrived |
 | `PUT /instances/<name>/imports/<id>?offset=0` | `instances.restore` | the next piece as `application/octet-stream` (at most 8 MB) | 200, the upload; **409** with `meta.received` when `offset` is not where the upload stands |
@@ -1633,7 +1638,7 @@ address.
 
 ## 15. Maintenance windows
 
-How it works: [Admin guide, Maintenance windows](ADMIN_GUIDE.md#31-maintenance-windows). Items arrive only from the
+How it works: [Admin guide, Maintenance windows](ADMIN_GUIDE.md#32-maintenance-windows). Items arrive only from the
 hub, signed. Times are ISO 8601 with the offset of `TIMEZONE`; a `start` without an offset is read in `TIMEZONE`.
 
 An item: `id`, `kind` (`panel_update`, `odoo_images`, `restart`, `custom`), `scope` (`panel`, `server`, `instance`,
@@ -1657,7 +1662,7 @@ An item: `id`, `kind` (`panel_update`, `odoo_images`, `restart`, `custom`), `sco
 `GET /public-status/<token>` also has `maintenance`: running or scheduled within 14 days on the project's instances
 (`kind`, `title`, `status`, `window_start`, `window_end`; never the reason).
 
-**The hub's side** (signed both ways, [Security](SECURITY.md#21-maintenance-windows)): the heartbeat's answer carries
+**The hub's side** (signed both ways, [Security](SECURITY.md#22-maintenance-windows)): the heartbeat's answer carries
 the command `maintenance` (its payload: `maintenance_id`, `kind`, `scope`, `targets`, `version`, `reason`,
 `estimated_minutes`, `earliest_start`, `deadline`, `required`), acknowledged `done` when recorded or `failed` with the
 allow-list's reason, and the lease's claim `maintenance` (each item with `status`, `window_start`, `window_end`,

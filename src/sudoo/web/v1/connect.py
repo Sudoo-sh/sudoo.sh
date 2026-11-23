@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from flask import Blueprint, Response, abort, g
 
 from sudoo import exposure
-from sudoo.instances import connect_as, stages, store
+from sudoo.instances import access_rules, connect_as, stages, store
 
 from .. import validation as check
 from ..security import log, require
@@ -65,9 +65,11 @@ def connect(name: str) -> Response:
         instance=name,
         detail=f"{target['login']} (id {uid})",
     )
+    # a production instance with access rules: through a pass, so the link works from anywhere (access_rules.py)
+    url, _ = access_rules.pass_url(g.user, name, address, f"{connect_as.PATH}?token={token}")
     return ok(
         {
-            "url": f"{address.rstrip('/')}{connect_as.PATH}?token={token}",
+            "url": url,
             "expires_at": datetime.fromtimestamp(expires, UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "login": target["login"],
         },

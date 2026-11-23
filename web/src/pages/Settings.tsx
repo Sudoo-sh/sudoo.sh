@@ -148,6 +148,13 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       { id: "clientSwitch", keys: ["client_open_hours", "client_open_max_hours", "client_request_hours", "client_request_max_hours", "client_request_expire_hours", "client_emergency_access", "client_emergency_minutes", "client_confirmations", "client_confirm_minutes"] },
     ],
   },
+  {
+    id: "maintenance",
+    groups: [
+      { id: "maintenanceWindows", keys: ["maintenance_default_window", "maintenance_default_days", "maintenance_tonight_time", "maintenance_weekend_day", "maintenance_choose_hours", "maintenance_cutoff_hours", "maintenance_lead_minutes"] },
+      { id: "maintenanceRuns", keys: ["maintenance_reminder_hours", "maintenance_remind_clients", "maintenance_client_choice", "maintenance_backup_first", "maintenance_update_wait_hours"] },
+    ],
+  },
   { id: "advanced", groups: [{ id: "monitoring", keys: ["metrics_interval_seconds", "cloudflared_image"] }] },
   { id: "about", groups: [] },
 ];

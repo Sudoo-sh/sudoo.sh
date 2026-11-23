@@ -562,7 +562,6 @@
   display: none;
   @media (max-width: 860px) { display: flex; }
 }
-.log-toolbar [data-slot="select-trigger"] { width: auto; }
 .option-control {
   [data-slot="select-trigger"], [data-slot="input"] { flex: 1; min-width: 0; }
   [data-slot="input"].number { max-width: 120px; }

@@ -1,0 +1,171 @@
+@use "mixins" as *;
+
+// The client portal (pages/ClientPortal.tsx): its own small frame, a header instead of the panel's sidebar, and the
+// sign-in page's look on the portal's address. Only tokens: light and dark come with them; logical properties only,
+// so Arabic mirrors.
+
+.portal {
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+.portal-top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  min-height: 60px;
+  padding: var(--s2) var(--s6);
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(12px);
+  border-bottom: 1px solid var(--hairline);
+}
+.portal-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-width: 0;
+  color: var(--text) !important;
+  text-decoration: none !important;
+  .mark { display: grid; flex: none; }
+  .portal-names { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; b { font-size: var(--text-15); } }
+}
+.portal-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  margin-inline-start: var(--s4);
+}
+.portal-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  height: 32px;
+  padding: 0 var(--s3);
+  border-radius: 8px;
+  color: var(--text-2) !important;
+  text-decoration: none !important;
+  font-size: var(--text-13);
+  font-weight: 500;
+  @include press(0.97);
+  svg { width: 16px; height: 16px; stroke-width: 1.75; }
+  @include hover { background: var(--raised); color: var(--text) !important; }
+  &.active { background: var(--brand-soft); color: var(--brand-ink) !important; }
+}
+:root[data-theme="dark"] .portal-link.active { color: var(--text) !important; }
+.portal-actions { display: flex; align-items: center; gap: var(--s1); flex: none; }
+.portal-main { flex: 1; }
+.portal-page { max-width: 1080px; }
+.portal-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  color: var(--text-2) !important;
+  text-decoration: none !important;
+  svg { width: 16px; height: 16px; }
+}
+.portal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: var(--s4);
+}
+.portal-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  color: var(--text) !important;
+  text-decoration: none !important;
+  h2 { font-size: var(--text-17, 1.0625rem); font-weight: 600; }
+}
+.portal-two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
+  gap: var(--s6);
+}
+.portal-request {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding-bottom: var(--s3);
+  border-bottom: 1px solid var(--hairline);
+  &:last-child { border-bottom: 0; padding-bottom: 0; }
+}
+.portal-waiting {
+  border-color: color-mix(in oklab, var(--brand) 45%, var(--hairline));
+  box-shadow: 0 0 0 3px var(--brand-ring);
+}
+.portal-branch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--hairline);
+  &:first-of-type { border-top: 0; padding-top: 0; }
+}
+.portal-instance { padding-inline-start: var(--s3); min-width: 0; }
+.portal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  height: 28px;
+  padding-inline: var(--s3) var(--s1);
+  border-radius: 999px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  font-size: var(--text-13);
+  button {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    color: var(--text-3);
+    @include press(0.94);
+    @include hover { background: var(--hairline); color: var(--text); }
+    svg { width: 14px; height: 14px; }
+  }
+}
+.portal-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  li {
+    display: grid;
+    grid-template-columns: 160px minmax(0, 1fr);
+    gap: var(--s3);
+    padding: var(--s3) var(--s5);
+    border-top: 1px solid var(--hairline);
+    &:first-child { border-top: 0; }
+    &.emergency { background: color-mix(in oklab, var(--negative) 7%, var(--surface)); }
+    &.refused { background: color-mix(in oklab, var(--caution) 6%, var(--surface)); }
+  }
+  .portal-log-what { min-width: 0; overflow-wrap: anywhere; }
+  .portal-log-detail { display: block; margin-top: 2px; }
+}
+.client-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+// the sign-in page on the portal's address: one column, the card in the middle
+.auth.portal-auth {
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--bg);
+  .portal-auth-name { font-weight: 500; }
+}
+
+@media (max-width: 640px) {
+  .portal-top { padding: var(--s2) var(--s4); .hide-sm { display: none; } > .spacer { display: none; } }
+  .portal-brand { flex: 1 1 0; }
+  .portal-nav { order: 3; flex: 1 1 100%; margin-inline-start: 0; }
+  .portal-log li { grid-template-columns: minmax(0, 1fr); gap: var(--s1); }
+}

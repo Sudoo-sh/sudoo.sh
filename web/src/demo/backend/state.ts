@@ -34,7 +34,7 @@ const ALL: Permission[] = [
   "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "projects.manage", "projects.access", "teams.manage", "instances.restore", "instances.upgrade",
   "instances.delete", "instances.credentials", "instances.resources", "projects.resources", "caught_mail.view", "caught_mail.manage", "backups.manage", "domains.manage", "github.manage", "accounts.manage", "tokens.manage",
   "audit.view", "plugins.view", "settings.manage", "mail.manage", "offsite.configure", "offsite.restore", "offsite.delete",
-  "instances.shell", "instances.database_shell", "instances.profile", "shells.supervise", "servers.manage", "instances.move", "support_access.manage",
+  "instances.shell", "instances.database_shell", "instances.profile", "shells.supervise", "servers.manage", "instances.move", "support_access.manage", "clients.manage",
 ];
 const SHELL: Permission[] = ["instances.shell", "instances.database_shell"];
 
@@ -74,6 +74,7 @@ export const PERMISSIONS: Record<Permission, string> = {
   "servers.manage": "Add, approve, revoke and remove servers; change their name, region and room",
   "instances.move": "Move instances to another server",
   "support_access.manage": "Grant Sudoo.sh support temporary access to the panel, see it and withdraw it",
+  "clients.manage": "Invite clients to projects and take them out (the client portal); only clients open and close access to their projects",
 };
 
 export const ROLES: RoleInfo[] = [
@@ -82,12 +83,14 @@ export const ROLES: RoleInfo[] = [
   { name: "maintainer", label: "Maintainer", description: "Creates instances and runs every action on them except deleting.", permissions: MAINTAIN },
   { name: "developer", label: "Developer", description: "Gets new code, restarts and starts instances, adds submodules.", permissions: DEVELOP },
   { name: "viewer", label: "Viewer", description: "Sees instances, their activity and logs.", permissions: VIEW },
+  { name: "client", label: "Client", description: "Sees only its own projects, in the client portal, and opens or closes access to them.", permissions: [...VIEW, "backups.manage"] },
 ];
 const ROLES_OF = { admins: [], maintainers: ["maintainer"], developers: ["maintainer", "developer"] } as Record<string, string[]>;
 /** A role with its permissions as the settings make them: PROFILER_ENABLED and PROFILER_ROLES, SHELL_ENABLED and
  *  SHELL_ROLES (as roles.permissions). */
 export const roleInfo = (role: Role): RoleInfo => {
   const base = ROLES.find((r) => r.name === role) ?? ROLES[4]!;
+  if (base.name === "client") return base; // a client: never the profiler, the shell only where given
   const profiles = setting("profiler_enabled") !== false && (base.permissions.includes("instances.profile") || (ROLES_OF[String(setting("profiler_roles") ?? "maintainers")] ?? []).includes(base.name));
   const found = { ...base, permissions: [...base.permissions.filter((p) => p !== "instances.profile"), ...(profiles ? (["instances.profile"] as Permission[]) : [])] };
   if (setting("shell_enabled") === false) return { ...found, permissions: found.permissions.filter((p) => !SHELL.includes(p)) };
@@ -203,6 +206,7 @@ export const users: User[] = [
   { name: "lena", display_name: "Lena Brandt", first_name: "Lena", last_name: "Brandt", email: "lena@example.com", phone: null, role: "maintainer", role_label: "Maintainer", last_sign_in_at: iso(OPENED - 26 * MINUTE), password_changed_at: iso(OPENED - 12 * DAY), must_change_password: false, second_factors: ["totp"], sign_in_methods: ["password", "github"], sign_in_methods_chosen: false, github: { id: 5102, login: "lena-b", email: "lena@example.com", linked_at: iso(OPENED - 9 * DAY) }, github_login: null, has_password: true },
   { name: "karim", display_name: "Karim Saleh", first_name: "Karim", last_name: "Saleh", email: "karim@example.com", phone: null, role: "developer", role_label: "Developer", last_sign_in_at: iso(OPENED - 50 * MINUTE), password_changed_at: iso(OPENED - 30 * DAY), must_change_password: false, second_factors: ["email"], sign_in_methods: ["github"], sign_in_methods_chosen: true, github: { id: 5103, login: "karimsaleh", email: "karim@example.com", linked_at: iso(OPENED - 30 * DAY) }, github_login: null, has_password: false },
   { name: "ines", display_name: "Ines Moreau", first_name: "Ines", last_name: "Moreau", email: "ines@example.com", phone: null, role: "developer", role_label: "Developer", last_sign_in_at: iso(OPENED - 1 * DAY), password_changed_at: iso(OPENED - 64 * DAY), must_change_password: false, second_factors: ["totp"], sign_in_methods: ["password", "github"], sign_in_methods_chosen: false, github: null, github_login: "ines-m", has_password: true },
+  { name: "maya", display_name: "Maya Rahman", first_name: "Maya", last_name: "Rahman", email: "maya@acme-retail.example.com", phone: null, role: "client", role_label: "Client", last_sign_in_at: iso(OPENED - 2 * HOUR), password_changed_at: iso(OPENED - 20 * DAY), must_change_password: false, second_factors: ["totp"], sign_in_methods: ["password", "email_code"], sign_in_methods_chosen: false, github: null, github_login: null, has_password: true },
   { name: "acme.reviewer", display_name: "Acme reviewer", first_name: "Acme", last_name: "reviewer", email: "it@acme-retail.example.com", phone: null, role: "viewer", role_label: "Viewer", last_sign_in_at: iso(OPENED - 3 * DAY), password_changed_at: null, must_change_password: true, second_factors: [], sign_in_methods: ["email_code"], sign_in_methods_chosen: true, github: null, github_login: null, has_password: false },
 ];
 

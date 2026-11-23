@@ -26,6 +26,7 @@ your computer.
 13. [Help pages and appearance](#13-help-pages-and-appearance)
 14. [When something goes wrong](#14-when-something-goes-wrong)
 15. [Questions and answers](#15-questions-and-answers)
+16. [Client portal](#16-client-portal)
 
 Words used in this manual:
 
@@ -603,7 +604,7 @@ wait: one job per instance at a time.
 | **Overview** | Four cards with the processor, memory, requests per minute and response time of this instance, each with a small line of the last hour; one live chart with a **CPU / Memory / Requests / Response** switch; the **Backups** card; details such as the database, its size and how long it has been running. |
 | **Activity** | Every job on this instance, newest first. Click one to open a panel with its steps (the running one with its progress, such as "Downloading Odoo 19.0: 2 of 5 parts"), notes and, if it failed, **Why it failed**: the step, the reason and the error details. It follows live while the job runs. |
 | **Code** | The repository and branch, the recent commits, and the submodules, with **Add submodule** and **Remove** ([section 7](#7-submodules)). |
-| **Logs** | Odoo's log as it is written, and the logs of the instance's latest creation, update and module upgrade ([The Logs tab](#the-logs-tab)). Lines with `ERROR` or `Traceback` usually explain a problem. |
+| **Logs** | Odoo's log as it is written, taken apart and searchable, and Odoo's own output of the latest module installs and updates ([The Logs tab](#the-logs-tab)). Lines with `ERROR` or `Traceback` usually explain a problem. |
 | **Backups** | The **Backups** card on its own ([The Backups card](#the-backups-card)): the instance's backups, **Back up now** and the restores. |
 | **Domains** | The instance's own domains, such as `erp.client.com`: their state, the DNS record to create, the certificate and its expiry ([Custom domains](#custom-domains)). Everyone sees them; administrators add and remove them. |
 | **Settings** | The stage ([Stages](#stages-production-staging-and-development)), the automation switches and the lifetime ([section 6](#6-keeping-the-code-up-to-date)), saved at once; and **Resources** ([Resources](#resources)). |
@@ -615,23 +616,47 @@ wait: one job per instance at a time.
 
 ### The Logs tab
 
-The **Logs** tab follows a log live, as Odoo.sh does.
+The **Logs** tab shows what Odoo writes, live, taken apart so you can read it quickly. The log itself is on a dark
+surface in both themes (like the Shell tab) and always reads left to right.
 
-* **Log.** `odoo.log` is what Odoo writes (its server log). The technical logs of the panel's jobs (creation,
-  updates, module upgrades) are server logs and are not shown here: a job's steps, progress and **Why it failed** are
-  in the **Activity** tab, and your administrator can read the full technical log on the server.
-* **Follow and Pause.** New lines appear as they are written. **Pause** keeps them aside: a pill shows how many new
-  lines arrived, and clicking it (or **Follow**) shows them. Scrolling up stops the scrolling only; **Jump to the
-  latest lines** goes back to the end.
-* **Search.** Type a word: only the lines that contain it are shown (any case), and the word is highlighted. Use the
-  arrows, or Enter and Shift+Enter, to step through the matches.
-* **Levels.** Errors and CRITICAL lines are red, warnings orange; the request lines of `werkzeug` are dimmed so the
-  rest stands out. The level buttons show only one level.
-* **Wrap** breaks long lines (on by default); off, the log scrolls sideways.
-* **Download** saves the log as a text file: its last lines (100,000 unless an administrator changed
-  `LOG_DOWNLOAD_MAX_LINES`), with the search applied.
+* **Which log.** Choose at the top:
+  * **Odoo server** (`odoo.log`): everything Odoo writes, followed live.
+  * **Module installs** (`install.log`) and **Module updates** (`update.log`): what Odoo wrote while it installed or
+    updated modules during the instance's latest creations, rebuilds, updates and module upgrades. Only Odoo's own
+    lines and their tracebacks are kept; the panel's commands never are. They are listed once such a run exists, and
+    the panel keeps them until it restarts.
 
-When Odoo is stopped, the tab shows the last lines it wrote and follows again once it starts.
+  The technical logs of the panel's jobs are server logs and are not shown here: a job's steps, progress and **Why it
+  failed** are in the **Activity** tab, and your administrator can read the full technical log on the server.
+* **Columns.** Each line shows its time (UTC, as Odoo writes it; the full date on hover), the process, the level as a
+  badge, the database, the logger in bold and the message. Requests from `werkzeug` show the method, the path, the
+  status (green for 2xx, teal for 3xx, amber for 4xx, red for 5xx) and the time taken. A traceback is one tinted block
+  under its line; fold it with **Hide the traceback**.
+* **Follow and pause.** New lines appear as Odoo writes them. **Following** pauses (so does scrolling up): new lines
+  wait aside, and **Jump to latest** shows how many arrived and brings them in. Scrolling back to the end follows
+  again. Scroll to the top for earlier lines: they load as you go, up to the last `LOG_DOWNLOAD_MAX_LINES` lines.
+* **Search.** Type in the search field (or press `/`): matches are highlighted and counted; Enter and Shift+Enter (or
+  the arrows) step through them. The `.*` button (Alt+R) makes the search a regular expression. A pattern that could
+  take very long, such as `(a+)+`, is refused. **Only matching lines** hides every other line, over the whole log.
+* **Focus and levels.** **Warnings and errors**, **Errors** (`E`) and **Tracebacks** show only those lines. The level
+  chips (Debug, Info, Warning, Error, Critical) switch each level on or off, with how many lines of it are loaded.
+  Click a line's level badge to show only that level, or its logger to show only that logger (and those under it).
+* **Time.** **Any time**, the last 15 minutes, hour or 24 hours, or a custom range (in your time zone).
+* **Filtered by.** The filters in use are listed above the log, each with an × to remove it, and **Clear all**.
+* **Errors and warnings per minute.** A small chart above the log counts them for every minute of the lines loaded.
+  Click a minute to go to it.
+* **Line actions.** Point at a line (or tap it on a phone) to copy it, copy its traceback, or copy a link to it.
+  Opening the link shows the lines around that one, highlighted; **Back to the live log** follows again.
+* **Download.** **What is shown** saves the log with the filters in use; **The whole log** saves it all. Both hold
+  the last lines (100,000 unless an administrator changed `LOG_DOWNLOAD_MAX_LINES`).
+* **View options.** Wrap long lines (on by default; off, the log scrolls sideways), the text size, and the keyboard
+  shortcuts. **Full screen** gives the log the whole window (Esc leaves it).
+* **Keyboard.** `/` search, Enter and Shift+Enter next and previous match, Alt+R regular expression, `F` follow or
+  pause, `E` errors only, `W` wrap, Esc clears the search and then the filters, `?` lists them.
+
+The search, the filters and the download work on the server, over the whole log; the tab draws only the lines in
+view, so a log of 100,000 lines scrolls as smoothly as a short one. When Odoo is stopped, the tab shows the last lines
+it wrote and follows again once it starts.
 
 ### Connect as
 
@@ -1235,6 +1260,9 @@ Every account has one role. The role decides which pages, buttons and menu items
 | Backups page (download, delete) | yes | yes | no | no | no |
 | Accounts, API tokens, audit log | yes | yes | no | no | no |
 | Teams; a project's access (grants, restricted projects and branches); lock and unlock branches ([Teams](#teams), [Project access and locked branches](#project-access-and-locked-branches)) | yes | yes | no | no | no |
+| Add clients to projects and take them out ([Client portal](#16-client-portal)) | yes | yes | no | no | no |
+| Ask a client for access to a closed project or branch | yes | yes | yes | yes | yes |
+| Emergency access to a project a client closed, where the client allows it | yes | no | no | no | no |
 | Create, change and delete super admins | yes | no | no | no | no |
 | Settings, restart the panel | yes | no | no | no | no |
 | E-mail templates (the texts of the e-mails the panel sends) | yes | no | no | no | no |
@@ -1255,6 +1283,9 @@ open a shell.
 
 Inside a project, a role is the most someone can do: the project's access can narrow it for a team or a person, hide
 a project or a branch, or lock a branch ([Project access and locked branches](#project-access-and-locked-branches)).
+
+A **Client** account is not part of your team: it sees only the projects it is a client of, in the client portal,
+and opens or closes access to them; nothing in the table above applies to it ([Client portal](#16-client-portal)).
 
 When you try something your role does not allow, the panel says which permission is missing. Ask an administrator.
 
@@ -1732,3 +1763,69 @@ restart.
 **Is my data safe in an instance?**
 Instances are for showing and testing Odoo. Anyone with the link and the Odoo login can sign in. Do not put real
 customer data in them.
+
+---
+
+## 16. Client portal
+
+The client portal is what your **clients** see: the Odoo projects you run for them, and a switch that decides
+whether your team may open them. A client signs in at the portal's own address when your administrator set one
+(`PORTAL_DOMAIN`, such as `portal.example.com`), otherwise at the panel's address; either way a client account sees the
+portal and nothing else of the panel.
+
+### For the client
+
+**Your projects** lists each project you are a client of, with its switch (**Open**, **Closed** or **Open until** a
+time), the branches you closed, the requests waiting for you, and a mark while emergency access is in use. Open a
+project to see:
+
+* **Access by your provider's team**: the switch of the project as a whole.
+  * **Open**: your provider's team works with their usual access.
+  * **Closed**: only you and the people you let in may open, change, back up, restore, open a shell, read logs or
+    see passwords. Everyone else, your provider's super admins included, is refused, and each attempt is in your
+    activity log. Daily backups, monitoring and certificates go on, and production keeps serving. Closing also ends
+    the access you gave before.
+  * **Open for a time**: 1, 4 or 24 hours (your provider may offer others), or a number of hours you type; then it
+    closes again by itself.
+* **Branches**: each branch follows the project unless you give it its own setting, for example production closed
+  while development stays open. Each instance shows its status and **Open Odoo**.
+* **Access requests**: your provider's team asks before opening something you closed, with a reason and a
+  duration. **Approve** lets them in (you may choose other people of their team and a shorter time) and it closes
+  again by itself; **Refuse** keeps it closed. You get an e-mail for each request.
+* **Who can get in now**: the approved requests and emergency access in use, with **End now**.
+* **People you let in**: people of your provider's team who may work here even while it is closed.
+* **Locks**: **Lock the project**, or **Lock** on a branch. A lock is as strong as **Closed**: nobody of your
+  provider's team can open or change what you locked, super admins included, and nothing is deployed to it
+  automatically, whatever the switch says. Unlike the switch, a lock lets nobody else through: not the people you
+  let in, not approved requests; only emergency access while you allow it. Only you can unlock it.
+* **Emergency access**: allowed by default. If production breaks, one of your provider's super admins can get in
+  for a short time (an hour unless they changed it) by writing a reason and typing the branch's or project's name.
+  You get an e-mail at once and it shows in red at the top of the project and of your log. Turn it off and nobody of
+  your provider can get in while you keep the project closed, even in an emergency.
+* **Backups**, when your provider gave them to you: download a copy of your database and files.
+* **Activity log**: everything done in the project: opening and closing, requests and answers, emergencies, and
+  every time someone opened data (passwords viewed, shells, backups downloaded, restores), allowed or refused.
+  **Access only** keeps the access events; **Export CSV** downloads it (a year at most).
+
+**Confirming by e-mail.** Every major change (opening or closing, locks and unlocks, emergency access on or off,
+approving a request, the people you let in) waits until you confirm it: you get an e-mail with a link and a 6-digit
+code, and the portal shows **Waiting for your e-mail confirmation** with a field for the code and **Cancel**. Open the
+link, or type the code, in the same browser where you asked, within 15 minutes (unless your provider changed it).
+Each link and code works once; nothing changes if you do not confirm. Refusing a request and ending someone's access
+now happen at once, since they only take access away.
+
+**What the switch protects.** Closing a project stops everyone in the panel, its super admins included, and every
+attempt is recorded. It is a control inside the panel: whoever administers the server itself (its root account or
+Docker) can still reach the data without the panel. For stronger isolation, run your projects on a server of your
+own.
+
+### For your team
+
+A project with a client shows **Closed by client** on a closed branch and its instances, and a notice with
+**Request access** on the project, the branch and the instance: write why you need it and for how many hours; the
+client gets an e-mail and answers in the portal. Super admins also see **Emergency access** while the client allows
+it. The project's **Clients** tab lists its clients, the requests and their answers, and the access in use;
+administrators add a client there (**Add a client**: an existing client account at once, a new address by e-mail
+invitation; the client may be given backups and a shell) and take one out. Nobody of your team can lift a client's
+closure, change or reset a client's account while it keeps something closed, or add another client to a closed
+project. See [Admin guide, Client portal](ADMIN_GUIDE.md#30-client-portal).

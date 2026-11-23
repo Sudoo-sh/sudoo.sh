@@ -2,7 +2,8 @@
 // (backend/api.ts), so the web app runs unchanged and nothing is sent anywhere. Links and downloads that would leave
 // the demo are stopped with a short explanation instead.
 
-import { answer, odooLog } from "./backend/api";
+import { answer } from "./backend/api";
+import { filtersFrom, keeper, recent } from "./backend/odoo-log";
 import { subscribe, type Topic } from "./backend/bus";
 import { DemoShellSocket } from "./backend/shell";
 import { ASLEEP, instances, roleInfo, session } from "./backend/state";
@@ -96,8 +97,8 @@ class DemoEventSource extends EventTarget {
 
 const LOG_STREAM = /^\/api\/v1\/instances\/([^/]+)\/logs\/stream$/;
 
-/** GET /api/v1/instances/<name>/logs/stream: Odoo's sample log, a few new lines every second or two (filtered as the
- *  server filters: plain text, any case). */
+/** GET /api/v1/instances/<name>/logs/stream: Odoo's sample log (backend/odoo-log.ts), a few new entries every second or two (filtered as the
+ *  server filters: levels, logger, tracebacks, time, text or pattern; each line with its id). */
 class DemoLogSource extends EventTarget {
   static readonly CONNECTING = 0;
   static readonly OPEN = 1;
@@ -119,9 +120,18 @@ class DemoLogSource extends EventTarget {
     this.url = new URL(String(url), location.href).href;
     const query = new URL(this.url).searchParams;
     const log = query.get("log") ?? "odoo.log";
-    const wanted = (query.get("q") ?? "").trim().toLowerCase();
-    const keep = (line: string) => !wanted || line.toLowerCase().includes(wanted);
+    let keep: ReturnType<typeof keeper>;
+    try {
+      keep = keeper(filtersFrom(query));
+    } catch {
+      this.timers.push(setTimeout(() => this.fail(), 50)); // the server answers 400
+      return;
+    }
     const tail = Number(query.get("tail") ?? 300);
+    const send = (entries: { id: string; lines: string[] }[]) => {
+      const kept = entries.filter(keep);
+      this.send("lines", { lines: kept.flatMap((e) => e.lines), ids: kept.flatMap((e) => e.lines.map((_, i) => (i ? `${e.id}+${i}` : e.id))) });
+    };
     this.timers.push(
       setTimeout(() => {
         const instance = instances.get(name);
@@ -136,11 +146,23 @@ class DemoLogSource extends EventTarget {
           this.send("end", { reason: "stopped" });
           return;
         }
-        this.send("lines", { lines: tail ? odooLog(instance, Math.max(tail, 50)).trimEnd().split("\n").filter(keep).slice(-tail) : [] });
+        // the last `tail` lines that pass the filters, then new ones every second or two
+        const all = recent(instance, 20_000);
+        let seen = all[all.length - 1]?.id ?? "";
+        const earlier = all.filter(keep);
+        const last: { id: string; lines: string[] }[] = [];
+        for (let i = earlier.length - 1, lines = 0; i >= 0 && lines < tail; i--) {
+          last.unshift(earlier[i]!);
+          lines += earlier[i]!.lines.length;
+        }
+        send(last);
         const more = () => {
           if (this.readyState === 2) return;
-          const fresh = odooLog(instance, 1 + (this.sent % 3)).trimEnd().split("\n").filter(keep);
-          if (fresh.length) this.send("lines", { lines: fresh });
+          const fresh = recent(instance, 200).filter((e) => e.id > seen);
+          if (fresh.length) {
+            seen = fresh[fresh.length - 1]!.id;
+            send(fresh);
+          }
           this.timers.push(setTimeout(more, 900 + Math.random() * 1400));
         };
         this.timers.push(setTimeout(more, 1200));

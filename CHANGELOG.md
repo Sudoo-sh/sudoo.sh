@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Terminal always says it is Sudoo.sh**: a terminal narrower than the banner shows "SUDOO.SH" on one line
+  above the welcome, and a terminal whose size is not known yet (the browser has not sent it) gets the full banner
+  instead of none.
+
 ### Added
 
 - **Repository guard** (a project's Settings tab), off until a project Admin turns it on. **CI checks**: the panel
@@ -23,6 +29,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   only the rules the panel made. GitHub's plan limits are explained. The extra GitHub App permissions are listed
   with links to grant them, and **Connect GitHub** can ask for them up front (**Also allow the repository guard**).
   API: `/api/v1/projects/<id>/guard`.
+- **Client portal, with a switch the client owns**: a new **Client** role for your clients, invited by e-mail to one
+  or more projects. A client sees only its projects (branches, each instance's status and **Open Odoo**, its backups
+  when given, its activity log), at the panel's address or at a portal address of its own (`PORTAL_DOMAIN`, served
+  with its certificate like the panel's name, with your company's name, `PORTAL_NAME`); sessions never cross between
+  the two addresses. The client opens or closes each project and branch, or opens it for a time; closed, nobody of
+  your team can open, change, back up, restore, open a shell or read logs and passwords, super admins included, and
+  nobody but the client can lift it, while backups, monitoring, certificates and production go on. Your team asks
+  with **Request access** (the client gets an e-mail, in English or Arabic, and approves for chosen people and hours,
+  or refuses); a super admin can use **Emergency access** for an hour by writing a reason, unless the client turned
+  it off, and the client is told at once. Everything is in the client's activity log, with CSV export. Every
+  duration and default is a setting. Adding clients is part of the Business plan. The switch is a control inside
+  the panel; the docs say plainly what server administrators can still reach.
+- **Client locks and confirmation by e-mail**: a client can lock a branch or the whole project from the portal; a
+  lock is as strong as closing (nobody of your team lifts it, super admins included), lets only the client and
+  emergency access through, and stops automatic deploys. Every major change a client makes (opening or closing,
+  locks, emergency access, approvals, the people it lets in) waits for a one-time link or 6-digit code sent to its
+  e-mail, valid 15 minutes (`CLIENT_CONFIRM_MINUTES`) in the same browser session; the portal shows **Waiting for
+  your e-mail confirmation**. New editable e-mail texts in English and Arabic; `CLIENT_CONFIRMATIONS` turns it off.
+- **Module installs and Module updates in the Logs tab** (`install.log`, `update.log`): what Odoo wrote while it
+  installed or updated modules in the instance's latest creations, rebuilds, updates and module upgrades. Only Odoo's
+  own lines and their tracebacks are kept, redacted; the panel's commands, paths and steps never appear.
+- **Reading a log in pages**: `GET /api/v1/instances/<name>/logs/entries` gives entries (a line with its traceback)
+  with their parts (time, level, pid, database, logger), backwards or forwards from an entry, or around one. The
+  pages, the stream and the download share new filters: levels, a logger and those under it, tracebacks only, a time
+  range, and a regular expression (`regex=1`), run with time limits; a pattern that could take very long is refused.
+- In the Logs tab: a chart of errors and warnings per minute (click a minute to go to it), copying a line or its
+  traceback, a link to a line that opens the lines around it, a time range (last 15 minutes, hour, 24 hours or a
+  custom range), clicking a logger or a level to show only it, downloading what is shown or the whole log, the text
+  size, and keyboard shortcuts (`/`, `F`, `E`, `W`, Alt+R, Esc; `?` lists them).
+
+### Changed
+
+- **The Logs tab is redesigned** and reads Odoo's log as entries: each line taken apart into time, process, level
+  badge, database, logger and message; `werkzeug`'s requests with their method, path, status (coloured by class) and
+  time; tracebacks as one tinted block that folds. The search highlights and counts its matches (Enter and
+  Shift+Enter step through them) and can be a regular expression; **Only matching lines** filters the whole log on
+  the server. Level chips switch each level on or off, beside **Warnings and errors**, **Errors** and **Tracebacks**;
+  the filters in use stay listed above the log. Following pauses when you scroll up, with **Jump to latest**; earlier
+  lines load as you scroll to the top. Only the lines in view are drawn, so 100,000 lines stay smooth.
+- The log stream (`.../logs/stream`) filters whole entries, sends each line's id (`ids`) and only follows `odoo.log`.
 
 ## [3.3.4] - 2026-11-23
 

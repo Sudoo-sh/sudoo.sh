@@ -104,11 +104,25 @@ def client_ip() -> str:
     return client_ip_of(request.headers, cast(str, request.remote_addr))
 
 
-def user_of_session(data: Mapping[str, Any], check_idle: bool = True) -> dict[str, str] | None:
+PANEL, PORTAL = "panel", "portal"
+
+
+def audience(host: str) -> str:
+    """Which address a request came to: PORTAL when its host is PORTAL_DOMAIN (the client portal), else PANEL."""
+    name = host.strip().lower().rsplit(":", 1)[0] if not host.strip().startswith("[") else host.strip().lower()
+    portal = str(settings.portal_domain or "")
+    return PORTAL if portal and name.rstrip(".") == portal else PANEL
+
+
+def user_of_session(
+    data: Mapping[str, Any], check_idle: bool = True, audience: str | None = None
+) -> dict[str, str] | None:
     """{"name", "role"} of a session's account while the session is valid, else None.
 
     Valid: the account exists, its password was not changed since (session_version), the session was not signed
     out (sid), and it is not older than SESSION_MAX_HOURS nor (with check_idle) unused for SESSION_IDLE_MINUTES.
+    With `audience`: the session was started at that address (the panel's, or the client portal's), so a session
+    never works at the other one.
     """
     name = data.get("user")
     account = accounts.get(name) if isinstance(name, str) else None
@@ -116,6 +130,7 @@ def user_of_session(data: Mapping[str, Any], check_idle: bool = True) -> dict[st
     sid = data.get("sid")
     valid = (
         account is not None
+        and (audience is None or str(data.get("aud") or PANEL) == audience)
         and data.get("version") == account["session_version"]
         and (not check_idle or now - data.get("seen", 0) <= settings.session_idle_minutes * 60)
         and now - data.get("started", 0) <= settings.session_max_hours * 3600
@@ -126,7 +141,7 @@ def user_of_session(data: Mapping[str, Any], check_idle: bool = True) -> dict[st
 
 def current_user() -> dict[str, str] | None:
     """{"name", "role"} of the signed-in account, or None (and the session is cleared)."""
-    user = user_of_session(session)
+    user = user_of_session(session, audience=audience(request.host))
     if user is None:
         if "user" in session:  # an ended session; a sign-in waiting for its second step is kept
             session.clear()
@@ -150,7 +165,8 @@ def end_current_session() -> None:
 
 def start_session(name: str, version: int, restricted: str | None = None) -> None:
     """A new session (a new cookie, so nothing from before signing in carries over). A restricted session opens
-    only what its task needs (signin.restriction: choose a password, set up a second factor)."""
+    only what its task needs (signin.restriction: choose a password, set up a second factor). It belongs to the
+    address it started at (audience): the panel's or the client portal's, never both."""
     now = time.time()
     session.clear()
     session.permanent = True
@@ -158,6 +174,7 @@ def start_session(name: str, version: int, restricted: str | None = None) -> Non
         user=name, version=version, sid=secrets.token_urlsafe(16), csrf=secrets.token_urlsafe(32), started=now, seen=now
     )
     session["restricted"] = restricted
+    session["aud"] = audience(request.host)
 
 
 def _same_origin() -> bool:
@@ -171,6 +188,7 @@ PUBLIC_API = {
     ("GET", "/api/v1/setup"),
     ("POST", "/api/v1/setup"),
     ("GET", "/api/v1/contact"),
+    ("GET", "/api/v1/portal"),  # whether this is the client portal's address, its name and colour (sign-in page)
     ("POST", "/api/v1/session"),
     ("POST", "/api/v1/session/second-factor"),
     ("GET", "/api/v1/session/options"),  # which ways to sign in the page offers
@@ -274,6 +292,10 @@ def _authenticate_browser_call() -> None:
     task = session.get("restricted")
     if task and not request.path.startswith(RESTRICTED_PREFIXES):
         abort(403, "Choose your own password first." if task == "password" else "Set up a second factor first.")
+    if g.user["role"] == roles.CLIENT and not _may_call(CLIENT_ENDPOINTS, request.method, request.path):
+        audit.record(g.user["name"], client_ip(), "refused: outside the client portal", ok=False,
+                     detail=f"{request.method} {request.path}"[:300])  # fmt: skip
+        abort(403, "Client accounts use the client portal only.")
     if g.user["role"] == "super_admin" and not request.path.startswith(LICENCE_PREFIXES) and licence.pending():
         # instances keep running and serving; only managing them waits for the acceptance (licence/__init__.py)
         abort(403, "Accept the Sudoo.sh Licence Agreement first.")
@@ -323,7 +345,7 @@ DEVELOPER_ENDPOINTS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
         ("POST", "instances"),  # development instances only (v1/instances.create)
         ("GET", f"instances/{_NAME}"),
         ("DELETE", f"instances/{_NAME}"),  # development instances only
-        ("GET", f"instances/{_NAME}/logs(/files|/download|/stream)?"),
+        ("GET", f"instances/{_NAME}/logs(/files|/entries|/download|/stream)?"),
         ("GET", f"instances/{_NAME}/resources"),
         ("GET", f"instances/{_NAME}/mail(/.+)?"),
         ("POST", f"instances/{_NAME}/actions/{_NAME}"),  # which actions: v1/instances.DEVELOPER_ACTIONS
@@ -343,6 +365,33 @@ DEVELOPER_ENDPOINTS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
 """All a token with the developer scope may call (method, path): its role (roles.DEVELOPER_TOKEN) ∩ its owner's
 role still decides, and the project access of its owner applies. Settings, accounts, teams, access, locks, stages,
 restores, backups, domains, off-site copies, shells and credentials are not here."""
+
+
+CLIENT_ENDPOINTS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
+    (method, re.compile(f"{API_PREFIX}{path}"))
+    for method, path in (
+        ("GET", "session"),
+        ("DELETE", "session"),
+        ("PUT", "session/password"),
+        ("GET", "account"),
+        ("PATCH", "account"),
+        ("POST", "account/.+"),
+        ("PUT", "account/.+"),
+        ("DELETE", "account/.+"),
+        ("GET", "contact"),
+        ("GET", "portal"),
+        ("GET", "client(/.+)?"),
+        ("POST", "client/.+"),
+        ("PUT", "client/.+"),
+        ("DELETE", "client/.+"),
+        ("GET", f"backups/{_NAME}"),  # downloading one of its projects' backups, where it was given them
+        ("GET", f"instances/{_NAME}/shell"),  # a shell, where it was given one
+        ("POST", f"instances/{_NAME}/shell/tickets"),
+    )
+)
+"""All a client account may call (method, path): its own session and account, and the client portal's API
+(web/v1/clients.py). What it may do there is decided again per project (projects/access.py); nothing of the panel
+itself (settings, accounts, the audit log, other projects, instances outside its projects) is reachable."""
 
 
 def _may_call(endpoints: tuple[tuple[str, re.Pattern[str]], ...], method: str, path_with_query: str) -> bool:

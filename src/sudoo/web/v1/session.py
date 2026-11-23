@@ -7,9 +7,14 @@
                                                    holds the acceptance of the licence agreement (v1/licence.py)
     GET    /api/v1/contact                         who to contact and the server's default language (public: shown
                                                    on the sign-in page)
+    GET    /api/v1/portal                          whether this address is the client portal's, and its company name
+                                                   and colour (public: the sign-in page's look)
     POST   /api/v1/session                         sign in: {"username", "password"}, where "username" may be the
                                                    e-mail address -> 201 signed in, or 200
-                                                   with "second_factor" when a code is needed (public)
+                                                   with "second_factor" when a code is needed, or 200 with
+                                                   "redirect" {"address", "url"} when the account signs in at the
+                                                   other address (staff at the client portal, clients at the
+                                                   panel's once PORTAL_DOMAIN is set) (public)
     POST   /api/v1/session/second-factor           the code: {"method", "code"} -> 201 signed in (public)
     POST   /api/v1/session/second-factor/<method>  send a new code (e-mail) (public, between the two steps)
     GET    /api/v1/session/options                 which ways to sign in the page offers: {"password", "email_code",
@@ -42,7 +47,7 @@ from sudoo.core import audit
 
 from .. import signin
 from .. import validation as check
-from ..security import client_ip, end_current_session, log, start_session
+from ..security import PORTAL, audience, client_ip, end_current_session, log, start_session
 from .github import panel_address
 from .responses import no_content, ok
 
@@ -66,6 +71,8 @@ def me() -> dict[str, Any]:
         "language": accounts.language(account),
         # a super admin must accept the licence agreement before anything else (security.py)
         "licence_required": g.user["role"] == "super_admin" and licence.pending(),
+        # the address this session belongs to: "panel", or "portal" (the client portal's, PORTAL_DOMAIN)
+        "address": audience(request.host),
     }
 
 
@@ -152,17 +159,32 @@ def contact() -> Response:
     )
 
 
+@blueprint.get("/portal")
+def portal() -> Response:
+    """What the sign-in page needs to look like the client portal; never who the clients are."""
+    here = audience(request.host)
+    return ok(
+        {
+            "address": here,
+            "portal": here == PORTAL,
+            "portal_configured": bool(settings.portal_domain),
+            "name": settings.portal_name or None,
+            "brand_color": settings.brand_color,
+            "default_language": settings.default_language,
+        }
+    )
+
+
 @blueprint.post("/session")
 def sign_in() -> Response:
-    result = signin.password_step(check.body())
-    if result.get("signed_in"):
-        return _signed_in_answer()
-    return ok({"second_factor": result["second_factor"]})
+    return _first_step_answer(signin.password_step(check.body()))
 
 
 def _first_step_answer(result: dict[str, Any]) -> Response:
     if result.get("signed_in"):
         return _signed_in_answer()
+    if result.get("redirect"):  # staff at the client portal, or a client at the panel's address: nothing started
+        return ok({"redirect": result["redirect"]})
     return ok({"second_factor": result["second_factor"]})
 
 

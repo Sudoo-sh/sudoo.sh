@@ -19,6 +19,8 @@ role (roles.py), and the same permission checks apply.
     repo_guard.py  a project's repository guard: CI checks through a pull request, their results, branch rules
     notifications.py   a project's notification channels (Slack, Discord, Telegram, Teams, webhooks, e-mail)
     upgrades.py    database upgrades of instances to a newer Odoo version: pre-check, test, production, rollback
+    clients.py     the client portal: a project's clients, access requests, emergency access (staff), and the
+                   client's own side (its projects, the switch, answers, its activity log)
     teams.py       teams: named groups of accounts that project access is given to (reading, removing; the rest
                    comes with the premium teams package)
     domains.py     instances' custom domains as the core serves them (reading, removing)
@@ -58,6 +60,7 @@ from . import (
     alerts,
     backups,
     caught_mail,
+    clients,
     connect,
     docs,
     domains,
@@ -139,6 +142,7 @@ def register(app: Flask) -> None:
         plugins,
         shell,
         teams,
+        clients,
         upgrades,
         premium,
     ):

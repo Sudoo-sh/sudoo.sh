@@ -178,7 +178,9 @@ fi
 _sudoo_columns() {
     local size
     size=$(stty size 2>/dev/null) && size=${size#* } || size=""
-    case "$size" in '' | *[!0-9]*) size=${COLUMNS:-80} ;; esac
+    # unknown, or 0 while the browser has not sent its size yet: assume a normal terminal
+    case "$size" in '' | 0 | *[!0-9]*) size=${COLUMNS:-80} ;; esac
+    case "$size" in '' | 0 | *[!0-9]*) size=80 ;; esac
     printf '%s' "$size"
 }
 
@@ -193,6 +195,9 @@ _sudoo_welcome() {
             for line in "${_sudoo_banner_256[@]}"; do printf '%s\n' "$line"; done
         fi
         printf '\n'
+    else
+        # too narrow for the banner: the name on one line, so the shell always says where it is
+        printf '%s\n\n' "$(_sudoo_paint '1;38;5;96' 'SUDOO.SH')"
     fi
     printf 'You are connected to the %s instance %s\n' \
         "$(_sudoo_paint "$_sudoo_stage_sgr" "${SUDOO_STAGE:-development}")" \

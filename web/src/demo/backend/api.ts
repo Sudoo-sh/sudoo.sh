@@ -20,12 +20,13 @@ import * as guard from "./repo-guard";
 import { branchBuilds, branchHistory, findEntry, recordStageChange } from "./builds";
 import { branchOptions, changeBranchOptions, clean as cleanOption, problem as optionsProblem, statusesAvailable } from "./build-options";
 import { branchList, membersOf, productionInstance, projectResource, projects, stageOf, type DemoProject } from "./projects";
-import { described, levelIn, LEVELS, mayUnlock, needIn, openAccess, permissionsIn, seesProject, setLocks, teamResource, teams, type DemoAccess } from "./access";
+import { CLIENT_ME, described, levelIn, LEVELS, mayUnlock, needIn, openAccess, permissionsIn, seesProject, setLocks, teamResource, teams, type DemoAccess } from "./access";
 import { acceptLicence, LICENCE, licencePending, licenceStatus } from "./licence";
 import { catalog, categories, marketplace, recommendations } from "./marketplace";
 import { currentPlan, ENTITLEMENTS, gatedBy, needPremium, premiumOverview } from "./premium";
 import * as fleet from "./servers";
 import { checkModules, maxModules, odooApps, repositoryModules } from "./modules";
+import { odooLogText, page as logPage } from "./odoo-log";
 import * as support from "./support";
 import { endShell, issueTicket, recordingOf, shellOptions, shellSessions } from "./shell";
 import { deleteProfile, profileOf, profilerState, startProfiler, stopProfiler } from "./profiler";
@@ -140,10 +141,11 @@ const offline = (what: string) => new Problem(409, `${what} is not available in 
 // ---------------------------------------------------------------- session and account
 
 export function me(): Session {
-  const user = users.find((u) => u.name === ME)!;
+  // in the "Client" perspective the visitor is the client CLIENT_ME (Maya, of Acme Retail)
+  const user = users.find((u) => u.name === (session.role === "client" ? CLIENT_ME : ME))!;
   const role = roleInfo(session.role);
   return {
-    user: ME,
+    user: user.name,
     display_name: user.display_name,
     first_name: user.first_name,
     last_name: user.last_name,
@@ -159,12 +161,14 @@ export function me(): Session {
     brand_color: String(setting("brand_color") ?? "#714B67"),
     language: language(),
     licence_required: role.name === "super_admin" && licencePending(),
+    address: "panel",
   };
 }
 
 /** The banner's role switcher: the signed-in account takes another role, as an administrator would give it. */
 export function switchRole(role: Session["role"]) {
   session.role = role;
+  if (role === "client") return; // the visitor becomes the client Maya; Sara keeps her role
   const user = users.find((u) => u.name === ME)!;
   user.role = role;
   user.role_label = roleInfo(role).label;
@@ -201,7 +205,7 @@ const factors = () => {
 };
 
 function account(): Account {
-  const user = users.find((u) => u.name === ME)!;
+  const user = users.find((u) => u.name === (session.role === "client" ? CLIENT_ME : ME))!;
   return {
     name: user.name,
     display_name: user.display_name,
@@ -469,15 +473,27 @@ route("PUT", "/instances/:name/resources", ({ params, body }) => {
 route("GET", "/instances/:name/logs", ({ params, query }) => {
   needOn(params.name!, "instances.logs");
   const instance = instanceOf(params.name!);
-  return ok({ text: odooLog(instance, Math.min(Number(query.get("lines") ?? 300), 3000)) });
+  return ok({ text: ASLEEP.includes(instance.status) ? "" : odooLogText(instance, Math.min(Number(query.get("lines") ?? 300), 3000)) });
 });
 // ---------------------------------------------------------------- logs, Connect as, Import database
 
-// jobs' technical logs are server logs: never listed or served, only Odoo's own log is
+// jobs' technical logs are server logs: never listed or served; Odoo's own log is, and Odoo's own output of the
+// latest module installs and updates (backend/odoo-log.ts)
 route("GET", "/instances/:name/logs/files", ({ params }) => {
   needOn(params.name!, "instances.logs");
   instanceOf(params.name!);
-  return ok([{ name: "odoo.log", job: null, status: null, started_at: null }]);
+  const at = (hours: number) => new Date(Date.now() - hours * HOUR).toISOString().slice(0, 19) + "Z";
+  return ok([
+    { name: "odoo.log", job: null, status: null, started_at: null },
+    { name: "install.log", job: null, status: null, started_at: at(26) },
+    { name: "update.log", job: null, status: null, started_at: at(3) },
+  ]);
+});
+route("GET", "/instances/:name/logs/entries", ({ params, query }) => {
+  needOn(params.name!, "instances.logs");
+  const instance = instanceOf(params.name!);
+  const found = logPage(instance, query.get("log") ?? "odoo.log", query);
+  return ok(found.data, found.meta);
 });
 
 const DEMO_USERS = [
@@ -590,32 +606,6 @@ route("GET", "/instances/:name/metrics", ({ params }) => {
   return ok({ latest: currentMetrics().instances[params.name!], history: history().instances[params.name!] });
 });
 
-export function odooLog(instance: Instance, lines: number): string {
-  if (ASLEEP.includes(instance.status)) return "";
-  const db = instance.odoo.database;
-  const paths = ["/web", "/web/dataset/call_kw/sale.order/web_search_read", "/web/action/load", "/pos/web", "/shop", "/web/dataset/call_kw/stock.picking/web_read", "/longpolling/poll", "/web/image/res.partner/7/avatar_128", "/my/orders", "/web/webclient/translations"];
-  const out: string[] = [];
-  let t = Date.now() - lines * 2500;
-  for (let i = 0; i < lines; i++) {
-    const n = hash(`${instance.name}${i}`);
-    const stamp = new Date(t).toISOString().replace("T", " ").slice(0, 23).replace(".", ",");
-    const path = paths[n % paths.length]!;
-    if (n % 37 === 0) out.push(`${stamp} 1 INFO ${db} odoo.addons.base.models.ir_cron: Job 'Mail: Email Queue Manager' (${n % 20}) done in 0.0${n % 9}s`);
-    else if (n % 53 === 0) out.push(`${stamp} 1 WARNING ${db} odoo.http: Generating nondeterministic report for invoice INV/2026/0${n % 900}`);
-    else if (n % 89 === 0)
-      out.push(
-        `${stamp} 1 ERROR ${db} odoo.http: Exception during request handling.`,
-        "Traceback (most recent call last):",
-        '  File "/usr/lib/python3/dist-packages/odoo/http.py", line 2203, in __call__',
-        "    response = request._serve_db()",
-        `odoo.exceptions.ValidationError: The payment of order POS/${n % 900} does not match its total.`,
-      );
-    else if (n % 23 === 0) out.push(`${stamp} 1 DEBUG ${db} odoo.sql_db: query took 0.0${n % 90}s: SELECT "res_partner"."id" FROM "res_partner"`);
-    else out.push(`${stamp} 1 INFO ${db} werkzeug: 198.51.100.${n % 200} - - "POST ${path} HTTP/1.1" 200 - ${n % 40} 0.0${n % 90} 0.${n % 300}`);
-    t += 1000 + (n % 3000);
-  }
-  return out.join("\n") + "\n";
-}
 
 const DEFAULTS = (stage: Stage) => ({
   delete_after_days: stage === "production" ? 0 : stage === "staging" ? Number(setting("staging_delete_after_days")) : Number(setting("delete_after_days")),
@@ -3031,7 +3021,7 @@ route("GET", "/plan", () => {
 
 // ---------------------------------------------------------------- dispatching
 
-const PUBLIC = ["/setup", "/contact", "/session", "/session/second-factor", "/invitation", "/public-status"];
+const PUBLIC = ["/setup", "/contact", "/portal", "/session", "/session/second-factor", "/invitation", "/public-status"];
 
 export function remember() {
   try {
@@ -3040,6 +3030,8 @@ export function remember() {
     /* private window: the demo starts over on a reload */
   }
 }
+
+export { created, none, ok, route };
 
 export async function answer(method: string, path: string, query: URLSearchParams, body: unknown): Promise<Answer> {
   for (const r of routes) {

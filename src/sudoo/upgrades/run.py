@@ -21,6 +21,7 @@ from sudoo.upgrades import Secret, get, method_for, methods, remember, rollback_
 
 PRODUCTION_WAIT_SECONDS = 1800
 WATCH_SECONDS = 30
+WATCH_RETRY_SECONDS = 900  # pause between automatic rollback attempts of one instance (each takes a backup first)
 WATCH_FAILURES = 4  # checks in a row without an answer from Odoo before a promoted upgrade is rolled back
 
 
@@ -292,7 +293,15 @@ def cancel(job: Job, name: str, reason: str = "") -> None:
         kept = backups.create(job, name, "before-rollback")
         job.note(f"The upgraded state is kept as {', '.join(p.name for p in kept)}")
     except JobError as error:
-        job.note(f"The current state could not be saved first ({error}); putting back anyway.", "warning")
+        audit.record("system", None, "database upgrade not cancelled: current state not saved", name, ok=False,
+                     detail=str(error))  # fmt: skip
+        # Never restore over a state that was not saved: whether Odoo answers says nothing about writes made since
+        # the upgrade (slow, partial or intermittent service). Restoring the backup by hand is the explicit choice.
+        raise JobError(
+            f"The current state could not be saved first ({error}), so the upgrade was not cancelled and {name} "
+            "was left as it is. Fix the backup problem and cancel again, or restore the backup taken before the "
+            "upgrade from the Backups card if losing the changes since is acceptable."
+        ) from error
     _put_back(job, name, promotion.get("previous") or {}, list(promotion.get("backup") or []))
     previous = promotion.get("previous") or {}
     _record_branches(name, str(doc.get("branch") or ""), str(previous.get("GIT_BRANCH") or ""), job.user)
@@ -305,6 +314,7 @@ def cancel(job: Job, name: str, reason: str = "") -> None:
 
 
 _DOWN: dict[str, int] = {}
+_TRIED: dict[str, float] = {}
 
 
 def watch_once(now: float | None = None) -> list[str]:
@@ -326,8 +336,10 @@ def watch_once(now: float | None = None) -> list[str]:
             _DOWN.pop(name, None)
             continue
         _DOWN[name] = _DOWN.get(name, 0) + 1
-        if _DOWN[name] >= WATCH_FAILURES:
+        moment = time.time() if now is None else now
+        if _DOWN[name] >= WATCH_FAILURES and moment - _TRIED.get(name, -WATCH_RETRY_SECONDS) >= WATCH_RETRY_SECONDS:
             _DOWN.pop(name, None)
+            _TRIED[name] = moment
             reason = "Odoo stopped answering after the upgrade"
             audit.record("system", None, "database upgrade rolled back automatically", name, ok=False, detail=reason)
             jobs.start(name, "Cancel the Odoo upgrade (automatic)", "db-upgrade", cancel, name, reason)

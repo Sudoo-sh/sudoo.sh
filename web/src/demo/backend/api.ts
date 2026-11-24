@@ -2748,7 +2748,7 @@ route("POST", "/projects/:id/staging-refresh/run", ({ params }) => {
       addBackup(production, "staging-copy", Date.now());
       startJob({
         instance: name, action: "Scheduled refresh from production", kind: "restore", status: "busy",
-        steps: [`Copying the data of ${production.name} (production)`, "Loading the copy", "Neutralising the copied data", "Starting Odoo"],
+        steps: [`Copying the data of ${production.name} (production)`, `Loading the copy into database ${instance.odoo.database}`, "Neutralising the copied data", "Starting Odoo"],
         seconds: [2, 2.5, 1.5, 1.5],
         onDone: () => wake(instance),
       });

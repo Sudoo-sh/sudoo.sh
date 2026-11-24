@@ -12,6 +12,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   instances would get the well-known Odoo login. The installer already sets a random password, so this concerns
   setups made by hand (Compose or source). Nothing else changes.
 
+### Fixed
+
+- **Cancelling an Odoo upgrade no longer restores over changes it could not save.** If the backup of the current
+  state fails, the cancel stops and leaves the instance as it is (audited; admins get the usual "job failed" alert),
+  instead of putting the earlier copy back and losing what was written since the upgrade. The automatic rollback
+  after a promoted upgrade tries again at most every 15 minutes.
+
 ## [3.4.0] - 2026-11-23
 
 ### Added (beta)

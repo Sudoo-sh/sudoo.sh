@@ -15,21 +15,57 @@ import common from "@/i18n/common";
 import words from "@/i18n/domains";
 import { PlanCard } from "@/premium/components";
 
-export function RemoveDomainDialog({ instance, domain, onClose }: { instance: Instance; domain: CustomDomain; onClose: () => void }) {
+export function RemoveDomainDialog({
+  instance,
+  domain,
+  onClose,
+}: {
+  instance: Instance;
+  domain: CustomDomain;
+  onClose: () => void;
+}) {
   const toast = useToast();
   const production = instance.stage === "production";
   const t = useT(words);
   const c = useT(common).common;
   const remove = useCall(
-    () => api.del(`/instances/${instance.name}/domains/${domain.domain}`, production ? { confirm_production: true } : undefined),
+    () =>
+      api.del(
+        `/instances/${instance.name}/domains/${domain.domain}`,
+        production ? { confirm_production: true } : undefined,
+      ),
     [keys.domains(instance.name), keys.instance(instance.name)],
   );
   return (
-    <Modal title={t.removeTitle(domain.domain)} description={t.removeText} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="danger" loading={remove.isPending}
-        onClick={() => remove.mutate(undefined, { onSuccess: () => { toast("success", t.removed(domain.domain)); onClose(); }, onError: (e) => toast("error", t.notRemoved, errorText(e)) })}>
-        {t.remove}</Button></>}>
-      <p className="small">{t.certificateDeleted}{domain.primary ? t.anotherPrimary : ""}</p>
+    <Modal
+      title={t.removeTitle(domain.domain)}
+      description={t.removeText}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="danger"
+            loading={remove.isPending}
+            onClick={() =>
+              remove.mutate(undefined, {
+                onSuccess: () => {
+                  toast("success", t.removed(domain.domain));
+                  onClose();
+                },
+                onError: (e) => toast("error", t.notRemoved, errorText(e)),
+              })
+            }
+          >
+            {t.remove}
+          </Button>
+        </>
+      }
+    >
+      <p className="small">
+        {t.certificateDeleted}
+        {domain.primary ? t.anotherPrimary : ""}
+      </p>
       {production && <Callout tone="warning">{t.productionRemove(<bdi key="n">{instance.name}</bdi>)}</Callout>}
     </Modal>
   );
@@ -40,33 +76,57 @@ export function DomainsCore({ instance }: { instance: Instance }) {
   const can = useCan();
   const { data, isPending } = useDomains(instance.name);
   const [removing, setRemoving] = useState<CustomDomain | null>(null);
-  if (isPending || !data) return <div className="stack tab-panel"><Skeleton height={140} /></div>;
+  if (isPending || !data)
+    return (
+      <div className="stack tab-panel">
+        <Skeleton height={140} />
+      </div>
+    );
   return (
     <div className="stack tab-panel">
       <section className="card">
-        <div className="card-head"><h2>{t.title}</h2></div>
+        <div className="card-head">
+          <h2>{t.title}</h2>
+        </div>
         <div className="card-body stack-sm">
-          {data.domains.length === 0 ? <p className="small faint">{t.none}</p> : (
+          {data.domains.length === 0 ? (
+            <p className="small faint">{t.none}</p>
+          ) : (
             <>
               {data.domains.map((domain) => (
                 <div key={domain.domain} className="row-wrap small">
                   <Globe />
-                  {domain.url ? <a className="mono" dir="ltr" href={domain.url} target="_blank" rel="noreferrer">{domain.domain}</a>
-                    : <bdi dir="ltr" className="mono">{domain.domain}</bdi>}
+                  {domain.url ? (
+                    <a className="mono" dir="ltr" href={domain.url} target="_blank" rel="noreferrer">
+                      {domain.domain}
+                    </a>
+                  ) : (
+                    <bdi dir="ltr" className="mono">
+                      {domain.domain}
+                    </bdi>
+                  )}
                   {domain.primary && <Tag tone="accent">{t.primary}</Tag>}
                   <Status status={domain.status} label={t.status[domain.status] ?? domain.status} />
                   <span className="spacer" />
                   {can("domains.manage") && (
-                    <Button size="sm" variant="ghost" icon={<Trash2 />} aria-label={t.removeLabel(domain.domain)} onClick={() => setRemoving(domain)} />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={<Trash2 />}
+                      aria-label={t.removeLabel(domain.domain)}
+                      onClick={() => setRemoving(domain)}
+                    />
                   )}
                 </div>
               ))}
-              {data.domains.filter((domain) => domain.dns_pending).map((domain) => (
-                <Callout key={`moved-${domain.domain}`} tone="warning">
-                  <strong>{t.movedTitle(domain.domain, domain.moved_from || t.oldServer)}</strong>{" "}
-                  {domain.reason ?? t.movedText}
-                </Callout>
-              ))}
+              {data.domains
+                .filter((domain) => domain.dns_pending)
+                .map((domain) => (
+                  <Callout key={`moved-${domain.domain}`} tone="warning">
+                    <strong>{t.movedTitle(domain.domain, domain.moved_from || t.oldServer)}</strong>{" "}
+                    {domain.reason ?? t.movedText}
+                  </Callout>
+                ))}
               <p className="xsmall faint">{t.keepServing}</p>
             </>
           )}

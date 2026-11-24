@@ -45,20 +45,33 @@ describe("repository guard", () => {
   });
 
   test("the checks open a pull request, and the rules need the repository's name", async () => {
-    const preview = (await call("POST", "/projects/nile-logistics/guard/checks/preview", { checks: { enabled: true } })).data as ChecksPreview;
+    const preview = (await call("POST", "/projects/nile-logistics/guard/checks/preview", { checks: { enabled: true } }))
+      .data as ChecksPreview;
     expect(preview.files.map((f) => f.action)).toEqual(["add", "add", "add", "add"]);
-    const opened = (await call("PUT", "/projects/nile-logistics/guard/checks", { checks: { enabled: true, strictness: "strict" } })).data as ChecksPreview;
+    const opened = (
+      await call("PUT", "/projects/nile-logistics/guard/checks", { checks: { enabled: true, strictness: "strict" } })
+    ).data as ChecksPreview;
     expect(opened.result).toBe("opened");
-    expect((await call("PUT", "/projects/nile-logistics/guard/checks", { checks: { strictness: "nope" } })).status).toBe(400);
+    expect(
+      (await call("PUT", "/projects/nile-logistics/guard/checks", { checks: { strictness: "nope" } })).status,
+    ).toBe(400);
 
-    const plan = (await call("POST", "/projects/nile-logistics/guard/rules/preview", { rules: { production: { approvals: 2 } } })).data as RulesPlan;
+    const plan = (
+      await call("POST", "/projects/nile-logistics/guard/rules/preview", { rules: { production: { approvals: 2 } } })
+    ).data as RulesPlan;
     const production = plan.targets.find((t) => t.key === "production")!;
     expect(production.action).toBe("create");
     expect(production.changes.find((c) => c.field === "approvals")).toMatchObject({ before: "", after: "2" });
-    const refused = await call("PUT", "/projects/nile-logistics/guard/rules", { rules: { production: { approvals: 2 } }, confirm: "wrong" });
+    const refused = await call("PUT", "/projects/nile-logistics/guard/rules", {
+      rules: { production: { approvals: 2 } },
+      confirm: "wrong",
+    });
     expect(refused.status).toBe(400);
     const guard = (await call("GET", "/projects/nile-logistics/guard")).data as Guard;
-    const applied = await call("PUT", "/projects/nile-logistics/guard/rules", { rules: { production: { approvals: 2 } }, confirm: guard.repository });
+    const applied = await call("PUT", "/projects/nile-logistics/guard/rules", {
+      rules: { production: { approvals: 2 } },
+      confirm: guard.repository,
+    });
     expect((applied.data as RulesPlan).result).toBe("applied");
     const removed = await call("DELETE", "/projects/nile-logistics/guard/rules", { confirm: guard.repository });
     expect((removed.data as RulesPlan).result).toBe("removed");
@@ -67,7 +80,10 @@ describe("repository guard", () => {
   test("CI results only when the checks are on", async () => {
     const sha = "a".repeat(40);
     expect((await call("GET", "/projects/nile-logistics/guard/results", undefined, `sha=${sha}`)).data).toEqual({});
-    const found = (await call("GET", "/projects/acme-retail/guard/results", undefined, `sha=${sha}`)).data as Record<string, { state: string }>;
+    const found = (await call("GET", "/projects/acme-retail/guard/results", undefined, `sha=${sha}`)).data as Record<
+      string,
+      { state: string }
+    >;
     expect(["success", "failure", "pending"]).toContain(found[sha]!.state);
     expect((await call("GET", "/projects/acme-retail/guard/results", undefined, "sha=nope")).status).toBe(400);
   });

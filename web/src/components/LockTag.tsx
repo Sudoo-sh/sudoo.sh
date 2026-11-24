@@ -18,7 +18,9 @@ export function LockTag({ lock, branch }: { lock: BranchLock; branch: string }) 
   const title = `${t.lockedTitle(branch, lock.locked_by ?? "")}${lock.reason ? ` · ${lock.reason}` : ""}. ${t.allows(allowedNames(lock))}`;
   return (
     <span title={title}>
-      <Tag tone="caution" icon={<Lock />}>{t.locked}</Tag>
+      <Tag tone="caution" icon={<Lock />}>
+        {t.locked}
+      </Tag>
     </span>
   );
 }

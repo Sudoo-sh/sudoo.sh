@@ -57,8 +57,11 @@ export function DemoPlanMenu() {
             {t.planMenu}
             <span className="demo-plan-hint">{t.planMenuText}</span>
           </DropdownMenuLabel>
-          <DropdownMenuCheckboxItem checked={plan === "business"} onSelect={stay}
-            onCheckedChange={(on) => choose(on ? "business" : below)}>
+          <DropdownMenuCheckboxItem
+            checked={plan === "business"}
+            onSelect={stay}
+            onCheckedChange={(on) => choose(on ? "business" : below)}
+          >
             {t.showBusiness}
           </DropdownMenuCheckboxItem>
           <DropdownMenuSeparator />
@@ -81,7 +84,9 @@ function PlanMark({ plans }: { plans: string }) {
   const t = useT(words);
   return (
     <span className="demo-mark" title={t.markHint}>
-      <Tag tone="accent" icon={<Sparkles aria-hidden="true" />}>{t.mark(plans)}</Tag>
+      <Tag tone="accent" icon={<Sparkles aria-hidden="true" />}>
+        {t.mark(plans)}
+      </Tag>
     </span>
   );
 }

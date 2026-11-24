@@ -12,7 +12,8 @@ const en = {
     noneText: "Create a project from a GitHub repository, or let the panel create a new, empty one.",
     nothing: "No project matches",
     standalone: "Without a project",
-    standaloneText: "Plain Odoo instances have no repository, so they belong to no project. Connect a repository to one and it joins that repository's project.",
+    standaloneText:
+      "Plain Odoo instances have no repository, so they belong to no project. Connect a repository to one and it joins that repository's project.",
     branches: "Branches",
     instances: "Instances",
     noInstances: "No instances yet",
@@ -35,10 +36,12 @@ const en = {
     notFound: "This project does not exist",
     notFoundText: "It may have been deleted. The list of projects shows the others.",
     allProjects: "All projects",
-    capacity: (message: string) => `${message} Development instances pause when idle; pause or delete the ones nobody uses.`,
+    capacity: (message: string) =>
+      `${message} Development instances pause when idle; pause or delete the ones nobody uses.`,
     howMany: "How many instances can this server run?",
     empty: "This repository has no branches yet",
-    emptyText: "Push a first branch to GitHub. It appears here, and the panel creates its development instance when the project does so for new branches.",
+    emptyText:
+      "Push a first branch to GitHub. It appears here, and the panel creates its development instance when the project does so for new branches.",
     pushHelp: "From a folder with your modules:",
     stageEmpty: {
       production: "No production branch. Give one branch the production stage when it is ready for real use.",
@@ -91,7 +94,8 @@ const en = {
     branchArea: (branch: string) => `Branch ${branch}`,
     instance: "Instance",
     noInstanceTitle: "This branch has no instance",
-    noInstanceText: "An instance runs the branch's latest commit with the branch's Odoo version (the project's unless you choose another) and the project's edition.",
+    noInstanceText:
+      "An instance runs the branch's latest commit with the branch's Odoo version (the project's unless you choose another) and the project's edition.",
     settingsLater: "Settings appear once the branch has an instance.",
     odooVersion: "Odoo version",
     instanceVersion: (version: string) => `${version} (the instance's)`,
@@ -102,27 +106,33 @@ const en = {
     by: (author: string) => `by ${author}`,
     backups: "Backups",
     newBranchTitle: (stage: string) => `New ${stage.toLowerCase()} branch`,
-    newBranchText: "Branches are created on GitHub: push a new branch from a copy of the repository. It appears here when the branches are read again, as a development branch.",
+    newBranchText:
+      "Branches are created on GitHub: push a new branch from a copy of the repository. It appears here when the branches are read again, as a development branch.",
     newStagingText: "Then drag it to Staging, or use Move to in its menu, to make it a staging branch.",
     fromBranch: "From branch",
     newName: "New branch name",
     newNameHint: "Letters, digits, '.', '-', '_' and '/'",
     run: "Run in a copy of the repository:",
     readAgain: "Read the branches again",
-    picked: (branch: string) => `${branch} picked up. Use the arrow keys to move it to another stage, Space to drop it, Escape to cancel.`,
+    picked: (branch: string) =>
+      `${branch} picked up. Use the arrow keys to move it to another stage, Space to drop it, Escape to cancel.`,
     over: (branch: string, stage: string) => `${branch} is over ${stage}.`,
     notOver: (branch: string) => `${branch} is over no stage.`,
     dropped: (branch: string, stage: string) => `${branch} dropped on ${stage}. A confirmation opens.`,
     stays: (branch: string) => `${branch} stays where it was.`,
     cancelled: (branch: string) => `${branch} put back.`,
-    instructions: "Press Space on a branch to pick it up, then use the arrow keys to move it to another stage and Space to drop it. Escape puts it back.",
+    instructions:
+      "Press Space on a branch to pick it up, then use the arrow keys to move it to another stage and Space to drop it. Escape puts it back.",
   },
   stageDialog: {
     title: (branch: string, stage: string) => `Make ${branch} ${stage}`,
-    production: "A production branch runs the live database. Its instances never pause and never expire, are backed up every day, and get new code only through a backup and an automatic rollback.",
+    production:
+      "A production branch runs the live database. Its instances never pause and never expire, are backed up every day, and get new code only through a backup and an automatic rollback.",
     productionLimit: (n: number) => `This project may have ${n} production ${n === 1 ? "branch" : "branches"}.`,
-    leaving: "This branch leaves production: its instances can pause and expire, and their daily backup follows the panel's settings. Their data stays as it is.",
-    staging: "Its instances keep their data until they are rebuilt from production: Rebuild, or the next push when the project rebuilds staging on push.",
+    leaving:
+      "This branch leaves production: its instances can pause and expire, and their daily backup follows the panel's settings. Their data stays as it is.",
+    staging:
+      "Its instances keep their data until they are rebuilt from production: Rebuild, or the next push when the project rebuilds staging on push.",
     development: "Its instances keep their data and start pausing when idle.",
     instances: (names: string) => `Instances that move: ${names}.`,
     noInstances: "The branch has no instance yet: the stage applies to the next one.",
@@ -131,16 +141,19 @@ const en = {
   },
   createDialog: {
     title: (branch: string) => `New instance of ${branch}`,
-    text: (stage: string, version: string, edition: string) => `A ${stage.toLowerCase()} instance with Odoo ${version} ${edition}.`,
+    text: (stage: string, version: string, edition: string) =>
+      `A ${stage.toLowerCase()} instance with Odoo ${version} ${edition}.`,
     production: "A fresh database without demo data, with the production rules.",
-    staging: (production: string) => `A neutralised copy of ${production}'s data: no e-mail goes out, scheduled actions and payment providers are off.`,
+    staging: (production: string) =>
+      `A neutralised copy of ${production}'s data: no e-mail goes out, scheduled actions and payment providers are off.`,
     stagingWithout: "Staging copies production's data, and this project has no production instance yet.",
     development: "A fresh database.",
     demo: "With Odoo's demo data",
     modules: "Install the repository's modules",
     version: "Odoo version",
     versionHint: "The branch keeps this version: its next instances get it too.",
-    started: (name: string) => `The branch has an instance now (${name}), being created or ready: open it instead of creating a second one.`,
+    started: (name: string) =>
+      `The branch has an instance now (${name}), being created or ready: open it instead of creating a second one.`,
     otherSeries: (production: string, productionVersion: string, version: string) =>
       `${production} (production) runs Odoo ${productionVersion}: its data cannot be copied into Odoo ${version}, so this staging instance starts with an empty database.`,
     name: "Name",
@@ -149,25 +162,29 @@ const en = {
   },
   rebuildDialog: {
     title: (name: string) => `Rebuild ${name} from production`,
-    text: (production: string) => `The staging instance's database and files are replaced by a new, neutralised copy of ${production}. Then it takes the branch's latest code.`,
+    text: (production: string) =>
+      `The staging instance's database and files are replaced by a new, neutralised copy of ${production}. Then it takes the branch's latest code.`,
     lost: "Everything done in staging since its last rebuild is lost. Production keeps serving while it is copied.",
     rebuild: "Rebuild",
   },
   backups: {
     text: "The backups of every branch of this project, newest first. Restore puts a backup back into the instance it was taken from; the Backups page has those of every project.",
     none: "No backups yet",
-    noneText: "A branch's instance is backed up before it is deleted, every day it is used, and with Back up now on its page.",
+    noneText:
+      "A branch's instance is backed up before it is deleted, every day it is used, and with Back up now on its page.",
     instance: "Instance",
     noInstance: "No instance now",
   },
   settings: {
     general: "Project",
-    generalText: "The name people read, and the Odoo version and edition new instances of its branches get. Instances that exist keep theirs.",
+    generalText:
+      "The name people read, and the Odoo version and edition new instances of its branches get. Instances that exist keep theirs.",
     name: "Name",
     version: "Odoo version",
     edition: "Edition",
     automation: "Branches on GitHub",
-    automationText: "What the project does by itself when its repository changes. A value you do not set follows the panel's setting.",
+    automationText:
+      "What the project does by itself when its repository changes. A value you do not set follows the panel's setting.",
     auto_development: "New branches get a development instance",
     max_auto_development: "Development instances created this way, at most (0: no limit)",
     development_demo_data: "Development instances start with demo data",
@@ -190,7 +207,8 @@ const en = {
     saved: "Project saved",
     notSaved: "The project was not saved",
     access: "Access",
-    accessText: "Everyone works in this project with their role on the panel, except the teams and people its access names.",
+    accessText:
+      "Everyone works in this project with their role on the panel, except the teams and people its access names.",
     accessRestricted: "Only the teams and people granted access see this project; each still works within their role.",
     manageAccess: "Manage access",
     danger: "Delete the project",
@@ -223,8 +241,16 @@ const en = {
     noApp: "Connect the GitHub App first, on the organisation the repository goes to.",
     checkAgain: "Check again",
     acceptHere: "Where an owner accepts it",
-    summaryLink: (repo: ReactNode) => ["Links ", repo, ". Its branches today are listed; new ones get a development instance when the project does so."],
-    summaryCreate: (repo: ReactNode) => ["Creates ", repo, " on GitHub, empty and without a README. Push a first branch to start."],
+    summaryLink: (repo: ReactNode) => [
+      "Links ",
+      repo,
+      ". Its branches today are listed; new ones get a development instance when the project does so.",
+    ],
+    summaryCreate: (repo: ReactNode) => [
+      "Creates ",
+      repo,
+      " on GitHub, empty and without a README. Push a first branch to start.",
+    ],
     createProject: "Create project",
     createdToast: (name: string) => `Project ${name} created`,
     notCreated: "The project was not created",
@@ -323,7 +349,8 @@ const ar: typeof en = {
     branchArea: (branch) => `الفرع ${branch}`,
     instance: "البيئة",
     noInstanceTitle: "ليس لهذا الفرع بيئة",
-    noInstanceText: "تشغّل البيئة آخر إيداع للفرع بإصدار Odoo الخاص بالفرع (إصدار المشروع ما لم تختر غيره) وبنسخة المشروع.",
+    noInstanceText:
+      "تشغّل البيئة آخر إيداع للفرع بإصدار Odoo الخاص بالفرع (إصدار المشروع ما لم تختر غيره) وبنسخة المشروع.",
     settingsLater: "تظهر الإعدادات حين تصبح للفرع بيئة.",
     odooVersion: "إصدار Odoo",
     instanceVersion: (version) => `${version} (إصدار البيئة)`,
@@ -334,27 +361,34 @@ const ar: typeof en = {
     by: (author) => `بواسطة ${author}`,
     backups: "النسخ الاحتياطية",
     newBranchTitle: (stage) => `فرع جديد في مرحلة ${stage}`,
-    newBranchText: "تُنشأ الفروع في GitHub: ادفع فرعًا جديدًا من نسخة من المستودع. يظهر هنا حين تُقرأ الفروع من جديد، فرعَ تطوير.",
+    newBranchText:
+      "تُنشأ الفروع في GitHub: ادفع فرعًا جديدًا من نسخة من المستودع. يظهر هنا حين تُقرأ الفروع من جديد، فرعَ تطوير.",
     newStagingText: "ثم اسحبه إلى التجهيز، أو استخدم «نقل إلى» في قائمته، ليصبح فرع تجهيز.",
     fromBranch: "من الفرع",
     newName: "اسم الفرع الجديد",
     newNameHint: "حروف لاتينية وأرقام و'.' و'-' و'_' و'/'",
     run: "نفّذ في نسخة من المستودع:",
     readAgain: "قراءة الفروع من جديد",
-    picked: (branch) => `التُقط ${branch}. استخدم مفاتيح الأسهم لنقله إلى مرحلة أخرى، والمسافة لإفلاته، وEscape للإلغاء.`,
+    picked: (branch) =>
+      `التُقط ${branch}. استخدم مفاتيح الأسهم لنقله إلى مرحلة أخرى، والمسافة لإفلاته، وEscape للإلغاء.`,
     over: (branch, stage) => `${branch} فوق ${stage}.`,
     notOver: (branch) => `${branch} ليس فوق أي مرحلة.`,
     dropped: (branch, stage) => `أُفلت ${branch} على ${stage}. يُفتح تأكيد.`,
     stays: (branch) => `يبقى ${branch} حيث كان.`,
     cancelled: (branch) => `أُعيد ${branch} إلى مكانه.`,
-    instructions: "اضغط المسافة على فرع لالتقاطه، ثم استخدم مفاتيح الأسهم لنقله إلى مرحلة أخرى والمسافة لإفلاته. ويعيده Escape إلى مكانه.",
+    instructions:
+      "اضغط المسافة على فرع لالتقاطه، ثم استخدم مفاتيح الأسهم لنقله إلى مرحلة أخرى والمسافة لإفلاته. ويعيده Escape إلى مكانه.",
   },
   stageDialog: {
     title: (branch, stage) => `جعل ${branch} في مرحلة ${stage}`,
-    production: "يشغّل فرع الإنتاج قاعدة البيانات الفعلية. بيئاته لا تتوقف مؤقتًا ولا تنتهي مدتها، وتُنسخ احتياطيًا كل يوم، ولا تأخذ شيفرة جديدة إلا عبر نسخة احتياطية واسترجاع تلقائي.",
-    productionLimit: (n) => (n === 1 ? "يمكن أن يكون لهذا المشروع فرع إنتاج واحد." : `يمكن أن يكون لهذا المشروع ${n} من فروع الإنتاج.`),
-    leaving: "يغادر هذا الفرع الإنتاج: يمكن أن تتوقف بيئاته مؤقتًا وتنتهي مدتها، وتتبع نسختها الاحتياطية اليومية إعدادات اللوحة. وتبقى بياناتها كما هي.",
-    staging: "تحتفظ بيئاته ببياناتها حتى يُعاد بناؤها من الإنتاج: بإعادة البناء، أو مع الدفع التالي حين يعيد المشروع بناء التجهيز عند الدفع.",
+    production:
+      "يشغّل فرع الإنتاج قاعدة البيانات الفعلية. بيئاته لا تتوقف مؤقتًا ولا تنتهي مدتها، وتُنسخ احتياطيًا كل يوم، ولا تأخذ شيفرة جديدة إلا عبر نسخة احتياطية واسترجاع تلقائي.",
+    productionLimit: (n) =>
+      n === 1 ? "يمكن أن يكون لهذا المشروع فرع إنتاج واحد." : `يمكن أن يكون لهذا المشروع ${n} من فروع الإنتاج.`,
+    leaving:
+      "يغادر هذا الفرع الإنتاج: يمكن أن تتوقف بيئاته مؤقتًا وتنتهي مدتها، وتتبع نسختها الاحتياطية اليومية إعدادات اللوحة. وتبقى بياناتها كما هي.",
+    staging:
+      "تحتفظ بيئاته ببياناتها حتى يُعاد بناؤها من الإنتاج: بإعادة البناء، أو مع الدفع التالي حين يعيد المشروع بناء التجهيز عند الدفع.",
     development: "تحتفظ بيئاته ببياناتها وتبدأ بالتوقف مؤقتًا عند الخمول.",
     instances: (names) => `البيئات التي تنتقل: ${names}.`,
     noInstances: "ليس للفرع بيئة بعد: تنطبق المرحلة على البيئة التالية.",
@@ -365,7 +399,8 @@ const ar: typeof en = {
     title: (branch) => `بيئة جديدة للفرع ${branch}`,
     text: (stage, version, edition) => `بيئة ${stage} بـ Odoo ${version} ${edition}.`,
     production: "قاعدة بيانات جديدة دون بيانات تجريبية، بقواعد الإنتاج.",
-    staging: (production) => `نسخة محيّدة من بيانات ${production}: لا يخرج بريد، والإجراءات المجدولة ومزوّدو الدفع متوقفة.`,
+    staging: (production) =>
+      `نسخة محيّدة من بيانات ${production}: لا يخرج بريد، والإجراءات المجدولة ومزوّدو الدفع متوقفة.`,
     stagingWithout: "ينسخ التجهيز بيانات الإنتاج، وليس لهذا المشروع بيئة إنتاج بعد.",
     development: "قاعدة بيانات جديدة.",
     demo: "مع بيانات Odoo التجريبية",
@@ -381,7 +416,8 @@ const ar: typeof en = {
   },
   rebuildDialog: {
     title: (name) => `إعادة بناء ${name} من الإنتاج`,
-    text: (production) => `تُستبدل قاعدة بيانات بيئة التجهيز وملفاتها بنسخة جديدة محيّدة من ${production}. ثم تأخذ أحدث شيفرة للفرع.`,
+    text: (production) =>
+      `تُستبدل قاعدة بيانات بيئة التجهيز وملفاتها بنسخة جديدة محيّدة من ${production}. ثم تأخذ أحدث شيفرة للفرع.`,
     lost: "يضيع كل ما أُنجز في التجهيز منذ آخر إعادة بناء. ويبقى الإنتاج يعمل أثناء نسخه.",
     rebuild: "إعادة البناء",
   },
@@ -394,7 +430,8 @@ const ar: typeof en = {
   },
   settings: {
     general: "المشروع",
-    generalText: "الاسم الذي يقرؤه الناس، وإصدار Odoo ونسخته اللذان تأخذهما البيئات الجديدة لفروعه. وتحتفظ البيئات الموجودة بما لديها.",
+    generalText:
+      "الاسم الذي يقرؤه الناس، وإصدار Odoo ونسخته اللذان تأخذهما البيئات الجديدة لفروعه. وتحتفظ البيئات الموجودة بما لديها.",
     name: "الاسم",
     version: "إصدار Odoo",
     edition: "النسخة",
@@ -455,7 +492,11 @@ const ar: typeof en = {
     noApp: "اربط تطبيق GitHub أولًا، على المؤسسة التي سيكون فيها المستودع.",
     checkAgain: "التحقق من جديد",
     acceptHere: "حيث يقبله مالك",
-    summaryLink: (repo) => ["يربط ", repo, ". تُعرض فروعه الحالية؛ وتحصل الفروع الجديدة على بيئة تطوير حين يفعل المشروع ذلك."],
+    summaryLink: (repo) => [
+      "يربط ",
+      repo,
+      ". تُعرض فروعه الحالية؛ وتحصل الفروع الجديدة على بيئة تطوير حين يفعل المشروع ذلك.",
+    ],
     summaryCreate: (repo) => ["ينشئ ", repo, " في GitHub، فارغًا ودون ملف README. ادفع فرعًا أول للبدء."],
     createProject: "إنشاء المشروع",
     createdToast: (name) => `أُنشئ المشروع ${name}`,

@@ -8,7 +8,9 @@ const REPO_ID = /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/;
  *  repo_name). */
 export function repositoryName(address: string): string | null {
   const text = address.trim();
-  const match = /^(?:https:\/\/github\.com\/|git@github\.com:)(.+?)(?:\.git)?\/?$/.exec(text) ?? /^([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/.exec(text);
+  const match =
+    /^(?:https:\/\/github\.com\/|git@github\.com:)(.+?)(?:\.git)?\/?$/.exec(text) ??
+    /^([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/.exec(text);
   const name = match?.[1] ?? "";
   return REPO_ID.test(name.toLowerCase()) && !name.includes("..") ? name : null;
 }

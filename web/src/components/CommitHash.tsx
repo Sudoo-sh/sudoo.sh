@@ -9,7 +9,15 @@ import words from "@/i18n/builds";
 import { githubCommitUrl, shortSha } from "@/lib/git";
 import { MorphIcon } from "./app/motion";
 
-export function CommitHash({ sha, repository, icon = false }: { sha: string; repository: string | null | undefined; icon?: boolean }) {
+export function CommitHash({
+  sha,
+  repository,
+  icon = false,
+}: {
+  sha: string;
+  repository: string | null | undefined;
+  icon?: boolean;
+}) {
   const t = useT(words).history;
   const [copied, setCopied] = useState(false);
   const timer = useRef<number>(undefined);
@@ -24,14 +32,27 @@ export function CommitHash({ sha, repository, icon = false }: { sha: string; rep
   };
   return (
     <span className="commit-hash" data-linked={url ? "" : undefined}>
-      <button type="button" className="ch-copy" onClick={copy} title={copied ? t.copied : t.copySha} aria-label={`${t.copySha}: ${short}`}>
+      <button
+        type="button"
+        className="ch-copy"
+        onClick={copy}
+        title={copied ? t.copied : t.copySha}
+        aria-label={`${t.copySha}: ${short}`}
+      >
         {icon && <GitCommitHorizontal className="ch-icon" aria-hidden />}
         <code dir="ltr">{short}</code>
         {/* the copy icon turns into a check for a moment */}
         <MorphIcon className="ch-state" icons={{ copy: <Copy />, done: <Check /> }} active={copied ? "done" : "copy"} />
       </button>
       {url && (
-        <a className="ch-link" href={url} target="_blank" rel="noreferrer" title={t.onGitHub} aria-label={`${t.onGitHub}: ${short}`}>
+        <a
+          className="ch-link"
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          title={t.onGitHub}
+          aria-label={`${t.onGitHub}: ${short}`}
+        >
           <ArrowUpRight className="flip-rtl" aria-hidden />
         </a>
       )}

@@ -22,7 +22,9 @@ export function bytes(value: number | null | undefined, digits = 1): string {
 }
 
 export const percent = (value: number | null | undefined, digits = 0) =>
-  value == null ? "—" : `${new Intl.NumberFormat(tag(), { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false }).format(value)}%`;
+  value == null
+    ? "—"
+    : `${new Intl.NumberFormat(tag(), { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false }).format(value)}%`;
 
 export const number = (value: number | null | undefined, digits = 0) =>
   value == null ? "—" : new Intl.NumberFormat(tag(), { maximumFractionDigits: digits }).format(value);
@@ -40,14 +42,24 @@ export function ago(value: string | number | null | undefined): string {
   const abs = Math.abs(seconds);
   if (abs < 45) return seconds <= 0 ? t().time.justNow : t().time.soon;
   const [amount, unit]: [number, Intl.RelativeTimeFormatUnit] =
-    abs < 3600 ? [seconds / 60, "minute"] : abs < 86400 ? [seconds / 3600, "hour"] : abs < 2592000 ? [seconds / 86400, "day"] : abs < 31536000 ? [seconds / 2592000, "month"] : [seconds / 31536000, "year"];
+    abs < 3600
+      ? [seconds / 60, "minute"]
+      : abs < 86400
+        ? [seconds / 3600, "hour"]
+        : abs < 2592000
+          ? [seconds / 86400, "day"]
+          : abs < 31536000
+            ? [seconds / 2592000, "month"]
+            : [seconds / 31536000, "year"];
   return new Intl.RelativeTimeFormat(tag(), { numeric: "auto" }).format(Math.round(amount), unit);
 }
 
 /** The date and time in full, for a tooltip next to a relative time: "Wednesday 18 November 2026 at 06:34". */
 export function fullDateTime(value: string | number | null | undefined): string {
   const date = toDate(value);
-  return date && !Number.isNaN(date.getTime()) ? date.toLocaleString(tag(), { dateStyle: "full", timeStyle: "short" }) : "";
+  return date && !Number.isNaN(date.getTime())
+    ? date.toLocaleString(tag(), { dateStyle: "full", timeStyle: "short" })
+    : "";
 }
 
 export function dateTime(value: string | number | null | undefined): string {
@@ -58,7 +70,11 @@ export function dateTime(value: string | number | null | undefined): string {
 /** A clock time ("14:05"), for chart axes and lists of today's events. */
 export function time(value: string | number | Date, withSeconds = false): string {
   const date = value instanceof Date ? value : toDate(value)!;
-  return date.toLocaleTimeString(tag(), { hour: "2-digit", minute: "2-digit", ...(withSeconds ? { second: "2-digit" } : {}) });
+  return date.toLocaleTimeString(tag(), {
+    hour: "2-digit",
+    minute: "2-digit",
+    ...(withSeconds ? { second: "2-digit" } : {}),
+  });
 }
 
 export function duration(seconds: number | null | undefined): string {
@@ -91,7 +107,15 @@ export function monogram(name: string): { from: string; to: string; letters: str
   let hash = 0;
   for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   const hue = hash % 360;
-  const letters = name.split(/[-_.]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("") || name[0] || "?";
+  const letters =
+    name
+      .split(/[-_.]/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("") ||
+    name[0] ||
+    "?";
   return { from: `hsl(${hue} 52% 58%)`, to: `hsl(${(hue + 40) % 360} 58% 42%)`, letters };
 }
 
@@ -103,7 +127,11 @@ export function money(cents: number | null | undefined, currency: string | null 
   if (cents == null) return "—";
   try {
     const ar = getLocale() === "ar";
-    return new Intl.NumberFormat(tag(), { style: "currency", currency: (currency || "usd").toUpperCase(), currencyDisplay: ar ? "code" : "symbol" }).format(cents / 100);
+    return new Intl.NumberFormat(tag(), {
+      style: "currency",
+      currency: (currency || "usd").toUpperCase(),
+      currencyDisplay: ar ? "code" : "symbol",
+    }).format(cents / 100);
   } catch {
     return `${(cents / 100).toFixed(2)} ${(currency || "").toUpperCase()}`;
   }

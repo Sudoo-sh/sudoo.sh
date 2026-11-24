@@ -30,7 +30,13 @@ const ONE_PLACEHOLDER = /^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/;
 const LINK = /\[([^[\]\n]+)\]\((\{\{\s*[A-Za-z_][A-Za-z0-9_]*\s*\}\}|[^()\s]+)\)/g;
 const LITERAL_TARGET = /^(https?:\/\/[^\s<>"']+|mailto:[^\s<>"']+)$/;
 
-const escape = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
+const escape = (text: string) =>
+  text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
 const isBlock = (value: unknown): value is Block => typeof value === "object" && value !== null && "html" in value;
 const plain = (value: Value | undefined) => (value === undefined ? "" : isBlock(value) ? value.text : String(value));
 const empty = (value: Value | undefined) => plain(value).trim() === "";
@@ -63,29 +69,45 @@ export function problems(message: Seeded, text: Text): string[] {
   const kinds = new Map(message.placeholders.map((p) => [p.name, p.kind]));
   const used = new Set<string>();
   const unknown = new Set<string>();
-  for (const [label, value, limit] of [["subject", text.subject, 200], ["title", text.title, 120], ["text", text.body, 10000]] as const) {
+  for (const [label, value, limit] of [
+    ["subject", text.subject, 200],
+    ["title", text.title, 120],
+    ["text", text.body, 10000],
+  ] as const) {
     if (!value.trim()) found.push(`The ${label} is empty.`);
     if (value.length > limit) found.push(`The ${label} is too long (at most ${limit} characters).`);
     const names = [...value.matchAll(PLACEHOLDER)].map((m) => m[1]!);
     names.forEach((n) => (used.add(n), kinds.has(n) || unknown.add(n)));
     const rest = value.replace(PLACEHOLDER, "");
-    if (rest.includes("{{") || rest.includes("}}")) found.push(`The ${label} has a placeholder that is not written like {{ name }}.`);
+    if (rest.includes("{{") || rest.includes("}}"))
+      found.push(`The ${label} has a placeholder that is not written like {{ name }}.`);
     if (label !== "text") {
       if (value.includes("\n")) found.push(`The ${label} must be one line.`);
       const block = names.find((n) => kinds.get(n) === "block");
       if (block) found.push(`{{ ${block} }} can only be used in the text, alone on its line.`);
     }
   }
-  if (unknown.size) found.push(`Unknown placeholder${unknown.size > 1 ? "s" : ""}: ${[...unknown].sort().map((n) => `{{ ${n} }}`).join(", ")}. Use the ones listed.`);
+  if (unknown.size)
+    found.push(
+      `Unknown placeholder${unknown.size > 1 ? "s" : ""}: ${[...unknown]
+        .sort()
+        .map((n) => `{{ ${n} }}`)
+        .join(", ")}. Use the ones listed.`,
+    );
   for (const line of text.body.split("\n")) {
     for (const m of line.matchAll(PLACEHOLDER)) {
-      if (kinds.get(m[1]!) === "block" && !ONE_PLACEHOLDER.test(line.trim())) found.push(`{{ ${m[1]} }} must stand alone on its line.`);
+      if (kinds.get(m[1]!) === "block" && !ONE_PLACEHOLDER.test(line.trim()))
+        found.push(`{{ ${m[1]} }} must stand alone on its line.`);
     }
     for (const m of line.matchAll(LINK)) {
       const one = m[2]!.match(ONE_PLACEHOLDER);
       if (one) {
-        if (kinds.has(one[1]!) && kinds.get(one[1]!) !== "link") found.push(`{{ ${one[1]} }} is not an address: a link needs a link placeholder.`);
-      } else if (!LITERAL_TARGET.test(m[2]!)) found.push(`The link to ${m[2]!.slice(0, 60)} is not allowed: use https://, http://, mailto: or a link placeholder.`);
+        if (kinds.has(one[1]!) && kinds.get(one[1]!) !== "link")
+          found.push(`{{ ${one[1]} }} is not an address: a link needs a link placeholder.`);
+      } else if (!LITERAL_TARGET.test(m[2]!))
+        found.push(
+          `The link to ${m[2]!.slice(0, 60)} is not allowed: use https://, http://, mailto: or a link placeholder.`,
+        );
     }
   }
   if (message.required.length && !message.required.some((r) => used.has(r))) {
@@ -94,7 +116,11 @@ export function problems(message: Seeded, text: Text): string[] {
   return [...new Set(found)];
 }
 
-const fill = (text: string, values: Record<string, Value>) => text.replace(PLACEHOLDER, (_, n: string) => plain(values[n])).replace(/\s+/g, " ").trim();
+const fill = (text: string, values: Record<string, Value>) =>
+  text
+    .replace(PLACEHOLDER, (_, n: string) => plain(values[n]))
+    .replace(/\s+/g, " ")
+    .trim();
 
 function shape(line: string, values: Record<string, Value>, accent: string): [string, string] {
   const target = (raw: string) => {
@@ -107,7 +133,10 @@ function shape(line: string, values: Record<string, Value>, accent: string): [st
   let position = 0;
   const inline = (part: string): [string, string] => {
     const h = escape(part).replace(/\*\*(?=\S)(.+?)(?<=\S)\*\*/g, "<strong>$1</strong>");
-    return [h.replace(PLACEHOLDER, (_, n: string) => escape(plain(values[n]))), part.replace(/\*\*(?=\S)(.+?)(?<=\S)\*\*/g, "$1").replace(PLACEHOLDER, (_, n: string) => plain(values[n]))];
+    return [
+      h.replace(PLACEHOLDER, (_, n: string) => escape(plain(values[n]))),
+      part.replace(/\*\*(?=\S)(.+?)(?<=\S)\*\*/g, "$1").replace(PLACEHOLDER, (_, n: string) => plain(values[n])),
+    ];
   };
   for (const m of line.matchAll(LINK)) {
     const [bh, bt] = inline(line.slice(position, m.index));
@@ -128,8 +157,14 @@ function render(body: string, values: Record<string, Value>, accent: string): [s
   let lines: [string, string][] = [];
   const close = () => {
     if (kind === "p") html.push(`<p style="margin:0 0 16px 0;">${lines.map((l) => l[0]).join("<br>")}</p>`);
-    if (kind === "ul") html.push(`<ul style="margin:0 0 16px 0; padding-left:20px;">${lines.map((l) => `<li style="margin:0 0 4px 0;">${l[0]}</li>`).join("")}</ul>`);
-    if (kind === "note") html.push(`<table role="presentation" width="100%" style="margin:0 0 16px 0; font-size:13px; background-color:#FFF8E6; border-left:3px solid #E6A700; border-radius:4px;"><tr><td style="padding:10px 14px; color:#5C4400;">${lines.map((l) => l[0]).join("<br>")}</td></tr></table>`);
+    if (kind === "ul")
+      html.push(
+        `<ul style="margin:0 0 16px 0; padding-left:20px;">${lines.map((l) => `<li style="margin:0 0 4px 0;">${l[0]}</li>`).join("")}</ul>`,
+      );
+    if (kind === "note")
+      html.push(
+        `<table role="presentation" width="100%" style="margin:0 0 16px 0; font-size:13px; background-color:#FFF8E6; border-left:3px solid #E6A700; border-radius:4px;"><tr><td style="padding:10px 14px; color:#5C4400;">${lines.map((l) => l[0]).join("<br>")}</td></tr></table>`,
+      );
     if (kind) text.push(lines.map((l) => (kind === "ul" ? `- ${l[1]}` : l[1])).join("\n"));
     kind = "";
     lines = [];
@@ -141,12 +176,20 @@ function render(body: string, values: Record<string, Value>, accent: string): [s
   };
   for (const raw of body.split("\n")) {
     const line = raw.trim();
-    if (!line) { close(); continue; }
+    if (!line) {
+      close();
+      continue;
+    }
     const names = [...line.matchAll(PLACEHOLDER)].map((m) => m[1]!);
     if (names.length && names.every((n) => empty(values[n]))) continue;
     const one = line.match(ONE_PLACEHOLDER);
     const value = one ? values[one[1]!] : undefined;
-    if (isBlock(value)) { close(); html.push(value.html); text.push(value.text); continue; }
+    if (isBlock(value)) {
+      close();
+      html.push(value.html);
+      text.push(value.text);
+      continue;
+    }
     const button = line.match(new RegExp(`^${LINK.source}$`));
     if (button) {
       close();
@@ -155,7 +198,9 @@ function render(body: string, values: Record<string, Value>, accent: string): [s
       const one = button[2]!.match(ONE_PLACEHOLDER);
       const url = one ? plain(values[one[1]!]) : button[2]!;
       if (LITERAL_TARGET.test(url)) {
-        html.push(`<p style="margin:0 0 16px 0; text-align:center;"><a href="${escape(url)}" style="display:inline-block; background-color:${accent}; border:1px solid ${accent}; border-radius:5px; padding:8px 18px; font-size:13px; color:#FFFFFF; text-decoration:none;">${labelHtml}</a></p>`);
+        html.push(
+          `<p style="margin:0 0 16px 0; text-align:center;"><a href="${escape(url)}" style="display:inline-block; background-color:${accent}; border:1px solid ${accent}; border-radius:5px; padding:8px 18px; font-size:13px; color:#FFFFFF; text-decoration:none;">${labelHtml}</a></p>`,
+        );
         text.push(`${label}: ${url}`);
       } else {
         html.push(`<p style="margin:0 0 16px 0;">${labelHtml}</p>`);
@@ -184,13 +229,22 @@ export function preview(message: Seeded, text: Text, accent: string): MailPrevie
     .replace("@@TITLE@@", escape(fill(text.title, values)))
     .replace("@@PREHEADER@@", escape(fill(message.preheader, values)))
     .replace("@@BODY@@", () => bodyHtml);
-  return { subject, html, text: `${bodyText}\n\n--\nSudoo.sh - Your Odoo instances, on your own server.\n`, problems: [] };
+  return {
+    subject,
+    html,
+    text: `${bodyText}\n\n--\nSudoo.sh - Your Odoo instances, on your own server.\n`,
+    problems: [],
+  };
 }
 
 export function save(message: Seeded, text: Text, by: string) {
-  const same = text.subject === message.default.subject && text.title === message.default.title && text.body === message.default.body;
+  const same =
+    text.subject === message.default.subject &&
+    text.title === message.default.title &&
+    text.body === message.default.body;
   if (same) changed.delete(message.key);
-  else changed.set(message.key, { ...text, changed_at: new Date().toISOString().replace(/\.\d+Z$/, "Z"), changed_by: by });
+  else
+    changed.set(message.key, { ...text, changed_at: new Date().toISOString().replace(/\.\d+Z$/, "Z"), changed_by: by });
 }
 
 export const reset = (key: string) => changed.delete(key);

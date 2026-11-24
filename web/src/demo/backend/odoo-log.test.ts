@@ -54,7 +54,9 @@ describe("the demo's logs", () => {
     expect(errors.data.length).toBeGreaterThan(0);
     expect(errors.data.every((e) => e.level === "ERROR" || e.level === "CRITICAL")).toBe(true);
     const tracebacks = await call("/instances/acme-retail-main/logs/entries", "limit=200&tracebacks=1");
-    expect(tracebacks.data.every((e) => e.traceback && e.text.includes("Traceback (most recent call last):"))).toBe(true);
+    expect(tracebacks.data.every((e) => e.traceback && e.text.includes("Traceback (most recent call last):"))).toBe(
+      true,
+    );
     const update = await call("/instances/acme-retail-main/logs/entries", "log=update.log&level=ERROR");
     expect(update.data[0]!.text).toContain("ParseError");
   });

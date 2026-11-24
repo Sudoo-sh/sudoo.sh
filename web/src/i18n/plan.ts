@@ -3,7 +3,14 @@
 import { countIn, iso, ltr, type Plural } from "./plural.ts";
 
 const BRANCHES_EN: Plural = { one: "# production branch", other: "# production branches" };
-const BRANCHES_AR: Plural = { zero: "# فرع إنتاج", one: "فرع إنتاج واحد", two: "فرعا إنتاج", few: "# فروع إنتاج", many: "# فرع إنتاج", other: "# فرع إنتاج" };
+const BRANCHES_AR: Plural = {
+  zero: "# فرع إنتاج",
+  one: "فرع إنتاج واحد",
+  two: "فرعا إنتاج",
+  few: "# فروع إنتاج",
+  many: "# فرع إنتاج",
+  other: "# فرع إنتاج",
+};
 
 const DAYS_EN: Plural = { one: "# day", other: "# days" };
 const DAYS_AR: Plural = { zero: "# يوم", one: "يوم واحد", two: "يومان", few: "# أيام", many: "# يومًا", other: "# يوم" };
@@ -56,14 +63,18 @@ const en = {
   withheld: "New production branches are withheld",
   withheldReasons: {
     declaration_required: "The account has not said yet how it uses Sudoo.sh. Do it on the account site.",
-    verification_required: "The company of the account is not verified yet. Finish its verification on the account site.",
+    verification_required:
+      "The company of the account is not verified yet. Finish its verification on the account site.",
     licence_acceptance_required: "The account has not accepted the current licence agreement yet.",
   } as Record<string, string>,
   withheldKeep: "The production branches you have keep serving; only new ones wait.",
-  banned: "The Sudoo.sh account of this panel is suspended. What runs keeps serving; no new production branch can be made.",
+  banned:
+    "The Sudoo.sh account of this panel is suspended. What runs keeps serving; no new production branch can be made.",
   overLimit: "This panel runs more than its plan allows.",
-  leaving: "After the downgrade, these production branches are not kept and become development branches (nothing is deleted):",
-  leavingNone: "Choose which production branches to keep on the account site; the others become development branches when the downgrade applies.",
+  leaving:
+    "After the downgrade, these production branches are not kept and become development branches (nothing is deleted):",
+  leavingNone:
+    "Choose which production branches to keep on the account site; the others become development branches when the downgrade applies.",
   chooseKept: "Choose the branches to keep",
   kept: (names: string) => `Kept: ${names}`,
   refusal: "One more production branch:",
@@ -73,10 +84,12 @@ const en = {
   linkTitle: (days: number) => `Link this panel to your Sudoo.sh account — ${countIn("en", days, DAYS_EN)} left.`,
   linkText: "Panels are linked within the first days after they start. Until then everything works.",
   linkOverdue: "Link this panel to your Sudoo.sh account.",
-  linkOverdueText: "The days to link it have passed: new instances, moving to production and updates wait until it is linked. Instances keep serving and backups keep running.",
+  linkOverdueText:
+    "The days to link it have passed: new instances, moving to production and updates wait until it is linked. Instances keep serving and backups keep running.",
   linkButton: "Link this panel",
   linkAskSuperAdmin: "A super admin links it in Settings, Marketplace.",
-  expiredBanner: "The panel could not confirm its plan with Sudoo.sh for too long. Everything keeps running; new production branches wait until the hub is reached.",
+  expiredBanner:
+    "The panel could not confirm its plan with Sudoo.sh for too long. Everything keeps running; new production branches wait until the hub is reached.",
   leavingBanner: (names: string) => `After the plan's downgrade, ${names} will become development branches.`,
   upsell: (feature: string) => `${feature} come with the Pro and Business plans.`,
   upsellOne: (feature: string) => `${feature} comes with the Pro and Business plans.`,
@@ -147,10 +160,12 @@ const ar: typeof en = {
   linkTitle: (days: number) => `اربط هذه اللوحة بحساب Sudoo.sh الخاص بك — بقي ${countIn("ar", days, DAYS_AR)}.`,
   linkText: "تُربط اللوحات خلال الأيام الأولى بعد تشغيلها. وحتى ذلك الحين يعمل كل شيء.",
   linkOverdue: "اربط هذه اللوحة بحساب Sudoo.sh الخاص بك.",
-  linkOverdueText: "انقضت أيام الربط: تنتظر البيئات الجديدة والنقل إلى الإنتاج والتحديثات حتى تُربط. تستمر البيئات في الخدمة ويستمر النسخ الاحتياطي.",
+  linkOverdueText:
+    "انقضت أيام الربط: تنتظر البيئات الجديدة والنقل إلى الإنتاج والتحديثات حتى تُربط. تستمر البيئات في الخدمة ويستمر النسخ الاحتياطي.",
   linkButton: "اربط هذه اللوحة",
   linkAskSuperAdmin: "يربطها مسؤول أعلى من الإعدادات، متجر الإضافات.",
-  expiredBanner: "لم تستطع اللوحة تأكيد خطتها مع Sudoo.sh مدة طويلة. يستمر كل شيء في العمل؛ وتنتظر فروع الإنتاج الجديدة حتى يُتاح الوصول إلى المركز.",
+  expiredBanner:
+    "لم تستطع اللوحة تأكيد خطتها مع Sudoo.sh مدة طويلة. يستمر كل شيء في العمل؛ وتنتظر فروع الإنتاج الجديدة حتى يُتاح الوصول إلى المركز.",
   leavingBanner: (names: string) => `بعد تخفيض الخطة ستصبح ${names} فروع تطوير.`,
   upsell: (feature: string) => `${feature} متاحة في خطتي Pro وBusiness.`,
   upsellOne: (feature: string) => `${feature} متاح في خطتي Pro وBusiness.`,

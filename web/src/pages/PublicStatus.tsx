@@ -16,7 +16,10 @@ import words from "@/i18n/status";
 import { ago, day as dayText } from "@/lib/format";
 
 async function read(token: string): Promise<PublicStatus | null> {
-  const answer = await fetch(`/api/v1/public-status/${encodeURIComponent(token)}`, { headers: { Accept: "application/json" }, credentials: "omit" });
+  const answer = await fetch(`/api/v1/public-status/${encodeURIComponent(token)}`, {
+    headers: { Accept: "application/json" },
+    credentials: "omit",
+  });
   if (answer.status === 404) return null;
   if (!answer.ok) throw new Error(`HTTP ${answer.status}`);
   return ((await answer.json()) as { data: PublicStatus }).data;
@@ -27,12 +30,28 @@ export function PublicStatusPage() {
   const all = useT(words);
   const t = all.publicPage;
   const s = all.status;
-  const { data, isPending, error } = useQuery({ queryKey: ["public-status", token], queryFn: () => read(token), refetchInterval: 60_000, retry: 1 });
-  const icon = data?.state === "operational" ? <CircleCheck /> : data?.state === "down" ? <CircleAlert /> : data?.state === "degraded" ? <TriangleAlert /> : <Activity />;
+  const { data, isPending, error } = useQuery({
+    queryKey: ["public-status", token],
+    queryFn: () => read(token),
+    refetchInterval: 60_000,
+    retry: 1,
+  });
+  const icon =
+    data?.state === "operational" ? (
+      <CircleCheck />
+    ) : data?.state === "down" ? (
+      <CircleAlert />
+    ) : data?.state === "degraded" ? (
+      <TriangleAlert />
+    ) : (
+      <Activity />
+    );
   return (
     <div className="public-status">
       <header className="row">
-        <span className="mark" aria-hidden="true"><Mark /></span>
+        <span className="mark" aria-hidden="true">
+          <Mark />
+        </span>
         <h1 className="spacer">{data?.name ?? t.title}</h1>
         <LanguageSwitch />
       </header>
@@ -53,7 +72,9 @@ export function PublicStatusPage() {
           <>
             <PublicMaintenanceNotice items={data.maintenance ?? []} />
             <section className="status-banner card" data-state={data.state} aria-live="polite">
-              <span className="status-banner-icon" aria-hidden="true">{icon}</span>
+              <span className="status-banner-icon" aria-hidden="true">
+                {icon}
+              </span>
               <div className="spacer">
                 <h2>{s.banner[data.state]}</h2>
                 <p className="small muted">{t.updated(ago(data.at))}</p>
@@ -68,10 +89,20 @@ export function PublicStatusPage() {
                       <div className="row" style={{ gap: 8 }}>
                         <strong className="spacer">
                           {s.kind[target.kind]}
-                          {target.kind !== "server" && <> <bdi dir="ltr" className="mono small muted">{target.name}</bdi></>}
+                          {target.kind !== "server" && (
+                            <>
+                              {" "}
+                              <bdi dir="ltr" className="mono small muted">
+                                {target.name}
+                              </bdi>
+                            </>
+                          )}
                         </strong>
                         <span className="small muted">{uptimeText(target.uptime.month)}</span>
-                        <span className="target-state" data-state={state}><span className="dot" aria-hidden="true" />{s.state[state]}</span>
+                        <span className="target-state" data-state={state}>
+                          <span className="dot" aria-hidden="true" />
+                          {s.state[state]}
+                        </span>
                       </div>
                       <ol className="day-bars" aria-label={s.days}>
                         {target.days.map((d) => {

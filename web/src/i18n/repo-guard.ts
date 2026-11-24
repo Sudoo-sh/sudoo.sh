@@ -7,7 +7,8 @@ const en = {
   defaultsHint: "What you do not change here follows the panel's settings (Settings, Instances, Projects).",
   // the GitHub App's permissions
   permissions: "GitHub App permissions",
-  permissionsText: "The guard needs more than reading code. GitHub asks an owner of the account to accept new permissions; until then, the parts that need them stay unavailable.",
+  permissionsText:
+    "The guard needs more than reading code. GitHub asks an owner of the account to accept new permissions; until then, the parts that need them stay unavailable.",
   noApp: "Connect the GitHub App first (GitHub access): the guard works through it.",
   openGitHubAccess: "Open GitHub access",
   notInstalled: "The GitHub App is not installed on this repository's account.",
@@ -16,7 +17,8 @@ const en = {
   allGranted: "The GitHub App has every permission the guard needs.",
   appPermissions: "Open the app's permissions",
   acceptPermissions: "Accept on the installation",
-  permissionSteps: "On GitHub, open the app's permissions, set the ones below and save; then an owner accepts them on the installation's page. Come back and reload this page.",
+  permissionSteps:
+    "On GitHub, open the app's permissions, set the ones below and save; then an owner accepts them on the installation's page. Come back and reload this page.",
   granted: (level: string) => `Granted: ${level}`,
   notGranted: "Not granted",
   needs: (level: string) => `Needs ${level}`,
@@ -36,7 +38,8 @@ const en = {
   } as Record<string, string>,
   // CI checks
   checks: "CI checks",
-  checksText: "The panel opens a pull request that adds a GitHub Actions workflow, a pre-commit configuration and docs/CHECKS.md. Nothing changes until someone merges it. Turning a check off opens a pull request that updates or removes the files.",
+  checksText:
+    "The panel opens a pull request that adds a GitHub Actions workflow, a pre-commit configuration and docs/CHECKS.md. Nothing changes until someone merges it. Turning a check off opens a pull request that updates or removes the files.",
   checksOn: "Run CI checks on this repository",
   lint: "Lint Python code",
   linter: "Linter",
@@ -66,19 +69,27 @@ const en = {
   refresh: "Read its state again",
   noPull: "No pull request yet.",
   filesTitle: "What the pull request changes",
-  fileActions: { add: "Added", update: "Changed", remove: "Removed", unchanged: "Unchanged", kept: "Left alone" } as Record<string, string>,
+  fileActions: {
+    add: "Added",
+    update: "Changed",
+    remove: "Removed",
+    unchanged: "Unchanged",
+    kept: "Left alone",
+  } as Record<string, string>,
   showContent: "Show the file",
   hideContent: "Hide the file",
   dryRun: "Dry run: nothing was changed.",
   // results
   results: "Results in the panel",
-  resultsText: "Each build shows its commit's CI results as a Checks badge. A failing check can also stop a promotion to production.",
+  resultsText:
+    "Each build shows its commit's CI results as a Checks badge. A failing check can also stop a promotion to production.",
   blockPromotion: "Failing checks stop a promotion to production",
   blockHint: "Off by default: failing checks are then shown as worth reading.",
   saved: "Saved",
   // branch rules
   rules: "Branch rules on GitHub",
-  rulesText: "Protect production and staging on GitHub. You see the current rules next to the new ones before anything is applied, and turning them off removes only the rules the panel made.",
+  rulesText:
+    "Protect production and staging on GitHub. You see the current rules next to the new ones before anything is applied, and turning them off removes only the rules the panel made.",
   production: "Production",
   staging: "Staging",
   stagingOn: "Protect the staging branches too",
@@ -88,7 +99,11 @@ const en = {
   signedCommits: "Signed commits",
   alwaysBlocked: "Force-pushes and deleting the branch are always blocked.",
   pushers: "Who may push or merge to production",
-  pushersNames: { anyone: "Anyone with write access", roles: "Admins and Maintainers", named: "Named teams and people" } as Record<string, string>,
+  pushersNames: {
+    anyone: "Anyone with write access",
+    roles: "Admins and Maintainers",
+    named: "Named teams and people",
+  } as Record<string, string>,
   pushersHint: {
     anyone: "Pull requests and their reviews still apply.",
     roles: "GitHub's Admin and Maintain roles, the counterparts of the project's Admin and Maintainer levels.",
@@ -99,8 +114,12 @@ const en = {
   users: "People",
   usersHint: "GitHub user names, comma-separated.",
   method: "How",
-  methodNames: { auto: "Automatic", rulesets: "Rulesets", branch_protection: "Classic branch protection" } as Record<string, string>,
-  methodHint: "Automatic uses rulesets, and classic branch protection when rulesets are not available or people are named.",
+  methodNames: { auto: "Automatic", rulesets: "Rulesets", branch_protection: "Classic branch protection" } as Record<
+    string,
+    string
+  >,
+  methodHint:
+    "Automatic uses rulesets, and classic branch protection when rulesets are not available or people are named.",
   previewRules: "Preview the rules",
   turnOff: "Turn off the rules",
   applied: (method: string, by: string, when: string) => `Applied with ${method} by ${by}, ${when}.`,
@@ -116,7 +135,13 @@ const en = {
     production_merges: "Who may push or merge to production",
     staging: "Staging",
   } as Record<string, string>,
-  ruleActions: { create: "New", update: "Changed", delete: "Removed", unchanged: "Unchanged", blocked: "Left alone" } as Record<string, string>,
+  ruleActions: {
+    create: "New",
+    update: "Changed",
+    delete: "Removed",
+    unchanged: "Unchanged",
+    blocked: "Left alone",
+  } as Record<string, string>,
   field: "Rule",
   current: "Now",
   next: "After",
@@ -147,7 +172,8 @@ const ar: typeof en = {
   readOnly: "لا يغيّر حارس المستودع إلا مسؤولو المشروع.",
   defaultsHint: "ما لا تغيّره هنا يتبع إعدادات اللوحة (الإعدادات، البيئات، المشاريع).",
   permissions: "صلاحيات تطبيق GitHub",
-  permissionsText: "يحتاج الحارس أكثر من قراءة الشيفرة. يطلب GitHub من مالك الحساب قبول الصلاحيات الجديدة، وحتى ذلك الحين تبقى الأجزاء التي تحتاجها غير متاحة.",
+  permissionsText:
+    "يحتاج الحارس أكثر من قراءة الشيفرة. يطلب GitHub من مالك الحساب قبول الصلاحيات الجديدة، وحتى ذلك الحين تبقى الأجزاء التي تحتاجها غير متاحة.",
   noApp: "اربط تطبيق GitHub أولًا (الوصول إلى GitHub): يعمل الحارس من خلاله.",
   openGitHubAccess: "افتح الوصول إلى GitHub",
   notInstalled: "تطبيق GitHub غير مثبّت على حساب هذا المستودع.",
@@ -156,7 +182,8 @@ const ar: typeof en = {
   allGranted: "يملك تطبيق GitHub كل الصلاحيات التي يحتاجها الحارس.",
   appPermissions: "افتح صلاحيات التطبيق",
   acceptPermissions: "اقبلها في صفحة التثبيت",
-  permissionSteps: "في GitHub، افتح صلاحيات التطبيق واضبط ما يلي واحفظ، ثم يقبلها مالك الحساب في صفحة التثبيت. عُد بعدها وأعد تحميل هذه الصفحة.",
+  permissionSteps:
+    "في GitHub، افتح صلاحيات التطبيق واضبط ما يلي واحفظ، ثم يقبلها مالك الحساب في صفحة التثبيت. عُد بعدها وأعد تحميل هذه الصفحة.",
   granted: (level) => `ممنوحة: ${level}`,
   notGranted: "غير ممنوحة",
   needs: (level) => `تحتاج ${level}`,
@@ -175,7 +202,8 @@ const ar: typeof en = {
     administration: "إنشاء قواعد الفروع الخاصة باللوحة وتغييرها وحذفها.",
   },
   checks: "فحوصات CI",
-  checksText: "تفتح اللوحة طلب سحب يضيف سير عمل GitHub Actions وإعدادات pre-commit والملف ⁦docs/CHECKS.md⁩. لا يتغير شيء حتى يدمجه أحد. وإيقاف فحص يفتح طلب سحب يحدّث الملفات أو يحذفها.",
+  checksText:
+    "تفتح اللوحة طلب سحب يضيف سير عمل GitHub Actions وإعدادات pre-commit والملف ⁦docs/CHECKS.md⁩. لا يتغير شيء حتى يدمجه أحد. وإيقاف فحص يفتح طلب سحب يحدّث الملفات أو يحذفها.",
   checksOn: "شغّل فحوصات CI على هذا المستودع",
   lint: "تدقيق شيفرة Python",
   linter: "أداة التدقيق",
@@ -215,7 +243,8 @@ const ar: typeof en = {
   blockHint: "معطّل افتراضيًا: تظهر الفحوصات الفاشلة حينها كبند يستحق القراءة.",
   saved: "حُفظ",
   rules: "قواعد الفروع في GitHub",
-  rulesText: "احمِ الإنتاج والتجهيز في GitHub. ترى القواعد الحالية بجانب الجديدة قبل تطبيق أي شيء، والإيقاف يحذف القواعد التي أنشأتها اللوحة فقط.",
+  rulesText:
+    "احمِ الإنتاج والتجهيز في GitHub. ترى القواعد الحالية بجانب الجديدة قبل تطبيق أي شيء، والإيقاف يحذف القواعد التي أنشأتها اللوحة فقط.",
   production: "الإنتاج",
   staging: "التجهيز",
   stagingOn: "احمِ فروع التجهيز أيضًا",

@@ -36,11 +36,15 @@ export function ManagedSubdomainsCard() {
       setBusy(false);
     }
   };
-  const state = !data ? null
-    : !data.linked ? { tone: undefined, text: m.notLinked }
-    : !data.setting ? { tone: "caution" as const, text: m.off }
-    : !data.enabled ? { tone: undefined, text: m.notOffered }
-    : { tone: "positive" as const, text: m.active };
+  const state = !data
+    ? null
+    : !data.linked
+      ? { tone: undefined, text: m.notLinked }
+      : !data.setting
+        ? { tone: "caution" as const, text: m.off }
+        : !data.enabled
+          ? { tone: undefined, text: m.notOffered }
+          : { tone: "positive" as const, text: m.active };
   const addresses = Object.values(data?.addresses ?? {});
   return (
     <section className="card">
@@ -51,24 +55,70 @@ export function ManagedSubdomainsCard() {
           <div className="sub">{t.groups.managedSubdomains.text}</div>
         </div>
         {can("settings.manage") && data?.linked && (
-          <Button size="sm" icon={<RefreshCcw />} loading={busy} onClick={check}>{m.checkNow}</Button>
+          <Button size="sm" icon={<RefreshCcw />} loading={busy} onClick={check}>
+            {m.checkNow}
+          </Button>
         )}
       </div>
       <div className="card-body stack">
-        {isPending || !data ? <Skeleton height={80} /> : (
+        {isPending || !data ? (
+          <Skeleton height={80} />
+        ) : (
           <>
             <dl className="dl small">
               <dt>{m.status}</dt>
               <dd>{state && <Tag tone={state.tone}>{state.text}</Tag>}</dd>
-              {data.base_domain && (<><dt>{m.base}</dt><dd><bdi dir="ltr" className="mono">.{data.company ?? "<company>"}.{data.base_domain}</bdi></dd></>)}
-              {data.enabled && (<><dt>{m.company}</dt><dd>{data.company ? <bdi dir="ltr" className="mono">{data.company}</bdi> : <span className="faint">{m.companyLater}</span>}</dd></>)}
-              {data.enabled && (<><dt>{m.used}</dt><dd>{m.usedOf(data.used ?? data.held, data.limit)}</dd></>)}
-              {data.linked && (<><dt>{m.addresses}</dt><dd>{addresses.length ? <bdi dir="ltr" className="mono">{addresses.join(" · ")}</bdi> : <span className="faint">{m.noAddress}</span>}</dd></>)}
+              {data.base_domain && (
+                <>
+                  <dt>{m.base}</dt>
+                  <dd>
+                    <bdi dir="ltr" className="mono">
+                      .{data.company ?? "<company>"}.{data.base_domain}
+                    </bdi>
+                  </dd>
+                </>
+              )}
+              {data.enabled && (
+                <>
+                  <dt>{m.company}</dt>
+                  <dd>
+                    {data.company ? (
+                      <bdi dir="ltr" className="mono">
+                        {data.company}
+                      </bdi>
+                    ) : (
+                      <span className="faint">{m.companyLater}</span>
+                    )}
+                  </dd>
+                </>
+              )}
+              {data.enabled && (
+                <>
+                  <dt>{m.used}</dt>
+                  <dd>{m.usedOf(data.used ?? data.held, data.limit)}</dd>
+                </>
+              )}
+              {data.linked && (
+                <>
+                  <dt>{m.addresses}</dt>
+                  <dd>
+                    {addresses.length ? (
+                      <bdi dir="ltr" className="mono">
+                        {addresses.join(" · ")}
+                      </bdi>
+                    ) : (
+                      <span className="faint">{m.noAddress}</span>
+                    )}
+                  </dd>
+                </>
+              )}
               <dt>{m.lastChecked}</dt>
               <dd>{data.checked_at ? ago(data.checked_at) : m.never}</dd>
             </dl>
             {data.error && <Callout tone="warning">{data.error}</Callout>}
-            {data.pending_release.length > 0 && <p className="xsmall faint">{m.pending(data.pending_release.length)}</p>}
+            {data.pending_release.length > 0 && (
+              <p className="xsmall faint">{m.pending(data.pending_release.length)}</p>
+            )}
           </>
         )}
       </div>

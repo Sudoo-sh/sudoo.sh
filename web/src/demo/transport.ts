@@ -9,7 +9,8 @@ import { DemoShellSocket } from "./backend/shell";
 import { ASLEEP, instances, roleInfo, session } from "./backend/state";
 import { websiteLink } from "./referrer";
 
-const ours = (url: URL) => url.origin === location.origin && (url.pathname.startsWith("/api/") || url.pathname === "/healthz");
+const ours = (url: URL) =>
+  url.origin === location.origin && (url.pathname.startsWith("/api/") || url.pathname === "/healthz");
 
 /** A little latency, as over a network: loading states show for a moment instead of never. */
 const latency = () => new Promise((resolve) => setTimeout(resolve, 60 + Math.random() * 140));
@@ -20,7 +21,8 @@ function installFetch() {
     const url = new URL(input instanceof Request ? input.url : String(input), location.href);
     if (!ours(url)) return realFetch(input, init);
     await latency();
-    if (url.pathname === "/healthz") return new Response("ok", { status: 200, headers: { "Content-Type": "text/plain" } });
+    if (url.pathname === "/healthz")
+      return new Response("ok", { status: 200, headers: { "Content-Type": "text/plain" } });
     const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
     const text = typeof init?.body === "string" ? init.body : "";
     let body: unknown;
@@ -130,7 +132,10 @@ class DemoLogSource extends EventTarget {
     const tail = Number(query.get("tail") ?? 300);
     const send = (entries: { id: string; lines: string[] }[]) => {
       const kept = entries.filter(keep);
-      this.send("lines", { lines: kept.flatMap((e) => e.lines), ids: kept.flatMap((e) => e.lines.map((_, i) => (i ? `${e.id}+${i}` : e.id))) });
+      this.send("lines", {
+        lines: kept.flatMap((e) => e.lines),
+        ids: kept.flatMap((e) => e.lines.map((_, i) => (i ? `${e.id}+${i}` : e.id))),
+      });
     };
     this.timers.push(
       setTimeout(() => {
@@ -216,14 +221,23 @@ const ALLOWED = new Set(["sudoo.sh", "www.sudoo.sh", "docs.sudoo.sh"]);
 function why(url: URL, link: HTMLAnchorElement): [string, string] | null {
   if (url.origin === location.origin) {
     if (link.hasAttribute("download") || url.pathname.startsWith("/api/"))
-      return ["Downloads are off in the demo", "The backups and files here are sample data. On your own server this downloads the file."];
+      return [
+        "Downloads are off in the demo",
+        "The backups and files here are sample data. On your own server this downloads the file.",
+      ];
     return null;
   }
   if (ALLOWED.has(url.hostname) || url.href === websiteLink()) return null;
   if (url.hostname.endsWith(".demo.sudoo.sh"))
-    return ["There is no Odoo behind this instance", "The instances in the demo are sample data. On your own server this opens the instance's Odoo."];
+    return [
+      "There is no Odoo behind this instance",
+      "The instances in the demo are sample data. On your own server this opens the instance's Odoo.",
+    ];
   if (url.hostname === "github.com" || url.hostname.endsWith(".github.com"))
-    return ["GitHub is not connected in the demo", "The repositories and the GitHub App here are fictional. On your own server this opens GitHub."];
+    return [
+      "GitHub is not connected in the demo",
+      "The repositories and the GitHub App here are fictional. On your own server this opens GitHub.",
+    ];
   if (url.protocol === "mailto:" || url.protocol === "tel:") return null;
   return ["Links outside the demo are off", "This page would leave the demo. On your own server it opens normally."];
 }

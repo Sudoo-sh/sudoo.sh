@@ -31,14 +31,26 @@ interface Node {
 /** What kind of code a frame is, for its colour: the database layer, Odoo's core, add-ons, Python itself, other. */
 export function kindOf(name: string, where: string): Kind {
   if (/sql_db\.py|psycopg/.test(where) || /^[Cc]ursor\.execute/.test(name)) return "sql";
-  if (/(^|\/)addons\/|odoo\/addons\//.test(where) && !/^odoo\/(models|fields|api|http|service|tools|modules|osv)\b/.test(where)) return "addons";
+  if (
+    /(^|\/)addons\/|odoo\/addons\//.test(where) &&
+    !/^odoo\/(models|fields|api|http|service|tools|modules|osv)\b/.test(where)
+  )
+    return "addons";
   if (/^odoo\//.test(where)) return "odoo";
   if (/^[a-z_]+(\/|\.py)/.test(where) || where.startsWith("<")) return "python";
   return "other";
 }
 
 function build(source: ProfileNode, depth = 0, parent: Node | null = null): Node {
-  const node: Node = { name: source.n, where: source.w ?? "", value: source.v, depth, parent, children: [], kind: kindOf(source.n, source.w ?? "") };
+  const node: Node = {
+    name: source.n,
+    where: source.w ?? "",
+    value: source.v,
+    depth,
+    parent,
+    children: [],
+    kind: kindOf(source.n, source.w ?? ""),
+  };
   node.children = (source.c ?? []).map((child) => build(child, depth + 1, node));
   return node;
 }
@@ -75,9 +87,11 @@ function place(focus: Node): Placed[] {
 }
 
 /** Whether a function's name or file contains the search (already in lower case). */
-const matches = (n: Node, needle: string) => !!needle && (n.name.toLowerCase().includes(needle) || n.where.toLowerCase().includes(needle));
+const matches = (n: Node, needle: string) =>
+  !!needle && (n.name.toLowerCase().includes(needle) || n.where.toLowerCase().includes(needle));
 
-const percent = (part: number, whole: number) => `${whole ? ((100 * part) / whole).toFixed(part / whole < 0.1 ? 1 : 0) : 0}%`;
+const percent = (part: number, whole: number) =>
+  `${whole ? ((100 * part) / whole).toFixed(part / whole < 0.1 ? 1 : 0) : 0}%`;
 
 export function FlameGraph({ tree, label }: { tree: ProfileTree; label: string }) {
   const t = useT(words);
@@ -177,16 +191,27 @@ export function FlameGraph({ tree, label }: { tree: ProfileTree; label: string }
         )}
         <div className="input-group">
           <Search />
-          <Input dir="ltr" placeholder={t.search} value={query} onChange={(e) => setQuery(e.target.value)} aria-label={t.search} />
+          <Input
+            dir="ltr"
+            placeholder={t.search}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label={t.search}
+          />
         </div>
         {focus !== start && (
-          <Button size="sm" icon={<RotateCcw />} onClick={() => setFocus(start)}>{t.reset}</Button>
+          <Button size="sm" icon={<RotateCcw />} onClick={() => setFocus(start)}>
+            {t.reset}
+          </Button>
         )}
         {needle && <span className="small muted">{t.matches(percent(matched, shown))}</span>}
       </div>
       <div className="flame-legend" aria-hidden="true">
         {KINDS.map((kind) => (
-          <span key={kind}><i style={{ background: `var(--flame-${kind})` }} />{t.legend[kind]}</span>
+          <span key={kind}>
+            <i style={{ background: `var(--flame-${kind})` }} />
+            {t.legend[kind]}
+          </span>
         ))}
         <span className="faint">{t.zoomHint}</span>
       </div>
@@ -207,7 +232,11 @@ export function FlameGraph({ tree, label }: { tree: ProfileTree; label: string }
         />
       </div>
       {tip && (
-        <div className="flame-tip" style={{ left: Math.min(tip.x + 14, window.innerWidth - 300), top: tip.y + 16 }} dir="ltr">
+        <div
+          className="flame-tip"
+          style={{ left: Math.min(tip.x + 14, window.innerWidth - 300), top: tip.y + 16 }}
+          dir="ltr"
+        >
           <b>{tip.at.node.name}</b>
           {tip.at.node.where && <div className="mono faint">{tip.at.node.where}</div>}
           <div>{t.sampleCount(tip.at.node.value)}</div>

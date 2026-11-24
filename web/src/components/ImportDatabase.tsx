@@ -57,11 +57,24 @@ function remember(instance: string, value: Remembered | null) {
 const wait = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
     const timer = setTimeout(resolve, ms);
-    signal.addEventListener("abort", () => { clearTimeout(timer); reject(new DOMException("aborted", "AbortError")); }, { once: true });
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(new DOMException("aborted", "AbortError"));
+      },
+      { once: true },
+    );
   });
 
 /** Send one piece; the upload as the server has it after it (also after a 409: where to continue). */
-async function sendPiece(instance: string, upload: Upload, offset: number, piece: Blob, signal: AbortSignal): Promise<Upload> {
+async function sendPiece(
+  instance: string,
+  upload: Upload,
+  offset: number,
+  piece: Blob,
+  signal: AbortSignal,
+): Promise<Upload> {
   const response = await fetch(`/api/v1/instances/${instance}/imports/${upload.id}?offset=${offset}`, {
     method: "PUT",
     headers: { "Content-Type": "application/octet-stream", Accept: "application/json", ...csrfHeaders() },
@@ -80,7 +93,9 @@ export function ImportDatabaseButton({ instance, busy }: { instance: Instance; b
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button size="sm" variant="ghost" icon={<FileUp />} disabled={busy} onClick={() => setOpen(true)}>{t.button}</Button>
+      <Button size="sm" variant="ghost" icon={<FileUp />} disabled={busy} onClick={() => setOpen(true)}>
+        {t.button}
+      </Button>
       {open && <ImportDialog instance={instance} onClose={() => setOpen(false)} />}
     </>
   );
@@ -122,12 +137,20 @@ function ImportDialog({ instance, onClose }: { instance: Instance; onClose: () =
     try {
       let upload: Upload | null = null;
       const earlier = remembered(instance.name);
-      if (earlier && earlier.name === chosen.name && earlier.size === chosen.size && earlier.modified === chosen.lastModified) {
+      if (
+        earlier &&
+        earlier.name === chosen.name &&
+        earlier.size === chosen.size &&
+        earlier.modified === chosen.lastModified
+      ) {
         upload = await api.get<Upload>(`/instances/${instance.name}/imports/${earlier.id}`).catch(() => null);
         if (upload?.received) setNote(t.resumed(bytes(upload.received)));
       }
       if (!upload) {
-        upload = await api.post<Upload>(`/instances/${instance.name}/imports`, { file_name: chosen.name, size: chosen.size });
+        upload = await api.post<Upload>(`/instances/${instance.name}/imports`, {
+          file_name: chosen.name,
+          size: chosen.size,
+        });
         remember(instance.name, { id: upload.id, name: chosen.name, size: chosen.size, modified: chosen.lastModified });
       }
       uploadId.current = upload.id;
@@ -135,7 +158,13 @@ function ImportDialog({ instance, onClose }: { instance: Instance; onClose: () =
       while (upload.received < chosen.size) {
         const offset: number = upload.received;
         try {
-          upload = await sendPiece(instance.name, upload, offset, chosen.slice(offset, offset + upload.chunk_size), controller.signal);
+          upload = await sendPiece(
+            instance.name,
+            upload,
+            offset,
+            chosen.slice(offset, offset + upload.chunk_size),
+            controller.signal,
+          );
           failures = 0;
           setNote((n) => (n === t.retrying ? null : n));
         } catch (problem) {
@@ -145,7 +174,8 @@ function ImportDialog({ instance, onClose }: { instance: Instance; onClose: () =
           if (++failures > TRIES) throw problem;
           setNote(t.retrying);
           await wait(Math.min(30_000, 1000 * 2 ** failures), controller.signal);
-          upload = (await api.get<Upload>(`/instances/${instance.name}/imports/${upload.id}`).catch(() => null)) ?? upload;
+          upload =
+            (await api.get<Upload>(`/instances/${instance.name}/imports/${upload.id}`).catch(() => null)) ?? upload;
         }
         setProgress({ done: upload.received, total: chosen.size });
       }
@@ -156,7 +186,11 @@ function ImportDialog({ instance, onClose }: { instance: Instance; onClose: () =
       });
       remember(instance.name, null);
       toast("success", t.started, t.startedText);
-      await Promise.all([keys.instance(instance.name), keys.jobs(instance.name)].map((queryKey) => client.invalidateQueries({ queryKey })));
+      await Promise.all(
+        [keys.instance(instance.name), keys.jobs(instance.name)].map((queryKey) =>
+          client.invalidateQueries({ queryKey }),
+        ),
+      );
       onClose();
       return job;
     } catch (problem) {
@@ -182,31 +216,80 @@ function ImportDialog({ instance, onClose }: { instance: Instance; onClose: () =
   const ready = !!file && !uploading && (!production || typed === "production");
   const percent = progress && progress.total ? Math.round((100 * progress.done) / progress.total) : 0;
   return (
-    <Modal wide title={t.title} description={t.text(instance.name)} onClose={uploading ? cancel : onClose}
-      footer={<>
-        <Button onClick={cancel}>{uploading ? t.cancel : c.cancel}</Button>
-        <Button variant="danger" icon={<Upload />} disabled={!ready} loading={uploading} onClick={() => file && start(file)}>{t.upload}</Button>
-      </>}>
+    <Modal
+      wide
+      title={t.title}
+      description={t.text(instance.name)}
+      onClose={uploading ? cancel : onClose}
+      footer={
+        <>
+          <Button onClick={cancel}>{uploading ? t.cancel : c.cancel}</Button>
+          <Button
+            variant="danger"
+            icon={<Upload />}
+            disabled={!ready}
+            loading={uploading}
+            onClick={() => file && start(file)}
+          >
+            {t.upload}
+          </Button>
+        </>
+      }
+    >
       <div className="stack">
-        {production && <Callout tone="danger"><b>{t.productionWarning}</b></Callout>}
+        {production && (
+          <Callout tone="danger">
+            <b>{t.productionWarning}</b>
+          </Callout>
+        )}
         <label
           className="drop-zone"
           data-dragging={dragging || undefined}
           data-disabled={uploading || undefined}
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
           onDragLeave={() => setDragging(false)}
-          onDrop={(e) => { e.preventDefault(); setDragging(false); if (!uploading) choose(e.dataTransfer.files[0]); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            if (!uploading) choose(e.dataTransfer.files[0]);
+          }}
         >
-          <input ref={picker} type="file" accept=".zip,.dump,.sql,.gz" disabled={uploading} onChange={(e) => choose(e.target.files?.[0])} />
+          <input
+            ref={picker}
+            type="file"
+            accept=".zip,.dump,.sql,.gz"
+            disabled={uploading}
+            onChange={(e) => choose(e.target.files?.[0])}
+          />
           <DatabaseBackup aria-hidden="true" />
           {file ? (
-            <span className="stack-xs"><b className="mono" dir="ltr">{file.name}</b><span className="xsmall faint">{bytes(file.size)}</span></span>
+            <span className="stack-xs">
+              <b className="mono" dir="ltr">
+                {file.name}
+              </b>
+              <span className="xsmall faint">{bytes(file.size)}</span>
+            </span>
           ) : (
-            <span className="stack-xs"><b>{t.drop}</b><span className="xsmall faint">{t.formats}</span></span>
+            <span className="stack-xs">
+              <b>{t.drop}</b>
+              <span className="xsmall faint">{t.formats}</span>
+            </span>
           )}
         </label>
         <p className="small muted">{t.version(instance.odoo.version)}</p>
-        <Switch checked={neutralize} onChange={setNeutralize} disabled={uploading} label={<span>{t.neutralize} <span className="xsmall faint">{t.neutralizeText}</span></span>} />
+        <Switch
+          checked={neutralize}
+          onChange={setNeutralize}
+          disabled={uploading}
+          label={
+            <span>
+              {t.neutralize} <span className="xsmall faint">{t.neutralizeText}</span>
+            </span>
+          }
+        />
         {!neutralize && <Callout tone="warning">{t.notNeutralized}</Callout>}
         {production && (
           <Field label={<>{t.typeProduction(<code key="p">production</code>)}</>}>
@@ -219,9 +302,15 @@ function ImportDialog({ instance, onClose }: { instance: Instance; onClose: () =
             <span className="xsmall muted">{t.uploading(bytes(progress.done), bytes(progress.total))}</span>
           </div>
         )}
-        {note && <p className="xsmall muted" aria-live="polite">{note}</p>}
+        {note && (
+          <p className="xsmall muted" aria-live="polite">
+            {note}
+          </p>
+        )}
         {error && <Callout tone="danger">{error}</Callout>}
-        <p className="xsmall faint">{t.before} {t.passwords}</p>
+        <p className="xsmall faint">
+          {t.before} {t.passwords}
+        </p>
       </div>
     </Modal>
   );
@@ -232,13 +321,36 @@ export function BackupCommentDialog({ onClose, onRun }: { onClose: () => void; o
   const t = useT(toolWords).backups;
   const c = useT(common).common;
   const [comment, setComment] = useState("");
-  const run = () => { onRun(comment.trim()); onClose(); };
+  const run = () => {
+    onRun(comment.trim());
+    onClose();
+  };
   return (
-    <Modal title={t.backUpTitle} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" icon={<DatabaseBackup />} onClick={run}>{t.backUp}</Button></>}>
+    <Modal
+      title={t.backUpTitle}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button variant="primary" icon={<DatabaseBackup />} onClick={run}>
+            {t.backUp}
+          </Button>
+        </>
+      }
+    >
       <Field label={t.commentLabel} hint={t.commentHint}>
-        <Input autoFocus maxLength={200} value={comment} onChange={(e) => setComment(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); run(); } }} />
+        <Input
+          autoFocus
+          maxLength={200}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              run();
+            }
+          }}
+        />
       </Field>
     </Modal>
   );

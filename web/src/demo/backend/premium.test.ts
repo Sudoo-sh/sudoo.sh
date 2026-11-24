@@ -21,7 +21,14 @@ vi.hoisted(() => {
 const FILES = Object.fromEntries(
   ["teams", "domains", "offsite", "support", "servers"].map((id) => [
     id,
-    { version: "1.0.0", routes: [], sections: [], styles: [], strings: "ui/strings.json", files: { [`ui/${id}.js`]: "a".repeat(64), "ui/strings.json": "b".repeat(64) } },
+    {
+      version: "1.0.0",
+      routes: [],
+      sections: [],
+      styles: [],
+      strings: "ui/strings.json",
+      files: { [`ui/${id}.js`]: "a".repeat(64), "ui/strings.json": "b".repeat(64) },
+    },
   ]),
 );
 
@@ -69,8 +76,16 @@ describe("without premium files (the public build)", () => {
   });
 
   test("the plan is the Free plan of a panel not linked yet", async () => {
-    const plan = await data<{ plan: string; linked: boolean; entitlements: { max_production_branches: number; teams: boolean } }>("/plan");
-    expect(plan).toMatchObject({ plan: "free", linked: false, entitlements: { max_production_branches: 1, teams: false } });
+    const plan = await data<{
+      plan: string;
+      linked: boolean;
+      entitlements: { max_production_branches: number; teams: boolean };
+    }>("/plan");
+    expect(plan).toMatchObject({
+      plan: "free",
+      linked: false,
+      entitlements: { max_production_branches: 1, teams: false },
+    });
   });
 });
 
@@ -89,10 +104,17 @@ describe("with premium files", () => {
   });
 
   test("Business runs every package, with its files and their hashes", async () => {
-    const overview = await data<{ packages: { id: string; status: string; ui?: { files: Record<string, string> } }[] }>("/premium");
+    const overview = await data<{ packages: { id: string; status: string; ui?: { files: Record<string, string> } }[] }>(
+      "/premium",
+    );
     expect(overview.packages.every((p) => p.status === "active")).toBe(true);
     expect(overview.packages.find((p) => p.id === "servers")!.ui!.files["ui/servers.js"]).toHaveLength(64);
-    const plan = await data<{ plan: string; linked: boolean; usage: { servers: number }; entitlements: { features: Record<string, boolean> } }>("/plan");
+    const plan = await data<{
+      plan: string;
+      linked: boolean;
+      usage: { servers: number };
+      entitlements: { features: Record<string, boolean> };
+    }>("/plan");
     expect(plan).toMatchObject({ plan: "business", linked: true, usage: { servers: 3 } });
     expect(Object.values(plan.entitlements.features).every(Boolean)).toBe(true);
   });
@@ -101,7 +123,11 @@ describe("with premium files", () => {
     setPlan("pro");
     const overview = await data<{ packages: { id: string; status: string }[] }>("/premium");
     expect(Object.fromEntries(overview.packages.map((p) => [p.id, p.status]))).toEqual({
-      teams: "active", domains: "not_included", offsite: "active", support: "active", servers: "not_included",
+      teams: "active",
+      domains: "not_included",
+      offsite: "active",
+      support: "active",
+      servers: "not_included",
     });
     expect((await call("GET", "/support-access")).status).toBe(200);
     expect((await call("POST", "/instances/acme-retail-main/domains", { domain: "new.example.com" })).status).toBe(402);
@@ -146,7 +172,12 @@ describe("with premium files", () => {
 
   test("a new instance goes to the chosen server", async () => {
     vi.useFakeTimers();
-    const made = await call("POST", "/instances", { version: "19.0", edition: "community", name: "dubai-test", server: "srv-dxb7k2m9qa" });
+    const made = await call("POST", "/instances", {
+      version: "19.0",
+      edition: "community",
+      name: "dubai-test",
+      server: "srv-dxb7k2m9qa",
+    });
     expect(made.status).toBe(202);
     expect((await data<{ server: { name: string } }>("/instances/dubai-test")).server.name).toBe("Dubai");
   });
@@ -155,7 +186,10 @@ describe("with premium files", () => {
     vi.useFakeTimers();
     const refused = await call("POST", "/instances/acme-retail-main/move", { server: "srv-iad3h8w1ze" });
     expect(refused.status).toBe(400); // production asks for a confirmation
-    const moved = await call("POST", "/instances/acme-retail-main/move", { server: "srv-iad3h8w1ze", confirm_production: true });
+    const moved = await call("POST", "/instances/acme-retail-main/move", {
+      server: "srv-iad3h8w1ze",
+      confirm_production: true,
+    });
     expect(moved.status).toBe(202);
     await vi.advanceTimersByTimeAsync(60_000);
     expect((await data<{ server: { name: string } }>("/instances/acme-retail-main")).server.name).toBe("Virginia");
@@ -171,15 +205,24 @@ describe("with premium files", () => {
     await vi.advanceTimersByTimeAsync(15_000);
     const joined = await data<{ status: string; fingerprint: string }>(`/servers/${server.id}`);
     expect(joined.status).toBe("joined");
-    expect((await call("POST", `/servers/${server.id}/approve`, { fingerprint: "0000-0000-0000-0000" })).status).toBe(400);
-    const approved = await call("POST", `/servers/${server.id}/approve`, { fingerprint: joined.fingerprint.toLowerCase() });
+    expect((await call("POST", `/servers/${server.id}/approve`, { fingerprint: "0000-0000-0000-0000" })).status).toBe(
+      400,
+    );
+    const approved = await call("POST", `/servers/${server.id}/approve`, {
+      fingerprint: joined.fingerprint.toLowerCase(),
+    });
     expect(approved.body.data).toMatchObject({ status: "active", online: true });
   });
 
   test("support access: the seeded grant, a new one, withdrawing it and ending all", async () => {
     const overview = await data<{ grants: { state: string; ticket: string | null }[] }>("/support-access");
     expect(overview.grants.filter((g) => g.state === "active").map((g) => g.ticket)).toEqual(["SUP-2481"]);
-    const granted = await call("POST", "/support-access/grants", { level: "view", hours: 1, ticket: "SUP-9", scope: { all: false, projects: ["nile-logistics"] } });
+    const granted = await call("POST", "/support-access/grants", {
+      level: "view",
+      hours: 1,
+      ticket: "SUP-9",
+      scope: { all: false, projects: ["nile-logistics"] },
+    });
     expect(granted.status).toBe(201);
     const id = (granted.body.data as { id: string }).id;
     expect((await data<{ active_grants: number }>("/support-access/status")).active_grants).toBe(2);
@@ -190,7 +233,10 @@ describe("with premium files", () => {
 
   test("the choice of plan is kept in the browser", () => {
     const store = new Map<string, string>();
-    vi.stubGlobal("localStorage", { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) });
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => store.set(k, v),
+    });
     setPlan("pro");
     expect(store.get("sudoo.demo.plan")).toBe("pro");
     expect(loadPlan()).toBe("pro");

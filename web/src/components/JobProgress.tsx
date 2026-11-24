@@ -11,7 +11,9 @@ import { jobTitle, progressText, stepTitle } from "@/i18n/jobs";
 import { elapsed, percent as asPercent } from "@/lib/format";
 import { Progress } from "./app/basics";
 
-type Shown = Pick<Job, "action" | "status" | "progress_percent" | "steps" | "expected_steps"> & { started_at?: string | null };
+type Shown = Pick<Job, "action" | "status" | "progress_percent" | "steps" | "expected_steps"> & {
+  started_at?: string | null;
+};
 
 /** Re-render every second while `on`, so the time keeps counting between live events. */
 function useSecondTick(on: boolean) {
@@ -24,7 +26,11 @@ function useSecondTick(on: boolean) {
 }
 
 /** The running step, its number and the number of steps (when the job announced it). */
-export function currentStep(job: Pick<Shown, "steps" | "expected_steps">): { step: JobStep | null; index: number; total: number | null } {
+export function currentStep(job: Pick<Shown, "steps" | "expected_steps">): {
+  step: JobStep | null;
+  index: number;
+  total: number | null;
+} {
   const steps = job.steps ?? [];
   const index = steps.findLastIndex((step) => step.status === "running");
   const total = job.expected_steps ? Math.max(job.expected_steps, steps.length) : null;
@@ -43,7 +49,9 @@ export function JobHero({ job, compact }: { job: Shown; compact?: boolean }) {
   const queued = job.status === "queued";
   return (
     <div className="job-hero" data-compact={compact || undefined} data-status={job.status}>
-      <span className="job-hero-mark" aria-hidden="true"><span /></span>
+      <span className="job-hero-mark" aria-hidden="true">
+        <span />
+      </span>
       <div className="job-hero-text">
         <div className="job-hero-meta xsmall">
           {compact && <b>{jobTitle(job.action)}</b>}
@@ -57,7 +65,9 @@ export function JobHero({ job, compact }: { job: Shown; compact?: boolean }) {
       </div>
       {share != null && !queued && <span className="job-hero-share mono">{asPercent(share)}</span>}
       {compact && <ChevronRight className="flip-rtl job-hero-open" aria-hidden="true" />}
-      <div className="job-hero-bar"><Progress value={queued ? null : share} status={job.status} /></div>
+      <div className="job-hero-bar">
+        <Progress value={queued ? null : share} status={job.status} />
+      </div>
     </div>
   );
 }
@@ -66,7 +76,12 @@ export function JobHero({ job, compact }: { job: Shown; compact?: boolean }) {
 export function JobBanner({ job, onOpen }: { job: CurrentJob; onOpen: () => void }) {
   const t = useT(words);
   return (
-    <button type="button" className="card job-banner" onClick={onOpen} aria-label={`${jobTitle(job.action)}: ${t.open}`}>
+    <button
+      type="button"
+      className="card job-banner"
+      onClick={onOpen}
+      aria-label={`${jobTitle(job.action)}: ${t.open}`}
+    >
       <JobHero job={job} compact />
     </button>
   );

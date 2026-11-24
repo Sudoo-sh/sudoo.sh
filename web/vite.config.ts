@@ -26,7 +26,8 @@ function demoSite(): Plugin {
           '<meta name="description" content="Click through the Sudoo.sh panel with sample data: Odoo instances per branch, live metrics, backups and roles. Nothing to install." />\n    <link rel="canonical" href="https://sudoo.sh/" />',
         ),
     generateBundle() {
-      for (const name of ["_headers", "_redirects"]) this.emitFile({ type: "asset", fileName: name, source: file(name) });
+      for (const name of ["_headers", "_redirects"])
+        this.emitFile({ type: "asset", fileName: name, source: file(name) });
     },
   };
 }
@@ -101,7 +102,9 @@ function demoPremium(mode: string): Plugin {
       const { packages, data } = found();
       for (const [path, source] of data) this.emitFile({ type: "asset", fileName: `premium/ui/${path}`, source });
       const ids = Object.keys(packages);
-      this.info(ids.length ? `premium features: ${ids.join(", ")}` : "premium features: none (each shows its plan card)");
+      this.info(
+        ids.length ? `premium features: ${ids.join(", ")}` : "premium features: none (each shows its plan card)",
+      );
     },
   };
 }

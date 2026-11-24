@@ -6,7 +6,8 @@ import { ltr } from "./plural.ts";
 const en = {
   title: "Production access rules",
   beta: "Beta",
-  intro: "Choose who can open this production instance: people in some countries, people on your office or VPN addresses, or either.",
+  intro:
+    "Choose who can open this production instance: people in some countries, people on your office or VPN addresses, or either.",
   on: "On",
   off: "Off",
   offText: "Everyone who has the address can open this instance. Turn the rules on to limit who can.",
@@ -23,7 +24,8 @@ const en = {
   scopeLabel: "What it protects",
   scopes: { back_office: "Back office only", site: "Whole site" },
   scopeText: {
-    back_office: "Sign-in, the back office, the APIs and the database manager. The public website and shop stay open to everyone.",
+    back_office:
+      "Sign-in, the back office, the APIs and the database manager. The public website and shop stay open to everyone.",
     site: "Every page, the public website and shop too.",
   },
   countries: "Countries",
@@ -40,7 +42,8 @@ const en = {
   removeAddress: "Remove",
   notAddress: "Not an address or a range",
   exceptions: "Always allowed",
-  exceptionsText: "These paths and addresses are let through whatever the rules say: payment providers and webhooks must reach Odoo from anywhere.",
+  exceptionsText:
+    "These paths and addresses are let through whatever the rules say: payment providers and webhooks must reach Odoo from anywhere.",
   presets: {
     payments: "Payment providers' notifications",
     webhooks: "Webhooks of automation rules",
@@ -51,11 +54,15 @@ const en = {
   customPaths: "Other paths",
   customPathsHint: "One path per line, for example /my/webhook/",
   exceptionAddresses: "Addresses always allowed",
-  passNote: "Opening this instance from the panel (Open Odoo, Connect as) works from anywhere for those whose project role lets them open production, unless the client has closed access: you get a short pass that the gateway accepts.",
-  vpnNote: "Countries are a convenience barrier: anyone can appear to be in another country with a VPN. Address rules are stronger.",
+  passNote:
+    "Opening this instance from the panel (Open Odoo, Connect as) works from anywhere for those whose project role lets them open production, unless the client has closed access: you get a short pass that the gateway accepts.",
+  vpnNote:
+    "Countries are a convenience barrier: anyone can appear to be in another country with a VPN. Address rules are stronger.",
   geoReady: (month: string) => `Country database: DB-IP Lite, ${month}.`,
-  geoMissingOpen: "The country database is not downloaded yet. Until it is, country rules let everyone through (fail open).",
-  geoMissingClosed: "The country database is not downloaded yet. Until it is, nobody gets in by country; address rules and passes still work.",
+  geoMissingOpen:
+    "The country database is not downloaded yet. Until it is, country rules let everyone through (fail open).",
+  geoMissingClosed:
+    "The country database is not downloaded yet. Until it is, nobody gets in by country; address rules and passes still work.",
   attribution: "IP geolocation by DB-IP",
   changed: (who: string, when: string) => `Changed by ${who}, ${when}`,
   everyone: "Everyone",
@@ -66,7 +73,10 @@ const en = {
   checking: "Checking…",
   youTitle: "Your current address",
   youIn: (address: string, country: string) => [`You (${ltr(address)}, ${country}) would still get in.`] as ReactNode[],
-  youOut: (address: string, country: string) => [`You (${ltr(address)}, ${country}) would be kept out of the back office. You can still open it from the panel with a pass.`] as ReactNode[],
+  youOut: (address: string, country: string) =>
+    [
+      `You (${ltr(address)}, ${country}) would be kept out of the back office. You can still open it from the panel with a pass.`,
+    ] as ReactNode[],
   noCountryKnown: "no country known",
   testTitle: "Try another address",
   testHint: "An address to check, for example a colleague's",
@@ -84,7 +94,8 @@ const en = {
     disabled: "The rules are off: everyone with the address can open this instance.",
   },
   confirmTitle: "Confirm the change",
-  confirmText: "Changing who can open a production instance needs a strong confirmation. The other people who may change these rules are told by e-mail.",
+  confirmText:
+    "Changing who can open a production instance needs a strong confirmation. The other people who may change these rules are told by e-mail.",
   typeName: (name: string) => `Type ${ltr(name)} to confirm`,
   method: "Confirm with",
   methods: { email: "E-mail code", app: "Authenticator app" },
@@ -121,7 +132,8 @@ const ar: typeof en = {
   scopeLabel: "ما الذي تحميه",
   scopes: { back_office: "الواجهة الخلفية فقط", site: "الموقع كله" },
   scopeText: {
-    back_office: "تسجيل الدخول والواجهة الخلفية وواجهات البرمجة ومدير قواعد البيانات. يبقى الموقع العام والمتجر متاحين للجميع.",
+    back_office:
+      "تسجيل الدخول والواجهة الخلفية وواجهات البرمجة ومدير قواعد البيانات. يبقى الموقع العام والمتجر متاحين للجميع.",
     site: "كل الصفحات، والموقع العام والمتجر أيضًا.",
   },
   countries: "الدول",
@@ -138,7 +150,8 @@ const ar: typeof en = {
   removeAddress: "إزالة",
   notAddress: "ليس عنوانًا ولا نطاقًا",
   exceptions: "مسموح دائمًا",
-  exceptionsText: "تمرّ هذه المسارات والعناوين مهما قالت القواعد: يجب أن تصل مزوّدات الدفع والإشعارات الآلية إلى Odoo من أي مكان.",
+  exceptionsText:
+    "تمرّ هذه المسارات والعناوين مهما قالت القواعد: يجب أن تصل مزوّدات الدفع والإشعارات الآلية إلى Odoo من أي مكان.",
   presets: {
     payments: "إشعارات مزوّدي الدفع",
     webhooks: "إشعارات قواعد الأتمتة",
@@ -149,11 +162,13 @@ const ar: typeof en = {
   customPaths: "مسارات أخرى",
   customPathsHint: "مسار في كل سطر، مثل /my/webhook/",
   exceptionAddresses: "عناوين مسموحة دائمًا",
-  passNote: "فتح هذه البيئة من اللوحة (فتح Odoo، الدخول باسم) يعمل من أي مكان لمن يتيح له دوره في المشروع فتح الإنتاج، ما لم يغلق العميل الوصول: تحصل على تصريح قصير تقبله البوابة.",
+  passNote:
+    "فتح هذه البيئة من اللوحة (فتح Odoo، الدخول باسم) يعمل من أي مكان لمن يتيح له دوره في المشروع فتح الإنتاج، ما لم يغلق العميل الوصول: تحصل على تصريح قصير تقبله البوابة.",
   vpnNote: "الدول حاجز للتيسير فقط: يستطيع أي شخص أن يظهر في دولة أخرى عبر شبكة افتراضية. قواعد العناوين أقوى.",
   geoReady: (month: string) => `قاعدة بيانات الدول: DB-IP Lite، ${month}.`,
   geoMissingOpen: "لم تُنزَّل قاعدة بيانات الدول بعد. حتى تُنزَّل، تسمح قواعد الدول للجميع بالمرور (فتح عند الإخفاق).",
-  geoMissingClosed: "لم تُنزَّل قاعدة بيانات الدول بعد. حتى تُنزَّل، لا يدخل أحد عبر الدولة؛ وتبقى قواعد العناوين والتصاريح تعمل.",
+  geoMissingClosed:
+    "لم تُنزَّل قاعدة بيانات الدول بعد. حتى تُنزَّل، لا يدخل أحد عبر الدولة؛ وتبقى قواعد العناوين والتصاريح تعمل.",
   attribution: "تحديد الموقع الجغرافي للعناوين من DB-IP",
   changed: (who: string, when: string) => `غيّرها ${who}، ${when}`,
   everyone: "الجميع",
@@ -164,7 +179,8 @@ const ar: typeof en = {
   checking: "جارٍ التحقق…",
   youTitle: "عنوانك الحالي",
   youIn: (address: string, country: string) => [`ستظل قادرًا على الدخول (${ltr(address)}، ${country}).`] as ReactNode[],
-  youOut: (address: string, country: string) => [`ستُمنع من الواجهة الخلفية (${ltr(address)}، ${country}). ويمكنك فتحها من اللوحة بتصريح.`] as ReactNode[],
+  youOut: (address: string, country: string) =>
+    [`ستُمنع من الواجهة الخلفية (${ltr(address)}، ${country}). ويمكنك فتحها من اللوحة بتصريح.`] as ReactNode[],
   noCountryKnown: "دولة غير معروفة",
   testTitle: "جرّب عنوانًا آخر",
   testHint: "عنوان للتحقق منه، مثل عنوان زميل",
@@ -182,7 +198,8 @@ const ar: typeof en = {
     disabled: "القواعد متوقفة: يستطيع كل من لديه العنوان فتح هذه البيئة.",
   },
   confirmTitle: "أكّد التغيير",
-  confirmText: "تغيير من يستطيع فتح بيئة إنتاج يحتاج تأكيدًا قويًا. ويُبلَّغ الآخرون الذين يستطيعون تغيير هذه القواعد بالبريد.",
+  confirmText:
+    "تغيير من يستطيع فتح بيئة إنتاج يحتاج تأكيدًا قويًا. ويُبلَّغ الآخرون الذين يستطيعون تغيير هذه القواعد بالبريد.",
   typeName: (name: string) => `اكتب ${ltr(name)} للتأكيد`,
   method: "أكّد عبر",
   methods: { email: "رمز بالبريد", app: "تطبيق المصادقة" },

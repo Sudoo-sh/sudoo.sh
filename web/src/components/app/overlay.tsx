@@ -15,9 +15,23 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Dialog as DialogPrimitive } from "radix-ui";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useDirection } from "@/components/ui/direction";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
@@ -82,19 +96,33 @@ export function Modal({
   const [open, setOpen] = useClosing(onClose, phone ? 500 : 200);
   const closeLabel = useT(common).common.close;
   // a plain button: DialogClose (asChild) would put its own data-slot on it, in place of the button's
-  const close = <Button variant="ghost" size="sm" icon={<X />} aria-label={closeLabel} onClick={() => setOpen(false)} />;
+  const close = (
+    <Button variant="ghost" size="sm" icon={<X />} aria-label={closeLabel} onClick={() => setOpen(false)} />
+  );
   if (phone)
     return (
       <Suspense fallback={null}>
-        <ModalDrawer open={open} onOpenChange={setOpen} title={title} description={description} footer={footer} close={close}
-          contentProps={{ onOpenAutoFocus: focusFirst, ...quiet(description) }}>
+        <ModalDrawer
+          open={open}
+          onOpenChange={setOpen}
+          title={title}
+          description={description}
+          footer={footer}
+          close={close}
+          contentProps={{ onOpenAutoFocus: focusFirst, ...quiet(description) }}
+        >
           {children}
         </ModalDrawer>
       </Suspense>
     );
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent showCloseButton={false} data-wide={wide || undefined} onOpenAutoFocus={focusFirst} {...quiet(description)}>
+      <DialogContent
+        showCloseButton={false}
+        data-wide={wide || undefined}
+        onOpenAutoFocus={focusFirst}
+        {...quiet(description)}
+      >
         <DialogHeader className="modal-head">
           <div className="spacer">
             <DialogTitle>{title}</DialogTitle>
@@ -160,7 +188,15 @@ export function Drawer({
 /** A button that opens a small menu next to it (shadcn's DropdownMenu): it grows from the button, flips above it when
  *  there is no room below, and the arrow keys move through its items. `trigger` draws the button (call `open` from
  *  its onClick); `children` the items (MenuItem, MenuSeparator, MenuLabel), told how to close the menu. */
-export function Menu({ trigger, children, align = "right" }: { trigger: (open: () => void) => ReactNode; children: (close: () => void) => ReactNode; align?: "left" | "right" }) {
+export function Menu({
+  trigger,
+  children,
+  align = "right",
+}: {
+  trigger: (open: () => void) => ReactNode;
+  children: (close: () => void) => ReactNode;
+  align?: "left" | "right";
+}) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const anchor = useRef<HTMLSpanElement>(null);
@@ -200,7 +236,9 @@ function legacyArrows(event: KeyboardEvent<HTMLDivElement>) {
   const items = [...content.querySelectorAll<HTMLElement>("button:not(:disabled), a[href]")];
   if (!items.length) return;
   const at = items.indexOf(document.activeElement as HTMLElement);
-  const next = { ArrowDown: at + 1, ArrowUp: at < 0 ? items.length - 1 : at - 1, Home: 0, End: items.length - 1 }[event.key];
+  const next = { ArrowDown: at + 1, ArrowUp: at < 0 ? items.length - 1 : at - 1, Home: 0, End: items.length - 1 }[
+    event.key
+  ];
   if (next == null) return;
   event.preventDefault();
   items[(next + items.length) % items.length]?.focus();
@@ -256,7 +294,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {createPortal(
         <div className="toasts" aria-live="polite" ref={stack}>
           {toasts.map((toast) => (
-            <div key={toast.id} data-id={toast.id} className={`toast ${toast.tone}`} data-closing={toast.closing || undefined}>
+            <div
+              key={toast.id}
+              data-id={toast.id}
+              className={`toast ${toast.tone}`}
+              data-closing={toast.closing || undefined}
+            >
               {icon[toast.tone]}
               <div>
                 <div className="title">{toast.title}</div>

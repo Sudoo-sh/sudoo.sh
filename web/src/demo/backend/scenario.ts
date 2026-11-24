@@ -33,7 +33,12 @@ export function startScenario() {
       status: "busy",
       onDone: () => {
         const repo = findRepo(instance.git.repository)!;
-        const commit = { sha: hex(7), subject: "Driver app: offline mode for proof of delivery", author: "Omar", when: iso(Date.now())! };
+        const commit = {
+          sha: hex(7),
+          subject: "Driver app: offline mode for proof of delivery",
+          author: "Omar",
+          when: iso(Date.now())!,
+        };
         instance.recent_commits = [commit, ...commitsOf(repo, "fleet-gps")].slice(0, 10);
         instance.git.commit = { sha: commit.sha, subject: commit.subject, author: commit.author, age: "just now" };
         instance.status = "online";
@@ -45,17 +50,44 @@ export function startScenario() {
   // the public link of a development instance stops answering for half a minute
   const id = hex(12);
   const name = "acme-retail-pos-refunds";
-  const base = { id, key: `public_link:${name}`, type: "public_link" as const, details: [], instance: name, link: `/i/${name}`, count: 1, delivery: ["e-mailed to 2 of 2 addresses", "webhook 1: delivered (HTTP 200)"] };
+  const base = {
+    id,
+    key: `public_link:${name}`,
+    type: "public_link" as const,
+    details: [],
+    instance: name,
+    link: `/i/${name}`,
+    count: 1,
+    delivery: ["e-mailed to 2 of 2 addresses", "webhook 1: delivered (HTTP 200)"],
+  };
   let started = 0;
   later(55, () => {
     if (!instances.has(name)) return;
     started = Date.now() / 1000;
-    raise({ ...base, severity: "problem", title: `The public link of ${name} does not answer`, text: `Visitors cannot reach ${name} through its link for 10 minutes now; Odoo itself runs. The panel renews the link by itself.`, hint: "Nothing to do unless it lasts.", at: started, last_at: started, resolved_at: null });
+    raise({
+      ...base,
+      severity: "problem",
+      title: `The public link of ${name} does not answer`,
+      text: `Visitors cannot reach ${name} through its link for 10 minutes now; Odoo itself runs. The panel renews the link by itself.`,
+      hint: "Nothing to do unless it lasts.",
+      at: started,
+      last_at: started,
+      resolved_at: null,
+    });
   });
   later(85, () => {
     if (!started) return;
     const now = Date.now() / 1000;
-    raise({ ...base, severity: "recovered", title: `The public link of ${name} answers again`, text: `${name} is reachable through its link again, after 10 minutes.`, hint: null, at: started, last_at: now, resolved_at: now });
+    raise({
+      ...base,
+      severity: "recovered",
+      title: `The public link of ${name} answers again`,
+      text: `${name} is reachable through its link again, after 10 minutes.`,
+      hint: null,
+      at: started,
+      last_at: now,
+      resolved_at: now,
+    });
   });
   return () => timers.forEach(clearTimeout);
 }

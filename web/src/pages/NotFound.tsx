@@ -10,7 +10,17 @@ export function NotFoundPage() {
   return (
     <Page>
       <div className="card">
-        <Empty icon={<Compass />} title={t.title} action={<Button asChild variant="primary"><Link to="/" viewTransition>{t.home}</Link></Button>}>
+        <Empty
+          icon={<Compass />}
+          title={t.title}
+          action={
+            <Button asChild variant="primary">
+              <Link to="/" viewTransition>
+                {t.home}
+              </Link>
+            </Button>
+          }
+        >
           {t.text}
         </Empty>
       </div>

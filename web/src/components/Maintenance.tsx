@@ -7,7 +7,13 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { errorText } from "@/api/client";
 import { useApproveMaintenance, useChooseWindow, useMaintenance, type WindowChoice } from "@/api/maintenance";
-import type { ClientActionAnswer, MaintenanceItem, MaintenanceMeta, MaintenancePreset, PublicMaintenance } from "@/api/types";
+import type {
+  ClientActionAnswer,
+  MaintenanceItem,
+  MaintenanceMeta,
+  MaintenancePreset,
+  PublicMaintenance,
+} from "@/api/types";
 import { Button, Callout, Empty, Field, Skeleton, Tag } from "@/components/app/basics";
 import { useToast } from "@/components/app/overlay";
 import { Input } from "@/components/ui/input";
@@ -75,14 +81,21 @@ export function MaintenanceBanner({ client = false, to = "/maintenance" }: { cli
     item.status === "running"
       ? t.banner.running(what)
       : item.window
-        ? t.banner.upcoming(what, `${zoned(item.window.start, data.meta.timezone, locale)} (${t.facts.countdown(left(item.window.start, t, now))})`)
+        ? t.banner.upcoming(
+            what,
+            `${zoned(item.window.start, data.meta.timezone, locale)} (${t.facts.countdown(left(item.window.start, t, now))})`,
+          )
         : t.banner.choose(what);
   return (
     <div className="notices maintenance-banner" role="status" data-status={item.status}>
       <div className="maintenance-banner-row">
-        <span className="maintenance-banner-icon" aria-hidden><Wrench /></span>
+        <span className="maintenance-banner-icon" aria-hidden>
+          <Wrench />
+        </span>
         <span className="spacer">{text}</span>
-        <Link to={to} viewTransition className="maintenance-banner-link">{t.banner.open}</Link>
+        <Link to={to} viewTransition className="maintenance-banner-link">
+          {t.banner.open}
+        </Link>
       </div>
     </div>
   );
@@ -99,7 +112,9 @@ export function MaintenanceList({ client = false }: { client?: boolean }) {
   if (!items.length)
     return (
       <div className="card">
-        <Empty icon={<CalendarClock />} title={t.empty}>{t.emptyText}</Empty>
+        <Empty icon={<CalendarClock />} title={t.empty}>
+          {t.emptyText}
+        </Empty>
       </div>
     );
   return (
@@ -145,7 +160,9 @@ function MaintenanceCard({ item, meta, client }: { item: MaintenanceItem; meta: 
           {item.window ? (
             <>
               <b>{at(item.window.start)}</b> – {at(item.window.end)}
-              {item.status === "scheduled" && <span className="maintenance-countdown"> · {t.facts.countdown(left(item.window.start, t, now))}</span>}
+              {item.status === "scheduled" && (
+                <span className="maintenance-countdown"> · {t.facts.countdown(left(item.window.start, t, now))}</span>
+              )}
               {chosen && <span className="small muted"> · {chosen}</span>}
             </>
           ) : (
@@ -156,7 +173,9 @@ function MaintenanceCard({ item, meta, client }: { item: MaintenanceItem; meta: 
           </div>
         </dd>
       </dl>
-      {item.auto_at && item.default_start && <Callout tone="info">{t.facts.autoAt(at(item.auto_at), at(item.default_start))}</Callout>}
+      {item.auto_at && item.default_start && (
+        <Callout tone="info">{t.facts.autoAt(at(item.auto_at), at(item.default_start))}</Callout>
+      )}
       {client && <ClientApproval item={item} />}
       {choosable &&
         (meta.may_choose ? (
@@ -164,7 +183,9 @@ function MaintenanceCard({ item, meta, client }: { item: MaintenanceItem; meta: 
             <WindowPicker item={item} meta={meta} client={client} onDone={() => setPicking(false)} />
           ) : (
             <div className="row-wrap">
-              <Button size="sm" icon={<CalendarClock />} onClick={() => setPicking(true)}>{t.choose.change}</Button>
+              <Button size="sm" icon={<CalendarClock />} onClick={() => setPicking(true)}>
+                {t.choose.change}
+              </Button>
             </div>
           )
         ) : (
@@ -177,7 +198,9 @@ function MaintenanceCard({ item, meta, client }: { item: MaintenanceItem; meta: 
             {item.steps.map((step, i) => (
               <li key={`${step.name}-${i}`} data-status={step.status}>
                 <span className="maintenance-step-name">{step.name}</span>
-                <Tag tone={TONE[step.status === "skipped" ? "proposed" : step.status]}>{t.steps[step.status] ?? step.status}</Tag>
+                <Tag tone={TONE[step.status === "skipped" ? "proposed" : step.status]}>
+                  {t.steps[step.status] ?? step.status}
+                </Tag>
                 {step.detail && <span className="small muted">{step.detail}</span>}
               </li>
             ))}
@@ -190,7 +213,17 @@ function MaintenanceCard({ item, meta, client }: { item: MaintenanceItem; meta: 
 }
 
 /** Tonight, this weekend, the default window, or another time between the bounds. */
-function WindowPicker({ item, meta, client, onDone }: { item: MaintenanceItem; meta: MaintenanceMeta; client: boolean; onDone: () => void }) {
+function WindowPicker({
+  item,
+  meta,
+  client,
+  onDone,
+}: {
+  item: MaintenanceItem;
+  meta: MaintenanceMeta;
+  client: boolean;
+  onDone: () => void;
+}) {
   const t = useT(words);
   const locale = useLocale();
   const toast = useToast();
@@ -217,7 +250,13 @@ function WindowPicker({ item, meta, client, onDone }: { item: MaintenanceItem; m
         {item.presets.map((preset) => {
           const Icon = PRESET_ICON[preset.id];
           return (
-            <button key={preset.id} type="button" className="maintenance-preset" disabled={choose.isPending} onClick={() => send({ preset: preset.id })}>
+            <button
+              key={preset.id}
+              type="button"
+              className="maintenance-preset"
+              disabled={choose.isPending}
+              onClick={() => send({ preset: preset.id })}
+            >
               <Icon aria-hidden />
               <span className="maintenance-preset-name">{t.choose[preset.id]}</span>
               <span className="small muted">{at(preset.start)}</span>
@@ -234,7 +273,13 @@ function WindowPicker({ item, meta, client, onDone }: { item: MaintenanceItem; m
           }}
         >
           <Field label={t.choose.custom} hint={t.choose.range(at(item.choose_from), at(item.choose_until))}>
-            <Input type="datetime-local" value={custom} min={local(item.choose_from)} max={local(item.choose_until)} onChange={(e) => setCustom(e.target.value)} />
+            <Input
+              type="datetime-local"
+              value={custom}
+              min={local(item.choose_from)}
+              max={local(item.choose_until)}
+              onChange={(e) => setCustom(e.target.value)}
+            />
           </Field>
           <Button type="submit" size="sm" icon={<Check />} loading={choose.isPending} disabled={!custom}>
             {t.choose.save}
@@ -257,7 +302,9 @@ function ClientApproval({ item }: { item: MaintenanceItem }) {
   return (
     <div className="maintenance-approval">
       {approved.map((p) => (
-        <Tag key={p.id} tone="positive" icon={<ShieldCheck />}>{t.client.approved}: {p.name}</Tag>
+        <Tag key={p.id} tone="positive" icon={<ShieldCheck />}>
+          {t.client.approved}: {p.name}
+        </Tag>
       ))}
       {held.length > 0 && (item.status === "proposed" || item.status === "scheduled") && (
         <>
@@ -272,7 +319,11 @@ function ClientApproval({ item }: { item: MaintenanceItem }) {
                 approve.mutate(
                   { id: item.id, project },
                   {
-                    onSuccess: (answer) => toast(answer.data.done ? "success" : "info", answer.data.done ? t.client.approved : t.client.waiting),
+                    onSuccess: (answer) =>
+                      toast(
+                        answer.data.done ? "success" : "info",
+                        answer.data.done ? t.client.approved : t.client.waiting,
+                      ),
                     onError: (error) => toast("error", errorText(error)),
                   },
                 )
@@ -301,7 +352,11 @@ export function PublicMaintenanceNotice({ items }: { items: PublicMaintenance[] 
         <Callout key={`${item.kind}-${i}`} tone="info">
           {item.status === "running"
             ? t.public.running(item.title[locale])
-            : t.public.upcoming(item.title[locale], zoned(item.window_start, zone, locale), zoned(item.window_end, zone, locale))}
+            : t.public.upcoming(
+                item.title[locale],
+                zoned(item.window_start, zone, locale),
+                zoned(item.window_end, zone, locale),
+              )}
         </Callout>
       ))}
     </div>

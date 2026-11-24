@@ -40,7 +40,8 @@ const en = {
     sendCodeHint: "No password needed: we e-mail you a 6-digit code",
     emailFirst: "Type your e-mail address first",
     inboxTitle: "Check your inbox",
-    inboxText: (to: string) => `If ${ltr(to)} belongs to an account here, a 6-digit code is on its way. It works for 10 minutes`,
+    inboxText: (to: string) =>
+      `If ${ltr(to)} belongs to an account here, a 6-digit code is on its way. It works for 10 minutes`,
     useAnother: "Use another address",
   },
   github: {
@@ -83,11 +84,13 @@ const en = {
     submit: "Create my account",
     checking: "Opening your invitation",
     brokenTitle: "This invitation link does not work",
-    brokenText: "It was used already, sent again, revoked, or it expired. Ask the person who invited you for a new one.",
+    brokenText:
+      "It was used already, sent again, revoked, or it expired. Ask the person who invited you for a new one.",
     noLink: "This page opens from the link in your invitation e-mail.",
     toSignIn: "Go to sign in",
     factorTitle: "Add a second factor",
-    factorText: "Your account is ready. A code from your phone or your e-mail at each sign-in keeps it safe even if your password leaks.",
+    factorText:
+      "Your account is ready. A code from your phone or your e-mail at each sign-in keeps it safe even if your password leaks.",
     factorRequired: "This panel asks for a second factor: you set one up right after choosing your password.",
     later: "Not now",
     done: "Continue to the panel",

@@ -9,7 +9,8 @@ const en = {
   requiredTitle: "Accept the licence agreement",
   requiredText:
     "This version of Sudoo.sh asks a super admin to accept its licence agreement before managing the panel. Your instances keep running and serving in the meantime.",
-  againText: "Accept the agreement again, for example when the way you use Sudoo.sh has changed. Every acceptance is kept.",
+  againText:
+    "Accept the agreement again, for example when the way you use Sudoo.sh has changed. Every acceptance is kept.",
   version: (version: string, date: string) => `Version ${version}, effective ${date}`,
   summary: "Summary in plain words",
   fullText: "Full text",
@@ -21,7 +22,10 @@ const en = {
   uses: {
     personal: { title: "Personal projects", text: "Non-commercial only. No work for a business, employer or client." },
     company: { title: "My company", text: "Running Odoo for my company and its group companies only." },
-    service_provider: { title: "Service provider", text: "Running, hosting, managing or maintaining Odoo for other companies." },
+    service_provider: {
+      title: "Service provider",
+      text: "Running, hosting, managing or maintaining Odoo for other companies.",
+    },
   } as Record<"personal" | "company" | "service_provider", { title: string; text: string }>,
   accept: (version: string) => `I have read and accept the Sudoo.sh Licence Agreement, version ${version}.`,
   company: "I accept it on behalf of my company, and I am authorised to bind it.",
@@ -31,7 +35,11 @@ const en = {
   loadFailed: "The agreement could not be loaded. Reload the page to try again.",
   // Settings, About
   aboutTitle: "Licence",
-  aboutText: (link: ReactNode) => ["Sudoo.sh is licensed under the ", link, ". Each acceptance is recorded and never changed."],
+  aboutText: (link: ReactNode) => [
+    "Sudoo.sh is licensed under the ",
+    link,
+    ". Each acceptance is recorded and never changed.",
+  ],
   agreementName: "Sudoo.sh Licence Agreement",
   bundled: "Bundled with this release",
   required: "Required version",
@@ -48,7 +56,15 @@ const en = {
   history: "Acceptances",
   historyText: "Every acceptance given in this panel and by the installer, oldest first.",
   where: { panel_setup: "First-run setup", panel: "Panel", installer: "Installer" } as Record<string, string>,
-  columns: { when: "When", version: "Version", who: "Who", where: "Where", use: "Declared use", from: "From", hub: "Hub" },
+  columns: {
+    when: "When",
+    version: "Version",
+    who: "Who",
+    where: "Where",
+    use: "Declared use",
+    from: "From",
+    hub: "Hub",
+  },
   sent: "Sent",
   waiting: "Waiting",
 };
@@ -98,7 +114,15 @@ const ar: typeof en = {
   history: "حالات القبول",
   historyText: "كل قبول أُعطي في هذه اللوحة أو عبر برنامج التثبيت، من الأقدم إلى الأحدث.",
   where: { panel_setup: "الإعداد الأول", panel: "اللوحة", installer: "برنامج التثبيت" },
-  columns: { when: "الوقت", version: "الإصدار", who: "مَن", where: "أين", use: "الاستخدام المُعلَن", from: "من", hub: "المركز" },
+  columns: {
+    when: "الوقت",
+    version: "الإصدار",
+    who: "مَن",
+    where: "أين",
+    use: "الاستخدام المُعلَن",
+    from: "من",
+    hub: "المركز",
+  },
   sent: "أُرسل",
   waiting: "بانتظار الإرسال",
 };

@@ -52,7 +52,14 @@ import { BranchCommands } from "@/components/BranchCommands";
 import { BranchHistory } from "@/components/BuildHistory";
 import { BranchSettings } from "@/components/BuildOptions";
 import { BranchResources } from "@/components/ProjectResources";
-import { BranchCommit, CreateDialog, DeleteInstanceDialog, RebuildDialog, StageDialog, type BranchDialog } from "@/components/BranchDialogs";
+import {
+  BranchCommit,
+  CreateDialog,
+  DeleteInstanceDialog,
+  RebuildDialog,
+  StageDialog,
+  type BranchDialog,
+} from "@/components/BranchDialogs";
 import { CompareDialog } from "@/components/BranchCompare";
 import { JobDrawer } from "@/components/JobDrawer";
 import { PromotionDialog } from "@/components/PromotionChecklist";
@@ -95,7 +102,12 @@ export function branchPath(project: string, branch: string, view = "", instance?
 export type Dot = "online" | "failed" | "busy" | "asleep" | "none";
 export function dotOf(members: Instance[]): Dot {
   if (!members.length) return "none";
-  if (members.some((i) => i.status === "unreachable" || i.gateway_error || (i.update_failure && !i.update_failure.rolled_back))) return "failed";
+  if (
+    members.some(
+      (i) => i.status === "unreachable" || i.gateway_error || (i.update_failure && !i.update_failure.rolled_back),
+    )
+  )
+    return "failed";
   if (members.some((i) => WORKING.includes(i.status) || i.current_job)) return "busy";
   if (members.some((i) => i.status === "online")) return "online";
   if (members.every((i) => ASLEEP.includes(i.status))) return "asleep";
@@ -106,14 +118,16 @@ export function dotOf(members: Instance[]): Dot {
 export function productionOf(branches: ProjectBranch[], instances: Map<string, Instance>): string | null {
   for (const branch of branches)
     if (branch.stage === "production")
-      for (const name of branch.instances) if (instances.get(name)?.stage === "production" && instances.get(name)?.status !== "creating") return name;
+      for (const name of branch.instances)
+        if (instances.get(name)?.stage === "production" && instances.get(name)?.status !== "creating") return name;
   return null;
 }
 
 /** What the caller may do in a branch: its own permissions (role, access, lock) when the server sends them. */
 export function useBranchCan() {
   const roleCan = useCan();
-  return (branch: ProjectBranch, permission: Permission) => (branch.permissions ? branch.permissions.includes(permission) : roleCan(permission));
+  return (branch: ProjectBranch, permission: Permission) =>
+    branch.permissions ? branch.permissions.includes(permission) : roleCan(permission);
 }
 
 /** A mouse or a pen drags at once (after a few pixels); a finger goes through the TouchSensor (a long press), so
@@ -122,7 +136,8 @@ class MousePointerSensor extends PointerSensor {
   static activators = [
     {
       eventName: "onPointerDown" as const,
-      handler: ({ nativeEvent }: ReactPointerEvent) => nativeEvent.isPrimary && nativeEvent.button === 0 && nativeEvent.pointerType !== "touch",
+      handler: ({ nativeEvent }: ReactPointerEvent) =>
+        nativeEvent.isPrimary && nativeEvent.button === 0 && nativeEvent.pointerType !== "touch",
     },
   ];
 }
@@ -167,8 +182,17 @@ function Command({ label, command }: { label: string; command: string }) {
   return (
     <div className="ws-command">
       <span className="ws-command-label">{label}</span>
-      <code dir="ltr" className="truncate" title={command}>{command}</code>
-      <Button size="sm" variant="ghost" icon={copied ? <Check /> : <Copy />} onClick={() => copy(command)} aria-label={`${c.copy}: ${label}`} title={copied ? c.copied : c.copy} />
+      <code dir="ltr" className="truncate" title={command}>
+        {command}
+      </code>
+      <Button
+        size="sm"
+        variant="ghost"
+        icon={copied ? <Check /> : <Copy />}
+        onClick={() => copy(command)}
+        aria-label={`${c.copy}: ${label}`}
+        title={copied ? c.copied : c.copy}
+      />
     </div>
   );
 }
@@ -182,7 +206,9 @@ function RowBody({ branch, members, version }: { branch: ProjectBranch; members:
   return (
     <>
       <span className={`ws-dot ${dot}`} title={label} role="img" aria-label={label} />
-      <bdi className="ws-name truncate" dir="ltr">{branch.name}</bdi>
+      <bdi className="ws-name truncate" dir="ltr">
+        {branch.name}
+      </bdi>
       {branch.lock && <Lock className="ws-lock" aria-label={w.locked} />}
       <span className="ws-version">{version}</span>
     </>
@@ -206,7 +232,11 @@ function SideRow({
   movable: boolean;
   onPick: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: branch.name, data: { stage: branch.stage }, disabled: !movable });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: branch.name,
+    data: { stage: branch.stage },
+    disabled: !movable,
+  });
   // a link stays a link for screen readers; the drag is described by aria-describedby (the instructions)
   const { role: _role, ...dragAttributes } = attributes;
   return (
@@ -246,13 +276,28 @@ function SideGroup({
   const target = !!dragFrom && dragFrom !== stage;
   const Icon = STAGE_ICON[stage];
   return (
-    <section ref={setNodeRef} className={`ws-group ${stage}`} aria-label={STAGE_LABEL[stage]} data-target={target || undefined} data-over={(target && isOver) || undefined}>
+    <section
+      ref={setNodeRef}
+      className={`ws-group ${stage}`}
+      aria-label={STAGE_LABEL[stage]}
+      data-target={target || undefined}
+      data-over={(target && isOver) || undefined}
+    >
       <div className="ws-group-head">
         <Icon strokeWidth={1.75} />
         <span className="truncate">{STAGE_LABEL[stage]}</span>
         <span className="ws-count">{shown}</span>
         <span className="spacer" />
-        {onNew && <Button size="sm" variant="ghost" icon={<Plus />} onClick={onNew} aria-label={w.newBranch(STAGE_LABEL[stage])} title={w.newBranch(STAGE_LABEL[stage])} />}
+        {onNew && (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<Plus />}
+            onClick={onNew}
+            aria-label={w.newBranch(STAGE_LABEL[stage])}
+            title={w.newBranch(STAGE_LABEL[stage])}
+          />
+        )}
       </div>
       <div className="ws-list">{children}</div>
     </section>
@@ -287,39 +332,85 @@ function BranchMenu({
   const others = STAGES.filter((s) => s !== branch.stage);
   const view = (tab: string) => branchPath(project.id, branch.name, tab, instance?.name);
   return (
-    <Menu trigger={(toggle) => <Button size="sm" variant="ghost" icon={<Ellipsis />} onClick={toggle} aria-label={w.branchActions(branch.name)} title={w.branchActions(branch.name)} />}>
+    <Menu
+      trigger={(toggle) => (
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<Ellipsis />}
+          onClick={toggle}
+          aria-label={w.branchActions(branch.name)}
+          title={w.branchActions(branch.name)}
+        />
+      )}
+    >
       {(close) => (
         <>
           {instance && can("instances.logs") && (
-            <MenuItem asChild><Link to={view("logs")} viewTransition onClick={close}><ScrollText /> {t.logs}</Link></MenuItem>
-          )}
-          {instance && (
-            <MenuItem asChild><Link to={view("backups")} viewTransition onClick={close}>
-              <Archive /> {backups ? count(backups, "backup") : w.backups}
-            </Link></MenuItem>
-          )}
-          {branch.on_github !== false && project.branches_list.some((b) => b.name !== branch.name && b.on_github !== false) && (
-            <MenuItem onSelect={() => { close(); onDialog({ kind: "compare", branch, base: project.branches_list.find((b) => b.stage === "production" && b.name !== branch.name)?.name ?? project.branches_list.find((b) => b.name !== branch.name)!.name }); }}>
-              <GitCompareArrows /> {pw.compare.menu}
+            <MenuItem asChild>
+              <Link to={view("logs")} viewTransition onClick={close}>
+                <ScrollText /> {t.logs}
+              </Link>
             </MenuItem>
           )}
+          {instance && (
+            <MenuItem asChild>
+              <Link to={view("backups")} viewTransition onClick={close}>
+                <Archive /> {backups ? count(backups, "backup") : w.backups}
+              </Link>
+            </MenuItem>
+          )}
+          {branch.on_github !== false &&
+            project.branches_list.some((b) => b.name !== branch.name && b.on_github !== false) && (
+              <MenuItem
+                onSelect={() => {
+                  close();
+                  onDialog({
+                    kind: "compare",
+                    branch,
+                    base:
+                      project.branches_list.find((b) => b.stage === "production" && b.name !== branch.name)?.name ??
+                      project.branches_list.find((b) => b.name !== branch.name)!.name,
+                  });
+                }}
+              >
+                <GitCompareArrows /> {pw.compare.menu}
+              </MenuItem>
+            )}
           {branch.stage === "staging" && (
-            <MenuItem onSelect={() => { close(); onDialog({ kind: "promotion", branch }); }}>
+            <MenuItem
+              onSelect={() => {
+                close();
+                onDialog({ kind: "promotion", branch });
+              }}
+            >
               <ListChecks /> {pw.check.menu}
             </MenuItem>
           )}
           {instance && branch.stage === "staging" && can("instances.restore") && (
-            <MenuItem onSelect={() => { close(); onDialog({ kind: "rebuild", branch, instance: instance.name }); }}>
+            <MenuItem
+              onSelect={() => {
+                close();
+                onDialog({ kind: "rebuild", branch, instance: instance.name });
+              }}
+            >
               <RotateCcw /> {t.rebuild}
             </MenuItem>
           )}
           {can("projects.manage") && (
             <>
-              <MenuSeparator /><MenuLabel>{t.moveTo}</MenuLabel>
+              <MenuSeparator />
+              <MenuLabel>{t.moveTo}</MenuLabel>
               {others.map((stage) => {
                 const Icon = STAGE_ICON[stage];
                 return (
-                  <MenuItem key={stage} onSelect={() => { close(); onDialog({ kind: "stage", branch, stage }); }}>
+                  <MenuItem
+                    key={stage}
+                    onSelect={() => {
+                      close();
+                      onDialog({ kind: "stage", branch, stage });
+                    }}
+                  >
                     <Icon /> {STAGE_LABEL[stage]}
                   </MenuItem>
                 );
@@ -327,7 +418,12 @@ function BranchMenu({
             </>
           )}
           {!branch.instances.length && can("instances.create") && branch.on_github !== false && (
-            <MenuItem onSelect={() => { close(); onDialog({ kind: "create", branch }); }}>
+            <MenuItem
+              onSelect={() => {
+                close();
+                onDialog({ kind: "create", branch });
+              }}
+            >
               <Plus /> {t.createInstance}
             </MenuItem>
           )}
@@ -336,16 +432,43 @@ function BranchMenu({
               <MenuSeparator />
               {branch.lock ? (
                 <>
-                  <MenuItem onSelect={() => { close(); onDialog({ kind: "lock", branch }); }}><Lock /> {l.lock.changeLock}</MenuItem>
-                  <MenuItem onSelect={() => { close(); onDialog({ kind: "unlock", branch }); }}><LockOpen /> {l.lock.unlock}</MenuItem>
+                  <MenuItem
+                    onSelect={() => {
+                      close();
+                      onDialog({ kind: "lock", branch });
+                    }}
+                  >
+                    <Lock /> {l.lock.changeLock}
+                  </MenuItem>
+                  <MenuItem
+                    onSelect={() => {
+                      close();
+                      onDialog({ kind: "unlock", branch });
+                    }}
+                  >
+                    <LockOpen /> {l.lock.unlock}
+                  </MenuItem>
                 </>
               ) : (
-                <MenuItem onSelect={() => { close(); onDialog({ kind: "lock", branch }); }}><Lock /> {l.lock.lock}</MenuItem>
+                <MenuItem
+                  onSelect={() => {
+                    close();
+                    onDialog({ kind: "lock", branch });
+                  }}
+                >
+                  <Lock /> {l.lock.lock}
+                </MenuItem>
               )}
             </>
           )}
           {instance && can("instances.delete") && (
-            <MenuItem danger onSelect={() => { close(); onDialog({ kind: "delete", instance }); }}>
+            <MenuItem
+              danger
+              onSelect={() => {
+                close();
+                onDialog({ kind: "delete", instance });
+              }}
+            >
               <Trash2 /> {t.deleteInstance}
             </MenuItem>
           )}
@@ -398,13 +521,31 @@ function BranchIdentity({
     <div className="ph-branch" role="group" aria-label={w.branchArea(branch.name)}>
       <span className="ph-branch-name">
         <GitBranch className="ph-branch-icon" aria-hidden />
-        <bdi dir="ltr" className="truncate" title={branch.name}>{branch.name}</bdi>
-        <Button size="sm" variant="ghost" icon={copied ? <Check /> : <Copy />} onClick={() => copy(branch.name)} aria-label={w.copyName} title={copied ? c.copied : w.copyName} />
+        <bdi dir="ltr" className="truncate" title={branch.name}>
+          {branch.name}
+        </bdi>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={copied ? <Check /> : <Copy />}
+          onClick={() => copy(branch.name)}
+          aria-label={w.copyName}
+          title={copied ? c.copied : w.copyName}
+        />
       </span>
       {branch.instances.length > 1 && chosen && (
-        <SelectBox dir="ltr" size="sm" aria-label={w.instance} value={chosen}
-          onValueChange={(name) => navigate(branchPath(project.id, branch.name, view, name), { viewTransition: true })}>
-          {branch.instances.map((name) => <option key={name} value={name}>{name}</option>)}
+        <SelectBox
+          dir="ltr"
+          size="sm"
+          aria-label={w.instance}
+          value={chosen}
+          onValueChange={(name) => navigate(branchPath(project.id, branch.name, view, name), { viewTransition: true })}
+        >
+          {branch.instances.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
         </SelectBox>
       )}
       <span className="ph-branch-tags xsmall">
@@ -412,14 +553,28 @@ function BranchIdentity({
         {branch.default && <Tag>{t.defaultBranch}</Tag>}
         {branch.lock && <LockTag lock={branch.lock} branch={branch.name} />}
         <ClientTag access={branch.client_access} />
-        {branch.restricted && <span title={l.lock.restrictedHint}><Tag icon={<EyeOff />}>{l.lock.restricted}</Tag></span>}
+        {branch.restricted && (
+          <span title={l.lock.restrictedHint}>
+            <Tag icon={<EyeOff />}>{l.lock.restricted}</Tag>
+          </span>
+        )}
         {branch.on_github === false && <Tag tone="negative">{t.deletedOnGitHub}</Tag>}
-        {branch.auto_created && branch.instances.includes(branch.auto_created) && <span className="faint">{t.autoCreated}</span>}
+        {branch.auto_created && branch.instances.includes(branch.auto_created) && (
+          <span className="faint">{t.autoCreated}</span>
+        )}
         {/* in the tags' group, so that it never wraps to a line of its own */}
-        <BranchMenu project={project} branch={branch} instance={instance} backups={chosen ? (backups?.get(chosen) ?? null) : null} onDialog={onDialog} />
+        <BranchMenu
+          project={project}
+          branch={branch}
+          instance={instance}
+          backups={chosen ? (backups?.get(chosen) ?? null) : null}
+          onDialog={onDialog}
+        />
       </span>
       {!chosen && can(branch, "instances.create") && branch.on_github !== false && (
-        <Button size="sm" variant="primary" icon={<Plus />} onClick={() => onDialog({ kind: "create", branch })}>{t.createInstance}</Button>
+        <Button size="sm" variant="primary" icon={<Plus />} onClick={() => onDialog({ kind: "create", branch })}>
+          {t.createInstance}
+        </Button>
       )}
     </div>
   );
@@ -444,9 +599,17 @@ function BranchTools({
   // the instance in full (the page below reads it too): the names its SSH and SQL commands need
   const { data: detail } = useInstance(chosen ?? "", !!chosen);
   return (
-    <BranchCommands project={project} branch={branch} instance={detail ?? instance} can={(p) => can(branch, p)}
-      shellLink={chosen ? branchPath(project.id, branch.name, "shell", chosen === branch.instances[0] ? null : chosen) : null}
-      onDialog={onDialog} onJob={onJob} />
+    <BranchCommands
+      project={project}
+      branch={branch}
+      instance={detail ?? instance}
+      can={(p) => can(branch, p)}
+      shellLink={
+        chosen ? branchPath(project.id, branch.name, "shell", chosen === branch.instances[0] ? null : chosen) : null
+      }
+      onDialog={onDialog}
+      onJob={onJob}
+    />
   );
 }
 
@@ -478,7 +641,11 @@ function BranchPane({
       instances={instances}
       mayOpen={!branch.lock || can(branch, "instances.logs")}
       connectAs={can(branch, "instances.connect")}
-      access={(name) => (can(branch, "instances.credentials") ? branchPath(project.id, branch.name, "access", name === branch.instances[0] ? null : name) : null)}
+      access={(name) =>
+        can(branch, "instances.credentials")
+          ? branchPath(project.id, branch.name, "access", name === branch.instances[0] ? null : name)
+          : null
+      }
       onJob={onJob}
     />
   );
@@ -497,7 +664,12 @@ function BranchPane({
           {can(branch, "instances.upgrade") && chosen && (
             <span className="faint">
               {w.upgradeHint}{" "}
-              <Link to={branchPath(project.id, branch.name, "upgrade", chosen === branch.instances[0] ? null : chosen)} viewTransition>{w.upgradeLink}</Link>
+              <Link
+                to={branchPath(project.id, branch.name, "upgrade", chosen === branch.instances[0] ? null : chosen)}
+                viewTransition
+              >
+                {w.upgradeLink}
+              </Link>
             </span>
           )}
         </p>
@@ -520,7 +692,14 @@ function BranchPane({
             embedded
             lead={{ id: "history", label: hb.title, icon: <History />, content: history }}
             trail={{ id: "branch-settings", label: bo.tab, icon: <SlidersHorizontal />, content: settings }}
-            tabLink={(tab) => branchPath(project.id, branch.name, tab === "history" ? "" : tab === "" ? "overview" : tab, chosen === branch.instances[0] ? null : chosen)}
+            tabLink={(tab) =>
+              branchPath(
+                project.id,
+                branch.name,
+                tab === "history" ? "" : tab === "" ? "overview" : tab,
+                chosen === branch.instances[0] ? null : chosen,
+              )
+            }
             afterDelete={branchPath(project.id, branch.name)}
           />
         </InsidePage.Provider>
@@ -528,7 +707,9 @@ function BranchPane({
         <div className="card">
           <div className="card-body stack">
             <div className="stack-sm">
-              <span className="xsmall faint row" style={{ gap: 6 }}><GitCommitHorizontal size={14} /> {w.lastCommit}</span>
+              <span className="xsmall faint row" style={{ gap: 6 }}>
+                <GitCommitHorizontal size={14} /> {w.lastCommit}
+              </span>
               <BranchCommit branch={branch} />
               {branch.commit?.author && <span className="xsmall faint">{w.by(branch.commit.author)}</span>}
             </div>
@@ -536,13 +717,19 @@ function BranchPane({
           {/* Create instance is in the head, next to the branch's menu */}
           <Empty icon={<GitBranch />} title={w.noInstanceTitle}>
             {branch.on_github === false ? w.noInstanceDeleted : w.noInstanceText}
-            {branch.on_github !== false && <span className="xsmall faint" style={{ display: "block", marginTop: 6 }}>{w.settingsLater}</span>}
+            {branch.on_github !== false && (
+              <span className="xsmall faint" style={{ display: "block", marginTop: 6 }}>
+                {w.settingsLater}
+              </span>
+            )}
           </Empty>
         </div>
       )}
       {!chosen && !!pastHistory?.total && (
         <section className="stack" aria-label={hb.title}>
-          <h3 className="section-title row" style={{ gap: 8 }}><History size={16} /> {hb.title}</h3>
+          <h3 className="section-title row" style={{ gap: 8 }}>
+            <History size={16} /> {hb.title}
+          </h3>
           {history}
         </section>
       )}
@@ -554,7 +741,17 @@ function BranchPane({
 
 const BRANCH_NAME = /^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]{1,200}$/;
 
-function NewBranchDialog({ project, stage, from: initial, onClose }: { project: ProjectDetail; stage: Stage; from: string; onClose: () => void }) {
+function NewBranchDialog({
+  project,
+  stage,
+  from: initial,
+  onClose,
+}: {
+  project: ProjectDetail;
+  stage: Stage;
+  from: string;
+  onClose: () => void;
+}) {
   const w = useT(words).workspace;
   const c = useT(common).common;
   const sources = project.branches_list.filter((b) => b.on_github !== false).map((b) => b.name);
@@ -563,22 +760,44 @@ function NewBranchDialog({ project, stage, from: initial, onClose }: { project: 
   const typed = name.trim();
   const shown = BRANCH_NAME.test(typed) ? typed : "new-branch";
   return (
-    <Modal title={w.newBranchTitle(STAGE_LABEL[stage])} onClose={onClose} footer={<Button onClick={onClose}>{c.close}</Button>}>
+    <Modal
+      title={w.newBranchTitle(STAGE_LABEL[stage])}
+      onClose={onClose}
+      footer={<Button onClick={onClose}>{c.close}</Button>}
+    >
       <div className="stack">
         <p className="small muted">{w.newBranchText}</p>
         {stage === "staging" && <p className="small muted">{w.newStagingText}</p>}
         <div className="form-grid">
           <Field label={w.fromBranch}>
             <SelectBox dir="ltr" value={from} onValueChange={setFrom} aria-label={w.fromBranch}>
-              {sources.map((b) => <option key={b} value={b}>{b}</option>)}
+              {sources.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
             </SelectBox>
           </Field>
-          <Field label={w.newName} hint={w.newNameHint} error={typed && !BRANCH_NAME.test(typed) ? w.newNameHint : undefined}>
-            <Input dir="ltr" autoFocus placeholder="new-branch" value={name} maxLength={200} onChange={(e) => setName(e.target.value)} />
+          <Field
+            label={w.newName}
+            hint={w.newNameHint}
+            error={typed && !BRANCH_NAME.test(typed) ? w.newNameHint : undefined}
+          >
+            <Input
+              dir="ltr"
+              autoFocus
+              placeholder="new-branch"
+              value={name}
+              maxLength={200}
+              onChange={(e) => setName(e.target.value)}
+            />
           </Field>
         </div>
         <p className="small">{w.run}</p>
-        <Command label="git" command={`git checkout -b ${shown} origin/${from || "<branch>"} && git push -u origin ${shown}`} />
+        <Command
+          label="git"
+          command={`git checkout -b ${shown} origin/${from || "<branch>"} && git push -u origin ${shown}`}
+        />
       </div>
     </Modal>
   );
@@ -638,7 +857,8 @@ export function ProjectWorkspace({
     STAGES.map((s) => branches.find((b) => b.stage === s)).find(Boolean) ??
     null;
   const production = useMemo(() => productionOf(branches, instances), [branches, instances]);
-  const membersOf = (branch: ProjectBranch) => branch.instances.map((n) => instances.get(n)).filter((i): i is Instance => !!i);
+  const membersOf = (branch: ProjectBranch) =>
+    branch.instances.map((n) => instances.get(n)).filter((i): i is Instance => !!i);
   const query = filter.trim().toLowerCase();
   const running = project.instances.names.filter((n) => instances.get(n)?.status === "online").length;
   const capacity = meta.capacity;
@@ -648,21 +868,28 @@ export function ProjectWorkspace({
   const sensors = useSensors(
     useSensor(MousePointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: stageKeys, keyboardCodes: { start: ["Space"], cancel: ["Escape"], end: ["Space"] } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: stageKeys,
+      keyboardCodes: { start: ["Space"], cancel: ["Escape"], end: ["Space"] },
+    }),
   );
   const nameOf = (id: UniqueIdentifier) => String(id);
   const stageOf = (id: UniqueIdentifier | undefined) => (id ? STAGE_LABEL[id as Stage] : "");
   const announcements: Announcements = {
     onDragStart: ({ active }) => w.picked(nameOf(active.id)),
-    onDragOver: ({ active, over }) => (over ? w.over(nameOf(active.id), stageOf(over.id)) : w.notOver(nameOf(active.id))),
+    onDragOver: ({ active, over }) =>
+      over ? w.over(nameOf(active.id), stageOf(over.id)) : w.notOver(nameOf(active.id)),
     onDragEnd: ({ active, over }) =>
-      over && over.id !== active.data.current?.stage ? w.dropped(nameOf(active.id), stageOf(over.id)) : w.stays(nameOf(active.id)),
+      over && over.id !== active.data.current?.stage
+        ? w.dropped(nameOf(active.id), stageOf(over.id))
+        : w.stays(nameOf(active.id)),
     onDragCancel: ({ active }) => w.cancelled(nameOf(active.id)),
   };
   // dropped on another stage: the dialog takes over and the branch stays in its group until the change is saved;
   // anywhere else it glides back to where it was
   const movesStage = !!dragging && !!overStage && overStage !== dragging.stage;
-  const dropAnimation: DropAnimation | null = reduced || movesStage ? null : { duration: DURATION.enter, easing: easing.spring };
+  const dropAnimation: DropAnimation | null =
+    reduced || movesStage ? null : { duration: DURATION.enter, easing: easing.spring };
   const endDrag = () => {
     setDragging(null);
     setOverStage(null);
@@ -679,132 +906,273 @@ export function ProjectWorkspace({
     return (
       <>
         {head()}
-      <div className="stack">
-        {meta.branches_error && <Callout tone="warning">{t.cannotRead} {meta.branches_error}</Callout>}
-        <div className="card">
-          <Empty icon={<GitBranch />} title={t.empty}
-            action={<Button size="sm" variant="ghost" icon={<RefreshCw />} loading={refreshing} onClick={onRefresh}>{t.refresh}</Button>}>
-            {t.emptyText}
-          </Empty>
-          <div className="card-body stack-sm">
-            <p className="small muted">{t.pushHelp}</p>
-            <pre className="terminal" dir="ltr">{`git init -b main\ngit add .\ngit commit -m "First modules"\ngit remote add origin ${project.repository.url}.git\ngit push -u origin main`}</pre>
+        <div className="stack">
+          {meta.branches_error && (
+            <Callout tone="warning">
+              {t.cannotRead} {meta.branches_error}
+            </Callout>
+          )}
+          <div className="card">
+            <Empty
+              icon={<GitBranch />}
+              title={t.empty}
+              action={
+                <Button size="sm" variant="ghost" icon={<RefreshCw />} loading={refreshing} onClick={onRefresh}>
+                  {t.refresh}
+                </Button>
+              }
+            >
+              {t.emptyText}
+            </Empty>
+            <div className="card-body stack-sm">
+              <p className="small muted">{t.pushHelp}</p>
+              <pre
+                className="terminal"
+                dir="ltr"
+              >{`git init -b main\ngit add .\ngit commit -m "First modules"\ngit remote add origin ${project.repository.url}.git\ngit push -u origin main`}</pre>
+            </div>
           </div>
         </div>
-      </div>
       </>
     );
 
   const listOpen = !phone || open;
   return (
     <>
-    {head(current ? {
-      // keyed by the branch: its commands' own state (a fork's name, the branch to merge) starts again
-      identity: <BranchIdentity key={current.name} project={project} branch={current} view={view} instances={instances}
-        backups={backupCounts} onDialog={setDialog} />,
-      tools: <BranchTools key={current.name} project={project} branch={current} instances={instances} onDialog={setDialog} onJob={setJobId} />,
-    } : undefined)}
-    <div className="stack">
-      {capacity?.warning && capacity.message && (
-        <Callout tone="warning">
-          {t.capacity(capacity.message)} {running > 1 && t.parallel(running)}{" "}
-          <Link to="/help/docs/ADMIN_GUIDE.md#how-many-instances-can-my-server-run" viewTransition>{t.howMany}</Link>
-        </Callout>
+      {head(
+        current
+          ? {
+              // keyed by the branch: its commands' own state (a fork's name, the branch to merge) starts again
+              identity: (
+                <BranchIdentity
+                  key={current.name}
+                  project={project}
+                  branch={current}
+                  view={view}
+                  instances={instances}
+                  backups={backupCounts}
+                  onDialog={setDialog}
+                />
+              ),
+              tools: (
+                <BranchTools
+                  key={current.name}
+                  project={project}
+                  branch={current}
+                  instances={instances}
+                  onDialog={setDialog}
+                  onJob={setJobId}
+                />
+              ),
+            }
+          : undefined,
       )}
-      {meta.branches_error && <Callout tone="warning">{t.cannotRead} {meta.branches_error}</Callout>}
-      <div className="workspace">
-        <aside className="ws-side" aria-label={w.branches} data-open={listOpen || undefined}>
-          {phone && (
-            <button type="button" className="ws-toggle" aria-expanded={open} aria-controls="ws-branches" onClick={() => setOpen(!open)}>
-              <GitBranch />
-              <span className="ws-toggle-text">
-                <span className="xsmall faint">{w.showBranches}</span>
-                {current && <bdi dir="ltr" className="truncate mono">{current.name}</bdi>}
-              </span>
-              <ChevronDown className="ws-chevron" />
-            </button>
-          )}
-          {listOpen && (
-            <div id="ws-branches" className="ws-side-body">
-              <div className="ws-side-tools">
-                <div className="input-group">
-                  <Search />
-                  <Input data-branch-filter placeholder={w.filter} aria-label={w.filter} aria-keyshortcuts="/" value={filter} onChange={(e) => setFilter(e.target.value)} />
-                </div>
-                <Button variant="ghost" icon={<RefreshCw />} loading={refreshing} onClick={onRefresh} aria-label={w.readAgain} title={w.readAgain} />
-              </div>
-              <DndContext
-                sensors={sensors}
-                collisionDetection={collisions}
-                accessibility={{ announcements, screenReaderInstructions: { draggable: w.instructions } }}
-                onDragStart={({ active }) => setDragging(branches.find((b) => b.name === active.id) ?? null)}
-                onDragOver={({ over }) => setOverStage((over?.id as Stage | undefined) ?? null)}
-                onDragCancel={endDrag}
-                onDragEnd={({ active, over }) => {
-                  const branch = branches.find((b) => b.name === active.id);
-                  const stage = over?.id as Stage | undefined;
-                  endDrag();
-                  if (branch && stage && stage !== branch.stage) setDialog({ kind: "stage", branch, stage });
-                }}
-              >
-                {STAGES.map((stage) => {
-                  const inStage = branches.filter((b) => b.stage === stage);
-                  const listed = inStage.filter((b) => !query || b.name.toLowerCase().includes(query));
-                  return (
-                    <SideGroup key={stage} stage={stage} count={inStage.length} dragFrom={dragging?.stage ?? null}
-                      onNew={stage === "production" ? undefined : () => setNewBranch(stage)}>
-                      {listed.length ? (
-                        listed.map((branch) => (
-                          <SideRow
-                            key={branch.name}
-                            branch={branch}
-                            members={membersOf(branch)}
-                            version={membersOf(branch)[0]?.odoo.version ?? branch.odoo_version ?? project.odoo.version}
-                            to={branchPath(project.id, branch.name)}
-                            selected={branch.name === current?.name}
-                            movable={branchCan(branch, "projects.manage")}
-                            onPick={() => setOpen(false)}
-                          />
-                        ))
-                      ) : (
-                        // an empty group says where a dragged branch can go; the outline says it for the others
-                        <p className={dragging && dragging.stage !== stage ? "ws-empty ws-drop-hint" : "ws-empty"}>
-                          {dragging && dragging.stage !== stage ? w.dropHere(STAGE_LABEL[stage]) : query && inStage.length ? w.noMatch : w.noBranch}
-                        </p>
-                      )}
-                    </SideGroup>
-                  );
-                })}
-                <DragOverlay dropAnimation={dropAnimation}>
-                  {dragging ? (
-                    <div className="ws-row ws-overlay">
-                      <RowBody branch={dragging} members={membersOf(dragging)} version={membersOf(dragging)[0]?.odoo.version ?? dragging.odoo_version ?? project.odoo.version} />
-                    </div>
-                  ) : null}
-                </DragOverlay>
-              </DndContext>
-              {branches.some((b) => branchCan(b, "projects.manage")) && <p className="ws-hint">{w.dragHint}</p>}
-              {meta.branches_read_at && <p className="ws-hint">{t.readAt(ago(meta.branches_read_at))}</p>}
-            </div>
-          )}
-        </aside>
-        {current && (
-          <BranchPane key={current.name} project={project} branch={current} view={view} instances={instances} onJob={setJobId} />
+      <div className="stack">
+        {capacity?.warning && capacity.message && (
+          <Callout tone="warning">
+            {t.capacity(capacity.message)} {running > 1 && t.parallel(running)}{" "}
+            <Link to="/help/docs/ADMIN_GUIDE.md#how-many-instances-can-my-server-run" viewTransition>
+              {t.howMany}
+            </Link>
+          </Callout>
         )}
+        {meta.branches_error && (
+          <Callout tone="warning">
+            {t.cannotRead} {meta.branches_error}
+          </Callout>
+        )}
+        <div className="workspace">
+          <aside className="ws-side" aria-label={w.branches} data-open={listOpen || undefined}>
+            {phone && (
+              <button
+                type="button"
+                className="ws-toggle"
+                aria-expanded={open}
+                aria-controls="ws-branches"
+                onClick={() => setOpen(!open)}
+              >
+                <GitBranch />
+                <span className="ws-toggle-text">
+                  <span className="xsmall faint">{w.showBranches}</span>
+                  {current && (
+                    <bdi dir="ltr" className="truncate mono">
+                      {current.name}
+                    </bdi>
+                  )}
+                </span>
+                <ChevronDown className="ws-chevron" />
+              </button>
+            )}
+            {listOpen && (
+              <div id="ws-branches" className="ws-side-body">
+                <div className="ws-side-tools">
+                  <div className="input-group">
+                    <Search />
+                    <Input
+                      data-branch-filter
+                      placeholder={w.filter}
+                      aria-label={w.filter}
+                      aria-keyshortcuts="/"
+                      value={filter}
+                      onChange={(e) => setFilter(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    icon={<RefreshCw />}
+                    loading={refreshing}
+                    onClick={onRefresh}
+                    aria-label={w.readAgain}
+                    title={w.readAgain}
+                  />
+                </div>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={collisions}
+                  accessibility={{ announcements, screenReaderInstructions: { draggable: w.instructions } }}
+                  onDragStart={({ active }) => setDragging(branches.find((b) => b.name === active.id) ?? null)}
+                  onDragOver={({ over }) => setOverStage((over?.id as Stage | undefined) ?? null)}
+                  onDragCancel={endDrag}
+                  onDragEnd={({ active, over }) => {
+                    const branch = branches.find((b) => b.name === active.id);
+                    const stage = over?.id as Stage | undefined;
+                    endDrag();
+                    if (branch && stage && stage !== branch.stage) setDialog({ kind: "stage", branch, stage });
+                  }}
+                >
+                  {STAGES.map((stage) => {
+                    const inStage = branches.filter((b) => b.stage === stage);
+                    const listed = inStage.filter((b) => !query || b.name.toLowerCase().includes(query));
+                    return (
+                      <SideGroup
+                        key={stage}
+                        stage={stage}
+                        count={inStage.length}
+                        dragFrom={dragging?.stage ?? null}
+                        onNew={stage === "production" ? undefined : () => setNewBranch(stage)}
+                      >
+                        {listed.length ? (
+                          listed.map((branch) => (
+                            <SideRow
+                              key={branch.name}
+                              branch={branch}
+                              members={membersOf(branch)}
+                              version={
+                                membersOf(branch)[0]?.odoo.version ?? branch.odoo_version ?? project.odoo.version
+                              }
+                              to={branchPath(project.id, branch.name)}
+                              selected={branch.name === current?.name}
+                              movable={branchCan(branch, "projects.manage")}
+                              onPick={() => setOpen(false)}
+                            />
+                          ))
+                        ) : (
+                          // an empty group says where a dragged branch can go; the outline says it for the others
+                          <p className={dragging && dragging.stage !== stage ? "ws-empty ws-drop-hint" : "ws-empty"}>
+                            {dragging && dragging.stage !== stage
+                              ? w.dropHere(STAGE_LABEL[stage])
+                              : query && inStage.length
+                                ? w.noMatch
+                                : w.noBranch}
+                          </p>
+                        )}
+                      </SideGroup>
+                    );
+                  })}
+                  <DragOverlay dropAnimation={dropAnimation}>
+                    {dragging ? (
+                      <div className="ws-row ws-overlay">
+                        <RowBody
+                          branch={dragging}
+                          members={membersOf(dragging)}
+                          version={
+                            membersOf(dragging)[0]?.odoo.version ?? dragging.odoo_version ?? project.odoo.version
+                          }
+                        />
+                      </div>
+                    ) : null}
+                  </DragOverlay>
+                </DndContext>
+                {branches.some((b) => branchCan(b, "projects.manage")) && <p className="ws-hint">{w.dragHint}</p>}
+                {meta.branches_read_at && <p className="ws-hint">{t.readAt(ago(meta.branches_read_at))}</p>}
+              </div>
+            )}
+          </aside>
+          {current && (
+            <BranchPane
+              key={current.name}
+              project={project}
+              branch={current}
+              view={view}
+              instances={instances}
+              onJob={setJobId}
+            />
+          )}
+        </div>
+        {dialog?.kind === "lock" && (
+          <LockDialog project={project} branch={dialog.branch} onClose={() => setDialog(null)} />
+        )}
+        {dialog?.kind === "unlock" && (
+          <UnlockDialog project={project} branch={dialog.branch} onClose={() => setDialog(null)} />
+        )}
+        {dialog?.kind === "stage" && (
+          <StageDialog
+            project={project}
+            meta={meta}
+            branch={dialog.branch}
+            stage={dialog.stage}
+            onClose={() => setDialog(null)}
+            onCompare={(base) => setDialog({ kind: "compare", branch: dialog.branch, base })}
+          />
+        )}
+        {dialog?.kind === "compare" && (
+          <CompareDialog
+            project={project}
+            base={dialog.base}
+            head={dialog.branch.name}
+            onClose={() => setDialog(null)}
+          />
+        )}
+        {dialog?.kind === "promotion" && (
+          <PromotionDialog
+            project={project}
+            branch={dialog.branch}
+            onClose={() => setDialog(null)}
+            onCompare={(base) => setDialog({ kind: "compare", branch: dialog.branch, base })}
+          />
+        )}
+        {dialog?.kind === "create" && (
+          <CreateDialog
+            project={project}
+            branch={dialog.branch}
+            production={production}
+            onClose={() => setDialog(null)}
+            onJob={setJobId}
+          />
+        )}
+        {dialog?.kind === "rebuild" && (
+          <RebuildDialog
+            project={project}
+            branch={dialog.branch}
+            instance={dialog.instance}
+            production={production}
+            onClose={() => setDialog(null)}
+            onJob={setJobId}
+          />
+        )}
+        {dialog?.kind === "delete" && (
+          <DeleteInstanceDialog instance={dialog.instance} onClose={() => setDialog(null)} onJob={setJobId} />
+        )}
+        {newBranch && (
+          <NewBranchDialog
+            project={project}
+            stage={newBranch}
+            from={current?.name ?? ""}
+            onClose={() => setNewBranch(null)}
+          />
+        )}
+        {jobId && <JobDrawer id={jobId} onClose={() => setJobId(null)} />}
       </div>
-      {dialog?.kind === "lock" && <LockDialog project={project} branch={dialog.branch} onClose={() => setDialog(null)} />}
-      {dialog?.kind === "unlock" && <UnlockDialog project={project} branch={dialog.branch} onClose={() => setDialog(null)} />}
-      {dialog?.kind === "stage" && <StageDialog project={project} meta={meta} branch={dialog.branch} stage={dialog.stage} onClose={() => setDialog(null)}
-        onCompare={(base) => setDialog({ kind: "compare", branch: dialog.branch, base })} />}
-      {dialog?.kind === "compare" && <CompareDialog project={project} base={dialog.base} head={dialog.branch.name} onClose={() => setDialog(null)} />}
-      {dialog?.kind === "promotion" && <PromotionDialog project={project} branch={dialog.branch} onClose={() => setDialog(null)}
-        onCompare={(base) => setDialog({ kind: "compare", branch: dialog.branch, base })} />}
-      {dialog?.kind === "create" && <CreateDialog project={project} branch={dialog.branch} production={production} onClose={() => setDialog(null)} onJob={setJobId} />}
-      {dialog?.kind === "rebuild" && <RebuildDialog project={project} branch={dialog.branch} instance={dialog.instance} production={production} onClose={() => setDialog(null)} onJob={setJobId} />}
-      {dialog?.kind === "delete" && <DeleteInstanceDialog instance={dialog.instance} onClose={() => setDialog(null)} onJob={setJobId} />}
-      {newBranch && <NewBranchDialog project={project} stage={newBranch} from={current?.name ?? ""} onClose={() => setNewBranch(null)} />}
-      {jobId && <JobDrawer id={jobId} onClose={() => setJobId(null)} />}
-    </div>
     </>
   );
 }

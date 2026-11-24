@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Formatting setup for the web app:** Prettier for `web/` (`.prettierrc.json`, `npm run format`, `npm run format:check`), a
+  pre-commit hook, and the two-space rule for TypeScript and SCSS in `.editorconfig`. No behaviour change.
+
 ## [3.4.1] - 2026-11-24
 
 ### Added

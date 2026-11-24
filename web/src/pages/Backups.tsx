@@ -18,7 +18,8 @@ import { PremiumSlot } from "@/premium/components";
 function Details({ backup: b }: { backup: Backup }) {
   return (
     <span className="mono">
-      {b.db} · {b.series ?? <span className="faint">?</span>}{b.edition === "enterprise" ? " Enterprise" : ""}
+      {b.db} · {b.series ?? <span className="faint">?</span>}
+      {b.edition === "enterprise" ? " Enterprise" : ""}
     </span>
   );
 }
@@ -33,7 +34,8 @@ export function BackupsPage() {
 
   const groups = useMemo(() => {
     const byInstance = new Map<string, Backup[]>();
-    for (const backup of backups ?? []) byInstance.set(backup.instance, [...(byInstance.get(backup.instance) ?? []), backup]);
+    for (const backup of backups ?? [])
+      byInstance.set(backup.instance, [...(byInstance.get(backup.instance) ?? []), backup]);
     return [...byInstance.entries()]
       .map(([name, list]) => ({ name, rows: list.sort((a, b) => b.created - a.created) }))
       .sort((a, b) => b.rows[0]!.created - a.rows[0]!.created);
@@ -43,34 +45,80 @@ export function BackupsPage() {
   return (
     <Page>
       <PageHead title={t.title}>
-        {t.text}{backups?.length ? t.summary(count(backups.length, "backup"), bytes(total)) : ""}
+        {t.text}
+        {backups?.length ? t.summary(count(backups.length, "backup"), bytes(total)) : ""}
       </PageHead>
       <PremiumSlot name="backups.offsite" />
       {isPending ? (
-        <div className="card rise"><div className="card-body"><Skeleton height={140} /></div></div>
+        <div className="card rise">
+          <div className="card-body">
+            <Skeleton height={140} />
+          </div>
+        </div>
       ) : !groups.length ? (
-        <div className="card rise"><Empty icon={<Archive />} title={t.none}>{t.noneText}</Empty></div>
+        <div className="card rise">
+          <Empty icon={<Archive />} title={t.none}>
+            {t.noneText}
+          </Empty>
+        </div>
       ) : (
         groups.map((group) => (
           <section className="card rise" key={group.name}>
             <div className="card-head">
               <div className="spacer">
-                <h2><bdi>{group.name}</bdi>{!existing.has(group.name) && instances && <> <Tag>{t.instanceGone}</Tag></>}</h2>
+                <h2>
+                  <bdi>{group.name}</bdi>
+                  {!existing.has(group.name) && instances && (
+                    <>
+                      {" "}
+                      <Tag>{t.instanceGone}</Tag>
+                    </>
+                  )}
+                </h2>
                 <div className="sub">{t.local(group.rows.length)}</div>
               </div>
             </div>
             <Table>
-              <TableHeader><TableRow><TableHead>{t.kind}</TableHead><TableHead>{t.taken}</TableHead><TableHead>{t.size}</TableHead><TableHead>{t.details}</TableHead><TableHead /></TableRow></TableHeader>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t.kind}</TableHead>
+                  <TableHead>{t.taken}</TableHead>
+                  <TableHead>{t.size}</TableHead>
+                  <TableHead>{t.details}</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
               <TableBody>
                 {group.rows.map((backup) => (
                   <TableRow key={backup.file}>
-                    <TableCell><Tag tone={backup.kind === "daily" ? "accent" : undefined}>{t.kinds[backup.kind] ?? backup.kind}</Tag></TableCell>
-                    <TableCell className="small nowrap">{dateTime(backup.created)} <span className="faint">· {ago(backup.created)}</span></TableCell>
+                    <TableCell>
+                      <Tag tone={backup.kind === "daily" ? "accent" : undefined}>
+                        {t.kinds[backup.kind] ?? backup.kind}
+                      </Tag>
+                    </TableCell>
+                    <TableCell className="small nowrap">
+                      {dateTime(backup.created)} <span className="faint">· {ago(backup.created)}</span>
+                    </TableCell>
                     <TableCell className="small tabular nowrap">{bytes(backup.size)}</TableCell>
-                    <TableCell className="small"><Details backup={backup} /></TableCell>
+                    <TableCell className="small">
+                      <Details backup={backup} />
+                    </TableCell>
                     <TableCell className="actions nowrap">
-                      <Button asChild variant="soft" size="sm"><a href={`/api/v1/backups/${encodeURIComponent(backup.file)}`} download><Download /> {t.download}</a></Button>{" "}
-                      <Button size="sm" variant="ghost" icon={<Trash2 />} aria-label={t.delete} onClick={() => confirm(t.confirmDelete(backup.file)) && remove.mutate(backup.file, { onSuccess: () => toast("success", t.deleted) })} />
+                      <Button asChild variant="soft" size="sm">
+                        <a href={`/api/v1/backups/${encodeURIComponent(backup.file)}`} download>
+                          <Download /> {t.download}
+                        </a>
+                      </Button>{" "}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        icon={<Trash2 />}
+                        aria-label={t.delete}
+                        onClick={() =>
+                          confirm(t.confirmDelete(backup.file)) &&
+                          remove.mutate(backup.file, { onSuccess: () => toast("success", t.deleted) })
+                        }
+                      />
                     </TableCell>
                   </TableRow>
                 ))}

@@ -54,16 +54,32 @@ export function HelpPage() {
           ))}
         </nav>
         {error ? (
-          <div className="card"><Empty icon={<BookOpen />} title={t.missing}>{t.missingText}</Empty></div>
+          <div className="card">
+            <Empty icon={<BookOpen />} title={t.missing}>
+              {t.missingText}
+            </Empty>
+          </div>
         ) : isPending || !page ? (
-          <div className="stack"><Skeleton height={40} width="50%" /><Skeleton height={400} /></div>
+          <div className="stack">
+            <Skeleton height={40} width="50%" />
+            <Skeleton height={400} />
+          </div>
         ) : (
-          <article ref={article} className="prose" key={page.path} lang="en" dir="ltr" dangerouslySetInnerHTML={{ __html: page.html }} />
+          <article
+            ref={article}
+            className="prose"
+            key={page.path}
+            lang="en"
+            dir="ltr"
+            dangerouslySetInnerHTML={{ __html: page.html }}
+          />
         )}
         <nav className="help-toc" aria-label={t.onThisPage}>
           {page && page.headings.length > 0 && <div className="group">{t.onThisPage}</div>}
           {page?.headings.map((h) => (
-            <a key={h.id} href={`#${h.id}`} className={h.level === 3 ? "h3" : ""} lang="en" dir="auto">{h.text}</a>
+            <a key={h.id} href={`#${h.id}`} className={h.level === 3 ? "h3" : ""} lang="en" dir="auto">
+              {h.text}
+            </a>
           ))}
         </nav>
       </div>

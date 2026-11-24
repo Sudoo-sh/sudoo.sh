@@ -34,7 +34,10 @@ import { installTransport, setNotifier } from "./transport";
 export function start() {
   rememberReferrer();
   try {
-    const saved = JSON.parse(sessionStorage.getItem("sudoo.demo") ?? "null") as { role?: Role; signedIn?: boolean } | null;
+    const saved = JSON.parse(sessionStorage.getItem("sudoo.demo") ?? "null") as {
+      role?: Role;
+      signedIn?: boolean;
+    } | null;
     if (saved?.role && PERSPECTIVES.some((p) => p.role === saved.role)) switchRole(saved.role);
     if (saved?.signedIn === false) session.signedIn = false;
   } catch {
@@ -56,7 +59,15 @@ export function start() {
 }
 
 // "member" is shown as Tester: a member's role in the demo's projects is Tester (demo/backend/access.ts)
-const PERSPECTIVES: { role: Role }[] = [{ role: "super_admin" }, { role: "admin" }, { role: "maintainer" }, { role: "developer" }, { role: "viewer" }, { role: "member" }, { role: "client" }];
+const PERSPECTIVES: { role: Role }[] = [
+  { role: "super_admin" },
+  { role: "admin" },
+  { role: "maintainer" },
+  { role: "developer" },
+  { role: "viewer" },
+  { role: "member" },
+  { role: "client" },
+];
 
 /** The demo's banner: always at the top, one line. What this is, where to install it, and whose eyes to look with. */
 export function DemoBanner({ router }: { router: Pick<DataRouter, "state" | "subscribe"> }) {
@@ -89,7 +100,10 @@ export function DemoBanner({ router }: { router: Pick<DataRouter, "state" | "sub
       <p className="demo-text">
         {path === "/login" ? (
           <>
-            <b>{t.demo}.</b> <span className="demo-long">{t.signInAny} <a href="/setup">{t.firstRun}</a></span>
+            <b>{t.demo}.</b>{" "}
+            <span className="demo-long">
+              {t.signInAny} <a href="/setup">{t.firstRun}</a>
+            </span>
           </>
         ) : path === "/setup" ? (
           <>
@@ -105,7 +119,13 @@ export function DemoBanner({ router }: { router: Pick<DataRouter, "state" | "sub
       <DemoPlanMenu />
       <label className="demo-role">
         <span className="demo-long">{t.viewingAs}</span>
-        <SelectBox className="demo-select" size="sm" value={role} onValueChange={(value) => choose(value as Role)} aria-label={t.viewingAs}>
+        <SelectBox
+          className="demo-select"
+          size="sm"
+          value={role}
+          onValueChange={(value) => choose(value as Role)}
+          aria-label={t.viewingAs}
+        >
           {PERSPECTIVES.map((p) => (
             <option key={p.role} value={p.role}>
               {t.roles[p.role] ?? p.role}

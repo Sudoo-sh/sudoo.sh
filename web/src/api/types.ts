@@ -49,7 +49,8 @@ export interface Profile {
 }
 /** "creating": its creation is queued or running (GET answers before its files exist, with the job as current_job) */
 /** "unreachable": an instance of another server whose agent is offline (several servers) */
-export type InstanceStatus = "creating" | "online" | "starting" | "busy" | "paused" | "switched_off" | "stopped" | "unknown" | "unreachable";
+export type InstanceStatus =
+  "creating" | "online" | "starting" | "busy" | "paused" | "switched_off" | "stopped" | "unknown" | "unreachable";
 export type JobStatus = "queued" | "running" | "success" | "failed";
 
 export interface Envelope<T> {
@@ -250,7 +251,13 @@ export type ResourceLimits = Record<ResourceKnob, number | string>;
 /** GET /instances/<name>/resources: priority under load, the limits that apply and where they come from. */
 export interface InstanceResources {
   stage: Stage;
-  priority: { rank: 1 | 2 | 3; cpu_weight: number; oom_score_adj: number; memory_reservation: string; db_memory_reservation: string };
+  priority: {
+    rank: 1 | 2 | 3;
+    cpu_weight: number;
+    oom_score_adj: number;
+    memory_reservation: string;
+    db_memory_reservation: string;
+  };
   limits: ResourceLimits;
   own: Partial<ResourceLimits>;
   stage_defaults: ResourceLimits;
@@ -325,7 +332,11 @@ export interface ProjectResources {
   maxima: ResourceLimits;
   odoo_defaults: Partial<Record<ResourceKnob, number>>;
   instances: ResourceInstance[];
-  storage: { instances: Record<string, StorageUse & { stage: Stage }>; by_stage: Record<Stage, number>; total_bytes: number };
+  storage: {
+    instances: Record<string, StorageUse & { stage: Stage }>;
+    by_stage: Record<Stage, number>;
+    total_bytes: number;
+  };
   server: ResourceServer;
   changed: { by: string; at: number } | null;
 }
@@ -658,7 +669,13 @@ export interface AccessPass {
 }
 /** GET /projects/<id>/clients: what staff see of a project's clients. */
 export interface ProjectClients {
-  clients: (PersonRef & { email: string | null; backups: boolean; shell: boolean; added_by: string | null; added_at: string | null })[];
+  clients: (PersonRef & {
+    email: string | null;
+    backups: boolean;
+    shell: boolean;
+    added_by: string | null;
+    added_at: string | null;
+  })[];
   invited: { id: string; email: string | null; expires_at: string | null }[];
   project: ClientAccess | null;
   branches: Record<string, ClientAccess | null>;
@@ -906,7 +923,11 @@ export interface Build extends HistoryEntryBase {
   /** why it failed; null unless it did */
   failure?: Failure | null;
   /** a build of a push that failed: whether the person who pushed was e-mailed (projects/push_failed.py) */
-  notified?: { emailed: boolean; reason?: "option_off" | "no_address" | "already" | "mail_failed" | "no_project"; at?: number } | null;
+  notified?: {
+    emailed: boolean;
+    reason?: "option_off" | "no_address" | "already" | "mail_failed" | "no_project";
+    at?: number;
+  } | null;
   queued_at: string | null;
   started_at: string | null;
   finished_at: string | null;
@@ -980,7 +1001,14 @@ export interface ProjectMeta {
   default_branch: string | null;
   branches_error: string | null;
   branches_read_at: string | null;
-  capacity: { comfortable: number; running: number; headroom: number; warning: boolean; message: string | null; overloaded: boolean } | null;
+  capacity: {
+    comfortable: number;
+    running: number;
+    headroom: number;
+    warning: boolean;
+    message: string | null;
+    overloaded: boolean;
+  } | null;
   production_limit: number | null;
   server_production_limit: number | null;
   /** whether the GitHub App may write commit statuses in the repository */
@@ -1133,7 +1161,18 @@ export interface Setting {
 export interface Alert {
   id: string;
   key: string;
-  type: "job_failed" | "update_failed" | "backup_failed" | "instance_down" | "disk" | "memory" | "drift" | "public_link" | "certificate" | "test" | "default_admin_password";
+  type:
+    | "job_failed"
+    | "update_failed"
+    | "backup_failed"
+    | "instance_down"
+    | "disk"
+    | "memory"
+    | "drift"
+    | "public_link"
+    | "certificate"
+    | "test"
+    | "default_admin_password";
   severity: "problem" | "recovered" | "info";
   title: string;
   text: string;
@@ -1169,7 +1208,12 @@ export interface Plan {
   engines?: Engine[];
 }
 
-export type PlanDefaults = { delete_after_days: number; auto_update: boolean; auto_upgrade: boolean; auto_pause: boolean };
+export type PlanDefaults = {
+  delete_after_days: number;
+  auto_update: boolean;
+  auto_upgrade: boolean;
+  auto_pause: boolean;
+};
 
 export interface Quota {
   instances: number;
@@ -1562,7 +1606,10 @@ export interface CatalogPlugin {
 
 /** GET /marketplace/recommendations: a plugin the hub suggests, and why. */
 export interface Recommendation {
-  plugin: Omit<CatalogPlugin, "plans" | "latest_version" | "compatible_version" | "installed_version" | "license" | "action">;
+  plugin: Omit<
+    CatalogPlugin,
+    "plans" | "latest_version" | "compatible_version" | "installed_version" | "license" | "action"
+  >;
   score: number;
   reasons: string[];
 }
@@ -1585,7 +1632,8 @@ export interface Billing {
   manage_url: string | null;
 }
 
-export type LicencePhase = "active" | "perpetual" | "expiring" | "grace" | "ended" | "no_lease" | "withheld" | "unlicensed";
+export type LicencePhase =
+  "active" | "perpetual" | "expiring" | "grace" | "ended" | "no_lease" | "withheld" | "unlicensed";
 
 export interface InstalledPlugin {
   id: string;
@@ -1726,7 +1774,8 @@ export interface Domains {
 // ---------------------------------------------------------------- web shell (GET /api/v1/instances/<name>/shell)
 
 export type ShellTarget = "shell" | "odoo-shell" | "psql";
-export type ShellChoice = { allowed: true; user: string; recorded: boolean } | { allowed: false; code: string; reason: string };
+export type ShellChoice =
+  { allowed: true; user: string; recorded: boolean } | { allowed: false; code: string; reason: string };
 export interface ShellOptions {
   enabled: boolean;
   production: boolean;
@@ -1884,7 +1933,8 @@ export interface LinkDeadline {
 }
 
 export type UpgradeMethod = "enterprise" | "openupgrade";
-export type UpgradeState = "checked" | "testing" | "tested" | "test_failed" | "promoting" | "promoted" | "promotion_failed" | "rolled_back";
+export type UpgradeState =
+  "checked" | "testing" | "tested" | "test_failed" | "promoting" | "promoted" | "promotion_failed" | "rolled_back";
 export type UpgradeModuleStatus = "ready" | "version_mismatch" | "unknown_version" | "not_installable" | "missing";
 export interface UpgradeFinding {
   code: string;
@@ -2020,7 +2070,13 @@ export interface CheckItem {
   key: CheckKey;
   status: CheckStatus;
   text: string;
-  build?: { id: string; status: string; at: number | string | null; commit: { sha: string; subject?: string } | null; tests: Record<string, unknown> | null };
+  build?: {
+    id: string;
+    status: string;
+    at: number | string | null;
+    commit: { sha: string; subject?: string } | null;
+    tests: Record<string, unknown> | null;
+  };
   backup?: { file: string; created: number } | null;
   instance?: string;
   max_hours?: number;
@@ -2046,7 +2102,13 @@ export interface PromotionCheck {
   blocked: CheckKey[];
   /** red items stop the move into production (PROJECT_PROMOTION_BLOCKS) */
   blocking: boolean;
-  compare: { ahead: number; behind: number; files_changed: number; github_url: string; source: "git" | "github" } | null;
+  compare: {
+    ahead: number;
+    behind: number;
+    files_changed: number;
+    github_url: string;
+    source: "git" | "github";
+  } | null;
   checked_at: string | null;
 }
 
@@ -2255,7 +2317,14 @@ export interface ServerCheck {
     beta: boolean;
   };
   /** the minimum for Kubernetes (k3s's own plus room for Odoo); "measured" false while they are placeholders */
-  figures: { min_cpus: number; min_memory_mb: number; k3s_min_memory_mb: number; odoo_room_memory_mb: number; measured: boolean; source: string };
+  figures: {
+    min_cpus: number;
+    min_memory_mb: number;
+    k3s_min_memory_mb: number;
+    odoo_room_memory_mb: number;
+    measured: boolean;
+    source: string;
+  };
   engine: { current: Engine; wanted: Engine | null; available: Engine[]; switch_command: string };
   checked_at: number;
 }
@@ -2268,7 +2337,15 @@ export interface SetupDraft {
   needs: SetupNeeds;
   exposure: "direct" | "proxy" | "tunnel";
   name: { kind: "server" | "domain" | "managed"; domain: string };
-  mail: { enabled: boolean; host: string; port: number; security: "starttls" | "ssl" | "none"; username: string; sender: string; password_set: boolean };
+  mail: {
+    enabled: boolean;
+    host: string;
+    port: number;
+    security: "starttls" | "ssl" | "none";
+    username: string;
+    sender: string;
+    password_set: boolean;
+  };
   github: { connect: boolean };
   account: { link: boolean; link_code: string; company_label: string; from_install_code?: boolean };
   admin: Profile;
@@ -2301,7 +2378,13 @@ export interface MaintenanceItem {
   deadline: string;
   required: boolean;
   status: MaintenanceStatus;
-  window: { start: string; end: string; source: "panel" | "client" | "account" | "default"; chosen_by: string | null; chosen_at: string | null } | null;
+  window: {
+    start: string;
+    end: string;
+    source: "panel" | "client" | "account" | "default";
+    chosen_by: string | null;
+    chosen_at: string | null;
+  } | null;
   choose_from: string | null;
   choose_until: string | null;
   presets: { id: MaintenancePreset; start: string; end: string }[];
@@ -2309,7 +2392,14 @@ export interface MaintenanceItem {
   default_start: string | null;
   instances: { name: string; stage: string; project: string | null; held: string | null }[];
   approvals: string[];
-  steps: { name: string; instance?: string | null; stage?: string | null; status: string; job?: string | null; detail?: string | null }[];
+  steps: {
+    name: string;
+    instance?: string | null;
+    stage?: string | null;
+    status: string;
+    job?: string | null;
+    detail?: string | null;
+  }[];
   detail: string | null;
   received_at: string | null;
   started_at: string | null;

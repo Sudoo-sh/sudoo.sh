@@ -42,7 +42,8 @@ describe("module picker", () => {
 
   test("Enterprise apps only for Enterprise", async () => {
     const community = (await call("GET", "/odoo-apps", undefined, "version=18.0&edition=community")).data as OdooApp[];
-    const enterprise = (await call("GET", "/odoo-apps", undefined, "version=18.0&edition=enterprise")).data as OdooApp[];
+    const enterprise = (await call("GET", "/odoo-apps", undefined, "version=18.0&edition=enterprise"))
+      .data as OdooApp[];
     expect(community.some((a) => a.name === "helpdesk")).toBe(false);
     expect(enterprise.some((a) => a.name === "helpdesk")).toBe(true);
   });
@@ -58,7 +59,14 @@ describe("module picker", () => {
     expect(job.steps.map((s) => s.title)).toContain("Installing the chosen modules (2)");
     expect((await call("POST", "/instances", { ...body, name: "picked-two", modules: ["-u all"] })).status).toBe(400);
     vi.useFakeTimers();
-    const both = { ...body, name: "picked-three", repo: repoUrl("acme-retail"), branch: "main", install_modules: true, modules: ["crm"] };
+    const both = {
+      ...body,
+      name: "picked-three",
+      repo: repoUrl("acme-retail"),
+      branch: "main",
+      install_modules: true,
+      modules: ["crm"],
+    };
     const made = (await call("POST", "/instances", both)).data as Job;
     await vi.advanceTimersByTimeAsync(120_000);
     const steps = ((await call("GET", `/jobs/${made.id}`)).data as Job).steps.map((s) => s.title);

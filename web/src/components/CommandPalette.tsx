@@ -5,7 +5,17 @@
 // Keyboard only: arrows move, Enter opens or runs, Escape goes back or closes. "/" outside a field focuses the branch
 // filter of a project's workspace (an input marked data-branch-filter).
 
-import { DownloadCloud, FolderKanban, GitBranch, History, LayoutGrid, RotateCw, Search, SquareArrowOutUpRight, type LucideIcon } from "lucide-react";
+import {
+  DownloadCloud,
+  FolderKanban,
+  GitBranch,
+  History,
+  LayoutGrid,
+  RotateCw,
+  Search,
+  SquareArrowOutUpRight,
+  type LucideIcon,
+} from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useNavigate } from "react-router";
 import { api, errorText } from "@/api/client";
@@ -51,7 +61,12 @@ const isMac = () => /Mac|iPhone|iPad/.test(navigator.platform || navigator.userA
 
 function typing(target: EventTarget | null): boolean {
   const element = target as HTMLElement | null;
-  return !!element && (element.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName) || !!element.closest("[role=textbox], .xterm"));
+  return (
+    !!element &&
+    (element.isContentEditable ||
+      ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName) ||
+      !!element.closest("[role=textbox], .xterm"))
+  );
 }
 
 function readRecent(): string[] {
@@ -65,7 +80,10 @@ function readRecent(): string[] {
 
 function remember(id: string) {
   try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...readRecent().filter((other) => other !== id)].slice(0, RECENT_KEPT)));
+    localStorage.setItem(
+      RECENT_KEY,
+      JSON.stringify([id, ...readRecent().filter((other) => other !== id)].slice(0, RECENT_KEPT)),
+    );
   } catch {
     // private window or storage blocked: recent items are only a convenience
   }
@@ -77,7 +95,14 @@ export function CommandButton() {
   const [mac, setMac] = useState(false);
   useEffect(() => setMac(isMac()), []);
   return (
-    <button type="button" className="command-button" onClick={openCommandPalette} aria-label={t.open} aria-keyshortcuts={mac ? "Meta+K" : "Control+K"} title={t.open}>
+    <button
+      type="button"
+      className="command-button"
+      onClick={openCommandPalette}
+      aria-label={t.open}
+      aria-keyshortcuts={mac ? "Meta+K" : "Control+K"}
+      title={t.open}
+    >
       <Search aria-hidden="true" />
       <kbd className="hide-sm">{mac ? t.shortcutMac : t.shortcut}</kbd>
     </button>
@@ -110,10 +135,19 @@ function useItems(): Item[] {
       ["/account", t.palette.pages.account, null],
     ];
     for (const [to, label, permission] of pages)
-      if (!permission || can(permission)) items.push({ id: `page:${to}`, group: "pages", label, keywords: [to], icon: LayoutGrid, to });
+      if (!permission || can(permission))
+        items.push({ id: `page:${to}`, group: "pages", label, keywords: [to], icon: LayoutGrid, to });
 
     for (const project of projects?.projects ?? []) {
-      items.push({ id: `project:${project.id}`, group: "projects", label: project.name, detail: project.repository.full_name, keywords: [project.id, project.repository.full_name], icon: FolderKanban, to: `/projects/${project.id}` });
+      items.push({
+        id: `project:${project.id}`,
+        group: "projects",
+        label: project.name,
+        detail: project.repository.full_name,
+        keywords: [project.id, project.repository.full_name],
+        icon: FolderKanban,
+        to: `/projects/${project.id}`,
+      });
       const projectTabList: [string, string, Permission | null][] = [
         ["status", t.tabs.status, null],
         ["builds", buildTab, null],
@@ -123,16 +157,37 @@ function useItems(): Item[] {
       ];
       for (const [tab, label, permission] of projectTabList)
         if (label && (!permission || can(permission)))
-          items.push({ id: `project-tab:${project.id}:${tab}`, group: "tabs", label: t.palette.tabOf(label, project.name), keywords: [project.id, tab], icon: SquareArrowOutUpRight, to: `/projects/${project.id}/${tab}` });
+          items.push({
+            id: `project-tab:${project.id}:${tab}`,
+            group: "tabs",
+            label: t.palette.tabOf(label, project.name),
+            keywords: [project.id, tab],
+            icon: SquareArrowOutUpRight,
+            to: `/projects/${project.id}/${tab}`,
+          });
     }
 
     const branches = new Map<string, { project: string; projectName: string; branch: string; instance: string }>();
     for (const instance of instances ?? []) {
       if (instance.project && instance.git.branch) {
         const key = `${instance.project.id}:${instance.git.branch}`;
-        if (!branches.has(key)) branches.set(key, { project: instance.project.id, projectName: instance.project.name, branch: instance.git.branch, instance: instance.name });
+        if (!branches.has(key))
+          branches.set(key, {
+            project: instance.project.id,
+            projectName: instance.project.name,
+            branch: instance.git.branch,
+            instance: instance.name,
+          });
       }
-      items.push({ id: `instance:${instance.name}`, group: "instances", label: instance.name, detail: instance.project?.name ?? instance.git.branch ?? undefined, keywords: [instance.git.branch ?? "", instance.stage], icon: LayoutGrid, to: `/i/${instance.name}` });
+      items.push({
+        id: `instance:${instance.name}`,
+        group: "instances",
+        label: instance.name,
+        detail: instance.project?.name ?? instance.git.branch ?? undefined,
+        keywords: [instance.git.branch ?? "", instance.stage],
+        icon: LayoutGrid,
+        to: `/i/${instance.name}`,
+      });
       const instanceTabs: [string, string, Permission | null][] = [
         ["logs", tabs.logs, "instances.logs"],
         ["activity", tabs.activity, null],
@@ -142,18 +197,47 @@ function useItems(): Item[] {
       ];
       for (const [tab, label, permission] of instanceTabs)
         if (!permission || can(permission))
-          items.push({ id: `instance-tab:${instance.name}:${tab}`, group: "tabs", label: t.palette.tabOf(label, instance.name), keywords: [tab, instance.git.branch ?? ""], icon: SquareArrowOutUpRight, to: `/i/${instance.name}/${tab}` });
+          items.push({
+            id: `instance-tab:${instance.name}:${tab}`,
+            group: "tabs",
+            label: t.palette.tabOf(label, instance.name),
+            keywords: [tab, instance.git.branch ?? ""],
+            icon: SquareArrowOutUpRight,
+            to: `/i/${instance.name}/${tab}`,
+          });
       // the safe actions, on an instance its branch's lock does not hold
       if (can("instances.update") && !instance.lock && !["creating", "busy"].includes(instance.status)) {
         if (instance.source !== "plain" && instance.git.repository)
-          items.push({ id: `action:update:${instance.name}`, group: "actions", label: t.palette.getLatest(instance.name), keywords: ["update", "pull", "git"], icon: DownloadCloud, action: { instance, kind: "update" } });
+          items.push({
+            id: `action:update:${instance.name}`,
+            group: "actions",
+            label: t.palette.getLatest(instance.name),
+            keywords: ["update", "pull", "git"],
+            icon: DownloadCloud,
+            action: { instance, kind: "update" },
+          });
         if (!ASLEEP.includes(instance.status))
-          items.push({ id: `action:restart:${instance.name}`, group: "actions", label: t.palette.restart(instance.name), keywords: ["restart", "reboot"], icon: RotateCw, action: { instance, kind: "restart" } });
+          items.push({
+            id: `action:restart:${instance.name}`,
+            group: "actions",
+            label: t.palette.restart(instance.name),
+            keywords: ["restart", "reboot"],
+            icon: RotateCw,
+            action: { instance, kind: "restart" },
+          });
       }
     }
     for (const found of branches.values())
       // a branch opens on its history (as components/ProjectWorkspace.tsx branchPath writes it)
-      items.push({ id: `branch:${found.project}:${found.branch}`, group: "branches", label: t.palette.branchHistory(found.branch), detail: found.projectName, keywords: [found.branch, found.project, "history"], icon: GitBranch, to: `/projects/${found.project}/branches/${encodeURIComponent(found.branch)}` });
+      items.push({
+        id: `branch:${found.project}:${found.branch}`,
+        group: "branches",
+        label: t.palette.branchHistory(found.branch),
+        detail: found.projectName,
+        keywords: [found.branch, found.project, "history"],
+        icon: GitBranch,
+        to: `/projects/${found.project}/branches/${encodeURIComponent(found.branch)}`,
+      });
     return items;
   }, [can, projects, instances, t, tabs, projectTabs, buildTab]);
 }
@@ -213,12 +297,21 @@ function Palette({ onClose }: { onClose: () => void }) {
   const shown = useMemo(() => {
     if (!query.trim()) {
       const byId = new Map(items.map((item) => [item.id, item]));
-      const recent = readRecent().map((id) => byId.get(id)).filter((item): item is Item => !!item);
+      const recent = readRecent()
+        .map((id) => byId.get(id))
+        .filter((item): item is Item => !!item);
       const seen = new Set(recent.map((item) => item.id));
-      const rest = GROUP_ORDER.flatMap((group) => items.filter((item) => item.group === group && !seen.has(item.id) && group !== "tabs" && group !== "actions").slice(0, 5));
+      const rest = GROUP_ORDER.flatMap((group) =>
+        items
+          .filter((item) => item.group === group && !seen.has(item.id) && group !== "tabs" && group !== "actions")
+          .slice(0, 5),
+      );
       return [...recent.map((item) => ({ item, recent: true })), ...rest.map((item) => ({ item, recent: false }))];
     }
-    return rank(items, query, (item) => [item.label, item.detail ?? "", ...item.keywords], 60).map((item) => ({ item, recent: false }));
+    return rank(items, query, (item) => [item.label, item.detail ?? "", ...item.keywords], 60).map((item) => ({
+      item,
+      recent: false,
+    }));
   }, [items, query]);
 
   useEffect(() => setActive(0), [query]);
@@ -311,11 +404,21 @@ function Palette({ onClose }: { onClose: () => void }) {
             <p className="palette-confirm-what">
               <confirming.icon aria-hidden="true" /> {confirming.label}
             </p>
-            {confirming.action.instance.stage === "production" && <p className="small palette-warning">{t.confirmProduction}</p>}
+            {confirming.action.instance.stage === "production" && (
+              <p className="small palette-warning">{t.confirmProduction}</p>
+            )}
             <p className="xsmall muted">{t.confirmText}</p>
             <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
-              <button type="button" className="palette-button" onClick={() => setConfirming(null)}>{t.back}</button>
-              <button type="button" className="palette-button primary" autoFocus disabled={running} onClick={() => void run(confirming)}>
+              <button type="button" className="palette-button" onClick={() => setConfirming(null)}>
+                {t.back}
+              </button>
+              <button
+                type="button"
+                className="palette-button primary"
+                autoFocus
+                disabled={running}
+                onClick={() => void run(confirming)}
+              >
                 {running ? <span className="spinner" /> : null}
                 {t.run}
               </button>
@@ -350,7 +453,11 @@ function Palette({ onClose }: { onClose: () => void }) {
                 const Icon = recent ? History : item.icon;
                 return (
                   <div key={`${recent ? "recent:" : ""}${item.id}`} role="presentation">
-                    {head && <div className="palette-group" role="presentation">{head}</div>}
+                    {head && (
+                      <div className="palette-group" role="presentation">
+                        {head}
+                      </div>
+                    )}
                     <div
                       id={`${listId}-${index}`}
                       role="option"
@@ -361,17 +468,30 @@ function Palette({ onClose }: { onClose: () => void }) {
                       onClick={() => choose(item)}
                     >
                       <Icon aria-hidden="true" />
-                      <span className="palette-label truncate"><bdi>{item.label}</bdi></span>
-                      {item.detail && <span className="palette-detail truncate"><bdi>{item.detail}</bdi></span>}
+                      <span className="palette-label truncate">
+                        <bdi>{item.label}</bdi>
+                      </span>
+                      {item.detail && (
+                        <span className="palette-detail truncate">
+                          <bdi>{item.detail}</bdi>
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
             <div className="palette-foot xsmall muted" aria-hidden="true">
-              <span><kbd>↑</kbd><kbd>↓</kbd> {t.hints.move}</span>
-              <span><kbd>↵</kbd> {t.hints.open}</span>
-              <span><kbd>Esc</kbd> {t.hints.close}</span>
+              <span>
+                <kbd>↑</kbd>
+                <kbd>↓</kbd> {t.hints.move}
+              </span>
+              <span>
+                <kbd>↵</kbd> {t.hints.open}
+              </span>
+              <span>
+                <kbd>Esc</kbd> {t.hints.close}
+              </span>
             </div>
           </>
         )}

@@ -7,7 +7,11 @@ const en = {
   again: "Check again",
   checking: "Checking with GitHub…",
   checked: (when: string) => `Checked ${when}`,
-  overall: { ok: "Everything works", warning: "Works, with something to look at", error: "Something does not work" } as Record<string, string>,
+  overall: {
+    ok: "Everything works",
+    warning: "Works, with something to look at",
+    error: "Something does not work",
+  } as Record<string, string>,
   names: {
     repository: "Repository",
     installation: "GitHub App installation",

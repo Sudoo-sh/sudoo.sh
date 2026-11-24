@@ -7,7 +7,8 @@ const en = {
   text: "Premium features install automatically from Sudoo.sh when your plan includes them, and update on their own. Each is checked and tied to this server before it runs.",
   autoOn: "Automatic installation is on.",
   autoOff: "Automatic installation is off: press Check now to install what your plan includes.",
-  marketplaceOff: "This panel does not talk to Sudoo.sh (Marketplace is off in Settings), so it has the Free plan and no premium features.",
+  marketplaceOff:
+    "This panel does not talk to Sudoo.sh (Marketplace is off in Settings), so it has the Free plan and no premium features.",
   checkNow: "Check now",
   checking: "Checking",
   checkStarted: "Checking with Sudoo.sh",
@@ -49,7 +50,8 @@ const en = {
   loadFailed: "This premium feature could not be loaded. Reload the page; if it stays, press Check now in Settings.",
   supportTag: "Support",
   settingsGroup: "Premium features",
-  settingsGroupText: "How premium features install and stay tied to this server, and the addresses Sudoo.sh points managed subdomains at.",
+  settingsGroupText:
+    "How premium features install and stay tied to this server, and the addresses Sudoo.sh points managed subdomains at.",
 };
 
 const ar: typeof en = {
@@ -57,7 +59,8 @@ const ar: typeof en = {
   text: "تُثبَّت الميزات المتقدمة تلقائيًا من Sudoo.sh عندما تشملها خطتك، وتُحدَّث وحدها. تُفحص كل ميزة وتُربط بهذا الخادم قبل أن تعمل.",
   autoOn: "التثبيت التلقائي مفعّل.",
   autoOff: "التثبيت التلقائي متوقف: اضغط «افحص الآن» لتثبيت ما تشمله خطتك.",
-  marketplaceOff: "هذه اللوحة لا تتصل بـ Sudoo.sh (المتجر متوقف في الإعدادات)، لذا لها الخطة المجانية ولا ميزات متقدمة.",
+  marketplaceOff:
+    "هذه اللوحة لا تتصل بـ Sudoo.sh (المتجر متوقف في الإعدادات)، لذا لها الخطة المجانية ولا ميزات متقدمة.",
   checkNow: "افحص الآن",
   checking: "جارٍ الفحص",
   checkStarted: "جارٍ الفحص مع Sudoo.sh",
@@ -99,7 +102,8 @@ const ar: typeof en = {
   loadFailed: "تعذّر تحميل هذه الميزة المتقدمة. أعد تحميل الصفحة؛ وإن بقي الأمر، اضغط «افحص الآن» في الإعدادات.",
   supportTag: "الدعم",
   settingsGroup: "الميزات المتقدمة",
-  settingsGroupText: "كيف تُثبَّت الميزات المتقدمة وتبقى مربوطة بهذا الخادم، والعناوين التي يوجّه إليها Sudoo.sh النطاقات الفرعية المُدارة.",
+  settingsGroupText:
+    "كيف تُثبَّت الميزات المتقدمة وتبقى مربوطة بهذا الخادم، والعناوين التي يوجّه إليها Sudoo.sh النطاقات الفرعية المُدارة.",
 };
 
 export default { en, ar };

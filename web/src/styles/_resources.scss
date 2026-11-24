@@ -1,13 +1,23 @@
 // Resources of a project and of a branch (components/ProjectResources.tsx): a card per stage with steppers, the
 // memory the server reserves, storage bars.
 
-.stack-xs { display: flex; flex-direction: column; gap: var(--s1); }
+.stack-xs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
 
 .project-resources .section-head {
   display: grid;
   gap: var(--s1);
-  h2 { margin: 0; font-size: var(--text-17, 17px); }
-  p { margin: 0; max-width: 72ch; }
+  h2 {
+    margin: 0;
+    font-size: var(--text-17, 17px);
+  }
+  p {
+    margin: 0;
+    max-width: 72ch;
+  }
 }
 
 // three cards side by side on a wide page, one under the other on a narrow one
@@ -17,7 +27,9 @@
   gap: var(--s4);
   align-items: start;
 }
-.stage-card .card-head { gap: var(--s2); }
+.stage-card .card-head {
+  gap: var(--s2);
+}
 
 .resource-grid {
   display: grid;
@@ -29,10 +41,22 @@
   gap: var(--s1);
   align-content: start;
   min-width: 0;
-  .name { font-weight: 500; font-size: var(--text-13); }
-  .row { gap: var(--s1); }
-  .row > [data-slot="input"], .row > input { min-width: 0; flex: 1; }
-  .follow { flex: none; color: var(--text-3); }
+  .name {
+    font-weight: 500;
+    font-size: var(--text-13);
+  }
+  .row {
+    gap: var(--s1);
+  }
+  .row > [data-slot="input"],
+  .row > input {
+    min-width: 0;
+    flex: 1;
+  }
+  .follow {
+    flex: none;
+    color: var(--text-3);
+  }
 }
 
 // − 2 +: one control, the number in the middle at its natural width
@@ -55,17 +79,31 @@
     text-align: center;
     outline: none;
   }
-  &:focus-within { box-shadow: 0 0 0 3px var(--brand-ring); border-color: var(--brand); }
+  &:focus-within {
+    box-shadow: 0 0 0 3px var(--brand-ring);
+    border-color: var(--brand);
+  }
 }
 
-.computed-line, .server-line {
+.computed-line,
+.server-line {
   display: inline-flex;
   align-items: center;
   gap: var(--s1);
   margin: 0;
-  svg { width: 14px; height: 14px; flex: none; color: var(--text-3); }
+  svg {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    color: var(--text-3);
+  }
 }
-.server-line.over { color: var(--negative); svg { color: currentColor; } }
+.server-line.over {
+  color: var(--negative);
+  svg {
+    color: currentColor;
+  }
+}
 
 .disclosure {
   display: inline-flex;
@@ -78,15 +116,28 @@
   color: var(--brand-ink);
   font: inherit;
   cursor: pointer;
-  svg { width: 16px; height: 16px; transition: transform var(--quick) var(--ease); }
-  &[aria-expanded="true"] svg { transform: rotate(180deg); }
-  &:active { transform: scale(0.97); }
+  svg {
+    width: 16px;
+    height: 16px;
+    transition: transform var(--quick) var(--ease);
+  }
+  &[aria-expanded="true"] svg {
+    transform: rotate(180deg);
+  }
+  &:active {
+    transform: scale(0.97);
+  }
 }
 .resource-grid.disclosed {
   padding-top: var(--s3);
   border-top: 1px solid var(--hairline);
-  @starting-style { opacity: 0; transform: translateY(-4px); }
-  transition: opacity var(--enter) var(--ease), transform var(--enter) var(--ease);
+  @starting-style {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  transition:
+    opacity var(--enter) var(--ease),
+    transform var(--enter) var(--ease);
 }
 
 .resource-foot {
@@ -109,19 +160,34 @@
       background: var(--brand);
       transition: inline-size var(--enter) var(--ease);
     }
-    &[data-level="warning"] span { background: var(--caution); }
-    &[data-level="over"] span { background: var(--negative); }
+    &[data-level="warning"] span {
+      background: var(--caution);
+    }
+    &[data-level="over"] span {
+      background: var(--negative);
+    }
   }
-  b { font-weight: 500; }
+  b {
+    font-weight: 500;
+  }
 }
 .production-size .xsmall {
   display: inline-flex;
   align-items: center;
   gap: var(--s1);
-  svg { width: 12px; height: 12px; }
+  svg {
+    width: 12px;
+    height: 12px;
+  }
 }
-.branch-resources .branch-storage { border-top: 1px solid var(--hairline); }
+.branch-resources .branch-storage {
+  border-top: 1px solid var(--hairline);
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .disclosure svg, .storage-bar .meter span, .resource-grid.disclosed { transition: none; }
+  .disclosure svg,
+  .storage-bar .meter span,
+  .resource-grid.disclosed {
+    transition: none;
+  }
 }

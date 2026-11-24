@@ -20,7 +20,12 @@ import { bytes, dateTime } from "@/lib/format";
 export const kubernetesKey = ["kubernetes"] as const;
 
 export const useKubernetes = (enabled = true) =>
-  useQuery({ queryKey: kubernetesKey, queryFn: () => api.get<KubernetesOverview>("/kubernetes"), enabled, refetchInterval: 30_000 });
+  useQuery({
+    queryKey: kubernetesKey,
+    queryFn: () => api.get<KubernetesOverview>("/kubernetes"),
+    enabled,
+    refetchInterval: 30_000,
+  });
 
 const cores = (value: number) => (Math.round(value * 10) / 10).toString();
 
@@ -54,9 +59,15 @@ export function KubernetesCard() {
           <h2>{t.cluster}</h2>
           <div className="sub">{t.clusterText}</div>
         </div>
-        <Button asChild variant="ghost" size="sm"><Link to="/help/docs/KUBERNETES_ENGINE.md" viewTransition>{t.help}</Link></Button>
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/help/docs/KUBERNETES_ENGINE.md" viewTransition>
+            {t.help}
+          </Link>
+        </Button>
         {data?.enabled && data.reachable && (
-          <Button size="sm" icon={<Plus />} loading={joining} disabled={!data.join.url_set} onClick={addNode}>{t.addNode}</Button>
+          <Button size="sm" icon={<Plus />} loading={joining} disabled={!data.join.url_set} onClick={addNode}>
+            {t.addNode}
+          </Button>
         )}
       </div>
       <div className="card-body stack">
@@ -65,7 +76,9 @@ export function KubernetesCard() {
         ) : !data.enabled ? (
           <p className="small muted">{t.off("sudo sudoo-install engine kubernetes", "KUBERNETES_ENGINE_BETA=true")}</p>
         ) : !data.reachable ? (
-          <Callout tone="warning">{t.unreachable} {data.problem}</Callout>
+          <Callout tone="warning">
+            {t.unreachable} {data.problem}
+          </Callout>
         ) : (
           <>
             {!data.join.url_set && <p className="xsmall faint">{t.needsUrl("KUBERNETES_JOIN_URL")}</p>}
@@ -83,15 +96,40 @@ export function KubernetesCard() {
               <TableBody>
                 {data.nodes.map((node) => (
                   <TableRow key={node.name}>
-                    <TableCell><bdi dir="ltr" className="mono">{node.name}</bdi>{node.address && <div className="xsmall faint"><bdi dir="ltr">{node.address}</bdi></div>}</TableCell>
+                    <TableCell>
+                      <bdi dir="ltr" className="mono">
+                        {node.name}
+                      </bdi>
+                      {node.address && (
+                        <div className="xsmall faint">
+                          <bdi dir="ltr">{node.address}</bdi>
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Tag tone={node.ready ? "positive" : "negative"}>{node.ready ? t.ready : t.notReady}</Tag>
-                      {!node.schedulable && <> <Tag tone="caution">{t.paused}</Tag></>}
+                      {!node.schedulable && (
+                        <>
+                          {" "}
+                          <Tag tone="caution">{t.paused}</Tag>
+                        </>
+                      )}
                     </TableCell>
-                    <TableCell className="small"><bdi dir="ltr">{node.roles.join(", ")}</bdi></TableCell>
-                    <TableCell className="small">{t.cores(node.cpu_used == null ? null : cores(node.cpu_used), cores(node.cpu))}</TableCell>
-                    <TableCell className="small">{t.used(node.memory_used_bytes == null ? null : bytes(node.memory_used_bytes), bytes(node.memory_bytes))}</TableCell>
-                    <TableCell className="small mono"><bdi dir="ltr">{node.version}</bdi></TableCell>
+                    <TableCell className="small">
+                      <bdi dir="ltr">{node.roles.join(", ")}</bdi>
+                    </TableCell>
+                    <TableCell className="small">
+                      {t.cores(node.cpu_used == null ? null : cores(node.cpu_used), cores(node.cpu))}
+                    </TableCell>
+                    <TableCell className="small">
+                      {t.used(
+                        node.memory_used_bytes == null ? null : bytes(node.memory_used_bytes),
+                        bytes(node.memory_bytes),
+                      )}
+                    </TableCell>
+                    <TableCell className="small mono">
+                      <bdi dir="ltr">{node.version}</bdi>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -100,11 +138,22 @@ export function KubernetesCard() {
         )}
       </div>
       {joined && (
-        <Modal title={t.addTitle} description={t.addText} wide onClose={() => setJoined(null)}
-          footer={<Button variant="primary" onClick={() => setJoined(null)}>{t.done}</Button>}>
+        <Modal
+          title={t.addTitle}
+          description={t.addText}
+          wide
+          onClose={() => setJoined(null)}
+          footer={
+            <Button variant="primary" onClick={() => setJoined(null)}>
+              {t.done}
+            </Button>
+          }
+        >
           <div className="stack">
             <CopyField value={joined.command} block />
-            <Callout tone="warning">{t.addOnce} {t.expires(dateTime(joined.expires))}</Callout>
+            <Callout tone="warning">
+              {t.addOnce} {t.expires(dateTime(joined.expires))}
+            </Callout>
             <p className="xsmall faint">{t.ports}</p>
           </div>
         </Modal>

@@ -77,12 +77,30 @@ function matches(query: string, ...texts: string[]) {
   return !q || texts.some((text) => text.toLowerCase().includes(q));
 }
 
-function Row({ name, title, checked, onChange, tags }: { name: string; title: string; checked: boolean; onChange: (on: boolean) => void; tags?: ReactNode }) {
+function Row({
+  name,
+  title,
+  checked,
+  onChange,
+  tags,
+}: {
+  name: string;
+  title: string;
+  checked: boolean;
+  onChange: (on: boolean) => void;
+  tags?: ReactNode;
+}) {
   return (
     <label className="mp-row">
       <Checkbox checked={checked} onCheckedChange={(v) => onChange(v === true)} />
-      <bdi dir="ltr" className="mp-name mono">{name}</bdi>
-      {title && title !== name && <span className="mp-title truncate"><bdi>{title}</bdi></span>}
+      <bdi dir="ltr" className="mp-name mono">
+        {name}
+      </bdi>
+      {title && title !== name && (
+        <span className="mp-title truncate">
+          <bdi>{title}</bdi>
+        </span>
+      )}
       {tags}
     </label>
   );
@@ -99,7 +117,10 @@ export function ModulePicker({ choice, note }: { choice: ModuleChoice; note?: st
   const others = choice.selected.filter((name) => !listed.has(name));
 
   const addOther = () => {
-    const names = other.split(/[\s,]+/).map((n) => n.trim()).filter(Boolean);
+    const names = other
+      .split(/[\s,]+/)
+      .map((n) => n.trim())
+      .filter(Boolean);
     const wrong = names.find((n) => !NAME.test(n));
     if (wrong) return setOtherError(t.wrongName(wrong));
     setOtherError("");
@@ -113,16 +134,30 @@ export function ModulePicker({ choice, note }: { choice: ModuleChoice; note?: st
   return (
     <div className="module-picker stack">
       <div className="mp-head">
-        <span className="small muted" aria-live="polite">{t.selected(choice.selected.length)}</span>
+        <span className="small muted" aria-live="polite">
+          {t.selected(choice.selected.length)}
+        </span>
         <span className="spacer" />
-        <Button size="sm" variant="ghost" disabled={!choice.selected.length} onClick={choice.none}>{t.none}</Button>
+        <Button size="sm" variant="ghost" disabled={!choice.selected.length} onClick={choice.none}>
+          {t.none}
+        </Button>
       </div>
 
       {choice.selected.length > 0 ? (
         <div className="row-wrap mp-chips">
           {choice.selected.map((name) => (
-            <button key={name} type="button" className="chip" aria-label={t.remove(name)} title={t.remove(name)} onClick={() => choice.toggle(name, false)}>
-              <bdi dir="ltr" className="mono">{name}</bdi> <X />
+            <button
+              key={name}
+              type="button"
+              className="chip"
+              aria-label={t.remove(name)}
+              title={t.remove(name)}
+              onClick={() => choice.toggle(name, false)}
+            >
+              <bdi dir="ltr" className="mono">
+                {name}
+              </bdi>{" "}
+              <X />
             </button>
           ))}
         </div>
@@ -134,12 +169,20 @@ export function ModulePicker({ choice, note }: { choice: ModuleChoice; note?: st
 
       <div className="input-group">
         <Search />
-        <Input type="search" placeholder={t.search} aria-label={t.search} value={query} onChange={(e) => setQuery(e.target.value)} />
+        <Input
+          type="search"
+          placeholder={t.search}
+          aria-label={t.search}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
       </div>
 
       <div className="mp-list" role="group" aria-label={t.title}>
         <section aria-label={t.odoo}>
-          <h3 className="mp-group"><Package aria-hidden="true" /> {t.odoo}</h3>
+          <h3 className="mp-group">
+            <Package aria-hidden="true" /> {t.odoo}
+          </h3>
           {choice.loading ? (
             <div className="stack-sm" aria-busy="true">
               <Skeleton height={14} width="60%" />
@@ -147,25 +190,49 @@ export function ModulePicker({ choice, note }: { choice: ModuleChoice; note?: st
             </div>
           ) : (
             shownApps.map((a) => (
-              <Row key={a.name} name={a.name} title={a.title} checked={chosen.has(a.name)} onChange={(on) => choice.toggle(a.name, on)}
-                tags={a.enterprise ? <Tag>{t.enterprise}</Tag> : null} />
+              <Row
+                key={a.name}
+                name={a.name}
+                title={a.title}
+                checked={chosen.has(a.name)}
+                onChange={(on) => choice.toggle(a.name, on)}
+                tags={a.enterprise ? <Tag>{t.enterprise}</Tag> : null}
+              />
             ))
           )}
-          {!choice.loading && choice.apps.length > 0 && !shownApps.length && <p className="xsmall faint">{t.noMatch}</p>}
+          {!choice.loading && choice.apps.length > 0 && !shownApps.length && (
+            <p className="xsmall faint">{t.noMatch}</p>
+          )}
         </section>
         {shownOthers.length > 0 && (
           <section aria-label={t.other}>
             <h3 className="mp-group">{t.other}</h3>
-            {shownOthers.map((name) => <Row key={name} name={name} title="" checked onChange={(on) => choice.toggle(name, on)} />)}
+            {shownOthers.map((name) => (
+              <Row key={name} name={name} title="" checked onChange={(on) => choice.toggle(name, on)} />
+            ))}
           </section>
         )}
       </div>
 
       <Field label={t.otherLabel} hint={t.otherHint} error={otherError}>
         <div className="row" style={{ gap: 8 }}>
-          <Input dir="ltr" placeholder={t.otherPlaceholder} aria-label={t.otherLabel} value={other} aria-invalid={!!otherError}
-            onChange={(e) => setOther(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addOther(); } }} />
-          <Button onClick={addOther} disabled={!other.trim()}>{t.add}</Button>
+          <Input
+            dir="ltr"
+            placeholder={t.otherPlaceholder}
+            aria-label={t.otherLabel}
+            value={other}
+            aria-invalid={!!otherError}
+            onChange={(e) => setOther(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addOther();
+              }
+            }}
+          />
+          <Button onClick={addOther} disabled={!other.trim()}>
+            {t.add}
+          </Button>
         </div>
       </Field>
       <p className="xsmall faint">{t.hint}</p>

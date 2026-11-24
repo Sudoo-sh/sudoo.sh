@@ -32,7 +32,12 @@ describe("placeLabel", () => {
   });
 
   test("never uses start/end alignment, which would follow the page's direction", () => {
-    for (const [base, end, mirrored] of [[0, 300, false], [0, 10, false], [300, 0, true], [300, 290, true]] as const) {
+    for (const [base, end, mirrored] of [
+      [0, 300, false],
+      [0, 10, false],
+      [300, 0, true],
+      [300, 290, true],
+    ] as const) {
       expect(["left", "right"]).toContain(placeLabel(base, end, 40, mirrored).align);
     }
   });
@@ -54,7 +59,10 @@ describe("readableOn", () => {
   });
 
   test("the chosen colour reads at least 4.5:1 on the quiet bars of both themes", () => {
-    for (const grey of [[0x73, 0x73, 0x73], [0x85, 0x85, 0x8b]] as [number, number, number][]) {
+    for (const grey of [
+      [0x73, 0x73, 0x73],
+      [0x85, 0x85, 0x8b],
+    ] as [number, number, number][]) {
       expect(contrast(grey, readableOn(grey, [white, ink]).rgb)).toBeGreaterThanOrEqual(4.5);
     }
   });

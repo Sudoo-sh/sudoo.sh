@@ -23,15 +23,27 @@ body {
 }
 
 // tracking follows size: tighter as type grows, a touch looser when it is small
-.small { letter-spacing: 0; }
-.xsmall { letter-spacing: 0.01em; }
-
-// a theme change fades instead of flashing (lib/theme.ts adds the class for a moment)
-.theme-changing, .theme-changing * {
-  transition: background-color 300ms ease, color 300ms ease, border-color 300ms ease, fill 300ms ease !important;
+.small {
+  letter-spacing: 0;
+}
+.xsmall {
+  letter-spacing: 0.01em;
 }
 
-h1, h2, h3, p {
+// a theme change fades instead of flashing (lib/theme.ts adds the class for a moment)
+.theme-changing,
+.theme-changing * {
+  transition:
+    background-color 300ms ease,
+    color 300ms ease,
+    border-color 300ms ease,
+    fill 300ms ease !important;
+}
+
+h1,
+h2,
+h3,
+p {
   margin: 0;
 }
 h1 {
@@ -53,10 +65,16 @@ h3 {
 a {
   color: var(--brand-ink);
   text-decoration: none;
-  &:hover { text-decoration: underline; text-underline-offset: 3px; }
+  &:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
 }
 
-code, kbd, pre, .mono {
+code,
+kbd,
+pre,
+.mono {
   font-family: var(--mono);
   font-size: 0.92em;
 }
@@ -66,7 +84,10 @@ code {
   padding: 1px 4px;
 }
 
-button, input, select, textarea {
+button,
+input,
+select,
+textarea {
   font: inherit;
   color: inherit;
 }
@@ -81,61 +102,160 @@ button, input, select, textarea {
   border-radius: var(--radius-tag);
 }
 
-.muted { color: var(--text-2); }
-.faint { color: var(--text-3); }
-.small { font-size: var(--text-13); }
-.xsmall { font-size: var(--text-12); }
-.nowrap { white-space: nowrap; }
-.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.tabular { font-variant-numeric: tabular-nums; }
-.row { display: flex; align-items: center; gap: var(--s2); }
-.row-wrap { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
-.stack { display: flex; flex-direction: column; gap: var(--s4); }
-.stack-sm { display: flex; flex-direction: column; gap: var(--s2); }
-.spacer { flex: 1; }
-.grid-2 { display: grid; gap: var(--s4); grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.grid-3 { display: grid; gap: var(--s4); grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.grid-4 { display: grid; gap: var(--s4); grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.muted {
+  color: var(--text-2);
+}
+.faint {
+  color: var(--text-3);
+}
+.small {
+  font-size: var(--text-13);
+}
+.xsmall {
+  font-size: var(--text-12);
+}
+.nowrap {
+  white-space: nowrap;
+}
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.row-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+.stack-sm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.spacer {
+  flex: 1;
+}
+.grid-2 {
+  display: grid;
+  gap: var(--s4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.grid-3 {
+  display: grid;
+  gap: var(--s4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.grid-4 {
+  display: grid;
+  gap: var(--s4);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
 /* five figures: one row; then three over two; then pairs, the last one alone across */
-.grid-5 { display: grid; gap: var(--s4); grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.grid-5 {
+  display: grid;
+  gap: var(--s4);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
 @media (max-width: 1280px) {
-  .grid-5 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .grid-5 > * { grid-column: span 2; }
-  .grid-5 > :nth-child(n + 4) { grid-column: span 3; }
+  .grid-5 {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .grid-5 > * {
+    grid-column: span 2;
+  }
+  .grid-5 > :nth-child(n + 4) {
+    grid-column: span 3;
+  }
 }
 @media (max-width: 720px) {
-  .grid-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .grid-5 > *, .grid-5 > :nth-child(n + 4) { grid-column: auto; }
-  .grid-5 > :last-child { grid-column: 1 / -1; }
+  .grid-5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .grid-5 > *,
+  .grid-5 > :nth-child(n + 4) {
+    grid-column: auto;
+  }
+  .grid-5 > :last-child {
+    grid-column: 1 / -1;
+  }
 }
 @media (max-width: 520px) {
-  .grid-5 { grid-template-columns: minmax(0, 1fr); }
+  .grid-5 {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 @media (max-width: 1100px) {
-  .grid-4, .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-4,
+  .grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 @media (max-width: 720px) {
-  .grid-2, .grid-3 { grid-template-columns: minmax(0, 1fr); }
+  .grid-2,
+  .grid-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 @media (max-width: 520px) {
-  .grid-4 { grid-template-columns: minmax(0, 1fr); }
+  .grid-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 // ---------------------------------------------------------------- right to left (Arabic)
 // --dir turns a horizontal movement around in Arabic: translateX(calc(16px * var(--dir))).
-:root { --dir: 1; }
-:root[dir="rtl"] { --dir: -1; }
+:root {
+  --dir: 1;
+}
+:root[dir="rtl"] {
+  --dir: -1;
+}
 // arrows and chevrons that point the way of reading are mirrored; clocks, logos and play buttons are not
-[dir="rtl"] .flip-rtl { transform: scaleX(-1); }
+[dir="rtl"] .flip-rtl {
+  transform: scaleX(-1);
+}
 // code, branches, commit hashes, addresses and logs read left to right in every language, isolated from the Arabic
 // around them; an e-mail, password or code field still starts on the side its label is on
-code, kbd, :is(span, b, small, a, bdi).mono { direction: ltr; unicode-bidi: isolate; }
-pre, .terminal { direction: ltr; text-align: left; }
+code,
+kbd,
+:is(span, b, small, a, bdi).mono {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+pre,
+.terminal {
+  direction: ltr;
+  text-align: left;
+}
 [dir="rtl"] :is(input, textarea)[dir="ltr"],
-[dir="rtl"] :is(input, textarea):is([type="email"], [type="password"], [type="url"], [inputmode="email"], [inputmode="numeric"]) { direction: ltr; text-align: right; }
-[dir="rtl"] :is(input, textarea)[dir="ltr"]:placeholder-shown { text-align: right; }
+[dir="rtl"]
+  :is(input, textarea):is([type="email"], [type="password"], [type="url"], [inputmode="email"], [inputmode="numeric"]) {
+  direction: ltr;
+  text-align: right;
+}
+[dir="rtl"] :is(input, textarea)[dir="ltr"]:placeholder-shown {
+  text-align: right;
+}
 // an icon inside a left-to-right field of an Arabic page sits on the right: the room for it is on the right too
-[dir="rtl"] .input-group > .input:is([dir="ltr"], [type="email"], [type="password"], [inputmode="email"]) { padding-left: var(--s3); padding-right: 36px; }
+[dir="rtl"] .input-group > .input:is([dir="ltr"], [type="email"], [type="password"], [inputmode="email"]) {
+  padding-left: var(--s3);
+  padding-right: 36px;
+}
 
 // ---------------------------------------------------------------- scrollbars
 // The same thin, quiet scrollbar as the Sudoo.sh websites, for everything that scrolls: the page, dialogs, drawers,

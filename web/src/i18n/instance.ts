@@ -62,18 +62,25 @@ const en = {
   },
   banners: {
     restored: (when: string) => `Restored ${when}.`,
-    keptUntil: (until: string) => ` The state before the restore is kept until ${until}; you can go back to it until then.`,
+    keptUntil: (until: string) =>
+      ` The state before the restore is kept until ${until}; you can go back to it until then.`,
     rollback: "Rollback to before the restore",
-    branchGone: (branch: ReactNode) => ["The branch ", branch, " no longer exists on GitHub, so this instance gets no updates. Switch it to another branch, or delete it."],
+    branchGone: (branch: ReactNode) => [
+      "The branch ",
+      branch,
+      " no longer exists on GitHub, so this instance gets no updates. Switch it to another branch, or delete it.",
+    ],
     updateUndone: "The last update failed and was undone",
     updateNotUndone: "The last update failed and could not be undone",
     showJob: "Show the job",
     drift: (when: string) => `Changed outside the panel ${when}.`,
-    driftRestore: "The panel puts its own configuration back as soon as nothing else runs here, backing the database up first when its container is affected.",
+    driftRestore:
+      "The panel puts its own configuration back as soon as nothing else runs here, backing the database up first when its container is affected.",
     driftWarn: "The panel only reports this. Undo the change, or restore the panel's configuration.",
     restoreConfig: "Restore the panel's configuration",
     newerImage: (version: string) => `A newer Odoo ${version} image is on this server.`,
-    newerImageText: "This instance stays on its current image until you update it. Updating uses the image already downloaded and restarts Odoo.",
+    newerImageText:
+      "This instance stays on its current image until you update it. Updating uses the image already downloaded and restarts Odoo.",
   },
   stop: {
     pauseTitle: (name: string) => `Pause ${ltr(name)}?`,
@@ -130,7 +137,8 @@ const en = {
     restoreLatest: "Restore the latest",
     restoreAnother: "Restore another backup…",
     latest: "Latest backup",
-    nightly: "A daily backup is taken each night after a day the instance was used. Back up now to have one right away.",
+    nightly:
+      "A daily backup is taken each night after a day the instance was used. Back up now to have one right away.",
     taken: "Taken",
     kind: "Kind",
     size: "Size",
@@ -138,17 +146,40 @@ const en = {
     restore: "Restore",
     restoreTitle: (when: string) => `Restore the backup of ${when}?`,
     productionWarning: "This is the production instance.",
-    restoreText: (db: ReactNode, when: string) => ["The database ", db, ` and its files go back to how they were on ${when}. Changes made since then are replaced.`],
-    restoreAfter: (rollback: ReactNode, name: ReactNode) => ["The current state is backed up first and kept as \"Before a restore\": the instance offers ", rollback, " for a while afterwards. ", name, " restarts and is back in a minute or two."],
+    restoreText: (db: ReactNode, when: string) => [
+      "The database ",
+      db,
+      ` and its files go back to how they were on ${when}. Changes made since then are replaced.`,
+    ],
+    restoreAfter: (rollback: ReactNode, name: ReactNode) => [
+      'The current state is backed up first and kept as "Before a restore": the instance offers ',
+      rollback,
+      " for a while afterwards. ",
+      name,
+      " restarts and is back in a minute or two.",
+    ],
     rollbackWord: "Rollback",
     anotherTitle: "Restore another backup",
-    anotherText: (version: string, name: string) => `Any backup of Odoo ${version} can go into ${ltr(name)}, also one of another instance.`,
-    anotherReplace: (db: ReactNode, rollback: ReactNode) => ["The database ", db, " and its files are replaced by the backup's. The current state is backed up first and offered as ", rollback, " for a while."],
-    neutralised: " The data comes from another instance, so it is neutralised: it sends no e-mail and runs no scheduled actions until you switch them back on in Odoo.",
+    anotherText: (version: string, name: string) =>
+      `Any backup of Odoo ${version} can go into ${ltr(name)}, also one of another instance.`,
+    anotherReplace: (db: ReactNode, rollback: ReactNode) => [
+      "The database ",
+      db,
+      " and its files are replaced by the backup's. The current state is backed up first and offered as ",
+      rollback,
+      " for a while.",
+    ],
+    neutralised:
+      " The data comes from another instance, so it is neutralised: it sends no e-mail and runs no scheduled actions until you switch them back on in Odoo.",
     rollbackTitle: "Rollback to before the restore?",
     rollbackTo: (when: string) => `To the state of ${when}`,
-    rollbackText: (when: string) => `The database and its files go back to how they were just before the restore of ${when}. Changes made since the restore are replaced.`,
-    rollbackAfter: (until: string, name: ReactNode) => [`The current state is backed up first and kept as "Before a rollback" until ${until}. `, name, " restarts and is back in a minute or two."],
+    rollbackText: (when: string) =>
+      `The database and its files go back to how they were just before the restore of ${when}. Changes made since the restore are replaced.`,
+    rollbackAfter: (until: string, name: ReactNode) => [
+      `The current state is backed up first and kept as "Before a rollback" until ${until}. `,
+      name,
+      " restarts and is back in a minute or two.",
+    ],
   },
   activity: {
     took: (time: string) => ` · took ${time}`,
@@ -189,7 +220,8 @@ const en = {
     moved: (stage: string) => `Moved to ${stage.toLowerCase()}`,
     notMoved: "Not moved",
     leave: "Leave production",
-    leaveText: "It then follows the panel's rules again: it can be paused, given a lifetime, and its daily backup is taken only after a day it was used. Its settings stay as they are until you change them.",
+    leaveText:
+      "It then follows the panel's rules again: it can be paused, given a lifetime, and its daily backup is taken only after a day it was used. Its settings stay as they are until you change them.",
   },
   resources: {
     title: "Resources",
@@ -201,11 +233,14 @@ const en = {
       development: "Development: last priority under load",
     },
     rankText: {
-      production: "When the processor or memory is fully used, this instance gets them first, and it is the last to be stopped if memory runs out.",
+      production:
+        "When the processor or memory is fully used, this instance gets them first, and it is the last to be stopped if memory runs out.",
       staging: "When the server is busy, this instance comes after production and before development.",
-      development: "When the server is busy, this instance gives way to production and staging first, and is the first to be stopped if memory runs out.",
+      development:
+        "When the server is busy, this instance gives way to production and staging first, and is the first to be stopped if memory runs out.",
     },
-    onlyUnderLoad: "These weights only act when the server is busy. On a quiet server every instance gets all it asks for.",
+    onlyUnderLoad:
+      "These weights only act when the server is busy. On a quiet server every instance gets all it asks for.",
     cpuWeight: "Processor weight",
     reservation: "Memory kept under pressure",
     oomScore: "Out-of-memory order",
@@ -222,10 +257,19 @@ const en = {
     limitsText: "An empty field follows the stage's default, shown under it. 0 means no limit, or Odoo's own default.",
     groups: { odoo: "Odoo", containers: "Containers" },
     knobs: {
-      odoo_workers: { label: "HTTP workers", hint: "0: threaded mode. About one worker for six people using Odoo at once." },
+      odoo_workers: {
+        label: "HTTP workers",
+        hint: "0: threaded mode. About one worker for six people using Odoo at once.",
+      },
       odoo_cron_threads: { label: "Cron workers", hint: "Scheduled actions running at the same time." },
-      odoo_limit_memory_soft_mb: { label: "Memory per worker before recycling", hint: "In MB. The worker is restarted after its request." },
-      odoo_limit_memory_hard_mb: { label: "Memory per worker at most", hint: "In MB. The request is stopped beyond it." },
+      odoo_limit_memory_soft_mb: {
+        label: "Memory per worker before recycling",
+        hint: "In MB. The worker is restarted after its request.",
+      },
+      odoo_limit_memory_hard_mb: {
+        label: "Memory per worker at most",
+        hint: "In MB. The request is stopped beyond it.",
+      },
       odoo_limit_time_cpu: { label: "Processor time per request", hint: "In seconds." },
       odoo_limit_time_real: { label: "Total time per request (HTTP timeout)", hint: "In seconds." },
       odoo_limit_time_real_cron: { label: "Scheduled actions timeout", hint: "In seconds, per scheduled action." },
@@ -233,30 +277,41 @@ const en = {
       odoo_cpu_limit: { label: "Odoo container processors", hint: "Cores: 0.5, 2." },
       db_memory_limit: { label: "Database container memory", hint: "Docker units: 512m, 4g." },
       db_cpu_limit: { label: "Database container processors", hint: "Cores: 0.5, 2." },
-      db_max_connections: { label: "Database connections", hint: "PostgreSQL max_connections, shared out between Odoo's processes." },
+      db_max_connections: {
+        label: "Database connections",
+        hint: "PostgreSQL max_connections, shared out between Odoo's processes.",
+      },
     },
     stageDefault: (value: string) => `From the stage, project or branch: ${value}`,
     computed: (value: string) => `Computed from the workers: ${value}`,
     storage: "Storage (database and files)",
     odooDefault: (value: string) => `Odoo's default (${value})`,
     threaded: "threaded mode",
-    pending: "This instance still runs with older values, for example since its stage changed. Apply, or restart it, to use the current ones.",
+    pending:
+      "This instance still runs with older values, for example since its stage changed. Apply, or restart it, to use the current ones.",
     readOnly: "Only administrators change resources.",
     apply: "Apply",
     discard: "Discard",
     applyTitle: (name: string) => `Apply resources to ${ltr(name)}?`,
     applyText: "Odoo restarts with the new values; its container is recreated when its limits change. The data stays.",
-    applyProduction: "This is a production instance. It is backed up first, and if Odoo does not answer with the new values, the previous ones are put back.",
+    applyProduction:
+      "This is a production instance. It is backed up first, and if Odoo does not answer with the new values, the previous ones are put back.",
     started: "Applying resources",
     startedText: "Follow it in Activity.",
     notApplied: "Not applied",
     warnings: {
-      reserved_over_total: (reserved: string, total: string) => `The memory reserved for instances (${reserved}) is more than this server has (${total}): under pressure not every reservation can be kept.`,
-      reserved_over_usable: (reserved: string, usable: string) => `The memory reserved for instances (${reserved}) is more than this server can spare for them (${usable}).`,
-      workers_memory: (workers: string, cron: string, limit: string) => `${workers} workers and ${cron} cron workers may need more memory than the Odoo container's limit (${limit}).`,
-      limit_over_total: (limit: string, total: string) => `The Odoo container's memory limit (${limit}) is more than this server has (${total}).`,
-      time_cpu_over_real: "The processor time per request is above the total time per request: the total time ends it first.",
-      workers_over_cores: (workers: string, cores: string, suggested: string) => `${workers} workers on ${cores} cores: Odoo suggests at most ${suggested} for the whole server.`,
+      reserved_over_total: (reserved: string, total: string) =>
+        `The memory reserved for instances (${reserved}) is more than this server has (${total}): under pressure not every reservation can be kept.`,
+      reserved_over_usable: (reserved: string, usable: string) =>
+        `The memory reserved for instances (${reserved}) is more than this server can spare for them (${usable}).`,
+      workers_memory: (workers: string, cron: string, limit: string) =>
+        `${workers} workers and ${cron} cron workers may need more memory than the Odoo container's limit (${limit}).`,
+      limit_over_total: (limit: string, total: string) =>
+        `The Odoo container's memory limit (${limit}) is more than this server has (${total}).`,
+      time_cpu_over_real:
+        "The processor time per request is above the total time per request: the total time ends it first.",
+      workers_over_cores: (workers: string, cores: string, suggested: string) =>
+        `${workers} workers on ${cores} cores: Odoo suggests at most ${suggested} for the whole server.`,
     },
   },
   access: {
@@ -326,7 +381,8 @@ const en = {
     waiting: "Waiting to start",
     creating: "Creating the instance",
     queuedText: "Another job on this name has to finish first; the creation starts right after it.",
-    runningText: "This page follows the creation and opens the instance when it is ready. You can leave it: the creation goes on.",
+    runningText:
+      "This page follows the creation and opens the instance when it is ready. You can leave it: the creation goes on.",
     notCreated: "Not created",
     failed: "The instance could not be created.",
     noReason: "Something went wrong in this step. The server's log has the details; your administrator can read it.",
@@ -426,16 +482,22 @@ const ar: typeof en = {
     restored: (when) => `استُعيدت ${when}.`,
     keptUntil: (until) => ` تُحفظ الحالة السابقة للاستعادة حتى ${until}، ويمكنك العودة إليها حتى ذلك الحين.`,
     rollback: "تراجع إلى ما قبل الاستعادة",
-    branchGone: (branch) => ["لم يعد الفرع ", branch, " موجودًا على GitHub، فلا تصل هذه البيئة أي تحديثات. بدّلها إلى فرع آخر، أو احذفها."],
+    branchGone: (branch) => [
+      "لم يعد الفرع ",
+      branch,
+      " موجودًا على GitHub، فلا تصل هذه البيئة أي تحديثات. بدّلها إلى فرع آخر، أو احذفها.",
+    ],
     updateUndone: "فشل آخر تحديث وأُلغي",
     updateNotUndone: "فشل آخر تحديث وتعذّر إلغاؤه",
     showJob: "اعرض المهمة",
     drift: (when) => `تغيّرت خارج اللوحة ${when}.`,
-    driftRestore: "تعيد اللوحة إعداداتها حالما لا يعمل شيء آخر هنا، وتنسخ قاعدة البيانات احتياطيًا أولًا إن تأثرت حاويتها.",
+    driftRestore:
+      "تعيد اللوحة إعداداتها حالما لا يعمل شيء آخر هنا، وتنسخ قاعدة البيانات احتياطيًا أولًا إن تأثرت حاويتها.",
     driftWarn: "تكتفي اللوحة بالإبلاغ عن هذا. ألغِ التغيير، أو استعد إعدادات اللوحة.",
     restoreConfig: "استعد إعدادات اللوحة",
     newerImage: (version) => `توجد على هذا الخادم صورة أحدث لـ Odoo ${version}.`,
-    newerImageText: "تبقى هذه البيئة على صورتها الحالية حتى تحدّثها. يستخدم التحديث الصورة المنزّلة مسبقًا ويعيد تشغيل Odoo.",
+    newerImageText:
+      "تبقى هذه البيئة على صورتها الحالية حتى تحدّثها. يستخدم التحديث الصورة المنزّلة مسبقًا ويعيد تشغيل Odoo.",
   },
   stop: {
     pauseTitle: (name) => `إيقاف ${ltr(name)} مؤقتًا؟`,
@@ -500,17 +562,39 @@ const ar: typeof en = {
     restore: "استعد",
     restoreTitle: (when) => `استعادة النسخة الاحتياطية من ${when}؟`,
     productionWarning: "هذه بيئة الإنتاج.",
-    restoreText: (db, when) => ["تعود قاعدة البيانات ", db, ` وملفاتها إلى ما كانت عليه في ${when}. وتُستبدل التغييرات التي جرت منذ ذلك الحين.`],
-    restoreAfter: (rollback, name) => ["تُنسخ الحالة الحالية احتياطيًا أولًا وتُحفظ باسم «قبل استعادة»: وتتيح البيئة ", rollback, " لمدة بعدها. تُعاد تشغيل ", name, " وتعود خلال دقيقة أو دقيقتين."],
+    restoreText: (db, when) => [
+      "تعود قاعدة البيانات ",
+      db,
+      ` وملفاتها إلى ما كانت عليه في ${when}. وتُستبدل التغييرات التي جرت منذ ذلك الحين.`,
+    ],
+    restoreAfter: (rollback, name) => [
+      "تُنسخ الحالة الحالية احتياطيًا أولًا وتُحفظ باسم «قبل استعادة»: وتتيح البيئة ",
+      rollback,
+      " لمدة بعدها. تُعاد تشغيل ",
+      name,
+      " وتعود خلال دقيقة أو دقيقتين.",
+    ],
     rollbackWord: "التراجع",
     anotherTitle: "استعد نسخة احتياطية أخرى",
     anotherText: (version, name) => `يمكن وضع أي نسخة احتياطية من Odoo ${version} في ${ltr(name)}، حتى نسخة بيئة أخرى.`,
-    anotherReplace: (db, rollback) => ["تُستبدل قاعدة البيانات ", db, " وملفاتها ببيانات النسخة الاحتياطية. تُنسخ الحالة الحالية احتياطيًا أولًا ويُتاح ", rollback, " لمدة."],
-    neutralised: " تأتي البيانات من بيئة أخرى، لذا تُحيَّد: لا ترسل بريدًا ولا تشغّل إجراءات مجدولة حتى تعيد تفعيلها في Odoo.",
+    anotherReplace: (db, rollback) => [
+      "تُستبدل قاعدة البيانات ",
+      db,
+      " وملفاتها ببيانات النسخة الاحتياطية. تُنسخ الحالة الحالية احتياطيًا أولًا ويُتاح ",
+      rollback,
+      " لمدة.",
+    ],
+    neutralised:
+      " تأتي البيانات من بيئة أخرى، لذا تُحيَّد: لا ترسل بريدًا ولا تشغّل إجراءات مجدولة حتى تعيد تفعيلها في Odoo.",
     rollbackTitle: "التراجع إلى ما قبل الاستعادة؟",
     rollbackTo: (when) => `إلى الحالة في ${when}`,
-    rollbackText: (when) => `تعود قاعدة البيانات وملفاتها إلى ما كانت عليه قبيل الاستعادة في ${when}. وتُستبدل التغييرات التي جرت منذ الاستعادة.`,
-    rollbackAfter: (until, name) => [`تُنسخ الحالة الحالية احتياطيًا أولًا وتُحفظ باسم «قبل تراجع» حتى ${until}. تُعاد تشغيل `, name, " وتعود خلال دقيقة أو دقيقتين."],
+    rollbackText: (when) =>
+      `تعود قاعدة البيانات وملفاتها إلى ما كانت عليه قبيل الاستعادة في ${when}. وتُستبدل التغييرات التي جرت منذ الاستعادة.`,
+    rollbackAfter: (until, name) => [
+      `تُنسخ الحالة الحالية احتياطيًا أولًا وتُحفظ باسم «قبل تراجع» حتى ${until}. تُعاد تشغيل `,
+      name,
+      " وتعود خلال دقيقة أو دقيقتين.",
+    ],
   },
   activity: {
     took: (time) => ` · استغرقت ${time}`,
@@ -551,7 +635,8 @@ const ar: typeof en = {
     moved: (stage) => `نُقلت إلى ${stage}`,
     notMoved: "لم تُنقل",
     leave: "غادر الإنتاج",
-    leaveText: "تتبع بعدها قواعد اللوحة من جديد: يمكن إيقافها مؤقتًا، وتحديد مدة بقاء لها، ولا تُؤخذ نسختها الاحتياطية اليومية إلا بعد يوم استُخدمت فيه. وتبقى إعداداتها كما هي حتى تغيّرها.",
+    leaveText:
+      "تتبع بعدها قواعد اللوحة من جديد: يمكن إيقافها مؤقتًا، وتحديد مدة بقاء لها، ولا تُؤخذ نسختها الاحتياطية اليومية إلا بعد يوم استُخدمت فيه. وتبقى إعداداتها كما هي حتى تغيّرها.",
   },
   resources: {
     title: "الموارد",
@@ -563,9 +648,11 @@ const ar: typeof en = {
       development: "التطوير: الأولوية الأخيرة تحت الضغط",
     },
     rankText: {
-      production: "حين يُستخدم المعالج أو الذاكرة بالكامل، تحصل هذه البيئة عليهما أولًا، وتكون آخر ما يُوقَف إن نفدت الذاكرة.",
+      production:
+        "حين يُستخدم المعالج أو الذاكرة بالكامل، تحصل هذه البيئة عليهما أولًا، وتكون آخر ما يُوقَف إن نفدت الذاكرة.",
       staging: "حين يكون الخادم مشغولًا، تأتي هذه البيئة بعد الإنتاج وقبل التطوير.",
-      development: "حين يكون الخادم مشغولًا، تُفسح هذه البيئة المجال للإنتاج والتجهيز أولًا، وتكون أول ما يُوقَف إن نفدت الذاكرة.",
+      development:
+        "حين يكون الخادم مشغولًا، تُفسح هذه البيئة المجال للإنتاج والتجهيز أولًا، وتكون أول ما يُوقَف إن نفدت الذاكرة.",
     },
     onlyUnderLoad: "لا تعمل هذه الأوزان إلا حين يكون الخادم مشغولًا. على خادم هادئ تحصل كل بيئة على كل ما تطلبه.",
     cpuWeight: "وزن المعالج",
@@ -581,12 +668,19 @@ const ar: typeof en = {
     noLimit: "دون حد",
     unlimited: "دون حدود: يمكن لهذه البيئة استخدام الخادم كله حين لا يحتاجه شيء آخر.",
     limits: "الحدود",
-    limitsText: "الحقل الفارغ يتبع القيمة الافتراضية للمرحلة، المعروضة تحته. 0 تعني دون حد، أو القيمة الافتراضية لـ Odoo نفسه.",
+    limitsText:
+      "الحقل الفارغ يتبع القيمة الافتراضية للمرحلة، المعروضة تحته. 0 تعني دون حد، أو القيمة الافتراضية لـ Odoo نفسه.",
     groups: { odoo: "Odoo", containers: "الحاويات" },
     knobs: {
-      odoo_workers: { label: "عمّال HTTP", hint: "0: الوضع متعدد الخيوط. عامل واحد تقريبًا لكل ستة أشخاص يستخدمون Odoo في الوقت نفسه." },
+      odoo_workers: {
+        label: "عمّال HTTP",
+        hint: "0: الوضع متعدد الخيوط. عامل واحد تقريبًا لكل ستة أشخاص يستخدمون Odoo في الوقت نفسه.",
+      },
       odoo_cron_threads: { label: "عمّال المهام المجدولة", hint: "الإجراءات المجدولة التي تعمل في الوقت نفسه." },
-      odoo_limit_memory_soft_mb: { label: "ذاكرة العامل قبل إعادة تشغيله", hint: "بالـ MB. يُعاد تشغيل العامل بعد طلبه." },
+      odoo_limit_memory_soft_mb: {
+        label: "ذاكرة العامل قبل إعادة تشغيله",
+        hint: "بالـ MB. يُعاد تشغيل العامل بعد طلبه.",
+      },
       odoo_limit_memory_hard_mb: { label: "أقصى ذاكرة للعامل", hint: "بالـ MB. يُوقَف الطلب إن تجاوزها." },
       odoo_limit_time_cpu: { label: "وقت المعالج لكل طلب", hint: "بالثواني." },
       odoo_limit_time_real: { label: "الوقت الكلي لكل طلب (مهلة HTTP)", hint: "بالثواني." },
@@ -595,7 +689,10 @@ const ar: typeof en = {
       odoo_cpu_limit: { label: "معالجات حاوية Odoo", hint: "أنوية: 0.5، 2." },
       db_memory_limit: { label: "ذاكرة حاوية قاعدة البيانات", hint: "بوحدات Docker: ‏512m، 4g." },
       db_cpu_limit: { label: "معالجات حاوية قاعدة البيانات", hint: "أنوية: 0.5، 2." },
-      db_max_connections: { label: "اتصالات قاعدة البيانات", hint: "max_connections في PostgreSQL، تُوزّع على عمليات Odoo." },
+      db_max_connections: {
+        label: "اتصالات قاعدة البيانات",
+        hint: "max_connections في PostgreSQL، تُوزّع على عمليات Odoo.",
+      },
     },
     stageDefault: (value: string) => `من المرحلة أو المشروع أو الفرع: ${value}`,
     computed: (value: string) => `محسوبة من العمّال: ${value}`,
@@ -613,12 +710,17 @@ const ar: typeof en = {
     startedText: "تابعه في النشاط.",
     notApplied: "لم يُطبَّق",
     warnings: {
-      reserved_over_total: (reserved: string, total: string) => `الذاكرة المحفوظة للبيئات (${reserved}) أكثر مما لدى هذا الخادم (${total}): تحت الضغط لا يمكن الوفاء بكل حجز.`,
-      reserved_over_usable: (reserved: string, usable: string) => `الذاكرة المحفوظة للبيئات (${reserved}) أكثر مما يستطيع هذا الخادم توفيره لها (${usable}).`,
-      workers_memory: (workers: string, cron: string, limit: string) => `قد يحتاج ${workers} من عمّال HTTP و${cron} من عمّال المهام المجدولة ذاكرة أكثر من حد حاوية Odoo ‏(${limit}).`,
-      limit_over_total: (limit: string, total: string) => `حد ذاكرة حاوية Odoo ‏(${limit}) أكثر مما لدى هذا الخادم (${total}).`,
+      reserved_over_total: (reserved: string, total: string) =>
+        `الذاكرة المحفوظة للبيئات (${reserved}) أكثر مما لدى هذا الخادم (${total}): تحت الضغط لا يمكن الوفاء بكل حجز.`,
+      reserved_over_usable: (reserved: string, usable: string) =>
+        `الذاكرة المحفوظة للبيئات (${reserved}) أكثر مما يستطيع هذا الخادم توفيره لها (${usable}).`,
+      workers_memory: (workers: string, cron: string, limit: string) =>
+        `قد يحتاج ${workers} من عمّال HTTP و${cron} من عمّال المهام المجدولة ذاكرة أكثر من حد حاوية Odoo ‏(${limit}).`,
+      limit_over_total: (limit: string, total: string) =>
+        `حد ذاكرة حاوية Odoo ‏(${limit}) أكثر مما لدى هذا الخادم (${total}).`,
       time_cpu_over_real: "وقت المعالج لكل طلب أكبر من الوقت الكلي لكل طلب: ينتهي الطلب عند الوقت الكلي أولًا.",
-      workers_over_cores: (workers: string, cores: string, suggested: string) => `${workers} من العمّال على ${cores} من الأنوية: يقترح Odoo ‏${suggested} على الأكثر للخادم كله.`,
+      workers_over_cores: (workers: string, cores: string, suggested: string) =>
+        `${workers} من العمّال على ${cores} من الأنوية: يقترح Odoo ‏${suggested} على الأكثر للخادم كله.`,
     },
   },
   access: {

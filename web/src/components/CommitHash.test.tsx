@@ -4,7 +4,9 @@ import { CommitHash } from "./CommitHash";
 
 // the words read the chosen language from the page when they load: no page here
 vi.mock("@/i18n", () => ({
-  useT: () => ({ history: { copySha: "Copy the commit's hash", copied: "Copied", onGitHub: "Open the commit on GitHub" } }),
+  useT: () => ({
+    history: { copySha: "Copy the commit's hash", copied: "Copied", onGitHub: "Open the commit on GitHub" },
+  }),
 }));
 
 const SHA = "f25e4f6a9b0c1d2e3f405162738495a6b7c8d9e0";

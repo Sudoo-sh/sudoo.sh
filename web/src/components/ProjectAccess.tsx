@@ -6,7 +6,15 @@ import { GitBranch, Lock, LockOpen, Plus, ShieldCheck, Trash2, UsersRound } from
 import { useState } from "react";
 import { api, errorText } from "@/api/client";
 import { keys, useCall, useProjectAccess, useTeams, useUsers } from "@/api/queries";
-import type { AccessLevel, AccessSubject, BranchLock, Grant, ProjectAccess, ProjectBranch, ProjectDetail } from "@/api/types";
+import type {
+  AccessLevel,
+  AccessSubject,
+  BranchLock,
+  Grant,
+  ProjectAccess,
+  ProjectBranch,
+  ProjectDetail,
+} from "@/api/types";
 import { Button, Callout, Field, Segmented, Skeleton, Tag } from "@/components/app/basics";
 import { GitHubMark } from "@/components/app/GitHubMark";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -44,17 +52,24 @@ export function SubjectPicker({
   const isTaken = (type: string, value: string) => taken.some((e) => e.type === type && e.id === value);
   const options =
     kind === "github_team"
-      ? (/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/.test(id) && !isTaken("github_team", id) ? [{ id, label: `${t.githubTeam} ${id}` }] : [])
+      ? /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/.test(id) && !isTaken("github_team", id)
+        ? [{ id, label: `${t.githubTeam} ${id}` }]
+        : []
       : kind === "team"
-      ? (teams ?? []).filter((team) => !isTaken("team", team.id)).map((team) => ({ id: team.id, label: team.name }))
-      : can("accounts.manage")
-        ? (users ?? []).filter((u) => !isTaken("user", u.name)).map((u) => ({ id: u.name, label: `${u.display_name} (${u.name})` }))
-        : [];
+        ? (teams ?? []).filter((team) => !isTaken("team", team.id)).map((team) => ({ id: team.id, label: team.name }))
+        : can("accounts.manage")
+          ? (users ?? [])
+              .filter((u) => !isTaken("user", u.name))
+              .map((u) => ({ id: u.name, label: `${u.display_name} (${u.name})` }))
+          : [];
   return (
     <div className="grant-add">
       <Segmented
         value={kind}
-        onChange={(value) => { setKind(value); setId(""); }}
+        onChange={(value) => {
+          setKind(value);
+          setId("");
+        }}
         options={[
           { value: "team", label: t.access.addTeam, icon: <UsersRound /> },
           { value: "user", label: t.access.addPerson },
@@ -62,20 +77,51 @@ export function SubjectPicker({
         ]}
       />
       {kind === "github_team" ? (
-        <Input dir="ltr" spellCheck={false} placeholder={t.githubTeamHint} aria-label={t.githubTeam} value={id} onChange={(e) => setId(e.target.value.trim())} />
+        <Input
+          dir="ltr"
+          spellCheck={false}
+          placeholder={t.githubTeamHint}
+          aria-label={t.githubTeam}
+          value={id}
+          onChange={(e) => setId(e.target.value.trim())}
+        />
       ) : (
-        <SelectBox value={id} onValueChange={(value) => setId(value)} aria-label={kind === "team" ? t.access.team : t.access.person}>
+        <SelectBox
+          value={id}
+          onValueChange={(value) => setId(value)}
+          aria-label={kind === "team" ? t.access.team : t.access.person}
+        >
           <option value="">{t.access.choose}</option>
-          {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+          {options.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
         </SelectBox>
       )}
       {withLevel && (
         <SelectBox value={level} onValueChange={(value) => setLevel(value as AccessLevel)} aria-label={t.access.level}>
-          {LEVELS.map((l) => <option key={l} value={l}>{t.levels[l]}</option>)}
+          {LEVELS.map((l) => (
+            <option key={l} value={l}>
+              {t.levels[l]}
+            </option>
+          ))}
         </SelectBox>
       )}
-      <Button size="sm" icon={<Plus />} disabled={!id || !options.some((o) => o.id === id)}
-        onClick={() => { onAdd({ type: kind, id, name: options.find((o) => o.id === id)?.label ?? id, ...(withLevel ? { level } : {}) }); setId(""); }}>
+      <Button
+        size="sm"
+        icon={<Plus />}
+        disabled={!id || !options.some((o) => o.id === id)}
+        onClick={() => {
+          onAdd({
+            type: kind,
+            id,
+            name: options.find((o) => o.id === id)?.label ?? id,
+            ...(withLevel ? { level } : {}),
+          });
+          setId("");
+        }}
+      >
         {t.access.add}
       </Button>
     </div>
@@ -98,15 +144,25 @@ function AccessSummary({ project, data }: { project: ProjectDetail; data: Projec
   const grantNames = (grants: Grant[]) => grants.map((g) => `${g.name ?? g.id} (${all.levels[g.level]})`).join(", ");
   return (
     <section className="card">
-      <div className="card-head"><h2 className="spacer">{t.title}</h2></div>
+      <div className="card-head">
+        <h2 className="spacer">{t.title}</h2>
+      </div>
       <div className="card-body stack">
         <p className="small">
-          <b>{data.mode === "restricted" ? t.restricted : t.open}.</b> {data.mode === "restricted" ? t.restrictedHint : t.openHint}
+          <b>{data.mode === "restricted" ? t.restricted : t.open}.</b>{" "}
+          {data.mode === "restricted" ? t.restrictedHint : t.openHint}
         </p>
-        {data.grants.length > 0 && <p className="small"><span className="muted">{t.grants}:</span> <bdi>{grantNames(data.grants)}</bdi></p>}
+        {data.grants.length > 0 && (
+          <p className="small">
+            <span className="muted">{t.grants}:</span> <bdi>{grantNames(data.grants)}</bdi>
+          </p>
+        )}
         {rules.map(([branch, rule]) => (
           <p key={branch} className="small row-wrap">
-            <GitBranch /> <bdi dir="ltr" className="mono">{branch}</bdi>
+            <GitBranch />{" "}
+            <bdi dir="ltr" className="mono">
+              {branch}
+            </bdi>
             {rule.restricted && <span className="faint">{t.restrictBranch}</span>}
             {rule.grants.length > 0 && <bdi className="muted">{grantNames(rule.grants)}</bdi>}
           </p>
@@ -114,11 +170,19 @@ function AccessSummary({ project, data }: { project: ProjectDetail; data: Projec
         {restricted && (
           <div className="row-wrap">
             <p className="xsmall faint spacer">{t.removeAllText}</p>
-            <Button size="sm" icon={<Trash2 />} loading={clear.isPending}
-              onClick={() => clear.mutate(undefined, {
-                onSuccess: () => toast("success", t.removedAll),
-                onError: (e) => toast("error", t.notSaved, errorText(e)),
-              })}>{t.removeAll}</Button>
+            <Button
+              size="sm"
+              icon={<Trash2 />}
+              loading={clear.isPending}
+              onClick={() =>
+                clear.mutate(undefined, {
+                  onSuccess: () => toast("success", t.removedAll),
+                  onError: (e) => toast("error", t.notSaved, errorText(e)),
+                })
+              }
+            >
+              {t.removeAll}
+            </Button>
           </div>
         )}
         <PlanCard id="teams" compact />
@@ -135,7 +199,10 @@ function GitHubAccessCard({ data }: { data: ProjectAccess }) {
   if (!github) return null;
   return (
     <section className="card">
-      <div className="card-head"><GitHubMark size={18} /><h2 className="spacer">{t.title}</h2></div>
+      <div className="card-head">
+        <GitHubMark size={18} />
+        <h2 className="spacer">{t.title}</h2>
+      </div>
       <div className="card-body stack-sm">
         <p className="small muted">{github.enabled ? t.on(github.repository) : t.off}</p>
         {github.people.length === 0 ? (
@@ -143,15 +210,42 @@ function GitHubAccessCard({ data }: { data: ProjectAccess }) {
         ) : (
           <div style={{ overflowX: "auto" }}>
             <Table>
-              <TableHeader><TableRow><TableHead>{t.person}</TableHead><TableHead>{t.permission}</TableHead><TableHead>{t.level}</TableHead></TableRow></TableHeader>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t.person}</TableHead>
+                  <TableHead>{t.permission}</TableHead>
+                  <TableHead>{t.level}</TableHead>
+                </TableRow>
+              </TableHeader>
               <TableBody>
                 {github.people.map((p) => (
                   <TableRow key={p.user}>
-                    <TableCell><bdi>{p.name}</bdi> <span className="xsmall faint"><bdi dir="ltr">@{p.github_login}</bdi></span></TableCell>
-                    <TableCell className="small mono">{p.covered === false ? <span className="faint">{t.notCovered}</span> : p.permission ?? <span className="faint">{t.notChecked}</span>}
-                      {p.via && <div className="xsmall faint">{all.githubTeam} {p.via}</div>}</TableCell>
+                    <TableCell>
+                      <bdi>{p.name}</bdi>{" "}
+                      <span className="xsmall faint">
+                        <bdi dir="ltr">@{p.github_login}</bdi>
+                      </span>
+                    </TableCell>
+                    <TableCell className="small mono">
+                      {p.covered === false ? (
+                        <span className="faint">{t.notCovered}</span>
+                      ) : (
+                        (p.permission ?? <span className="faint">{t.notChecked}</span>)
+                      )}
+                      {p.via && (
+                        <div className="xsmall faint">
+                          {all.githubTeam} {p.via}
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="small">
-                      {!p.applies ? <span className="faint">{github.enabled ? t.administrators : "-"}</span> : p.level ? <Tag>{all.levels[p.level]}</Tag> : <span className="faint">{t.notChecked}</span>}
+                      {!p.applies ? (
+                        <span className="faint">{github.enabled ? t.administrators : "-"}</span>
+                      ) : p.level ? (
+                        <Tag>{all.levels[p.level]}</Tag>
+                      ) : (
+                        <span className="faint">{t.notChecked}</span>
+                      )}
                       {p.checked && <div className="xsmall faint">{t.checked(ago(p.checked))}</div>}
                     </TableCell>
                   </TableRow>
@@ -175,28 +269,55 @@ export function AccessTab({ project, permitted }: { project: ProjectDetail; perm
         <RequestsCard project={project} maxHours={8} enabled />
       </div>
     );
-  if (error) return <div className="stack tab-panel"><Callout tone="warning">{errorText(error)}</Callout></div>;
-  if (isPending || !data) return <div className="stack tab-panel"><Skeleton height={220} /></div>;
+  if (error)
+    return (
+      <div className="stack tab-panel">
+        <Callout tone="warning">{errorText(error)}</Callout>
+      </div>
+    );
+  if (isPending || !data)
+    return (
+      <div className="stack tab-panel">
+        <Skeleton height={220} />
+      </div>
+    );
   const locks = Object.entries(data.locks);
   return (
     <div className="stack tab-panel">
       {data.model === "legacy" && <ModelCard project={project} />}
-      <PremiumSlot name="project.access" props={{ project, permitted, access: data }} fallback={<AccessSummary project={project} data={data} />} />
+      <PremiumSlot
+        name="project.access"
+        props={{ project, permitted, access: data }}
+        fallback={<AccessSummary project={project} data={data} />}
+      />
       {data.model === "project_roles" && <RolesMatrix project={project} data={data} editable={permitted} />}
       <PeopleCard project={project} />
       <GitHubAccessCard data={data} />
-      {data.model === "project_roles" && <RequestsCard project={project} maxHours={data.request_max_hours} enabled={data.requests_enabled} />}
+      {data.model === "project_roles" && (
+        <RequestsCard project={project} maxHours={data.request_max_hours} enabled={data.requests_enabled} />
+      )}
       <section className="card">
-        <div className="card-head"><h2>{t.access.locksTitle}</h2></div>
+        <div className="card-head">
+          <h2>{t.access.locksTitle}</h2>
+        </div>
         <div className="card-body stack-sm">
-          {locks.length === 0 ? <p className="small faint">{t.access.noLocks}</p> : locks.map(([branch, lock]) => (
-            <div key={branch} className="row-wrap small">
-              <Lock />
-              <bdi dir="ltr" className="mono">{branch}</bdi>
-              <span className="muted">{t.lock.lockedBy(lock.locked_by ?? "")}{lock.reason ? ` · ${lock.reason}` : ""}</span>
-              <span className="faint">{t.lock.allows(allowedNames(lock))}</span>
-            </div>
-          ))}
+          {locks.length === 0 ? (
+            <p className="small faint">{t.access.noLocks}</p>
+          ) : (
+            locks.map(([branch, lock]) => (
+              <div key={branch} className="row-wrap small">
+                <Lock />
+                <bdi dir="ltr" className="mono">
+                  {branch}
+                </bdi>
+                <span className="muted">
+                  {t.lock.lockedBy(lock.locked_by ?? "")}
+                  {lock.reason ? ` · ${lock.reason}` : ""}
+                </span>
+                <span className="faint">{t.lock.allows(allowedNames(lock))}</span>
+              </div>
+            ))
+          )}
           <p className="xsmall faint">{t.access.locksText}</p>
         </div>
       </section>
@@ -204,24 +325,54 @@ export function AccessTab({ project, permitted }: { project: ProjectDetail; perm
   );
 }
 
-export function LockDialog({ project, branch, onClose }: { project: ProjectDetail; branch: ProjectBranch; onClose: () => void }) {
+export function LockDialog({
+  project,
+  branch,
+  onClose,
+}: {
+  project: ProjectDetail;
+  branch: ProjectBranch;
+  onClose: () => void;
+}) {
   const t = useT(words).lock;
   const c = useT(common).common;
   const toast = useToast();
   const [reason, setReason] = useState(branch.lock?.reason ?? "");
   const [allow, setAllow] = useState<AccessSubject[]>(branch.lock?.allow ?? []);
   const save = useCall(
-    () => api.put<BranchLock>(`/projects/${project.id}/branches/${branch.name}/lock`, { reason: reason.trim(), allow: allow.map(({ type, id }) => ({ type, id })) }),
+    () =>
+      api.put<BranchLock>(`/projects/${project.id}/branches/${branch.name}/lock`, {
+        reason: reason.trim(),
+        allow: allow.map(({ type, id }) => ({ type, id })),
+      }),
     [keys.project(project.id), keys.projects, keys.instances, keys.projectAccess(project.id)],
   );
   return (
-    <Modal title={branch.lock ? t.editTitle(branch.name) : t.title(branch.name)} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button>
-        <Button variant="primary" icon={<Lock />} loading={save.isPending}
-          onClick={() => save.mutate(undefined, {
-            onSuccess: () => { toast("success", branch.lock ? t.changedToast(branch.name) : t.lockedToast(branch.name)); onClose(); },
-            onError: (e) => toast("error", t.notLocked, errorText(e)),
-          })}>{branch.lock ? t.saveLock : t.lockNow}</Button></>}>
+    <Modal
+      title={branch.lock ? t.editTitle(branch.name) : t.title(branch.name)}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="primary"
+            icon={<Lock />}
+            loading={save.isPending}
+            onClick={() =>
+              save.mutate(undefined, {
+                onSuccess: () => {
+                  toast("success", branch.lock ? t.changedToast(branch.name) : t.lockedToast(branch.name));
+                  onClose();
+                },
+                onError: (e) => toast("error", t.notLocked, errorText(e)),
+              })
+            }
+          >
+            {branch.lock ? t.saveLock : t.lockNow}
+          </Button>
+        </>
+      }
+    >
       <div className="stack">
         <p className="small muted">{t.text}</p>
         <Field label={t.reason} hint={t.reasonHint}>
@@ -232,13 +383,23 @@ export function LockDialog({ project, branch, onClose }: { project: ProjectDetai
             {allow.length > 0 && (
               <div className="row-wrap">
                 {allow.map((entry) => (
-                  <button key={`${entry.type}:${entry.id}`} type="button" className="chip" onClick={() => setAllow(allow.filter((e) => e !== entry))}>
-                    {entry.type === "team" ? <UsersRound /> : <ShieldCheck />} <bdi>{entry.name ?? entry.id}</bdi> <Trash2 />
+                  <button
+                    key={`${entry.type}:${entry.id}`}
+                    type="button"
+                    className="chip"
+                    onClick={() => setAllow(allow.filter((e) => e !== entry))}
+                  >
+                    {entry.type === "team" ? <UsersRound /> : <ShieldCheck />} <bdi>{entry.name ?? entry.id}</bdi>{" "}
+                    <Trash2 />
                   </button>
                 ))}
               </div>
             )}
-            <SubjectPicker taken={allow} withLevel={false} onAdd={(s) => setAllow([...allow, { type: s.type, id: s.id, name: s.name }])} />
+            <SubjectPicker
+              taken={allow}
+              withLevel={false}
+              onAdd={(s) => setAllow([...allow, { type: s.type, id: s.id, name: s.name }])}
+            />
           </div>
         </Field>
       </div>
@@ -246,21 +407,55 @@ export function LockDialog({ project, branch, onClose }: { project: ProjectDetai
   );
 }
 
-export function UnlockDialog({ project, branch, onClose }: { project: ProjectDetail; branch: ProjectBranch; onClose: () => void }) {
+export function UnlockDialog({
+  project,
+  branch,
+  onClose,
+}: {
+  project: ProjectDetail;
+  branch: ProjectBranch;
+  onClose: () => void;
+}) {
   const t = useT(words).lock;
   const c = useT(common).common;
   const toast = useToast();
-  const unlock = useCall(() => api.del(`/projects/${project.id}/branches/${branch.name}/lock`), [keys.project(project.id), keys.projects, keys.instances, keys.projectAccess(project.id)]);
+  const unlock = useCall(
+    () => api.del(`/projects/${project.id}/branches/${branch.name}/lock`),
+    [keys.project(project.id), keys.projects, keys.instances, keys.projectAccess(project.id)],
+  );
   return (
-    <Modal title={t.unlockTitle(branch.name)} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button>
-        <Button variant="primary" icon={<LockOpen />} loading={unlock.isPending}
-          onClick={() => unlock.mutate(undefined, {
-            onSuccess: () => { toast("success", t.unlocked(branch.name)); onClose(); },
-            onError: (e) => toast("error", t.notUnlocked, errorText(e)),
-          })}>{t.unlock}</Button></>}>
+    <Modal
+      title={t.unlockTitle(branch.name)}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="primary"
+            icon={<LockOpen />}
+            loading={unlock.isPending}
+            onClick={() =>
+              unlock.mutate(undefined, {
+                onSuccess: () => {
+                  toast("success", t.unlocked(branch.name));
+                  onClose();
+                },
+                onError: (e) => toast("error", t.notUnlocked, errorText(e)),
+              })
+            }
+          >
+            {t.unlock}
+          </Button>
+        </>
+      }
+    >
       <div className="stack">
-        {branch.lock && <Callout tone="warning">{t.lockedTitle(branch.name, branch.lock.locked_by ?? "")}{branch.lock.reason ? ` · ${branch.lock.reason}` : ""}</Callout>}
+        {branch.lock && (
+          <Callout tone="warning">
+            {t.lockedTitle(branch.name, branch.lock.locked_by ?? "")}
+            {branch.lock.reason ? ` · ${branch.lock.reason}` : ""}
+          </Callout>
+        )}
         <p className="small muted">{t.unlockText}</p>
       </div>
     </Modal>
@@ -272,8 +467,7 @@ export function LockBanner({ lock, allowed }: { lock: BranchLock; allowed: boole
   const t = useT(words).lock;
   return (
     <Callout tone="warning">
-      <b>{t.banner(lock.locked_by ?? "", lock.reason)}</b>{" "}
-      {allowed ? t.bannerAllowed : t.allows(allowedNames(lock))}
+      <b>{t.banner(lock.locked_by ?? "", lock.reason)}</b> {allowed ? t.bannerAllowed : t.allows(allowedNames(lock))}
     </Callout>
   );
 }

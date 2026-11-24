@@ -70,7 +70,19 @@ export function useSignOut() {
   };
 }
 
-function NavItem({ to, icon, children, end, count }: { to: string; icon: ReactNode; children: ReactNode; end?: boolean; count?: number }) {
+function NavItem({
+  to,
+  icon,
+  children,
+  end,
+  count,
+}: {
+  to: string;
+  icon: ReactNode;
+  children: ReactNode;
+  end?: boolean;
+  count?: number;
+}) {
   return (
     <NavLink to={to} end={end} viewTransition className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
       {icon}
@@ -93,7 +105,13 @@ function Sidebar() {
   // a page a premium feature adds to the menu (only Servers so far; Teams and Support access are always listed)
   const servers = usePremiumRoutes().some(({ route }) => route.path === "/servers");
   const administration =
-    can("settings.manage") || can("mail.manage") || can("accounts.manage") || can("teams.manage") || can("tokens.manage") || can("plugins.view") || can("support_access.manage");
+    can("settings.manage") ||
+    can("mail.manage") ||
+    can("accounts.manage") ||
+    can("teams.manage") ||
+    can("tokens.manage") ||
+    can("plugins.view") ||
+    can("support_access.manage");
   return (
     <aside className="sidebar">
       <Brand />
@@ -203,9 +221,11 @@ function Sidebar() {
         >
           {(close) => (
             <>
-              <MenuItem asChild><Link to="/account" viewTransition onClick={close}>
-                <UserRound /> {t.myAccount}
-              </Link></MenuItem>
+              <MenuItem asChild>
+                <Link to="/account" viewTransition onClick={close}>
+                  <UserRound /> {t.myAccount}
+                </Link>
+              </MenuItem>
               <MenuSeparator />
               <MenuItem danger onSelect={signOut}>
                 <LogOut /> {t.signOut}
@@ -329,8 +349,17 @@ function Alerts() {
     <Menu
       trigger={(toggle) => (
         <span className="bell">
-          <Button variant="ghost" size="sm" icon={<Bell />} title={label} aria-label={label}
-            onClick={() => { toggle(); markSeen(); }} />
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={<Bell />}
+            title={label}
+            aria-label={label}
+            onClick={() => {
+              toggle();
+              markSeen();
+            }}
+          />
           {unseen > 0 && <span className="bell-dot" aria-hidden="true" />}
         </span>
       )}
@@ -340,7 +369,11 @@ function Alerts() {
           <div className="bell-head">
             <b>{t.alerts}</b>
             <span className="spacer" />
-            {can("settings.manage") && <Link to="/settings?tab=alerts" viewTransition onClick={close}>{nav.settings}</Link>}
+            {can("settings.manage") && (
+              <Link to="/settings?tab=alerts" viewTransition onClick={close}>
+                {nav.settings}
+              </Link>
+            )}
           </div>
           {list.length === 0 ? (
             <p className="bell-empty">{t.alertsEmpty}</p>
@@ -353,7 +386,11 @@ function Alerts() {
                     <span className="bell-item">
                       <span className="bell-title">{standing(alert) ? t.defaultPasswordTitle : alert.title}</span>
                       <span className="bell-text">
-                        {standing(alert) ? (can("settings.manage") ? t.defaultPasswordText : t.defaultPasswordTextAdmin) : alert.text}
+                        {standing(alert)
+                          ? can("settings.manage")
+                            ? t.defaultPasswordText
+                            : t.defaultPasswordTextAdmin
+                          : alert.text}
                       </span>
                       {!standing(alert) && (
                         <span className="bell-when">
@@ -366,11 +403,23 @@ function Alerts() {
                   </>
                 );
                 // the standing warning links to the setting only for those who may change it; else it is plain text
-                if (!alert.link) return <MenuItem key={alert.id} className="bell-static">{body}</MenuItem>;
+                if (!alert.link)
+                  return (
+                    <MenuItem key={alert.id} className="bell-static">
+                      {body}
+                    </MenuItem>
+                  );
                 return (
-                  <MenuItem key={alert.id} asChild><Link to={alert.link} viewTransition onClick={close} className={alert.resolved_at ? "resolved" : ""}>
-                    {body}
-                  </Link></MenuItem>
+                  <MenuItem key={alert.id} asChild>
+                    <Link
+                      to={alert.link}
+                      viewTransition
+                      onClick={close}
+                      className={alert.resolved_at ? "resolved" : ""}
+                    >
+                      {body}
+                    </Link>
+                  </MenuItem>
                 );
               })}
             </div>
@@ -392,7 +441,13 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
   const page = CRUMBS[parts[0] ?? ""];
   return (
     <header className="topbar">
-      <Button className="menu-button" variant="ghost" icon={<MenuIcon />} onClick={onMenu} aria-label={all.common.menu} />
+      <Button
+        className="menu-button"
+        variant="ghost"
+        icon={<MenuIcon />}
+        onClick={onMenu}
+        aria-label={all.common.menu}
+      />
       <nav className="crumbs" aria-label={t.breadcrumb}>
         {page && sub ? (
           <>
@@ -400,7 +455,9 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
               {all.nav[page]}
             </Link>
             <ChevronRight className="flip-rtl" aria-hidden="true" />
-            <span className="current truncate" aria-current="page">{sub}</span>
+            <span className="current truncate" aria-current="page">
+              {sub}
+            </span>
           </>
         ) : parts[0] === "i" && parts[1] ? (
           <>
@@ -443,7 +500,9 @@ function PluginNotices() {
           {!pathname.startsWith("/plugins") && (
             <>
               {" "}
-              <Link to="/plugins/installed" viewTransition>{t.openPlugins}</Link>
+              <Link to="/plugins/installed" viewTransition>
+                {t.openPlugins}
+              </Link>
             </>
           )}
         </Callout>
@@ -463,7 +522,9 @@ function RecoveryCodesNotice() {
     <div className="notices" role="status">
       <Callout tone="warning">
         {t.noRecoveryCodes}{" "}
-        <Link to="/account" viewTransition>{t.makeRecoveryCodes}</Link>
+        <Link to="/account" viewTransition>
+          {t.makeRecoveryCodes}
+        </Link>
       </Callout>
     </div>
   );
@@ -484,7 +545,12 @@ export function Shell() {
       {narrow ? (
         // up to 960px the sidebar is a sheet from the inline-start edge, opened from the top bar
         <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-          <SheetContent side={rtl ? "right" : "left"} showCloseButton={false} className="sidebar-sheet" aria-describedby={undefined}>
+          <SheetContent
+            side={rtl ? "right" : "left"}
+            showCloseButton={false}
+            className="sidebar-sheet"
+            aria-describedby={undefined}
+          >
             <SheetTitle className="sr-only">{menuLabel}</SheetTitle>
             <Sidebar />
           </SheetContent>
@@ -544,7 +610,14 @@ export function PageHead({
   return (
     <div className={side ? "page-head page-head-split" : "page-head"}>
       <div className="titles">
-        {mark ? <div className="row-wrap" style={{ gap: 12 }}><h1>{title}</h1>{mark}</div> : <h1>{title}</h1>}
+        {mark ? (
+          <div className="row-wrap" style={{ gap: 12 }}>
+            <h1>{title}</h1>
+            {mark}
+          </div>
+        ) : (
+          <h1>{title}</h1>
+        )}
         {children && <p>{children}</p>}
         {below}
       </div>

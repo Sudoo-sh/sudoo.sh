@@ -24,7 +24,16 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { Navigate, useNavigate } from "react-router";
 import { api, errorText, setCsrfToken, setSetupCode } from "@/api/client";
 import { keys, useLicenceText, useSetup } from "@/api/queries";
-import type { Engine, LicenceAcceptance as Acceptance, ServerCheck, Session, SetupDraft, SetupNeeds, SetupResult, SetupStep } from "@/api/types";
+import type {
+  Engine,
+  LicenceAcceptance as Acceptance,
+  ServerCheck,
+  Session,
+  SetupDraft,
+  SetupNeeds,
+  SetupResult,
+  SetupStep,
+} from "@/api/types";
 import { LicenceAcceptance } from "@/components/LicenceAcceptance";
 import licenceWords from "@/i18n/licence";
 import { useSignOut } from "@/components/Shell";
@@ -55,7 +64,12 @@ interface Kept {
 function readKept(): Kept {
   try {
     const kept = JSON.parse(sessionStorage.getItem(STORE) ?? "null") as Partial<Kept> | null;
-    return { code: kept?.code ?? "", licence: kept?.licence ?? null, reached: kept?.reached ?? "welcome", done: kept?.done };
+    return {
+      code: kept?.code ?? "",
+      licence: kept?.licence ?? null,
+      reached: kept?.reached ?? "welcome",
+      done: kept?.done,
+    };
   } catch {
     return { code: "", licence: null, reached: "welcome" };
   }
@@ -74,7 +88,12 @@ function keep(kept: Kept | null) {
  *  confirm on the super admin step, which creates the account and applies the choices together (POST /setup). */
 export function SetupPage() {
   const { data: setup, isPending } = useSetup();
-  if (isPending) return <div style={{ display: "grid", placeItems: "center", height: "100vh" }}><Spinner /></div>;
+  if (isPending)
+    return (
+      <div style={{ display: "grid", placeItems: "center", height: "100vh" }}>
+        <Spinner />
+      </div>
+    );
   if (!setup?.needed && !readKept().done) return <Navigate to="/login" replace />; // the last step is shown once after the confirm
   return <Wizard />;
 }
@@ -232,7 +251,10 @@ function Wizard() {
   };
 
   const stopped = draft ? blocker(step, draft) : null;
-  const person: Person = { email: draft?.admin.email ?? "", names: [draft?.admin.first_name ?? "", draft?.admin.last_name ?? ""] };
+  const person: Person = {
+    email: draft?.admin.email ?? "",
+    names: [draft?.admin.first_name ?? "", draft?.admin.last_name ?? ""],
+  };
 
   return (
     <div className="setup">
@@ -250,27 +272,53 @@ function Wizard() {
               <StepHead heading={heading} title={t.welcome.title} text={t.welcome.text} />
               <Field
                 label={t.welcome.code}
-                hint={fromLink ? t.welcome.codeFromLink : <>{t.welcome.codeHint(<code key="c">docker exec sudoo-panel sudoo.sh setup-code</code>)}</>}
+                hint={
+                  fromLink ? (
+                    t.welcome.codeFromLink
+                  ) : (
+                    <>{t.welcome.codeHint(<code key="c">docker exec sudoo-panel sudoo.sh setup-code</code>)}</>
+                  )
+                }
               >
                 <div className="input-group">
                   <KeyRound />
-                  <Input className="mono" dir="ltr" placeholder="XXXX-XXXX-XXXX" value={kept.code} autoComplete="off"
-                    onChange={(e) => setKept({ ...kept, code: e.target.value })} />
+                  <Input
+                    className="mono"
+                    dir="ltr"
+                    placeholder="XXXX-XXXX-XXXX"
+                    value={kept.code}
+                    autoComplete="off"
+                    onChange={(e) => setKept({ ...kept, code: e.target.value })}
+                  />
                 </div>
               </Field>
               {kept.licence && draft ? (
                 <>
                   <Callout tone="success">{t.welcome.accepted(kept.licence.version)}</Callout>
                   <Footer>
-                    <Button variant="ghost" onClick={() => setKept({ ...kept, licence: null })}>{t.welcome.acceptAgain}</Button>
-                    <Button variant="primary" icon={<ArrowRight className="flip-rtl" />} onClick={() => void go("server")}>{t.next}</Button>
+                    <Button variant="ghost" onClick={() => setKept({ ...kept, licence: null })}>
+                      {t.welcome.acceptAgain}
+                    </Button>
+                    <Button
+                      variant="primary"
+                      icon={<ArrowRight className="flip-rtl" />}
+                      onClick={() => void go("server")}
+                    >
+                      {t.next}
+                    </Button>
                   </Footer>
                 </>
               ) : (
                 <>
                   <p className="muted">{t.welcome.licence}</p>
                   {licenceText.data ? (
-                    <LicenceAcceptance text={licenceText.data} busy={busy} error={error} submitLabel={l.submit} onAccept={(a) => void accept(a)} />
+                    <LicenceAcceptance
+                      text={licenceText.data}
+                      busy={busy}
+                      error={error}
+                      submitLabel={l.submit}
+                      onAccept={(a) => void accept(a)}
+                    />
                   ) : licenceText.isError ? (
                     <Callout tone="danger">{l.loadFailed}</Callout>
                   ) : (
@@ -282,23 +330,51 @@ function Wizard() {
           )}
 
           {step === "server" && draft && (
-            <ServerStep heading={heading} check={check} failed={checkFailed} checking={checking} engine={draft.engine} needs={draft.needs}
-              onEngine={(engine) => update({ engine })} onCheck={() => void runCheck(true, draft.needs)}
-              onNeeds={(needs) => { update({ needs }); void runCheck(false, needs); }} />
+            <ServerStep
+              heading={heading}
+              check={check}
+              failed={checkFailed}
+              checking={checking}
+              engine={draft.engine}
+              needs={draft.needs}
+              onEngine={(engine) => update({ engine })}
+              onCheck={() => void runCheck(true, draft.needs)}
+              onNeeds={(needs) => {
+                update({ needs });
+                void runCheck(false, needs);
+              }}
+            />
           )}
 
-          {step === "address" && draft && <AddressStep heading={heading} draft={draft} check={check} onChange={update} />}
+          {step === "address" && draft && (
+            <AddressStep heading={heading} draft={draft} check={check} onChange={update} />
+          )}
 
           {step === "email" && draft && (
-            <EmailStep heading={heading} draft={draft} password={smtpPassword} onPassword={setSmtpPassword} onChange={update} />
+            <EmailStep
+              heading={heading}
+              draft={draft}
+              password={smtpPassword}
+              onPassword={setSmtpPassword}
+              onChange={update}
+            />
           )}
 
           {step === "github" && draft && (
             <>
               <StepHead heading={heading} title={t.github.title} text={t.github.text} optional />
-              <button type="button" className="choice" aria-pressed={draft.github.connect} onClick={() => update({ github: { connect: !draft.github.connect } })}>
+              <button
+                type="button"
+                className="choice"
+                aria-pressed={draft.github.connect}
+                onClick={() => update({ github: { connect: !draft.github.connect } })}
+              >
                 <GitBranch />
-                <span><span className="t">{t.github.connect}</span><br /><span className="d">{t.github.later}</span></span>
+                <span>
+                  <span className="t">{t.github.connect}</span>
+                  <br />
+                  <span className="d">{t.github.later}</span>
+                </span>
               </button>
               <p className="faint small">{t.github.skip}</p>
             </>
@@ -322,23 +398,48 @@ function Wizard() {
           {error && step !== "welcome" && <Callout tone="danger">{error}</Callout>}
           {stopped && (
             <p className="setup-blocker" role="status">
-              {{ nameNeeded: t.address.nameNeeded, mailIncomplete: t.email.mailIncomplete, linkCodeNeeded: t.account.linkCodeNeeded }[stopped]}
+              {
+                {
+                  nameNeeded: t.address.nameNeeded,
+                  mailIncomplete: t.email.mailIncomplete,
+                  linkCodeNeeded: t.account.linkCodeNeeded,
+                }[stopped]
+              }
             </p>
           )}
 
           {step !== "welcome" && step !== "done" && (
             <Footer>
-              <Button variant="ghost" icon={<ArrowLeft className="flip-rtl" />} disabled={busy} onClick={() => void go(back(step))}>{t.back}</Button>
+              <Button
+                variant="ghost"
+                icon={<ArrowLeft className="flip-rtl" />}
+                disabled={busy}
+                onClick={() => void go(back(step))}
+              >
+                {t.back}
+              </Button>
               <span className="spacer" />
               {OPTIONAL.has(step) && <Tag>{t.optional}</Tag>}
               {step === "admin" ? (
-                <Button type="submit" form="setup-confirm" variant="primary" loading={busy}
-                  disabled={!draft?.admin.first_name || !draft?.admin.email?.includes("@") || !passwordReady(password, person)}>
+                <Button
+                  type="submit"
+                  form="setup-confirm"
+                  variant="primary"
+                  loading={busy}
+                  disabled={
+                    !draft?.admin.first_name || !draft?.admin.email?.includes("@") || !passwordReady(password, person)
+                  }
+                >
                   {t.admin.submit}
                 </Button>
               ) : (
-                <Button variant="primary" loading={busy} disabled={!!stopped} icon={<ArrowRight className="flip-rtl" />}
-                  onClick={() => draft && void go(next(step), changesOf(step, draft))}>
+                <Button
+                  variant="primary"
+                  loading={busy}
+                  disabled={!!stopped}
+                  icon={<ArrowRight className="flip-rtl" />}
+                  onClick={() => draft && void go(next(step), changesOf(step, draft))}
+                >
                   {t.next}
                 </Button>
               )}
@@ -353,21 +454,41 @@ function Wizard() {
 /** The part of the draft a step saves when Next is pressed. */
 function changesOf(step: SetupStep, draft: SetupDraft): Partial<SetupDraft> {
   switch (step) {
-    case "server": return { engine: draft.engine, needs: draft.needs };
-    case "address": return { exposure: draft.exposure, name: draft.name };
-    case "email": return { mail: draft.mail };
-    case "github": return { github: draft.github };
-    case "account": return { account: draft.account };
-    case "admin": return { admin: draft.admin };
-    default: return {};
+    case "server":
+      return { engine: draft.engine, needs: draft.needs };
+    case "address":
+      return { exposure: draft.exposure, name: draft.name };
+    case "email":
+      return { mail: draft.mail };
+    case "github":
+      return { github: draft.github };
+    case "account":
+      return { account: draft.account };
+    case "admin":
+      return { admin: draft.admin };
+    default:
+      return {};
   }
 }
 
-function StepHead({ heading, title, text, optional }: { heading: React.RefObject<HTMLHeadingElement | null>; title: string; text: string; optional?: boolean }) {
+function StepHead({
+  heading,
+  title,
+  text,
+  optional,
+}: {
+  heading: React.RefObject<HTMLHeadingElement | null>;
+  title: string;
+  text: string;
+  optional?: boolean;
+}) {
   const t = useT(setupWords);
   return (
     <header className="setup-head">
-      <h1 ref={heading} tabIndex={-1}>{title}{optional && <span className="faint small"> · {t.optional}</span>}</h1>
+      <h1 ref={heading} tabIndex={-1}>
+        {title}
+        {optional && <span className="faint small"> · {t.optional}</span>}
+      </h1>
       <p>{text}</p>
     </header>
   );
@@ -375,7 +496,19 @@ function StepHead({ heading, title, text, optional }: { heading: React.RefObject
 
 const Footer = ({ children }: { children: ReactNode }) => <footer className="setup-footer">{children}</footer>;
 
-function Fact({ icon, label, value, tone, note }: { icon: ReactNode; label: string; value: ReactNode; tone?: "good" | "caution"; note?: string }) {
+function Fact({
+  icon,
+  label,
+  value,
+  tone,
+  note,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: ReactNode;
+  tone?: "good" | "caution";
+  note?: string;
+}) {
   return (
     <div className="setup-fact" data-tone={tone}>
       {icon}
@@ -387,7 +520,15 @@ function Fact({ icon, label, value, tone, note }: { icon: ReactNode; label: stri
 }
 
 function ServerStep({
-  heading, check, failed, checking, engine, needs, onEngine, onCheck, onNeeds,
+  heading,
+  check,
+  failed,
+  checking,
+  engine,
+  needs,
+  onEngine,
+  onCheck,
+  onNeeds,
 }: {
   heading: React.RefObject<HTMLHeadingElement | null>;
   check: ServerCheck | null;
@@ -407,7 +548,10 @@ function ServerStep({
     <Segmented<"" | "yes" | "no">
       value={needs[key] === null ? "" : needs[key] ? "yes" : "no"}
       onChange={(value) => onNeeds({ ...needs, [key]: value === "yes" })}
-      options={[{ value: "yes", label: t.yes }, { value: "no", label: t.no }]}
+      options={[
+        { value: "yes", label: t.yes },
+        { value: "no", label: t.no },
+      ]}
     />
   );
   const answered = Object.values(needs).some((value) => value !== null);
@@ -416,24 +560,67 @@ function ServerStep({
     const state = check?.ports[p];
     return !state ? t.unknown : state.free ? t.free : state.sudoo ? t.bySudoo : t.busy;
   };
-  const portsTone = check && (check.ports["80"].free || check.ports["80"].sudoo) && (check.ports["443"].free || check.ports["443"].sudoo) ? "good" : "caution";
+  const portsTone =
+    check &&
+    (check.ports["80"].free || check.ports["80"].sudoo) &&
+    (check.ports["443"].free || check.ports["443"].sudoo)
+      ? "good"
+      : "caution";
   return (
     <>
       <StepHead heading={heading} title={t.title} text={t.text} />
       {failed && <Callout tone="warning">{t.failed}</Callout>}
       <div className="setup-facts" aria-busy={checking}>
-        <Fact icon={<MemoryStick />} label={t.memory} value={check ? t.gb(gb(check.memory_mb)) : <Spinner />}
-          tone={check && advice?.recommended === "kubernetes" ? "good" : undefined} />
+        <Fact
+          icon={<MemoryStick />}
+          label={t.memory}
+          value={check ? t.gb(gb(check.memory_mb)) : <Spinner />}
+          tone={check && advice?.recommended === "kubernetes" ? "good" : undefined}
+        />
         <Fact icon={<Cpu />} label={t.processors} value={check ? t.cores(check.processors) : <Spinner />} />
-        <Fact icon={<HardDrive />} label={t.disk} value={check ? t.gb(check.disk_free_gb) : <Spinner />} tone={check && check.disk_free_gb < 20 ? "caution" : undefined} />
-        <Fact icon={<Server />} label={t.system} value={check ? <span dir="ltr">{check.system.name || t.unknown}</span> : <Spinner />} />
-        <Fact icon={<Layers />} label={t.virtualisation} value={check ? t.kinds[check.virtualisation.kind] : <Spinner />}
+        <Fact
+          icon={<HardDrive />}
+          label={t.disk}
+          value={check ? t.gb(check.disk_free_gb) : <Spinner />}
+          tone={check && check.disk_free_gb < 20 ? "caution" : undefined}
+        />
+        <Fact
+          icon={<Server />}
+          label={t.system}
+          value={check ? <span dir="ltr">{check.system.name || t.unknown}</span> : <Spinner />}
+        />
+        <Fact
+          icon={<Layers />}
+          label={t.virtualisation}
+          value={check ? t.kinds[check.virtualisation.kind] : <Spinner />}
           note={check?.virtualisation.from_installer ? `${check.virtualisation.name} · ${t.fromInstaller}` : undefined}
-          tone={check?.virtualisation.kind === "container" ? "caution" : undefined} />
-        <Fact icon={<Network />} label={t.ports} value={check ? <>{port("80")} · {port("443")}</> : <Spinner />} tone={check ? portsTone : undefined} />
+          tone={check?.virtualisation.kind === "container" ? "caution" : undefined}
+        />
+        <Fact
+          icon={<Network />}
+          label={t.ports}
+          value={
+            check ? (
+              <>
+                {port("80")} · {port("443")}
+              </>
+            ) : (
+              <Spinner />
+            )
+          }
+          tone={check ? portsTone : undefined}
+        />
       </div>
       <div className="row">
-        <Button size="sm" variant="ghost" icon={<RefreshCw className={checking ? "spinning" : undefined} />} disabled={checking} onClick={onCheck}>{t.again}</Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<RefreshCw className={checking ? "spinning" : undefined} />}
+          disabled={checking}
+          onClick={onCheck}
+        >
+          {t.again}
+        </Button>
       </div>
 
       {figures && (
@@ -446,19 +633,34 @@ function ServerStep({
       {advice && !advice.fits ? (
         <div className="setup-why">
           <span className="faint small">{t.cannotRun}</span>
-          <ul>{advice.reasons.map((reason) => <li key={reason} dir="auto">{reason}</li>)}</ul>
+          <ul>
+            {advice.reasons.map((reason) => (
+              <li key={reason} dir="auto">
+                {reason}
+              </li>
+            ))}
+          </ul>
         </div>
       ) : (
         <div className="setup-section">
           <h2>{t.questions}</h2>
-          <div className="setup-question"><span>{t.grow}</span>{yesNo("grow")}</div>
-          <div className="setup-question"><span>{t.separation}</span>{yesNo("separation")}</div>
+          <div className="setup-question">
+            <span>{t.grow}</span>
+            {yesNo("grow")}
+          </div>
+          <div className="setup-question">
+            <span>{t.separation}</span>
+            {yesNo("separation")}
+          </div>
           <div className="setup-question">
             <span>{t.team}</span>
             <Segmented<"" | "one" | "team">
               value={needs.team === null ? "" : needs.team ? "team" : "one"}
               onChange={(value) => onNeeds({ ...needs, team: value === "team" })}
-              options={[{ value: "one", label: t.onePerson }, { value: "team", label: t.aTeam }]}
+              options={[
+                { value: "one", label: t.onePerson },
+                { value: "team", label: t.aTeam },
+              ]}
             />
           </div>
         </div>
@@ -468,9 +670,23 @@ function ServerStep({
         <h2>{t.engine}</h2>
         <p className="muted">{t.engineText}</p>
         <div className="setup-choices" role="radiogroup" aria-label={t.engine}>
-          <EngineChoice name={t.docker} text={t.dockerText} icon={<Boxes />} chosen={engine === "docker"} recommended={advice?.recommended === "docker"} onChoose={() => onEngine("docker")} />
-          <EngineChoice name={t.kubernetes} beta text={t.kubernetesText} icon={<Ship />}
-            chosen={engine === "kubernetes"} recommended={advice?.recommended === "kubernetes"} onChoose={() => onEngine("kubernetes")} />
+          <EngineChoice
+            name={t.docker}
+            text={t.dockerText}
+            icon={<Boxes />}
+            chosen={engine === "docker"}
+            recommended={advice?.recommended === "docker"}
+            onChoose={() => onEngine("docker")}
+          />
+          <EngineChoice
+            name={t.kubernetes}
+            beta
+            text={t.kubernetesText}
+            icon={<Ship />}
+            chosen={engine === "kubernetes"}
+            recommended={advice?.recommended === "kubernetes"}
+            onChoose={() => onEngine("kubernetes")}
+          />
         </div>
         {advice && advice.fits && (
           <div className="setup-why" aria-live="polite">
@@ -478,7 +694,9 @@ function ServerStep({
             <p>
               {answered && advice.reason_code in t.reasons
                 ? t.reasons[advice.reason_code as keyof typeof t.reasons]
-                : answered ? advice.reason : t.answerFirst}
+                : answered
+                  ? advice.reason
+                  : t.answerFirst}
             </p>
             {advice.beta && advice.recommended === "kubernetes" && <p className="faint small">{t.betaDefault}</p>}
           </div>
@@ -488,7 +706,9 @@ function ServerStep({
         {check && engine !== prepared && (
           <div className="setup-switch">
             <strong>{t.switchTitle}</strong>
-            <p className="muted">{t.prepared(prepared === "kubernetes" ? t.kubernetes : t.docker)} {t.switchText}</p>
+            <p className="muted">
+              {t.prepared(prepared === "kubernetes" ? t.kubernetes : t.docker)} {t.switchText}
+            </p>
             <CopyField block value={check.engine.switch_command.replace("{engine}", engine)} />
           </div>
         )}
@@ -497,16 +717,36 @@ function ServerStep({
   );
 }
 
-function EngineChoice({ name, text, icon, chosen, recommended, beta, onChoose }: {
-  name: string; text: string; icon: ReactNode; chosen: boolean; recommended: boolean; beta?: boolean; onChoose: () => void;
+function EngineChoice({
+  name,
+  text,
+  icon,
+  chosen,
+  recommended,
+  beta,
+  onChoose,
+}: {
+  name: string;
+  text: string;
+  icon: ReactNode;
+  chosen: boolean;
+  recommended: boolean;
+  beta?: boolean;
+  onChoose: () => void;
 }) {
   const t = useT(setupWords).server;
   return (
-    <button type="button" className="choice setup-choice" role="radio" aria-checked={chosen} aria-pressed={chosen} onClick={onChoose}>
+    <button
+      type="button"
+      className="choice setup-choice"
+      role="radio"
+      aria-checked={chosen}
+      aria-pressed={chosen}
+      onClick={onChoose}
+    >
       {icon}
       <span>
-        <span className="t">{name}</span>{" "}
-        {beta && <Tag>{t.beta}</Tag>}{" "}
+        <span className="t">{name}</span> {beta && <Tag>{t.beta}</Tag>}{" "}
         {recommended && <Tag tone="accent">{t.recommended}</Tag>}
         <br />
         <span className="d">{text}</span>
@@ -516,18 +756,41 @@ function EngineChoice({ name, text, icon, chosen, recommended, beta, onChoose }:
   );
 }
 
-function AddressStep({ heading, draft, check, onChange }: { heading: React.RefObject<HTMLHeadingElement | null>; draft: SetupDraft; check: ServerCheck | null; onChange: (c: Partial<SetupDraft>) => void }) {
+function AddressStep({
+  heading,
+  draft,
+  check,
+  onChange,
+}: {
+  heading: React.RefObject<HTMLHeadingElement | null>;
+  draft: SetupDraft;
+  check: ServerCheck | null;
+  onChange: (c: Partial<SetupDraft>) => void;
+}) {
   const t = useT(setupWords).address;
-  const busyPorts = check && ((!check.ports["80"].free && !check.ports["80"].sudoo) || (!check.ports["443"].free && !check.ports["443"].sudoo));
+  const busyPorts =
+    check &&
+    ((!check.ports["80"].free && !check.ports["80"].sudoo) || (!check.ports["443"].free && !check.ports["443"].sudoo));
   return (
     <>
       <StepHead heading={heading} title={t.title} text={t.text} />
       <div className="setup-choices" role="radiogroup">
         {(["direct", "proxy", "tunnel"] as const).map((mode) => (
-          <button key={mode} type="button" className="choice setup-choice" role="radio" aria-checked={draft.exposure === mode} aria-pressed={draft.exposure === mode}
-            onClick={() => onChange({ exposure: mode })}>
+          <button
+            key={mode}
+            type="button"
+            className="choice setup-choice"
+            role="radio"
+            aria-checked={draft.exposure === mode}
+            aria-pressed={draft.exposure === mode}
+            onClick={() => onChange({ exposure: mode })}
+          >
             {mode === "direct" ? <Globe /> : mode === "proxy" ? <Network /> : <Link2 />}
-            <span><span className="t">{t.modes[mode].title}</span><br /><span className="d">{t.modes[mode].text}</span></span>
+            <span>
+              <span className="t">{t.modes[mode].title}</span>
+              <br />
+              <span className="d">{t.modes[mode].text}</span>
+            </span>
             <span className="setup-radio" aria-hidden="true" />
           </button>
         ))}
@@ -538,13 +801,22 @@ function AddressStep({ heading, draft, check, onChange }: { heading: React.RefOb
         <Segmented
           value={draft.name.kind}
           onChange={(kind) => onChange({ name: { ...draft.name, kind } })}
-          options={(["server", "domain", "managed"] as const).map((kind) => ({ value: kind, label: t.names[kind].title, disabled: kind === "managed" && draft.exposure !== "direct" }))}
+          options={(["server", "domain", "managed"] as const).map((kind) => ({
+            value: kind,
+            label: t.names[kind].title,
+            disabled: kind === "managed" && draft.exposure !== "direct",
+          }))}
         />
         <p className="muted small">{t.names[draft.name.kind].text}</p>
         {draft.name.kind === "domain" && (
           <Field label={t.domain}>
-            <Input dir="ltr" className="mono" placeholder="panel.example.com" value={draft.name.domain}
-              onChange={(e) => onChange({ name: { kind: "domain", domain: e.target.value.trim().toLowerCase() } })} />
+            <Input
+              dir="ltr"
+              className="mono"
+              placeholder="panel.example.com"
+              value={draft.name.domain}
+              onChange={(e) => onChange({ name: { kind: "domain", domain: e.target.value.trim().toLowerCase() } })}
+            />
           </Field>
         )}
       </div>
@@ -553,8 +825,18 @@ function AddressStep({ heading, draft, check, onChange }: { heading: React.RefOb
   );
 }
 
-function EmailStep({ heading, draft, password, onPassword, onChange }: {
-  heading: React.RefObject<HTMLHeadingElement | null>; draft: SetupDraft; password: string; onPassword: (p: string) => void; onChange: (c: Partial<SetupDraft>) => void;
+function EmailStep({
+  heading,
+  draft,
+  password,
+  onPassword,
+  onChange,
+}: {
+  heading: React.RefObject<HTMLHeadingElement | null>;
+  draft: SetupDraft;
+  password: string;
+  onPassword: (p: string) => void;
+  onChange: (c: Partial<SetupDraft>) => void;
 }) {
   const t = useT(setupWords).email;
   const mail = draft.mail;
@@ -581,21 +863,67 @@ function EmailStep({ heading, draft, password, onPassword, onChange }: {
       {mail.enabled && (
         <div className="setup-reveal">
           <div className="form-grid">
-            <Field label={t.host}><Input dir="ltr" placeholder="smtp.example.com" value={mail.host} onChange={(e) => set({ host: e.target.value.trim() })} /></Field>
-            <Field label={t.port}><Input dir="ltr" inputMode="numeric" value={String(mail.port)} onChange={(e) => set({ port: Number(e.target.value.replace(/\D/g, "")) || 0 })} /></Field>
+            <Field label={t.host}>
+              <Input
+                dir="ltr"
+                placeholder="smtp.example.com"
+                value={mail.host}
+                onChange={(e) => set({ host: e.target.value.trim() })}
+              />
+            </Field>
+            <Field label={t.port}>
+              <Input
+                dir="ltr"
+                inputMode="numeric"
+                value={String(mail.port)}
+                onChange={(e) => set({ port: Number(e.target.value.replace(/\D/g, "")) || 0 })}
+              />
+            </Field>
             <Field label={t.security} className="full">
-              <Segmented value={mail.security} onChange={(security) => set({ security, port: security === "ssl" ? 465 : security === "starttls" ? 587 : mail.port })}
-                options={[{ value: "starttls", label: "STARTTLS" }, { value: "ssl", label: "SSL/TLS" }, { value: "none", label: "—" }]} />
+              <Segmented
+                value={mail.security}
+                onChange={(security) =>
+                  set({ security, port: security === "ssl" ? 465 : security === "starttls" ? 587 : mail.port })
+                }
+                options={[
+                  { value: "starttls", label: "STARTTLS" },
+                  { value: "ssl", label: "SSL/TLS" },
+                  { value: "none", label: "—" },
+                ]}
+              />
             </Field>
-            <Field label={t.username}><Input dir="ltr" autoComplete="off" value={mail.username} onChange={(e) => set({ username: e.target.value.trim() })} /></Field>
+            <Field label={t.username}>
+              <Input
+                dir="ltr"
+                autoComplete="off"
+                value={mail.username}
+                onChange={(e) => set({ username: e.target.value.trim() })}
+              />
+            </Field>
             <Field label={t.password} hint={mail.password_set && !password ? t.passwordSet : undefined}>
-              <Input type="password" autoComplete="new-password" value={password} onChange={(e) => onPassword(e.target.value)} />
+              <Input
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => onPassword(e.target.value)}
+              />
             </Field>
-            <Field label={t.sender} hint={t.senderHint} className="full"><Input dir="ltr" value={mail.sender} onChange={(e) => set({ sender: e.target.value })} /></Field>
+            <Field label={t.sender} hint={t.senderHint} className="full">
+              <Input dir="ltr" value={mail.sender} onChange={(e) => set({ sender: e.target.value })} />
+            </Field>
           </div>
           <div className="setup-test">
-            <Field label={t.testTo}><Input dir="ltr" type="email" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
-            <Button icon={<Send className="flip-rtl" />} loading={testing} disabled={!to.includes("@") || !mail.host} onClick={() => void test()}>{t.test}</Button>
+            <Field label={t.testTo}>
+              <Input dir="ltr" type="email" value={to} onChange={(e) => setTo(e.target.value)} />
+            </Field>
+            <Button
+              icon={<Send className="flip-rtl" />}
+              loading={testing}
+              disabled={!to.includes("@") || !mail.host}
+              onClick={() => void test()}
+            >
+              {t.test}
+            </Button>
           </div>
           {outcome && <Callout tone={outcome.ok ? "success" : "danger"}>{outcome.text}</Callout>}
         </div>
@@ -604,7 +932,15 @@ function EmailStep({ heading, draft, password, onPassword, onChange }: {
   );
 }
 
-function AccountStep({ heading, draft, onChange }: { heading: React.RefObject<HTMLHeadingElement | null>; draft: SetupDraft; onChange: (c: Partial<SetupDraft>) => void }) {
+function AccountStep({
+  heading,
+  draft,
+  onChange,
+}: {
+  heading: React.RefObject<HTMLHeadingElement | null>;
+  draft: SetupDraft;
+  onChange: (c: Partial<SetupDraft>) => void;
+}) {
   const t = useT(setupWords).account;
   const account = draft.account;
   const set = (changes: Partial<SetupDraft["account"]>) => onChange({ account: { ...account, ...changes } });
@@ -615,10 +951,21 @@ function AccountStep({ heading, draft, onChange }: { heading: React.RefObject<HT
       {account.link ? (
         <div className="setup-reveal form-grid">
           <Field label={t.code} hint={account.from_install_code ? t.fromInstallCode : t.codeHint}>
-            <Input dir="ltr" className="mono" autoComplete="off" value={account.link_code} onChange={(e) => set({ link_code: e.target.value.toUpperCase() })} />
+            <Input
+              dir="ltr"
+              className="mono"
+              autoComplete="off"
+              value={account.link_code}
+              onChange={(e) => set({ link_code: e.target.value.toUpperCase() })}
+            />
           </Field>
           <Field label={t.company} hint={t.companyHint}>
-            <Input dir="ltr" className="mono" value={account.company_label} onChange={(e) => set({ company_label: e.target.value.toLowerCase() })} />
+            <Input
+              dir="ltr"
+              className="mono"
+              value={account.company_label}
+              onChange={(e) => set({ company_label: e.target.value.toLowerCase() })}
+            />
           </Field>
         </div>
       ) : (
@@ -631,13 +978,22 @@ function AccountStep({ heading, draft, onChange }: { heading: React.RefObject<HT
 function AdminFields({ draft, onChange }: { draft: SetupDraft; onChange: (c: Partial<SetupDraft>) => void }) {
   const t = useT(auth).setup;
   const admin = draft.admin;
-  const set = (key: keyof SetupDraft["admin"]) => (e: React.ChangeEvent<HTMLInputElement>) => onChange({ admin: { ...admin, [key]: e.target.value } });
+  const set = (key: keyof SetupDraft["admin"]) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    onChange({ admin: { ...admin, [key]: e.target.value } });
   return (
     <div className="form-grid">
-      <Field label={t.firstName}><Input autoComplete="given-name" value={admin.first_name ?? ""} onChange={set("first_name")} /></Field>
-      <Field label={t.lastName}><Input autoComplete="family-name" value={admin.last_name ?? ""} onChange={set("last_name")} /></Field>
-      <Field label={t.email} hint={t.emailHint}><Input type="email" autoComplete="username email" value={admin.email ?? ""} onChange={set("email")} /></Field>
-      <Field label={t.phone} hint={t.optional}><Input type="tel" dir="ltr" autoComplete="tel" value={admin.phone ?? ""} onChange={set("phone")} /></Field>
+      <Field label={t.firstName}>
+        <Input autoComplete="given-name" value={admin.first_name ?? ""} onChange={set("first_name")} />
+      </Field>
+      <Field label={t.lastName}>
+        <Input autoComplete="family-name" value={admin.last_name ?? ""} onChange={set("last_name")} />
+      </Field>
+      <Field label={t.email} hint={t.emailHint}>
+        <Input type="email" autoComplete="username email" value={admin.email ?? ""} onChange={set("email")} />
+      </Field>
+      <Field label={t.phone} hint={t.optional}>
+        <Input type="tel" dir="ltr" autoComplete="tel" value={admin.phone ?? ""} onChange={set("phone")} />
+      </Field>
     </div>
   );
 }
@@ -650,16 +1006,38 @@ function Confirming({ draft, check }: { draft: SetupDraft; check: ServerCheck | 
     <div className="setup-confirm">
       <span className="faint small">{t.admin.summary}</span>
       <ul>
-        <li><CircleCheck /> {t.admin.willCreate(draft.admin.email || "…")}</li>
-        <li><CircleCheck /> {t.admin.willApply(choices)}</li>
-        {draft.account.link && <li><CircleCheck /> {t.admin.willLink}</li>}
-        {check && draft.engine !== check.engine.current && <li><Server /> {t.server.switchTitle}</li>}
+        <li>
+          <CircleCheck /> {t.admin.willCreate(draft.admin.email || "…")}
+        </li>
+        <li>
+          <CircleCheck /> {t.admin.willApply(choices)}
+        </li>
+        {draft.account.link && (
+          <li>
+            <CircleCheck /> {t.admin.willLink}
+          </li>
+        )}
+        {check && draft.engine !== check.engine.current && (
+          <li>
+            <Server /> {t.server.switchTitle}
+          </li>
+        )}
       </ul>
     </div>
   );
 }
 
-function DoneStep({ heading, draft, result, onOpen }: { heading: React.RefObject<HTMLHeadingElement | null>; draft: SetupDraft; result: SetupResult; onOpen: () => void }) {
+function DoneStep({
+  heading,
+  draft,
+  result,
+  onOpen,
+}: {
+  heading: React.RefObject<HTMLHeadingElement | null>;
+  draft: SetupDraft;
+  result: SetupResult;
+  onOpen: () => void;
+}) {
   const t = useT(setupWords);
   const d = t.done;
   const [restarting, setRestarting] = useState(false);
@@ -676,20 +1054,36 @@ function DoneStep({ heading, draft, result, onOpen }: { heading: React.RefObject
   const engineName = (engine: Engine) => (engine === "kubernetes" ? t.server.kubernetes : t.server.docker);
   const rows: [string, ReactNode][] = [
     [d.engine, engineName(result.engine.current)],
-    [d.address, `${t.address.modes[draft.exposure].title}${draft.name.kind === "domain" ? ` · ${draft.name.domain}` : draft.name.kind === "managed" ? " · sudoo.cloud" : ""}`],
+    [
+      d.address,
+      `${t.address.modes[draft.exposure].title}${draft.name.kind === "domain" ? ` · ${draft.name.domain}` : draft.name.kind === "managed" ? " · sudoo.cloud" : ""}`,
+    ],
     [d.email, draft.mail.enabled ? <span dir="ltr">{draft.mail.host}</span> : d.off],
     [d.github, result.github ? d.on : d.off],
-    [d.account, result.linked ? d.linked(result.linked.account_name ?? "") : result.link_error ? d.linkFailed(result.link_error) : d.notLinked],
+    [
+      d.account,
+      result.linked
+        ? d.linked(result.linked.account_name ?? "")
+        : result.link_error
+          ? d.linkFailed(result.link_error)
+          : d.notLinked,
+    ],
   ];
   return (
     <>
       <div className="setup-done-mark" aria-hidden="true">
-        <svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" /><path d="M15 27l7.5 7.5L37 19" /></svg>
+        <svg viewBox="0 0 52 52">
+          <circle cx="26" cy="26" r="24" />
+          <path d="M15 27l7.5 7.5L37 19" />
+        </svg>
       </div>
       <StepHead heading={heading} title={d.title} text={d.text} />
       <dl className="setup-summary">
         {rows.map(([label, value]) => (
-          <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
         ))}
       </dl>
       {result.engine.command && (
@@ -705,11 +1099,19 @@ function DoneStep({ heading, draft, result, onOpen }: { heading: React.RefObject
       )}
       <Footer>
         {result.restart_needed && (
-          <Button icon={<RotateCw />} loading={restarting} onClick={() => void restart()}>{d.restart}</Button>
+          <Button icon={<RotateCw />} loading={restarting} onClick={() => void restart()}>
+            {d.restart}
+          </Button>
         )}
-        {result.github && <Button icon={<GitBranch />} onClick={() => navigate("/github")}>{d.connectGithub}</Button>}
+        {result.github && (
+          <Button icon={<GitBranch />} onClick={() => navigate("/github")}>
+            {d.connectGithub}
+          </Button>
+        )}
         <span className="spacer" />
-        <Button variant="primary" size="lg" icon={<ArrowRight className="flip-rtl" />} onClick={onOpen}>{d.open}</Button>
+        <Button variant="primary" size="lg" icon={<ArrowRight className="flip-rtl" />} onClick={onOpen}>
+          {d.open}
+        </Button>
       </Footer>
     </>
   );
@@ -717,7 +1119,11 @@ function DoneStep({ heading, draft, result, onOpen }: { heading: React.RefObject
 
 export function ChangePasswordPage() {
   const me = useQueryClient().getQueryData<Session>(keys.session);
-  const person: Person = { username: me?.user, email: me?.email ?? undefined, names: [me?.first_name ?? "", me?.last_name ?? ""] };
+  const person: Person = {
+    username: me?.user,
+    email: me?.email ?? undefined,
+    names: [me?.first_name ?? "", me?.last_name ?? ""],
+  };
   const client = useQueryClient();
   const navigate = useNavigate();
   const signOut = useSignOut();
@@ -735,7 +1141,10 @@ export function ChangePasswordPage() {
       await api.put("/session/password", { current, new: password[0] });
       const me = await api.get<Session>("/session");
       client.setQueryData(keys.session, me);
-      navigate(me.restricted === "second_factor" ? "/setup-second-factor" : "/", { replace: true, viewTransition: true });
+      navigate(me.restricted === "second_factor" ? "/setup-second-factor" : "/", {
+        replace: true,
+        viewTransition: true,
+      });
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -751,14 +1160,29 @@ export function ChangePasswordPage() {
           <p>{t.text}</p>
         </header>
         <Field label={t.current}>
-          <Input type="password" autoComplete="current-password" autoFocus value={current} onChange={(e) => setCurrent(e.target.value)} />
+          <Input
+            type="password"
+            autoComplete="current-password"
+            autoFocus
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
+          />
         </Field>
         <PasswordFields value={password} onChange={setPassword} person={person} />
         {error && <Callout tone="danger">{error}</Callout>}
-        <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={!current || !passwordReady(password, person)}>
+        <Button
+          type="submit"
+          variant="primary"
+          size="lg"
+          block
+          loading={busy}
+          disabled={!current || !passwordReady(password, person)}
+        >
           {t.submit}
         </Button>
-        <Button variant="ghost" icon={<LogOut />} onClick={signOut} style={{ alignSelf: "flex-start" }}>{signOutLabel}</Button>
+        <Button variant="ghost" icon={<LogOut />} onClick={signOut} style={{ alignSelf: "flex-start" }}>
+          {signOutLabel}
+        </Button>
       </form>
     </div>
   );

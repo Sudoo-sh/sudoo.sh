@@ -5,7 +5,17 @@
 // a newer success drops the older ones. Builds of a branch whose test suite is on say how many tests passed (one of
 // them failed a test); a branch that does nothing on new commits lists the commits it did not build.
 
-import type { Build, BuildTests, BuildTrigger, CommitEntry, HistoryEntry, Job, RestoreEntry, Stage, StageChange } from "@/api/types";
+import type {
+  Build,
+  BuildTests,
+  BuildTrigger,
+  CommitEntry,
+  HistoryEntry,
+  Job,
+  RestoreEntry,
+  Stage,
+  StageChange,
+} from "@/api/types";
 import { effective, projectById } from "./build-options";
 import { publish, subscribe } from "./bus";
 import { instances, jobs } from "./state";
@@ -16,7 +26,8 @@ const STAGE_MEANING: Record<Stage, string> = {
     "Development: for trying changes. New instances get demo data (when the project says so), catch every e-mail and are deleted when their lifetime ends.",
   staging:
     "Staging: for testing with real data. The instance runs on a neutralised copy of production's data (rebuilt on push when the project says so) and catches every e-mail.",
-  production: "Production: the live database. The instance is kept, never paused when idle, backed up every day, and sends real e-mail.",
+  production:
+    "Production: the live database. The instance is kept, never paused when idle, backed up every day, and sends real e-mail.",
 };
 const DONE: Record<BuildTrigger, string> = {
   create: "Instance created",
@@ -102,11 +113,14 @@ function instanceEntries(projectId: string, name: string): HistoryEntry[] {
   const instance = instances.get(name);
   if (!instance?.git.branch) return [];
   const branch = instance.git.branch;
-  const own = jobs.filter((j) => j.instance === name).sort((a, b) => Date.parse(b.started_at!) - Date.parse(a.started_at!));
+  const own = jobs
+    .filter((j) => j.instance === name)
+    .sort((a, b) => Date.parse(b.started_at!) - Date.parse(a.started_at!));
   const commits = instance.recent_commits ?? [];
   const entries: HistoryEntry[] = [];
   const project = projectById(projectId);
-  const testing = project && instance.stage !== "production" ? effective(project, branch).values.test_suite !== "off" : false;
+  const testing =
+    project && instance.stage !== "production" ? effective(project, branch).values.test_suite !== "off" : false;
   let builds = 0;
   let live = false;
   for (const job of own) {
@@ -127,7 +141,11 @@ function instanceEntries(projectId: string, name: string): HistoryEntry[] {
         action: job.action,
         result: job.status === "failed" ? (job.error ?? "The restore failed; the job's log says why.") : job.action,
         job: jobId,
-        links: { self: `/api/v1/projects/${projectId}/builds/r${job.id}`, job: link, instance: `/api/v1/instances/${name}` },
+        links: {
+          self: `/api/v1/projects/${projectId}/builds/r${job.id}`,
+          job: link,
+          instance: `/api/v1/instances/${name}`,
+        },
       };
       entries.push(entry);
       continue;
@@ -138,14 +156,31 @@ function instanceEntries(projectId: string, name: string): HistoryEntry[] {
     let commit = commitOf.get(job.id) ?? null;
     if (!commit && !running) {
       // the newest build has the instance's commit; older ones the branch's earlier commits, in an order of its own
-      const found = builds === 0 || commits.length < 2 ? commits[0] : commits[1 + ((builds - 1 + hash(name)) % (commits.length - 1))];
-      commit = found ? { sha: found.sha.slice(0, 7), full_sha: found.full_sha ?? found.sha, subject: found.subject, author: found.author, when: found.when } : null;
+      const found =
+        builds === 0 || commits.length < 2
+          ? commits[0]
+          : commits[1 + ((builds - 1 + hash(name)) % (commits.length - 1))];
+      commit = found
+        ? {
+            sha: found.sha.slice(0, 7),
+            full_sha: found.full_sha ?? found.sha,
+            subject: found.subject,
+            author: found.author,
+            when: found.when,
+          }
+        : null;
       if (commit) commitOf.set(job.id, commit);
     }
     builds += 1;
     // one warning now and then, on a build that is not the instance's first
     const warned = job.status === "success" && why !== "create" && (hash(name) + builds) % 4 === 1;
-    let status: Build["status"] = running ? "building" : job.status === "failed" ? "failed" : warned ? "warning" : "success";
+    let status: Build["status"] = running
+      ? "building"
+      : job.status === "failed"
+        ? "failed"
+        : warned
+          ? "warning"
+          : "success";
     let droppedAt: string | null = null;
     if (status === "success" || status === "warning") {
       if (live) {
@@ -166,9 +201,18 @@ function instanceEntries(projectId: string, name: string): HistoryEntry[] {
         status = "failed";
         droppedAt = null;
         testResult = `At least one test failed when loading the modules (acme_${module}). 1 failed, 0 with errors, of ${total} tests.`;
-        messages = [`ERROR ${instance.odoo.database} odoo.addons.acme_${module}.tests.test_flow: FAIL: TestFlow.test_totals | AssertionError: 118.0 != 120.0`];
+        messages = [
+          `ERROR ${instance.odoo.database} odoo.addons.acme_${module}.tests.test_flow: FAIL: TestFlow.test_totals | AssertionError: 118.0 != 120.0`,
+        ];
       } else {
-        tests = { status: warned ? "warning" : "success", tests: total, failed: 0, errors: 0, warnings: warned ? messages.length : 0, modules: [] };
+        tests = {
+          status: warned ? "warning" : "success",
+          tests: total,
+          failed: 0,
+          errors: 0,
+          warnings: warned ? messages.length : 0,
+          modules: [],
+        };
         testResult = `${total} tests passed.`;
       }
     }
@@ -203,7 +247,11 @@ function instanceEntries(projectId: string, name: string): HistoryEntry[] {
       finished_at: job.finished_at,
       duration_seconds: finished ? Math.round((finished - started) / 1000) : null,
       dropped_at: droppedAt,
-      links: { self: `/api/v1/projects/${projectId}/builds/b${job.id}`, job: link, instance: `/api/v1/instances/${name}` },
+      links: {
+        self: `/api/v1/projects/${projectId}/builds/b${job.id}`,
+        job: link,
+        instance: `/api/v1/instances/${name}`,
+      },
     });
   }
   return entries;
@@ -243,7 +291,10 @@ function commitEntries(projectId: string, branch: string, members: string[]): Co
 
 /** A branch's timeline, newest first. */
 export function branchHistory(projectId: string, branch: string, members: string[]): HistoryEntry[] {
-  const entries: HistoryEntry[] = [...members.flatMap((name) => instanceEntries(projectId, name)), ...commitEntries(projectId, branch, members)];
+  const entries: HistoryEntry[] = [
+    ...members.flatMap((name) => instanceEntries(projectId, name)),
+    ...commitEntries(projectId, branch, members),
+  ];
   for (const change of stageChanges.get(projectId) ?? []) if (change.branch === branch) entries.push(change);
   return entries.sort((a, b) => Date.parse(b.at ?? "") - Date.parse(a.at ?? ""));
 }
@@ -252,7 +303,11 @@ export const branchBuilds = (projectId: string, branch: string, members: string[
   branchHistory(projectId, branch, members).filter((e): e is Build => e.type === "build");
 
 /** One entry, wherever it is in the project. */
-export function findEntry(projectId: string, id: string, branches: { name: string; instances: string[] }[]): HistoryEntry | null {
+export function findEntry(
+  projectId: string,
+  id: string,
+  branches: { name: string; instances: string[] }[],
+): HistoryEntry | null {
   for (const branch of branches) {
     const found = branchHistory(projectId, branch.name, branch.instances).find((e) => e.id === id);
     if (found) return found;
@@ -268,6 +323,8 @@ subscribe((topic, key, data) => {
   const instance = instances.get(job.instance);
   if (!instance?.project || !instance.git.branch) return;
   if (!trigger(job) && job.kind !== "restore") return;
-  const entry = instanceEntries(instance.project.id, instance.name).find((e) => e.id === `b${key}` || e.id === `r${key}`);
+  const entry = instanceEntries(instance.project.id, instance.name).find(
+    (e) => e.id === `b${key}` || e.id === `r${key}`,
+  );
   if (entry) publish("build", entry.id, entry);
 });

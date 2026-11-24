@@ -5,7 +5,14 @@ declare module "virtual:sudoo-demo-premium" {
 
   const packages: Record<
     string,
-    { version: string | null; routes: PremiumRoute[]; sections: PremiumSection[]; styles: string[]; strings: string | null; files: Record<string, string> }
+    {
+      version: string | null;
+      routes: PremiumRoute[];
+      sections: PremiumSection[];
+      styles: string[];
+      strings: string | null;
+      files: Record<string, string>;
+    }
   >;
   export default packages;
 }

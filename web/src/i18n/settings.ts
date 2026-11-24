@@ -52,61 +52,203 @@ const en = {
     about: "About",
   },
   groups: {
-    contact: { title: "Contact and appearance", text: "Who people are told to contact, the accent colour of the panel and its e-mails, and the panel's language for accounts that have not chosen one" },
+    contact: {
+      title: "Contact and appearance",
+      text: "Who people are told to contact, the accent colour of the panel and its e-mails, and the panel's language for accounts that have not chosen one",
+    },
     newInstances: { title: "New instances", text: "What a new instance starts with; each instance can change its own" },
-    stages: { title: "Stages", text: "Production instances are never paused or deleted automatically, are backed up every day and always updated safely. Staging instances get a longer lifetime. 0 turns the production limit off" },
-    projects: { title: "Projects", text: "Each project is one GitHub repository. These are the defaults of every project; a project can change all but the first on its Settings tab" },
-    howMany: { title: "How many instances", text: "How many instances, and how often a new one can be created. 0 turns a limit off" },
-    capacity: { title: "Capacity", text: "How many instances this server runs comfortably at once, and when the panel warns. 0 turns the hard limit off: the panel then only warns" },
-    resourceRules: { title: "Computed limits and the reservation check", text: "How container limits follow the workers, and whether a change the server cannot hold is refused" },
-    storageQuotas: { title: "Storage", text: "Database and files of each instance, measured every hour, against a soft quota per stage. Alerts only: nothing is refused or stopped" },
-    containers: { title: "Instance containers", text: "Process limit and logs of each instance's containers, applied when an instance next starts, and what happens when someone changes them by hand. Processor and memory: the Resources tab" },
-    gateway: { title: "Gateway", text: "What visitors may send to an instance through the gateway, which every instance shares" },
-    accessRules: { title: "Production access rules (beta)", text: "Let production instances limit who may open them, by country and by address; the rules themselves are in each instance's Settings tab" },
-    versions: { title: "Odoo versions and images", text: "Which versions are offered and where Odoo and PostgreSQL come from" },
+    stages: {
+      title: "Stages",
+      text: "Production instances are never paused or deleted automatically, are backed up every day and always updated safely. Staging instances get a longer lifetime. 0 turns the production limit off",
+    },
+    projects: {
+      title: "Projects",
+      text: "Each project is one GitHub repository. These are the defaults of every project; a project can change all but the first on its Settings tab",
+    },
+    howMany: {
+      title: "How many instances",
+      text: "How many instances, and how often a new one can be created. 0 turns a limit off",
+    },
+    capacity: {
+      title: "Capacity",
+      text: "How many instances this server runs comfortably at once, and when the panel warns. 0 turns the hard limit off: the panel then only warns",
+    },
+    resourceRules: {
+      title: "Computed limits and the reservation check",
+      text: "How container limits follow the workers, and whether a change the server cannot hold is refused",
+    },
+    storageQuotas: {
+      title: "Storage",
+      text: "Database and files of each instance, measured every hour, against a soft quota per stage. Alerts only: nothing is refused or stopped",
+    },
+    containers: {
+      title: "Instance containers",
+      text: "Process limit and logs of each instance's containers, applied when an instance next starts, and what happens when someone changes them by hand. Processor and memory: the Resources tab",
+    },
+    gateway: {
+      title: "Gateway",
+      text: "What visitors may send to an instance through the gateway, which every instance shares",
+    },
+    accessRules: {
+      title: "Production access rules (beta)",
+      text: "Let production instances limit who may open them, by country and by address; the rules themselves are in each instance's Settings tab",
+    },
+    versions: {
+      title: "Odoo versions and images",
+      text: "Which versions are offered and where Odoo and PostgreSQL come from",
+    },
     enterprise: { title: "Enterprise add-ons", text: "Where the Enterprise add-ons of each version are" },
-    upgrades: { title: "Database upgrades", text: "How databases move to a newer Odoo version: Odoo's upgrade service for Enterprise, OpenUpgrade for Community" },
-    backups: { title: "Backups", text: "Each instance used during the day is backed up once, at this time (production instances every day, whatever these say); it keeps only its latest daily backup" },
-    signIn: { title: "Sign-in", text: "Second factors, how people sign in, and how long a session lasts before signing in again" },
-    signInEmail: { title: "Sign-in e-mail and recovery codes", text: "Tell people about every sign-in to their account, and how many recovery codes an authenticator app comes with" },
-    signInWays: { title: "Ways to sign in", text: "Password, a code by e-mail or GitHub, chosen per account on the Accounts page. At least one super admin always keeps a password" },
-    projectRoles: { title: "Project roles and access", text: "Roles per stage in each project, the e-mails people get when their access changes, temporary access and the regular access review" },
-    invitations: { title: "Invitations", text: "New people are invited by e-mail and choose their own password. How long a link works, and when a password may still be set for them" },
+    upgrades: {
+      title: "Database upgrades",
+      text: "How databases move to a newer Odoo version: Odoo's upgrade service for Enterprise, OpenUpgrade for Community",
+    },
+    backups: {
+      title: "Backups",
+      text: "Each instance used during the day is backed up once, at this time (production instances every day, whatever these say); it keeps only its latest daily backup",
+    },
+    signIn: {
+      title: "Sign-in",
+      text: "Second factors, how people sign in, and how long a session lasts before signing in again",
+    },
+    signInEmail: {
+      title: "Sign-in e-mail and recovery codes",
+      text: "Tell people about every sign-in to their account, and how many recovery codes an authenticator app comes with",
+    },
+    signInWays: {
+      title: "Ways to sign in",
+      text: "Password, a code by e-mail or GitHub, chosen per account on the Accounts page. At least one super admin always keeps a password",
+    },
+    projectRoles: {
+      title: "Project roles and access",
+      text: "Roles per stage in each project, the e-mails people get when their access changes, temporary access and the regular access review",
+    },
+    invitations: {
+      title: "Invitations",
+      text: "New people are invited by e-mail and choose their own password. How long a link works, and when a password may still be set for them",
+    },
     requests: { title: "Requests per minute", text: "How many requests one person may send. 0 turns a limit off" },
-    premium: { title: "Premium features", text: "How premium features install and stay tied to this server, and the public addresses Sudoo.sh points managed subdomains at" },
-    supportAccess: { title: "Support access", text: "Whether administrators may let Sudoo.sh support into the panel for a while, and for how long at most" },
-    topologyShare: { title: "Topology shared with Sudoo.sh", text: "Whether Sudoo.sh staff may follow this panel's servers, instances and traffic live: coarse figures and pseudonymous ids, no customer data" },
+    premium: {
+      title: "Premium features",
+      text: "How premium features install and stay tied to this server, and the public addresses Sudoo.sh points managed subdomains at",
+    },
+    supportAccess: {
+      title: "Support access",
+      text: "Whether administrators may let Sudoo.sh support into the panel for a while, and for how long at most",
+    },
+    topologyShare: {
+      title: "Topology shared with Sudoo.sh",
+      text: "Whether Sudoo.sh staff may follow this panel's servers, instances and traffic live: coarse figures and pseudonymous ids, no customer data",
+    },
     portalAddress: { title: "The portal's address", text: "Where your clients sign in, and the company name they see" },
-    clientSwitch: { title: "Clients' switch", text: "How long clients may open their projects for, access requests, and emergency access" },
-    maintenanceWindows: { title: "Maintenance windows", text: "When maintenance Sudoo.sh plans on this panel runs: the quick choices, and the default window that applies when nobody chooses. Times are in the panel's time zone" },
-    maintenanceRuns: { title: "Reminders and running", text: "Who is told and when, whether clients choose, and how the work runs" },
-    webShell: { title: "Web shell", text: "Who may open a terminal in an instance's containers from the panel, where, for how long, and how many at once. Viewers never can" },
-    shellRecordings: { title: "Shell recordings", text: "Recordings of what is typed and shown in shells, encrypted; only super admins can play them. How long they are kept and how much space they take" },
-    profiler: { title: "Code profiler and audit exports", text: "Who may record what an instance's Odoo workers spend their time on (the Tools tab), for how long, how many recordings are kept; and how many entries an export of the audit log holds" },
-    mailCatcher: { title: "Mail catcher", text: "Staging and development instances never send real e-mail: it is caught and shown on their Mail tab. How long it is kept, how much, and whether administrators may release a copy" },
-    servers: { title: "Servers", text: "This server's name and region, and how the agents of the other servers reach the panel, report and wait for it" },
-    moves: { title: "Moving instances", text: "Limits of moving an instance to another server: the instance is offline while it moves" },
-    help: { title: "Help", text: "Where the help panel (the ? button) sends people: the documentation site and Contact support" },
-    publicAddress: { title: "How people reach this server", text: "Direct: this server answers on ports 80 and 443 itself and gets certificates from the certificate authority (recommended). Proxy: your own reverse proxy or load balancer in front handles https. Tunnel: an outgoing tunnel, for a server that cannot open ports. A change applies when the panel restarts" },
-    customDomains: { title: "Custom domains", text: "Instances answering on your clients' own domains over https. acme: ports 80 and 443 of this server must be open, and choosing it agrees to the certificate authority's terms. external: your own proxy handles https" },
-    certificates: { title: "Certificates", text: "Where certificates come from and when they are renewed. staging gives certificates browsers do not trust, for trying things out" },
-    managedSubdomains: { title: "Managed subdomains", text: "A name under Sudoo.sh's domain for every instance, on every plan: <branch>.<stage>.<company>.<base>. Sudoo.sh keeps its DNS; this panel gets its certificate (ports 80 and 443 must reach this server)" },
+    clientSwitch: {
+      title: "Clients' switch",
+      text: "How long clients may open their projects for, access requests, and emergency access",
+    },
+    maintenanceWindows: {
+      title: "Maintenance windows",
+      text: "When maintenance Sudoo.sh plans on this panel runs: the quick choices, and the default window that applies when nobody chooses. Times are in the panel's time zone",
+    },
+    maintenanceRuns: {
+      title: "Reminders and running",
+      text: "Who is told and when, whether clients choose, and how the work runs",
+    },
+    webShell: {
+      title: "Web shell",
+      text: "Who may open a terminal in an instance's containers from the panel, where, for how long, and how many at once. Viewers never can",
+    },
+    shellRecordings: {
+      title: "Shell recordings",
+      text: "Recordings of what is typed and shown in shells, encrypted; only super admins can play them. How long they are kept and how much space they take",
+    },
+    profiler: {
+      title: "Code profiler and audit exports",
+      text: "Who may record what an instance's Odoo workers spend their time on (the Tools tab), for how long, how many recordings are kept; and how many entries an export of the audit log holds",
+    },
+    mailCatcher: {
+      title: "Mail catcher",
+      text: "Staging and development instances never send real e-mail: it is caught and shown on their Mail tab. How long it is kept, how much, and whether administrators may release a copy",
+    },
+    servers: {
+      title: "Servers",
+      text: "This server's name and region, and how the agents of the other servers reach the panel, report and wait for it",
+    },
+    moves: {
+      title: "Moving instances",
+      text: "Limits of moving an instance to another server: the instance is offline while it moves",
+    },
+    help: {
+      title: "Help",
+      text: "Where the help panel (the ? button) sends people: the documentation site and Contact support",
+    },
+    publicAddress: {
+      title: "How people reach this server",
+      text: "Direct: this server answers on ports 80 and 443 itself and gets certificates from the certificate authority (recommended). Proxy: your own reverse proxy or load balancer in front handles https. Tunnel: an outgoing tunnel, for a server that cannot open ports. A change applies when the panel restarts",
+    },
+    customDomains: {
+      title: "Custom domains",
+      text: "Instances answering on your clients' own domains over https. acme: ports 80 and 443 of this server must be open, and choosing it agrees to the certificate authority's terms. external: your own proxy handles https",
+    },
+    certificates: {
+      title: "Certificates",
+      text: "Where certificates come from and when they are renewed. staging gives certificates browsers do not trust, for trying things out",
+    },
+    managedSubdomains: {
+      title: "Managed subdomains",
+      text: "A name under Sudoo.sh's domain for every instance, on every plan: <branch>.<stage>.<company>.<base>. Sudoo.sh keeps its DNS; this panel gets its certificate (ports 80 and 443 must reach this server)",
+    },
     checks: { title: "Checks", text: "How a domain is checked before its certificate is asked for" },
-    email: { title: "E-mail", text: "The mailbox that sends sign-in codes, for example a Gmail account with an app password" },
-    recipients: { title: "Who receives alerts", text: "Alerts by e-mail, through the mail settings of the E-mail tab. The bell at the top lists them for everyone who may read the audit log" },
-    jobs: { title: "Jobs and backups", text: "Alerted as soon as they happen, with the plain explanation and a link to the job" },
-    instancesServer: { title: "Instances and server", text: "Problems that last are alerted after their minutes, and a notice follows when they are over" },
-    certificateAlerts: { title: "Certificates", text: "A custom domain's certificate could not be issued or renewed, or expires soon" },
-    offsiteStorage: { title: "Off-site copies", text: "Backups copied to S3-compatible storage away from this server (Cloudflare R2, AWS S3, Backblaze B2, MinIO). Every backup of a production instance is copied while this is on. The secret is stored encrypted and never shown" },
-    offsiteRules: { title: "What is copied and checked", text: "Which backups go off-site, and how often the newest copy of each instance is downloaded again and checked" },
-    offsiteRetention: { title: "Off-site retention", text: "Per instance, the newest copy of each of the most recent days and months is kept. The newest verified copy is never removed" },
-    offsiteAlerts: { title: "Off-site copies", text: "A backup could not be copied off-site or a copy failed its check, or a production instance has had no successful copy for too long" },
-    howOften: { title: "How often", text: "The same alert is sent once per quiet period; repeats only count up in the bell" },
-    codeUpdates: { title: "Code updates", text: "How new code reaches the instances: how often GitHub is checked, and what else starts an update" },
-    monitoring: { title: "Monitoring", text: "How often figures are measured, and the image of the Cloudflare connector" },
+    email: {
+      title: "E-mail",
+      text: "The mailbox that sends sign-in codes, for example a Gmail account with an app password",
+    },
+    recipients: {
+      title: "Who receives alerts",
+      text: "Alerts by e-mail, through the mail settings of the E-mail tab. The bell at the top lists them for everyone who may read the audit log",
+    },
+    jobs: {
+      title: "Jobs and backups",
+      text: "Alerted as soon as they happen, with the plain explanation and a link to the job",
+    },
+    instancesServer: {
+      title: "Instances and server",
+      text: "Problems that last are alerted after their minutes, and a notice follows when they are over",
+    },
+    certificateAlerts: {
+      title: "Certificates",
+      text: "A custom domain's certificate could not be issued or renewed, or expires soon",
+    },
+    offsiteStorage: {
+      title: "Off-site copies",
+      text: "Backups copied to S3-compatible storage away from this server (Cloudflare R2, AWS S3, Backblaze B2, MinIO). Every backup of a production instance is copied while this is on. The secret is stored encrypted and never shown",
+    },
+    offsiteRules: {
+      title: "What is copied and checked",
+      text: "Which backups go off-site, and how often the newest copy of each instance is downloaded again and checked",
+    },
+    offsiteRetention: {
+      title: "Off-site retention",
+      text: "Per instance, the newest copy of each of the most recent days and months is kept. The newest verified copy is never removed",
+    },
+    offsiteAlerts: {
+      title: "Off-site copies",
+      text: "A backup could not be copied off-site or a copy failed its check, or a production instance has had no successful copy for too long",
+    },
+    howOften: {
+      title: "How often",
+      text: "The same alert is sent once per quiet period; repeats only count up in the bell",
+    },
+    codeUpdates: {
+      title: "Code updates",
+      text: "How new code reaches the instances: how often GitHub is checked, and what else starts an update",
+    },
+    monitoring: {
+      title: "Monitoring",
+      text: "How often figures are measured, and the image of the Cloudflare connector",
+    },
   },
   webhook: (n: number) => `Webhook ${n}`,
-  webhookFirst: "Alerts posted to Slack, Discord, Teams (their incoming webhook address) or your own system (signed JSON). https only",
+  webhookFirst:
+    "Alerts posted to Slack, Discord, Teams (their incoming webhook address) or your own system (signed JSON). https only",
   webhookOther: "Another place alerts are posted to",
   titles: {
     licence_required_version: "Required licence version",
@@ -152,7 +294,7 @@ const en = {
     topology_interval_seconds: "Seconds between snapshots",
     portal_domain: "Client portal's address",
     portal_name: "Your company's name in the portal",
-    client_open_hours: "\"Open for a time\" choices (hours)",
+    client_open_hours: '"Open for a time" choices (hours)',
     client_open_max_hours: "Longest opening by a client (hours)",
     client_request_hours: "Hours an access request asks for",
     client_request_max_hours: "Longest access request (hours)",
@@ -163,8 +305,8 @@ const en = {
     client_confirm_minutes: "Confirmation link and code work for (minutes)",
     maintenance_default_window: "Default maintenance window",
     maintenance_default_days: "Days of the default window",
-    maintenance_tonight_time: "\"Tonight\" starts at",
-    maintenance_weekend_day: "\"This weekend\" falls on",
+    maintenance_tonight_time: '"Tonight" starts at',
+    maintenance_weekend_day: '"This weekend" falls on',
     maintenance_choose_hours: "Time to choose (hours)",
     maintenance_cutoff_hours: "Default applies before the deadline (hours)",
     maintenance_lead_minutes: "Soonest start (minutes from now)",
@@ -417,12 +559,32 @@ const en = {
   choices: {
     default_language: { en: "English", ar: "العربية" },
     require_second_factor: { none: "Nobody", admins: "Super admins and administrators", everyone: "Everyone" },
-    invitation_password_fallback: { no_mail: "Only while e-mail is not set up", always: "Always allowed", never: "Never: invitations only" },
+    invitation_password_fallback: {
+      no_mail: "Only while e-mail is not set up",
+      always: "Always allowed",
+      never: "Never: invitations only",
+    },
     smtp_security: { starttls: "STARTTLS (port 587)", ssl: "SSL (port 465)", none: "None" },
-    kubernetes_mail_egress: { off: "Off: no e-mail leaves", production: "Production instances only", all: "All instances" },
-    maintenance_weekend_day: { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday" },
+    kubernetes_mail_egress: {
+      off: "Off: no e-mail leaves",
+      production: "Production instances only",
+      all: "All instances",
+    },
+    maintenance_weekend_day: {
+      mon: "Monday",
+      tue: "Tuesday",
+      wed: "Wednesday",
+      thu: "Thursday",
+      fri: "Friday",
+      sat: "Saturday",
+      sun: "Sunday",
+    },
     mailer: { smtp: "SMTP", none: "No e-mail" },
-    custom_domains: { off: "Off", acme: "On: this server gets certificates (ports 80 and 443)", external: "On: https handled by my own proxy" },
+    custom_domains: {
+      off: "Off",
+      acme: "On: this server gets certificates (ports 80 and 443)",
+      external: "On: https handled by my own proxy",
+    },
     exposure: {
       direct: "Direct: this server answers on ports 80 and 443 (recommended)",
       proxy: "Proxy: behind my own reverse proxy or load balancer",
@@ -431,20 +593,56 @@ const en = {
       "host-ports": "Server ports (earlier option, .env only)",
     },
     drift_action: { restore: "Report it and restore the panel's configuration", warn: "Only report it" },
-    access_rules_geo_missing: { open: "Let country rules pass (fail open)", closed: "Let nobody in by country (fail closed)" },
+    access_rules_geo_missing: {
+      open: "Let country rules pass (fail open)",
+      closed: "Let nobody in by country (fail closed)",
+    },
     project_staging_on_push: { rebuild: "Rebuild it from production", keep_data: "Keep its data, take the new code" },
-    project_branch_deleted: { keep: "Keep the instance", archive: "Back up and switch it off", delete: "Back up and delete it" },
-    project_development_on_new_commit: { update: "Update: the new code in the same database", new_build: "New build: a new database from scratch", nothing: "Do nothing: only note the commit" },
-    project_module_install: { repository: "Every module of the repository", all: "Every Odoo module and the repository's (no tests)", list: "Only the modules listed" },
+    project_branch_deleted: {
+      keep: "Keep the instance",
+      archive: "Back up and switch it off",
+      delete: "Back up and delete it",
+    },
+    project_development_on_new_commit: {
+      update: "Update: the new code in the same database",
+      new_build: "New build: a new database from scratch",
+      nothing: "Do nothing: only note the commit",
+    },
+    project_module_install: {
+      repository: "Every module of the repository",
+      all: "Every Odoo module and the repository's (no tests)",
+      list: "Only the modules listed",
+    },
     project_guard_strictness: { relaxed: "Relaxed", standard: "Standard", strict: "Strict" },
     project_guard_pushers: { roles: "Admins and Maintainers (GitHub roles)", anyone: "Anyone with write access" },
-    project_test_suite: { off: "No tests", selection: "The tests of the installed modules", custom: "Custom test tags" },
-    offsite_addressing: { path: "Path: address/bucket/file (R2, B2, MinIO, S3)", virtual: "Virtual host: bucket.address/file" },
+    project_test_suite: {
+      off: "No tests",
+      selection: "The tests of the installed modules",
+      custom: "Custom test tags",
+    },
+    offsite_addressing: {
+      path: "Path: address/bucket/file (R2, B2, MinIO, S3)",
+      virtual: "Virtual host: bucket.address/file",
+    },
     enterprise_source: { folder: "Folder", git: "Git repository", none: "None (Community only)" },
-    shell_roles: { admins: "Super admins and administrators", maintainers: "And maintainers", developers: "And maintainers and developers" },
-    github_sign_in_role: { member: "Member", viewer: "Viewer", developer: "Developer", maintainer: "Maintainer", admin: "Administrator" },
+    shell_roles: {
+      admins: "Super admins and administrators",
+      maintainers: "And maintainers",
+      developers: "And maintainers and developers",
+    },
+    github_sign_in_role: {
+      member: "Member",
+      viewer: "Viewer",
+      developer: "Developer",
+      maintainer: "Maintainer",
+      admin: "Administrator",
+    },
     project_access_model: { project_roles: "Project roles, per stage", legacy: "Earlier model (panel role ∩ grant)" },
-    profiler_roles: { admins: "Super admins and administrators", maintainers: "And maintainers", developers: "And maintainers and developers" },
+    profiler_roles: {
+      admins: "Super admins and administrators",
+      maintainers: "And maintainers",
+      developers: "And maintainers and developers",
+    },
     shell_production: { off: "Nobody", super_admins: "Super admins only", allowed: "Like other instances" },
     shell_recording: { off: "Off", production: "Production instances and root shells", all: "Every shell" },
     ...webhookChoices("JSON, signed (your own system)"),
@@ -457,39 +655,50 @@ const en = {
       "Days after the panel's first run to link it to a Sudoo.sh account (Settings, Marketplace). Until then super admins and administrators see a banner; after that, while it is not linked, no new instances, no stage changes into production and no updates or deploys. Instances keep serving and backups keep running. The first run is recorded once and never changes.",
     odoo_root: "Folder that holds instances, backups and panel data.",
     odoo_image: "Docker image of Odoo; the tag is the Odoo version.",
-    odoo_versions: "Versions offered: \"auto\" (every published version of the official image from odoo_min_version) or a comma-separated list such as 17.0,18.0,saas-18.2.",
-    odoo_min_version: "Oldest version offered when odoo_versions is \"auto\".",
-    prepull_images: "Download the Odoo image of every offered version, and the PostgreSQL image, in the background, so the first instance of a version does not wait for the download (each Odoo image takes 1-3 GB of disk).",
-    odoo_image_check_hours: "How often, in hours, the panel checks Docker Hub in the background for a newer Odoo image of every version in use (and of the default version for new instances). New instances use the newest image on this server at once; existing instances keep theirs until Update Odoo and PostgreSQL images.",
+    odoo_versions:
+      'Versions offered: "auto" (every published version of the official image from odoo_min_version) or a comma-separated list such as 17.0,18.0,saas-18.2.',
+    odoo_min_version: 'Oldest version offered when odoo_versions is "auto".',
+    prepull_images:
+      "Download the Odoo image of every offered version, and the PostgreSQL image, in the background, so the first instance of a version does not wait for the download (each Odoo image takes 1-3 GB of disk).",
+    odoo_image_check_hours:
+      "How often, in hours, the panel checks Docker Hub in the background for a newer Odoo image of every version in use (and of the default version for new instances). New instances use the newest image on this server at once; existing instances keep theirs until Update Odoo and PostgreSQL images.",
     postgres_image: "Docker image of each instance's database.",
-    odoo_admin_password: "Password of the Odoo user \"admin\" in new instances.",
+    odoo_admin_password: 'Password of the Odoo user "admin" in new instances.',
     container_pids_limit: "Processes and threads one instance container may run at the same time.",
     container_log_max_size: "Size of a container log file before it is rotated (10m).",
     container_log_max_files: "Rotated log files kept per container.",
-    drift_action: "What happens when an instance's containers or files were changed outside the panel: \"warn\" (report it) or \"restore\" (report it, then recreate Odoo and its database from the panel's own configuration). Connectors are only ever reported.",
-    enterprise_source: "Where Enterprise add-ons come from: \"folder\", \"git\" or \"none\".",
-    enterprise_path: "folder source: where the add-ons of a version are; {version} (19.0) and {major} (19) are replaced.",
+    drift_action:
+      'What happens when an instance\'s containers or files were changed outside the panel: "warn" (report it) or "restore" (report it, then recreate Odoo and its database from the panel\'s own configuration). Connectors are only ever reported.',
+    enterprise_source: 'Where Enterprise add-ons come from: "folder", "git" or "none".',
+    enterprise_path:
+      "folder source: where the add-ons of a version are; {version} (19.0) and {major} (19) are replaced.",
     enterprise_git_url: "git source: repository holding one branch per Odoo version.",
     enterprise_git_branch: "git source: branch name of a version, e.g. {version}.",
     enterprise_marker: "Module whose presence proves the add-ons are there.",
-    exposure: "How people reach the panel and the instances: \"direct\" (this server answers on ports 80 and 443 itself), \"proxy\" (your own reverse proxy or load balancer in front) or \"tunnel\" (an outgoing tunnel, for servers that cannot open ports).",
-    panel_domain: "direct and proxy: the name people open the panel with (its DNS points at this server, or at your proxy). Empty with direct: the server's public name or address.",
+    exposure:
+      'How people reach the panel and the instances: "direct" (this server answers on ports 80 and 443 itself), "proxy" (your own reverse proxy or load balancer in front) or "tunnel" (an outgoing tunnel, for servers that cannot open ports).',
+    panel_domain:
+      "direct and proxy: the name people open the panel with (its DNS points at this server, or at your proxy). Empty with direct: the server's public name or address.",
     cloudflared_image: "tunnel: connector image.",
     connector_prefix: "tunnel: container name prefix.",
     connector_status_port_start: "tunnel: first status port of a connector.",
     panel_connector_status_port: "tunnel: status port of the panel connector.",
-    public_host: "The server's public name or address, for addresses without a name of their own. Empty with direct: the server's public address.",
-    panel_managed_name: "direct: when the panel has no name of its own (Panel's name, or a public name of the server), use panel.<company>.<base> from the linked Sudoo.sh account, with its own certificate. Needs managed subdomains. Off: the panel goes back to the server's address.",
-    public_scheme: "proxy and host-ports: scheme of the public addresses; empty: https with proxy, http with host-ports.",
+    public_host:
+      "The server's public name or address, for addresses without a name of their own. Empty with direct: the server's public address.",
+    panel_managed_name:
+      "direct: when the panel has no name of its own (Panel's name, or a public name of the server), use panel.<company>.<base> from the linked Sudoo.sh account, with its own certificate. Needs managed subdomains. Off: the panel goes back to the server's address.",
+    public_scheme:
+      "proxy and host-ports: scheme of the public addresses; empty: https with proxy, http with host-ports.",
     proxy_listen: "proxy: the address the panel and the gateways listen on.",
     proxy_client_ip_header: "proxy: the header in which your proxy sends the visitor's address.",
-    update_triggers: "What starts code updates, comma-separated: \"polling\", \"github-app\" (the GitHub App's webhook), \"github-webhook\" (one webhook per repository).",
+    update_triggers:
+      'What starts code updates, comma-separated: "polling", "github-app" (the GitHub App\'s webhook), "github-webhook" (one webhook per repository).',
     github_webhook_secret: "github-webhook: the secret entered on GitHub (20 or more random characters).",
-    storage: "Where the panel keeps its own data: \"sqlite\".",
-    auth: "How user names and passwords are checked: \"local\" (the panel's accounts).",
-    second_factors: "Second factors offered at sign-in, comma-separated: \"email\", \"totp\" or both.",
-    require_second_factor: "Who must use a second factor: \"none\", \"admins\" or \"everyone\".",
-    mailer: "How the panel sends e-mail: \"smtp\" or \"none\".",
+    storage: 'Where the panel keeps its own data: "sqlite".',
+    auth: 'How user names and passwords are checked: "local" (the panel\'s accounts).',
+    second_factors: 'Second factors offered at sign-in, comma-separated: "email", "totp" or both.',
+    require_second_factor: 'Who must use a second factor: "none", "admins" or "everyone".',
+    mailer: 'How the panel sends e-mail: "smtp" or "none".',
     mail_from: "Sender of the panel's e-mails, e.g. Sudoo.sh <no-reply@example.com>.",
     smtp_host: "smtp: the mail server; empty: no e-mail (and no e-mail codes).",
     smtp_port: "smtp: port (587 for STARTTLS, 465 for SSL).",
@@ -499,164 +708,246 @@ const en = {
     mail_templates_dir: "Folder with a layout.html that replaces the built-in frame of every e-mail.",
     recovery_codes_count: "Recovery codes made for an account that uses an authenticator app.",
     invitation_hours: "Hours an invitation link works before it expires (it works once).",
-    invitation_password_fallback: "When administrators may set a new account's password instead of inviting the person by e-mail: \"no_mail\" (only while e-mail is not set up), \"always\" or \"never\".",
+    invitation_password_fallback:
+      'When administrators may set a new account\'s password instead of inviting the person by e-mail: "no_mail" (only while e-mail is not set up), "always" or "never".',
     invitations_per_hour: "Invitations one administrator may send (new or again) per hour.",
     sign_in_email: "E-mail people each time their account signs in (when e-mail is set up).",
     sign_in_email_opt_out: "People may turn the sign-in e-mail off for their own account.",
-    sign_in_methods: "How accounts sign in unless an administrator chose otherwise for one, comma-separated: \"password\", \"email_code\" (a code sent by e-mail, no password) and \"github\" (Continue with GitHub).",
-    client_sign_in_methods: "The same for client accounts (people invited to follow their projects): by default a code sent by e-mail.",
-    email_code_sign_in: "Offer Send me a code on the sign-in page (when e-mail is set up), for the accounts that may use it.",
+    sign_in_methods:
+      'How accounts sign in unless an administrator chose otherwise for one, comma-separated: "password", "email_code" (a code sent by e-mail, no password) and "github" (Continue with GitHub).',
+    client_sign_in_methods:
+      "The same for client accounts (people invited to follow their projects): by default a code sent by e-mail.",
+    email_code_sign_in:
+      "Offer Send me a code on the sign-in page (when e-mail is set up), for the accounts that may use it.",
     email_code_sends_per_hour: "Sign-in codes by e-mail one address (IP) may ask for per hour.",
-    github_sign_in: "Offer Continue with GitHub on the sign-in page. Needs the panel's GitHub App (GitHub page) with the panel's /login/github address as a callback URL.",
-    github_sign_in_orgs: "GitHub organisations, comma-separated, whose members may sign in with GitHub without an invitation; their account is created at the first sign-in. Empty: only people with an account or invitation.",
-    github_sign_in_role: "The panel role of an account created for a member of GITHUB_SIGN_IN_ORGS. Member: no rights by itself; each project's role comes from GitHub or from its Access tab.",
-    github_sign_in_skips_second_factor: "Accept GitHub's own two-factor authentication in place of the panel's second factor, for people whose GitHub account has it on.",
-    github_access_from_repositories: "For accounts linked to GitHub (except administrators), a project's role follows their permission on its repository: admin gives Admin, maintain Maintainer, write Developer, triage or read Tester, none nothing. Only with GITHUB_SIGN_IN.",
+    github_sign_in:
+      "Offer Continue with GitHub on the sign-in page. Needs the panel's GitHub App (GitHub page) with the panel's /login/github address as a callback URL.",
+    github_sign_in_orgs:
+      "GitHub organisations, comma-separated, whose members may sign in with GitHub without an invitation; their account is created at the first sign-in. Empty: only people with an account or invitation.",
+    github_sign_in_role:
+      "The panel role of an account created for a member of GITHUB_SIGN_IN_ORGS. Member: no rights by itself; each project's role comes from GitHub or from its Access tab.",
+    github_sign_in_skips_second_factor:
+      "Accept GitHub's own two-factor authentication in place of the panel's second factor, for people whose GitHub account has it on.",
+    github_access_from_repositories:
+      "For accounts linked to GitHub (except administrators), a project's role follows their permission on its repository: admin gives Admin, maintain Maintainer, write Developer, triage or read Tester, none nothing. Only with GITHUB_SIGN_IN.",
     github_access_check_minutes: "How often repository permissions and GitHub team members are read again.",
-    project_access_model: "The access model of new projects: \"project_roles\" (Viewer, Tester, Developer, Maintainer, Admin, per stage) or \"legacy\" (the panel role limited by the project's grant, the same in every stage).",
+    project_access_model:
+      'The access model of new projects: "project_roles" (Viewer, Tester, Developer, Maintainer, Admin, per stage) or "legacy" (the panel role limited by the project\'s grant, the same in every stage).',
     access_emails: "E-mail people when they get access to a project, when their role changes, and when it ends.",
     access_requests: "People may ask a project's admins for temporary access (a higher role in one stage).",
     access_request_max_hours: "The longest temporary access that can be asked for, in hours.",
     access_review: "E-mail each project's admins, every ACCESS_REVIEW_DAYS, who has access to it.",
     access_review_days: "Days between two access reviews of a project.",
     brand_color: "Accent colour of e-mails, as #RRGGBB.",
-    default_language: "Language of the web app for accounts that have not chosen one: \"en\" or \"ar\".",
-    rate_limiter: "Where request counts are kept: \"memory\".",
+    default_language: 'Language of the web app for accounts that have not chosen one: "en" or "ar".',
+    rate_limiter: 'Where request counts are kept: "memory".',
     rate_limit_reads_per_minute: "Requests that read, per minute, per signed-in user or address; 0: no limit.",
     rate_limit_changes_per_minute: "Requests that change something, per minute, per user or address; 0: no limit.",
-    support_access: "Super admins and administrators may grant Sudoo.sh support temporary access to the panel; off: none can be granted and every grant ends.",
-    support_access_max_hours: "The longest support access can be granted for: 1 hour, 1 day and 3 days are offered up to this (1 to 72).",
-    share_topology_with_sudoo: "Sends servers, instances and their parts (statuses, replicas, CPU, memory, request and error rates) with pseudonymous ids, for Sudoo.sh staff's live infrastructure view. Needs the marketplace. Off: nothing is sent and what was shared is deleted.",
+    support_access:
+      "Super admins and administrators may grant Sudoo.sh support temporary access to the panel; off: none can be granted and every grant ends.",
+    support_access_max_hours:
+      "The longest support access can be granted for: 1 hour, 1 day and 3 days are offered up to this (1 to 72).",
+    share_topology_with_sudoo:
+      "Sends servers, instances and their parts (statuses, replicas, CPU, memory, request and error rates) with pseudonymous ids, for Sudoo.sh staff's live infrastructure view. Needs the marketplace. Off: nothing is sent and what was shared is deleted.",
     topology_include_names: "Also sends the real names of servers, projects and instances. Off: short pseudonyms only.",
     topology_interval_seconds: "How often a snapshot is sent while sharing is on (30 to 300 seconds).",
-    portal_domain: "A second name of the panel for your clients, such as portal.example.com, pointed at this server: there only clients sign in and they see the client portal. Empty: clients use the panel's address.",
+    portal_domain:
+      "A second name of the panel for your clients, such as portal.example.com, pointed at this server: there only clients sign in and they see the client portal. Empty: clients use the panel's address.",
     portal_name: "Your company's name, shown to clients at the top of the portal and on its sign-in page; empty: none.",
-    client_open_hours: "The durations offered to clients for \"Open for a time\", in hours, comma-separated; they may also type their own.",
+    client_open_hours:
+      'The durations offered to clients for "Open for a time", in hours, comma-separated; they may also type their own.',
     client_open_max_hours: "The longest a client can open a project or branch for at once, in hours.",
     client_request_hours: "The duration an access request asks for unless the person changes it, in hours.",
     client_request_max_hours: "The longest an access request may ask for, and a client may give, in hours.",
     client_request_expire_hours: "Hours after which a request the client did not answer lapses.",
-    client_emergency_access: "New clients' projects allow emergency access: a super admin may get into a closed project for a short time by giving a reason, and the client is told at once. Each client can turn it off.",
+    client_emergency_access:
+      "New clients' projects allow emergency access: a super admin may get into a closed project for a short time by giving a reason, and the client is told at once. Each client can turn it off.",
     client_emergency_minutes: "How long emergency access lasts, in minutes (5 to 1440).",
-    client_confirmations: "Clients confirm every major change in the portal with a one-time link or a 6-digit code sent to their e-mail; the change waits until then. Needs e-mail to be set up.",
+    client_confirmations:
+      "Clients confirm every major change in the portal with a one-time link or a 6-digit code sent to their e-mail; the change waits until then. Needs e-mail to be set up.",
     client_confirm_minutes: "Minutes a confirmation link or code works (5 to 60).",
-    maintenance_default_window: "HH:MM-HH:MM in the panel's time zone (it may cross midnight). Maintenance nobody chose a time for runs at the start of the first one that fits before its deadline.",
+    maintenance_default_window:
+      "HH:MM-HH:MM in the panel's time zone (it may cross midnight). Maintenance nobody chose a time for runs at the start of the first one that fits before its deadline.",
     maintenance_default_days: "The days the default window opens, comma-separated: mon,tue,wed,thu,fri,sat,sun.",
-    maintenance_tonight_time: "When the \"Tonight\" and \"This weekend\" choices start (HH:MM).",
-    maintenance_weekend_day: "The day the \"This weekend\" choice falls on.",
-    maintenance_choose_hours: "Hours after maintenance arrives during which someone may choose its time; then the default window applies.",
-    maintenance_cutoff_hours: "The default window also applies this many hours before the deadline, when nobody chose earlier.",
+    maintenance_tonight_time: 'When the "Tonight" and "This weekend" choices start (HH:MM).',
+    maintenance_weekend_day: 'The day the "This weekend" choice falls on.',
+    maintenance_choose_hours:
+      "Hours after maintenance arrives during which someone may choose its time; then the default window applies.",
+    maintenance_cutoff_hours:
+      "The default window also applies this many hours before the deadline, when nobody chose earlier.",
     maintenance_lead_minutes: "The soonest a chosen window may start, in minutes from now.",
-    maintenance_reminder_hours: "Reminder e-mails before maintenance starts, in hours, comma-separated (at most 6); empty: none.",
-    maintenance_remind_clients: "Clients of the projects a maintenance works on get its e-mails too: planned, reminders, result.",
-    maintenance_client_choice: "Clients may choose the time in the client portal (confirmed by e-mail when confirmations are on).",
+    maintenance_reminder_hours:
+      "Reminder e-mails before maintenance starts, in hours, comma-separated (at most 6); empty: none.",
+    maintenance_remind_clients:
+      "Clients of the projects a maintenance works on get its e-mails too: planned, reminders, result.",
+    maintenance_client_choice:
+      "Clients may choose the time in the client portal (confirmed by e-mail when confirmations are on).",
     maintenance_backup_first: "Back up production and staging instances before maintenance updates their images.",
-    maintenance_update_wait_hours: "How long a planned panel update waits for the new version (sudoo-install update) before it counts as failed.",
-    shell_enabled: "People whose role allows it can open a terminal in an instance's containers from the panel (the Shell tab); off: nobody can, and open shells close.",
-    profiler_enabled: "People whose role allows it can record what an instance's Odoo workers spend their time on (the Tools tab); off: nobody can.",
-    profiler_roles: "Who may record a profile: \"admins\" (super admins and administrators), \"maintainers\" (and maintainers) or \"developers\" (and developers). Viewers never can.",
-    profiler_production: "Profiles of production instances may be recorded (each one is confirmed when it starts); off: only staging and development instances.",
+    maintenance_update_wait_hours:
+      "How long a planned panel update waits for the new version (sudoo-install update) before it counts as failed.",
+    shell_enabled:
+      "People whose role allows it can open a terminal in an instance's containers from the panel (the Shell tab); off: nobody can, and open shells close.",
+    profiler_enabled:
+      "People whose role allows it can record what an instance's Odoo workers spend their time on (the Tools tab); off: nobody can.",
+    profiler_roles:
+      'Who may record a profile: "admins" (super admins and administrators), "maintainers" (and maintainers) or "developers" (and developers). Viewers never can.',
+    profiler_production:
+      "Profiles of production instances may be recorded (each one is confirmed when it starts); off: only staging and development instances.",
     profiler_max_minutes: "Longest recording, in minutes; people choose from 1 minute up to this.",
     profiler_keep: "Recordings kept per instance; the oldest is deleted when a new one is made.",
     profiler_rate: "Samples per second taken of each Odoo process while recording.",
-    profiler_image: "Container image with py-spy that records profiles. Empty: the panel builds one from python:3.12-slim and a pinned, hash-checked py-spy the first time it is needed.",
-    audit_export_max_rows: "Most entries one export of the audit log (CSV or XLSX) contains; an export covers a year at most.",
-    shell_roles: "Who may open a shell in an instance's Odoo container: \"admins\" (super admins and administrators), \"maintainers\" (and maintainers) or \"developers\" (and developers). Viewers never can; psql in the database container stays with super admins and administrators.",
-    shell_production: "Shells in production instances: \"off\" (nobody), \"super_admins\" (super admins only) or \"allowed\" (whoever may open shells in other instances). Each one is confirmed when it is opened.",
-    shell_root: "Super admins may open the Odoo container's shell as root (the container's capabilities stay dropped); off: every shell runs as the container's own user.",
+    profiler_image:
+      "Container image with py-spy that records profiles. Empty: the panel builds one from python:3.12-slim and a pinned, hash-checked py-spy the first time it is needed.",
+    audit_export_max_rows:
+      "Most entries one export of the audit log (CSV or XLSX) contains; an export covers a year at most.",
+    shell_roles:
+      'Who may open a shell in an instance\'s Odoo container: "admins" (super admins and administrators), "maintainers" (and maintainers) or "developers" (and developers). Viewers never can; psql in the database container stays with super admins and administrators.',
+    shell_production:
+      'Shells in production instances: "off" (nobody), "super_admins" (super admins only) or "allowed" (whoever may open shells in other instances). Each one is confirmed when it is opened.',
+    shell_root:
+      "Super admins may open the Odoo container's shell as root (the container's capabilities stay dropped); off: every shell runs as the container's own user.",
     shell_idle_minutes: "A shell nobody types in for this long closes.",
     shell_max_minutes: "Longest a shell stays open; it then closes (a new one can be opened).",
     shell_max_per_user: "Shells one person may have open at the same time.",
     shell_max_per_instance: "Shells open in one instance at the same time.",
     shell_ticket_seconds: "Seconds the one-time ticket that connects a new shell stays valid.",
-    shell_recording: "Record what is typed and shown in shells: \"off\", \"production\" (shells in production instances and root shells) or \"all\". Recordings are encrypted; only super admins can play them.",
+    shell_recording:
+      'Record what is typed and shown in shells: "off", "production" (shells in production instances and root shells) or "all". Recordings are encrypted; only super admins can play them.',
     shell_recording_days: "Days recordings, and the list of past shells, are kept.",
-    shell_recording_max_mb: "Largest recording of one shell, in MB; beyond it only what is typed is recorded, and the shell closes when that alone reaches the size again.",
+    shell_recording_max_mb:
+      "Largest recording of one shell, in MB; beyond it only what is typed is recorded, and the shell closes when that alone reaches the size again.",
     shell_recordings_total_mb: "Space all shell recordings may take together, in MB; the oldest go first.",
     mail_catcher_retention_days: "Days the e-mails caught from staging and development instances are kept.",
     mail_catcher_max_messages: "E-mails kept per instance in the mail catcher; the oldest go first.",
     mail_catcher_max_mb: "Space the caught e-mails of one instance may take, in MB; the oldest go first.",
     mail_catcher_max_message_mb: "Largest e-mail the mail catcher accepts, in MB; a larger one is refused.",
-    mail_catcher_release: "Administrators may release a caught e-mail: send a copy of it, from the panel's own address, to an address they type (audit-logged); off: nobody can.",
-    kubernetes_mail_egress: "Lets the Odoo of a Kubernetes (beta) instance connect to the outgoing mail server above (its host and port) and nowhere else. Off by default. A change reaches an instance the next time it is started or updated.",
+    mail_catcher_release:
+      "Administrators may release a caught e-mail: send a copy of it, from the panel's own address, to an address they type (audit-logged); off: nobody can.",
+    kubernetes_mail_egress:
+      "Lets the Odoo of a Kubernetes (beta) instance connect to the outgoing mail server above (its host and port) and nowhere else. Off by default. A change reaches an instance the next time it is started or updated.",
     server_name: "The main server's name on the Servers page and on its instances.",
     server_region: "The main server's region, for example Frankfurt or eu-central.",
-    servers_panel_url: "Where the agents of other servers reach this panel (https://...). Empty: the panel's own public address. Written into every new join code.",
+    servers_panel_url:
+      "Where the agents of other servers reach this panel (https://...). Empty: the panel's own public address. Written into every new join code.",
     servers_join_code_minutes: "How long a join code for a new server works; it works once.",
     servers_heartbeat_seconds: "How often each agent reports its instances, jobs, figures and room.",
     servers_offline_seconds: "A server whose agent has not reported for this long shows as offline.",
     servers_request_seconds: "How long the panel waits for an agent to answer a request.",
-    servers_wait_minutes: "How long a job on another server waits for the main panel when it needs it (a GitHub token for private code), before it fails.",
-    servers_instances_kept: "How many instances the panel keeps of what one server reports; the rest of a larger report is not taken.",
+    servers_wait_minutes:
+      "How long a job on another server waits for the main panel when it needs it (a GitHub token for private code), before it fails.",
+    servers_instances_kept:
+      "How many instances the panel keeps of what one server reports; the rest of a larger report is not taken.",
     servers_report_kb: "The largest description of one instance or job a server may report; a larger one is not kept.",
-    servers_log_entries_per_day: "Log entries the panel takes from one server a day; beyond that they are left out until the next day, and the log says so once.",
+    servers_log_entries_per_day:
+      "Log entries the panel takes from one server a day; beyond that they are left out until the next day, and the log says so once.",
     move_max_backup_gb: "An instance whose backup is larger is not moved.",
     move_chunk_mb: "Size of each piece of a backup copied between servers.",
     move_at_once: "Moves between servers that may run at the same time.",
     move_health_seconds: "How long a moved instance has to answer on its new server before the move is rolled back.",
     docs_url: "Where the documentation links of the help panel go (https).",
-    support_url: "Where Contact support goes when the panel is not linked to a Sudoo.sh account: an https:// address or a mailto: address; empty: an e-mail to the contact e-mail above.",
+    support_url:
+      "Where Contact support goes when the panel is not linked to a Sudoo.sh account: an https:// address or a mailto: address; empty: an e-mail to the contact e-mail above.",
     hub_support_url: "The help desk Contact support opens when the panel is linked to a Sudoo.sh account (https).",
-    plan_pricing_url: "Where the panel sends people to compare the Sudoo.sh plans: Settings, Plan, and every message about a plan's limit (https).",
-    plan_account_url: "The account site where the plan of the linked account is managed and, after a downgrade, the production branches to keep are chosen (https).",
+    plan_pricing_url:
+      "Where the panel sends people to compare the Sudoo.sh plans: Settings, Plan, and every message about a plan's limit (https).",
+    plan_account_url:
+      "The account site where the plan of the linked account is managed and, after a downgrade, the production branches to keep are chosen (https).",
     max_instances: "Instances on this server at most; 0: no limit.",
     max_instances_per_user: "Instances one user (or API token) may own; 0: no limit.",
     create_cooldown_minutes: "Minutes a user must wait between two creations; 0: no wait.",
-    max_initial_modules: "How many modules people may choose to install in a new instance's database (New instance and Create instance). Odoo installs their dependencies as well.",
-    capacity_reserve_mb: "Memory kept free for the operating system and Docker, in MB (the larger of this and capacity_reserve_percent is used).",
+    max_initial_modules:
+      "How many modules people may choose to install in a new instance's database (New instance and Create instance). Odoo installs their dependencies as well.",
+    capacity_reserve_mb:
+      "Memory kept free for the operating system and Docker, in MB (the larger of this and capacity_reserve_percent is used).",
     capacity_reserve_percent: "Memory kept free for the operating system and Docker, in % of the server's.",
     capacity_instance_memory_mb: "Memory one running instance is counted with while none has been measured yet, in MB.",
     capacity_warning_percent: "Server memory use, in %, from which the dashboard warns that instances may slow down.",
-    resources_max_odoo_workers: "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
-    resources_max_odoo_cron_threads: "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
-    resources_max_odoo_limit_memory_soft_mb: "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
-    resources_max_odoo_limit_memory_hard_mb: "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
-    resources_max_odoo_limit_time_cpu: "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
-    resources_max_odoo_limit_time_real: "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
-    resources_max_odoo_limit_time_real_cron: "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
-    resources_max_odoo_memory_limit: "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
-    resources_max_odoo_cpu_limit: "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
-    resources_max_db_memory_limit: "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
-    resources_max_db_cpu_limit: "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
-    resources_max_db_max_connections: "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
-    resources_computed_limits: "With workers set by a project or a branch and no Odoo container limit set anywhere, give the container memory base + (workers + cron workers) × memory per worker before recycling, and max(1, workers) cores.",
+    resources_max_odoo_workers:
+      "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
+    resources_max_odoo_cron_threads:
+      "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
+    resources_max_odoo_limit_memory_soft_mb:
+      "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
+    resources_max_odoo_limit_memory_hard_mb:
+      "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
+    resources_max_odoo_limit_time_cpu:
+      "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
+    resources_max_odoo_limit_time_real:
+      "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
+    resources_max_odoo_limit_time_real_cron:
+      "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
+    resources_max_odoo_memory_limit:
+      "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
+    resources_max_odoo_cpu_limit:
+      "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
+    resources_max_db_memory_limit:
+      "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
+    resources_max_db_cpu_limit:
+      "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
+    resources_max_db_max_connections:
+      "The most a project owner may set per project or per branch; 0: no maximum. Stage defaults and an instance's own limits are not bound by it.",
+    resources_computed_limits:
+      "With workers set by a project or a branch and no Odoo container limit set anywhere, give the container memory base + (workers + cron workers) × memory per worker before recycling, and max(1, workers) cores.",
     resources_base_memory_mb: "The Odoo container's memory beside its workers, in the computed limit.",
-    resources_reservation_check: "Refuse a change of resources that raises the memory reserved by all instances above what the server can spare for them. Lowering is always allowed.",
-    capacity_overcommit: "Staging and development pause when unused, so only this share (0 to 1) of their memory counts as reserved; production counts fully.",
+    resources_reservation_check:
+      "Refuse a change of resources that raises the memory reserved by all instances above what the server can spare for them. Lowering is always allowed.",
+    capacity_overcommit:
+      "Staging and development pause when unused, so only this share (0 to 1) of their memory counts as reserved; production counts fully.",
     storage_measure_minutes: "Minutes between two measurements of an instance's database and files (while it runs).",
-    storage_quota_gb_production: "Soft quota of a production instance (database + files); 0: none. Alerts only: nothing is refused.",
+    storage_quota_gb_production:
+      "Soft quota of a production instance (database + files); 0: none. Alerts only: nothing is refused.",
     storage_quota_gb_staging: "Soft quota of a staging instance; 0: none.",
     storage_quota_gb_development: "Soft quota of a development instance; 0: none.",
     storage_warning_percent: "Share of its quota from which an instance is shown and alerted as almost full.",
-    alert_storage: "Alert when an instance reaches storage_warning_percent of its storage quota, and when it is over it (production: every day).",
-    max_running_instances: "Instances running at once at most: creating or starting one more is refused; 0: never refused, only warned.",
-    gateway_mode: "Where the gateways run: \"service\" (their own container, sudoo-gateway: instances keep answering while the panel restarts; the panel serves them itself while that container is not running) or \"embedded\" (inside the panel process, as before 3.0).",
-    gateway_takeover_seconds: "service mode: seconds the gateway service may not answer the panel before the panel serves the instances itself (at once when the service stopped normally).",
+    alert_storage:
+      "Alert when an instance reaches storage_warning_percent of its storage quota, and when it is over it (production: every day).",
+    max_running_instances:
+      "Instances running at once at most: creating or starting one more is refused; 0: never refused, only warned.",
+    gateway_mode:
+      'Where the gateways run: "service" (their own container, sudoo-gateway: instances keep answering while the panel restarts; the panel serves them itself while that container is not running) or "embedded" (inside the panel process, as before 3.0).',
+    gateway_takeover_seconds:
+      "service mode: seconds the gateway service may not answer the panel before the panel serves the instances itself (at once when the service stopped normally).",
     gateway_max_upload_mb: "Largest request body a visitor may send to an instance (uploads, imports), in MB.",
-    gateway_idle_timeout_seconds: "Seconds a visitor may send nothing while sending a request body before the gateway gives up.",
+    gateway_idle_timeout_seconds:
+      "Seconds a visitor may send nothing while sending a request body before the gateway gives up.",
     gateway_websocket_max_message_mb: "Largest single WebSocket message passed to or from an instance, in MB.",
-    access_rules_beta: "Production access rules (beta): let production instances limit who may open them, by country and by address. Off: the feature is hidden and no rule applies (rules already set are kept).",
-    access_rules_geo_missing: "When the country database is missing: \"open\" lets the country part of a rule pass (a warning shows in the panel), \"closed\" lets nobody in by country (address rules and passes still work).",
-    access_rules_geo_download: "Download the DB-IP Lite country database once a month while the access rules are switched on. Off: nothing is downloaded; a table already there keeps being used.",
-    access_rules_geo_url: "Where the monthly country database is downloaded from ({year} and {month} are filled in); an https:// address of a DB-IP country CSV file, gzip-compressed or not.",
-    access_rules_pass_hours: "How long the pass given when someone opens a production instance from the panel lets their browser through its access rules, in hours.",
+    access_rules_beta:
+      "Production access rules (beta): let production instances limit who may open them, by country and by address. Off: the feature is hidden and no rule applies (rules already set are kept).",
+    access_rules_geo_missing:
+      'When the country database is missing: "open" lets the country part of a rule pass (a warning shows in the panel), "closed" lets nobody in by country (address rules and passes still work).',
+    access_rules_geo_download:
+      "Download the DB-IP Lite country database once a month while the access rules are switched on. Off: nothing is downloaded; a table already there keeps being used.",
+    access_rules_geo_url:
+      "Where the monthly country database is downloaded from ({year} and {month} are filled in); an https:// address of a DB-IP country CSV file, gzip-compressed or not.",
+    access_rules_pass_hours:
+      "How long the pass given when someone opens a production instance from the panel lets their browser through its access rules, in hours.",
     access_rules_show_ip: "Show visitors their full address on the blocked page (their country is always shown).",
-    access_rules_contact: "The line on the blocked page that says whom to contact; empty: built from the contact name, phone and e-mail.",
-    gateway_header_timeout_seconds: "Seconds a visitor's connection has to send a request's headers (and is kept open while idle).",
+    access_rules_contact:
+      "The line on the blocked page that says whom to contact; empty: built from the contact name, phone and e-mail.",
+    gateway_header_timeout_seconds:
+      "Seconds a visitor's connection has to send a request's headers (and is kept open while idle).",
     gateway_max_connections: "Visitors' connections open at once to one instance's gateway; more are answered 503.",
-    gateway_max_connections_total: "Visitors' connections open at once to all gateways together; more are answered 503.",
-    custom_domains: "Custom domains for instances: \"off\", \"acme\" (the gateway answers on ports 80 and 443 and gets a certificate for each domain from an ACME authority such as Let's Encrypt) or \"external\" (something in front, such as your own Cloudflare tunnel or proxy, handles https; the panel only records the domains).",
-    acme_directory: "The ACME authority: \"production\" (Let's Encrypt), \"staging\" (Let's Encrypt's test authority: certificates browsers do not trust, for trying things out) or the https address of another ACME directory.",
+    gateway_max_connections_total:
+      "Visitors' connections open at once to all gateways together; more are answered 503.",
+    custom_domains:
+      'Custom domains for instances: "off", "acme" (the gateway answers on ports 80 and 443 and gets a certificate for each domain from an ACME authority such as Let\'s Encrypt) or "external" (something in front, such as your own Cloudflare tunnel or proxy, handles https; the panel only records the domains).',
+    acme_directory:
+      'The ACME authority: "production" (Let\'s Encrypt), "staging" (Let\'s Encrypt\'s test authority: certificates browsers do not trust, for trying things out) or the https address of another ACME directory.',
     acme_email: "Contact e-mail given to the ACME authority; empty: ADMIN_CONTACT_EMAIL, or none.",
     certificate_renew_days: "Renew a certificate this many days before it expires.",
     certificate_retry_max_hours: "Longest wait between two attempts after a certificate could not be issued.",
     domains_per_instance: "Custom domains one instance may have; 0: none.",
-    domain_dns_target: "The name (or address) custom domains point to; empty: PUBLIC_HOST. A name is shown as a CNAME record, an address as an A or AAAA record.",
+    domain_dns_target:
+      "The name (or address) custom domains point to; empty: PUBLIC_HOST. A name is shown as a CNAME record, an address as an A or AAAA record.",
     domain_dns_timeout_seconds: "Seconds a DNS lookup of a custom domain may take.",
-    domain_http_probe: "Before asking for a certificate, check that the domain reaches this server over http (port 80), as the ACME authority will.",
-    managed_subdomains: "Give each instance a name under Sudoo.sh's domain when your Sudoo.sh account offers them. Off: no name is asked for and none is served; names held are released with their instance.",
-    managed_subdomain_company: "The company part of the names, asked for with the account's first name; empty: Sudoo.sh makes it from your company's name. It cannot change afterwards.",
-    managed_subdomains_check_minutes: "How often the panel compares the instances with their names (new instances and branch changes are handled at once).",
+    domain_http_probe:
+      "Before asking for a certificate, check that the domain reaches this server over http (port 80), as the ACME authority will.",
+    managed_subdomains:
+      "Give each instance a name under Sudoo.sh's domain when your Sudoo.sh account offers them. Off: no name is asked for and none is served; names held are released with their instance.",
+    managed_subdomain_company:
+      "The company part of the names, asked for with the account's first name; empty: Sudoo.sh makes it from your company's name. It cannot change afterwards.",
+    managed_subdomains_check_minutes:
+      "How often the panel compares the instances with their names (new instances and branch changes are handled at once).",
     domain_http_port: "Port the gateway answers custom domains on over http.",
     domain_https_port: "Port the gateway answers custom domains on over https.",
     panel_port: "Port of the panel: the web service (sudoo-web) listens here.",
@@ -665,57 +956,94 @@ const en = {
     gateway_port_start: "First gateway port (one per instance).",
     odoo_port_start: "First Odoo port (one per instance, 127.0.0.1 only).",
     idle_hours: "Pause an instance after this many hours without visits; 0: never.",
-    premium_auto_install: "Premium features your plan includes install and update after each signed lease. Off: only when you press Check now.",
+    premium_auto_install:
+      "Premium features your plan includes install and update after each signed lease. Off: only when you press Check now.",
     premium_check_hours: "How often the panel asks Sudoo.sh for newer versions of the premium features it has.",
-    premium_retry_minutes: "After a check failed or a feature was not ready yet, the panel waits this long before asking again.",
+    premium_retry_minutes:
+      "After a check failed or a feature was not ready yet, the panel waits this long before asking again.",
     premium_watch_minutes: "How often the files, signature and binding of each premium feature are checked again.",
-    premium_binding_renew_days: "A premium feature is tied to this server for a while; the panel asks for a new binding this many days before it ends.",
+    premium_binding_renew_days:
+      "A premium feature is tied to this server for a while; the panel asks for a new binding this many days before it ends.",
     premium_max_package_mb: "The panel refuses a premium package larger than this.",
-    public_ipv4: "Sent to Sudoo.sh so managed subdomains point at this server. Empty: the address it sends from, when public.",
+    public_ipv4:
+      "Sent to Sudoo.sh so managed subdomains point at this server. Empty: the address it sends from, when public.",
     public_ipv6: "The same for IPv6. Empty: the address it sends from, when public.",
     auto_pause: "New instances pause when idle (each instance can change it).",
     auto_update: "New instances get new code automatically.",
     auto_upgrade: "New instances upgrade changed modules after an update.",
     delete_after_days: "Lifetime offered for new instances, in days; 0: keep.",
     max_production_instances: "Instances that may be in the production stage at the same time; 0: no limit.",
-    production_auto_update: "New production instances get new code automatically (off: updates only when someone asks, or once switched on for the instance).",
+    production_auto_update:
+      "New production instances get new code automatically (off: updates only when someone asks, or once switched on for the instance).",
     staging_delete_after_days: "Lifetime offered for new staging instances, in days; 0: keep.",
-    project_builds_kept: "Builds kept in the history of each branch (the oldest are removed first), with the stage changes and restores since the oldest of them.",
-    project_production_branches: "Production branches one project may have; 0: no limit (Production instances at most still limits the whole server).",
-    project_auto_development: "A new branch pushed to a project's repository gets a development instance by itself (each project can change it).",
-    project_max_auto_development: "Development instances a project creates by itself for new branches, at most at the same time; 0: no limit.",
-    project_development_demo_data: "Development instances of projects start with Odoo's demo data; staging and production never do.",
-    project_staging_on_push: "Rebuild: a new neutralised copy of production, then the new code. Keep data: only the new code.",
-    project_branch_deleted: "What happens to the development instance of a branch deleted on GitHub. Staging is archived at most; production is only marked.",
-    project_upgrade_test_on_push: "A push to a project's upgrade branch (named after the next version, such as 19.0) runs its upgrade test again with OpenUpgrade; with Odoo's service it only brings the new code (each project can change it).",
-    project_development_on_new_commit: "Update: the new code in the same database, upgrading what changed. New build: a new database built from scratch. Do nothing: the commit is only noted in the branch's history. Each project and branch can change it.",
-    project_module_install: "Every module of the repository, every module Odoo has with the repository's (localisations, test modules and hardware drivers left out; tests are off), or only the modules listed below. Each project and branch can change it.",
-    project_modules: "The modules a new development database gets when the choice above is a list, comma-separated (each project and branch can change it).",
-    project_test_suite: "No tests, the tests of the repository's installed modules, or the custom test tags below. Each project and branch can change it.",
-    project_test_tags: "Odoo's --test-tags syntax, such as /sale_custom,-slow, for custom tests (each project and branch can change it).",
-    project_staging_tests: "Staging builds run the project's tests too, on a throw-away copy of the staging database (each project can change it).",
+    project_builds_kept:
+      "Builds kept in the history of each branch (the oldest are removed first), with the stage changes and restores since the oldest of them.",
+    project_production_branches:
+      "Production branches one project may have; 0: no limit (Production instances at most still limits the whole server).",
+    project_auto_development:
+      "A new branch pushed to a project's repository gets a development instance by itself (each project can change it).",
+    project_max_auto_development:
+      "Development instances a project creates by itself for new branches, at most at the same time; 0: no limit.",
+    project_development_demo_data:
+      "Development instances of projects start with Odoo's demo data; staging and production never do.",
+    project_staging_on_push:
+      "Rebuild: a new neutralised copy of production, then the new code. Keep data: only the new code.",
+    project_branch_deleted:
+      "What happens to the development instance of a branch deleted on GitHub. Staging is archived at most; production is only marked.",
+    project_upgrade_test_on_push:
+      "A push to a project's upgrade branch (named after the next version, such as 19.0) runs its upgrade test again with OpenUpgrade; with Odoo's service it only brings the new code (each project can change it).",
+    project_development_on_new_commit:
+      "Update: the new code in the same database, upgrading what changed. New build: a new database built from scratch. Do nothing: the commit is only noted in the branch's history. Each project and branch can change it.",
+    project_module_install:
+      "Every module of the repository, every module Odoo has with the repository's (localisations, test modules and hardware drivers left out; tests are off), or only the modules listed below. Each project and branch can change it.",
+    project_modules:
+      "The modules a new development database gets when the choice above is a list, comma-separated (each project and branch can change it).",
+    project_test_suite:
+      "No tests, the tests of the repository's installed modules, or the custom test tags below. Each project and branch can change it.",
+    project_test_tags:
+      "Odoo's --test-tags syntax, such as /sale_custom,-slow, for custom tests (each project and branch can change it).",
+    project_staging_tests:
+      "Staging builds run the project's tests too, on a throw-away copy of the staging database (each project can change it).",
     project_test_timeout_minutes: "Tests of a build that take longer are stopped and the build fails.",
-    project_commit_statuses: "Each build's result appears on GitHub next to its commit (sudoo/development, sudoo/staging), when the GitHub App may write commit statuses (each project can change it).",
-    project_email_pusher: "When a deployment triggered by a push fails, the person who pushed gets an e-mail: what failed, the error details and what to do; at most once per branch and commit, never to a GitHub noreply address (each project can change it).",
-    project_promotion_backup_hours: "Before a branch goes into production, production's newest backup should be younger than this; an older one shows in amber on the pre-promotion checklist. 0: not checked.",
-    project_promotion_blocks: "A failed build, another Odoo version or a lock stops a branch from moving into production, unless someone who manages the project chooses Promote anyway (audit-logged).",
-    project_pr_previews: "Each open pull request gets a development instance of its branch, linked from a comment on the pull request and deleted when it is closed (each project can change it).",
-    project_pr_preview_limit: "Previews one project may have at the same time; 0: no limit (the server's limits still apply). Each project can change it.",
-    project_pr_previews_forks: "A fork's code is written by people outside the repository and runs on this server: keep this off unless you trust them (each project can change it).",
-    project_guard_checks: "What a project that has not chosen yet starts with; nothing reaches GitHub until a project Admin saves (each project can change it).",
-    project_guard_strictness: "Relaxed: errors that break things. Standard: and the usual Odoo conventions. Strict: every rule (each project can change it).",
-    project_guard_production_approvals: "Approvals a pull request into production needs in the branch rules on GitHub, 0 to 10 (each project can change it).",
-    project_guard_staging_approvals: "Approvals a pull request into staging needs in the branch rules on GitHub, 0 to 10 (each project can change it).",
+    project_commit_statuses:
+      "Each build's result appears on GitHub next to its commit (sudoo/development, sudoo/staging), when the GitHub App may write commit statuses (each project can change it).",
+    project_email_pusher:
+      "When a deployment triggered by a push fails, the person who pushed gets an e-mail: what failed, the error details and what to do; at most once per branch and commit, never to a GitHub noreply address (each project can change it).",
+    project_promotion_backup_hours:
+      "Before a branch goes into production, production's newest backup should be younger than this; an older one shows in amber on the pre-promotion checklist. 0: not checked.",
+    project_promotion_blocks:
+      "A failed build, another Odoo version or a lock stops a branch from moving into production, unless someone who manages the project chooses Promote anyway (audit-logged).",
+    project_pr_previews:
+      "Each open pull request gets a development instance of its branch, linked from a comment on the pull request and deleted when it is closed (each project can change it).",
+    project_pr_preview_limit:
+      "Previews one project may have at the same time; 0: no limit (the server's limits still apply). Each project can change it.",
+    project_pr_previews_forks:
+      "A fork's code is written by people outside the repository and runs on this server: keep this off unless you trust them (each project can change it).",
+    project_guard_checks:
+      "What a project that has not chosen yet starts with; nothing reaches GitHub until a project Admin saves (each project can change it).",
+    project_guard_strictness:
+      "Relaxed: errors that break things. Standard: and the usual Odoo conventions. Strict: every rule (each project can change it).",
+    project_guard_production_approvals:
+      "Approvals a pull request into production needs in the branch rules on GitHub, 0 to 10 (each project can change it).",
+    project_guard_staging_approvals:
+      "Approvals a pull request into staging needs in the branch rules on GitHub, 0 to 10 (each project can change it).",
     project_guard_linear_history: "Production's branch rules refuse merge commits (each project can change it).",
     project_guard_signed_commits: "Production's branch rules accept only signed commits (each project can change it).",
-    project_guard_pushers: "GitHub's Admin and Maintain roles, or anyone with write access; a project can also name teams or people.",
-    project_guard_blocks_promotion: "Off: failing checks are shown as worth reading in the pre-promotion checklist (each project can change it).",
-    upgrade_methods: "Comma-separated: enterprise (Odoo S.A.'s upgrade service, with the customer's own Enterprise subscription code) and openupgrade (OCA OpenUpgrade, Community). Empty: no upgrades.",
-    upgrade_service_url: "Where Odoo's upgrade script is downloaded from when an upgrade runs. Only in .env: the subscription code is sent there.",
-    openupgrade_repository: "GitHub repository of OpenUpgrade (AGPL-3.0); its sources are downloaded unmodified by the temporary container that runs an upgrade.",
-    openupgrade_refs: "The commit used to reach each version, as version=commit pairs, comma-separated (full 40-character commits).",
+    project_guard_pushers:
+      "GitHub's Admin and Maintain roles, or anyone with write access; a project can also name teams or people.",
+    project_guard_blocks_promotion:
+      "Off: failing checks are shown as worth reading in the pre-promotion checklist (each project can change it).",
+    upgrade_methods:
+      "Comma-separated: enterprise (Odoo S.A.'s upgrade service, with the customer's own Enterprise subscription code) and openupgrade (OCA OpenUpgrade, Community). Empty: no upgrades.",
+    upgrade_service_url:
+      "Where Odoo's upgrade script is downloaded from when an upgrade runs. Only in .env: the subscription code is sent there.",
+    openupgrade_repository:
+      "GitHub repository of OpenUpgrade (AGPL-3.0); its sources are downloaded unmodified by the temporary container that runs an upgrade.",
+    openupgrade_refs:
+      "The commit used to reach each version, as version=commit pairs, comma-separated (full 40-character commits).",
     openupgrade_lib: "The pip requirement installed in the temporary container, such as openupgradelib==3.13.7.",
-    upgrade_rollback_minutes: "After production was upgraded: how long Cancel the upgrade is offered and Odoo is watched (put back by itself when it stops answering); 0: neither.",
+    upgrade_rollback_minutes:
+      "After production was upgraded: how long Cancel the upgrade is offered and Odoo is watched (put back by itself when it stops answering); 0: neither.",
     upgrade_max_hours: "Longest time one upgrade may take before it is stopped.",
     staging_daily_backups: "Staging instances get the daily backup too (when daily_backups is on).",
     poll_minutes: "polling: check GitHub for new commits this often.",
@@ -725,14 +1053,17 @@ const en = {
     admin_contact_phone: "Phone number of the contact.",
     admin_contact_email: "E-mail address of the contact.",
     metrics_interval_seconds: "Seconds between two measurements of the server and the instances.",
-    daily_backups: "Back up every instance that was used since its last daily backup, once a day; each keeps only its latest daily backup.",
+    daily_backups:
+      "Back up every instance that was used since its last daily backup, once a day; each keeps only its latest daily backup.",
     daily_backup_time: "When the daily backups run (HH:MM, 24 hours).",
     timezone: "Time zone of the daily backup time, for example Africa/Cairo.",
     rollback_hours: "How long the state before a restore is kept, and Rollback offered, after a restore (hours).",
     import_max_gb: "Largest database dump that can be uploaded with Import database (GB).",
     log_download_max_lines: "Lines a log download holds at most (the last ones).",
-    safe_updates: "Back up an instance before an update changes its code, and put it back (code, and the database when it may have changed) when the update fails.",
-    alerts: "Tell people when something needs attention (a failed job, an instance down, a full disk), by e-mail and webhooks; off: no alert is sent or listed.",
+    safe_updates:
+      "Back up an instance before an update changes its code, and put it back (code, and the database when it may have changed) when the update fails.",
+    alerts:
+      "Tell people when something needs attention (a failed job, an instance down, a full disk), by e-mail and webhooks; off: no alert is sent or listed.",
     alert_super_admins: "Send alert e-mails to every super admin with an address.",
     alert_emails: "More addresses that receive alert e-mails, comma-separated (an on-call mailbox, say).",
     alert_job_failed: "Alert when a job fails (with its plain hint and a link).",
@@ -747,44 +1078,55 @@ const en = {
     alert_drift: "Alert when an instance was changed outside the panel (drift).",
     alert_public_link: "Alert when the panel or a running instance has no public link for alert_public_link_minutes.",
     alert_public_link_minutes: "Minutes without a public link before the alert.",
-    alert_certificate: "Alert when a custom domain's certificate cannot be issued or renewed, or expires within alert_certificate_days.",
+    alert_certificate:
+      "Alert when a custom domain's certificate cannot be issued or renewed, or expires within alert_certificate_days.",
     alert_certificate_days: "Days before a certificate expires from which it is shown and alerted as expiring.",
-    offsite_backups: "Copy backups to S3-compatible storage off this server (Cloudflare R2, AWS S3, Backblaze B2, MinIO...), each copy with a manifest of SHA-256 checksums signed with the panel's Ed25519 key.",
-    offsite_endpoint: "Address of the storage's S3 API, e.g. https://<account>.r2.cloudflarestorage.com or https://s3.eu-central-1.amazonaws.com (https; http only for localhost).",
-    offsite_region: "Region of the bucket (\"auto\" for Cloudflare R2; us-east-1, eu-central-1, ... otherwise).",
+    offsite_backups:
+      "Copy backups to S3-compatible storage off this server (Cloudflare R2, AWS S3, Backblaze B2, MinIO...), each copy with a manifest of SHA-256 checksums signed with the panel's Ed25519 key.",
+    offsite_endpoint:
+      "Address of the storage's S3 API, e.g. https://<account>.r2.cloudflarestorage.com or https://s3.eu-central-1.amazonaws.com (https; http only for localhost).",
+    offsite_region: 'Region of the bucket ("auto" for Cloudflare R2; us-east-1, eu-central-1, ... otherwise).',
     offsite_bucket: "The bucket the copies go to (create it first; keep it private).",
     offsite_prefix: "Folder inside the bucket for this panel's copies (several panels can share a bucket).",
-    offsite_addressing: "How the bucket is addressed: \"path\" (endpoint/bucket/file: R2, MinIO, B2, S3) or \"virtual\" (bucket.endpoint/file).",
+    offsite_addressing:
+      'How the bucket is addressed: "path" (endpoint/bucket/file: R2, MinIO, B2, S3) or "virtual" (bucket.endpoint/file).',
     offsite_access_key_id: "Access key ID of a key that may read and write the bucket.",
     offsite_secret_access_key: "The secret of that access key (stored encrypted).",
-    offsite_other_stages: "Copy the backups of staging and development instances off-site too (production instances' backups are always copied while off-site copies are on).",
-    offsite_kinds: "Which backups are copied, comma-separated: manual, daily, deletion, before-update, before-restore, before-rollback, before-repair, staging-copy, before-upgrade.",
+    offsite_other_stages:
+      "Copy the backups of staging and development instances off-site too (production instances' backups are always copied while off-site copies are on).",
+    offsite_kinds:
+      "Which backups are copied, comma-separated: manual, daily, deletion, before-update, before-restore, before-rollback, before-repair, staging-copy, before-upgrade.",
     offsite_keep_daily_production: "Production: keep the newest copy of each of this many most recent days.",
     offsite_keep_monthly_production: "Production: keep the newest copy of each of this many most recent months too.",
     offsite_keep_daily_other: "Staging and development: keep the newest copy of each of this many days.",
     offsite_keep_monthly_other: "Staging and development: keep the newest copy of each of this many months too.",
-    offsite_verify_days: "Download and check the newest copy of each instance again when none was verified for this many days (signature and every checksum); 0: only when someone asks.",
+    offsite_verify_days:
+      "Download and check the newest copy of each instance again when none was verified for this many days (signature and every checksum); 0: only when someone asks.",
     offsite_timeout_seconds: "Seconds one request to the storage may wait for an answer.",
     alert_offsite_failed: "Alert when a backup could not be copied off-site, or a copy failed its check.",
-    alert_offsite_missing: "Alert when a production instance has had no successful off-site copy for alert_offsite_missing_hours (while off-site copies are on).",
+    alert_offsite_missing:
+      "Alert when a production instance has had no successful off-site copy for alert_offsite_missing_hours (while off-site copies are on).",
     alert_offsite_missing_hours: "Hours without a successful off-site copy of a production instance before the alert.",
     alert_recovery: "Send a notice when a problem that was alerted is over (back online, disk freed).",
     alert_quiet_minutes: "The same alert is sent at most once in this many minutes; 0: every time.",
-    alert_digest: "E-mail one summary a day instead of each alert as it happens (webhooks and the bell still get each alert at once).",
+    alert_digest:
+      "E-mail one summary a day instead of each alert as it happens (webhooks and the bell still get each alert at once).",
     alert_digest_time: "When the daily summary is sent (HH:MM, TIMEZONE).",
     alert_webhook_timeout_seconds: "Seconds a webhook may take to answer before the delivery counts as failed.",
     alert_webhook_1_url: "Webhook 1: address alerts are posted to (https).",
     alert_webhook_1_secret: "Webhook 1: key of the X-Sudoo-Signature HMAC-SHA256.",
-    alert_webhook_1_format: "Webhook 1: \"json\" (signed JSON), \"slack\", \"discord\" or \"teams\" (incoming webhooks).",
+    alert_webhook_1_format: 'Webhook 1: "json" (signed JSON), "slack", "discord" or "teams" (incoming webhooks).',
     alert_webhook_2_url: "Webhook 2: address alerts are posted to (https).",
     alert_webhook_2_secret: "Webhook 2: key of the X-Sudoo-Signature HMAC-SHA256.",
-    alert_webhook_2_format: "Webhook 2: \"json\", \"slack\", \"discord\" or \"teams\".",
+    alert_webhook_2_format: 'Webhook 2: "json", "slack", "discord" or "teams".',
     alert_webhook_3_url: "Webhook 3: address alerts are posted to (https).",
     alert_webhook_3_secret: "Webhook 3: key of the X-Sudoo-Signature HMAC-SHA256.",
-    alert_webhook_3_format: "Webhook 3: \"json\", \"slack\", \"discord\" or \"teams\".",
-    marketplace: "Use the Sudoo.sh marketplace: register with the hub, send a signed heartbeat every 15 minutes, install plugins. Off: the panel never contacts the hub; installed free plugins keep working.",
+    alert_webhook_3_format: 'Webhook 3: "json", "slack", "discord" or "teams".',
+    marketplace:
+      "Use the Sudoo.sh marketplace: register with the hub, send a signed heartbeat every 15 minutes, install plugins. Off: the panel never contacts the hub; installed free plugins keep working.",
     hub_url: "Address of the Sudoo.sh hub (https; http only for localhost while testing).",
-    hub_public_keys: "The hub's root public keys (Ed25519, base64url, comma-separated); empty: the keys this release ships for hub.sudoo.sh, or the hub's keys as first seen for another hub.",
+    hub_public_keys:
+      "The hub's root public keys (Ed25519, base64url, comma-separated); empty: the keys this release ships for hub.sudoo.sh, or the hub's keys as first seen for another hub.",
   } as Record<string, string>,
   editor: {
     secretSet: "Set. Type to replace it",
@@ -837,36 +1179,63 @@ const en = {
   exposure: {
     now: (mode: string, url: ReactNode): ReactNode[] => ["Now: ", mode, ". The panel's address: ", url],
     noAddress: "not known yet",
-    certificate: { waiting: "The certificate of the panel's name is being requested.", active: "The certificate of the panel's name is valid.", failed: "The certificate of the panel's name could not be issued yet:" } as Record<string, string>,
+    certificate: {
+      waiting: "The certificate of the panel's name is being requested.",
+      active: "The certificate of the panel's name is valid.",
+      failed: "The certificate of the panel's name could not be issued yet:",
+    } as Record<string, string>,
     managedName: {
-      serving: (name: ReactNode): ReactNode[] => ["The panel's name from Sudoo.sh: ", name, ". A name of your own (Panel's name) takes its place."],
+      serving: (name: ReactNode): ReactNode[] => [
+        "The panel's name from Sudoo.sh: ",
+        name,
+        ". A name of your own (Panel's name) takes its place.",
+      ],
       waiting: "The panel's name is being asked for from Sudoo.sh.",
       notOffered: "Sudoo.sh does not give the panel a name of its own now: the panel stays at the server's address.",
       failed: "Sudoo.sh could not give the panel its name yet:",
     },
     change: "After the restart:",
-    keepOpen: "Keep this page open at the current address until the new one works. If the panel cannot be reached afterwards, set EXPOSURE back in /opt/odoo/manager/.env and run: docker compose up -d.",
+    keepOpen:
+      "Keep this page open at the current address until the new one works. If the panel cannot be reached afterwards, set EXPOSURE back in /opt/odoo/manager/.env and run: docker compose up -d.",
     to: {
-      direct: "the gateway answers ports 80 and 443 of this server. Open both to the internet (the certificate authority checks port 80). The panel moves to its name (Panel's name, or the server's public name) once its certificate is issued, and until then to https://<the server's address> with the panel's own certificate, which browsers warn about once. Instances move to their managed names and custom domains; their links change. Custom domains follow (acme) unless CUSTOM_DOMAINS is set in .env.",
-      proxy: "the panel and the gateways listen on 127.0.0.1 only. Your proxy must forward the panel's name to the panel's port and each instance's address to its gateway port, and send the visitor's address in X-Real-IP. Links change to the addresses your proxy serves.",
-      tunnel: "each instance and the panel get a tunnel address that changes when its connector restarts. Ports 80 and 443 are no longer needed for the panel; managed names and custom domains still need them.",
+      direct:
+        "the gateway answers ports 80 and 443 of this server. Open both to the internet (the certificate authority checks port 80). The panel moves to its name (Panel's name, or the server's public name) once its certificate is issued, and until then to https://<the server's address> with the panel's own certificate, which browsers warn about once. Instances move to their managed names and custom domains; their links change. Custom domains follow (acme) unless CUSTOM_DOMAINS is set in .env.",
+      proxy:
+        "the panel and the gateways listen on 127.0.0.1 only. Your proxy must forward the panel's name to the panel's port and each instance's address to its gateway port, and send the visitor's address in X-Real-IP. Links change to the addresses your proxy serves.",
+      tunnel:
+        "each instance and the panel get a tunnel address that changes when its connector restarts. Ports 80 and 443 are no longer needed for the panel; managed names and custom domains still need them.",
     } as Record<string, string>,
   },
   restart: "Restart the panel",
   resources: {
     priorityTitle: "Priority under load",
-    priorityText: "When the server is busy, production gets the processor and memory first, then staging, then development. These weights only act under contention: on a quiet server every instance gets all it asks for",
+    priorityText:
+      "When the server is busy, production gets the processor and memory first, then staging, then development. These weights only act under contention: on a quiet server every instance gets all it asks for",
     defaultsTitle: "Default limits of each stage",
-    defaultsText: "All off by default: instances may use the whole server. 0 means not set: no container limit, or Odoo's own default. A project can set its own per stage and each branch its own (within the last column), and an administrator any of them for one instance on its Settings tab. Changes apply when an instance next starts",
+    defaultsText:
+      "All off by default: instances may use the whole server. 0 means not set: no container limit, or Odoo's own default. A project can set its own per stage and each branch its own (within the last column), and an administrator any of them for one instance on its Settings tab. Changes apply when an instance next starts",
     knob: "Setting",
     maximum: "Project owners, at most",
-    maximumText: "The last column is the most a project owner (Project resources permission) may set for a project or a branch; 0: no maximum. Administrators are not bound by it, here or on an instance's Settings tab",
+    maximumText:
+      "The last column is the most a project owner (Project resources permission) may set for a project or a branch; 0: no maximum. Administrators are not bound by it, here or on an instance's Settings tab",
     cell: (row: string, stage: string) => `${row}, ${stage}`,
     rows: {
-      priority_cpu_weight: { label: "Processor weight", hint: "Share of the processor under load; Docker's default is 1024" },
-      priority_memory_reservation: { label: "Odoo memory kept under pressure", hint: "Soft limit (512m, 1g); memory is taken back from the others first. 0: none" },
-      priority_db_memory_reservation: { label: "Database memory kept under pressure", hint: "The same for the database container" },
-      priority_oom_score: { label: "Out-of-memory score", hint: "When memory runs out, the highest score is stopped first (-999 to 1000)" },
+      priority_cpu_weight: {
+        label: "Processor weight",
+        hint: "Share of the processor under load; Docker's default is 1024",
+      },
+      priority_memory_reservation: {
+        label: "Odoo memory kept under pressure",
+        hint: "Soft limit (512m, 1g); memory is taken back from the others first. 0: none",
+      },
+      priority_db_memory_reservation: {
+        label: "Database memory kept under pressure",
+        hint: "The same for the database container",
+      },
+      priority_oom_score: {
+        label: "Out-of-memory score",
+        hint: "When memory runs out, the highest score is stopped first (-999 to 1000)",
+      },
       odoo_workers: { label: "HTTP workers", hint: "0: threaded mode" },
       odoo_cron_threads: { label: "Cron workers", hint: "0: Odoo's default (2)" },
       odoo_limit_memory_soft_mb: { label: "Memory per worker before recycling, MB", hint: "0: Odoo's default (2048)" },
@@ -877,11 +1246,16 @@ const en = {
       odoo_cpu_limit: { label: "Odoo container processors", hint: "Cores; 0: no limit" },
       db_memory_limit: { label: "Database container memory", hint: "512m, 4g; 0: no limit" },
       db_cpu_limit: { label: "Database container processors", hint: "Cores; 0: no limit" },
-      odoo_limit_time_real_cron: { label: "Scheduled actions timeout, seconds", hint: "0: Odoo's default (the HTTP timeout)" },
+      odoo_limit_time_real_cron: {
+        label: "Scheduled actions timeout, seconds",
+        hint: "0: Odoo's default (the HTTP timeout)",
+      },
       db_max_connections: { label: "Database connections", hint: "PostgreSQL max_connections; 0: its default (100)" },
     },
-    reserved: (reserved: string, usable: string) => `Reserved by all instances now: ${reserved} of the ${usable} this server can spare for instances`,
-    overReserved: "More memory is reserved than the server can spare: under pressure not every reservation can be kept. Lower the reservations or add memory",
+    reserved: (reserved: string, usable: string) =>
+      `Reserved by all instances now: ${reserved} of the ${usable} this server can spare for instances`,
+    overReserved:
+      "More memory is reserved than the server can spare: under pressure not every reservation can be kept. Lower the reservations or add memory",
   },
   marketplace: {
     title: "Marketplace",
@@ -909,8 +1283,12 @@ const en = {
     checked: "Managed subdomains checked",
     notChecked: "Not checked",
   },
-  restartSection: "Settings marked as a plugin choose which plugin does a job; a change applies when the panel restarts. It is refused while jobs run",
-  server: { title: "Server", text: (path: ReactNode) => ["Folders, ports and how the panel is reached. Change these in ", path] },
+  restartSection:
+    "Settings marked as a plugin choose which plugin does a job; a change applies when the panel restarts. It is refused while jobs run",
+  server: {
+    title: "Server",
+    text: (path: ReactNode) => ["Folders, ports and how the panel is reached. Change these in ", path],
+  },
   saveBar: {
     unsaved: (n: number) => `${n} unsaved ${n === 1 ? "change" : "changes"}`,
     in: (tabs: string) => ` in ${tabs}`,
@@ -948,61 +1326,173 @@ const ar: typeof en = {
     about: "حول",
   },
   groups: {
-    contact: { title: "التواصل والمظهر", text: "من يُطلب من الناس التواصل معه، ولون التمييز في اللوحة ورسائلها، ولغة اللوحة للحسابات التي لم تختر لغة" },
+    contact: {
+      title: "التواصل والمظهر",
+      text: "من يُطلب من الناس التواصل معه، ولون التمييز في اللوحة ورسائلها، ولغة اللوحة للحسابات التي لم تختر لغة",
+    },
     newInstances: { title: "البيئات الجديدة", text: "ما تبدأ به البيئة الجديدة؛ ويمكن لكل بيئة تغيير إعداداتها" },
-    stages: { title: "المراحل", text: "بيئات الإنتاج لا تتوقف مؤقتًا ولا تُحذف تلقائيًا أبدًا، وتُنسخ احتياطيًا كل يوم وتُحدَّث دائمًا بأمان. وبيئات التجهيز تبقى مدة أطول. القيمة 0 تلغي حدّ الإنتاج" },
-    projects: { title: "المشاريع", text: "كل مشروع مستودع واحد على GitHub. هذه هي القيم الافتراضية لكل مشروع؛ ويمكن للمشروع تغييرها كلها عدا الأولى من تبويب إعداداته" },
+    stages: {
+      title: "المراحل",
+      text: "بيئات الإنتاج لا تتوقف مؤقتًا ولا تُحذف تلقائيًا أبدًا، وتُنسخ احتياطيًا كل يوم وتُحدَّث دائمًا بأمان. وبيئات التجهيز تبقى مدة أطول. القيمة 0 تلغي حدّ الإنتاج",
+    },
+    projects: {
+      title: "المشاريع",
+      text: "كل مشروع مستودع واحد على GitHub. هذه هي القيم الافتراضية لكل مشروع؛ ويمكن للمشروع تغييرها كلها عدا الأولى من تبويب إعداداته",
+    },
     howMany: { title: "عدد البيئات", text: "كم بيئة، وكم مرة يمكن إنشاء بيئة جديدة. القيمة 0 تلغي الحد" },
-    capacity: { title: "السعة", text: "كم بيئة يشغّلها هذا الخادم براحة في وقت واحد، ومتى تنبّه اللوحة. القيمة 0 تلغي الحد الصارم: فتكتفي اللوحة بالتنبيه" },
-    resourceRules: { title: "الحدود المحسوبة وفحص الحجز", text: "كيف تتبع حدود الحاوية عدد العمّال، وهل يُرفض تغيير لا يتحمله الخادم" },
-    storageQuotas: { title: "التخزين", text: "قاعدة بيانات كل بيئة وملفاتها، تُقاس كل ساعة، مقابل حصة مرنة لكل مرحلة. تنبيهات فقط: لا يُرفض شيء ولا يتوقف" },
-    containers: { title: "حاويات البيئات", text: "حد العمليات والسجلات لحاويات كل بيئة، تُطبَّق عند تشغيل البيئة في المرة التالية، وما يحدث حين يغيّرها أحد يدويًا. المعالج والذاكرة: تبويب الموارد" },
+    capacity: {
+      title: "السعة",
+      text: "كم بيئة يشغّلها هذا الخادم براحة في وقت واحد، ومتى تنبّه اللوحة. القيمة 0 تلغي الحد الصارم: فتكتفي اللوحة بالتنبيه",
+    },
+    resourceRules: {
+      title: "الحدود المحسوبة وفحص الحجز",
+      text: "كيف تتبع حدود الحاوية عدد العمّال، وهل يُرفض تغيير لا يتحمله الخادم",
+    },
+    storageQuotas: {
+      title: "التخزين",
+      text: "قاعدة بيانات كل بيئة وملفاتها، تُقاس كل ساعة، مقابل حصة مرنة لكل مرحلة. تنبيهات فقط: لا يُرفض شيء ولا يتوقف",
+    },
+    containers: {
+      title: "حاويات البيئات",
+      text: "حد العمليات والسجلات لحاويات كل بيئة، تُطبَّق عند تشغيل البيئة في المرة التالية، وما يحدث حين يغيّرها أحد يدويًا. المعالج والذاكرة: تبويب الموارد",
+    },
     gateway: { title: "البوابة", text: "ما يمكن للزوار إرساله إلى بيئة عبر البوابة التي تتشاركها كل البيئات" },
-    accessRules: { title: "قواعد الوصول إلى الإنتاج (تجريبي)", text: "تتيح لبيئات الإنتاج تحديد من يمكنه فتحها حسب الدولة والعنوان؛ والقواعد نفسها في تبويب الإعدادات لكل بيئة" },
+    accessRules: {
+      title: "قواعد الوصول إلى الإنتاج (تجريبي)",
+      text: "تتيح لبيئات الإنتاج تحديد من يمكنه فتحها حسب الدولة والعنوان؛ والقواعد نفسها في تبويب الإعدادات لكل بيئة",
+    },
     versions: { title: "إصدارات Odoo وصورها", text: "الإصدارات المعروضة، ومن أين يأتي Odoo وPostgreSQL" },
     enterprise: { title: "إضافات Enterprise", text: "مكان إضافات Enterprise لكل إصدار" },
-    upgrades: { title: "ترقيات قواعد البيانات", text: "كيف تنتقل قواعد البيانات إلى إصدار أحدث من Odoo: خدمة الترقية من Odoo لـ Enterprise، وOpenUpgrade لـ Community" },
-    backups: { title: "النسخ الاحتياطية", text: "تُنسخ كل بيئة استُخدمت خلال اليوم احتياطيًا مرة واحدة في هذا الوقت (وبيئات الإنتاج كل يوم أيًّا كانت هذه الإعدادات)؛ وتحتفظ كل بيئة بآخر نسخة يومية فقط" },
-    signIn: { title: "تسجيل الدخول", text: "عوامل التحقق الثانية، وطريقة تسجيل الدخول، ومدة الجلسة قبل طلب تسجيل الدخول مجددًا" },
-    signInEmail: { title: "بريد تسجيل الدخول ورموز الاسترداد", text: "إبلاغ الناس بكل تسجيل دخول إلى حساباتهم، وعدد رموز الاسترداد التي تأتي مع تطبيق المصادقة" },
-    signInWays: { title: "طرق تسجيل الدخول", text: "كلمة مرور أو رمز بالبريد الإلكتروني أو GitHub، تُختار لكل حساب في صفحة الحسابات. يحتفظ مسؤول أعلى واحد على الأقل دائمًا بكلمة مرور" },
-    projectRoles: { title: "أدوار المشاريع والوصول", text: "الأدوار لكل مرحلة في كل مشروع، والرسائل التي تصل الناس حين يتغيّر وصولهم، والوصول المؤقت، والمراجعة الدورية للوصول" },
-    invitations: { title: "الدعوات", text: "يُدعى الأشخاص الجدد بالبريد الإلكتروني ويختارون كلمات مرورهم بأنفسهم. مدة عمل الرابط، ومتى يمكن تحديد كلمة مرور لهم" },
+    upgrades: {
+      title: "ترقيات قواعد البيانات",
+      text: "كيف تنتقل قواعد البيانات إلى إصدار أحدث من Odoo: خدمة الترقية من Odoo لـ Enterprise، وOpenUpgrade لـ Community",
+    },
+    backups: {
+      title: "النسخ الاحتياطية",
+      text: "تُنسخ كل بيئة استُخدمت خلال اليوم احتياطيًا مرة واحدة في هذا الوقت (وبيئات الإنتاج كل يوم أيًّا كانت هذه الإعدادات)؛ وتحتفظ كل بيئة بآخر نسخة يومية فقط",
+    },
+    signIn: {
+      title: "تسجيل الدخول",
+      text: "عوامل التحقق الثانية، وطريقة تسجيل الدخول، ومدة الجلسة قبل طلب تسجيل الدخول مجددًا",
+    },
+    signInEmail: {
+      title: "بريد تسجيل الدخول ورموز الاسترداد",
+      text: "إبلاغ الناس بكل تسجيل دخول إلى حساباتهم، وعدد رموز الاسترداد التي تأتي مع تطبيق المصادقة",
+    },
+    signInWays: {
+      title: "طرق تسجيل الدخول",
+      text: "كلمة مرور أو رمز بالبريد الإلكتروني أو GitHub، تُختار لكل حساب في صفحة الحسابات. يحتفظ مسؤول أعلى واحد على الأقل دائمًا بكلمة مرور",
+    },
+    projectRoles: {
+      title: "أدوار المشاريع والوصول",
+      text: "الأدوار لكل مرحلة في كل مشروع، والرسائل التي تصل الناس حين يتغيّر وصولهم، والوصول المؤقت، والمراجعة الدورية للوصول",
+    },
+    invitations: {
+      title: "الدعوات",
+      text: "يُدعى الأشخاص الجدد بالبريد الإلكتروني ويختارون كلمات مرورهم بأنفسهم. مدة عمل الرابط، ومتى يمكن تحديد كلمة مرور لهم",
+    },
     requests: { title: "الطلبات في الدقيقة", text: "عدد الطلبات التي يمكن لشخص واحد إرسالها. القيمة 0 تلغي الحد" },
-    premium: { title: "الميزات المتقدمة", text: "كيف تُثبَّت الميزات المتقدمة وتبقى مربوطة بهذا الخادم، والعناوين العامة التي يوجّه إليها Sudoo.sh النطاقات الفرعية المُدارة" },
-    supportAccess: { title: "وصول الدعم", text: "هل يمكن للمسؤولين السماح لدعم Sudoo.sh بالدخول إلى اللوحة لفترة محدودة، وأقصى مدة لذلك" },
-    topologyShare: { title: "مشاركة البنية مع Sudoo.sh", text: "هل يمكن لفريق Sudoo.sh متابعة خوادم هذه اللوحة ونسخها وحركة الطلبات فيها مباشرة: أرقام عامة ومعرّفات مستعارة، دون بيانات العملاء" },
+    premium: {
+      title: "الميزات المتقدمة",
+      text: "كيف تُثبَّت الميزات المتقدمة وتبقى مربوطة بهذا الخادم، والعناوين العامة التي يوجّه إليها Sudoo.sh النطاقات الفرعية المُدارة",
+    },
+    supportAccess: {
+      title: "وصول الدعم",
+      text: "هل يمكن للمسؤولين السماح لدعم Sudoo.sh بالدخول إلى اللوحة لفترة محدودة، وأقصى مدة لذلك",
+    },
+    topologyShare: {
+      title: "مشاركة البنية مع Sudoo.sh",
+      text: "هل يمكن لفريق Sudoo.sh متابعة خوادم هذه اللوحة ونسخها وحركة الطلبات فيها مباشرة: أرقام عامة ومعرّفات مستعارة، دون بيانات العملاء",
+    },
     portalAddress: { title: "عنوان البوابة", text: "أين يسجّل عملاؤك الدخول، واسم الشركة الذي يرونه" },
-    clientSwitch: { title: "مفتاح وصول العملاء", text: "المدة التي يمكن للعملاء فتح مشاريعهم لها، وطلبات الوصول، والوصول الطارئ" },
-    maintenanceWindows: { title: "نوافذ الصيانة", text: "موعد تنفيذ الصيانة التي تخطّط لها Sudoo.sh على هذه اللوحة: الخيارات السريعة، والنافذة الافتراضية التي تُطبَّق حين لا يختار أحد. الأوقات بتوقيت اللوحة" },
+    clientSwitch: {
+      title: "مفتاح وصول العملاء",
+      text: "المدة التي يمكن للعملاء فتح مشاريعهم لها، وطلبات الوصول، والوصول الطارئ",
+    },
+    maintenanceWindows: {
+      title: "نوافذ الصيانة",
+      text: "موعد تنفيذ الصيانة التي تخطّط لها Sudoo.sh على هذه اللوحة: الخيارات السريعة، والنافذة الافتراضية التي تُطبَّق حين لا يختار أحد. الأوقات بتوقيت اللوحة",
+    },
     maintenanceRuns: { title: "التذكيرات والتنفيذ", text: "من يُبلَّغ ومتى، وهل يختار العملاء، وطريقة تنفيذ العمل" },
-    webShell: { title: "الطرفية في المتصفح", text: "من يمكنه فتح طرفية داخل حاويات البيئات من اللوحة، وأين، ولأي مدة، وكم طرفية في وقت واحد. لا يستطيع المشاهدون ذلك أبدًا" },
-    shellRecordings: { title: "تسجيلات الطرفية", text: "تسجيلات مشفّرة لما يُكتب ويظهر في الطرفيات، ولا يشغّلها إلا المسؤولون الأعلون. مدة الاحتفاظ بها والمساحة التي تشغلها" },
-    profiler: { title: "محلل الأداء وتصدير السجل", text: "من يمكنه تسجيل ما تقضي فيه عمليات Odoo في البيئة وقتها (تبويب الأدوات)، ولأي مدة، وكم تسجيلًا يُحتفظ به؛ وكم إدخالًا يحمله تصدير سجل التدقيق" },
-    mailCatcher: { title: "ملتقط البريد", text: "لا ترسل بيئات التجهيز والتطوير بريدًا حقيقيًا أبدًا: يُلتقط ويظهر في تبويب البريد الخاص بها. مدة الاحتفاظ به وكميته، وهل يمكن للمسؤولين إطلاق نسخة منه" },
-    servers: { title: "الخوادم", text: "اسم هذا الخادم ومنطقته، وكيف تصل وكلاء الخوادم الأخرى إلى اللوحة وترسل تقاريرها وتنتظرها" },
+    webShell: {
+      title: "الطرفية في المتصفح",
+      text: "من يمكنه فتح طرفية داخل حاويات البيئات من اللوحة، وأين، ولأي مدة، وكم طرفية في وقت واحد. لا يستطيع المشاهدون ذلك أبدًا",
+    },
+    shellRecordings: {
+      title: "تسجيلات الطرفية",
+      text: "تسجيلات مشفّرة لما يُكتب ويظهر في الطرفيات، ولا يشغّلها إلا المسؤولون الأعلون. مدة الاحتفاظ بها والمساحة التي تشغلها",
+    },
+    profiler: {
+      title: "محلل الأداء وتصدير السجل",
+      text: "من يمكنه تسجيل ما تقضي فيه عمليات Odoo في البيئة وقتها (تبويب الأدوات)، ولأي مدة، وكم تسجيلًا يُحتفظ به؛ وكم إدخالًا يحمله تصدير سجل التدقيق",
+    },
+    mailCatcher: {
+      title: "ملتقط البريد",
+      text: "لا ترسل بيئات التجهيز والتطوير بريدًا حقيقيًا أبدًا: يُلتقط ويظهر في تبويب البريد الخاص بها. مدة الاحتفاظ به وكميته، وهل يمكن للمسؤولين إطلاق نسخة منه",
+    },
+    servers: {
+      title: "الخوادم",
+      text: "اسم هذا الخادم ومنطقته، وكيف تصل وكلاء الخوادم الأخرى إلى اللوحة وترسل تقاريرها وتنتظرها",
+    },
     moves: { title: "نقل البيئات", text: "حدود نقل بيئة إلى خادم آخر: تكون البيئة غير متاحة أثناء النقل" },
     help: { title: "المساعدة", text: "إلى أين تأخذ لوحة المساعدة (زر ?) المستخدمين: موقع التوثيق والتواصل مع الدعم" },
-    publicAddress: { title: "كيف يصل الناس إلى هذا الخادم", text: "مباشر: يجيب هذا الخادم بنفسه على المنفذين 80 و443 ويحصل على الشهادات من جهة إصدار الشهادات (موصى به). وكيل: يتولى https وكيلٌ عكسي أو موزّع أحمال خاص بك أمامه. نفق: نفق صادر لخادم لا يمكنه فتح منافذ. يُطبَّق التغيير حين تُعاد تشغيل اللوحة" },
-    customDomains: { title: "النطاقات المخصصة", text: "بيئات تجيب على نطاقات عملائك الخاصة عبر https. ‏acme: يجب أن يكون المنفذان 80 و443 مفتوحين على هذا الخادم، واختياره موافقة على شروط جهة إصدار الشهادات. ‏external: يتولى https الوكيل الخاص بك" },
-    certificates: { title: "الشهادات", text: "مصدر الشهادات وموعد تجديدها. ‏staging يعطي شهادات لا تثق بها المتصفحات، للتجربة" },
-    managedSubdomains: { title: "النطاقات الفرعية المُدارة", text: "اسم تحت نطاق Sudoo.sh لكل بيئة، في كل الخطط: <branch>.<stage>.<company>.<base>. يتولى Sudoo.sh سجلات DNS الخاصة به، وتحصل هذه اللوحة على شهادته (يجب أن يصل المنفذان 80 و443 إلى هذا الخادم)" },
+    publicAddress: {
+      title: "كيف يصل الناس إلى هذا الخادم",
+      text: "مباشر: يجيب هذا الخادم بنفسه على المنفذين 80 و443 ويحصل على الشهادات من جهة إصدار الشهادات (موصى به). وكيل: يتولى https وكيلٌ عكسي أو موزّع أحمال خاص بك أمامه. نفق: نفق صادر لخادم لا يمكنه فتح منافذ. يُطبَّق التغيير حين تُعاد تشغيل اللوحة",
+    },
+    customDomains: {
+      title: "النطاقات المخصصة",
+      text: "بيئات تجيب على نطاقات عملائك الخاصة عبر https. ‏acme: يجب أن يكون المنفذان 80 و443 مفتوحين على هذا الخادم، واختياره موافقة على شروط جهة إصدار الشهادات. ‏external: يتولى https الوكيل الخاص بك",
+    },
+    certificates: {
+      title: "الشهادات",
+      text: "مصدر الشهادات وموعد تجديدها. ‏staging يعطي شهادات لا تثق بها المتصفحات، للتجربة",
+    },
+    managedSubdomains: {
+      title: "النطاقات الفرعية المُدارة",
+      text: "اسم تحت نطاق Sudoo.sh لكل بيئة، في كل الخطط: <branch>.<stage>.<company>.<base>. يتولى Sudoo.sh سجلات DNS الخاصة به، وتحصل هذه اللوحة على شهادته (يجب أن يصل المنفذان 80 و443 إلى هذا الخادم)",
+    },
     checks: { title: "الفحوص", text: "كيف يُفحص النطاق قبل طلب شهادته" },
-    email: { title: "البريد الإلكتروني", text: "صندوق البريد الذي يرسل رموز تسجيل الدخول، مثل حساب Gmail بكلمة مرور تطبيق" },
-    recipients: { title: "من يستقبل التنبيهات", text: "التنبيهات بالبريد الإلكتروني، عبر إعدادات البريد في تبويب البريد الإلكتروني. ويعرضها الجرس في الأعلى لكل من يُسمح له بقراءة سجل التدقيق" },
+    email: {
+      title: "البريد الإلكتروني",
+      text: "صندوق البريد الذي يرسل رموز تسجيل الدخول، مثل حساب Gmail بكلمة مرور تطبيق",
+    },
+    recipients: {
+      title: "من يستقبل التنبيهات",
+      text: "التنبيهات بالبريد الإلكتروني، عبر إعدادات البريد في تبويب البريد الإلكتروني. ويعرضها الجرس في الأعلى لكل من يُسمح له بقراءة سجل التدقيق",
+    },
     jobs: { title: "المهام والنسخ الاحتياطية", text: "يُنبَّه بها فور حدوثها، مع الشرح المبسّط ورابط إلى المهمة" },
-    instancesServer: { title: "البيئات والخادم", text: "يُنبَّه بالمشكلات المستمرة بعد عدد دقائقها، ويتبعها إشعار حين تنتهي" },
+    instancesServer: {
+      title: "البيئات والخادم",
+      text: "يُنبَّه بالمشكلات المستمرة بعد عدد دقائقها، ويتبعها إشعار حين تنتهي",
+    },
     certificateAlerts: { title: "الشهادات", text: "تعذّر إصدار شهادة نطاق مخصص أو تجديدها، أو ستنتهي قريبًا" },
-    offsiteStorage: { title: "النسخ خارج الخادم", text: "تُنسخ النسخ الاحتياطية إلى تخزين متوافق مع S3 بعيدًا عن هذا الخادم (Cloudflare R2 وAWS S3 وBackblaze B2 وMinIO). تُنسخ كل نسخة احتياطية لبيئة إنتاج ما دام هذا مفعّلًا. يُخزَّن المفتاح السري مشفّرًا ولا يُعرض أبدًا" },
-    offsiteRules: { title: "ما يُنسخ ويُفحص", text: "أي النسخ الاحتياطية تُنسخ خارج الخادم، وكم مرة تُنزَّل أحدث نسخة لكل بيئة من جديد وتُفحص" },
-    offsiteRetention: { title: "الاحتفاظ بالنسخ خارج الخادم", text: "لكل بيئة، يُحتفظ بأحدث نسخة من كل يوم وكل شهر من الأيام والأشهر الأخيرة. ولا تُحذف أبدًا أحدث نسخة مُتحقَّق منها" },
-    offsiteAlerts: { title: "النسخ خارج الخادم", text: "تعذّر نسخ نسخة احتياطية خارج الخادم أو فشل فحص نسخة، أو بقيت بيئة إنتاج دون نسخة ناجحة مدة طويلة" },
+    offsiteStorage: {
+      title: "النسخ خارج الخادم",
+      text: "تُنسخ النسخ الاحتياطية إلى تخزين متوافق مع S3 بعيدًا عن هذا الخادم (Cloudflare R2 وAWS S3 وBackblaze B2 وMinIO). تُنسخ كل نسخة احتياطية لبيئة إنتاج ما دام هذا مفعّلًا. يُخزَّن المفتاح السري مشفّرًا ولا يُعرض أبدًا",
+    },
+    offsiteRules: {
+      title: "ما يُنسخ ويُفحص",
+      text: "أي النسخ الاحتياطية تُنسخ خارج الخادم، وكم مرة تُنزَّل أحدث نسخة لكل بيئة من جديد وتُفحص",
+    },
+    offsiteRetention: {
+      title: "الاحتفاظ بالنسخ خارج الخادم",
+      text: "لكل بيئة، يُحتفظ بأحدث نسخة من كل يوم وكل شهر من الأيام والأشهر الأخيرة. ولا تُحذف أبدًا أحدث نسخة مُتحقَّق منها",
+    },
+    offsiteAlerts: {
+      title: "النسخ خارج الخادم",
+      text: "تعذّر نسخ نسخة احتياطية خارج الخادم أو فشل فحص نسخة، أو بقيت بيئة إنتاج دون نسخة ناجحة مدة طويلة",
+    },
     howOften: { title: "عدد المرات", text: "يُرسل التنبيه نفسه مرة واحدة في كل فترة هدوء؛ والتكرارات تُعدّ فقط في الجرس" },
-    codeUpdates: { title: "تحديثات الشيفرة", text: "كيف تصل الشيفرة الجديدة إلى البيئات: كم مرة يُفحص GitHub، وما الذي يبدأ التحديث أيضًا" },
+    codeUpdates: {
+      title: "تحديثات الشيفرة",
+      text: "كيف تصل الشيفرة الجديدة إلى البيئات: كم مرة يُفحص GitHub، وما الذي يبدأ التحديث أيضًا",
+    },
     monitoring: { title: "المراقبة", text: "كم مرة تُقاس الأرقام، وصورة موصل Cloudflare" },
   },
   webhook: (n) => `Webhook ${n}`,
-  webhookFirst: "تنبيهات تُرسل إلى Slack أو Discord أو Teams (عنوان incoming webhook الخاص بها) أو إلى نظامك الخاص (JSON موقّع). عبر https فقط",
+  webhookFirst:
+    "تنبيهات تُرسل إلى Slack أو Discord أو Teams (عنوان incoming webhook الخاص بها) أو إلى نظامك الخاص (JSON موقّع). عبر https فقط",
   webhookOther: "مكان آخر تُرسل إليه التنبيهات",
   titles: {
     licence_required_version: "إصدار الترخيص المطلوب",
@@ -1048,7 +1538,7 @@ const ar: typeof en = {
     topology_interval_seconds: "الثواني بين لقطتين",
     portal_domain: "عنوان بوابة العملاء",
     portal_name: "اسم شركتك في البوابة",
-    client_open_hours: "خيارات \"افتح لمدة\" (بالساعات)",
+    client_open_hours: 'خيارات "افتح لمدة" (بالساعات)',
     client_open_max_hours: "أطول مدة فتح للعميل (بالساعات)",
     client_request_hours: "الساعات التي يطلبها طلب الوصول",
     client_request_max_hours: "أطول طلب وصول (بالساعات)",
@@ -1059,8 +1549,8 @@ const ar: typeof en = {
     client_confirm_minutes: "مدة صلاحية رابط التأكيد ورمزه (بالدقائق)",
     maintenance_default_window: "نافذة الصيانة الافتراضية",
     maintenance_default_days: "أيام النافذة الافتراضية",
-    maintenance_tonight_time: "يبدأ خيار \"الليلة\" في",
-    maintenance_weekend_day: "يوم خيار \"عطلة نهاية الأسبوع\"",
+    maintenance_tonight_time: 'يبدأ خيار "الليلة" في',
+    maintenance_weekend_day: 'يوم خيار "عطلة نهاية الأسبوع"',
     maintenance_choose_hours: "مهلة اختيار الموعد (بالساعات)",
     maintenance_cutoff_hours: "تُطبَّق النافذة الافتراضية قبل الموعد الأقصى بـ (ساعات)",
     maintenance_lead_minutes: "أقرب بداية (بالدقائق من الآن)",
@@ -1313,12 +1803,28 @@ const ar: typeof en = {
   choices: {
     default_language: { en: "English", ar: "العربية" },
     require_second_factor: { none: "لا أحد", admins: "المسؤولون الأعلون والمسؤولون", everyone: "الجميع" },
-    invitation_password_fallback: { no_mail: "فقط ما دام البريد غير مُعدّ", always: "مسموح دائمًا", never: "أبدًا: بالدعوات فقط" },
+    invitation_password_fallback: {
+      no_mail: "فقط ما دام البريد غير مُعدّ",
+      always: "مسموح دائمًا",
+      never: "أبدًا: بالدعوات فقط",
+    },
     smtp_security: { starttls: "STARTTLS (المنفذ 587)", ssl: "SSL (المنفذ 465)", none: "بلا تشفير" },
     kubernetes_mail_egress: { off: "متوقف: لا يخرج أي بريد", production: "بيئات الإنتاج فقط", all: "كل البيئات" },
-    maintenance_weekend_day: { mon: "الاثنين", tue: "الثلاثاء", wed: "الأربعاء", thu: "الخميس", fri: "الجمعة", sat: "السبت", sun: "الأحد" },
+    maintenance_weekend_day: {
+      mon: "الاثنين",
+      tue: "الثلاثاء",
+      wed: "الأربعاء",
+      thu: "الخميس",
+      fri: "الجمعة",
+      sat: "السبت",
+      sun: "الأحد",
+    },
     mailer: { smtp: "SMTP", none: "دون بريد" },
-    custom_domains: { off: "متوقف", acme: "مفعّل: هذا الخادم يحصل على الشهادات (المنفذان 80 و443)", external: "مفعّل: يتولى https الوكيل الخاص بي" },
+    custom_domains: {
+      off: "متوقف",
+      acme: "مفعّل: هذا الخادم يحصل على الشهادات (المنفذان 80 و443)",
+      external: "مفعّل: يتولى https الوكيل الخاص بي",
+    },
     exposure: {
       direct: "مباشر: يجيب هذا الخادم على المنفذين 80 و443 (موصى به)",
       proxy: "وكيل: خلف وكيل عكسي أو موزّع أحمال خاص بي",
@@ -1327,20 +1833,55 @@ const ar: typeof en = {
       "host-ports": "منافذ الخادم (خيار سابق، في .env فقط)",
     },
     drift_action: { restore: "أبلغ عنه واستعد إعدادات اللوحة", warn: "أبلغ عنه فقط" },
-    access_rules_geo_missing: { open: "اسمح بمرور قواعد الدول (فتح عند الإخفاق)", closed: "لا تُدخل أحدًا عبر الدولة (إغلاق عند الإخفاق)" },
+    access_rules_geo_missing: {
+      open: "اسمح بمرور قواعد الدول (فتح عند الإخفاق)",
+      closed: "لا تُدخل أحدًا عبر الدولة (إغلاق عند الإخفاق)",
+    },
     project_staging_on_push: { rebuild: "إعادة بنائه من الإنتاج", keep_data: "إبقاء بياناته وأخذ الشيفرة الجديدة" },
-    project_branch_deleted: { keep: "إبقاء البيئة", archive: "نسخها احتياطيًا وإيقاف تشغيلها", delete: "نسخها احتياطيًا وحذفها" },
-    project_development_on_new_commit: { update: "تحديث: الشيفرة الجديدة في قاعدة البيانات نفسها", new_build: "بناء جديد: قاعدة بيانات جديدة من الصفر", nothing: "لا شيء: تسجيل الإيداع فقط" },
-    project_module_install: { repository: "كل وحدات المستودع", all: "كل وحدات Odoo ووحدات المستودع (دون اختبارات)", list: "الوحدات المذكورة فقط" },
+    project_branch_deleted: {
+      keep: "إبقاء البيئة",
+      archive: "نسخها احتياطيًا وإيقاف تشغيلها",
+      delete: "نسخها احتياطيًا وحذفها",
+    },
+    project_development_on_new_commit: {
+      update: "تحديث: الشيفرة الجديدة في قاعدة البيانات نفسها",
+      new_build: "بناء جديد: قاعدة بيانات جديدة من الصفر",
+      nothing: "لا شيء: تسجيل الإيداع فقط",
+    },
+    project_module_install: {
+      repository: "كل وحدات المستودع",
+      all: "كل وحدات Odoo ووحدات المستودع (دون اختبارات)",
+      list: "الوحدات المذكورة فقط",
+    },
     project_guard_strictness: { relaxed: "متساهلة", standard: "عادية", strict: "صارمة" },
     project_guard_pushers: { roles: "المسؤولون والمشرفون (أدوار GitHub)", anyone: "كل من له صلاحية الكتابة" },
     project_test_suite: { off: "دون اختبارات", selection: "اختبارات الوحدات المثبّتة", custom: "وسوم اختبار مخصّصة" },
-    offsite_addressing: { path: "مسار: العنوان/الحاوية/الملف (R2 وB2 وMinIO وS3)", virtual: "مضيف افتراضي: الحاوية.العنوان/الملف" },
+    offsite_addressing: {
+      path: "مسار: العنوان/الحاوية/الملف (R2 وB2 وMinIO وS3)",
+      virtual: "مضيف افتراضي: الحاوية.العنوان/الملف",
+    },
     enterprise_source: { folder: "مجلد", git: "مستودع Git", none: "لا شيء (Community فقط)" },
-    shell_roles: { admins: "المسؤولون الأعلون والمسؤولون", maintainers: "ومعهم مشرفو الصيانة", developers: "ومعهم مشرفو الصيانة والمطوّرون" },
-    github_sign_in_role: { member: "عضو", viewer: "مشاهد", developer: "مطوّر", maintainer: "مشرف صيانة", admin: "مسؤول" },
-    project_access_model: { project_roles: "أدوار المشروع لكل مرحلة", legacy: "النموذج السابق (دور اللوحة ∩ الصلاحية)" },
-    profiler_roles: { admins: "المسؤولون الأعلون والمسؤولون", maintainers: "ومعهم مشرفو الصيانة", developers: "ومعهم مشرفو الصيانة والمطوّرون" },
+    shell_roles: {
+      admins: "المسؤولون الأعلون والمسؤولون",
+      maintainers: "ومعهم مشرفو الصيانة",
+      developers: "ومعهم مشرفو الصيانة والمطوّرون",
+    },
+    github_sign_in_role: {
+      member: "عضو",
+      viewer: "مشاهد",
+      developer: "مطوّر",
+      maintainer: "مشرف صيانة",
+      admin: "مسؤول",
+    },
+    project_access_model: {
+      project_roles: "أدوار المشروع لكل مرحلة",
+      legacy: "النموذج السابق (دور اللوحة ∩ الصلاحية)",
+    },
+    profiler_roles: {
+      admins: "المسؤولون الأعلون والمسؤولون",
+      maintainers: "ومعهم مشرفو الصيانة",
+      developers: "ومعهم مشرفو الصيانة والمطوّرون",
+    },
     shell_production: { off: "لا أحد", super_admins: "المسؤولون الأعلون فقط", allowed: "كما في البيئات الأخرى" },
     shell_recording: { off: "متوقف", production: "بيئات الإنتاج وطرفيات root", all: "كل الطرفيات" },
     ...webhookChoices("JSON موقّع (نظامك الخاص)"),
@@ -1352,39 +1893,47 @@ const ar: typeof en = {
       "عدد الأيام بعد أول تشغيل للوحة لربطها بحساب Sudoo.sh (الإعدادات، متجر الإضافات). حتى ذلك الحين يرى المسؤولون الأعلون والمسؤولون شريطًا تنبيهيًا؛ وبعده، ما دامت غير مرتبطة، لا بيئات جديدة ولا نقل إلى الإنتاج ولا تحديثات أو نشر. تستمر البيئات في الخدمة ويستمر النسخ الاحتياطي. يُسجَّل أول تشغيل مرة واحدة ولا يتغير أبدًا.",
     odoo_root: "المجلد الذي يضم البيئات والنسخ الاحتياطية وبيانات اللوحة.",
     odoo_image: "صورة Docker لـ Odoo؛ الوسم (tag) هو إصدار Odoo.",
-    odoo_versions: "الإصدارات المعروضة: \"auto\" (كل إصدار منشور من الصورة الرسمية ابتداءً من odoo_min_version) أو قائمة مفصولة بفواصل مثل 17.0,18.0,saas-18.2.",
-    odoo_min_version: "أقدم إصدار يُعرض حين تكون odoo_versions بالقيمة \"auto\".",
-    prepull_images: "نزّل صورة Odoo لكل إصدار معروض، وصورة PostgreSQL، في الخلفية، كي لا تنتظر أول بيئة من إصدار ما التنزيل (تأخذ كل صورة Odoo من 1 إلى 3 GB من القرص).",
-    odoo_image_check_hours: "كل كم ساعة تبحث اللوحة في الخلفية على Docker Hub عن صورة Odoo أحدث لكل إصدار مستخدم (وللإصدار الافتراضي للبيئات الجديدة). تستخدم البيئات الجديدة أحدث صورة على هذا الخادم فورًا؛ وتبقى البيئات الحالية على صورتها حتى «تحديث صور Odoo وPostgreSQL».",
+    odoo_versions:
+      'الإصدارات المعروضة: "auto" (كل إصدار منشور من الصورة الرسمية ابتداءً من odoo_min_version) أو قائمة مفصولة بفواصل مثل 17.0,18.0,saas-18.2.',
+    odoo_min_version: 'أقدم إصدار يُعرض حين تكون odoo_versions بالقيمة "auto".',
+    prepull_images:
+      "نزّل صورة Odoo لكل إصدار معروض، وصورة PostgreSQL، في الخلفية، كي لا تنتظر أول بيئة من إصدار ما التنزيل (تأخذ كل صورة Odoo من 1 إلى 3 GB من القرص).",
+    odoo_image_check_hours:
+      "كل كم ساعة تبحث اللوحة في الخلفية على Docker Hub عن صورة Odoo أحدث لكل إصدار مستخدم (وللإصدار الافتراضي للبيئات الجديدة). تستخدم البيئات الجديدة أحدث صورة على هذا الخادم فورًا؛ وتبقى البيئات الحالية على صورتها حتى «تحديث صور Odoo وPostgreSQL».",
     postgres_image: "صورة Docker لقاعدة بيانات كل بيئة.",
-    odoo_admin_password: "كلمة مرور مستخدم Odoo ‏\"admin\" في البيئات الجديدة.",
+    odoo_admin_password: 'كلمة مرور مستخدم Odoo ‏"admin" في البيئات الجديدة.',
     container_pids_limit: "العمليات والخيوط التي يمكن أن تشغّلها حاوية بيئة واحدة في الوقت نفسه.",
     container_log_max_size: "حجم ملف سجل الحاوية قبل تدويره (10m).",
     container_log_max_files: "ملفات السجل المدوَّرة المحفوظة لكل حاوية.",
-    drift_action: "ما يحدث حين تُغيَّر حاويات بيئة أو ملفاتها خارج اللوحة: \"warn\" (أبلغ عنه) أو \"restore\" (أبلغ عنه، ثم أعد إنشاء Odoo وقاعدة بياناته من إعدادات اللوحة نفسها). أما الموصلات فيُبلَّغ عنها فقط.",
-    enterprise_source: "مصدر إضافات Enterprise: \"folder\" أو \"git\" أو \"none\".",
+    drift_action:
+      'ما يحدث حين تُغيَّر حاويات بيئة أو ملفاتها خارج اللوحة: "warn" (أبلغ عنه) أو "restore" (أبلغ عنه، ثم أعد إنشاء Odoo وقاعدة بياناته من إعدادات اللوحة نفسها). أما الموصلات فيُبلَّغ عنها فقط.',
+    enterprise_source: 'مصدر إضافات Enterprise: "folder" أو "git" أو "none".',
     enterprise_path: "مصدر folder: مكان إضافات الإصدار؛ ويُستبدل {version} ‏(19.0) و{major} ‏(19).",
     enterprise_git_url: "مصدر git: المستودع الذي يضم فرعًا لكل إصدار من Odoo.",
     enterprise_git_branch: "مصدر git: اسم فرع الإصدار، مثل {version}.",
     enterprise_marker: "الوحدة التي يثبت وجودها أن الإضافات موجودة.",
-    exposure: "طريقة وصول الناس إلى اللوحة والبيئات: \"direct\" ‏(يجيب هذا الخادم بنفسه على المنفذين 80 و443)، أو \"proxy\" ‏(وكيل عكسي أو موزّع أحمال خاص بك أمامه)، أو \"tunnel\" ‏(نفق صادر لخادم لا يمكنه فتح منافذ).",
-    panel_domain: "direct وproxy: الاسم الذي تُفتح به اللوحة (يشير DNS الخاص به إلى هذا الخادم أو إلى وكيلك). فارغ مع direct: الاسم العام للخادم أو عنوانه.",
+    exposure:
+      'طريقة وصول الناس إلى اللوحة والبيئات: "direct" ‏(يجيب هذا الخادم بنفسه على المنفذين 80 و443)، أو "proxy" ‏(وكيل عكسي أو موزّع أحمال خاص بك أمامه)، أو "tunnel" ‏(نفق صادر لخادم لا يمكنه فتح منافذ).',
+    panel_domain:
+      "direct وproxy: الاسم الذي تُفتح به اللوحة (يشير DNS الخاص به إلى هذا الخادم أو إلى وكيلك). فارغ مع direct: الاسم العام للخادم أو عنوانه.",
     cloudflared_image: "tunnel: صورة الموصل.",
     connector_prefix: "tunnel: بادئة أسماء الحاويات.",
     connector_status_port_start: "tunnel: أول منفذ حالة للموصل.",
     panel_connector_status_port: "tunnel: منفذ حالة موصل اللوحة.",
     public_host: "الاسم العام للخادم أو عنوانه، للعناوين التي ليس لها اسم خاص. فارغ مع direct: العنوان العام للخادم.",
-    panel_managed_name: "direct: حين لا يكون للوحة اسم خاص بها (اسم اللوحة، أو اسم عام للخادم)، تُستخدم panel.<company>.<base> من حساب Sudoo.sh المرتبط، بشهادتها الخاصة. يتطلب النطاقات الفرعية المُدارة. عند الإيقاف: تعود اللوحة إلى عنوان الخادم.",
+    panel_managed_name:
+      "direct: حين لا يكون للوحة اسم خاص بها (اسم اللوحة، أو اسم عام للخادم)، تُستخدم panel.<company>.<base> من حساب Sudoo.sh المرتبط، بشهادتها الخاصة. يتطلب النطاقات الفرعية المُدارة. عند الإيقاف: تعود اللوحة إلى عنوان الخادم.",
     public_scheme: "proxy وhost-ports: بروتوكول العناوين العامة؛ فارغ: https مع proxy وhttp مع host-ports.",
     proxy_listen: "proxy: العنوان الذي تستمع عليه اللوحة والبوابات.",
     proxy_client_ip_header: "proxy: الترويسة التي يرسل فيها وكيلك عنوان الزائر.",
-    update_triggers: "ما يبدأ تحديثات الشيفرة، مفصولًا بفواصل: \"polling\" ‏(الفحص الدوري)، \"github-app\" ‏(webhook تطبيق GitHub)، \"github-webhook\" ‏(webhook لكل مستودع).",
+    update_triggers:
+      'ما يبدأ تحديثات الشيفرة، مفصولًا بفواصل: "polling" ‏(الفحص الدوري)، "github-app" ‏(webhook تطبيق GitHub)، "github-webhook" ‏(webhook لكل مستودع).',
     github_webhook_secret: "github-webhook: السرّ المُدخل في GitHub ‏(20 حرفًا عشوائيًا أو أكثر).",
-    storage: "مكان حفظ اللوحة لبياناتها: \"sqlite\".",
-    auth: "طريقة التحقق من أسماء المستخدمين وكلمات المرور: \"local\" ‏(حسابات اللوحة).",
-    second_factors: "عوامل التحقق الثانية المعروضة عند تسجيل الدخول، مفصولة بفواصل: \"email\" أو \"totp\" أو كلاهما.",
-    require_second_factor: "من يجب أن يستخدم عامل تحقق ثانيًا: \"none\" أو \"admins\" أو \"everyone\".",
-    mailer: "طريقة إرسال اللوحة للبريد: \"smtp\" أو \"none\".",
+    storage: 'مكان حفظ اللوحة لبياناتها: "sqlite".',
+    auth: 'طريقة التحقق من أسماء المستخدمين وكلمات المرور: "local" ‏(حسابات اللوحة).',
+    second_factors: 'عوامل التحقق الثانية المعروضة عند تسجيل الدخول، مفصولة بفواصل: "email" أو "totp" أو كلاهما.',
+    require_second_factor: 'من يجب أن يستخدم عامل تحقق ثانيًا: "none" أو "admins" أو "everyone".',
+    mailer: 'طريقة إرسال اللوحة للبريد: "smtp" أو "none".',
     mail_from: "مرسل رسائل اللوحة، مثل Sudoo.sh <no-reply@example.com>.",
     smtp_host: "smtp: خادم البريد؛ فارغ: لا بريد (ولا رموز بالبريد).",
     smtp_port: "smtp: المنفذ (587 لـ STARTTLS، و465 لـ SSL).",
@@ -1394,164 +1943,236 @@ const ar: typeof en = {
     mail_templates_dir: "مجلد فيه layout.html يحل محل الإطار المدمج لكل رسالة.",
     recovery_codes_count: "رموز الاسترداد التي تُنشأ للحساب الذي يستخدم تطبيق المصادقة.",
     invitation_hours: "عدد الساعات التي يعمل فيها رابط الدعوة قبل انتهاء صلاحيته (يعمل مرة واحدة).",
-    invitation_password_fallback: "متى يمكن للمسؤولين تحديد كلمة مرور حساب جديد بدل دعوة الشخص بالبريد: \"no_mail\" (فقط ما دام البريد غير مُعدّ) أو \"always\" أو \"never\".",
+    invitation_password_fallback:
+      'متى يمكن للمسؤولين تحديد كلمة مرور حساب جديد بدل دعوة الشخص بالبريد: "no_mail" (فقط ما دام البريد غير مُعدّ) أو "always" أو "never".',
     invitations_per_hour: "الدعوات التي يمكن لمسؤول واحد إرسالها (جديدة أو مكررة) في الساعة.",
     sign_in_email: "راسل الناس كلما سجّل أحد الدخول إلى حسابهم (حين يكون البريد معدًّا).",
     sign_in_email_opt_out: "يمكن للناس إيقاف بريد تسجيل الدخول لحساباتهم.",
-    sign_in_methods: "طرق تسجيل الدخول للحسابات ما لم يختر مسؤول غير ذلك لحساب ما، مفصولة بفواصل: \"password\" و\"email_code\" (رمز يُرسل بالبريد الإلكتروني بلا كلمة مرور) و\"github\" (المتابعة باستخدام GitHub).",
-    client_sign_in_methods: "الشيء نفسه لحسابات العملاء (من دُعوا لمتابعة مشاريعهم): افتراضيًا رمز يُرسل بالبريد الإلكتروني.",
-    email_code_sign_in: "اعرض \"أرسل لي رمزًا\" في صفحة تسجيل الدخول (حين يكون البريد الإلكتروني مُعدًّا)، للحسابات المسموح لها بذلك.",
+    sign_in_methods:
+      'طرق تسجيل الدخول للحسابات ما لم يختر مسؤول غير ذلك لحساب ما، مفصولة بفواصل: "password" و"email_code" (رمز يُرسل بالبريد الإلكتروني بلا كلمة مرور) و"github" (المتابعة باستخدام GitHub).',
+    client_sign_in_methods:
+      "الشيء نفسه لحسابات العملاء (من دُعوا لمتابعة مشاريعهم): افتراضيًا رمز يُرسل بالبريد الإلكتروني.",
+    email_code_sign_in:
+      'اعرض "أرسل لي رمزًا" في صفحة تسجيل الدخول (حين يكون البريد الإلكتروني مُعدًّا)، للحسابات المسموح لها بذلك.',
     email_code_sends_per_hour: "عدد رموز تسجيل الدخول بالبريد التي يطلبها عنوان IP واحد في الساعة.",
-    github_sign_in: "اعرض \"المتابعة باستخدام GitHub\" في صفحة تسجيل الدخول. يحتاج إلى تطبيق GitHub الخاص باللوحة (صفحة GitHub) مع عنوان اللوحة /login/github عنوانًا للرجوع.",
-    github_sign_in_orgs: "مؤسسات GitHub، مفصولة بفواصل، يستطيع أعضاؤها تسجيل الدخول باستخدام GitHub دون دعوة؛ ويُنشأ حسابهم عند أول تسجيل دخول. فارغ: من لديه حساب أو دعوة فقط.",
-    github_sign_in_role: "دور اللوحة للحساب الذي يُنشأ لعضو في GITHUB_SIGN_IN_ORGS. العضو: بلا صلاحيات بذاته؛ يأتي دوره في كل مشروع من GitHub أو من تبويب الوصول.",
-    github_sign_in_skips_second_factor: "اقبل المصادقة الثنائية الخاصة بـ GitHub بدل عامل التحقق الثاني في اللوحة، لمن فعّلها في حسابه على GitHub.",
-    github_access_from_repositories: "للحسابات المرتبطة بـ GitHub (عدا المسؤولين)، يتبع الوصول إلى المشروع صلاحية الشخص في مستودعه: admin تعطي مسؤولًا، وmaintain مشرف صيانة، وwrite مطوّرًا، وtriage أو read مختبِرًا، وnone لا شيء. فقط مع GITHUB_SIGN_IN.",
+    github_sign_in:
+      'اعرض "المتابعة باستخدام GitHub" في صفحة تسجيل الدخول. يحتاج إلى تطبيق GitHub الخاص باللوحة (صفحة GitHub) مع عنوان اللوحة /login/github عنوانًا للرجوع.',
+    github_sign_in_orgs:
+      "مؤسسات GitHub، مفصولة بفواصل، يستطيع أعضاؤها تسجيل الدخول باستخدام GitHub دون دعوة؛ ويُنشأ حسابهم عند أول تسجيل دخول. فارغ: من لديه حساب أو دعوة فقط.",
+    github_sign_in_role:
+      "دور اللوحة للحساب الذي يُنشأ لعضو في GITHUB_SIGN_IN_ORGS. العضو: بلا صلاحيات بذاته؛ يأتي دوره في كل مشروع من GitHub أو من تبويب الوصول.",
+    github_sign_in_skips_second_factor:
+      "اقبل المصادقة الثنائية الخاصة بـ GitHub بدل عامل التحقق الثاني في اللوحة، لمن فعّلها في حسابه على GitHub.",
+    github_access_from_repositories:
+      "للحسابات المرتبطة بـ GitHub (عدا المسؤولين)، يتبع الوصول إلى المشروع صلاحية الشخص في مستودعه: admin تعطي مسؤولًا، وmaintain مشرف صيانة، وwrite مطوّرًا، وtriage أو read مختبِرًا، وnone لا شيء. فقط مع GITHUB_SIGN_IN.",
     github_access_check_minutes: "كل كم دقيقة تُقرأ صلاحيات المستودعات وأعضاء فرق GitHub مجددًا.",
-    project_access_model: "نموذج الوصول للمشاريع الجديدة: \"project_roles\" (مشاهد، مختبِر، مطوّر، مشرف صيانة، مسؤول، لكل مرحلة) أو \"legacy\" (دور اللوحة محدودًا بصلاحية المشروع، والأمر نفسه في كل مرحلة).",
+    project_access_model:
+      'نموذج الوصول للمشاريع الجديدة: "project_roles" (مشاهد، مختبِر، مطوّر، مشرف صيانة، مسؤول، لكل مرحلة) أو "legacy" (دور اللوحة محدودًا بصلاحية المشروع، والأمر نفسه في كل مرحلة).',
     access_emails: "راسل الناس حين يحصلون على وصول إلى مشروع، وحين يتغيّر دورهم فيه، وحين ينتهي.",
     access_requests: "يستطيع الناس أن يطلبوا من مديري المشروع وصولًا مؤقتًا (دورًا أعلى في مرحلة واحدة).",
     access_request_max_hours: "أطول وصول مؤقت يمكن طلبه، بالساعات.",
     access_review: "راسل مديري كل مشروع، كل ACCESS_REVIEW_DAYS، بقائمة من له وصول إليه.",
     access_review_days: "عدد الأيام بين مراجعتين للوصول إلى المشروع.",
     brand_color: "لون التمييز في الرسائل، بالصيغة #RRGGBB.",
-    default_language: "لغة اللوحة للحسابات التي لم تختر لغة: \"en\" أو \"ar\".",
-    rate_limiter: "مكان حفظ عدد الطلبات: \"memory\".",
+    default_language: 'لغة اللوحة للحسابات التي لم تختر لغة: "en" أو "ar".',
+    rate_limiter: 'مكان حفظ عدد الطلبات: "memory".',
     rate_limit_reads_per_minute: "طلبات القراءة في الدقيقة، لكل مستخدم مسجّل الدخول أو عنوان؛ 0: دون حد.",
     rate_limit_changes_per_minute: "الطلبات التي تغيّر شيئًا في الدقيقة، لكل مستخدم أو عنوان؛ 0: دون حد.",
-    support_access: "يستطيع المسؤولون الأعلون والمسؤولون منح دعم Sudoo.sh وصولًا مؤقتًا إلى اللوحة؛ عند الإيقاف لا يمكن منحه وينتهي كل وصول قائم.",
+    support_access:
+      "يستطيع المسؤولون الأعلون والمسؤولون منح دعم Sudoo.sh وصولًا مؤقتًا إلى اللوحة؛ عند الإيقاف لا يمكن منحه وينتهي كل وصول قائم.",
     support_access_max_hours: "أطول مدة يمكن منح وصول الدعم لها: تُعرض ساعة ويوم و3 أيام حتى هذا الحد (من 1 إلى 72).",
-    share_topology_with_sudoo: "يُرسل الخوادم والنسخ وأجزاءها (الحالة والنسخ المتماثلة والمعالج والذاكرة ومعدلات الطلبات والأخطاء) بمعرّفات مستعارة، ليتابعها فريق Sudoo.sh مباشرة. يتطلب تفعيل المتجر. عند الإيقاف: لا يُرسل شيء ويُحذف ما شورك.",
-    topology_include_names: "يُرسل أيضًا الأسماء الحقيقية للخوادم والمشاريع والنسخ. عند الإيقاف: معرّفات مستعارة قصيرة فقط.",
+    share_topology_with_sudoo:
+      "يُرسل الخوادم والنسخ وأجزاءها (الحالة والنسخ المتماثلة والمعالج والذاكرة ومعدلات الطلبات والأخطاء) بمعرّفات مستعارة، ليتابعها فريق Sudoo.sh مباشرة. يتطلب تفعيل المتجر. عند الإيقاف: لا يُرسل شيء ويُحذف ما شورك.",
+    topology_include_names:
+      "يُرسل أيضًا الأسماء الحقيقية للخوادم والمشاريع والنسخ. عند الإيقاف: معرّفات مستعارة قصيرة فقط.",
     topology_interval_seconds: "كم مرة تُرسل لقطة أثناء تفعيل المشاركة (من 30 إلى 300 ثانية).",
-    portal_domain: "اسم ثانٍ للوحة لعملائك، مثل portal.example.com، موجّه إلى هذا الخادم: هناك لا يسجّل الدخول إلا العملاء ويرون بوابة العملاء. فارغ: يستخدم العملاء عنوان اللوحة.",
+    portal_domain:
+      "اسم ثانٍ للوحة لعملائك، مثل portal.example.com، موجّه إلى هذا الخادم: هناك لا يسجّل الدخول إلا العملاء ويرون بوابة العملاء. فارغ: يستخدم العملاء عنوان اللوحة.",
     portal_name: "اسم شركتك، يظهر للعملاء أعلى البوابة وفي صفحة تسجيل الدخول إليها؛ فارغ: لا شيء.",
-    client_open_hours: "المدد المعروضة على العملاء لخيار \"افتح لمدة\"، بالساعات ومفصولة بفواصل؛ ويمكنهم كتابة مدتهم الخاصة.",
+    client_open_hours:
+      'المدد المعروضة على العملاء لخيار "افتح لمدة"، بالساعات ومفصولة بفواصل؛ ويمكنهم كتابة مدتهم الخاصة.',
     client_open_max_hours: "أطول مدة يمكن للعميل فتح مشروع أو فرع لها دفعة واحدة، بالساعات.",
     client_request_hours: "المدة التي يطلبها طلب الوصول ما لم يغيّرها صاحبه، بالساعات.",
     client_request_max_hours: "أطول مدة يمكن أن يطلبها طلب الوصول ويمنحها العميل، بالساعات.",
     client_request_expire_hours: "الساعات التي تنتهي بعدها مهلة الطلب الذي لم يجب عنه العميل.",
-    client_emergency_access: "تسمح مشاريع العملاء الجدد بالوصول الطارئ: يمكن لمسؤول أعلى دخول مشروع مغلق لفترة قصيرة بعد ذكر السبب، ويُبلَّغ العميل فورًا. ويمكن لكل عميل إيقافه.",
+    client_emergency_access:
+      "تسمح مشاريع العملاء الجدد بالوصول الطارئ: يمكن لمسؤول أعلى دخول مشروع مغلق لفترة قصيرة بعد ذكر السبب، ويُبلَّغ العميل فورًا. ويمكن لكل عميل إيقافه.",
     client_emergency_minutes: "مدة الوصول الطارئ بالدقائق (من 5 إلى 1440).",
-    client_confirmations: "يؤكّد العملاء كل تغيير مهم في البوابة برابط لمرة واحدة أو رمز من 6 أرقام يصل إلى بريدهم؛ وينتظر التغيير حتى ذلك. يحتاج إلى إعداد البريد.",
+    client_confirmations:
+      "يؤكّد العملاء كل تغيير مهم في البوابة برابط لمرة واحدة أو رمز من 6 أرقام يصل إلى بريدهم؛ وينتظر التغيير حتى ذلك. يحتاج إلى إعداد البريد.",
     client_confirm_minutes: "عدد الدقائق التي يعمل فيها رابط التأكيد أو رمزه (من 5 إلى 60).",
-    maintenance_default_window: "HH:MM-HH:MM بتوقيت اللوحة (يمكن أن تتجاوز منتصف الليل). تبدأ الصيانة التي لم يختر لها أحد موعدًا في بداية أول نافذة مناسبة قبل موعدها الأقصى.",
+    maintenance_default_window:
+      "HH:MM-HH:MM بتوقيت اللوحة (يمكن أن تتجاوز منتصف الليل). تبدأ الصيانة التي لم يختر لها أحد موعدًا في بداية أول نافذة مناسبة قبل موعدها الأقصى.",
     maintenance_default_days: "الأيام التي تُفتح فيها النافذة الافتراضية، مفصولة بفواصل: mon,tue,wed,thu,fri,sat,sun.",
-    maintenance_tonight_time: "موعد بداية خيارَي \"الليلة\" و\"عطلة نهاية الأسبوع\" (HH:MM).",
-    maintenance_weekend_day: "اليوم الذي يقع فيه خيار \"عطلة نهاية الأسبوع\".",
-    maintenance_choose_hours: "عدد الساعات بعد وصول الصيانة التي يمكن خلالها اختيار موعدها؛ ثم تُطبَّق النافذة الافتراضية.",
-    maintenance_cutoff_hours: "تُطبَّق النافذة الافتراضية أيضًا قبل الموعد الأقصى بهذا العدد من الساعات، إن لم يختر أحد قبل ذلك.",
+    maintenance_tonight_time: 'موعد بداية خيارَي "الليلة" و"عطلة نهاية الأسبوع" (HH:MM).',
+    maintenance_weekend_day: 'اليوم الذي يقع فيه خيار "عطلة نهاية الأسبوع".',
+    maintenance_choose_hours:
+      "عدد الساعات بعد وصول الصيانة التي يمكن خلالها اختيار موعدها؛ ثم تُطبَّق النافذة الافتراضية.",
+    maintenance_cutoff_hours:
+      "تُطبَّق النافذة الافتراضية أيضًا قبل الموعد الأقصى بهذا العدد من الساعات، إن لم يختر أحد قبل ذلك.",
     maintenance_lead_minutes: "أقرب موعد يمكن أن تبدأ فيه النافذة المختارة، بالدقائق من الآن.",
-    maintenance_reminder_hours: "رسائل التذكير قبل بدء الصيانة، بالساعات ومفصولة بفواصل (6 على الأكثر)؛ فارغ: بلا تذكير.",
+    maintenance_reminder_hours:
+      "رسائل التذكير قبل بدء الصيانة، بالساعات ومفصولة بفواصل (6 على الأكثر)؛ فارغ: بلا تذكير.",
     maintenance_remind_clients: "يتلقى عملاء المشاريع التي تشملها الصيانة رسائلها أيضًا: التخطيط والتذكيرات والنتيجة.",
     maintenance_client_choice: "يمكن للعملاء اختيار الموعد من بوابة العملاء (مع تأكيد بالبريد حين يكون التأكيد مفعّلًا).",
     maintenance_backup_first: "انسخ بيئات الإنتاج والتجهيز احتياطيًا قبل أن تحدّث الصيانة صورها.",
-    maintenance_update_wait_hours: "المدة التي ينتظر فيها تحديث اللوحة المخطّط الإصدارَ الجديد (sudoo-install update) قبل أن يُعدّ فاشلًا.",
-    shell_enabled: "يستطيع من يسمح له دوره فتح طرفية داخل حاويات البيئة من اللوحة (تبويب الطرفية)؛ عند الإيقاف لا يستطيع أحد ذلك، وتُغلق الطرفيات المفتوحة.",
-    profiler_enabled: "يستطيع من يسمح له دوره تسجيل ما تقضي فيه عمليات Odoo في البيئة وقتها (تبويب الأدوات)؛ عند الإيقاف لا يستطيع أحد ذلك.",
-    profiler_roles: "من يمكنه تسجيل تحليل الأداء: \"admins\" (المسؤولون الأعلون والمسؤولون)، أو \"maintainers\" (ومعهم مشرفو الصيانة)، أو \"developers\" (ومعهم المطوّرون). لا يستطيع المشاهدون ذلك أبدًا.",
-    profiler_production: "يمكن تسجيل تحليل أداء بيئات الإنتاج (ويُؤكَّد كل تسجيل عند بدئه)؛ عند الإيقاف: بيئات التجهيز والتطوير فقط.",
+    maintenance_update_wait_hours:
+      "المدة التي ينتظر فيها تحديث اللوحة المخطّط الإصدارَ الجديد (sudoo-install update) قبل أن يُعدّ فاشلًا.",
+    shell_enabled:
+      "يستطيع من يسمح له دوره فتح طرفية داخل حاويات البيئة من اللوحة (تبويب الطرفية)؛ عند الإيقاف لا يستطيع أحد ذلك، وتُغلق الطرفيات المفتوحة.",
+    profiler_enabled:
+      "يستطيع من يسمح له دوره تسجيل ما تقضي فيه عمليات Odoo في البيئة وقتها (تبويب الأدوات)؛ عند الإيقاف لا يستطيع أحد ذلك.",
+    profiler_roles:
+      'من يمكنه تسجيل تحليل الأداء: "admins" (المسؤولون الأعلون والمسؤولون)، أو "maintainers" (ومعهم مشرفو الصيانة)، أو "developers" (ومعهم المطوّرون). لا يستطيع المشاهدون ذلك أبدًا.',
+    profiler_production:
+      "يمكن تسجيل تحليل أداء بيئات الإنتاج (ويُؤكَّد كل تسجيل عند بدئه)؛ عند الإيقاف: بيئات التجهيز والتطوير فقط.",
     profiler_max_minutes: "أطول تسجيل بالدقائق؛ يختار المستخدمون من دقيقة واحدة حتى هذا الحد.",
     profiler_keep: "عدد التسجيلات المحفوظة لكل بيئة؛ يُحذف الأقدم عند حفظ تسجيل جديد.",
     profiler_rate: "عدد العيّنات المأخوذة في الثانية من كل عملية Odoo أثناء التسجيل.",
-    profiler_image: "صورة حاوية فيها py-spy تسجّل تحليل الأداء. إن تُركت فارغة تبني اللوحة صورة من python:3.12-slim ونسخة مثبّتة من py-spy يُتحقق من بصمتها، عند أول حاجة إليها.",
+    profiler_image:
+      "صورة حاوية فيها py-spy تسجّل تحليل الأداء. إن تُركت فارغة تبني اللوحة صورة من python:3.12-slim ونسخة مثبّتة من py-spy يُتحقق من بصمتها، عند أول حاجة إليها.",
     audit_export_max_rows: "أقصى عدد إدخالات في تصدير واحد لسجل التدقيق (CSV أو XLSX)؛ ويغطي التصدير سنة على الأكثر.",
-    shell_roles: "من يمكنه فتح طرفية في حاوية Odoo الخاصة بالبيئة: \"admins\" (المسؤولون الأعلون والمسؤولون) أو \"maintainers\" (ومعهم مشرفو الصيانة) أو \"developers\" (ومعهم المطوّرون). لا يستطيع المشاهدون ذلك أبدًا، ويبقى psql في حاوية قاعدة البيانات للمسؤولين الأعلين والمسؤولين.",
-    shell_production: "الطرفيات في بيئات الإنتاج: \"off\" (لا أحد) أو \"super_admins\" (المسؤولون الأعلون فقط) أو \"allowed\" (من يمكنه فتح الطرفيات في البيئات الأخرى). ويُطلب تأكيد كل طرفية عند فتحها.",
-    shell_root: "يستطيع المسؤولون الأعلون فتح طرفية حاوية Odoo بصلاحيات root (وتبقى قدرات الحاوية مسحوبة)؛ عند الإيقاف تعمل كل طرفية باسم مستخدم الحاوية نفسه.",
+    shell_roles:
+      'من يمكنه فتح طرفية في حاوية Odoo الخاصة بالبيئة: "admins" (المسؤولون الأعلون والمسؤولون) أو "maintainers" (ومعهم مشرفو الصيانة) أو "developers" (ومعهم المطوّرون). لا يستطيع المشاهدون ذلك أبدًا، ويبقى psql في حاوية قاعدة البيانات للمسؤولين الأعلين والمسؤولين.',
+    shell_production:
+      'الطرفيات في بيئات الإنتاج: "off" (لا أحد) أو "super_admins" (المسؤولون الأعلون فقط) أو "allowed" (من يمكنه فتح الطرفيات في البيئات الأخرى). ويُطلب تأكيد كل طرفية عند فتحها.',
+    shell_root:
+      "يستطيع المسؤولون الأعلون فتح طرفية حاوية Odoo بصلاحيات root (وتبقى قدرات الحاوية مسحوبة)؛ عند الإيقاف تعمل كل طرفية باسم مستخدم الحاوية نفسه.",
     shell_idle_minutes: "تُغلق الطرفية إذا لم يكتب فيها أحد طوال هذه المدة.",
     shell_max_minutes: "أطول مدة تبقى فيها الطرفية مفتوحة، ثم تُغلق (ويمكن فتح طرفية جديدة).",
     shell_max_per_user: "عدد الطرفيات التي يمكن لشخص واحد فتحها في وقت واحد.",
     shell_max_per_instance: "عدد الطرفيات المفتوحة في بيئة واحدة في وقت واحد.",
     shell_ticket_seconds: "عدد الثواني التي تبقى فيها تذكرة الاتصال ذات الاستخدام الواحد صالحة لفتح طرفية جديدة.",
-    shell_recording: "تسجيل ما يُكتب ويظهر في الطرفيات: \"off\" أو \"production\" (طرفيات بيئات الإنتاج وطرفيات root) أو \"all\". التسجيلات مشفّرة، ولا يشغّلها إلا المسؤولون الأعلون.",
+    shell_recording:
+      'تسجيل ما يُكتب ويظهر في الطرفيات: "off" أو "production" (طرفيات بيئات الإنتاج وطرفيات root) أو "all". التسجيلات مشفّرة، ولا يشغّلها إلا المسؤولون الأعلون.',
     shell_recording_days: "عدد الأيام التي تُحفظ فيها التسجيلات وقائمة الطرفيات السابقة.",
-    shell_recording_max_mb: "أكبر حجم لتسجيل طرفية واحدة بالميغابايت؛ بعده لا يُسجَّل إلا ما يُكتب، وتُغلق الطرفية حين يبلغ ذلك وحده الحجم مرة أخرى.",
+    shell_recording_max_mb:
+      "أكبر حجم لتسجيل طرفية واحدة بالميغابايت؛ بعده لا يُسجَّل إلا ما يُكتب، وتُغلق الطرفية حين يبلغ ذلك وحده الحجم مرة أخرى.",
     shell_recordings_total_mb: "المساحة التي يمكن أن تشغلها كل تسجيلات الطرفيات معًا بالميغابايت؛ ويُحذف الأقدم أولًا.",
     mail_catcher_retention_days: "عدد الأيام التي يُحفظ فيها البريد الملتقط من بيئات التجهيز والتطوير.",
     mail_catcher_max_messages: "عدد الرسائل المحفوظة لكل بيئة في ملتقط البريد؛ ويُحذف الأقدم أولًا.",
     mail_catcher_max_mb: "المساحة التي يمكن أن يشغلها البريد الملتقط لبيئة واحدة بالميغابايت؛ ويُحذف الأقدم أولًا.",
     mail_catcher_max_message_mb: "أكبر رسالة يقبلها ملتقط البريد بالميغابايت؛ وتُرفض الأكبر منها.",
-    mail_catcher_release: "يمكن للمسؤولين إطلاق رسالة ملتقطة: إرسال نسخة منها من عنوان اللوحة نفسها إلى عنوان يكتبونه (مع تسجيل ذلك في سجل التدقيق)؛ وعند التعطيل لا يستطيع ذلك أحد.",
-    kubernetes_mail_egress: "يسمح لـ Odoo في بيئة على Kubernetes (تجريبي) بالاتصال بخادم البريد الصادر أعلاه (عنوانه ومنفذه) دون أي عنوان آخر. متوقف افتراضيًا. يصل التغيير إلى البيئة في المرة التالية التي تُشغَّل فيها أو تُحدَّث.",
+    mail_catcher_release:
+      "يمكن للمسؤولين إطلاق رسالة ملتقطة: إرسال نسخة منها من عنوان اللوحة نفسها إلى عنوان يكتبونه (مع تسجيل ذلك في سجل التدقيق)؛ وعند التعطيل لا يستطيع ذلك أحد.",
+    kubernetes_mail_egress:
+      "يسمح لـ Odoo في بيئة على Kubernetes (تجريبي) بالاتصال بخادم البريد الصادر أعلاه (عنوانه ومنفذه) دون أي عنوان آخر. متوقف افتراضيًا. يصل التغيير إلى البيئة في المرة التالية التي تُشغَّل فيها أو تُحدَّث.",
     server_name: "اسم الخادم الرئيسي في صفحة الخوادم وعلى بيئاته.",
     server_region: "منطقة الخادم الرئيسي، مثل Frankfurt أو eu-central.",
-    servers_panel_url: "العنوان الذي تصل منه وكلاء الخوادم الأخرى إلى هذه اللوحة (https://...). فارغ: عنوان اللوحة العام نفسه. يُكتب في كل رمز انضمام جديد.",
+    servers_panel_url:
+      "العنوان الذي تصل منه وكلاء الخوادم الأخرى إلى هذه اللوحة (https://...). فارغ: عنوان اللوحة العام نفسه. يُكتب في كل رمز انضمام جديد.",
     servers_join_code_minutes: "مدة عمل رمز الانضمام لخادم جديد؛ ويعمل مرة واحدة.",
     servers_heartbeat_seconds: "كم مرة يرسل كل وكيل تقريرًا ببيئاته ومهامه وأرقامه وسعته.",
     servers_offline_seconds: "يظهر الخادم غير متصل إذا لم يرسل وكيله تقريرًا طوال هذه المدة.",
     servers_request_seconds: "مدة انتظار اللوحة لرد الوكيل على طلب.",
-    servers_wait_minutes: "مدة انتظار مهمة على خادم آخر للوحة الرئيسية حين تحتاجها (رمز GitHub لشيفرة خاصة) قبل أن تفشل.",
+    servers_wait_minutes:
+      "مدة انتظار مهمة على خادم آخر للوحة الرئيسية حين تحتاجها (رمز GitHub لشيفرة خاصة) قبل أن تفشل.",
     servers_instances_kept: "عدد البيئات التي تحفظها اللوحة مما يرسله خادم واحد؛ ولا يؤخذ باقي التقرير الأكبر من ذلك.",
     servers_report_kb: "أكبر وصف لبيئة أو مهمة واحدة يرسله خادم؛ ولا يُحفظ ما هو أكبر.",
-    servers_log_entries_per_day: "إدخالات السجل التي تأخذها اللوحة من خادم واحد في اليوم؛ وما زاد يُترك حتى اليوم التالي، ويذكر السجل ذلك مرة واحدة.",
+    servers_log_entries_per_day:
+      "إدخالات السجل التي تأخذها اللوحة من خادم واحد في اليوم؛ وما زاد يُترك حتى اليوم التالي، ويذكر السجل ذلك مرة واحدة.",
     move_max_backup_gb: "لا تُنقل بيئة نسختها الاحتياطية أكبر من ذلك.",
     move_chunk_mb: "حجم كل جزء من النسخة الاحتياطية المنسوخة بين الخوادم.",
     move_at_once: "عدد عمليات النقل بين الخوادم التي يمكن تشغيلها في وقت واحد.",
     move_health_seconds: "مهلة استجابة البيئة المنقولة على خادمها الجديد قبل التراجع عن النقل.",
     docs_url: "إلى أين تذهب روابط التوثيق في لوحة المساعدة (https).",
-    support_url: "إلى أين يأخذ زر التواصل مع الدعم عندما لا تكون اللوحة مرتبطة بحساب Sudoo.sh: عنوان https:// أو عنوان mailto:؛ وإن كان فارغًا فرسالة بريد إلى عنوان التواصل أعلاه.",
+    support_url:
+      "إلى أين يأخذ زر التواصل مع الدعم عندما لا تكون اللوحة مرتبطة بحساب Sudoo.sh: عنوان https:// أو عنوان mailto:؛ وإن كان فارغًا فرسالة بريد إلى عنوان التواصل أعلاه.",
     hub_support_url: "مكتب المساعدة الذي يفتحه زر التواصل مع الدعم عندما تكون اللوحة مرتبطة بحساب Sudoo.sh (https).",
     plan_pricing_url: "حيث ترسل اللوحة الناس لمقارنة خطط Sudoo.sh: الإعدادات، الخطة، وكل رسالة عن حدّ الخطة (https).",
-    plan_account_url: "موقع الحساب حيث تُدار خطة الحساب المرتبط، وحيث تُختار فروع الإنتاج التي تبقى بعد تخفيض الخطة (https).",
+    plan_account_url:
+      "موقع الحساب حيث تُدار خطة الحساب المرتبط، وحيث تُختار فروع الإنتاج التي تبقى بعد تخفيض الخطة (https).",
     max_instances: "أقصى عدد للبيئات على هذا الخادم؛ 0: دون حد.",
     max_instances_per_user: "البيئات التي يمكن أن يملكها مستخدم واحد (أو رمز API)؛ 0: دون حد.",
     create_cooldown_minutes: "الدقائق التي يجب أن ينتظرها المستخدم بين عمليتي إنشاء؛ 0: دون انتظار.",
-    max_initial_modules: "كم وحدة يمكن اختيارها لتثبيتها في قاعدة بيانات البيئة الجديدة (بيئة جديدة وإنشاء بيئة). ويثبّت Odoo اعتمادياتها أيضًا.",
-    capacity_reserve_mb: "الذاكرة المتروكة حرة لنظام التشغيل وDocker، بالـ MB ‏(يُستخدم الأكبر بين هذه وcapacity_reserve_percent).",
+    max_initial_modules:
+      "كم وحدة يمكن اختيارها لتثبيتها في قاعدة بيانات البيئة الجديدة (بيئة جديدة وإنشاء بيئة). ويثبّت Odoo اعتمادياتها أيضًا.",
+    capacity_reserve_mb:
+      "الذاكرة المتروكة حرة لنظام التشغيل وDocker، بالـ MB ‏(يُستخدم الأكبر بين هذه وcapacity_reserve_percent).",
     capacity_reserve_percent: "الذاكرة المتروكة حرة لنظام التشغيل وDocker، نسبةً مئوية من ذاكرة الخادم.",
     capacity_instance_memory_mb: "الذاكرة التي تُحسب لبيئة عاملة ما دامت لم تُقس أي بيئة بعد، بالـ MB.",
     capacity_warning_percent: "نسبة استخدام ذاكرة الخادم التي تنبّه لوحة المعلومات ابتداءً منها إلى أن البيئات قد تبطؤ.",
-    resources_max_odoo_workers: "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
-    resources_max_odoo_cron_threads: "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
-    resources_max_odoo_limit_memory_soft_mb: "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
-    resources_max_odoo_limit_memory_hard_mb: "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
-    resources_max_odoo_limit_time_cpu: "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
-    resources_max_odoo_limit_time_real: "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
-    resources_max_odoo_limit_time_real_cron: "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
-    resources_max_odoo_memory_limit: "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
-    resources_max_odoo_cpu_limit: "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
-    resources_max_db_memory_limit: "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
-    resources_max_db_cpu_limit: "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
-    resources_max_db_max_connections: "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
-    resources_computed_limits: "مع عمّال يضبطهم مشروع أو فرع ودون حد مضبوط لحاوية Odoo، تُعطى الحاوية ذاكرة = الأساس + (العمّال + عمّال المهام المجدولة) × ذاكرة العامل قبل استبداله، وأنوية = الأكبر من 1 وعدد العمّال.",
+    resources_max_odoo_workers:
+      "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
+    resources_max_odoo_cron_threads:
+      "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
+    resources_max_odoo_limit_memory_soft_mb:
+      "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
+    resources_max_odoo_limit_memory_hard_mb:
+      "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
+    resources_max_odoo_limit_time_cpu:
+      "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
+    resources_max_odoo_limit_time_real:
+      "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
+    resources_max_odoo_limit_time_real_cron:
+      "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
+    resources_max_odoo_memory_limit:
+      "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
+    resources_max_odoo_cpu_limit:
+      "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
+    resources_max_db_memory_limit:
+      "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
+    resources_max_db_cpu_limit:
+      "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
+    resources_max_db_max_connections:
+      "أقصى ما يضبطه مالك المشروع لكل مشروع أو فرع؛ 0: دون حد أقصى. لا تتقيد به القيم الافتراضية للمراحل ولا حدود البيئة الخاصة.",
+    resources_computed_limits:
+      "مع عمّال يضبطهم مشروع أو فرع ودون حد مضبوط لحاوية Odoo، تُعطى الحاوية ذاكرة = الأساس + (العمّال + عمّال المهام المجدولة) × ذاكرة العامل قبل استبداله، وأنوية = الأكبر من 1 وعدد العمّال.",
     resources_base_memory_mb: "ذاكرة حاوية Odoo إلى جانب عمّاله، في الحد المحسوب.",
-    resources_reservation_check: "رفض تغيير الموارد الذي يرفع الذاكرة المحجوزة لكل البيئات فوق ما يستطيع الخادم توفيره لها. الإنقاص مسموح دائمًا.",
-    capacity_overcommit: "تتوقف بيئات الاختبار والتطوير مؤقتًا حين لا تُستخدم، فلا تُحتسب من ذاكرتها محجوزةً إلا هذه النسبة (من 0 إلى 1)؛ ويُحتسب الإنتاج كاملًا.",
+    resources_reservation_check:
+      "رفض تغيير الموارد الذي يرفع الذاكرة المحجوزة لكل البيئات فوق ما يستطيع الخادم توفيره لها. الإنقاص مسموح دائمًا.",
+    capacity_overcommit:
+      "تتوقف بيئات الاختبار والتطوير مؤقتًا حين لا تُستخدم، فلا تُحتسب من ذاكرتها محجوزةً إلا هذه النسبة (من 0 إلى 1)؛ ويُحتسب الإنتاج كاملًا.",
     storage_measure_minutes: "الدقائق بين قياسين لقاعدة بيانات البيئة وملفاتها (أثناء عملها).",
-    storage_quota_gb_production: "حصة مرنة لبيئة الإنتاج (قاعدة البيانات + الملفات)؛ 0: دون حصة. تنبيهات فقط: لا يُرفض شيء.",
+    storage_quota_gb_production:
+      "حصة مرنة لبيئة الإنتاج (قاعدة البيانات + الملفات)؛ 0: دون حصة. تنبيهات فقط: لا يُرفض شيء.",
     storage_quota_gb_staging: "حصة مرنة لبيئة الاختبار؛ 0: دون حصة.",
     storage_quota_gb_development: "حصة مرنة لبيئة التطوير؛ 0: دون حصة.",
     storage_warning_percent: "النسبة من الحصة التي تُعرض البيئة ابتداءً منها قريبةً من الامتلاء ويُنبَّه عنها.",
     alert_storage: "نبّه حين تبلغ البيئة storage_warning_percent من حصة تخزينها، وحين تتجاوزها (الإنتاج: كل يوم).",
-    max_running_instances: "أقصى عدد للبيئات العاملة في وقت واحد: يُرفض إنشاء بيئة أخرى أو تشغيلها؛ 0: لا رفض أبدًا، تنبيه فقط.",
-    gateway_mode: "مكان عمل البوابات: \"service\" ‏(حاويتها الخاصة sudoo-gateway: تبقى البيئات تجيب أثناء إعادة تشغيل اللوحة؛ وتخدمها اللوحة بنفسها ما دامت تلك الحاوية لا تعمل) أو \"embedded\" ‏(داخل عملية اللوحة، كما قبل 3.0).",
-    gateway_takeover_seconds: "وضع service: الثواني التي يمكن ألا تجيب فيها خدمة البوابة اللوحةَ قبل أن تخدم اللوحة البيئات بنفسها (فورًا إن توقفت الخدمة توقفًا عاديًا).",
+    max_running_instances:
+      "أقصى عدد للبيئات العاملة في وقت واحد: يُرفض إنشاء بيئة أخرى أو تشغيلها؛ 0: لا رفض أبدًا، تنبيه فقط.",
+    gateway_mode:
+      'مكان عمل البوابات: "service" ‏(حاويتها الخاصة sudoo-gateway: تبقى البيئات تجيب أثناء إعادة تشغيل اللوحة؛ وتخدمها اللوحة بنفسها ما دامت تلك الحاوية لا تعمل) أو "embedded" ‏(داخل عملية اللوحة، كما قبل 3.0).',
+    gateway_takeover_seconds:
+      "وضع service: الثواني التي يمكن ألا تجيب فيها خدمة البوابة اللوحةَ قبل أن تخدم اللوحة البيئات بنفسها (فورًا إن توقفت الخدمة توقفًا عاديًا).",
     gateway_max_upload_mb: "أكبر محتوى طلب يمكن أن يرسله زائر إلى بيئة (عمليات الرفع والاستيراد)، بالـ MB.",
-    gateway_idle_timeout_seconds: "الثواني التي يمكن ألا يرسل فيها الزائر شيئًا أثناء إرسال محتوى طلب قبل أن تتخلى البوابة.",
+    gateway_idle_timeout_seconds:
+      "الثواني التي يمكن ألا يرسل فيها الزائر شيئًا أثناء إرسال محتوى طلب قبل أن تتخلى البوابة.",
     gateway_websocket_max_message_mb: "أكبر رسالة WebSocket واحدة تمر إلى بيئة أو منها، بالـ MB.",
-    access_rules_beta: "قواعد الوصول إلى الإنتاج (تجريبي): تتيح لبيئات الإنتاج تحديد من يمكنه فتحها حسب الدولة والعنوان. عند الإيقاف تُخفى الميزة ولا تُطبَّق أي قاعدة (وتُحفظ القواعد الموجودة).",
-    access_rules_geo_missing: "عند غياب قاعدة بيانات الدول: `open` يسمح بمرور جزء الدولة من القاعدة (مع تحذير في اللوحة)، و`closed` لا يُدخل أحدًا عبر الدولة (وتبقى قواعد العناوين والتصاريح تعمل).",
-    access_rules_geo_download: "نزّل قاعدة بيانات الدول DB-IP Lite مرة كل شهر ما دامت قواعد الوصول مفعّلة. عند الإيقاف لا يُنزَّل شيء، ويبقى الجدول الموجود مستخدمًا.",
-    access_rules_geo_url: "العنوان الذي تُنزَّل منه قاعدة بيانات الدول الشهرية (يُملأ `{year}` و`{month}`)؛ عنوان https:// لملف CSV للدول من DB-IP، مضغوط بـ `gzip` أو غير مضغوط.",
-    access_rules_pass_hours: "المدة التي يسمح فيها التصريح الممنوح عند فتح بيئة إنتاج من اللوحة بمرور المتصفح عبر قواعد الوصول، بالساعات.",
+    access_rules_beta:
+      "قواعد الوصول إلى الإنتاج (تجريبي): تتيح لبيئات الإنتاج تحديد من يمكنه فتحها حسب الدولة والعنوان. عند الإيقاف تُخفى الميزة ولا تُطبَّق أي قاعدة (وتُحفظ القواعد الموجودة).",
+    access_rules_geo_missing:
+      "عند غياب قاعدة بيانات الدول: `open` يسمح بمرور جزء الدولة من القاعدة (مع تحذير في اللوحة)، و`closed` لا يُدخل أحدًا عبر الدولة (وتبقى قواعد العناوين والتصاريح تعمل).",
+    access_rules_geo_download:
+      "نزّل قاعدة بيانات الدول DB-IP Lite مرة كل شهر ما دامت قواعد الوصول مفعّلة. عند الإيقاف لا يُنزَّل شيء، ويبقى الجدول الموجود مستخدمًا.",
+    access_rules_geo_url:
+      "العنوان الذي تُنزَّل منه قاعدة بيانات الدول الشهرية (يُملأ `{year}` و`{month}`)؛ عنوان https:// لملف CSV للدول من DB-IP، مضغوط بـ `gzip` أو غير مضغوط.",
+    access_rules_pass_hours:
+      "المدة التي يسمح فيها التصريح الممنوح عند فتح بيئة إنتاج من اللوحة بمرور المتصفح عبر قواعد الوصول، بالساعات.",
     access_rules_show_ip: "اعرض للزوار عنوانهم الكامل في صفحة الحجب (تُعرض دولتهم دائمًا).",
     access_rules_contact: "السطر الذي يقول في صفحة الحجب بمن يُتواصل؛ فارغ: يُبنى من اسم جهة التواصل وهاتفها وبريدها.",
     gateway_header_timeout_seconds: "الثواني المتاحة لاتصال الزائر لإرسال ترويسات الطلب (ويبقى مفتوحًا خلال الخمول).",
     gateway_max_connections: "اتصالات الزوار المفتوحة في وقت واحد إلى بوابة بيئة واحدة؛ وما زاد يُجاب بـ 503.",
     gateway_max_connections_total: "اتصالات الزوار المفتوحة في وقت واحد إلى كل البوابات معًا؛ وما زاد يُجاب بـ 503.",
-    custom_domains: "النطاقات المخصصة للبيئات: \"off\" أو \"acme\" ‏(تجيب البوابة على المنفذين 80 و443 وتحصل على شهادة لكل نطاق من جهة ACME مثل Let's Encrypt) أو \"external\" ‏(شيء أمامها، مثل نفق Cloudflare أو وكيل خاص بك، يتولى https؛ واللوحة تسجّل النطاقات فقط).",
-    acme_directory: "جهة ACME: \"production\" ‏(Let's Encrypt) أو \"staging\" ‏(جهة الاختبار لدى Let's Encrypt: شهادات لا تثق بها المتصفحات، للتجربة) أو عنوان https لدليل ACME آخر.",
+    custom_domains:
+      'النطاقات المخصصة للبيئات: "off" أو "acme" ‏(تجيب البوابة على المنفذين 80 و443 وتحصل على شهادة لكل نطاق من جهة ACME مثل Let\'s Encrypt) أو "external" ‏(شيء أمامها، مثل نفق Cloudflare أو وكيل خاص بك، يتولى https؛ واللوحة تسجّل النطاقات فقط).',
+    acme_directory:
+      'جهة ACME: "production" ‏(Let\'s Encrypt) أو "staging" ‏(جهة الاختبار لدى Let\'s Encrypt: شهادات لا تثق بها المتصفحات، للتجربة) أو عنوان https لدليل ACME آخر.',
     acme_email: "بريد التواصل المعطى لجهة ACME؛ فارغ: ADMIN_CONTACT_EMAIL، أو لا شيء.",
     certificate_renew_days: "جدّد الشهادة قبل انتهائها بهذا العدد من الأيام.",
     certificate_retry_max_hours: "أطول انتظار بين محاولتين بعد تعذّر إصدار شهادة.",
     domains_per_instance: "النطاقات المخصصة التي يمكن أن تكون لبيئة واحدة؛ 0: لا شيء.",
-    domain_dns_target: "الاسم (أو العنوان) الذي تشير إليه النطاقات المخصصة؛ فارغ: PUBLIC_HOST. يُعرض الاسم سجلَّ CNAME، والعنوان سجلَّ A أو AAAA.",
+    domain_dns_target:
+      "الاسم (أو العنوان) الذي تشير إليه النطاقات المخصصة؛ فارغ: PUBLIC_HOST. يُعرض الاسم سجلَّ CNAME، والعنوان سجلَّ A أو AAAA.",
     domain_dns_timeout_seconds: "الثواني التي قد يستغرقها استعلام DNS عن نطاق مخصص.",
     domain_http_probe: "قبل طلب شهادة، تحقق من أن النطاق يصل إلى هذا الخادم عبر http ‏(المنفذ 80)، كما ستفعل جهة ACME.",
-    managed_subdomains: "امنح كل بيئة اسمًا تحت نطاق Sudoo.sh حين يتيحه حسابك في Sudoo.sh. عند التعطيل: لا يُطلب اسم ولا يُخدم أي اسم، وتُحرَّر الأسماء المحجوزة مع بيئاتها.",
-    managed_subdomain_company: "جزء الشركة في الأسماء، يُطلب مع أول اسم للحساب؛ وإن كان فارغًا يصنعه Sudoo.sh من اسم شركتك. ولا يتغير بعد ذلك.",
-    managed_subdomains_check_minutes: "كم مرة تقارن اللوحة البيئات بأسمائها (تُعالج البيئات الجديدة وتغييرات الفروع فورًا).",
+    managed_subdomains:
+      "امنح كل بيئة اسمًا تحت نطاق Sudoo.sh حين يتيحه حسابك في Sudoo.sh. عند التعطيل: لا يُطلب اسم ولا يُخدم أي اسم، وتُحرَّر الأسماء المحجوزة مع بيئاتها.",
+    managed_subdomain_company:
+      "جزء الشركة في الأسماء، يُطلب مع أول اسم للحساب؛ وإن كان فارغًا يصنعه Sudoo.sh من اسم شركتك. ولا يتغير بعد ذلك.",
+    managed_subdomains_check_minutes:
+      "كم مرة تقارن اللوحة البيئات بأسمائها (تُعالج البيئات الجديدة وتغييرات الفروع فورًا).",
     domain_http_port: "المنفذ الذي تجيب عليه البوابة للنطاقات المخصصة عبر http.",
     domain_https_port: "المنفذ الذي تجيب عليه البوابة للنطاقات المخصصة عبر https.",
     panel_port: "منفذ اللوحة: تستمع عليه خدمة الويب (sudoo-web).",
@@ -1560,57 +2181,93 @@ const ar: typeof en = {
     gateway_port_start: "أول منفذ للبوابات (واحد لكل بيئة).",
     odoo_port_start: "أول منفذ لـ Odoo ‏(واحد لكل بيئة، 127.0.0.1 فقط).",
     idle_hours: "أوقف البيئة مؤقتًا بعد هذا العدد من الساعات دون زيارات؛ 0: أبدًا.",
-    premium_auto_install: "تُثبَّت الميزات المتقدمة التي تشملها خطتك وتُحدَّث بعد كل ترخيص موقّع. عند الإيقاف: فقط حين تضغط «افحص الآن».",
+    premium_auto_install:
+      "تُثبَّت الميزات المتقدمة التي تشملها خطتك وتُحدَّث بعد كل ترخيص موقّع. عند الإيقاف: فقط حين تضغط «افحص الآن».",
     premium_check_hours: "كم مرة تسأل اللوحة Sudoo.sh عن إصدارات أحدث من الميزات المتقدمة لديها.",
     premium_retry_minutes: "بعد فشل فحص أو عدم جاهزية ميزة، تنتظر اللوحة هذه المدة قبل أن تسأل مجددًا.",
     premium_watch_minutes: "كم مرة تُفحص ملفات كل ميزة متقدمة وتوقيعها وربطها من جديد.",
-    premium_binding_renew_days: "ترتبط الميزة المتقدمة بهذا الخادم لمدة؛ وتطلب اللوحة ربطًا جديدًا قبل انتهائه بهذا العدد من الأيام.",
+    premium_binding_renew_days:
+      "ترتبط الميزة المتقدمة بهذا الخادم لمدة؛ وتطلب اللوحة ربطًا جديدًا قبل انتهائه بهذا العدد من الأيام.",
     premium_max_package_mb: "ترفض اللوحة أي حزمة متقدمة أكبر من هذا.",
-    public_ipv4: "يُرسَل إلى Sudoo.sh لتشير النطاقات الفرعية المُدارة إلى هذا الخادم. فارغ: العنوان الذي يرسل منه الخادم، إن كان عامًا.",
+    public_ipv4:
+      "يُرسَل إلى Sudoo.sh لتشير النطاقات الفرعية المُدارة إلى هذا الخادم. فارغ: العنوان الذي يرسل منه الخادم، إن كان عامًا.",
     public_ipv6: "الشيء نفسه لـ IPv6. فارغ: العنوان الذي يرسل منه الخادم، إن كان عامًا.",
     auto_pause: "تتوقف البيئات الجديدة مؤقتًا عند الخمول (ويمكن لكل بيئة تغيير ذلك).",
     auto_update: "تجلب البيئات الجديدة الشيفرة الجديدة تلقائيًا.",
     auto_upgrade: "تُرقّي البيئات الجديدة الوحدات المتغيّرة بعد التحديث.",
     delete_after_days: "مدة البقاء المعروضة للبيئات الجديدة، بالأيام؛ 0: إبقاء.",
     max_production_instances: "البيئات التي يمكن أن تكون في مرحلة الإنتاج في الوقت نفسه؛ 0: دون حد.",
-    production_auto_update: "تجلب بيئات الإنتاج الجديدة الشيفرة الجديدة تلقائيًا (متوقف: تحديثات فقط حين يطلبها أحد، أو بعد تفعيلها للبيئة).",
+    production_auto_update:
+      "تجلب بيئات الإنتاج الجديدة الشيفرة الجديدة تلقائيًا (متوقف: تحديثات فقط حين يطلبها أحد، أو بعد تفعيلها للبيئة).",
     staging_delete_after_days: "مدة البقاء المعروضة لبيئات التجهيز الجديدة، بالأيام؛ 0: إبقاء.",
-    project_builds_kept: "الأبنية المحفوظة في سجل كل فرع (يُحذف الأقدم أولًا)، مع تغييرات المرحلة وعمليات الاستعادة منذ أقدمها.",
-    project_production_branches: "فروع الإنتاج التي يمكن أن تكون لمشروع واحد؛ 0: دون حد (ويبقى أقصى عدد لبيئات الإنتاج حدًّا للخادم كله).",
-    project_auto_development: "يحصل الفرع الجديد المدفوع إلى مستودع مشروع على بيئة تطوير من تلقاء نفسه (ويمكن لكل مشروع تغيير ذلك).",
-    project_max_auto_development: "أقصى عدد لبيئات التطوير التي ينشئها المشروع بنفسه للفروع الجديدة في الوقت نفسه؛ 0: دون حد.",
-    project_development_demo_data: "تبدأ بيئات التطوير في المشاريع ببيانات Odoo التجريبية؛ ولا يحدث ذلك للتجهيز والإنتاج أبدًا.",
-    project_staging_on_push: "إعادة البناء: نسخة جديدة محيّدة من الإنتاج ثم الشيفرة الجديدة. إبقاء البيانات: الشيفرة الجديدة فقط.",
-    project_branch_deleted: "ما يحدث لبيئة التطوير لفرع حُذف في GitHub. ويُؤرشف التجهيز على الأكثر، ولا يُعلَّم الإنتاج إلا بعلامة.",
-    project_upgrade_test_on_push: "الدفع إلى فرع الترقية في مشروع (المسمّى باسم الإصدار التالي مثل 19.0) يعيد اختبار الترقية باستخدام OpenUpgrade؛ ومع خدمة Odoo يجلب الشيفرة الجديدة فقط (ويمكن لكل مشروع تغييره).",
-    project_development_on_new_commit: "تحديث: الشيفرة الجديدة في قاعدة البيانات نفسها مع ترقية ما تغيّر. بناء جديد: قاعدة بيانات جديدة من الصفر. لا شيء: يُسجَّل الإيداع في سجل الفرع فقط. ويمكن لكل مشروع وفرع تغييره.",
-    project_module_install: "كل وحدات المستودع، أو كل وحدات Odoo مع وحدات المستودع (دون الحزم المحلية ووحدات الاختبار وبرامج تشغيل الأجهزة، ودون اختبارات)، أو الوحدات المذكورة أدناه فقط. ويمكن لكل مشروع وفرع تغييره.",
-    project_modules: "الوحدات التي تحصل عليها قاعدة بيانات التطوير الجديدة حين يكون الخيار أعلاه قائمة، مفصولة بفواصل (ويمكن لكل مشروع وفرع تغييرها).",
-    project_test_suite: "دون اختبارات، أو اختبارات وحدات المستودع المثبّتة، أو وسوم الاختبار المخصّصة أدناه. ويمكن لكل مشروع وفرع تغييره.",
-    project_test_tags: "صيغة ⁦--test-tags⁩ في Odoo، مثل ⁦/sale_custom,-slow⁩، للاختبارات المخصّصة (ويمكن لكل مشروع وفرع تغييرها).",
-    project_staging_tests: "تشغّل أبنية التجهيز اختبارات المشروع أيضًا، على نسخة مؤقتة من قاعدة بيانات التجهيز (ويمكن لكل مشروع تغييره).",
+    project_builds_kept:
+      "الأبنية المحفوظة في سجل كل فرع (يُحذف الأقدم أولًا)، مع تغييرات المرحلة وعمليات الاستعادة منذ أقدمها.",
+    project_production_branches:
+      "فروع الإنتاج التي يمكن أن تكون لمشروع واحد؛ 0: دون حد (ويبقى أقصى عدد لبيئات الإنتاج حدًّا للخادم كله).",
+    project_auto_development:
+      "يحصل الفرع الجديد المدفوع إلى مستودع مشروع على بيئة تطوير من تلقاء نفسه (ويمكن لكل مشروع تغيير ذلك).",
+    project_max_auto_development:
+      "أقصى عدد لبيئات التطوير التي ينشئها المشروع بنفسه للفروع الجديدة في الوقت نفسه؛ 0: دون حد.",
+    project_development_demo_data:
+      "تبدأ بيئات التطوير في المشاريع ببيانات Odoo التجريبية؛ ولا يحدث ذلك للتجهيز والإنتاج أبدًا.",
+    project_staging_on_push:
+      "إعادة البناء: نسخة جديدة محيّدة من الإنتاج ثم الشيفرة الجديدة. إبقاء البيانات: الشيفرة الجديدة فقط.",
+    project_branch_deleted:
+      "ما يحدث لبيئة التطوير لفرع حُذف في GitHub. ويُؤرشف التجهيز على الأكثر، ولا يُعلَّم الإنتاج إلا بعلامة.",
+    project_upgrade_test_on_push:
+      "الدفع إلى فرع الترقية في مشروع (المسمّى باسم الإصدار التالي مثل 19.0) يعيد اختبار الترقية باستخدام OpenUpgrade؛ ومع خدمة Odoo يجلب الشيفرة الجديدة فقط (ويمكن لكل مشروع تغييره).",
+    project_development_on_new_commit:
+      "تحديث: الشيفرة الجديدة في قاعدة البيانات نفسها مع ترقية ما تغيّر. بناء جديد: قاعدة بيانات جديدة من الصفر. لا شيء: يُسجَّل الإيداع في سجل الفرع فقط. ويمكن لكل مشروع وفرع تغييره.",
+    project_module_install:
+      "كل وحدات المستودع، أو كل وحدات Odoo مع وحدات المستودع (دون الحزم المحلية ووحدات الاختبار وبرامج تشغيل الأجهزة، ودون اختبارات)، أو الوحدات المذكورة أدناه فقط. ويمكن لكل مشروع وفرع تغييره.",
+    project_modules:
+      "الوحدات التي تحصل عليها قاعدة بيانات التطوير الجديدة حين يكون الخيار أعلاه قائمة، مفصولة بفواصل (ويمكن لكل مشروع وفرع تغييرها).",
+    project_test_suite:
+      "دون اختبارات، أو اختبارات وحدات المستودع المثبّتة، أو وسوم الاختبار المخصّصة أدناه. ويمكن لكل مشروع وفرع تغييره.",
+    project_test_tags:
+      "صيغة ⁦--test-tags⁩ في Odoo، مثل ⁦/sale_custom,-slow⁩، للاختبارات المخصّصة (ويمكن لكل مشروع وفرع تغييرها).",
+    project_staging_tests:
+      "تشغّل أبنية التجهيز اختبارات المشروع أيضًا، على نسخة مؤقتة من قاعدة بيانات التجهيز (ويمكن لكل مشروع تغييره).",
     project_test_timeout_minutes: "تُوقَف اختبارات البناء التي تستغرق أطول من ذلك ويفشل البناء.",
-    project_commit_statuses: "تظهر نتيجة كل بناء في GitHub بجانب إيداعه (⁦sudoo/development⁩ و⁦sudoo/staging⁩) حين يملك تطبيق GitHub إذن كتابة حالات الإيداع (ويمكن لكل مشروع تغييره).",
-    project_email_pusher: "حين يفشل نشر بدأه دفع، تصل إلى من دفع رسالة بريد: ما الذي فشل، وتفاصيل الخطأ، وما العمل؛ مرة واحدة على الأكثر لكل فرع وإيداع، وأبدًا إلى عنوان noreply من GitHub (ويمكن لكل مشروع تغييره).",
-    project_promotion_backup_hours: "قبل أن ينتقل فرع إلى الإنتاج، ينبغي أن تكون أحدث نسخة احتياطية للإنتاج أحدث من هذه المدة؛ وتظهر الأقدم بالكهرماني في قائمة التحقق قبل الترقية. 0: لا يُتحقق منها.",
-    project_promotion_blocks: "يمنع بناء فاشل أو إصدار Odoo مختلف أو قفل انتقال الفرع إلى الإنتاج، إلا إذا اختار من يدير المشروع «الترقية على أي حال» (ويُسجَّل ذلك في سجل التدقيق).",
-    project_pr_previews: "يحصل كل طلب دمج مفتوح على بيئة تطوير لفرعه، برابط في تعليق على طلب الدمج، وتُحذف حين يُغلق (ويمكن لكل مشروع تغييره).",
-    project_pr_preview_limit: "عدد المعاينات التي يمكن أن يملكها مشروع واحد في الوقت نفسه؛ 0: بلا حد (وتبقى حدود الخادم سارية). ويمكن لكل مشروع تغييره.",
-    project_pr_previews_forks: "يكتب شيفرة النسخة المتفرعة أشخاص من خارج المستودع، وتعمل على هذا الخادم: أبقِ هذا معطلًا إلا إذا كنت تثق بهم (ويمكن لكل مشروع تغييره).",
-    project_guard_checks: "ما يبدأ به مشروع لم يختر بعد؛ لا يصل شيء إلى GitHub حتى يحفظ مسؤول المشروع (ويمكن لكل مشروع تغييره).",
-    project_guard_strictness: "متساهلة: الأخطاء التي تعطّل العمل. عادية: ومعها أعراف Odoo المعتادة. صارمة: كل القواعد (ويمكن لكل مشروع تغييرها).",
-    project_guard_production_approvals: "عدد الموافقات التي يحتاجها طلب سحب إلى الإنتاج في قواعد الفروع على GitHub، من 0 إلى 10 (ويمكن لكل مشروع تغييره).",
-    project_guard_staging_approvals: "عدد الموافقات التي يحتاجها طلب سحب إلى التجهيز في قواعد الفروع على GitHub، من 0 إلى 10 (ويمكن لكل مشروع تغييره).",
+    project_commit_statuses:
+      "تظهر نتيجة كل بناء في GitHub بجانب إيداعه (⁦sudoo/development⁩ و⁦sudoo/staging⁩) حين يملك تطبيق GitHub إذن كتابة حالات الإيداع (ويمكن لكل مشروع تغييره).",
+    project_email_pusher:
+      "حين يفشل نشر بدأه دفع، تصل إلى من دفع رسالة بريد: ما الذي فشل، وتفاصيل الخطأ، وما العمل؛ مرة واحدة على الأكثر لكل فرع وإيداع، وأبدًا إلى عنوان noreply من GitHub (ويمكن لكل مشروع تغييره).",
+    project_promotion_backup_hours:
+      "قبل أن ينتقل فرع إلى الإنتاج، ينبغي أن تكون أحدث نسخة احتياطية للإنتاج أحدث من هذه المدة؛ وتظهر الأقدم بالكهرماني في قائمة التحقق قبل الترقية. 0: لا يُتحقق منها.",
+    project_promotion_blocks:
+      "يمنع بناء فاشل أو إصدار Odoo مختلف أو قفل انتقال الفرع إلى الإنتاج، إلا إذا اختار من يدير المشروع «الترقية على أي حال» (ويُسجَّل ذلك في سجل التدقيق).",
+    project_pr_previews:
+      "يحصل كل طلب دمج مفتوح على بيئة تطوير لفرعه، برابط في تعليق على طلب الدمج، وتُحذف حين يُغلق (ويمكن لكل مشروع تغييره).",
+    project_pr_preview_limit:
+      "عدد المعاينات التي يمكن أن يملكها مشروع واحد في الوقت نفسه؛ 0: بلا حد (وتبقى حدود الخادم سارية). ويمكن لكل مشروع تغييره.",
+    project_pr_previews_forks:
+      "يكتب شيفرة النسخة المتفرعة أشخاص من خارج المستودع، وتعمل على هذا الخادم: أبقِ هذا معطلًا إلا إذا كنت تثق بهم (ويمكن لكل مشروع تغييره).",
+    project_guard_checks:
+      "ما يبدأ به مشروع لم يختر بعد؛ لا يصل شيء إلى GitHub حتى يحفظ مسؤول المشروع (ويمكن لكل مشروع تغييره).",
+    project_guard_strictness:
+      "متساهلة: الأخطاء التي تعطّل العمل. عادية: ومعها أعراف Odoo المعتادة. صارمة: كل القواعد (ويمكن لكل مشروع تغييرها).",
+    project_guard_production_approvals:
+      "عدد الموافقات التي يحتاجها طلب سحب إلى الإنتاج في قواعد الفروع على GitHub، من 0 إلى 10 (ويمكن لكل مشروع تغييره).",
+    project_guard_staging_approvals:
+      "عدد الموافقات التي يحتاجها طلب سحب إلى التجهيز في قواعد الفروع على GitHub، من 0 إلى 10 (ويمكن لكل مشروع تغييره).",
     project_guard_linear_history: "ترفض قواعد فرع الإنتاج إيداعات الدمج (ويمكن لكل مشروع تغييره).",
     project_guard_signed_commits: "لا تقبل قواعد فرع الإنتاج إلا الإيداعات الموقّعة (ويمكن لكل مشروع تغييره).",
-    project_guard_pushers: "دورا Admin وMaintain في GitHub، أو كل من له صلاحية الكتابة؛ ويمكن للمشروع أيضًا تسمية فرق أو أشخاص.",
-    project_guard_blocks_promotion: "عند الإيقاف: تظهر الفحوصات الفاشلة في قائمة ما قبل الترقية كبند يستحق القراءة (ويمكن لكل مشروع تغييره).",
-    upgrade_methods: "مفصولة بفواصل: enterprise (خدمة الترقية من Odoo S.A. برمز اشتراك Enterprise الخاص بالعميل) وopenupgrade (OpenUpgrade من OCA لـ Community). فارغ: لا ترقيات.",
-    upgrade_service_url: "المكان الذي يُنزَّل منه سكربت الترقية من Odoo عند تشغيل الترقية. في ملف .env فقط: يُرسل إليه رمز الاشتراك.",
-    openupgrade_repository: "مستودع OpenUpgrade في GitHub (رخصة AGPL-3.0)؛ تنزّل الحاوية المؤقتة التي تشغّل الترقية مصادره دون تعديل.",
-    openupgrade_refs: "الإيداع المستخدم للوصول إلى كل إصدار، على شكل أزواج version=commit مفصولة بفواصل (إيداعات كاملة من 40 محرفًا).",
+    project_guard_pushers:
+      "دورا Admin وMaintain في GitHub، أو كل من له صلاحية الكتابة؛ ويمكن للمشروع أيضًا تسمية فرق أو أشخاص.",
+    project_guard_blocks_promotion:
+      "عند الإيقاف: تظهر الفحوصات الفاشلة في قائمة ما قبل الترقية كبند يستحق القراءة (ويمكن لكل مشروع تغييره).",
+    upgrade_methods:
+      "مفصولة بفواصل: enterprise (خدمة الترقية من Odoo S.A. برمز اشتراك Enterprise الخاص بالعميل) وopenupgrade (OpenUpgrade من OCA لـ Community). فارغ: لا ترقيات.",
+    upgrade_service_url:
+      "المكان الذي يُنزَّل منه سكربت الترقية من Odoo عند تشغيل الترقية. في ملف .env فقط: يُرسل إليه رمز الاشتراك.",
+    openupgrade_repository:
+      "مستودع OpenUpgrade في GitHub (رخصة AGPL-3.0)؛ تنزّل الحاوية المؤقتة التي تشغّل الترقية مصادره دون تعديل.",
+    openupgrade_refs:
+      "الإيداع المستخدم للوصول إلى كل إصدار، على شكل أزواج version=commit مفصولة بفواصل (إيداعات كاملة من 40 محرفًا).",
     openupgrade_lib: "متطلب pip الذي يُثبَّت في الحاوية المؤقتة، مثل openupgradelib==3.13.7.",
-    upgrade_rollback_minutes: "بعد ترقية الإنتاج: مدة إتاحة إلغاء الترقية ومراقبة Odoo (يُعاد تلقائيًا إن توقف عن الاستجابة)؛ 0: لا هذا ولا ذاك.",
+    upgrade_rollback_minutes:
+      "بعد ترقية الإنتاج: مدة إتاحة إلغاء الترقية ومراقبة Odoo (يُعاد تلقائيًا إن توقف عن الاستجابة)؛ 0: لا هذا ولا ذاك.",
     upgrade_max_hours: "أطول مدة قد تستغرقها ترقية واحدة قبل إيقافها.",
     staging_daily_backups: "تحصل بيئات التجهيز على النسخة الاحتياطية اليومية أيضًا (حين تكون daily_backups مفعّلة).",
     poll_minutes: "polling: افحص GitHub بحثًا عن إيداعات جديدة بهذا التواتر.",
@@ -1620,14 +2277,17 @@ const ar: typeof en = {
     admin_contact_phone: "هاتف جهة التواصل.",
     admin_contact_email: "بريد جهة التواصل.",
     metrics_interval_seconds: "الثواني بين قياسين للخادم والبيئات.",
-    daily_backups: "انسخ احتياطيًا مرة في اليوم كل بيئة استُخدمت منذ آخر نسخة يومية لها؛ وتحتفظ كل بيئة بآخر نسخة يومية فقط.",
+    daily_backups:
+      "انسخ احتياطيًا مرة في اليوم كل بيئة استُخدمت منذ آخر نسخة يومية لها؛ وتحتفظ كل بيئة بآخر نسخة يومية فقط.",
     daily_backup_time: "وقت تشغيل النسخ الاحتياطية اليومية (HH:MM، بنظام 24 ساعة).",
     timezone: "المنطقة الزمنية لوقت النسخ الاحتياطي اليومي، مثل Africa/Cairo.",
     rollback_hours: "مدة حفظ الحالة السابقة للاستعادة، وإتاحة التراجع، بعد الاستعادة (بالساعات).",
     import_max_gb: "أكبر نسخة قاعدة بيانات يمكن رفعها عبر «استورد قاعدة بيانات» (بالغيغابايت).",
     log_download_max_lines: "أقصى عدد للأسطر في تنزيل السجل (آخرها).",
-    safe_updates: "انسخ البيئة احتياطيًا قبل أن يغيّر التحديث شيفرتها، وأرجعها (الشيفرة، وقاعدة البيانات إن احتمل تغيّرها) إن فشل التحديث.",
-    alerts: "أبلغ الناس حين يحتاج شيء إلى انتباه (مهمة فاشلة، بيئة متوقفة، قرص ممتلئ)، بالبريد وwebhooks؛ متوقف: لا يُرسل أي تنبيه ولا يُعرض.",
+    safe_updates:
+      "انسخ البيئة احتياطيًا قبل أن يغيّر التحديث شيفرتها، وأرجعها (الشيفرة، وقاعدة البيانات إن احتمل تغيّرها) إن فشل التحديث.",
+    alerts:
+      "أبلغ الناس حين يحتاج شيء إلى انتباه (مهمة فاشلة، بيئة متوقفة، قرص ممتلئ)، بالبريد وwebhooks؛ متوقف: لا يُرسل أي تنبيه ولا يُعرض.",
     alert_super_admins: "أرسل رسائل التنبيه إلى كل مسؤول أعلى له عنوان بريد.",
     alert_emails: "عناوين إضافية تستقبل رسائل التنبيه، مفصولة بفواصل (صندوق المناوبة مثلًا).",
     alert_job_failed: "نبّه حين تفشل مهمة (مع الشرح المبسّط ورابط).",
@@ -1644,42 +2304,52 @@ const ar: typeof en = {
     alert_public_link_minutes: "الدقائق دون رابط عام قبل التنبيه.",
     alert_certificate: "نبّه حين يتعذّر إصدار شهادة نطاق مخصص أو تجديدها، أو تنتهي خلال alert_certificate_days.",
     alert_certificate_days: "الأيام قبل انتهاء الشهادة التي تُعرض ابتداءً منها ويُنبَّه بها على أنها قاربت الانتهاء.",
-    offsite_backups: "انسخ النسخ الاحتياطية إلى تخزين متوافق مع S3 خارج هذا الخادم (Cloudflare R2 وAWS S3 وBackblaze B2 وMinIO…)، ومع كل نسخة بيان بمجاميع SHA-256 موقّع بمفتاح Ed25519 الخاص باللوحة.",
-    offsite_endpoint: "عنوان واجهة S3 للتخزين، مثل https://<account>.r2.cloudflarestorage.com أو https://s3.eu-central-1.amazonaws.com (https؛ وhttp لـ localhost فقط).",
+    offsite_backups:
+      "انسخ النسخ الاحتياطية إلى تخزين متوافق مع S3 خارج هذا الخادم (Cloudflare R2 وAWS S3 وBackblaze B2 وMinIO…)، ومع كل نسخة بيان بمجاميع SHA-256 موقّع بمفتاح Ed25519 الخاص باللوحة.",
+    offsite_endpoint:
+      "عنوان واجهة S3 للتخزين، مثل https://<account>.r2.cloudflarestorage.com أو https://s3.eu-central-1.amazonaws.com (https؛ وhttp لـ localhost فقط).",
     offsite_region: "منطقة الحاوية (auto لـ Cloudflare R2، وإلا us-east-1 أو eu-central-1 أو غيرها).",
     offsite_bucket: "الحاوية التي تذهب إليها النسخ (أنشئها أولًا واجعلها خاصة).",
     offsite_prefix: "مجلد داخل الحاوية لنسخ هذه اللوحة (يمكن لعدة لوحات مشاركة حاوية واحدة).",
-    offsite_addressing: "طريقة عنونة الحاوية: path (العنوان/الحاوية/الملف: R2 وMinIO وB2 وS3) أو virtual (الحاوية.العنوان/الملف).",
+    offsite_addressing:
+      "طريقة عنونة الحاوية: path (العنوان/الحاوية/الملف: R2 وMinIO وB2 وS3) أو virtual (الحاوية.العنوان/الملف).",
     offsite_access_key_id: "معرّف مفتاح وصول يُسمح له بالقراءة والكتابة في الحاوية.",
     offsite_secret_access_key: "المفتاح السري لمفتاح الوصول هذا (يُخزَّن مشفّرًا).",
-    offsite_other_stages: "انسخ النسخ الاحتياطية لبيئات التجهيز والتطوير خارج الخادم أيضًا (تُنسخ نسخ بيئات الإنتاج دائمًا ما دامت النسخ خارج الخادم مفعّلة).",
-    offsite_kinds: "أي النسخ الاحتياطية تُنسخ، مفصولة بفواصل: manual وdaily وdeletion وbefore-update وbefore-restore وbefore-rollback وbefore-repair وstaging-copy وbefore-upgrade.",
+    offsite_other_stages:
+      "انسخ النسخ الاحتياطية لبيئات التجهيز والتطوير خارج الخادم أيضًا (تُنسخ نسخ بيئات الإنتاج دائمًا ما دامت النسخ خارج الخادم مفعّلة).",
+    offsite_kinds:
+      "أي النسخ الاحتياطية تُنسخ، مفصولة بفواصل: manual وdaily وdeletion وbefore-update وbefore-restore وbefore-rollback وbefore-repair وstaging-copy وbefore-upgrade.",
     offsite_keep_daily_production: "الإنتاج: احتفظ بأحدث نسخة من كل يوم من هذا العدد من الأيام الأخيرة.",
     offsite_keep_monthly_production: "الإنتاج: واحتفظ أيضًا بأحدث نسخة من كل شهر من هذا العدد من الأشهر الأخيرة.",
     offsite_keep_daily_other: "التجهيز والتطوير: احتفظ بأحدث نسخة من كل يوم من هذا العدد من الأيام.",
     offsite_keep_monthly_other: "التجهيز والتطوير: واحتفظ أيضًا بأحدث نسخة من كل شهر من هذا العدد من الأشهر.",
-    offsite_verify_days: "نزّل أحدث نسخة لكل بيئة وافحصها من جديد (التوقيع وكل مجموع تحقق) حين لا تكون أي نسخة قد فُحصت منذ هذا العدد من الأيام؛ 0: فقط عند الطلب.",
+    offsite_verify_days:
+      "نزّل أحدث نسخة لكل بيئة وافحصها من جديد (التوقيع وكل مجموع تحقق) حين لا تكون أي نسخة قد فُحصت منذ هذا العدد من الأيام؛ 0: فقط عند الطلب.",
     offsite_timeout_seconds: "الثواني التي ينتظر فيها طلب واحد إلى التخزين ردًا.",
     alert_offsite_failed: "نبّه حين يتعذّر نسخ نسخة احتياطية خارج الخادم، أو تفشل نسخة في الفحص.",
-    alert_offsite_missing: "نبّه حين تبقى بيئة إنتاج دون نسخة ناجحة خارج الخادم مدة alert_offsite_missing_hours (ما دامت النسخ خارج الخادم مفعّلة).",
+    alert_offsite_missing:
+      "نبّه حين تبقى بيئة إنتاج دون نسخة ناجحة خارج الخادم مدة alert_offsite_missing_hours (ما دامت النسخ خارج الخادم مفعّلة).",
     alert_offsite_missing_hours: "الساعات دون نسخة ناجحة خارج الخادم لبيئة إنتاج قبل التنبيه.",
     alert_recovery: "أرسل إشعارًا حين تنتهي مشكلة نُبّه بها (عادت إلى العمل، تحررت مساحة القرص).",
     alert_quiet_minutes: "يُرسل التنبيه نفسه مرة واحدة على الأكثر في هذا العدد من الدقائق؛ 0: في كل مرة.",
-    alert_digest: "أرسل ملخصًا واحدًا في اليوم بالبريد بدلًا من كل تنبيه عند حدوثه (وتبقى webhooks والجرس تستقبل كل تنبيه فورًا).",
+    alert_digest:
+      "أرسل ملخصًا واحدًا في اليوم بالبريد بدلًا من كل تنبيه عند حدوثه (وتبقى webhooks والجرس تستقبل كل تنبيه فورًا).",
     alert_digest_time: "وقت إرسال الملخص اليومي (HH:MM، بتوقيت TIMEZONE).",
     alert_webhook_timeout_seconds: "الثواني التي قد يستغرقها webhook في الرد قبل أن يُعدّ الإرسال فاشلًا.",
     alert_webhook_1_url: "Webhook 1: العنوان الذي تُرسل إليه التنبيهات (https).",
     alert_webhook_1_secret: "Webhook 1: مفتاح توقيع X-Sudoo-Signature ‏(HMAC-SHA256).",
-    alert_webhook_1_format: "Webhook 1: \"json\" ‏(JSON موقّع) أو \"slack\" أو \"discord\" أو \"teams\" ‏(incoming webhooks).",
+    alert_webhook_1_format: 'Webhook 1: "json" ‏(JSON موقّع) أو "slack" أو "discord" أو "teams" ‏(incoming webhooks).',
     alert_webhook_2_url: "Webhook 2: العنوان الذي تُرسل إليه التنبيهات (https).",
     alert_webhook_2_secret: "Webhook 2: مفتاح توقيع X-Sudoo-Signature ‏(HMAC-SHA256).",
-    alert_webhook_2_format: "Webhook 2: \"json\" أو \"slack\" أو \"discord\" أو \"teams\".",
+    alert_webhook_2_format: 'Webhook 2: "json" أو "slack" أو "discord" أو "teams".',
     alert_webhook_3_url: "Webhook 3: العنوان الذي تُرسل إليه التنبيهات (https).",
     alert_webhook_3_secret: "Webhook 3: مفتاح توقيع X-Sudoo-Signature ‏(HMAC-SHA256).",
-    alert_webhook_3_format: "Webhook 3: \"json\" أو \"slack\" أو \"discord\" أو \"teams\".",
-    marketplace: "استخدم متجر إضافات Sudoo.sh: سجّل لدى الخادم المركزي (Hub)، وأرسل نبضة موقّعة كل 15 دقيقة، وثبّت الإضافات. متوقف: لا تتصل اللوحة بالخادم المركزي أبدًا؛ وتبقى الإضافات المجانية المثبتة تعمل.",
+    alert_webhook_3_format: 'Webhook 3: "json" أو "slack" أو "discord" أو "teams".',
+    marketplace:
+      "استخدم متجر إضافات Sudoo.sh: سجّل لدى الخادم المركزي (Hub)، وأرسل نبضة موقّعة كل 15 دقيقة، وثبّت الإضافات. متوقف: لا تتصل اللوحة بالخادم المركزي أبدًا؛ وتبقى الإضافات المجانية المثبتة تعمل.",
     hub_url: "عنوان مركز Sudoo.sh ‏(https؛ وhttp فقط لـ localhost أثناء الاختبار).",
-    hub_public_keys: "المفاتيح العامة الجذرية للخادم المركزي (Ed25519، base64url، مفصولة بفواصل)؛ فارغ: المفاتيح التي يأتي بها هذا الإصدار لـ hub.sudoo.sh، أو مفاتيح الخادم المركزي كما رُئيت أول مرة لخادم مركزي آخر.",
+    hub_public_keys:
+      "المفاتيح العامة الجذرية للخادم المركزي (Ed25519، base64url، مفصولة بفواصل)؛ فارغ: المفاتيح التي يأتي بها هذا الإصدار لـ hub.sudoo.sh، أو مفاتيح الخادم المركزي كما رُئيت أول مرة لخادم مركزي آخر.",
   },
   editor: {
     secretSet: "معيّن. اكتب لاستبداله",
@@ -1719,7 +2389,14 @@ const ar: typeof en = {
     notSent: "لم يُرسل التنبيه التجريبي",
   },
   tabState: {
-    unsaved: (n) => (n === 1 ? "تغيير واحد غير محفوظ" : n === 2 ? "تغييران غير محفوظين" : n <= 10 ? `${n} تغييرات غير محفوظة` : `${n} تغييرًا غير محفوظ`),
+    unsaved: (n) =>
+      n === 1
+        ? "تغيير واحد غير محفوظ"
+        : n === 2
+          ? "تغييران غير محفوظين"
+          : n <= 10
+            ? `${n} تغييرات غير محفوظة`
+            : `${n} تغييرًا غير محفوظ`,
     restart: "ينتظر إعادة التشغيل",
   },
   saved: "حُفظت الإعدادات",
@@ -1732,7 +2409,11 @@ const ar: typeof en = {
   exposure: {
     now: (mode, url) => ["الآن: ", mode, ". عنوان اللوحة: ", url],
     noAddress: "غير معروف بعد",
-    certificate: { waiting: "يُطلب الآن شهادة اسم اللوحة.", active: "شهادة اسم اللوحة صالحة.", failed: "تعذّر إصدار شهادة اسم اللوحة حتى الآن:" },
+    certificate: {
+      waiting: "يُطلب الآن شهادة اسم اللوحة.",
+      active: "شهادة اسم اللوحة صالحة.",
+      failed: "تعذّر إصدار شهادة اسم اللوحة حتى الآن:",
+    },
     managedName: {
       serving: (name) => ["اسم اللوحة من Sudoo.sh: ", name, ". ويحل محله أي اسم خاص بك (اسم اللوحة)."],
       waiting: "يُطلب الآن اسم اللوحة من Sudoo.sh.",
@@ -1740,31 +2421,50 @@ const ar: typeof en = {
       failed: "تعذّر على Sudoo.sh منح اللوحة اسمها حتى الآن:",
     },
     change: "بعد إعادة التشغيل:",
-    keepOpen: "أبقِ هذه الصفحة مفتوحة على العنوان الحالي إلى أن يعمل العنوان الجديد. وإن تعذّر الوصول إلى اللوحة بعد ذلك فأعد EXPOSURE إلى قيمته في /opt/odoo/manager/.env ثم شغّل: docker compose up -d.",
+    keepOpen:
+      "أبقِ هذه الصفحة مفتوحة على العنوان الحالي إلى أن يعمل العنوان الجديد. وإن تعذّر الوصول إلى اللوحة بعد ذلك فأعد EXPOSURE إلى قيمته في /opt/odoo/manager/.env ثم شغّل: docker compose up -d.",
     to: {
-      direct: "تجيب البوابة على المنفذين 80 و443 لهذا الخادم. افتحهما للإنترنت (تتحقق جهة إصدار الشهادات من المنفذ 80). تنتقل اللوحة إلى اسمها (اسم اللوحة، أو الاسم العام للخادم) بعد إصدار شهادته، وحتى ذلك الحين إلى https://<عنوان الخادم> بشهادة اللوحة الخاصة التي تحذّر منها المتصفحات مرة واحدة. تنتقل البيئات إلى أسمائها المُدارة ونطاقاتها المخصصة وتتغير روابطها. وتُفعَّل النطاقات المخصصة (acme) ما لم يُضبط CUSTOM_DOMAINS في .env.",
-      proxy: "تستمع اللوحة والبوابات على 127.0.0.1 فقط. يجب أن يوجّه وكيلك اسم اللوحة إلى منفذ اللوحة وعنوان كل بيئة إلى منفذ بوابتها، وأن يرسل عنوان الزائر في X-Real-IP. تتغير الروابط إلى العناوين التي يقدّمها وكيلك.",
-      tunnel: "تحصل كل بيئة واللوحة على عنوان نفق يتغير حين يُعاد تشغيل الموصل. لم تعد اللوحة تحتاج إلى المنفذين 80 و443، لكن الأسماء المُدارة والنطاقات المخصصة ما زالت تحتاج إليهما.",
+      direct:
+        "تجيب البوابة على المنفذين 80 و443 لهذا الخادم. افتحهما للإنترنت (تتحقق جهة إصدار الشهادات من المنفذ 80). تنتقل اللوحة إلى اسمها (اسم اللوحة، أو الاسم العام للخادم) بعد إصدار شهادته، وحتى ذلك الحين إلى https://<عنوان الخادم> بشهادة اللوحة الخاصة التي تحذّر منها المتصفحات مرة واحدة. تنتقل البيئات إلى أسمائها المُدارة ونطاقاتها المخصصة وتتغير روابطها. وتُفعَّل النطاقات المخصصة (acme) ما لم يُضبط CUSTOM_DOMAINS في .env.",
+      proxy:
+        "تستمع اللوحة والبوابات على 127.0.0.1 فقط. يجب أن يوجّه وكيلك اسم اللوحة إلى منفذ اللوحة وعنوان كل بيئة إلى منفذ بوابتها، وأن يرسل عنوان الزائر في X-Real-IP. تتغير الروابط إلى العناوين التي يقدّمها وكيلك.",
+      tunnel:
+        "تحصل كل بيئة واللوحة على عنوان نفق يتغير حين يُعاد تشغيل الموصل. لم تعد اللوحة تحتاج إلى المنفذين 80 و443، لكن الأسماء المُدارة والنطاقات المخصصة ما زالت تحتاج إليهما.",
     },
   },
   restart: "أعد تشغيل اللوحة",
   resources: {
     priorityTitle: "الأولوية تحت الضغط",
-    priorityText: "حين يكون الخادم مشغولًا، يحصل الإنتاج على المعالج والذاكرة أولًا، ثم التجهيز، ثم التطوير. لا تعمل هذه الأوزان إلا عند التنافس: على خادم هادئ تحصل كل بيئة على كل ما تطلبه",
+    priorityText:
+      "حين يكون الخادم مشغولًا، يحصل الإنتاج على المعالج والذاكرة أولًا، ثم التجهيز، ثم التطوير. لا تعمل هذه الأوزان إلا عند التنافس: على خادم هادئ تحصل كل بيئة على كل ما تطلبه",
     defaultsTitle: "الحدود الافتراضية لكل مرحلة",
-    defaultsText: "كلها متوقفة افتراضيًا: يمكن للبيئات استخدام الخادم كله. 0 تعني غير محدد: دون حد للحاوية، أو القيمة الافتراضية لـ Odoo نفسه. ولكل مشروع أن يضبط قيمه لكل مرحلة ولكل فرع قيمه (ضمن العمود الأخير)، وللمسؤول أن يتجاوز أيًّا منها لبيئة واحدة من تبويب إعداداتها. تُطبَّق التغييرات عند تشغيل البيئة في المرة التالية",
+    defaultsText:
+      "كلها متوقفة افتراضيًا: يمكن للبيئات استخدام الخادم كله. 0 تعني غير محدد: دون حد للحاوية، أو القيمة الافتراضية لـ Odoo نفسه. ولكل مشروع أن يضبط قيمه لكل مرحلة ولكل فرع قيمه (ضمن العمود الأخير)، وللمسؤول أن يتجاوز أيًّا منها لبيئة واحدة من تبويب إعداداتها. تُطبَّق التغييرات عند تشغيل البيئة في المرة التالية",
     knob: "الإعداد",
     maximum: "مالكو المشاريع، حد أقصى",
-    maximumText: "العمود الأخير هو أقصى ما يضبطه مالك المشروع (صلاحية موارد المشاريع) لمشروع أو فرع؛ 0: دون حد أقصى. ولا يتقيد به المسؤولون، هنا أو في تبويب إعدادات البيئة",
+    maximumText:
+      "العمود الأخير هو أقصى ما يضبطه مالك المشروع (صلاحية موارد المشاريع) لمشروع أو فرع؛ 0: دون حد أقصى. ولا يتقيد به المسؤولون، هنا أو في تبويب إعدادات البيئة",
     cell: (row: string, stage: string) => `${row}، ${stage}`,
     rows: {
       priority_cpu_weight: { label: "وزن المعالج", hint: "حصة المعالج تحت الضغط؛ القيمة الافتراضية لـ Docker هي 1024" },
-      priority_memory_reservation: { label: "ذاكرة Odoo المحفوظة تحت الضغط", hint: "حد مرن (512m، 1g)؛ تُستعاد الذاكرة من غيرها أولًا. 0: لا شيء" },
-      priority_db_memory_reservation: { label: "ذاكرة قاعدة البيانات المحفوظة تحت الضغط", hint: "الأمر نفسه لحاوية قاعدة البيانات" },
-      priority_oom_score: { label: "درجة نفاد الذاكرة", hint: "حين تنفد الذاكرة، يُوقَف صاحب الدرجة الأعلى أولًا (-999 إلى 1000)" },
+      priority_memory_reservation: {
+        label: "ذاكرة Odoo المحفوظة تحت الضغط",
+        hint: "حد مرن (512m، 1g)؛ تُستعاد الذاكرة من غيرها أولًا. 0: لا شيء",
+      },
+      priority_db_memory_reservation: {
+        label: "ذاكرة قاعدة البيانات المحفوظة تحت الضغط",
+        hint: "الأمر نفسه لحاوية قاعدة البيانات",
+      },
+      priority_oom_score: {
+        label: "درجة نفاد الذاكرة",
+        hint: "حين تنفد الذاكرة، يُوقَف صاحب الدرجة الأعلى أولًا (-999 إلى 1000)",
+      },
       odoo_workers: { label: "عمّال HTTP", hint: "0: الوضع متعدد الخيوط" },
       odoo_cron_threads: { label: "عمّال المهام المجدولة", hint: "0: القيمة الافتراضية لـ Odoo ‏(2)" },
-      odoo_limit_memory_soft_mb: { label: "ذاكرة العامل قبل إعادة تشغيله، MB", hint: "0: القيمة الافتراضية لـ Odoo ‏(2048)" },
+      odoo_limit_memory_soft_mb: {
+        label: "ذاكرة العامل قبل إعادة تشغيله، MB",
+        hint: "0: القيمة الافتراضية لـ Odoo ‏(2048)",
+      },
       odoo_limit_memory_hard_mb: { label: "أقصى ذاكرة للعامل، MB", hint: "0: القيمة الافتراضية لـ Odoo ‏(2560)" },
       odoo_limit_time_cpu: { label: "وقت المعالج لكل طلب، بالثواني", hint: "0: القيمة الافتراضية لـ Odoo ‏(60)" },
       odoo_limit_time_real: { label: "الوقت الكلي لكل طلب، بالثواني", hint: "0: القيمة الافتراضية لـ Odoo ‏(120)" },
@@ -1773,10 +2473,15 @@ const ar: typeof en = {
       db_memory_limit: { label: "ذاكرة حاوية قاعدة البيانات", hint: "512m، 4g؛ 0: دون حد" },
       db_cpu_limit: { label: "معالجات حاوية قاعدة البيانات", hint: "أنوية؛ 0: دون حد" },
       odoo_limit_time_real_cron: { label: "مهلة الإجراءات المجدولة، ثوانٍ", hint: "0: الافتراضي في Odoo (مهلة HTTP)" },
-      db_max_connections: { label: "اتصالات قاعدة البيانات", hint: "max_connections في PostgreSQL؛ 0: الافتراضي (100)" },
+      db_max_connections: {
+        label: "اتصالات قاعدة البيانات",
+        hint: "max_connections في PostgreSQL؛ 0: الافتراضي (100)",
+      },
     },
-    reserved: (reserved: string, usable: string) => `المحجوز لكل البيئات الآن: ${reserved} من ${usable} يستطيع هذا الخادم توفيرها للبيئات`,
-    overReserved: "الذاكرة المحجوزة أكثر مما يستطيع الخادم توفيره: تحت الضغط لا يمكن الوفاء بكل حجز. خفّض الحجوزات أو أضف ذاكرة",
+    reserved: (reserved: string, usable: string) =>
+      `المحجوز لكل البيئات الآن: ${reserved} من ${usable} يستطيع هذا الخادم توفيرها للبيئات`,
+    overReserved:
+      "الذاكرة المحجوزة أكثر مما يستطيع الخادم توفيره: تحت الضغط لا يمكن الوفاء بكل حجز. خفّض الحجوزات أو أضف ذاكرة",
   },
   marketplace: {
     title: "متجر الإضافات",
@@ -1799,15 +2504,24 @@ const ar: typeof en = {
     noAddress: "لم يُعثر على أي عنوان: اضبط PUBLIC_IPV4 أو PUBLIC_IPV6 (الإعدادات، الخطة)",
     lastChecked: "آخر فحص",
     never: "أبدًا",
-    pending: (n) => (n === 1 ? "اسم واحد بانتظار التحرير" : n === 2 ? "اسمان بانتظار التحرير" : `${n} أسماء بانتظار التحرير`),
+    pending: (n) =>
+      n === 1 ? "اسم واحد بانتظار التحرير" : n === 2 ? "اسمان بانتظار التحرير" : `${n} أسماء بانتظار التحرير`,
     checkNow: "افحص الآن",
     checked: "فُحصت النطاقات الفرعية المُدارة",
     notChecked: "لم يتم الفحص",
   },
-  restartSection: "الإعدادات الموسومة بأنها إضافة تختار الإضافة التي تؤدي مهمة ما؛ ويُطبَّق التغيير حين تُعاد تشغيل اللوحة. ويُرفض ذلك أثناء عمل المهام",
+  restartSection:
+    "الإعدادات الموسومة بأنها إضافة تختار الإضافة التي تؤدي مهمة ما؛ ويُطبَّق التغيير حين تُعاد تشغيل اللوحة. ويُرفض ذلك أثناء عمل المهام",
   server: { title: "الخادم", text: (path) => ["المجلدات والمنافذ وطريقة الوصول إلى اللوحة. غيّرها في ", path] },
   saveBar: {
-    unsaved: (n) => (n === 1 ? "تغيير واحد غير محفوظ" : n === 2 ? "تغييران غير محفوظين" : n <= 10 ? `${n} تغييرات غير محفوظة` : `${n} تغييرًا غير محفوظ`),
+    unsaved: (n) =>
+      n === 1
+        ? "تغيير واحد غير محفوظ"
+        : n === 2
+          ? "تغييران غير محفوظين"
+          : n <= 10
+            ? `${n} تغييرات غير محفوظة`
+            : `${n} تغييرًا غير محفوظ`,
     in: (tabs) => ` في ${tabs}`,
     discard: "تجاهل",
     separator: "، ",

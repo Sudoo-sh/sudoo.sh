@@ -3,7 +3,14 @@ import { countIn, type Plural } from "./plural.ts";
 
 const p = (forms: Plural) => forms;
 const EN_EMAIL = p({ one: "# e-mail", other: "# e-mails" });
-const AR_EMAIL = p({ zero: "# رسالة", one: "رسالة واحدة", two: "رسالتان", few: "# رسائل", many: "# رسالة", other: "# رسالة" });
+const AR_EMAIL = p({
+  zero: "# رسالة",
+  one: "رسالة واحدة",
+  two: "رسالتان",
+  few: "# رسائل",
+  many: "# رسالة",
+  other: "# رسالة",
+});
 
 const en = {
   title: "Caught e-mail",
@@ -14,10 +21,13 @@ const en = {
     `${countIn("en", count, EN_EMAIL)} · ${size} · kept ${days} ${days === 1 ? "day" : "days"}`,
   deleteAll: "Delete all",
   refresh: "Refresh",
-  catcherStopped: "The mail catcher is not running, so Odoo cannot send e-mail now (nothing goes out either). An administrator can start it: see the administrator's guide, Mail catcher.",
-  catcherMissing: "This server has no mail catcher yet (an older compose.yaml). Odoo cannot send e-mail from this instance, and nothing goes out. An administrator can add it: see the administrator's guide, Mail catcher.",
+  catcherStopped:
+    "The mail catcher is not running, so Odoo cannot send e-mail now (nothing goes out either). An administrator can start it: see the administrator's guide, Mail catcher.",
+  catcherMissing:
+    "This server has no mail catcher yet (an older compose.yaml). Odoo cannot send e-mail from this instance, and nothing goes out. An administrator can add it: see the administrator's guide, Mail catcher.",
   emptyTitle: "No e-mail caught",
-  empty: "When Odoo sends an e-mail from this instance (a quotation, an invoice, a password reset), it appears here instead of reaching anyone.",
+  empty:
+    "When Odoo sends an e-mail from this instance (a quotation, an invoice, a password reset), it appears here instead of reaching anyone.",
   noMatch: "No caught e-mail matches this search.",
   more: "Show more",
   noSubject: "(no subject)",
@@ -44,11 +54,13 @@ const en = {
   allDeleted: "Caught e-mail deleted",
   notDeleted: "Could not delete",
   deleteAllTitle: "Delete every caught e-mail?",
-  deleteAllText: (count: number) => `${countIn("en", count, EN_EMAIL)} of this instance will be deleted. This cannot be undone.`,
+  deleteAllText: (count: number) =>
+    `${countIn("en", count, EN_EMAIL)} of this instance will be deleted. This cannot be undone.`,
   deleteTitle: "Delete this e-mail?",
   deleteText: "It is deleted from the mail catcher. This cannot be undone.",
   releaseTitle: "Release a copy",
-  releaseText: "A copy of this e-mail, with its attachments, is sent from the panel's own address to the address you type. The original sender becomes Reply-To. This is recorded in the audit log.",
+  releaseText:
+    "A copy of this e-mail, with its attachments, is sent from the panel's own address to the address you type. The original sender becomes Reply-To. This is recorded in the audit log.",
   releaseTo: "Send the copy to",
   releaseSend: "Send the copy",
   released: (to: string) => `Copy sent to ${to}`,
@@ -66,10 +78,13 @@ const ar: typeof en = {
     `${countIn("ar", count, AR_EMAIL)} · ${size} · يُحفظ ${countIn("ar", days, p({ zero: "# يوم", one: "يومًا واحدًا", two: "يومين", few: "# أيام", many: "# يومًا", other: "# يوم" }))}`,
   deleteAll: "حذف الكل",
   refresh: "تحديث",
-  catcherStopped: "ملتقط البريد لا يعمل، لذا لا يستطيع Odoo إرسال البريد الآن (ولا يخرج أي شيء أيضًا). يمكن للمسؤول تشغيله: راجع دليل المسؤول، ملتقط البريد.",
-  catcherMissing: "لا يوجد ملتقط بريد على هذا الخادم بعد (ملف compose.yaml قديم). لا يستطيع Odoo إرسال البريد من هذه البيئة ولا يخرج أي شيء. يمكن للمسؤول إضافته: راجع دليل المسؤول، ملتقط البريد.",
+  catcherStopped:
+    "ملتقط البريد لا يعمل، لذا لا يستطيع Odoo إرسال البريد الآن (ولا يخرج أي شيء أيضًا). يمكن للمسؤول تشغيله: راجع دليل المسؤول، ملتقط البريد.",
+  catcherMissing:
+    "لا يوجد ملتقط بريد على هذا الخادم بعد (ملف compose.yaml قديم). لا يستطيع Odoo إرسال البريد من هذه البيئة ولا يخرج أي شيء. يمكن للمسؤول إضافته: راجع دليل المسؤول، ملتقط البريد.",
   emptyTitle: "لم يُلتقط أي بريد",
-  empty: "عندما يرسل Odoo رسالة من هذه البيئة (عرض سعر أو فاتورة أو إعادة تعيين كلمة مرور) تظهر هنا بدلًا من أن تصل إلى أحد.",
+  empty:
+    "عندما يرسل Odoo رسالة من هذه البيئة (عرض سعر أو فاتورة أو إعادة تعيين كلمة مرور) تظهر هنا بدلًا من أن تصل إلى أحد.",
   noMatch: "لا يوجد بريد ملتقط يطابق هذا البحث.",
   more: "عرض المزيد",
   noSubject: "(دون موضوع)",
@@ -100,7 +115,8 @@ const ar: typeof en = {
   deleteTitle: "حذف هذه الرسالة؟",
   deleteText: "تُحذف من ملتقط البريد. لا يمكن التراجع عن ذلك.",
   releaseTitle: "إطلاق نسخة",
-  releaseText: "تُرسل نسخة من هذه الرسالة مع مرفقاتها من عنوان اللوحة نفسها إلى العنوان الذي تكتبه، ويصبح المرسل الأصلي عنوان الرد. يُسجَّل ذلك في سجل التدقيق.",
+  releaseText:
+    "تُرسل نسخة من هذه الرسالة مع مرفقاتها من عنوان اللوحة نفسها إلى العنوان الذي تكتبه، ويصبح المرسل الأصلي عنوان الرد. يُسجَّل ذلك في سجل التدقيق.",
   releaseTo: "أرسل النسخة إلى",
   releaseSend: "أرسل النسخة",
   released: (to: string) => `أُرسلت النسخة إلى ${to}`,

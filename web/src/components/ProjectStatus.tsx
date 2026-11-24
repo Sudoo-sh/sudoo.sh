@@ -4,12 +4,31 @@
 // and the public status page's switch for those who manage the project.
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Archive, Bell, CircleAlert, CircleCheck, CloudUpload, Globe, RefreshCw, Server, TriangleAlert } from "lucide-react";
+import {
+  Activity,
+  Archive,
+  Bell,
+  CircleAlert,
+  CircleCheck,
+  CloudUpload,
+  Globe,
+  RefreshCw,
+  Server,
+  TriangleAlert,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { api, errorText } from "@/api/client";
 import { useCall } from "@/api/queries";
-import { statusKeys, useProjectStatus, type Overall, type PublicPageState, type StatusDay, type StatusTarget, type TargetKind } from "@/api/status";
+import {
+  statusKeys,
+  useProjectStatus,
+  type Overall,
+  type PublicPageState,
+  type StatusDay,
+  type StatusTarget,
+  type TargetKind,
+} from "@/api/status";
 import type { ProjectDetail } from "@/api/types";
 import { useT } from "@/i18n";
 import words from "@/i18n/status";
@@ -42,11 +61,21 @@ export function ProjectStatusTabs({ project, tab, manage }: { project: { id: str
   const t = useT(words).tabs;
   return (
     <>
-      <Link to={`/projects/${project.id}/status`} viewTransition className={`tab ${tab === "status" ? "active" : ""}`} aria-current={tab === "status" ? "page" : undefined}>
+      <Link
+        to={`/projects/${project.id}/status`}
+        viewTransition
+        className={`tab ${tab === "status" ? "active" : ""}`}
+        aria-current={tab === "status" ? "page" : undefined}
+      >
         <Activity /> {t.status}
       </Link>
       {manage && (
-        <Link to={`/projects/${project.id}/notifications`} viewTransition className={`tab ${tab === "notifications" ? "active" : ""}`} aria-current={tab === "notifications" ? "page" : undefined}>
+        <Link
+          to={`/projects/${project.id}/notifications`}
+          viewTransition
+          className={`tab ${tab === "notifications" ? "active" : ""}`}
+          aria-current={tab === "notifications" ? "page" : undefined}
+        >
           <Bell /> {t.notifications}
         </Link>
       )}
@@ -89,18 +118,45 @@ export function ProjectStatus({ project }: { project: ProjectDetail }) {
   );
 }
 
-function Banner({ state, interval, refreshing, onRefresh }: { state: Overall; interval: number; refreshing: boolean; onRefresh: () => void }) {
+function Banner({
+  state,
+  interval,
+  refreshing,
+  onRefresh,
+}: {
+  state: Overall;
+  interval: number;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
   const t = useT(words).status;
-  const icon = state === "operational" ? <CircleCheck /> : state === "down" ? <CircleAlert /> : state === "degraded" ? <TriangleAlert /> : <Activity />;
+  const icon =
+    state === "operational" ? (
+      <CircleCheck />
+    ) : state === "down" ? (
+      <CircleAlert />
+    ) : state === "degraded" ? (
+      <TriangleAlert />
+    ) : (
+      <Activity />
+    );
   return (
     <section className="status-banner card" data-state={state} aria-live="polite">
-      <span className="status-banner-icon" aria-hidden="true">{icon}</span>
+      <span className="status-banner-icon" aria-hidden="true">
+        {icon}
+      </span>
       <div className="spacer">
         <h2>{t.banner[state]}</h2>
         <p className="small muted">{t.bannerText[state]}</p>
       </div>
       <span className="xsmall muted banner-interval">{t.checkedEvery(duration(interval))}</span>
-      <Button variant="ghost" size="sm" icon={<RefreshCw className={refreshing ? "spin" : undefined} />} onClick={onRefresh} aria-label={t.checkedEvery(duration(interval))} />
+      <Button
+        variant="ghost"
+        size="sm"
+        icon={<RefreshCw className={refreshing ? "spin" : undefined} />}
+        onClick={onRefresh}
+        aria-label={t.checkedEvery(duration(interval))}
+      />
     </section>
   );
 }
@@ -112,11 +168,17 @@ function TargetCard({ target }: { target: StatusTarget }) {
   return (
     <section className="card status-card" aria-label={`${t.kind[target.kind]} ${target.name}`}>
       <div className="card-head">
-        <span className="status-kind" aria-hidden="true">{KIND_ICON[target.kind]}</span>
+        <span className="status-kind" aria-hidden="true">
+          {KIND_ICON[target.kind]}
+        </span>
         <div className="spacer" style={{ minWidth: 0 }}>
           <h3 className="row-wrap" style={{ gap: 6 }}>
             {t.kind[target.kind]}
-            {target.kind !== "server" && <bdi dir="ltr" className="mono small muted truncate">{target.name}</bdi>}
+            {target.kind !== "server" && (
+              <bdi dir="ltr" className="mono small muted truncate">
+                {target.name}
+              </bdi>
+            )}
           </h3>
           <div className="sub">{t.kindText[target.kind]}</div>
         </div>
@@ -137,7 +199,9 @@ function TargetCard({ target }: { target: StatusTarget }) {
           {(["day", "week", "month"] as const).map((window) => (
             <div key={window}>
               <dt className="xsmall muted">{t.windows[window]}</dt>
-              <dd data-tone={dayTone(target.uptime[window])}>{target.uptime[window] == null ? t.noData : uptimeText(target.uptime[window])}</dd>
+              <dd data-tone={dayTone(target.uptime[window])}>
+                {target.uptime[window] == null ? t.noData : uptimeText(target.uptime[window])}
+              </dd>
             </div>
           ))}
         </dl>
@@ -145,8 +209,12 @@ function TargetCard({ target }: { target: StatusTarget }) {
         {target.kind === "instance" && responses.some((v) => v != null) && (
           <div className="response">
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <span className="xsmall muted">{t.response} · {t.responseDays}</span>
-              {target.response_ms != null && <span className="xsmall mono">{t.responseNow(ms(target.response_ms))}</span>}
+              <span className="xsmall muted">
+                {t.response} · {t.responseDays}
+              </span>
+              {target.response_ms != null && (
+                <span className="xsmall mono">{t.responseNow(ms(target.response_ms))}</span>
+              )}
             </div>
             <Sparkline t={target.days.map((d) => d.day)} values={responses} />
           </div>
@@ -159,7 +227,9 @@ function TargetCard({ target }: { target: StatusTarget }) {
 function DayBars({ days }: { days: StatusDay[] }) {
   const t = useT(words).status;
   const checked = days.filter((d) => d.uptime != null);
-  const summary = checked.length ? `${t.days}: ${uptimeText(Math.min(...checked.map((d) => d.uptime!)))} – ${uptimeText(Math.max(...checked.map((d) => d.uptime!)))}` : `${t.days}: ${t.noData}`;
+  const summary = checked.length
+    ? `${t.days}: ${uptimeText(Math.min(...checked.map((d) => d.uptime!)))} – ${uptimeText(Math.max(...checked.map((d) => d.uptime!)))}`
+    : `${t.days}: ${t.noData}`;
   return (
     <div className="day-bars-wrap">
       <ol className="day-bars" aria-label={summary}>
@@ -180,7 +250,20 @@ function DayBars({ days }: { days: StatusDay[] }) {
   );
 }
 
-function Incidents({ data }: { data: { id: string; kind: TargetKind; name: string; start: number; end: number | null; duration: number; severity: "down" | "degraded"; what: string }[] }) {
+function Incidents({
+  data,
+}: {
+  data: {
+    id: string;
+    kind: TargetKind;
+    name: string;
+    start: number;
+    end: number | null;
+    duration: number;
+    severity: "down" | "degraded";
+    what: string;
+  }[];
+}) {
   const t = useT(words).status;
   return (
     <section className="card" aria-labelledby="incidents-title">
@@ -214,13 +297,26 @@ function Incidents({ data }: { data: { id: string; kind: TargetKind; name: strin
                         {t.severity[incident.severity]}
                       </span>
                       <span className="small">{t.kind[incident.kind]}</span>
-                      {incident.kind !== "server" && <bdi dir="ltr" className="mono xsmall muted">{incident.name}</bdi>}
+                      {incident.kind !== "server" && (
+                        <bdi dir="ltr" className="mono xsmall muted">
+                          {incident.name}
+                        </bdi>
+                      )}
                     </div>
                     {incident.what && <div className="xsmall muted">{incident.what}</div>}
                   </TableCell>
-                  <TableCell className="small" title={fullDateTime(incident.start)}>{ago(incident.start)}</TableCell>
+                  <TableCell className="small" title={fullDateTime(incident.start)}>
+                    {ago(incident.start)}
+                  </TableCell>
                   <TableCell className="small" title={incident.end ? fullDateTime(incident.end) : undefined}>
-                    {incident.end ? ago(incident.end) : <span className="target-state" data-state="down"><span className="dot" aria-hidden="true" />{t.ongoing}</span>}
+                    {incident.end ? (
+                      ago(incident.end)
+                    ) : (
+                      <span className="target-state" data-state="down">
+                        <span className="dot" aria-hidden="true" />
+                        {t.ongoing}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="small mono">{duration(incident.duration)}</TableCell>
                 </TableRow>
@@ -238,13 +334,16 @@ function PublicPage({ project, state }: { project: ProjectDetail; state: PublicP
   const toast = useToast();
   const client = useQueryClient();
   const change = useCall(
-    (body: { enabled: boolean; new_link?: boolean }) => api.put<PublicPageState>(`/projects/${project.id}/status/public`, body),
+    (body: { enabled: boolean; new_link?: boolean }) =>
+      api.put<PublicPageState>(`/projects/${project.id}/status/public`, body),
     [statusKeys.status(project.id)],
   );
   const save = (body: { enabled: boolean; new_link?: boolean }) =>
     change.mutate(body, {
       onSuccess: (next) => {
-        client.setQueryData(statusKeys.status(project.id), (old: unknown) => (old ? { ...(old as object), public: next } : old));
+        client.setQueryData(statusKeys.status(project.id), (old: unknown) =>
+          old ? { ...(old as object), public: next } : old,
+        );
         toast("success", t.saved);
       },
       onError: (error) => toast("error", t.notSaved, errorText(error)),
@@ -261,11 +360,22 @@ function PublicPage({ project, state }: { project: ProjectDetail; state: PublicP
       </div>
       <div className="card-body stack">
         {!state.allowed && <Callout tone="warning">{t.notAllowed}</Callout>}
-        <Switch checked={state.enabled} disabled={!state.allowed || change.isPending} onChange={(enabled) => save({ enabled })} label={t.switch} />
+        <Switch
+          checked={state.enabled}
+          disabled={!state.allowed || change.isPending}
+          onChange={(enabled) => save({ enabled })}
+          label={t.switch}
+        />
         {state.enabled && link ? (
           <div className="row-wrap" style={{ gap: 8 }}>
             <CopyField value={link} />
-            <Button size="sm" icon={<RefreshCw />} disabled={change.isPending} onClick={() => save({ enabled: true, new_link: true })} title={t.newLinkText}>
+            <Button
+              size="sm"
+              icon={<RefreshCw />}
+              disabled={change.isPending}
+              onClick={() => save({ enabled: true, new_link: true })}
+              title={t.newLinkText}
+            >
               {t.newLink}
             </Button>
           </div>

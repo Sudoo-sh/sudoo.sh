@@ -16,9 +16,20 @@ import { StorageBar } from "@/components/ProjectResources";
 const GROUPS: { id: "odoo" | "containers"; knobs: ResourceKnob[] }[] = [
   {
     id: "odoo",
-    knobs: ["odoo_workers", "odoo_cron_threads", "odoo_limit_memory_soft_mb", "odoo_limit_memory_hard_mb", "odoo_limit_time_cpu", "odoo_limit_time_real", "odoo_limit_time_real_cron"],
+    knobs: [
+      "odoo_workers",
+      "odoo_cron_threads",
+      "odoo_limit_memory_soft_mb",
+      "odoo_limit_memory_hard_mb",
+      "odoo_limit_time_cpu",
+      "odoo_limit_time_real",
+      "odoo_limit_time_real_cron",
+    ],
   },
-  { id: "containers", knobs: ["odoo_memory_limit", "odoo_cpu_limit", "db_memory_limit", "db_cpu_limit", "db_max_connections"] },
+  {
+    id: "containers",
+    knobs: ["odoo_memory_limit", "odoo_cpu_limit", "db_memory_limit", "db_cpu_limit", "db_max_connections"],
+  },
 ];
 const MEMORY = new Set<ResourceKnob>(["odoo_memory_limit", "db_memory_limit"]);
 const CORES = new Set<ResourceKnob>(["odoo_cpu_limit", "db_cpu_limit"]);
@@ -45,7 +56,11 @@ function Resources({ instance, data }: { instance: Instance; data: InstanceResou
   const toast = useToast();
   const editable = can("instances.resources");
   const initial = useMemo(
-    () => Object.fromEntries(RESOURCE_KNOBS.map((k) => [k, data.own[k] == null ? "" : String(data.own[k])])) as Record<ResourceKnob, string>,
+    () =>
+      Object.fromEntries(RESOURCE_KNOBS.map((k) => [k, data.own[k] == null ? "" : String(data.own[k])])) as Record<
+        ResourceKnob,
+        string
+      >,
     [data.own],
   );
   const [draft, setDraft] = useState(initial);
@@ -125,25 +140,40 @@ function Resources({ instance, data }: { instance: Instance; data: InstanceResou
           <div className="stack-sm">
             <div className="small muted">{t.priority}</div>
             <b className={`resources-rank rank-${data.priority.rank}`}>{t.rank[data.stage]}</b>
-            <p className="small muted">{t.rankText[data.stage]} {t.onlyUnderLoad}</p>
+            <p className="small muted">
+              {t.rankText[data.stage]} {t.onlyUnderLoad}
+            </p>
           </div>
           <dl className="dl small">
             <dt>{t.cpuWeight}</dt>
             <dd className="tabular">{number(data.priority.cpu_weight)}</dd>
             <dt>{t.reservation}</dt>
-            <dd>{t.reservationValue(reservation(data.priority.memory_reservation), reservation(data.priority.db_memory_reservation))}</dd>
+            <dd>
+              {t.reservationValue(
+                reservation(data.priority.memory_reservation),
+                reservation(data.priority.db_memory_reservation),
+              )}
+            </dd>
             <dt>{t.oomScore}</dt>
-            <dd className="tabular" dir="ltr">{number(data.priority.oom_score_adj)}</dd>
+            <dd className="tabular" dir="ltr">
+              {number(data.priority.oom_score_adj)}
+            </dd>
           </dl>
         </div>
         <div className="resources-usage">
           <div>
-            <div className="small muted">{t.usage}: {t.processor}</div>
+            <div className="small muted">
+              {t.usage}: {t.processor}
+            </div>
             <div className="tabular">{t.ofServer(percent(instance.usage.cpu_percent, 1))}</div>
           </div>
           <div>
-            <div className="small muted">{t.usage}: {t.memory}</div>
-            <div className="tabular">{t.used(bytes(instance.usage.memory_bytes), memoryLimit ? bytes(memoryLimit) : t.noLimit)}</div>
+            <div className="small muted">
+              {t.usage}: {t.memory}
+            </div>
+            <div className="tabular">
+              {t.used(bytes(instance.usage.memory_bytes), memoryLimit ? bytes(memoryLimit) : t.noLimit)}
+            </div>
           </div>
         </div>
         {data.storage && <StorageBar use={data.storage} label={t.storage} />}
@@ -151,7 +181,11 @@ function Resources({ instance, data }: { instance: Instance; data: InstanceResou
         {data.pending && <Callout tone="info">{t.pending}</Callout>}
         {data.warnings.length > 0 && (
           <Callout tone="warning">
-            <ul className="resources-warnings">{data.warnings.map((w) => <li key={w.code}>{warning(w)}</li>)}</ul>
+            <ul className="resources-warnings">
+              {data.warnings.map((w) => (
+                <li key={w.code}>{warning(w)}</li>
+              ))}
+            </ul>
           </Callout>
         )}
       </div>
@@ -170,7 +204,9 @@ function Resources({ instance, data }: { instance: Instance; data: InstanceResou
             return (
               <div className="settings-row" key={knob}>
                 <div>
-                  <label className="name" htmlFor={id}>{words.label}</label>
+                  <label className="name" htmlFor={id}>
+                    {words.label}
+                  </label>
                   <div className="desc">{words.hint}</div>
                 </div>
                 <div className="stack-sm">
@@ -200,14 +236,33 @@ function Resources({ instance, data }: { instance: Instance; data: InstanceResou
       {editable && (
         <div className="card-foot row-wrap">
           <span className="spacer" />
-          <Button variant="ghost" disabled={!dirty || apply.isPending} onClick={() => setDraft(initial)}>{t.discard}</Button>
-          <Button variant="primary" disabled={!dirty && !data.pending} loading={apply.isPending} onClick={() => setAsking(true)}>{t.apply}</Button>
+          <Button variant="ghost" disabled={!dirty || apply.isPending} onClick={() => setDraft(initial)}>
+            {t.discard}
+          </Button>
+          <Button
+            variant="primary"
+            disabled={!dirty && !data.pending}
+            loading={apply.isPending}
+            onClick={() => setAsking(true)}
+          >
+            {t.apply}
+          </Button>
         </div>
       )}
       {asking && (
-        <Modal title={t.applyTitle(instance.name)} description={t.applyText} onClose={() => setAsking(false)}
-          footer={<><Button onClick={() => setAsking(false)}>{c.common.cancel}</Button>
-            <Button variant={production ? "danger" : "primary"} loading={apply.isPending} onClick={run}>{t.apply}</Button></>}>
+        <Modal
+          title={t.applyTitle(instance.name)}
+          description={t.applyText}
+          onClose={() => setAsking(false)}
+          footer={
+            <>
+              <Button onClick={() => setAsking(false)}>{c.common.cancel}</Button>
+              <Button variant={production ? "danger" : "primary"} loading={apply.isPending} onClick={run}>
+                {t.apply}
+              </Button>
+            </>
+          }
+        >
           {production ? <Callout tone="warning">{t.applyProduction}</Callout> : null}
         </Modal>
       )}

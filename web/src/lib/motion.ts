@@ -16,7 +16,9 @@ const BOUNCE_POINTS =
 const EASE = "cubic-bezier(0.23, 1, 0.32, 1)";
 
 const supportsLinear = () =>
-  typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("animation-timing-function", "linear(0, 1)");
+  typeof CSS !== "undefined" &&
+  typeof CSS.supports === "function" &&
+  CSS.supports("animation-timing-function", "linear(0, 1)");
 
 /** The spring curves for the Web Animations API (the cubic-bezier ease-out where linear() is not supported). */
 export const easing = {

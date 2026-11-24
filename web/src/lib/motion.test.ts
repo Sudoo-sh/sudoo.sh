@@ -76,7 +76,14 @@ describe("play", () => {
     preferReducedMotion(true);
     expect(reducedMotion()).toBe(true);
     const { element, animations } = fakeElement();
-    play(element, [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { duration: 300 });
+    play(
+      element,
+      [
+        { opacity: 0, transform: "translateY(6px)" },
+        { opacity: 1, transform: "none" },
+      ],
+      { duration: 300 },
+    );
     expect(animations[0]!.keyframes).toEqual([{ opacity: 0 }, { opacity: 1 }]);
     expect(animations[0]!.options.duration).toBe(150);
   });

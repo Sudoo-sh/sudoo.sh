@@ -18,7 +18,11 @@ import { Drawer, useToast } from "./app/overlay";
 function typing(target: EventTarget | null): boolean {
   const element = target as HTMLElement | null;
   if (!element || !(element instanceof HTMLElement)) return false;
-  return element.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName) || !!element.closest(".xterm");
+  return (
+    element.isContentEditable ||
+    ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName) ||
+    !!element.closest(".xterm")
+  );
 }
 
 export function HelpButton() {
@@ -97,7 +101,9 @@ function HelpPanel({ onClose }: { onClose: () => void }) {
               <div key={shortcut.what}>
                 <dt dir="ltr">
                   {shortcut.keys.map((key) => (
-                    <kbd key={key} className="kbd">{key}</kbd>
+                    <kbd key={key} className="kbd">
+                      {key}
+                    </kbd>
                   ))}
                 </dt>
                 <dd>{t.keys[shortcut.what]}</dd>
@@ -115,7 +121,9 @@ function HelpPanel({ onClose }: { onClose: () => void }) {
           <div className="row">
             <h3 id="help-version">{t.version}</h3>
             <span className="spacer" />
-            <span className="mono small" dir="ltr">{info?.version ?? "…"}</span>
+            <span className="mono small" dir="ltr">
+              {info?.version ?? "…"}
+            </span>
           </div>
           <Diagnostics version={info?.version ?? ""} pathname={pathname} language={locale} />
         </section>
@@ -132,9 +140,11 @@ function Support({ info }: { info: HelpInfo | undefined }) {
   const explanation = kind === "hub" ? t.supportHub : kind === "link" ? t.supportLink : t.supportEmail;
   return (
     <div className="stack-sm">
-      <Button asChild variant="primary" className="help-support"><a href={url} target={kind === "email" ? undefined : "_blank"} rel="noreferrer noopener">
-        {kind === "email" ? <Mail aria-hidden="true" /> : <LifeBuoy aria-hidden="true" />} {t.contact}
-      </a></Button>
+      <Button asChild variant="primary" className="help-support">
+        <a href={url} target={kind === "email" ? undefined : "_blank"} rel="noreferrer noopener">
+          {kind === "email" ? <Mail aria-hidden="true" /> : <LifeBuoy aria-hidden="true" />} {t.contact}
+        </a>
+      </Button>
       <p className="muted small">{explanation}</p>
     </div>
   );
@@ -163,7 +173,9 @@ function Diagnostics({ version, pathname, language }: { version: string; pathnam
       {shown && (
         <>
           <Callout tone="warning">{t.copyFailed}</Callout>
-          <pre className="help-diagnostics" dir="ltr" tabIndex={0}>{shown}</pre>
+          <pre className="help-diagnostics" dir="ltr" tabIndex={0}>
+            {shown}
+          </pre>
         </>
       )}
     </div>

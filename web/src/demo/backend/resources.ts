@@ -2,7 +2,14 @@
 // under load, and each instance's own limits. The first production instance has a few limits set, as an
 // administrator might.
 
-import { RESOURCE_KNOBS, type Instance, type InstanceResources, type ResourceKnob, type ResourceLimits, type Stage } from "@/api/types";
+import {
+  RESOURCE_KNOBS,
+  type Instance,
+  type InstanceResources,
+  type ResourceKnob,
+  type ResourceLimits,
+  type Stage,
+} from "@/api/types";
 import { instances, setting } from "./state";
 import { Problem } from "./util";
 import { storageOf } from "./project-resources";
@@ -12,10 +19,24 @@ const CORES = 8;
 const MEMORY_TOTAL = 32 * GIB;
 const USABLE = MEMORY_TOTAL - (1024 * 1024 ** 2 + MEMORY_TOTAL * 0.1) - 290 * 1024 ** 2;
 const RANK: Record<Stage, 1 | 2 | 3> = { production: 1, staging: 2, development: 3 };
-const ODOO_DEFAULTS = { odoo_cron_threads: 2, odoo_limit_memory_soft_mb: 2048, odoo_limit_memory_hard_mb: 2560, odoo_limit_time_cpu: 60, odoo_limit_time_real: 120, odoo_limit_time_real_cron: 120, db_max_connections: 100 };
+const ODOO_DEFAULTS = {
+  odoo_cron_threads: 2,
+  odoo_limit_memory_soft_mb: 2048,
+  odoo_limit_memory_hard_mb: 2560,
+  odoo_limit_time_cpu: 60,
+  odoo_limit_time_real: 120,
+  odoo_limit_time_real_cron: 120,
+  db_max_connections: 100,
+};
 const INTEGER: Partial<Record<ResourceKnob, number>> = {
-  odoo_workers: 256, odoo_cron_threads: 64, odoo_limit_memory_soft_mb: 1048576, odoo_limit_memory_hard_mb: 1048576, odoo_limit_time_cpu: 86400, odoo_limit_time_real: 86400,
-  odoo_limit_time_real_cron: 86400, db_max_connections: 10000,
+  odoo_workers: 256,
+  odoo_cron_threads: 64,
+  odoo_limit_memory_soft_mb: 1048576,
+  odoo_limit_memory_hard_mb: 1048576,
+  odoo_limit_time_cpu: 86400,
+  odoo_limit_time_real: 86400,
+  odoo_limit_time_real_cron: 86400,
+  db_max_connections: 10000,
 };
 
 const own = new Map<string, Partial<ResourceLimits>>();
@@ -34,7 +55,8 @@ export function memoryBytes(text: string | number): number {
   return match ? Number(match[1]) * 1024 ** "bkmg".indexOf(match[2]!.toLowerCase()) : 0;
 }
 
-const stageDefaults = (stage: Stage) => Object.fromEntries(RESOURCE_KNOBS.map((k) => [k, setting(`${stage}_${k}`) ?? 0])) as ResourceLimits;
+const stageDefaults = (stage: Stage) =>
+  Object.fromEntries(RESOURCE_KNOBS.map((k) => [k, setting(`${stage}_${k}`) ?? 0])) as ResourceLimits;
 const priority = (stage: Stage) => ({
   rank: RANK[stage],
   cpu_weight: Number(setting(`priority_cpu_weight_${stage}`)),
@@ -66,15 +88,28 @@ export function resourcesOf(instance: Instance): InstanceResources {
   const limits = { ...defaults, ...mine };
   const warnings: InstanceResources["warnings"] = [];
   const reserved = reservations().total_bytes;
-  if (reserved > USABLE) warnings.push({ code: "reserved_over_usable", text: "The memory reserved for instances is more than this server can spare for them.", values: { reserved_bytes: reserved, usable_bytes: USABLE } });
+  if (reserved > USABLE)
+    warnings.push({
+      code: "reserved_over_usable",
+      text: "The memory reserved for instances is more than this server can spare for them.",
+      values: { reserved_bytes: reserved, usable_bytes: USABLE },
+    });
   const workers = Number(limits.odoo_workers);
   if (workers > 2 * CORES + 1)
-    warnings.push({ code: "workers_over_cores", text: `${workers} workers on ${CORES} cores.`, values: { workers, cores: CORES, suggested: 2 * CORES + 1 } });
+    warnings.push({
+      code: "workers_over_cores",
+      text: `${workers} workers on ${CORES} cores.`,
+      values: { workers, cores: CORES, suggested: 2 * CORES + 1 },
+    });
   const container = memoryBytes(limits.odoo_memory_limit);
   const cron = Number(limits.odoo_cron_threads) || 2;
   const soft = (Number(limits.odoo_limit_memory_soft_mb) || 2048) * 1024 ** 2;
   if (container && workers && container < ((workers + cron) * soft) / 2)
-    warnings.push({ code: "workers_memory", text: "The workers may need more memory than the limit.", values: { workers, cron, limit_bytes: container } });
+    warnings.push({
+      code: "workers_memory",
+      text: "The workers may need more memory than the limit.",
+      values: { workers, cron, limit_bytes: container },
+    });
   return {
     stage: instance.stage,
     priority: priority(instance.stage),
@@ -82,7 +117,11 @@ export function resourcesOf(instance: Instance): InstanceResources {
     own: mine,
     stage_defaults: defaults,
     odoo_defaults: ODOO_DEFAULTS,
-    unlimited: !memoryBytes(limits.odoo_memory_limit) && !memoryBytes(limits.db_memory_limit) && !Number(limits.odoo_cpu_limit) && !Number(limits.db_cpu_limit),
+    unlimited:
+      !memoryBytes(limits.odoo_memory_limit) &&
+      !memoryBytes(limits.db_memory_limit) &&
+      !Number(limits.odoo_cpu_limit) &&
+      !Number(limits.db_cpu_limit),
     pending: pending.has(instance.name),
     storage: storageOf(instance),
     warnings,
@@ -92,7 +131,8 @@ export function resourcesOf(instance: Instance): InstanceResources {
 
 /** The instance's own limits from a request, checked as the backend checks them (resources.clean). */
 export function cleanLimits(data: unknown): Partial<ResourceLimits> {
-  if (!data || typeof data !== "object") throw new Problem(400, 'Send the limits to set: {"limits": {"odoo_workers": 2}}.');
+  if (!data || typeof data !== "object")
+    throw new Problem(400, 'Send the limits to set: {"limits": {"odoo_workers": 2}}.');
   const found: Partial<ResourceLimits> = {};
   for (const [knob, value] of Object.entries(data as Record<string, unknown>)) {
     if (!RESOURCE_KNOBS.includes(knob as ResourceKnob)) throw new Problem(400, `Unknown limits: ${knob}.`);
@@ -105,18 +145,22 @@ export function cleanLimits(data: unknown): Partial<ResourceLimits> {
       found[k] = Number(text);
     } else if (k.endsWith("cpu_limit")) {
       const cores = Number(text);
-      if (!Number.isFinite(cores) || cores < 0) throw new Problem(400, `${k}: a number of processor cores from 0 is expected.`);
+      if (!Number.isFinite(cores) || cores < 0)
+        throw new Problem(400, `${k}: a number of processor cores from 0 is expected.`);
       if (cores > CORES) throw new Problem(400, `${k}: this server has ${CORES} cores; Docker refuses more.`);
       found[k] = Math.round(cores * 100) / 100;
     } else {
-      if (text !== "0" && !/^\d+(\.\d+)?[bkmg]$/.test(text)) throw new Problem(400, `${k}: a quantity of memory in Docker units is expected (512m, 2g), or 0.`);
-      if (text !== "0" && memoryBytes(text) < 128 * 1024 ** 2) throw new Problem(400, `${k}: at least 128m, or 0 for no limit.`);
+      if (text !== "0" && !/^\d+(\.\d+)?[bkmg]$/.test(text))
+        throw new Problem(400, `${k}: a quantity of memory in Docker units is expected (512m, 2g), or 0.`);
+      if (text !== "0" && memoryBytes(text) < 128 * 1024 ** 2)
+        throw new Problem(400, `${k}: at least 128m, or 0 for no limit.`);
       found[k] = text;
     }
   }
   const soft = Number(found.odoo_limit_memory_soft_mb ?? 0);
   const hard = Number(found.odoo_limit_memory_hard_mb ?? 0);
-  if (soft && hard && soft > hard) throw new Problem(400, "The soft memory limit per worker is above the hard one: Odoo would stop requests first.");
+  if (soft && hard && soft > hard)
+    throw new Problem(400, "The soft memory limit per worker is above the hard one: Odoo would stop requests first.");
   return found;
 }
 

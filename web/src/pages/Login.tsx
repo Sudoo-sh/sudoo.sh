@@ -20,7 +20,13 @@ import { redirectTarget, signInLookFor } from "@/lib/frame";
 
 const PREVIEW = [
   { name: "sales-main", branch: "main", version: "19.0", status: "var(--positive)", when: "now" },
-  { name: "crm-lead-scoring", branch: "feature/lead-scoring", version: "19.0", status: "var(--working)", when: "updating" },
+  {
+    name: "crm-lead-scoring",
+    branch: "feature/lead-scoring",
+    version: "19.0",
+    status: "var(--working)",
+    when: "updating",
+  },
   { name: "pos-restaurant", branch: "17.0-restaurant", version: "17.0", status: "var(--positive)", when: "minutesAgo" },
   { name: "invoicing-demo", branch: "demo/customer-a", version: "18.0", status: "var(--caution)", when: "paused" },
 ] as const;
@@ -35,7 +41,9 @@ export function Preview() {
         <p>{t.text}</p>
       </div>
       <div className="window">
-        <div className="bar"><span dir="ltr">sudoo.sh</span> · {t.instances}</div>
+        <div className="bar">
+          <span dir="ltr">sudoo.sh</span> · {t.instances}
+        </div>
         {PREVIEW.map((item, i) => (
           <div className="item" key={item.name} style={{ animationDelay: `${150 + i * 60}ms` }}>
             <span className="dot" style={{ background: item.status }} />
@@ -52,11 +60,15 @@ export function Preview() {
   );
 }
 
-
 const FACTOR_ICON: Record<string, React.ReactNode> = { totp: <Smartphone size={16} />, email: <Mail size={16} /> };
 
 const useSignInOptions = () =>
-  useQuery({ queryKey: ["sign-in-options"], queryFn: () => api.get<SignInOptions>("/session/options"), retry: false, staleTime: 60_000 });
+  useQuery({
+    queryKey: ["sign-in-options"],
+    queryFn: () => api.get<SignInOptions>("/session/options"),
+    retry: false,
+    staleTime: 60_000,
+  });
 
 type FirstStep = Session | { second_factor: SecondFactorChallenge } | { redirect: { address: string; url: string } };
 
@@ -197,7 +209,11 @@ export function LoginPage() {
     <div className={look === "portal" ? "auth portal-auth" : "auth"}>
       <section className="auth-panel">
         <div className="auth-card" key={step}>
-          <div className="row"><Brand to="/login" /><span className="spacer" /><LanguageSwitch /></div>
+          <div className="row">
+            <Brand to="/login" />
+            <span className="spacer" />
+            <LanguageSwitch />
+          </div>
           {step === "start" && (
             <>
               {look === "portal" ? (
@@ -215,37 +231,79 @@ export function LoginPage() {
               {elsewhere && <Callout tone="info">{elsewhere}</Callout>}
               {options?.github && (
                 <>
-                  <Button size="lg" block className="github-button" icon={<GitHubMark size={18} />} loading={busy === "github"} onClick={github}>
+                  <Button
+                    size="lg"
+                    block
+                    className="github-button"
+                    icon={<GitHubMark size={18} />}
+                    loading={busy === "github"}
+                    onClick={github}
+                  >
                     {t.github}
                   </Button>
-                  <div className="auth-or" role="separator"><span>{t.or}</span></div>
+                  <div className="auth-or" role="separator">
+                    <span>{t.or}</span>
+                  </div>
                 </>
               )}
               <form className="stack" onSubmit={submitPassword}>
                 <Field label={t.email} htmlFor="username">
                   <div className="input-group">
                     <Mail />
-                    <Input id="username" type="text" inputMode="email" dir="ltr" autoCapitalize="none" spellCheck={false} placeholder="you@example.com" autoComplete="username" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} required />
+                    <Input
+                      id="username"
+                      type="text"
+                      inputMode="email"
+                      dir="ltr"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      placeholder="you@example.com"
+                      autoComplete="username"
+                      autoFocus
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      required
+                    />
                   </div>
                 </Field>
                 <Field label={t.password} htmlFor="password">
                   <div className="input-group">
                     <Lock />
-                    <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                    <Input
+                      id="password"
+                      type="password"
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
                   </div>
                 </Field>
                 {error && <Callout tone="danger">{error}</Callout>}
-                <Button type="submit" variant="primary" size="lg" block loading={busy === "password"} className={shake ? "shake" : ""}>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  block
+                  loading={busy === "password"}
+                  className={shake ? "shake" : ""}
+                >
                   {t.submit}
                 </Button>
               </form>
               {options?.email_code && (
                 <div className="auth-alt">
-                  <Button variant="ghost" block icon={<KeyRound />} loading={busy === "code"} onClick={askCode}>{t.sendCode}</Button>
+                  <Button variant="ghost" block icon={<KeyRound />} loading={busy === "code"} onClick={askCode}>
+                    {t.sendCode}
+                  </Button>
                   <p className="xsmall faint">{t.sendCodeHint}</p>
                 </div>
               )}
-              {setup?.contact && <p className="faint small">{t.forgot} {setup.contact}</p>}
+              {setup?.contact && (
+                <p className="faint small">
+                  {t.forgot} {setup.contact}
+                </p>
+              )}
             </>
           )}
           {step === "inbox" && (
@@ -256,11 +314,20 @@ export function LoginPage() {
               </header>
               <OtpInput value={code} onChange={setCode} onComplete={submitCode} shake={shake} />
               {error && <Callout tone="danger">{error}</Callout>}
-              <Button variant="primary" size="lg" block loading={busy === "verify"} disabled={!codeReady(code)} onClick={() => submitCode()}>
+              <Button
+                variant="primary"
+                size="lg"
+                block
+                loading={busy === "verify"}
+                disabled={!codeReady(code)}
+                onClick={() => submitCode()}
+              >
                 {t.verify}
               </Button>
               <div className="row small">
-                <Button variant="ghost" size="sm" icon={<ArrowLeft className="flip-rtl" />} onClick={back}>{t.useAnother}</Button>
+                <Button variant="ghost" size="sm" icon={<ArrowLeft className="flip-rtl" />} onClick={back}>
+                  {t.useAnother}
+                </Button>
                 <span className="spacer" />
                 <Button variant="ghost" size="sm" disabled={resendIn > 0} onClick={askCode}>
                   {resendIn > 0 ? t.sendAgainIn(resendIn) : t.sendNew}
@@ -276,28 +343,55 @@ export function LoginPage() {
                   {recovering
                     ? t.recoveryText
                     : method === "email"
-                    ? challenge.sent_to
-                      ? t.emailSent(challenge.sent_to)
-                      : t.emailCanSend
-                    : t.appText}
+                      ? challenge.sent_to
+                        ? t.emailSent(challenge.sent_to)
+                        : t.emailCanSend
+                      : t.appText}
                 </p>
               </header>
               {!recovering && challenge.methods.filter((m) => m.name !== "recovery").length > 1 && (
                 <div className="segmented" style={{ alignSelf: "flex-start" }}>
-                  {challenge.methods.filter((m) => m.name !== "recovery").map((m) => (
-                    <button key={m.name} type="button" aria-pressed={m.name === method} onClick={() => { setMethod(m.name); setCode(""); setError(""); }}>
-                      {FACTOR_ICON[m.name]} {t.factors[m.name] ?? m.label}
-                    </button>
-                  ))}
+                  {challenge.methods
+                    .filter((m) => m.name !== "recovery")
+                    .map((m) => (
+                      <button
+                        key={m.name}
+                        type="button"
+                        aria-pressed={m.name === method}
+                        onClick={() => {
+                          setMethod(m.name);
+                          setCode("");
+                          setError("");
+                        }}
+                      >
+                        {FACTOR_ICON[m.name]} {t.factors[m.name] ?? m.label}
+                      </button>
+                    ))}
                 </div>
               )}
               {recovering ? (
-                <form onSubmit={(e) => { e.preventDefault(); submitCode(); }}>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    submitCode();
+                  }}
+                >
                   <Field label={t.recoveryCode} htmlFor="recovery-code">
                     <div className="input-group">
                       <LifeBuoy />
-                      <Input id="recovery-code" dir="ltr" className={`mono ${shake ? "shake" : ""}`} autoComplete="one-time-code" autoCapitalize="none" spellCheck={false}
-                        placeholder="xxxxx-xxxxx" maxLength={24} autoFocus value={code} onChange={(e) => setCode(e.target.value)} />
+                      <Input
+                        id="recovery-code"
+                        dir="ltr"
+                        className={`mono ${shake ? "shake" : ""}`}
+                        autoComplete="one-time-code"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        placeholder="xxxxx-xxxxx"
+                        maxLength={24}
+                        autoFocus
+                        value={code}
+                        onChange={(e) => setCode(e.target.value)}
+                      />
                     </div>
                   </Field>
                 </form>
@@ -305,7 +399,14 @@ export function LoginPage() {
                 <OtpInput value={code} onChange={setCode} onComplete={submitCode} shake={shake} />
               )}
               {error && <Callout tone="danger">{error}</Callout>}
-              <Button variant="primary" size="lg" block loading={busy === "verify"} disabled={!codeReady(code)} onClick={() => submitCode()}>
+              <Button
+                variant="primary"
+                size="lg"
+                block
+                loading={busy === "verify"}
+                disabled={!codeReady(code)}
+                onClick={() => submitCode()}
+              >
                 {t.verify}
               </Button>
               <div className="row small">
@@ -314,7 +415,15 @@ export function LoginPage() {
                 </Button>
                 <span className="spacer" />
                 {challenge.methods.some((m) => m.name === "recovery") && (method === "totp" || recovering) && (
-                  <Button variant="ghost" size="sm" onClick={() => { setMethod(recovering ? "totp" : "recovery"); setCode(""); setError(""); }}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setMethod(recovering ? "totp" : "recovery");
+                      setCode("");
+                      setError("");
+                    }}
+                  >
                     {recovering ? t.useApp : t.lostPhone}
                   </Button>
                 )}
@@ -385,7 +494,11 @@ export function GitHubReturnPage() {
     <div className="auth">
       <section className="auth-panel">
         <div className="auth-card">
-          <div className="row"><Brand to="/login" /><span className="spacer" /><LanguageSwitch /></div>
+          <div className="row">
+            <Brand to="/login" />
+            <span className="spacer" />
+            <LanguageSwitch />
+          </div>
           {error ? (
             <>
               <header>
@@ -393,8 +506,12 @@ export function GitHubReturnPage() {
                 <p>{error}</p>
               </header>
               <div className="row-wrap">
-                <Button variant="primary" onClick={() => navigate("/login", { replace: true })}>{t.toSignIn}</Button>
-                <Button variant="ghost" onClick={() => navigate("/account", { replace: true })}>{t.toAccount}</Button>
+                <Button variant="primary" onClick={() => navigate("/login", { replace: true })}>
+                  {t.toSignIn}
+                </Button>
+                <Button variant="ghost" onClick={() => navigate("/account", { replace: true })}>
+                  {t.toAccount}
+                </Button>
               </div>
             </>
           ) : (

@@ -36,8 +36,20 @@ export function setPremiumFrame(next: (node: ReactNode, place: PremiumPlace) => 
 }
 
 /** Draw a premium component once its file is loaded and checked. */
-function Loaded<P extends object>({ pkg, module, name, props, onError, place }: {
-  pkg: PremiumPackage; module: string; name: string; props: P; onError?: ReactNode; place: Omit<PremiumPlace, "pkg">;
+function Loaded<P extends object>({
+  pkg,
+  module,
+  name,
+  props,
+  onError,
+  place,
+}: {
+  pkg: PremiumPackage;
+  module: string;
+  name: string;
+  props: P;
+  onError?: ReactNode;
+  place: Omit<PremiumPlace, "pkg">;
 }) {
   const t = useT(words);
   const [found, setFound] = useState<{ C: ComponentType<P> } | null>(null);
@@ -84,12 +96,22 @@ export function usePremiumSections(name: string): { pkg: PremiumPackage; section
   const { data } = usePremium();
   const can = useCan();
   return (data?.packages ?? []).flatMap((pkg) =>
-    (pkg.ui?.sections ?? []).filter((s) => s.slot === name && allowed(can, s.permission)).map((section) => ({ pkg, section })),
+    (pkg.ui?.sections ?? [])
+      .filter((s) => s.slot === name && allowed(can, s.permission))
+      .map((section) => ({ pkg, section })),
   );
 }
 
 /** Where premium packages add a section to a panel page; `fallback` shows while none does. */
-export function PremiumSlot<P extends object>({ name, props, fallback = null }: { name: string; props?: P; fallback?: ReactNode }) {
+export function PremiumSlot<P extends object>({
+  name,
+  props,
+  fallback = null,
+}: {
+  name: string;
+  props?: P;
+  fallback?: ReactNode;
+}) {
   const { isPending } = usePremium();
   const found = usePremiumSections(name);
   if (isPending) return null;
@@ -97,8 +119,15 @@ export function PremiumSlot<P extends object>({ name, props, fallback = null }: 
   return (
     <>
       {found.map(({ pkg, section }) => (
-        <Loaded key={`${pkg.id}:${section.module}:${section.export}`} pkg={pkg} module={section.module} name={section.export}
-          props={(props ?? {}) as P} onError={fallback} place={{ slot: name }} />
+        <Loaded
+          key={`${pkg.id}:${section.module}:${section.export}`}
+          pkg={pkg}
+          module={section.module}
+          name={section.export}
+          props={(props ?? {}) as P}
+          onError={fallback}
+          place={{ slot: name }}
+        />
       ))}
     </>
   );
@@ -121,10 +150,20 @@ function matches(path: string, pathname: string) {
 export function PremiumPage({ id, path }: { id: PremiumId; path: string }) {
   const { isPending } = usePremium();
   const routes = usePremiumRoutes();
-  if (isPending) return <Page><Skeleton height={160} /></Page>;
+  if (isPending)
+    return (
+      <Page>
+        <Skeleton height={160} />
+      </Page>
+    );
   const found = routes.find(({ route }) => route.path === path);
-  if (found) return <Loaded pkg={found.pkg} module={found.route.module} name={found.route.export} props={{}} place={{ path }} />;
-  return <Page><PlanCard id={id} /></Page>;
+  if (found)
+    return <Loaded pkg={found.pkg} module={found.route.module} name={found.route.export} props={{}} place={{ path }} />;
+  return (
+    <Page>
+      <PlanCard id={id} />
+    </Page>
+  );
 }
 
 /** Any other page a running package lists; the "not found" page otherwise. */
@@ -132,10 +171,25 @@ export function PremiumOrNotFound() {
   const { pathname } = useLocation();
   const { isPending } = usePremium();
   const routes = usePremiumRoutes();
-  if (isPending) return <Page><Skeleton height={160} /></Page>;
-  const found = routes.filter(({ route }) => matches(route.path, pathname)).sort((a, b) => b.route.path.length - a.route.path.length)[0];
+  if (isPending)
+    return (
+      <Page>
+        <Skeleton height={160} />
+      </Page>
+    );
+  const found = routes
+    .filter(({ route }) => matches(route.path, pathname))
+    .sort((a, b) => b.route.path.length - a.route.path.length)[0];
   if (!found) return <NotFoundPage />;
-  return <Loaded pkg={found.pkg} module={found.route.module} name={found.route.export} props={{}} place={{ path: found.route.path }} />;
+  return (
+    <Loaded
+      pkg={found.pkg}
+      module={found.route.module}
+      name={found.route.export}
+      props={{}}
+      place={{ path: found.route.path }}
+    />
+  );
 }
 
 /** What a premium feature is and how it comes: shown where it would be while it is absent. */
@@ -155,16 +209,30 @@ export function PlanCard({ id, compact }: { id: PremiumId; compact?: boolean }) 
             <b>{t.planCardTitle(name)}</b>
             <span className="small muted">{t.about[id]}</span>
             <span className="small">
-              {state === "failed" ? <>{t.planCardFailed} {pkg?.problem}</>
-                : state === "switched_off" ? t.planCardOff
-                : state === "pending" || state === "restart_pending" ? t.planCardPending
-                : <>{pkg ? `${t.plans(pkg.plans)}. ` : ""}{t.planCardText}</>}
+              {state === "failed" ? (
+                <>
+                  {t.planCardFailed} {pkg?.problem}
+                </>
+              ) : state === "switched_off" ? (
+                t.planCardOff
+              ) : state === "pending" || state === "restart_pending" ? (
+                t.planCardPending
+              ) : (
+                <>
+                  {pkg ? `${t.plans(pkg.plans)}. ` : ""}
+                  {t.planCardText}
+                </>
+              )}
             </span>
             <span className="links small">
               {plan?.links.pricing && (
-                <a href={plan.links.pricing} target="_blank" rel="noreferrer">{t.seePlans} <ArrowUpRight size={12} className="flip-rtl" /></a>
+                <a href={plan.links.pricing} target="_blank" rel="noreferrer">
+                  {t.seePlans} <ArrowUpRight size={12} className="flip-rtl" />
+                </a>
               )}
-              <Link to="/settings?tab=plan" viewTransition>{t.openSettings}</Link>
+              <Link to="/settings?tab=plan" viewTransition>
+                {t.openSettings}
+              </Link>
             </span>
           </div>
         </div>
@@ -215,7 +283,13 @@ export function PremiumFeaturesCard() {
       <div className="card-head">
         <h2>{t.title}</h2>
         {can("settings.manage") && (
-          <Button size="sm" icon={running ? <Spinner /> : <RefreshCcw />} loading={busy} disabled={running} onClick={check}>
+          <Button
+            size="sm"
+            icon={running ? <Spinner /> : <RefreshCcw />}
+            loading={busy}
+            disabled={running}
+            onClick={check}
+          >
             {running ? t.checking : t.checkNow}
           </Button>
         )}
@@ -223,16 +297,26 @@ export function PremiumFeaturesCard() {
       <div className="card-body stack">
         <p className="small muted">{t.text}</p>
         {data && !data.marketplace && <Callout tone="info">{t.marketplaceOff}</Callout>}
-        {data?.last_error && <Callout tone="warning">{t.lastError} {data.last_error}</Callout>}
-        {isPending ? <Skeleton height={120} /> : (
+        {data?.last_error && (
+          <Callout tone="warning">
+            {t.lastError} {data.last_error}
+          </Callout>
+        )}
+        {isPending ? (
+          <Skeleton height={120} />
+        ) : (
           <ul className="premium-list" role="list">
             {data?.packages.map((pkg) => (
               <li key={pkg.id}>
                 <div className="about">
                   <b>{t.names[pkg.id]}</b>
                   <span className="xsmall muted">{t.about[pkg.id]}</span>
-                  {pkg.problem && pkg.status !== "not_included" && <span className="xsmall problem">{pkg.problem}</span>}
-                  {pkg.binding_until && pkg.status === "active" && <span className="xsmall faint">{t.boundUntil(dateTime(pkg.binding_until))}</span>}
+                  {pkg.problem && pkg.status !== "not_included" && (
+                    <span className="xsmall problem">{pkg.problem}</span>
+                  )}
+                  {pkg.binding_until && pkg.status === "active" && (
+                    <span className="xsmall faint">{t.boundUntil(dateTime(pkg.binding_until))}</span>
+                  )}
                 </div>
                 <div className="tags">
                   {pkg.version && pkg.status !== "not_included" && <Tag mono>{t.version(pkg.version)}</Tag>}
@@ -243,7 +327,8 @@ export function PremiumFeaturesCard() {
           </ul>
         )}
         <p className="xsmall faint">
-          {data?.auto_install ? t.autoOn : t.autoOff} {data?.last_checked_at ? t.lastChecked(ago(data.last_checked_at)) : t.notChecked}
+          {data?.auto_install ? t.autoOn : t.autoOff}{" "}
+          {data?.last_checked_at ? t.lastChecked(ago(data.last_checked_at)) : t.notChecked}
         </p>
       </div>
       {job && <JobDrawer id={job} onClose={() => setJob(null)} />}

@@ -47,7 +47,12 @@ export function ShellTab({ instance }: { instance: Instance }) {
   const [anyway, setAnyway] = useState(false);
 
   if (error) return <Callout tone="danger">{String((error as Error).message)}</Callout>;
-  if (!options) return <div className="card card-body"><Skeleton height={160} /></div>;
+  if (!options)
+    return (
+      <div className="card card-body">
+        <Skeleton height={160} />
+      </div>
+    );
 
   const allowed = TARGETS.filter((name) => options.targets[name].allowed);
   const chosen = allowed.includes(target) ? target : allowed[0];
@@ -93,11 +98,19 @@ export function ShellTab({ instance }: { instance: Instance }) {
         <div className="card-head">
           <h2>{t.targets[chosen]}</h2>
           {options.production && <Tag tone="caution">{t.production}</Tag>}
-          {recorded && <span title={t.recordedHint}><Tag tone="accent">{t.recorded}</Tag></span>}
+          {recorded && (
+            <span title={t.recordedHint}>
+              <Tag tone="accent">{t.recorded}</Tag>
+            </span>
+          )}
         </div>
         <div className="card-body shell-start">
           {allowed.length > 1 && (
-            <Segmented value={chosen} onChange={setTarget} options={allowed.map((name) => ({ value: name, label: <span dir="ltr">{t.targets[name]}</span> }))} />
+            <Segmented
+              value={chosen}
+              onChange={setTarget}
+              options={allowed.map((name) => ({ value: name, label: <span dir="ltr">{t.targets[name]}</span> }))}
+            />
           )}
           <p className="muted">{t.targetHints[chosen]}</p>
           {rootAllowed && (
@@ -109,12 +122,21 @@ export function ShellTab({ instance }: { instance: Instance }) {
           {!options.running && <Callout tone="warning">{t.notRunning}</Callout>}
           {phone && !anyway ? (
             <div className="shell-phone">
-              <Callout><b>{t.phoneTitle}</b> {t.phoneText}</Callout>
-              <Button size="sm" icon={<SquareTerminal />} disabled={!options.running} onClick={() => setAnyway(true)}>{t.openAnyway}</Button>
+              <Callout>
+                <b>{t.phoneTitle}</b> {t.phoneText}
+              </Callout>
+              <Button size="sm" icon={<SquareTerminal />} disabled={!options.running} onClick={() => setAnyway(true)}>
+                {t.openAnyway}
+              </Button>
             </div>
           ) : (
             <div className="row-wrap shell-open">
-              <Button variant="primary" icon={<SquareTerminal />} disabled={!options.running} onClick={() => open({ target: chosen, asRoot: rootAllowed && asRoot })}>
+              <Button
+                variant="primary"
+                icon={<SquareTerminal />}
+                disabled={!options.running}
+                onClick={() => open({ target: chosen, asRoot: rootAllowed && asRoot })}
+              >
                 {t.open}
               </Button>
               <span className="faint small">{t.limits(options.limits.idle_minutes, options.limits.max_minutes)}</span>
@@ -132,12 +154,30 @@ export function ShellTab({ instance }: { instance: Instance }) {
       {asking && (
         <Modal
           title={t.confirmTitle}
-          description={<>{t.confirmText(<b key="n"><bdi>{instance.name}</bdi></b>)} {recordedFor(asking) ? t.confirmRecorded : ""}</>}
+          description={
+            <>
+              {t.confirmText(
+                <b key="n">
+                  <bdi>{instance.name}</bdi>
+                </b>,
+              )}{" "}
+              {recordedFor(asking) ? t.confirmRecorded : ""}
+            </>
+          }
           onClose={() => setAsking(null)}
           footer={
             <>
               <Button onClick={() => setAsking(null)}>{c.cancel}</Button>
-              <Button variant="danger" icon={<SquareTerminal />} onClick={() => { open(asking, true); setAsking(null); }}>{t.confirm}</Button>
+              <Button
+                variant="danger"
+                icon={<SquareTerminal />}
+                onClick={() => {
+                  open(asking, true);
+                  setAsking(null);
+                }}
+              >
+                {t.confirm}
+              </Button>
             </>
           }
         />
@@ -158,7 +198,9 @@ function ShellSessions({ instance }: { instance: string }) {
         <span className="sub">{t.sessionsSub}</span>
       </div>
       {!data ? (
-        <div className="card-body"><Skeleton height={80} /></div>
+        <div className="card-body">
+          <Skeleton height={80} />
+        </div>
       ) : !data.length ? (
         <div className="card-body faint">{t.noSessions}</div>
       ) : (
@@ -176,19 +218,44 @@ function ShellSessions({ instance }: { instance: string }) {
           <TableBody>
             {data.map((s) => (
               <TableRow key={s.id}>
-                <TableCell><bdi>{s.user}</bdi></TableCell>
+                <TableCell>
+                  <bdi>{s.user}</bdi>
+                </TableCell>
                 <TableCell>
                   <span className="small">{t.asUser(t.targets[s.target] ?? s.target, s.container_user)}</span>
-                  {s.root && <> <Tag tone="negative">{t.root}</Tag></>}
+                  {s.root && (
+                    <>
+                      {" "}
+                      <Tag tone="negative">{t.root}</Tag>
+                    </>
+                  )}
                 </TableCell>
                 <TableCell className="nowrap">{dateTime(s.started_at)}</TableCell>
-                <TableCell className="nowrap">{s.open ? elapsed(s.started_at) : duration(s.duration_seconds)}</TableCell>
-                <TableCell>{s.open ? <Tag tone="positive">{t.openNow}</Tag> : <span className="muted small">{t.reasons[s.reason ?? "closed"] ?? s.reason}</span>}</TableCell>
+                <TableCell className="nowrap">
+                  {s.open ? elapsed(s.started_at) : duration(s.duration_seconds)}
+                </TableCell>
+                <TableCell>
+                  {s.open ? (
+                    <Tag tone="positive">{t.openNow}</Tag>
+                  ) : (
+                    <span className="muted small">{t.reasons[s.reason ?? "closed"] ?? s.reason}</span>
+                  )}
+                </TableCell>
                 <TableCell className="actions">
                   {s.open ? (
-                    <Button size="sm" variant="danger" icon={<Square />} loading={end.isPending && end.variables === s.id} onClick={() => end.mutate(s.id)}>{t.end}</Button>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      icon={<Square />}
+                      loading={end.isPending && end.variables === s.id}
+                      onClick={() => end.mutate(s.id)}
+                    >
+                      {t.end}
+                    </Button>
                   ) : s.recording ? (
-                    <Button size="sm" icon={<Play />} onClick={() => setPlaying(s)}>{t.play}</Button>
+                    <Button size="sm" icon={<Play />} onClick={() => setPlaying(s)}>
+                      {t.play}
+                    </Button>
                   ) : (
                     <span className="faint small">{s.recorded ? t.recordingRemoved : t.notRecorded}</span>
                   )}

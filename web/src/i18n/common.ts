@@ -34,15 +34,36 @@ const EN_UNITS = {
 const AR_UNITS: typeof EN_UNITS = {
   instance: p({ zero: "# بيئة", one: "بيئة واحدة", two: "بيئتان", few: "# بيئات", many: "# بيئة", other: "# بيئة" }),
   branch: p({ zero: "# فرع", one: "فرع واحد", two: "فرعان", few: "# فروع", many: "# فرعًا", other: "# فرع" }),
-  project: p({ zero: "# مشروع", one: "مشروع واحد", two: "مشروعان", few: "# مشاريع", many: "# مشروعًا", other: "# مشروع" }),
-  backup: p({ zero: "# نسخة احتياطية", one: "نسخة احتياطية واحدة", two: "نسختان احتياطيتان", few: "# نسخ احتياطية", many: "# نسخة احتياطية", other: "# نسخة احتياطية" }),
+  project: p({
+    zero: "# مشروع",
+    one: "مشروع واحد",
+    two: "مشروعان",
+    few: "# مشاريع",
+    many: "# مشروعًا",
+    other: "# مشروع",
+  }),
+  backup: p({
+    zero: "# نسخة احتياطية",
+    one: "نسخة احتياطية واحدة",
+    two: "نسختان احتياطيتان",
+    few: "# نسخ احتياطية",
+    many: "# نسخة احتياطية",
+    other: "# نسخة احتياطية",
+  }),
   second: p({ zero: "# ثانية", one: "ثانية واحدة", two: "ثانيتين", few: "# ثوانٍ", many: "# ثانية", other: "# ثانية" }),
   minute: p({ zero: "# دقيقة", one: "دقيقة واحدة", two: "دقيقتين", few: "# دقائق", many: "# دقيقة", other: "# دقيقة" }),
   hour: p({ zero: "# ساعة", one: "ساعة واحدة", two: "ساعتين", few: "# ساعات", many: "# ساعة", other: "# ساعة" }),
   day: p({ zero: "# يوم", one: "يوم واحد", two: "يومين", few: "# أيام", many: "# يومًا", other: "# يوم" }),
   time: p({ zero: "# مرة", one: "مرة واحدة", two: "مرتين", few: "# مرات", many: "# مرة", other: "# مرة" }),
   code: p({ zero: "# رمز", one: "رمز واحد", two: "رمزان", few: "# رموز", many: "# رمزًا", other: "# رمز" }),
-  plugin: p({ zero: "# إضافة", one: "إضافة واحدة", two: "إضافتان", few: "# إضافات", many: "# إضافة", other: "# إضافة" }),
+  plugin: p({
+    zero: "# إضافة",
+    one: "إضافة واحدة",
+    two: "إضافتان",
+    few: "# إضافات",
+    many: "# إضافة",
+    other: "# إضافة",
+  }),
   account: p({ zero: "# حساب", one: "حساب واحد", two: "حسابان", few: "# حسابات", many: "# حسابًا", other: "# حساب" }),
   module: p({ zero: "# وحدة", one: "وحدة واحدة", two: "وحدتان", few: "# وحدات", many: "# وحدة", other: "# وحدة" }),
   domain: p({ zero: "# نطاق", one: "نطاق واحد", two: "نطاقان", few: "# نطاقات", many: "# نطاقًا", other: "# نطاق" }),
@@ -125,7 +146,10 @@ const en = {
     failed: "Failed",
   } as Record<string, string>,
   stages: {
-    production: { label: "Production", text: "The live database. Never paused or deleted automatically, backed up every day, updated safely." },
+    production: {
+      label: "Production",
+      text: "The live database. Never paused or deleted automatically, backed up every day, updated safely.",
+    },
     staging: { label: "Staging", text: "A rehearsal of production: tests before release, with a longer lifetime." },
     development: { label: "Development", text: "Day-to-day work on a branch. Pauses when idle and has a lifetime." },
   },
@@ -182,11 +206,14 @@ const en = {
     alertsEmpty: "Nothing needed attention. Failed jobs, instances that are down and a full disk show here.",
     times: (n: number) => ` · ${countIn("en", n, EN_UNITS.time)}`,
     resolved: " · resolved",
-    defaultPasswordTitle: "The Odoo admin password is still \"admin\"",
-    defaultPasswordText: "New instances get the well-known login admin / admin: anyone with an instance's link can sign in as its administrator. Change it in Settings or in .env.",
-    defaultPasswordTextAdmin: "New instances get the well-known login admin / admin: anyone with an instance's link can sign in as its administrator. A super admin can change it in Settings or in .env.",
+    defaultPasswordTitle: 'The Odoo admin password is still "admin"',
+    defaultPasswordText:
+      "New instances get the well-known login admin / admin: anyone with an instance's link can sign in as its administrator. Change it in Settings or in .env.",
+    defaultPasswordTextAdmin:
+      "New instances get the well-known login admin / admin: anyone with an instance's link can sign in as its administrator. A super admin can change it in Settings or in .env.",
     openPlugins: "Open Plugins",
-    noRecoveryCodes: "Your account has no recovery codes: losing the phone with your authenticator app would lock you out.",
+    noRecoveryCodes:
+      "Your account has no recovery codes: losing the phone with your authenticator app would lock you out.",
     makeRecoveryCodes: "Make recovery codes",
   },
   notFound: {
@@ -271,7 +298,10 @@ const ar: Common = {
     failed: "فشلت",
   },
   stages: {
-    production: { label: "الإنتاج", text: "قاعدة البيانات الفعلية. لا تتوقف مؤقتًا ولا تُحذف تلقائيًا أبدًا، وتُنسخ احتياطيًا كل يوم، وتُحدَّث بأمان." },
+    production: {
+      label: "الإنتاج",
+      text: "قاعدة البيانات الفعلية. لا تتوقف مؤقتًا ولا تُحذف تلقائيًا أبدًا، وتُنسخ احتياطيًا كل يوم، وتُحدَّث بأمان.",
+    },
     staging: { label: "التجهيز", text: "تجربة للإنتاج: اختبارات قبل الإصدار، مع مدة بقاء أطول." },
     development: { label: "التطوير", text: "العمل اليومي على فرع. تتوقف مؤقتًا عند الخمول ولها مدة بقاء." },
   },
@@ -329,8 +359,10 @@ const ar: Common = {
     times: (n) => ` · ${countIn("ar", n, AR_UNITS.time)}`,
     resolved: " · حُلّ",
     defaultPasswordTitle: "كلمة مرور admin في Odoo ما زالت الافتراضية",
-    defaultPasswordText: "تحصل البيئات الجديدة على تسجيل الدخول المعروف admin / admin، فيستطيع كل من لديه رابط البيئة تسجيل الدخول مديرًا لها. غيّرها من الإعدادات أو من ملف .env.",
-    defaultPasswordTextAdmin: "تحصل البيئات الجديدة على تسجيل الدخول المعروف admin / admin، فيستطيع كل من لديه رابط البيئة تسجيل الدخول مديرًا لها. يمكن لمسؤول أعلى تغييرها من الإعدادات أو من ملف .env.",
+    defaultPasswordText:
+      "تحصل البيئات الجديدة على تسجيل الدخول المعروف admin / admin، فيستطيع كل من لديه رابط البيئة تسجيل الدخول مديرًا لها. غيّرها من الإعدادات أو من ملف .env.",
+    defaultPasswordTextAdmin:
+      "تحصل البيئات الجديدة على تسجيل الدخول المعروف admin / admin، فيستطيع كل من لديه رابط البيئة تسجيل الدخول مديرًا لها. يمكن لمسؤول أعلى تغييرها من الإعدادات أو من ملف .env.",
     openPlugins: "افتح الإضافات",
     noRecoveryCodes: "ليس لحسابك رموز استرداد: إن فقدت الهاتف الذي عليه تطبيق المصادقة فلن تتمكن من الدخول.",
     makeRecoveryCodes: "أنشئ رموز الاسترداد",

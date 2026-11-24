@@ -82,7 +82,8 @@ for (const name of readdirSync(DIR).sort()) {
   keys += en.size;
   for (const [key, kind] of en) {
     if (!ar.has(key)) problems.push(`${name}: "${key}" is missing in Arabic`);
-    else if (ar.get(key) !== kind) problems.push(`${name}: "${key}" is ${kind} in English but ${ar.get(key)} in Arabic`);
+    else if (ar.get(key) !== kind)
+      problems.push(`${name}: "${key}" is ${kind} in English but ${ar.get(key)} in Arabic`);
   }
   for (const key of ar.keys()) if (!en.has(key)) problems.push(`${name}: "${key}" is in Arabic only`);
   const at = (value, path) => path.split(".").reduce((o, k) => o?.[k], value);
@@ -90,14 +91,16 @@ for (const name of readdirSync(DIR).sort()) {
     for (const [language, wanted] of Object.entries(PLURAL_KEYS)) {
       const forms = at(dict[language], path);
       const found = Object.keys(forms ?? {}).sort();
-      if (found.join() !== wanted.join()) problems.push(`${name}: counting word "${path}" in ${language} has ${found.join(", ")}`);
+      if (found.join() !== wanted.join())
+        problems.push(`${name}: counting word "${path}" in ${language} has ${found.join(", ")}`);
     }
   }
   for (const [path, text] of texts(dict.en)) if (!text.trim()) problems.push(`${name}: "${path}" is empty in English`);
   for (const [path, text] of texts(dict.ar)) {
     if (!text.trim()) problems.push(`${name}: "${path}" is empty in Arabic`);
     if (EASTERN_DIGITS.test(text)) problems.push(`${name}: "${path}" has Eastern Arabic digits; use 0-9`);
-    if (!ARABIC.test(text) && ENGLISH_WORD.test(text)) problems.push(`${name}: "${path}" looks untranslated: ${JSON.stringify(text)}`);
+    if (!ARABIC.test(text) && ENGLISH_WORD.test(text))
+      problems.push(`${name}: "${path}" looks untranslated: ${JSON.stringify(text)}`);
   }
 }
 

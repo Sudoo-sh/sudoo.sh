@@ -4,7 +4,19 @@
 // client closed is closed to everyone the client does not let through (super admins included, who cannot lift it).
 // The demo's visitor is the only one who acts; as a client, the visitor is CLIENT_ME.
 
-import type { AccessLevel, AccessMode, AccessSubject, BranchLock, ClientAccess, Grant, Instance, Permission, Stage, SwitchState, Team } from "@/api/types";
+import type {
+  AccessLevel,
+  AccessMode,
+  AccessSubject,
+  BranchLock,
+  ClientAccess,
+  Grant,
+  Instance,
+  Permission,
+  Stage,
+  SwitchState,
+  Team,
+} from "@/api/types";
 import { instances, ME, roleInfo, session, users } from "./state";
 import { iso, OPENED, DAY, Problem } from "./util";
 
@@ -66,7 +78,9 @@ export function lockLetsThrough(access: DemoAccess, branch?: string | null): boo
   if (!client) return true;
   const me = visitor();
   if (client.clients.some((c) => c.id === me)) return true;
-  return client.passes.some((p) => p.kind === "emergency" && p.until > Date.now() && p.users.includes(me) && (!p.branch || p.branch === branch));
+  return client.passes.some(
+    (p) => p.kind === "emergency" && p.until > Date.now() && p.users.includes(me) && (!p.branch || p.branch === branch),
+  );
 }
 
 /** The switch that applies to a branch (its own, else the project's) and where it comes from. */
@@ -107,21 +121,51 @@ export function describeSwitch(access: DemoAccess, branch?: string | null, withY
     changed_at: iso(sw.at),
     emergency_allowed: client.emergency,
     clients: client.clients.length,
-    ...(withYou ? { lets_you_through: (!closed || letsThrough(access, branch)) && (!lock || lockLetsThrough(access, branch)) } : {}),
+    ...(withYou
+      ? { lets_you_through: (!closed || letsThrough(access, branch)) && (!lock || lockLetsThrough(access, branch)) }
+      : {}),
   };
 }
 
 export type Scope = Stage | "project";
 export const STAGES: Stage[] = ["production", "staging", "development"];
 export const STAGE_RIGHTS: Permission[] = [
-  "instances.view", "instances.connect", "instances.logs", "instances.update", "instances.operate", "instances.create", "instances.delete",
-  "instances.credentials", "instances.shell", "instances.database_shell", "backups.manage", "instances.restore", "instances.upgrade",
-  "caught_mail.view", "caught_mail.manage", "instances.profile", "instances.resources", "instances.move", "domains.manage", "offsite.restore", "offsite.delete",
+  "instances.view",
+  "instances.connect",
+  "instances.logs",
+  "instances.update",
+  "instances.operate",
+  "instances.create",
+  "instances.delete",
+  "instances.credentials",
+  "instances.shell",
+  "instances.database_shell",
+  "backups.manage",
+  "instances.restore",
+  "instances.upgrade",
+  "caught_mail.view",
+  "caught_mail.manage",
+  "instances.profile",
+  "instances.resources",
+  "instances.move",
+  "domains.manage",
+  "offsite.restore",
+  "offsite.delete",
 ];
 export const PROJECT_RIGHTS: Permission[] = ["projects.manage", "projects.access", "projects.resources"];
 const SEE: Permission[] = ["instances.view"];
 const TEST: Permission[] = [...SEE, "instances.connect"];
-const DEVELOP_DEV = STAGE_RIGHTS.filter((r) => !["instances.upgrade", "instances.move", "instances.resources", "domains.manage", "offsite.restore", "offsite.delete"].includes(r));
+const DEVELOP_DEV = STAGE_RIGHTS.filter(
+  (r) =>
+    ![
+      "instances.upgrade",
+      "instances.move",
+      "instances.resources",
+      "domains.manage",
+      "offsite.restore",
+      "offsite.delete",
+    ].includes(r),
+);
 const MAINTAIN_PROD: Permission[] = [...TEST, "instances.logs", "backups.manage", "instances.update"];
 export const ROLE_DEFAULTS: Record<AccessLevel, Record<Scope, Permission[]>> = {
   none: { production: [], staging: [], development: [], project: [] },
@@ -134,15 +178,36 @@ export const ROLE_DEFAULTS: Record<AccessLevel, Record<Scope, Permission[]>> = {
 export const EDITABLE_LEVELS: AccessLevel[] = ["view", "tester", "developer", "maintainer"];
 
 export function matrixOf(access: DemoAccess): Record<AccessLevel, Record<Scope, Permission[]>> {
-  const found = Object.fromEntries(Object.entries(ROLE_DEFAULTS).map(([l, scopes]) => [l, { ...scopes }])) as Record<AccessLevel, Record<Scope, Permission[]>>;
+  const found = Object.fromEntries(Object.entries(ROLE_DEFAULTS).map(([l, scopes]) => [l, { ...scopes }])) as Record<
+    AccessLevel,
+    Record<Scope, Permission[]>
+  >;
   for (const [level, scopes] of Object.entries(access.matrix ?? {}))
-    for (const [scope, rights] of Object.entries(scopes ?? {})) found[level as AccessLevel][scope as Scope] = rights ?? [];
+    for (const [scope, rights] of Object.entries(scopes ?? {}))
+      found[level as AccessLevel][scope as Scope] = rights ?? [];
   return found;
 }
 
 /** The demo's temporary access: running grants of ME (projects/elevation.py). */
-export const elevations: { id: string; project: string; user: string; stage: Stage; level: AccessLevel; hours: number; reason: string; status: string; asked: number; expires?: number; decided_by?: string }[] = [];
-const DEFAULT_LEVEL: Record<string, AccessLevel> = { maintainer: "maintainer", developer: "developer", viewer: "view", member: "tester" };
+export const elevations: {
+  id: string;
+  project: string;
+  user: string;
+  stage: Stage;
+  level: AccessLevel;
+  hours: number;
+  reason: string;
+  status: string;
+  asked: number;
+  expires?: number;
+  decided_by?: string;
+}[] = [];
+const DEFAULT_LEVEL: Record<string, AccessLevel> = {
+  maintainer: "maintainer",
+  developer: "developer",
+  viewer: "view",
+  member: "tester",
+};
 
 interface DemoTeam {
   id: string;
@@ -157,15 +222,49 @@ interface DemoTeam {
 
 export const LEVELS: AccessLevel[] = ["none", "view", "tester", "developer", "maintainer", "admin"];
 export const PROJECT_PERMISSIONS: Permission[] = [
-  "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "instances.restore",
-  "instances.upgrade", "instances.delete", "instances.credentials", "instances.connect", "instances.resources", "instances.shell", "instances.database_shell", "instances.profile",
-  "caught_mail.view", "caught_mail.manage", "backups.manage", "offsite.restore", "offsite.delete", "domains.manage",
-  "projects.manage", "projects.access", "projects.resources",
+  "instances.view",
+  "instances.logs",
+  "instances.update",
+  "instances.operate",
+  "instances.create",
+  "instances.restore",
+  "instances.upgrade",
+  "instances.delete",
+  "instances.credentials",
+  "instances.connect",
+  "instances.resources",
+  "instances.shell",
+  "instances.database_shell",
+  "instances.profile",
+  "caught_mail.view",
+  "caught_mail.manage",
+  "backups.manage",
+  "offsite.restore",
+  "offsite.delete",
+  "domains.manage",
+  "projects.manage",
+  "projects.access",
+  "projects.resources",
 ];
 const VIEW: Permission[] = ["instances.view", "instances.logs"];
 const DEVELOP: Permission[] = [...VIEW, "instances.update", "caught_mail.view", "instances.shell", "instances.profile"];
-const MAINTAIN: Permission[] = [...DEVELOP, "instances.operate", "instances.restore", "instances.create", "instances.credentials", "instances.connect", "projects.manage"];
-const LEVEL_PERMISSIONS: Record<AccessLevel, Permission[]> = { none: [], view: VIEW, tester: VIEW, developer: DEVELOP, maintainer: MAINTAIN, admin: PROJECT_PERMISSIONS };
+const MAINTAIN: Permission[] = [
+  ...DEVELOP,
+  "instances.operate",
+  "instances.restore",
+  "instances.create",
+  "instances.credentials",
+  "instances.connect",
+  "projects.manage",
+];
+const LEVEL_PERMISSIONS: Record<AccessLevel, Permission[]> = {
+  none: [],
+  view: VIEW,
+  tester: VIEW,
+  developer: DEVELOP,
+  maintainer: MAINTAIN,
+  admin: PROJECT_PERMISSIONS,
+};
 
 export const teams = new Map<string, DemoTeam>();
 
@@ -173,14 +272,31 @@ export function seedTeams() {
   teams.clear();
   const made = OPENED - 30 * DAY;
   for (const team of [
-    { id: "leads", name: "Leads", description: "Release managers: production changes go through them.", members: ["omar", "lena"] },
-    { id: "nile-squad", name: "Nile squad", description: "Developers on the Nile Logistics project.", members: ["karim", "ines"] },
+    {
+      id: "leads",
+      name: "Leads",
+      description: "Release managers: production changes go through them.",
+      members: ["omar", "lena"],
+    },
+    {
+      id: "nile-squad",
+      name: "Nile squad",
+      description: "Developers on the Nile Logistics project.",
+      members: ["karim", "ines"],
+    },
   ])
     teams.set(team.id, { ...team, created_at: made, created_by: "omar", changed_at: made, changed_by: "omar" });
 }
 
 /** The access a project starts with: everyone's role applies (as every project made before teams existed). */
-export const openAccess = (): DemoAccess => ({ mode: "panel_roles", grants: [], branches: {}, locks: {}, model: "project_roles", matrix: {} });
+export const openAccess = (): DemoAccess => ({
+  mode: "panel_roles",
+  grants: [],
+  branches: {},
+  locks: {},
+  model: "project_roles",
+  matrix: {},
+});
 
 /** The seeded access of Nile Logistics: the squad develops, its production branch is locked to the leads. */
 export function seededAccess(id: string): DemoAccess {
@@ -189,9 +305,19 @@ export function seededAccess(id: string): DemoAccess {
     mode: "panel_roles",
     model: "project_roles",
     matrix: {},
-    grants: [{ type: "team", id: "nile-squad", level: "developer" }, { type: "github_team", id: "example-integrator/qa", level: "tester" }],
+    grants: [
+      { type: "team", id: "nile-squad", level: "developer" },
+      { type: "github_team", id: "example-integrator/qa", level: "tester" },
+    ],
     branches: {},
-    locks: { main: { locked_by: "omar", locked_at: Math.round((OPENED - 2 * DAY) / 1000), reason: "Peak season: production changes only by the leads.", allow: [{ type: "team", id: "leads" }] } },
+    locks: {
+      main: {
+        locked_by: "omar",
+        locked_at: Math.round((OPENED - 2 * DAY) / 1000),
+        reason: "Peak season: production changes only by the leads.",
+        allow: [{ type: "team", id: "leads" }],
+      },
+    },
   };
 }
 
@@ -205,7 +331,12 @@ function pick(grants: Grant[]): AccessLevel | null {
   const mine = myTeams();
   let best: AccessLevel | null = null;
   for (const grant of grants)
-    if (grant.type === "team" && mine.has(grant.id) && (best === null || LEVELS.indexOf(grant.level) > LEVELS.indexOf(best))) best = grant.level;
+    if (
+      grant.type === "team" &&
+      mine.has(grant.id) &&
+      (best === null || LEVELS.indexOf(grant.level) > LEVELS.indexOf(best))
+    )
+      best = grant.level;
   return best;
 }
 
@@ -235,7 +366,9 @@ function rolesPermissions(access: DemoAccess, branch?: string | null): Permissio
   const level = levelIn(access, branch);
   const scopes: Scope[] = stage ? [stage, "project"] : [...STAGES, "project"];
   const granted = new Set<Permission>(scopes.flatMap((s) => matrix[level][s]));
-  for (const e of elevations) if (e.status === "approved" && (e.expires ?? 0) > Date.now() && (!stage || e.stage === stage)) matrix[e.level][e.stage].forEach((r) => granted.add(r));
+  for (const e of elevations)
+    if (e.status === "approved" && (e.expires ?? 0) > Date.now() && (!stage || e.stage === stage))
+      matrix[e.level][e.stage].forEach((r) => granted.add(r));
   const lock = branch ? access.locks[branch] : undefined;
   return [...role, ...[...granted].filter((p) => !lock || p === "instances.view" || lockAllows(lock))];
 }
@@ -245,8 +378,13 @@ export function permissionsIn(access: DemoAccess, branch?: string | null): Permi
   const role = roleInfo(session.role).permissions;
   const level = LEVEL_PERMISSIONS[levelIn(access, branch)];
   const lock = branch ? access.locks[branch] : undefined;
-  const given: Permission[] = session.role === "client" && access.client?.clients.find((c) => c.id === CLIENT_ME)?.backups ? ["backups.manage"] : [];
-  const closed = (closedIn(access, branch) && !letsThrough(access, branch)) || (!!clientLock(access, branch) && !lockLetsThrough(access, branch));
+  const given: Permission[] =
+    session.role === "client" && access.client?.clients.find((c) => c.id === CLIENT_ME)?.backups
+      ? ["backups.manage"]
+      : [];
+  const closed =
+    (closedIn(access, branch) && !letsThrough(access, branch)) ||
+    (!!clientLock(access, branch) && !lockLetsThrough(access, branch));
   return role.filter((p) => {
     if (!PROJECT_PERMISSIONS.includes(p)) return session.role !== "client";
     if (!level.includes(p) && !given.includes(p)) return false;
@@ -260,21 +398,41 @@ export function needIn(access: DemoAccess, permission: Permission, name: string,
   if (permissionsIn(access, branch).includes(permission)) return;
   if (access.model === "project_roles") {
     const level = levelIn(access, branch);
-    if (!permissionsIn(access, branch).includes("instances.view")) throw new Problem(404, branch ? "There is no such branch." : "This project does not exist.");
+    if (!permissionsIn(access, branch).includes("instances.view"))
+      throw new Problem(404, branch ? "There is no such branch." : "This project does not exist.");
     const stage = branch ? ` in ${access.stages?.[branch] ?? "development"}` : "";
-    const who = { none: "People without a role", view: "Viewers", tester: "Testers", developer: "Developers", maintainer: "Maintainers", admin: "Admins" }[level];
-    throw new Problem(403, `${who} of ${name} cannot do this${stage} (${permission}). Ask an admin of the project for temporary access (the project's Access tab, Request access).`);
+    const who = {
+      none: "People without a role",
+      view: "Viewers",
+      tester: "Testers",
+      developer: "Developers",
+      maintainer: "Maintainers",
+      admin: "Admins",
+    }[level];
+    throw new Problem(
+      403,
+      `${who} of ${name} cannot do this${stage} (${permission}). Ask an admin of the project for temporary access (the project's Access tab, Request access).`,
+    );
   }
   if (!roleInfo(session.role).permissions.includes(permission)) return; // the role's own refusal comes from need()
   const level = levelIn(access, branch);
   if (level === "none") throw new Problem(404, branch ? "There is no such branch." : "This project does not exist.");
   const lock = branch ? access.locks[branch] : undefined;
   if (lock && LEVEL_PERMISSIONS[level].includes(permission))
-    throw new Problem(403, `The branch ${branch} is locked by ${lock.locked_by}: only the people and teams the lock allows may do this.`);
+    throw new Problem(
+      403,
+      `The branch ${branch} is locked by ${lock.locked_by}: only the people and teams the lock allows may do this.`,
+    );
   if (clientLock(access, branch) && !lockLetsThrough(access, branch) && LEVEL_PERMISSIONS[level].includes(permission))
-    throw new Problem(403, `${branch ? `The branch ${branch}` : "This project"} is locked by its client: only the client may do this, or unlock it.`);
+    throw new Problem(
+      403,
+      `${branch ? `The branch ${branch}` : "This project"} is locked by its client: only the client may do this, or unlock it.`,
+    );
   if (closedIn(access, branch) && !letsThrough(access, branch) && LEVEL_PERMISSIONS[level].includes(permission))
-    throw new Problem(403, `${branch ? `The branch ${branch}` : "This project"} is closed by its client: only the client and the people it lets in may do this. Ask the client for access (Request access).`);
+    throw new Problem(
+      403,
+      `${branch ? `The branch ${branch}` : "This project"} is closed by its client: only the client and the people it lets in may do this. Ask the client for access (Request access).`,
+    );
   throw new Problem(403, `Your access to ${name} does not include this (${level}).`);
 }
 
@@ -285,7 +443,8 @@ export function mayUnlock(access: DemoAccess, branch: string): boolean {
     return !lock || isSuper() || lockAllows(lock);
   }
   const level = LEVEL_PERMISSIONS[levelIn(access, branch)];
-  if (!roleInfo(session.role).permissions.includes("projects.access") || !level.includes("projects.access")) return false;
+  if (!roleInfo(session.role).permissions.includes("projects.access") || !level.includes("projects.access"))
+    return false;
   if (closedIn(access, branch) && !letsThrough(access, branch)) return false;
   const lock = access.locks[branch];
   return !lock || isSuper() || lockAllows(lock);
@@ -303,14 +462,18 @@ export const subjectName = (subject: AccessSubject): string | null =>
       ? (teams.get(subject.id)?.name ?? null)
       : (users.find((u) => u.name === subject.id)?.display_name ?? null);
 
-export const described = <T extends AccessSubject>(entries: T[]): T[] => entries.map((e) => ({ ...e, name: subjectName(e) }));
+export const described = <T extends AccessSubject>(entries: T[]): T[] =>
+  entries.map((e) => ({ ...e, name: subjectName(e) }));
 
 export function teamResource(team: DemoTeam, usedIn: { id: string; name: string }[]): Team {
   return {
     id: team.id,
     name: team.name,
     description: team.description,
-    members: team.members.map((name) => users.find((u) => u.name === name)).filter((u) => !!u).map((u) => ({ name: u!.name, display_name: u!.display_name, role: u!.role })),
+    members: team.members
+      .map((name) => users.find((u) => u.name === name))
+      .filter((u) => !!u)
+      .map((u) => ({ name: u!.name, display_name: u!.display_name, role: u!.role })),
     projects: usedIn,
     created_at: iso(team.created_at),
     created_by: team.created_by,
@@ -325,7 +488,10 @@ export function setLocks(projectId: string, access: DemoAccess, announce: (i: In
     if (instance.project?.id !== projectId) continue;
     const lock = instance.git.branch ? (access.locks[instance.git.branch] ?? null) : null;
     const closure = describeSwitch(access, instance.git.branch, false);
-    if (JSON.stringify(instance.lock ?? null) !== JSON.stringify(lock) || JSON.stringify(instance.client_access ?? null) !== JSON.stringify(closure)) {
+    if (
+      JSON.stringify(instance.lock ?? null) !== JSON.stringify(lock) ||
+      JSON.stringify(instance.client_access ?? null) !== JSON.stringify(closure)
+    ) {
       instance.lock = lock ? { ...lock, allow: described(lock.allow) } : null;
       instance.client_access = closure;
       announce(instance);

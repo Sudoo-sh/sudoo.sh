@@ -331,7 +331,7 @@ sudoo.sh/
 | `web/` only receives requests, checks them and calls the other modules. | The work (operations, git, Docker) can be tested and reused without HTTP. |
 | Every external command is a list of arguments, run without a shell (`core/shell.py`, `core/jobs.py`). | User input can never be interpreted as a command. |
 | Every value from outside goes through `web/validation.py`. | One place to read and review all input rules. |
-| Type hints everywhere, checked by mypy; formatting by black; lint by ruff. | Mistakes are caught before review, and the code reads the same everywhere. |
+| Type hints everywhere, checked by mypy; formatting by black (Python) and Prettier (`web/`, `npm run format`); lint by ruff. | Mistakes are caught before review, and the code reads the same everywhere. |
 | No inline scripts in the browser code, and the web app talks to the backend only through `/api/v1`. | Allows the strict Content-Security-Policy; the front end can be replaced without touching the backend. |
 
 ---

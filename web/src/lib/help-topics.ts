@@ -94,7 +94,14 @@ const INSTANCE_TABS: Record<string, Topic> = {
 export function topicOf(pathname: string): Topic {
   const parts = pathname.split("/").filter(Boolean);
   if (parts[0] === "i") return INSTANCE_TABS[parts[2] ?? ""] ?? "overview";
-  if (parts[0] === "projects") return parts[1] === "new" ? "newProject" : parts[2] === "access" ? "projectAccess" : parts[1] ? "project" : "projects";
+  if (parts[0] === "projects")
+    return parts[1] === "new"
+      ? "newProject"
+      : parts[2] === "access"
+        ? "projectAccess"
+        : parts[1]
+          ? "project"
+          : "projects";
   return PAGES[parts[0] ?? ""] ?? "other";
 }
 
@@ -105,9 +112,12 @@ export function siteAddress(base: string, path: string, anchor: string): string 
       ? "overview"
       : path === "docs/README.md"
         ? "start"
-        : path.replace(/^docs\//, "").replace(/\.md$/, "").split("/").map((part, i, all) =>
-            i === all.length - 1 ? part.toLowerCase().replace(/_/g, "-") : part,
-          ).join("/");
+        : path
+            .replace(/^docs\//, "")
+            .replace(/\.md$/, "")
+            .split("/")
+            .map((part, i, all) => (i === all.length - 1 ? part.toLowerCase().replace(/_/g, "-") : part))
+            .join("/");
   const top = anchor === slug.split("/").pop() ? "" : `#${anchor}`;
   return `${base.replace(/\/$/, "")}/${slug}${top}`;
 }

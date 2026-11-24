@@ -102,7 +102,12 @@ export const keys = {
 
 /** The licence agreement this release bundles; the same for the whole visit. */
 export const useLicenceText = () =>
-  useQuery({ queryKey: keys.licenceText, queryFn: () => api.get<LicenceText>("/licence/text"), staleTime: Infinity, retry: false });
+  useQuery({
+    queryKey: keys.licenceText,
+    queryFn: () => api.get<LicenceText>("/licence/text"),
+    staleTime: Infinity,
+    retry: false,
+  });
 export const useLicence = () => useQuery({ queryKey: keys.licence, queryFn: () => api.get<LicenceStatus>("/licence") });
 
 export const useSession = () =>
@@ -159,7 +164,8 @@ export const useBuilds = (id: string, perBranch?: number, enabled = true) =>
 export const useBuild = (id: string, buildId: string | null) =>
   useQuery({
     queryKey: keys.build(id, buildId ?? ""),
-    queryFn: () => api.get<HistoryEntry>(`/projects/${encodeURIComponent(id)}/builds/${encodeURIComponent(buildId ?? "")}`),
+    queryFn: () =>
+      api.get<HistoryEntry>(`/projects/${encodeURIComponent(id)}/builds/${encodeURIComponent(buildId ?? "")}`),
     enabled: Boolean(id && buildId),
   });
 
@@ -216,14 +222,19 @@ export const useRepositoryOwners = (enabled: boolean) =>
   });
 
 export const useInstance = (name: string, enabled = true) =>
-  useQuery({ queryKey: keys.instance(name), queryFn: () => api.get<Instance>(`/instances/${name}`), enabled: enabled && Boolean(name) });
+  useQuery({
+    queryKey: keys.instance(name),
+    queryFn: () => api.get<Instance>(`/instances/${name}`),
+    enabled: enabled && Boolean(name),
+  });
 
 /** What the caller may do in an instance (its project's access and its branch's lock): GET /instances/<name>'s
  *  meta.permissions, read again when the lock changes. */
 export const useInstancePermissions = (name: string, lock: string) =>
   useQuery({
     queryKey: [...keys.instance(name), "permissions", lock] as const,
-    queryFn: async () => ((await api.page<Instance>(`/instances/${name}`)).meta?.permissions ?? null) as Permission[] | null,
+    queryFn: async () =>
+      ((await api.page<Instance>(`/instances/${name}`)).meta?.permissions ?? null) as Permission[] | null,
     enabled: !!name,
     staleTime: 30_000,
   });
@@ -232,11 +243,17 @@ export const useUpgrade = (name: string) =>
   useQuery({
     queryKey: [...keys.instance(name), "upgrade"] as const,
     queryFn: () => api.get<Upgrade>(`/instances/${name}/upgrade`),
-    refetchInterval: (query) => (["testing", "promoting"].includes(query.state.data?.state ?? "") || query.state.data?.rollback_open ? 5_000 : 30_000),
+    refetchInterval: (query) =>
+      ["testing", "promoting"].includes(query.state.data?.state ?? "") || query.state.data?.rollback_open
+        ? 5_000
+        : 30_000,
   });
 
 export const useInstanceResources = (name: string) =>
-  useQuery({ queryKey: keys.resources(name), queryFn: () => api.get<InstanceResources>(`/instances/${name}/resources`) });
+  useQuery({
+    queryKey: keys.resources(name),
+    queryFn: () => api.get<InstanceResources>(`/instances/${name}/resources`),
+  });
 
 export const useJobs = (instance?: string, enabled = true) =>
   useQuery({
@@ -267,11 +284,20 @@ export const useAccount = () => useQuery({ queryKey: keys.account, queryFn: () =
 export const useRoles = () =>
   useQuery({ queryKey: ["roles"], queryFn: () => api.get<{ roles: RoleInfo[] }>("/roles"), staleTime: Infinity });
 export const useSetup = () =>
-  useQuery({ queryKey: ["setup"], queryFn: () => api.get<{ needed: boolean; contact: string; default_language?: string }>("/setup"), retry: false });
+  useQuery({
+    queryKey: ["setup"],
+    queryFn: () => api.get<{ needed: boolean; contact: string; default_language?: string }>("/setup"),
+    retry: false,
+  });
 export const useDocs = () =>
   useQuery({ queryKey: ["docs"], queryFn: () => api.get<DocsContents>("/docs"), staleTime: Infinity });
 export const useDocPage = (path: string) =>
-  useQuery({ queryKey: ["docs", path], queryFn: () => api.get<DocPage>(`/docs/${path}`), staleTime: Infinity, enabled: !!path });
+  useQuery({
+    queryKey: ["docs", path],
+    queryFn: () => api.get<DocPage>(`/docs/${path}`),
+    staleTime: Infinity,
+    enabled: !!path,
+  });
 export const useMailTemplates = () =>
   useQuery({
     queryKey: keys.mailTemplates,
@@ -281,10 +307,16 @@ export const useMailTemplates = () =>
     },
   });
 /** The panel's Sudoo.sh plan (GET /plan); the live event "marketplace" (a heartbeat) refreshes it. */
-export const useSudooPlan = () => useQuery({ queryKey: keys.plan, queryFn: () => api.get<PlanStatus>("/plan"), staleTime: 60_000 });
-export const useTeams = (enabled = true) => useQuery({ queryKey: keys.teams, queryFn: () => api.get<Team[]>("/teams"), enabled });
+export const useSudooPlan = () =>
+  useQuery({ queryKey: keys.plan, queryFn: () => api.get<PlanStatus>("/plan"), staleTime: 60_000 });
+export const useTeams = (enabled = true) =>
+  useQuery({ queryKey: keys.teams, queryFn: () => api.get<Team[]>("/teams"), enabled });
 export const useProjectAccess = (id: string, enabled = true) =>
-  useQuery({ queryKey: keys.projectAccess(id), queryFn: () => api.get<ProjectAccess>(`/projects/${encodeURIComponent(id)}/access`), enabled });
+  useQuery({
+    queryKey: keys.projectAccess(id),
+    queryFn: () => api.get<ProjectAccess>(`/projects/${encodeURIComponent(id)}/access`),
+    enabled,
+  });
 export const useUsers = () => useQuery({ queryKey: ["users"], queryFn: () => api.get<User[]>("/users") });
 export const useTokens = () => useQuery({ queryKey: ["tokens"], queryFn: () => api.get<Token[]>("/tokens") });
 export const useBackups = () => useQuery({ queryKey: ["backups"], queryFn: () => api.get<Backup[]>("/backups") });
@@ -378,9 +410,19 @@ export const usePlugins = () =>
   useQuery({ queryKey: keys.plugins, queryFn: () => api.get<InstalledPlugin[]>("/plugins") });
 /** The latest alerts, newest first (the bell); new ones arrive as the "alert" live event. */
 export const useAlerts = (enabled: boolean) =>
-  useQuery({ queryKey: keys.alerts, queryFn: () => api.get<Alert[]>("/alerts?limit=30"), enabled, staleTime: Infinity });
+  useQuery({
+    queryKey: keys.alerts,
+    queryFn: () => api.get<Alert[]>("/alerts?limit=30"),
+    enabled,
+    staleTime: Infinity,
+  });
 export const usePluginNotices = (enabled: boolean) =>
-  useQuery({ queryKey: keys.pluginNotices, queryFn: () => api.get<PluginNotice[]>("/plugins/notices"), enabled, staleTime: 300_000 });
+  useQuery({
+    queryKey: keys.pluginNotices,
+    queryFn: () => api.get<PluginNotice[]>("/plugins/notices"),
+    enabled,
+    staleTime: 300_000,
+  });
 export const useMarketplace = () =>
   useQuery({ queryKey: keys.marketplace, queryFn: () => api.get<MarketplaceStatus>("/marketplace") });
 export const useCatalog = (query: string, enabled: boolean) =>
@@ -407,11 +449,26 @@ export const useCatalogPlugin = (id: string | null) =>
     retry: false,
   });
 export const useBilling = (enabled: boolean) =>
-  useQuery({ queryKey: ["marketplace", "billing"], queryFn: () => api.get<Billing>("/marketplace/billing"), enabled, retry: false });
+  useQuery({
+    queryKey: ["marketplace", "billing"],
+    queryFn: () => api.get<Billing>("/marketplace/billing"),
+    enabled,
+    retry: false,
+  });
 export const useReceipts = (enabled: boolean) =>
-  useQuery({ queryKey: ["marketplace", "receipts"], queryFn: () => api.get<Receipt[]>("/marketplace/receipts"), enabled, retry: false });
+  useQuery({
+    queryKey: ["marketplace", "receipts"],
+    queryFn: () => api.get<Receipt[]>("/marketplace/receipts"),
+    enabled,
+    retry: false,
+  });
 export const usePurchases = (enabled: boolean) =>
-  useQuery({ queryKey: keys.purchases, queryFn: () => api.get<CheckoutSession[]>("/marketplace/checkout-sessions"), enabled, retry: false });
+  useQuery({
+    queryKey: keys.purchases,
+    queryFn: () => api.get<CheckoutSession[]>("/marketplace/checkout-sessions"),
+    enabled,
+    retry: false,
+  });
 export const useRecommendations = (enabled: boolean) =>
   useQuery({
     queryKey: ["marketplace", "recommendations"],
@@ -429,7 +486,9 @@ export const useCaughtMail = (name: string, query: string, limit: number) =>
   useQuery({
     queryKey: [...keys.mail(name), query, limit],
     queryFn: async () => {
-      const answer = await api.page<CaughtMail[]>(`/instances/${name}/mail?limit=${limit}&q=${encodeURIComponent(query)}`);
+      const answer = await api.page<CaughtMail[]>(
+        `/instances/${name}/mail?limit=${limit}&q=${encodeURIComponent(query)}`,
+      );
       return { items: answer.data, meta: answer.meta as unknown as CaughtMailMeta };
     },
     placeholderData: keepPreviousData,
@@ -445,7 +504,10 @@ export const useCaughtMailDetail = (name: string, id: string | null) =>
   });
 
 /** A mutation that refreshes the given queries afterwards. */
-export function useCall<TArgs, TResult>(fn: (args: TArgs) => Promise<TResult>, refresh: readonly (readonly unknown[])[] = []) {
+export function useCall<TArgs, TResult>(
+  fn: (args: TArgs) => Promise<TResult>,
+  refresh: readonly (readonly unknown[])[] = [],
+) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: fn,

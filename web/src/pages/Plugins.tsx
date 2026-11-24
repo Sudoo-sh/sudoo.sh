@@ -5,7 +5,19 @@
 // and never shows a plugin's code.
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Download, ExternalLink, FileDown, MapPin, Puzzle, Receipt, Search, ShoppingBag, Sparkles, Star, Trash2 } from "lucide-react";
+import {
+  Download,
+  ExternalLink,
+  FileDown,
+  MapPin,
+  Puzzle,
+  Receipt,
+  Search,
+  ShoppingBag,
+  Sparkles,
+  Star,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router";
 import { api, ApiError, errorText } from "@/api/client";
@@ -50,9 +62,16 @@ export function planPrice(plan: PricePlan) {
   const t = words(dict).price;
   const parts: string[] = [];
   if (plan.kind === "one_time" || plan.perpetual) return t.onceNoRenewal(price(plan.price_cents, plan.currency));
-  if (plan.kind === "fixed_term") parts.push(t.forDays(price(plan.price_cents, plan.currency), String(plan.period_days ?? "?")));
-  else parts.push(plan.kind === "yearly" ? t.perYear(price(plan.price_cents, plan.currency)) : t.perMonth(price(plan.price_cents, plan.currency)));
-  if (plan.kind !== "monthly" && plan.monthly_equivalent_cents != null) parts.push(t.perMonth(money(plan.monthly_equivalent_cents, plan.currency)));
+  if (plan.kind === "fixed_term")
+    parts.push(t.forDays(price(plan.price_cents, plan.currency), String(plan.period_days ?? "?")));
+  else
+    parts.push(
+      plan.kind === "yearly"
+        ? t.perYear(price(plan.price_cents, plan.currency))
+        : t.perMonth(price(plan.price_cents, plan.currency)),
+    );
+  if (plan.kind !== "monthly" && plan.monthly_equivalent_cents != null)
+    parts.push(t.perMonth(money(plan.monthly_equivalent_cents, plan.currency)));
   if (plan.savings_percent) parts.push(t.save(plan.savings_percent));
   return parts.join(" · ");
 }
@@ -65,32 +84,54 @@ function priceOf(plugin: Pick<CatalogPlugin, "tier"> & { plans?: PricePlan[] }) 
   if (!plan) return t.paid;
   const amount = price(plan.price_cents, plan.currency);
   if (plan.perpetual) return t.once(amount);
-  return plan.kind === "yearly" ? t.perYear(amount) : plan.kind === "fixed_term" ? t.perDays(amount, String(plan.period_days ?? "?")) : t.perMonth(amount);
+  return plan.kind === "yearly"
+    ? t.perYear(amount)
+    : plan.kind === "fixed_term"
+      ? t.perDays(amount, String(plan.period_days ?? "?"))
+      : t.perMonth(amount);
 }
 
 /** The plugin's icon (through the panel), or its monogram. */
 function PluginIcon({ plugin, large }: { plugin: { name: string; icon_url?: string | null }; large?: boolean }) {
   const [broken, setBroken] = useState(false);
   if (!plugin.icon_url || broken) return <Monogram name={plugin.name} large={large} />;
-  return <img className={`plugin-icon ${large ? "lg" : ""}`} src={plugin.icon_url} alt="" loading="lazy" onError={() => setBroken(true)} />;
+  return (
+    <img
+      className={`plugin-icon ${large ? "lg" : ""}`}
+      src={plugin.icon_url}
+      alt=""
+      loading="lazy"
+      onError={() => setBroken(true)}
+    />
+  );
 }
 
 /** "Made for your country", or the countries a plugin is made for. */
 function Countries({ plugin }: { plugin: { countries?: string[]; local?: boolean | null } }) {
   const t = useT(dict);
-  if (plugin.local) return <Tag tone="accent" icon={<MapPin />}>{t.madeForYou}</Tag>;
+  if (plugin.local)
+    return (
+      <Tag tone="accent" icon={<MapPin />}>
+        {t.madeForYou}
+      </Tag>
+    );
   if (!plugin.countries?.length) return null;
-  const shown = plugin.countries.slice(0, 3).join(", ") + (plugin.countries.length > 3 ? ` +${plugin.countries.length - 3}` : "");
+  const shown =
+    plugin.countries.slice(0, 3).join(", ") + (plugin.countries.length > 3 ? ` +${plugin.countries.length - 3}` : "");
   return <Tag icon={<MapPin />}>{shown}</Tag>;
 }
 
 /** A new key for each press of Buy; the same key is sent again if that one request is retried. */
 function newIdempotencyKey() {
   const bytes = crypto.getRandomValues(new Uint8Array(18));
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 }
 
-const reasonText = (reason: string | null) => (reason ? words(dict).reasons[reason] ?? reason.replace(/_/g, " ") : "");
+const reasonText = (reason: string | null) =>
+  reason ? (words(dict).reasons[reason] ?? reason.replace(/_/g, " ")) : "";
 
 // ---------------------------------------------------------------- the running plugin job, then the restart
 
@@ -138,13 +179,23 @@ function WorkCard({ work, onFinished, onClear }: { work: Work; onFinished: (job:
     <div className="card pad rise stack-sm">
       <div className="row">
         <Puzzle className="faint" />
-        <bdi className="spacer truncate" style={{ fontWeight: 600 }}>{work.name}</bdi>
-        <Button size="sm" variant="ghost" onClick={() => setDetails(true)}>{t.details}</Button>
-        {job?.status === "failed" && <Button size="sm" variant="ghost" onClick={onClear}>{t.dismiss}</Button>}
+        <bdi className="spacer truncate" style={{ fontWeight: 600 }}>
+          {work.name}
+        </bdi>
+        <Button size="sm" variant="ghost" onClick={() => setDetails(true)}>
+          {t.details}
+        </Button>
+        {job?.status === "failed" && (
+          <Button size="sm" variant="ghost" onClick={onClear}>
+            {t.dismiss}
+          </Button>
+        )}
       </div>
       {job ? (
         job.status === "success" ? (
-          <div className="row small muted"><span className="spinner" /> {t.loading}</div>
+          <div className="row small muted">
+            <span className="spinner" /> {t.loading}
+          </div>
         ) : (
           <JobLine job={job} />
         )
@@ -213,7 +264,7 @@ function PluginSheet({
   const can = useCan();
   const manage = can("settings.manage");
   const paid = plugin.tier === "paid" && (plugin.action === "buy" || plugin.action === "renew");
-  const plans = plugin.plans?.length ? plugin.plans : detail?.plans ?? [];
+  const plans = plugin.plans?.length ? plugin.plans : (detail?.plans ?? []);
   const { data: billing, error: billingError } = useBilling(manage && paid);
   const toast = useToast();
   const client = useQueryClient();
@@ -331,16 +382,27 @@ function PluginSheet({
 
   const button = () => {
     if (!manage) return null;
-    if (action === "installed") return <Tag tone="positive">{t.installedVersion(installed?.version ?? plugin.installed_version ?? "")}</Tag>;
+    if (action === "installed")
+      return <Tag tone="positive">{t.installedVersion(installed?.version ?? plugin.installed_version ?? "")}</Tag>;
     if (action === "incompatible") return <Button disabled>{t.needsNewer}</Button>;
     if (action === "install" || action === "update")
       return (
         <Button variant="primary" icon={<Download />} loading={step === "working"} disabled={busy} onClick={installNow}>
-          {repair ? t.installAgain : action === "update" ? t.updateTo(plugin.compatible_version?.version ?? "") : t.install}
+          {repair
+            ? t.installAgain
+            : action === "update"
+              ? t.updateTo(plugin.compatible_version?.version ?? "")
+              : t.install}
         </Button>
       );
     return (
-      <Button variant="primary" icon={<ShoppingBag />} loading={step === "working"} disabled={busy || !billing?.can_buy || !chosen || step === "paying"} onClick={buy}>
+      <Button
+        variant="primary"
+        icon={<ShoppingBag />}
+        loading={step === "working"}
+        disabled={busy || !billing?.can_buy || !chosen || step === "paying"}
+        onClick={buy}
+      >
         {action === "renew" ? t.renew : t.buy}
       </Button>
     );
@@ -357,7 +419,11 @@ function PluginSheet({
   return (
     <Modal
       wide
-      title={<span className="row"><PluginIcon plugin={plugin} large /> <bdi>{plugin.name}</bdi></span>}
+      title={
+        <span className="row">
+          <PluginIcon plugin={plugin} large /> <bdi>{plugin.name}</bdi>
+        </span>
+      }
       description={<PublisherBadge publisher={plugin.publisher} />}
       onClose={onClose}
       footer={
@@ -371,31 +437,65 @@ function PluginSheet({
         <p>{plugin.description}</p>
         <div className="row-wrap">
           <Tag>{all.types[plugin.type] ?? plugin.type}</Tag>
-          {version && <Tag mono><span dir="ltr">v{version.version}</span></Tag>}
-          {version?.min_sudoo_version && <Tag mono><span dir="ltr">Sudoo.sh {version.min_sudoo_version}+</span></Tag>}
+          {version && (
+            <Tag mono>
+              <span dir="ltr">v{version.version}</span>
+            </Tag>
+          )}
+          {version?.min_sudoo_version && (
+            <Tag mono>
+              <span dir="ltr">Sudoo.sh {version.min_sudoo_version}+</span>
+            </Tag>
+          )}
           <Tag tone={plugin.tier === "free" ? "positive" : undefined}>{priceOf({ ...plugin, plans })}</Tag>
           <Countries plugin={plugin} />
         </div>
         {(detail?.permissions?.length ?? 0) > 0 && (
           <Field label={t.asksTo}>
-            <div className="row-wrap">{detail!.permissions.map((p) => <Tag key={p} mono><span dir="ltr">{p}</span></Tag>)}</div>
+            <div className="row-wrap">
+              {detail!.permissions.map((p) => (
+                <Tag key={p} mono>
+                  <span dir="ltr">{p}</span>
+                </Tag>
+              ))}
+            </div>
           </Field>
         )}
         {(plugin.requires?.length ?? 0) > 0 && (
           <Field label={t.needs}>
-            <div className="row-wrap">{plugin.requires.map((r) => <Tag key={r.id} mono><span dir="ltr">{r.id} {r.version ?? ""}</span></Tag>)}</div>
+            <div className="row-wrap">
+              {plugin.requires.map((r) => (
+                <Tag key={r.id} mono>
+                  <span dir="ltr">
+                    {r.id} {r.version ?? ""}
+                  </span>
+                </Tag>
+              ))}
+            </div>
           </Field>
         )}
         {plugin.license?.perpetual ? (
-          <p className="small muted">{t.licencePerpetual(all.licenceStates[plugin.license.state] ?? plugin.license.state)}</p>
+          <p className="small muted">
+            {t.licencePerpetual(all.licenceStates[plugin.license.state] ?? plugin.license.state)}
+          </p>
         ) : plugin.license?.expires_at ? (
-          <p className="small muted">{t.licenceEnds(all.licenceStates[plugin.license.state] ?? plugin.license.state, day(plugin.license.expires_at))}</p>
+          <p className="small muted">
+            {t.licenceEnds(
+              all.licenceStates[plugin.license.state] ?? plugin.license.state,
+              day(plugin.license.expires_at),
+            )}
+          </p>
         ) : null}
         {paid && manage && (
           <>
             {plans.length > 0 && (
               <Field label={t.plan}>
-                <RadioGroup className="plan-list" value={chosen?.id ?? ""} onValueChange={setPlan} disabled={step === "paying"}>
+                <RadioGroup
+                  className="plan-list"
+                  value={chosen?.id ?? ""}
+                  onValueChange={setPlan}
+                  disabled={step === "paying"}
+                >
                   {plans.map((p) => (
                     <label key={p.id} className="plan">
                       <RadioGroupItem value={p.id} />
@@ -410,12 +510,7 @@ function PluginSheet({
             )}
             {chosen && (
               <p className="small muted">
-                {chosen.perpetual
-                  ? t.paidOnce
-                  : chosen.kind === "fixed_term"
-                    ? t.paidForTerm
-                    : t.renewed}{" "}
-                {t.ownerPays}
+                {chosen.perpetual ? t.paidOnce : chosen.kind === "fixed_term" ? t.paidForTerm : t.renewed} {t.ownerPays}
               </p>
             )}
             {billingError && <Callout tone="warning">{errorText(billingError)}</Callout>}
@@ -430,7 +525,11 @@ function PluginSheet({
             {billing?.reason === "fingerprint_mismatch" && (
               <Callout tone="danger">
                 {t.flagged}{" "}
-                {billing.manage_url && <a href={billing.manage_url} target="_blank" rel="noreferrer noopener">{t.acceptMachine} <ExternalLink className="flip-rtl" /></a>}
+                {billing.manage_url && (
+                  <a href={billing.manage_url} target="_blank" rel="noreferrer noopener">
+                    {t.acceptMachine} <ExternalLink className="flip-rtl" />
+                  </a>
+                )}
               </Callout>
             )}
             {billing?.reason === "payments_disabled" && <Callout tone="warning">{t.paymentsOff}</Callout>}
@@ -438,9 +537,14 @@ function PluginSheet({
             {step === "paying" && session && (
               <Callout tone={session.status === "open" && session.reason ? "warning" : "info"}>
                 <div className="stack-sm">
-                  <div className="row"><span className="spinner" /> {waiting}{t.installsWhenPaid}</div>
+                  <div className="row">
+                    <span className="spinner" /> {waiting}
+                    {t.installsWhenPaid}
+                  </div>
                   {session.url && (
-                    <a href={session.url} target="_blank" rel="noreferrer noopener">{t.openAgain} <ExternalLink className="flip-rtl" /></a>
+                    <a href={session.url} target="_blank" rel="noreferrer noopener">
+                      {t.openAgain} <ExternalLink className="flip-rtl" />
+                    </a>
                   )}
                 </div>
               </Callout>
@@ -462,7 +566,15 @@ function PluginSheet({
   );
 }
 
-function Catalogue({ installed, busy, onStarted }: { installed: InstalledPlugin[]; busy: boolean; onStarted: (job: Job, name: string, verb?: Verb) => void }) {
+function Catalogue({
+  installed,
+  busy,
+  onStarted,
+}: {
+  installed: InstalledPlugin[];
+  busy: boolean;
+  onStarted: (job: Job, name: string, verb?: Verb) => void;
+}) {
   const { data: status } = useMarketplace();
   const all = useT(dict);
   const t = all.catalogue;
@@ -511,26 +623,62 @@ function Catalogue({ installed, busy, onStarted }: { installed: InstalledPlugin[
       <div className="toolbar">
         <div className="input-group">
           <Search />
-          <Input placeholder={t.search} aria-label={t.search} value={typed} onChange={(e) => setTyped(e.target.value)} />
+          <Input
+            placeholder={t.search}
+            aria-label={t.search}
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+          />
         </div>
-        <SelectBox style={{ width: "auto" }} aria-label={t.category} value={type} onValueChange={(value) => setType(value)}>
+        <SelectBox
+          style={{ width: "auto" }}
+          aria-label={t.category}
+          value={type}
+          onValueChange={(value) => setType(value)}
+        >
           <option value="">{t.allCategories}</option>
           {(categories ?? []).map((c) => (
-            <option key={c.type} value={c.type}>{all.types[c.type] ?? c.type} ({number(c.count)})</option>
+            <option key={c.type} value={c.type}>
+              {all.types[c.type] ?? c.type} ({number(c.count)})
+            </option>
           ))}
         </SelectBox>
-        <Segmented value={tier} onChange={setTier} options={[{ value: "", label: t.all }, { value: "free", label: all.price.free }, { value: "paid", label: all.price.paid }]} />
+        <Segmented
+          value={tier}
+          onChange={setTier}
+          options={[
+            { value: "", label: t.all },
+            { value: "free", label: all.price.free },
+            { value: "paid", label: all.price.paid },
+          ]}
+        />
         <span className="spacer" />
-        <SelectBox style={{ width: "auto" }} aria-label={t.order} value={sort} onValueChange={(value) => setSort(value)}>
-          {(Object.keys(t.sort) as (keyof typeof t.sort)[]).map((key) => <option key={key} value={key}>{t.sort[key]}</option>)}
+        <SelectBox
+          style={{ width: "auto" }}
+          aria-label={t.order}
+          value={sort}
+          onValueChange={(value) => setSort(value)}
+        >
+          {(Object.keys(t.sort) as (keyof typeof t.sort)[]).map((key) => (
+            <option key={key} value={key}>
+              {t.sort[key]}
+            </option>
+          ))}
         </SelectBox>
       </div>
       {browsing && !!recommended?.length && (
         <section className="stack-sm rise" aria-labelledby="recommended">
-          <h2 id="recommended" className="row small"><Sparkles className="faint" /> {t.recommended}</h2>
+          <h2 id="recommended" className="row small">
+            <Sparkles className="faint" /> {t.recommended}
+          </h2>
           <div className="reco-row">
             {recommended.map((pick) => (
-              <button key={pick.plugin.id} type="button" className="card link plugin-card" onClick={() => openSuggestion(pick)}>
+              <button
+                key={pick.plugin.id}
+                type="button"
+                className="card link plugin-card"
+                onClick={() => openSuggestion(pick)}
+              >
                 <div className="pc-head">
                   <PluginIcon plugin={pick.plugin} />
                   <div className="pc-titles">
@@ -540,7 +688,9 @@ function Catalogue({ installed, busy, onStarted }: { installed: InstalledPlugin[
                 </div>
                 <span className="reco-why">{pick.reasons[0] ?? t.suggested}</span>
                 <div className="pc-foot">
-                  <Tag tone={pick.plugin.tier === "free" ? "positive" : undefined}>{pick.plugin.tier === "free" ? all.price.free : all.price.paid}</Tag>
+                  <Tag tone={pick.plugin.tier === "free" ? "positive" : undefined}>
+                    {pick.plugin.tier === "free" ? all.price.free : all.price.paid}
+                  </Tag>
                   <span className="spacer" />
                   <Countries plugin={pick.plugin} />
                 </div>
@@ -550,11 +700,19 @@ function Catalogue({ installed, busy, onStarted }: { installed: InstalledPlugin[
         </section>
       )}
       {isPending ? (
-        <div className="plugin-grid">{[0, 1, 2].map((i) => <Skeleton key={i} height={168} />)}</div>
+        <div className="plugin-grid">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} height={168} />
+          ))}
+        </div>
       ) : error ? (
         <Callout tone="warning">{errorText(error)}</Callout>
       ) : !plugins?.length ? (
-        <div className="card"><Empty icon={<Puzzle />} title={t.noneFound}>{t.noneFoundText}</Empty></div>
+        <div className="card">
+          <Empty icon={<Puzzle />} title={t.noneFound}>
+            {t.noneFoundText}
+          </Empty>
+        </div>
       ) : (
         <div className="plugin-grid rise">
           {plugins.map((plugin) => (
@@ -562,7 +720,15 @@ function Catalogue({ installed, busy, onStarted }: { installed: InstalledPlugin[
           ))}
         </div>
       )}
-      {open && <PluginSheet plugin={open} installed={byId[open.id]} busy={busy} onClose={() => setOpen(null)} onStarted={onStarted} />}
+      {open && (
+        <PluginSheet
+          plugin={open}
+          installed={byId[open.id]}
+          busy={busy}
+          onClose={() => setOpen(null)}
+          onStarted={onStarted}
+        />
+      )}
     </div>
   );
 }
@@ -589,7 +755,15 @@ const PHASE: Record<string, "positive" | "caution" | "negative"> = {
   unlicensed: "negative",
 };
 
-function Installed({ plugins, busy, onStarted }: { plugins: InstalledPlugin[]; busy: boolean; onStarted: (job: Job, name: string, verb?: Verb) => void }) {
+function Installed({
+  plugins,
+  busy,
+  onStarted,
+}: {
+  plugins: InstalledPlugin[];
+  busy: boolean;
+  onStarted: (job: Job, name: string, verb?: Verb) => void;
+}) {
   const can = useCan();
   const t = useT(dict).installed;
   const c = useT(common).common;
@@ -630,39 +804,61 @@ function Installed({ plugins, busy, onStarted }: { plugins: InstalledPlugin[]; b
   if (!plugins.length)
     return (
       <div className="card">
-        <Empty icon={<Puzzle />} title={t.none}>{t.noneText}</Empty>
+        <Empty icon={<Puzzle />} title={t.none}>
+          {t.noneText}
+        </Empty>
       </div>
     );
   return (
     <div className="card rise">
       <Table>
         <TableHeader>
-          <TableRow><TableHead>{t.columns.plugin}</TableHead><TableHead>{t.columns.version}</TableHead><TableHead>{t.columns.status}</TableHead><TableHead>{t.columns.licence}</TableHead><TableHead /></TableRow>
+          <TableRow>
+            <TableHead>{t.columns.plugin}</TableHead>
+            <TableHead>{t.columns.version}</TableHead>
+            <TableHead>{t.columns.status}</TableHead>
+            <TableHead>{t.columns.licence}</TableHead>
+            <TableHead />
+          </TableRow>
         </TableHeader>
         <TableBody>
           {plugins.map((p) => {
             const cls = STATUS[p.status] ?? "unknown";
             const label = t.status[p.status] ?? p.status;
-            const phase = p.licence?.phase ? [t.phase[p.licence.phase] ?? p.licence.phase, PHASE[p.licence.phase]] as const : null;
+            const phase = p.licence?.phase
+              ? ([t.phase[p.licence.phase] ?? p.licence.phase, PHASE[p.licence.phase]] as const)
+              : null;
             return (
               <TableRow key={p.id}>
                 <TableCell>
                   <div className="row">
                     <PluginIcon plugin={p} />
                     <div style={{ minWidth: 0 }}>
-                      <div className="truncate"><bdi>{p.name}</bdi></div>
-                      <div className="xsmall faint"><PublisherBadge publisher={p.publisher} /></div>
+                      <div className="truncate">
+                        <bdi>{p.name}</bdi>
+                      </div>
+                      <div className="xsmall faint">
+                        <PublisherBadge publisher={p.publisher} />
+                      </div>
                     </div>
                   </div>
                 </TableCell>
                 <TableCell className="nowrap">
                   <span className="mono small">v{p.version}</span>
                   {p.update_available && manage && (
-                    <> <Button size="sm" variant="soft" disabled={busy} onClick={() => update(p)}>{t.updateTo(p.latest_version ?? "")}</Button></>
+                    <>
+                      {" "}
+                      <Button size="sm" variant="soft" disabled={busy} onClick={() => update(p)}>
+                        {t.updateTo(p.latest_version ?? "")}
+                      </Button>
+                    </>
                   )}
                 </TableCell>
                 <TableCell>
-                  <Status status={p.restart_pending ? "starting" : cls} label={p.restart_pending ? t.waitingRestart : label} />
+                  <Status
+                    status={p.restart_pending ? "starting" : cls}
+                    label={p.restart_pending ? t.waitingRestart : label}
+                  />
                 </TableCell>
                 <TableCell className="small">
                   {p.tier === "free" ? (
@@ -670,23 +866,55 @@ function Installed({ plugins, busy, onStarted }: { plugins: InstalledPlugin[]; b
                   ) : (
                     <div className="stack-sm" style={{ gap: 2, alignItems: "flex-start" }}>
                       {phase && <Tag tone={phase[1]}>{phase[0]}</Tag>}
-                      {p.licence?.expires_at && <span className="xsmall faint">{t.ends(day(p.licence.expires_at))}{p.licence.grace_until ? t.stops(day(p.licence.grace_until)) : ""}</span>}
+                      {p.licence?.expires_at && (
+                        <span className="xsmall faint">
+                          {t.ends(day(p.licence.expires_at))}
+                          {p.licence.grace_until ? t.stops(day(p.licence.grace_until)) : ""}
+                        </span>
+                      )}
                       {p.licence?.perpetual && <span className="xsmall faint">{t.oneTime}</span>}
                     </div>
                   )}
                 </TableCell>
                 <TableCell className="actions">
                   {manage && (
-                    <Menu trigger={(toggle) => <Button size="sm" variant="ghost" onClick={toggle} disabled={busy}>{t.manage}</Button>}>
+                    <Menu
+                      trigger={(toggle) => (
+                        <Button size="sm" variant="ghost" onClick={toggle} disabled={busy}>
+                          {t.manage}
+                        </Button>
+                      )}
+                    >
                       {(close) => (
                         <>
                           {p.enabled ? (
-                            <MenuItem onSelect={() => { close(); void switchTo(p, false); }}>{t.switchOff}</MenuItem>
+                            <MenuItem
+                              onSelect={() => {
+                                close();
+                                void switchTo(p, false);
+                              }}
+                            >
+                              {t.switchOff}
+                            </MenuItem>
                           ) : (
-                            <MenuItem disabled={p.status === "modified"} onSelect={() => { close(); void switchTo(p, true); }}>{t.switchOn}</MenuItem>
+                            <MenuItem
+                              disabled={p.status === "modified"}
+                              onSelect={() => {
+                                close();
+                                void switchTo(p, true);
+                              }}
+                            >
+                              {t.switchOn}
+                            </MenuItem>
                           )}
                           <MenuSeparator />
-                          <MenuItem danger onSelect={() => { close(); setRemoving(p); }}>
+                          <MenuItem
+                            danger
+                            onSelect={() => {
+                              close();
+                              setRemoving(p);
+                            }}
+                          >
                             <Trash2 /> {t.uninstall}
                           </MenuItem>
                         </>
@@ -707,14 +935,20 @@ function Installed({ plugins, busy, onStarted }: { plugins: InstalledPlugin[]; b
           footer={
             <>
               <Button onClick={() => setRemoving(null)}>{c.cancel}</Button>
-              <Button variant="danger" icon={<Trash2 />} disabled={confirm !== removing.id} onClick={uninstall}>{t.uninstall}</Button>
+              <Button variant="danger" icon={<Trash2 />} disabled={confirm !== removing.id} onClick={uninstall}>
+                {t.uninstall}
+              </Button>
             </>
           }
         >
           <Field label={<>{t.typeToConfirm(<code key="id">{removing.id}</code>)}</>}>
             <Input className="mono" dir="ltr" autoFocus value={confirm} onChange={(e) => setConfirm(e.target.value)} />
           </Field>
-          {removing.tier === "paid" && <p className="small muted" style={{ marginTop: 12 }}>{t.subscriptionStays}</p>}
+          {removing.tier === "paid" && (
+            <p className="small muted" style={{ marginTop: 12 }}>
+              {t.subscriptionStays}
+            </p>
+          )}
         </Modal>
       )}
     </div>
@@ -750,36 +984,63 @@ function Purchases() {
             <div className="sub">{t.receiptsText}</div>
           </div>
           {billing?.manage_url && (
-            <Button asChild variant="ghost" size="sm"><a href={billing.manage_url} target="_blank" rel="noreferrer noopener">
-              app.sudoo.sh <ExternalLink className="flip-rtl" />
-            </a></Button>
+            <Button asChild variant="ghost" size="sm">
+              <a href={billing.manage_url} target="_blank" rel="noreferrer noopener">
+                app.sudoo.sh <ExternalLink className="flip-rtl" />
+              </a>
+            </Button>
           )}
           {!!receipts?.length && (
-            <Button asChild size="sm"><a href="/api/v1/marketplace/receipts?format=csv" download>
-              <FileDown /> {t.exportCsv}
-            </a></Button>
+            <Button asChild size="sm">
+              <a href="/api/v1/marketplace/receipts?format=csv" download>
+                <FileDown /> {t.exportCsv}
+              </a>
+            </Button>
           )}
         </div>
         {receiptsPending ? (
-          <div className="card-body"><Skeleton height={100} /></div>
+          <div className="card-body">
+            <Skeleton height={100} />
+          </div>
         ) : receiptsError ? (
-          <div className="card-body"><Callout tone="warning">{errorText(receiptsError)}</Callout></div>
+          <div className="card-body">
+            <Callout tone="warning">{errorText(receiptsError)}</Callout>
+          </div>
         ) : !receipts?.length ? (
-          <Empty icon={<Receipt />} title={t.noReceipts}>{t.noReceiptsText}</Empty>
+          <Empty icon={<Receipt />} title={t.noReceipts}>
+            {t.noReceiptsText}
+          </Empty>
         ) : (
           <Table>
             <TableHeader>
-              <TableRow><TableHead>{t.columns.number}</TableHead><TableHead>{t.columns.date}</TableHead><TableHead>{t.columns.plugin}</TableHead><TableHead>{t.columns.plan}</TableHead><TableHead>{t.columns.askedBy}</TableHead><TableHead className="num">{t.columns.total}</TableHead></TableRow>
+              <TableRow>
+                <TableHead>{t.columns.number}</TableHead>
+                <TableHead>{t.columns.date}</TableHead>
+                <TableHead>{t.columns.plugin}</TableHead>
+                <TableHead>{t.columns.plan}</TableHead>
+                <TableHead>{t.columns.askedBy}</TableHead>
+                <TableHead className="num">{t.columns.total}</TableHead>
+              </TableRow>
             </TableHeader>
             <TableBody>
               {receipts.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="small nowrap"><span className="mono">{r.number}</span>{r.kind === "credit_note" && <span className="faint">{t.creditNote}</span>}</TableCell>
+                  <TableCell className="small nowrap">
+                    <span className="mono">{r.number}</span>
+                    {r.kind === "credit_note" && <span className="faint">{t.creditNote}</span>}
+                  </TableCell>
                   <TableCell className="small nowrap">{day(r.issued_at)}</TableCell>
-                  <TableCell><bdi>{r.plugin_name ?? r.plugin_id}</bdi>{r.payment_kind === "renewal" && <span className="faint small">{t.renewal}</span>}</TableCell>
-                  <TableCell className="small">{r.plan_kind ? all.plans[r.plan_kind] ?? r.plan_kind : "—"}</TableCell>
-                  <TableCell className="small muted"><bdi>{r.requested_by_name ?? "—"}</bdi></TableCell>
-                  <TableCell className="num">{money(r.kind === "credit_note" ? -Math.abs(r.total_cents) : r.total_cents, r.currency)}</TableCell>
+                  <TableCell>
+                    <bdi>{r.plugin_name ?? r.plugin_id}</bdi>
+                    {r.payment_kind === "renewal" && <span className="faint small">{t.renewal}</span>}
+                  </TableCell>
+                  <TableCell className="small">{r.plan_kind ? (all.plans[r.plan_kind] ?? r.plan_kind) : "—"}</TableCell>
+                  <TableCell className="small muted">
+                    <bdi>{r.requested_by_name ?? "—"}</bdi>
+                  </TableCell>
+                  <TableCell className="num">
+                    {money(r.kind === "credit_note" ? -Math.abs(r.total_cents) : r.total_cents, r.currency)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -794,21 +1055,36 @@ function Purchases() {
             <div className="sub">{t.text}</div>
           </div>
           {!!purchases?.length && (
-            <Button asChild size="sm"><a href="/api/v1/marketplace/checkout-sessions?format=csv" download>
-              <FileDown /> {t.exportCsv}
-            </a></Button>
+            <Button asChild size="sm">
+              <a href="/api/v1/marketplace/checkout-sessions?format=csv" download>
+                <FileDown /> {t.exportCsv}
+              </a>
+            </Button>
           )}
         </div>
         {isPending ? (
-          <div className="card-body"><Skeleton height={100} /></div>
+          <div className="card-body">
+            <Skeleton height={100} />
+          </div>
         ) : error ? (
-          <div className="card-body"><Callout tone="warning">{errorText(error)}</Callout></div>
+          <div className="card-body">
+            <Callout tone="warning">{errorText(error)}</Callout>
+          </div>
         ) : !purchases?.length ? (
-          <Empty icon={<ShoppingBag />} title={t.none}>{t.noneText}</Empty>
+          <Empty icon={<ShoppingBag />} title={t.none}>
+            {t.noneText}
+          </Empty>
         ) : (
           <Table>
             <TableHeader>
-              <TableRow><TableHead>{t.columns.date}</TableHead><TableHead>{t.columns.plugin}</TableHead><TableHead>{t.columns.plan}</TableHead><TableHead>{t.columns.askedBy}</TableHead><TableHead>{t.columns.status}</TableHead><TableHead className="num">{t.columns.amount}</TableHead></TableRow>
+              <TableRow>
+                <TableHead>{t.columns.date}</TableHead>
+                <TableHead>{t.columns.plugin}</TableHead>
+                <TableHead>{t.columns.plan}</TableHead>
+                <TableHead>{t.columns.askedBy}</TableHead>
+                <TableHead>{t.columns.status}</TableHead>
+                <TableHead className="num">{t.columns.amount}</TableHead>
+              </TableRow>
             </TableHeader>
             <TableBody>
               {purchases.map((p) => {
@@ -816,16 +1092,30 @@ function Purchases() {
                 const tone = PURCHASE_TONE[p.status ?? ""];
                 return (
                   <TableRow key={p.id}>
-                    <TableCell className="small nowrap">{day(p.created_at)} <span className="faint">· {ago(p.created_at)}</span></TableCell>
-                    <TableCell><bdi>{p.plugin_name}</bdi></TableCell>
-                    <TableCell className="small">{p.plan_kind ? all.plans[p.plan_kind] ?? p.plan_kind : "—"}</TableCell>
-                    <TableCell className="small muted"><bdi>{p.requested_by?.name ?? "—"}</bdi></TableCell>
+                    <TableCell className="small nowrap">
+                      {day(p.created_at)} <span className="faint">· {ago(p.created_at)}</span>
+                    </TableCell>
+                    <TableCell>
+                      <bdi>{p.plugin_name}</bdi>
+                    </TableCell>
+                    <TableCell className="small">
+                      {p.plan_kind ? (all.plans[p.plan_kind] ?? p.plan_kind) : "—"}
+                    </TableCell>
+                    <TableCell className="small muted">
+                      <bdi>{p.requested_by?.name ?? "—"}</bdi>
+                    </TableCell>
                     <TableCell>
                       <div className="stack-sm" style={{ gap: 2, alignItems: "flex-start" }}>
                         <Tag tone={tone}>{label}</Tag>
-                        {p.reason && p.status !== "succeeded" && <span className="xsmall faint">{reasonText(p.reason)}</span>}
+                        {p.reason && p.status !== "succeeded" && (
+                          <span className="xsmall faint">{reasonText(p.reason)}</span>
+                        )}
                         {p.receipt_number && <span className="xsmall faint mono">{p.receipt_number}</span>}
-                        {p.url && <a className="xsmall" href={p.url} target="_blank" rel="noreferrer noopener">{t.paymentPage} <ExternalLink className="flip-rtl" /></a>}
+                        {p.url && (
+                          <a className="xsmall" href={p.url} target="_blank" rel="noreferrer noopener">
+                            {t.paymentPage} <ExternalLink className="flip-rtl" />
+                          </a>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="num">{money(p.amount_cents, p.currency)}</TableCell>
@@ -859,23 +1149,33 @@ export function PluginsPage() {
   };
   return (
     <Page>
-      <PageHead title={t.title}>
-        {t.text}
-      </PageHead>
+      <PageHead title={t.title}>{t.text}</PageHead>
       {problem && <Callout tone={problem.tone}>{problem.text}</Callout>}
       {installer.work && <WorkCard work={installer.work} onFinished={installer.finish} onClear={installer.clear} />}
       <nav className="tabs">
         {TABS.map((id) => (
-          <NavLink key={id} to={`/plugins${id ? `/${id}` : ""}`} end viewTransition className={({ isActive }) => (isActive ? "active" : "")}>
+          <NavLink
+            key={id}
+            to={`/plugins${id ? `/${id}` : ""}`}
+            end
+            viewTransition
+            className={({ isActive }) => (isActive ? "active" : "")}
+          >
             {t.tabs[id]}
-            {id === "installed" && !!installed?.length && <span className="faint tabular">{number(installed.length)}</span>}
+            {id === "installed" && !!installed?.length && (
+              <span className="faint tabular">{number(installed.length)}</span>
+            )}
             {id === "installed" && updates > 0 && <Tag tone="accent">{t.updates(updates)}</Tag>}
           </NavLink>
         ))}
       </nav>
       <div className="rise tab-panel" key={tab}>
         {tab === "installed" ? (
-          isPending ? <Skeleton height={160} /> : <Installed plugins={installed ?? []} busy={!!installer.work} onStarted={started} />
+          isPending ? (
+            <Skeleton height={160} />
+          ) : (
+            <Installed plugins={installed ?? []} busy={!!installer.work} onStarted={started} />
+          )
         ) : tab === "purchases" ? (
           <Purchases />
         ) : (

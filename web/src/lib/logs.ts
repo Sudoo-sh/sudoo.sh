@@ -43,8 +43,17 @@ export interface LogEntry {
   head: string;
 }
 
-const HEAD = /^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(?:,\d+)?) +(\d+) +(DEBUG|INFO|WARNING|WARN|ERROR|CRITICAL|TEST) +(\S+) +([\w.-]+): ?(.*)$/;
-const LEVEL_OF: Record<string, Level> = { DEBUG: "DEBUG", INFO: "INFO", TEST: "INFO", WARNING: "WARNING", WARN: "WARNING", ERROR: "ERROR", CRITICAL: "CRITICAL" };
+const HEAD =
+  /^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(?:,\d+)?) +(\d+) +(DEBUG|INFO|WARNING|WARN|ERROR|CRITICAL|TEST) +(\S+) +([\w.-]+): ?(.*)$/;
+const LEVEL_OF: Record<string, Level> = {
+  DEBUG: "DEBUG",
+  INFO: "INFO",
+  TEST: "INFO",
+  WARNING: "WARNING",
+  WARN: "WARNING",
+  ERROR: "ERROR",
+  CRITICAL: "CRITICAL",
+};
 // 10.0.0.9 - - [22/Nov/2026 08:00:02] "POST /web/dataset/call_kw HTTP/1.1" 200 - 12 0.010 0.045
 const REQUEST = /^(\S+) - - (?:\[[^\]]*\] )?"([A-Z]+) (\S+) [^"]*" (\d{3}) \S+(?: (\d+) ([\d.]+) ([\d.]+))?/;
 /** Only the first characters of an entry are searched, as on the server (instances/logs.MATCH_CHARS). */
@@ -90,7 +99,20 @@ export function parseRequest(message: string): Request | null {
 function entryOf(line: string, id: string | undefined): LogEntry {
   const head = parseHead(line);
   if (!head)
-    return { id: id || `~${++made}`, time: null, at: null, pid: null, level: null, db: null, logger: null, message: line, more: [], traceback: false, request: null, head: line };
+    return {
+      id: id || `~${++made}`,
+      time: null,
+      at: null,
+      pid: null,
+      level: null,
+      db: null,
+      logger: null,
+      message: line,
+      more: [],
+      traceback: false,
+      request: null,
+      head: line,
+    };
   return {
     id: id || `~${++made}`,
     time: head.time,
@@ -134,7 +156,14 @@ export function appendLines(entries: LogEntry[], lines: string[], ids?: string[]
 }
 
 /** Entries from text (a download, a test). */
-export const parseLog = (text: string): LogEntry[] => appendLines([], text.replace(/\s+$/, "").split("\n").filter((l, i, all) => l || i < all.length - 1));
+export const parseLog = (text: string): LogEntry[] =>
+  appendLines(
+    [],
+    text
+      .replace(/\s+$/, "")
+      .split("\n")
+      .filter((l, i, all) => l || i < all.length - 1),
+  );
 
 /** The server's entries (GET .../logs/entries) as the view reads them. */
 export function fromServer(items: { id: string; text: string }[]): LogEntry[] {
@@ -150,11 +179,13 @@ export function fromServer(items: { id: string; text: string }[]): LogEntry[] {
 }
 
 /** The whole text of an entry, as written. */
-export const entryText = (entry: LogEntry) => (entry.more.length ? `${entry.head}\n${entry.more.join("\n")}` : entry.head);
+export const entryText = (entry: LogEntry) =>
+  entry.more.length ? `${entry.head}\n${entry.more.join("\n")}` : entry.head;
 
 // ---------------------------------------------------------------- filters
 
-export type TimeRange = { kind: "all" } | { kind: "last"; minutes: number } | { kind: "custom"; since: string; until: string };
+export type TimeRange =
+  { kind: "all" } | { kind: "last"; minutes: number } | { kind: "custom"; since: string; until: string };
 
 export interface LogFilters {
   /** the levels shown; empty: all */
@@ -169,7 +200,15 @@ export interface LogFilters {
   range: TimeRange;
 }
 
-export const NO_FILTERS: LogFilters = { levels: [], logger: "", query: "", regex: false, onlyMatches: false, tracebacks: false, range: { kind: "all" } };
+export const NO_FILTERS: LogFilters = {
+  levels: [],
+  logger: "",
+  query: "",
+  regex: false,
+  onlyMatches: false,
+  tracebacks: false,
+  range: { kind: "all" },
+};
 
 /** Whether a regular expression could take very long: a repeated group that holds a repetition or a choice
  *  ((a+)+, (a|aa)*, (\w+\s?)*), or a back reference. Refused before it is used, as the server refuses them. */
@@ -197,7 +236,8 @@ export function makeMatcher(query: string, regex: boolean): Matcher {
       ranges: (text) => {
         const found: [number, number][] = [];
         const hay = text.slice(0, MATCH_CHARS).toLowerCase();
-        for (let at = hay.indexOf(lower); at !== -1; at = hay.indexOf(lower, at + lower.length)) found.push([at, at + lower.length]);
+        for (let at = hay.indexOf(lower); at !== -1; at = hay.indexOf(lower, at + lower.length))
+          found.push([at, at + lower.length]);
         return found;
       },
     };
@@ -257,7 +297,12 @@ export function filterParams(filters: LogFilters, now = Date.now()): Record<stri
 }
 
 /** Whether an entry passes the filters (the demo's backend filters with this; the real server does the same). */
-export function passes(entry: LogEntry, filters: LogFilters, matcher: Matcher = makeMatcher(filters.onlyMatches ? filters.query : "", filters.regex), now = Date.now()): boolean {
+export function passes(
+  entry: LogEntry,
+  filters: LogFilters,
+  matcher: Matcher = makeMatcher(filters.onlyMatches ? filters.query : "", filters.regex),
+  now = Date.now(),
+): boolean {
   if (filters.levels.length && !filters.levels.includes(entry.level ?? "INFO")) return false;
   if (filters.logger) {
     const logger = entry.logger ?? "";
@@ -276,7 +321,11 @@ export function passes(entry: LogEntry, filters: LogFilters, matcher: Matcher = 
 
 /** How many filters are on (for the summary row). */
 export const activeFilters = (f: LogFilters) =>
-  (f.levels.length ? 1 : 0) + (f.logger ? 1 : 0) + (f.tracebacks ? 1 : 0) + (f.range.kind !== "all" ? 1 : 0) + (f.onlyMatches && f.query.trim() ? 1 : 0);
+  (f.levels.length ? 1 : 0) +
+  (f.logger ? 1 : 0) +
+  (f.tracebacks ? 1 : 0) +
+  (f.range.kind !== "all" ? 1 : 0) +
+  (f.onlyMatches && f.query.trim() ? 1 : 0);
 
 // ---------------------------------------------------------------- the error timeline
 

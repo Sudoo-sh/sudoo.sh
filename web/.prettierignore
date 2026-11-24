@@ -1,0 +1,8 @@
+# Not formatted: dependencies, build output, static assets and the lock file.
+node_modules/
+dist/
+public/
+package-lock.json
+
+# Tool folders
+.claude/

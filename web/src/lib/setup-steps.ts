@@ -3,7 +3,16 @@
 
 import type { SetupDraft, SetupStep } from "@/api/types";
 
-export const STEPS: readonly SetupStep[] = ["welcome", "server", "address", "email", "github", "account", "admin", "done"];
+export const STEPS: readonly SetupStep[] = [
+  "welcome",
+  "server",
+  "address",
+  "email",
+  "github",
+  "account",
+  "admin",
+  "done",
+];
 
 /** Steps that can be skipped: nothing is set up when they are left as they are. */
 export const OPTIONAL: ReadonlySet<SetupStep> = new Set(["email", "github", "account"]);
@@ -29,13 +38,18 @@ export const canOpen = (step: SetupStep, current: SetupStep, reached: SetupStep)
 export function blocker(step: SetupStep, draft: SetupDraft): "nameNeeded" | "mailIncomplete" | "linkCodeNeeded" | null {
   if (step === "address") {
     if (draft.exposure === "proxy" && draft.name.kind !== "domain") return "nameNeeded";
-    if (draft.name.kind === "domain" && !/^([a-z0-9-]+\.)+[a-z0-9-]{2,}$/i.test(draft.name.domain.trim())) return "nameNeeded";
+    if (draft.name.kind === "domain" && !/^([a-z0-9-]+\.)+[a-z0-9-]{2,}$/i.test(draft.name.domain.trim()))
+      return "nameNeeded";
   }
   if (step === "email" && draft.mail.enabled) {
     const { host, sender, username } = draft.mail;
     if (!host.trim() || !`${sender}${username}`.includes("@")) return "mailIncomplete";
   }
-  if (step === "account" && draft.account.link && !/^[A-Z0-9][A-Z0-9-]{3,31}$/.test(draft.account.link_code.trim().toUpperCase()))
+  if (
+    step === "account" &&
+    draft.account.link &&
+    !/^[A-Z0-9][A-Z0-9-]{3,31}$/.test(draft.account.link_code.trim().toUpperCase())
+  )
     return "linkCodeNeeded";
   return null;
 }

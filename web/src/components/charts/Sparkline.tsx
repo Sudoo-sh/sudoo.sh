@@ -16,7 +16,17 @@ import { alpha, token, useThemeVersion } from "./theme";
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, Filler, Decimation);
 
-export function Sparkline({ t, values, color = "--brand", max }: { t: number[]; values: (number | null)[]; color?: string; max?: number }) {
+export function Sparkline({
+  t,
+  values,
+  color = "--brand",
+  max,
+}: {
+  t: number[];
+  values: (number | null)[];
+  color?: string;
+  max?: number;
+}) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const chart = useRef<Chart<"line"> | null>(null);
   const theme = useThemeVersion();

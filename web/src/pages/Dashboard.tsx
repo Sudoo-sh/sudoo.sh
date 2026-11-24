@@ -46,11 +46,12 @@ function combine(instances: Record<string, Columns> | undefined, key: string, ho
 }
 
 type Measure = "cpu" | "memory" | "disk";
-const MEASURES: Record<Measure, { value: (i: Instance) => number | null | undefined; format: (v: number) => string }> = {
-  cpu: { value: (i) => i.usage.cpu_percent, format: (v) => percent(v, 1) },
-  memory: { value: (i) => i.usage.memory_bytes, format: (v) => bytes(v) },
-  disk: { value: (i) => i.usage.disk_bytes, format: (v) => bytes(v) },
-};
+const MEASURES: Record<Measure, { value: (i: Instance) => number | null | undefined; format: (v: number) => string }> =
+  {
+    cpu: { value: (i) => i.usage.cpu_percent, format: (v) => percent(v, 1) },
+    memory: { value: (i) => i.usage.memory_bytes, format: (v) => bytes(v) },
+    disk: { value: (i) => i.usage.disk_bytes, format: (v) => bytes(v) },
+  };
 
 function Charts({ instances }: { instances: Instance[] | undefined }) {
   const navigate = useNavigate();
@@ -65,7 +66,10 @@ function Charts({ instances }: { instances: Instance[] | undefined }) {
       Object.fromEntries(
         Object.entries(history?.instances ?? {}).map(([name, c]) => [
           name,
-          { ...c, errors: c.t.map((_, i) => ((c.requests_per_minute?.[i] ?? 0) * (c.error_rate_percent?.[i] ?? 0)) / 100) },
+          {
+            ...c,
+            errors: c.t.map((_, i) => ((c.requests_per_minute?.[i] ?? 0) * (c.error_rate_percent?.[i] ?? 0)) / 100),
+          },
         ]),
       ),
       "errors",
@@ -106,25 +110,47 @@ function Charts({ instances }: { instances: Instance[] | undefined }) {
         <div className="chart-head">
           <div>
             <h2>{t.requests}</h2>
-            <p className="sub">{t.requestsText}{totalRequests != null ? t.now(number(totalRequests)) : ""}</p>
+            <p className="sub">
+              {t.requestsText}
+              {totalRequests != null ? t.now(number(totalRequests)) : ""}
+            </p>
           </div>
           <span className="spacer" />
           <div className="legend">
-            <span><i style={{ background: "var(--brand)" }} /> {t.requests}</span>
-            <span><i style={{ background: "var(--negative)" }} /> {t.errors}</span>
+            <span>
+              <i style={{ background: "var(--brand)" }} /> {t.requests}
+            </span>
+            <span>
+              <i style={{ background: "var(--negative)" }} /> {t.errors}
+            </span>
           </div>
         </div>
         <div className="chart-body">
-          <LiveChart t={traffic.t} height={220} format={(v) => number(v, v >= 10 ? 0 : 1)}
+          <LiveChart
+            t={traffic.t}
+            height={220}
+            format={(v) => number(v, v >= 10 ? 0 : 1)}
             series={[
               { label: t.requests, values: traffic.requests, color: "--brand", fill: true },
               { label: t.errors, values: traffic.errors, color: "--negative" },
-            ]} />
+            ]}
+          />
         </div>
       </section>
       <section className="card chart-card">
-        <div className="chart-head"><div><h2>{t.instances}</h2><p className="sub">{t.byState}</p></div></div>
-        <div className="chart-body"><Ring parts={states} total={instances?.length ?? 0} caption={instances?.length === 1 ? t.instanceWord : t.instancesWord} /></div>
+        <div className="chart-head">
+          <div>
+            <h2>{t.instances}</h2>
+            <p className="sub">{t.byState}</p>
+          </div>
+        </div>
+        <div className="chart-body">
+          <Ring
+            parts={states}
+            total={instances?.length ?? 0}
+            caption={instances?.length === 1 ? t.instanceWord : t.instancesWord}
+          />
+        </div>
       </section>
       <section className="card chart-card span-2">
         <div className="chart-head">
@@ -134,33 +160,54 @@ function Charts({ instances }: { instances: Instance[] | undefined }) {
           </div>
           <span className="spacer" />
           <div className="legend">
-            <span><i style={{ background: "var(--brand)" }} /> {t.slowest}</span>
-            <span><i style={{ background: "var(--series-2)" }} /> {t.average}</span>
+            <span>
+              <i style={{ background: "var(--brand)" }} /> {t.slowest}
+            </span>
+            <span>
+              <i style={{ background: "var(--series-2)" }} /> {t.average}
+            </span>
           </div>
         </div>
         <div className="chart-body">
-          <LiveChart t={response.t} height={220} format={(v) => ms(v)}
+          <LiveChart
+            t={response.t}
+            height={220}
+            format={(v) => ms(v)}
             series={[
               { label: t.percentile, values: response.slowest, color: "--brand", fill: true },
               { label: t.average, values: response.usual, color: "--series-2" },
-            ]} />
+            ]}
+          />
         </div>
       </section>
       <section className="card chart-card">
         <div className="chart-head">
-          <div><h2>{t.byInstance}</h2><p className="sub">{t.measureNow(words.measures[measure])}</p></div>
+          <div>
+            <h2>{t.byInstance}</h2>
+            <p className="sub">{t.measureNow(words.measures[measure])}</p>
+          </div>
           <span className="spacer" />
-          <Segmented<Measure> value={measure} onChange={setMeasure} options={[
-            { value: "cpu", label: t.cpu },
-            { value: "memory", label: words.measures.memory },
-            { value: "disk", label: words.measures.disk },
-          ]} />
+          <Segmented<Measure>
+            value={measure}
+            onChange={setMeasure}
+            options={[
+              { value: "cpu", label: t.cpu },
+              { value: "memory", label: words.measures.memory },
+              { value: "disk", label: words.measures.disk },
+            ]}
+          />
         </div>
         <div className="chart-body">
           {bars.length ? (
-            <Bars bars={bars} format={chosen.format} onPick={(name) => navigate(`/i/${name}`, { viewTransition: true })} />
+            <Bars
+              bars={bars}
+              format={chosen.format}
+              onPick={(name) => navigate(`/i/${name}`, { viewTransition: true })}
+            />
           ) : (
-            <p className="faint small" style={{ padding: "24px 4px" }}>{instances?.length ? t.nothingMeasured : t.noInstances}</p>
+            <p className="faint small" style={{ padding: "24px 4px" }}>
+              {instances?.length ? t.nothingMeasured : t.noInstances}
+            </p>
           )}
         </div>
       </section>
@@ -190,18 +237,23 @@ export function DashboardPage() {
     return { online: count(["online", "starting"]), paused: count(ASLEEP), busy: count(["busy", "creating"]) };
   }, [instances]);
   const stageCounts = useMemo(
-    () => Object.fromEntries(STAGES.map((st) => [st.value, instances?.filter((i) => i.stage === st.value).length ?? 0])) as Record<Stage, number>,
+    () =>
+      Object.fromEntries(
+        STAGES.map((st) => [st.value, instances?.filter((i) => i.stage === st.value).length ?? 0]),
+      ) as Record<Stage, number>,
     [instances],
   );
-  const shown = (instances ?? []).filter((i) => {
-    if (stage !== "all" && i.stage !== stage) return false;
-    const text = `${i.name} ${i.git.branch ?? "plain"} ${i.git.repository ?? ""} ${i.odoo.version}`.toLowerCase();
-    if (query && !text.includes(query.toLowerCase())) return false;
-    if (filter === "online") return i.status === "online" || i.status === "starting";
-    if (filter === "paused") return ASLEEP.includes(i.status);
-    if (filter === "busy") return i.status === "busy" || i.status === "creating";
-    return true;
-  }).sort((a, b) => (STAGE_ORDER[a.stage] ?? 9) - (STAGE_ORDER[b.stage] ?? 9)); // production first; by name within a stage
+  const shown = (instances ?? [])
+    .filter((i) => {
+      if (stage !== "all" && i.stage !== stage) return false;
+      const text = `${i.name} ${i.git.branch ?? "plain"} ${i.git.repository ?? ""} ${i.odoo.version}`.toLowerCase();
+      if (query && !text.includes(query.toLowerCase())) return false;
+      if (filter === "online") return i.status === "online" || i.status === "starting";
+      if (filter === "paused") return ASLEEP.includes(i.status);
+      if (filter === "busy") return i.status === "busy" || i.status === "creating";
+      return true;
+    })
+    .sort((a, b) => (STAGE_ORDER[a.stage] ?? 9) - (STAGE_ORDER[b.stage] ?? 9)); // production first; by name within a stage
   const cpuAverage = average(history?.server.cpu_percent);
   const serverT = history?.server.t ?? [];
   const capacity = metrics?.capacity ?? null;
@@ -215,9 +267,11 @@ export function DashboardPage() {
         title={words.title}
         actions={
           can("instances.create") && (
-            <Button asChild variant="primary"><Link to="/new" viewTransition>
-              <Plus /> {newInstance}
-            </Link></Button>
+            <Button asChild variant="primary">
+              <Link to="/new" viewTransition>
+                <Plus /> {newInstance}
+              </Link>
+            </Button>
           )
         }
       >
@@ -234,13 +288,28 @@ export function DashboardPage() {
       )}
 
       <div className="grid-5 stagger">
-        <StatCard label={st.processor} value={server?.cpu_percent} unit="%"
+        <StatCard
+          label={st.processor}
+          value={server?.cpu_percent}
+          unit="%"
           trend={{ t: serverT, values: history?.server.cpu_percent ?? [], max: 100 }}
-          detail={cpuAverage != null ? st.cpuDetail(percent(cpuAverage), server?.cores != null ? number(server.cores) : "…") : st.cores(server?.cores != null ? number(server.cores) : "…")} />
-        <StatCard label={st.memory} value={server?.memory_percent} unit="%"
+          detail={
+            cpuAverage != null
+              ? st.cpuDetail(percent(cpuAverage), server?.cores != null ? number(server.cores) : "…")
+              : st.cores(server?.cores != null ? number(server.cores) : "…")
+          }
+        />
+        <StatCard
+          label={st.memory}
+          value={server?.memory_percent}
+          unit="%"
           trend={{ t: serverT, values: history?.server.memory_percent ?? [], max: 100 }}
-          detail={server ? st.of(bytes(server.memory_used_bytes), bytes(server.memory_total_bytes)) : st.measuring} />
-        <StatCard label={st.disk} value={server?.disk_percent} unit="%"
+          detail={server ? st.of(bytes(server.memory_used_bytes), bytes(server.memory_total_bytes)) : st.measuring}
+        />
+        <StatCard
+          label={st.disk}
+          value={server?.disk_percent}
+          unit="%"
           trend={{ t: serverT, values: history?.server.disk_percent ?? [], max: 100 }}
           detail={
             freeDisk
@@ -248,17 +317,32 @@ export function DashboardPage() {
                 ? st.freeRoom(freeDisk, number(capacity.disk.more_instances))
                 : st.free(freeDisk)
               : st.measuring
-          } />
-        <StatCard label={st.panel} value={panelMemory == null ? undefined : panelGb ? panelMemory / 1024 ** 3 : Math.round(panelMemory / 1024 ** 2)}
-          decimals={panelGb ? 1 : 0} unit={panelGb ? " GB" : " MB"}
+          }
+        />
+        <StatCard
+          label={st.panel}
+          value={
+            panelMemory == null ? undefined : panelGb ? panelMemory / 1024 ** 3 : Math.round(panelMemory / 1024 ** 2)
+          }
+          decimals={panelGb ? 1 : 0}
+          unit={panelGb ? " GB" : " MB"}
           trend={{ t: serverT, values: history?.server.panel_memory_bytes ?? [] }}
           detail={
             server?.panel_memory_peak_bytes != null
               ? st.panelDetail(bytes(server.panel_memory_peak_bytes), percent(server.panel_cpu_percent ?? 0, 1))
               : st.measuring
-          } />
-        <StatCard label={st.running} value={capacity?.running ?? server?.instances_running ?? (instances ? counts.online : undefined)}
-          unit={capacity ? st.ofAbout(number(capacity.comfortable)) : instances ? st.ofAll(number(instances.length)) : undefined}
+          }
+        />
+        <StatCard
+          label={st.running}
+          value={capacity?.running ?? server?.instances_running ?? (instances ? counts.online : undefined)}
+          unit={
+            capacity
+              ? st.ofAbout(number(capacity.comfortable))
+              : instances
+                ? st.ofAll(number(instances.length))
+                : undefined
+          }
           trend={{
             t: serverT,
             values: history?.server.instances_running ?? [],
@@ -275,7 +359,8 @@ export function DashboardPage() {
               : server?.uptime_seconds
                 ? st.serverUp(duration(server.uptime_seconds))
                 : st.online
-          } />
+          }
+        />
       </div>
 
       <Charts instances={instances} />
@@ -283,22 +368,62 @@ export function DashboardPage() {
       <div className="toolbar">
         <div className="input-group">
           <Search />
-          <Input placeholder={tb.search} aria-label={tb.searchLabel} value={query} onChange={(e) => setQuery(e.target.value)} />
+          <Input
+            placeholder={tb.search}
+            aria-label={tb.searchLabel}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
         </div>
         <Segmented<Filter>
           value={filter}
           onChange={setFilter}
           options={[
-            { value: "all", label: <>{tb.all} <span className="count">{instances?.length ?? 0}</span></> },
-            { value: "online", label: <>{tb.online} <span className="count">{counts.online}</span></> },
-            { value: "paused", label: <>{tb.paused} <span className="count">{counts.paused}</span></> },
-            { value: "busy", label: <>{tb.working} <span className="count">{counts.busy}</span></> },
+            {
+              value: "all",
+              label: (
+                <>
+                  {tb.all} <span className="count">{instances?.length ?? 0}</span>
+                </>
+              ),
+            },
+            {
+              value: "online",
+              label: (
+                <>
+                  {tb.online} <span className="count">{counts.online}</span>
+                </>
+              ),
+            },
+            {
+              value: "paused",
+              label: (
+                <>
+                  {tb.paused} <span className="count">{counts.paused}</span>
+                </>
+              ),
+            },
+            {
+              value: "busy",
+              label: (
+                <>
+                  {tb.working} <span className="count">{counts.busy}</span>
+                </>
+              ),
+            },
           ]}
         />
-        <SelectBox className="stage-filter" aria-label={tb.stage} value={stage} onValueChange={(value) => setStage(value as Stage | "all")}>
+        <SelectBox
+          className="stage-filter"
+          aria-label={tb.stage}
+          value={stage}
+          onValueChange={(value) => setStage(value as Stage | "all")}
+        >
           <option value="all">{tb.allStages}</option>
           {STAGES.map((st) => (
-            <option key={st.value} value={st.value}>{st.label} ({stageCounts[st.value]})</option>
+            <option key={st.value} value={st.value}>
+              {st.label} ({stageCounts[st.value]})
+            </option>
           ))}
         </SelectBox>
       </div>
@@ -326,9 +451,11 @@ export function DashboardPage() {
             title={instances?.length ? words.empty.nothing : words.empty.none}
             action={
               !instances?.length && can("instances.create") ? (
-                <Button asChild variant="primary"><Link to="/new" viewTransition>
-                  <Plus /> {newInstance}
-                </Link></Button>
+                <Button asChild variant="primary">
+                  <Link to="/new" viewTransition>
+                    <Plus /> {newInstance}
+                  </Link>
+                </Button>
               ) : undefined
             }
           >

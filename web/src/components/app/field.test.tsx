@@ -12,7 +12,11 @@ const idOf = (html: string, tag: string) => html.match(new RegExp(`<${tag}[^>]*\
 
 describe("Field", () => {
   it("links its label to the one input inside", () => {
-    const html = renderToStaticMarkup(<Field label="Instance"><Input /></Field>);
+    const html = renderToStaticMarkup(
+      <Field label="Instance">
+        <Input />
+      </Field>,
+    );
     expect(labelFor(html)).toBeTruthy();
     expect(labelFor(html)).toBe(idOf(html, "input"));
   });
@@ -30,13 +34,31 @@ describe("Field", () => {
   });
 
   it("keeps an id and htmlFor given by the page", () => {
-    expect(labelFor(renderToStaticMarkup(<Field label="Name"><Input id="name" /></Field>))).toBe("name");
-    const html = renderToStaticMarkup(<Field label="Search" htmlFor="q"><div><Input id="q" /></div></Field>);
+    expect(
+      labelFor(
+        renderToStaticMarkup(
+          <Field label="Name">
+            <Input id="name" />
+          </Field>,
+        ),
+      ),
+    ).toBe("name");
+    const html = renderToStaticMarkup(
+      <Field label="Search" htmlFor="q">
+        <div>
+          <Input id="q" />
+        </div>
+      </Field>,
+    );
     expect(labelFor(html)).toBe("q");
   });
 
   it("leaves other content alone", () => {
-    const html = renderToStaticMarkup(<Field label="Result"><div className="group" /></Field>);
+    const html = renderToStaticMarkup(
+      <Field label="Result">
+        <div className="group" />
+      </Field>,
+    );
     expect(labelFor(html)).toBeUndefined();
     expect(html).toContain('<div class="group"></div>');
   });

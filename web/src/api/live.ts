@@ -65,7 +65,14 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
         client.removeQueries({ queryKey: keys.project(key) });
       } else {
         client.setQueryData<{ projects: Project[]; standalone: string[] }>(keys.projects, (old) =>
-          old ? { ...old, projects: upsert(old.projects, project, (p) => p.id === project.id)!.sort((a, b) => a.name.localeCompare(b.name)) } : old,
+          old
+            ? {
+                ...old,
+                projects: upsert(old.projects, project, (p) => p.id === project.id)!.sort((a, b) =>
+                  a.name.localeCompare(b.name),
+                ),
+              }
+            : old,
         );
         client.invalidateQueries({ queryKey: keys.project(key) });
       }
@@ -85,7 +92,10 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
       client.setQueryData(keys.job(job.id), job);
       // an instance being created belongs to its branch at once: the branch pane shows the creation, not "No instance"
       // and a Create button (read once when the creation is first heard of, and again when it ends)
-      if (job.kind === "create" && (!creationsSeen.has(job.id) || job.status === "success" || job.status === "failed")) {
+      if (
+        job.kind === "create" &&
+        (!creationsSeen.has(job.id) || job.status === "success" || job.status === "failed")
+      ) {
         creationsSeen.add(job.id);
         client.invalidateQueries({ queryKey: ["project"] });
       }
@@ -95,7 +105,8 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
       if (job.status === "success" || job.status === "failed") {
         if (job.kind.startsWith("plugin")) client.invalidateQueries({ queryKey: keys.plugins });
         // a deleted instance is gone: reading it again would only answer 404
-        else if (job.kind === "delete" && job.status === "success") client.removeQueries({ queryKey: keys.instance(job.instance) });
+        else if (job.kind === "delete" && job.status === "success")
+          client.removeQueries({ queryKey: keys.instance(job.instance) });
         else client.invalidateQueries({ queryKey: keys.instance(job.instance) });
         if (job.kind === "backup" || job.kind === "delete") client.invalidateQueries({ queryKey: ["backups"] });
       }
@@ -144,7 +155,9 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
     case "alert": {
       const alert = data as Alert;
       client.setQueryData<Alert[]>(keys.alerts, (list) =>
-        upsert(list, alert, (a) => a.id === alert.id, true)?.sort((a, b) => b.last_at - a.last_at).slice(0, 30),
+        upsert(list, alert, (a) => a.id === alert.id, true)
+          ?.sort((a, b) => b.last_at - a.last_at)
+          .slice(0, 30),
       );
       break;
     }
@@ -165,7 +178,23 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
 
 /** Creation jobs already heard of (the "job" topic): the projects are read again once for each. */
 const creationsSeen = new Set<string>();
-const TOPICS = ["instance", "instance.deleted", "project", "build", "domains", "job", "metrics", "settings", "plugins", "marketplace", "premium", "support", "alert", "offsite", "reset"];
+const TOPICS = [
+  "instance",
+  "instance.deleted",
+  "project",
+  "build",
+  "domains",
+  "job",
+  "metrics",
+  "settings",
+  "plugins",
+  "marketplace",
+  "premium",
+  "support",
+  "alert",
+  "offsite",
+  "reset",
+];
 
 export interface Sync {
   state: LiveState;
@@ -179,7 +208,10 @@ const RETRY_MAX_MS = 60_000;
 /** Whether the session still works; the stream is refused for other reasons too (too many open connections). */
 async function signedIn(): Promise<boolean> {
   try {
-    const answer = await fetch("/api/v1/session", { credentials: "same-origin", headers: { Accept: "application/json" } });
+    const answer = await fetch("/api/v1/session", {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    });
     return answer.status !== 401;
   } catch {
     return true; // the server cannot be reached: keep trying
@@ -197,7 +229,9 @@ export function useLiveEvents(enabled: boolean): Sync {
     let lastId = "";
     let pause = RETRY_FIRST_MS;
     const open = () => {
-      const current = new EventSource(lastId ? `/api/v1/events?last_event_id=${encodeURIComponent(lastId)}` : "/api/v1/events");
+      const current = new EventSource(
+        lastId ? `/api/v1/events?last_event_id=${encodeURIComponent(lastId)}` : "/api/v1/events",
+      );
       source = current;
       current.onopen = () => {
         pause = RETRY_FIRST_MS;

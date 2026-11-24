@@ -4,7 +4,10 @@
  *  https://github.com/owner/repo. null when the address is not one a browser can open (a local path, a file:// URL). */
 export function repositoryPage(address: string | null | undefined): string | null {
   if (!address) return null;
-  const text = address.trim().replace(/\.git\/?$/, "").replace(/\/+$/, "");
+  const text = address
+    .trim()
+    .replace(/\.git\/?$/, "")
+    .replace(/\/+$/, "");
   const ssh = /^(?:ssh:\/\/)?(?:[\w.-]+@)?([\w.-]+\.[a-z]{2,})(?::\d+)?[:/](.+)$/i.exec(text);
   if (/^https?:\/\//i.test(text)) {
     try {

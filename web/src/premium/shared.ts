@@ -62,7 +62,9 @@ export function sharedScope(): Promise<SharedScope> {
       "react-router": ReactRouter as unknown as Record<string, unknown>,
       "@tanstack/react-query": ReactQuery as unknown as Record<string, unknown>,
     };
-    const loaded = await Promise.all(Object.entries(PANEL_MODULES).map(async ([name, load]) => [name, await load()] as const));
+    const loaded = await Promise.all(
+      Object.entries(PANEL_MODULES).map(async ([name, load]) => [name, await load()] as const),
+    );
     for (const [name, module] of loaded) modules[`@/${name}`] = module;
     modules["@sudoo/host"] = modules["@/premium/host"]!;
     const scope = { version: SHARED_VERSION, modules };
@@ -73,5 +75,12 @@ export function sharedScope(): Promise<SharedScope> {
 }
 
 /** The names a premium build may leave out (the private build's externals). */
-export const SHARED_NAMES = ["react", "react/jsx-runtime", "react-dom", "react-router", "@tanstack/react-query", "@sudoo/host",
-  ...Object.keys(PANEL_MODULES).map((name) => `@/${name}`)];
+export const SHARED_NAMES = [
+  "react",
+  "react/jsx-runtime",
+  "react-dom",
+  "react-router",
+  "@tanstack/react-query",
+  "@sudoo/host",
+  ...Object.keys(PANEL_MODULES).map((name) => `@/${name}`),
+];

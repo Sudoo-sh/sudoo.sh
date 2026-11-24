@@ -35,7 +35,17 @@ const ASLEEP = ["paused", "switched_off", "stopped"];
  *  joined to a narrow menu with "Connect as…" (`connectAs`: those who may see the instance's credentials) and, where
  *  a page gives one, a link to the instance's access details (`access`). Only "Open Odoo" when the menu would be
  *  empty. `size` "sm" in lists. */
-export function ConnectButton({ instance, connectAs = true, access, size }: { instance: Instance; connectAs?: boolean; access?: string | null; size?: "sm" }) {
+export function ConnectButton({
+  instance,
+  connectAs = true,
+  access,
+  size,
+}: {
+  instance: Instance;
+  connectAs?: boolean;
+  access?: string | null;
+  size?: "sm";
+}) {
   const t = useT(toolWords).connect;
   const [open, setOpen] = useState(false);
   if (!instance.url) return null;
@@ -43,31 +53,53 @@ export function ConnectButton({ instance, connectAs = true, access, size }: { in
   const url = instance.url;
   // production: through the panel's pass, which its access rules (beta) accept from anywhere (api/access-rules.ts)
   const viaPass = (event: React.MouseEvent<HTMLAnchorElement>) => {
-    if (instance.stage !== "production" || event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+    if (instance.stage !== "production" || event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0)
+      return;
     event.preventDefault();
     void openThroughPass(instance.name, url);
   };
   const main = (
-    <Button asChild variant="primary" size={size}><a href={url} target="_blank" rel="noreferrer" onClick={viaPass}>
-      {t.open} <ArrowUpRight className="flip-rtl" />
-    </a></Button>
+    <Button asChild variant="primary" size={size}>
+      <a href={url} target="_blank" rel="noreferrer" onClick={viaPass}>
+        {t.open} <ArrowUpRight className="flip-rtl" />
+      </a>
+    </Button>
   );
   if (!connectAs && !access) return main;
   return (
     <>
       <span className="split-button">
         {main}
-        <Menu trigger={(toggle) => <Button variant="primary" size={size} icon={<ChevronDown />} onClick={toggle} aria-label={t.more} title={t.more} />}>
+        <Menu
+          trigger={(toggle) => (
+            <Button
+              variant="primary"
+              size={size}
+              icon={<ChevronDown />}
+              onClick={toggle}
+              aria-label={t.more}
+              title={t.more}
+            />
+          )}
+        >
           {(close) => (
             <>
               {connectAs && (
-                <MenuItem disabled={asleep} onSelect={() => { close(); setOpen(true); }}>
+                <MenuItem
+                  disabled={asleep}
+                  onSelect={() => {
+                    close();
+                    setOpen(true);
+                  }}
+                >
                   <LogIn /> {t.connectAs}
                 </MenuItem>
               )}
               {access && (
                 <MenuItem asChild>
-                  <Link to={access} viewTransition onClick={close}><KeyRound /> {t.access}</Link>
+                  <Link to={access} viewTransition onClick={close}>
+                    <KeyRound /> {t.access}
+                  </Link>
                 </MenuItem>
               )}
             </>
@@ -106,11 +138,16 @@ export function ConnectDialog({ instance, onClose }: { instance: Instance; onClo
   const left = useSecondsLeft(link?.expires_at ?? null);
   const shown = useMemo(() => {
     const wanted = find.trim().toLowerCase();
-    return (users.data ?? []).filter((u) => !wanted || u.name.toLowerCase().includes(wanted) || u.login.toLowerCase().includes(wanted));
+    return (users.data ?? []).filter(
+      (u) => !wanted || u.name.toLowerCase().includes(wanted) || u.login.toLowerCase().includes(wanted),
+    );
   }, [users.data, find]);
   const give = useCall(
     (user: OdooUser) =>
-      api.post<ConnectLink>(`/instances/${instance.name}/connect`, { uid: user.id, ...(production ? { confirm_stage: "production" } : {}) }),
+      api.post<ConnectLink>(`/instances/${instance.name}/connect`, {
+        uid: user.id,
+        ...(production ? { confirm_stage: "production" } : {}),
+      }),
     [],
   );
   const ready = !!chosen && (!production || typed === "production");
@@ -121,19 +158,33 @@ export function ConnectDialog({ instance, onClose }: { instance: Instance; onClo
       onError: (error) => toast("error", t.notConnected, errorText(error)),
     });
 
-  const footer = link && left > 0 ? (
-    <>
-      <Button onClick={onClose}>{c.close}</Button>
-      <Button asChild variant="primary" icon={<LogIn />}>
-        <a href={link.url} target="_blank" rel="noreferrer" onClick={() => setTimeout(onClose, 300)}>{t.openAs(chosen?.name ?? link.login)}</a>
-      </Button>
-    </>
-  ) : (
-    <>
-      <Button onClick={onClose}>{c.cancel}</Button>
-      <Button variant="primary" icon={<LogIn />} disabled={!ready} loading={give.isPending} onClick={() => { setLink(null); getLink(); }}>{t.getLink}</Button>
-    </>
-  );
+  const footer =
+    link && left > 0 ? (
+      <>
+        <Button onClick={onClose}>{c.close}</Button>
+        <Button asChild variant="primary" icon={<LogIn />}>
+          <a href={link.url} target="_blank" rel="noreferrer" onClick={() => setTimeout(onClose, 300)}>
+            {t.openAs(chosen?.name ?? link.login)}
+          </a>
+        </Button>
+      </>
+    ) : (
+      <>
+        <Button onClick={onClose}>{c.cancel}</Button>
+        <Button
+          variant="primary"
+          icon={<LogIn />}
+          disabled={!ready}
+          loading={give.isPending}
+          onClick={() => {
+            setLink(null);
+            getLink();
+          }}
+        >
+          {t.getLink}
+        </Button>
+      </>
+    );
   return (
     <Modal title={t.title} description={t.text} onClose={onClose} footer={footer}>
       <div className="stack">
@@ -143,21 +194,45 @@ export function ConnectDialog({ instance, onClose }: { instance: Instance; onClo
         ) : null}
         <div className="log-search connect-find">
           <Search aria-hidden="true" />
-          <input type="search" value={find} placeholder={t.search} aria-label={t.search} onChange={(e) => setFind(e.target.value)} />
+          <input
+            type="search"
+            value={find}
+            placeholder={t.search}
+            aria-label={t.search}
+            onChange={(e) => setFind(e.target.value)}
+          />
         </div>
         <div className="user-pick" role="radiogroup" aria-label={t.choose}>
           {users.isPending ? (
-            <><Skeleton height={44} /><Skeleton height={44} /></>
+            <>
+              <Skeleton height={44} />
+              <Skeleton height={44} />
+            </>
           ) : users.error ? (
             <Callout tone="danger">{errorText(users.error)}</Callout>
           ) : !shown.length ? (
             <p className="small muted">{t.none}</p>
           ) : (
             shown.map((user) => (
-              <button key={user.id} type="button" role="radio" aria-checked={chosen?.id === user.id}
-                onClick={() => { setChosen(user); setLink(null); }}>
+              <button
+                key={user.id}
+                type="button"
+                role="radio"
+                aria-checked={chosen?.id === user.id}
+                onClick={() => {
+                  setChosen(user);
+                  setLink(null);
+                }}
+              >
                 <UserRound aria-hidden="true" />
-                <span className="who"><b><bdi>{user.name}</bdi></b><span className="xsmall faint mono" dir="ltr">{user.login}</span></span>
+                <span className="who">
+                  <b>
+                    <bdi>{user.name}</bdi>
+                  </b>
+                  <span className="xsmall faint mono" dir="ltr">
+                    {user.login}
+                  </span>
+                </span>
               </button>
             ))
           )}

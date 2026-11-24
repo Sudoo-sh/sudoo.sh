@@ -6,7 +6,8 @@ const en = {
   title: "Why it failed",
   step: "Failed at",
   details: "Error details",
-  detailsHint: "Only the lines that explain the failure. The server's log has everything; your administrator can read it.",
+  detailsHint:
+    "Only the lines that explain the failure. The server's log has everything; your administrator can read it.",
   copy: "Copy the error details",
   copied: "Copied",
   noReason: "Something went wrong in this step. The server's log has the details; your administrator can read it.",
@@ -20,12 +21,17 @@ const en = {
   },
   fix: {
     title: "Give the panel access to the repository",
-    intro: (repository: ReactNode) => ["The panel cannot read ", repository, ". Choose one of these, then check again."],
+    intro: (repository: ReactNode) => [
+      "The panel cannot read ",
+      repository,
+      ". Choose one of these, then check again.",
+    ],
     appTitle: "Recommended: give the panel's GitHub App access to it",
     appText: "On GitHub, open the App's installation and add the repository under Repository access.",
     openInstallation: "Open the GitHub App's installation",
     keyTitle: "Otherwise: create a deploy key for it (read-only)",
-    keyText: "The panel makes a key that can only read this repository; add it on GitHub under Settings, Deploy keys, without write access.",
+    keyText:
+      "The panel makes a key that can only read this repository; add it on GitHub under Settings, Deploy keys, without write access.",
     createKey: "Create deploy key",
     addOnGitHub: "Add it on GitHub",
     checkAgain: "Check again",
@@ -40,7 +46,8 @@ const en = {
   },
   notified: {
     emailed: "The person who pushed was e-mailed.",
-    noAddress: "Nobody could be e-mailed: GitHub gave no usable address for the person who pushed. The project's notification channels were told.",
+    noAddress:
+      "Nobody could be e-mailed: GitHub gave no usable address for the person who pushed. The project's notification channels were told.",
     mailFailed: "The e-mail to the person who pushed could not be sent.",
   },
 };
@@ -68,7 +75,8 @@ const ar: typeof en = {
     appText: "في GitHub، افتح إعدادات تثبيت التطبيق وأضف المستودع ضمن Repository access.",
     openInstallation: "افتح إعدادات تثبيت تطبيق GitHub",
     keyTitle: "وإلا: أنشئ له مفتاح نشر (للقراءة فقط)",
-    keyText: "تُنشئ اللوحة مفتاحًا لا يستطيع إلا قراءة هذا المستودع؛ أضفه في GitHub ضمن Settings ثم Deploy keys، دون صلاحية الكتابة.",
+    keyText:
+      "تُنشئ اللوحة مفتاحًا لا يستطيع إلا قراءة هذا المستودع؛ أضفه في GitHub ضمن Settings ثم Deploy keys، دون صلاحية الكتابة.",
     createKey: "إنشاء مفتاح نشر",
     addOnGitHub: "أضفه في GitHub",
     checkAgain: "تحقّق من جديد",

@@ -50,7 +50,8 @@ export function InvitePage() {
 
   const person: Person = { email: invitation?.email ?? undefined, names: [form.first_name, form.last_name] };
   const ready = form.first_name.trim() && passwordReady(password, person);
-  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: e.target.value });
+  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm({ ...form, [key]: e.target.value });
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -61,7 +62,11 @@ export function InvitePage() {
       setCsrfToken(me.csrf_token);
       client.setQueryData(keys.session, me);
       history.replaceState(null, "", window.location.pathname); // the used link leaves the address bar
-      if (me.restricted) navigate(me.restricted === "second_factor" ? "/setup-second-factor" : "/", { replace: true, viewTransition: true });
+      if (me.restricted)
+        navigate(me.restricted === "second_factor" ? "/setup-second-factor" : "/", {
+          replace: true,
+          viewTransition: true,
+        });
       else setJoined(me);
     } catch (err) {
       if (err instanceof ApiError && err.status === 410) setBroken("broken");
@@ -74,7 +79,11 @@ export function InvitePage() {
   const frame = (body: React.ReactNode, wide = false) => (
     <div className="auth-panel" style={{ minHeight: "100vh" }}>
       <div className={`auth-card ${wide ? "wide" : ""}`}>
-        <div className="row"><Brand to="/login" /><span className="spacer" /><LanguageSwitch /></div>
+        <div className="row">
+          <Brand to="/login" />
+          <span className="spacer" />
+          <LanguageSwitch />
+        </div>
         {body}
       </div>
     </div>
@@ -87,21 +96,31 @@ export function InvitePage() {
           <h1>{t.brokenTitle}</h1>
           <p>{broken === "missing" ? t.noLink : broken === "broken" ? t.brokenText : broken}</p>
         </header>
-        <Button asChild variant="primary" size="lg" block><Link to="/login" viewTransition>{t.toSignIn}</Link></Button>
+        <Button asChild variant="primary" size="lg" block>
+          <Link to="/login" viewTransition>
+            {t.toSignIn}
+          </Link>
+        </Button>
       </>,
     );
   if (joined)
     return frame(
       <>
         <header>
-          <h1 className="row"><ShieldCheck size={22} /> {t.factorTitle}</h1>
+          <h1 className="row">
+            <ShieldCheck size={22} /> {t.factorTitle}
+          </h1>
           <p>{t.factorText}</p>
         </header>
         <Factors />
         <div className="row-wrap">
-          <Button variant="ghost" onClick={() => navigate("/", { replace: true, viewTransition: true })}>{t.later}</Button>
+          <Button variant="ghost" onClick={() => navigate("/", { replace: true, viewTransition: true })}>
+            {t.later}
+          </Button>
           <span className="spacer" />
-          <Button variant="primary" onClick={() => navigate("/", { replace: true, viewTransition: true })}>{t.done}</Button>
+          <Button variant="primary" onClick={() => navigate("/", { replace: true, viewTransition: true })}>
+            {t.done}
+          </Button>
         </div>
       </>,
       true,
@@ -122,14 +141,22 @@ export function InvitePage() {
         <Input type="email" dir="ltr" autoComplete="username email" value={invitation.email} readOnly />
       </Field>
       <div className="form-grid">
-        <Field label={t.firstName}><Input autoComplete="given-name" autoFocus value={form.first_name} onChange={set("first_name")} /></Field>
-        <Field label={t.lastName}><Input autoComplete="family-name" value={form.last_name} onChange={set("last_name")} /></Field>
-        <Field label={t.phone} hint={t.optional} className="full"><Input type="tel" dir="ltr" autoComplete="tel" value={form.phone} onChange={set("phone")} /></Field>
+        <Field label={t.firstName}>
+          <Input autoComplete="given-name" autoFocus value={form.first_name} onChange={set("first_name")} />
+        </Field>
+        <Field label={t.lastName}>
+          <Input autoComplete="family-name" value={form.last_name} onChange={set("last_name")} />
+        </Field>
+        <Field label={t.phone} hint={t.optional} className="full">
+          <Input type="tel" dir="ltr" autoComplete="tel" value={form.phone} onChange={set("phone")} />
+        </Field>
         <PasswordFields value={password} onChange={setPassword} person={person} />
       </div>
       {invitation.second_factor_required && <Callout tone="info">{t.factorRequired}</Callout>}
       {error && <Callout tone="danger">{error}</Callout>}
-      <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={!ready}>{t.submit}</Button>
+      <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={!ready}>
+        {t.submit}
+      </Button>
     </form>,
     true,
   );

@@ -31,11 +31,20 @@ function Details({ lines }: { lines: string[] }) {
       <div className="row">
         <h3 className="small">{t.details}</h3>
         <span className="spacer" />
-        <Button size="sm" variant="ghost" icon={copied ? <Check /> : <Copy />} onClick={copy} aria-label={t.copy} title={t.copy}>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={copied ? <Check /> : <Copy />}
+          onClick={copy}
+          aria-label={t.copy}
+          title={t.copy}
+        >
           {copied ? t.copied : null}
         </Button>
       </div>
-      <pre className="why-lines" dir="ltr" tabIndex={0}>{lines.join("\n")}</pre>
+      <pre className="why-lines" dir="ltr" tabIndex={0}>
+        {lines.join("\n")}
+      </pre>
       <p className="xsmall faint">{t.detailsHint}</p>
     </div>
   );
@@ -50,7 +59,10 @@ function RepositoryFix({ instance, repository }: { instance: string; repository:
   const branch = found?.git.branch ?? null;
   const access = useQuery({
     queryKey: ["repository-access", url, branch],
-    queryFn: () => api.get<RepoAccess>(`/repositories/access?url=${encodeURIComponent(url!)}${branch ? `&branch=${encodeURIComponent(branch)}` : ""}`),
+    queryFn: () =>
+      api.get<RepoAccess>(
+        `/repositories/access?url=${encodeURIComponent(url!)}${branch ? `&branch=${encodeURIComponent(branch)}` : ""}`,
+      ),
     enabled: !!url,
     staleTime: 0,
   });
@@ -66,7 +78,10 @@ function RepositoryFix({ instance, repository }: { instance: string; repository:
     retry: false,
   });
   const [keys, setKeys] = useState<Record<string, { public_key: string; github_url: string }>>({});
-  const createKey = useCall((repo: string) => api.post<{ repo: string; public_key: string; github_url: string }>("/deploy-keys", { repo }), [["deploy-keys"]]);
+  const createKey = useCall(
+    (repo: string) => api.post<{ repo: string; public_key: string; github_url: string }>("/deploy-keys", { repo }),
+    [["deploy-keys"]],
+  );
   const retry = useCall(() => api.post(`/instances/${encodeURIComponent(instance)}/actions/update`, {}), [["jobs"]]);
   if (!can("projects.manage") && !can("github.manage")) return null;
   const report = access.data;
@@ -77,15 +92,27 @@ function RepositoryFix({ instance, repository }: { instance: string; repository:
   return (
     <section className="why-fix stack-sm" aria-label={t.title}>
       <h3 className="small">{t.title}</h3>
-      {repository && <p className="small">{t.intro(<bdi key="r" dir="ltr"><code>{repository}</code></bdi>)}</p>}
+      {repository && (
+        <p className="small">
+          {t.intro(
+            <bdi key="r" dir="ltr">
+              <code>{repository}</code>
+            </bdi>,
+          )}
+        </p>
+      )}
       {report && (
         <ul className="why-repos stack-sm">
           {report.repositories.map((r) => (
             <li key={r.url} className="row small" style={{ flexWrap: "wrap" }}>
               {r.ok ? <CircleCheck size={16} color="var(--positive)" /> : <CircleX size={16} color="var(--negative)" />}
-              <bdi className="truncate" dir="ltr">{r.url}</bdi>
+              <bdi className="truncate" dir="ltr">
+                {r.url}
+              </bdi>
               <Tag>{r.role === "main" ? t.main : t.submodule}</Tag>
-              <span style={{ color: r.ok ? "var(--positive)" : "var(--negative)" }}>{r.ok ? t.accessOk : t.noAccess}</span>
+              <span style={{ color: r.ok ? "var(--positive)" : "var(--negative)" }}>
+                {r.ok ? t.accessOk : t.noAccess}
+              </span>
             </li>
           ))}
         </ul>
@@ -97,11 +124,19 @@ function RepositoryFix({ instance, repository }: { instance: string; repository:
             <p className="xsmall muted">{t.appText}</p>
             {missing.map((r) =>
               r.fix?.url ? (
-                <Button key={r.url} asChild size="sm"><a href={r.fix.url} target="_blank" rel="noreferrer">{r.fix.label} <ArrowUpRight className="flip-rtl" /></a></Button>
+                <Button key={r.url} asChild size="sm">
+                  <a href={r.fix.url} target="_blank" rel="noreferrer">
+                    {r.fix.label} <ArrowUpRight className="flip-rtl" />
+                  </a>
+                </Button>
               ) : null,
             )}
             {!missing.some((r) => r.fix?.url) && appLink && (
-              <Button asChild size="sm"><a href={appLink} target="_blank" rel="noreferrer">{t.openInstallation} <ArrowUpRight className="flip-rtl" /></a></Button>
+              <Button asChild size="sm">
+                <a href={appLink} target="_blank" rel="noreferrer">
+                  {t.openInstallation} <ArrowUpRight className="flip-rtl" />
+                </a>
+              </Button>
             )}
           </li>
           <li>
@@ -115,12 +150,23 @@ function RepositoryFix({ instance, repository }: { instance: string; repository:
                   {made ? (
                     <>
                       <CopyField value={made.public_key} block />
-                      <Button asChild size="sm"><a href={made.github_url} target="_blank" rel="noreferrer">{t.addOnGitHub} <ArrowUpRight className="flip-rtl" /></a></Button>
+                      <Button asChild size="sm">
+                        <a href={made.github_url} target="_blank" rel="noreferrer">
+                          {t.addOnGitHub} <ArrowUpRight className="flip-rtl" />
+                        </a>
+                      </Button>
                     </>
                   ) : (
-                    can("github.manage") && repo && (
-                      <Button size="sm" icon={<KeyRound />} disabled={createKey.isPending}
-                        onClick={() => createKey.mutate(repo, { onSuccess: (key) => setKeys((all) => ({ ...all, [repo]: key })) })}>
+                    can("github.manage") &&
+                    repo && (
+                      <Button
+                        size="sm"
+                        icon={<KeyRound />}
+                        disabled={createKey.isPending}
+                        onClick={() =>
+                          createKey.mutate(repo, { onSuccess: (key) => setKeys((all) => ({ ...all, [repo]: key })) })
+                        }
+                      >
                         {t.createKey} <bdi dir="ltr">{repo}</bdi>
                       </Button>
                     )
@@ -137,12 +183,22 @@ function RepositoryFix({ instance, repository }: { instance: string; repository:
           {access.isFetching ? t.checking : t.checkAgain}
         </Button>
         {report?.all_ok && can("instances.update") && (
-          <Button size="sm" variant="primary" icon={<RotateCw />} disabled={retry.isPending || retry.isSuccess} onClick={() => retry.mutate(undefined)}>
+          <Button
+            size="sm"
+            variant="primary"
+            icon={<RotateCw />}
+            disabled={retry.isPending || retry.isSuccess}
+            onClick={() => retry.mutate(undefined)}
+          >
             {t.retry}
           </Button>
         )}
       </div>
-      {report?.all_ok && <p className="small" style={{ color: "var(--positive)" }}>{t.allOk}</p>}
+      {report?.all_ok && (
+        <p className="small" style={{ color: "var(--positive)" }}>
+          {t.allOk}
+        </p>
+      )}
       {retry.isSuccess && <p className="small muted">{t.retried}</p>}
       {retry.error && <Callout tone="danger">{errorText(retry.error)}</Callout>}
     </section>
@@ -150,7 +206,15 @@ function RepositoryFix({ instance, repository }: { instance: string; repository:
 }
 
 /** "Why it failed" of a job or a build. `instance`: offer the fix for a repository the panel cannot read. */
-export function WhyItFailed({ failure, fallback, instance }: { failure?: Failure | null; fallback?: string | null; instance?: string | null }) {
+export function WhyItFailed({
+  failure,
+  fallback,
+  instance,
+}: {
+  failure?: Failure | null;
+  fallback?: string | null;
+  instance?: string | null;
+}) {
   const t = useT(words);
   const reason = failure?.reason || fallback || t.noReason;
   return (
@@ -165,7 +229,9 @@ export function WhyItFailed({ failure, fallback, instance }: { failure?: Failure
         <div>{reason}</div>
       </Callout>
       {failure && <Details lines={failure.details} />}
-      {failure?.kind === "repository" && instance && <RepositoryFix instance={instance} repository={failure.repository} />}
+      {failure?.kind === "repository" && instance && (
+        <RepositoryFix instance={instance} repository={failure.repository} />
+      )}
     </section>
   );
 }

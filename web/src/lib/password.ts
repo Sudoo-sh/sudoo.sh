@@ -5,12 +5,58 @@ import { words } from "@/i18n";
 import auth from "@/i18n/auth";
 
 const COMMON = [
-  "password", "passw0rd", "123456", "qwerty", "azerty", "letmein", "welcome", "admin", "administrator", "iloveyou",
-  "monkey", "dragon", "football", "baseball", "sunshine", "princess", "trustno1", "abc123", "odoo", "changeme",
-  "secret", "master", "login", "sudoo", "starwars", "whatever", "superman", "batman", "shadow", "michael", "jordan",
-  "hello", "freedom", "summer", "winter", "spring", "autumn", "computer", "internet", "default", "temp", "test",
+  "password",
+  "passw0rd",
+  "123456",
+  "qwerty",
+  "azerty",
+  "letmein",
+  "welcome",
+  "admin",
+  "administrator",
+  "iloveyou",
+  "monkey",
+  "dragon",
+  "football",
+  "baseball",
+  "sunshine",
+  "princess",
+  "trustno1",
+  "abc123",
+  "odoo",
+  "changeme",
+  "secret",
+  "master",
+  "login",
+  "sudoo",
+  "starwars",
+  "whatever",
+  "superman",
+  "batman",
+  "shadow",
+  "michael",
+  "jordan",
+  "hello",
+  "freedom",
+  "summer",
+  "winter",
+  "spring",
+  "autumn",
+  "computer",
+  "internet",
+  "default",
+  "temp",
+  "test",
 ];
-const SEQUENCES = ["abcdefghijklmnopqrstuvwxyz", "0123456789", "qwertyuiop", "asdfghjkl", "zxcvbnm", "1qaz2wsx3edc", "qazwsxedc"];
+const SEQUENCES = [
+  "abcdefghijklmnopqrstuvwxyz",
+  "0123456789",
+  "qwertyuiop",
+  "asdfghjkl",
+  "zxcvbnm",
+  "1qaz2wsx3edc",
+  "qazwsxedc",
+];
 export const MIN_LENGTH = 12;
 const t = () => words(auth).password;
 
@@ -34,7 +80,9 @@ export function passwordProblem(password: string, person: Person = {}): string |
   const lowered = password.toLowerCase();
   if (password.length < MIN_LENGTH) return t().tooShort(MIN_LENGTH, password.length);
   if (password.length > 128) return t().tooLong;
-  const personal = [person.username, person.email?.split("@")[0], ...(person.names ?? [])].filter((p): p is string => !!p && p.length >= 3);
+  const personal = [person.username, person.email?.split("@")[0], ...(person.names ?? [])].filter(
+    (p): p is string => !!p && p.length >= 3,
+  );
   if (personal.some((part) => lowered.includes(part.toLowerCase()))) return t().personal;
   if (COMMON.some((word) => lowered.includes(word))) return t().common;
   if (hasSequence(lowered)) return t().sequence;
@@ -50,7 +98,6 @@ export function strength(password: string, person: Person = {}): 0 | 1 | 2 | 3 |
   const points = (password.length >= 16 ? 1 : 0) + (password.length >= 20 ? 1 : 0) + (kinds >= 3 ? 1 : 0);
   return Math.min(4, 1 + points) as 1 | 2 | 3 | 4;
 }
-
 
 /** A random password of 20 characters from an alphabet without look-alikes (0/O, 1/l/I). */
 export function generatePassword(): string {

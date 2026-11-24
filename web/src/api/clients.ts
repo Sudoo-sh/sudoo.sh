@@ -30,7 +30,12 @@ export const clientKeys = {
 
 /** Whether this address is the client portal's, its company name and colour (public). */
 export const usePortal = () =>
-  useQuery({ queryKey: clientKeys.portal, queryFn: () => api.get<PortalInfo>("/portal"), staleTime: Infinity, retry: false });
+  useQuery({
+    queryKey: clientKeys.portal,
+    queryFn: () => api.get<PortalInfo>("/portal"),
+    staleTime: Infinity,
+    retry: false,
+  });
 
 export const useClientProjects = () =>
   useQuery({
@@ -50,16 +55,22 @@ export const useClientProject = (id: string) =>
   });
 
 export const useClientBackups = (id: string, enabled: boolean) =>
-  useQuery({ queryKey: clientKeys.backups(id), queryFn: () => api.get<ClientBackup[]>(`/client/projects/${enc(id)}/backups`), enabled });
+  useQuery({
+    queryKey: clientKeys.backups(id),
+    queryFn: () => api.get<ClientBackup[]>(`/client/projects/${enc(id)}/backups`),
+    enabled,
+  });
 
 export const useClientActivity = (id: string, kind: "all" | "access", offset: number, limit = 50) =>
   useQuery({
     queryKey: clientKeys.activity(id, kind, offset),
-    queryFn: () => call<ActivityEntry[]>("GET", `/client/projects/${enc(id)}/activity?kind=${kind}&limit=${limit}&offset=${offset}`),
+    queryFn: () =>
+      call<ActivityEntry[]>("GET", `/client/projects/${enc(id)}/activity?kind=${kind}&limit=${limit}&offset=${offset}`),
     refetchInterval: REFRESH_MS,
   });
 
-export const activityExportUrl = (id: string, kind: "all" | "access") => `/api/v1/client/projects/${enc(id)}/activity/export?kind=${kind}`;
+export const activityExportUrl = (id: string, kind: "all" | "access") =>
+  `/api/v1/client/projects/${enc(id)}/activity/export?kind=${kind}`;
 
 /** What staff see of a project's clients (GET /projects/<id>/clients). */
 export const useProjectClients = (id: string, enabled = true) =>
@@ -77,21 +88,26 @@ export const clientCalls = {
     api.put<ClientActionAnswer>(`/client/projects/${enc(id)}/switch`, body),
   setLock: (id: string, body: { branch?: string | null; locked: boolean; reason?: string }) =>
     api.put<ClientActionAnswer>(`/client/projects/${enc(id)}/lock`, body),
-  setAllow: (id: string, people: string[]) => api.put<ClientActionAnswer>(`/client/projects/${enc(id)}/allow`, { people }),
-  setEmergency: (id: string, allowed: boolean) => api.put<ClientActionAnswer>(`/client/projects/${enc(id)}/emergency`, { allowed }),
+  setAllow: (id: string, people: string[]) =>
+    api.put<ClientActionAnswer>(`/client/projects/${enc(id)}/allow`, { people }),
+  setEmergency: (id: string, allowed: boolean) =>
+    api.put<ClientActionAnswer>(`/client/projects/${enc(id)}/emergency`, { allowed }),
   confirm: (confirmationId: string, body: { code?: string; token?: string }) =>
     api.post<{ done: boolean; project: string }>(`/client/confirmations/${enc(confirmationId)}`, body),
   cancel: (confirmationId: string) => api.del(`/client/confirmations/${enc(confirmationId)}`),
   endPass: (id: string, passId: string) => api.del(`/client/projects/${enc(id)}/passes/${enc(passId)}`),
   approve: (requestId: string, body: { hours?: number; people?: string[]; note?: string }) =>
     api.post<ClientActionAnswer>(`/client/requests/${enc(requestId)}/approve`, body),
-  refuse: (requestId: string, note: string) => api.post<AccessRequest>(`/client/requests/${enc(requestId)}/refuse`, { note }),
+  refuse: (requestId: string, note: string) =>
+    api.post<AccessRequest>(`/client/requests/${enc(requestId)}/refuse`, { note }),
   ask: (id: string, body: { branch?: string | null; reason: string; hours: number }) =>
     api.post<AccessRequest>(`/projects/${enc(id)}/access-requests`, body),
   emergency: (id: string, body: { branch?: string | null; reason: string; confirm: string }) =>
     api.post(`/projects/${enc(id)}/emergency-access`, body),
-  addClient: (id: string, body: { email: string; first_name?: string; last_name?: string; backups: boolean; shell: boolean }) =>
-    api.post<{ invited: boolean }>(`/projects/${enc(id)}/clients`, body),
+  addClient: (
+    id: string,
+    body: { email: string; first_name?: string; last_name?: string; backups: boolean; shell: boolean },
+  ) => api.post<{ invited: boolean }>(`/projects/${enc(id)}/clients`, body),
   changeClient: (id: string, name: string, body: { backups: boolean; shell: boolean }) =>
     api.patch(`/projects/${enc(id)}/clients/${enc(name)}`, body),
   removeClient: (id: string, name: string) => api.del(`/projects/${enc(id)}/clients/${enc(name)}`),

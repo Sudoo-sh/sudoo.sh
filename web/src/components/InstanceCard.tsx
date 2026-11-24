@@ -44,7 +44,12 @@ export function InstanceCard({ instance }: { instance: Instance }) {
   // the instance's page is read as the pointer comes to the card, so its title is there when the page opens and the
   // card's name can move into it (useHero); a page still loading simply fades in
   const client = useQueryClient();
-  const warm = () => void client.prefetchQuery({ queryKey: keys.instance(instance.name), queryFn: () => api.get<Instance>(`/instances/${instance.name}`), staleTime: 10_000 });
+  const warm = () =>
+    void client.prefetchQuery({
+      queryKey: keys.instance(instance.name),
+      queryFn: () => api.get<Instance>(`/instances/${instance.name}`),
+      staleTime: 10_000,
+    });
   return (
     <article className="card link instance-card" onPointerEnter={warm} onFocus={warm}>
       <div className="ic-head">
@@ -52,12 +57,25 @@ export function InstanceCard({ instance }: { instance: Instance }) {
         <div style={{ minWidth: 0, flex: 1 }}>
           {/* the whole card opens the instance: this link covers it (.ic-open::after), the Open button sits above */}
           {/* its name moves into the instance page's title as the page opens (useHero) */}
-          <Link to={`/i/${instance.name}`} viewTransition className="ic-name ic-open truncate" onClick={() => startHero(`instance:${instance.name}`, hero.current)}>
-            <span className="hero-text" ref={hero}>{instance.name}</span>
+          <Link
+            to={`/i/${instance.name}`}
+            viewTransition
+            className="ic-name ic-open truncate"
+            onClick={() => startHero(`instance:${instance.name}`, hero.current)}
+          >
+            <span className="hero-text" ref={hero}>
+              {instance.name}
+            </span>
           </Link>
           <div className="ic-sub">
             {instance.source === "plain" ? <Box /> : <GitBranch />}
-            {instance.source === "plain" ? <span className="truncate">{t.plain}</span> : <bdi className="truncate" dir="ltr">{instance.git.branch}</bdi>}
+            {instance.source === "plain" ? (
+              <span className="truncate">{t.plain}</span>
+            ) : (
+              <bdi className="truncate" dir="ltr">
+                {instance.git.branch}
+              </bdi>
+            )}
           </div>
         </div>
         <Status status={instance.status} />
@@ -102,9 +120,11 @@ export function InstanceCard({ instance }: { instance: Instance }) {
         </span>
         <span className="spacer" />
         {instance.url && instance.status !== "switched_off" && (
-          <Button asChild variant="ghost" size="sm" className="ic-external"><a href={instance.url} target="_blank" rel="noreferrer">
-            {t.open} <ArrowUpRight className="flip-rtl" />
-          </a></Button>
+          <Button asChild variant="ghost" size="sm" className="ic-external">
+            <a href={instance.url} target="_blank" rel="noreferrer">
+              {t.open} <ArrowUpRight className="flip-rtl" />
+            </a>
+          </Button>
         )}
       </div>
     </article>

@@ -33,7 +33,10 @@ const en = {
     mcp: "MCP",
     extension: "Extensions",
   } as Record<string, string>,
-  plans: { monthly: "Monthly", yearly: "Yearly", fixed_term: "Fixed term", one_time: "One time" } as Record<string, string>,
+  plans: { monthly: "Monthly", yearly: "Yearly", fixed_term: "Fixed term", one_time: "One time" } as Record<
+    string,
+    string
+  >,
   price: {
     free: "Free",
     paid: "Paid",
@@ -57,8 +60,16 @@ const en = {
   } as Record<string, string>,
   madeForYou: "Made for your country",
   work: {
-    notDone: { installed: (name: string) => `${name} was not installed`, updated: (name: string) => `${name} was not updated`, uninstalled: (name: string) => `${name} was not uninstalled` },
-    done: { installed: (name: string) => `${name} is installed`, updated: (name: string) => `${name} is updated`, uninstalled: (name: string) => `${name} is uninstalled` },
+    notDone: {
+      installed: (name: string) => `${name} was not installed`,
+      updated: (name: string) => `${name} was not updated`,
+      uninstalled: (name: string) => `${name} was not uninstalled`,
+    },
+    done: {
+      installed: (name: string) => `${name} is installed`,
+      updated: (name: string) => `${name} is updated`,
+      uninstalled: (name: string) => `${name} is uninstalled`,
+    },
     openDetails: "Open the details to see why.",
     restarting: "Restarting the panel",
     restartingText: "Instances keep running; this takes a few seconds",
@@ -115,7 +126,8 @@ const en = {
     openAgain: "Open the payment page again",
     pressAgain: "Press the button again to start a new purchase.",
     superAdminOnly: "Only a super admin can install or buy plugins.",
-    signed: "Every package is signed by the marketplace and checked by this panel before it is installed. The plugin's code stays on the server and is never shown.",
+    signed:
+      "Every package is signed by the marketplace and checked by this panel before it is installed. The plugin's code stays on the server and is never shown.",
   },
   catalogue: {
     search: "Search plugins",
@@ -123,7 +135,13 @@ const en = {
     allCategories: "All categories",
     all: "All",
     order: "Order",
-    sort: { trusted: "Official and verified first", popular: "Most installed", rating: "Best rated", newest: "Newest", name: "Name" },
+    sort: {
+      trusted: "Official and verified first",
+      popular: "Most installed",
+      rating: "Best rated",
+      newest: "Newest",
+      name: "Name",
+    },
     recommended: "Recommended",
     suggested: "Suggested for this server",
     noneFound: "No plugins found",
@@ -155,7 +173,8 @@ const en = {
     notUpdated: "Not updated",
     notUninstalled: "Not uninstalled",
     none: "No plugins yet",
-    noneText: "Plugins from the marketplace add features to the panel: sign-in methods, mailers, backup destinations and more.",
+    noneText:
+      "Plugins from the marketplace add features to the panel: sign-in methods, mailers, backup destinations and more.",
     columns: { plugin: "Plugin", version: "Version", status: "Status", licence: "Licence" },
     updateTo: (version: string) => `Update to v${version}`,
     waitingRestart: "Waiting for a restart",
@@ -187,7 +206,16 @@ const en = {
     exportCsv: "Export CSV",
     noReceipts: "No receipts yet",
     noReceiptsText: "Paid plugins bought for this server appear here.",
-    columns: { number: "Number", date: "Date", plugin: "Plugin", plan: "Plan", askedBy: "Asked by", total: "Total", status: "Status", amount: "Amount" },
+    columns: {
+      number: "Number",
+      date: "Date",
+      plugin: "Plugin",
+      plan: "Plan",
+      askedBy: "Asked by",
+      total: "Total",
+      status: "Status",
+      amount: "Amount",
+    },
     creditNote: " · credit note",
     renewal: " · renewal",
     title: "Purchases",
@@ -202,10 +230,13 @@ const en = {
     verifiedTitle: "Verified publisher: Sudoo.sh checked who they are",
     verified: "Verified publisher",
     off: "The marketplace is switched off on this panel. A super admin can switch it on in Settings, Marketplace.",
-    integrity: "The marketplace refuses this panel: its core files differ from the released version. Every plugin is switched off until the panel is reinstalled.",
+    integrity:
+      "The marketplace refuses this panel: its core files differ from the released version. Every plugin is switched off until the panel is reinstalled.",
     suspended: "This panel is suspended on the marketplace, so every plugin is switched off. Contact Sudoo.sh support.",
-    unverified: "The marketplace's last answer was not signed by a key this panel trusts, so it was ignored. Installed plugins keep working; the panel tries again on its own. If this lasts, tell Sudoo.sh support.",
-    flagged: "This server is flagged: it reported from another machine than the one it was registered on, so its paid plugins are withheld. The account owner must accept this machine on app.sudoo.sh (Servers), or revoke its key if it is a copy.",
+    unverified:
+      "The marketplace's last answer was not signed by a key this panel trusts, so it was ignored. Installed plugins keep working; the panel tries again on its own. If this lasts, tell Sudoo.sh support.",
+    flagged:
+      "This server is flagged: it reported from another machine than the one it was registered on, so its paid plugins are withheld. The account owner must accept this machine on app.sudoo.sh (Servers), or revoke its key if it is a copy.",
     unreachable: (leaseValid: boolean) =>
       `The marketplace cannot be reached right now${leaseValid ? "" : ", and the panel's last lease has ended: paid plugins stop when their offline time runs out"}. Instances and installed plugins keep working; the panel tries again every few minutes.`,
     linked: "Panel linked",
@@ -219,8 +250,10 @@ const en = {
     loggedOut: "Logged out of the account",
     paidRemoving: "The paid plugins are being removed after a backup",
     stillLoggedIn: "Still logged in",
-    keyRevoked: "This server's key was revoked on app.sudoo.sh, so the panel registered again with a new identity. Link it to your account again to use paid plugins.",
-    removingPaid: "The panel is removing this server's paid plugins (it was logged out of its account). A backup is taken first.",
+    keyRevoked:
+      "This server's key was revoked on app.sudoo.sh, so the panel registered again with a new identity. Link it to your account again to use paid plugins.",
+    removingPaid:
+      "The panel is removing this server's paid plugins (it was logged out of its account). A backup is taken first.",
     hub: "Hub",
     installation: "This installation",
     lastHeartbeat: "Last heartbeat",
@@ -235,14 +268,25 @@ const en = {
     heartbeat: "Send a heartbeat now",
     logOut: "Log out of the account",
     logOutTitle: "Log out of the account?",
-    logOutText: (account: string | null) => `This server stops belonging to ${account ? iso(account) : "its account"} on app.sudoo.sh.`,
+    logOutText: (account: string | null) =>
+      `This server stops belonging to ${account ? iso(account) : "its account"} on app.sudoo.sh.`,
     logOutRemove: "Log out and remove paid plugins",
     paidRemoved: "Paid plugins are removed.",
-    paidRemovedText: " Their licences for this server are revoked at once and subscriptions end without a refund. The panel backs up its data (and the instances those plugins can change) first.",
+    paidRemovedText:
+      " Their licences for this server are revoked at once and subscriptions end without a refund. The panel backs up its data (and the instances those plugins can change) first.",
     noPaid: "No paid plugin is installed.",
-    keepRunning: "The panel, free plugins and every instance keep running. You can link the server to an account again later.",
+    keepRunning:
+      "The panel, free plugins and every instance keep running. You can link the server to an account again later.",
   },
-  licenceStates: { active: "active", trial: "trial", past_due: "payment failed", cancelled: "renewal stopped", grace: "in grace period", expired: "expired", revoked: "revoked" } as Record<string, string>,
+  licenceStates: {
+    active: "active",
+    trial: "trial",
+    past_due: "payment failed",
+    cancelled: "renewal stopped",
+    grace: "in grace period",
+    expired: "expired",
+    revoked: "revoked",
+  } as Record<string, string>,
 };
 
 const ar: typeof en = {
@@ -296,8 +340,16 @@ const ar: typeof en = {
   },
   madeForYou: "مصممة لبلدك",
   work: {
-    notDone: { installed: (name) => `لم تُثبَّت ${iso(name)}`, updated: (name) => `لم تُحدَّث ${iso(name)}`, uninstalled: (name) => `لم يُلغَ تثبيت ${iso(name)}` },
-    done: { installed: (name) => `ثُبّتت ${iso(name)}`, updated: (name) => `حُدّثت ${iso(name)}`, uninstalled: (name) => `أُلغي تثبيت ${iso(name)}` },
+    notDone: {
+      installed: (name) => `لم تُثبَّت ${iso(name)}`,
+      updated: (name) => `لم تُحدَّث ${iso(name)}`,
+      uninstalled: (name) => `لم يُلغَ تثبيت ${iso(name)}`,
+    },
+    done: {
+      installed: (name) => `ثُبّتت ${iso(name)}`,
+      updated: (name) => `حُدّثت ${iso(name)}`,
+      uninstalled: (name) => `أُلغي تثبيت ${iso(name)}`,
+    },
     openDetails: "افتح التفاصيل لمعرفة السبب.",
     restarting: "جارٍ إعادة تشغيل اللوحة",
     restartingText: "تبقى البيئات تعمل؛ يستغرق هذا بضع ثوانٍ",
@@ -313,7 +365,12 @@ const ar: typeof en = {
     renew: "انتهى الترخيص",
     incompatible: "تحتاج إلى إصدار أحدث من Sudoo.sh",
   },
-  installs: (n, shown) => (n === 1 ? "تثبيت واحد" : n === 2 ? "تثبيتان" : `${shown} ${n % 100 >= 3 && n % 100 <= 10 ? "تثبيتات" : n % 100 >= 11 ? "تثبيتًا" : "تثبيت"}`),
+  installs: (n, shown) =>
+    n === 1
+      ? "تثبيت واحد"
+      : n === 2
+        ? "تثبيتان"
+        : `${shown} ${n % 100 >= 3 && n % 100 <= 10 ? "تثبيتات" : n % 100 >= 11 ? "تثبيتًا" : "تثبيت"}`,
   sheet: {
     paymentReceived: "وصل الدفع",
     installing: (name) => `جارٍ تثبيت ${iso(name)}`,
@@ -362,7 +419,13 @@ const ar: typeof en = {
     allCategories: "كل الفئات",
     all: "الكل",
     order: "الترتيب",
-    sort: { trusted: "الرسمية والموثّقة أولًا", popular: "الأكثر تثبيتًا", rating: "الأعلى تقييمًا", newest: "الأحدث", name: "الاسم" },
+    sort: {
+      trusted: "الرسمية والموثّقة أولًا",
+      popular: "الأكثر تثبيتًا",
+      rating: "الأعلى تقييمًا",
+      newest: "الأحدث",
+      name: "الاسم",
+    },
     recommended: "مقترحة",
     suggested: "مقترحة لهذا الخادم",
     noneFound: "لم يُعثر على إضافات",
@@ -426,7 +489,16 @@ const ar: typeof en = {
     exportCsv: "تصدير CSV",
     noReceipts: "لا توجد إيصالات بعد",
     noReceiptsText: "تظهر هنا الإضافات المدفوعة التي اشتُريت لهذا الخادم.",
-    columns: { number: "الرقم", date: "التاريخ", plugin: "الإضافة", plan: "الخطة", askedBy: "طلبها", total: "الإجمالي", status: "الحالة", amount: "المبلغ" },
+    columns: {
+      number: "الرقم",
+      date: "التاريخ",
+      plugin: "الإضافة",
+      plan: "الخطة",
+      askedBy: "طلبها",
+      total: "الإجمالي",
+      status: "الحالة",
+      amount: "المبلغ",
+    },
     creditNote: " · إشعار دائن",
     renewal: " · تجديد",
     title: "المشتريات",
@@ -441,10 +513,13 @@ const ar: typeof en = {
     verifiedTitle: "ناشر موثّق: تحققت Sudoo.sh من هويته",
     verified: "ناشر موثّق",
     off: "متجر الإضافات متوقف في هذه اللوحة. يستطيع مسؤول أعلى تشغيله من الإعدادات، متجر الإضافات.",
-    integrity: "يرفض متجر الإضافات هذه اللوحة: ملفاتها الأساسية تختلف عن الإصدار المنشور. كل الإضافات متوقفة حتى يُعاد تثبيت اللوحة.",
+    integrity:
+      "يرفض متجر الإضافات هذه اللوحة: ملفاتها الأساسية تختلف عن الإصدار المنشور. كل الإضافات متوقفة حتى يُعاد تثبيت اللوحة.",
     suspended: "هذه اللوحة موقوفة في متجر الإضافات، لذا كل الإضافات متوقفة. تواصل مع دعم Sudoo.sh.",
-    unverified: "لم يكن آخر رد من المتجر موقّعًا بمفتاح تثق به هذه اللوحة، فتجاهلته. تبقى الإضافات المثبّتة تعمل، وتحاول اللوحة مجددًا من تلقاء نفسها. وإن استمر ذلك فأخبر دعم Sudoo.sh.",
-    flagged: "هذا الخادم موسوم: أرسل من جهاز غير الذي سُجّل منه، لذا حُجبت إضافاته المدفوعة. على مالك الحساب أن يقبل هذا الجهاز على app.sudoo.sh (الخوادم)، أو يلغي مفتاحه إن كان نسخة.",
+    unverified:
+      "لم يكن آخر رد من المتجر موقّعًا بمفتاح تثق به هذه اللوحة، فتجاهلته. تبقى الإضافات المثبّتة تعمل، وتحاول اللوحة مجددًا من تلقاء نفسها. وإن استمر ذلك فأخبر دعم Sudoo.sh.",
+    flagged:
+      "هذا الخادم موسوم: أرسل من جهاز غير الذي سُجّل منه، لذا حُجبت إضافاته المدفوعة. على مالك الحساب أن يقبل هذا الجهاز على app.sudoo.sh (الخوادم)، أو يلغي مفتاحه إن كان نسخة.",
     unreachable: (leaseValid) =>
       `يتعذّر الوصول إلى متجر الإضافات الآن${leaseValid ? "" : "، وانتهى آخر إذن تشغيل تلقّته اللوحة: تتوقف الإضافات المدفوعة حين تنتهي مدة عملها دون اتصال"}. تبقى البيئات والإضافات المثبّتة تعمل، وتحاول اللوحة مجددًا كل بضع دقائق.`,
     linked: "رُبطت اللوحة",
@@ -458,7 +533,8 @@ const ar: typeof en = {
     loggedOut: "سُجّل الخروج من الحساب",
     paidRemoving: "تُزال الإضافات المدفوعة بعد أخذ نسخة احتياطية",
     stillLoggedIn: "ما زال مسجّل الدخول",
-    keyRevoked: "أُلغي مفتاح هذا الخادم على app.sudoo.sh، فسجّلت اللوحة نفسها من جديد بهوية جديدة. اربطها بحسابك مجددًا لاستخدام الإضافات المدفوعة.",
+    keyRevoked:
+      "أُلغي مفتاح هذا الخادم على app.sudoo.sh، فسجّلت اللوحة نفسها من جديد بهوية جديدة. اربطها بحسابك مجددًا لاستخدام الإضافات المدفوعة.",
     removingPaid: "تُزيل اللوحة الإضافات المدفوعة لهذا الخادم (سُجّل خروجه من حسابه). تُؤخذ نسخة احتياطية أولًا.",
     hub: "الخادم المركزي (Hub)",
     installation: "هذا التثبيت",
@@ -477,11 +553,20 @@ const ar: typeof en = {
     logOutText: (account) => `لن يعود هذا الخادم تابعًا لـ ${account ? iso(account) : "حسابه"} على app.sudoo.sh.`,
     logOutRemove: "سجّل الخروج وأزل الإضافات المدفوعة",
     paidRemoved: "تُزال الإضافات المدفوعة.",
-    paidRemovedText: " تُلغى تراخيصها لهذا الخادم فورًا، وتنتهي الاشتراكات دون استرداد المبلغ. وتأخذ اللوحة أولًا نسخة احتياطية من بياناتها (ومن البيئات التي يمكن لتلك الإضافات تغييرها).",
+    paidRemovedText:
+      " تُلغى تراخيصها لهذا الخادم فورًا، وتنتهي الاشتراكات دون استرداد المبلغ. وتأخذ اللوحة أولًا نسخة احتياطية من بياناتها (ومن البيئات التي يمكن لتلك الإضافات تغييرها).",
     noPaid: "لا توجد إضافة مدفوعة مثبّتة.",
     keepRunning: "تبقى اللوحة والإضافات المجانية وكل البيئات تعمل. ويمكنك ربط الخادم بحساب مجددًا لاحقًا.",
   },
-  licenceStates: { active: "نشط", trial: "تجريبي", past_due: "فشل الدفع", cancelled: "أُوقف التجديد", grace: "في فترة السماح", expired: "منتهٍ", revoked: "ملغى" },
+  licenceStates: {
+    active: "نشط",
+    trial: "تجريبي",
+    past_due: "فشل الدفع",
+    cancelled: "أُوقف التجديد",
+    grace: "في فترة السماح",
+    expired: "منتهٍ",
+    revoked: "ملغى",
+  },
 };
 
 export default { en, ar };

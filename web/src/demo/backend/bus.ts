@@ -1,7 +1,22 @@
 // The demo's live events: what the server would push on GET /api/v1/events. The fake EventSource (transport.ts)
 // listens here and hands each event to the web app exactly as the real stream frames it.
 
-export type Topic = "instance" | "instance.deleted" | "project" | "build" | "domains" | "job" | "metrics" | "settings" | "plugins" | "marketplace" | "alert" | "offsite" | "premium" | "support" | "reset";
+export type Topic =
+  | "instance"
+  | "instance.deleted"
+  | "project"
+  | "build"
+  | "domains"
+  | "job"
+  | "metrics"
+  | "settings"
+  | "plugins"
+  | "marketplace"
+  | "alert"
+  | "offsite"
+  | "premium"
+  | "support"
+  | "reset";
 type Listener = (topic: Topic, key: string, data: unknown, id: number) => void;
 
 const listeners = new Set<Listener>();

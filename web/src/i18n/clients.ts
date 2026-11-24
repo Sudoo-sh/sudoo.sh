@@ -58,7 +58,8 @@ const en = {
     changed: "Access changed",
     notChanged: "Not changed",
     branchesTitle: "Branches",
-    branchesText: "A branch follows the project unless you give it its own setting, for example production closed while development stays open.",
+    branchesText:
+      "A branch follows the project unless you give it its own setting, for example production closed while development stays open.",
     branchMenu: (branch: string) => `Access to ${branch}`,
     follow: "Follow the project",
     noInstance: "No instance",
@@ -76,7 +77,8 @@ const en = {
     approve: "Approve",
     refuse: "Refuse",
     approveTitle: (who: string) => `Let ${who} in`,
-    approveText: "They get in for the time you choose, then it closes again by itself. Everything they do is in your activity log.",
+    approveText:
+      "They get in for the time you choose, then it closes again by itself. Everything they do is in your activity log.",
     people: "Who may get in",
     peopleHint: "The person who asked, unless you choose others.",
     note: "A note for them",
@@ -84,7 +86,10 @@ const en = {
     approved: "Approved",
     refused: "Refused",
     notDone: "Not done",
-    status: { pending: "Waiting", approved: "Approved", refused: "Refused", lapsed: "Lapsed" } as Record<string, string>,
+    status: { pending: "Waiting", approved: "Approved", refused: "Refused", lapsed: "Lapsed" } as Record<
+      string,
+      string
+    >,
     until: (when: string) => `until ${when}`,
   },
   passes: {
@@ -160,7 +165,8 @@ const en = {
     unlock: "Unlock",
     lockProject: "Lock the project",
     unlockProject: "Unlock the project",
-    lockHint: "A lock stops your provider's team and every automatic deploy, whatever the switch says; only you can lift it.",
+    lockHint:
+      "A lock stops your provider's team and every automatic deploy, whatever the switch says; only you can lift it.",
     projectLocked: "The whole project is locked by you.",
     text: "Nobody of your provider's team can open or change it, and nothing is deployed automatically, until you unlock it. Emergency access still works while you allow it.",
     tag: "Locked",
@@ -174,7 +180,8 @@ const en = {
   },
   staff: {
     clientsTitle: "Clients",
-    clientsText: "A client sees this project in the client portal and decides whether your team may open it. They see nothing else of the panel.",
+    clientsText:
+      "A client sees this project in the client portal and decides whether your team may open it. They see nothing else of the panel.",
     noClients: "No client yet.",
     invite: "Add a client",
     inviteTitle: "Add a client to this project",
@@ -199,7 +206,8 @@ const en = {
     closedTitle: "Closed by the client",
     closedProject: (name: string) => `${name} is closed by its client.`,
     closedBranch: (branch: string) => `The branch ${branch} is closed by its client.`,
-    closedText: "Only the client and the people it lets in may open, change, back up, restore, open a shell or read logs and passwords. Ask for access; the client gets an e-mail.",
+    closedText:
+      "Only the client and the people it lets in may open, change, back up, restore, open a shell or read logs and passwords. Ask for access; the client gets an e-mail.",
     letThrough: "The client lets you in right now.",
     timed: (when: string) => `Open by the client until ${when}.`,
     request: "Request access",
@@ -223,7 +231,8 @@ const en = {
     tag: "Closed by client",
     lockedTag: "Locked by client",
     lockedNotice: (where: string) => `${where} is locked by its client.`,
-    lockedText: "Nobody but the client can open or change it, and nothing is deployed automatically, until the client unlocks it. Requests do not open a lock; a super admin may use emergency access while the client allows it.",
+    lockedText:
+      "Nobody but the client can open or change it, and nothing is deployed automatically, until the client unlocks it. Requests do not open a lock; a super admin may use emergency access while the client allows it.",
   },
 };
 
@@ -256,7 +265,14 @@ const ar: typeof en = {
     empty: "لا مشاريع بعد",
     emptyText: "حين يضيفك مزوّد الخدمة إلى مشروع، يظهر هنا.",
     closedBranches: (names) => `فروع مغلقة: ${ltr(names)}`,
-    waiting: p({ zero: "لا طلبات بانتظارك", one: "طلب واحد بانتظارك", two: "طلبان بانتظارك", few: "# طلبات بانتظارك", many: "# طلبًا بانتظارك", other: "# طلب بانتظارك" }),
+    waiting: p({
+      zero: "لا طلبات بانتظارك",
+      one: "طلب واحد بانتظارك",
+      two: "طلبان بانتظارك",
+      few: "# طلبات بانتظارك",
+      many: "# طلبًا بانتظارك",
+      other: "# طلب بانتظارك",
+    }),
     emergencyNow: "الوصول الطارئ قيد الاستخدام",
     instances: p({ zero: "لا نسخ", one: "نسخة واحدة", two: "نسختان", few: "# نسخ", many: "# نسخة", other: "# نسخة" }),
     open: "افتح",
@@ -420,7 +436,8 @@ const ar: typeof en = {
     closedTitle: "أغلقه العميل",
     closedProject: (name) => `أغلق العميل ${iso(name)}.`,
     closedBranch: (branch) => `أغلق العميل الفرع ${ltr(branch)}.`,
-    closedText: "لا يمكن إلا للعميل وللأشخاص الذين يسمح لهم الفتح أو التغيير أو النسخ الاحتياطي أو الاستعادة أو فتح الطرفية أو قراءة السجلات وكلمات المرور. اطلب الوصول؛ وتصل العميل رسالة.",
+    closedText:
+      "لا يمكن إلا للعميل وللأشخاص الذين يسمح لهم الفتح أو التغيير أو النسخ الاحتياطي أو الاستعادة أو فتح الطرفية أو قراءة السجلات وكلمات المرور. اطلب الوصول؛ وتصل العميل رسالة.",
     letThrough: "يسمح لك العميل بالدخول الآن.",
     timed: (when) => `فتحه العميل حتى ${when}.`,
     request: "اطلب الوصول",
@@ -444,7 +461,8 @@ const ar: typeof en = {
     tag: "أغلقه العميل",
     lockedTag: "أقفله العميل",
     lockedNotice: (where) => `أقفل العميل ${iso(where)}.`,
-    lockedText: "لا يستطيع أحد غير العميل فتحه أو تغييره، ولا يُنشر فيه شيء تلقائيًا، حتى يفتح العميل القفل. لا تفتح الطلبات القفل؛ ويمكن لمسؤول أعلى استخدام الوصول الطارئ ما دام العميل يسمح به.",
+    lockedText:
+      "لا يستطيع أحد غير العميل فتحه أو تغييره، ولا يُنشر فيه شيء تلقائيًا، حتى يفتح العميل القفل. لا تفتح الطلبات القفل؛ ويمكن لمسؤول أعلى استخدام الوصول الطارئ ما دام العميل يسمح به.",
   },
 };
 

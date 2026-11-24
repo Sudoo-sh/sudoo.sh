@@ -36,8 +36,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Sudoo-sh/sudoo-installer, main after Sudoo-sh/sudoo-installer#11 (engine by need, install codes, setup link, k3s script, measured figures)
-  INSTALLER_REF: efe49e48c77ff804c25ba1b600b31de9bc816531
+  # Sudoo-sh/sudoo-installer, main after Sudoo-sh/sudoo-installer#14 (auto-update, --require-signatures, k3s checksums)
+  INSTALLER_REF: a98d4a93db1abb372fa2617ae64c5b78de0fd655
 
 jobs:
   version:

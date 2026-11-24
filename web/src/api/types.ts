@@ -1133,7 +1133,7 @@ export interface Setting {
 export interface Alert {
   id: string;
   key: string;
-  type: "job_failed" | "update_failed" | "backup_failed" | "instance_down" | "disk" | "memory" | "drift" | "public_link" | "certificate" | "test";
+  type: "job_failed" | "update_failed" | "backup_failed" | "instance_down" | "disk" | "memory" | "drift" | "public_link" | "certificate" | "test" | "default_admin_password";
   severity: "problem" | "recovered" | "info";
   title: string;
   text: string;

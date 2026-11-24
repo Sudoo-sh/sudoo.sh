@@ -788,6 +788,10 @@ const en = {
     secretNotSet: "Not set",
     pickColour: "Pick a colour",
   },
+  defaultPassword: {
+    notice: "New instances still get the well-known Odoo login admin / admin. Change the Odoo admin password.",
+    goToField: "Go to the field",
+  },
   tags: {
     set: "set",
     notSet: "not set",
@@ -1675,6 +1679,10 @@ const ar: typeof en = {
     secretSet: "معيّن. اكتب لاستبداله",
     secretNotSet: "غير معيّن",
     pickColour: "اختر لونًا",
+  },
+  defaultPassword: {
+    notice: "ما زالت البيئات الجديدة تحصل على تسجيل الدخول المعروف admin / admin في Odoo. غيّر كلمة مرور admin في Odoo.",
+    goToField: "اذهب إلى الحقل",
   },
   tags: {
     set: "معيّن",

@@ -219,6 +219,13 @@ export const users: User[] = [
 export const settings: Setting[] = (seedSettings as Setting[]).map((s) => ({ ...s }));
 export const setting = (key: string) => settings.find((s) => s.key === key)?.value;
 
+/** The demo's panel is a setup made by hand whose ODOO_ADMIN_PASSWORD is still the well-known "admin", so the
+ *  standing alert shows in the bell. Changing the setting clears it; resetting it brings it back. */
+export let adminPasswordDefault = true;
+export const setAdminPasswordDefault = (value: boolean) => {
+  adminPasswordDefault = value;
+};
+
 // ---------------------------------------------------------------- instances
 
 /** How busy an instance is: what its figures move around. */

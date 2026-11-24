@@ -517,6 +517,11 @@ docker exec sudoo-panel sudoo.sh config
 A wrong value in `.env` (for example `IDLE_HOURS=soon`) or an unknown plugin name stops the panel at start-up, and
 `docker logs sudoo-panel` names the setting. The Settings page checks every value before saving it.
 
+While `ODOO_ADMIN_PASSWORD` is still the well-known `admin` (a setup made by hand; the installer sets a random
+one), the panel warns in its log at start-up, shows admins a standing alert in the bell (with a link to the setting
+for those who may change it) and shows the same notice on the Settings page. The alert goes away by itself once the
+password is changed. Only that the password is the default is sent to the browser, never the password itself.
+
 The two choices that shape a server are plugins ([Plugins](PLUGINS.md)):
 
 | Setting | Options |

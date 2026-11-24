@@ -218,3 +218,13 @@ def test_the_mark_is_the_same_everywhere() -> None:
     favicon = (root / "web" / "public" / "favicon.svg").read_text()
     assert (root / "src" / "sudoo" / "instances" / "mark.svg").read_text() == favicon
     assert (root / "docs" / "images" / "brand" / "icon.svg").read_text().split(">", 1)[1] == favicon.split(">", 1)[1]
+
+
+def test_the_log_warns_while_new_instances_get_the_well_known_admin_password(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo.config import settings
+    from sudoo.web import default_password_warning
+
+    monkeypatch.setattr(settings, "odoo_admin_password", "admin")
+    assert "ODOO_ADMIN_PASSWORD" in (default_password_warning() or "")
+    monkeypatch.setattr(settings, "odoo_admin_password", "a-long-random-password")
+    assert default_password_warning() is None

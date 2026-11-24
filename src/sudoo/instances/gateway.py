@@ -563,7 +563,8 @@ async def _status(request: web.Request, name: str, route: Route, edge: Edge) -> 
         return web.json_response({"state": "off"}, headers=headers)
     if await _odoo_answers(route.odoo_port):
         return web.json_response(status_pages.status_json(None), headers=headers)
-    return web.json_response(status_pages.status_json(await HOST.situation(name)), headers=headers)
+    lang = status_pages.language(request.headers.get("Accept-Language", ""))
+    return web.json_response(status_pages.status_json(await HOST.situation(name), lang), headers=headers)
 
 
 async def _odoo_answers(port: int) -> bool:

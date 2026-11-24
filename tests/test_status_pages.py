@@ -253,3 +253,20 @@ def test_the_gateway_service_passes_on_the_panels_progress(monkeypatch: pytest.M
     found = asyncio.run(host.situation("acme"))
     assert found.page == "busy" and found.progress and found.progress["step"] == "Restarting Odoo"
     assert "log" not in found.progress
+
+
+def test_step_and_progress_are_shown_in_arabic_to_an_arabic_visitor() -> None:
+    progress = {
+        "step": "Starting Odoo", "progress": "Downloading Odoo 19.0: 2 of 5 parts", "percent": 40, "overall": 30,
+        "steps": {"current": 2, "total": 6}, "eta_seconds": 100,
+    }  # fmt: skip
+    arabic = status_pages.render(_request(language="ar"), "acme", "busy", progress=progress).text or ""
+    assert "تشغيل Odoo" in arabic and "تنزيل \u2066Odoo 19.0\u2069: 2 من 5 أجزاء" in arabic
+    assert "Starting Odoo" not in arabic and "Downloading Odoo 19.0: 2 of 5 parts" not in arabic
+    english = status_pages.render(_request(language="en"), "acme", "busy", progress=progress).text or ""
+    assert "Starting Odoo" in english and "Downloading Odoo 19.0: 2 of 5 parts" in english
+    situation = status_pages.Situation("busy", 0, progress)
+    assert status_pages.status_json(situation)["step"] == "Starting Odoo"  # what the page polls: English as written
+    shown = status_pages.status_json(situation, "ar")
+    assert shown["step"] == "تشغيل Odoo" and shown["progress"] == "تنزيل \u2066Odoo 19.0\u2069: 2 من 5 أجزاء"
+    assert shown.keys() <= ALLOWED_KEYS

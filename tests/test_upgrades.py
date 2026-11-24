@@ -547,10 +547,16 @@ def test_a_failed_promotion_puts_production_back(monkeypatch: pytest.MonkeyPatch
 def test_the_watch_rolls_back_when_odoo_stops_answering(monkeypatch: pytest.MonkeyPatch,
                                                         started: list[Any]) -> None:  # fmt: skip
     _instance("shop-prod")
+    upgrade_run._TRIED.clear()
     upgrades.update("shop-prod", state="promoted", promotion={"rollback_until": time.time() + 600})
     monkeypatch.setattr(odoo, "responds", lambda port, timeout=2: False)
     for _ in range(upgrade_run.WATCH_FAILURES - 1):
         assert upgrade_run.watch_once() == []
+    assert upgrade_run.watch_once() == ["shop-prod"]
+    # a failed attempt is not repeated every few checks: the next one waits for the retry pause
+    for _ in range(upgrade_run.WATCH_FAILURES):
+        assert upgrade_run.watch_once() == []
+    upgrade_run._TRIED["shop-prod"] -= upgrade_run.WATCH_RETRY_SECONDS
     assert upgrade_run.watch_once() == ["shop-prod"]
     assert started[-1][:3] == ("shop-prod", "db-upgrade", upgrade_run.cancel)
     # after the window nothing happens
@@ -611,3 +617,21 @@ def test_running_the_test_again_keeps_to_the_lock_of_the_test_instances_branch(
     answer = client.post("/api/v1/instances/shop-prod/upgrade/test", json={"target": "19.0"}, headers=headers)
     assert answer.status_code == 202, answer.get_json()
     assert started[-1][:3] == ("shop-prod-odoo19", "upgrade-test", upgrade_run.rerun)
+
+
+@pytest.mark.parametrize("answering", [True, False])
+def test_cancel_never_restores_when_the_state_cannot_be_saved(monkeypatch: pytest.MonkeyPatch, answering: bool) -> None:
+    _instance("shop-prod")
+    upgrades.update("shop-prod", target="19.0", branch="19.0", state="promoted",
+                    promotion={"backup": [], "previous": {}})  # fmt: skip
+    cancel = _Promotion(monkeypatch)
+
+    def failing(job: Job, name: str, kind: str = "manual") -> list[Path]:
+        raise JobError("disk full")
+
+    monkeypatch.setattr(backups, "create", failing)
+    monkeypatch.setattr(upgrade_run.odoo, "answers", lambda env, timeout=2: answering)
+    with pytest.raises(JobError, match="left as it is"):
+        upgrade_run.cancel(cancel.job("shop-prod", monkeypatch), "shop-prod")
+    assert not any(step.startswith(("restore", "stop")) for step in cancel.steps)
+    assert upgrades.get("shop-prod")["state"] == "promoted"

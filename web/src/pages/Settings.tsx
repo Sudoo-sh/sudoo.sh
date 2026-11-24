@@ -3,7 +3,7 @@ import { Bell, CloudUpload, Gauge, SlidersHorizontal, Mail, Plug, Puzzle, Refres
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, errorText } from "@/api/client";
-import { keys, useCall, useCapacity, useServer, useSettings } from "@/api/queries";
+import { keys, useAlerts, useCall, useCapacity, useServer, useSettings } from "@/api/queries";
 import { RESOURCE_KNOBS, type Server, type Setting, type Stage } from "@/api/types";
 import { LicenceSettings } from "@/components/LicenceSettings";
 import { MarketplaceSettings } from "@/components/Marketplace";
@@ -12,7 +12,7 @@ import { KubernetesCard } from "@/components/KubernetesCard";
 import { ManagedSubdomainsCard } from "@/components/ManagedSubdomainsCard";
 import { PlanCard, PremiumFeaturesCard, PremiumSlot } from "@/premium/components";
 import { usePremium } from "@/premium/loader";
-import { Page, PageHead, useMe, useSubCrumb } from "@/components/Shell";
+import { Page, PageHead, useCan, useMe, useSubCrumb } from "@/components/Shell";
 import { Button, Callout, Skeleton, Switch, Tag } from "@/components/app/basics";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -480,7 +480,12 @@ function ResourceSettings({ byKey, draft, onChange }: { byKey: Record<string, Se
 
 export function SettingsPage() {
   const me = useMe();
+  const can = useCan();
   const { data: settings, isPending } = useSettings();
+  const { data: alerts } = useAlerts(can("audit.view"));
+  // the standing alert of the bell, shown here too: the page is where the password is changed
+  const defaultPassword = (alerts ?? []).some((a) => a.type === "default_admin_password");
+  const [flash, setFlash] = useState<string | null>(null);
   const toast = useToast();
   const client = useQueryClient();
   const [params, setParams] = useSearchParams();
@@ -551,13 +556,39 @@ export function SettingsPage() {
     }
   };
 
+  // a "focus" parameter (the bell's default-password alert, or the notice on this page) scrolls to the field
+  // and flashes it, then leaves the address bar clean
+  useEffect(() => {
+    const key = params.get("focus");
+    if (!key || !byKey[key]) return;
+    const element = document.getElementById(`setting-${key}`);
+    if (!element) return;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    element.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+    element.querySelector<HTMLElement>("input, select, button")?.focus({ preventScroll: true });
+    setFlash(key);
+    const next = new URLSearchParams(params);
+    next.delete("focus");
+    setParams(next, { preventScrollReset: true, replace: true });
+    const timer = setTimeout(() => setFlash(null), 2400);
+    return () => clearTimeout(timer);
+  }, [params, byKey, setParams]);
+
+  const goToPasswordField = () => {
+    setMoved(true);
+    const next = new URLSearchParams(params);
+    next.set("tab", "instances");
+    next.set("focus", "odoo_admin_password");
+    setParams(next, { preventScrollReset: true });
+  };
+
   const rows = (keysOf: string[]) =>
     keysOf.map((key) => {
       const setting = byKey[key];
       if (!setting) return null;
       const value = key in draft ? draft[key]! : setting.secret ? "" : setting.value;
       return (
-        <div className="settings-row" key={key}>
+        <div className={flash === key ? "settings-row flash" : "settings-row"} key={key} id={`setting-${key}`}>
           <div>
             <div className="name">
               {t.titles[key] ?? key}
@@ -597,6 +628,14 @@ export function SettingsPage() {
               <div className="row-wrap">
                 <span className="spacer">{t.pending}</span>
                 <Button size="sm" variant="primary" icon={<RefreshCcw />} loading={restarting} onClick={restart}>{t.restart}</Button>
+              </div>
+            </Callout>
+          )}
+          {defaultPassword && (
+            <Callout tone="warning">
+              <div className="row-wrap">
+                <span className="spacer">{t.defaultPassword.notice}</span>
+                <Button size="sm" onClick={goToPasswordField}>{t.defaultPassword.goToField}</Button>
               </div>
             </Callout>
           )}

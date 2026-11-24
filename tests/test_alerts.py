@@ -14,8 +14,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 import pytest
+from flask import Flask
 from pydantic import ValidationError
 
+from conftest import sign_in
 from sudoo import alerts, mail
 from sudoo.alerts import watch, webhooks
 from sudoo.config import Settings, live
@@ -46,7 +48,10 @@ def clean(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[dict[str, Any]]]:
     monkeypatch.setattr(mail, "send", lambda to, template, **context: sent.append(
         {"to": to, "template": template, **context}))  # fmt: skip
     monkeypatch.setattr(alerts, "panel_url", lambda: "https://panel.example.com")
-    live.change({"alert_super_admins": False, "alert_emails": "ops@example.com"})
+    # a password that is not the well-known \"admin\", so only the tests of the standing alert see it
+    live.change(
+        {"alert_super_admins": False, "alert_emails": "ops@example.com", "odoo_admin_password": "sudoo-test-marker"}
+    )
     host = dict(monitor.HOST)
     yield sent
     alerts.drain()
@@ -483,6 +488,57 @@ def test_bell_lists_alerts(admin: Client) -> None:
     [listed] = answer.get_json()["data"]
     assert listed["title"] == "Disk almost full" and listed["link"] == listed["path"] and "emailed" not in listed
     assert client.get("/api/v1/alerts?limit=0").status_code == 400
+
+
+# -------------------------------------------- the standing alert while the Odoo admin password is \"admin\"
+
+
+def _default_password_alert(answer: Any) -> dict[str, Any] | None:
+    assert answer.status_code == 200, answer.get_json()
+    return next((a for a in answer.get_json()["data"] if a["type"] == "default_admin_password"), None)
+
+
+def test_default_password_alert_while_password_is_admin(admin: Client) -> None:
+    client, _ = admin
+    live.change({"odoo_admin_password": "admin"})
+    listed = _default_password_alert(client.get("/api/v1/alerts?limit=10"))
+    assert listed is not None and listed["severity"] == "problem" and listed["resolved_at"] is None
+    assert listed["link"] == "/settings?tab=instances&focus=odoo_admin_password"  # a super admin may change it
+    assert listed["instance"] is None and listed["count"] == 1
+
+
+def test_default_password_alert_gone_for_another_value(admin: Client) -> None:
+    client, _ = admin
+    assert _default_password_alert(client.get("/api/v1/alerts")) is None  # the fixture's password is not "admin"
+    live.change({"odoo_admin_password": "admin"})
+    assert _default_password_alert(client.get("/api/v1/alerts")) is not None
+    live.change({"odoo_admin_password": "sudoo-test-marker"})
+    answer = client.get("/api/v1/alerts")
+    assert _default_password_alert(answer) is None
+    assert "sudoo-test-marker" not in answer.get_data(as_text=True)  # the password itself is never sent
+
+
+def test_default_password_alert_links_only_for_super_admins(app: Flask, admin: Client) -> None:
+    from sudoo import accounts
+
+    accounts.create("t6admin", "admin", "rusty-falcon-paper-63")
+    client, _ = sign_in(app, "t6admin", "rusty-falcon-paper-63")
+    live.change({"odoo_admin_password": "admin"})
+    listed = _default_password_alert(client.get("/api/v1/alerts"))
+    assert listed is not None and listed["link"] is None  # an admin cannot change the panel's settings
+
+
+def test_default_password_alert_not_for_other_roles(app: Flask) -> None:
+    from sudoo import accounts
+    from sudoo.web.v1.alerts import default_password_alert
+
+    accounts.create("t6viewer", "viewer", "silent-harbor-comet-29")
+    client, _ = sign_in(app, "t6viewer", "silent-harbor-comet-29")
+    live.change({"odoo_admin_password": "admin"})
+    assert client.get("/api/v1/alerts").status_code == 403  # a viewer may not read the alerts at all
+    assert default_password_alert("maintainer", manage_settings=False) is None
+    assert default_password_alert("developer", manage_settings=False) is None
+    assert default_password_alert("super_admin", manage_settings=True) is not None
 
 
 def test_test_alert_by_e_mail(admin: Client, clean: list[dict[str, Any]]) -> None:

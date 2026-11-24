@@ -117,6 +117,8 @@ function handle(client: QueryClient, topic: string, key: string, data: unknown) 
     }
     case "settings":
       client.invalidateQueries({ queryKey: keys.settings });
+      // the standing default-admin-password alert depends on a setting: reread the bell after a change
+      client.invalidateQueries({ queryKey: keys.alerts });
       client.invalidateQueries({ queryKey: ["account"] });
       client.invalidateQueries({ queryKey: ["quota"] });
       client.invalidateQueries({ queryKey: ["offsite"] });

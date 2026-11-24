@@ -47,6 +47,7 @@ import {
   projectReference,
   instances,
   instanceUrl,
+  adminPasswordDefault,
   jobs,
   MANAGED_BASE,
   MANAGED_COMPANY,
@@ -62,6 +63,7 @@ import {
   roleInfo,
   ROLES,
   session,
+  setAdminPasswordDefault,
   setting,
   settings,
   tokens,
@@ -1468,6 +1470,11 @@ route("PATCH", "/settings", ({ body }) => {
     }
     if (s.applies === "restart") s.pending_restart = s.value !== s.env_value;
   }
+  // the standing alert: a new password clears it, a reset back to the .env default brings it back
+  if ("odoo_admin_password" in body) {
+    const value = body.odoo_admin_password;
+    setAdminPasswordDefault(value === null || value === "");
+  }
   record(ME, "settings changed", { detail: Object.entries(body).map(([k, v]) => `${k.toUpperCase()}=${settings.find((s) => s.key === k)?.secret ? "(set)" : v === null ? "(env)" : String(v)}`).join(", ") });
   publish("settings", "", { changed: Object.keys(body) });
   return ok(settings);
@@ -1480,6 +1487,7 @@ route("DELETE", "/settings/:key", ({ params }) => {
     s.changed_in_panel = false;
     s.pending_restart = false;
   }
+  if (params.key === "odoo_admin_password") setAdminPasswordDefault(true);
   publish("settings", "", { changed: [params.key] });
   return none();
 });
@@ -1528,7 +1536,20 @@ route("POST", "/mail-templates/:key/test", ({ params, body }) => {
 });
 route("GET", "/alerts", ({ query }) => {
   need("audit.view", "/api/v1/alerts");
-  return ok([...alerts].sort((a, b) => b.last_at - a.last_at).slice(0, Number(query.get("limit") ?? 50)));
+  const list = [...alerts].sort((a, b) => b.last_at - a.last_at);
+  // the standing alert while ODOO_ADMIN_PASSWORD is the well-known "admin" (admins only, never the password itself)
+  if (adminPasswordDefault && ["super_admin", "admin"].includes(session.role)) {
+    const manage = roleInfo(session.role).permissions.includes("settings.manage");
+    const now = Date.now() / 1000;
+    list.unshift({
+      id: "default-admin-password", key: "default_admin_password", type: "default_admin_password", severity: "problem",
+      title: "The Odoo admin password is still \"admin\"",
+      text: "New instances get the well-known Odoo login admin / admin: anyone with an instance's link can sign in as its administrator. Set another ODOO_ADMIN_PASSWORD in the panel's Settings page or in .env.",
+      hint: null, details: [], instance: null, link: manage ? "/settings?tab=instances&focus=odoo_admin_password" : null,
+      at: now, last_at: now, count: 1, resolved_at: null, delivery: [],
+    });
+  }
+  return ok(list.slice(0, Number(query.get("limit") ?? 50)));
 });
 route("POST", "/alerts/test", ({ body }) => {
   need("settings.manage");

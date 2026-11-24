@@ -11,6 +11,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **A warning in the log while `ODOO_ADMIN_PASSWORD` is still `admin`**: at startup the panel warns that new
   instances would get the well-known Odoo login. The installer already sets a random password, so this concerns
   setups made by hand (Compose or source). Nothing else changes.
+- **The same warning inside the panel**: while `ODOO_ADMIN_PASSWORD` is still `admin`, admins see a standing alert
+  in the bell (with a link to the setting for those who may change it), and the Settings page shows a notice with a
+  link to the field. The alert goes away by itself once the password is changed. Only that the password is the
+  default is sent to the browser, never the password itself.
 
 - **Arabic names for every step the panel shows in a job**: the job drawer, the page of an instance being created,
   the page visitors see while an instance updates (and the address it polls, when the visitor prefers Arabic) and the

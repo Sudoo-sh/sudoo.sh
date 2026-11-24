@@ -312,7 +312,9 @@ function Alerts() {
   const nav = useT(common).nav;
   if (!allowed) return null;
   const list = alerts ?? [];
-  const unseen = list.filter((a) => a.last_at > seen && a.severity !== "info").length;
+  // a standing warning (the default admin password) is not news: it never counts for the dot
+  const standing = (a: Alert) => a.type === "default_admin_password";
+  const unseen = list.filter((a) => a.last_at > seen && a.severity !== "info" && !standing(a)).length;
   const markSeen = () => {
     const latest = Math.max(seen, ...list.map((a) => a.last_at));
     setSeen(latest);
@@ -344,20 +346,33 @@ function Alerts() {
             <p className="bell-empty">{t.alertsEmpty}</p>
           ) : (
             <div className="bell-list">
-              {list.map((alert) => (
-                <MenuItem key={alert.id} asChild><Link to={alert.link ?? "/"} viewTransition onClick={close} className={alert.resolved_at ? "resolved" : ""}>
-                  <AlertIcon alert={alert} />
-                  <span className="bell-item">
-                    <span className="bell-title">{alert.title}</span>
-                    <span className="bell-text">{alert.text}</span>
-                    <span className="bell-when">
-                      {ago(alert.last_at)}
-                      {alert.count > 1 && t.times(alert.count)}
-                      {alert.severity === "problem" && alert.resolved_at && t.resolved}
+              {list.map((alert) => {
+                const body = (
+                  <>
+                    <AlertIcon alert={alert} />
+                    <span className="bell-item">
+                      <span className="bell-title">{standing(alert) ? t.defaultPasswordTitle : alert.title}</span>
+                      <span className="bell-text">
+                        {standing(alert) ? (can("settings.manage") ? t.defaultPasswordText : t.defaultPasswordTextAdmin) : alert.text}
+                      </span>
+                      {!standing(alert) && (
+                        <span className="bell-when">
+                          {ago(alert.last_at)}
+                          {alert.count > 1 && t.times(alert.count)}
+                          {alert.severity === "problem" && alert.resolved_at && t.resolved}
+                        </span>
+                      )}
                     </span>
-                  </span>
-                </Link></MenuItem>
-              ))}
+                  </>
+                );
+                // the standing warning links to the setting only for those who may change it; else it is plain text
+                if (!alert.link) return <MenuItem key={alert.id} className="bell-static">{body}</MenuItem>;
+                return (
+                  <MenuItem key={alert.id} asChild><Link to={alert.link} viewTransition onClick={close} className={alert.resolved_at ? "resolved" : ""}>
+                    {body}
+                  </Link></MenuItem>
+                );
+              })}
             </div>
           )}
         </div>

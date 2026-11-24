@@ -2156,6 +2156,13 @@ class Settings(BaseSettings):
     kubernetes_container_memory_mb: int = Field(
         2048, ge=128, le=262144, description="Memory limit of a container that has none of its own (MB)."
     )
+    kubernetes_mail_egress: Literal["off", "production", "all"] = Field(
+        "off",
+        description="Let the Odoo of a Kubernetes instance send e-mail through the panel's outgoing mail server "
+        '(SMTP_HOST and SMTP_PORT): "off" (nothing leaves, as before), "production" (production instances only) or '
+        '"all". Only that server\'s addresses on that port are opened, nothing else; applied the next time an instance '
+        "is started or updated.",
+    )
     kubernetes_join_url: str = Field(
         "",
         pattern=r"^(https://[A-Za-z0-9.\-\[\]:]+)?$",
@@ -2427,6 +2434,7 @@ EDITABLE = (
     "managed_subdomains_check_minutes",
     "panel_managed_name",
     "engine_k8s_default",
+    "kubernetes_mail_egress",
     *OFFSITE_SETTINGS,
     *ALERT_SETTINGS,
     *MAIL_CATCHER_SETTINGS,

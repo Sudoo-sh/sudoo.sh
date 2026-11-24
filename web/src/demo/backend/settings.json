@@ -1456,6 +1456,20 @@
   "description": "smtp: encryption."
  },
  {
+  "key": "kubernetes_mail_egress",
+  "env": "KUBERNETES_MAIL_EGRESS",
+  "value": "off",
+  "env_value": "off",
+  "changed_in_panel": false,
+  "editable": true,
+  "applies": "now",
+  "pending_restart": false,
+  "secret": false,
+  "type": "string",
+  "minimum": null,
+  "description": "Let the Odoo of a Kubernetes instance send e-mail through the panel's outgoing mail server (SMTP_HOST and SMTP_PORT): \"off\" (nothing leaves, as before), \"production\" (production instances only) or \"all\". Only that server's addresses on that port are opened, nothing else; applied the next time an instance is started or updated."
+ },
+ {
   "key": "smtp_username",
   "env": "SMTP_USERNAME",
   "value": "panel@example.com",

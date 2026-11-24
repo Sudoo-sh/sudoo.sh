@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import socket
 from collections.abc import Mapping
 from typing import Any
 
@@ -177,10 +178,43 @@ def node_blocks(nodes: list[dict[str, Any]]) -> list[str]:
     return sorted(set(found))
 
 
-def network_policies(name: str, gateway_blocks: list[str], ports: list[int]) -> list[dict[str, Any]]:
+def mail_blocks(host: str, resolve: Any = None) -> list[str]:
+    """The addresses of the panel's outgoing mail server (SMTP_HOST), as /32 and /128 blocks: a network policy
+    cannot name a host, so the name is looked up here, each time the instance is applied. A name that moves to
+    another address is followed the next time. Loopback, link-local (cloud metadata), unspecified and multicast
+    addresses are never allowed. Empty: no host, no address, or a name that does not resolve."""
+    host = host.strip().strip("[]")
+    if not host:
+        return []
+    try:
+        found = [ipaddress.ip_address(host)]
+    except ValueError:
+        try:
+            infos = (resolve or socket.getaddrinfo)(host, None, type=socket.SOCK_STREAM)
+        except OSError:
+            return []
+        found = []
+        for info in infos:
+            try:
+                found.append(ipaddress.ip_address(info[4][0]))
+            except ValueError:
+                continue
+    blocks = {
+        f"{address}/{address.max_prefixlen}"
+        for address in found
+        if not (address.is_loopback or address.is_link_local or address.is_unspecified or address.is_multicast)
+    }
+    return sorted(blocks)
+
+
+def network_policies(
+    name: str, gateway_blocks: list[str], ports: list[int], mail: tuple[list[str], int] | None = None
+) -> list[dict[str, Any]]:
     """Default deny in both directions, then only: DNS for every pod; Odoo pods to their own database; the database
     from Odoo pods; Odoo's ports from the nodes (the gateway, on a node's host network). Nothing from or to another
-    namespace."""
+    namespace. With mail = (addresses, port) (the panel's outgoing mail server, settings.kubernetes_mail_egress),
+    Odoo pods may also open TCP connections to exactly those addresses on that port, and nowhere else. The policy
+    odoo-to-mail is always present: without mail it has no rule, which allows nothing."""
     ns = namespace_of(name)
 
     def policy(policy_name: str, selector: dict[str, str], types: list[str], **rules: Any) -> dict[str, Any]:
@@ -208,6 +242,12 @@ def network_policies(name: str, gateway_blocks: list[str], ports: list[int]) -> 
                ingress=[{"from": [{"podSelector": {"matchLabels": odoo_pods}}],
                          "ports": [{"protocol": "TCP", "port": POSTGRES_PORT}]}]),
     ]  # fmt: skip
+    mail_blocks_found, mail_port = mail or ([], 0)
+    found.append(
+        policy("odoo-to-mail", odoo_pods, ["Egress"],
+               egress=[{"to": [{"ipBlock": {"cidr": block}} for block in mail_blocks_found],
+                        "ports": [{"protocol": "TCP", "port": mail_port}]}] if mail_blocks_found else [])
+    )  # fmt: skip
     if gateway_blocks:
         found.append(
             policy(
@@ -401,3 +441,17 @@ def runner_job(name: str, job_name: str, image: str, limits: Mapping[str, Any]) 
         },
     }
     return job
+
+
+def mail_egress(env: Mapping[str, str], settings: Any, resolve: Any = None) -> tuple[list[str], int] | None:
+    """The outgoing mail server the instance's Odoo may reach (see network_policies), or None. Only with
+    KUBERNETES_MAIL_EGRESS on for the instance's stage ("production": production only; "all": every stage; Docker's
+    staging and development e-mail goes to the mail catcher, which the Kubernetes engine does not have yet) and a
+    mail server in the panel's settings (SMTP_HOST and SMTP_PORT), whatever SMTP_SECURITY is."""
+    mode = settings.kubernetes_mail_egress
+    if mode == "off" or not settings.smtp_host:
+        return None
+    if mode == "production" and (env.get("STAGE") or "development") != "production":
+        return None
+    blocks = mail_blocks(settings.smtp_host, resolve)
+    return (blocks, int(settings.smtp_port)) if blocks else None

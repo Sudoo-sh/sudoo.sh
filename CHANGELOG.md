@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [3.4.1] - 2026-11-24
+
 ### Added
 
 - **E-mail from Kubernetes (beta) instances, as an admin setting**: `KUBERNETES_MAIL_EGRESS` (off, production or all;
@@ -33,6 +35,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   state fails, the cancel stops and leaves the instance as it is (audited; admins get the usual "job failed" alert),
   instead of putting the earlier copy back and losing what was written since the upgrade. The automatic rollback
   after a promoted upgrade tries again at most every 15 minutes.
+
+### Installer
+
+- **Planned panel updates install themselves**: when a maintenance window asks for a new panel version, the server's
+  installer picks the request up and updates the panel in the chosen window (checked every 5 minutes, with retries).
+  Turn it off with `--no-auto-update`.
+- **`--require-signatures`**: stop unless every installer and image has a checked signature (opt-in).
+- **k3s is checked before it is installed**: the k3s binary is compared with its published SHA-256, downloads use
+  HTTPS from an allow-list of hosts only, and a failed check changes nothing on the server.
 
 ## [3.4.0] - 2026-11-23
 
@@ -1533,7 +1544,8 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.4.0...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.4.1...HEAD
+[3.4.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.4.0...v3.4.1
 [3.4.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.4...v3.4.0
 [3.3.4]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.3...v3.3.4
 [3.3.3]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.2...v3.3.3

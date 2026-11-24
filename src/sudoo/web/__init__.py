@@ -23,6 +23,19 @@ from sudoo.config import settings
 from . import docs, security, v1
 
 
+def default_password_warning() -> str | None:
+    """A warning for the log when new instances would get the well-known Odoo login admin / admin, else None.
+
+    Only a warning: the setting keeps its default (demos and tests rely on it); the installer already replaces it
+    with a random password, so this shows up for manual Compose or source setups."""
+    if settings.odoo_admin_password != "admin":
+        return None
+    return (
+        'ODOO_ADMIN_PASSWORD is still the well-known "admin": anyone with an instance\'s link can sign in as its '
+        "administrator. Set another ODOO_ADMIN_PASSWORD in the panel's Settings page or in .env."
+    )
+
+
 def create_app() -> Flask:
     """Build the panel and start the background work (monitor, gateway, connectors, scheduled jobs)."""
     # a new ODOO_ROOT: the panel's own folder holds its keys and data, readable by root only
@@ -39,6 +52,8 @@ def create_app() -> Flask:
         MAX_CONTENT_LENGTH=64 * 1024,  # every request is a small JSON object
         SEND_FILE_MAX_AGE_DEFAULT=0,
     )
+    if warning := default_password_warning():
+        app.logger.warning(warning)
     app.json.sort_keys = False  # type: ignore[attr-defined]  # answers keep the order they were built in: no sort per answer
     security.install(app)
     from sudoo.premium import servers

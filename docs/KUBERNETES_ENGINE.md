@@ -164,6 +164,33 @@ bridge addresses of every node's pod range (`10.42.N.0/32` and `10.42.N.1/32`), 
 refreshes them whenever it applies an instance. A pod in another namespace has an address from the same ranges, but
 never one of these two, so it stays out.
 
+### Outgoing e-mail from an instance
+
+By default the default-deny policy also stops Odoo from sending e-mail. The setting `KUBERNETES_MAIL_EGRESS`
+([Configuration](CONFIGURATION.md#kubernetes-engine-beta)) opens one path, in the policy `odoo-to-mail`:
+
+| Value | Meaning |
+| :--- | :--- |
+| `off` (default) | The policy has no rule: nothing leaves, as before. |
+| `production` | Odoo pods of production instances may connect to the panel's outgoing mail server. Staging and development instances stay closed, so test e-mail cannot reach real people. |
+| `all` | The same for every stage. Use it only when staging and development should really send e-mail. |
+
+What is allowed: TCP from the Odoo pods (server and runners, not the database) to the addresses of `SMTP_HOST`, on
+`SMTP_PORT` only. Nothing else leaves; DNS works as before through its own policy.
+
+What to know:
+
+- A network policy names addresses, not hosts. The panel looks `SMTP_HOST` up each time it applies an instance
+  (create, start, update, promote) and writes its addresses as `/32` or `/128` blocks. If the provider changes the
+  address, the instance picks it up the next time it is applied. If the name does not resolve, nothing is opened.
+- Loopback, link-local (the cloud metadata address), unspecified and multicast addresses are never opened.
+- A change of the setting, of `SMTP_HOST` or of `SMTP_PORT` reaches an instance the next time it is applied, not at once.
+- The policy lets Odoo reach the server; Odoo still needs its own outgoing mail server settings (Settings,
+  Technical, Outgoing Mail Servers) pointing at the same host and port. Other mail hosts stay blocked.
+- The policy limits where connections go. It does not check what is sent, and it does not read the encryption setting:
+  `SMTP_SECURITY` and the port decide how Odoo talks to the server.
+- The policy controller must enforce egress policies. k3s's built-in one does.
+
 ---
 
 ## 6. The panel's access to the cluster
@@ -274,7 +301,8 @@ the input closed at the end), replaces the filestore through a runner Job, and s
 | **Shell tab** | Exec with a terminal over the API's WebSocket, into the running Odoo or PostgreSQL pod, after checking it is that instance's pod (namespace, labels, not privileged, no host network or processes). The same tickets, limits, recordings and permissions as with Docker. Root shells are refused: Pod Security forbids root. |
 | **Logs tab** | The Odoo pod's log through the API (`timestamps`, `tailLines`, `sinceTime`, `follow`), in the same format as `docker logs --timestamps`, so the same filters and live view work. |
 | **Connect as** | Uses the gateway and a database query, both engine-independent; it works once phase 3 routes its query through `exec_cmd` (it uses `docker exec` today). |
-| **Mail catcher** | Not in the beta. A Kubernetes instance's Odoo cannot send e-mail at all (its egress is denied except to its database and DNS), so no staging or development e-mail can leave. Phase 3: the mail catcher as a Service in `sudoo-system`, with an egress rule to it. |
+| **Mail catcher** | Not in the beta: staging and development e-mail has no catcher on Kubernetes. Phase 3: the mail catcher as a Service in `sudoo-system`, with an egress rule to it. |
+| **Outgoing e-mail** | Off by default: Odoo cannot send e-mail. With `KUBERNETES_MAIL_EGRESS` set to `production` or `all`, the Odoo pods may open TCP connections to the panel's outgoing mail server (`SMTP_HOST`, on `SMTP_PORT`) and to nothing else. See [Outgoing e-mail](#outgoing-e-mail-from-an-instance) below. |
 | **Managed names, custom domains, certificates** | Unchanged: they live in the gateway, which reaches the instance's Service. |
 | **Status and figures** | Each monitor cycle reads the instance's pods (running, ready, start time) and, when metrics-server runs (k3s ships it), their CPU and memory. |
 
@@ -358,7 +386,7 @@ downloaded once per runtime.
 | :--- | :--- | :--- |
 | 1 | This design and the engine layer; existing behaviour behind the Docker engine | done |
 | 2 | Kubernetes engine MVP (beta): create, pause, start, restart, delete, backups, restores, shell, logs, status, nodes, join command, change of engine, installer | done (beta) |
-| 3 | The rest of the panel on Kubernetes: Enterprise add-ons, mail catcher, Connect as, code profiler, database upgrades, project builds and tests, imports, resource changes from the Resources card, drift checks, disk use per instance, an egress setting for production (outgoing e-mail, payment providers) | to do |
+| 3 | The rest of the panel on Kubernetes: Enterprise add-ons, mail catcher, Connect as, code profiler, database upgrades, project builds and tests, imports, resource changes from the Resources card, drift checks, disk use per instance, payment providers and other egress settings; outgoing e-mail is done (`KUBERNETES_MAIL_EGRESS`) | partly done |
 | 4 | Several nodes in earnest: an ingress (Traefik or Gateway API) for clusters where the panel is not on a node, moves to another server's cluster, a node's drain from the panel, storage classes besides `local-path` | to do |
 | 5 | Real high availability ([section 16](#16-real-high-availability-later-phase)): three k3s server nodes with embedded etcd, replicated storage or the data kept outside the cluster, instances that restart on another node | planned, not available |
 

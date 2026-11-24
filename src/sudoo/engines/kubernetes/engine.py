@@ -185,7 +185,9 @@ class KubernetesEngine(Engine):
             manifests.namespace(name, env),
             manifests.role_binding(name),
             *manifests.quota(name, settings),
-            *manifests.network_policies(name, manifests.node_blocks(client.list("Node")), ports),
+            *manifests.network_policies(
+                name, manifests.node_blocks(client.list("Node")), ports, manifests.mail_egress(env, settings)
+            ),
             *manifests.secrets(name, conf_text, env["DB_PASSWORD"]),
             *manifests.volumes(name, settings),
             *manifests.database(name, settings.postgres_image, limits, replicas["db"]),

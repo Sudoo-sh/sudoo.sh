@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **E-mail from Kubernetes (beta) instances, as an admin setting**: `KUBERNETES_MAIL_EGRESS` (off, production or all;
+  off by default, changed in the panel and audited) lets the Odoo pods of an instance connect to the panel's
+  outgoing mail server, on its SMTP port only. Everything else stays blocked by the default-deny policies. The
+  server's addresses are looked up each time the instance is applied. See the Kubernetes engine guide.
 - **A warning in the log while `ODOO_ADMIN_PASSWORD` is still `admin`**: at startup the panel warns that new
   instances would get the well-known Odoo login. The installer already sets a random password, so this concerns
   setups made by hand (Compose or source). Nothing else changes.

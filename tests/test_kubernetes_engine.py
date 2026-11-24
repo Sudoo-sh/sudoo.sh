@@ -169,6 +169,74 @@ def test_network_policies_deny_by_default_and_open_only_the_instance_s_own_paths
     assert all("namespaceSelector" not in str(p) or name == "dns" for name, p in policies.items())
 
 
+def _lookup(*addresses: str) -> Any:
+    return lambda host, port, type=0: [(2, 1, 6, "", (address, 0)) for address in addresses]
+
+
+def test_mail_blocks_name_only_the_mail_server_s_public_looking_addresses() -> None:
+    assert manifests.mail_blocks("203.0.113.10") == ["203.0.113.10/32"]
+    assert manifests.mail_blocks("[2001:db8::25]") == ["2001:db8::25/128"]
+    found = manifests.mail_blocks("smtp.example.com", _lookup("203.0.113.9", "203.0.113.9", "2001:db8::1"))
+    assert found == ["2001:db8::1/128", "203.0.113.9/32"]
+    refused = _lookup("127.0.0.1", "169.254.169.254", "0.0.0.0", "224.0.0.1", "::1", "fe80::1")
+    assert manifests.mail_blocks("smtp.example.com", refused) == []  # loopback, metadata, link-local, multicast
+    assert manifests.mail_blocks("") == [] and manifests.mail_blocks("  ") == []
+
+    def broken(host: str, port: Any, type: int = 0) -> Any:
+        raise OSError("no such host")
+
+    assert manifests.mail_blocks("smtp.example.com", broken) == []  # a name that does not resolve opens nothing
+
+
+def test_mail_egress_follows_the_setting_the_stage_and_the_panel_s_mail_server() -> None:
+    def egress(mode: str, stage: str, host: str = "203.0.113.10", port: int = 587) -> Any:
+        values = {"kubernetes_mail_egress": mode, "smtp_host": host, "smtp_port": port}
+        return manifests.mail_egress({"STAGE": stage}, _Settings(**values))
+
+    assert settings.kubernetes_mail_egress == "off"  # the default: nothing leaves
+    assert egress("off", "production") is None
+    assert egress("production", "production") == (["203.0.113.10/32"], 587)
+    assert egress("production", "staging") is None and egress("production", "") is None
+    assert egress("all", "development") == (["203.0.113.10/32"], 587)
+    assert egress("all", "production", host="") is None  # no mail server in the panel's settings
+    assert egress("all", "production", port=465) == (["203.0.113.10/32"], 465)
+
+
+def test_the_mail_policy_allows_only_the_mail_server_s_port_from_odoo_pods() -> None:
+    def mail_policy(mail: Any) -> dict[str, Any]:
+        found = {p["metadata"]["name"]: p["spec"] for p in manifests.network_policies(NAME, [], [28555], mail)}
+        assert found["default-deny"]["policyTypes"] == ["Ingress", "Egress"]
+        return found["odoo-to-mail"]
+
+    closed = mail_policy(None)
+    assert closed["egress"] == [] and closed["policyTypes"] == ["Egress"]  # no rule: allows nothing
+    assert mail_policy(([], 587))["egress"] == []
+    opened = mail_policy((["203.0.113.10/32", "2001:db8::25/128"], 587))
+    assert opened["podSelector"] == {"matchLabels": {"sudoo.sh/role": "odoo"}}  # never the database
+    assert opened["egress"] == [
+        {"to": [{"ipBlock": {"cidr": "203.0.113.10/32"}}, {"ipBlock": {"cidr": "2001:db8::25/128"}}],
+         "ports": [{"protocol": "TCP", "port": 587}]}
+    ]  # fmt: skip
+    assert "namespaceSelector" not in str(opened) and "0.0.0.0" not in str(opened)
+
+
+def test_apply_opens_the_mail_server_only_when_the_setting_is_on(
+    fake: FakeApi, instance: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    kube = engines.named("kubernetes")
+    kube.apply(Job(), instance)  # type: ignore[arg-type]
+    assert fake.objects[("NetworkPolicy", NS, "odoo-to-mail")]["spec"]["egress"] == []
+    on = _Settings(kubernetes_mail_egress="all", smtp_host="203.0.113.10", smtp_port=2525)
+    monkeypatch.setattr(engine, "settings", on)
+    kube.apply(Job(), instance)  # type: ignore[arg-type]
+    rule = fake.objects[("NetworkPolicy", NS, "odoo-to-mail")]["spec"]["egress"]
+    assert rule[0]["to"] == [{"ipBlock": {"cidr": "203.0.113.10/32"}}]
+    assert rule[0]["ports"] == [{"protocol": "TCP", "port": 2525}]
+    monkeypatch.setattr(engine, "settings", _Settings(kubernetes_mail_egress="off"))
+    kube.apply(Job(), instance)  # type: ignore[arg-type]
+    assert fake.objects[("NetworkPolicy", NS, "odoo-to-mail")]["spec"]["egress"] == []  # closed again
+
+
 def test_pods_run_restricted_without_a_service_account_token() -> None:
     limits = {"odoo_memory_limit": "2g", "odoo_cpu_limit": 1.5}
     deployment, service = manifests.odoo(NAME, "odoo:18.0", limits, 1, "abc", [28555, 28556])

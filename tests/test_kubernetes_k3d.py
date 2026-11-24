@@ -15,12 +15,14 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
 from sudoo import engines
+from sudoo.config import settings as _REAL
 from sudoo.engines.kubernetes import cluster, engine
 from sudoo.engines.kubernetes.api import Access, Api, ApiError
 from sudoo.instances import store
@@ -121,3 +123,49 @@ def test_the_panel_cannot_leave_its_namespaces() -> None:
              "stringData": {"a": "b"}}
         )  # fmt: skip
     assert cluster.nodes() and all(node["version"] for node in cluster.nodes())
+
+
+def _reaches(kube: object, name: str, host: str, port: int) -> bool:
+    probe = f"python3 -c \"import socket; socket.create_connection(('{host}', {port}), 5)\""
+    return _run(kube.filestore_cmd(name, probe)).returncode == 0  # type: ignore[attr-defined]
+
+
+def test_outgoing_mail_opens_only_the_configured_server_and_port(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The cluster's own API server stands in for a mail server (any TCP listener the nodes reach would do): its
+    node address on 6443 is closed by default, opens with KUBERNETES_MAIL_EGRESS, and stays closed on other ports
+    and for the other instance. SUDOO_K3D_MAIL_TARGET=<ip>:<port> chooses another listener."""
+    name, other = NAMES
+    kube = engines.of(name)
+    target = os.environ.get("SUDOO_K3D_MAIL_TARGET", "")
+    if not target:
+        addresses = [
+            a["address"]
+            for node in engine.api().list("Node")
+            for a in (node.get("status") or {}).get("addresses") or []
+            if a.get("type") == "InternalIP" and ":" not in a["address"]
+        ]
+        assert addresses, "no node address to use as the mail server; set SUDOO_K3D_MAIL_TARGET"
+        target = f"{addresses[0]}:6443"
+    host, port = target.rsplit(":", 1)
+    assert not _reaches(kube, name, host, int(port))  # default deny, mail egress off
+
+    monkeypatch.setattr(engine, "settings", _Opened(kubernetes_mail_egress="all", smtp_host=host, smtp_port=int(port)))
+    engines.named("kubernetes").apply(Job(), name)  # type: ignore[arg-type]
+    time.sleep(5)  # the policy controller needs a moment
+    assert _reaches(kube, name, host, int(port))  # the configured server and port
+    assert not _reaches(kube, name, host, int(port) + 1)  # nothing else on that server
+    assert not _reaches(kube, name, "198.51.100.7", int(port))  # nor any other server
+    assert not _reaches(engines.of(other), other, host, int(port))  # nor an instance that was not applied again
+
+    monkeypatch.setattr(engine, "settings", _Opened(kubernetes_mail_egress="off"))
+    engines.named("kubernetes").apply(Job(), name)  # type: ignore[arg-type]
+    time.sleep(5)
+    assert not _reaches(kube, name, host, int(port))  # closed again
+
+
+class _Opened:
+    def __init__(self, **values: object) -> None:
+        self._values = values
+
+    def __getattr__(self, name: str) -> object:
+        return self._values[name] if name in self._values else getattr(_REAL, name)

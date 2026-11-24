@@ -784,6 +784,7 @@ then restart the panel.
 | `KUBERNETES_QUOTA_PODS` | int | `5` | `.env` only | Pods one instance's namespace may have at once (Odoo, PostgreSQL and runner Jobs; 3 to 50). |
 | `KUBERNETES_CONTAINER_CPU` | float | `2` | `.env` only | Processor limit of a container that has none of its own (the instance's Resources card sets them), in cores. |
 | `KUBERNETES_CONTAINER_MEMORY_MB` | int | `2048` | `.env` only | Memory limit of a container that has none of its own, in MB. |
+| `KUBERNETES_MAIL_EGRESS` | choice | `off` | **live** | Let the Odoo of a Kubernetes instance send e-mail through the panel's outgoing mail server (`SMTP_HOST`, `SMTP_PORT`): `off` (nothing leaves), `production` (production instances only) or `all`. Only that server's addresses on that port are opened. Reaches an instance the next time it is started or updated ([Kubernetes engine, outgoing e-mail](KUBERNETES_ENGINE.md#outgoing-e-mail-from-an-instance)). |
 | `KUBERNETES_JOIN_URL` | text | empty | `.env` only | Address new nodes reach the k3s server's API at (`https://<address>:6443`), written into the join command. |
 | `KUBERNETES_JOIN_TOKEN_MINUTES` | int | `60` | `.env` only | Minutes a node's join token stays valid (5 to 1440). |
 | `KUBERNETES_K3S_VERSION` | text | empty | `.env` only | k3s version new nodes install (for example `v1.36.6+k3s1`). Empty: the server's own. |

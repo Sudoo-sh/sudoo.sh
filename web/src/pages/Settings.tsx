@@ -112,7 +112,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
   {
     id: "email",
     groups: [
-      { id: "email", keys: ["mailer", "mail_from", "smtp_host", "smtp_port", "smtp_security", "smtp_username", "smtp_password", "mail_templates_dir"] },
+      { id: "email", keys: ["mailer", "mail_from", "smtp_host", "smtp_port", "smtp_security", "smtp_username", "smtp_password", "mail_templates_dir", "kubernetes_mail_egress"] },
       { id: "mailCatcher", keys: ["mail_catcher_retention_days", "mail_catcher_max_messages", "mail_catcher_max_mb", "mail_catcher_max_message_mb", "mail_catcher_release"] },
     ],
   },

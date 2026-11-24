@@ -30,6 +30,7 @@ from urllib.parse import quote
 from aiohttp import web
 
 from sudoo.config import settings
+from sudoo.instances.job_titles_ar import translate
 
 _MARK = (Path(__file__).resolve().parent / "mark.svg").read_text().strip()  # the same as web/public/favicon.svg
 _ICON = "data:image/svg+xml," + quote(_MARK)  # the Sudoo.sh mark
@@ -457,13 +458,25 @@ class Situation:
     progress: Mapping[str, Any] | None = None
 
 
-def status_json(situation: Situation | None) -> dict[str, Any]:
-    """The answer of the public status address: the state and the job's public progress, nothing else."""
+def _shown(info: dict[str, Any] | None, lang: str) -> dict[str, Any] | None:
+    """The progress as a visitor reads it: the step and its progress text in Arabic for an Arabic page."""
+    if info is None or lang != "ar":
+        return info
+    return {
+        **info,
+        "step": translate(info["step"]),
+        "progress": translate(info["progress"]) if info["progress"] else None,
+    }
+
+
+def status_json(situation: Situation | None, lang: str = "en") -> dict[str, Any]:
+    """The answer of the public status address: the state and the job's public progress, nothing else. For a visitor
+    who prefers Arabic (language()), the step and its progress are given in Arabic; the job itself stays English."""
     if situation is None:
         return {"state": "ready"}
     answer: dict[str, Any] = {"state": situation.page if situation.page in STATES else "busy"}
     if situation.page in WAITING_KINDS and situation.progress:
-        answer.update(clean_progress(dict(situation.progress)) or {})
+        answer.update(_shown(clean_progress(dict(situation.progress)), lang) or {})
     return answer
 
 
@@ -497,7 +510,7 @@ def render(
     nonce = secrets.token_urlsafe(12)
     data = ""
     if waiting:
-        info = clean_progress(dict(progress)) if progress else None
+        info = _shown(clean_progress(dict(progress)), lang) if progress else None
         overall = info.get("overall") if info else None
         shown = overall if overall is not None else (info.get("percent") if info else None)
         steps = info.get("steps") if info else None

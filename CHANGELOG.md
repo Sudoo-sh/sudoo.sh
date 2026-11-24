@@ -12,6 +12,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   instances would get the well-known Odoo login. The installer already sets a random password, so this concerns
   setups made by hand (Compose or source). Nothing else changes.
 
+- **Arabic names for every step the panel shows in a job**: the job drawer, the page of an instance being created,
+  the page visitors see while an instance updates (and the address it polls, when the visitor prefers Arabic) and the
+  demo now show Arabic for the steps and jobs that were still English (importing a database,
+  running the tests, moving to another engine, premium features, maintenance, automatic builds and more). Names,
+  branches and versions stay left to right. The jobs and the English pages are unchanged. A test reads the server's
+  source and fails when a step or job title has no Arabic.
+
 ### Fixed
 
 - **Cancelling an Odoo upgrade no longer restores over changes it could not save.** If the backup of the current

@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **A warning in the log while `ODOO_ADMIN_PASSWORD` is still `admin`**: at startup the panel warns that new
+  instances would get the well-known Odoo login. The installer already sets a random password, so this concerns
+  setups made by hand (Compose or source). Nothing else changes.
+
 ## [3.4.0] - 2026-11-23
 
 ### Added (beta)

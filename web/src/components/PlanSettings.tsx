@@ -32,8 +32,11 @@ export function PlanNotices({ plan }: { plan: PlanStatus }) {
       {plan.banned && <Callout tone="danger">{t.banned}</Callout>}
       {plan.production_withheld && (
         <Callout tone="warning">
-          <b>{t.withheld}.</b> {t.withheldReasons[plan.production_withheld] ?? plan.production_withheld} {t.withheldKeep}{" "}
-          <a href={plan.links.account} target="_blank" rel="noreferrer">{t.managePlan}</a>
+          <b>{t.withheld}.</b> {t.withheldReasons[plan.production_withheld] ?? plan.production_withheld}{" "}
+          {t.withheldKeep}{" "}
+          <a href={plan.links.account} target="_blank" rel="noreferrer">
+            {t.managePlan}
+          </a>
         </Callout>
       )}
       {plan.source === "expired" && <Callout tone="warning">{t.expiredBanner}</Callout>}
@@ -41,12 +44,16 @@ export function PlanNotices({ plan }: { plan: PlanStatus }) {
         <Callout tone="warning">
           {t.overLimit}{" "}
           {plan.leaving_production.length ? (
-            <>{t.leaving} <b dir="ltr">{plan.leaving_production.join(", ")}</b>.</>
+            <>
+              {t.leaving} <b dir="ltr">{plan.leaving_production.join(", ")}</b>.
+            </>
           ) : (
             t.leavingNone
           )}{" "}
           {plan.production_keep && <span className="faint">{t.kept(plan.production_keep.join(", ") || "—")}.</span>}{" "}
-          <a href={plan.links.keep} target="_blank" rel="noreferrer">{t.chooseKept}</a>
+          <a href={plan.links.keep} target="_blank" rel="noreferrer">
+            {t.chooseKept}
+          </a>
         </Callout>
       )}
     </>
@@ -63,7 +70,9 @@ function LinkBanner({ restricted, daysLeft, canLink }: { restricted: boolean; da
       <Callout tone={restricted ? "danger" : "warning"}>
         <b>{restricted ? t.linkOverdue : t.linkTitle(daysLeft)}</b> {restricted ? t.linkOverdueText : t.linkText}{" "}
         {canLink ? (
-          <Link className="callout-link" to="/settings?tab=marketplace" viewTransition>{t.linkButton}</Link>
+          <Link className="callout-link" to="/settings?tab=marketplace" viewTransition>
+            {t.linkButton}
+          </Link>
         ) : (
           <span className="faint">{t.linkAskSuperAdmin}</span>
         )}
@@ -89,7 +98,9 @@ export function PlanBanner() {
       <div className="notices" role="status">
         <Callout tone="info">
           {t.unlinkedBanner(plan.entitlements.max_production_branches ?? 1)}{" "}
-          <Link to="/settings?tab=marketplace" viewTransition>{t.unlinkedAction}</Link>
+          <Link to="/settings?tab=marketplace" viewTransition>
+            {t.unlinkedAction}
+          </Link>
         </Callout>
       </div>
     );
@@ -98,7 +109,9 @@ export function PlanBanner() {
       <div className="notices" role="status">
         <Callout tone="warning">
           {t.leavingBanner(plan.leaving_production.join(", "))}{" "}
-          <a href={plan.links.keep} target="_blank" rel="noreferrer">{t.chooseKept}</a>
+          <a href={plan.links.keep} target="_blank" rel="noreferrer">
+            {t.chooseKept}
+          </a>
         </Callout>
       </div>
     );
@@ -107,7 +120,9 @@ export function PlanBanner() {
       <div className="notices" role="status">
         <Callout tone="warning">
           {plan.production_withheld ? `${t.withheld}. ${t.withheldKeep}` : t.expiredBanner}{" "}
-          <Link to="/settings?tab=plan" viewTransition>{t.title}</Link>
+          <Link to="/settings?tab=plan" viewTransition>
+            {t.title}
+          </Link>
         </Callout>
       </div>
     );
@@ -131,7 +146,15 @@ export function PlanSettings() {
             <div className="sub">{t.text}</div>
           </div>
           <div className="row-wrap">
-            {plan.linked ? <External href={plan.links.account} primary>{t.managePlan}</External> : <Button asChild variant="primary" size="sm"><Link to="/settings?tab=marketplace">{t.linkPanel}</Link></Button>}
+            {plan.linked ? (
+              <External href={plan.links.account} primary>
+                {t.managePlan}
+              </External>
+            ) : (
+              <Button asChild variant="primary" size="sm">
+                <Link to="/settings?tab=marketplace">{t.linkPanel}</Link>
+              </Button>
+            )}
             <External href={plan.links.pricing}>{t.comparePlans}</External>
           </div>
         </div>
@@ -147,32 +170,84 @@ export function PlanSettings() {
       </section>
       <div className="grid-2">
         <section className="card">
-          <div className="card-head"><Gauge /><h2>{t.entitlements}</h2></div>
+          <div className="card-head">
+            <Gauge />
+            <h2>{t.entitlements}</h2>
+          </div>
           <div className="card-body">
             <dl className="dl">
-              <dt>{t.productionBranches}</dt><dd>{t.of(plan.usage.production_branches, limit(e.max_production_branches))}</dd>
-              <dt>{t.servers}</dt><dd>{t.of(plan.usage.servers, limit(e.max_servers))}</dd>
-              <dt>{t.projects}</dt><dd>{t.of(plan.usage.projects, limit(e.max_projects))}</dd>
-              <dt>{t.support}</dt><dd>{t.supportLevels[e.support_level] ?? e.support_level}</dd>
-              {e.period && <><dt>{t.period}</dt><dd>{t.periods[e.period] ?? e.period}</dd></>}
-              {e.renews_at && <><dt>{t.renewal}</dt><dd>{dateTime(typeof e.renews_at === "number" ? new Date(e.renews_at * 1000).toISOString() : e.renews_at)}</dd></>}
-              {e.trial_plan && <><dt>{t.trialLabel}</dt><dd>{e.trial_plan}</dd></>}
+              <dt>{t.productionBranches}</dt>
+              <dd>{t.of(plan.usage.production_branches, limit(e.max_production_branches))}</dd>
+              <dt>{t.servers}</dt>
+              <dd>{t.of(plan.usage.servers, limit(e.max_servers))}</dd>
+              <dt>{t.projects}</dt>
+              <dd>{t.of(plan.usage.projects, limit(e.max_projects))}</dd>
+              <dt>{t.support}</dt>
+              <dd>{t.supportLevels[e.support_level] ?? e.support_level}</dd>
+              {e.period && (
+                <>
+                  <dt>{t.period}</dt>
+                  <dd>{t.periods[e.period] ?? e.period}</dd>
+                </>
+              )}
+              {e.renews_at && (
+                <>
+                  <dt>{t.renewal}</dt>
+                  <dd>
+                    {dateTime(
+                      typeof e.renews_at === "number" ? new Date(e.renews_at * 1000).toISOString() : e.renews_at,
+                    )}
+                  </dd>
+                </>
+              )}
+              {e.trial_plan && (
+                <>
+                  <dt>{t.trialLabel}</dt>
+                  <dd>{e.trial_plan}</dd>
+                </>
+              )}
               {Object.keys(e.addons).length > 0 && (
-                <><dt>{t.addons}</dt><dd>{Object.entries(e.addons).map(([code, n]) => t.addon(code, n)).join(", ")}</dd></>
+                <>
+                  <dt>{t.addons}</dt>
+                  <dd>
+                    {Object.entries(e.addons)
+                      .map(([code, n]) => t.addon(code, n))
+                      .join(", ")}
+                  </dd>
+                </>
               )}
             </dl>
           </div>
         </section>
         <section className="card">
-          <div className="card-head"><Layers /><h2>{t.features}</h2></div>
+          <div className="card-head">
+            <Layers />
+            <h2>{t.features}</h2>
+          </div>
           <div className="card-body">
             <dl className="dl">
               <dt>{t.feature.teams}</dt>
-              <dd>{e.teams ? <Tag tone="positive">{t.included}</Tag> : <span className="faint row"><CircleSlash size={14} /> {t.notIncluded}</span>}</dd>
+              <dd>
+                {e.teams ? (
+                  <Tag tone="positive">{t.included}</Tag>
+                ) : (
+                  <span className="faint row">
+                    <CircleSlash size={14} /> {t.notIncluded}
+                  </span>
+                )}
+              </dd>
               {FEATURES.map((f) => (
                 <span key={f} style={{ display: "contents" }}>
                   <dt>{t.feature[f]}</dt>
-                  <dd>{e.features[f] ? <Tag tone="positive">{t.included}</Tag> : <span className="faint row"><CircleSlash size={14} /> {t.notIncluded}</span>}</dd>
+                  <dd>
+                    {e.features[f] ? (
+                      <Tag tone="positive">{t.included}</Tag>
+                    ) : (
+                      <span className="faint row">
+                        <CircleSlash size={14} /> {t.notIncluded}
+                      </span>
+                    )}
+                  </dd>
                 </span>
               ))}
             </dl>
@@ -180,26 +255,35 @@ export function PlanSettings() {
         </section>
       </div>
       <section className="card">
-        <div className="card-head"><Layers /><h2>{t.usage}</h2></div>
+        <div className="card-head">
+          <Layers />
+          <h2>{t.usage}</h2>
+        </div>
         <div className="card-body stack-sm">
           <div className="row-wrap small">
             <span className="muted">{t.instancesByStage}:</span>
             {(["production", "staging", "development"] as const).map((s) => (
-              <Tag key={s}>{t.stages[s]} {plan.usage.instances_by_stage[s] ?? 0}</Tag>
+              <Tag key={s}>
+                {t.stages[s]} {plan.usage.instances_by_stage[s] ?? 0}
+              </Tag>
             ))}
           </div>
           <div className="small muted">{t.branchNames}</div>
           {plan.usage.production_branch_names.length ? (
             <div className="row-wrap">
               {plan.usage.production_branch_names.map((n) => (
-                <Tag key={n} mono tone={plan.leaving_production.includes(n) ? "caution" : undefined}>{n}</Tag>
+                <Tag key={n} mono tone={plan.leaving_production.includes(n) ? "caution" : undefined}>
+                  {n}
+                </Tag>
               ))}
             </div>
           ) : (
             <p className="small faint">{t.noProduction}</p>
           )}
           {plan.production_refusal && (
-            <Callout tone="info">{t.refusal} {plan.production_refusal}</Callout>
+            <Callout tone="info">
+              {t.refusal} {plan.production_refusal}
+            </Callout>
           )}
         </div>
       </section>
@@ -208,7 +292,11 @@ export function PlanSettings() {
 }
 
 /** A paid feature the plan lacks: what it is and where to get it (the server refuses its use anyway). */
-export function FeatureUpsell({ feature }: { feature: "teams" | "per_project_access" | "custom_domains" | "offsite_backups" }) {
+export function FeatureUpsell({
+  feature,
+}: {
+  feature: "teams" | "per_project_access" | "custom_domains" | "offsite_backups";
+}) {
   const t = useT(words);
   const { data: plan } = useSudooPlan();
   if (!plan) return null;
@@ -217,9 +305,21 @@ export function FeatureUpsell({ feature }: { feature: "teams" | "per_project_acc
   const name = t.feature[feature];
   return (
     <Callout tone="info">
-      {feature === "teams" || feature === "custom_domains" || feature === "offsite_backups" ? t.upsell(name) : t.upsellOne(name)}{" "}
-      <a href={plan.links.pricing} target="_blank" rel="noreferrer">{t.comparePlans}</a>
-      {plan.linked && <> · <a href={plan.links.account} target="_blank" rel="noreferrer">{t.managePlan}</a></>}
+      {feature === "teams" || feature === "custom_domains" || feature === "offsite_backups"
+        ? t.upsell(name)
+        : t.upsellOne(name)}{" "}
+      <a href={plan.links.pricing} target="_blank" rel="noreferrer">
+        {t.comparePlans}
+      </a>
+      {plan.linked && (
+        <>
+          {" "}
+          ·{" "}
+          <a href={plan.links.account} target="_blank" rel="noreferrer">
+            {t.managePlan}
+          </a>
+        </>
+      )}
     </Callout>
   );
 }

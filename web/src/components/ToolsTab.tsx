@@ -40,7 +40,8 @@ export function ToolsTab({ instance }: { instance: Instance }) {
   const running = useRef<string | null>(null);
 
   const start = useCall(
-    (confirmed: boolean) => api.post<ProfilerRun>(`/instances/${name}/profiler`, { minutes, confirm_production: confirmed }),
+    (confirmed: boolean) =>
+      api.post<ProfilerRun>(`/instances/${name}/profiler`, { minutes, confirm_production: confirmed }),
     [["profiler", name]],
   );
   const stop = useCall(() => api.post<ProfilerRun>(`/instances/${name}/profiler/stop`), [["profiler", name]]);
@@ -61,11 +62,22 @@ export function ToolsTab({ instance }: { instance: Instance }) {
   }, [shown, state]);
 
   if (error) return <Callout tone="danger">{errorText(error)}</Callout>;
-  if (!state) return <div className="card card-body"><Skeleton height={180} /></div>;
+  if (!state)
+    return (
+      <div className="card card-body">
+        <Skeleton height={180} />
+      </div>
+    );
 
   const max = Math.max(1, state.max_minutes);
   const chosen = Math.min(minutes, max);
-  const blocked = !state.enabled ? t.disabled : state.production && !state.production_allowed ? t.productionOff : !state.running ? t.notRunning : null;
+  const blocked = !state.enabled
+    ? t.disabled
+    : state.production && !state.production_allowed
+      ? t.productionOff
+      : !state.running
+        ? t.notRunning
+        : null;
   const begin = (confirmed: boolean) =>
     start.mutate(confirmed, {
       onSuccess: () => toast("success", t.started),
@@ -83,23 +95,42 @@ export function ToolsTab({ instance }: { instance: Instance }) {
           <p>{t.text}</p>
           <p className="small muted">{t.how}</p>
           <Callout>
-            {t.odooProfiler(<a key="docs" href={odooDocs(instance.odoo.version)} target="_blank" rel="noreferrer">{t.odooProfilerLink}</a>)}
+            {t.odooProfiler(
+              <a key="docs" href={odooDocs(instance.odoo.version)} target="_blank" rel="noreferrer">
+                {t.odooProfilerLink}
+              </a>,
+            )}
           </Callout>
           {state.last_error && !current && (
-            <Callout tone="danger"><b>{t.failed}.</b> {state.last_error.message}</Callout>
+            <Callout tone="danger">
+              <b>{t.failed}.</b> {state.last_error.message}
+            </Callout>
           )}
           {current ? (
-            <RunProgress run={current} onStop={() => stop.mutate(undefined, { onError: (e) => toast("error", c.error, errorText(e)) })} stopping={stop.isPending || current.stopping} />
+            <RunProgress
+              run={current}
+              onStop={() => stop.mutate(undefined, { onError: (e) => toast("error", c.error, errorText(e)) })}
+              stopping={stop.isPending || current.stopping}
+            />
           ) : blocked ? (
             <Callout tone="warning">{blocked}</Callout>
           ) : (
             <div className="profiler-start">
               <Field label={t.duration}>
                 <SelectBox value={String(chosen)} onValueChange={(v) => setMinutes(Number(v))}>
-                  {Array.from({ length: max }, (_, i) => i + 1).map((n) => <option key={n} value={String(n)}>{t.minutes(n)}</option>)}
+                  {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
+                    <option key={n} value={String(n)}>
+                      {t.minutes(n)}
+                    </option>
+                  ))}
                 </SelectBox>
               </Field>
-              <Button variant="primary" icon={<Play />} loading={start.isPending} onClick={() => (state.production ? setAsking(true) : begin(false))}>
+              <Button
+                variant="primary"
+                icon={<Play />}
+                loading={start.isPending}
+                onClick={() => (state.production ? setAsking(true) : begin(false))}
+              >
                 {t.start}
               </Button>
             </div>
@@ -113,7 +144,9 @@ export function ToolsTab({ instance }: { instance: Instance }) {
           <span className="small muted">{t.recordingsText(state.keep)}</span>
         </div>
         {!state.recordings.length ? (
-          <Empty icon={<FlameKindling />} title={t.none}>{t.noneText}</Empty>
+          <Empty icon={<FlameKindling />} title={t.none}>
+            {t.noneText}
+          </Empty>
         ) : (
           <Table className="profiler-recordings">
             <TableHeader>
@@ -122,7 +155,9 @@ export function ToolsTab({ instance }: { instance: Instance }) {
                 <TableHead>{t.length}</TableHead>
                 <TableHead>{t.samples}</TableHead>
                 <TableHead>{t.by}</TableHead>
-                <TableHead><span className="sr-only">{t.open}</span></TableHead>
+                <TableHead>
+                  <span className="sr-only">{t.open}</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -130,23 +165,43 @@ export function ToolsTab({ instance }: { instance: Instance }) {
                 <TableRow key={r.id} data-state={shown === r.id ? "selected" : undefined}>
                   <TableCell className="nowrap" title={dateTime(Date.parse(r.started_at) / 1000)}>
                     {ago(Date.parse(r.started_at) / 1000)}
-                    {r.production && <> <Tag tone="caution">{t.production}</Tag></>}
+                    {r.production && (
+                      <>
+                        {" "}
+                        <Tag tone="caution">{t.production}</Tag>
+                      </>
+                    )}
                   </TableCell>
                   <TableCell className="nowrap">
                     {t.seconds(r.seconds)}
                     {r.stopped_early && <span className="xsmall faint"> · {t.stoppedEarly}</span>}
                   </TableCell>
                   <TableCell className="nowrap small">{t.sampleCount(r.samples)}</TableCell>
-                  <TableCell className="small"><bdi>{r.user}</bdi></TableCell>
+                  <TableCell className="small">
+                    <bdi>{r.user}</bdi>
+                  </TableCell>
                   <TableCell>
                     <div className="row" style={{ justifyContent: "flex-end" }}>
-                      <Button size="sm" variant={shown === r.id ? "soft" : "default"} icon={<Flame />} aria-label={shown === r.id ? t.opened : t.open} aria-pressed={shown === r.id} onClick={() => setShown(shown === r.id ? null : r.id)}>
+                      <Button
+                        size="sm"
+                        variant={shown === r.id ? "soft" : "default"}
+                        icon={<Flame />}
+                        aria-label={shown === r.id ? t.opened : t.open}
+                        aria-pressed={shown === r.id}
+                        onClick={() => setShown(shown === r.id ? null : r.id)}
+                      >
                         <span className="open-label">{shown === r.id ? t.opened : t.open}</span>
                       </Button>
                       <Button size="sm" variant="ghost" icon={<Download />} asChild title={t.downloadHint}>
                         <a href={r.links.download} download aria-label={`${t.download} (${bytes(r.size)})`} />
                       </Button>
-                      <Button size="sm" variant="ghost" icon={<Trash2 />} aria-label={t.remove} onClick={() => setRemoving(r)} />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        icon={<Trash2 />}
+                        aria-label={t.remove}
+                        onClick={() => setRemoving(r)}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>
@@ -161,12 +216,25 @@ export function ToolsTab({ instance }: { instance: Instance }) {
       {asking && (
         <Modal
           title={t.confirmTitle}
-          description={t.confirmText(<b key="n"><bdi>{name}</bdi></b>)}
+          description={t.confirmText(
+            <b key="n">
+              <bdi>{name}</bdi>
+            </b>,
+          )}
           onClose={() => setAsking(false)}
           footer={
             <>
               <Button onClick={() => setAsking(false)}>{c.cancel}</Button>
-              <Button variant="primary" icon={<Play />} onClick={() => { begin(true); setAsking(false); }}>{t.confirm}</Button>
+              <Button
+                variant="primary"
+                icon={<Play />}
+                onClick={() => {
+                  begin(true);
+                  setAsking(false);
+                }}
+              >
+                {t.confirm}
+              </Button>
             </>
           }
         />
@@ -179,10 +247,23 @@ export function ToolsTab({ instance }: { instance: Instance }) {
           footer={
             <>
               <Button onClick={() => setRemoving(null)}>{c.cancel}</Button>
-              <Button variant="danger" icon={<Trash2 />} loading={remove.isPending} onClick={() => remove.mutate(removing.id, {
-                onSuccess: () => { toast("success", t.removed); setRemoving(null); void refetch(); },
-                onError: (e) => toast("error", c.error, errorText(e)),
-              })}>{t.remove}</Button>
+              <Button
+                variant="danger"
+                icon={<Trash2 />}
+                loading={remove.isPending}
+                onClick={() =>
+                  remove.mutate(removing.id, {
+                    onSuccess: () => {
+                      toast("success", t.removed);
+                      setRemoving(null);
+                      void refetch();
+                    },
+                    onError: (e) => toast("error", c.error, errorText(e)),
+                  })
+                }
+              >
+                {t.remove}
+              </Button>
             </>
           }
         />
@@ -210,7 +291,14 @@ function RunProgress({ run, onStop, stopping }: { run: ProfilerRun; onStop: () =
           <b>{t.phases[run.phase]}</b>
           {run.phase === "recording" && <span className="profiler-countdown muted"> · {t.left(clock(left))}</span>}
         </span>
-        <Button variant="danger" size="sm" icon={<Square />} loading={stopping} disabled={run.phase === "saving"} onClick={onStop}>
+        <Button
+          variant="danger"
+          size="sm"
+          icon={<Square />}
+          loading={stopping}
+          disabled={run.phase === "saving"}
+          onClick={onStop}
+        >
           {stopping ? t.stopping : t.stop}
         </Button>
       </div>
@@ -228,13 +316,20 @@ function Recording({ name, id }: { name: string; id: string }) {
   const t = useT(words);
   const { data, error } = useProfile(name, id);
   if (error) return <Callout tone="danger">{errorText(error)}</Callout>;
-  if (!data) return <div className="card card-body" aria-busy="true"><Skeleton height={320} /></div>;
+  if (!data)
+    return (
+      <div className="card card-body" aria-busy="true">
+        <Skeleton height={320} />
+      </div>
+    );
   const label = t.graphOf(ago(Date.parse(data.started_at) / 1000));
   return (
     <section className="card">
       <div className="card-head">
         <h2 className="spacer">{t.graphTitle}</h2>
-        <span className="small muted">{label} · {t.seconds(data.seconds)} · {t.sampleCount(data.samples)}</span>
+        <span className="small muted">
+          {label} · {t.seconds(data.seconds)} · {t.sampleCount(data.samples)}
+        </span>
       </div>
       <div className="card-body stack">
         {data.tree.total ? <FlameGraph tree={data.tree} label={label} /> : <Callout>{t.empty}</Callout>}
@@ -251,7 +346,10 @@ function HotFunctions({ tree }: { tree: ProfileTree }) {
   const share = (n: number) => `${((100 * n) / tree.total).toFixed(1)}%`;
   return (
     <>
-      <div className="card-head"><h3 className="spacer">{t.hot}</h3><span className="small muted">{t.hotText}</span></div>
+      <div className="card-head">
+        <h3 className="spacer">{t.hot}</h3>
+        <span className="small muted">{t.hotText}</span>
+      </div>
       <Table className="flame-hot">
         <TableHeader>
           <TableRow>
@@ -264,8 +362,14 @@ function HotFunctions({ tree }: { tree: ProfileTree }) {
           {top.map((f) => (
             <TableRow key={`${f.name}@${f.where}`}>
               <TableCell>
-                <div className="mono small" dir="ltr">{f.name}</div>
-                {f.where && <div className="mono xsmall faint" dir="ltr">{f.where}</div>}
+                <div className="mono small" dir="ltr">
+                  {f.name}
+                </div>
+                {f.where && (
+                  <div className="mono xsmall faint" dir="ltr">
+                    {f.where}
+                  </div>
+                )}
                 <div className="bar" style={{ width: `${(100 * f.self) / most}%` }} />
               </TableCell>
               <TableCell className="nowrap small">{share(f.self)}</TableCell>

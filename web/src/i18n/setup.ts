@@ -97,7 +97,10 @@ const en = {
     names: {
       server: { title: "The server's address for now", text: "You can add a name later in Settings." },
       domain: { title: "My own name", text: "A name whose DNS points at this server, or at your proxy." },
-      managed: { title: "A sudoo.cloud name", text: "Given by Sudoo.sh for your linked account, with its certificate." },
+      managed: {
+        title: "A sudoo.cloud name",
+        text: "Given by Sudoo.sh for your linked account, with its certificate.",
+      },
     },
     domain: "Name",
     nameNeeded: "Enter a name such as panel.example.com. A proxy needs one.",
@@ -234,7 +237,8 @@ const ar: typeof en = {
     no: "لا",
     onePerson: "شخص واحد",
     aTeam: "فريق",
-    minimum: (cpus: number, gb: number) => `يحتاج Kubernetes هنا إلى ${cpus} أنوية و${gb} غيغابايت من الذاكرة على الأقل.`,
+    minimum: (cpus: number, gb: number) =>
+      `يحتاج Kubernetes هنا إلى ${cpus} أنوية و${gb} غيغابايت من الذاكرة على الأقل.`,
     toBeMeasured: "قيد القياس",
     cannotRun: "لا يعمل Kubernetes جيدًا على هذا الخادم، لذا المحرّك هو Docker:",
     beta: "تجريبي",

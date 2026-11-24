@@ -34,7 +34,11 @@ export function Reveal({
   children?: ReactNode;
 } & Record<string, unknown>) {
   return (
-    <Tag className={cn("reveal", className)} style={{ ...style, "--reveal-delay": `${staggerDelay(index)}ms` } as CSSProperties} {...props}>
+    <Tag
+      className={cn("reveal", className)}
+      style={{ ...style, "--reveal-delay": `${staggerDelay(index)}ms` } as CSSProperties}
+      {...props}
+    >
       {children}
     </Tag>
   );
@@ -42,7 +46,12 @@ export function Reveal({
 
 /** A list whose items come in one after the other on first load (25 ms apart, capped at eight steps). Items added
  *  later come in the same way, on their own; items that stay are not animated again. */
-export function Stagger({ as: Tag = "div", className, children, ...props }: { as?: ElementType; className?: string; children?: ReactNode } & Record<string, unknown>) {
+export function Stagger({
+  as: Tag = "div",
+  className,
+  children,
+  ...props
+}: { as?: ElementType; className?: string; children?: ReactNode } & Record<string, unknown>) {
   return (
     <Tag className={cn("stagger-in", className)} {...props}>
       {children}
@@ -147,7 +156,15 @@ export function AnimatedNumber({
 
 /** Icons that turn into one another in place (scale, fade and a little blur): a copy icon into a check, the theme's
  *  sun into a moon. `active` names the one shown; every one keeps the same box, so nothing around it moves. */
-export function MorphIcon({ icons, active, className }: { icons: Record<string, ReactNode>; active: string; className?: string }) {
+export function MorphIcon({
+  icons,
+  active,
+  className,
+}: {
+  icons: Record<string, ReactNode>;
+  active: string;
+  className?: string;
+}) {
   return (
     <span className={cn("morph-icon", className)} aria-hidden="true">
       {Object.entries(icons).map(([key, icon]) => (
@@ -162,7 +179,16 @@ export function MorphIcon({ icons, active, className }: { icons: Record<string, 
 /** A check in a circle whose stroke draws itself in when it appears (success); still with reduced motion. */
 export function SuccessCheck({ className }: { className?: string }) {
   return (
-    <svg className={cn("success-check", className)} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      className={cn("success-check", className)}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <circle cx="12" cy="12" r="10" pathLength={1} />
       <path d="m9 12 2 2 4-4" pathLength={1} />
     </svg>
@@ -204,7 +230,12 @@ export function TabInk() {
     const observer = new ResizeObserver(place);
     observer.observe(row);
     const mutations = new MutationObserver(place);
-    mutations.observe(row, { subtree: true, attributes: true, attributeFilter: ["class", "aria-selected", "aria-current"], childList: true });
+    mutations.observe(row, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "aria-selected", "aria-current"],
+      childList: true,
+    });
     return () => {
       observer.disconnect();
       mutations.disconnect();
@@ -226,7 +257,13 @@ export function useHero<T extends HTMLElement>(key: string) {
   const node = useRef<T>(null);
   useLayoutEffect(() => {
     const element = node.current;
-    if (!element || hero !== key || reducedMotion() || [...holders].some((other) => other !== element && other.isConnected)) return;
+    if (
+      !element ||
+      hero !== key ||
+      reducedMotion() ||
+      [...holders].some((other) => other !== element && other.isConnected)
+    )
+      return;
     element.style.viewTransitionName = "hero";
     holders.add(element);
     return () => {

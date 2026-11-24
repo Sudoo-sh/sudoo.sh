@@ -58,7 +58,9 @@ function BuildTile({
         <CommitSubject commit={build.commit!} repository={repository} className="pb-subject truncate" />
       ) : (
         <Link to={to} viewTransition className="pb-open">
-          <bdi className="pb-subject truncate" title={build.commit?.subject}>{build.commit?.subject ?? t.history.unknownCommit}</bdi>
+          <bdi className="pb-subject truncate" title={build.commit?.subject}>
+            {build.commit?.subject ?? t.history.unknownCommit}
+          </bdi>
         </Link>
       )}
       <div className="pb-who">
@@ -68,11 +70,21 @@ function BuildTile({
       <dl className="pb-facts">
         <div>
           <dt>{t.builds.age}</dt>
-          <dd>{build.at ? <time dateTime={build.at} title={fullDateTime(build.at)}>{ago(build.at)}</time> : "—"}</dd>
+          <dd>
+            {build.at ? (
+              <time dateTime={build.at} title={fullDateTime(build.at)}>
+                {ago(build.at)}
+              </time>
+            ) : (
+              "—"
+            )}
+          </dd>
         </div>
         <div>
           <dt>{t.builds.duration}</dt>
-          <dd>{build.status === "building" ? elapsed(build.started_at ?? build.at) : duration(build.duration_seconds)}</dd>
+          <dd>
+            {build.status === "building" ? elapsed(build.started_at ?? build.at) : duration(build.duration_seconds)}
+          </dd>
         </div>
       </dl>
       {build.status === "failed" && (build.failure?.reason || build.result) && (
@@ -85,7 +97,9 @@ function BuildTile({
       <div className="pb-foot">
         <BuildStatusTag status={build.status} />
         <ChecksBadge project={project} sha={build.commit?.full_sha} />
-        {live && instance?.url && mayOpen && <ConnectButton instance={instance} connectAs={!!access} access={access} size="sm" />}
+        {live && instance?.url && mayOpen && (
+          <ConnectButton instance={instance} connectAs={!!access} access={access} size="sm" />
+        )}
       </div>
     </article>
   );
@@ -115,13 +129,19 @@ function BranchRow({
   const mayRebuild = branch.stage === "staging" && !!first && !!production && can(branch, "instances.restore");
   const mayOpen = !branch.lock || can(branch, "instances.logs");
   const access = (name: string) =>
-    can(branch, "instances.credentials") ? branchPath(project.id, branch.name, "access", name === first ? null : name) : null;
+    can(branch, "instances.credentials")
+      ? branchPath(project.id, branch.name, "access", name === first ? null : name)
+      : null;
   const history = branchPath(project.id, branch.name);
   return (
     <div className="pb-row" role="group" aria-label={t.rowLabel(branch.name)}>
       <div className="pb-branch">
         <div className="pb-name">
-          <span className={`ws-dot ${dot}`} role="img" aria-label={members.length ? statusLabel(members[0]!.status) : ""} />
+          <span
+            className={`ws-dot ${dot}`}
+            role="img"
+            aria-label={members.length ? statusLabel(members[0]!.status) : ""}
+          />
           <Link to={history} viewTransition className="truncate" title={t.openHistory(branch.name)}>
             <bdi dir="ltr">{branch.name}</bdi>
           </Link>
@@ -129,17 +149,32 @@ function BranchRow({
         <div className="pb-actions">
           {branch.on_github !== false && (
             <Button asChild size="sm" variant="ghost">
-              <a href={`${project.repository.url}/tree/${branch.name}`} target="_blank" rel="noreferrer"><FolderGit2 /> {t.github}</a>
+              <a href={`${project.repository.url}/tree/${branch.name}`} target="_blank" rel="noreferrer">
+                <FolderGit2 /> {t.github}
+              </a>
             </Button>
           )}
-          {mayRebuild && <Button size="sm" variant="ghost" icon={<RotateCcw />} onClick={() => onRebuild(first!)}>{t.rebuild}</Button>}
+          {mayRebuild && (
+            <Button size="sm" variant="ghost" icon={<RotateCcw />} onClick={() => onRebuild(first!)}>
+              {t.rebuild}
+            </Button>
+          )}
         </div>
       </div>
       <div className="pb-tiles" tabIndex={builds.length > 1 ? 0 : undefined} aria-label={t.rowLabel(branch.name)}>
         {builds.length ? (
           builds.map((build) => (
-            <BuildTile key={build.id} project={project.id} build={build} live={live.has(build.id)} instance={instances.get(build.instance)} repository={project.repository.url}
-              mayOpen={mayOpen} access={access(build.instance)} to={history} />
+            <BuildTile
+              key={build.id}
+              project={project.id}
+              build={build}
+              live={live.has(build.id)}
+              instance={instances.get(build.instance)}
+              repository={project.repository.url}
+              mayOpen={mayOpen}
+              access={access(build.instance)}
+              to={history}
+            />
           ))
         ) : (
           <p className="pb-none">{t.noBuild}</p>
@@ -168,7 +203,12 @@ export function ProjectBuilds({ project }: { project: ProjectDetail }) {
       <div className="toolbar">
         <div className="input-group">
           <Search />
-          <Input placeholder={t.filter} aria-label={t.filter} value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <Input
+            placeholder={t.filter}
+            aria-label={t.filter}
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
         </div>
       </div>
       {isPending ? (
@@ -179,10 +219,14 @@ export function ProjectBuilds({ project }: { project: ProjectDetail }) {
         </div>
       ) : !anyBuild && !query ? (
         <div className="card">
-          <Empty icon={<Hammer />} title={t.none}>{t.noneText}</Empty>
+          <Empty icon={<Hammer />} title={t.none}>
+            {t.noneText}
+          </Empty>
         </div>
       ) : !branches.length ? (
-        <div className="card"><Empty icon={<Search />} title={t.noMatch} /></div>
+        <div className="card">
+          <Empty icon={<Search />} title={t.noMatch} />
+        </div>
       ) : (
         STAGES.map((stage) => {
           const inStage = branches.filter((b) => b.stage === stage);
@@ -197,8 +241,15 @@ export function ProjectBuilds({ project }: { project: ProjectDetail }) {
               </div>
               <div className="pb-rows">
                 {inStage.map((branch) => (
-                  <BranchRow key={branch.name} project={project} branch={branch} builds={byName.get(branch.name) ?? []} instances={instances}
-                    production={production} onRebuild={(instance) => setRebuild({ branch, instance })} />
+                  <BranchRow
+                    key={branch.name}
+                    project={project}
+                    branch={branch}
+                    builds={byName.get(branch.name) ?? []}
+                    instances={instances}
+                    production={production}
+                    onRebuild={(instance) => setRebuild({ branch, instance })}
+                  />
                 ))}
               </div>
             </section>
@@ -206,8 +257,14 @@ export function ProjectBuilds({ project }: { project: ProjectDetail }) {
         })
       )}
       {rebuild && (
-        <RebuildDialog project={project} branch={rebuild.branch} instance={rebuild.instance} production={production}
-          onClose={() => setRebuild(null)} onJob={setJobId} />
+        <RebuildDialog
+          project={project}
+          branch={rebuild.branch}
+          instance={rebuild.instance}
+          production={production}
+          onClose={() => setRebuild(null)}
+          onJob={setJobId}
+        />
       )}
       {jobId && <JobDrawer id={jobId} onClose={() => setJobId(null)} />}
     </div>

@@ -15,7 +15,13 @@ export const PLANS: DemoPlan[] = ["free", "pro", "business"];
 
 /** The premium packages as src/sudoo/premium/__init__.py lists them, with the lowest plan that includes each. */
 export const PACKAGES: { id: PremiumId; name: string; features: string[]; plans: string; from: DemoPlan }[] = [
-  { id: "teams", name: "Teams and access per project", features: ["teams", "per_project_access"], plans: "Pro and Business", from: "pro" },
+  {
+    id: "teams",
+    name: "Teams and access per project",
+    features: ["teams", "per_project_access"],
+    plans: "Pro and Business",
+    from: "pro",
+  },
   { id: "domains", name: "Custom domains", features: ["custom_domains"], plans: "Business", from: "business" },
   { id: "offsite", name: "Off-site backups", features: ["offsite_backups"], plans: "Pro and Business", from: "pro" },
   { id: "support", name: "Support access", features: ["support_access"], plans: "Pro and Business", from: "pro" },
@@ -161,7 +167,17 @@ export function premiumOverview(details: boolean): PremiumOverview {
         version: active ? (ui!.version ?? "1.0.0") : null,
         installed_at: active ? installedAt : null,
         ...(details ? { problem: null, binding_until: active ? Math.floor((OPENED + 25 * DAY) / 1000) : null } : {}),
-        ...(active ? { ui: { routes: ui!.routes, sections: ui!.sections, styles: ui!.styles, strings: ui!.strings, files: ui!.files } } : {}),
+        ...(active
+          ? {
+              ui: {
+                routes: ui!.routes,
+                sections: ui!.sections,
+                styles: ui!.styles,
+                strings: ui!.strings,
+                files: ui!.files,
+              },
+            }
+          : {}),
       };
     }),
     auto_install: true,

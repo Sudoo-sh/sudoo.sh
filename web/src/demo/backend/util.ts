@@ -69,4 +69,8 @@ export function backupFile(instance: string, database: string, at: number, kind:
 export const stampOf = (file: string) => file.split("__")[2] ?? "";
 
 /** The slug the panel makes names from (web/v1/instances.py _slug). */
-export const slug = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+export const slug = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");

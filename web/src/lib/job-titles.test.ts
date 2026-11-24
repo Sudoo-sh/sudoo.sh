@@ -12,7 +12,16 @@ const fill = (title: string) => title.replaceAll("{#}", "7").replaceAll("{}", VA
 const original = Object.getOwnPropertyDescriptor(globalThis, "document");
 let lang = "ar";
 beforeAll(() => {
-  Object.defineProperty(globalThis, "document", { value: { documentElement: { get lang() { return lang; } } }, configurable: true });
+  Object.defineProperty(globalThis, "document", {
+    value: {
+      documentElement: {
+        get lang() {
+          return lang;
+        },
+      },
+    },
+    configurable: true,
+  });
 });
 afterAll(() => {
   if (original) Object.defineProperty(globalThis, "document", original);
@@ -59,7 +68,8 @@ describe("the sample the gateway's pages are tested against", () => {
   const known: Record<string, string> = JSON.parse(readFileSync(FILE, "utf8"));
   it("holds the Arabic this module gives", () => {
     lang = "ar";
-    if (!process.env.UPDATE_JOB_TITLES) for (const title of [...titles.jobs, ...titles.steps]) expect(known).toHaveProperty([fill(title)]);
+    if (!process.env.UPDATE_JOB_TITLES)
+      for (const title of [...titles.jobs, ...titles.steps]) expect(known).toHaveProperty([fill(title)]);
     const keys = [...new Set([...Object.keys(known), ...titles.jobs, ...titles.steps].map(fill))].sort();
     const now = Object.fromEntries(keys.map((english) => [english, stepTitle(english)]));
     if (process.env.UPDATE_JOB_TITLES) writeFileSync(FILE, `${JSON.stringify(now, null, 2)}\n`);

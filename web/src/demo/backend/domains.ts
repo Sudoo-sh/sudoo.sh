@@ -45,25 +45,49 @@ function certified(issuedAgo: number, lifetime = 90 * DAY): Partial<CustomDomain
 export function seedDomains() {
   byInstance.clear();
   byInstance.set("acme-retail-main", [
-    domain("erp.acme-retail.com", { primary: true, status: "active", added_at: iso(OPENED - 70 * DAY), ...certified(41 * DAY), url: "https://erp.acme-retail.com" }),
+    domain("erp.acme-retail.com", {
+      primary: true,
+      status: "active",
+      added_at: iso(OPENED - 70 * DAY),
+      ...certified(41 * DAY),
+      url: "https://erp.acme-retail.com",
+    }),
     domain("shop.acme-retail.com", {
-      status: "waiting_dns", added_at: iso(OPENED - 25 * MINUTE), added_by: "sara", next_check_at: iso(OPENED + 4 * MINUTE),
+      status: "waiting_dns",
+      added_at: iso(OPENED - 25 * MINUTE),
+      added_by: "sara",
+      next_check_at: iso(OPENED + 4 * MINUTE),
       reason: "shop.acme-retail.com has no DNS record yet. Create the record below; it can take a while to appear.",
     }),
   ]);
   byInstance.set("nile-logistics-main", [
     domain("ops.nile-logistics.com", {
-      primary: true, status: "expiring", added_at: iso(OPENED - 200 * DAY), ...certified(81 * DAY), url: "https://ops.nile-logistics.com",
+      primary: true,
+      status: "expiring",
+      added_at: iso(OPENED - 200 * DAY),
+      ...certified(81 * DAY),
+      url: "https://ops.nile-logistics.com",
       next_check_at: iso(OPENED + 2 * HOUR),
-      reason: "ops.nile-logistics.com points at 198.51.100.77, which is not this server. Change its DNS record as shown below (behind a proxy such as Cloudflare, switch the proxy off for this record: DNS only).",
+      reason:
+        "ops.nile-logistics.com points at 198.51.100.77, which is not this server. Change its DNS record as shown below (behind a proxy such as Cloudflare, switch the proxy off for this record: DNS only).",
     }),
     domain("portal.nile-logistics.com", {
-      status: "failed", added_at: iso(OPENED - 2 * DAY), next_check_at: iso(OPENED + 40 * MINUTE), addresses: ["203.0.113.40"],
-      reason: "The ACME authority could not reach portal.nile-logistics.com over http: Timeout during connect (likely firewall problem)",
+      status: "failed",
+      added_at: iso(OPENED - 2 * DAY),
+      next_check_at: iso(OPENED + 40 * MINUTE),
+      addresses: ["203.0.113.40"],
+      reason:
+        "The ACME authority could not reach portal.nile-logistics.com over http: Timeout during connect (likely firewall problem)",
     }),
   ]);
   byInstance.set("zahra-clinic-main", [
-    domain("app.zahra-clinic.com", { primary: true, status: "active", added_at: iso(OPENED - 30 * DAY), ...certified(29 * DAY), url: "https://app.zahra-clinic.com" }),
+    domain("app.zahra-clinic.com", {
+      primary: true,
+      status: "active",
+      added_at: iso(OPENED - 30 * DAY),
+      ...certified(29 * DAY),
+      url: "https://app.zahra-clinic.com",
+    }),
   ]);
   for (const name of byInstance.keys()) syncUrl(name);
 }
@@ -85,11 +109,15 @@ export function domainsOf(instance: Instance): Domains {
     exposure: "host-ports",
     listener_error: null,
     authority: "production",
-    domains: (byInstance.get(instance.name) ?? []).map((d) => ({ ...d, dns_records: d.status === "active" ? [] : d.dns_records })),
+    domains: (byInstance.get(instance.name) ?? []).map((d) => ({
+      ...d,
+      dns_records: d.status === "active" ? [] : d.dns_records,
+    })),
   };
 }
 
-export const findDomain = (instance: string, name: string) => (byInstance.get(instance) ?? []).find((d) => d.domain === name);
+export const findDomain = (instance: string, name: string) =>
+  (byInstance.get(instance) ?? []).find((d) => d.domain === name);
 const taken = (name: string) => [...byInstance.entries()].find(([, list]) => list.some((d) => d.domain === name))?.[0];
 
 function announce(name: string) {
@@ -101,25 +129,44 @@ function announce(name: string) {
 /** Checks a name like domains/names.py, roughly; returns the stored form or an error message. */
 export function checkName(value: string, instance: string): string | { error: string } {
   const name = value.trim().toLowerCase().replace(/\.$/, "");
-  if (/[/:@]/.test(name)) return { error: "Enter only the domain, such as erp.example.com: no https://, path or port." };
-  if (name.startsWith("*")) return { error: "Wildcard domains are not supported: add each domain on its own (erp.example.com)." };
+  if (/[/:@]/.test(name))
+    return { error: "Enter only the domain, such as erp.example.com: no https://, path or port." };
+  if (name.startsWith("*"))
+    return { error: "Wildcard domains are not supported: add each domain on its own (erp.example.com)." };
   if (/^[\d.]+$/.test(name)) return { error: "Enter a domain name, not an IP address." };
-  if (!/^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/.test(name)) return { error: "This is not a valid domain name: use letters, digits, hyphens and dots (erp.example.com)." };
-  if (/(^|\.)(sudoo\.sh|example\.(com|net|org)|localhost|local|test|invalid)$/.test(name)) return { error: "Domains under this name cannot be used here." };
+  if (!/^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/.test(name))
+    return { error: "This is not a valid domain name: use letters, digits, hyphens and dots (erp.example.com)." };
+  if (/(^|\.)(sudoo\.sh|example\.(com|net|org)|localhost|local|test|invalid)$/.test(name))
+    return { error: "Domains under this name cannot be used here." };
   if (name === TARGET) return { error: "This name belongs to this server or its panel, not to an instance." };
   const owner = taken(name);
-  if (owner) return { error: `${name} is already a custom domain of ${owner === instance ? "this instance" : "another instance"}.` };
+  if (owner)
+    return {
+      error: `${name} is already a custom domain of ${owner === instance ? "this instance" : "another instance"}.`,
+    };
   return name;
 }
 
 export function addDomain(instance: Instance, name: string, by: string): CustomDomain {
   const list = byInstance.get(instance.name) ?? [];
-  const added = domain(name, { primary: list.length === 0, added_at: iso(Date.now()), added_by: by, checked_at: null, next_check_at: iso(Date.now() + MINUTE) });
+  const added = domain(name, {
+    primary: list.length === 0,
+    added_at: iso(Date.now()),
+    added_by: by,
+    checked_at: null,
+    next_check_at: iso(Date.now() + MINUTE),
+  });
   list.push(added);
   byInstance.set(instance.name, list);
   // the demo's record "appears" in DNS after a few seconds: issuing, then active with a certificate
   setTimeout(() => {
-    Object.assign(added, { status: "issuing", reason: null, checked_at: iso(Date.now()), next_check_at: null, addresses: ["203.0.113.40"] });
+    Object.assign(added, {
+      status: "issuing",
+      reason: null,
+      checked_at: iso(Date.now()),
+      next_check_at: null,
+      addresses: ["203.0.113.40"],
+    });
     announce(instance.name);
   }, 6 * SECOND);
   setTimeout(() => {

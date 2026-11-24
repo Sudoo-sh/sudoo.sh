@@ -6,7 +6,8 @@ const en = {
   title: "New instance",
   text: "Pick a branch, or plain Odoo, and the Odoo apps to install. Sudoo.sh downloads the code, starts Odoo with its own database, installs your modules and gives it a link.",
   limitReached: "An instance limit is reached. Delete an instance first.",
-  cooldown: (minutes: string, when: string) => `One instance per ${minutes} minutes: you can create the next one ${when}.`,
+  cooldown: (minutes: string, when: string) =>
+    `One instance per ${minutes} minutes: you can create the next one ${when}.`,
   code: "Code",
   fromRepository: "From a repository",
   fromRepositoryText: "A branch of your GitHub repository, with its modules.",
@@ -86,7 +87,8 @@ const ar: typeof en = {
   suggestedRepository: "مقترح من المستودع والفرع. يمكنك تغييره.",
   repository: "مستودع GitHub",
   checking: "جارٍ فحص المستودع…",
-  branchesFound: (n) => (n === 1 ? "عُثر على فرع واحد" : n === 2 ? "عُثر على فرعين" : n <= 10 ? `عُثر على ${n} فروع` : `عُثر على ${n} فرعًا`),
+  branchesFound: (n) =>
+    n === 1 ? "عُثر على فرع واحد" : n === 2 ? "عُثر على فرعين" : n <= 10 ? `عُثر على ${n} فروع` : `عُثر على ${n} فرعًا`,
   repositoryHint: "ابحث في مستودعاتك، أو الصق https://github.com/owner/repository",
   branch: "الفرع",
   cannotRead: (link) => [

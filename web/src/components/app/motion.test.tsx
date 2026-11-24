@@ -8,7 +8,9 @@ describe("AnimatedNumber", () => {
   });
 
   it("shows the value at once without a starting value", () => {
-    expect(renderToStaticMarkup(<AnimatedNumber value={7.25} format={(n) => n.toFixed(1)} />)).toBe('<span class="num">7.3</span>');
+    expect(renderToStaticMarkup(<AnimatedNumber value={7.25} format={(n) => n.toFixed(1)} />)).toBe(
+      '<span class="num">7.3</span>',
+    );
   });
 });
 
@@ -29,14 +31,26 @@ describe("Reveal and Stagger", () => {
   });
 
   it("marks a list whose items come in one after the other", () => {
-    expect(renderToStaticMarkup(<Stagger as="ul" className="list"><li>a</li></Stagger>)).toBe('<ul class="stagger-in list"><li>a</li></ul>');
+    expect(
+      renderToStaticMarkup(
+        <Stagger as="ul" className="list">
+          <li>a</li>
+        </Stagger>,
+      ),
+    ).toBe('<ul class="stagger-in list"><li>a</li></ul>');
   });
 });
 
 describe("Presence", () => {
   it("draws its children while shown, with the room they take when it collapses", () => {
     expect(renderToStaticMarkup(<Presence show>hi</Presence>)).toBe('<div class="presence" data-state="open">hi</div>');
-    expect(renderToStaticMarkup(<Presence show collapse>hi</Presence>)).toContain('<div class="collapse-inner">hi</div>');
+    expect(
+      renderToStaticMarkup(
+        <Presence show collapse>
+          hi
+        </Presence>,
+      ),
+    ).toContain('<div class="collapse-inner">hi</div>');
   });
 
   it("draws nothing when it starts hidden", () => {

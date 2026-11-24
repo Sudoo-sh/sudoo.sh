@@ -2,7 +2,23 @@
 // same envelopes ({"data", "meta"}), 202 + the job for background work, 204 for deletions, RFC 9457 problem details
 // for errors, and the same permission checks per role. It changes the in-memory state and starts simulated jobs.
 
-import type { AccessLevel, Account, Backup, CatalogPlugin, Instance, Invitation, Job, Permission, ProjectOptions, Session, Stage, Upgrade, UpgradeMethod, UpgradeReport, User } from "@/api/types";
+import type {
+  AccessLevel,
+  Account,
+  Backup,
+  CatalogPlugin,
+  Instance,
+  Invitation,
+  Job,
+  Permission,
+  ProjectOptions,
+  Session,
+  Stage,
+  Upgrade,
+  UpgradeMethod,
+  UpgradeReport,
+  User,
+} from "@/api/types";
 import { browserLocale, isLocale, storedLocale, type Locale } from "@/i18n";
 import { publish } from "./bus";
 import { docPage, DOCS } from "./docs";
@@ -19,9 +35,45 @@ import * as statusPages from "./status";
 import * as accessRules from "./access-rules";
 import * as guard from "./repo-guard";
 import { branchBuilds, branchHistory, findEntry, recordStageChange } from "./builds";
-import { branchOptions, changeBranchOptions, clean as cleanOption, problem as optionsProblem, statusesAvailable } from "./build-options";
-import { branchList, membersOf, productionInstance, projectResource, projects, stageOf, type DemoProject } from "./projects";
-import { CLIENT_ME, described, EDITABLE_LEVELS, elevations, levelIn, LEVELS, matrixOf, mayUnlock, needIn, openAccess, permissionsIn, PROJECT_RIGHTS, ROLE_DEFAULTS, seesProject, setLocks, STAGE_RIGHTS, STAGES, teamResource, teams, type DemoAccess, type Scope } from "./access";
+import {
+  branchOptions,
+  changeBranchOptions,
+  clean as cleanOption,
+  problem as optionsProblem,
+  statusesAvailable,
+} from "./build-options";
+import {
+  branchList,
+  membersOf,
+  productionInstance,
+  projectResource,
+  projects,
+  stageOf,
+  type DemoProject,
+} from "./projects";
+import {
+  CLIENT_ME,
+  described,
+  EDITABLE_LEVELS,
+  elevations,
+  levelIn,
+  LEVELS,
+  matrixOf,
+  mayUnlock,
+  needIn,
+  openAccess,
+  permissionsIn,
+  PROJECT_RIGHTS,
+  ROLE_DEFAULTS,
+  seesProject,
+  setLocks,
+  STAGE_RIGHTS,
+  STAGES,
+  teamResource,
+  teams,
+  type DemoAccess,
+  type Scope,
+} from "./access";
 import { acceptLicence, LICENCE, licencePending, licenceStatus } from "./licence";
 import { catalog, categories, marketplace, recommendations } from "./marketplace";
 import { currentPlan, ENTITLEMENTS, gatedBy, needPremium, premiumOverview } from "./premium";
@@ -102,15 +154,25 @@ function route(method: string, path: string, handler: Handler) {
   routes.push({ method, pattern, names, handler });
 }
 
-const ok = (data: unknown, meta?: Record<string, unknown>, status = 200): Answer => ({ status, body: { data, ...(meta ? { meta } : {}) } });
+const ok = (data: unknown, meta?: Record<string, unknown>, status = 200): Answer => ({
+  status,
+  body: { data, ...(meta ? { meta } : {}) },
+});
 const created = (data: unknown) => ok(data, undefined, 201);
 const none = (): Answer => ({ status: 204 });
-const accepted = (job: Job): Answer => ({ status: 202, body: { data: job }, headers: { Location: `/api/v1/jobs/${job.id}` } });
+const accepted = (job: Job): Answer => ({
+  status: 202,
+  body: { data: job },
+  headers: { Location: `/api/v1/jobs/${job.id}` },
+});
 
 const CONTACT = "Please contact the administrator, Operations team (ops@example.com).";
 /** The role's permissions and, under project roles, what some project gives (access.reach_permissions). */
 const can = (permission: Permission) =>
-  roleInfo(session.role).permissions.includes(permission) || [...projects.values()].some((p) => p.access.model === "project_roles" && permissionsIn(p.access).includes(permission));
+  roleInfo(session.role).permissions.includes(permission) ||
+  [...projects.values()].some(
+    (p) => p.access.model === "project_roles" && permissionsIn(p.access).includes(permission),
+  );
 function need(permission: Permission, path = "") {
   if (!can(permission)) {
     record(ME, `refused: ${path}`, { ok: false });
@@ -123,7 +185,8 @@ function needOn(name: string, permission: Permission, path = "", role = true) {
   if (role) need(permission, path);
   const instance = instances.get(name);
   const project = instance?.project ? projects.get(instance.project.id) : undefined;
-  if (role && !project && !roleInfo(session.role).permissions.includes(permission)) // outside every project: the role alone
+  if (role && !project && !roleInfo(session.role).permissions.includes(permission))
+    // outside every project: the role alone
     throw new Problem(403, `Your role cannot do this (${PERMISSIONS[permission].toLowerCase()}). ${CONTACT}`);
   if (instance && project) {
     try {
@@ -140,12 +203,17 @@ function needOn(name: string, permission: Permission, path = "", role = true) {
 function visible(instance: Instance): boolean {
   const project = instance.project ? projects.get(instance.project.id) : undefined;
   if (!project) return roleInfo(session.role).permissions.includes("instances.view");
-  if (project.access.model === "project_roles") return permissionsIn(project.access, instance.git.branch).includes("instances.view");
+  if (project.access.model === "project_roles")
+    return permissionsIn(project.access, instance.git.branch).includes("instances.view");
   return levelIn(project.access, instance.git.branch) !== "none";
 }
 
 /** Things that would leave the demo or touch the real world are refused with a short explanation. */
-const offline = (what: string) => new Problem(409, `${what} is not available in the demo: nothing here is real. Install Sudoo.sh on your own server to try it.`);
+const offline = (what: string) =>
+  new Problem(
+    409,
+    `${what} is not available in the demo: nothing here is real. Install Sudoo.sh on your own server to try it.`,
+  );
 
 // ---------------------------------------------------------------- session and account
 
@@ -163,7 +231,9 @@ export function me(): Session {
     role: role.name,
     role_label: role.label,
     // as the panel: the role's, and what some project gives (project roles)
-    permissions: [...new Set([...role.permissions, ...[...projects.values()].flatMap((p) => permissionsIn(p.access))])].sort(),
+    permissions: [
+      ...new Set([...role.permissions, ...[...projects.values()].flatMap((p) => permissionsIn(p.access))]),
+    ].sort(),
     csrf_token: session.csrf,
     restricted: null,
     must_set_up_second_factor: false,
@@ -194,12 +264,16 @@ let signInEmail: boolean | null = null;
 /** The visitor's own language, kept in this browser like the panel's own; none: the visitor's browser, then the
  *  demo's DEFAULT_LANGUAGE. */
 let ownLanguage: Locale | null = storedLocale();
-const defaultLanguage = (): Locale => (isLocale(setting("default_language")) ? (setting("default_language") as Locale) : "en");
+const defaultLanguage = (): Locale =>
+  isLocale(setting("default_language")) ? (setting("default_language") as Locale) : "en";
 const language = (): Locale => ownLanguage ?? browserLocale() ?? defaultLanguage();
 const RECOVERY_ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz";
 const newRecoveryCodes = () => {
   const codes = Array.from({ length: 10 }, () => {
-    const raw = Array.from({ length: 10 }, () => RECOVERY_ALPHABET[Math.floor(Math.random() * RECOVERY_ALPHABET.length)]).join("");
+    const raw = Array.from(
+      { length: 10 },
+      () => RECOVERY_ALPHABET[Math.floor(Math.random() * RECOVERY_ALPHABET.length)],
+    ).join("");
     return `${raw.slice(0, 5)}-${raw.slice(5)}`;
   });
   Object.assign(recovery, { left: codes.length, total: codes.length, created_at: iso(Date.now()) });
@@ -209,8 +283,18 @@ const newRecoveryCodes = () => {
 const factors = () => {
   const user = users.find((u) => u.name === ME)!;
   return [
-    { name: "totp", label: "Authenticator app", enrolled: user.second_factors.includes("totp"), added_at: iso(OPENED - 41 * DAY) },
-    { name: "email", label: "E-mail", enrolled: user.second_factors.includes("email"), added_at: user.second_factors.includes("email") ? iso(OPENED - 10 * DAY) : null },
+    {
+      name: "totp",
+      label: "Authenticator app",
+      enrolled: user.second_factors.includes("totp"),
+      added_at: iso(OPENED - 41 * DAY),
+    },
+    {
+      name: "email",
+      label: "E-mail",
+      enrolled: user.second_factors.includes("email"),
+      added_at: user.second_factors.includes("email") ? iso(OPENED - 10 * DAY) : null,
+    },
   ];
 };
 
@@ -260,8 +344,18 @@ let linkingGitHub = false; // the demo's "GitHub" sends back here: linking from 
 
 // first-run setup can be tried by opening /setup: the demo then answers as a panel without accounts, once
 let setUp = false;
-route("GET", "/setup", () => ok({ needed: !setUp && location.pathname === "/setup", contact: CONTACT, default_language: defaultLanguage() }));
-route("GET", "/contact", () => ok({ sentence: CONTACT, name: "Operations team", phone: "", email: "ops@example.com", default_language: defaultLanguage() }));
+route("GET", "/setup", () =>
+  ok({ needed: !setUp && location.pathname === "/setup", contact: CONTACT, default_language: defaultLanguage() }),
+);
+route("GET", "/contact", () =>
+  ok({
+    sentence: CONTACT,
+    name: "Operations team",
+    phone: "",
+    email: "ops@example.com",
+    default_language: defaultLanguage(),
+  }),
+);
 // the setup wizard (web/v1/setup_wizard.py): a 16 GB virtual machine with Ubuntu, so the engine step recommends
 // Kubernetes (beta) while Docker stays pre-selected; the draft lives in memory until the final confirm
 const setupDraft: Record<string, unknown> = {
@@ -297,10 +391,37 @@ route("GET", "/setup/server-check", ({ query }) => {
     virtualisation: { name: "kvm", kind: "vm", from_installer: true },
     ports: { "80": { free: true, sudoo: false }, "443": { free: true, sudoo: false } },
     needs,
-    recommendation: { fits: true, recommended, default: "docker", reason, reasons: [], beta: true,
-      reason_code: needs.grow ? "grow" : needs.separation ? "separation" : needs.team === null ? "unanswered" : needs.team ? "team" : "one" },
-    figures: { min_cpus: 2, min_memory_mb: 3072, k3s_min_memory_mb: 2048, odoo_room_memory_mb: 1024, measured: false, source: "https://docs.k3s.io/installation/requirements" },
-    engine: { current: "docker", wanted: null, available: ["docker"], switch_command: "sudo sudoo-install engine {engine}" },
+    recommendation: {
+      fits: true,
+      recommended,
+      default: "docker",
+      reason,
+      reasons: [],
+      beta: true,
+      reason_code: needs.grow
+        ? "grow"
+        : needs.separation
+          ? "separation"
+          : needs.team === null
+            ? "unanswered"
+            : needs.team
+              ? "team"
+              : "one",
+    },
+    figures: {
+      min_cpus: 2,
+      min_memory_mb: 3072,
+      k3s_min_memory_mb: 2048,
+      odoo_room_memory_mb: 1024,
+      measured: false,
+      source: "https://docs.k3s.io/installation/requirements",
+    },
+    engine: {
+      current: "docker",
+      wanted: null,
+      available: ["docker"],
+      switch_command: "sudo sudoo-install engine {engine}",
+    },
     checked_at: Date.now() / 1000,
   });
 });
@@ -314,8 +435,14 @@ route("PUT", "/setup/draft", ({ body }) => {
     const current = setupDraft[key];
     if (key === "mail" && value && typeof value === "object") {
       const { password, ...rest } = value as Record<string, unknown>;
-      setupDraft.mail = { ...(current as object), ...rest, password_set: !!password || (current as { password_set: boolean }).password_set };
-    } else setupDraft[key] = current && typeof current === "object" && value && typeof value === "object" ? { ...current, ...value } : value;
+      setupDraft.mail = {
+        ...(current as object),
+        ...rest,
+        password_set: !!password || (current as { password_set: boolean }).password_set,
+      };
+    } else
+      setupDraft[key] =
+        current && typeof current === "object" && value && typeof value === "object" ? { ...current, ...value } : value;
   }
   return ok(setupDraft);
 });
@@ -326,16 +453,27 @@ route("POST", "/setup/test-email", ({ body }) => {
 });
 route("POST", "/setup", ({ body }) => {
   if (setUp) throw new Problem(409, "This panel is set up already.");
-  if (!String(body.setup_code ?? "").trim()) throw new Problem(403, "The setup code is not correct. Show it again with: sudoo.sh setup-code");
-  if (!String(body.first_name ?? "").trim() || !String(body.email ?? "").includes("@")) throw new Problem(400, "Enter at least your first name and your e-mail address.");
+  if (!String(body.setup_code ?? "").trim())
+    throw new Problem(403, "The setup code is not correct. Show it again with: sudoo.sh setup-code");
+  if (!String(body.first_name ?? "").trim() || !String(body.email ?? "").includes("@"))
+    throw new Problem(400, "Enter at least your first name and your e-mail address.");
   switchRole("super_admin");
-  acceptLicence(body.licence, { user: ME, display_name: String(body.first_name), email: String(body.email) }, "panel_setup");
+  acceptLicence(
+    body.licence,
+    { user: ME, display_name: String(body.first_name), email: String(body.email) },
+    "panel_setup",
+  );
   setUp = true;
   session.signedIn = true;
   remember();
   record(ME, "first-run setup: super admin account created");
   record(ME, "accepted the Sudoo.sh Licence Agreement", { detail: `version ${LICENCE.version}` });
-  const draft = setupDraft as { engine: string; exposure: string; github: { connect: boolean }; account: { link: boolean } };
+  const draft = setupDraft as {
+    engine: string;
+    exposure: string;
+    github: { connect: boolean };
+    account: { link: boolean };
+  };
   return created({
     ...me(),
     setup: {
@@ -344,7 +482,11 @@ route("POST", "/setup", ({ body }) => {
       linked: draft.account.link ? { account_name: "Acme Trading" } : null,
       link_error: null,
       github: draft.github.connect,
-      engine: { chosen: draft.engine, current: "docker", command: draft.engine === "docker" ? null : `sudo sudoo-install engine ${draft.engine}` },
+      engine: {
+        chosen: draft.engine,
+        current: "docker",
+        command: draft.engine === "docker" ? null : `sudo sudoo-install engine ${draft.engine}`,
+      },
     },
   });
 });
@@ -361,7 +503,8 @@ route("GET", "/licence", () => {
 });
 route("POST", "/licence/acceptances", ({ body }) => {
   signedIn();
-  if (session.role !== "super_admin") throw new Problem(403, "Only a super admin can accept the Sudoo.sh Licence Agreement for this panel.");
+  if (session.role !== "super_admin")
+    throw new Problem(403, "Only a super admin can accept the Sudoo.sh Licence Agreement for this panel.");
   const self = me();
   acceptLicence(body, { user: self.user, display_name: self.display_name, email: self.email }, "panel");
   record(ME, "accepted the Sudoo.sh Licence Agreement", { detail: `version ${LICENCE.version}` });
@@ -372,7 +515,8 @@ route("GET", "/session", () => {
   return ok(me());
 });
 route("POST", "/session", ({ body }) => {
-  if (!String(body.username ?? "").trim() || !String(body.password ?? "")) throw new Problem(400, "Enter your e-mail address and password.");
+  if (!String(body.username ?? "").trim() || !String(body.password ?? ""))
+    throw new Problem(400, "Enter your e-mail address and password.");
   session.signedIn = true;
   remember();
   record(ME, "signed in");
@@ -445,7 +589,8 @@ route("PATCH", "/account", ({ body }) => {
   const user = users.find((u) => u.name === ME)!;
   if ("sign_in_email" in body) {
     const choice = body.sign_in_email;
-    if (choice === false && !setting("sign_in_email_opt_out")) throw new Problem(403, `The sign-in e-mail cannot be turned off on this panel. ${CONTACT}`);
+    if (choice === false && !setting("sign_in_email_opt_out"))
+      throw new Problem(403, `The sign-in e-mail cannot be turned off on this panel. ${CONTACT}`);
     signInEmail = typeof choice === "boolean" ? choice : null;
     record(ME, `sign-in e-mail ${choice ? "turned on" : choice === false ? "turned off" : "back to the default"}`);
   }
@@ -462,7 +607,11 @@ route("PATCH", "/account", ({ body }) => {
   return ok(account());
 });
 route("POST", "/account/second-factors/:name", ({ params, body }) => {
-  if (params.name === "totp") return ok({ secret: "DEMODEMODEMODEMO", otpauth_uri: "otpauth://totp/Sudoo.sh%20demo:sara%40example.com?secret=DEMODEMODEMODEMO&issuer=Sudoo.sh%20demo" });
+  if (params.name === "totp")
+    return ok({
+      secret: "DEMODEMODEMODEMO",
+      otpauth_uri: "otpauth://totp/Sudoo.sh%20demo:sara%40example.com?secret=DEMODEMODEMODEMO&issuer=Sudoo.sh%20demo",
+    });
   return ok({ sent_to: String(body.email ?? "sara@example.com") });
 });
 route("PUT", "/account/second-factors/:name", ({ params }) => {
@@ -474,7 +623,8 @@ route("PUT", "/account/second-factors/:name", ({ params }) => {
 });
 route("POST", "/account/recovery-codes", ({ body }) => {
   signedIn();
-  if (!users.find((u) => u.name === ME)!.second_factors.includes("totp")) throw new Problem(400, "Recovery codes are for the authenticator app: set it up first.");
+  if (!users.find((u) => u.name === ME)!.second_factors.includes("totp"))
+    throw new Problem(400, "Recovery codes are for the authenticator app: set it up first.");
   if (!String(body.password ?? "")) throw new Problem(400, "The password is not correct.");
   const codes = newRecoveryCodes();
   record(ME, "recovery codes made", { detail: `${codes.length} codes, the earlier ones no longer work` });
@@ -502,7 +652,10 @@ function instanceOf(name: string): Instance {
 
 route("GET", "/instances", ({ query }) => {
   need("instances.view", "/api/v1/instances");
-  const list = [...instances.values()].filter(visible).sort((a, b) => a.name.localeCompare(b.name)).map(listed);
+  const list = [...instances.values()]
+    .filter(visible)
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(listed);
   const limit = Number(query.get("limit") ?? 100);
   return ok(list.slice(0, limit), { total: list.length, count: Math.min(limit, list.length), limit, offset: 0 });
 });
@@ -510,9 +663,18 @@ route("GET", "/instances/:name", ({ params }) => {
   needOn(params.name!, "instances.view");
   const instance = instanceOf(params.name!);
   const project = instance.project ? projects.get(instance.project.id) : undefined;
-  const permissions = (project ? permissionsIn(project.access, instance.git.branch) : roleInfo(session.role).permissions).slice().sort();
+  const permissions = (
+    project ? permissionsIn(project.access, instance.git.branch) : roleInfo(session.role).permissions
+  )
+    .slice()
+    .sort();
   const named = permissions.includes("instances.shell") || permissions.includes("instances.credentials");
-  const containers = { odoo: `odoo-${instance.name}-odoo-1`, db: `odoo-${instance.name}-db-1`, db_user: "odoo", host: "odoo.example.com" };
+  const containers = {
+    odoo: `odoo-${instance.name}-odoo-1`,
+    db: `odoo-${instance.name}-db-1`,
+    db_user: "odoo",
+    host: "odoo.example.com",
+  };
   return ok({ ...full(instance), ...(named ? { containers } : {}) }, { permissions });
 });
 route("GET", "/instances/:name/credentials", ({ params }) => {
@@ -520,7 +682,12 @@ route("GET", "/instances/:name/credentials", ({ params }) => {
   const instance = instanceOf(params.name!);
   record(ME, "credentials viewed", { instance: instance.name });
   const n = hash(instance.name);
-  return ok({ login: "admin", admin_password: `demo-${n.toString(36)}-not-real`, master_password: `demo-master-${(n >>> 7).toString(36)}`, ports: { gateway: 8069 + (n % 40), odoo: 28069 + (n % 40) } });
+  return ok({
+    login: "admin",
+    admin_password: `demo-${n.toString(36)}-not-real`,
+    master_password: `demo-master-${(n >>> 7).toString(36)}`,
+    ports: { gateway: 8069 + (n % 40), odoo: 28069 + (n % 40) },
+  });
 });
 route("GET", "/instances/:name/resources", ({ params }) => {
   need("instances.view");
@@ -529,24 +696,50 @@ route("GET", "/instances/:name/resources", ({ params }) => {
 route("PUT", "/instances/:name/resources", ({ params, body }) => {
   needOn(params.name!, "instances.resources", `/api/v1/instances/${params.name}/resources`);
   const instance = instanceOf(params.name!);
-  if (instance.status === "creating") throw new Problem(409, "This instance is still being created. Try again when its creation has finished.");
-  if (instance.current_job) throw new Problem(409, `${instance.name} is busy with "${instance.current_job.action}". Try again when it has finished.`);
+  if (instance.status === "creating")
+    throw new Problem(409, "This instance is still being created. Try again when its creation has finished.");
+  if (instance.current_job)
+    throw new Problem(
+      409,
+      `${instance.name} is busy with "${instance.current_job.action}". Try again when it has finished.`,
+    );
   const limits = cleanLimits(body.limits);
   const production = instance.stage === "production";
   if (production && body.confirm_production !== true)
-    throw new Problem(400, `${instance.name} is a production instance: applying resources restarts it. Confirm ("confirm_production": true).`);
+    throw new Problem(
+      400,
+      `${instance.name} is a production instance: applying resources restarts it. Confirm ("confirm_production": true).`,
+    );
   setOwn(instance, limits);
-  record(ME, "instance resources changed", { instance: instance.name, detail: Object.entries(limits).map(([k, v]) => `${k}=${v}`).join(", ") || "stage defaults" });
+  record(ME, "instance resources changed", {
+    instance: instance.name,
+    detail:
+      Object.entries(limits)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(", ") || "stage defaults",
+  });
   if (ASLEEP.includes(instance.status)) {
     applied(instance.name);
-    return accepted(startJob({ instance: instance.name, action: "Apply resources", kind: "restart", steps: ["Writing the new resources"], seconds: 1.5 }));
+    return accepted(
+      startJob({
+        instance: instance.name,
+        action: "Apply resources",
+        kind: "restart",
+        steps: ["Writing the new resources"],
+        seconds: 1.5,
+      }),
+    );
   }
   return accepted(
     startJob({
       instance: instance.name,
       action: "Apply resources",
       kind: "restart",
-      steps: [...(production ? ["Backing up the database and files before the change"] : []), "Applying the new resources", "Waiting for Odoo to be ready"],
+      steps: [
+        ...(production ? ["Backing up the database and files before the change"] : []),
+        "Applying the new resources",
+        "Waiting for Odoo to be ready",
+      ],
       status: "starting",
       onStart: production ? () => addBackup(instance, "before-update", Date.now()) : undefined,
       onDone: () => wake(instance),
@@ -556,7 +749,11 @@ route("PUT", "/instances/:name/resources", ({ params, body }) => {
 route("GET", "/instances/:name/logs", ({ params, query }) => {
   needOn(params.name!, "instances.logs");
   const instance = instanceOf(params.name!);
-  return ok({ text: ASLEEP.includes(instance.status) ? "" : odooLogText(instance, Math.min(Number(query.get("lines") ?? 300), 3000)) });
+  return ok({
+    text: ASLEEP.includes(instance.status)
+      ? ""
+      : odooLogText(instance, Math.min(Number(query.get("lines") ?? 300), 3000)),
+  });
 });
 // ---------------------------------------------------------------- logs, Connect as, Import database
 
@@ -590,7 +787,8 @@ const DEMO_USERS = [
 route("GET", "/instances/:name/odoo-users", ({ params }) => {
   needOn(params.name!, "instances.connect");
   const instance = instanceOf(params.name!);
-  if (ASLEEP.includes(instance.status)) throw new Problem(409, "The database is not running. Start the instance first.");
+  if (ASLEEP.includes(instance.status))
+    throw new Problem(409, "The database is not running. Start the instance first.");
   return ok(DEMO_USERS);
 });
 
@@ -599,22 +797,35 @@ route("POST", "/instances/:name/connect", ({ params, body }) => {
   const instance = instanceOf(params.name!);
   const user = DEMO_USERS.find((u) => u.id === body.uid);
   if (typeof body.uid !== "number") throw new Problem(400, "Choose the Odoo user to connect as.");
-  if (instance.stage === "production" && body.confirm_stage !== "production") throw new Problem(400, 'This is a production instance: type "production" to confirm.');
+  if (instance.stage === "production" && body.confirm_stage !== "production")
+    throw new Problem(400, 'This is a production instance: type "production" to confirm.');
   if (!user) throw new Problem(404, "This Odoo user does not exist or is not an active internal user.");
-  record(ME, "connect as link given" + (instance.stage === "production" ? " (production)" : ""), { instance: instance.name, detail: `${user.login} (id ${user.id})` });
+  record(ME, "connect as link given" + (instance.stage === "production" ? " (production)" : ""), {
+    instance: instance.name,
+    detail: `${user.login} (id ${user.id})`,
+  });
   const connect = `/__sudoo/connect?token=${hex(43)}`;
-  const url = instance.stage === "production" && accessRules.hasRules(instance.name)
-    ? `${instance.url}/__sudoo/pass?token=${hex(64)}&next=${encodeURIComponent(connect)}`
-    : `${instance.url}${connect}`;
+  const url =
+    instance.stage === "production" && accessRules.hasRules(instance.name)
+      ? `${instance.url}/__sudoo/pass?token=${hex(64)}&next=${encodeURIComponent(connect)}`
+      : `${instance.url}${connect}`;
   return created({ url, expires_at: iso(Date.now() + 60 * 1000), login: user.login });
 });
 
-interface DemoUpload { id: string; instance: string; file_name: string; format: string; size: number; received: number }
+interface DemoUpload {
+  id: string;
+  instance: string;
+  file_name: string;
+  format: string;
+  size: number;
+  received: number;
+}
 const uploads = new Map<string, DemoUpload>();
 const CHUNK = 4 * 1024 * 1024;
 const uploadOf = (name: string, id: string) => {
   const found = uploads.get(id);
-  if (!found || found.instance !== name) throw new Problem(404, "This upload does not exist (any more). Upload the file again.");
+  if (!found || found.instance !== name)
+    throw new Problem(404, "This upload does not exist (any more). Upload the file again.");
   return found;
 };
 const shownUpload = (u: DemoUpload) => ({ ...u, complete: u.received === u.size, chunk_size: CHUNK });
@@ -623,11 +834,14 @@ route("POST", "/instances/:name/imports", ({ params, body }) => {
   needOn(params.name!, "instances.restore");
   const instance = instanceOf(params.name!);
   const fileName = String(body.file_name ?? "");
-  const format = /\.sql\.gz$/i.test(fileName) ? "sql.gz" : (/\.(zip|dump|sql)$/i.exec(fileName)?.[1]?.toLowerCase() ?? "");
+  const format = /\.sql\.gz$/i.test(fileName)
+    ? "sql.gz"
+    : (/\.(zip|dump|sql)$/i.exec(fileName)?.[1]?.toLowerCase() ?? "");
   if (!format) throw new Problem(400, "Upload a .zip (Odoo backup with its filestore), .dump, .sql or .sql.gz file.");
   const size = Number(body.size);
   if (!(size > 0)) throw new Problem(400, "The file is empty.");
-  if (size > Number(setting("import_max_gb")) * 1024 ** 3) throw new Problem(413, `The file is larger than the ${setting("import_max_gb")} GB this panel accepts.`);
+  if (size > Number(setting("import_max_gb")) * 1024 ** 3)
+    throw new Problem(413, `The file is larger than the ${setting("import_max_gb")} GB this panel accepts.`);
   const upload: DemoUpload = { id: hex(24), instance: instance.name, file_name: fileName, format, size, received: 0 };
   uploads.set(upload.id, upload);
   record(ME, "database import upload started", { instance: instance.name, detail: `${fileName} (${size} bytes)` });
@@ -641,7 +855,8 @@ route("PUT", "/instances/:name/imports/:id", ({ params, query, body }) => {
   needOn(params.name!, "instances.restore");
   const upload = uploadOf(params.name!, params.id!);
   const offset = Number(query.get("offset"));
-  if (offset !== upload.received) return ok({ detail: `Expected the piece at ${upload.received}.` }, { received: upload.received }, 409);
+  if (offset !== upload.received)
+    return ok({ detail: `Expected the piece at ${upload.received}.` }, { received: upload.received }, 409);
   upload.received = Math.min(upload.size, upload.received + Number(body.size ?? 0));
   return ok(shownUpload(upload));
 });
@@ -659,28 +874,55 @@ route("POST", "/instances/:name/imports/:id/restore", ({ params, body }) => {
     throw new Problem(400, 'This is a production instance: confirm, and type "production", to replace its database.');
   if (upload.received !== upload.size) throw new Problem(400, "The upload is not complete yet.");
   if (/odoo-?1[0-6]/i.test(upload.file_name))
-    throw new Problem(400, `This dump is of an older Odoo, and this instance runs Odoo ${instance.odoo.version}. Import it into an instance of that version, then upgrade it.`);
+    throw new Problem(
+      400,
+      `This dump is of an older Odoo, and this instance runs Odoo ${instance.odoo.version}. Import it into an instance of that version, then upgrade it.`,
+    );
   const neutralize = body.neutralize === undefined ? !production : body.neutralize === true;
   uploads.delete(upload.id);
-  record(ME, "database import started" + (production ? " (production)" : ""), { instance: instance.name, detail: `${upload.file_name}, neutralise: ${neutralize ? "yes" : "no"}` });
+  record(ME, "database import started" + (production ? " (production)" : ""), {
+    instance: instance.name,
+    detail: `${upload.file_name}, neutralise: ${neutralize ? "yes" : "no"}`,
+  });
   return accepted(
     startJob({
       instance: instance.name,
       action: "Import a database",
       kind: "restore",
-      steps: ["Checking the file", "Saving the current state first", "Stopping Odoo", `Importing ${upload.file_name}`, ...(neutralize ? ["Neutralising the imported data"] : []), "Starting Odoo"],
+      steps: [
+        "Checking the file",
+        "Saving the current state first",
+        "Stopping Odoo",
+        `Importing ${upload.file_name}`,
+        ...(neutralize ? ["Neutralising the imported data"] : []),
+        "Starting Odoo",
+      ],
       seconds: 2.2,
       status: "busy",
       notes: [
         { text: `The dump is of Odoo ${instance.odoo.version}.`, level: "info" },
-        ...(neutralize ? [] : [{ text: "The imported data was not neutralised: it may send e-mail and run scheduled actions.", level: "warning" as const }]),
+        ...(neutralize
+          ? []
+          : [
+              {
+                text: "The imported data was not neutralised: it may send e-mail and run scheduled actions.",
+                level: "warning" as const,
+              },
+            ]),
         { text: "Users keep their passwords from the dump. Use Connect as to sign in as any of them.", level: "info" },
       ],
       onDone: () => {
         const now = Date.now();
         const before = addBackup(instance, "before-restore", now);
-        for (const old of backups.filter((b) => b.instance === instance.name && b.kind === "before-restore" && b.file !== before.file)) backups.splice(backups.indexOf(old), 1);
-        instance.rollback = { backups: [before.file], taken_at: iso(now)!, until: iso(now + Number(setting("rollback_hours")) * HOUR)! };
+        for (const old of backups.filter(
+          (b) => b.instance === instance.name && b.kind === "before-restore" && b.file !== before.file,
+        ))
+          backups.splice(backups.indexOf(old), 1);
+        instance.rollback = {
+          backups: [before.file],
+          taken_at: iso(now)!,
+          until: iso(now + Number(setting("rollback_hours")) * HOUR)!,
+        };
         wake(instance);
       },
     }),
@@ -693,9 +935,13 @@ route("GET", "/instances/:name/metrics", ({ params }) => {
   return ok({ latest: currentMetrics().instances[params.name!], history: history().instances[params.name!] });
 });
 
-
 const DEFAULTS = (stage: Stage) => ({
-  delete_after_days: stage === "production" ? 0 : stage === "staging" ? Number(setting("staging_delete_after_days")) : Number(setting("delete_after_days")),
+  delete_after_days:
+    stage === "production"
+      ? 0
+      : stage === "staging"
+        ? Number(setting("staging_delete_after_days"))
+        : Number(setting("delete_after_days")),
   auto_update: stage === "production" ? Boolean(setting("production_auto_update")) : Boolean(setting("auto_update")),
   auto_upgrade: Boolean(setting("auto_upgrade")),
   auto_pause: stage === "production" ? false : Boolean(setting("auto_pause")),
@@ -707,7 +953,10 @@ function productionInfo() {
   return {
     limit,
     instances: names,
-    refusal: limit && names.length >= limit ? `At most ${limit} production instances: ${names.join(", ")} ${names.length === 1 ? "is" : "are"} in production already. Move one out of production first, or raise the limit in Settings.` : null,
+    refusal:
+      limit && names.length >= limit
+        ? `At most ${limit} production instances: ${names.join(", ")} ${names.length === 1 ? "is" : "are"} in production already. Move one out of production first, or raise the limit in Settings.`
+        : null,
   };
 }
 
@@ -715,7 +964,20 @@ function planName(repo: string, branch: string, custom: string, version: string,
   let base: string;
   if (custom) base = slug(custom);
   else if (!repo && version) base = ["odoo", slug(version), slug(edition), hex(4)].join("-");
-  else base = [slug(findRepo(repo)?.name ?? repo.split("/").pop()?.replace(/\.git$/, "") ?? ""), slug(branch)].filter(Boolean).join("-");
+  else
+    base = [
+      slug(
+        findRepo(repo)?.name ??
+          repo
+            .split("/")
+            .pop()
+            ?.replace(/\.git$/, "") ??
+          "",
+      ),
+      slug(branch),
+    ]
+      .filter(Boolean)
+      .join("-");
   base = base.slice(0, 28).replace(/-+$/, "") || "odoo";
   let name = base;
   for (let n = 2; instances.has(name); n++) name = `${base.slice(0, 26).replace(/-+$/, "")}-${n}`;
@@ -725,13 +987,23 @@ function planName(repo: string, branch: string, custom: string, version: string,
 route("GET", "/instance-plan", ({ query }) => {
   need("instances.create");
   const stage = (query.get("stage") as Stage) || "development";
-  const name = planName(query.get("repo") ?? "", query.get("branch") ?? "", query.get("name") ?? "", query.get("version") ?? "", query.get("edition") ?? "");
+  const name = planName(
+    query.get("repo") ?? "",
+    query.get("branch") ?? "",
+    query.get("name") ?? "",
+    query.get("version") ?? "",
+    query.get("edition") ?? "",
+  );
   return ok({
     name,
     database: name.replace(/-/g, "_"),
     login: "admin",
     defaults: DEFAULTS(stage),
-    stage_defaults: { development: DEFAULTS("development"), staging: DEFAULTS("staging"), production: DEFAULTS("production") },
+    stage_defaults: {
+      development: DEFAULTS("development"),
+      staging: DEFAULTS("staging"),
+      production: DEFAULTS("production"),
+    },
     production: productionInfo(),
     ...(fleet.choices() ? { servers: fleet.choices() } : {}),
     engines: ["docker", "kubernetes"],
@@ -739,7 +1011,14 @@ route("GET", "/instance-plan", ({ query }) => {
 });
 route("GET", "/instance-quota", () => {
   need("instances.view");
-  return ok({ instances: instances.size, max_instances: null, own_instances: [...instances.values()].filter((i) => i.created_by === ME).length, max_instances_per_user: null, cooldown_minutes: null, next_creation_at: null });
+  return ok({
+    instances: instances.size,
+    max_instances: null,
+    own_instances: [...instances.values()].filter((i) => i.created_by === ME).length,
+    max_instances_per_user: null,
+    cooldown_minutes: null,
+    next_creation_at: null,
+  });
 });
 route("GET", "/versions", () => ok(DEMO_VERSIONS.map((version) => ({ version, enterprise: true }))));
 
@@ -761,15 +1040,22 @@ route("POST", "/instances", ({ body }) => {
  *  production instance a staging one copies). */
 function createInstance(
   body: Record<string, unknown>,
-  extra: { project?: string; fromProduction?: Instance | null; upgradeOf?: { source: Instance; target: string; method: UpgradeMethod; onDone: () => void } } = {},
+  extra: {
+    project?: string;
+    fromProduction?: Instance | null;
+    upgradeOf?: { source: Instance; target: string; method: UpgradeMethod; onDone: () => void };
+  } = {},
 ): Answer {
   const repo = String(body.repo ?? "").trim();
   const branch = String(body.branch ?? "main") || "main";
   const version = String(body.version ?? "19.0");
   const edition = body.edition === "enterprise" ? "enterprise" : "community";
-  const stage = (["production", "staging", "development"].includes(String(body.stage)) ? body.stage : "development") as Stage;
+  const stage = (
+    ["production", "staging", "development"].includes(String(body.stage)) ? body.stage : "development"
+  ) as Stage;
   const custom = String(body.name ?? "").trim();
-  if (custom && !/^[a-z][a-z0-9-]{1,39}$/.test(custom)) throw new Problem(400, "A name has 2 to 40 lower-case letters, digits and dashes, and starts with a letter.");
+  if (custom && !/^[a-z][a-z0-9-]{1,39}$/.test(custom))
+    throw new Problem(400, "A name has 2 to 40 lower-case letters, digits and dashes, and starts with a letter.");
   if (custom && instances.has(custom)) throw new Problem(409, `An instance named ${custom} exists already.`);
   if (stage === "production" && productionInfo().refusal) throw new Problem(409, productionInfo().refusal!);
   const chosenModules = checkModules(body.modules) ?? []; // Odoo apps and others, with the repository's (install_modules)
@@ -786,7 +1072,10 @@ function createInstance(
     const limit = Number(setting("project_production_branches") ?? 1);
     const others = found ? branchList(found).filter((b) => b.stage === "production" && b.name !== branch) : [];
     if (found && limit && others.length >= limit)
-      throw new Problem(409, `${found.name} may have ${limit} production ${limit === 1 ? "branch" : "branches"}, and ${others.map((b) => b.name).join(", ")} is in production already.`);
+      throw new Problem(
+        409,
+        `${found.name} may have ${limit} production ${limit === 1 ? "branch" : "branches"}, and ${others.map((b) => b.name).join(", ")} is in production already.`,
+      );
   }
   const instance: Instance = {
     name,
@@ -796,7 +1085,12 @@ function createInstance(
     url: null,
     odoo: { version, edition, database: name.replace(/-/g, "_") },
     source: repo ? "repository" : "plain",
-    git: { repository: repo ? (known ? repoUrl(known.name) : repo) : null, branch: repo ? branch : null, branch_deleted_on_github: false, commit: null },
+    git: {
+      repository: repo ? (known ? repoUrl(known.name) : repo) : null,
+      branch: repo ? branch : null,
+      branch_deleted_on_github: false,
+      commit: null,
+    },
     settings: {
       auto_update: !!repo && Boolean(body.auto_update ?? defaults.auto_update),
       auto_upgrade: !!repo && defaults.auto_upgrade,
@@ -824,7 +1118,8 @@ function createInstance(
   profiles.set(name, newProfile(name, stage === "production"));
   const withRepository = body.install_modules !== false;
   let steps = CREATE_STEPS(instance, withRepository && !chosenModules.length);
-  if (chosenModules.length) { // one run: the repository's modules and the chosen ones
+  if (chosenModules.length) {
+    // one run: the repository's modules and the chosen ones
     const own = repo && withRepository ? (known?.modules ?? []) : [];
     const count = new Set([...own, ...chosenModules]).size;
     const at = steps.findIndex((s) => s.startsWith("Creating the Odoo")) + 1;
@@ -832,39 +1127,87 @@ function createInstance(
   }
   if (extra.fromProduction) {
     const at = steps.findIndex((s) => s.startsWith("Creating the Odoo"));
-    steps = [`Copying the data of ${extra.fromProduction.name} (production)`, ...steps.slice(0, at), `Loading the backup of ${extra.fromProduction.name} into database ${instance.odoo.database}`, "Neutralising the copied data", "Setting the admin password", ...steps.slice(at + 1)];
+    steps = [
+      `Copying the data of ${extra.fromProduction.name} (production)`,
+      ...steps.slice(0, at),
+      `Loading the backup of ${extra.fromProduction.name} into database ${instance.odoo.database}`,
+      "Neutralising the copied data",
+      "Setting the admin password",
+      ...steps.slice(at + 1),
+    ];
     addBackup(extra.fromProduction, "staging-copy", Date.now());
   }
   if (extra.upgradeOf) {
     const { source, target, method } = extra.upgradeOf;
     const at = steps.findIndex((s) => s.startsWith("Creating the Odoo"));
-    steps = [`Backing up ${source.name}`, ...steps.slice(0, at), `Loading the backup of ${source.name} into database ${instance.odoo.database}`,
-      `Upgrading the copy to Odoo ${target} (${method === "enterprise" ? "Odoo's upgrade service" : "OpenUpgrade"})`, "Neutralising the copied data", "Setting the admin password", ...steps.slice(at + 1)];
+    steps = [
+      `Backing up ${source.name}`,
+      ...steps.slice(0, at),
+      `Loading the backup of ${source.name} into database ${instance.odoo.database}`,
+      `Upgrading the copy to Odoo ${target} (${method === "enterprise" ? "Odoo's upgrade service" : "OpenUpgrade"})`,
+      "Neutralising the copied data",
+      "Setting the admin password",
+      ...steps.slice(at + 1),
+    ];
     addBackup(source, "staging-copy", Date.now());
   }
   if (fromBackup) {
     const at = steps.findIndex((s) => s.startsWith("Creating the Odoo"));
-    steps = [...steps.slice(0, at), `Loading the backup of ${fromBackup.instance} into database ${instance.odoo.database}`, ...(fromBackup.instance !== name ? ["Neutralising the copied data"] : []), ...steps.slice(at + 1)];
+    steps = [
+      ...steps.slice(0, at),
+      `Loading the backup of ${fromBackup.instance} into database ${instance.odoo.database}`,
+      ...(fromBackup.instance !== name ? ["Neutralising the copied data"] : []),
+      ...steps.slice(at + 1),
+    ];
   }
   const job = startJob({
     instance: name,
     action: "Create instance",
     kind: "create",
     steps,
-    seconds: steps.map((s) => (s.startsWith("Upgrading the copy") ? 7 : s.startsWith("Creating the Odoo") || s.startsWith("Loading the backup") ? 4.5 : s.startsWith("Installing") ? 3.5 : 2)),
+    seconds: steps.map((s) =>
+      s.startsWith("Upgrading the copy")
+        ? 7
+        : s.startsWith("Creating the Odoo") || s.startsWith("Loading the backup")
+          ? 4.5
+          : s.startsWith("Installing")
+            ? 3.5
+            : 2,
+    ),
     status: "creating",
     notes: extra.upgradeOf
-      ? [{ text: `${name} runs a neutralised copy of ${extra.upgradeOf.source.name} upgraded to Odoo ${extra.upgradeOf.target}. Test it; then upgrade production from ${extra.upgradeOf.source.name}'s Upgrade tab.`, level: "info" }]
+      ? [
+          {
+            text: `${name} runs a neutralised copy of ${extra.upgradeOf.source.name} upgraded to Odoo ${extra.upgradeOf.target}. Test it; then upgrade production from ${extra.upgradeOf.source.name}'s Upgrade tab.`,
+            level: "info",
+          },
+        ]
       : extra.fromProduction
-      ? [{ text: `The data comes from ${extra.fromProduction.name} (production) and was neutralised: it sends no e-mail and runs no scheduled actions; payment providers are off.`, level: "info" }]
-      : fromBackup && fromBackup.instance !== name ? [{ text: `The backup of ${fromBackup.instance} was neutralised: outgoing mail, scheduled actions and integrations are off.`, level: "info" }] : [],
+        ? [
+            {
+              text: `The data comes from ${extra.fromProduction.name} (production) and was neutralised: it sends no e-mail and runs no scheduled actions; payment providers are off.`,
+              level: "info",
+            },
+          ]
+        : fromBackup && fromBackup.instance !== name
+          ? [
+              {
+                text: `The backup of ${fromBackup.instance} was neutralised: outgoing mail, scheduled actions and integrations are off.`,
+                level: "info",
+              },
+            ]
+          : [],
     onDone: () => {
       const commits = known ? commitsOf(known, known.branches.includes(branch) ? branch : known.defaultBranch) : [];
       const head = commits[0];
       instance.status = "online";
       instance.managed_name = managedName(name, repo ? branch : null, instance.stage);
       instance.url = instance.managed_name?.url ?? instanceUrl(name);
-      instance.git.commit = head ? { sha: head.sha, subject: head.subject, author: head.author, age: ageText(Date.parse(head.when)) } : repo ? { sha: hex(7), subject: "Initial commit", author: "you", age: "1 minute ago" } : null;
+      instance.git.commit = head
+        ? { sha: head.sha, subject: head.subject, author: head.author, age: ageText(Date.parse(head.when)) }
+        : repo
+          ? { sha: hex(7), subject: "Initial commit", author: "you", age: "1 minute ago" }
+          : null;
       instance.recent_commits = commits;
       instance.last_visit_at = iso(Date.now());
       instance.pauses_at = instance.settings.auto_pause ? iso(Date.now() + Number(setting("idle_hours")) * HOUR) : null;
@@ -876,17 +1219,23 @@ function createInstance(
   });
   instance.current_job = { ...reference(job), steps: [] };
   announce(instance);
-  return { status: 202, body: { data: job }, headers: { Location: `/api/v1/jobs/${job.id}`, "Content-Location": `/api/v1/instances/${name}` } };
+  return {
+    status: 202,
+    body: { data: job },
+    headers: { Location: `/api/v1/jobs/${job.id}`, "Content-Location": `/api/v1/instances/${name}` },
+  };
 }
 
 route("PATCH", "/instances/:name", ({ params, body }) => {
   needOn(params.name!, "instances.operate");
   const instance = instanceOf(params.name!);
-  if (instance.status === "creating") throw new Problem(409, "This instance is still being created. Try again when its creation has finished.");
+  if (instance.status === "creating")
+    throw new Problem(409, "This instance is still being created. Try again when its creation has finished.");
   const s = instance.settings;
   if (body.stage && body.stage !== instance.stage) {
     const stage = body.stage as Stage;
-    if (instance.stage === "production" && !body.confirm_production) throw new Problem(400, "Moving an instance out of production needs \"confirm_production\": true.");
+    if (instance.stage === "production" && !body.confirm_production)
+      throw new Problem(400, 'Moving an instance out of production needs "confirm_production": true.');
     if (stage === "production") {
       const refusal = productionInfo().refusal;
       if (refusal) throw new Problem(409, refusal);
@@ -901,18 +1250,33 @@ route("PATCH", "/instances/:name", ({ params, body }) => {
   }
   for (const key of ["auto_update", "auto_upgrade", "auto_pause"] as const) {
     if (typeof body[key] === "boolean") {
-      if (key === "auto_pause" && body[key] && instance.stage === "production") throw new Problem(409, "A production instance is never paused automatically.");
-      if (key !== "auto_pause" && body[key] && instance.source === "plain") throw new Problem(409, `${instance.name} runs plain Odoo without a GitHub repository: it has no code to update. Connect a repository to it first.`);
+      if (key === "auto_pause" && body[key] && instance.stage === "production")
+        throw new Problem(409, "A production instance is never paused automatically.");
+      if (key !== "auto_pause" && body[key] && instance.source === "plain")
+        throw new Problem(
+          409,
+          `${instance.name} runs plain Odoo without a GitHub repository: it has no code to update. Connect a repository to it first.`,
+        );
       s[key] = body[key] as boolean;
     }
   }
   if (typeof body.delete_after_days === "number") {
-    if (body.delete_after_days && instance.stage === "production") throw new Problem(409, "A production instance is never deleted automatically.");
+    if (body.delete_after_days && instance.stage === "production")
+      throw new Problem(409, "A production instance is never deleted automatically.");
     s.delete_after_days = body.delete_after_days;
-    instance.expires_at = s.delete_after_days ? iso(Date.parse(instance.created_at!) + s.delete_after_days * DAY) : null;
+    instance.expires_at = s.delete_after_days
+      ? iso(Date.parse(instance.created_at!) + s.delete_after_days * DAY)
+      : null;
   }
-  instance.pauses_at = s.auto_pause && instance.status === "online" ? iso(Date.now() + Number(setting("idle_hours")) * HOUR) : null;
-  record(ME, "instance settings changed", { instance: instance.name, detail: Object.keys(body).filter((k) => k !== "confirm_production").map((k) => `${k}: ${String(body[k])}`).join(", ") });
+  instance.pauses_at =
+    s.auto_pause && instance.status === "online" ? iso(Date.now() + Number(setting("idle_hours")) * HOUR) : null;
+  record(ME, "instance settings changed", {
+    instance: instance.name,
+    detail: Object.keys(body)
+      .filter((k) => k !== "confirm_production")
+      .map((k) => `${k}: ${String(body[k])}`)
+      .join(", "),
+  });
   announce(instance);
   return ok(full(instance));
 });
@@ -943,7 +1307,12 @@ function newCommit(instance: Instance) {
   const repo = findRepo(instance.git.repository);
   const pool = repo?.commits ?? [["Small fixes", "Karim"]];
   const [subject, author] = pool[Math.floor(Math.random() * pool.length)]!;
-  const commit = { sha: hex(7), subject: subject.startsWith("Merge") ? subject : `${subject} (follow-up)`, author, when: iso(Date.now())! };
+  const commit = {
+    sha: hex(7),
+    subject: subject.startsWith("Merge") ? subject : `${subject} (follow-up)`,
+    author,
+    when: iso(Date.now())!,
+  };
   instance.recent_commits = [commit, ...(instance.recent_commits ?? [])].slice(0, 10);
   instance.git.commit = { sha: commit.sha, subject: commit.subject, author, age: "just now" };
 }
@@ -967,30 +1336,69 @@ function runAction(instance: Instance, action: string, body: Record<string, unkn
   const [title, kind, permission] = ACTIONS[action] ?? [];
   if (!title) throw new Problem(404, `Unknown action ${action}.`);
   needOn(instance.name, permission!, `/api/v1/instances/${instance.name}/actions/${action}`);
-  if (instance.status === "creating") throw new Problem(409, "This instance is still being created. Try again when its creation has finished.");
-  if (instance.current_job) throw new Problem(409, `${instance.name} is busy with "${instance.current_job.action}". Try again when it has finished.`);
+  if (instance.status === "creating")
+    throw new Problem(409, "This instance is still being created. Try again when its creation has finished.");
+  if (instance.current_job)
+    throw new Problem(
+      409,
+      `${instance.name} is busy with "${instance.current_job.action}". Try again when it has finished.`,
+    );
   if (instance.source === "plain" && REPOSITORY_ACTIONS.includes(action))
-    throw new Problem(409, `${instance.name} runs plain Odoo without a GitHub repository: it has no code to update, no branch and no submodules. Connect a repository to it first.`);
+    throw new Problem(
+      409,
+      `${instance.name} runs plain Odoo without a GitHub repository: it has no code to update, no branch and no submodules. Connect a repository to it first.`,
+    );
   if (instance.stage === "production" && PRODUCTION_CONFIRMED.includes(action) && !body.confirm_production)
     throw new Problem(400, `${instance.name} is a production instance: confirm with "confirm_production": true.`);
   const was = ASLEEP.includes(instance.status) ? instance.status : "online";
   const base = { instance: instance.name, action: title, kind: kind! };
   switch (action) {
     case "restart":
-      return startJob({ ...base, steps: ["Restarting Odoo", "Waiting for Odoo to be ready"], seconds: [2.5, 2], status: "starting", onDone: () => wake(instance) });
+      return startJob({
+        ...base,
+        steps: ["Restarting Odoo", "Waiting for Odoo to be ready"],
+        seconds: [2.5, 2],
+        status: "starting",
+        onDone: () => wake(instance),
+      });
     case "start": {
       if (capacity().blocked) throw new Problem(403, "This server runs as many instances as it may. Pause one first.");
-      return startJob({ ...base, steps: ["Starting the database", "Starting Odoo", "Waiting for Odoo to be ready"], status: "starting", onDone: () => wake(instance) });
+      return startJob({
+        ...base,
+        steps: ["Starting the database", "Starting Odoo", "Waiting for Odoo to be ready"],
+        status: "starting",
+        onDone: () => wake(instance),
+      });
     }
     case "pause":
-      return startJob({ ...base, steps: ["Pausing to free server resources"], seconds: 2.5, status: "busy", onDone: () => sleep(instance, "paused") });
+      return startJob({
+        ...base,
+        steps: ["Pausing to free server resources"],
+        seconds: 2.5,
+        status: "busy",
+        onDone: () => sleep(instance, "paused"),
+      });
     case "switch-off":
-      return startJob({ ...base, steps: ["Switching off"], seconds: 2.5, status: "busy", onDone: () => sleep(instance, "switched_off") });
+      return startJob({
+        ...base,
+        steps: ["Switching off"],
+        seconds: 2.5,
+        status: "busy",
+        onDone: () => sleep(instance, "switched_off"),
+      });
     case "update":
     case "update-submodules":
       return startJob({
         ...base,
-        steps: action === "update" ? UPDATE_STEPS : ["Backing up the database and files before the update", "Moving the submodules to their latest version", "Upgrading modules: changed modules", "Restarting Odoo"],
+        steps:
+          action === "update"
+            ? UPDATE_STEPS
+            : [
+                "Backing up the database and files before the update",
+                "Moving the submodules to their latest version",
+                "Upgrading modules: changed modules",
+                "Restarting Odoo",
+              ],
         status: "busy",
         onStart: () => addBackup(instance, "before-update", Date.now()),
         onDone: () => {
@@ -1002,7 +1410,13 @@ function runAction(instance: Instance, action: string, body: Record<string, unkn
       });
     case "upgrade": {
       const modules = String(body.modules ?? "all") || "all";
-      return startJob({ ...base, steps: [`Upgrading modules: ${modules}`, "Restarting Odoo"], seconds: [4, 2], status: "busy", onDone: () => wake(instance) });
+      return startJob({
+        ...base,
+        steps: [`Upgrading modules: ${modules}`, "Restarting Odoo"],
+        seconds: [4, 2],
+        status: "busy",
+        onDone: () => wake(instance),
+      });
     }
     case "switch-branch": {
       const branch = String(body.branch ?? "").trim();
@@ -1028,7 +1442,12 @@ function runAction(instance: Instance, action: string, body: Record<string, unkn
       const branch = String(body.branch ?? "main") || "main";
       return startJob({
         ...base,
-        steps: [`Downloading the code of ${repo.replace(/^https:\/\/github\.com\//, "")} (${branch}) from GitHub`, "Putting the code into the instance", ...(body.install_modules ? ["Installing the repository's modules (2)"] : []), "Restarting Odoo"],
+        steps: [
+          `Downloading the code of ${repo.replace(/^https:\/\/github\.com\//, "")} (${branch}) from GitHub`,
+          "Putting the code into the instance",
+          ...(body.install_modules ? ["Installing the repository's modules (2)"] : []),
+          "Restarting Odoo",
+        ],
         status: "busy",
         onDone: () => {
           instance.source = "repository";
@@ -1045,14 +1464,24 @@ function runAction(instance: Instance, action: string, body: Record<string, unkn
     }
     case "add-submodule": {
       const url = String(body.url ?? "").trim();
-      if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+/.test(url)) throw new Problem(400, "Enter a GitHub address, for example https://github.com/OCA/web.");
-      const path = String(body.path ?? "").trim() || `oca/${url.split("/").pop()!.replace(/\.git$/, "").toLowerCase()}`;
+      if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+/.test(url))
+        throw new Problem(400, "Enter a GitHub address, for example https://github.com/OCA/web.");
+      const path =
+        String(body.path ?? "").trim() ||
+        `oca/${url
+          .split("/")
+          .pop()!
+          .replace(/\.git$/, "")
+          .toLowerCase()}`;
       return startJob({
         ...base,
         steps: [`Adding submodule ${path}`, "Saving the change to GitHub", "Restarting Odoo"],
         status: "busy",
         onDone: () => {
-          instance.submodules = [...(instance.submodules ?? []).filter((s) => s.path !== path), { path, url, sha: hex(7) }];
+          instance.submodules = [
+            ...(instance.submodules ?? []).filter((s) => s.path !== path),
+            { path, url, sha: hex(7) },
+          ];
           wake(instance);
         },
       });
@@ -1070,31 +1499,89 @@ function runAction(instance: Instance, action: string, body: Record<string, unkn
       });
     }
     case "backup":
-      return startJob({ ...base, steps: ["Backing up the database and files"], seconds: 4, status: instance.status, onDone: () => offsite.backupTaken(addBackup(instance, "manual", Date.now(), undefined, typeof body.comment === "string" ? body.comment.slice(0, 200) : undefined)) });
+      return startJob({
+        ...base,
+        steps: ["Backing up the database and files"],
+        seconds: 4,
+        status: instance.status,
+        onDone: () =>
+          offsite.backupTaken(
+            addBackup(
+              instance,
+              "manual",
+              Date.now(),
+              undefined,
+              typeof body.comment === "string" ? body.comment.slice(0, 200) : undefined,
+            ),
+          ),
+      });
     case "update-images":
-      return startJob({ ...base, steps: ["Downloading the images", "Starting Odoo with the new images"], seconds: [4, 2.5], status: "busy", onDone: () => wake(instance) });
+      return startJob({
+        ...base,
+        steps: ["Downloading the images", "Starting Odoo with the new images"],
+        seconds: [4, 2.5],
+        status: "busy",
+        onDone: () => wake(instance),
+      });
     case "repair":
-      return startJob({ ...base, steps: ["Comparing the instance with the panel's configuration", "Putting the panel's configuration back"], status: "busy", onDone: () => { instance.drift = null; wake(instance); } });
+      return startJob({
+        ...base,
+        steps: ["Comparing the instance with the panel's configuration", "Putting the panel's configuration back"],
+        status: "busy",
+        onDone: () => {
+          instance.drift = null;
+          wake(instance);
+        },
+      });
     case "restore": {
       const file = body.file ? String(body.file) : full(instance).restorable_backup;
       const backup = backups.find((b) => b.file === file);
-      if (!backup) throw new Problem(body.file ? 404 : 409, body.file ? "This backup does not exist." : "There is no backup of this instance to restore.");
+      if (!backup)
+        throw new Problem(
+          body.file ? 404 : 409,
+          body.file ? "This backup does not exist." : "There is no backup of this instance to restore.",
+        );
       if (backup.instance !== instance.name) need("backups.manage");
-      if (backup.series !== instance.odoo.version) throw new Problem(400, `This backup is of Odoo ${backup.series}; ${instance.name} runs Odoo ${instance.odoo.version}.`);
-      if (backup.edition === "enterprise" && instance.odoo.edition !== "enterprise") throw new Problem(400, "An Enterprise backup only goes into an Enterprise instance.");
+      if (backup.series !== instance.odoo.version)
+        throw new Problem(
+          400,
+          `This backup is of Odoo ${backup.series}; ${instance.name} runs Odoo ${instance.odoo.version}.`,
+        );
+      if (backup.edition === "enterprise" && instance.odoo.edition !== "enterprise")
+        throw new Problem(400, "An Enterprise backup only goes into an Enterprise instance.");
       const foreign = backup.instance !== instance.name;
       const taken = new Date(backup.created * 1000).toUTCString().slice(5, 22);
       return startJob({
         ...base,
-        steps: ["Saving the current state first", "Stopping Odoo", `Restoring the backup of ${taken}` + (foreign ? ` from ${backup.instance}` : ""), ...(foreign ? ["Neutralising the copied data", "Setting the admin password"] : []), "Starting Odoo"],
+        steps: [
+          "Saving the current state first",
+          "Stopping Odoo",
+          `Restoring the backup of ${taken}` + (foreign ? ` from ${backup.instance}` : ""),
+          ...(foreign ? ["Neutralising the copied data", "Setting the admin password"] : []),
+          "Starting Odoo",
+        ],
         seconds: 2.4,
         status: "busy",
-        notes: foreign ? [{ text: `The backup of ${backup.instance} was neutralised: outgoing mail, scheduled actions and integrations are off.`, level: "info" }] : [],
+        notes: foreign
+          ? [
+              {
+                text: `The backup of ${backup.instance} was neutralised: outgoing mail, scheduled actions and integrations are off.`,
+                level: "info",
+              },
+            ]
+          : [],
         onDone: () => {
           const now = Date.now();
           const before = addBackup(instance, "before-restore", now);
-          for (const old of backups.filter((b) => b.instance === instance.name && b.kind === "before-restore" && b.file !== before.file)) backups.splice(backups.indexOf(old), 1);
-          instance.rollback = { backups: [before.file], taken_at: iso(now)!, until: iso(now + Number(setting("rollback_hours")) * HOUR)! };
+          for (const old of backups.filter(
+            (b) => b.instance === instance.name && b.kind === "before-restore" && b.file !== before.file,
+          ))
+            backups.splice(backups.indexOf(old), 1);
+          instance.rollback = {
+            backups: [before.file],
+            taken_at: iso(now)!,
+            until: iso(now + Number(setting("rollback_hours")) * HOUR)!,
+          };
           wake(instance);
         },
       });
@@ -1103,7 +1590,12 @@ function runAction(instance: Instance, action: string, body: Record<string, unkn
       if (!instance.rollback) throw new Problem(409, "There is nothing to roll back to: no restore in the last hours.");
       return startJob({
         ...base,
-        steps: ["Saving the current state first", "Stopping Odoo", "Rolling back to the state before the restore", "Starting Odoo"],
+        steps: [
+          "Saving the current state first",
+          "Stopping Odoo",
+          "Rolling back to the state before the restore",
+          "Starting Odoo",
+        ],
         status: "busy",
         onDone: () => {
           addBackup(instance, "before-rollback", Date.now());
@@ -1118,24 +1610,43 @@ function runAction(instance: Instance, action: string, body: Record<string, unkn
   throw new Problem(404, `Unknown action ${action}.`);
 }
 
-const contextFor = (instance: Instance) => ({ name: instance.name, database: instance.odoo.database, version: instance.odoo.version, edition: instance.odoo.edition, repository: instance.git.repository, branch: instance.git.branch });
+const contextFor = (instance: Instance) => ({
+  name: instance.name,
+  database: instance.odoo.database,
+  version: instance.odoo.version,
+  edition: instance.odoo.edition,
+  repository: instance.git.repository,
+  branch: instance.git.branch,
+});
 
 function deleteInstance(instance: Instance, body: Record<string, unknown>): Job {
   needOn(instance.name, "instances.delete", `/api/v1/instances/${instance.name}`);
   if (body.without_backup) need("backups.manage");
   if (body.confirm !== instance.name) throw new Problem(400, `Type the instance's name (${instance.name}) to confirm.`);
-  if (instance.stage === "production" && body.confirm_stage !== "production") throw new Problem(400, 'This is a production instance: confirm with "confirm_stage": "production" as well.');
-  if (instance.current_job) throw new Problem(409, `${instance.name} is busy with "${instance.current_job.action}". Try again when it has finished.`);
+  if (instance.stage === "production" && body.confirm_stage !== "production")
+    throw new Problem(400, 'This is a production instance: confirm with "confirm_stage": "production" as well.');
+  if (instance.current_job)
+    throw new Problem(
+      409,
+      `${instance.name} is busy with "${instance.current_job.action}". Try again when it has finished.`,
+    );
   return startJob({
     instance: instance.name,
     action: "Delete instance",
     kind: "delete",
-    steps: ["Backing up the database and files", "Removing Odoo, its database and its files", "Removing the instance folder"],
+    steps: [
+      "Backing up the database and files",
+      "Removing Odoo, its database and its files",
+      "Removing the instance folder",
+    ],
     seconds: [3, 2, 1],
     status: "busy",
     onDone: () => {
       addBackup(instance, "deletion", Date.now());
-      for (const old of backups.filter((b) => b.instance === instance.name && b.kind !== "manual" && b.kind !== "deletion")) backups.splice(backups.indexOf(old), 1);
+      for (const old of backups.filter(
+        (b) => b.instance === instance.name && b.kind !== "manual" && b.kind !== "deletion",
+      ))
+        backups.splice(backups.indexOf(old), 1);
       instances.delete(instance.name);
       fleet.forget(instance.name);
       profiles.delete(instance.name);
@@ -1144,14 +1655,19 @@ function deleteInstance(instance: Instance, body: Record<string, unknown>): Job 
   });
 }
 
-route("POST", "/instances/:name/actions/:action", ({ params, body }) => accepted(runAction(instanceOf(params.name!), params.action!, body)));
+route("POST", "/instances/:name/actions/:action", ({ params, body }) =>
+  accepted(runAction(instanceOf(params.name!), params.action!, body)),
+);
 route("DELETE", "/instances/:name", ({ params, body }) => accepted(deleteInstance(instanceOf(params.name!), body)));
 
 // ---------------------------------------------------------------- custom domains
 
 function confirmProduction(instance: Instance, body: Record<string, unknown>, what: string) {
   if (instance.stage === "production" && body.confirm_production !== true)
-    throw new Problem(400, `${instance.name} is a production instance: confirm that you want to ${what} ("confirm_production": true). Its users reach it through its domains.`);
+    throw new Problem(
+      400,
+      `${instance.name} is a production instance: confirm that you want to ${what} ("confirm_production": true). Its users reach it through its domains.`,
+    );
 }
 function ownDomain(instance: Instance, name: string) {
   const found = findDomain(instance.name, name);
@@ -1194,11 +1710,20 @@ route("GET", "/instances/:name/shell", ({ params }) => {
 });
 route("POST", "/instances/:name/shell/tickets", ({ params, body }) => {
   const instance = instanceOf(params.name!);
-  needOn(instance.name, body.target === "psql" ? "instances.database_shell" : "instances.shell", `/api/v1/instances/${instance.name}/shell/tickets`, false);
+  needOn(
+    instance.name,
+    body.target === "psql" ? "instances.database_shell" : "instances.shell",
+    `/api/v1/instances/${instance.name}/shell/tickets`,
+    false,
+  );
   try {
     return created(issueTicket(instance, body));
   } catch (error) {
-    record(ME, "shell refused", { instance: instance.name, ok: false, detail: error instanceof Error ? error.message : "" });
+    record(ME, "shell refused", {
+      instance: instance.name,
+      ok: false,
+      detail: error instanceof Error ? error.message : "",
+    });
     throw error;
   }
 });
@@ -1227,18 +1752,32 @@ route("GET", "/instances/:name/access-rules", ({ params }) => {
 route("POST", "/instances/:name/access-rules/preview", ({ params, body }) => {
   needOn(params.name!, "instances.view");
   instanceOf(params.name!);
-  return ok(accessRules.preview(body.rules, typeof body.test_address === "string" && body.test_address ? body.test_address : undefined));
+  return ok(
+    accessRules.preview(
+      body.rules,
+      typeof body.test_address === "string" && body.test_address ? body.test_address : undefined,
+    ),
+  );
 });
 route("POST", "/instances/:name/access-rules/code", ({ params, body }) => {
   const instance = instanceOf(params.name!);
-  if (!mayChangeRules()) throw new Problem(403, "Only the project's administrators, super admins and the project's client can change production access rules, in the panel (not with an API token).");
-  if (instance.stage !== "production") throw new Problem(409, "Access rules are for production instances. Move this instance to production first.");
+  if (!mayChangeRules())
+    throw new Problem(
+      403,
+      "Only the project's administrators, super admins and the project's client can change production access rules, in the panel (not with an API token).",
+    );
+  if (instance.stage !== "production")
+    throw new Problem(409, "Access rules are for production instances. Move this instance to production first.");
   record(ME, "access rules: confirmation code asked", { instance: instance.name, detail: String(body.method) });
   return ok(accessRules.sendCode(instance.name, body.method === "app" ? "app" : "email"));
 });
 route("PUT", "/instances/:name/access-rules", ({ params, body }) => {
   const instance = instanceOf(params.name!);
-  if (!mayChangeRules()) throw new Problem(403, "Only the project's administrators, super admins and the project's client can change production access rules, in the panel (not with an API token).");
+  if (!mayChangeRules())
+    throw new Problem(
+      403,
+      "Only the project's administrators, super admins and the project's client can change production access rules, in the panel (not with an API token).",
+    );
   const saved = accessRules.change(instance.name, body, ME);
   record(ME, "access rules changed", { instance: instance.name, detail: accessRules.summary(saved) });
   return ok(accessRules.accessState(instance.name, instance.stage === "production", true));
@@ -1265,9 +1804,14 @@ route("POST", "/instances/:name/domains", ({ params, body }) => {
   if (!value.trim()) throw new Problem(400, "Enter the domain, such as erp.example.com.");
   confirmProduction(instance, body, "add a domain to it");
   const limit = domainsOf(instance).limit;
-  if (domainsOf(instance).domains.length >= limit) throw new Problem(409, `An instance may have ${limit} custom domains at most (DOMAINS_PER_INSTANCE).`);
+  if (domainsOf(instance).domains.length >= limit)
+    throw new Problem(409, `An instance may have ${limit} custom domains at most (DOMAINS_PER_INSTANCE).`);
   const checked = checkName(value, instance.name);
-  if (typeof checked !== "string") throw new Problem(typeof checked.error === "string" && checked.error.includes("already") ? 409 : 400, checked.error);
+  if (typeof checked !== "string")
+    throw new Problem(
+      typeof checked.error === "string" && checked.error.includes("already") ? 409 : 400,
+      checked.error,
+    );
   const added = addDomain(instance, checked, ME);
   record(ME, "custom domain added", { instance: instance.name, detail: checked });
   return created(added);
@@ -1334,7 +1878,8 @@ route("GET", "/help", () => {
 
 function catching(name: string) {
   const instance = instanceOf(name);
-  if (instance.stage === "production") throw new Problem(409, "A production instance sends its own e-mail: the mail catcher keeps nothing for it.");
+  if (instance.stage === "production")
+    throw new Problem(409, "A production instance sends its own e-mail: the mail catcher keeps nothing for it.");
   return instance;
 }
 
@@ -1362,7 +1907,11 @@ route("GET", "/instances/:name/mail", ({ params, query }) => {
 route("GET", "/instances/:name/mail/:id", ({ params }) => {
   needOn(params.name!, "caught_mail.view", `/api/v1/instances/${params.name}/mail`);
   const found = caught.detail(catching(params.name!).name, params.id!);
-  if (!found) throw new Problem(404, "This e-mail does not exist (it may have been deleted, or removed after the retention period).");
+  if (!found)
+    throw new Problem(
+      404,
+      "This e-mail does not exist (it may have been deleted, or removed after the retention period).",
+    );
   return ok(found);
 });
 route("DELETE", "/instances/:name/mail/:id", ({ params }) => {
@@ -1376,31 +1925,53 @@ route("DELETE", "/instances/:name/mail/:id", ({ params }) => {
 route("DELETE", "/instances/:name/mail", ({ params }) => {
   needOn(params.name!, "caught_mail.manage", `/api/v1/instances/${params.name}/mail`);
   const instance = catching(params.name!);
-  record(ME, "caught e-mails deleted", { instance: instance.name, detail: `${caught.removeAll(instance.name)} e-mails` });
+  record(ME, "caught e-mails deleted", {
+    instance: instance.name,
+    detail: `${caught.removeAll(instance.name)} e-mails`,
+  });
   return none();
 });
 route("POST", "/instances/:name/mail/:id/release", ({ params, body }) => {
   needOn(params.name!, "caught_mail.manage", `/api/v1/instances/${params.name}/mail/${params.id}/release`);
   const instance = catching(params.name!);
   const to = String(body.to ?? "").trim();
-  if (!/^[^@\s]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}$/.test(to)) throw new Problem(400, "Type one e-mail address to send the copy to.");
-  if (setting("mail_catcher_release") === false) throw new Problem(403, "Releasing caught e-mails is switched off on this panel (Settings, E-mail).");
+  if (!/^[^@\s]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}$/.test(to))
+    throw new Problem(400, "Type one e-mail address to send the copy to.");
+  if (setting("mail_catcher_release") === false)
+    throw new Problem(403, "Releasing caught e-mails is switched off on this panel (Settings, E-mail).");
   if (!caught.detail(instance.name, params.id!)) throw new Problem(404, "This e-mail does not exist.");
   throw offline("Sending a copy of a caught e-mail");
 });
 
 route("GET", "/server", () => {
   need("instances.view");
-  return ok({ version: "1.0.0", panel_url: "https://panel.demo.sudoo.sh", plugins: { exposure: "cloudflare-quick", enterprise_source: "folder", update_triggers: ["polling", "github-app"] }, metrics: currentMetrics().server, live_clients: 1 });
+  return ok({
+    version: "1.0.0",
+    panel_url: "https://panel.demo.sudoo.sh",
+    plugins: { exposure: "cloudflare-quick", enterprise_source: "folder", update_triggers: ["polling", "github-app"] },
+    metrics: currentMetrics().server,
+    live_clients: 1,
+  });
 });
 route("GET", "/server/capacity", () => ok(capacity()));
 
 function managedSubdomains() {
   const held = [...instances.values()].filter((i) => i.managed_name).length;
   return {
-    setting: setting("managed_subdomains") !== false, linked: true, enabled: true, active: setting("managed_subdomains") !== false,
-    base_domain: MANAGED_BASE, company: MANAGED_COMPANY, limit: 25, used: held, held, checked_at: Date.now() / 1000 - 4 * 60,
-    error: null, pending_release: [], addresses: { public_ipv4: "203.0.113.24" }, custom_domains: String(setting("custom_domains") ?? "off"),
+    setting: setting("managed_subdomains") !== false,
+    linked: true,
+    enabled: true,
+    active: setting("managed_subdomains") !== false,
+    base_domain: MANAGED_BASE,
+    company: MANAGED_COMPANY,
+    limit: 25,
+    used: held,
+    held,
+    checked_at: Date.now() / 1000 - 4 * 60,
+    error: null,
+    pending_release: [],
+    addresses: { public_ipv4: "203.0.113.24" },
+    custom_domains: String(setting("custom_domains") ?? "off"),
   };
 }
 route("GET", "/server/managed-subdomains", () => ok(managedSubdomains()));
@@ -1409,12 +1980,28 @@ route("GET", "/server/managed-subdomains", () => ok(managedSubdomains()));
 const GIB = 1024 ** 3;
 function kubernetes() {
   const node = (name: string, roles: string[], address: string, cpuUsed: number, memoryUsed: number) => ({
-    name, roles, ready: true, schedulable: true, version: "v1.36.6+k3s1", address, cpu: 8, memory_bytes: 16 * GIB,
-    cpu_used: cpuUsed, memory_used_bytes: memoryUsed, created: new Date(Date.now() - 40 * 86400_000).toISOString(),
+    name,
+    roles,
+    ready: true,
+    schedulable: true,
+    version: "v1.36.6+k3s1",
+    address,
+    cpu: 8,
+    memory_bytes: 16 * GIB,
+    cpu_used: cpuUsed,
+    memory_used_bytes: memoryUsed,
+    created: new Date(Date.now() - 40 * 86400_000).toISOString(),
   });
   return {
-    enabled: true, engines: ["docker", "kubernetes"], reachable: true, problem: null, join: { url_set: true, minutes: 60 },
-    nodes: [node("k3s-server-1", ["control-plane"], "10.0.0.2", 1.4, 6.2 * GIB), node("k3s-agent-1", ["agent"], "10.0.0.3", 0.8, 3.9 * GIB)],
+    enabled: true,
+    engines: ["docker", "kubernetes"],
+    reachable: true,
+    problem: null,
+    join: { url_set: true, minutes: 60 },
+    nodes: [
+      node("k3s-server-1", ["control-plane"], "10.0.0.2", 1.4, 6.2 * GIB),
+      node("k3s-agent-1", ["agent"], "10.0.0.3", 0.8, 3.9 * GIB),
+    ],
   };
 }
 route("GET", "/kubernetes", () => {
@@ -1427,7 +2014,8 @@ route("POST", "/kubernetes/join-command", () => {
   const token = "K10" + "5e3a".repeat(16) + "::demo01.0123456789abcdef";
   return ok({
     command: `curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION='v1.36.6+k3s1' K3S_URL='https://203.0.113.24:6443' K3S_TOKEN='${token}' sh -s - agent`,
-    expires: Math.round(Date.now() / 1000) + 3600, version: "v1.36.6+k3s1",
+    expires: Math.round(Date.now() / 1000) + 3600,
+    version: "v1.36.6+k3s1",
   });
 });
 route("POST", "/server/managed-subdomains/sync", () => {
@@ -1436,7 +2024,8 @@ route("POST", "/server/managed-subdomains/sync", () => {
 });
 route("POST", "/server/restart", () => {
   need("settings.manage", "/api/v1/server/restart");
-  if (jobs.some((j) => j.status === "running" || j.status === "queued")) throw new Problem(409, "Jobs are running. Restart the panel when they have finished.");
+  if (jobs.some((j) => j.status === "running" || j.status === "queued"))
+    throw new Problem(409, "Jobs are running. Restart the panel when they have finished.");
   for (const s of settings) s.pending_restart = false;
   record(ME, "panel restarted");
   return { status: 202, body: { data: { restarting: true } } };
@@ -1460,7 +2049,8 @@ route("PATCH", "/settings", ({ body }) => {
     const s = settings.find((x) => x.key === key);
     if (!s) throw new Problem(400, `${key.toUpperCase()}: unknown setting.`);
     if (!s.editable) throw new Problem(400, `${key.toUpperCase()} can only be set in .env.`);
-    if (s.minimum != null && typeof value === "number" && value < s.minimum) throw new Problem(400, `${key.toUpperCase()}: Input should be greater than or equal to ${s.minimum}.`);
+    if (s.minimum != null && typeof value === "number" && value < s.minimum)
+      throw new Problem(400, `${key.toUpperCase()}: Input should be greater than or equal to ${s.minimum}.`);
     if (value === null) {
       s.value = s.env_value;
       s.changed_in_panel = false;
@@ -1475,7 +2065,14 @@ route("PATCH", "/settings", ({ body }) => {
     const value = body.odoo_admin_password;
     setAdminPasswordDefault(value === null || value === "");
   }
-  record(ME, "settings changed", { detail: Object.entries(body).map(([k, v]) => `${k.toUpperCase()}=${settings.find((s) => s.key === k)?.secret ? "(set)" : v === null ? "(env)" : String(v)}`).join(", ") });
+  record(ME, "settings changed", {
+    detail: Object.entries(body)
+      .map(
+        ([k, v]) =>
+          `${k.toUpperCase()}=${settings.find((s) => s.key === k)?.secret ? "(set)" : v === null ? "(env)" : String(v)}`,
+      )
+      .join(", "),
+  });
   publish("settings", "", { changed: Object.keys(body) });
   return ok(settings);
 });
@@ -1507,7 +2104,8 @@ const mailOf = (key: string) => {
 };
 const mailText = (key: string, body: Record<string, unknown>) => {
   const current = mail.resource(mailOf(key));
-  const part = (name: "subject" | "title" | "body") => (typeof body[name] === "string" ? String(body[name]).trim() : current[name]);
+  const part = (name: "subject" | "title" | "body") =>
+    typeof body[name] === "string" ? String(body[name]).trim() : current[name];
   return { subject: part("subject"), title: part("title"), body: part("body") };
 };
 route("GET", "/mail-templates/:key", ({ params }) => ok(mail.resource(mailOf(params.key!))));
@@ -1542,21 +2140,49 @@ route("GET", "/alerts", ({ query }) => {
     const manage = roleInfo(session.role).permissions.includes("settings.manage");
     const now = Date.now() / 1000;
     list.unshift({
-      id: "default-admin-password", key: "default_admin_password", type: "default_admin_password", severity: "problem",
-      title: "The Odoo admin password is still \"admin\"",
+      id: "default-admin-password",
+      key: "default_admin_password",
+      type: "default_admin_password",
+      severity: "problem",
+      title: 'The Odoo admin password is still "admin"',
       text: "New instances get the well-known Odoo login admin / admin: anyone with an instance's link can sign in as its administrator. Set another ODOO_ADMIN_PASSWORD in the panel's Settings page or in .env.",
-      hint: null, details: [], instance: null, link: manage ? "/settings?tab=instances&focus=odoo_admin_password" : null,
-      at: now, last_at: now, count: 1, resolved_at: null, delivery: [],
+      hint: null,
+      details: [],
+      instance: null,
+      link: manage ? "/settings?tab=instances&focus=odoo_admin_password" : null,
+      at: now,
+      last_at: now,
+      count: 1,
+      resolved_at: null,
+      delivery: [],
     });
   }
   return ok(list.slice(0, Number(query.get("limit") ?? 50)));
 });
 route("POST", "/alerts/test", ({ body }) => {
   need("settings.manage");
-  const alert = { id: hex(12), key: "test", type: "test" as const, severity: "info" as const, title: "Test alert", text: "This is a test alert from the Sudoo.sh demo.", hint: null, details: [], instance: null, link: "/settings?tab=alerts", at: Date.now() / 1000, last_at: Date.now() / 1000, count: 1, resolved_at: null, delivery: [] as string[] };
+  const alert = {
+    id: hex(12),
+    key: "test",
+    type: "test" as const,
+    severity: "info" as const,
+    title: "Test alert",
+    text: "This is a test alert from the Sudoo.sh demo.",
+    hint: null,
+    details: [],
+    instance: null,
+    link: "/settings?tab=alerts",
+    at: Date.now() / 1000,
+    last_at: Date.now() / 1000,
+    count: 1,
+    resolved_at: null,
+    delivery: [] as string[],
+  };
   alerts.unshift(alert);
   publish("alert", alert.key, alert);
-  return body.channel === "webhook" ? ok({ alert, webhook: body.webhook, status: 200 }) : ok({ alert, sent_to: ["ops@example.com", "omar@example.com"] });
+  return body.channel === "webhook"
+    ? ok({ alert, webhook: body.webhook, status: 200 })
+    : ok({ alert, sent_to: ["ops@example.com", "omar@example.com"] });
 });
 
 // ---------------------------------------------------------------- accounts, roles, audit
@@ -1570,23 +2196,51 @@ const superAdmins = () => users.filter((u) => u.role === "super_admin");
 function userOf(name: string): User {
   const user = users.find((u) => u.name === name);
   if (!user) throw new Problem(404, "This account does not exist.");
-  if (user.role === "super_admin" && session.role !== "super_admin") throw new Problem(403, "Only a super admin changes another super admin.");
+  if (user.role === "super_admin" && session.role !== "super_admin")
+    throw new Problem(403, "Only a super admin changes another super admin.");
   return user;
 }
-const generated = () => `demo ${["green", "quiet", "early", "silver"][Math.floor(Math.random() * 4)]} ${["harbour", "lantern", "meadow", "comet"][Math.floor(Math.random() * 4)]} ${Math.floor(Math.random() * 90 + 10)}`;
+const generated = () =>
+  `demo ${["green", "quiet", "early", "silver"][Math.floor(Math.random() * 4)]} ${["harbour", "lantern", "meadow", "comet"][Math.floor(Math.random() * 4)]} ${Math.floor(Math.random() * 90 + 10)}`;
 route("POST", "/users", ({ body }) => {
   need("accounts.manage", "/api/v1/users");
-  if (!passwordAllowed()) throw new Problem(400, "Invite the person instead: they receive an e-mail and choose their own password (INVITATION_PASSWORD_FALLBACK).");
-  const email = String(body.email ?? "").trim().toLowerCase();
+  if (!passwordAllowed())
+    throw new Problem(
+      400,
+      "Invite the person instead: they receive an e-mail and choose their own password (INVITATION_PASSWORD_FALLBACK).",
+    );
+  const email = String(body.email ?? "")
+    .trim()
+    .toLowerCase();
   if (!email) throw new Problem(400, "Enter the person's e-mail address: they sign in with it.");
-  if (users.some((u) => u.email?.toLowerCase() === email)) throw new Problem(400, "Another account already uses this e-mail address.");
+  if (users.some((u) => u.email?.toLowerCase() === email))
+    throw new Problem(400, "Another account already uses this e-mail address.");
   const role = String(body.role ?? "viewer") as User["role"];
-  if (role === "super_admin" && session.role !== "super_admin") throw new Problem(403, "Only a super admin creates a super admin.");
+  if (role === "super_admin" && session.role !== "super_admin")
+    throw new Problem(403, "Only a super admin creates a super admin.");
   let name = String(body.name ?? "") || slug(email.split("@")[0]!).replace(/-/g, ".") || "user";
   for (let n = 2; users.some((u) => u.name === name); n++) name = `${name.replace(/-\d+$/, "")}-${n}`;
   const first = String(body.first_name ?? "") || null;
   const last = String(body.last_name ?? "") || null;
-  const user: User = { name, display_name: [first, last].filter(Boolean).join(" ") || name, first_name: first, last_name: last, email, phone: String(body.phone ?? "") || null, role, role_label: roleInfo(role).label, last_sign_in_at: null, password_changed_at: iso(Date.now()), must_change_password: body.password ? body.must_change_password !== false : true, second_factors: [], sign_in_methods: ["password", "github"], sign_in_methods_chosen: false, github: null, github_login: null, has_password: true };
+  const user: User = {
+    name,
+    display_name: [first, last].filter(Boolean).join(" ") || name,
+    first_name: first,
+    last_name: last,
+    email,
+    phone: String(body.phone ?? "") || null,
+    role,
+    role_label: roleInfo(role).label,
+    last_sign_in_at: null,
+    password_changed_at: iso(Date.now()),
+    must_change_password: body.password ? body.must_change_password !== false : true,
+    second_factors: [],
+    sign_in_methods: ["password", "github"],
+    sign_in_methods_chosen: false,
+    github: null,
+    github_login: null,
+    has_password: true,
+  };
   users.push(user);
   record(ME, "account created", { detail: `${name} (${role})` });
   return created({ ...user, password: String(body.password ?? "") || generated() });
@@ -1595,19 +2249,29 @@ route("PATCH", "/users/:name", ({ params, body }) => {
   need("accounts.manage");
   const user = userOf(params.name!);
   if (body.role && body.role !== user.role) {
-    if (user.role === "super_admin" && superAdmins().length === 1) throw new Problem(400, "The last super admin must stay a super admin.");
-    if (body.role === "super_admin" && session.role !== "super_admin") throw new Problem(403, "Only a super admin makes someone a super admin.");
+    if (user.role === "super_admin" && superAdmins().length === 1)
+      throw new Problem(400, "The last super admin must stay a super admin.");
+    if (body.role === "super_admin" && session.role !== "super_admin")
+      throw new Problem(403, "Only a super admin makes someone a super admin.");
     user.role = body.role as User["role"];
     user.role_label = roleInfo(user.role).label;
     if (user.name === ME) session.role = user.role;
   }
-  for (const key of ["first_name", "last_name", "email", "phone"] as const) if (key in body) user[key] = String(body[key] ?? "") || null;
+  for (const key of ["first_name", "last_name", "email", "phone"] as const)
+    if (key in body) user[key] = String(body[key] ?? "") || null;
   if ("sign_in_methods" in body) {
     const chosen = body.sign_in_methods as User["sign_in_methods"] | null;
     const next = chosen ?? ["password", "github"];
-    if (!next.length) throw new Problem(400, 'sign_in_methods: a list of one or more of "password", "email_code" and "github".');
-    const keeps = users.some((u) => u.role === "super_admin" && u.has_password && (u === user ? next : u.sign_in_methods).includes("password"));
-    if (!keeps) throw new Problem(400, "At least one super admin must keep signing in with a password, so the panel stays reachable when e-mail or GitHub does not work.");
+    if (!next.length)
+      throw new Problem(400, 'sign_in_methods: a list of one or more of "password", "email_code" and "github".');
+    const keeps = users.some(
+      (u) => u.role === "super_admin" && u.has_password && (u === user ? next : u.sign_in_methods).includes("password"),
+    );
+    if (!keeps)
+      throw new Problem(
+        400,
+        "At least one super admin must keep signing in with a password, so the panel stays reachable when e-mail or GitHub does not work.",
+      );
     user.sign_in_methods = next;
     user.sign_in_methods_chosen = chosen !== null;
   }
@@ -1641,10 +2305,12 @@ route("DELETE", "/users/:name", ({ params }) => {
   need("accounts.manage");
   const user = userOf(params.name!);
   if (user.name === ME) throw new Problem(400, "You cannot delete your own account.");
-  if (user.role === "super_admin" && superAdmins().length === 1) throw new Problem(400, "The last super admin cannot be deleted.");
+  if (user.role === "super_admin" && superAdmins().length === 1)
+    throw new Problem(400, "The last super admin cannot be deleted.");
   users.splice(users.indexOf(user), 1);
   for (const team of teams.values()) team.members = team.members.filter((m) => m !== user.name);
-  const keep = <T extends { type: string; id: string }>(entries: T[]) => entries.filter((e) => !(e.type === "user" && e.id === user.name));
+  const keep = <T extends { type: string; id: string }>(entries: T[]) =>
+    entries.filter((e) => !(e.type === "user" && e.id === user.name));
   for (const project of projects.values()) {
     project.access.grants = keep(project.access.grants);
     for (const rule of Object.values(project.access.branches)) rule.grants = keep(rule.grants);
@@ -1665,11 +2331,30 @@ const passwordAllowed = () => {
   return rule === "always" || (rule === "no_mail" && !MAIL_READY);
 };
 const invitationHours = () => Number(setting("invitation_hours") ?? 72);
-function makeInvitation(email: string, role: User["role"], first: string | null, last: string | null, token = hex(24), sentAgo = 0, by = ME): DemoInvitation {
+function makeInvitation(
+  email: string,
+  role: User["role"],
+  first: string | null,
+  last: string | null,
+  token = hex(24),
+  sentAgo = 0,
+  by = ME,
+): DemoInvitation {
   const sent = Date.now() - sentAgo;
   return {
-    id: hex(12), token, email, first_name: first, last_name: last, role, role_label: roleInfo(role).label, invited_by: by, sent_count: 1,
-    expired: sent + invitationHours() * HOUR < Date.now(), invited_at: iso(sent)!, sent_at: iso(sent)!, expires_at: iso(sent + invitationHours() * HOUR)!,
+    id: hex(12),
+    token,
+    email,
+    first_name: first,
+    last_name: last,
+    role,
+    role_label: roleInfo(role).label,
+    invited_by: by,
+    sent_count: 1,
+    expired: sent + invitationHours() * HOUR < Date.now(),
+    invited_at: iso(sent)!,
+    sent_at: iso(sent)!,
+    expires_at: iso(sent + invitationHours() * HOUR)!,
     link: `/invite#${token}`,
   };
 }
@@ -1677,32 +2362,45 @@ invitations.push(
   makeInvitation("huda.ali@example.com", "developer", "Huda", "Ali", "sample", 20 * HOUR),
   makeInvitation("k.mansour@example.com", "viewer", null, null, hex(24), 4 * DAY, "omar"),
 );
-const shownInvitation = ({ token: _t, ...rest }: DemoInvitation): Invitation => ({ ...rest, expired: Date.parse(rest.expires_at) < Date.now() });
+const shownInvitation = ({ token: _t, ...rest }: DemoInvitation): Invitation => ({
+  ...rest,
+  expired: Date.parse(rest.expires_at) < Date.now(),
+});
 function invitationOf(id: string): DemoInvitation {
   const found = invitations.find((v) => v.id === id);
   if (!found) throw new Problem(404, "No such invitation.");
-  if (found.role === "super_admin" && session.role !== "super_admin") throw new Problem(403, "Only a super admin can invite super admins.");
+  if (found.role === "super_admin" && session.role !== "super_admin")
+    throw new Problem(403, "Only a super admin can invite super admins.");
   return found;
 }
 function validInvitation(token: unknown): DemoInvitation {
   const found = invitations.find((v) => v.token === String(token ?? "").trim());
   if (!found || Date.parse(found.expires_at) < Date.now())
-    throw new Problem(410, "This invitation link does not work: it was used, sent again, revoked or it expired. Ask for a new one.");
+    throw new Problem(
+      410,
+      "This invitation link does not work: it was used, sent again, revoked or it expired. Ask for a new one.",
+    );
   return found;
 }
 route("GET", "/invitations", () => {
   need("accounts.manage", "/api/v1/invitations");
-  return ok(invitations.map(shownInvitation), { mail_ready: MAIL_READY, password_allowed: passwordAllowed(), invitation_hours: invitationHours() });
+  return ok(invitations.map(shownInvitation), {
+    mail_ready: MAIL_READY,
+    password_allowed: passwordAllowed(),
+    invitation_hours: invitationHours(),
+  });
 });
 route("POST", "/invitations", ({ body }) => {
   need("accounts.manage", "/api/v1/invitations");
   const email = String(body.email ?? "").trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Problem(400, "Enter a valid e-mail address.");
-  if (users.some((u) => u.email?.toLowerCase() === email.toLowerCase())) throw new Problem(400, "An account already uses this e-mail address.");
+  if (users.some((u) => u.email?.toLowerCase() === email.toLowerCase()))
+    throw new Problem(400, "An account already uses this e-mail address.");
   if (invitations.some((v) => v.email.toLowerCase() === email.toLowerCase() && Date.parse(v.expires_at) > Date.now()))
     throw new Problem(400, "This address is already invited. Send the invitation again from the list instead.");
   const role = String(body.role ?? "viewer") as User["role"];
-  if (role === "super_admin" && session.role !== "super_admin") throw new Problem(403, "Only a super admin can invite super admins.");
+  if (role === "super_admin" && session.role !== "super_admin")
+    throw new Problem(403, "Only a super admin can invite super admins.");
   const made = makeInvitation(email, role, String(body.first_name ?? "") || null, String(body.last_name ?? "") || null);
   invitations.unshift(made);
   record(ME, "invitation sent", { detail: `${email} (${roleInfo(role).label})` });
@@ -1730,14 +2428,21 @@ route("POST", "/invitation", ({ body }) => {
   const found = validInvitation(body.token);
   const by = users.find((u) => u.name === found.invited_by);
   return ok({
-    email: found.email, first_name: found.first_name, last_name: found.last_name, role: found.role, role_label: found.role_label,
-    invited_by: by?.display_name ?? found.invited_by, expires_at: found.expires_at, second_factor_required: false,
+    email: found.email,
+    first_name: found.first_name,
+    last_name: found.last_name,
+    role: found.role,
+    role_label: found.role_label,
+    invited_by: by?.display_name ?? found.invited_by,
+    expires_at: found.expires_at,
+    second_factor_required: false,
   });
 });
 route("POST", "/invitation/accept", ({ body }) => {
   const found = validInvitation(body.token);
   if (!String(body.first_name ?? "").trim()) throw new Problem(400, "Enter your first name.");
-  if (String(body.password ?? "").length < 12) throw new Problem(400, "The password must be at least 12 characters long.");
+  if (String(body.password ?? "").length < 12)
+    throw new Problem(400, "The password must be at least 12 characters long.");
   invitations.splice(invitations.indexOf(found), 1);
   // the demo has one person: accepting signs you in as them again (nothing here is real)
   session.signedIn = true;
@@ -1760,15 +2465,22 @@ route("GET", "/audit", ({ query }) => {
   const since = query.get("since") ? Date.parse(query.get("since")!) / 1000 : null;
   const until = query.get("until") ? Date.parse(query.get("until")!) / 1000 : null;
   const text = (query.get("q") ?? "").toLowerCase();
-  const found = audit.map(scoped).filter((e) =>
-    (!query.get("user") || e.user === query.get("user")) &&
-    (!query.get("event") || e.event === query.get("event")) &&
-    (!query.get("instance") || e.instance === query.get("instance")) &&
-    (!query.get("project") || e.project === query.get("project")) &&
-    (!query.get("branch") || e.branch === query.get("branch")) &&
-    (!query.get("ok") || e.ok === (query.get("ok") === "allowed")) &&
-    (since === null || e.ts >= since) && (until === null || e.ts < until) &&
-    (!text || [e.user, e.event, e.instance, e.ip, e.detail].some((v) => String(v ?? "").toLowerCase().includes(text))),
+  const found = audit.map(scoped).filter(
+    (e) =>
+      (!query.get("user") || e.user === query.get("user")) &&
+      (!query.get("event") || e.event === query.get("event")) &&
+      (!query.get("instance") || e.instance === query.get("instance")) &&
+      (!query.get("project") || e.project === query.get("project")) &&
+      (!query.get("branch") || e.branch === query.get("branch")) &&
+      (!query.get("ok") || e.ok === (query.get("ok") === "allowed")) &&
+      (since === null || e.ts >= since) &&
+      (until === null || e.ts < until) &&
+      (!text ||
+        [e.user, e.event, e.instance, e.ip, e.detail].some((v) =>
+          String(v ?? "")
+            .toLowerCase()
+            .includes(text),
+        )),
   );
   const value = (e: (typeof found)[number]) => (column === "ts" ? e.ts : String(e[column] ?? ""));
   found.sort((a, b) => (value(a) < value(b) ? -1 : value(a) > value(b) ? 1 : 0) * (sort.startsWith("-") ? -1 : 1));
@@ -1779,7 +2491,9 @@ route("GET", "/audit/facets", () => {
   return ok({
     users: [...new Set(audit.map((e) => e.user))].sort(),
     events: [...new Set(audit.map((e) => e.event))].sort(),
-    projects: [...projects.values()].map((p) => ({ id: p.id, name: p.name })).sort((a, b) => a.name.localeCompare(b.name)),
+    projects: [...projects.values()]
+      .map((p) => ({ id: p.id, name: p.name }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
     export_max_rows: Number(setting("audit_export_max_rows") ?? 100000),
   });
 });
@@ -1794,7 +2508,14 @@ route("POST", "/tokens", ({ body }) => {
   need("tokens.manage");
   const name = String(body.name ?? "").trim();
   if (!name) throw new Problem(400, "Give the token a name that says what uses it.");
-  const token = { id: `t${hex(7)}`, name, scope: (body.scope as "read") ?? "read", created: Date.now() / 1000, created_by: ME, last_used: null };
+  const token = {
+    id: `t${hex(7)}`,
+    name,
+    scope: (body.scope as "read") ?? "read",
+    created: Date.now() / 1000,
+    created_by: ME,
+    last_used: null,
+  };
   tokens.push(token);
   record(ME, "API token created", { detail: `${name} (${token.scope})` });
   return created({ ...token, token: `sudoo_demo_${hex(24)}`, signing_secret: `demo_${hex(32)}` });
@@ -1812,7 +2533,8 @@ route("GET", "/backups", ({ query }) => {
   const project = query.get("project");
   return ok(
     backups.filter(
-      (b: Backup) => (!instance || b.instance === instance) && (!project || instances.get(b.instance)?.project?.id === project),
+      (b: Backup) =>
+        (!instance || b.instance === instance) && (!project || instances.get(b.instance)?.project?.id === project),
     ),
   );
 });
@@ -1828,13 +2550,19 @@ route("DELETE", "/backups/:file", ({ params }) => {
   return none();
 });
 // ---------------------------------------------------------------- off-site copies
-const copyOf = (id: string) => offsite.find(id) ?? (() => { throw new Problem(404, "No such off-site copy."); })();
+const copyOf = (id: string) =>
+  offsite.find(id) ??
+  (() => {
+    throw new Problem(404, "No such off-site copy.");
+  })();
 const busyCopy = (found: { status: string }) => {
-  if (found.status === "uploading" || found.status === "verifying") throw new Problem(409, "This copy is being uploaded or checked right now.");
+  if (found.status === "uploading" || found.status === "verifying")
+    throw new Problem(409, "This copy is being uploaded or checked right now.");
 };
 const givenKey = (body: Record<string, unknown>) => {
   const text = String(body.public_key ?? "").trim();
-  if (text && !/^-----BEGIN PUBLIC KEY-----[\s\S]+-----END PUBLIC KEY-----$/.test(text)) throw new Problem(400, "This is not a public key in PEM form (-----BEGIN PUBLIC KEY-----).");
+  if (text && !/^-----BEGIN PUBLIC KEY-----[\s\S]+-----END PUBLIC KEY-----$/.test(text))
+    throw new Problem(400, "This is not a public key in PEM form (-----BEGIN PUBLIC KEY-----).");
   return Boolean(text);
 };
 route("GET", "/offsite", () => {
@@ -1847,9 +2575,16 @@ route("GET", "/offsite/public-key", () => {
 route("POST", "/offsite/test", () => {
   need("offsite.configure");
   const state = offsite.state();
-  if (!state.configured) throw new Problem(409, "Off-site storage is not set up yet: fill in its address, bucket and access key in Settings, Backups.");
+  if (!state.configured)
+    throw new Problem(
+      409,
+      "Off-site storage is not set up yet: fill in its address, bucket and access key in Settings, Backups.",
+    );
   record(ME, "off-site storage tested", { detail: state.location ?? "" });
-  return ok({ location: state.location, steps: ["wrote a test file", "read it back", "listed the folder", "deleted it"] });
+  return ok({
+    location: state.location,
+    steps: ["wrote a test file", "read it back", "listed the folder", "deleted it"],
+  });
 });
 route("POST", "/offsite/scan", () => {
   need("backups.manage");
@@ -1869,7 +2604,8 @@ route("POST", "/offsite/copies/:id/retry", ({ params }) => {
   need("backups.manage");
   const found = copyOf(params.id!);
   busyCopy(found);
-  if (!backups.some((b) => found.files.some((f) => f.name === b.file))) throw new Problem(409, "The backup files of this copy are no longer on this server, so it cannot be copied again.");
+  if (!backups.some((b) => found.files.some((f) => f.name === b.file)))
+    throw new Problem(409, "The backup files of this copy are no longer on this server, so it cannot be copied again.");
   return accepted(offsite.retry(found));
 });
 route("POST", "/offsite/copies/:id/restore", ({ params, body }) => {
@@ -1878,35 +2614,70 @@ route("POST", "/offsite/copies/:id/restore", ({ params, body }) => {
   const found = copyOf(params.id!);
   const name = String(body.instance ?? "") || found.instance;
   const instance = instances.get(name);
-  if (!instance) throw new Problem(404, `There is no instance ${name}. Create one of the same Odoo version first, then restore into it.`);
+  if (!instance)
+    throw new Problem(
+      404,
+      `There is no instance ${name}. Create one of the same Odoo version first, then restore into it.`,
+    );
   busyCopy(found);
-  if (instance.stage === "production" && body.confirm_production !== true) throw new Problem(400, `${name} is a production instance: confirm that you want to restore into it ("confirm_production": true).`);
+  if (instance.stage === "production" && body.confirm_production !== true)
+    throw new Problem(
+      400,
+      `${name} is a production instance: confirm that you want to restore into it ("confirm_production": true).`,
+    );
   const withKey = givenKey(body);
   const foreign = found.instance !== name;
   found.status = "verifying";
   publish("offsite", found.id, null);
   record(ME, "off-site copy restore started", { instance: name, detail: found.id });
   const taken = new Date((found.created ?? 0) * 1000).toUTCString().slice(5, 22);
-  return accepted(startJob({
-    instance: name, action: "Restore an off-site copy", kind: "restore", seconds: 2.2, status: "busy",
-    steps: ["Checking the signature of the manifest", `Downloading and checking ${found.files[0]?.name}`, "Saving the current state first", "Stopping Odoo", `Restoring the backup of ${taken}` + (foreign ? ` from ${found.instance}` : ""), ...(foreign ? ["Neutralising the copied data"] : []), "Starting Odoo"],
-    notes: [{ text: `The off-site copy ${found.id} passed its check${withKey ? " with the public key you gave" : ""} (signature and every checksum)`, level: "info" }],
-    onDone: () => {
-      found.status = "verified";
-      found.verified_at = Date.now() / 1000;
-      found.reason = null;
-      publish("offsite", found.id, null);
-      const before = addBackup(instance, "before-restore", Date.now());
-      instance.rollback = { backups: [before.file], taken_at: iso(Date.now())!, until: iso(Date.now() + Number(setting("rollback_hours")) * HOUR)! };
-      wake(instance);
-    },
-  }));
+  return accepted(
+    startJob({
+      instance: name,
+      action: "Restore an off-site copy",
+      kind: "restore",
+      seconds: 2.2,
+      status: "busy",
+      steps: [
+        "Checking the signature of the manifest",
+        `Downloading and checking ${found.files[0]?.name}`,
+        "Saving the current state first",
+        "Stopping Odoo",
+        `Restoring the backup of ${taken}` + (foreign ? ` from ${found.instance}` : ""),
+        ...(foreign ? ["Neutralising the copied data"] : []),
+        "Starting Odoo",
+      ],
+      notes: [
+        {
+          text: `The off-site copy ${found.id} passed its check${withKey ? " with the public key you gave" : ""} (signature and every checksum)`,
+          level: "info",
+        },
+      ],
+      onDone: () => {
+        found.status = "verified";
+        found.verified_at = Date.now() / 1000;
+        found.reason = null;
+        publish("offsite", found.id, null);
+        const before = addBackup(instance, "before-restore", Date.now());
+        instance.rollback = {
+          backups: [before.file],
+          taken_at: iso(Date.now())!,
+          until: iso(Date.now() + Number(setting("rollback_hours")) * HOUR)!,
+        };
+        wake(instance);
+      },
+    }),
+  );
 });
 route("DELETE", "/offsite/copies/:id", ({ params }) => {
   need("offsite.delete");
   const found = copyOf(params.id!);
   busyCopy(found);
-  if (instances.has(found.instance) && offsite.isProtected(found)) throw new Problem(409, "This is the newest good off-site copy of the instance, so it is kept. Delete it once a newer copy is stored (or after the instance is deleted).");
+  if (instances.has(found.instance) && offsite.isProtected(found))
+    throw new Problem(
+      409,
+      "This is the newest good off-site copy of the instance, so it is kept. Delete it once a newer copy is stored (or after the instance is deleted).",
+    );
   offsite.remove(found);
   return none();
 });
@@ -1916,9 +2687,19 @@ route("GET", "/deploy-keys", () => {
 });
 route("POST", "/deploy-keys", ({ body }) => {
   need("github.manage");
-  const repo = String(body.repo ?? "").replace(/^https:\/\/github\.com\//, "").replace(/\.git$/, "").trim();
-  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Problem(400, "Enter the repository as owner/name or its GitHub address.");
-  const key = { repo, spelling: repo, public_key: `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI${hex(32)} sudoo-demo`, created: Date.now() / 1000, github_url: `https://github.com/${repo}/settings/keys/new` };
+  const repo = String(body.repo ?? "")
+    .replace(/^https:\/\/github\.com\//, "")
+    .replace(/\.git$/, "")
+    .trim();
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo))
+    throw new Problem(400, "Enter the repository as owner/name or its GitHub address.");
+  const key = {
+    repo,
+    spelling: repo,
+    public_key: `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI${hex(32)} sudoo-demo`,
+    created: Date.now() / 1000,
+    github_url: `https://github.com/${repo}/settings/keys/new`,
+  };
   deployKeys.push(key);
   github.deploy_keys = deployKeys.length;
   return created(key);
@@ -1946,7 +2727,10 @@ route("DELETE", "/github/app", () => {
   const app = github.app;
   github.app = null;
   github.connected = false;
-  return ok({ settings_url: app?.settings_url ?? "", installations: (app?.installations ?? []).map((i) => ({ account: i.account, settings_url: i.settings_url })) });
+  return ok({
+    settings_url: app?.settings_url ?? "",
+    installations: (app?.installations ?? []).map((i) => ({ account: i.account, settings_url: i.settings_url })),
+  });
 });
 route("POST", "/github/app/installations", () => {
   throw offline("Installing the GitHub App");
@@ -1963,7 +2747,9 @@ route("DELETE", "/github/app/installations/:id", ({ params }) => {
 route("GET", "/github/repositories", ({ query }) => {
   need("instances.create");
   const words = (query.get("q") ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-  const list = REPOS.filter((r) => words.every((w) => `${OWNER}/${r.name} ${r.description}`.toLowerCase().includes(w))).map((r) => ({
+  const list = REPOS.filter((r) =>
+    words.every((w) => `${OWNER}/${r.name} ${r.description}`.toLowerCase().includes(w)),
+  ).map((r) => ({
     full_name: `${OWNER}/${r.name}`,
     url: repoUrl(r.name),
     private: true,
@@ -1972,7 +2758,10 @@ route("GET", "/github/repositories", ({ query }) => {
     pushed_at: iso(OPENED - r.pushedAgo),
     account: OWNER,
   }));
-  return ok(github.connected ? list : [], { connected: github.connected, installations: (github.app?.installations ?? []).map((i) => ({ account: i.account, settings_url: i.settings_url })) });
+  return ok(github.connected ? list : [], {
+    connected: github.connected,
+    installations: (github.app?.installations ?? []).map((i) => ({ account: i.account, settings_url: i.settings_url })),
+  });
 });
 route("GET", "/repositories/branches", ({ query }) => {
   need("instances.view");
@@ -1985,8 +2774,28 @@ route("GET", "/repositories/branches", ({ query }) => {
 route("GET", "/repositories/access", ({ query }) => {
   need("instances.view");
   const url = query.get("url") ?? "";
-  const submodules = findRepo(url) ? [{ url: "https://github.com/OCA/web", role: "submodule" as const, ok: true, problem: null, via: "public" as const, fix: null }] : [];
-  return ok({ repositories: [{ url, role: "main", ok: true, problem: null, via: findRepo(url) ? "github-app" : "public", fix: null }, ...submodules], all_ok: true }, { can_manage_keys: can("github.manage"), github_app: true });
+  const submodules = findRepo(url)
+    ? [
+        {
+          url: "https://github.com/OCA/web",
+          role: "submodule" as const,
+          ok: true,
+          problem: null,
+          via: "public" as const,
+          fix: null,
+        },
+      ]
+    : [];
+  return ok(
+    {
+      repositories: [
+        { url, role: "main", ok: true, problem: null, via: findRepo(url) ? "github-app" : "public", fix: null },
+        ...submodules,
+      ],
+      all_ok: true,
+    },
+    { can_manage_keys: can("github.manage"), github_app: true },
+  );
 });
 
 // ---------------------------------------------------------------- documentation
@@ -2002,8 +2811,21 @@ route("GET", "/docs/:*path", ({ params }) => {
 
 function pluginJob(id: string, title: string, steps: string[], onDone: () => void) {
   need("settings.manage");
-  if (jobs.some((j) => j.instance === "panel:plugins" && (j.status === "running" || j.status === "queued"))) throw new Problem(409, "Another plugin is being installed. Try again when it has finished.");
-  const job = startJob({ instance: "panel:plugins", action: title, kind: "plugin-install", steps, seconds: 1.6, panel: true, context: { name: id, database: "", version: "", edition: "community" }, onDone: () => { onDone(); publish("plugins", "", {}); } });
+  if (jobs.some((j) => j.instance === "panel:plugins" && (j.status === "running" || j.status === "queued")))
+    throw new Problem(409, "Another plugin is being installed. Try again when it has finished.");
+  const job = startJob({
+    instance: "panel:plugins",
+    action: title,
+    kind: "plugin-install",
+    steps,
+    seconds: 1.6,
+    panel: true,
+    context: { name: id, database: "", version: "", edition: "community" },
+    onDone: () => {
+      onDone();
+      publish("plugins", "", {});
+    },
+  });
   return accepted(job);
 }
 
@@ -2016,26 +2838,55 @@ route("POST", "/plugins", ({ body }) => {
   const entry = catalog().find((p) => p.id === body.id);
   if (!entry) throw new Problem(404, "This plugin is not in the marketplace.");
   if (entry.tier === "paid" && entry.action === "buy") throw offline("Buying a plugin");
-  return pluginJob(entry.id, `Install ${entry.name}`, ["Downloading the package", "Checking its signature", "Backing up the panel's data", "Installing", "Restarting the backend"], () => {
-    const existing = plugins.findIndex((p) => p.id === entry.id);
-    const plugin = {
-      id: entry.id, name: entry.name, version: entry.latest_version?.version ?? "1.0.0", type: entry.type, tier: entry.tier,
-      description: entry.description, publisher: entry.publisher, permissions: ["alerts.read"], enabled: true, status: "active" as const,
-      loaded: true, restart_pending: false, licence: null, latest_version: entry.latest_version?.version ?? null, update_available: false,
-      installed_at: iso(Date.now()), installed_by: ME,
-    };
-    if (existing >= 0) plugins[existing] = plugin;
-    else plugins.push(plugin);
-    record(ME, "plugin installed", { detail: `${entry.id} ${plugin.version}` });
-  });
+  return pluginJob(
+    entry.id,
+    `Install ${entry.name}`,
+    [
+      "Downloading the package",
+      "Checking its signature",
+      "Backing up the panel's data",
+      "Installing",
+      "Restarting the backend",
+    ],
+    () => {
+      const existing = plugins.findIndex((p) => p.id === entry.id);
+      const plugin = {
+        id: entry.id,
+        name: entry.name,
+        version: entry.latest_version?.version ?? "1.0.0",
+        type: entry.type,
+        tier: entry.tier,
+        description: entry.description,
+        publisher: entry.publisher,
+        permissions: ["alerts.read"],
+        enabled: true,
+        status: "active" as const,
+        loaded: true,
+        restart_pending: false,
+        licence: null,
+        latest_version: entry.latest_version?.version ?? null,
+        update_available: false,
+        installed_at: iso(Date.now()),
+        installed_by: ME,
+      };
+      if (existing >= 0) plugins[existing] = plugin;
+      else plugins.push(plugin);
+      record(ME, "plugin installed", { detail: `${entry.id} ${plugin.version}` });
+    },
+  );
 });
 route("POST", "/plugins/:id/update", ({ params }) => {
   const plugin = plugins.find((p) => p.id === params.id);
   if (!plugin) throw new Problem(404, "This plugin is not installed.");
-  return pluginJob(plugin.id, `Update ${plugin.name}`, ["Downloading the package", "Checking its signature", "Installing", "Restarting the backend"], () => {
-    plugin.version = plugin.latest_version ?? plugin.version;
-    plugin.update_available = false;
-  });
+  return pluginJob(
+    plugin.id,
+    `Update ${plugin.name}`,
+    ["Downloading the package", "Checking its signature", "Installing", "Restarting the backend"],
+    () => {
+      plugin.version = plugin.latest_version ?? plugin.version;
+      plugin.update_available = false;
+    },
+  );
 });
 route("POST", "/plugins/:id/:verb", ({ params }) => {
   need("settings.manage");
@@ -2049,9 +2900,14 @@ route("POST", "/plugins/:id/:verb", ({ params }) => {
 route("DELETE", "/plugins/:id", ({ params }) => {
   const plugin = plugins.find((p) => p.id === params.id);
   if (!plugin) throw new Problem(404, "This plugin is not installed.");
-  return pluginJob(plugin.id, `Uninstall ${plugin.name}`, ["Backing up the panel's data", "Removing the plugin", "Restarting the backend"], () => {
-    plugins.splice(plugins.indexOf(plugin), 1);
-  });
+  return pluginJob(
+    plugin.id,
+    `Uninstall ${plugin.name}`,
+    ["Backing up the panel's data", "Removing the plugin", "Restarting the backend"],
+    () => {
+      plugins.splice(plugins.indexOf(plugin), 1);
+    },
+  );
 });
 route("GET", "/marketplace", () => ok(marketplace));
 route("POST", "/marketplace/heartbeat", () => {
@@ -2069,7 +2925,12 @@ route("GET", "/marketplace/catalog", ({ query }) => {
   const q = (query.get("q") ?? "").toLowerCase();
   const type = query.get("type");
   const tier = query.get("tier");
-  const list: CatalogPlugin[] = catalog().filter((p) => (!q || `${p.name} ${p.description} ${p.tags.join(" ")}`.toLowerCase().includes(q)) && (!type || p.type === type) && (!tier || p.tier === tier));
+  const list: CatalogPlugin[] = catalog().filter(
+    (p) =>
+      (!q || `${p.name} ${p.description} ${p.tags.join(" ")}`.toLowerCase().includes(q)) &&
+      (!type || p.type === type) &&
+      (!tier || p.tier === tier),
+  );
   return ok(list, { total: list.length });
 });
 route("GET", "/marketplace/catalog/:id", ({ params }) => {
@@ -2082,7 +2943,17 @@ route("GET", "/marketplace/categories", () => ok(categories()));
 route("GET", "/marketplace/icons/:id", () => {
   throw new Problem(404, "No icon.");
 });
-route("GET", "/marketplace/billing", () => ok({ payments_enabled: false, linked: true, account_name: "Example Integrator", can_buy: false, reason: "payments_disabled", currency: "usd", manage_url: null }));
+route("GET", "/marketplace/billing", () =>
+  ok({
+    payments_enabled: false,
+    linked: true,
+    account_name: "Example Integrator",
+    can_buy: false,
+    reason: "payments_disabled",
+    currency: "usd",
+    manage_url: null,
+  }),
+);
 route("POST", "/marketplace/checkout-sessions", () => {
   throw offline("Buying a plugin");
 });
@@ -2117,7 +2988,14 @@ function projectMeta(project: DemoProject) {
     default_branch: project.repo?.defaultBranch ?? null,
     branches_error: null,
     branches_read_at: iso(Date.now() - 12 * 1000),
-    capacity: { comfortable: c.comfortable, running: c.running, headroom: c.headroom, warning: c.warning, message: c.message, overloaded: c.overloaded },
+    capacity: {
+      comfortable: c.comfortable,
+      running: c.running,
+      headroom: c.headroom,
+      warning: c.warning,
+      message: c.message,
+      overloaded: c.overloaded,
+    },
     production_limit: Number(setting("project_production_branches") ?? 1) || null,
     server_production_limit: Number(setting("max_production_instances") ?? 0) || null,
     commit_statuses: { available: statusesAvailable(project) },
@@ -2126,18 +3004,41 @@ function projectMeta(project: DemoProject) {
 }
 
 const PROJECT_SCOPED: Permission[] = [
-  "instances.view", "instances.logs", "instances.update", "instances.operate", "instances.create", "instances.restore",
-  "instances.delete", "instances.credentials", "instances.connect", "instances.resources", "instances.shell", "instances.database_shell",
-  "caught_mail.view", "caught_mail.manage", "backups.manage", "offsite.restore", "offsite.delete", "domains.manage",
-  "projects.manage", "projects.access", "projects.resources",
+  "instances.view",
+  "instances.logs",
+  "instances.update",
+  "instances.operate",
+  "instances.create",
+  "instances.restore",
+  "instances.delete",
+  "instances.credentials",
+  "instances.connect",
+  "instances.resources",
+  "instances.shell",
+  "instances.database_shell",
+  "caught_mail.view",
+  "caught_mail.manage",
+  "backups.manage",
+  "offsite.restore",
+  "offsite.delete",
+  "domains.manage",
+  "projects.manage",
+  "projects.access",
+  "projects.resources",
 ];
 
 const publishProject = (project: DemoProject) => publish("project", project.id, projectResource(project));
 
 route("GET", "/projects", () => {
   need("instances.view");
-  const list = [...projects.values()].filter((p) => seesProject(p.access)).sort((a, b) => a.name.localeCompare(b.name)).map(projectResource);
-  const standalone = [...instances.values()].filter((i) => !i.project).map((i) => i.name).sort();
+  const list = [...projects.values()]
+    .filter((p) => seesProject(p.access))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(projectResource);
+  const standalone = [...instances.values()]
+    .filter((i) => !i.project)
+    .map((i) => i.name)
+    .sort();
   return ok(list, { standalone, total: list.length });
 });
 
@@ -2166,10 +3067,35 @@ route("POST", "/projects/:id/github/check", ({ params }) => {
     status: "warning",
     checked_at: iso(Date.now()),
     checks: [
-      { id: "repository", status: "ok", message: `The server can read ${project.repository} through the GitHub App.`, fix: null },
-      { id: "installation", status: "ok", message: `The GitHub App is installed on ${owner} (selected repositories) and covers ${project.repository}.`, fix: { url: `https://github.com/organizations/${owner}/settings/installations`, label: "Open the installation" } },
-      { id: "permissions", status: "warning", message: "Contents and Metadata can be read; Commit statuses: write is not granted, so builds are not shown on GitHub's commits.", fix: { url: `https://github.com/organizations/${owner}/settings/installations`, label: "Review permissions" } },
-      { id: "webhook", status: "ok", message: "The webhook goes to this panel and the latest of this repository's deliveries (push, 2026-11-22T08:41:12Z) arrived.", fix: null },
+      {
+        id: "repository",
+        status: "ok",
+        message: `The server can read ${project.repository} through the GitHub App.`,
+        fix: null,
+      },
+      {
+        id: "installation",
+        status: "ok",
+        message: `The GitHub App is installed on ${owner} (selected repositories) and covers ${project.repository}.`,
+        fix: {
+          url: `https://github.com/organizations/${owner}/settings/installations`,
+          label: "Open the installation",
+        },
+      },
+      {
+        id: "permissions",
+        status: "warning",
+        message:
+          "Contents and Metadata can be read; Commit statuses: write is not granted, so builds are not shown on GitHub's commits.",
+        fix: { url: `https://github.com/organizations/${owner}/settings/installations`, label: "Review permissions" },
+      },
+      {
+        id: "webhook",
+        status: "ok",
+        message:
+          "The webhook goes to this panel and the latest of this repository's deliveries (push, 2026-11-22T08:41:12Z) arrived.",
+        fix: null,
+      },
       { id: "submodules", status: "ok", message: "All 2 submodules can be read (1 with a deploy key).", fix: null },
     ],
   });
@@ -2192,20 +3118,45 @@ route("POST", "/projects", ({ body }) => {
   if (create) {
     need("github.manage");
     const name = String(create.name ?? "").trim();
-    if (!/^[A-Za-z0-9._-]{1,100}$/.test(name) || name === "." || name === "..") throw new Problem(400, "This is not a repository name GitHub accepts (letters, digits, '.', '-', '_').");
-    if (REPOS.some((r) => r.name === name)) throw new Problem(409, `${OWNER} has a repository named ${name} already. Choose another name.`);
+    if (!/^[A-Za-z0-9._-]{1,100}$/.test(name) || name === "." || name === "..")
+      throw new Problem(400, "This is not a repository name GitHub accepts (letters, digits, '.', '-', '_').");
+    if (REPOS.some((r) => r.name === name))
+      throw new Problem(409, `${OWNER} has a repository named ${name} already. Choose another name.`);
     repository = `${String(create.owner ?? OWNER)}/${name}`;
   } else {
-    const typed = String(body.repository ?? "").trim().replace(/^https:\/\/github\.com\//, "").replace(/\.git$/, "").replace(/\/$/, "");
+    const typed = String(body.repository ?? "")
+      .trim()
+      .replace(/^https:\/\/github\.com\//, "")
+      .replace(/\.git$/, "")
+      .replace(/\/$/, "");
     repo = findRepo(`https://github.com/${typed}`);
-    if (!repo) throw new Problem(400, `The server cannot read ${typed || "this repository"}. In the demo, pick one of ${REPOS.map((r) => r.name).join(", ")}.`);
+    if (!repo)
+      throw new Problem(
+        400,
+        `The server cannot read ${typed || "this repository"}. In the demo, pick one of ${REPOS.map((r) => r.name).join(", ")}.`,
+      );
     repository = `${OWNER}/${repo.name}`;
   }
-  if ([...projects.values()].some((p) => p.repository.toLowerCase() === repository.toLowerCase())) throw new Problem(409, `${repository} has a project already.`);
+  if ([...projects.values()].some((p) => p.repository.toLowerCase() === repository.toLowerCase()))
+    throw new Problem(409, `${repository} has a project already.`);
   const shown = String(body.name ?? "").trim() || repository.split("/")[1]!;
   let id = slug(shown).slice(0, 36) || "project";
   for (let n = 2; projects.has(id); n++) id = `${slug(shown).slice(0, 33)}-${n}`;
-  const project: DemoProject = { id, name: shown, repository, repo, version, edition, origin: create ? "created" : "linked", created_at: Date.now(), created_by: ME, own: {}, stages: {}, autoCreated: {}, access: openAccess() };
+  const project: DemoProject = {
+    id,
+    name: shown,
+    repository,
+    repo,
+    version,
+    edition,
+    origin: create ? "created" : "linked",
+    created_at: Date.now(),
+    created_by: ME,
+    own: {},
+    stages: {},
+    autoCreated: {},
+    access: openAccess(),
+  };
   projects.set(id, project);
   PROJECT_NAMES[id] = shown;
   if (create) record(ME, "repository created on GitHub", { detail: repository });
@@ -2233,8 +3184,20 @@ interface DemoUpgrade {
 }
 const upgrades = new Map<string, DemoUpgrade>();
 const upgradeOf = (name: string): DemoUpgrade =>
-  upgrades.get(name) ?? (upgrades.set(name, { state: null, target: null, branch: null, report: null, staging: null, tested_at: null, promotion: null, history: [] }), upgrades.get(name)!);
-const upgradeMethod = (instance: Instance): UpgradeMethod => (instance.odoo.edition === "enterprise" ? "enterprise" : "openupgrade");
+  upgrades.get(name) ??
+  (upgrades.set(name, {
+    state: null,
+    target: null,
+    branch: null,
+    report: null,
+    staging: null,
+    tested_at: null,
+    promotion: null,
+    history: [],
+  }),
+  upgrades.get(name)!);
+const upgradeMethod = (instance: Instance): UpgradeMethod =>
+  instance.odoo.edition === "enterprise" ? "enterprise" : "openupgrade";
 const upgradeTargets = (instance: Instance) => {
   const major = Number(instance.odoo.version.split(".")[0]);
   const later = DEMO_VERSIONS.filter((v) => Number(v.split(".")[0]) > major);
@@ -2261,7 +3224,9 @@ function upgradeResource(instance: Instance): Upgrade {
     skips_versions: upgradeMethod(instance) === "enterprise",
     terms_url: upgradeMethod(instance) === "enterprise" ? ODOO_TERMS : null,
     openupgrade_source: upgradeMethod(instance) === "openupgrade" ? OPENUPGRADE_REPOSITORY : null,
-    refusal: [...upgrades.values()].some((u) => u.staging === instance.name) ? `${instance.name} is the test instance of another upgrade.` : null,
+    refusal: [...upgrades.values()].some((u) => u.staging === instance.name)
+      ? `${instance.name} is the test instance of another upgrade.`
+      : null,
     state: found.state,
     target: found.target,
     branch: found.branch,
@@ -2279,15 +3244,25 @@ function upgradeResource(instance: Instance): Upgrade {
 function upgradeTarget(instance: Instance, body: Record<string, unknown>): string {
   const targets = upgradeTargets(instance);
   const target = String(body.target ?? targets[0] ?? "");
-  if (!targets.includes(target)) throw new Problem(400, `Choose a version ${instance.name} can be upgraded to: ${targets.join(", ") || "none"}.`);
+  if (!targets.includes(target))
+    throw new Problem(400, `Choose a version ${instance.name} can be upgraded to: ${targets.join(", ") || "none"}.`);
   return target;
 }
 function upgradeCode(instance: Instance, body: Record<string, unknown>) {
   if (upgradeMethod(instance) !== "enterprise") return;
   if (body.accept_odoo_terms !== true)
-    throw new Problem(400, 'This uses Odoo S.A.\'s upgrade service under your Odoo Enterprise subscription and Odoo\'s terms: accept them first ("accept_odoo_terms": true).');
-  if (typeof body.subscription_code !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{3,99}$/.test(body.subscription_code.trim()))
-    throw new Problem(400, "Enter the Odoo Enterprise subscription code of this database (letters, digits and dashes).");
+    throw new Problem(
+      400,
+      "This uses Odoo S.A.'s upgrade service under your Odoo Enterprise subscription and Odoo's terms: accept them first (\"accept_odoo_terms\": true).",
+    );
+  if (
+    typeof body.subscription_code !== "string" ||
+    !/^[A-Za-z0-9][A-Za-z0-9_.-]{3,99}$/.test(body.subscription_code.trim())
+  )
+    throw new Problem(
+      400,
+      "Enter the Odoo Enterprise subscription code of this database (letters, digits and dashes).",
+    );
   // the demo never sends it anywhere: Odoo's upgrade service is simulated
 }
 const DEMO_MODULES = (prefix: string, target: string): UpgradeReport["modules"] => [
@@ -2320,13 +3295,22 @@ route("POST", "/instances/:name/upgrade/check", ({ params, body }) => {
     installed_count: 42,
     modules,
     warnings: modules.some((m) => m.status !== "ready")
-      ? [{ code: "modules_not_ready", text: `1 of the repository's modules is not ready for Odoo ${target}: ${prefix}_reports. A developer has to port it.` }]
+      ? [
+          {
+            code: "modules_not_ready",
+            text: `1 of the repository's modules is not ready for Odoo ${target}: ${prefix}_reports. A developer has to port it.`,
+          },
+        ]
       : [],
     blocking: [],
     checked_at: iso(Date.now()),
   };
-  rememberUpgrade(instance.name, "pre-check", `to Odoo ${target}: ${modules.length} repository modules, ${modules.filter((m) => m.status !== "ready").length} not ready`,
-    { report, target, branch: repo ? target : null, state: upgradeOf(instance.name).state ?? "checked" });
+  rememberUpgrade(
+    instance.name,
+    "pre-check",
+    `to Odoo ${target}: ${modules.length} repository modules, ${modules.filter((m) => m.status !== "ready").length} not ready`,
+    { report, target, branch: repo ? target : null, state: upgradeOf(instance.name).state ?? "checked" },
+  );
   return ok(upgradeResource(instance));
 });
 route("POST", "/instances/:name/upgrade/test", ({ params, body }) => {
@@ -2334,8 +3318,10 @@ route("POST", "/instances/:name/upgrade/test", ({ params, body }) => {
   const instance = instanceOf(params.name!);
   const target = upgradeTarget(instance, body);
   const found = upgradeOf(instance.name);
-  if (found.report?.target !== target) throw new Problem(409, `Run the pre-check for Odoo ${target} first, and read its report.`);
-  if (found.state === "testing" || found.state === "promoting") throw new Problem(409, "A test or an upgrade of this instance is running already.");
+  if (found.report?.target !== target)
+    throw new Problem(409, `Run the pre-check for Odoo ${target} first, and read its report.`);
+  if (found.state === "testing" || found.state === "promoting")
+    throw new Problem(409, "A test or an upgrade of this instance is running already.");
   upgradeCode(instance, body);
   const method = upgradeMethod(instance);
   const staging = found.staging ? instances.get(found.staging) : undefined;
@@ -2343,31 +3329,62 @@ route("POST", "/instances/:name/upgrade/test", ({ params, body }) => {
     if (staging.current_job) throw new Problem(409, `${staging.name} is busy; try again when its job has finished.`);
     rememberUpgrade(instance.name, "test started", `again on ${staging.name}`, { state: "testing" });
     addBackup(instance, "staging-copy", Date.now());
-    return accepted(startJob({
-      instance: staging.name,
-      action: `Run the Odoo ${target} upgrade test again`,
-      kind: "upgrade-test",
-      steps: [`Backing up ${instance.name}`, `Downloading the latest code of ${target}`, "Stopping Odoo", `Loading the copy into database ${staging.odoo.database}`,
-        `Upgrading the copy to Odoo ${target} (${method === "enterprise" ? "Odoo's upgrade service" : "OpenUpgrade"})`, "Neutralising the copied data", "Setting the admin password", "Starting Odoo"],
-      seconds: [2, 2, 1.5, 3.5, 7, 2, 1.5, 2.5],
-      onDone: () => rememberUpgrade(instance.name, "tested", `again on ${staging.name}`, { state: "tested", tested_at: iso(Date.now()) }),
-    }));
+    return accepted(
+      startJob({
+        instance: staging.name,
+        action: `Run the Odoo ${target} upgrade test again`,
+        kind: "upgrade-test",
+        steps: [
+          `Backing up ${instance.name}`,
+          `Downloading the latest code of ${target}`,
+          "Stopping Odoo",
+          `Loading the copy into database ${staging.odoo.database}`,
+          `Upgrading the copy to Odoo ${target} (${method === "enterprise" ? "Odoo's upgrade service" : "OpenUpgrade"})`,
+          "Neutralising the copied data",
+          "Setting the admin password",
+          "Starting Odoo",
+        ],
+        seconds: [2, 2, 1.5, 3.5, 7, 2, 1.5, 2.5],
+        onDone: () =>
+          rememberUpgrade(instance.name, "tested", `again on ${staging.name}`, {
+            state: "tested",
+            tested_at: iso(Date.now()),
+          }),
+      }),
+    );
   }
   const repo = instance.source === "repository";
   const answer = createInstance(
-    { repo: repo ? instance.git.repository : "", branch: target, version: target, edition: instance.odoo.edition, stage: "staging", name: `${instance.name.slice(0, 30)}-odoo${target.split(".")[0]}`, install_modules: false },
+    {
+      repo: repo ? instance.git.repository : "",
+      branch: target,
+      version: target,
+      edition: instance.odoo.edition,
+      stage: "staging",
+      name: `${instance.name.slice(0, 30)}-odoo${target.split(".")[0]}`,
+      install_modules: false,
+    },
     {
       project: instance.project?.id,
       upgradeOf: {
         source: instance,
         target,
         method,
-        onDone: () => rememberUpgrade(instance.name, "tested", `on ${stagingName}`, { state: "tested", staging: stagingName, tested_at: iso(Date.now()) }),
+        onDone: () =>
+          rememberUpgrade(instance.name, "tested", `on ${stagingName}`, {
+            state: "tested",
+            staging: stagingName,
+            tested_at: iso(Date.now()),
+          }),
       },
     },
   );
   const stagingName = String((answer.headers?.["Content-Location"] ?? "").split("/").pop());
-  rememberUpgrade(instance.name, "test started", `to Odoo ${target} on ${stagingName}`, { state: "testing", target, staging: stagingName });
+  rememberUpgrade(instance.name, "test started", `to Odoo ${target} on ${stagingName}`, {
+    state: "testing",
+    target,
+    staging: stagingName,
+  });
   return answer;
 });
 route("POST", "/instances/:name/upgrade/promote", ({ params, body }) => {
@@ -2377,69 +3394,116 @@ route("POST", "/instances/:name/upgrade/promote", ({ params, body }) => {
   if (!found.tested_at || !["tested", "promotion_failed", "rolled_back"].includes(found.state ?? ""))
     throw new Problem(409, "Test the upgrade first: production is upgraded only after a test that succeeded.");
   if (instance.stage === "production" && body.confirm_production !== true)
-    throw new Problem(400, `${instance.name} is a production instance: confirm that you want to upgrade it to Odoo ${found.target} ("confirm_production": true).`);
+    throw new Problem(
+      400,
+      `${instance.name} is a production instance: confirm that you want to upgrade it to Odoo ${found.target} ("confirm_production": true).`,
+    );
   upgradeCode(instance, body);
   if (instance.current_job) throw new Problem(409, `${instance.name} is busy; try again when its job has finished.`);
   const target = found.target!;
   const method = upgradeMethod(instance);
   const minutes = Number(setting("upgrade_rollback_minutes") ?? 60);
-  rememberUpgrade(instance.name, "production upgrade started", `to Odoo ${target}`, { state: "promoting", previous: { version: instance.odoo.version, branch: instance.git.branch } });
+  rememberUpgrade(instance.name, "production upgrade started", `to Odoo ${target}`, {
+    state: "promoting",
+    previous: { version: instance.odoo.version, branch: instance.git.branch },
+  });
   addBackup(instance, "before-upgrade", Date.now());
-  return accepted(startJob({
-    instance: instance.name,
-    action: `Upgrade to Odoo ${target}`,
-    kind: "db-upgrade",
-    status: "stopped",
-    steps: ["Putting Odoo into maintenance", "Backing up the database and files",
-      ...(method === "enterprise"
-        ? [`Upgrading the database to Odoo ${target} with Odoo's upgrade service`, `Switching to Odoo ${target}${found.branch ? ` and branch ${found.branch}` : ""}`]
-        : [`Switching to Odoo ${target}${found.branch ? ` and branch ${found.branch}` : ""}`, `Upgrading the database to Odoo ${target} with OpenUpgrade`]),
-      "Starting Odoo", "Waiting for Odoo to be ready"],
-    seconds: [1.5, 3, 7, 3, 2, 2],
-    notes: minutes ? [{ text: `${instance.name} runs Odoo ${target}. For ${minutes} minutes you can cancel the upgrade (back to the backup taken before it; what was changed meanwhile is lost), and it is put back by itself if Odoo stops answering.`, level: "info" }] : [],
-    onDone: () => {
-      instance.odoo.version = target;
-      if (found.branch) instance.git.branch = found.branch;
-      instance.status = "online";
-      rememberUpgrade(instance.name, "production upgraded", `to Odoo ${target}`, {
-        state: "promoted",
-        promotion: { at: iso(Date.now()), by: ME, target, backup: [`${instance.name}__before-upgrade.zip`], finished_at: iso(Date.now()), rollback_until: minutes ? iso(Date.now() + minutes * MINUTE) : null },
-      });
-      announce(instance);
-    },
-  }));
+  return accepted(
+    startJob({
+      instance: instance.name,
+      action: `Upgrade to Odoo ${target}`,
+      kind: "db-upgrade",
+      status: "stopped",
+      steps: [
+        "Putting Odoo into maintenance",
+        "Backing up the database and files",
+        ...(method === "enterprise"
+          ? [
+              `Upgrading the database to Odoo ${target} with Odoo's upgrade service`,
+              `Switching to Odoo ${target}${found.branch ? ` and branch ${found.branch}` : ""}`,
+            ]
+          : [
+              `Switching to Odoo ${target}${found.branch ? ` and branch ${found.branch}` : ""}`,
+              `Upgrading the database to Odoo ${target} with OpenUpgrade`,
+            ]),
+        "Starting Odoo",
+        "Waiting for Odoo to be ready",
+      ],
+      seconds: [1.5, 3, 7, 3, 2, 2],
+      notes: minutes
+        ? [
+            {
+              text: `${instance.name} runs Odoo ${target}. For ${minutes} minutes you can cancel the upgrade (back to the backup taken before it; what was changed meanwhile is lost), and it is put back by itself if Odoo stops answering.`,
+              level: "info",
+            },
+          ]
+        : [],
+      onDone: () => {
+        instance.odoo.version = target;
+        if (found.branch) instance.git.branch = found.branch;
+        instance.status = "online";
+        rememberUpgrade(instance.name, "production upgraded", `to Odoo ${target}`, {
+          state: "promoted",
+          promotion: {
+            at: iso(Date.now()),
+            by: ME,
+            target,
+            backup: [`${instance.name}__before-upgrade.zip`],
+            finished_at: iso(Date.now()),
+            rollback_until: minutes ? iso(Date.now() + minutes * MINUTE) : null,
+          },
+        });
+        announce(instance);
+      },
+    }),
+  );
 });
 route("POST", "/instances/:name/upgrade/cancel", ({ params, body }) => {
   needOn(params.name!, "instances.upgrade");
   const instance = instanceOf(params.name!);
   const found = upgradeOf(instance.name);
-  if (!upgradeResource(instance).rollback_open) throw new Problem(409, "There is no upgrade of this instance that can still be cancelled.");
+  if (!upgradeResource(instance).rollback_open)
+    throw new Problem(409, "There is no upgrade of this instance that can still be cancelled.");
   if (instance.stage === "production" && body.confirm_production !== true)
-    throw new Problem(400, `${instance.name} is a production instance: confirm that you want to cancel its upgrade ("confirm_production": true).`);
+    throw new Problem(
+      400,
+      `${instance.name} is a production instance: confirm that you want to cancel its upgrade ("confirm_production": true).`,
+    );
   addBackup(instance, "before-rollback", Date.now());
-  return accepted(startJob({
-    instance: instance.name,
-    action: "Cancel the Odoo upgrade",
-    kind: "db-upgrade",
-    status: "stopped",
-    steps: ["Saving the current state first", "Putting the instance back", "Starting Odoo", "Waiting for Odoo to be ready"],
-    seconds: [2.5, 4, 2, 2],
-    onDone: () => {
-      if (found.previous) {
-        instance.odoo.version = found.previous.version;
-        instance.git.branch = found.previous.branch;
-      }
-      instance.status = "online";
-      rememberUpgrade(instance.name, "production upgrade cancelled", "by hand", { state: "rolled_back", promotion: { ...found.promotion, rolled_back_at: iso(Date.now()), rolled_back_by: ME } });
-      announce(instance);
-    },
-  }));
+  return accepted(
+    startJob({
+      instance: instance.name,
+      action: "Cancel the Odoo upgrade",
+      kind: "db-upgrade",
+      status: "stopped",
+      steps: [
+        "Saving the current state first",
+        "Putting the instance back",
+        "Starting Odoo",
+        "Waiting for Odoo to be ready",
+      ],
+      seconds: [2.5, 4, 2, 2],
+      onDone: () => {
+        if (found.previous) {
+          instance.odoo.version = found.previous.version;
+          instance.git.branch = found.previous.branch;
+        }
+        instance.status = "online";
+        rememberUpgrade(instance.name, "production upgrade cancelled", "by hand", {
+          state: "rolled_back",
+          promotion: { ...found.promotion, rolled_back_at: iso(Date.now()), rolled_back_by: ME },
+        });
+        announce(instance);
+      },
+    }),
+  );
 });
 route("POST", "/instances/:name/upgrade/keep", ({ params }) => {
   needOn(params.name!, "instances.upgrade");
   const instance = instanceOf(params.name!);
   const found = upgradeOf(instance.name);
-  if (!upgradeResource(instance).rollback_open) throw new Problem(409, "There is no upgrade of this instance that can still be cancelled.");
+  if (!upgradeResource(instance).rollback_open)
+    throw new Problem(409, "There is no upgrade of this instance that can still be cancelled.");
   found.promotion = { ...found.promotion, rollback_until: iso(Date.now() - 1000) };
   rememberUpgrade(instance.name, "upgrade kept", "the rollback window was closed");
   return ok(upgradeResource(instance));
@@ -2451,9 +3515,20 @@ route("DELETE", "/instances/:name/upgrade", ({ params }) => {
   return none();
 });
 
-const OPTION_CHOICES: Partial<Record<keyof ProjectOptions, string[]>> = { staging_on_push: ["rebuild", "keep_data"], branch_deleted: ["keep", "archive", "delete"] };
+const OPTION_CHOICES: Partial<Record<keyof ProjectOptions, string[]>> = {
+  staging_on_push: ["rebuild", "keep_data"],
+  branch_deleted: ["keep", "archive", "delete"],
+};
 /** build options of the project, checked as a branch's are (build_options.clean) */
-const BUILD_OPTIONS = ["development_on_new_commit", "module_install", "modules", "test_suite", "test_tags", "staging_tests", "commit_statuses"];
+const BUILD_OPTIONS = [
+  "development_on_new_commit",
+  "module_install",
+  "modules",
+  "test_suite",
+  "test_tags",
+  "staging_tests",
+  "commit_statuses",
+];
 
 route("PATCH", "/projects/:id", ({ params, body }) => {
   const project = projectOf(params.id!);
@@ -2468,11 +3543,17 @@ route("PATCH", "/projects/:id", ({ params, body }) => {
   if (typeof body.odoo_version === "string") project.version = body.odoo_version;
   if (body.edition === "community" || body.edition === "enterprise") project.edition = body.edition;
   const changes = (body.options ?? {}) as Record<string, unknown>;
-  for (const key of Object.keys(changes)) if (BUILD_OPTIONS.includes(key)) changes[key] = cleanOption(key, changes[key]);
+  for (const key of Object.keys(changes))
+    if (BUILD_OPTIONS.includes(key)) changes[key] = cleanOption(key, changes[key]);
   if (Object.keys(changes).some((k) => BUILD_OPTIONS.includes(k))) {
     const merged = { ...projectResource(project).options } as Record<string, unknown>;
     for (const [key, value] of Object.entries(changes)) if (value !== null) merged[key] = value;
-    const refused = optionsProblem({ module_install: merged.module_install as "list", modules: String(merged.modules ?? ""), test_suite: merged.test_suite as "custom", test_tags: String(merged.test_tags ?? "") });
+    const refused = optionsProblem({
+      module_install: merged.module_install as "list",
+      modules: String(merged.modules ?? ""),
+      test_suite: merged.test_suite as "custom",
+      test_tags: String(merged.test_tags ?? ""),
+    });
     if (refused) throw new Problem(400, refused);
   }
   for (const [key, value] of Object.entries(changes)) {
@@ -2482,7 +3563,8 @@ route("PATCH", "/projects/:id", ({ params, body }) => {
     else {
       const choices = OPTION_CHOICES[option];
       if (choices && !choices.includes(String(value))) throw new Problem(400, `${key}: ${choices.join(" or ")}.`);
-      if (typeof value === "number" && (!Number.isInteger(value) || value < 0)) throw new Problem(400, `${key}: a whole number from 0.`);
+      if (typeof value === "number" && (!Number.isInteger(value) || value < 0))
+        throw new Problem(400, `${key}: a whole number from 0.`);
       (project.own as Record<string, unknown>)[option] = value;
     }
   }
@@ -2496,7 +3578,11 @@ route("DELETE", "/projects/:id", ({ params, body }) => {
   needInProject(project, "projects.manage");
   if (body.confirm !== project.id) throw new Problem(400, "Type the project's id exactly to confirm.");
   const members = membersOf(project.id);
-  if (members.length) throw new Problem(409, `${project.name} still has ${members.length} instances. Delete them first; the repository on GitHub is never touched.`);
+  if (members.length)
+    throw new Problem(
+      409,
+      `${project.name} still has ${members.length} instances. Delete them first; the repository on GitHub is never touched.`,
+    );
   projects.delete(project.id);
   record(ME, "project deleted", { detail: project.id });
   publish("project", project.id, { id: project.id, deleted: true });
@@ -2508,20 +3594,30 @@ route("PUT", "/projects/:id/branches/:*branch/stage", ({ params, body }) => {
   const branch = params.branch!.replace(/\/stage$/, "");
   needInProject(project, "projects.manage", branch);
   const stage = body.stage as Stage;
-  if (!["production", "staging", "development"].includes(stage)) throw new Problem(400, "Choose a stage: production, staging or development.");
+  if (!["production", "staging", "development"].includes(stage))
+    throw new Problem(400, "Choose a stage: production, staging or development.");
   const before = stageOf(project, branch);
   if (before !== stage) {
     if ((stage === "production" || before === "production") && body.confirm_production !== true)
-      throw new Problem(400, stage === "production" ? `Making ${branch} production changes how its instances run. Confirm ("confirm_production": true).` : `${branch} is a production branch. Confirm that it leaves production ("confirm_production": true).`);
+      throw new Problem(
+        400,
+        stage === "production"
+          ? `Making ${branch} production changes how its instances run. Confirm ("confirm_production": true).`
+          : `${branch} is a production branch. Confirm that it leaves production ("confirm_production": true).`,
+      );
     if (stage === "production") {
       const limit = Number(setting("project_production_branches") ?? 1);
       const others = branchList(project).filter((b) => b.stage === "production" && b.name !== branch);
       if (limit && others.length >= limit)
-        throw new Problem(409, `${project.name} may have ${limit} production ${limit === 1 ? "branch" : "branches"}, and ${others.map((b) => b.name).join(", ")} ${others.length === 1 ? "is" : "are"} in production already. Move it to staging or development first, or raise Production branches per project (Settings, Projects).`);
+        throw new Problem(
+          409,
+          `${project.name} may have ${limit} production ${limit === 1 ? "branch" : "branches"}, and ${others.map((b) => b.name).join(", ")} ${others.length === 1 ? "is" : "are"} in production already. Move it to staging or development first, or raise Production branches per project (Settings, Projects).`,
+        );
     }
   }
   for (const instance of membersOf(project.id).filter((i) => i.git.branch === branch)) {
-    if (instance.status === "creating") throw new Problem(409, `${instance.name} is still being created. Try again when its creation has finished.`);
+    if (instance.status === "creating")
+      throw new Problem(409, `${instance.name} is still being created. Try again when its creation has finished.`);
     if (instance.stage !== stage) {
       instance.stage = stage;
       if (stage === "production") {
@@ -2544,10 +3640,15 @@ route("POST", "/projects/:id/branches/:*branch/instances", ({ params, body }) =>
   const project = projectOf(params.id!);
   const branch = params.branch!.replace(/\/instances$/, "");
   needInProject(project, "instances.create", branch);
-  if (!branchList(project).some((b) => b.name === branch && b.on_github !== false)) throw new Problem(404, `${project.repository} has no branch ${branch} on GitHub.`);
+  if (!branchList(project).some((b) => b.name === branch && b.on_github !== false))
+    throw new Problem(404, `${project.repository} has no branch ${branch} on GitHub.`);
   const stage = stageOf(project, branch);
   const members = membersOf(project.id).filter((i) => i.git.branch === branch);
-  if (members.length && body.another !== true) throw new Problem(409, `${branch} has an instance already (${members[0]!.name}). Open it, or send "another": true to create one more.`);
+  if (members.length && body.another !== true)
+    throw new Problem(
+      409,
+      `${branch} has an instance already (${members[0]!.name}). Open it, or send "another": true to create one more.`,
+    );
   const chosen = typeof body.odoo_version === "string" ? body.odoo_version : "";
   if (chosen && !DEMO_VERSIONS.includes(chosen)) throw new Problem(400, "Choose an Odoo version from the list.");
   const version = chosen || project.versions?.[branch] || project.version;
@@ -2559,10 +3660,19 @@ route("POST", "/projects/:id/branches/:*branch/instances", ({ params, body }) =>
     if (!(ownVersion && production && production.odoo.version !== version)) {
       need("instances.restore");
       fromProduction = production;
-      if (!fromProduction) throw new Problem(409, "This project has no production instance to copy. Create the instance of its production branch first (or give a branch the production stage), or make this branch a development branch.");
+      if (!fromProduction)
+        throw new Problem(
+          409,
+          "This project has no production instance to copy. Create the instance of its production branch first (or give a branch the production stage), or make this branch a development branch.",
+        );
     }
   }
-  const lifetime = stage === "production" ? 0 : stage === "staging" ? Number(projectResource(project).options.staging_lifetime_days) : Number(projectResource(project).options.development_lifetime_days);
+  const lifetime =
+    stage === "production"
+      ? 0
+      : stage === "staging"
+        ? Number(projectResource(project).options.staging_lifetime_days)
+        : Number(projectResource(project).options.development_lifetime_days);
   const created = createInstance(
     {
       repo: `https://github.com/${project.repository}`,
@@ -2571,7 +3681,7 @@ route("POST", "/projects/:id/branches/:*branch/instances", ({ params, body }) =>
       edition: project.edition,
       stage,
       name: body.name,
-      demo: stage === "development" ? body.demo ?? projectResource(project).options.development_demo_data : false,
+      demo: stage === "development" ? (body.demo ?? projectResource(project).options.development_demo_data) : false,
       install_modules: body.install_modules,
       modules: body.modules,
       delete_after_days: lifetime,
@@ -2594,19 +3704,36 @@ route("POST", "/projects/:id/branches/:*branch/rebuild", ({ params, body }) => {
   const members = membersOf(project.id).filter((i) => i.git.branch === branch);
   const instance = members.find((i) => i.name === body.instance) ?? members[0];
   if (!instance) throw new Problem(404, `${branch} has no instance to rebuild.`);
-  if (instance.stage !== "staging") throw new Problem(409, `${instance.name} is not a staging instance: only staging is rebuilt from production.`);
+  if (instance.stage !== "staging")
+    throw new Problem(409, `${instance.name} is not a staging instance: only staging is rebuilt from production.`);
   const production = productionInstance(project);
   if (!production) throw new Problem(409, "This project has no production instance to copy.");
-  if (instance.current_job) throw new Problem(409, `${instance.name} is busy with another job. Try again when it has finished.`);
+  if (instance.current_job)
+    throw new Problem(409, `${instance.name} is busy with another job. Try again when it has finished.`);
   addBackup(production, "staging-copy", Date.now());
   const job = startJob({
     instance: instance.name,
     action: "Rebuild from production",
     kind: "restore",
-    steps: [`Copying the data of ${production.name} (production)`, `Downloading the latest code of ${branch}`, "Stopping Odoo", `Loading the copy into database ${instance.odoo.database}`, "Neutralising the copied data", "Setting the admin password", "Upgrading the repository's modules (2)", "Starting Odoo", "Waiting for Odoo to be ready"],
+    steps: [
+      `Copying the data of ${production.name} (production)`,
+      `Downloading the latest code of ${branch}`,
+      "Stopping Odoo",
+      `Loading the copy into database ${instance.odoo.database}`,
+      "Neutralising the copied data",
+      "Setting the admin password",
+      "Upgrading the repository's modules (2)",
+      "Starting Odoo",
+      "Waiting for Odoo to be ready",
+    ],
     seconds: [3, 1.5, 1, 3.5, 2, 1, 3, 2, 1.5],
     status: "busy",
-    notes: [{ text: `Rebuilt from a new copy of ${production.name}: neutralised (no e-mail goes out, scheduled actions and payment providers off).`, level: "info" }],
+    notes: [
+      {
+        text: `Rebuilt from a new copy of ${production.name}: neutralised (no e-mail goes out, scheduled actions and payment providers off).`,
+        level: "info",
+      },
+    ],
     onDone: () => {
       newCommit(instance);
       wake(instance);
@@ -2616,21 +3743,28 @@ route("POST", "/projects/:id/branches/:*branch/rebuild", ({ params, body }) => {
   return accepted(job);
 });
 
-
 // ---------------------------------------------------------------- build history (projects/builds.py)
 
 route("GET", "/projects/:id/builds", ({ params, query }) => {
   need("instances.view");
   const project = projectOf(params.id!);
   const perBranch = Math.min(200, Math.max(1, Number(query.get("per_branch") ?? 10) || 10));
-  const listed = branchList(project).map((b) => ({ branch: b.name, stage: b.stage, builds: branchBuilds(project.id, b.name, b.instances).slice(0, perBranch) }));
+  const listed = branchList(project).map((b) => ({
+    branch: b.name,
+    stage: b.stage,
+    builds: branchBuilds(project.id, b.name, b.instances).slice(0, perBranch),
+  }));
   return ok(listed, { per_branch: perBranch, kept_per_branch: Number(setting("project_builds_kept") ?? 200) });
 });
 
 route("GET", "/projects/:id/builds/:build", ({ params }) => {
   need("instances.view");
   const project = projectOf(params.id!);
-  const found = findEntry(project.id, params.build!, branchList(project).map((b) => ({ name: b.name, instances: b.instances })));
+  const found = findEntry(
+    project.id,
+    params.build!,
+    branchList(project).map((b) => ({ name: b.name, instances: b.instances })),
+  );
   if (!found) throw new Problem(404, "This build does not exist.");
   return ok(found);
 });
@@ -2644,7 +3778,9 @@ route("GET", "/projects/:id/branches/:*branch/history", ({ params, query }) => {
   const limit = Math.min(200, Math.max(1, Number(query.get("limit") ?? 50) || 50));
   const offset = Math.max(0, Number(query.get("offset") ?? 0) || 0);
   const commits = ["1", "true"].includes(query.get("commits") ?? "");
-  const entries = branchHistory(project.id, branch.name, branch.instances).filter((e) => commits || e.type !== "commit");
+  const entries = branchHistory(project.id, branch.name, branch.instances).filter(
+    (e) => commits || e.type !== "commit",
+  );
   return ok(entries.slice(offset, offset + limit), { total: entries.length, limit, offset });
 });
 
@@ -2654,7 +3790,8 @@ route("GET", "/projects/:id/branches/:*branch/options", ({ params }) => {
   const project = projectOf(params.id!);
   const name = params.branch!;
   needInProject(project, "instances.view", name);
-  if (!branchList(project).some((b) => b.name === name)) throw new Problem(404, `${project.repository} has no branch ${name}.`);
+  if (!branchList(project).some((b) => b.name === name))
+    throw new Problem(404, `${project.repository} has no branch ${name}.`);
   return ok(branchOptions(project, name));
 });
 
@@ -2662,7 +3799,8 @@ route("PUT", "/projects/:id/branches/:*branch/options", ({ params, body }) => {
   const project = projectOf(params.id!);
   const name = params.branch!;
   needInProject(project, "projects.manage", name);
-  if (!branchList(project).some((b) => b.name === name)) throw new Problem(404, `${project.repository} has no branch ${name}.`);
+  if (!branchList(project).some((b) => b.name === name))
+    throw new Problem(404, `${project.repository} has no branch ${name}.`);
   const answer = changeBranchOptions(project, name, body, ME);
   record(ME, "branch build options changed", { detail: `${project.id} ${name}` });
   publishProject(project);
@@ -2680,13 +3818,19 @@ function applySizing(project: DemoProject, body: Record<string, unknown>, branch
       instance: instance.name,
       action: "Apply resources",
       kind: "restart",
-      steps: [...(instance.stage === "production" ? ["Backing up the database and files before the change"] : []), "Applying the new resources", "Waiting for Odoo to be ready"],
+      steps: [
+        ...(instance.stage === "production" ? ["Backing up the database and files before the change"] : []),
+        "Applying the new resources",
+        "Waiting for Odoo to be ready",
+      ],
       status: ASLEEP.includes(instance.status) ? undefined : "starting",
       onStart: instance.stage === "production" ? () => addBackup(instance, "before-update", Date.now()) : undefined,
       onDone: () => (ASLEEP.includes(instance.status) ? undefined : wake(instance)),
     }),
   );
-  record(ME, branch == null ? "project resources changed" : "branch resources changed", { detail: `${project.id} ${branch ?? String(body.stage)}` });
+  record(ME, branch == null ? "project resources changed" : "branch resources changed", {
+    detail: `${project.id} ${branch ?? String(body.stage)}`,
+  });
   publishProject(project);
   const answer = branch == null ? sizing.projectResources(project) : sizing.branchResources(project, branch);
   return ok({ ...answer, plan: found.plan, jobs, waiting: [] });
@@ -2704,13 +3848,15 @@ route("PUT", "/projects/:id/resources", ({ params, body }) => {
 route("GET", "/projects/:id/branches/:*branch/resources", ({ params }) => {
   const project = projectOf(params.id!);
   needInProject(project, "instances.view", params.branch!);
-  if (!branchList(project).some((b) => b.name === params.branch)) throw new Problem(404, `${project.repository} has no branch ${params.branch}.`);
+  if (!branchList(project).some((b) => b.name === params.branch))
+    throw new Problem(404, `${project.repository} has no branch ${params.branch}.`);
   return ok(sizing.branchResources(project, params.branch!));
 });
 route("PUT", "/projects/:id/branches/:*branch/resources", ({ params, body }) => {
   const project = projectOf(params.id!);
   needInProject(project, "projects.resources", params.branch!);
-  if (!branchList(project).some((b) => b.name === params.branch)) throw new Problem(404, `${project.repository} has no branch ${params.branch}.`);
+  if (!branchList(project).some((b) => b.name === params.branch))
+    throw new Problem(404, `${project.repository} has no branch ${params.branch}.`);
   return applySizing(project, body, params.branch!);
 });
 
@@ -2737,7 +3883,10 @@ route("GET", "/projects/:id/compare", ({ params, query }) => {
 route("GET", "/projects/:id/staging-refresh", ({ params }) => {
   const project = projectOf(params.id!);
   needInProject(project, "instances.view");
-  return ok(promotion.schedule(project), { branches: promotion.stagingBranches(project), timezone: String(setting("timezone") ?? "UTC") });
+  return ok(promotion.schedule(project), {
+    branches: promotion.stagingBranches(project),
+    timezone: String(setting("timezone") ?? "UTC"),
+  });
 });
 route("PUT", "/projects/:id/staging-refresh", ({ params, body }) => {
   const project = projectOf(params.id!);
@@ -2748,7 +3897,8 @@ route("PUT", "/projects/:id/staging-refresh", ({ params, body }) => {
   const time = String(body.time ?? "03:00");
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Problem(400, 'time: "HH:MM" (00:00 to 23:59).');
   const weekday = Number(body.weekday ?? 6);
-  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) throw new Problem(400, "weekday: 0 (Monday) to 6 (Sunday).");
+  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6)
+    throw new Problem(400, "weekday: 0 (Monday) to 6 (Sunday).");
   const chosen = Array.isArray(body.branches) ? body.branches.map(String) : [];
   const saved = promotion.saveSchedule(project, { frequency, time, weekday, branches: chosen }, ME);
   record(ME, "staging refresh scheduled", { detail: `${project.id}: ${frequency} ${time}` });
@@ -2763,13 +3913,30 @@ route("POST", "/projects/:id/staging-refresh/run", ({ params }) => {
   for (const branch of promotion.stagingBranches(project))
     for (const name of branch.instances) {
       const instance = instances.get(name);
-      if (!instance || !production) { skipped.push({ instance: name, reason: "there is no production instance to copy" }); continue; }
-      if (project.access.locks[branch.name]) { skipped.push({ instance: name, reason: "the branch is locked" }); continue; }
-      if (instance.current_job) { skipped.push({ instance: name, reason: "it is busy with another job" }); continue; }
+      if (!instance || !production) {
+        skipped.push({ instance: name, reason: "there is no production instance to copy" });
+        continue;
+      }
+      if (project.access.locks[branch.name]) {
+        skipped.push({ instance: name, reason: "the branch is locked" });
+        continue;
+      }
+      if (instance.current_job) {
+        skipped.push({ instance: name, reason: "it is busy with another job" });
+        continue;
+      }
       addBackup(production, "staging-copy", Date.now());
       startJob({
-        instance: name, action: "Scheduled refresh from production", kind: "restore", status: "busy",
-        steps: [`Copying the data of ${production.name} (production)`, `Loading the copy into database ${instance.odoo.database}`, "Neutralising the copied data", "Starting Odoo"],
+        instance: name,
+        action: "Scheduled refresh from production",
+        kind: "restore",
+        status: "busy",
+        steps: [
+          `Copying the data of ${production.name} (production)`,
+          `Loading the copy into database ${instance.odoo.database}`,
+          "Neutralising the copied data",
+          "Starting Odoo",
+        ],
         seconds: [2, 2.5, 1.5, 1.5],
         onDone: () => wake(instance),
       });
@@ -2783,12 +3950,20 @@ route("GET", "/projects/:id/previews", ({ params }) => {
   needInProject(project, "instances.view");
   const options = projectResource(project).options;
   const list = promotion.previews(project);
-  return ok(list, { enabled: options.pr_previews, limit: options.pr_preview_limit, forks: options.pr_previews_forks, app_connected: true, can_comment: true, created: list.filter((p) => !p.existing && p.status !== "refused").length });
+  return ok(list, {
+    enabled: options.pr_previews,
+    limit: options.pr_preview_limit,
+    forks: options.pr_previews_forks,
+    app_connected: true,
+    can_comment: true,
+    created: list.filter((p) => !p.existing && p.status !== "refused").length,
+  });
 });
 
 // ---------------------------------------------------------------- status and notifications (web/v1/project_status.py, notifications.py)
 
-const managesProject = (project: DemoProject) => can("projects.manage") && permissionsIn(project.access).includes("projects.manage");
+const managesProject = (project: DemoProject) =>
+  can("projects.manage") && permissionsIn(project.access).includes("projects.manage");
 route("GET", "/projects/:id/status", ({ params }) => {
   const project = projectOf(params.id!);
   needInProject(project, "instances.view");
@@ -2800,7 +3975,9 @@ route("PUT", "/projects/:id/status/public", ({ params, body }) => {
   record(ME, "public status page " + (body.enabled === true ? "on" : "off"), { detail: project.id });
   return ok(statusPages.changePublic(project, body));
 });
-route("GET", "/public-status/:token", ({ params }) => ok(statusPages.publicStatus(params.token!, (id) => projects.get(id))));
+route("GET", "/public-status/:token", ({ params }) =>
+  ok(statusPages.publicStatus(params.token!, (id) => projects.get(id))),
+);
 route("GET", "/projects/:id/notifications", ({ params }) => {
   const project = projectOf(params.id!);
   needInProject(project, "projects.manage");
@@ -2837,7 +4014,8 @@ route("POST", "/projects/:id/notifications/:channel/signing-secret", ({ params }
 
 // ---------------------------------------------------------------- the repository guard (web/v1/repo_guard.py)
 
-const guardsProject = (project: DemoProject) => can("projects.access") && permissionsIn(project.access).includes("projects.access");
+const guardsProject = (project: DemoProject) =>
+  can("projects.access") && permissionsIn(project.access).includes("projects.access");
 function guardChanger(id: string) {
   const project = projectOf(id);
   needInProject(project, "projects.access");
@@ -2851,7 +4029,9 @@ route("GET", "/projects/:id/guard", ({ params }) => {
 route("PATCH", "/projects/:id/guard", ({ params, body }) => {
   const project = guardChanger(params.id!);
   const view = guard.setBlock(project, body.block_promotion, true);
-  record(ME, `repository guard: failing checks ${view.block_promotion ? "block" : "do not block"} promotion`, { detail: project.id });
+  record(ME, `repository guard: failing checks ${view.block_promotion ? "block" : "do not block"} promotion`, {
+    detail: project.id,
+  });
   return ok(view);
 });
 route("POST", "/projects/:id/guard/checks/preview", ({ params, body }) => {
@@ -2863,7 +4043,9 @@ route("PUT", "/projects/:id/guard/checks", ({ params, body }) => {
   const checks = guard.cleanChecks(body.checks, guard.currentChecks(project));
   if (body.dry_run === true) return ok({ ...guard.previewChecks(project, checks), result: "dry_run" });
   const result = guard.syncChecks(project, checks);
-  record(ME, `repository guard: checks ${checks.enabled ? "on" : "off"} (${result.result})`, { detail: `${project.id}: ${result.pull?.url ?? "no pull request"}` });
+  record(ME, `repository guard: checks ${checks.enabled ? "on" : "off"} (${result.result})`, {
+    detail: `${project.id}: ${result.pull?.url ?? "no pull request"}`,
+  });
   return ok(result);
 });
 route("POST", "/projects/:id/guard/pull/refresh", ({ params }) => {
@@ -2876,23 +4058,36 @@ route("GET", "/projects/:id/guard/results", ({ params, query }) => {
   needInProject(project, "instances.view");
   const shas = (query.get("sha") ?? "").split(",").filter(Boolean);
   // the demo's commits have short hashes; the panel takes full ones only
-  if (shas.length > 30 || shas.some((s) => !/^[0-9a-f]{7,40}$/.test(s))) throw new Problem(400, "sha: up to 30 full commit hashes, comma-separated.");
+  if (shas.length > 30 || shas.some((s) => !/^[0-9a-f]{7,40}$/.test(s)))
+    throw new Problem(400, "sha: up to 30 full commit hashes, comma-separated.");
   return ok(guard.results(project, shas));
 });
 route("POST", "/projects/:id/guard/rules/preview", ({ params, body }) => {
   const project = guardChanger(params.id!);
-  return ok(guard.planRules(project, guard.cleanRules(body.rules, guard.currentRules(project)), body.turn_off === true));
+  return ok(
+    guard.planRules(project, guard.cleanRules(body.rules, guard.currentRules(project)), body.turn_off === true),
+  );
 });
 route("PUT", "/projects/:id/guard/rules", ({ params, body }) => {
   const project = guardChanger(params.id!);
-  const result = guard.changeRules(project, guard.cleanRules(body.rules, guard.currentRules(project)), body.confirm, false, body.dry_run === true);
-  if (result.result === "applied") record(ME, "repository guard: branch rules applied", { detail: `${project.id}: ${result.changes} changes with rulesets` });
+  const result = guard.changeRules(
+    project,
+    guard.cleanRules(body.rules, guard.currentRules(project)),
+    body.confirm,
+    false,
+    body.dry_run === true,
+  );
+  if (result.result === "applied")
+    record(ME, "repository guard: branch rules applied", {
+      detail: `${project.id}: ${result.changes} changes with rulesets`,
+    });
   return ok(result);
 });
 route("DELETE", "/projects/:id/guard/rules", ({ params, body }) => {
   const project = guardChanger(params.id!);
   const result = guard.changeRules(project, guard.currentRules(project), body.confirm, true, body.dry_run === true);
-  if (result.result === "removed") record(ME, "repository guard: branch rules removed", { detail: `${project.id}: ${result.changes} removed` });
+  if (result.result === "removed")
+    record(ME, "repository guard: branch rules removed", { detail: `${project.id}: ${result.changes} removed` });
   return ok(result);
 });
 
@@ -2901,7 +4096,11 @@ route("DELETE", "/projects/:id/guard/rules", ({ params, body }) => {
 const usedIn = (teamId: string) =>
   [...projects.values()]
     .filter((p) => {
-      const lists = [p.access.grants, ...Object.values(p.access.branches).map((b) => b.grants), ...Object.values(p.access.locks).map((l) => l.allow)];
+      const lists = [
+        p.access.grants,
+        ...Object.values(p.access.branches).map((b) => b.grants),
+        ...Object.values(p.access.locks).map((l) => l.allow),
+      ];
       return lists.some((entries) => entries.some((e) => e.type === "team" && e.id === teamId));
     })
     .map((p) => ({ id: p.id, name: p.name }));
@@ -2921,10 +4120,13 @@ function cleanMembers(raw: unknown): string[] {
 }
 
 function cleanTeamName(raw: unknown, other?: string): string {
-  const name = String(raw ?? "").trim().replace(/\s+/g, " ");
+  const name = String(raw ?? "")
+    .trim()
+    .replace(/\s+/g, " ");
   if (!name) throw new Problem(400, "Give the team a name.");
   if (name.length > 60) throw new Problem(400, "A team's name is at most 60 characters.");
-  if ([...teams.values()].some((t) => t.id !== other && t.name.toLowerCase() === name.toLowerCase())) throw new Problem(409, `There is a team called ${name} already.`);
+  if ([...teams.values()].some((t) => t.id !== other && t.name.toLowerCase() === name.toLowerCase()))
+    throw new Problem(409, `There is a team called ${name} already.`);
   return name;
 }
 
@@ -2937,7 +4139,18 @@ route("POST", "/teams", ({ body }) => {
   const name = cleanTeamName(body.name);
   let id = slug(name).slice(0, 36) || "team";
   for (let n = 2; teams.has(id); n++) id = `${slug(name).slice(0, 33)}-${n}`;
-  const team = { id, name, description: String(body.description ?? "").trim().slice(0, 200), members: "members" in body ? cleanMembers(body.members) : [], created_at: Date.now(), created_by: ME, changed_at: Date.now(), changed_by: ME };
+  const team = {
+    id,
+    name,
+    description: String(body.description ?? "")
+      .trim()
+      .slice(0, 200),
+    members: "members" in body ? cleanMembers(body.members) : [],
+    created_at: Date.now(),
+    created_by: ME,
+    changed_at: Date.now(),
+    changed_by: ME,
+  };
   teams.set(id, team);
   record(ME, "team created", { detail: `${id} (${name}): members ${team.members.join(", ") || "none"}` });
   return created(teamResource(team, []));
@@ -2947,12 +4160,17 @@ route("PATCH", "/teams/:id", ({ params, body }) => {
   const team = teamOf(params.id!);
   const before = [...team.members];
   if ("name" in body) team.name = cleanTeamName(body.name, team.id);
-  if ("description" in body) team.description = String(body.description ?? "").trim().slice(0, 200);
+  if ("description" in body)
+    team.description = String(body.description ?? "")
+      .trim()
+      .slice(0, 200);
   if ("members" in body) team.members = cleanMembers(body.members);
   Object.assign(team, { changed_at: Date.now(), changed_by: ME });
   const added = team.members.filter((m) => !before.includes(m));
   const removed = before.filter((m) => !team.members.includes(m));
-  record(ME, "team changed", { detail: `${team.id}: ${[added.length ? `added ${added.join(", ")}` : "", removed.length ? `removed ${removed.join(", ")}` : ""].filter(Boolean).join(", ") || "name or description changed"}` });
+  record(ME, "team changed", {
+    detail: `${team.id}: ${[added.length ? `added ${added.join(", ")}` : "", removed.length ? `removed ${removed.join(", ")}` : ""].filter(Boolean).join(", ") || "name or description changed"}`,
+  });
   for (const project of projects.values()) publishProject(project);
   return ok(teamResource(team, usedIn(team.id)));
 });
@@ -2960,7 +4178,8 @@ route("DELETE", "/teams/:id", ({ params }) => {
   need("teams.manage", `/api/v1/teams/${params.id}`);
   const team = teamOf(params.id!);
   teams.delete(team.id);
-  const keep = <T extends { type: string; id: string }>(entries: T[]) => entries.filter((e) => !(e.type === "team" && e.id === team.id));
+  const keep = <T extends { type: string; id: string }>(entries: T[]) =>
+    entries.filter((e) => !(e.type === "team" && e.id === team.id));
   for (const project of projects.values()) {
     project.access.grants = keep(project.access.grants);
     for (const rule of Object.values(project.access.branches)) rule.grants = keep(rule.grants);
@@ -2977,7 +4196,9 @@ function accessResource(project: DemoProject) {
   return {
     mode: a.mode,
     grants: described(a.grants),
-    branches: Object.fromEntries(Object.entries(a.branches).map(([b, v]) => [b, { restricted: v.restricted, grants: described(v.grants) }])),
+    branches: Object.fromEntries(
+      Object.entries(a.branches).map(([b, v]) => [b, { restricted: v.restricted, grants: described(v.grants) }]),
+    ),
     locks: Object.fromEntries(Object.entries(a.locks).map(([b, v]) => [b, { ...v, allow: described(v.allow) }])),
     levels: LEVELS,
     github: githubAccess(project),
@@ -3006,19 +4227,50 @@ function rolesResource(a: DemoAccess) {
 /** Who can do what (projects/people.py), as the demo's visitor sees each account: its role and source. */
 function peopleOf(project: DemoProject) {
   const matrix = matrixOf(project.access);
-  const DEFAULT: Record<string, AccessLevel> = { super_admin: "admin", admin: "admin", maintainer: "maintainer", developer: "developer", viewer: "view", member: "tester" };
+  const DEFAULT: Record<string, AccessLevel> = {
+    super_admin: "admin",
+    admin: "admin",
+    maintainer: "maintainer",
+    developer: "developer",
+    viewer: "view",
+    member: "tester",
+  };
   const nile = project.id === "nile-logistics";
   return users.map((u) => {
     const own = project.access.grants.find((g) => g.type === "user" && g.id === u.name);
     const team = nile && ["karim", "ines"].includes(u.name);
-    const level: AccessLevel = ["super_admin", "admin"].includes(u.role) ? "admin" : own?.level ?? (team ? "developer" : DEFAULT[u.role] ?? "none");
-    const source = ["super_admin", "admin"].includes(u.role) ? "admin" : own ? "grant" : team ? "team" : u.github && u.name === "lena" ? "github" : "role";
-    const label = source === "team" ? "team Nile squad" : source === "github" ? "GitHub: maintain, via team example-integrator/backend" : "";
+    const level: AccessLevel = ["super_admin", "admin"].includes(u.role)
+      ? "admin"
+      : (own?.level ?? (team ? "developer" : (DEFAULT[u.role] ?? "none")));
+    const source = ["super_admin", "admin"].includes(u.role)
+      ? "admin"
+      : own
+        ? "grant"
+        : team
+          ? "team"
+          : u.github && u.name === "lena"
+            ? "github"
+            : "role";
+    const label =
+      source === "team"
+        ? "team Nile squad"
+        : source === "github"
+          ? "GitHub: maintain, via team example-integrator/backend"
+          : "";
     return {
-      user: u.name, name: u.display_name, panel_role: u.role, level, source, source_label: label,
+      user: u.name,
+      name: u.display_name,
+      panel_role: u.role,
+      level,
+      source,
+      source_label: label,
       stages: Object.fromEntries(STAGES.map((s) => [s, matrix[level][s]])),
       project: matrix[level].project,
-      temporary: elevations.filter((e) => e.user === u.name && e.project === project.id && e.status === "approved" && (e.expires ?? 0) > Date.now())
+      temporary: elevations
+        .filter(
+          (e) =>
+            e.user === u.name && e.project === project.id && e.status === "approved" && (e.expires ?? 0) > Date.now(),
+        )
         .map((e) => ({ id: e.id, stage: e.stage, level: e.level, expires: (e.expires ?? 0) / 1000 })),
     };
   });
@@ -3027,15 +4279,31 @@ function peopleOf(project: DemoProject) {
 function requestResource(e: (typeof elevations)[number]) {
   const user = users.find((u) => u.name === e.user);
   const over = e.status === "approved" && (e.expires ?? 0) <= Date.now();
-  return { id: e.id, user: e.user, name: user?.display_name ?? e.user, stage: e.stage, level: e.level, hours: e.hours, reason: e.reason,
-    status: over ? "expired" : e.status, asked_at: iso(e.asked), decided_by: e.decided_by ?? null, decided_at: e.decided_by ? iso(e.asked) : null,
-    expires_at: e.expires ? iso(e.expires) : null, note: "" };
+  return {
+    id: e.id,
+    user: e.user,
+    name: user?.display_name ?? e.user,
+    stage: e.stage,
+    level: e.level,
+    hours: e.hours,
+    reason: e.reason,
+    status: over ? "expired" : e.status,
+    asked_at: iso(e.asked),
+    decided_by: e.decided_by ?? null,
+    decided_at: e.decided_by ? iso(e.asked) : null,
+    expires_at: e.expires ? iso(e.expires) : null,
+    note: "",
+  };
 }
 
 /** Access from GitHub: each linked person's permission on the project's repository, and the level it gives. */
 function githubAccess(project: DemoProject) {
   const on = setting("github_sign_in") !== false && setting("github_access_from_repositories") !== false;
-  const permission: Record<string, [string, AccessLevel]> = { "lena-b": ["maintain", "maintainer"], karimsaleh: ["write", "developer"], "sara-nassar": ["admin", "admin"] };
+  const permission: Record<string, [string, AccessLevel]> = {
+    "lena-b": ["maintain", "maintainer"],
+    karimsaleh: ["write", "developer"],
+    "sara-nassar": ["admin", "admin"],
+  };
   return {
     enabled: on,
     repository: project.repository,
@@ -3043,20 +4311,39 @@ function githubAccess(project: DemoProject) {
       .filter((u) => u.github)
       .map((u) => {
         const [word, level] = permission[u.github!.login] ?? ["read", "view"];
-        return { user: u.name, name: u.display_name, github_login: u.github!.login, applies: on && !["super_admin", "admin"].includes(u.role), permission: word, level, covered: true, checked: Date.now() / 1000 - 4 * 60 };
+        return {
+          user: u.name,
+          name: u.display_name,
+          github_login: u.github!.login,
+          applies: on && !["super_admin", "admin"].includes(u.role),
+          permission: word,
+          level,
+          covered: true,
+          checked: Date.now() / 1000 - 4 * 60,
+        };
       }),
   };
 }
 
-function cleanSubjects<T extends boolean>(raw: unknown, what: string, withLevel: T): T extends true ? DemoAccess["grants"] : DemoAccess["locks"][string]["allow"] {
+function cleanSubjects<T extends boolean>(
+  raw: unknown,
+  what: string,
+  withLevel: T,
+): T extends true ? DemoAccess["grants"] : DemoAccess["locks"][string]["allow"] {
   if (raw == null) return [] as never;
   if (!Array.isArray(raw)) throw new Problem(400, `${what}: a list of entries.`);
   const found = new Map<string, Record<string, string>>();
   for (const entry of raw as Record<string, unknown>[]) {
-    const type = entry.type === "team" || entry.type === "user" || (withLevel && entry.type === "github_team") ? entry.type : null;
+    const type =
+      entry.type === "team" || entry.type === "user" || (withLevel && entry.type === "github_team") ? entry.type : null;
     if (!type) throw new Problem(400, `${what}: type is team, user or github_team.`);
     const id = String(entry.id ?? "");
-    const known = type === "github_team" ? /^[\w-]+\/[\w.-]+$/.test(id) : type === "team" ? teams.has(id) : users.some((u) => u.name === id);
+    const known =
+      type === "github_team"
+        ? /^[\w-]+\/[\w.-]+$/.test(id)
+        : type === "team"
+          ? teams.has(id)
+          : users.some((u) => u.name === id);
     if (!known) throw new Problem(400, `${what}: there is no ${type === "team" ? "team" : "account"} '${id}'.`);
     const item: Record<string, string> = { type, id };
     if (withLevel) {
@@ -3081,13 +4368,19 @@ route("PUT", "/projects/:id/access", ({ params, body }) => {
   const branches: DemoAccess["branches"] = {};
   for (const [branch, rule] of Object.entries((body.branches ?? {}) as Record<string, Record<string, unknown>>)) {
     const own = cleanSubjects(rule.grants, `branches.${branch}.grants`, true);
-    if (own.length || rule.restricted === true) branches[branch] = { restricted: rule.restricted === true, grants: own };
+    if (own.length || rule.restricted === true)
+      branches[branch] = { restricted: rule.restricted === true, grants: own };
   }
   const after: DemoAccess = { ...project.access, mode, grants, branches };
   if (!permissionsIn(after).includes("projects.access"))
-    throw new Problem(409, "After this change you could no longer manage this project's access. Grant yourself (or one of your teams) the admin level first.");
+    throw new Problem(
+      409,
+      "After this change you could no longer manage this project's access. Grant yourself (or one of your teams) the admin level first.",
+    );
   project.access = after;
-  record(ME, "project access changed", { detail: `${project.id}: mode ${mode}, ${grants.length} grants, branch rules ${Object.keys(branches).join(", ") || "none"}` });
+  record(ME, "project access changed", {
+    detail: `${project.id}: mode ${mode}, ${grants.length} grants, branch rules ${Object.keys(branches).join(", ") || "none"}`,
+  });
   publishProject(project);
   return ok(accessResource(project));
 });
@@ -3098,14 +4391,30 @@ route("PUT", "/projects/:id/branches/:*branch/lock", ({ params, body }) => {
   if (before) {
     need("projects.access");
     if (!mayUnlock(project.access, branch))
-      throw new Problem(403, `The branch ${branch} is locked by ${before.locked_by}: only the people and teams its lock allows (and super admins) may change or remove it.`);
+      throw new Problem(
+        403,
+        `The branch ${branch} is locked by ${before.locked_by}: only the people and teams its lock allows (and super admins) may change or remove it.`,
+      );
   } else needInProject(project, "projects.access", branch, `lock ${project.id} ${branch}`);
   if (!branchList(project, true).some((b) => b.name === branch)) throw new Problem(404, "There is no such branch.");
   const allow = cleanSubjects(body.allow, "allow", false);
-  if (!allow.some((e) => e.type === "user" && e.id === ME) && !allow.some((e) => e.type === "team" && teams.get(e.id)?.members.includes(ME))) allow.push({ type: "user", id: ME });
-  const lock = { locked_by: before?.locked_by ?? ME, locked_at: before?.locked_at ?? Math.round(Date.now() / 1000), reason: String(body.reason ?? "").trim().slice(0, 200), allow };
+  if (
+    !allow.some((e) => e.type === "user" && e.id === ME) &&
+    !allow.some((e) => e.type === "team" && teams.get(e.id)?.members.includes(ME))
+  )
+    allow.push({ type: "user", id: ME });
+  const lock = {
+    locked_by: before?.locked_by ?? ME,
+    locked_at: before?.locked_at ?? Math.round(Date.now() / 1000),
+    reason: String(body.reason ?? "")
+      .trim()
+      .slice(0, 200),
+    allow,
+  };
   project.access.locks[branch] = lock;
-  record(ME, before ? "branch lock changed" : "branch locked", { detail: `${project.id} ${branch}: allows ${allow.map((e) => `${e.type} ${e.id}`).join(", ")}` });
+  record(ME, before ? "branch lock changed" : "branch locked", {
+    detail: `${project.id} ${branch}: allows ${allow.map((e) => `${e.type} ${e.id}`).join(", ")}`,
+  });
   setLocks(project.id, project.access, announce);
   publishProject(project);
   return ok({ ...lock, allow: described(allow) });
@@ -3118,7 +4427,10 @@ route("DELETE", "/projects/:id/branches/:*branch/lock", ({ params }) => {
   need("projects.access", `unlock ${project.id} ${branch}`);
   if (!mayUnlock(project.access, branch)) {
     record(ME, `refused: unlock ${project.id} ${branch}`, { ok: false });
-    throw new Problem(403, `The branch ${branch} is locked by ${lock.locked_by}: only the people and teams its lock allows (and super admins) may unlock it.`);
+    throw new Problem(
+      403,
+      `The branch ${branch} is locked by ${lock.locked_by}: only the people and teams its lock allows (and super admins) may unlock it.`,
+    );
   }
   delete project.access.locks[branch];
   record(ME, "branch unlocked", { detail: `${project.id} ${branch} (locked by ${lock.locked_by})` });
@@ -3200,8 +4512,10 @@ route("GET", "/plan", () => {
   need("instances.view");
   const names = new Set<string>();
   for (const project of projects.values())
-    for (const branch of branchList(project, true)) if (branch.stage === "production") names.add(`${project.id}/${branch.name}`);
-  for (const instance of instances.values()) if (!instance.project && instance.stage === "production") names.add(instance.name);
+    for (const branch of branchList(project, true))
+      if (branch.stage === "production") names.add(`${project.id}/${branch.name}`);
+  for (const instance of instances.values())
+    if (!instance.project && instance.stage === "production") names.add(instance.name);
   const byStage = { production: 0, staging: 0, development: 0 };
   for (const instance of instances.values()) byStage[instance.stage] += 1;
   const plan = currentPlan();
@@ -3222,8 +4536,19 @@ route("GET", "/plan", () => {
     production_withheld: null,
     banned: false,
     over_limit: [],
-    usage: { servers: fleet.serversActive() ? 1 + [...fleet.servers.values()].filter((s) => s.status === "active" || s.status === "joined").length : 1, projects: projects.size, production_branches: used, production_branch_names: [...names].sort(), instances_by_stage: byStage },
-    production_refusal: used >= limit ? `The ${planName} plan allows ${limit} production ${limit === 1 ? "branch" : "branches"}, and this panel has ${used}. Move one out of production, or get more production branches. See the plans at https://sudoo.sh/pricing, or manage yours at https://app.sudoo.sh.` : null,
+    usage: {
+      servers: fleet.serversActive()
+        ? 1 + [...fleet.servers.values()].filter((s) => s.status === "active" || s.status === "joined").length
+        : 1,
+      projects: projects.size,
+      production_branches: used,
+      production_branch_names: [...names].sort(),
+      instances_by_stage: byStage,
+    },
+    production_refusal:
+      used >= limit
+        ? `The ${planName} plan allows ${limit} production ${limit === 1 ? "branch" : "branches"}, and this panel has ${used}. Move one out of production, or get more production branches. See the plans at https://sudoo.sh/pricing, or manage yours at https://app.sudoo.sh.`
+        : null,
     production_keep: null,
     leaving_production: [],
     links: { pricing: "https://sudoo.sh/pricing", account: "https://app.sudoo.sh", keep: "https://app.sudoo.sh/plan" },
@@ -3232,7 +4557,14 @@ route("GET", "/plan", () => {
     // super admins and administrators only, five of its seven days left
     link_deadline:
       !linked && ["super_admin", "admin"].includes(users.find((u) => u.name === ME)?.role ?? "")
-        ? { linked: false, first_run: iso(OPENED - 2 * DAY), deadline_days: 7, deadline: iso(OPENED + 5 * DAY), days_left: 5, restricted: false }
+        ? {
+            linked: false,
+            first_run: iso(OPENED - 2 * DAY),
+            deadline_days: 7,
+            deadline: iso(OPENED + 5 * DAY),
+            days_left: 5,
+            restricted: false,
+          }
         : null,
   });
 });
@@ -3271,11 +4603,28 @@ export async function answer(method: string, path: string, query: URLSearchParam
   return problem(404, "Not found.", path);
 }
 
-const TITLES: Record<number, string> = { 400: "Bad Request", 401: "Unauthorized", 402: "Payment Required", 403: "Forbidden", 404: "Not Found", 409: "Conflict", 500: "Internal Server Error" };
+const TITLES: Record<number, string> = {
+  400: "Bad Request",
+  401: "Unauthorized",
+  402: "Payment Required",
+  403: "Forbidden",
+  404: "Not Found",
+  409: "Conflict",
+  500: "Internal Server Error",
+};
 function problem(status: number, detail: string, path: string): Answer {
-  return { status, body: { type: "about:blank", title: TITLES[status] ?? "Error", status, detail, instance: `/api/v1${path}`, request_id: hex(16) } };
+  return {
+    status,
+    body: {
+      type: "about:blank",
+      title: TITLES[status] ?? "Error",
+      status,
+      detail,
+      instance: `/api/v1${path}`,
+      request_id: hex(16),
+    },
+  };
 }
-
 
 // ---------------------------------------------------------------- project roles (projects/project_roles.py)
 
@@ -3285,10 +4634,12 @@ route("PUT", "/projects/:id/access/matrix", ({ params, body }) => {
   const raw = body.matrix as Record<string, Record<string, Permission[]>> | null;
   const kept: DemoAccess["matrix"] = {};
   for (const [level, scopes] of Object.entries(raw ?? {})) {
-    if (!EDITABLE_LEVELS.includes(level as AccessLevel)) throw new Problem(400, `matrix: '${level}' cannot be changed; levels: ${EDITABLE_LEVELS.join(", ")}.`);
+    if (!EDITABLE_LEVELS.includes(level as AccessLevel))
+      throw new Problem(400, `matrix: '${level}' cannot be changed; levels: ${EDITABLE_LEVELS.join(", ")}.`);
     for (const [scope, rights] of Object.entries(scopes)) {
       const before = ROLE_DEFAULTS[level as AccessLevel][scope as Scope];
-      if (JSON.stringify([...rights].sort()) !== JSON.stringify([...before].sort())) (kept[level as AccessLevel] ??= {})[scope as Scope] = rights;
+      if (JSON.stringify([...rights].sort()) !== JSON.stringify([...before].sort()))
+        (kept[level as AccessLevel] ??= {})[scope as Scope] = rights;
     }
   }
   project.access = { ...project.access, matrix: kept };
@@ -3316,7 +4667,12 @@ route("POST", "/projects/:id/access/model", ({ params }) => {
 route("GET", "/projects/:id/role-requests", ({ params }) => {
   const project = projectOf(params.id!);
   const manages = permissionsIn(project.access).includes("projects.access");
-  return ok(elevations.filter((e) => e.project === project.id && (manages || e.user === ME)).map(requestResource).reverse());
+  return ok(
+    elevations
+      .filter((e) => e.project === project.id && (manages || e.user === ME))
+      .map(requestResource)
+      .reverse(),
+  );
 });
 route("POST", "/projects/:id/role-requests", ({ params, body }) => {
   const project = projectOf(params.id!);
@@ -3324,8 +4680,19 @@ route("POST", "/projects/:id/role-requests", ({ params, body }) => {
   const hours = Number(body.hours);
   const max = Number(setting("access_request_max_hours") ?? 8);
   if (reason.length < 10) throw new Problem(400, "reason: say why you need it, in 10 to 500 characters.");
-  if (!(hours > 0 && hours <= max)) throw new Problem(400, `hours: more than 0, at most ${max} (ACCESS_REQUEST_MAX_HOURS).`);
-  const made = { id: hex(12), project: project.id, user: ME, stage: body.stage as Stage, level: body.level as AccessLevel, hours, reason, status: "pending", asked: Date.now() };
+  if (!(hours > 0 && hours <= max))
+    throw new Problem(400, `hours: more than 0, at most ${max} (ACCESS_REQUEST_MAX_HOURS).`);
+  const made = {
+    id: hex(12),
+    project: project.id,
+    user: ME,
+    stage: body.stage as Stage,
+    level: body.level as AccessLevel,
+    hours,
+    reason,
+    status: "pending",
+    asked: Date.now(),
+  };
   elevations.push(made);
   record(ME, "temporary access asked", { detail: `${project.id}: ${made.level} in ${made.stage} for ${hours} h` });
   return created(requestResource(made));
@@ -3335,11 +4702,14 @@ for (const how of ["approve", "refuse"] as const)
     const project = projectOf(params.id!);
     needInProject(project, "projects.access");
     const found = elevations.find((e) => e.id === params.rid && e.project === project.id);
-    if (!found || found.status !== "pending") throw new Problem(409, "This request is not waiting for a decision any more.");
+    if (!found || found.status !== "pending")
+      throw new Problem(409, "This request is not waiting for a decision any more.");
     found.status = how === "approve" ? "approved" : "refused";
     found.decided_by = ME;
     if (how === "approve") found.expires = Date.now() + found.hours * HOUR;
-    record(ME, `temporary access ${how === "approve" ? "approved" : "refused"}`, { detail: `${project.id}: ${found.user}` });
+    record(ME, `temporary access ${how === "approve" ? "approved" : "refused"}`, {
+      detail: `${project.id}: ${found.user}`,
+    });
     publishProject(project);
     return ok(requestResource(found));
   });

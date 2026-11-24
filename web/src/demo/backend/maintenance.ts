@@ -19,7 +19,16 @@ const can = (permission: Permission) => roleInfo(session.role).permissions.inclu
 /** The zone's offset from UTC at `at`, in milliseconds. */
 function offset(at: number, timeZone: string): number {
   const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
       .formatToParts(new Date(at))
       .map((p) => [p.type, p.value]),
   );
@@ -84,7 +93,8 @@ function refresh(item: MaintenanceItem): MaintenanceItem {
 
 function meta(client: boolean): MaintenanceMeta {
   const [start = "01:00", end = "05:00"] = String(setting("maintenance_default_window") ?? "01:00-05:00").split("-");
-  const length = (((+end.slice(0, 2) * 60 + +end.slice(3)) - (+start.slice(0, 2) * 60 + +start.slice(3)) + 1440) % 1440) || 1440;
+  const length =
+    (+end.slice(0, 2) * 60 + +end.slice(3) - (+start.slice(0, 2) * 60 + +start.slice(3)) + 1440) % 1440 || 1440;
   return {
     timezone: zone(),
     lead_minutes: Number(setting("maintenance_lead_minutes") ?? 30),
@@ -92,7 +102,9 @@ function meta(client: boolean): MaintenanceMeta {
     default_days: String(setting("maintenance_default_days") ?? ""),
     tonight_time: String(setting("maintenance_tonight_time") ?? "02:00"),
     weekend_day: String(setting("maintenance_weekend_day") ?? "sat"),
-    reminder_hours: String(setting("maintenance_reminder_hours") ?? "24,1").split(",").map(Number),
+    reminder_hours: String(setting("maintenance_reminder_hours") ?? "24,1")
+      .split(",")
+      .map(Number),
     client_choice: clientChoice(),
     default_minutes: length,
     default_start: start,
@@ -104,32 +116,78 @@ function meta(client: boolean): MaintenanceMeta {
 export function seedMaintenance() {
   items.length = 0;
   const now = Date.now();
-  const acme = membersOf("acme-retail").map((i) => ({ name: i.name, stage: i.stage, project: "acme-retail", held: null }));
+  const acme = membersOf("acme-retail").map((i) => ({
+    name: i.name,
+    stage: i.stage,
+    project: "acme-retail",
+    held: null,
+  }));
   const stageRank: Record<string, number> = { development: 0, staging: 1, production: 2 };
   acme.sort((a, b) => (stageRank[a.stage] ?? 1) - (stageRank[b.stage] ?? 1) || a.name.localeCompare(b.name));
   const lastWeek = now - 6 * DAY;
   items.push(
     {
-      id: "6f1c2a7e-3b9d-4c51-8e2a-1d7f0b9a4c33", kind: "odoo_images", scope: "project", targets: ["acme-retail"], version: null,
+      id: "6f1c2a7e-3b9d-4c51-8e2a-1d7f0b9a4c33",
+      kind: "odoo_images",
+      scope: "project",
+      targets: ["acme-retail"],
+      version: null,
       title: { en: "Update the Odoo images", ar: "تحديث صور Odoo" },
       reason: {
         en: "A security fix in the Odoo 18.0 image. Each instance restarts once, for about a minute; production is backed up first.",
         ar: "إصلاح أمني في صورة Odoo 18.0. تُعاد تشغيل كل بيئة مرة واحدة لنحو دقيقة؛ ويُنسخ الإنتاج احتياطيًا أولًا.",
       },
-      estimated_minutes: 30, earliest_start: iso(now + 2 * HOUR)!, deadline: iso(now + 6 * DAY)!, required: true,
-      status: "proposed", window: null, choose_from: null, choose_until: null, presets: [],
-      auto_at: iso(now + 40 * HOUR), default_start: null, instances: acme, approvals: [], steps: [], detail: null,
-      received_at: iso(now - 8 * HOUR), started_at: null, finished_at: null,
+      estimated_minutes: 30,
+      earliest_start: iso(now + 2 * HOUR)!,
+      deadline: iso(now + 6 * DAY)!,
+      required: true,
+      status: "proposed",
+      window: null,
+      choose_from: null,
+      choose_until: null,
+      presets: [],
+      auto_at: iso(now + 40 * HOUR),
+      default_start: null,
+      instances: acme,
+      approvals: [],
+      steps: [],
+      detail: null,
+      received_at: iso(now - 8 * HOUR),
+      started_at: null,
+      finished_at: null,
     },
     {
-      id: "0b8e5d21-7a64-4f0c-9d3e-5c2b1a8f7e10", kind: "restart", scope: "panel", targets: [], version: null,
+      id: "0b8e5d21-7a64-4f0c-9d3e-5c2b1a8f7e10",
+      kind: "restart",
+      scope: "panel",
+      targets: [],
+      version: null,
       title: { en: "Restart", ar: "إعادة تشغيل" },
       reason: { en: "A kernel update on the server.", ar: "تحديث نواة النظام على الخادم." },
-      estimated_minutes: 10, earliest_start: iso(lastWeek - DAY)!, deadline: iso(lastWeek + DAY)!, required: true,
-      status: "done", window: { start: iso(lastWeek)!, end: iso(lastWeek + 10 * MINUTE)!, source: "default", chosen_by: null, chosen_at: iso(lastWeek - DAY) },
-      choose_from: null, choose_until: null, presets: [], auto_at: null, default_start: null, instances: [], approvals: [],
-      steps: [{ name: "Restarting the panel (instances keep serving)", status: "done" }], detail: "The panel restarted.",
-      received_at: iso(lastWeek - 2 * DAY), started_at: iso(lastWeek), finished_at: iso(lastWeek + 2 * MINUTE),
+      estimated_minutes: 10,
+      earliest_start: iso(lastWeek - DAY)!,
+      deadline: iso(lastWeek + DAY)!,
+      required: true,
+      status: "done",
+      window: {
+        start: iso(lastWeek)!,
+        end: iso(lastWeek + 10 * MINUTE)!,
+        source: "default",
+        chosen_by: null,
+        chosen_at: iso(lastWeek - DAY),
+      },
+      choose_from: null,
+      choose_until: null,
+      presets: [],
+      auto_at: null,
+      default_start: null,
+      instances: [],
+      approvals: [],
+      steps: [{ name: "Restarting the panel (instances keep serving)", status: "done" }],
+      detail: "The panel restarted.",
+      received_at: iso(lastWeek - 2 * DAY),
+      started_at: iso(lastWeek),
+      finished_at: iso(lastWeek + 2 * MINUTE),
     },
   );
 }
@@ -148,7 +206,8 @@ function startOf(item: MaintenanceItem, body: Record<string, unknown>): number {
     return ms(preset.start);
   }
   const text = String(body.start ?? "");
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text)) throw new Problem(400, "Give a start time, such as 2026-11-29T02:00.");
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text))
+    throw new Problem(400, "Give a start time, such as 2026-11-29T02:00.");
   const wall = Date.parse(`${text.slice(0, 16)}:00Z`);
   const at = wall - offset(wall, zone());
   const [lo, hi] = bounds(item);
@@ -157,15 +216,28 @@ function startOf(item: MaintenanceItem, body: Record<string, unknown>): number {
 }
 
 function choose(item: MaintenanceItem, at: number, who: string, source: "panel" | "client") {
-  if (item.status !== "proposed" && item.status !== "scheduled") throw new Problem(409, "This maintenance can no longer be moved.");
+  if (item.status !== "proposed" && item.status !== "scheduled")
+    throw new Problem(409, "This maintenance can no longer be moved.");
   item.status = "scheduled";
-  item.window = { start: iso(at)!, end: iso(at + item.estimated_minutes * MINUTE)!, source, chosen_by: who, chosen_at: iso(Date.now()) };
+  item.window = {
+    start: iso(at)!,
+    end: iso(at + item.estimated_minutes * MINUTE)!,
+    source,
+    chosen_by: who,
+    chosen_at: iso(Date.now()),
+  };
   item.auto_at = null;
-  record(source === "client" ? CLIENT_ME : ME, "maintenance window chosen", { detail: `${item.title.en}: ${item.window.start}` });
+  record(source === "client" ? CLIENT_ME : ME, "maintenance window chosen", {
+    detail: `${item.title.en}: ${item.window.start}`,
+  });
 }
 
 const clientsItems = () =>
-  items.filter((i) => i.instances.some((x) => x.project && projects.get(x.project)?.access.client?.clients.some((c) => c.id === CLIENT_ME)));
+  items.filter((i) =>
+    i.instances.some(
+      (x) => x.project && projects.get(x.project)?.access.client?.clients.some((c) => c.id === CLIENT_ME),
+    ),
+  );
 
 route("GET", "/maintenance", () => {
   if (session.role === "client") throw new Problem(403, "Client accounts use the client portal only.");
@@ -182,9 +254,21 @@ route("PUT", "/maintenance/:id/window", ({ params, body }) => {
 route("GET", "/client/maintenance", () => {
   if (session.role !== "client") throw new Problem(404, "Only clients have a client portal.");
   const shown = clientsItems().map((item) => {
-    const mine = item.instances.filter((x) => x.project && projects.get(x.project)?.access.client?.clients.some((c) => c.id === CLIENT_ME));
+    const mine = item.instances.filter(
+      (x) => x.project && projects.get(x.project)?.access.client?.clients.some((c) => c.id === CLIENT_ME),
+    );
     const ids = [...new Set(mine.map((x) => x.project!))];
-    return { ...refresh(item), targets: [], instances: mine, projects: ids.map((id) => ({ id, name: projects.get(id)?.name ?? id })), held: ids.filter((id) => projects.get(id)?.access.client?.sw.state === "closed" || Object.values(projects.get(id)?.access.client?.branches ?? {}).some((b) => b.state === "closed")) };
+    return {
+      ...refresh(item),
+      targets: [],
+      instances: mine,
+      projects: ids.map((id) => ({ id, name: projects.get(id)?.name ?? id })),
+      held: ids.filter(
+        (id) =>
+          projects.get(id)?.access.client?.sw.state === "closed" ||
+          Object.values(projects.get(id)?.access.client?.branches ?? {}).some((b) => b.state === "closed"),
+      ),
+    };
   });
   return ok(shown, meta(true) as unknown as Record<string, unknown>);
 });

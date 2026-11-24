@@ -5,7 +5,9 @@ const SHA = "f25e4f6a9b0c1d2e3f405162738495a6b7c8d9e0";
 
 describe("githubCommitUrl", () => {
   it("builds the commit's page from the repository's web address", () => {
-    expect(githubCommitUrl("https://github.com/acme/odoo-addons", SHA)).toBe(`https://github.com/acme/odoo-addons/commit/${SHA}`);
+    expect(githubCommitUrl("https://github.com/acme/odoo-addons", SHA)).toBe(
+      `https://github.com/acme/odoo-addons/commit/${SHA}`,
+    );
   });
 
   it("reads the addresses git uses (.git, ssh, a trailing slash)", () => {
@@ -17,11 +19,15 @@ describe("githubCommitUrl", () => {
   });
 
   it("accepts a short hash and writes it in lower case", () => {
-    expect(githubCommitUrl("https://github.com/acme/erp", "F25E4F6")).toBe("https://github.com/acme/erp/commit/f25e4f6");
+    expect(githubCommitUrl("https://github.com/acme/erp", "F25E4F6")).toBe(
+      "https://github.com/acme/erp/commit/f25e4f6",
+    );
   });
 
   it("never keeps a token that was part of the address", () => {
-    expect(githubCommitUrl("https://x-access-token:secret@github.com/acme/erp.git", SHA)).toBe(`https://github.com/acme/erp/commit/${SHA}`);
+    expect(githubCommitUrl("https://x-access-token:secret@github.com/acme/erp.git", SHA)).toBe(
+      `https://github.com/acme/erp/commit/${SHA}`,
+    );
   });
 
   it("gives no link for a repository that is not on GitHub", () => {

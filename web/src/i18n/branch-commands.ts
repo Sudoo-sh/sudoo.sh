@@ -4,7 +4,15 @@ import { ltr } from "./plural.ts";
 
 const en = {
   label: "Commands for this branch",
-  tabs: { clone: "Clone", fork: "Fork", merge: "Merge", ssh: "SSH", sql: "SQL", submodule: "Submodule", delete: "Delete" },
+  tabs: {
+    clone: "Clone",
+    fork: "Fork",
+    merge: "Merge",
+    ssh: "SSH",
+    sql: "SQL",
+    submodule: "Submodule",
+    delete: "Delete",
+  },
   example: "Example:",
   copy: "Copy the command",
   copied: "Copied",
@@ -28,7 +36,15 @@ const en = {
 
 const ar: typeof en = {
   label: "أوامر هذا الفرع",
-  tabs: { clone: "استنساخ", fork: "تفريع", merge: "دمج", ssh: "SSH", sql: "SQL", submodule: "وحدة فرعية", delete: "حذف" },
+  tabs: {
+    clone: "استنساخ",
+    fork: "تفريع",
+    merge: "دمج",
+    ssh: "SSH",
+    sql: "SQL",
+    submodule: "وحدة فرعية",
+    delete: "حذف",
+  },
   example: "مثال:",
   copy: "نسخ الأمر",
   copied: "نُسخ",

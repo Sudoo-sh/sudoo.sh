@@ -5,7 +5,16 @@
 // the web app's own filter code (lib/logs.ts).
 
 import type { Instance } from "@/api/types";
-import { appendLines, entryText, LEVELS, makeMatcher, passes, type Level, type LogEntry, type LogFilters } from "@/lib/logs";
+import {
+  appendLines,
+  entryText,
+  LEVELS,
+  makeMatcher,
+  passes,
+  type Level,
+  type LogEntry,
+  type LogFilters,
+} from "@/lib/logs";
 import { hash, Problem } from "./util";
 
 interface Stored {
@@ -76,8 +85,24 @@ function entryAt(instance: Instance, n: number, at: number): Stored {
       ],
     };
   }
-  if (pick < 14) return { id, lines: [line("CRITICAL", "odoo.service.server", "Worker (pid 41) reached its memory limit (2048 MB) and was stopped.")] };
-  if (pick < 22) return { id, lines: [line("ERROR", "odoo.addons.mail.models.mail_mail", `Mail delivery failed via SMTP server 'smtp.acme.example': Connection unexpectedly closed (message ${r % 5000})`)] };
+  if (pick < 14)
+    return {
+      id,
+      lines: [
+        line("CRITICAL", "odoo.service.server", "Worker (pid 41) reached its memory limit (2048 MB) and was stopped."),
+      ],
+    };
+  if (pick < 22)
+    return {
+      id,
+      lines: [
+        line(
+          "ERROR",
+          "odoo.addons.mail.models.mail_mail",
+          `Mail delivery failed via SMTP server 'smtp.acme.example': Connection unexpectedly closed (message ${r % 5000})`,
+        ),
+      ],
+    };
   if (pick < 60) {
     const warnings = [
       `sale.order.read() with unknown field 'x_studio_reference' (x_studio_reference)`,
@@ -85,24 +110,48 @@ function entryAt(instance: Instance, n: number, at: number): Stored {
       "The cron 'Inventory: run scheduler' took 42.1s, longer than its interval",
       "Field product.template.description_sale: unknown parameter 'tracking', if this is an actual parameter you may want to override the method _valid_field_parameter on the relevant model in order to allow it",
     ];
-    const loggers = ["odoo.models", "odoo.addons.account.models.account_move", "odoo.addons.base.models.ir_cron", "odoo.fields"];
+    const loggers = [
+      "odoo.models",
+      "odoo.addons.account.models.account_move",
+      "odoo.addons.base.models.ir_cron",
+      "odoo.fields",
+    ];
     return { id, lines: [line("WARNING", loggers[r % 4]!, warnings[r % 4]!)] };
   }
-  if (pick < 110) return { id, lines: [line("DEBUG", "odoo.sql_db", `query: SELECT "res_partner"."id" FROM "res_partner" WHERE ("res_partner"."active" = true) LIMIT 80 (${(r % 90) / 10} ms)`)] };
+  if (pick < 110)
+    return {
+      id,
+      lines: [
+        line(
+          "DEBUG",
+          "odoo.sql_db",
+          `query: SELECT "res_partner"."id" FROM "res_partner" WHERE ("res_partner"."active" = true) LIMIT 80 (${(r % 90) / 10} ms)`,
+        ),
+      ],
+    };
   if (pick < 190) {
     const [cron, name] = CRONS[r % CRONS.length]!;
     return {
       id,
-      lines: [r % 2
-        ? line("INFO", "odoo.addons.base.models.ir_cron", `Job '${name}' (${cron}) starting`)
-        : line("INFO", "odoo.addons.base.models.ir_cron", `Job '${name}' (${cron}) fully done (#loop 1; done ${r % 9}; remaining 0; duration ${(r % 300) / 100}s)`)],
+      lines: [
+        r % 2
+          ? line("INFO", "odoo.addons.base.models.ir_cron", `Job '${name}' (${cron}) starting`)
+          : line(
+              "INFO",
+              "odoo.addons.base.models.ir_cron",
+              `Job '${name}' (${cron}) fully done (#loop 1; done ${r % 9}; remaining 0; duration ${(r % 300) / 100}s)`,
+            ),
+      ],
     };
   }
   if (pick < 240) {
     const infos = [
       ["odoo.addons.bus.models.bus", "Bus.loop listen imbus on db postgres"],
       ["odoo.models.unlink", `User #2 deleted ir.attachment records with IDs: [${r % 4000}, ${(r % 4000) + 1}]`],
-      ["odoo.addons.base.models.res_users", `Login successful for db:${db} login:lena@acme.example from 10.0.4.${r % 200}`],
+      [
+        "odoo.addons.base.models.res_users",
+        `Login successful for db:${db} login:lena@acme.example from 10.0.4.${r % 200}`,
+      ],
       ["odoo.modules.registry", "Caches invalidated, signaling through the database: ['default']"],
     ] as const;
     const [logger, text] = infos[r % infos.length]!;
@@ -113,7 +162,13 @@ function entryAt(instance: Instance, n: number, at: number): Stored {
   const total = (r % 700) / 1000 + (r % 41 === 0 ? 1.4 : 0);
   return {
     id,
-    lines: [line("INFO", "werkzeug", `10.0.4.${r % 200} - - [${day} ${clock}] "${method} ${path} HTTP/1.1" ${status} - ${r % 40} ${(total / 4).toFixed(3)} ${total.toFixed(3)}`)],
+    lines: [
+      line(
+        "INFO",
+        "werkzeug",
+        `10.0.4.${r % 200} - - [${day} ${clock}] "${method} ${path} HTTP/1.1" ${status} - ${r % 40} ${(total / 4).toFixed(3)} ${total.toFixed(3)}`,
+      ),
+    ],
   };
 }
 
@@ -150,7 +205,10 @@ export const recent = (instance: Instance, count: number): Stored[] => storeOf(i
 
 /** The end of odoo.log as text (GET .../logs?lines=). */
 export const odooLogText = (instance: Instance, lines: number) =>
-  recent(instance, lines).flatMap((e) => e.lines).slice(-lines).join("\n") + "\n";
+  recent(instance, lines)
+    .flatMap((e) => e.lines)
+    .slice(-lines)
+    .join("\n") + "\n";
 
 // ---------------------------------------------------------------- install.log and update.log
 
@@ -158,16 +216,29 @@ function jobLog(instance: Instance, log: string): Stored[] {
   const db = instance.odoo.database;
   const start = Date.now() - (log === "install.log" ? 26 : 3) * 3_600_000;
   const lines: [number, string][] = [];
-  const add = (s: number, level: Level, logger: string, text: string) => lines.push([s, `${stamps(start + s * 1000, 0)[0]} 1 ${level} ${db} ${logger}: ${text}`]);
+  const add = (s: number, level: Level, logger: string, text: string) =>
+    lines.push([s, `${stamps(start + s * 1000, 0)[0]} 1 ${level} ${db} ${logger}: ${text}`]);
   if (log === "install.log") {
     add(0, "INFO", "odoo", `Odoo version ${instance.odoo.version}`);
     add(0, "INFO", "odoo", "Using configuration file at /etc/odoo/odoo.conf");
     add(1, "INFO", "odoo.modules.loading", "loading 1 modules...");
     add(4, "INFO", "odoo.modules.loading", "1 modules loaded in 2.94s, 0 queries (+0 extra)");
     add(5, "INFO", "odoo.modules.loading", "loading 58 modules...");
-    for (const [i, module] of ["sale_management", "stock", "account", "point_of_sale", "website_sale", "acme_sale_extras"].entries())
+    for (const [i, module] of [
+      "sale_management",
+      "stock",
+      "account",
+      "point_of_sale",
+      "website_sale",
+      "acme_sale_extras",
+    ].entries())
       add(6 + i * 4, "INFO", "odoo.modules.registry", `module ${module}: creating or updating database tables`);
-    add(30, "WARNING", "odoo.modules.loading", "The models ['acme.delivery.slot'] have no access rules in module acme_sale_extras, consider adding some, like:\nid,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink\nacme_sale_extras.access_acme_delivery_slot,access_acme_delivery_slot,acme_sale_extras.model_acme_delivery_slot,base.group_user,1,0,0,0");
+    add(
+      30,
+      "WARNING",
+      "odoo.modules.loading",
+      "The models ['acme.delivery.slot'] have no access rules in module acme_sale_extras, consider adding some, like:\nid,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink\nacme_sale_extras.access_acme_delivery_slot,access_acme_delivery_slot,acme_sale_extras.model_acme_delivery_slot,base.group_user,1,0,0,0",
+    );
     add(38, "INFO", "odoo.modules.loading", "58 modules loaded in 32.71s, 41873 queries (+41873 extra)");
     add(40, "INFO", "odoo.modules.loading", "Modules loaded.");
     add(40, "INFO", "odoo.service.server", "Initiating shutdown");
@@ -182,8 +253,14 @@ function jobLog(instance: Instance, log: string): Stored[] {
       [11, '  File "/usr/lib/python3/dist-packages/odoo/modules/registry.py", line 110, in new'],
       [11, "    odoo.modules.load_modules(registry, force_demo, status, update_module)"],
       [11, '  File "/usr/lib/python3/dist-packages/odoo/tools/convert.py", line 698, in _tag_root'],
-      [11, "    raise ParseError(msg) from None  # Restart with \"--log-handler odoo.tools.convert:DEBUG\" for complete traceback"],
-      [11, "odoo.tools.convert.ParseError: while parsing /mnt/extra-addons/acme_sale_extras/views/sale_order_views.xml:14, somewhere inside"],
+      [
+        11,
+        '    raise ParseError(msg) from None  # Restart with "--log-handler odoo.tools.convert:DEBUG" for complete traceback',
+      ],
+      [
+        11,
+        "odoo.tools.convert.ParseError: while parsing /mnt/extra-addons/acme_sale_extras/views/sale_order_views.xml:14, somewhere inside",
+      ],
     );
     add(12, "INFO", "odoo.service.server", "Initiating shutdown");
     add(400, "INFO", "odoo", `Odoo version ${instance.odoo.version}`);
@@ -193,7 +270,9 @@ function jobLog(instance: Instance, log: string): Stored[] {
     add(418, "INFO", "odoo.modules.loading", "Modules loaded.");
   }
   const text = lines.flatMap(([, l]) => l.split("\n"));
-  const ids = lines.flatMap(([s, l], i) => l.split("\n").map((_, j) => `${String(start + s * 1000).padStart(13, "0")}.${String(i * 10 + j).padStart(7, "0")}`));
+  const ids = lines.flatMap(([s, l], i) =>
+    l.split("\n").map((_, j) => `${String(start + s * 1000).padStart(13, "0")}.${String(i * 10 + j).padStart(7, "0")}`),
+  );
   return appendLines([], text, ids).map((e) => ({ id: e.id, lines: entryText(e).split("\n") }));
 }
 
@@ -201,18 +280,32 @@ function jobLog(instance: Instance, log: string): Stored[] {
 
 /** The filters of a request (level, logger, q, regex, since, until, tracebacks), checked as the server checks them. */
 export function filtersFrom(query: URLSearchParams): LogFilters {
-  const levels = (query.get("level") ?? "").split(",").map((l) => l.trim().toUpperCase()).filter(Boolean);
-  if (levels.some((l) => !LEVELS.includes(l as Level))) throw new Problem(400, `level takes one or more of ${LEVELS.join(", ")}, separated by commas.`);
+  const levels = (query.get("level") ?? "")
+    .split(",")
+    .map((l) => l.trim().toUpperCase())
+    .filter(Boolean);
+  if (levels.some((l) => !LEVELS.includes(l as Level)))
+    throw new Problem(400, `level takes one or more of ${LEVELS.join(", ")}, separated by commas.`);
   const logger = query.get("logger") ?? "";
-  if (logger && !/^[\w.-]{1,120}$/.test(logger)) throw new Problem(400, "logger is the name of a Python logger, such as odoo.http (letters, digits, . _ -).");
+  if (logger && !/^[\w.-]{1,120}$/.test(logger))
+    throw new Problem(400, "logger is the name of a Python logger, such as odoo.http (letters, digits, . _ -).");
   const q = query.get("q") ?? "";
   const regex = query.get("regex") === "1";
   const matcher = makeMatcher(q, regex);
   if (!matcher.ok)
-    throw new Problem(400, matcher.reason === "slow" ? "This regular expression could take very long (nested repetitions such as (a+)+). Simplify it." : matcher.reason === "long" ? "The filter is too long (at most 200 characters)." : "This is not a valid regular expression.");
+    throw new Problem(
+      400,
+      matcher.reason === "slow"
+        ? "This regular expression could take very long (nested repetitions such as (a+)+). Simplify it."
+        : matcher.reason === "long"
+          ? "The filter is too long (at most 200 characters)."
+          : "This is not a valid regular expression.",
+    );
   const since = query.get("since") ?? "";
   const until = query.get("until") ?? "";
-  for (const value of [since, until]) if (value && Number.isNaN(Date.parse(value))) throw new Problem(400, "since and until are times in ISO 8601 with their zone.");
+  for (const value of [since, until])
+    if (value && Number.isNaN(Date.parse(value)))
+      throw new Problem(400, "since and until are times in ISO 8601 with their zone.");
   return {
     levels: levels as Level[],
     logger,
@@ -228,7 +321,11 @@ const parsed = new WeakMap<Stored, LogEntry>();
 function entryOfStored(stored: Stored): LogEntry {
   let entry = parsed.get(stored);
   if (!entry) {
-    entry = appendLines([], stored.lines, stored.lines.map(() => stored.id))[0]!;
+    entry = appendLines(
+      [],
+      stored.lines,
+      stored.lines.map(() => stored.id),
+    )[0]!;
     parsed.set(stored, entry);
   }
   return entry;
@@ -242,9 +339,11 @@ export function keeper(filters: LogFilters) {
 
 /** GET /instances/<name>/logs/entries. */
 export function page(instance: Instance, log: string, query: URLSearchParams) {
-  if (!["odoo.log", "install.log", "update.log"].includes(log)) throw new Problem(400, "Choose one of the logs: odoo.log, install.log, update.log.");
+  if (!["odoo.log", "install.log", "update.log"].includes(log))
+    throw new Problem(400, "Choose one of the logs: odoo.log, install.log, update.log.");
   const limit = Number(query.get("limit") ?? 500);
-  if (!Number.isInteger(limit) || limit < 1 || limit > 2000) throw new Problem(400, "limit is a whole number from 1 to 2000.");
+  if (!Number.isInteger(limit) || limit < 1 || limit > 2000)
+    throw new Problem(400, "limit is a whole number from 1 to 2000.");
   const keep = keeper(filtersFrom(query));
   const all = log === "odoo.log" ? storeOf(instance).entries : jobLog(instance, log);
   const before = query.get("before");
@@ -276,8 +375,23 @@ export function page(instance: Instance, log: string, query: URLSearchParams) {
   return {
     data: chosen.map((stored) => {
       const entry = entryOfStored(stored);
-      return { id: stored.id, time: entry.time, level: entry.level, pid: entry.pid ? Number(entry.pid) : null, database: entry.db, logger: entry.logger, traceback: entry.traceback, text: stored.lines.join("\n") };
+      return {
+        id: stored.id,
+        time: entry.time,
+        level: entry.level,
+        pid: entry.pid ? Number(entry.pid) : null,
+        database: entry.db,
+        logger: entry.logger,
+        traceback: entry.traceback,
+        text: stored.lines.join("\n"),
+      };
     }),
-    meta: { log, has_before: hasBefore, has_after: hasAfter, first: chosen[0]?.id ?? null, last: chosen[chosen.length - 1]?.id ?? null },
+    meta: {
+      log,
+      has_before: hasBefore,
+      has_after: hasAfter,
+      first: chosen[0]?.id ?? null,
+      last: chosen[chosen.length - 1]?.id ?? null,
+    },
   };
 }

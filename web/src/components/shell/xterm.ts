@@ -11,8 +11,22 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal, type ITheme } from "@xterm/xterm";
 
 const COLOURS = [
-  "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
-  "bright-black", "bright-red", "bright-green", "bright-yellow", "bright-blue", "bright-magenta", "bright-cyan", "bright-white",
+  "black",
+  "red",
+  "green",
+  "yellow",
+  "blue",
+  "magenta",
+  "cyan",
+  "white",
+  "bright-black",
+  "bright-red",
+  "bright-green",
+  "bright-yellow",
+  "bright-blue",
+  "bright-magenta",
+  "bright-cyan",
+  "bright-white",
 ] as const;
 const camel = (name: string) => name.replace(/-(\w)/g, (_, c: string) => c.toUpperCase());
 

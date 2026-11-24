@@ -10,7 +10,19 @@ import auth from "@/i18n/auth";
  * code work; digits run left to right in Arabic too. A typed digit pops in; `shake` shakes the boxes once (no motion
  * when less is asked for; styles/_look.scss).
  */
-export function OtpInput({ value, onChange, onComplete, shake, label }: { value: string; onChange: (value: string) => void; onComplete?: (value: string) => void; shake?: boolean; label?: string }) {
+export function OtpInput({
+  value,
+  onChange,
+  onComplete,
+  shake,
+  label,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onComplete?: (value: string) => void;
+  shake?: boolean;
+  label?: string;
+}) {
   const fallback = useT(auth).login.code;
   return (
     <div className="otp" dir="ltr" data-shake={shake || undefined}>

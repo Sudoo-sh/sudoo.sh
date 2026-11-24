@@ -43,10 +43,12 @@ const en = {
     more: "More",
     notStarted: "Not started",
     restoreTitle: "Restore an off-site copy",
-    restoreText: (id: string) => `${id} is downloaded, its signature and every checksum are checked, and only then is it restored.`,
+    restoreText: (id: string) =>
+      `${id} is downloaded, its signature and every checksum are checked, and only then is it restored.`,
     current: "The current state is saved first, and Rollback is offered afterwards.",
     keyTitle: "Public key kept off the server (optional)",
-    keyText: "After the server was rebuilt, its own key is a new one: paste the key the copies were signed with, or load its .pem file. Empty: this panel's key.",
+    keyText:
+      "After the server was rebuilt, its own key is a new one: paste the key the copies were signed with, or load its .pem file. Empty: this panel's key.",
   },
   audit: {
     title: "Audit log",
@@ -80,7 +82,8 @@ const en = {
     export: "Export",
     csv: "CSV",
     xlsx: "Excel (XLSX)",
-    exportHint: (rows: string) => `Exports the entries these filters show, a year at most and ${rows} entries at most. Each export is itself in the audit log.`,
+    exportHint: (rows: string) =>
+      `Exports the entries these filters show, a year at most and ${rows} entries at most. Each export is itself in the audit log.`,
     range: (first: string, last: string, total: string) => `${first}–${last} of ${total}`,
     perPage: "Per page",
     previous: "Previous page",
@@ -143,7 +146,8 @@ const ar: typeof en = {
     restoreText: (id) => `تُنزَّل ${ltr(id)} ويُفحص توقيعها وكل مجموع تحقق، ولا تُستعاد إلا بعد ذلك.`,
     current: "تُحفظ الحالة الحالية أولًا، ويُتاح «التراجع» بعد ذلك.",
     keyTitle: "مفتاح عام محفوظ خارج الخادم (اختياري)",
-    keyText: "بعد إعادة بناء الخادم يصبح مفتاحه جديدًا: الصق المفتاح الذي وُقّعت به النسخ، أو حمّل ملف .pem الخاص به. فارغًا: مفتاح هذه اللوحة.",
+    keyText:
+      "بعد إعادة بناء الخادم يصبح مفتاحه جديدًا: الصق المفتاح الذي وُقّعت به النسخ، أو حمّل ملف .pem الخاص به. فارغًا: مفتاح هذه اللوحة.",
   },
   audit: {
     title: "سجل التدقيق",
@@ -177,7 +181,8 @@ const ar: typeof en = {
     export: "تصدير",
     csv: "CSV",
     xlsx: "Excel (XLSX)",
-    exportHint: (rows) => `يصدّر الإدخالات التي تعرضها عوامل التصفية هذه، لسنة على الأكثر و${rows} إدخال على الأكثر. ويُسجَّل كل تصدير في سجل التدقيق.`,
+    exportHint: (rows) =>
+      `يصدّر الإدخالات التي تعرضها عوامل التصفية هذه، لسنة على الأكثر و${rows} إدخال على الأكثر. ويُسجَّل كل تصدير في سجل التدقيق.`,
     range: (first, last, total) => `${first}–${last} من ${total}`,
     perPage: "في الصفحة",
     previous: "الصفحة السابقة",

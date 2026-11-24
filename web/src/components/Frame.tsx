@@ -13,7 +13,13 @@ const ClientPortal = lazy(() => import("@/pages/ClientPortal").then((m) => ({ de
 export function Frame() {
   const me = useMe();
   return (
-    <Suspense fallback={<div style={{ display: "grid", placeItems: "center", height: "100vh" }}><Spinner /></div>}>
+    <Suspense
+      fallback={
+        <div style={{ display: "grid", placeItems: "center", height: "100vh" }}>
+          <Spinner />
+        </div>
+      }
+    >
       {frameFor(me.role) === "portal" ? <ClientPortal /> : <Shell />}
     </Suspense>
   );

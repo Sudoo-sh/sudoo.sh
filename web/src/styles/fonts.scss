@@ -2,7 +2,9 @@
 // served by the panel itself (font-src 'self'), as on the sign-in and account sites. The unicode-range keeps it out of
 // pages without Arabic text: the browser downloads a weight only when a page has Arabic letters in it. Latin text
 // keeps Inter and the system font.
-$arabic-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+$arabic-range:
+  U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+FB50-FDFF, U+FE70-FE74,
+  U+FE76-FEFC;
 
 @each $weight in (400, 500, 600) {
   @font-face {

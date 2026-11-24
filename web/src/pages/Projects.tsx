@@ -74,10 +74,16 @@ function ProjectCard({ project, instances }: { project: Project; instances: Map<
   return (
     <article className="card link project-card">
       <div className="pc-head">
-        <span className="pc-icon"><FolderGit2 /></span>
+        <span className="pc-icon">
+          <FolderGit2 />
+        </span>
         <div className="pc-title">
-          <Link to={`/projects/${project.id}`} viewTransition className="pc-name pc-open truncate">{project.name}</Link>
-          <bdi className="pc-repo truncate" dir="ltr">{project.repository.full_name}</bdi>
+          <Link to={`/projects/${project.id}`} viewTransition className="pc-name pc-open truncate">
+            {project.name}
+          </Link>
+          <bdi className="pc-repo truncate" dir="ltr">
+            {project.repository.full_name}
+          </bdi>
         </div>
         <ChevronRight className="pc-chevron flip-rtl" />
       </div>
@@ -92,7 +98,9 @@ function ProjectCard({ project, instances }: { project: Project; instances: Map<
           const Icon = STAGE_ICON[stage];
           return (
             <div key={stage} className={`pc-stage ${stage}`}>
-              <span className="k"><Icon strokeWidth={1.75} /> <span className="truncate">{STAGE_LABEL[stage]}</span></span>
+              <span className="k">
+                <Icon strokeWidth={1.75} /> <span className="truncate">{STAGE_LABEL[stage]}</span>
+              </span>
               <span className="v">{project.branches[stage]}</span>
             </div>
           );
@@ -124,9 +132,11 @@ export function ProjectsPage() {
   );
   const standalone = (data?.standalone ?? []).map((n) => instances.get(n)).filter((i): i is Instance => !!i);
   const newProject = can("projects.manage") && (
-    <Button asChild variant="primary"><Link to="/projects/new" viewTransition>
-      <FolderPlus /> {t.newProject}
-    </Link></Button>
+    <Button asChild variant="primary">
+      <Link to="/projects/new" viewTransition>
+        <FolderPlus /> {t.newProject}
+      </Link>
+    </Button>
   );
   return (
     <Page>
@@ -137,7 +147,12 @@ export function ProjectsPage() {
         <div className="toolbar">
           <div className="input-group">
             <Search />
-            <Input placeholder={t.search} aria-label={t.search} value={query} onChange={(e) => setQuery(e.target.value)} />
+            <Input
+              placeholder={t.search}
+              aria-label={t.search}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
           </div>
         </div>
       )}
@@ -158,7 +173,11 @@ export function ProjectsPage() {
         </div>
       ) : (
         <div className="card">
-          <Empty icon={<FolderGit2 />} title={data?.projects.length ? t.nothing : t.noneTitle} action={!data?.projects.length ? newProject : undefined}>
+          <Empty
+            icon={<FolderGit2 />}
+            title={data?.projects.length ? t.nothing : t.noneTitle}
+            action={!data?.projects.length ? newProject : undefined}
+          >
             {data?.projects.length ? undefined : t.noneText}
           </Empty>
         </div>
@@ -184,7 +203,17 @@ export function ProjectsPage() {
 
 type Own = Partial<Record<keyof ProjectOptions, ProjectOptions[keyof ProjectOptions] | null>>;
 
-function OptionRow({ label, children, onReset, own }: { label: string; children: ReactNode; onReset: () => void; own: boolean }) {
+function OptionRow({
+  label,
+  children,
+  onReset,
+  own,
+}: {
+  label: string;
+  children: ReactNode;
+  onReset: () => void;
+  own: boolean;
+}) {
   const s = useT(words).settings;
   return (
     <div className="settings-row">
@@ -194,7 +223,16 @@ function OptionRow({ label, children, onReset, own }: { label: string; children:
       </div>
       <div className="row option-control">
         {children}
-        {own && <Button size="sm" variant="ghost" icon={<RotateCcw />} onClick={onReset} aria-label={s.useDefault} title={s.useDefault} />}
+        {own && (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<RotateCcw />}
+            onClick={onReset}
+            aria-label={s.useDefault}
+            title={s.useDefault}
+          />
+        )}
       </div>
     </div>
   );
@@ -211,11 +249,18 @@ function SettingsTab({ project, meta }: { project: ProjectDetail; meta: ProjectM
   const [typed, setTyped] = useState("");
   const c = useT(common).common;
   const editable = can("projects.manage");
-  const save = useCall((body: Record<string, unknown>) => api.patch<Project>(`/projects/${project.id}`, body), [keys.project(project.id), keys.projects]);
+  const save = useCall(
+    (body: Record<string, unknown>) => api.patch<Project>(`/projects/${project.id}`, body),
+    [keys.project(project.id), keys.projects],
+  );
   const remove = useCall(() => api.del(`/projects/${project.id}`, { confirm: project.id }), [keys.projects]);
   const send = (body: Record<string, unknown>) =>
-    save.mutate(body, { onSuccess: () => toast("success", s.saved), onError: (e) => toast("error", s.notSaved, errorText(e)) });
-  const setOption = (key: keyof ProjectOptions, value: Own[keyof ProjectOptions]) => send({ options: { [key]: value } });
+    save.mutate(body, {
+      onSuccess: () => toast("success", s.saved),
+      onError: (e) => toast("error", s.notSaved, errorText(e)),
+    });
+  const setOption = (key: keyof ProjectOptions, value: Own[keyof ProjectOptions]) =>
+    send({ options: { [key]: value } });
   const own = project.own_options;
   const value = <K extends keyof ProjectOptions>(key: K) => project.options[key];
   const flag = (key: "auto_development" | "upgrade_test_on_push" | "email_pusher") => (
@@ -225,36 +270,72 @@ function SettingsTab({ project, meta }: { project: ProjectDetail; meta: ProjectM
   );
   const choice = (key: "staging_on_push" | "branch_deleted", options: string[]) => (
     <OptionRow label={s[key]} own={key in own} onReset={() => setOption(key, null)}>
-      <SelectBox value={String(value(key))} disabled={!editable} onValueChange={(value) => setOption(key, value as ProjectOptions[typeof key])}>
-        {options.map((o) => <option key={o} value={o}>{s[o as "rebuild"]}</option>)}
+      <SelectBox
+        value={String(value(key))}
+        disabled={!editable}
+        onValueChange={(value) => setOption(key, value as ProjectOptions[typeof key])}
+      >
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {s[o as "rebuild"]}
+          </option>
+        ))}
       </SelectBox>
     </OptionRow>
   );
   const days = (key: "max_auto_development" | "development_lifetime_days" | "staging_lifetime_days") => (
     <OptionRow label={s[key]} own={key in own} onReset={() => setOption(key, null)}>
-      <Input className="number" type="number" min={0} max={key === "max_auto_development" ? 100 : 3650} disabled={!editable}
-        defaultValue={value(key)} key={`${key}-${value(key)}`}
-        onBlur={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 0 && n !== value(key)) setOption(key, n); }} />
+      <Input
+        className="number"
+        type="number"
+        min={0}
+        max={key === "max_auto_development" ? 100 : 3650}
+        disabled={!editable}
+        defaultValue={value(key)}
+        key={`${key}-${value(key)}`}
+        onBlur={(e) => {
+          const n = Number(e.target.value);
+          if (Number.isInteger(n) && n >= 0 && n !== value(key)) setOption(key, n);
+        }}
+      />
     </OptionRow>
   );
   return (
     <div className="stack tab-panel">
       <section className="card">
-        <div className="card-head"><h2>{s.general}</h2></div>
+        <div className="card-head">
+          <h2>{s.general}</h2>
+        </div>
         <div className="card-body stack">
           <p className="small muted">{s.generalText}</p>
           <div className="form-grid">
             <Field label={s.name}>
-              <Input  value={name} maxLength={60} disabled={!editable} onChange={(e) => setName(e.target.value)}
-                onBlur={() => name.trim() && name.trim() !== project.name && send({ name: name.trim() })} />
+              <Input
+                value={name}
+                maxLength={60}
+                disabled={!editable}
+                onChange={(e) => setName(e.target.value)}
+                onBlur={() => name.trim() && name.trim() !== project.name && send({ name: name.trim() })}
+              />
             </Field>
             <Field label={s.version}>
-              <SelectBox dir="ltr" value={project.odoo.version} disabled={!editable} onValueChange={(value) => send({ odoo_version: value })}>
-                {(versions ?? [{ version: project.odoo.version, enterprise: true }]).map((v) => <option key={v.version}>{v.version}</option>)}
+              <SelectBox
+                dir="ltr"
+                value={project.odoo.version}
+                disabled={!editable}
+                onValueChange={(value) => send({ odoo_version: value })}
+              >
+                {(versions ?? [{ version: project.odoo.version, enterprise: true }]).map((v) => (
+                  <option key={v.version}>{v.version}</option>
+                ))}
               </SelectBox>
             </Field>
             <Field label={s.edition}>
-              <SelectBox value={project.odoo.edition} disabled={!editable} onValueChange={(value) => send({ edition: value })}>
+              <SelectBox
+                value={project.odoo.edition}
+                disabled={!editable}
+                onValueChange={(value) => send({ edition: value })}
+              >
                 <option value="community">Community</option>
                 <option value="enterprise">Enterprise</option>
               </SelectBox>
@@ -263,7 +344,9 @@ function SettingsTab({ project, meta }: { project: ProjectDetail; meta: ProjectM
         </div>
       </section>
       <section className="card">
-        <div className="card-head"><h2>{s.automation}</h2></div>
+        <div className="card-head">
+          <h2>{s.automation}</h2>
+        </div>
         <div className="card-body stack">
           <p className="small muted">{s.automationText}</p>
           <div className="settings-list card-flush">
@@ -281,7 +364,9 @@ function SettingsTab({ project, meta }: { project: ProjectDetail; meta: ProjectM
       <StagingRefresh project={project} />
       <PullRequestPreviews project={project} />
       <section className="card">
-        <div className="card-head"><h2>{s.lifetimes}</h2></div>
+        <div className="card-head">
+          <h2>{s.lifetimes}</h2>
+        </div>
         <div className="card-body stack">
           <p className="small muted">{s.lifetimesText}</p>
           <div className="settings-list card-flush">
@@ -293,28 +378,65 @@ function SettingsTab({ project, meta }: { project: ProjectDetail; meta: ProjectM
       <GitHubCheckCard project={project} />
       <RepoGuard project={project} />
       <section className="card">
-        <div className="card-head"><h2 className="spacer">{s.access}</h2>
-          {can("projects.access") && <Button asChild size="sm"><Link to={`/projects/${project.id}/access`} viewTransition><ShieldCheck /> {s.manageAccess}</Link></Button>}
+        <div className="card-head">
+          <h2 className="spacer">{s.access}</h2>
+          {can("projects.access") && (
+            <Button asChild size="sm">
+              <Link to={`/projects/${project.id}/access`} viewTransition>
+                <ShieldCheck /> {s.manageAccess}
+              </Link>
+            </Button>
+          )}
         </div>
-        <div className="card-body"><p className="small muted">{project.access.mode === "restricted" ? s.accessRestricted : s.accessText}</p></div>
+        <div className="card-body">
+          <p className="small muted">{project.access.mode === "restricted" ? s.accessRestricted : s.accessText}</p>
+        </div>
       </section>
       {editable && (
         <section className="card danger-zone">
-          <div className="card-head"><h2>{s.danger}</h2></div>
+          <div className="card-head">
+            <h2>{s.danger}</h2>
+          </div>
           <div className="card-body row-wrap">
             <p className="small muted spacer">{s.dangerText}</p>
-            <Button variant="danger" icon={<Trash2 />} disabled={project.instances.total > 0} onClick={() => setDeleting(true)}>{s.deleteProject}</Button>
+            <Button
+              variant="danger"
+              icon={<Trash2 />}
+              disabled={project.instances.total > 0}
+              onClick={() => setDeleting(true)}
+            >
+              {s.deleteProject}
+            </Button>
           </div>
         </section>
       )}
       {deleting && (
-        <Modal title={s.deleteTitle(project.name)} onClose={() => setDeleting(false)}
-          footer={<><Button onClick={() => setDeleting(false)}>{c.cancel}</Button>
-            <Button variant="danger" icon={<Trash2 />} disabled={typed !== project.id} loading={remove.isPending}
-              onClick={() => remove.mutate(undefined, {
-                onSuccess: () => { toast("success", s.deleted); navigate("/projects", { viewTransition: true }); },
-                onError: (e) => toast("error", s.notDeleted, errorText(e)),
-              })}>{s.deleteProject}</Button></>}>
+        <Modal
+          title={s.deleteTitle(project.name)}
+          onClose={() => setDeleting(false)}
+          footer={
+            <>
+              <Button onClick={() => setDeleting(false)}>{c.cancel}</Button>
+              <Button
+                variant="danger"
+                icon={<Trash2 />}
+                disabled={typed !== project.id}
+                loading={remove.isPending}
+                onClick={() =>
+                  remove.mutate(undefined, {
+                    onSuccess: () => {
+                      toast("success", s.deleted);
+                      navigate("/projects", { viewTransition: true });
+                    },
+                    onError: (e) => toast("error", s.notDeleted, errorText(e)),
+                  })
+                }
+              >
+                {s.deleteProject}
+              </Button>
+            </>
+          }
+        >
           <div className="stack">
             <p className="small muted">{s.dangerText}</p>
             <Field label={<>{s.typeId(<code key="id">{project.id}</code>)}</>}>
@@ -330,7 +452,11 @@ function SettingsTab({ project, meta }: { project: ProjectDetail; meta: ProjectM
 export function ProjectPage() {
   const { id = "", tab: pageTab = "", branch, view = "" } = useParams();
   // a branch (/projects/<id>/branches/<branch>/<view>) is shown in the Branches tab, the workspace
-  const tab = branch === undefined && ["builds", "status", "notifications", "settings", "backups", "access", "clients"].includes(pageTab) ? pageTab : "";
+  const tab =
+    branch === undefined &&
+    ["builds", "status", "notifications", "settings", "backups", "access", "clients"].includes(pageTab)
+      ? pageTab
+      : "";
   const can = useCan();
   const { data, isPending, error, refetch } = useProject(id);
   const t = useT(words).page;
@@ -349,7 +475,17 @@ export function ProjectPage() {
     return (
       <Page>
         <div className="card">
-          <Empty icon={<FolderGit2 />} title={t.notFound} action={<Button asChild><Link to="/projects" viewTransition>{t.allProjects}</Link></Button>}>
+          <Empty
+            icon={<FolderGit2 />}
+            title={t.notFound}
+            action={
+              <Button asChild>
+                <Link to="/projects" viewTransition>
+                  {t.allProjects}
+                </Link>
+              </Button>
+            }
+          >
             {t.notFoundText}
           </Empty>
         </div>
@@ -377,47 +513,83 @@ export function ProjectPage() {
         below={branchArea?.identity}
         side={branchArea?.tools}
         actions={
-          <Button asChild><a href={project.repository.url} target="_blank" rel="noreferrer">
-            <FolderGit2 /> {t.openOnGitHub} <ArrowUpRight className="flip-rtl" />
-          </a></Button>
+          <Button asChild>
+            <a href={project.repository.url} target="_blank" rel="noreferrer">
+              <FolderGit2 /> {t.openOnGitHub} <ArrowUpRight className="flip-rtl" />
+            </a>
+          </Button>
         }
       >
         <span className="row-wrap">
-          <bdi dir="ltr" className="mono small">{project.repository.full_name}</bdi>
+          <bdi dir="ltr" className="mono small">
+            {project.repository.full_name}
+          </bdi>
           <Tag mono>{project.odoo.version}</Tag>
           <Tag>{project.odoo.edition === "enterprise" ? "Enterprise" : "Community"}</Tag>
           <ProjectAuditLink project={project.id} />
         </span>
       </PageHead>
       <nav className="tabs" aria-label={project.name}>
-        <Link to={`/projects/${project.id}`} viewTransition className={`tab ${tab === "" ? "active" : ""}`} aria-current={tab === "" ? "page" : undefined}>
+        <Link
+          to={`/projects/${project.id}`}
+          viewTransition
+          className={`tab ${tab === "" ? "active" : ""}`}
+          aria-current={tab === "" ? "page" : undefined}
+        >
           <GitBranch /> {t.branchesTab}
         </Link>
-        <Link to={`/projects/${project.id}/builds`} viewTransition className={`tab ${tab === "builds" ? "active" : ""}`} aria-current={tab === "builds" ? "page" : undefined}>
+        <Link
+          to={`/projects/${project.id}/builds`}
+          viewTransition
+          className={`tab ${tab === "builds" ? "active" : ""}`}
+          aria-current={tab === "builds" ? "page" : undefined}
+        >
           <Layers /> {b.tab}
         </Link>
         <ProjectStatusTabs project={project} tab={tab} manage={mayManage} />
-        <Link to={`/projects/${project.id}/settings`} viewTransition className={`tab ${tab === "settings" ? "active" : ""}`} aria-current={tab === "settings" ? "page" : undefined}>
+        <Link
+          to={`/projects/${project.id}/settings`}
+          viewTransition
+          className={`tab ${tab === "settings" ? "active" : ""}`}
+          aria-current={tab === "settings" ? "page" : undefined}
+        >
           <Hammer /> {t.settingsTab}
         </Link>
         {mayManageBackups && (
-          <Link to={`/projects/${project.id}/backups`} viewTransition className={`tab ${tab === "backups" ? "active" : ""}`} aria-current={tab === "backups" ? "page" : undefined}>
+          <Link
+            to={`/projects/${project.id}/backups`}
+            viewTransition
+            className={`tab ${tab === "backups" ? "active" : ""}`}
+            aria-current={tab === "backups" ? "page" : undefined}
+          >
             <Archive /> {t.backupsTab}
           </Link>
         )}
         {mayManageAccess && (
-          <Link to={`/projects/${project.id}/access`} viewTransition className={`tab ${tab === "access" ? "active" : ""}`} aria-current={tab === "access" ? "page" : undefined}>
+          <Link
+            to={`/projects/${project.id}/access`}
+            viewTransition
+            className={`tab ${tab === "access" ? "active" : ""}`}
+            aria-current={tab === "access" ? "page" : undefined}
+          >
             <ShieldCheck /> {t.accessTab}
           </Link>
         )}
         {(project.client_access || can("clients.manage")) && (
-          <Link to={`/projects/${project.id}/clients`} viewTransition className={`tab ${tab === "clients" ? "active" : ""}`} aria-current={tab === "clients" ? "page" : undefined}>
+          <Link
+            to={`/projects/${project.id}/clients`}
+            viewTransition
+            className={`tab ${tab === "clients" ? "active" : ""}`}
+            aria-current={tab === "clients" ? "page" : undefined}
+          >
             <UserRoundCheck /> {c.clientsTitle}
           </Link>
         )}
         <TabInk />
       </nav>
-      {tab !== "clients" && <ClosedNotice projectId={project.id} projectName={project.name} branch={null} access={project.client_access} />}
+      {tab !== "clients" && (
+        <ClosedNotice projectId={project.id} projectName={project.name} branch={null} access={project.client_access} />
+      )}
     </>
   );
   return (
@@ -438,8 +610,16 @@ export function ProjectPage() {
       ) : tab === "settings" ? (
         <SettingsTab key={project.id} project={project} meta={meta} />
       ) : (
-        <ProjectWorkspace project={project} meta={meta} selected={branch} view={view} onRefresh={refresh} refreshing={refreshing} backups={mayManageBackups}
-          head={head} />
+        <ProjectWorkspace
+          project={project}
+          meta={meta}
+          selected={branch}
+          view={view}
+          onRefresh={refresh}
+          refreshing={refreshing}
+          backups={mayManageBackups}
+          head={head}
+        />
       )}
     </Page>
   );
@@ -471,13 +651,23 @@ export function NewProjectPage() {
   const [checking, setChecking] = useState(false);
   const chosenVersion = version || versions?.at(-1)?.version || "";
   const enterpriseAvailable = versions?.find((v) => v.version === chosenVersion)?.enterprise ?? false;
-  const chosenOwner = owners.data?.owners.find((o) => o.account === owner) ?? owners.data?.owners.find((o) => o.possible) ?? owners.data?.owners[0];
+  const chosenOwner =
+    owners.data?.owners.find((o) => o.account === owner) ??
+    owners.data?.owners.find((o) => o.possible) ??
+    owners.data?.owners[0];
   const create = useCall(
     () =>
       api.post<Project>("/projects", {
         ...(mode === "link"
           ? { repository: repository.trim() }
-          : { create: { owner: chosenOwner?.account ?? "", name: repoName.trim(), private: isPrivate, description: description.trim() } }),
+          : {
+              create: {
+                owner: chosenOwner?.account ?? "",
+                name: repoName.trim(),
+                private: isPrivate,
+                description: description.trim(),
+              },
+            }),
         ...(nameEdited && name.trim() ? { name: name.trim() } : {}),
         odoo_version: chosenVersion,
         edition: enterpriseAvailable ? edition : "community",
@@ -486,7 +676,9 @@ export function NewProjectPage() {
   );
   const ready =
     !!chosenVersion &&
-    (mode === "link" ? repository.trim().length > 2 : !!chosenOwner?.possible && /^[A-Za-z0-9._-]{1,100}$/.test(repoName.trim()));
+    (mode === "link"
+      ? repository.trim().length > 2
+      : !!chosenOwner?.possible && /^[A-Za-z0-9._-]{1,100}$/.test(repoName.trim()));
   const checkAgain = async () => {
     setChecking(true);
     try {
@@ -496,48 +688,107 @@ export function NewProjectPage() {
       setChecking(false);
     }
   };
-  const suggestedName = repositoryShortName(mode === "link" ? repository : `${chosenOwner?.account ?? "owner"}/${repoName}`);
-  const shownRepo = mode === "link" ? repository.trim().replace(/^https:\/\/github\.com\//, "") : `${chosenOwner?.account ?? "…"}/${repoName.trim() || "…"}`;
+  const suggestedName = repositoryShortName(
+    mode === "link" ? repository : `${chosenOwner?.account ?? "owner"}/${repoName}`,
+  );
+  const shownRepo =
+    mode === "link"
+      ? repository.trim().replace(/^https:\/\/github\.com\//, "")
+      : `${chosenOwner?.account ?? "…"}/${repoName.trim() || "…"}`;
   return (
     <Page>
       <PageHead title={t.title}>{t.text}</PageHead>
       <div className="stack narrow-page">
         <section className="card">
-          <div className="card-head"><FolderGit2 /><h2>{t.steps[0]}</h2></div>
+          <div className="card-head">
+            <FolderGit2 />
+            <h2>{t.steps[0]}</h2>
+          </div>
           <div className="card-body form-grid">
             <div className="full grid-2" role="radiogroup" aria-label={t.steps[0]}>
-              <button type="button" className="choice" role="radio" aria-checked={mode === "link"} aria-pressed={mode === "link"} onClick={() => setMode("link")}>
+              <button
+                type="button"
+                className="choice"
+                role="radio"
+                aria-checked={mode === "link"}
+                aria-pressed={mode === "link"}
+                onClick={() => setMode("link")}
+              >
                 <FolderGit2 />
-                <span><span className="t">{t.link}</span><br /><span className="d">{t.linkText}</span></span>
+                <span>
+                  <span className="t">{t.link}</span>
+                  <br />
+                  <span className="d">{t.linkText}</span>
+                </span>
               </button>
-              <button type="button" className="choice" role="radio" aria-checked={mode === "create"} aria-pressed={mode === "create"} disabled={!can("github.manage")} onClick={() => setMode("create")}>
+              <button
+                type="button"
+                className="choice"
+                role="radio"
+                aria-checked={mode === "create"}
+                aria-pressed={mode === "create"}
+                disabled={!can("github.manage")}
+                onClick={() => setMode("create")}
+              >
                 <FolderPlus />
-                <span><span className="t">{t.create}</span><br /><span className="d">{t.createText}</span></span>
+                <span>
+                  <span className="t">{t.create}</span>
+                  <br />
+                  <span className="d">{t.createText}</span>
+                </span>
               </button>
             </div>
             {mode === "link" ? (
               <Field className="full" label={t.repository} hint={t.repositoryHint}>
                 <div className="stack-sm">
-                  <Input  dir="ltr" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repository}
-                    onChange={(e) => setRepository(e.target.value)} onFocus={() => setPicking(true)} onBlur={() => setPicking(false)} />
-                  {picking && <RepositoryPicker typed={repository.trim()} onPick={(r) => { setRepository(r.url); setPicking(false); }} />}
+                  <Input
+                    dir="ltr"
+                    autoFocus
+                    placeholder="https://github.com/acme/odoo-addons"
+                    value={repository}
+                    onChange={(e) => setRepository(e.target.value)}
+                    onFocus={() => setPicking(true)}
+                    onBlur={() => setPicking(false)}
+                  />
+                  {picking && (
+                    <RepositoryPicker
+                      typed={repository.trim()}
+                      onPick={(r) => {
+                        setRepository(r.url);
+                        setPicking(false);
+                      }}
+                    />
+                  )}
                 </div>
               </Field>
             ) : owners.isPending ? (
               <Skeleton height={64} />
             ) : !owners.data?.owners.length ? (
-              <Callout tone="warning" >
-                {t.noApp} <Link to="/github" viewTransition>{githubWord}</Link>
+              <Callout tone="warning">
+                {t.noApp}{" "}
+                <Link to="/github" viewTransition>
+                  {githubWord}
+                </Link>
               </Callout>
             ) : (
               <>
                 <Field label={t.organisation}>
                   <SelectBox dir="ltr" value={chosenOwner?.account ?? ""} onValueChange={(value) => setOwner(value)}>
-                    {owners.data.owners.map((o) => <option key={o.account} value={o.account}>{o.account}</option>)}
+                    {owners.data.owners.map((o) => (
+                      <option key={o.account} value={o.account}>
+                        {o.account}
+                      </option>
+                    ))}
                   </SelectBox>
                 </Field>
                 <Field label={t.repositoryName} hint={t.repositoryNameHint}>
-                  <Input dir="ltr" placeholder="client-erp" value={repoName} maxLength={100} onChange={(e) => setRepoName(e.target.value)} />
+                  <Input
+                    dir="ltr"
+                    placeholder="client-erp"
+                    value={repoName}
+                    maxLength={100}
+                    onChange={(e) => setRepoName(e.target.value)}
+                  />
                 </Field>
                 {chosenOwner && !chosenOwner.possible && (
                   <div className="full">
@@ -545,15 +796,36 @@ export function NewProjectPage() {
                       <span className="stack-sm">
                         <span>{chosenOwner.message}</span>
                         <span className="row-wrap">
-                          {chosenOwner.url && (chosenOwner.url.startsWith("/") ? (
-                            <Button asChild size="sm"><Link to={chosenOwner.url} viewTransition>{chosenOwner.label}</Link></Button>
-                          ) : (
-                            <Button asChild size="sm"><a href={chosenOwner.url} target="_blank" rel="noreferrer">{chosenOwner.label} <ArrowUpRight className="flip-rtl" /></a></Button>
-                          ))}
+                          {chosenOwner.url &&
+                            (chosenOwner.url.startsWith("/") ? (
+                              <Button asChild size="sm">
+                                <Link to={chosenOwner.url} viewTransition>
+                                  {chosenOwner.label}
+                                </Link>
+                              </Button>
+                            ) : (
+                              <Button asChild size="sm">
+                                <a href={chosenOwner.url} target="_blank" rel="noreferrer">
+                                  {chosenOwner.label} <ArrowUpRight className="flip-rtl" />
+                                </a>
+                              </Button>
+                            ))}
                           {chosenOwner.accept_url && (
-                            <Button asChild size="sm"><a href={chosenOwner.accept_url} target="_blank" rel="noreferrer">{t.acceptHere} <ArrowUpRight className="flip-rtl" /></a></Button>
+                            <Button asChild size="sm">
+                              <a href={chosenOwner.accept_url} target="_blank" rel="noreferrer">
+                                {t.acceptHere} <ArrowUpRight className="flip-rtl" />
+                              </a>
+                            </Button>
                           )}
-                          <Button size="sm" variant="ghost" icon={<RefreshCw />} loading={checking} onClick={checkAgain}>{t.checkAgain}</Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            icon={<RefreshCw />}
+                            loading={checking}
+                            onClick={checkAgain}
+                          >
+                            {t.checkAgain}
+                          </Button>
                         </span>
                       </span>
                     </Callout>
@@ -562,27 +834,46 @@ export function NewProjectPage() {
                 <Field className="full" label={t.description}>
                   <Input value={description} maxLength={350} onChange={(e) => setDescription(e.target.value)} />
                 </Field>
-                <div className="full"><Switch checked={isPrivate} onChange={setPrivate} label={t.private} /></div>
+                <div className="full">
+                  <Switch checked={isPrivate} onChange={setPrivate} label={t.private} />
+                </div>
               </>
             )}
           </div>
         </section>
         <section className="card">
-          <div className="card-head"><Boxes /><h2>{t.steps[1]}</h2></div>
+          <div className="card-head">
+            <Boxes />
+            <h2>{t.steps[1]}</h2>
+          </div>
           <div className="card-body form-grid">
             <Field label={t.projectName} hint={t.projectNameHint}>
-              <Input clearable value={nameEdited ? name : suggestedName} maxLength={60}
-                onChange={(e) => { setNameEdited(true); setName(e.target.value); }} />
+              <Input
+                clearable
+                value={nameEdited ? name : suggestedName}
+                maxLength={60}
+                onChange={(e) => {
+                  setNameEdited(true);
+                  setName(e.target.value);
+                }}
+              />
             </Field>
             <Field label={t.version}>
               <SelectBox dir="ltr" value={chosenVersion} onValueChange={(value) => setVersion(value)}>
-                {(versions ?? []).map((v) => <option key={v.version}>{v.version}</option>)}
+                {(versions ?? []).map((v) => (
+                  <option key={v.version}>{v.version}</option>
+                ))}
               </SelectBox>
             </Field>
             <Field label={t.edition}>
-              <SelectBox value={enterpriseAvailable ? edition : "community"} onValueChange={(value) => setEdition(value as "community" | "enterprise")}>
+              <SelectBox
+                value={enterpriseAvailable ? edition : "community"}
+                onValueChange={(value) => setEdition(value as "community" | "enterprise")}
+              >
                 <option value="community">{t.community}</option>
-                <option value="enterprise" disabled={!enterpriseAvailable}>{t.enterprise}</option>
+                <option value="enterprise" disabled={!enterpriseAvailable}>
+                  {t.enterprise}
+                </option>
               </SelectBox>
             </Field>
           </div>
@@ -590,13 +881,35 @@ export function NewProjectPage() {
         <section className="card form-end">
           <div className="card-body row-wrap">
             <p className="small muted spacer">
-              {mode === "link" ? t.summaryLink(<bdi key="r" dir="ltr" className="mono">{shownRepo || "…"}</bdi>) : t.summaryCreate(<bdi key="r" dir="ltr" className="mono">{shownRepo}</bdi>)}
+              {mode === "link"
+                ? t.summaryLink(
+                    <bdi key="r" dir="ltr" className="mono">
+                      {shownRepo || "…"}
+                    </bdi>,
+                  )
+                : t.summaryCreate(
+                    <bdi key="r" dir="ltr" className="mono">
+                      {shownRepo}
+                    </bdi>,
+                  )}
             </p>
-            <Button variant="primary" icon={<FolderPlus />} disabled={!ready} loading={create.isPending}
-              onClick={() => create.mutate(undefined, {
-                onSuccess: (project) => { toast("success", t.createdToast(project.name)); navigate(`/projects/${project.id}`, { viewTransition: true }); },
-                onError: (e) => toast("error", t.notCreated, errorText(e)),
-              })}>{t.createProject}</Button>
+            <Button
+              variant="primary"
+              icon={<FolderPlus />}
+              disabled={!ready}
+              loading={create.isPending}
+              onClick={() =>
+                create.mutate(undefined, {
+                  onSuccess: (project) => {
+                    toast("success", t.createdToast(project.name));
+                    navigate(`/projects/${project.id}`, { viewTransition: true });
+                  },
+                  onError: (e) => toast("error", t.notCreated, errorText(e)),
+                })
+              }
+            >
+              {t.createProject}
+            </Button>
           </div>
         </section>
       </div>

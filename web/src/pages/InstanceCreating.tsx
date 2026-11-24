@@ -38,7 +38,9 @@ function Head({ name, status, instance }: { name: string; status: ReactNode; ins
         <Monogram name={name} large />
         <div className="titles" style={{ minWidth: 0 }}>
           <div className="row-wrap" style={{ gap: 12 }}>
-            <h1 className="truncate"><bdi>{name}</bdi></h1>
+            <h1 className="truncate">
+              <bdi>{name}</bdi>
+            </h1>
             {status}
           </div>
           {instance && (
@@ -91,9 +93,7 @@ export function CreatingInstance({ instance }: { instance: Instance }) {
         </div>
         <div className="card-body stack">
           <Progress value={queued ? null : percent} status={status} />
-          <p className="small muted">
-            {queued ? t.queuedText : t.runningText}
-          </p>
+          <p className="small muted">{queued ? t.queuedText : t.runningText}</p>
           <JobSteps job={{ steps, expected_steps: job?.expected_steps ?? reference.expected_steps }} />
           {job?.notes.map((note, i) => (
             <Callout key={i} tone={note.level === "warning" ? "warning" : "info"}>
@@ -126,13 +126,17 @@ export function CreationFailed({ name, job, instance }: { name: string; job: Job
         <div className="card-body stack">
           <JobSteps job={job} />
           <div className="row-wrap">
-            <Button asChild><Link to="/" viewTransition>
-              {t.back}
-            </Link></Button>
+            <Button asChild>
+              <Link to="/" viewTransition>
+                {t.back}
+              </Link>
+            </Button>
             {can("instances.create") && (
-              <Button asChild variant="primary"><Link to="/new" viewTransition>
-                <Plus /> {t.retry}
-              </Link></Button>
+              <Button asChild variant="primary">
+                <Link to="/new" viewTransition>
+                  <Plus /> {t.retry}
+                </Link>
+              </Button>
             )}
           </div>
         </div>

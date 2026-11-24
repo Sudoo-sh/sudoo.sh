@@ -3,7 +3,14 @@
 // loads, which the panel's Content-Security-Policy refuses (its rules are in styles/vaul.css instead).
 
 import type { ComponentProps, ReactNode } from "react";
-import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 
 export function ModalDrawer({
   open,

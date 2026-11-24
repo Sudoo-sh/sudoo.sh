@@ -40,7 +40,11 @@ export function useChooseWindow(client: boolean) {
   const queries = useQueryClient();
   return useMutation({
     mutationFn: ({ id, choice }: { id: string; choice: WindowChoice }) =>
-      call<ClientActionAnswer | MaintenanceItem>("PUT", `${client ? "/client" : ""}/maintenance/${enc(id)}/window`, choice),
+      call<ClientActionAnswer | MaintenanceItem>(
+        "PUT",
+        `${client ? "/client" : ""}/maintenance/${enc(id)}/window`,
+        choice,
+      ),
     onSettled: () => queries.invalidateQueries({ queryKey: client ? maintenanceKeys.client : maintenanceKeys.staff }),
   });
 }

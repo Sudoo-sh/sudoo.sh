@@ -47,7 +47,10 @@ export function contrast(a: [number, number, number], b: [number, number, number
 }
 
 /** Of the candidate text colours, the one that reads best on the bar's colour. */
-export function readableOn<T extends { rgb: [number, number, number] }>(fill: [number, number, number], candidates: T[]): T {
+export function readableOn<T extends { rgb: [number, number, number] }>(
+  fill: [number, number, number],
+  candidates: T[],
+): T {
   return candidates.reduce((best, next) => (contrast(fill, next.rgb) > contrast(fill, best.rgb) ? next : best));
 }
 

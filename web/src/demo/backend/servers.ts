@@ -33,7 +33,16 @@ interface DemoServer {
   revoked_by: string | null;
   fingerprint: string | null;
   code_expires_at: number | null;
-  facts: { hostname: string; os: string; architecture: string; cpus: number; memory_bytes: number; disk_bytes: number; disk_free_bytes: number; version: string } | null;
+  facts: {
+    hostname: string;
+    os: string;
+    architecture: string;
+    cpus: number;
+    memory_bytes: number;
+    disk_bytes: number;
+    disk_free_bytes: number;
+    version: string;
+  } | null;
   /** how busy it is: its figures move around these */
   load: { cpu: number; memory: number; disk: number };
 }
@@ -51,7 +60,9 @@ const SEEDED_PLACES: Record<string, string> = {
 };
 
 function fingerprintOf(seed: string) {
-  const text = Array.from({ length: 4 }, (_, i) => hash(`${seed}${i}`).toString(16).toUpperCase().padStart(8, "0").slice(0, 4)).join("");
+  const text = Array.from({ length: 4 }, (_, i) =>
+    hash(`${seed}${i}`).toString(16).toUpperCase().padStart(8, "0").slice(0, 4),
+  ).join("");
   return text.match(/.{4}/g)!.join("-");
 }
 
@@ -81,7 +92,16 @@ export function seedServers() {
     "srv-dxb7k2m9qa",
     made("srv-dxb7k2m9qa", "Dubai", "me-central", 46 * DAY, {
       max_instances: 6,
-      facts: { hostname: "odoo-dxb-1", os: "Ubuntu 24.04.3 LTS", architecture: "x86_64", cpus: 8, memory_bytes: 32 * GIB, disk_bytes: 320 * GIB, disk_free_bytes: 201 * GIB, version: VERSION },
+      facts: {
+        hostname: "odoo-dxb-1",
+        os: "Ubuntu 24.04.3 LTS",
+        architecture: "x86_64",
+        cpus: 8,
+        memory_bytes: 32 * GIB,
+        disk_bytes: 320 * GIB,
+        disk_free_bytes: 201 * GIB,
+        version: VERSION,
+      },
       load: { cpu: 21, memory: 52, disk: 37 },
     }),
   );
@@ -89,7 +109,16 @@ export function seedServers() {
     "srv-iad3h8w1ze",
     made("srv-iad3h8w1ze", "Virginia", "us-east", 19 * DAY, {
       max_instances: 10,
-      facts: { hostname: "odoo-iad-1", os: "Debian GNU/Linux 13", architecture: "aarch64", cpus: 4, memory_bytes: 16 * GIB, disk_bytes: 160 * GIB, disk_free_bytes: 118 * GIB, version: VERSION },
+      facts: {
+        hostname: "odoo-iad-1",
+        os: "Debian GNU/Linux 13",
+        architecture: "aarch64",
+        cpus: 4,
+        memory_bytes: 16 * GIB,
+        disk_bytes: 160 * GIB,
+        disk_free_bytes: 118 * GIB,
+        version: VERSION,
+      },
       load: { cpu: 9, memory: 38, disk: 26 },
     }),
   );
@@ -127,8 +156,13 @@ export function placeNew(instance: Instance, wanted: unknown) {
   if (id !== MAIN) {
     const found = servers.get(id);
     if (!found) throw new Problem(400, "There is no such server.");
-    if (found.status !== "active") throw new Problem(409, `The server ${found.name} is not active: choose another one.`);
-    if (roomOf(id).full) throw new Problem(409, `The server ${found.name} is full (${found.max_instances} instances). Choose another one, or give it more room.`);
+    if (found.status !== "active")
+      throw new Problem(409, `The server ${found.name} is not active: choose another one.`);
+    if (roomOf(id).full)
+      throw new Problem(
+        409,
+        `The server ${found.name} is full (${found.max_instances} instances). Choose another one, or give it more room.`,
+      );
     placement.set(instance.name, id);
   }
   instance.server = reference(id);
@@ -138,7 +172,10 @@ export function placeNew(instance: Instance, wanted: unknown) {
 export function choices(): ServerChoice[] | undefined {
   if (!serversActive()) return undefined;
   const others = [...servers.values()].filter((s) => s.status === "active" && !roomOf(s.id).full);
-  return [{ id: MAIN, name: mainName(), region: mainRegion() }, ...others.map((s) => ({ id: s.id, name: s.name, region: s.region }))];
+  return [
+    { id: MAIN, name: mainName(), region: mainRegion() },
+    ...others.map((s) => ({ id: s.id, name: s.name, region: s.region })),
+  ];
 }
 
 export const forget = (name: string) => placement.delete(name);
@@ -149,7 +186,15 @@ function roomOf(id: string) {
   const count = countOn(id);
   if (id === MAIN) {
     const estimate = capacity();
-    return { instances: count, max_instances: null, comfortable: estimate.comfortable, running: estimate.running, headroom: estimate.headroom, full: false, warning: null };
+    return {
+      instances: count,
+      max_instances: null,
+      comfortable: estimate.comfortable,
+      running: estimate.running,
+      headroom: estimate.headroom,
+      full: false,
+      warning: null,
+    };
   }
   const server = servers.get(id)!;
   const running = [...instances.values()].filter((i) => serverOf(i.name) === id && i.status === "online").length;
@@ -169,7 +214,12 @@ function roomOf(id: string) {
 function figures(id: string) {
   if (id === MAIN) {
     const server = currentMetrics().server;
-    return { cpu_percent: server.cpu_percent ?? null, memory_percent: server.memory_percent ?? null, disk_percent: server.disk_percent ?? null, load_1m: server.load_1m ?? null };
+    return {
+      cpu_percent: server.cpu_percent ?? null,
+      memory_percent: server.memory_percent ?? null,
+      disk_percent: server.disk_percent ?? null,
+      load_1m: server.load_1m ?? null,
+    };
   }
   const server = servers.get(id)!;
   if (server.status !== "active") return { cpu_percent: null, memory_percent: null, disk_percent: null, load_1m: null };
@@ -197,7 +247,7 @@ export function serverResource(id: string, full = false): Record<string, unknown
     status,
     online: status === "active",
     last_seen_at: main ? null : status === "active" ? iso(Date.now() - 4 * SECOND) : iso(server!.joined_at),
-    version: main ? VERSION : server!.facts?.version ?? null,
+    version: main ? VERSION : (server!.facts?.version ?? null),
     instances: countOn(id),
     capacity: { max_instances: main ? null : server!.max_instances },
     room: roomOf(id),
@@ -213,7 +263,16 @@ export function serverResource(id: string, full = false): Record<string, unknown
     Object.assign(resource, {
       fingerprint: main ? null : server!.fingerprint,
       facts: main
-        ? { hostname: "odoo-fra-1", os: "Ubuntu 24.04.3 LTS", architecture: "x86_64", cpus: 8, memory_bytes: 32 * GIB, disk_bytes: 480 * GIB, disk_free_bytes: 291 * GIB, version: VERSION }
+        ? {
+            hostname: "odoo-fra-1",
+            os: "Ubuntu 24.04.3 LTS",
+            architecture: "x86_64",
+            cpus: 8,
+            memory_bytes: 32 * GIB,
+            disk_bytes: 480 * GIB,
+            disk_free_bytes: 291 * GIB,
+            version: VERSION,
+          }
         : (server!.facts ?? {}),
       created_by: main ? null : server!.created_by,
       joined_at: main ? null : iso(server!.joined_at),
@@ -241,7 +300,12 @@ export function listServers() {
   const ids = [MAIN, ...[...servers.values()].sort((a, b) => a.created_at - b.created_at).map((s) => s.id)];
   return {
     data: ids.map((id) => serverResource(id)),
-    meta: { limit: ENTITLEMENTS[currentPlan()].max_servers, counted: counted(), refusal: limitRefusal(), panel_url: "https://panel.example-integrator.com" },
+    meta: {
+      limit: ENTITLEMENTS[currentPlan()].max_servers,
+      counted: counted(),
+      refusal: limitRefusal(),
+      panel_url: "https://panel.example-integrator.com",
+    },
   };
 }
 
@@ -260,11 +324,13 @@ function maxInstances(value: unknown): number | null {
   const given = (value as { max_instances?: unknown } | undefined)?.max_instances;
   if (given === null || given === undefined || given === "") return null;
   const number = Number(given);
-  if (!Number.isInteger(number) || number < 1 || number > 500) throw new Problem(400, "capacity.max_instances: a whole number from 1 to 500, or nothing.");
+  if (!Number.isInteger(number) || number < 1 || number > 500)
+    throw new Problem(400, "capacity.max_instances: a whole number from 1 to 500, or nothing.");
   return number;
 }
 
-const newCode = (id: string) => `sdj1.${id}.${Array.from(crypto.getRandomValues(new Uint8Array(18)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
+const newCode = (id: string) =>
+  `sdj1.${id}.${Array.from(crypto.getRandomValues(new Uint8Array(18)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
 const installCommand = (code: string) =>
   `curl -fsSL https://github.com/Sudoo-sh/sudoo.sh/releases/download/v${VERSION}/sudoo-install.sh | sudo bash -s -- agent --join '${code}' --version ${VERSION}`;
 
@@ -277,16 +343,34 @@ function joinLater(id: string) {
     server.joined_at = Date.now();
     server.code_expires_at = null;
     server.fingerprint = fingerprintOf(`${id}${Date.now()}`);
-    server.facts = { hostname: `odoo-${server.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 20)}`, os: "Ubuntu 24.04.3 LTS", architecture: "x86_64", cpus: 4, memory_bytes: 16 * GIB, disk_bytes: 160 * GIB, disk_free_bytes: 151 * GIB, version: VERSION };
+    server.facts = {
+      hostname: `odoo-${server.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .slice(0, 20)}`,
+      os: "Ubuntu 24.04.3 LTS",
+      architecture: "x86_64",
+      cpus: 4,
+      memory_bytes: 16 * GIB,
+      disk_bytes: 160 * GIB,
+      disk_free_bytes: 151 * GIB,
+      version: VERSION,
+    };
     publish("reset", id, null);
-    tell(`${server.name} joined`, `Its agent printed the fingerprint ${server.fingerprint}. Open the server and type it to approve it.`);
+    tell(
+      `${server.name} joined`,
+      `Its agent printed the fingerprint ${server.fingerprint}. Open the server and type it to approve it.`,
+    );
   }, 12 * SECOND);
 }
 
 export function addServer(body: Record<string, unknown>): Record<string, unknown> {
   const name = text(body.name, "name");
   if (!name) throw new Problem(400, "name: give the server a name.");
-  if ([...servers.values()].some((s) => s.name.toLowerCase() === name.toLowerCase()) || name.toLowerCase() === mainName().toLowerCase())
+  if (
+    [...servers.values()].some((s) => s.name.toLowerCase() === name.toLowerCase()) ||
+    name.toLowerCase() === mainName().toLowerCase()
+  )
     throw new Problem(409, `There is a server called ${name} already.`);
   const refused = limitRefusal();
   if (refused) throw new Problem(403, refused);
@@ -317,10 +401,15 @@ export function addServer(body: Record<string, unknown>): Record<string, unknown
 }
 
 export function changeServer(id: string, body: Record<string, unknown>) {
-  if (Object.keys(body).some((k) => !["name", "region", "capacity"].includes(k))) throw new Problem(400, "Send only name, region or capacity.");
+  if (Object.keys(body).some((k) => !["name", "region", "capacity"].includes(k)))
+    throw new Problem(400, "Send only name, region or capacity.");
   if (id === MAIN) {
-    if ("capacity" in body) throw new Problem(400, "The main server's room is set by its capacity settings (Settings, Capacity).");
-    for (const [field, key] of [["name", "server_name"], ["region", "server_region"]] as const) {
+    if ("capacity" in body)
+      throw new Problem(400, "The main server's room is set by its capacity settings (Settings, Capacity).");
+    for (const [field, key] of [
+      ["name", "server_name"],
+      ["region", "server_region"],
+    ] as const) {
       if (!(field in body)) continue;
       const found = settings.find((s) => s.key === key);
       if (found) found.value = text(body[field], field, 40) || (field === "name" ? "Main" : "");
@@ -347,7 +436,8 @@ const other = (id: string) => {
 
 export function newJoinCode(id: string) {
   const server = other(id);
-  if (server.status !== "waiting") throw new Problem(409, "Only a server that has not joined yet gets a new join code.");
+  if (server.status !== "waiting")
+    throw new Problem(409, "Only a server that has not joined yet gets a new join code.");
   server.code_expires_at = Date.now() + DAY;
   const code = newCode(id);
   joinLater(id);
@@ -357,10 +447,16 @@ export function newJoinCode(id: string) {
 
 export function approveServer(id: string, body: Record<string, unknown>) {
   const server = other(id);
-  if (server.status !== "joined") throw new Problem(409, "Only a server that has joined and waits for approval can be approved.");
-  const typed = String(body.fingerprint ?? "").replace(/[\s-]/g, "").toUpperCase();
+  if (server.status !== "joined")
+    throw new Problem(409, "Only a server that has joined and waits for approval can be approved.");
+  const typed = String(body.fingerprint ?? "")
+    .replace(/[\s-]/g, "")
+    .toUpperCase();
   if (typed !== (server.fingerprint ?? "").replace(/-/g, ""))
-    throw new Problem(400, "This is not the fingerprint of the key that joined. Type the fingerprint the server printed (sudoo-install agent status). If they differ, someone else may have used the join code: revoke this server and add it again.");
+    throw new Problem(
+      400,
+      "This is not the fingerprint of the key that joined. Type the fingerprint the server printed (sudoo-install agent status). If they differ, someone else may have used the join code: revoke this server and add it again.",
+    );
   server.status = "active";
   server.approved_at = Date.now();
   server.approved_by = ME;
@@ -387,10 +483,14 @@ export function revokeServer(id: string, body: Record<string, unknown>) {
 export function removeServer(id: string, body: Record<string, unknown>) {
   if (id === MAIN) throw new Problem(409, "The main server cannot be removed.");
   const server = other(id);
-  if (server.status !== "revoked" && server.status !== "waiting") throw new Problem(409, "Revoke the server first; then it can be removed from the list.");
+  if (server.status !== "revoked" && server.status !== "waiting")
+    throw new Problem(409, "Revoke the server first; then it can be removed from the list.");
   const left = [...instances.keys()].filter((name) => serverOf(name) === id);
   if (left.length && body.forget_instances !== true)
-    throw new Problem(409, `${server.name} still reports ${left.join(", ")}. Move them first, or remove the server and forget them ("forget_instances": true).`);
+    throw new Problem(
+      409,
+      `${server.name} still reports ${left.join(", ")}. Move them first, or remove the server and forget them ("forget_instances": true).`,
+    );
   for (const name of left) {
     instances.delete(name);
     placement.delete(name);
@@ -408,12 +508,21 @@ export function moveInstance(instance: Instance, body: Record<string, unknown>) 
   if (target !== MAIN) {
     const found = servers.get(target);
     if (!found) throw new Problem(400, "There is no such server.");
-    if (found.status !== "active") throw new Problem(409, `The server ${found.name} is not active: choose another one.`);
-    if (roomOf(target).full) throw new Problem(409, `The server ${found.name} is full (${found.max_instances} instances). Choose another one, or give it more room.`);
+    if (found.status !== "active")
+      throw new Problem(409, `The server ${found.name} is not active: choose another one.`);
+    if (roomOf(target).full)
+      throw new Problem(
+        409,
+        `The server ${found.name} is full (${found.max_instances} instances). Choose another one, or give it more room.`,
+      );
   }
   if (instance.stage === "production" && body.confirm_production !== true)
-    throw new Problem(400, `${instance.name} is a production instance: it is offline while it moves. Confirm ("confirm_production": true).`);
-  if (instance.current_job) throw new Problem(409, `${instance.name} is busy with another job. Try again when it has finished.`);
+    throw new Problem(
+      400,
+      `${instance.name} is a production instance: it is offline while it moves. Confirm ("confirm_production": true).`,
+    );
+  if (instance.current_job)
+    throw new Problem(409, `${instance.name} is busy with another job. Try again when it has finished.`);
   const from = reference(source).name;
   const to = reference(target).name;
   const before = instance.status;
@@ -422,7 +531,14 @@ export function moveInstance(instance: Instance, body: Record<string, unknown>) 
     instance: instance.name,
     action: `Move to ${to}`,
     kind: "move",
-    steps: [`Back up ${instance.name} on ${from}`, `Copy the backup to ${to}`, `Restore it on ${to}`, `Start it on ${to}`, `Check that it answers`, `Remove it from ${from}`],
+    steps: [
+      `Back up ${instance.name} on ${from}`,
+      `Copy the backup to ${to}`,
+      `Restore it on ${to}`,
+      `Start it on ${to}`,
+      `Check that it answers`,
+      `Remove it from ${from}`,
+    ],
     seconds: [2.4, 3.2, 2.8, 2, 1.4, 1.2],
     status: "busy",
     onDone: () => {

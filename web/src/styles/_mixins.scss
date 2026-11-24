@@ -3,7 +3,9 @@
 // hover only where a real pointer hovers; touch screens fire false hovers on tap
 @mixin hover {
   @media (hover: hover) and (pointer: fine) {
-    &:hover { @content; }
+    &:hover {
+      @content;
+    }
   }
 }
 
@@ -14,5 +16,7 @@
   transition-property: transform, background-color, border-color, color, box-shadow;
   transition-duration: var(--press);
   transition-timing-function: var(--ease);
-  &:active:not(:disabled) { transform: scale($scale); }
+  &:active:not(:disabled) {
+    transform: scale($scale);
+  }
 }

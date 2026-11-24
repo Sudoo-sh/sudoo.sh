@@ -60,13 +60,22 @@ export function BackupPicker({
 
   if (isPending) return <Skeleton height={120} />;
   if (!backups?.length)
-    return <Empty icon={<Archive />} title={t.noneTitle}>{t.noneText}</Empty>;
+    return (
+      <Empty icon={<Archive />} title={t.noneTitle}>
+        {t.noneText}
+      </Empty>
+    );
   return (
     <div className="backup-picker">
       {backups.length > 6 && (
         <div className="input-group">
           <Search />
-          <Input placeholder={t.filter} value={query} onChange={(e) => setQuery(e.target.value)} aria-label={t.filterLabel} />
+          <Input
+            placeholder={t.filter}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label={t.filterLabel}
+          />
         </div>
       )}
       <div className="backup-picker-list" role="listbox" aria-label={t.list}>
@@ -75,7 +84,9 @@ export function BackupPicker({
         )}
         {groups.map(([instance, rows]) => (
           <div key={instance} className="backup-picker-group">
-            <h3 className="xsmall faint"><bdi>{instance}</bdi></h3>
+            <h3 className="xsmall faint">
+              <bdi>{instance}</bdi>
+            </h3>
             {rows.map(({ backup, problem }) => (
               <button
                 key={backup.file}
@@ -89,13 +100,22 @@ export function BackupPicker({
                 onClick={() => onChange(value === backup.file ? null : backup.file)}
               >
                 <span className="spacer">
-                  <span className="t">{dateTime(backup.created)}</span> <span className="faint xsmall">· {ago(backup.created)}</span>
+                  <span className="t">{dateTime(backup.created)}</span>{" "}
+                  <span className="faint xsmall">· {ago(backup.created)}</span>
                   <br />
                   <span className="d">
-                    {backupKind(backup.kind)} · {t.database} <span className="mono">{backup.db}</span> · {bytes(backup.size)}
+                    {backupKind(backup.kind)} · {t.database} <span className="mono">{backup.db}</span> ·{" "}
+                    {bytes(backup.size)}
                   </span>
                 </span>
-                {problem ? <Tag tone="negative">{problem}</Tag> : <Tag mono>{backup.series}{backup.edition === "enterprise" ? " EE" : ""}</Tag>}
+                {problem ? (
+                  <Tag tone="negative">{problem}</Tag>
+                ) : (
+                  <Tag mono>
+                    {backup.series}
+                    {backup.edition === "enterprise" ? " EE" : ""}
+                  </Tag>
+                )}
               </button>
             ))}
           </div>

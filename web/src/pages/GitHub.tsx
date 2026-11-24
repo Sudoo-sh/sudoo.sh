@@ -1,4 +1,15 @@
-import { ArrowUpRight, Building2, FolderGit2, KeyRound, Plug, Plus, RefreshCw, Trash2, Unplug, User } from "lucide-react";
+import {
+  ArrowUpRight,
+  Building2,
+  FolderGit2,
+  KeyRound,
+  Plug,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Unplug,
+  User,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, errorText } from "@/api/client";
@@ -61,7 +72,13 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
       footer={
         <>
           <Button onClick={onClose}>{c.cancel}</Button>
-          <Button variant="primary" icon={<ArrowUpRight className="flip-rtl" />} loading={leaving} disabled={!kind || (kind === "organization" && !organization.trim())} onClick={start}>
+          <Button
+            variant="primary"
+            icon={<ArrowUpRight className="flip-rtl" />}
+            loading={leaving}
+            disabled={!kind || (kind === "organization" && !organization.trim())}
+            onClick={start}
+          >
             {t.continue}
           </Button>
         </>
@@ -73,18 +90,42 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
           <p className="small muted">{t.whoseText}</p>
         </div>
         <div className="grid-2">
-          <button type="button" className="choice" aria-pressed={kind === "organization"} onClick={() => setKind("organization")}>
+          <button
+            type="button"
+            className="choice"
+            aria-pressed={kind === "organization"}
+            onClick={() => setKind("organization")}
+          >
             <Building2 />
-            <span><span className="t">{t.organisation}</span><br /><span className="d">{t.organisationText}</span></span>
+            <span>
+              <span className="t">{t.organisation}</span>
+              <br />
+              <span className="d">{t.organisationText}</span>
+            </span>
           </button>
-          <button type="button" className="choice" aria-pressed={kind === "personal"} onClick={() => setKind("personal")}>
+          <button
+            type="button"
+            className="choice"
+            aria-pressed={kind === "personal"}
+            onClick={() => setKind("personal")}
+          >
             <User />
-            <span><span className="t">{t.personal}</span><br /><span className="d">{t.personalText}</span></span>
+            <span>
+              <span className="t">{t.personal}</span>
+              <br />
+              <span className="d">{t.personalText}</span>
+            </span>
           </button>
         </div>
         {kind === "organization" && (
           <Field label={t.organisationField} hint={t.organisationHint}>
-            <Input dir="ltr" autoFocus value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder="acme" />
+            <Input
+              dir="ltr"
+              autoFocus
+              value={organization}
+              onChange={(e) => setOrganization(e.target.value)}
+              placeholder="acme"
+            />
           </Field>
         )}
         {kind === "organization" && (
@@ -100,7 +141,11 @@ function ConnectModal({ onClose }: { onClose: () => void }) {
           </div>
         )}
         <p className="small muted">
-          {t.then(<b key="b" dir="ltr">{t.createButton}</b>)}
+          {t.then(
+            <b key="b" dir="ltr">
+              {t.createButton}
+            </b>,
+          )}
         </p>
       </div>
     </Modal>
@@ -118,31 +163,66 @@ function Installations({ app, canManage }: { app: GitHubApp; canManage: boolean 
       <div className="row" style={{ flexWrap: "wrap" }}>
         <h3 className="spacer">{t.title}</h3>
         {canManage && (
-          <Button size="sm" variant="ghost" icon={<RefreshCw />} loading={sync.isPending}
-            onClick={() => sync.mutate(undefined, { onSuccess: () => toast("success", t.read), onError: (e) => toast("error", t.notRead, errorText(e)) })}>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<RefreshCw />}
+            loading={sync.isPending}
+            onClick={() =>
+              sync.mutate(undefined, {
+                onSuccess: () => toast("success", t.read),
+                onError: (e) => toast("error", t.notRead, errorText(e)),
+              })
+            }
+          >
             {refresh}
           </Button>
         )}
-        {canManage && <Button asChild variant="primary" size="sm"><a href={app.install_url} target="_blank" rel="noreferrer"><Plus /> {t.install}</a></Button>}
+        {canManage && (
+          <Button asChild variant="primary" size="sm">
+            <a href={app.install_url} target="_blank" rel="noreferrer">
+              <Plus /> {t.install}
+            </a>
+          </Button>
+        )}
       </div>
       {!app.installations.length ? (
-        <Callout tone="warning">
-          {t.notInstalled(<b key="b">{t.install}</b>)}
-        </Callout>
+        <Callout tone="warning">{t.notInstalled(<b key="b">{t.install}</b>)}</Callout>
       ) : (
         <Table>
-          <TableHeader><TableRow><TableHead>{t.columns.account}</TableHead><TableHead>{t.columns.repositories}</TableHead><TableHead>{t.columns.since}</TableHead><TableHead /></TableRow></TableHeader>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t.columns.account}</TableHead>
+              <TableHead>{t.columns.repositories}</TableHead>
+              <TableHead>{t.columns.since}</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
           <TableBody>
             {app.installations.map((i) => (
               <TableRow key={i.id}>
-                <TableCell>{i.account_type === "Organization" ? <Building2 size={14} /> : <User size={14} />} <bdi>{i.account}</bdi> {i.suspended && <Tag tone="caution">{t.suspended}</Tag>}</TableCell>
+                <TableCell>
+                  {i.account_type === "Organization" ? <Building2 size={14} /> : <User size={14} />}{" "}
+                  <bdi>{i.account}</bdi> {i.suspended && <Tag tone="caution">{t.suspended}</Tag>}
+                </TableCell>
                 <TableCell>{i.repository_selection === "all" ? t.all : t.selected}</TableCell>
                 <TableCell className="small muted">{ago(i.added)}</TableCell>
                 <TableCell className="actions">
-                  {i.settings_url && <Button asChild variant="ghost" size="sm"><a href={i.settings_url} target="_blank" rel="noreferrer">{t.choose} <ArrowUpRight className="flip-rtl" /></a></Button>}
+                  {i.settings_url && (
+                    <Button asChild variant="ghost" size="sm">
+                      <a href={i.settings_url} target="_blank" rel="noreferrer">
+                        {t.choose} <ArrowUpRight className="flip-rtl" />
+                      </a>
+                    </Button>
+                  )}
                   {canManage && (
-                    <Button size="sm" variant="ghost" icon={<Trash2 />} aria-label={t.forget}
-                      onClick={() => confirm(t.confirmForget(i.account)) && forget.mutate(i.id)} />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={<Trash2 />}
+                      aria-label={t.forget}
+                      onClick={() => confirm(t.confirmForget(i.account)) && forget.mutate(i.id)}
+                    />
                   )}
                 </TableCell>
               </TableRow>
@@ -158,11 +238,24 @@ function AppCard() {
   const { data: state, isPending } = useGitHubApp();
   const toast = useToast();
   const [connecting, setConnecting] = useState(false);
-  const [removed, setRemoved] = useState<{ settings_url: string; installations: { account: string; settings_url: string }[] } | null>(null);
+  const [removed, setRemoved] = useState<{
+    settings_url: string;
+    installations: { account: string; settings_url: string }[];
+  } | null>(null);
   const t = useT(words).app;
   const done = useT(common).common.done;
-  const disconnect = useCall(() => api.del<{ settings_url: string; installations: { account: string; settings_url: string }[] }>("/github/app"), APP_KEY);
-  if (isPending || !state) return <div className="card"><div className="card-body"><Skeleton height={120} /></div></div>;
+  const disconnect = useCall(
+    () => api.del<{ settings_url: string; installations: { account: string; settings_url: string }[] }>("/github/app"),
+    APP_KEY,
+  );
+  if (isPending || !state)
+    return (
+      <div className="card">
+        <div className="card-body">
+          <Skeleton height={120} />
+        </div>
+      </div>
+    );
   const app = state.app;
   return (
     <section className="card rise">
@@ -176,7 +269,11 @@ function AppCard() {
           <>
             <p className="small muted">{t.intro}</p>
             {state.can_manage ? (
-              <div><Button variant="primary" icon={<Plug />} onClick={() => setConnecting(true)}>{t.connect}</Button></div>
+              <div>
+                <Button variant="primary" icon={<Plug />} onClick={() => setConnecting(true)}>
+                  {t.connect}
+                </Button>
+              </div>
             ) : (
               <Callout>{t.superAdmin}</Callout>
             )}
@@ -185,14 +282,30 @@ function AppCard() {
           <>
             <div className="row" style={{ flexWrap: "wrap" }}>
               <span className="small spacer">
-                <b><bdi>{app.name}</bdi></b>{" "}
+                <b>
+                  <bdi>{app.name}</bdi>
+                </b>{" "}
                 <span className="muted">{t.owned(app.owner.login, app.owner.type === "Organization")}</span>
               </span>
-              <Button asChild variant="ghost" size="sm"><a href={app.settings_url} target="_blank" rel="noreferrer">{t.settings} <ArrowUpRight className="flip-rtl" /></a></Button>
+              <Button asChild variant="ghost" size="sm">
+                <a href={app.settings_url} target="_blank" rel="noreferrer">
+                  {t.settings} <ArrowUpRight className="flip-rtl" />
+                </a>
+              </Button>
               {state.can_manage && (
-                <Button size="sm" variant="ghost" icon={<Unplug />} loading={disconnect.isPending}
-                  onClick={() => confirm(t.confirmDisconnect) &&
-                    disconnect.mutate(undefined, { onSuccess: setRemoved, onError: (e) => toast("error", t.notDisconnected, errorText(e)) })}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon={<Unplug />}
+                  loading={disconnect.isPending}
+                  onClick={() =>
+                    confirm(t.confirmDisconnect) &&
+                    disconnect.mutate(undefined, {
+                      onSuccess: setRemoved,
+                      onError: (e) => toast("error", t.notDisconnected, errorText(e)),
+                    })
+                  }
+                >
                   {t.disconnect}
                 </Button>
               )}
@@ -200,7 +313,12 @@ function AppCard() {
             <Installations app={app} canManage={state.can_manage} />
             {!state.trigger_running && (
               <Callout>
-                {t.polling(<code key="c">github-app</code>, <Link key="l" to="/settings?tab=github" viewTransition>{t.settingsLink}</Link>)}
+                {t.polling(
+                  <code key="c">github-app</code>,
+                  <Link key="l" to="/settings?tab=github" viewTransition>
+                    {t.settingsLink}
+                  </Link>,
+                )}
               </Callout>
             )}
           </>
@@ -208,11 +326,26 @@ function AppCard() {
       </div>
       {connecting && <ConnectModal onClose={() => setConnecting(false)} />}
       {removed && (
-        <Modal title={t.removeTitle} description={t.removeText} onClose={() => setRemoved(null)}
-          footer={<><Button onClick={() => setRemoved(null)}>{done}</Button><Button asChild variant="primary"><a href={removed.settings_url} target="_blank" rel="noreferrer">{t.deleteApp} <ArrowUpRight className="flip-rtl" /></a></Button></>}>
+        <Modal
+          title={t.removeTitle}
+          description={t.removeText}
+          onClose={() => setRemoved(null)}
+          footer={
+            <>
+              <Button onClick={() => setRemoved(null)}>{done}</Button>
+              <Button asChild variant="primary">
+                <a href={removed.settings_url} target="_blank" rel="noreferrer">
+                  {t.deleteApp} <ArrowUpRight className="flip-rtl" />
+                </a>
+              </Button>
+            </>
+          }
+        >
           <div className="stack-sm">
             {removed.installations.map((i) => (
-              <a key={i.account} className="row small" href={i.settings_url} target="_blank" rel="noreferrer">{t.uninstallFrom(i.account)} <ArrowUpRight size={14} className="flip-rtl" /></a>
+              <a key={i.account} className="row small" href={i.settings_url} target="_blank" rel="noreferrer">
+                {t.uninstallFrom(i.account)} <ArrowUpRight size={14} className="flip-rtl" />
+              </a>
             ))}
             <p className="small muted">{t.where}</p>
           </div>
@@ -229,7 +362,10 @@ export function GitHubPage() {
   const [adding, setAdding] = useState(false);
   const [repo, setRepo] = useState("");
   const [made, setMade] = useState<{ repo: string; public_key: string; github_url: string } | null>(null);
-  const create = useCall(() => api.post<{ repo: string; public_key: string; github_url: string }>("/deploy-keys", { repo: repo.trim() }), [["deploy-keys"]]);
+  const create = useCall(
+    () => api.post<{ repo: string; public_key: string; github_url: string }>("/deploy-keys", { repo: repo.trim() }),
+    [["deploy-keys"]],
+  );
   const remove = useCall((rid: string) => api.del(`/deploy-keys/${rid}`), [["deploy-keys"]]);
   const appConnected = !!appState?.connected;
   const all = useT(words);
@@ -245,29 +381,59 @@ export function GitHubPage() {
           <h2>{t.title}</h2>
           <span className="sub">{appConnected ? t.fallback : t.perRepository}</span>
           <span className="spacer" />
-          <Button size="sm" icon={<Plus />} onClick={() => setAdding(true)}>{c.add}</Button>
+          <Button size="sm" icon={<Plus />} onClick={() => setAdding(true)}>
+            {c.add}
+          </Button>
         </div>
         {appConnected && !!keysList?.length && (
           <div className="card-body">
-            <Callout>
-              {t.switch}
-            </Callout>
+            <Callout>{t.switch}</Callout>
           </div>
         )}
-        {isPending ? <div className="card-body"><Skeleton height={120} /></div> : !keysList?.length ? (
-          <Empty icon={<FolderGit2 />} title={t.none}>{appConnected ? t.notNeeded : t.addOne}</Empty>
+        {isPending ? (
+          <div className="card-body">
+            <Skeleton height={120} />
+          </div>
+        ) : !keysList?.length ? (
+          <Empty icon={<FolderGit2 />} title={t.none}>
+            {appConnected ? t.notNeeded : t.addOne}
+          </Empty>
         ) : (
           <Table>
-            <TableHeader><TableRow><TableHead>{t.columns.repository}</TableHead><TableHead>{t.columns.key}</TableHead><TableHead>{t.columns.created}</TableHead><TableHead /></TableRow></TableHeader>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t.columns.repository}</TableHead>
+                <TableHead>{t.columns.key}</TableHead>
+                <TableHead>{t.columns.created}</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
             <TableBody>
               {keysList.map((k) => (
                 <TableRow key={k.repo}>
-                  <TableCell><span className="mono">{k.spelling || k.repo}</span></TableCell>
-                  <TableCell style={{ maxWidth: 320 }}><CopyField value={k.public_key} /></TableCell>
+                  <TableCell>
+                    <span className="mono">{k.spelling || k.repo}</span>
+                  </TableCell>
+                  <TableCell style={{ maxWidth: 320 }}>
+                    <CopyField value={k.public_key} />
+                  </TableCell>
                   <TableCell className="small muted">{ago(k.created)}</TableCell>
                   <TableCell className="actions">
-                    <Button asChild variant="ghost" size="sm"><a href={k.github_url} target="_blank" rel="noreferrer">GitHub <ArrowUpRight className="flip-rtl" /></a></Button>
-                    <Button size="sm" variant="ghost" icon={<Trash2 />} aria-label={c.delete} onClick={() => confirm(t.confirmDelete(k.repo)) && remove.mutate(k.repo, { onSuccess: () => toast("success", t.deleted) })} />
+                    <Button asChild variant="ghost" size="sm">
+                      <a href={k.github_url} target="_blank" rel="noreferrer">
+                        GitHub <ArrowUpRight className="flip-rtl" />
+                      </a>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={<Trash2 />}
+                      aria-label={c.delete}
+                      onClick={() =>
+                        confirm(t.confirmDelete(k.repo)) &&
+                        remove.mutate(k.repo, { onSuccess: () => toast("success", t.deleted) })
+                      }
+                    />
                   </TableCell>
                 </TableRow>
               ))}
@@ -276,17 +442,54 @@ export function GitHubPage() {
         )}
       </section>
       {adding && (
-        <Modal title={t.addTitle} onClose={() => setAdding(false)}
-          footer={<><Button onClick={() => setAdding(false)}>{c.cancel}</Button><Button variant="primary" icon={<KeyRound />} loading={create.isPending} disabled={!repo.trim()}
-            onClick={() => create.mutate(undefined, { onSuccess: (m) => { setAdding(false); setRepo(""); setMade(m); }, onError: (e) => toast("error", t.notCreated, errorText(e)) })}>{t.create}</Button></>}>
+        <Modal
+          title={t.addTitle}
+          onClose={() => setAdding(false)}
+          footer={
+            <>
+              <Button onClick={() => setAdding(false)}>{c.cancel}</Button>
+              <Button
+                variant="primary"
+                icon={<KeyRound />}
+                loading={create.isPending}
+                disabled={!repo.trim()}
+                onClick={() =>
+                  create.mutate(undefined, {
+                    onSuccess: (m) => {
+                      setAdding(false);
+                      setRepo("");
+                      setMade(m);
+                    },
+                    onError: (e) => toast("error", t.notCreated, errorText(e)),
+                  })
+                }
+              >
+                {t.create}
+              </Button>
+            </>
+          }
+        >
           <Field label={t.repository} hint={<span dir="ltr">{t.repositoryHint}</span>}>
             <Input dir="ltr" autoFocus value={repo} onChange={(e) => setRepo(e.target.value)} />
           </Field>
         </Modal>
       )}
       {made && (
-        <Modal title={t.addOnGitHub} description={t.addOnGitHubText(made.repo)} onClose={() => setMade(null)}
-          footer={<><Button onClick={() => setMade(null)}>{c.done}</Button><Button asChild variant="primary"><a href={made.github_url} target="_blank" rel="noreferrer">{t.openGitHub} <ArrowUpRight className="flip-rtl" /></a></Button></>}>
+        <Modal
+          title={t.addOnGitHub}
+          description={t.addOnGitHubText(made.repo)}
+          onClose={() => setMade(null)}
+          footer={
+            <>
+              <Button onClick={() => setMade(null)}>{c.done}</Button>
+              <Button asChild variant="primary">
+                <a href={made.github_url} target="_blank" rel="noreferrer">
+                  {t.openGitHub} <ArrowUpRight className="flip-rtl" />
+                </a>
+              </Button>
+            </>
+          }
+        >
           <div className="stack">
             <CopyField value={made.public_key} block />
             <Callout>{t.privateStays}</Callout>
@@ -336,16 +539,26 @@ export function GitHubReturnPage() {
   return (
     <Page>
       <PageHead title={all.title} />
-      <div className="card"><div className="card-body stack">
-        {problem ? (
-          <>
-            <Callout tone="danger">{problem}</Callout>
-            <div><Button asChild><Link to="/github" viewTransition>{t.back}</Link></Button></div>
-          </>
-        ) : (
-          <div className="row"><Spinner /> <span className="muted">{t.finishing}</span></div>
-        )}
-      </div></div>
+      <div className="card">
+        <div className="card-body stack">
+          {problem ? (
+            <>
+              <Callout tone="danger">{problem}</Callout>
+              <div>
+                <Button asChild>
+                  <Link to="/github" viewTransition>
+                    {t.back}
+                  </Link>
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="row">
+              <Spinner /> <span className="muted">{t.finishing}</span>
+            </div>
+          )}
+        </div>
+      </div>
     </Page>
   );
 }

@@ -2,19 +2,49 @@
 // for each production instance, its backups and the server (the same past on every visit), a few incidents, the
 // public status page's switch, and notification channels kept in memory. A test notification is never sent anywhere.
 
-import type { Channel, ChannelType, Notifications, NotificationEvent, ProjectStatus, PublicStatus, StatusDay, StatusTarget } from "@/api/status";
+import type {
+  Channel,
+  ChannelType,
+  Notifications,
+  NotificationEvent,
+  ProjectStatus,
+  PublicStatus,
+  StatusDay,
+  StatusTarget,
+} from "@/api/status";
 import { branchList, projects, type DemoProject } from "./projects";
 import { instances, ME } from "./state";
 import { DAY, hash, hex, HOUR, MINUTE, OPENED, Problem, seeded } from "./util";
 
-const EVENTS: NotificationEvent[] = ["build_failed", "build_warning", "build_recovered", "stage_changed", "promoted", "production_down", "production_up", "backup_failed", "restore_done", "staging_refreshed", "storage_over"];
-const DEFAULT_EVENTS: NotificationEvent[] = ["build_failed", "build_recovered", "promoted", "production_down", "production_up", "backup_failed", "storage_over"];
+const EVENTS: NotificationEvent[] = [
+  "build_failed",
+  "build_warning",
+  "build_recovered",
+  "stage_changed",
+  "promoted",
+  "production_down",
+  "production_up",
+  "backup_failed",
+  "restore_done",
+  "staging_refreshed",
+  "storage_over",
+];
+const DEFAULT_EVENTS: NotificationEvent[] = [
+  "build_failed",
+  "build_recovered",
+  "promoted",
+  "production_down",
+  "production_up",
+  "backup_failed",
+  "storage_over",
+];
 const TYPES: ChannelType[] = ["slack", "discord", "teams", "telegram", "webhook", "email"];
 const LIMIT = 10;
 const now = () => Math.floor(Date.now() / 1000);
 
 /** Uptime rounded down, as the server does (99.9996 % is never 100 %). */
-export const floorPercent = (up: number, total: number) => (total > 0 ? Math.floor((up / total) * 100_000) / 1000 : null);
+export const floorPercent = (up: number, total: number) =>
+  total > 0 ? Math.floor((up / total) * 100_000) / 1000 : null;
 
 function productionOf(project: DemoProject): { name: string; branch: string }[] {
   const found: { name: string; branch: string }[] = [];
@@ -64,9 +94,18 @@ function target(id: string, kind: StatusTarget["kind"], name: string, branch: st
     name,
     branch,
     state,
-    since: now() - (state === "up" ? 3 * DAY / 1000 + (hash(id) % 50000) : 40 * 60),
+    since: now() - (state === "up" ? (3 * DAY) / 1000 + (hash(id) % 50000) : 40 * 60),
     checked_at: now() - 20,
-    detail: kind === "instance" ? (asleep ? "Switched off" : "HTTP 200") : kind === "backups" ? (state === "up" ? "Latest backup 9 h ago" : "Latest backup 27 h ago: the daily backup is late") : "Measured",
+    detail:
+      kind === "instance"
+        ? asleep
+          ? "Switched off"
+          : "HTTP 200"
+        : kind === "backups"
+          ? state === "up"
+            ? "Latest backup 9 h ago"
+            : "Latest backup 27 h ago: the daily backup is late"
+          : "Measured",
     response_ms: kind === "instance" && !asleep ? 160 + (hash(id) % 120) : null,
     uptime: { day: days.at(-1)?.uptime ?? null, week: window(days, 7), month: window(days, 30) },
     days,
@@ -79,7 +118,9 @@ const PAGES_KEY = "sudoo.demo.status-pages";
 const pages = new Map<string, { enabled: boolean; token: string }>(
   (() => {
     try {
-      return Object.entries(JSON.parse(sessionStorage.getItem(PAGES_KEY) ?? "{}") as Record<string, { enabled: boolean; token: string }>);
+      return Object.entries(
+        JSON.parse(sessionStorage.getItem(PAGES_KEY) ?? "{}") as Record<string, { enabled: boolean; token: string }>,
+      );
     } catch {
       return [];
     }
@@ -121,12 +162,23 @@ export function projectStatus(project: DemoProject, mayManage: boolean): Project
           end: start + down * 60,
           duration: down * 60,
           severity: down > 4 ? ("down" as const) : ("degraded" as const),
-          what: found.kind === "instance" ? (down > 4 ? "HTTP 502" : "Slow answer: 3400 ms") : found.kind === "backups" ? "The daily backup is late" : "Memory high: 91% used",
+          what:
+            found.kind === "instance"
+              ? down > 4
+                ? "HTTP 502"
+                : "Slow answer: 3400 ms"
+              : found.kind === "backups"
+                ? "The daily backup is late"
+                : "Memory high: 91% used",
         };
       });
   });
   const essential = targets.filter((t) => t.kind === "instance");
-  const state = essential.some((t) => t.state === "down") ? "down" : targets.some((t) => t.state !== "up") ? "degraded" : "operational";
+  const state = essential.some((t) => t.state === "down")
+    ? "down"
+    : targets.some((t) => t.state !== "up")
+      ? "degraded"
+      : "operational";
   return {
     project: project.id,
     state,
@@ -154,7 +206,18 @@ export function publicStatus(token: string, find: (id: string) => DemoProject | 
   const project = entry ? find(entry[0]) : undefined;
   if (!project) throw new Problem(404, "There is no such status page.");
   const full = projectStatus(project, false);
-  return { name: project.name, state: full.state, targets: full.targets.map(({ kind, name, state, uptime, days }) => ({ kind, name, state, uptime, days: days.map((d) => ({ day: d.day, uptime: d.uptime })) })), at: now() };
+  return {
+    name: project.name,
+    state: full.state,
+    targets: full.targets.map(({ kind, name, state, uptime, days }) => ({
+      kind,
+      name,
+      state,
+      uptime,
+      days: days.map((d) => ({ day: d.day, uptime: d.uptime })),
+    })),
+    at: now(),
+  };
 }
 
 // ---------------------------------------------------------------- notifications
@@ -170,18 +233,56 @@ function seedChannels() {
   if (!first) return;
   const at = Math.floor((OPENED - 6 * DAY) / 1000);
   const slack: Channel = {
-    id: hex(12), project: first, type: "slack", name: "#ops", events: [...DEFAULT_EVENTS], enabled: true, config: {},
-    secrets: { url: "…Qx7d" }, created_at: at, created_by: ME,
-    last: { at: Math.floor((OPENED - 3 * HOUR) / 1000), ok: true, result: "HTTP 200", event: "build_failed", attempts: 1 },
+    id: hex(12),
+    project: first,
+    type: "slack",
+    name: "#ops",
+    events: [...DEFAULT_EVENTS],
+    enabled: true,
+    config: {},
+    secrets: { url: "…Qx7d" },
+    created_at: at,
+    created_by: ME,
+    last: {
+      at: Math.floor((OPENED - 3 * HOUR) / 1000),
+      ok: true,
+      result: "HTTP 200",
+      event: "build_failed",
+      attempts: 1,
+    },
   };
   const mail: Channel = {
-    id: hex(12), project: first, type: "email", name: "On-call mailbox", events: ["production_down", "production_up", "backup_failed"], enabled: true,
-    config: { addresses: ["oncall@example.com"] }, secrets: {}, created_at: at, created_by: ME, last: null,
+    id: hex(12),
+    project: first,
+    type: "email",
+    name: "On-call mailbox",
+    events: ["production_down", "production_up", "backup_failed"],
+    enabled: true,
+    config: { addresses: ["oncall@example.com"] },
+    secrets: {},
+    created_at: at,
+    created_by: ME,
+    last: null,
   };
   const hook: Channel = {
-    id: hex(12), project: first, type: "webhook", name: "Incident tracker", events: ["production_down", "production_up"], enabled: false, config: {},
-    secrets: { url: "…/inc", signing_secret: "…k2Pa" }, created_at: at, created_by: ME,
-    last: { at: Math.floor((OPENED - 26 * MINUTE) / 1000), ok: false, result: "answered HTTP 503", event: "production_down", attempts: 2, retry_at: Math.floor((OPENED + 4 * MINUTE) / 1000) },
+    id: hex(12),
+    project: first,
+    type: "webhook",
+    name: "Incident tracker",
+    events: ["production_down", "production_up"],
+    enabled: false,
+    config: {},
+    secrets: { url: "…/inc", signing_secret: "…k2Pa" },
+    created_at: at,
+    created_by: ME,
+    last: {
+      at: Math.floor((OPENED - 26 * MINUTE) / 1000),
+      ok: false,
+      result: "answered HTTP 503",
+      event: "production_down",
+      attempts: 2,
+      retry_at: Math.floor((OPENED + 4 * MINUTE) / 1000),
+    },
   };
   for (const channel of [slack, mail, hook]) channels.set(channel.id, channel);
 }
@@ -215,7 +316,8 @@ function secretsFrom(type: ChannelType, given: Record<string, unknown>, current:
     found.url = hint(given.url.trim());
   }
   if (type === "telegram" && typeof given.bot_token === "string" && given.bot_token.trim()) {
-    if (!/^\d{3,15}:[A-Za-z0-9_-]{30,64}$/.test(given.bot_token.trim())) throw new Problem(400, "The bot token looks like 123456789:AA… (from @BotFather).");
+    if (!/^\d{3,15}:[A-Za-z0-9_-]{30,64}$/.test(given.bot_token.trim()))
+      throw new Problem(400, "The bot token looks like 123456789:AA… (from @BotFather).");
     found.bot_token = hint(given.bot_token.trim());
   }
   return found;
@@ -225,7 +327,8 @@ function configFrom(type: ChannelType, given: Record<string, unknown>, current: 
   const config = { ...current };
   if (type === "telegram" && "chat_id" in given) {
     const chat = String(given.chat_id ?? "").trim();
-    if (!/^(-?\d{1,20}|@[A-Za-z][A-Za-z0-9_]{4,31})$/.test(chat)) throw new Problem(400, "The chat id is a number (such as -1001234567890) or a channel's @name.");
+    if (!/^(-?\d{1,20}|@[A-Za-z][A-Za-z0-9_]{4,31})$/.test(chat))
+      throw new Problem(400, "The chat id is a number (such as -1001234567890) or a channel's @name.");
     config.chat_id = chat;
   }
   if (type === "email" && "addresses" in given) {
@@ -241,9 +344,11 @@ function configFrom(type: ChannelType, given: Record<string, unknown>, current: 
 export function addChannel(projectId: string, body: Record<string, unknown>): Channel {
   const type = body.type as ChannelType;
   if (!TYPES.includes(type)) throw new Problem(400, `Choose the kind of channel: ${TYPES.join(", ")}.`);
-  if (notificationsOf(projectId).channels.length >= LIMIT) throw new Problem(400, `A project may have ${LIMIT} channels.`);
+  if (notificationsOf(projectId).channels.length >= LIMIT)
+    throw new Problem(400, `A project may have ${LIMIT} channels.`);
   const secrets = secretsFrom(type, (body.secrets ?? {}) as Record<string, unknown>, {});
-  if (["slack", "discord", "teams", "webhook"].includes(type) && !secrets.url) throw new Problem(400, "Add the channel's address.");
+  if (["slack", "discord", "teams", "webhook"].includes(type) && !secrets.url)
+    throw new Problem(400, "Add the channel's address.");
   if (type === "telegram" && !secrets.bot_token) throw new Problem(400, "Add the bot token.");
   const config = configFrom(type, (body.config ?? {}) as Record<string, unknown>, {});
   if (type === "telegram" && !config.chat_id) throw new Problem(400, "Add the chat id the bot writes to.");
@@ -254,9 +359,20 @@ export function addChannel(projectId: string, body: Record<string, unknown>): Ch
     secrets.signing_secret = hint(signing);
   }
   const channel: Channel = {
-    id: hex(12), project: projectId, type, name: String(body.name ?? "").trim().slice(0, 60) || type[0]!.toUpperCase() + type.slice(1),
-    events: "events" in body ? cleanEvents(body.events) : [...DEFAULT_EVENTS], enabled: true, config, secrets,
-    created_at: now(), created_by: ME, last: null,
+    id: hex(12),
+    project: projectId,
+    type,
+    name:
+      String(body.name ?? "")
+        .trim()
+        .slice(0, 60) || type[0]!.toUpperCase() + type.slice(1),
+    events: "events" in body ? cleanEvents(body.events) : [...DEFAULT_EVENTS],
+    enabled: true,
+    config,
+    secrets,
+    created_at: now(),
+    created_by: ME,
+    last: null,
   };
   channels.set(channel.id, channel);
   return signing ? { ...channel, signing_secret: signing } : channel;
@@ -271,11 +387,17 @@ export function channelOf(projectId: string, id: string): Channel {
 
 export function changeChannel(channel: Channel, body: Record<string, unknown>): Channel {
   const next: Channel = { ...channel };
-  if ("name" in body) next.name = String(body.name ?? "").trim().slice(0, 60) || channel.name;
+  if ("name" in body)
+    next.name =
+      String(body.name ?? "")
+        .trim()
+        .slice(0, 60) || channel.name;
   if ("events" in body) next.events = cleanEvents(body.events);
   if ("enabled" in body) next.enabled = body.enabled === true;
-  if ("config" in body) next.config = configFrom(channel.type, (body.config ?? {}) as Record<string, unknown>, channel.config);
-  if (body.secrets && typeof body.secrets === "object") next.secrets = secretsFrom(channel.type, body.secrets as Record<string, unknown>, channel.secrets);
+  if ("config" in body)
+    next.config = configFrom(channel.type, (body.config ?? {}) as Record<string, unknown>, channel.config);
+  if (body.secrets && typeof body.secrets === "object")
+    next.secrets = secretsFrom(channel.type, body.secrets as Record<string, unknown>, channel.secrets);
   channels.set(next.id, next);
   return next;
 }
@@ -285,7 +407,15 @@ export function removeChannel(id: string) {
 }
 
 export function testChannel(channel: Channel) {
-  const last = { at: now(), ok: true, result: channel.type === "email" ? "e-mailed to 1 of 1 (the demo sends nothing)" : "HTTP 200 (the demo sends nothing)", event: "test", attempts: 1, test: true };
+  const last = {
+    at: now(),
+    ok: true,
+    result:
+      channel.type === "email" ? "e-mailed to 1 of 1 (the demo sends nothing)" : "HTTP 200 (the demo sends nothing)",
+    event: "test",
+    attempts: 1,
+    test: true,
+  };
   const next = { ...channel, last };
   channels.set(channel.id, next);
   return { channel: next, delivery: last };

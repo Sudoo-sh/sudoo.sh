@@ -5,7 +5,20 @@
 // Also the player of a recording (ShellPlayer), for super admins.
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ClipboardPaste, Copy, Download, Eraser, Maximize2, Minimize2, Play, RotateCw, ShieldAlert, Wrench, X } from "lucide-react";
+import {
+  Check,
+  ClipboardPaste,
+  Copy,
+  Download,
+  Eraser,
+  Maximize2,
+  Minimize2,
+  Play,
+  RotateCw,
+  ShieldAlert,
+  Wrench,
+  X,
+} from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, errorText } from "@/api/client";
 import type { ShellRecording, ShellSession, ShellTarget, ShellTicket, Stage } from "@/api/types";
@@ -28,7 +41,8 @@ interface Ready {
   stage: Stage;
   recorded: boolean;
 }
-type Phase = { kind: "connecting" } | { kind: "open"; ready: Ready } | { kind: "closed"; reason: string; detail?: string };
+type Phase =
+  { kind: "connecting" } | { kind: "open"; ready: Ready } | { kind: "closed"; reason: string; detail?: string };
 type Notice = { code: "idle" | "ending"; seconds: number } | null;
 
 const isCopy = (e: KeyboardEvent) => e.type === "keydown" && e.ctrlKey && e.shiftKey && e.code === "KeyC";
@@ -72,7 +86,16 @@ function ShellStagePill({ stage }: { stage: Stage }) {
   );
 }
 
-export function ShellTerminal({ instance, stage, showUser, target, asRoot, confirmed, onReconnect, onClose }: {
+export function ShellTerminal({
+  instance,
+  stage,
+  showUser,
+  target,
+  asRoot,
+  confirmed,
+  onReconnect,
+  onClose,
+}: {
   instance: string;
   /** the instance's stage, shown before the shell is open (the shell then says it again) */
   stage: Stage;
@@ -139,7 +162,10 @@ export function ShellTerminal({ instance, stage, showUser, target, asRoot, confi
       }
       if (cancelled) return;
       const scheme = location.protocol === "https:" ? "wss:" : "ws:";
-      ws = new WebSocket(`${scheme}//${location.host}${ticket.socket}?cols=${term.cols}&rows=${term.rows}`, [ticket.protocol, `ticket.${ticket.ticket}`]);
+      ws = new WebSocket(`${scheme}//${location.host}${ticket.socket}?cols=${term.cols}&rows=${term.rows}`, [
+        ticket.protocol,
+        `ticket.${ticket.ticket}`,
+      ]);
       ws.binaryType = "arraybuffer";
       socket.current = ws;
       let ended: Phase | null = null;
@@ -150,7 +176,13 @@ export function ShellTerminal({ instance, stage, showUser, target, asRoot, confi
           term.write(new Uint8Array(event.data));
           return;
         }
-        let message: { type?: string; code?: string; seconds?: number; reason?: string; detail?: string } & Partial<Ready>;
+        let message: {
+          type?: string;
+          code?: string;
+          seconds?: number;
+          reason?: string;
+          detail?: string;
+        } & Partial<Ready>;
         try {
           message = JSON.parse(event.data);
         } catch {
@@ -212,7 +244,11 @@ export function ShellTerminal({ instance, stage, showUser, target, asRoot, confi
           <span className="dot" aria-hidden="true" />
           {ready ? (
             <span className="truncate" title={showUser ? t.runsAs(ready.container_user) : undefined}>
-              {t.connectedTo(<b key="i" className="mono">{ready.instance}</b>)}
+              {t.connectedTo(
+                <b key="i" className="mono">
+                  {ready.instance}
+                </b>,
+              )}
             </span>
           ) : closed ? (
             t.closedTitle
@@ -221,21 +257,69 @@ export function ShellTerminal({ instance, stage, showUser, target, asRoot, confi
           )}
         </span>
         <ShellStagePill stage={ready?.stage ?? stage} />
-        {ready?.root && <Tag tone="negative" icon={<ShieldAlert />}>{t.root}</Tag>}
-        {ready?.recorded && <span title={t.recordedHint}><Tag tone="accent">{t.recorded}</Tag></span>}
+        {ready?.root && (
+          <Tag tone="negative" icon={<ShieldAlert />}>
+            {t.root}
+          </Tag>
+        )}
+        {ready?.recorded && (
+          <span title={t.recordedHint}>
+            <Tag tone="accent">{t.recorded}</Tag>
+          </span>
+        )}
         <span className="spacer" />
         <div className="shell-actions">
-          <Button size="sm" variant="ghost" icon={copied ? <Check /> : <Copy />} onClick={copySelection} aria-label={copied ? t.copied : t.copy} title={`${copied ? t.copied : t.copy}\n${t.keys}`} />
-          <Button size="sm" variant="ghost" icon={<ClipboardPaste />} disabled={!ready} onClick={paste} aria-label={t.paste} title={t.paste} />
-          <Button size="sm" variant="ghost" icon={<Eraser />} onClick={() => screen.current?.term.clear()} aria-label={t.clear} title={t.clear} />
-          <Button size="sm" variant="ghost" icon={full ? <Minimize2 /> : <Maximize2 />} onClick={toggleFull} aria-label={full ? t.exitFullScreen : t.fullScreen} title={full ? t.exitFullScreen : t.fullScreen} />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={copied ? <Check /> : <Copy />}
+            onClick={copySelection}
+            aria-label={copied ? t.copied : t.copy}
+            title={`${copied ? t.copied : t.copy}\n${t.keys}`}
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<ClipboardPaste />}
+            disabled={!ready}
+            onClick={paste}
+            aria-label={t.paste}
+            title={t.paste}
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<Eraser />}
+            onClick={() => screen.current?.term.clear()}
+            aria-label={t.clear}
+            title={t.clear}
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={full ? <Minimize2 /> : <Maximize2 />}
+            onClick={toggleFull}
+            aria-label={full ? t.exitFullScreen : t.fullScreen}
+            title={full ? t.exitFullScreen : t.fullScreen}
+          />
           {closed ? (
             <>
-              <Button size="sm" variant="ghost" onClick={onClose}>{t.done}</Button>
-              <Button size="sm" icon={<RotateCw />} onClick={onReconnect}>{t.reconnect}</Button>
+              <Button size="sm" variant="ghost" onClick={onClose}>
+                {t.done}
+              </Button>
+              <Button size="sm" icon={<RotateCw />} onClick={onReconnect}>
+                {t.reconnect}
+              </Button>
             </>
           ) : (
-            <Button size="sm" variant="ghost" icon={<X />} onClick={() => (socket.current ? socket.current.close() : onClose())} aria-label={t.disconnect} title={t.disconnect} />
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<X />}
+              onClick={() => (socket.current ? socket.current.close() : onClose())}
+              aria-label={t.disconnect}
+              title={t.disconnect}
+            />
           )}
         </div>
       </div>
@@ -246,7 +330,11 @@ export function ShellTerminal({ instance, stage, showUser, target, asRoot, confi
       )}
       <div className="shell-screen" dir="ltr">
         <div className="shell-host" ref={host} />
-        {phase.kind === "connecting" && <div className="shell-overlay"><span className="spinner" /></div>}
+        {phase.kind === "connecting" && (
+          <div className="shell-overlay">
+            <span className="spinner" />
+          </div>
+        )}
       </div>
       {closed && (
         <div className="shell-closed" role="status">
@@ -284,7 +372,12 @@ export function ShellPlayer({ session, onClose }: { session: ShellSession; onClo
     if (!term) return;
     stop();
     term.reset();
-    term.write(recording.events.filter((e) => e[1] === "o").map((e) => e[2]).join(""));
+    term.write(
+      recording.events
+        .filter((e) => e[1] === "o")
+        .map((e) => e[2])
+        .join(""),
+    );
   };
   /** played again as it happened, pauses longer than a second shortened to one */
   const replay = (recording: ShellRecording) => {
@@ -330,12 +423,22 @@ export function ShellPlayer({ session, onClose }: { session: ShellSession; onClo
   const cut = data?.events.some((e) => e[1] === "m" && e[2].includes("size limit"));
   const footer: ReactNode = (
     <>
-      <Button icon={<Download />} disabled={!data} onClick={download}>{t.download}</Button>
-      <Button variant="primary" icon={<Play />} disabled={!data} onClick={() => data && replay(data)}>{t.replay}</Button>
+      <Button icon={<Download />} disabled={!data} onClick={download}>
+        {t.download}
+      </Button>
+      <Button variant="primary" icon={<Play />} disabled={!data} onClick={() => data && replay(data)}>
+        {t.replay}
+      </Button>
     </>
   );
   return (
-    <Modal wide title={t.recordingTitle(session.instance)} description={t.recordingBy(session.user, dateTime(session.started_at))} onClose={onClose} footer={footer}>
+    <Modal
+      wide
+      title={t.recordingTitle(session.instance)}
+      description={t.recordingBy(session.user, dateTime(session.started_at))}
+      onClose={onClose}
+      footer={footer}
+    >
       {error ? (
         <Callout tone="danger">{errorText(error)}</Callout>
       ) : !data ? (

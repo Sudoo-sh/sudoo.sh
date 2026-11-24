@@ -39,7 +39,8 @@ const en = {
     sameVersion: "Changed, same version",
     scripts: (n: number) => (n === 1 ? "1 script" : `${n} scripts`),
     promoteAnyway: "Promote anyway",
-    promoteAnywayText: "You manage this project: the move goes ahead despite the red items, and it is recorded in the audit log.",
+    promoteAnywayText:
+      "You manage this project: the move goes ahead despite the red items, and it is recorded in the audit log.",
     readOnlyTitle: (branch: string) => `Promotion check of ${branch}`,
     readOnlyText: "What merging this branch into production would bring, before you merge it on GitHub.",
     menu: "Promotion check",
@@ -57,7 +58,8 @@ const en = {
     files: "Files changed",
     modules: "Modules",
     noModules: "No module changes.",
-    modulesUnknown: "GitHub answered without the manifests: modules are found from the changed paths, without their versions.",
+    modulesUnknown:
+      "GitHub answered without the manifests: modules are found from the changed paths, without their versions.",
     migrations: "Pending migrations",
     noMigrations: "No migration scripts to run.",
     commits: "Commits",
@@ -93,7 +95,8 @@ const en = {
     saved: "Schedule saved",
     notSaved: "The schedule was not saved",
     runNow: "Refresh now",
-    started: (n: number) => (n === 1 ? "1 staging instance is being refreshed" : `${n} staging instances are being refreshed`),
+    started: (n: number) =>
+      n === 1 ? "1 staging instance is being refreshed" : `${n} staging instances are being refreshed`,
     nothingStarted: "No staging instance was refreshed",
     skipped: (name: string, reason: string) => `${name}: ${reason}`,
     notRun: "The refresh did not start",
@@ -105,12 +108,15 @@ const en = {
     limit: "Previews at the same time",
     limitHint: "0: no limit (the server's limits still apply)",
     forks: "Previews for pull requests from forks",
-    forksWarning: "A fork's code is written by people outside the repository and runs on this server. Turn this on only for contributors you trust.",
+    forksWarning:
+      "A fork's code is written by people outside the repository and runs on this server. Turn this on only for contributors you trust.",
     noApp: "Connect the GitHub App to receive pull requests: without it the panel cannot see them.",
-    noComment: "The GitHub App may not comment on pull requests yet. Give it Pull requests: Read and write on GitHub, then accept the new permission on the installation. Previews work without the comment.",
+    noComment:
+      "The GitHub App may not comment on pull requests yet. Give it Pull requests: Read and write on GitHub, then accept the new permission on the installation. Previews work without the comment.",
     list: "Open pull requests",
     none: "No pull request has a preview.",
-    count: (created: number, limit: number) => (limit ? `${created} of ${limit} previews in use` : `${created} previews in use`),
+    count: (created: number, limit: number) =>
+      limit ? `${created} of ${limit} previews in use` : `${created} previews in use`,
     fork: "fork",
     existing: "The branch's own instance",
     commented: "Linked on GitHub",
@@ -229,9 +235,11 @@ const ar: typeof en = {
     limit: "المعاينات في الوقت نفسه",
     limitHint: "0: بلا حد (وتبقى حدود الخادم سارية)",
     forks: "معاينات لطلبات الدمج القادمة من النسخ المتفرعة",
-    forksWarning: "يكتب شيفرة النسخة المتفرعة أشخاص من خارج المستودع، وتعمل على هذا الخادم. فعّل هذا فقط للمساهمين الذين تثق بهم.",
+    forksWarning:
+      "يكتب شيفرة النسخة المتفرعة أشخاص من خارج المستودع، وتعمل على هذا الخادم. فعّل هذا فقط للمساهمين الذين تثق بهم.",
     noApp: "اربط تطبيق GitHub لتصل طلبات الدمج: لا تراها اللوحة دونه.",
-    noComment: "لا يملك تطبيق GitHub بعد إذن التعليق على طلبات الدمج. امنحه «Pull requests: Read and write» في GitHub، ثم اقبل الإذن الجديد على التثبيت. تعمل المعاينات دون التعليق.",
+    noComment:
+      "لا يملك تطبيق GitHub بعد إذن التعليق على طلبات الدمج. امنحه «Pull requests: Read and write» في GitHub، ثم اقبل الإذن الجديد على التثبيت. تعمل المعاينات دون التعليق.",
     list: "طلبات الدمج المفتوحة",
     none: "لا طلب دمج له معاينة.",
     count: (created, limit) => (limit ? `${created} من ${limit} معاينات مستخدمة` : `${created} معاينات مستخدمة`),

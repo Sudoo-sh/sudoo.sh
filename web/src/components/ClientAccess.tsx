@@ -21,14 +21,41 @@ import { useCan, useMe } from "./Session";
 /** The "Closed by client" tag of a branch or an instance. */
 export function ClientTag({ access }: { access: ClientAccess | null | undefined }) {
   const t = useT(words);
-  if (access?.locked) return <span title={t.staff.lockedText}><Tag tone="negative" icon={<ShieldOff />}>{t.staff.lockedTag}</Tag></span>;
+  if (access?.locked)
+    return (
+      <span title={t.staff.lockedText}>
+        <Tag tone="negative" icon={<ShieldOff />}>
+          {t.staff.lockedTag}
+        </Tag>
+      </span>
+    );
   if (!access || access.state === "open") return null;
   if (access.state === "timed")
-    return <span title={t.staff.timed(dateTime(access.until))}><Tag icon={<ShieldCheck />}>{t.states.timed}</Tag></span>;
-  return <span title={t.staff.closedText}><Tag tone="caution" icon={<ShieldOff />}>{t.staff.tag}</Tag></span>;
+    return (
+      <span title={t.staff.timed(dateTime(access.until))}>
+        <Tag icon={<ShieldCheck />}>{t.states.timed}</Tag>
+      </span>
+    );
+  return (
+    <span title={t.staff.closedText}>
+      <Tag tone="caution" icon={<ShieldOff />}>
+        {t.staff.tag}
+      </Tag>
+    </span>
+  );
 }
 
-function RequestDialog({ projectId, branch, where, onClose }: { projectId: string; branch: string | null; where: string; onClose: () => void }) {
+function RequestDialog({
+  projectId,
+  branch,
+  where,
+  onClose,
+}: {
+  projectId: string;
+  branch: string | null;
+  where: string;
+  onClose: () => void;
+}) {
   const t = useT(words).staff;
   const toast = useToast();
   const client = useQueryClient();
@@ -51,21 +78,61 @@ function RequestDialog({ projectId, branch, where, onClose }: { projectId: strin
     }
   };
   return (
-    <Modal title={t.requestTitle(where)} description={t.closedText} onClose={onClose}
-      footer={<Button variant="primary" loading={busy} disabled={reason.trim().length < 10 || !(Number(hours) > 0)} onClick={send}>{t.send}</Button>}>
+    <Modal
+      title={t.requestTitle(where)}
+      description={t.closedText}
+      onClose={onClose}
+      footer={
+        <Button
+          variant="primary"
+          loading={busy}
+          disabled={reason.trim().length < 10 || !(Number(hours) > 0)}
+          onClick={send}
+        >
+          {t.send}
+        </Button>
+      }
+    >
       <div className="stack">
         <Field label={t.reason} hint={t.reasonHint} htmlFor="request-reason">
-          <Textarea id="request-reason" rows={3} maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
+          <Textarea
+            id="request-reason"
+            rows={3}
+            maxLength={300}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            autoFocus
+          />
         </Field>
         <Field label={t.hours} htmlFor="request-hours">
-          <Input id="request-hours" type="number" inputMode="numeric" min={1} max={meta?.request_max_hours ?? 168} dir="ltr" value={hours} onChange={(e) => setHours(e.target.value)} style={{ maxWidth: 120 }} />
+          <Input
+            id="request-hours"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={meta?.request_max_hours ?? 168}
+            dir="ltr"
+            value={hours}
+            onChange={(e) => setHours(e.target.value)}
+            style={{ maxWidth: 120 }}
+          />
         </Field>
       </div>
     </Modal>
   );
 }
 
-function EmergencyDialog({ projectId, branch, name, onClose }: { projectId: string; branch: string | null; name: string; onClose: () => void }) {
+function EmergencyDialog({
+  projectId,
+  branch,
+  name,
+  onClose,
+}: {
+  projectId: string;
+  branch: string | null;
+  name: string;
+  onClose: () => void;
+}) {
   const t = useT(words).staff;
   const minutes = useProjectClients(projectId).data?.meta.emergency_minutes ?? 60;
   const toast = useToast();
@@ -89,15 +156,41 @@ function EmergencyDialog({ projectId, branch, name, onClose }: { projectId: stri
     }
   };
   return (
-    <Modal title={t.emergencyTitle(name)} onClose={onClose}
-      footer={<Button variant="danger" loading={busy} disabled={reason.trim().length < 10 || typed.trim() !== name} onClick={force}>{t.force}</Button>}>
+    <Modal
+      title={t.emergencyTitle(name)}
+      onClose={onClose}
+      footer={
+        <Button
+          variant="danger"
+          loading={busy}
+          disabled={reason.trim().length < 10 || typed.trim() !== name}
+          onClick={force}
+        >
+          {t.force}
+        </Button>
+      }
+    >
       <div className="stack">
         <Callout tone="warning">{t.emergencyText(minutes)}</Callout>
         <Field label={t.reason} hint={t.reasonHint} htmlFor="emergency-reason">
-          <Textarea id="emergency-reason" rows={3} maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
+          <Textarea
+            id="emergency-reason"
+            rows={3}
+            maxLength={300}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            autoFocus
+          />
         </Field>
         <Field label={t.confirm(name)} htmlFor="emergency-confirm">
-          <Input id="emergency-confirm" dir="ltr" autoComplete="off" spellCheck={false} value={typed} onChange={(e) => setTyped(e.target.value)} />
+          <Input
+            id="emergency-confirm"
+            dir="ltr"
+            autoComplete="off"
+            spellCheck={false}
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+          />
         </Field>
       </div>
     </Modal>
@@ -132,16 +225,28 @@ export function ClosedNotice({
         {access.lets_you_through ? t.letThrough : locked ? t.lockedText : t.closedText}
         {!access.lets_you_through && (
           <span className="row-wrap" style={{ marginTop: 8 }}>
-            {!locked && <Button size="sm" icon={<KeyRound />} onClick={() => setDialog("request")}>{t.request}</Button>}
-            {me.role === "super_admin" && access.emergency_allowed && (
-              <Button size="sm" variant="ghost" icon={<ShieldAlert />} onClick={() => setDialog("emergency")}>{t.emergencyButton}</Button>
+            {!locked && (
+              <Button size="sm" icon={<KeyRound />} onClick={() => setDialog("request")}>
+                {t.request}
+              </Button>
             )}
-            {me.role === "super_admin" && !access.emergency_allowed && <span className="xsmall faint">{t.emergencyOff}</span>}
+            {me.role === "super_admin" && access.emergency_allowed && (
+              <Button size="sm" variant="ghost" icon={<ShieldAlert />} onClick={() => setDialog("emergency")}>
+                {t.emergencyButton}
+              </Button>
+            )}
+            {me.role === "super_admin" && !access.emergency_allowed && (
+              <span className="xsmall faint">{t.emergencyOff}</span>
+            )}
           </span>
         )}
       </Callout>
-      {dialog === "request" && <RequestDialog projectId={projectId} branch={asked} where={where} onClose={() => setDialog(null)} />}
-      {dialog === "emergency" && <EmergencyDialog projectId={projectId} branch={asked} name={name} onClose={() => setDialog(null)} />}
+      {dialog === "request" && (
+        <RequestDialog projectId={projectId} branch={asked} where={where} onClose={() => setDialog(null)} />
+      )}
+      {dialog === "emergency" && (
+        <EmergencyDialog projectId={projectId} branch={asked} name={name} onClose={() => setDialog(null)} />
+      )}
     </>
   );
 }
@@ -170,11 +275,27 @@ function InviteDialog({ projectId, onClose }: { projectId: string; onClose: () =
     }
   };
   return (
-    <Modal title={t.inviteTitle} description={t.inviteText} onClose={onClose}
-      footer={<Button variant="primary" loading={busy} disabled={!email.includes("@")} onClick={add}>{t.add}</Button>}>
+    <Modal
+      title={t.inviteTitle}
+      description={t.inviteText}
+      onClose={onClose}
+      footer={
+        <Button variant="primary" loading={busy} disabled={!email.includes("@")} onClick={add}>
+          {t.add}
+        </Button>
+      }
+    >
       <div className="stack">
         <Field label={t.email} htmlFor="client-email">
-          <Input id="client-email" type="email" dir="ltr" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
+          <Input
+            id="client-email"
+            type="email"
+            dir="ltr"
+            autoComplete="off"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoFocus
+          />
         </Field>
         <Field label={t.firstName} htmlFor="client-first">
           <Input id="client-first" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
@@ -197,8 +318,18 @@ export function ClientsTab({ project }: { project: ProjectDetail }) {
   const { data, isPending, error } = useProjectClients(project.id);
   const [inviting, setInviting] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
-  if (error) return <div className="stack tab-panel"><Callout tone="warning">{errorText(error)}</Callout></div>;
-  if (isPending || !data) return <div className="stack tab-panel"><Skeleton height={220} /></div>;
+  if (error)
+    return (
+      <div className="stack tab-panel">
+        <Callout tone="warning">{errorText(error)}</Callout>
+      </div>
+    );
+  if (isPending || !data)
+    return (
+      <div className="stack tab-panel">
+        <Skeleton height={220} />
+      </div>
+    );
   const { clients: found, meta } = data;
   const remove = async (name: string) => {
     try {
@@ -215,14 +346,18 @@ export function ClientsTab({ project }: { project: ProjectDetail }) {
   return (
     <div className="stack tab-panel">
       <ClosedNotice projectId={project.id} projectName={project.name} branch={null} access={found.project} />
-      {closedBranches.filter(([, v]) => v?.scope === "branch" && v.state === "closed").map(([branch, v]) => (
-        <ClosedNotice key={branch} projectId={project.id} projectName={project.name} branch={branch} access={v} />
-      ))}
+      {closedBranches
+        .filter(([, v]) => v?.scope === "branch" && v.state === "closed")
+        .map(([branch, v]) => (
+          <ClosedNotice key={branch} projectId={project.id} projectName={project.name} branch={branch} access={v} />
+        ))}
       <section className="card">
         <div className="card-head">
           <h2 className="spacer">{t.clientsTitle}</h2>
           {meta.may_manage && can("clients.manage") && (
-            <Button size="sm" icon={<UserPlus />} onClick={() => setInviting(true)}>{t.invite}</Button>
+            <Button size="sm" icon={<UserPlus />} onClick={() => setInviting(true)}>
+              {t.invite}
+            </Button>
           )}
         </div>
         <div className="card-body stack-sm">
@@ -233,13 +368,26 @@ export function ClientsTab({ project }: { project: ProjectDetail }) {
             <ul className="client-list">
               {found.clients.map((c) => (
                 <li key={c.name} className="row-wrap small">
-                  <b><bdi>{c.display_name}</bdi></b>
-                  {c.email && <bdi dir="ltr" className="faint">{c.email}</bdi>}
+                  <b>
+                    <bdi>{c.display_name}</bdi>
+                  </b>
+                  {c.email && (
+                    <bdi dir="ltr" className="faint">
+                      {c.email}
+                    </bdi>
+                  )}
                   {c.backups && <Tag>{t.backups}</Tag>}
                   {c.shell && <Tag>{t.shell}</Tag>}
                   <span className="spacer" />
                   {can("clients.manage") && (
-                    <Button size="sm" variant="ghost" icon={<Trash2 />} aria-label={t.remove} title={t.remove} onClick={() => setRemoving(c.name)} />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={<Trash2 />}
+                      aria-label={t.remove}
+                      title={t.remove}
+                      onClick={() => setRemoving(c.name)}
+                    />
                   )}
                 </li>
               ))}
@@ -255,27 +403,41 @@ export function ClientsTab({ project }: { project: ProjectDetail }) {
         </div>
       </section>
       <section className="card">
-        <div className="card-head"><h2>{all.requests.title}</h2></div>
+        <div className="card-head">
+          <h2>{all.requests.title}</h2>
+        </div>
         <div className="card-body stack-sm">
-          {found.requests.length === 0 ? <p className="small faint">{all.requests.none}</p> : found.requests.map((r) => (
-            <div key={r.id} className="row-wrap small">
-              <Tag tone={r.status === "approved" ? "positive" : r.status === "refused" ? "negative" : undefined}>{all.requests.status[r.status] ?? r.status}</Tag>
-              <span>{all.requests.asks(r.by.display_name, r.branch ?? all.requests.whole, r.hours)}</span>
-              <span className="faint">{dateTime(r.asked_at)}</span>
-              {r.until && <span className="faint">{all.requests.until(dateTime(r.until))}</span>}
-            </div>
-          ))}
+          {found.requests.length === 0 ? (
+            <p className="small faint">{all.requests.none}</p>
+          ) : (
+            found.requests.map((r) => (
+              <div key={r.id} className="row-wrap small">
+                <Tag tone={r.status === "approved" ? "positive" : r.status === "refused" ? "negative" : undefined}>
+                  {all.requests.status[r.status] ?? r.status}
+                </Tag>
+                <span>{all.requests.asks(r.by.display_name, r.branch ?? all.requests.whole, r.hours)}</span>
+                <span className="faint">{dateTime(r.asked_at)}</span>
+                {r.until && <span className="faint">{all.requests.until(dateTime(r.until))}</span>}
+              </div>
+            ))
+          )}
         </div>
       </section>
       {found.passes.length > 0 && (
         <section className="card">
-          <div className="card-head"><h2>{all.passes.title}</h2></div>
+          <div className="card-head">
+            <h2>{all.passes.title}</h2>
+          </div>
           <div className="card-body stack-sm">
             {found.passes.map((p) => (
               <div key={p.id} className="row-wrap small">
-                <Tag tone={p.kind === "emergency" ? "negative" : undefined}>{p.kind === "emergency" ? all.passes.emergency : all.passes.request}</Tag>
+                <Tag tone={p.kind === "emergency" ? "negative" : undefined}>
+                  {p.kind === "emergency" ? all.passes.emergency : all.passes.request}
+                </Tag>
                 <span>{p.people.map((x) => x.display_name).join(", ")}</span>
-                <span className="faint">{p.branch ?? all.requests.whole} · {all.passes.ends(dateTime(p.until))}</span>
+                <span className="faint">
+                  {p.branch ?? all.requests.whole} · {all.passes.ends(dateTime(p.until))}
+                </span>
               </div>
             ))}
           </div>
@@ -283,8 +445,16 @@ export function ClientsTab({ project }: { project: ProjectDetail }) {
       )}
       {inviting && <InviteDialog projectId={project.id} onClose={() => setInviting(false)} />}
       {removing && (
-        <Modal title={t.removeTitle(found.clients.find((c) => c.name === removing)?.display_name ?? removing)} description={t.removeText}
-          onClose={() => setRemoving(null)} footer={<Button variant="danger" onClick={() => remove(removing)}>{t.remove}</Button>} />
+        <Modal
+          title={t.removeTitle(found.clients.find((c) => c.name === removing)?.display_name ?? removing)}
+          description={t.removeText}
+          onClose={() => setRemoving(null)}
+          footer={
+            <Button variant="danger" onClick={() => remove(removing)}>
+              {t.remove}
+            </Button>
+          }
+        />
       )}
     </div>
   );

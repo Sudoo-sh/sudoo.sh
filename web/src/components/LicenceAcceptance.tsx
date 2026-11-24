@@ -25,12 +25,17 @@ export function LicenceDocument({ text, open: startOpen = false }: { text: Licen
       <div className="row-wrap licence-facts">
         <span className="muted small">{t.version(text.version, text.effective)}</span>
         <span className="spacer" />
-        <Button asChild variant="ghost" size="sm"><a href={text.version_url} target="_blank" rel="noreferrer">
-          {t.openPublished} <ArrowUpRight aria-hidden="true" className="flip-rtl" />
-        </a></Button>
+        <Button asChild variant="ghost" size="sm">
+          <a href={text.version_url} target="_blank" rel="noreferrer">
+            {t.openPublished} <ArrowUpRight aria-hidden="true" className="flip-rtl" />
+          </a>
+        </Button>
       </div>
       <section className="licence-summary" aria-label={t.summary}>
-        <div className="prose" dangerouslySetInnerHTML={{ __html: locale === "ar" ? text.summary_ar_html : text.summary_html }} />
+        <div
+          className="prose"
+          dangerouslySetInnerHTML={{ __html: locale === "ar" ? text.summary_ar_html : text.summary_html }}
+        />
       </section>
       <div>
         <Button size="sm" variant="ghost" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -76,7 +81,14 @@ export function LicenceAcceptance({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!ready || !use) return;
-    onAccept({ accepted: true, version: text.version, sha256: text.sha256, use, on_behalf: forCompany && onBehalf, language: locale === "ar" ? "ar" : "en" });
+    onAccept({
+      accepted: true,
+      version: text.version,
+      sha256: text.sha256,
+      use,
+      on_behalf: forCompany && onBehalf,
+      language: locale === "ar" ? "ar" : "en",
+    });
   };
 
   return (
@@ -86,10 +98,21 @@ export function LicenceAcceptance({
         <legend>{t.use}</legend>
         <div className="stack-sm" role="radiogroup" aria-label={t.use}>
           {USES.map((item) => (
-            <button key={item.value} type="button" className="choice" role="radio" aria-checked={use === item.value} aria-pressed={use === item.value}
-              onClick={() => setUse(item.value)}>
+            <button
+              key={item.value}
+              type="button"
+              className="choice"
+              role="radio"
+              aria-checked={use === item.value}
+              aria-pressed={use === item.value}
+              onClick={() => setUse(item.value)}
+            >
               {item.icon}
-              <span><span className="t">{t.uses[item.value].title}</span><br /><span className="d">{t.uses[item.value].text}</span></span>
+              <span>
+                <span className="t">{t.uses[item.value].title}</span>
+                <br />
+                <span className="d">{t.uses[item.value].text}</span>
+              </span>
             </button>
           ))}
         </div>

@@ -24,12 +24,18 @@ function sample(profile: Profile, t: number, limit = MEMORY_LIMIT): Sample | nul
   const s = profile.seed;
   const busy = t * 1000 >= profile.boostFrom && t * 1000 < profile.boostUntil ? 1 : 0;
   // traffic: a slow wave (people working), a faster ripple and now and then a burst
-  const wave = 1 + 0.28 * Math.sin((2 * Math.PI * t) / 1500 + (s % 7)) + 0.12 * Math.sin((2 * Math.PI * t) / 230 + (s % 5));
+  const wave =
+    1 + 0.28 * Math.sin((2 * Math.PI * t) / 1500 + (s % 7)) + 0.12 * Math.sin((2 * Math.PI * t) / 230 + (s % 5));
   const burst = Math.max(0, noise(s ^ 0x55, t, 90) - 0.6) * 1.6;
   const rpm = Math.max(0, profile.rpm * (wave + burst) * (1 + 0.1 * noise(s ^ 0x11, t, 40)));
   const load = profile.rpm ? rpm / profile.rpm : 1;
-  const cpu = clamp(profile.cpu * (0.55 + 0.45 * load) * (1 + 0.15 * noise(s ^ 0x22, t, 30)) + busy * (5 + 2 * noise(s, t, 15)), 0.05, 95);
-  const memory = profile.memory * (1 + 0.035 * noise(s ^ 0x33, t, 120) + 0.01 * noise(s ^ 0x34, t, 45)) + busy * 180 * MIB;
+  const cpu = clamp(
+    profile.cpu * (0.55 + 0.45 * load) * (1 + 0.15 * noise(s ^ 0x22, t, 30)) + busy * (5 + 2 * noise(s, t, 15)),
+    0.05,
+    95,
+  );
+  const memory =
+    profile.memory * (1 + 0.035 * noise(s ^ 0x33, t, 120) + 0.01 * noise(s ^ 0x34, t, 45)) + busy * 180 * MIB;
   const avg = profile.ms * (0.8 + 0.25 * load) * (1 + 0.12 * noise(s ^ 0x44, t, 35)) + busy * 90;
   const errors = profile.errors ? Math.max(0, profile.errors * (1 + 1.5 * noise(s ^ 0x66, t, 20))) : 0;
   return {
@@ -87,7 +93,19 @@ function at(t: number) {
     const profile = profiles.get(name);
     const figures = profile && runs(instance) ? sample(profile, t, memoryLimit(instance)) : null;
     if (figures) running += 1;
-    samples[name] = figures ?? { running: false, cpu_percent: 0, memory_bytes: 0, memory_limit_bytes: MEMORY_LIMIT, memory_percent: 0, requests_per_minute: 0, error_rate_percent: null, response_ms_avg: null, response_ms_p95: null, uptime_seconds: null, disk_bytes: null };
+    samples[name] = figures ?? {
+      running: false,
+      cpu_percent: 0,
+      memory_bytes: 0,
+      memory_limit_bytes: MEMORY_LIMIT,
+      memory_percent: 0,
+      requests_per_minute: 0,
+      error_rate_percent: null,
+      response_ms_avg: null,
+      response_ms_p95: null,
+      uptime_seconds: null,
+      disk_bytes: null,
+    };
   }
   return { samples, running, server: server(samples, t, running, instances.size) };
 }
@@ -131,7 +149,11 @@ export function capacity(running = [...instances.values()].filter(runs).length):
       instances: comfortable,
     },
     processor: { cores: CORES, panel_percent: 0.6, per_instance_percent: 2.3, instances: 36 },
-    disk: { free_bytes: DISK_TOTAL - 175 * 1000 ** 3, instance_average_bytes: Math.round(2.6 * GIB), more_instances: 109 },
+    disk: {
+      free_bytes: DISK_TOTAL - 175 * 1000 ** 3,
+      instance_average_bytes: Math.round(2.6 * GIB),
+      more_instances: 109,
+    },
     reservations: reservations(),
     by_version: [...byVersion].sort().map(([version, list]) => ({
       version,
@@ -163,10 +185,18 @@ function measure(t: number): Metrics {
     const s = samples[name]!;
     const { running: _running, ...usage } = s;
     void _running;
-    instance.usage = s.running ? { ...usage, disk_bytes: (instance.disk?.database_bytes ?? 0) + (instance.disk?.files_bytes ?? 0) } : { cpu_percent: 0, memory_bytes: 0 };
+    instance.usage = s.running
+      ? { ...usage, disk_bytes: (instance.disk?.database_bytes ?? 0) + (instance.disk?.files_bytes ?? 0) }
+      : { cpu_percent: 0, memory_bytes: 0 };
     instance.uptime = s.running && s.uptime_seconds != null ? `Up ${uptimeText(s.uptime_seconds)}` : null;
   }
-  latest = { at: Math.floor(t), interval_seconds: INTERVAL, server: figures, instances: samples, capacity: capacity(running) };
+  latest = {
+    at: Math.floor(t),
+    interval_seconds: INTERVAL,
+    server: figures,
+    instances: samples,
+    capacity: capacity(running),
+  };
   return latest;
 }
 
@@ -190,11 +220,20 @@ export function history(minutes = 60): MetricsHistory {
   for (let t = start; t <= end; t += INTERVAL) {
     const { samples, server: figures } = at(t);
     serverColumns.t.push(t);
-    for (const [key, value] of Object.entries(figures)) (serverColumns[key] ??= []).push(typeof value === "number" ? value : null);
+    for (const [key, value] of Object.entries(figures))
+      (serverColumns[key] ??= []).push(typeof value === "number" ? value : null);
     for (const [name, s] of Object.entries(samples)) {
       const columns = (instanceColumns[name] ??= { t: [] } as unknown as Columns);
       columns.t.push(t);
-      for (const key of ["cpu_percent", "memory_percent", "memory_bytes", "requests_per_minute", "error_rate_percent", "response_ms_avg", "response_ms_p95"] as const) {
+      for (const key of [
+        "cpu_percent",
+        "memory_percent",
+        "memory_bytes",
+        "requests_per_minute",
+        "error_rate_percent",
+        "response_ms_avg",
+        "response_ms_p95",
+      ] as const) {
         (columns[key] ??= []).push(s.running ? (s[key] ?? null) : null);
       }
     }
@@ -222,7 +261,16 @@ export function startMetrics() {
 
 /** An instance as GET /instances lists it: without what only GET /instances/<name> adds. */
 export function listed(instance: Instance): Instance {
-  const { disk: _d, recent_commits: _c, submodules: _s, recent_jobs: _j, backups: _b, restorable_backup: _r, rollback: _o, ...rest } = instance;
+  const {
+    disk: _d,
+    recent_commits: _c,
+    submodules: _s,
+    recent_jobs: _j,
+    backups: _b,
+    restorable_backup: _r,
+    rollback: _o,
+    ...rest
+  } = instance;
   void [_d, _c, _s, _j, _b, _r, _o];
   return rest;
 }

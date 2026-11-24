@@ -44,10 +44,21 @@ describe("the setup steps", () => {
     expect(blocker("address", { ...DRAFT, exposure: "proxy" })).toBe("nameNeeded");
     expect(blocker("address", { ...DRAFT, name: { kind: "domain", domain: "panel" } })).toBe("nameNeeded");
     expect(blocker("address", { ...DRAFT, name: { kind: "domain", domain: "panel.example.com" } })).toBeNull();
-    expect(blocker("email", { ...DRAFT, mail: { ...DRAFT.mail, enabled: true, host: "smtp.example.com" } })).toBe("mailIncomplete");
-    expect(blocker("email", { ...DRAFT, mail: { ...DRAFT.mail, enabled: true, host: "smtp.example.com", username: "a@example.com" } })).toBeNull();
-    expect(blocker("account", { ...DRAFT, account: { ...DRAFT.account, link: true, link_code: "<x>" } })).toBe("linkCodeNeeded");
-    expect(blocker("account", { ...DRAFT, account: { ...DRAFT.account, link: true, link_code: "link-7q2x" } })).toBeNull();
+    expect(blocker("email", { ...DRAFT, mail: { ...DRAFT.mail, enabled: true, host: "smtp.example.com" } })).toBe(
+      "mailIncomplete",
+    );
+    expect(
+      blocker("email", {
+        ...DRAFT,
+        mail: { ...DRAFT.mail, enabled: true, host: "smtp.example.com", username: "a@example.com" },
+      }),
+    ).toBeNull();
+    expect(blocker("account", { ...DRAFT, account: { ...DRAFT.account, link: true, link_code: "<x>" } })).toBe(
+      "linkCodeNeeded",
+    );
+    expect(
+      blocker("account", { ...DRAFT, account: { ...DRAFT.account, link: true, link_code: "link-7q2x" } }),
+    ).toBeNull();
   });
 
   it("read the setup code from the link's #code=", () => {

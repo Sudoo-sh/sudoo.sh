@@ -6,7 +6,21 @@
 // holds new lines aside; the pill brings them in. Keyboard: / F E W Alt+R Esc ? (the list: "?").
 
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Clock, Download, Keyboard, Maximize2, Minimize2, Pause, Play, Regex, Search, Settings2, X, ChevronUp } from "lucide-react";
+import {
+  ChevronDown,
+  Clock,
+  Download,
+  Keyboard,
+  Maximize2,
+  Minimize2,
+  Pause,
+  Play,
+  Regex,
+  Search,
+  Settings2,
+  X,
+  ChevronUp,
+} from "lucide-react";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api, errorText } from "@/api/client";
@@ -14,10 +28,32 @@ import type { Envelope } from "@/api/types";
 import { useT } from "@/i18n";
 import logWords from "@/i18n/logs";
 import { number } from "@/lib/format";
-import { activeFilters, appendLines, filterParams, fromServer, LEVELS, makeMatcher, NO_FILTERS, type Level, type LogEntry, type LogFilters, type TimeRange } from "@/lib/logs";
+import {
+  activeFilters,
+  appendLines,
+  filterParams,
+  fromServer,
+  LEVELS,
+  makeMatcher,
+  NO_FILTERS,
+  type Level,
+  type LogEntry,
+  type LogFilters,
+  type TimeRange,
+} from "@/lib/logs";
 import { Button, Callout, Segmented, Switch } from "./app/basics";
 import { Menu, MenuItem, MenuLabel, MenuSeparator, Modal, useToast } from "./app/overlay";
-import { LogSurface, searchParts, Shortcuts, Timeline, typing, useKeys, type LogSurfaceHandle, type MatchAt, type TextSize } from "./LogView";
+import {
+  LogSurface,
+  searchParts,
+  Shortcuts,
+  Timeline,
+  typing,
+  useKeys,
+  type LogSurfaceHandle,
+  type MatchAt,
+  type TextSize,
+} from "./LogView";
 
 interface LogFile {
   name: string;
@@ -153,8 +189,14 @@ export function LogsPanel({ name }: { name: string }) {
     followingNow.current = !jobLog && !context;
     setFollowing(followingNow.current);
     if (jobLog || context) {
-      const query = new URLSearchParams({ log, limit: String(jobLog ? 2000 : 300), ...params, ...(context ? { around: context } : {}) });
-      api.page<ServerEntry[]>(`/instances/${name}/logs/entries?${query}`)
+      const query = new URLSearchParams({
+        log,
+        limit: String(jobLog ? 2000 : 300),
+        ...params,
+        ...(context ? { around: context } : {}),
+      });
+      api
+        .page<ServerEntry[]>(`/instances/${name}/logs/entries?${query}`)
         .then((page: Envelope<ServerEntry[]>) => {
           if (ended) return;
           const got = fromServer(page.data);
@@ -209,7 +251,8 @@ export function LogsPanel({ name }: { name: string }) {
       });
       current.onerror = () => {
         // EventSource tries again by itself (with Last-Event-ID) unless the server refused it: then later
-        if (current.readyState === EventSource.CLOSED && !ended) timer = setTimeout(() => open(lastId || undefined), 10_000);
+        if (current.readyState === EventSource.CLOSED && !ended)
+          timer = setTimeout(() => open(lastId || undefined), 10_000);
       };
     };
     open();
@@ -226,7 +269,8 @@ export function LogsPanel({ name }: { name: string }) {
     if (!hasBefore || loadingEarlier || !first || first.id.startsWith("~") || state === "connecting") return;
     setLoadingEarlier(true);
     const params = new URLSearchParams({ log, limit: String(PAGE), before: first.id, ...filterParams(serverFilters) });
-    api.page<ServerEntry[]>(`/instances/${name}/logs/entries?${params}`)
+    api
+      .page<ServerEntry[]>(`/instances/${name}/logs/entries?${params}`)
       .then((page) => {
         const earlier = fromServer(page.data);
         setEntries((now) => (now[0]?.id === first.id ? [...earlier, ...now] : now));
@@ -260,7 +304,8 @@ export function LogsPanel({ name }: { name: string }) {
     const found: MatchAt[] = [];
     if (!matcher.ok || matcher.empty) return found;
     for (let i = 0; i < entries.length && found.length < 50_000; i++)
-      for (const [part, text] of searchParts(entries[i]!)) for (const [start] of matcher.ranges(text)) found.push({ entry: i, part, start });
+      for (const [part, text] of searchParts(entries[i]!))
+        for (const [start] of matcher.ranges(text)) found.push({ entry: i, part, start });
     return found;
   }, [entries, matcher]);
   const [cursor, setCursor] = useState({ of: "", n: 0 });
@@ -284,7 +329,15 @@ export function LogsPanel({ name }: { name: string }) {
     update({ levels: next.length === LEVELS.length || !next.length ? [] : LEVELS.filter((l) => next.includes(l)) });
   };
   const same = (a: Level[], b: Level[]) => a.length === b.length && a.every((l) => b.includes(l));
-  const focus = filters.tracebacks ? "tracebacks" : same(filters.levels, ERRORS) ? "errors" : same(filters.levels, PROBLEMS) ? "problems" : filters.levels.length ? "custom" : "all";
+  const focus = filters.tracebacks
+    ? "tracebacks"
+    : same(filters.levels, ERRORS)
+      ? "errors"
+      : same(filters.levels, PROBLEMS)
+        ? "problems"
+        : filters.levels.length
+          ? "custom"
+          : "all";
   const setFocus = (value: string) => {
     if (value === "tracebacks") update({ tracebacks: true, levels: [] });
     else update({ tracebacks: false, levels: value === "errors" ? ERRORS : value === "problems" ? PROBLEMS : [] });
@@ -299,13 +352,19 @@ export function LogsPanel({ name }: { name: string }) {
   };
 
   // ---------------------------------------------------------------- copying and links
-  const copy = useCallback((text: string, what: "line" | "traceback" | "link", id: string) => {
-    const value = what === "link" ? `${window.location.origin}${window.location.pathname}${window.location.search}#${new URLSearchParams({ log, line: id })}` : text;
-    navigator.clipboard?.writeText(value).catch(() => undefined);
-    setCopied(`${what}:${id}`);
-    setTimeout(() => setCopied((c) => (c === `${what}:${id}` ? null : c)), 1400);
-    if (what === "link") toast("success", t.linkCopied);
-  }, [log, t.linkCopied, toast]);
+  const copy = useCallback(
+    (text: string, what: "line" | "traceback" | "link", id: string) => {
+      const value =
+        what === "link"
+          ? `${window.location.origin}${window.location.pathname}${window.location.search}#${new URLSearchParams({ log, line: id })}`
+          : text;
+      navigator.clipboard?.writeText(value).catch(() => undefined);
+      setCopied(`${what}:${id}`);
+      setTimeout(() => setCopied((c) => (c === `${what}:${id}` ? null : c)), 1400);
+      if (what === "link") toast("success", t.linkCopied);
+    },
+    [log, t.linkCopied, toast],
+  );
 
   // ---------------------------------------------------------------- keyboard
   useKeys((event) => {
@@ -353,31 +412,70 @@ export function LogsPanel({ name }: { name: string }) {
   const downloadAll = base + new URLSearchParams({ log });
   const downloadShown = base + new URLSearchParams({ log, ...filterParams(serverFilters) });
   const patternProblem = matcher.ok ? null : t.pattern[matcher.reason];
-  const position = matches.length ? t.matchOf(number(currentIndex + 1), number(matches.length)) : query.trim() && matcher.ok ? t.noMatches : "";
+  const position = matches.length
+    ? t.matchOf(number(currentIndex + 1), number(matches.length))
+    : query.trim() && matcher.ok
+      ? t.noMatches
+      : "";
   const clock = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
   const rangeLabel = (r: TimeRange) =>
-    r.kind === "all" ? t.anyTime : r.kind === "last" ? t.last[String(r.minutes)] ?? t.anyTime
-      : r.since && r.until ? t.between(clock(r.since), clock(r.until)) : r.since ? t.since(clock(r.since)) : t.until(clock(r.until));
+    r.kind === "all"
+      ? t.anyTime
+      : r.kind === "last"
+        ? (t.last[String(r.minutes)] ?? t.anyTime)
+        : r.since && r.until
+          ? t.between(clock(r.since), clock(r.until))
+          : r.since
+            ? t.since(clock(r.since))
+            : t.until(clock(r.until));
 
   const chips: { key: string; label: ReactNode; remove: () => void }[] = [];
-  if (filters.levels.length) chips.push({ key: "levels", label: filters.levels.map((l) => t.levelNames[l]).join(" · "), remove: () => update({ levels: [] }) });
+  if (filters.levels.length)
+    chips.push({
+      key: "levels",
+      label: filters.levels.map((l) => t.levelNames[l]).join(" · "),
+      remove: () => update({ levels: [] }),
+    });
   if (filters.tracebacks) chips.push({ key: "tb", label: t.tracebacks, remove: () => update({ tracebacks: false }) });
-  if (filters.logger) chips.push({ key: "logger", label: t.loggerChip(filters.logger), remove: () => update({ logger: "" }) });
-  if (filters.range.kind !== "all") chips.push({ key: "time", label: rangeLabel(filters.range), remove: () => update({ range: { kind: "all" } }) });
-  if (filters.onlyMatches && typed.trim()) chips.push({ key: "q", label: t.matching(typed.trim()), remove: () => update({ onlyMatches: false }) });
+  if (filters.logger)
+    chips.push({ key: "logger", label: t.loggerChip(filters.logger), remove: () => update({ logger: "" }) });
+  if (filters.range.kind !== "all")
+    chips.push({ key: "time", label: rangeLabel(filters.range), remove: () => update({ range: { kind: "all" } }) });
+  if (filters.onlyMatches && typed.trim())
+    chips.push({ key: "q", label: t.matching(typed.trim()), remove: () => update({ onlyMatches: false }) });
 
-  const top = jobLog || context || !entries.length ? null : (
-    <div className="logs-top">
-      {loadingEarlier ? t.loadingEarlier : hasBefore ? (
-        <button type="button" onClick={loadEarlier}>{t.loadEarlier}</button>
-      ) : t.startOfLog}
-    </div>
-  );
+  const top =
+    jobLog || context || !entries.length ? null : (
+      <div className="logs-top">
+        {loadingEarlier ? (
+          t.loadingEarlier
+        ) : hasBefore ? (
+          <button type="button" onClick={loadEarlier}>
+            {t.loadEarlier}
+          </button>
+        ) : (
+          t.startOfLog
+        )}
+      </div>
+    );
   const emptyText =
-    state === "connecting" ? t.connecting : state === "slow" ? t.slowPattern : activeFilters(filters) ? t.noMatch : jobLog ? t.emptyJob : t.empty;
+    state === "connecting"
+      ? t.connecting
+      : state === "slow"
+        ? t.slowPattern
+        : activeFilters(filters)
+          ? t.noMatch
+          : jobLog
+            ? t.emptyJob
+            : t.empty;
 
   const panel = (
-    <section className={`logs${full ? " logs-full" : ""}`} role={full ? "dialog" : undefined} aria-modal={full || undefined} aria-label={t.title}>
+    <section
+      className={`logs${full ? " logs-full" : ""}`}
+      role={full ? "dialog" : undefined}
+      aria-modal={full || undefined}
+      aria-label={t.title}
+    >
       <header className="logs-head">
         <div className="logs-picker" aria-label={t.which} role="group">
           <Segmented
@@ -392,40 +490,94 @@ export function LogsPanel({ name }: { name: string }) {
         <span className="logs-about">{t.about[log]}</span>
         <span className="spacer" />
         {!jobLog && !context && (
-          <Button size="sm" variant={following ? "default" : "soft"} className="logs-follow" icon={following ? <Pause /> : <Play />} aria-pressed={following}
-            onClick={() => (following ? setFollow(false) : jump())} title={following ? t.followText : t.pausedText}>
+          <Button
+            size="sm"
+            variant={following ? "default" : "soft"}
+            className="logs-follow"
+            icon={following ? <Pause /> : <Play />}
+            aria-pressed={following}
+            onClick={() => (following ? setFollow(false) : jump())}
+            title={following ? t.followText : t.pausedText}
+          >
             {following ? t.following : t.paused}
             {!following && pendingCount > 0 && <span className="count">{t.newLines(number(pendingCount))}</span>}
           </Button>
         )}
-        <Menu trigger={(open) => <Button size="sm" variant="ghost" icon={<Download />} onClick={open} aria-label={t.download} title={t.download} />}>
+        <Menu
+          trigger={(open) => (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<Download />}
+              onClick={open}
+              aria-label={t.download}
+              title={t.download}
+            />
+          )}
+        >
           {() => (
             <>
               <MenuLabel>{t.download}</MenuLabel>
-              <MenuItem asChild><a href={downloadShown} download>{t.downloadShown}</a></MenuItem>
-              <MenuItem asChild><a href={downloadAll} download>{t.downloadAll}</a></MenuItem>
+              <MenuItem asChild>
+                <a href={downloadShown} download>
+                  {t.downloadShown}
+                </a>
+              </MenuItem>
+              <MenuItem asChild>
+                <a href={downloadAll} download>
+                  {t.downloadAll}
+                </a>
+              </MenuItem>
             </>
           )}
         </Menu>
-        <Menu trigger={(open) => <Button size="sm" variant="ghost" icon={<Settings2 />} onClick={open} aria-label={t.view} title={t.view} />}>
+        <Menu
+          trigger={(open) => (
+            <Button size="sm" variant="ghost" icon={<Settings2 />} onClick={open} aria-label={t.view} title={t.view} />
+          )}
+        >
           {() => (
             <>
-              <MenuItem onSelect={(e) => { e.preventDefault(); setView((v) => ({ ...v, wrap: !v.wrap })); }}>
-                <span className="check" data-on={view.wrap || undefined} aria-hidden="true" />{t.wrap}
+              <MenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setView((v) => ({ ...v, wrap: !v.wrap }));
+                }}
+              >
+                <span className="check" data-on={view.wrap || undefined} aria-hidden="true" />
+                {t.wrap}
               </MenuItem>
               <MenuSeparator />
               <MenuLabel>{t.textSize}</MenuLabel>
               {(["s", "m", "l"] as TextSize[]).map((size) => (
-                <MenuItem key={size} onSelect={(e) => { e.preventDefault(); setView((v) => ({ ...v, size })); }}>
-                  <span className="check" data-on={view.size === size || undefined} aria-hidden="true" />{t.sizes[size]}
+                <MenuItem
+                  key={size}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setView((v) => ({ ...v, size }));
+                  }}
+                >
+                  <span className="check" data-on={view.size === size || undefined} aria-hidden="true" />
+                  {t.sizes[size]}
                 </MenuItem>
               ))}
               <MenuSeparator />
-              <MenuItem onSelect={() => setKeys(true)}><Keyboard />{t.shortcuts}<kbd className="hint">?</kbd></MenuItem>
+              <MenuItem onSelect={() => setKeys(true)}>
+                <Keyboard />
+                {t.shortcuts}
+                <kbd className="hint">?</kbd>
+              </MenuItem>
             </>
           )}
         </Menu>
-        <Button size="sm" variant="ghost" icon={full ? <Minimize2 /> : <Maximize2 />} onClick={() => setFull(!full)} aria-label={full ? t.exitFullScreen : t.fullScreen} title={full ? t.exitFullScreen : t.fullScreen} />
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={full ? <Minimize2 /> : <Maximize2 />}
+          onClick={() => setFull(!full)}
+          aria-label={full ? t.exitFullScreen : t.fullScreen}
+          title={full ? t.exitFullScreen : t.fullScreen}
+        />
       </header>
 
       <div className="logs-filters">
@@ -448,48 +600,131 @@ export function LogsPanel({ name }: { name: string }) {
               }
             }}
           />
-          <span className="position" aria-live="polite">{position}</span>
-          {typed && <button type="button" className="icon" onClick={() => setTyped("")} aria-label={t.clear} title={t.clear}><X /></button>}
-          <button type="button" className="icon" disabled={!matches.length} onClick={() => step(-1)} aria-label={t.previous} title={t.previous}><ChevronUp /></button>
-          <button type="button" className="icon" disabled={!matches.length} onClick={() => step(1)} aria-label={t.next} title={t.next}><ChevronDown /></button>
-          <button type="button" className="icon regex" aria-pressed={filters.regex} onClick={() => update({ regex: !filters.regex })} aria-label={t.regex} title={t.regex}><Regex /></button>
+          <span className="position" aria-live="polite">
+            {position}
+          </span>
+          {typed && (
+            <button type="button" className="icon" onClick={() => setTyped("")} aria-label={t.clear} title={t.clear}>
+              <X />
+            </button>
+          )}
+          <button
+            type="button"
+            className="icon"
+            disabled={!matches.length}
+            onClick={() => step(-1)}
+            aria-label={t.previous}
+            title={t.previous}
+          >
+            <ChevronUp />
+          </button>
+          <button
+            type="button"
+            className="icon"
+            disabled={!matches.length}
+            onClick={() => step(1)}
+            aria-label={t.next}
+            title={t.next}
+          >
+            <ChevronDown />
+          </button>
+          <button
+            type="button"
+            className="icon regex"
+            aria-pressed={filters.regex}
+            onClick={() => update({ regex: !filters.regex })}
+            aria-label={t.regex}
+            title={t.regex}
+          >
+            <Regex />
+          </button>
         </div>
-        <Switch checked={filters.onlyMatches} onChange={(onlyMatches) => update({ onlyMatches })} label={t.onlyMatches} />
+        <Switch
+          checked={filters.onlyMatches}
+          onChange={(onlyMatches) => update({ onlyMatches })}
+          label={t.onlyMatches}
+        />
         <span className="spacer" />
-        <Menu trigger={(open) => (
-          <Button size="sm" variant={filters.range.kind === "all" ? "ghost" : "soft"} icon={<Clock />} onClick={open} title={t.time}>
-            {rangeLabel(filters.range)}
-          </Button>
-        )}>
+        <Menu
+          trigger={(open) => (
+            <Button
+              size="sm"
+              variant={filters.range.kind === "all" ? "ghost" : "soft"}
+              icon={<Clock />}
+              onClick={open}
+              title={t.time}
+            >
+              {rangeLabel(filters.range)}
+            </Button>
+          )}
+        >
           {() => (
             <>
               <MenuLabel>{t.time}</MenuLabel>
               <MenuItem onSelect={() => update({ range: { kind: "all" } })}>{t.anyTime}</MenuItem>
               {[15, 60, 1440].map((minutes) => (
-                <MenuItem key={minutes} onSelect={() => update({ range: { kind: "last", minutes } })}>{t.last[String(minutes)]}</MenuItem>
+                <MenuItem key={minutes} onSelect={() => update({ range: { kind: "last", minutes } })}>
+                  {t.last[String(minutes)]}
+                </MenuItem>
               ))}
               <MenuSeparator />
-              <MenuItem onSelect={() => {
-                const now = new Date();
-                setCustom(filters.range.kind === "custom"
-                  ? { since: filters.range.since ? localInput(filters.range.since) : "", until: filters.range.until ? localInput(filters.range.until) : "" }
-                  : { since: localInput(new Date(now.getTime() - 3600_000).toISOString()), until: localInput(now.toISOString()) });
-              }}>{t.custom}</MenuItem>
+              <MenuItem
+                onSelect={() => {
+                  const now = new Date();
+                  setCustom(
+                    filters.range.kind === "custom"
+                      ? {
+                          since: filters.range.since ? localInput(filters.range.since) : "",
+                          until: filters.range.until ? localInput(filters.range.until) : "",
+                        }
+                      : {
+                          since: localInput(new Date(now.getTime() - 3600_000).toISOString()),
+                          until: localInput(now.toISOString()),
+                        },
+                  );
+                }}
+              >
+                {t.custom}
+              </MenuItem>
             </>
           )}
         </Menu>
       </div>
-      {patternProblem && <p className="logs-problem" role="alert">{patternProblem}</p>}
+      {patternProblem && (
+        <p className="logs-problem" role="alert">
+          {patternProblem}
+        </p>
+      )}
 
       <div className="logs-levels-row">
         <div className="logs-focus" role="group" aria-label={t.quick}>
-          {([["problems", t.problems], ["errors", t.errorsOnly], ["tracebacks", t.tracebacks]] as const).map(([value, label]) => (
-            <button key={value} type="button" aria-pressed={focus === value} data-focus={value} onClick={() => setFocus(focus === value ? "all" : value)}>{label}</button>
+          {(
+            [
+              ["problems", t.problems],
+              ["errors", t.errorsOnly],
+              ["tracebacks", t.tracebacks],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={focus === value}
+              data-focus={value}
+              onClick={() => setFocus(focus === value ? "all" : value)}
+            >
+              {label}
+            </button>
           ))}
         </div>
         <div className="logs-levels" role="group" aria-label={t.levels}>
           {LEVELS.map((level) => (
-            <button key={level} type="button" data-level={level.toLowerCase()} aria-pressed={levelsShown.includes(level)} onClick={() => toggleLevel(level)}>
+            <button
+              key={level}
+              type="button"
+              data-level={level.toLowerCase()}
+              aria-pressed={levelsShown.includes(level)}
+              onClick={() => toggleLevel(level)}
+            >
               <i aria-hidden="true" />
               {t.levelNames[level]}
               <span className="count">{number(counts[level] ?? 0)}</span>
@@ -498,14 +733,22 @@ export function LogsPanel({ name }: { name: string }) {
         </div>
       </div>
 
-      <Timeline entries={entries} onJump={(index) => { setFollow(false); surface.current?.show(index); }} />
+      <Timeline
+        entries={entries}
+        onJump={(index) => {
+          setFollow(false);
+          surface.current?.show(index);
+        }}
+      />
 
       {(chips.length > 0 || context) && (
         <div className="logs-active">
           {context ? (
             <>
               <span>{t.context}</span>
-              <Button size="sm" variant="soft" onClick={backToLive}>{t.backToLive}</Button>
+              <Button size="sm" variant="soft" onClick={backToLive}>
+                {t.backToLive}
+              </Button>
             </>
           ) : (
             <>
@@ -513,10 +756,14 @@ export function LogsPanel({ name }: { name: string }) {
               {chips.map((chip) => (
                 <span key={chip.key} className="chip">
                   {chip.label}
-                  <button type="button" onClick={chip.remove} aria-label={t.remove} title={t.remove}><X /></button>
+                  <button type="button" onClick={chip.remove} aria-label={t.remove} title={t.remove}>
+                    <X />
+                  </button>
                 </span>
               ))}
-              <button type="button" className="clear" onClick={clearAll}>{t.clearAll}</button>
+              <button type="button" className="clear" onClick={clearAll}>
+                {t.clearAll}
+              </button>
             </>
           )}
         </div>
@@ -545,23 +792,64 @@ export function LogsPanel({ name }: { name: string }) {
       />
       {keys && <Shortcuts onClose={() => setKeys(false)} />}
       {custom && (
-        <Modal title={t.customTitle} description={t.customText} onClose={() => setCustom(null)}
+        <Modal
+          title={t.customTitle}
+          description={t.customText}
+          onClose={() => setCustom(null)}
           footer={
             <>
-              <Button variant="ghost" onClick={() => setCustom(null)}>{t.cancel}</Button>
-              <Button variant="primary" disabled={!custom.since && !custom.until} onClick={() => {
-                update({ range: { kind: "custom", since: custom.since ? new Date(custom.since).toISOString() : "", until: custom.until ? new Date(custom.until).toISOString() : "" } });
-                setCustom(null);
-              }}>{t.apply}</Button>
+              <Button variant="ghost" onClick={() => setCustom(null)}>
+                {t.cancel}
+              </Button>
+              <Button
+                variant="primary"
+                disabled={!custom.since && !custom.until}
+                onClick={() => {
+                  update({
+                    range: {
+                      kind: "custom",
+                      since: custom.since ? new Date(custom.since).toISOString() : "",
+                      until: custom.until ? new Date(custom.until).toISOString() : "",
+                    },
+                  });
+                  setCustom(null);
+                }}
+              >
+                {t.apply}
+              </Button>
             </>
-          }>
+          }
+        >
           <div className="logs-range">
-            <label>{t.from}<input type="datetime-local" dir="ltr" value={custom.since} onChange={(e) => setCustom({ ...custom, since: e.target.value })} /></label>
-            <label>{t.to}<input type="datetime-local" dir="ltr" value={custom.until} onChange={(e) => setCustom({ ...custom, until: e.target.value })} /></label>
+            <label>
+              {t.from}
+              <input
+                type="datetime-local"
+                dir="ltr"
+                value={custom.since}
+                onChange={(e) => setCustom({ ...custom, since: e.target.value })}
+              />
+            </label>
+            <label>
+              {t.to}
+              <input
+                type="datetime-local"
+                dir="ltr"
+                value={custom.until}
+                onChange={(e) => setCustom({ ...custom, until: e.target.value })}
+              />
+            </label>
           </div>
         </Modal>
       )}
     </section>
   );
-  return full ? <>{createPortal(panel, document.body)}<div className="logs-placeholder" /></> : panel;
+  return full ? (
+    <>
+      {createPortal(panel, document.body)}
+      <div className="logs-placeholder" />
+    </>
+  ) : (
+    panel
+  );
 }

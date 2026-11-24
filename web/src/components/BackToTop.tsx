@@ -32,8 +32,16 @@ export function BackToTop() {
     document.querySelector<HTMLElement>("main.page")?.focus({ preventScroll: true });
   };
   return (
-    <button type="button" className="back-to-top" data-shown={shown || undefined} aria-hidden={!shown} tabIndex={shown ? 0 : -1}
-      aria-label={label} title={label} onClick={toTop}>
+    <button
+      type="button"
+      className="back-to-top"
+      data-shown={shown || undefined}
+      aria-hidden={!shown}
+      tabIndex={shown ? 0 : -1}
+      aria-label={label}
+      title={label}
+      onClick={toTop}
+    >
       <ArrowUp aria-hidden="true" />
     </button>
   );

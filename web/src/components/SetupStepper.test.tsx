@@ -9,7 +9,8 @@ vi.mock("@/i18n", async () => {
 });
 
 const states = (html: string) => [...html.matchAll(/<li data-state="(\w+)"/g)].map((m) => m[1]);
-const enabled = (html: string) => [...html.matchAll(/<li[^>]*><button type="button"( disabled="")?/g)].map((m) => !m[1]);
+const enabled = (html: string) =>
+  [...html.matchAll(/<li[^>]*><button type="button"( disabled="")?/g)].map((m) => !m[1]);
 
 describe("SetupStepper", () => {
   it("shows the eight steps: done ones checked, the current one marked, the rest to do", () => {

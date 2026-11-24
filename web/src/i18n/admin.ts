@@ -10,7 +10,8 @@ const en = {
   signIn: {
     title: "Sign-in",
     useDefault: "Use the panel's usual ways",
-    defaultHint: (ways: string) => `Now: ${ways}. Settings, Sign-in and security, changes them for every account without a choice`,
+    defaultHint: (ways: string) =>
+      `Now: ${ways}. Settings, Sign-in and security, changes them for every account without a choice`,
     methods: { password: "Password", email_code: "Code by e-mail", github: "GitHub" } as Record<string, string>,
     methodHints: {
       password: "E-mail address and password",
@@ -139,8 +140,14 @@ const en = {
     revoked: "Token revoked",
     scopes: {
       read: { label: "Read only", hint: "Reads instances, jobs and versions; changes nothing." },
-      instances: { label: "Instances", hint: "For connected apps such as the Odoo module: list, create, start, pause, restart, back up, extend and delete instances; nothing else." },
-      developer: { label: "Developer", hint: "For developers' tools and CI: reads projects, branches, instances, logs, jobs and caught e-mails; starts, pauses, restarts and gets the latest code; creates development instances. Never settings, users, teams, access, production, restores, domains, off-site copies or shells. Never more than your own role allows." },
+      instances: {
+        label: "Instances",
+        hint: "For connected apps such as the Odoo module: list, create, start, pause, restart, back up, extend and delete instances; nothing else.",
+      },
+      developer: {
+        label: "Developer",
+        hint: "For developers' tools and CI: reads projects, branches, instances, logs, jobs and caught e-mails; starts, pauses, restarts and gets the latest code; creates development instances. Never settings, users, teams, access, production, restores, domains, off-site copies or shells. Never more than your own role allows.",
+      },
       write: { label: "Read and write", hint: "Acts as an administrator: everything except the panel's settings." },
     },
     odooTitle: "Use this panel from your company's Odoo",
@@ -190,7 +197,8 @@ const en = {
     title2: "Title",
     titleHint: "The large line at the top of the e-mail",
     body: "Text",
-    bodyHint: "**bold** · - list item · > highlighted note · [label](link): a button when alone on its line · blank line: new paragraph",
+    bodyHint:
+      "**bold** · - list item · > highlighted note · [label](link): a button when alone on its line · blank line: new paragraph",
     placeholders: "Placeholders: click one to insert it where the cursor is",
     ownLine: " (on its own line)",
     aLink: " (a link)",
@@ -207,7 +215,8 @@ const en = {
     savedText: "The panel sends this text from now on",
     notSaved: "Not saved",
     testSent: "Test e-mail sent",
-    testTo: (to: string, unsaved: boolean) => `To ${ltr(to)}, with sample values${unsaved ? " and your unsaved text" : ""}`,
+    testTo: (to: string, unsaved: boolean) =>
+      `To ${ltr(to)}, with sample values${unsaved ? " and your unsaved text" : ""}`,
     notSent: "Not sent",
     backToDefault: (name: string) => `${name} is back to the built-in text`,
     notReset: "Not reset",
@@ -350,8 +359,14 @@ const ar: typeof en = {
     revoked: "أُلغي الرمز",
     scopes: {
       read: { label: "قراءة فقط", hint: "يقرأ البيئات والمهام والإصدارات؛ ولا يغيّر شيئًا." },
-      instances: { label: "البيئات", hint: "للتطبيقات المتصلة مثل وحدة Odoo: عرض البيئات وإنشاؤها وتشغيلها وإيقافها مؤقتًا وإعادة تشغيلها ونسخها احتياطيًا وتمديدها وحذفها؛ ولا شيء غير ذلك." },
-      developer: { label: "مطوّر", hint: "لأدوات المطورين وCI: يقرأ المشاريع والفروع والبيئات والسجلات والمهام والرسائل الملتقطة؛ ويشغّل البيئات ويوقفها مؤقتًا ويعيد تشغيلها ويجلب أحدث الشيفرة؛ وينشئ بيئات تطوير. لا يصل أبدًا إلى الإعدادات أو المستخدمين أو الفرق أو الصلاحيات أو الإنتاج أو الاستعادة أو النطاقات أو النسخ خارج الخادم أو الطرفيات. ولا يتجاوز أبدًا ما يسمح به دورك." },
+      instances: {
+        label: "البيئات",
+        hint: "للتطبيقات المتصلة مثل وحدة Odoo: عرض البيئات وإنشاؤها وتشغيلها وإيقافها مؤقتًا وإعادة تشغيلها ونسخها احتياطيًا وتمديدها وحذفها؛ ولا شيء غير ذلك.",
+      },
+      developer: {
+        label: "مطوّر",
+        hint: "لأدوات المطورين وCI: يقرأ المشاريع والفروع والبيئات والسجلات والمهام والرسائل الملتقطة؛ ويشغّل البيئات ويوقفها مؤقتًا ويعيد تشغيلها ويجلب أحدث الشيفرة؛ وينشئ بيئات تطوير. لا يصل أبدًا إلى الإعدادات أو المستخدمين أو الفرق أو الصلاحيات أو الإنتاج أو الاستعادة أو النطاقات أو النسخ خارج الخادم أو الطرفيات. ولا يتجاوز أبدًا ما يسمح به دورك.",
+      },
       write: { label: "قراءة وكتابة", hint: "يعمل بصلاحيات مسؤول: كل شيء عدا إعدادات اللوحة." },
     },
     odooTitle: "استخدم هذه اللوحة من Odoo الخاص بشركتك",
@@ -401,7 +416,8 @@ const ar: typeof en = {
     title2: "العنوان",
     titleHint: "السطر الكبير في أعلى الرسالة",
     body: "النص",
-    bodyHint: "‏**bold** للخط العريض · ‏- لعنصر قائمة · ‏> لملاحظة بارزة · ‏[label](link): زر حين يكون وحده في سطره · سطر فارغ: فقرة جديدة",
+    bodyHint:
+      "‏**bold** للخط العريض · ‏- لعنصر قائمة · ‏> لملاحظة بارزة · ‏[label](link): زر حين يكون وحده في سطره · سطر فارغ: فقرة جديدة",
     placeholders: "العناصر النائبة: انقر أحدها لإدراجه في موضع المؤشر",
     ownLine: " (في سطر مستقل)",
     aLink: " (رابط)",

@@ -24,11 +24,25 @@ describe("demo access rules", () => {
   });
 
   it("refuses a range of every address and a change without the name or the code", () => {
-    expect(() => preview({ ...RULES, mode: "ips", networks: [{ value: "0.0.0.0/0", label: "" }] })).toThrow(/every address/);
+    expect(() => preview({ ...RULES, mode: "ips", networks: [{ value: "0.0.0.0/0", label: "" }] })).toThrow(
+      /every address/,
+    );
     sendCode("acme-retail-main", "email");
-    expect(() => change("acme-retail-main", { rules: RULES, confirm_name: "acme", code: "246810", method: "email" }, "sara")).toThrow(/Type/);
-    expect(() => change("acme-retail-main", { rules: RULES, confirm_name: "acme-retail-main", code: "111111", method: "email" }, "sara")).toThrow(/code/);
-    const saved = change("acme-retail-main", { rules: RULES, confirm_name: "acme-retail-main", code: "246810", method: "email" }, "sara");
+    expect(() =>
+      change("acme-retail-main", { rules: RULES, confirm_name: "acme", code: "246810", method: "email" }, "sara"),
+    ).toThrow(/Type/);
+    expect(() =>
+      change(
+        "acme-retail-main",
+        { rules: RULES, confirm_name: "acme-retail-main", code: "111111", method: "email" },
+        "sara",
+      ),
+    ).toThrow(/code/);
+    const saved = change(
+      "acme-retail-main",
+      { rules: RULES, confirm_name: "acme-retail-main", code: "246810", method: "email" },
+      "sara",
+    );
     expect(saved.countries).toEqual(["JO"]);
   });
 });

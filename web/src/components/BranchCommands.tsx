@@ -52,8 +52,17 @@ function CommandField({ command, example }: { command: string; example?: boolean
   return (
     <div className="bc-field">
       {example && <span className="bc-example">{t.example}</span>}
-      <code dir="ltr" tabIndex={0}>{command}</code>
-      <Button size="sm" variant="ghost" icon={copied ? <Check /> : <Copy />} onClick={copy} aria-label={t.copy} title={copied ? t.copied : t.copy} />
+      <code dir="ltr" tabIndex={0}>
+        {command}
+      </code>
+      <Button
+        size="sm"
+        variant="ghost"
+        icon={copied ? <Check /> : <Copy />}
+        onClick={copy}
+        aria-label={t.copy}
+        title={copied ? t.copied : t.copy}
+      />
     </div>
   );
 }
@@ -70,7 +79,9 @@ export function BranchCommands({
   project: ProjectDetail;
   branch: ProjectBranch;
   instance: Instance | undefined;
-  can: (permission: "instances.shell" | "instances.database_shell" | "instances.update" | "instances.delete") => boolean;
+  can: (
+    permission: "instances.shell" | "instances.database_shell" | "instances.update" | "instances.delete",
+  ) => boolean;
   /** the instance's Shell tab in this branch */
   shellLink: string | null;
   onDialog: (dialog: BranchDialog) => void;
@@ -80,7 +91,9 @@ export function BranchCommands({
   const j = useT(instanceWords).jobs;
   const [tab, setTab] = useState<Tab>(remembered);
   const [forkName, setForkName] = useState("");
-  const others = project.branches_list.filter((b) => b.name !== branch.name && b.on_github !== false).map((b) => b.name);
+  const others = project.branches_list
+    .filter((b) => b.name !== branch.name && b.on_github !== false)
+    .map((b) => b.name);
   const [mergeFrom, setMergeFrom] = useState(() => mergeDefault(project.branches_list, branch));
   const [adding, setAdding] = useState(false);
   const run = useRun(instance?.name ?? "", onJob);
@@ -101,7 +114,10 @@ export function BranchCommands({
     if (!step) return;
     event.preventDefault();
     const at = TABS.indexOf(tab);
-    const next = TABS[Math.min(TABS.length - 1, Math.max(0, Math.abs(step) === 99 ? (step < 0 ? 0 : TABS.length - 1) : at + step))]!;
+    const next =
+      TABS[
+        Math.min(TABS.length - 1, Math.max(0, Math.abs(step) === 99 ? (step < 0 ? 0 : TABS.length - 1) : at + step))
+      ]!;
     choose(next);
     tabs.current?.querySelector<HTMLElement>(`[data-tab="${next}"]`)?.focus();
   };
@@ -111,11 +127,19 @@ export function BranchCommands({
   const newBranch = BRANCH_NAME.test(typed) ? typed : "new-branch";
   const names = instance?.containers;
   const shell = shellLink && can("instances.shell") && (
-    <Button asChild size="sm"><Link to={shellLink} viewTransition><SquareTerminal /> {t.webShell}</Link></Button>
+    <Button asChild size="sm">
+      <Link to={shellLink} viewTransition>
+        <SquareTerminal /> {t.webShell}
+      </Link>
+    </Button>
   );
 
   // SSH and SQL need an instance, and the rights for its stage (project roles: never production's for a developer)
-  const visible = TABS.filter((name) => (name !== "ssh" || (instance && can("instances.shell"))) && (name !== "sql" || (instance && can("instances.database_shell"))));
+  const visible = TABS.filter(
+    (name) =>
+      (name !== "ssh" || (instance && can("instances.shell"))) &&
+      (name !== "sql" || (instance && can("instances.database_shell"))),
+  );
   const shown = visible.includes(tab) ? tab : "clone";
   // each tab: a line saying what its command does, what it asks for, the command, and the panel's own action
   let text: string | null = null;
@@ -130,16 +154,30 @@ export function BranchCommands({
     case "fork":
       text = t.fork;
       inputs = (
-        <Input dir="ltr" aria-label={t.forkName} placeholder="new-branch" value={forkName} maxLength={200} onChange={(e) => setForkName(e.target.value)}
-          aria-invalid={typed && !BRANCH_NAME.test(typed) ? true : undefined} />
+        <Input
+          dir="ltr"
+          aria-label={t.forkName}
+          placeholder="new-branch"
+          value={forkName}
+          maxLength={200}
+          onChange={(e) => setForkName(e.target.value)}
+          aria-invalid={typed && !BRANCH_NAME.test(typed) ? true : undefined}
+        />
       );
-      command = { value: `git checkout -b ${newBranch} origin/${branch.name} && git push -u origin ${newBranch}`, example: true };
+      command = {
+        value: `git checkout -b ${newBranch} origin/${branch.name} && git push -u origin ${newBranch}`,
+        example: true,
+      };
       break;
     case "merge":
       text = t.merge;
       inputs = others.length > 0 && (
         <SelectBox dir="ltr" size="sm" aria-label={t.mergeFrom} value={mergeFrom} onValueChange={setMergeFrom}>
-          {others.map((name) => <option key={name} value={name}>{name}</option>)}
+          {others.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
         </SelectBox>
       );
       command = { value: `git merge ${mergeFrom || "<branch>"} && git push -u origin ${branch.name}`, example: true };
@@ -163,14 +201,18 @@ export function BranchCommands({
         example: true,
       };
       action = instance && can("instances.update") && (
-        <Button size="sm" icon={<Plus />} disabled={!!instance.current_job} onClick={() => setAdding(true)}>{t.addSubmodule}</Button>
+        <Button size="sm" icon={<Plus />} disabled={!!instance.current_job} onClick={() => setAdding(true)}>
+          {t.addSubmodule}
+        </Button>
       );
       break;
     case "delete":
       text = instance ? t.deleteText(instance.name) : null;
       command = { value: `git push origin --delete ${branch.name}` };
       action = instance && can("instances.delete") && (
-        <Button size="sm" variant="danger" icon={<Trash2 />} onClick={() => onDialog({ kind: "delete", instance })}>{t.deleteInstance}</Button>
+        <Button size="sm" variant="danger" icon={<Trash2 />} onClick={() => onDialog({ kind: "delete", instance })}>
+          {t.deleteInstance}
+        </Button>
       );
       break;
   }
@@ -181,23 +223,50 @@ export function BranchCommands({
     <div className="bc" role="group" aria-label={t.label}>
       <div className="bc-tabs" role="tablist" aria-label={t.label} ref={tabs} onKeyDown={onKey}>
         {visible.map((name) => (
-          <button key={name} type="button" role="tab" data-tab={name} id={`bc-tab-${name}`} aria-selected={shown === name} aria-controls="bc-panel"
-            tabIndex={shown === name ? 0 : -1} className={name === "delete" ? "danger" : undefined} onClick={() => choose(name)}>
+          <button
+            key={name}
+            type="button"
+            role="tab"
+            data-tab={name}
+            id={`bc-tab-${name}`}
+            aria-selected={shown === name}
+            aria-controls="bc-panel"
+            tabIndex={shown === name ? 0 : -1}
+            className={name === "delete" ? "danger" : undefined}
+            onClick={() => choose(name)}
+          >
             {t.tabs[name]}
           </button>
         ))}
       </div>
-      <div className="bc-panel" id="bc-panel" role="tabpanel" aria-labelledby={`bc-tab-${shown}`} aria-describedby={text ? "bc-text" : undefined}>
+      <div
+        className="bc-panel"
+        id="bc-panel"
+        role="tabpanel"
+        aria-labelledby={`bc-tab-${shown}`}
+        aria-describedby={text ? "bc-text" : undefined}
+      >
         <div className="bc-row" key={shown}>
           {inputs && <div className="bc-inputs">{inputs}</div>}
-          {command ? <CommandField command={command.value} example={command.example} /> : <p className="bc-none truncate" title={t.noNames}>{t.noNames}</p>}
+          {command ? (
+            <CommandField command={command.value} example={command.example} />
+          ) : (
+            <p className="bc-none truncate" title={t.noNames}>
+              {t.noNames}
+            </p>
+          )}
           {action && <div className="bc-actions">{action}</div>}
         </div>
-        <p className="bc-text truncate" id="bc-text" title={text ?? undefined}>{text}</p>
+        <p className="bc-text truncate" id="bc-text" title={text ?? undefined}>
+          {text}
+        </p>
       </div>
       {adding && instance && (
-        <SubmoduleDialog version={instance.odoo.version} onClose={() => setAdding(false)}
-          onRun={(payload) => run.mutate({ action: "add-submodule", title: j.addSubmodule, body: payload })} />
+        <SubmoduleDialog
+          version={instance.odoo.version}
+          onClose={() => setAdding(false)}
+          onRun={(payload) => run.mutate({ action: "add-submodule", title: j.addSubmodule, body: payload })}
+        />
       )}
     </div>
   );

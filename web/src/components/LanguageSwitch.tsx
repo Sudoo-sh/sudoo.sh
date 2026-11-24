@@ -22,7 +22,10 @@ export function useSaveLanguage() {
       const account = await api.patch<Account>("/account", { language: choice });
       client.setQueryData(keys.account, account);
       // the session's language changes the page's (main.tsx follows it)
-      client.setQueryData<Session | null>(keys.session, (session) => session && { ...session, language: account.language.value });
+      client.setQueryData<Session | null>(
+        keys.session,
+        (session) => session && { ...session, language: account.language.value },
+      );
     } catch (error) {
       toast("error", t.notSaved, errorText(error));
     }

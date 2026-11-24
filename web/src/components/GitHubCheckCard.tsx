@@ -42,7 +42,11 @@ export function GitHubCheckCard({ project }: { project: ProjectDetail }) {
             <Skeleton height={18} width="70%" />
           </div>
         )}
-        {run.error && <Callout tone="danger"><b>{t.failed}.</b> {errorText(run.error)}</Callout>}
+        {run.error && (
+          <Callout tone="danger">
+            <b>{t.failed}.</b> {errorText(run.error)}
+          </Callout>
+        )}
         {result && (
           <div className="check-list" aria-live="polite">
             {result.checks.map((check) => (
@@ -50,15 +54,23 @@ export function GitHubCheckCard({ project }: { project: ProjectDetail }) {
                 <span aria-label={t.statuses[check.status]}>{ICON[check.status]}</span>
                 <div>
                   <h3>{t.names[check.id]}</h3>
-                  <p className="small muted" dir="auto">{check.message}</p>
+                  <p className="small muted" dir="auto">
+                    {check.message}
+                  </p>
                 </div>
                 {check.fix?.url && (
                   <div className="fix">
                     {check.fix.url.startsWith("/") ? (
-                      <Button size="sm" asChild><Link to={check.fix.url} viewTransition>{check.fix.label}</Link></Button>
+                      <Button size="sm" asChild>
+                        <Link to={check.fix.url} viewTransition>
+                          {check.fix.label}
+                        </Link>
+                      </Button>
                     ) : (
                       <Button size="sm" asChild>
-                        <a href={check.fix.url} target="_blank" rel="noreferrer">{check.fix.label} <ExternalLink className="flip-rtl" /></a>
+                        <a href={check.fix.url} target="_blank" rel="noreferrer">
+                          {check.fix.label} <ExternalLink className="flip-rtl" />
+                        </a>
                       </Button>
                     )}
                   </div>
@@ -68,7 +80,12 @@ export function GitHubCheckCard({ project }: { project: ProjectDetail }) {
           </div>
         )}
         <div className="row-wrap">
-          <Button variant={result ? "default" : "primary"} icon={<RefreshCw />} loading={run.isPending} onClick={() => run.mutate(undefined)}>
+          <Button
+            variant={result ? "default" : "primary"}
+            icon={<RefreshCw />}
+            loading={run.isPending}
+            onClick={() => run.mutate(undefined)}
+          >
             {run.isPending ? t.checking : result ? t.again : t.check}
           </Button>
           {result && <span className="small faint">{t.checked(ago(Date.parse(result.checked_at) / 1000))}</span>}

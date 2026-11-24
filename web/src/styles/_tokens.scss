@@ -88,7 +88,9 @@
   --shell-bright-white: #f4f4f5;
 
   // type: the platform's own face first (SF on Apple devices, with its optical sizes), Inter elsewhere
-  --font: "IBM Plex Sans Arabic", -apple-system, BlinkMacSystemFont, "Inter Variable", "Inter", "Segoe UI", system-ui, sans-serif;
+  --font:
+    "IBM Plex Sans Arabic", -apple-system, BlinkMacSystemFont, "Inter Variable", "Inter", "Segoe UI", system-ui,
+    sans-serif;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono Variable", Menlo, Consolas, monospace;
   --text-12: 0.75rem;
   --text-13: 0.8125rem;
@@ -156,8 +158,52 @@
 }
 @supports (animation-timing-function: linear(0, 1)) {
   :root {
-    --spring: linear(0, 0.074, 0.234, 0.415, 0.584, 0.723, 0.83, 0.906, 0.957, 0.988, 1.005, 1.013, 1.015, 1.014, 1.012, 1.009, 1.007, 1.004, 1.003, 1.002, 1);
-    --spring-bounce: linear(0, 0.122, 0.375, 0.638, 0.849, 0.988, 1.06, 1.083, 1.076, 1.056, 1.034, 1.015, 1.003, 0.996, 0.993, 0.993, 0.995, 0.997, 0.998, 1, 1);
+    --spring: linear(
+      0,
+      0.074,
+      0.234,
+      0.415,
+      0.584,
+      0.723,
+      0.83,
+      0.906,
+      0.957,
+      0.988,
+      1.005,
+      1.013,
+      1.015,
+      1.014,
+      1.012,
+      1.009,
+      1.007,
+      1.004,
+      1.003,
+      1.002,
+      1
+    );
+    --spring-bounce: linear(
+      0,
+      0.122,
+      0.375,
+      0.638,
+      0.849,
+      0.988,
+      1.06,
+      1.083,
+      1.076,
+      1.056,
+      1.034,
+      1.015,
+      1.003,
+      0.996,
+      0.993,
+      0.993,
+      0.995,
+      0.997,
+      0.998,
+      1,
+      1
+    );
   }
 }
 
@@ -206,8 +252,17 @@
 
 // less see-through when asked, and firmer edges for more contrast
 @media (prefers-reduced-transparency: reduce) {
-  :root { --material: var(--bg); --material-blur: none; }
+  :root {
+    --material: var(--bg);
+    --material-blur: none;
+  }
 }
 @media (prefers-contrast: more) {
-  :root { --hairline: rgb(23 23 23 / 0.3); --hairline-strong: rgb(23 23 23 / 0.5); --text-3: var(--text-2); --material: var(--bg); --material-blur: none; }
+  :root {
+    --hairline: rgb(23 23 23 / 0.3);
+    --hairline-strong: rgb(23 23 23 / 0.5);
+    --text-3: var(--text-2);
+    --material: var(--bg);
+    --material-blur: none;
+  }
 }

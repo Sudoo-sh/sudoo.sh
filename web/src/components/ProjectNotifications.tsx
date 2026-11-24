@@ -8,7 +8,14 @@ import { Bell, Hash, Mail, MessagesSquare, Pencil, Plus, Send, Trash2, Users, We
 import { useState, type ReactNode } from "react";
 import { api, errorText } from "@/api/client";
 import { useCall } from "@/api/queries";
-import { statusKeys, useNotifications, type Channel, type ChannelType, type Delivery, type NotificationEvent } from "@/api/status";
+import {
+  statusKeys,
+  useNotifications,
+  type Channel,
+  type ChannelType,
+  type Delivery,
+  type NotificationEvent,
+} from "@/api/status";
 import type { ProjectDetail } from "@/api/types";
 import { useT } from "@/i18n";
 import words from "@/i18n/status";
@@ -58,15 +65,31 @@ export function ProjectNotifications({ project }: { project: ProjectDetail }) {
   return (
     <div className="stack tab-panel project-notifications">
       <div className="row-wrap" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-        <p className="small muted" style={{ maxWidth: "72ch", margin: 0 }}>{t.text}</p>
-        <Button variant="primary" icon={<Plus />} disabled={full} onClick={() => setEditing("new")} title={full ? t.limit(data.limit) : undefined}>
+        <p className="small muted" style={{ maxWidth: "72ch", margin: 0 }}>
+          {t.text}
+        </p>
+        <Button
+          variant="primary"
+          icon={<Plus />}
+          disabled={full}
+          onClick={() => setEditing("new")}
+          title={full ? t.limit(data.limit) : undefined}
+        >
           {t.add}
         </Button>
       </div>
       {!data.enabled && <Callout tone="warning">{t.off}</Callout>}
       {!data.channels.length ? (
         <div className="card">
-          <Empty icon={<Bell />} title={t.none} action={<Button icon={<Plus />} onClick={() => setEditing("new")}>{t.add}</Button>}>
+          <Empty
+            icon={<Bell />}
+            title={t.none}
+            action={
+              <Button icon={<Plus />} onClick={() => setEditing("new")}>
+                {t.add}
+              </Button>
+            }
+          >
             {t.noneText}
           </Empty>
         </div>
@@ -87,7 +110,16 @@ export function ProjectNotifications({ project }: { project: ProjectDetail }) {
         />
       )}
       {secret && (
-        <Modal title={t.signingSecret} description={secret.name} onClose={() => setSecret(null)} footer={<Button variant="primary" onClick={() => setSecret(null)}>{t.done}</Button>}>
+        <Modal
+          title={t.signingSecret}
+          description={secret.name}
+          onClose={() => setSecret(null)}
+          footer={
+            <Button variant="primary" onClick={() => setSecret(null)}>
+              {t.done}
+            </Button>
+          }
+        >
           <div className="stack">
             <Callout tone="warning">{t.signingSecretOnce}</Callout>
             <CopyField value={secret.value} block />
@@ -125,14 +157,28 @@ function ChannelCard({ project, channel, onEdit }: { project: ProjectDetail; cha
   return (
     <section className="card channel-card" data-enabled={channel.enabled} aria-label={channel.name}>
       <div className="card-head">
-        <span className="channel-icon" data-type={channel.type} aria-hidden="true">{TYPE_ICON[channel.type]}</span>
+        <span className="channel-icon" data-type={channel.type} aria-hidden="true">
+          {TYPE_ICON[channel.type]}
+        </span>
         <div className="spacer" style={{ minWidth: 0 }}>
           <h3 className="truncate">{channel.name}</h3>
           <div className="sub row-wrap" style={{ gap: 6 }}>
             <span>{t.types[channel.type]}</span>
-            {channel.type === "telegram" && channel.config.chat_id && <bdi dir="ltr" className="mono">{channel.config.chat_id}</bdi>}
-            {channel.type === "email" && channel.config.addresses && <bdi dir="ltr" className="mono truncate">{channel.config.addresses.join(", ")}</bdi>}
-            {hints.map((hint) => <bdi key={hint} dir="ltr" className="mono">{hint}</bdi>)}
+            {channel.type === "telegram" && channel.config.chat_id && (
+              <bdi dir="ltr" className="mono">
+                {channel.config.chat_id}
+              </bdi>
+            )}
+            {channel.type === "email" && channel.config.addresses && (
+              <bdi dir="ltr" className="mono truncate">
+                {channel.config.addresses.join(", ")}
+              </bdi>
+            )}
+            {hints.map((hint) => (
+              <bdi key={hint} dir="ltr" className="mono">
+                {hint}
+              </bdi>
+            ))}
           </div>
         </div>
         <Switch
@@ -140,14 +186,19 @@ function ChannelCard({ project, channel, onEdit }: { project: ProjectDetail; cha
           disabled={toggle.isPending}
           label={<span className="sr-only">{channel.enabled ? t.enabled : t.paused}</span>}
           onChange={(enabled) =>
-            toggle.mutate(enabled, { onSuccess: () => toast("success", t.changed), onError: (error) => toast("error", t.notSaved, errorText(error)) })
+            toggle.mutate(enabled, {
+              onSuccess: () => toast("success", t.changed),
+              onError: (error) => toast("error", t.notSaved, errorText(error)),
+            })
           }
         />
       </div>
       <div className="card-body stack">
         <ul className="event-tags" aria-label={t.whichEvents}>
           {channel.events.map((event) => (
-            <li key={event}><Tag>{t.events[event]}</Tag></li>
+            <li key={event}>
+              <Tag>{t.events[event]}</Tag>
+            </li>
           ))}
         </ul>
         <div className="row-wrap" style={{ justifyContent: "space-between", gap: 8 }}>
@@ -171,7 +222,14 @@ function ChannelCard({ project, channel, onEdit }: { project: ProjectDetail; cha
               {t.test}
             </Button>
             <Button size="sm" variant="ghost" icon={<Pencil />} onClick={onEdit} aria-label={t.edit} title={t.edit} />
-            <Button size="sm" variant="ghost" icon={<Trash2 />} onClick={() => setRemoving(true)} aria-label={t.remove} title={t.remove} />
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<Trash2 />}
+              onClick={() => setRemoving(true)}
+              aria-label={t.remove}
+              title={t.remove}
+            />
           </div>
         </div>
       </div>
@@ -232,7 +290,9 @@ function ChannelDialog({
   const refresh = [statusKeys.notifications(project.id)];
   const save = useCall(
     (body: Record<string, unknown>) =>
-      channel ? api.patch<Channel>(`/projects/${project.id}/notifications/${channel.id}`, body) : api.post<Channel>(`/projects/${project.id}/notifications`, body),
+      channel
+        ? api.patch<Channel>(`/projects/${project.id}/notifications/${channel.id}`, body)
+        : api.post<Channel>(`/projects/${project.id}/notifications`, body),
     refresh,
   );
   const usesUrl = ["slack", "discord", "teams", "webhook"].includes(type);
@@ -243,8 +303,17 @@ function ChannelDialog({
     if (type === "telegram" && botToken.trim()) secrets.bot_token = botToken.trim();
     const config: Record<string, unknown> = {};
     if (type === "telegram") config.chat_id = chatId.trim();
-    if (type === "email") config.addresses = addresses.split(",").map((a) => a.trim()).filter(Boolean);
-    const body: Record<string, unknown> = { name: name.trim(), events, config, ...(Object.keys(secrets).length ? { secrets } : {}) };
+    if (type === "email")
+      config.addresses = addresses
+        .split(",")
+        .map((a) => a.trim())
+        .filter(Boolean);
+    const body: Record<string, unknown> = {
+      name: name.trim(),
+      events,
+      config,
+      ...(Object.keys(secrets).length ? { secrets } : {}),
+    };
     if (!channel) body.type = type;
     save.mutate(body, {
       onSuccess: (saved) => {
@@ -265,34 +334,74 @@ function ChannelDialog({
       footer={
         <>
           <Button onClick={onClose}>{t.cancel}</Button>
-          <Button variant="primary" loading={save.isPending} onClick={submit}>{t.save}</Button>
+          <Button variant="primary" loading={save.isPending} onClick={submit}>
+            {t.save}
+          </Button>
         </>
       }
     >
-      <form className="stack" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+      <form
+        className="stack"
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+      >
         {!channel && (
           <Field label={t.types[type]} hint={t.typeHint[type]} htmlFor="channel-type">
-            <SelectBox id="channel-type" value={type} onValueChange={(value) => setType(value as ChannelType)} aria-label={t.add}>
+            <SelectBox
+              id="channel-type"
+              value={type}
+              onValueChange={(value) => setType(value as ChannelType)}
+              aria-label={t.add}
+            >
               {(Object.keys(t.types) as ChannelType[]).map((kind) => (
-                <option key={kind} value={kind}>{t.types[kind]}</option>
+                <option key={kind} value={kind}>
+                  {t.types[kind]}
+                </option>
               ))}
             </SelectBox>
           </Field>
         )}
         <Field label={t.name} htmlFor="channel-name">
-          <Input id="channel-name" value={name} maxLength={60} placeholder={t.namePlaceholder} onChange={(e) => setName(e.target.value)} />
+          <Input
+            id="channel-name"
+            value={name}
+            maxLength={60}
+            placeholder={t.namePlaceholder}
+            onChange={(e) => setName(e.target.value)}
+          />
         </Field>
         {usesUrl && (
           <Field label={t.url} hint={channel?.secrets.url ? t.urlKeep : t.typeHint[type]} htmlFor="channel-url">
-            <Input id="channel-url" dir="ltr" type="url" autoComplete="off" spellCheck={false} value={url}
-              placeholder={channel?.secrets.url ? t.secretSaved(channel.secrets.url) : "https://"} onChange={(e) => setUrl(e.target.value)} />
+            <Input
+              id="channel-url"
+              dir="ltr"
+              type="url"
+              autoComplete="off"
+              spellCheck={false}
+              value={url}
+              placeholder={channel?.secrets.url ? t.secretSaved(channel.secrets.url) : "https://"}
+              onChange={(e) => setUrl(e.target.value)}
+            />
           </Field>
         )}
         {type === "telegram" && (
           <>
-            <Field label={t.botToken} hint={channel?.secrets.bot_token ? t.botTokenKeep : t.typeHint.telegram} htmlFor="channel-token">
-              <Input id="channel-token" dir="ltr" autoComplete="off" spellCheck={false} value={botToken}
-                placeholder={channel?.secrets.bot_token ? t.secretSaved(channel.secrets.bot_token) : "123456789:AA…"} onChange={(e) => setBotToken(e.target.value)} />
+            <Field
+              label={t.botToken}
+              hint={channel?.secrets.bot_token ? t.botTokenKeep : t.typeHint.telegram}
+              htmlFor="channel-token"
+            >
+              <Input
+                id="channel-token"
+                dir="ltr"
+                autoComplete="off"
+                spellCheck={false}
+                value={botToken}
+                placeholder={channel?.secrets.bot_token ? t.secretSaved(channel.secrets.bot_token) : "123456789:AA…"}
+                onChange={(e) => setBotToken(e.target.value)}
+              />
             </Field>
             <Field label={t.chatId} hint={t.chatIdHint} htmlFor="channel-chat">
               <Input id="channel-chat" dir="ltr" value={chatId} onChange={(e) => setChatId(e.target.value)} />
@@ -301,7 +410,13 @@ function ChannelDialog({
         )}
         {type === "email" && (
           <Field label={t.addresses} hint={t.addressesHint} htmlFor="channel-addresses">
-            <Textarea id="channel-addresses" dir="ltr" rows={2} value={addresses} onChange={(e) => setAddresses(e.target.value)} />
+            <Textarea
+              id="channel-addresses"
+              dir="ltr"
+              rows={2}
+              value={addresses}
+              onChange={(e) => setAddresses(e.target.value)}
+            />
           </Field>
         )}
         <fieldset className="event-groups">
@@ -311,7 +426,10 @@ function ChannelDialog({
               <div className="xsmall muted">{t.groups[group.id]}</div>
               {group.events.map((event) => (
                 <label key={event} className="check-row">
-                  <Checkbox checked={events.includes(event)} onCheckedChange={(value) => toggleEvent(event, value === true)} />
+                  <Checkbox
+                    checked={events.includes(event)}
+                    onCheckedChange={(value) => toggleEvent(event, value === true)}
+                  />
                   <span>{t.events[event]}</span>
                 </label>
               ))}

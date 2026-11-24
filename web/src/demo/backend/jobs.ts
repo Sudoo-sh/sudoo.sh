@@ -23,13 +23,24 @@ export const reference = (job: Job): JobRef & { links: { self: string } } => ({
 export function full(instance: Instance): Instance {
   const own: InstanceBackup[] = backups
     .filter((b) => b.instance === instance.name)
-    .map((b) => ({ file: b.file, kind: b.kind, database: b.db, size_bytes: b.size, created_at: iso(b.created * 1000)!, revision: b.revision ?? null, comment: b.comment ?? null }));
+    .map((b) => ({
+      file: b.file,
+      kind: b.kind,
+      database: b.db,
+      size_bytes: b.size,
+      created_at: iso(b.created * 1000)!,
+      revision: b.revision ?? null,
+      comment: b.comment ?? null,
+    }));
   const restorable = own.find((b) => ["manual", "daily", "deletion"].includes(b.kind));
   return {
     ...instance,
     backups: own,
     restorable_backup: restorable?.file ?? null,
-    recent_jobs: jobs.filter((j) => j.instance === instance.name).slice(0, 15).map(reference),
+    recent_jobs: jobs
+      .filter((j) => j.instance === instance.name)
+      .slice(0, 15)
+      .map(reference),
   };
 }
 
@@ -75,12 +86,19 @@ export function startJob(plan: Plan): Job {
   };
   addJob(job, "");
   const instance = plan.panel ? null : instances.get(plan.instance);
-  const context = plan.context ?? (instance ? contextOf(instance) : { name: plan.instance, database: "", version: "", edition: "community" as const });
+  const context =
+    plan.context ??
+    (instance
+      ? contextOf(instance)
+      : { name: plan.instance, database: "", version: "", edition: "community" as const });
 
   const sync = () => {
     publish("job", job.id, job);
     if (instance && instances.has(instance.name)) {
-      instance.current_job = job.status === "success" || job.status === "failed" ? null : { ...reference(job), steps: job.steps.map((s) => ({ ...s })) };
+      instance.current_job =
+        job.status === "success" || job.status === "failed"
+          ? null
+          : { ...reference(job), steps: job.steps.map((s) => ({ ...s })) };
       announce(instance);
     }
   };

@@ -40,14 +40,26 @@ export function RecoveryCodesSheet({ codes, onClose }: { codes: string[]; onClos
       title={t.sheetTitle}
       description={t.sheetText}
       onClose={onClose}
-      footer={<Button variant="primary" onClick={onClose}>{saved ? t.done : t.saved}</Button>}
+      footer={
+        <Button variant="primary" onClick={onClose}>
+          {saved ? t.done : t.saved}
+        </Button>
+      }
     >
       <ol className="recovery-codes" aria-label={t.list} dir="ltr">
-        {codes.map((code) => <li key={code} className="mono tabular">{code}</li>)}
+        {codes.map((code) => (
+          <li key={code} className="mono tabular">
+            {code}
+          </li>
+        ))}
       </ol>
       <div className="row" style={{ marginTop: 12 }}>
-        <Button size="sm" icon={copied ? <Check /> : <Copy />} onClick={copy}>{copied ? t.copied : t.copyAll}</Button>
-        <Button size="sm" icon={<Download />} onClick={download}>{t.download}</Button>
+        <Button size="sm" icon={copied ? <Check /> : <Copy />} onClick={copy}>
+          {copied ? t.copied : t.copyAll}
+        </Button>
+        <Button size="sm" icon={<Download />} onClick={download}>
+          {t.download}
+        </Button>
       </div>
       <p className="small muted" style={{ marginTop: 12 }}>
         {t.keep}
@@ -57,7 +69,15 @@ export function RecoveryCodesSheet({ codes, onClose }: { codes: string[]; onClos
 }
 
 /** How many codes are left, and a button for new ones (the password confirms). */
-export function RecoveryCodesRow({ state, needed, onChange }: { state: RecoveryCodes | null; needed: boolean; onChange: () => void }) {
+export function RecoveryCodesRow({
+  state,
+  needed,
+  onChange,
+}: {
+  state: RecoveryCodes | null;
+  needed: boolean;
+  onChange: () => void;
+}) {
   const toast = useToast();
   const client = useQueryClient();
   const [asking, setAsking] = useState(false);
@@ -87,8 +107,13 @@ export function RecoveryCodesRow({ state, needed, onChange }: { state: RecoveryC
       {needed ? (
         <Callout tone="warning">
           <div className="row-wrap">
-            <span className="spacer">{state ? t.usedAll : t.noneYet}{t.lockedOut}</span>
-            <Button size="sm" variant="primary" onClick={() => setAsking(true)}>{t.make}</Button>
+            <span className="spacer">
+              {state ? t.usedAll : t.noneYet}
+              {t.lockedOut}
+            </span>
+            <Button size="sm" variant="primary" onClick={() => setAsking(true)}>
+              {t.make}
+            </Button>
           </div>
         </Callout>
       ) : (
@@ -99,10 +124,13 @@ export function RecoveryCodesRow({ state, needed, onChange }: { state: RecoveryC
               <span className="t row">{t.title}</span>
               <span className="d">
                 <span className={`tabular ${low ? "caution-text" : ""}`}>{t.left(state.left, state.total)}</span>
-                {state.created_at && t.made(ago(state.created_at))}{t.each}
+                {state.created_at && t.made(ago(state.created_at))}
+                {t.each}
               </span>
             </span>
-            <Button size="sm" variant="ghost" icon={<RefreshCw />} onClick={() => setAsking(true)}>{t.newCodes}</Button>
+            <Button size="sm" variant="ghost" icon={<RefreshCw />} onClick={() => setAsking(true)}>
+              {t.newCodes}
+            </Button>
           </div>
         )
       )}
@@ -110,11 +138,41 @@ export function RecoveryCodesRow({ state, needed, onChange }: { state: RecoveryC
         <Modal
           title={state ? t.newTitle : t.make}
           description={state ? t.newText : t.typePassword}
-          onClose={() => { setAsking(false); setPassword(""); }}
-          footer={<><Button onClick={() => { setAsking(false); setPassword(""); }}>{c.cancel}</Button><Button variant="primary" loading={busy} disabled={!password} onClick={make}>{t.makeCodes}</Button></>}
+          onClose={() => {
+            setAsking(false);
+            setPassword("");
+          }}
+          footer={
+            <>
+              <Button
+                onClick={() => {
+                  setAsking(false);
+                  setPassword("");
+                }}
+              >
+                {c.cancel}
+              </Button>
+              <Button variant="primary" loading={busy} disabled={!password} onClick={make}>
+                {t.makeCodes}
+              </Button>
+            </>
+          }
         >
-          <form onSubmit={(e) => { e.preventDefault(); if (password) make(); }}>
-            <Field label={t.password}><Input type="password" autoComplete="current-password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (password) make();
+            }}
+          >
+            <Field label={t.password}>
+              <Input
+                type="password"
+                autoComplete="current-password"
+                autoFocus
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </Field>
           </form>
         </Modal>
       )}

@@ -34,7 +34,11 @@ function StepProgress({ step }: { step: JobStep }) {
     step.started_at ? elapsed(step.started_at) : null,
   ].filter(Boolean);
   if (!parts.length) return null;
-  return <span className="step-progress" aria-live="polite">{parts.join(" · ")}</span>;
+  return (
+    <span className="step-progress" aria-live="polite">
+      {parts.join(" · ")}
+    </span>
+  );
 }
 
 /** A job's steps as a stepper: done, failed, or the one running now (highlighted) with its progress; when the job
@@ -47,7 +51,11 @@ export function JobSteps({ job }: { job: Pick<Job, "steps"> & { expected_steps?:
   return (
     <ol className="timeline job-steps">
       {job.steps.map((step, i) => (
-        <li key={i} data-current={step.status === "running" || undefined} aria-current={step.status === "running" ? "step" : undefined}>
+        <li
+          key={i}
+          data-current={step.status === "running" || undefined}
+          aria-current={step.status === "running" ? "step" : undefined}
+        >
           <span className={`node ${step.status}`}>
             {step.status === "done" ? <Check /> : step.status === "failed" ? <X /> : <span className="spinner" />}
           </span>
@@ -59,7 +67,10 @@ export function JobSteps({ job }: { job: Pick<Job, "steps"> & { expected_steps?:
       ))}
       {!job.steps.length && <li className="faint">{t.waiting}</li>}
       {running && left > 0 && (
-        <li className="upcoming"><span className="node" /><span className="faint small">{p.stepsLeft(left)}</span></li>
+        <li className="upcoming">
+          <span className="node" />
+          <span className="faint small">{p.stepsLeft(left)}</span>
+        </li>
       )}
     </ol>
   );
@@ -91,7 +102,9 @@ export function JobDrawer({ id, onClose }: { id: string; onClose: () => void }) 
       }
     >
       {gone ? (
-        <Empty icon={<ScrollText />} title={t.gone}>{t.goneText}</Empty>
+        <Empty icon={<ScrollText />} title={t.gone}>
+          {t.goneText}
+        </Empty>
       ) : !job ? (
         <Spinner />
       ) : (
@@ -102,7 +115,11 @@ export function JobDrawer({ id, onClose }: { id: string; onClose: () => void }) 
             <Progress value={job.progress_percent} status={job.status} />
           )}
           {job.status === "failed" && (
-            <WhyItFailed failure={job.failure} fallback={job.error} instance={job.instance.includes(":") ? null : job.instance} />
+            <WhyItFailed
+              failure={job.failure}
+              fallback={job.error}
+              instance={job.instance.includes(":") ? null : job.instance}
+            />
           )}
           {job.notes.map((note, i) => (
             <Callout key={i} tone={note.level === "warning" ? "warning" : "info"}>

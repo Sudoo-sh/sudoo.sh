@@ -8,7 +8,8 @@ const en = {
   docker: "Docker",
   dockerText: "One Docker Compose project. The default, with every feature.",
   kubernetes: "Kubernetes",
-  kubernetesText: "Its own namespace on the k3s cluster, isolated by network policies. Beta: Community only, no mail catcher yet.",
+  kubernetesText:
+    "Its own namespace on the k3s cluster, isolated by network policies. Beta: Community only, no mail catcher yet.",
   beta: "Beta",
   // the instance
   onKubernetes: "Runs on Kubernetes (beta)",
@@ -23,7 +24,8 @@ const en = {
   // Settings › Servers
   cluster: "Kubernetes (beta)",
   clusterText: "The k3s cluster the Kubernetes engine runs instances on, and its nodes.",
-  off: (script: string, setting: string) => `The Kubernetes engine is off. Run ${script} on the server: it installs k3s and sets ${setting} in the panel's .env.`,
+  off: (script: string, setting: string) =>
+    `The Kubernetes engine is off. Run ${script} on the server: it installs k3s and sets ${setting} in the panel's .env.`,
   unreachable: "The panel cannot reach the cluster:",
   nodes: "Nodes",
   node: "Node",
@@ -39,7 +41,8 @@ const en = {
   used: (used: string | null, total: string) => (used == null ? total : `${used} of ${total}`),
   addNode: "Add a node",
   addTitle: "Add a node to the cluster",
-  addText: "Run this command as root on the new server. It installs k3s and joins this cluster; the node shows here within a minute.",
+  addText:
+    "Run this command as root on the new server. It installs k3s and joins this cluster; the node shows here within a minute.",
   addOnce: "The command holds a join token: it is shown only now, and the panel does not keep it.",
   expires: (when: string) => `The token works until ${when}.`,
   ports: "Open TCP 6443 and UDP 8472 between your servers only, never to the internet.",
@@ -55,7 +58,8 @@ const ar: typeof en = {
   docker: "Docker",
   dockerText: "مشروع Docker Compose واحد. الخيار الافتراضي، بكل الميزات.",
   kubernetes: "Kubernetes",
-  kubernetesText: "نطاق أسماء خاص به على عنقود k3s، معزول بسياسات الشبكة. تجريبي: Community فقط، ولا يدعم ملتقط البريد بعد.",
+  kubernetesText:
+    "نطاق أسماء خاص به على عنقود k3s، معزول بسياسات الشبكة. تجريبي: Community فقط، ولا يدعم ملتقط البريد بعد.",
   beta: "تجريبي",
   onKubernetes: "يعمل على Kubernetes (تجريبي)",
   move: "النقل إلى محرّك آخر",
@@ -68,7 +72,8 @@ const ar: typeof en = {
   moveJob: "النقل إلى محرّك آخر",
   cluster: "Kubernetes (تجريبي)",
   clusterText: "عنقود k3s الذي يشغّل عليه محرّك Kubernetes المثيلات، وعُقده.",
-  off: (script: string, setting: string) => `محرّك Kubernetes متوقف. شغّل الأمر ${script} على الخادم: يثبّت k3s ويضبط ${setting} في ملف ‎.env للوحة.`,
+  off: (script: string, setting: string) =>
+    `محرّك Kubernetes متوقف. شغّل الأمر ${script} على الخادم: يثبّت k3s ويضبط ${setting} في ملف ‎.env للوحة.`,
   unreachable: "لا تصل اللوحة إلى العنقود:",
   nodes: "العُقد",
   node: "العقدة",
@@ -84,7 +89,8 @@ const ar: typeof en = {
   used: (used: string | null, total: string) => (used == null ? total : `${used} من ${total}`),
   addNode: "إضافة عقدة",
   addTitle: "إضافة عقدة إلى العنقود",
-  addText: "شغّل هذا الأمر بصلاحية الجذر على الخادم الجديد. يثبّت k3s وينضم إلى هذا العنقود، وتظهر العقدة هنا خلال دقيقة.",
+  addText:
+    "شغّل هذا الأمر بصلاحية الجذر على الخادم الجديد. يثبّت k3s وينضم إلى هذا العنقود، وتظهر العقدة هنا خلال دقيقة.",
   addOnce: "يحمل الأمر رمز انضمام: يظهر الآن فقط، ولا تحتفظ به اللوحة.",
   expires: (when: string) => `يعمل الرمز حتى ${when}.`,
   ports: "افتح المنفذ TCP 6443 والمنفذ UDP 8472 بين خوادمك فقط، ولا تفتحهما للإنترنت أبدًا.",

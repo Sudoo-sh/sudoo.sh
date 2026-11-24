@@ -54,7 +54,9 @@ describe("demo default admin password alert", () => {
 
   it("is gone once the password is changed, which never sends the password itself", async () => {
     session.role = "super_admin";
-    const changed = await answer("PATCH", "/settings", new URLSearchParams(), { odoo_admin_password: "sudoo-demo-marker" });
+    const changed = await answer("PATCH", "/settings", new URLSearchParams(), {
+      odoo_admin_password: "sudoo-demo-marker",
+    });
     expect(changed.status).toBe(200);
     expect(JSON.stringify(changed.body)).not.toContain("sudoo-demo-marker");
     expect(listed(await getAlerts())).toBeUndefined();

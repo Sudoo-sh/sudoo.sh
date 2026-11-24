@@ -68,7 +68,12 @@ type T = (typeof words)["en"];
 const zero = (value: unknown) => value == null || value === "" || value === 0 || value === "0";
 
 /** A value as people read it: "Threaded mode", "Odoo's default (120 s)", "4 GB", "2 cores". */
-function shown(t: T, knob: ResourceKnob, value: number | string | undefined, odoo: Partial<Record<ResourceKnob, number>>): string {
+function shown(
+  t: T,
+  knob: ResourceKnob,
+  value: number | string | undefined,
+  odoo: Partial<Record<ResourceKnob, number>>,
+): string {
   const zero = value == null || value === "" || value === 0 || value === "0";
   if (zero) {
     if (knob === "odoo_workers") return t.threaded;
@@ -85,12 +90,35 @@ function shown(t: T, knob: ResourceKnob, value: number | string | undefined, odo
 // ---------------------------------------------------------------- pieces
 
 /** − value + : a whole number from `min` to its maximum; the arrow keys work on the field itself. */
-function Stepper({ id, value, min = 0, max, label, disabled, onChange }: { id: string; value: number; min?: number; max: number; label: string; disabled?: boolean; onChange: (value: number) => void }) {
+function Stepper({
+  id,
+  value,
+  min = 0,
+  max,
+  label,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  value: number;
+  min?: number;
+  max: number;
+  label: string;
+  disabled?: boolean;
+  onChange: (value: number) => void;
+}) {
   const t = useT(words);
   const set = (next: number) => onChange(Math.max(min, max ? Math.min(max, next) : next));
   return (
     <div className="stepper" role="group" aria-labelledby={`${id}-label`}>
-      <Button size="sm" variant="ghost" icon={<Minus />} aria-label={t.decrease(label)} disabled={disabled || value <= min} onClick={() => set(value - 1)} />
+      <Button
+        size="sm"
+        variant="ghost"
+        icon={<Minus />}
+        aria-label={t.decrease(label)}
+        disabled={disabled || value <= min}
+        onClick={() => set(value - 1)}
+      />
       <input
         id={id}
         className="stepper-value tabular"
@@ -104,11 +132,24 @@ function Stepper({ id, value, min = 0, max, label, disabled, onChange }: { id: s
         aria-valuemax={max || undefined}
         onChange={(e) => /^\d{0,4}$/.test(e.target.value) && set(Number(e.target.value || 0))}
         onKeyDown={(e) => {
-          if (e.key === "ArrowUp") { e.preventDefault(); set(value + 1); }
-          if (e.key === "ArrowDown") { e.preventDefault(); set(value - 1); }
+          if (e.key === "ArrowUp") {
+            e.preventDefault();
+            set(value + 1);
+          }
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            set(value - 1);
+          }
         }}
       />
-      <Button size="sm" variant="ghost" icon={<Plus />} aria-label={t.increase(label)} disabled={disabled || (max > 0 && value >= max)} onClick={() => set(value + 1)} />
+      <Button
+        size="sm"
+        variant="ghost"
+        icon={<Plus />}
+        aria-label={t.increase(label)}
+        disabled={disabled || (max > 0 && value >= max)}
+        onClick={() => set(value + 1)}
+      />
     </div>
   );
 }
@@ -116,20 +157,37 @@ function Stepper({ id, value, min = 0, max, label, disabled, onChange }: { id: s
 /** Used against quota as a bar; the bar turns amber near the quota and red over it. */
 export function StorageBar({ use, label }: { use: StorageUse; label?: string }) {
   const t = useT(words).storage;
-  const share = use.quota_bytes && use.total_bytes != null ? Math.min(100, (100 * use.total_bytes) / use.quota_bytes) : 0;
+  const share =
+    use.quota_bytes && use.total_bytes != null ? Math.min(100, (100 * use.total_bytes) / use.quota_bytes) : 0;
   return (
     <div className="storage-bar stack-xs">
       <div className="row-wrap small">
-        {label && <b className="truncate" dir="auto">{label}</b>}
+        {label && (
+          <b className="truncate" dir="auto">
+            {label}
+          </b>
+        )}
         <span className="spacer" />
         {use.level === "warning" && <Tag tone="caution">{t.warning}</Tag>}
         {use.level === "over" && <Tag tone="negative">{t.over}</Tag>}
         <span className="tabular muted">
-          {use.total_bytes == null ? t.notMeasured : use.quota_bytes ? t.used(bytes(use.total_bytes), bytes(use.quota_bytes)) : t.usedNoQuota(bytes(use.total_bytes))}
+          {use.total_bytes == null
+            ? t.notMeasured
+            : use.quota_bytes
+              ? t.used(bytes(use.total_bytes), bytes(use.quota_bytes))
+              : t.usedNoQuota(bytes(use.total_bytes))}
         </span>
       </div>
       {use.quota_bytes != null && (
-        <div className="meter" data-level={use.level} role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(share)} aria-label={label ?? t.title}>
+        <div
+          className="meter"
+          data-level={use.level}
+          role="meter"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(share)}
+          aria-label={label ?? t.title}
+        >
           <span style={{ inlineSize: `${share}%` }} />
         </div>
       )}
@@ -161,8 +219,10 @@ function ServerLine({ server, plan }: { server: ResourceServer; plan: ResourcePl
 // ---------------------------------------------------------------- the editor
 
 type Draft = Partial<Record<ResourceKnob, string>>;
-const draftOf = (own: Partial<ResourceLimits>): Draft => Object.fromEntries(Object.entries(own).map(([k, v]) => [k, String(v)]));
-const limitsOf = (draft: Draft) => Object.fromEntries(EDITED.map((k) => [k, draft[k] == null || draft[k]!.trim() === "" ? null : draft[k]!.trim()]));
+const draftOf = (own: Partial<ResourceLimits>): Draft =>
+  Object.fromEntries(Object.entries(own).map(([k, v]) => [k, String(v)]));
+const limitsOf = (draft: Draft) =>
+  Object.fromEntries(EDITED.map((k) => [k, draft[k] == null || draft[k]!.trim() === "" ? null : draft[k]!.trim()]));
 const same = (a: Draft, b: Draft) => EDITED.every((k) => (a[k] ?? "") === (b[k] ?? ""));
 
 /** The values of one stage of a project, or of one branch: steppers for the workers, the timeouts, more limits behind
@@ -211,7 +271,12 @@ function ResourceEditor({
   }, [draft]);
   const preview = useQuery({
     queryKey: ["resources-preview", path, body, asked],
-    queryFn: () => api.put<{ plan: ResourcePlan; changes: string[]; view: ResourceLayerView }>(path, { ...body, limits: asked, preview: true }),
+    queryFn: () =>
+      api.put<{ plan: ResourcePlan; changes: string[]; view: ResourceLayerView }>(path, {
+        ...body,
+        limits: asked,
+        preview: true,
+      }),
     enabled: editable && dirty,
     placeholderData: keepPreviousData,
     retry: false,
@@ -227,13 +292,20 @@ function ResourceEditor({
       {
         onSuccess: (answer) => {
           setAsking(false);
-          toast("success", t.applied, [t.appliedText(answer.jobs.length), answer.waiting.length ? t.waiting(answer.waiting.join(", ")) : ""].filter(Boolean).join(" "));
+          toast(
+            "success",
+            t.applied,
+            [t.appliedText(answer.jobs.length), answer.waiting.length ? t.waiting(answer.waiting.join(", ")) : ""]
+              .filter(Boolean)
+              .join(" "),
+          );
         },
         onError: (error) => toast("error", t.notApplied, errorText(error)),
       },
     );
 
-  const value = (knob: ResourceKnob) => (draft[knob] != null && draft[knob] !== "" ? draft[knob]! : shownView.inherited[knob]);
+  const value = (knob: ResourceKnob) =>
+    draft[knob] != null && draft[knob] !== "" ? draft[knob]! : shownView.inherited[knob];
   const set = (knob: ResourceKnob, next: string | null) =>
     setDraft((d) => {
       const copy = { ...d };
@@ -241,10 +313,21 @@ function ResourceEditor({
       else copy[knob] = next;
       return copy;
     });
-  const origin = (knob: ResourceKnob) => (draft[knob] != null && draft[knob] !== "" ? null : t.source[shownView.sources[knob] === "own" ? "stage" : shownView.sources[knob]] ?? t.source.stage);
+  const origin = (knob: ResourceKnob) =>
+    draft[knob] != null && draft[knob] !== ""
+      ? null
+      : (t.source[shownView.sources[knob] === "own" ? "stage" : shownView.sources[knob]] ?? t.source.stage);
   const reset = (knob: ResourceKnob) =>
     draft[knob] != null && editable ? (
-      <Button size="sm" variant="ghost" className="follow" icon={<RotateCcw />} onClick={() => set(knob, null)} aria-label={`${t.followDefaults}: ${t.knobs[knob].label}`} title={t.followDefaults} />
+      <Button
+        size="sm"
+        variant="ghost"
+        className="follow"
+        icon={<RotateCcw />}
+        onClick={() => set(knob, null)}
+        aria-label={`${t.followDefaults}: ${t.knobs[knob].label}`}
+        title={t.followDefaults}
+      />
     ) : null;
 
   const field = (knob: ResourceKnob) => {
@@ -259,42 +342,72 @@ function ResourceEditor({
         : t.follows(origin(knob)!, shown(t, knob, shownView.inherited[knob], odoo));
     return (
       <div className="resource-field" key={knob}>
-        <label id={`${id}-label`} htmlFor={id} className="name">{words.label}</label>
+        <label id={`${id}-label`} htmlFor={id} className="name">
+          {words.label}
+        </label>
         {STEPPED.includes(knob) ? (
           <div className="row">
-            <Stepper id={id} label={words.label} value={Number(value(knob) ?? 0) || (knob === "odoo_cron_threads" ? Number(odoo[knob] ?? 0) : 0)}
-              min={knob === "odoo_cron_threads" ? 1 : 0} max={Number(maxima[knob] ?? 0)} disabled={!editable || apply.isPending}
-              onChange={(n) => set(knob, String(n))} />
+            <Stepper
+              id={id}
+              label={words.label}
+              value={Number(value(knob) ?? 0) || (knob === "odoo_cron_threads" ? Number(odoo[knob] ?? 0) : 0)}
+              min={knob === "odoo_cron_threads" ? 1 : 0}
+              max={Number(maxima[knob] ?? 0)}
+              disabled={!editable || apply.isPending}
+              onChange={(n) => set(knob, String(n))}
+            />
             {reset(knob)}
           </div>
         ) : (
           <div className="row">
-            <Input id={id} className="tabular" dir="ltr" disabled={!editable || apply.isPending}
+            <Input
+              id={id}
+              className="tabular"
+              dir="ltr"
+              disabled={!editable || apply.isPending}
               inputMode={MEMORY.has(knob) ? "text" : CORES.has(knob) ? "decimal" : "numeric"}
-              placeholder={String(computed ? shownView.applies[knob] : zero(shownView.inherited[knob]) ? "" : shownView.inherited[knob])}
-              value={draft[knob] ?? ""} onChange={(e) => set(knob, e.target.value)} aria-describedby={`${id}-hint`} />
+              placeholder={String(
+                computed ? shownView.applies[knob] : zero(shownView.inherited[knob]) ? "" : shownView.inherited[knob],
+              )}
+              value={draft[knob] ?? ""}
+              onChange={(e) => set(knob, e.target.value)}
+              aria-describedby={`${id}-hint`}
+            />
             {reset(knob)}
           </div>
         )}
         <div id={`${id}-hint`} className="xsmall faint">
           {hint}
-          {Number(maxima[knob] ?? 0) || memoryBytes(maxima[knob]) ? ` · ${t.maximum(shown(t, knob, maxima[knob], odoo))}` : ""}
+          {Number(maxima[knob] ?? 0) || memoryBytes(maxima[knob])
+            ? ` · ${t.maximum(shown(t, knob, maxima[knob], odoo))}`
+            : ""}
         </div>
       </div>
     );
   };
 
-  const computedMemory = shownView.computed.includes("odoo_memory_limit") || shownView.computed.includes("odoo_cpu_limit");
+  const computedMemory =
+    shownView.computed.includes("odoo_memory_limit") || shownView.computed.includes("odoo_cpu_limit");
   return (
     <div className="resource-editor stack">
       <div className="resource-grid">{STEPPED.map(field)}</div>
       {computedMemory && (
         <p className="small muted computed-line">
-          <Cpu aria-hidden /> {t.computedValue(shown(t, "odoo_memory_limit", shownView.applies.odoo_memory_limit, odoo), number(Number(shownView.applies.odoo_cpu_limit), 2))}
+          <Cpu aria-hidden />{" "}
+          {t.computedValue(
+            shown(t, "odoo_memory_limit", shownView.applies.odoo_memory_limit, odoo),
+            number(Number(shownView.applies.odoo_cpu_limit), 2),
+          )}
         </p>
       )}
       <div className="resource-grid">{TIMES.map(field)}</div>
-      <button type="button" className="disclosure small" aria-expanded={more} aria-controls={`${idPrefix}-more`} onClick={() => setMore(!more)}>
+      <button
+        type="button"
+        className="disclosure small"
+        aria-expanded={more}
+        aria-controls={`${idPrefix}-more`}
+        onClick={() => setMore(!more)}
+      >
         <ChevronDown aria-hidden /> {more ? t.fewer : t.more}
       </button>
       {more && (
@@ -309,15 +422,34 @@ function ResourceEditor({
         <span className="spacer" />
         {editable && (
           <>
-            <Button variant="ghost" disabled={!dirty || apply.isPending} onClick={() => setDraft(initial)}>{t.discard}</Button>
-            <Button variant="primary" disabled={!dirty || Boolean(plan?.refusal) || Boolean(previewError)} loading={apply.isPending} onClick={() => setAsking(true)}>{t.apply}</Button>
+            <Button variant="ghost" disabled={!dirty || apply.isPending} onClick={() => setDraft(initial)}>
+              {t.discard}
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!dirty || Boolean(plan?.refusal) || Boolean(previewError)}
+              loading={apply.isPending}
+              onClick={() => setAsking(true)}
+            >
+              {t.apply}
+            </Button>
           </>
         )}
       </div>
       {asking && (
-        <Modal title={t.applyTitle(STAGE_LABEL[stage])} description={t.applyText(preview.data?.changes.length ?? count)} onClose={() => setAsking(false)}
-          footer={<><Button onClick={() => setAsking(false)}>{c.cancel}</Button>
-            <Button variant={stage === "production" ? "danger" : "primary"} loading={apply.isPending} onClick={run}>{t.apply}</Button></>}>
+        <Modal
+          title={t.applyTitle(STAGE_LABEL[stage])}
+          description={t.applyText(preview.data?.changes.length ?? count)}
+          onClose={() => setAsking(false)}
+          footer={
+            <>
+              <Button onClick={() => setAsking(false)}>{c.cancel}</Button>
+              <Button variant={stage === "production" ? "danger" : "primary"} loading={apply.isPending} onClick={run}>
+                {t.apply}
+              </Button>
+            </>
+          }
+        >
           {stage === "production" ? <Callout tone="warning">{t.applyProduction}</Callout> : null}
         </Modal>
       )}
@@ -328,16 +460,24 @@ function ResourceEditor({
 // ---------------------------------------------------------------- a project's Settings tab
 
 export const useProjectResources = (id: string) =>
-  useQuery({ queryKey: resourceKeys.project(id), queryFn: () => api.get<ProjectResourcesData>(`/projects/${encodeURIComponent(id)}/resources`) });
+  useQuery({
+    queryKey: resourceKeys.project(id),
+    queryFn: () => api.get<ProjectResourcesData>(`/projects/${encodeURIComponent(id)}/resources`),
+  });
 
 /** The Resources section of a project's Settings tab: one card per stage, and the storage of its instances. */
 export function ProjectResources({ project, meta }: { project: ProjectDetail; meta: ProjectMeta }) {
   const t = useT(words);
   const roleCan = useCan();
-  const can = (permission: Permission) => (meta.permissions ? meta.permissions.includes(permission) : roleCan(permission));
+  const can = (permission: Permission) =>
+    meta.permissions ? meta.permissions.includes(permission) : roleCan(permission);
   const { data, error, isPending } = useProjectResources(project.id);
   const editable = can("projects.resources");
-  const refresh = [resourceKeys.project(project.id), keys.project(project.id), ["branch-resources", project.id]] as const;
+  const refresh = [
+    resourceKeys.project(project.id),
+    keys.project(project.id),
+    ["branch-resources", project.id],
+  ] as const;
   return (
     <section className="stack project-resources" aria-labelledby="project-resources-title">
       <div className="section-head">
@@ -348,10 +488,14 @@ export function ProjectResources({ project, meta }: { project: ProjectDetail; me
       </div>
       {isPending ? (
         <div className="stage-cards" aria-busy="true" aria-label={t.loading}>
-          {STAGES.map((s) => <Skeleton key={s} height={300} />)}
+          {STAGES.map((s) => (
+            <Skeleton key={s} height={300} />
+          ))}
         </div>
       ) : !data ? (
-        <Callout tone="warning">{t.notRead} {error ? errorText(error) : ""}</Callout>
+        <Callout tone="warning">
+          {t.notRead} {error ? errorText(error) : ""}
+        </Callout>
       ) : (
         <>
           <div className="stage-cards">
@@ -366,9 +510,19 @@ export function ProjectResources({ project, meta }: { project: ProjectDetail; me
                     {instances.some((i) => i.pending) && <Tag tone="caution">{t.pending}</Tag>}
                   </div>
                   <div className="card-body">
-                    <ResourceEditor view={data.stages[stage]} maxima={data.maxima} odoo={data.odoo_defaults} server={data.server}
-                      path={`/projects/${encodeURIComponent(project.id)}/resources`} body={{ stage }} stage={stage} count={instances.length}
-                      editable={editable} refresh={refresh} idPrefix={`res-${stage}`} />
+                    <ResourceEditor
+                      view={data.stages[stage]}
+                      maxima={data.maxima}
+                      odoo={data.odoo_defaults}
+                      server={data.server}
+                      path={`/projects/${encodeURIComponent(project.id)}/resources`}
+                      body={{ stage }}
+                      stage={stage}
+                      count={instances.length}
+                      editable={editable}
+                      refresh={refresh}
+                      idPrefix={`res-${stage}`}
+                    />
                   </div>
                 </section>
               );
@@ -385,7 +539,9 @@ export function ProjectResources({ project, meta }: { project: ProjectDetail; me
 function ProjectStorage({ data }: { data: ProjectResourcesData }) {
   const t = useT(words).storage;
   const production = data.instances.filter((i) => i.stage === "production");
-  const others = data.instances.filter((i) => i.stage !== "production").sort((a, b) => STAGES.indexOf(a.stage) - STAGES.indexOf(b.stage) || a.name.localeCompare(b.name));
+  const others = data.instances
+    .filter((i) => i.stage !== "production")
+    .sort((a, b) => STAGES.indexOf(a.stage) - STAGES.indexOf(b.stage) || a.name.localeCompare(b.name));
   return (
     <section className="card">
       <div className="card-head">
@@ -394,17 +550,23 @@ function ProjectStorage({ data }: { data: ProjectResourcesData }) {
           <h2>{t.title}</h2>
           <div className="sub">{t.text}</div>
         </div>
-        <span className="small muted tabular">{t.total}: {bytes(data.storage.total_bytes)}</span>
+        <span className="small muted tabular">
+          {t.total}: {bytes(data.storage.total_bytes)}
+        </span>
       </div>
       <div className="card-body stack">
         {data.instances.length === 0 && <p className="small muted">{t.none}</p>}
         {production.map((i) => (
           <div key={i.name} className="stack-xs production-size">
-            <div className="xsmall muted"><Database aria-hidden /> {t.productionSize}</div>
+            <div className="xsmall muted">
+              <Database aria-hidden /> {t.productionSize}
+            </div>
             <StorageBar use={i.storage} label={i.name} />
           </div>
         ))}
-        {others.map((i) => <StorageBar key={i.name} use={i.storage} label={i.name} />)}
+        {others.map((i) => (
+          <StorageBar key={i.name} use={i.storage} label={i.name} />
+        ))}
       </div>
     </section>
   );
@@ -416,16 +578,33 @@ function ProjectStorage({ data }: { data: ProjectResourcesData }) {
 export function BranchResources({ project, branch }: { project: ProjectDetail; branch: ProjectBranch }) {
   const t = useT(words);
   const roleCan = useCan();
-  const editable = branch.permissions ? branch.permissions.includes("projects.resources") : roleCan("projects.resources");
+  const editable = branch.permissions
+    ? branch.permissions.includes("projects.resources")
+    : roleCan("projects.resources");
   const client = useQueryClient();
   const key = resourceKeys.branch(project.id, branch.name);
-  const { data, error } = useQuery({ queryKey: key, queryFn: () => api.get<BranchResourcesData>(branchPath(project.id, branch.name)) });
+  const { data, error } = useQuery({
+    queryKey: key,
+    queryFn: () => api.get<BranchResourcesData>(branchPath(project.id, branch.name)),
+  });
   const own = Boolean(data && Object.keys(data.own).length);
   const [open, setOpen] = useState(false);
   const id = useId();
   useEffect(() => setOpen(own), [own]);
-  const stop = useCall(() => api.put<ResourcesChange>(branchPath(project.id, branch.name), { limits: {}, ...(data?.stage === "production" ? { confirm_production: true } : {}) }), [key, resourceKeys.project(project.id)]);
-  if (error) return <Callout tone="warning">{t.notRead} {errorText(error)}</Callout>;
+  const stop = useCall(
+    () =>
+      api.put<ResourcesChange>(branchPath(project.id, branch.name), {
+        limits: {},
+        ...(data?.stage === "production" ? { confirm_production: true } : {}),
+      }),
+    [key, resourceKeys.project(project.id)],
+  );
+  if (error)
+    return (
+      <Callout tone="warning">
+        {t.notRead} {errorText(error)}
+      </Callout>
+    );
   if (!data) return <Skeleton height={120} />;
   return (
     <section className="card branch-resources" aria-labelledby={`${id}-title`}>
@@ -435,10 +614,22 @@ export function BranchResources({ project, branch }: { project: ProjectDetail; b
           <h2 id={`${id}-title`}>{t.branch.title}</h2>
           <div className="sub">{own ? t.branch.own : t.branch.follows(STAGE_LABEL[data.stage])}</div>
         </div>
-        {editable && !open && <Button size="sm" onClick={() => setOpen(true)}>{t.branch.override}</Button>}
+        {editable && !open && (
+          <Button size="sm" onClick={() => setOpen(true)}>
+            {t.branch.override}
+          </Button>
+        )}
         {editable && own && (
-          <Button size="sm" variant="ghost" loading={stop.isPending}
-            onClick={() => stop.mutate(undefined, { onSuccess: () => client.invalidateQueries({ queryKey: keys.project(project.id) }) })}>
+          <Button
+            size="sm"
+            variant="ghost"
+            loading={stop.isPending}
+            onClick={() =>
+              stop.mutate(undefined, {
+                onSuccess: () => client.invalidateQueries({ queryKey: keys.project(project.id) }),
+              })
+            }
+          >
             {t.branch.stop}
           </Button>
         )}
@@ -446,13 +637,26 @@ export function BranchResources({ project, branch }: { project: ProjectDetail; b
       {open && (
         <div className="card-body stack">
           <p className="small muted">{t.branch.text}</p>
-          <ResourceEditor view={data} maxima={data.maxima} odoo={data.odoo_defaults} server={data.server} path={branchPath(project.id, branch.name)}
-            body={{}} stage={data.stage} count={data.instances.length} editable={editable} refresh={[key, resourceKeys.project(project.id)]} idPrefix={`${id}-res`} />
+          <ResourceEditor
+            view={data}
+            maxima={data.maxima}
+            odoo={data.odoo_defaults}
+            server={data.server}
+            path={branchPath(project.id, branch.name)}
+            body={{}}
+            stage={data.stage}
+            count={data.instances.length}
+            editable={editable}
+            refresh={[key, resourceKeys.project(project.id)]}
+            idPrefix={`${id}-res`}
+          />
         </div>
       )}
       {data.instances.length > 0 && (
         <div className="card-body stack branch-storage">
-          {data.instances.map((i) => <StorageBar key={i.name} use={i.storage} label={i.name} />)}
+          {data.instances.map((i) => (
+            <StorageBar key={i.name} use={i.storage} label={i.name} />
+          ))}
         </div>
       )}
     </section>

@@ -24,7 +24,11 @@ export const STAGE_LABEL = Object.defineProperties(
   Object.fromEntries(ORDER.map((stage) => [stage, { enumerable: true, get: () => stageWords(stage).label }])),
 );
 export const STAGE_ORDER: Record<Stage, number> = { production: 0, staging: 1, development: 2 };
-export const STAGE_ICON: Record<Stage, typeof ShieldCheck> = { production: ShieldCheck, staging: FlaskConical, development: Wrench };
+export const STAGE_ICON: Record<Stage, typeof ShieldCheck> = {
+  production: ShieldCheck,
+  staging: FlaskConical,
+  development: Wrench,
+};
 
 /** The instance's stage as a tag: production stands out, the others stay quiet. */
 export function StageTag({ stage }: { stage: Stage }) {

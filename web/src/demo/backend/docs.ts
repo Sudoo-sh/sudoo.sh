@@ -38,7 +38,7 @@ const PAGES: Record<string, () => DocPage> = {
       "<ul><li>Open an instance from the Instances page and watch its charts move.</li><li>Create an instance under <b>New instance</b>: pick <code>example-integrator/cedar-hotels</code> and follow its creation step by step.</li><li>Restart, pause, back up or restore an instance; each runs as a job with its own log.</li><li>Switch the role in the banner at the top to see what a developer or a viewer can and cannot do.</li></ul>",
       h(2, "what-the-demo-cannot-do", "What the demo cannot do"),
       "<p>There is no Odoo behind the instances, so their links do not open. Downloads, GitHub, payments and e-mails are switched off. Reload the page to start over.</p>",
-      "<p>Ready to run it for real? <a href=\"https://sudoo.sh\">Install Sudoo.sh on your own server</a>.</p>",
+      '<p>Ready to run it for real? <a href="https://sudoo.sh">Install Sudoo.sh on your own server</a>.</p>',
     ].join("\n"),
   }),
   "demo/ROLES.md": () => ({
@@ -48,7 +48,10 @@ const PAGES: Record<string, () => DocPage> = {
     html: [
       h(1, "roles-and-permissions", "Roles and permissions"),
       "<p>Every account has one role, and a role is a set of permissions. The panel hides what a role cannot do, and the server checks every request again.</p>",
-      ...ROLES.map((r) => `${h(2, r.name.replace("_", "-"), r.label)}<p>${r.description}</p><ul>${r.permissions.map((p) => `<li>${PERMISSIONS[p]}</li>`).join("")}</ul>`),
+      ...ROLES.map(
+        (r) =>
+          `${h(2, r.name.replace("_", "-"), r.label)}<p>${r.description}</p><ul>${r.permissions.map((p) => `<li>${PERMISSIONS[p]}</li>`).join("")}</ul>`,
+      ),
     ].join("\n"),
   }),
   "demo/STAGES.md": () => ({

@@ -58,14 +58,27 @@ function Preview({ template, text }: { template: MailTemplate; text: Text }) {
           <h2>{t.preview}</h2>
           <div className="sub">{t.sample}</div>
         </div>
-        <Segmented value={view} onChange={setView} options={[{ value: "html", label: t.html }, { value: "text", label: t.text }]} />
+        <Segmented
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "html", label: t.html },
+            { value: "text", label: t.text },
+          ]}
+        />
       </div>
       {isPending ? (
-        <div className="card-body"><Skeleton height={420} /></div>
+        <div className="card-body">
+          <Skeleton height={420} />
+        </div>
       ) : data?.problems.length ? (
         <div className="card-body">
           <Callout tone="danger">
-            <ul className="problems" dir="ltr">{data.problems.map((p) => <li key={p}>{p}</li>)}</ul>
+            <ul className="problems" dir="ltr">
+              {data.problems.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
           </Callout>
         </div>
       ) : (
@@ -78,7 +91,9 @@ function Preview({ template, text }: { template: MailTemplate; text: Text }) {
             // the e-mail is drawn in an iframe that may run nothing (no scripts, no forms, no navigation)
             <iframe className="mail-frame" title={t.previewOf(template.name)} sandbox="" srcDoc={data?.html ?? ""} />
           ) : (
-            <pre className="mail-text" dir="ltr">{data?.text}</pre>
+            <pre className="mail-text" dir="ltr">
+              {data?.text}
+            </pre>
           )}
         </>
       )}
@@ -86,11 +101,25 @@ function Preview({ template, text }: { template: MailTemplate; text: Text }) {
   );
 }
 
-function Editor({ template, draft, onChange, mailReady }: { template: MailTemplate; draft: Text; onChange: (text: Text) => void; mailReady: boolean }) {
+function Editor({
+  template,
+  draft,
+  onChange,
+  mailReady,
+}: {
+  template: MailTemplate;
+  draft: Text;
+  onChange: (text: Text) => void;
+  mailReady: boolean;
+}) {
   const toast = useToast();
   const me = useMe();
   const client = useQueryClient();
-  const fields = useRef<Record<Part, HTMLInputElement | HTMLTextAreaElement | null>>({ subject: null, title: null, body: null });
+  const fields = useRef<Record<Part, HTMLInputElement | HTMLTextAreaElement | null>>({
+    subject: null,
+    title: null,
+    body: null,
+  });
   const [focus, setFocus] = useState<Part>("body");
   const [busy, setBusy] = useState<"save" | "test" | "reset" | null>(null);
   const [resetting, setResetting] = useState(false);
@@ -161,7 +190,8 @@ function Editor({ template, draft, onChange, mailReady }: { template: MailTempla
     },
     value: draft[part],
     onFocus: () => setFocus(part),
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange({ ...draft, [part]: e.target.value }),
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      onChange({ ...draft, [part]: e.target.value }),
   });
 
   return (
@@ -176,18 +206,33 @@ function Editor({ template, draft, onChange, mailReady }: { template: MailTempla
         {template.customized && <Tag tone="accent">{t.changed}</Tag>}
       </div>
       <div className="card-body stack">
-        <Field label={t.subject} htmlFor="mail-subject"><Input id="mail-subject" dir="ltr" spellCheck {...bind("subject")} /></Field>
-        <Field label={t.title2} htmlFor="mail-title" hint={t.titleHint}><Input id="mail-title" dir="ltr" spellCheck {...bind("title")} /></Field>
+        <Field label={t.subject} htmlFor="mail-subject">
+          <Input id="mail-subject" dir="ltr" spellCheck {...bind("subject")} />
+        </Field>
+        <Field label={t.title2} htmlFor="mail-title" hint={t.titleHint}>
+          <Input id="mail-title" dir="ltr" spellCheck {...bind("title")} />
+        </Field>
         <Field label={t.body} htmlFor="mail-body" hint={t.bodyHint}>
           <Textarea id="mail-body" dir="ltr" className="mail-body" rows={14} spellCheck {...bind("body")} />
         </Field>
         <div className="stack-sm">
-          <span className="small muted row"><Braces size={14} /> {t.placeholders}</span>
+          <span className="small muted row">
+            <Braces size={14} /> {t.placeholders}
+          </span>
           <div className="placeholders">
             {template.placeholders.map((p) => (
-              <button key={p.name} type="button" className="placeholder" onClick={() => insert(p.name, p.kind === "block")} title={p.description}>
+              <button
+                key={p.name}
+                type="button"
+                className="placeholder"
+                onClick={() => insert(p.name, p.kind === "block")}
+                title={p.description}
+              >
                 <span className="mono">{`{{ ${p.name} }}`}</span>
-                <span className="d">{p.description}{p.kind === "block" ? t.ownLine : p.kind === "link" ? t.aLink : ""}</span>
+                <span className="d">
+                  {p.description}
+                  {p.kind === "block" ? t.ownLine : p.kind === "link" ? t.aLink : ""}
+                </span>
               </button>
             ))}
           </div>
@@ -198,19 +243,48 @@ function Editor({ template, draft, onChange, mailReady }: { template: MailTempla
       </div>
       <div className="card-foot row-wrap">
         <span className="xsmall faint">
-          {template.customized ? t.changedAgo(ago(template.changed_at)) + (template.changed_by ? t.by(template.changed_by) : "") : t.builtIn}
+          {template.customized
+            ? t.changedAgo(ago(template.changed_at)) + (template.changed_by ? t.by(template.changed_by) : "")
+            : t.builtIn}
         </span>
         <span className="spacer" />
-        {template.customized && <Button variant="ghost" icon={<RotateCcw />} onClick={() => setResetting(true)}>{t.resetDefault}</Button>}
-        <Button icon={<Send />} loading={busy === "test"} disabled={!mailReady || !me.email} title={!me.email ? t.noEmail : undefined} onClick={test}>
+        {template.customized && (
+          <Button variant="ghost" icon={<RotateCcw />} onClick={() => setResetting(true)}>
+            {t.resetDefault}
+          </Button>
+        )}
+        <Button
+          icon={<Send />}
+          loading={busy === "test"}
+          disabled={!mailReady || !me.email}
+          title={!me.email ? t.noEmail : undefined}
+          onClick={test}
+        >
           {t.sendTest}
         </Button>
-        {dirty && <Button variant="ghost" onClick={() => onChange(textOf(template))}>{t.discard}</Button>}
-        <Button variant="primary" loading={busy === "save"} disabled={!dirty} onClick={save}>{c.save}</Button>
+        {dirty && (
+          <Button variant="ghost" onClick={() => onChange(textOf(template))}>
+            {t.discard}
+          </Button>
+        )}
+        <Button variant="primary" loading={busy === "save"} disabled={!dirty} onClick={save}>
+          {c.save}
+        </Button>
       </div>
       {resetting && (
-        <Modal title={t.resetTitle(template.name)} description={t.resetText} onClose={() => setResetting(false)}
-          footer={<><Button onClick={() => setResetting(false)}>{c.cancel}</Button><Button variant="danger" loading={busy === "reset"} onClick={reset}>{t.reset}</Button></>} />
+        <Modal
+          title={t.resetTitle(template.name)}
+          description={t.resetText}
+          onClose={() => setResetting(false)}
+          footer={
+            <>
+              <Button onClick={() => setResetting(false)}>{c.cancel}</Button>
+              <Button variant="danger" loading={busy === "reset"} onClick={reset}>
+                {t.reset}
+              </Button>
+            </>
+          }
+        />
       )}
     </section>
   );
@@ -222,7 +296,7 @@ export function EmailTemplatesPage() {
   const [drafts, setDrafts] = useState<Record<string, Text>>({});
   const templates = data?.templates ?? [];
   const chosen = templates.find((t) => t.key === params.get("e")) ?? templates[0];
-  const draft = chosen ? drafts[chosen.key] ?? textOf(chosen) : null;
+  const draft = chosen ? (drafts[chosen.key] ?? textOf(chosen)) : null;
   const unsaved = useMemo(
     () => new Set(templates.filter((t) => drafts[t.key] && !same(drafts[t.key]!, textOf(t))).map((t) => t.key)),
     [templates, drafts],
@@ -230,10 +304,12 @@ export function EmailTemplatesPage() {
   // after a save or reset, the saved text is the draft: forget the copy
   useEffect(() => {
     setDrafts((current) => {
-      const kept = Object.fromEntries(Object.entries(current).filter(([key, text]) => {
-        const t = templates.find((x) => x.key === key);
-        return t && !same(text, textOf(t));
-      }));
+      const kept = Object.fromEntries(
+        Object.entries(current).filter(([key, text]) => {
+          const t = templates.find((x) => x.key === key);
+          return t && !same(text, textOf(t));
+        }),
+      );
       return Object.keys(kept).length === Object.keys(current).length ? current : kept;
     });
   }, [templates]);
@@ -241,35 +317,61 @@ export function EmailTemplatesPage() {
   const select = (key: string) => setParams({ e: key }, { preventScrollReset: true, replace: true });
   return (
     <Page wide>
-      <PageHead title={t.title}>
-        {t.lead}
-      </PageHead>
+      <PageHead title={t.title}>{t.lead}</PageHead>
       {isPending || !chosen || !draft ? (
         <Skeleton height={480} />
       ) : (
         <>
           {!data?.mailReady && (
             <Callout tone="warning">
-              {t.notReady} <Link to="/settings?tab=email" viewTransition>{t.setUp}</Link>
+              {t.notReady}{" "}
+              <Link to="/settings?tab=email" viewTransition>
+                {t.setUp}
+              </Link>
             </Callout>
           )}
           <div className="mail-templates">
             <nav className="mail-list" aria-label={t.list}>
-              <SelectBox className="mail-select" aria-label={t.choose} value={chosen.key} onValueChange={(value) => select(value)}>
-                {templates.map((item) => <option key={item.key} value={item.key}>{item.name}{unsaved.has(item.key) ? t.unsavedSuffix : item.customized ? t.changedSuffix : ""}</option>)}
+              <SelectBox
+                className="mail-select"
+                aria-label={t.choose}
+                value={chosen.key}
+                onValueChange={(value) => select(value)}
+              >
+                {templates.map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {item.name}
+                    {unsaved.has(item.key) ? t.unsavedSuffix : item.customized ? t.changedSuffix : ""}
+                  </option>
+                ))}
               </SelectBox>
               {templates.map((item) => (
-                <button key={item.key} type="button" className="mail-item" aria-current={item.key === chosen.key || undefined} onClick={() => select(item.key)}>
+                <button
+                  key={item.key}
+                  type="button"
+                  className="mail-item"
+                  aria-current={item.key === chosen.key || undefined}
+                  onClick={() => select(item.key)}
+                >
                   <span className="t">
                     {item.name}
-                    {unsaved.has(item.key) ? <span className="dot unsaved" title={t.unsaved} /> : item.customized && <Tag>{t.changed}</Tag>}
+                    {unsaved.has(item.key) ? (
+                      <span className="dot unsaved" title={t.unsaved} />
+                    ) : (
+                      item.customized && <Tag>{t.changed}</Tag>
+                    )}
                   </span>
                   <span className="d">{item.recipients}</span>
                 </button>
               ))}
             </nav>
             <div className="stack" key={chosen.key}>
-              <Editor template={chosen} draft={draft} mailReady={Boolean(data?.mailReady)} onChange={(text) => setDrafts((d) => ({ ...d, [chosen.key]: text }))} />
+              <Editor
+                template={chosen}
+                draft={draft}
+                mailReady={Boolean(data?.mailReady)}
+                onChange={(text) => setDrafts((d) => ({ ...d, [chosen.key]: text }))}
+              />
             </div>
             <Preview key={chosen.key} template={chosen} text={draft} />
           </div>

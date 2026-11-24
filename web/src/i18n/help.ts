@@ -30,37 +30,119 @@ const en = {
   supportNone: (name: string) => `Ask ${name}: no support address is set up on this panel.`,
   version: "Version",
   diagnostics: "Copy diagnostics",
-  diagnosticsText: "The version, your browser, this page, the time and the id of the last error, to paste into a message to support. No passwords or addresses.",
+  diagnosticsText:
+    "The version, your browser, this page, the time and the id of the last error, to paste into a message to support. No passwords or addresses.",
   copied: "Diagnostics copied",
   copyFailed: "Could not copy: the browser refused. Select the text below instead.",
   topics: {
-    projects: { title: "Projects", text: "One project for each GitHub repository, with how many branches it has in each stage and how its instances are doing. Open one to see its branches; New project links a repository or creates an empty one." },
-    project: { title: "A project", text: "Every branch of the repository, grouped by stage, with its latest commit and instance. Create an instance of a branch, move a branch to another stage, or rebuild staging from production. The Settings tab says what happens when branches are pushed or deleted." },
-    newProject: { title: "New project", text: "Link a repository that exists on GitHub, or let the GitHub App create a new, empty one in an organisation. Then choose the Odoo version and edition of the project's instances." },
-    instances: { title: "Instances", text: "Every Odoo instance on this server, with its stage, state and use of the server. Open one to see its details, or start one that is paused; filter and sort to find one quickly." },
-    newInstance: { title: "New instance", text: "Choose a repository and branch (or plain Odoo), the Odoo version, edition and stage. Production is kept and backed up daily; staging and development pause when idle and never send real e-mail." },
-    overview: { title: "An instance", text: "The instance's figures over the last hour, its backups and details. The buttons above start, restart, update and pause it; the tabs hold its activity, code, log, domains, settings and access." },
-    activity: { title: "Activity", text: "Every job run on this instance, newest first. Open one to follow its steps and their progress live, or to read why it failed." },
-    code: { title: "Code", text: "The repository, branch and recent commits the instance runs, and its submodules. Get latest code applies new commits; with safe updates a failed update is put back." },
-    logs: { title: "Odoo log", text: "The last lines Odoo wrote. Lines with ERROR or Traceback usually explain a problem; Full screen and search help with long logs." },
-    domains: { title: "Domains", text: "The instance's own domains, such as erp.example.com: the DNS record to create, the certificate and when it renews." },
-    instanceSettings: { title: "Instance settings", text: "The stage, the automation switches (new code, upgrades, pause when idle), the lifetime, and the resources the instance may use." },
-    access: { title: "Access", text: "How to sign in to this Odoo: address, login and password, and the master password for Odoo's database manager. Every viewing is recorded." },
-    shell: { title: "Shell", text: "A terminal inside the instance's own containers: a command line, odoo shell or psql. What you type runs at once on the instance." },
-    mail: { title: "Mail", text: "Staging and development instances never send real e-mail: everything Odoo sends is caught here. Read it as HTML or text, see its headers and attachments; administrators can delete it or release a copy to an address." },
-    settings: { title: "Settings", text: "The panel's settings, grouped by subject. Most take effect at once; those marked so apply after a restart of the panel. Each one can be put back to the server's own value." },
-    emailTemplates: { title: "E-mail templates", text: "The texts of the e-mails the panel sends: sign-in codes, invitations, alerts. Change one and send yourself a test; Restore brings back the built-in text." },
-    plugins: { title: "Plugins", text: "Installed plugins and the Sudoo.sh marketplace. Free plugins install in one click; paid ones are bought on the account site, never charged from the panel." },
-    accounts: { title: "Accounts", text: "The people who use this panel and their roles. Invite someone by e-mail, change a role, or remove an account; each role is a set of permissions." },
-    tokens: { title: "API tokens", text: "Keys for other systems to use the panel's API, each with a scope. A token's secrets are shown once, when it is made." },
-    teams: { title: "Teams", text: "Named groups of accounts. A project's Access tab gives a team a level in the project or one of its branches; a member never gets more than their role allows." },
-    projectAccess: { title: "Project access", text: "Who sees this project and what they may do: everyone with their role, or only the teams and people granted. A branch can have its own levels, be restricted, or be locked from the Branches tab." },
-    backups: { title: "Backups", text: "Every backup on this server and its off-site copies, per instance: download, verify, restore or delete them." },
-    audit: { title: "Activity log", text: "Who did what and when: sign-ins, changes, jobs, viewed passwords and released e-mails, newest first." },
-    github: { title: "GitHub access", text: "How the server reads private repositories: the GitHub App, or a deploy key per repository." },
-    account: { title: "My account", text: "Your name, e-mail, password, language and second factors (authenticator app, e-mail codes, recovery codes)." },
-    help: { title: "Documentation", text: "The manuals of this very version of the panel: the user manual, the administrator's guide, security and the concepts behind them." },
-    other: { title: "Sudoo.sh", text: "Sudoo.sh runs many independent Odoo instances on one server, each from a Git branch with its own link." },
+    projects: {
+      title: "Projects",
+      text: "One project for each GitHub repository, with how many branches it has in each stage and how its instances are doing. Open one to see its branches; New project links a repository or creates an empty one.",
+    },
+    project: {
+      title: "A project",
+      text: "Every branch of the repository, grouped by stage, with its latest commit and instance. Create an instance of a branch, move a branch to another stage, or rebuild staging from production. The Settings tab says what happens when branches are pushed or deleted.",
+    },
+    newProject: {
+      title: "New project",
+      text: "Link a repository that exists on GitHub, or let the GitHub App create a new, empty one in an organisation. Then choose the Odoo version and edition of the project's instances.",
+    },
+    instances: {
+      title: "Instances",
+      text: "Every Odoo instance on this server, with its stage, state and use of the server. Open one to see its details, or start one that is paused; filter and sort to find one quickly.",
+    },
+    newInstance: {
+      title: "New instance",
+      text: "Choose a repository and branch (or plain Odoo), the Odoo version, edition and stage. Production is kept and backed up daily; staging and development pause when idle and never send real e-mail.",
+    },
+    overview: {
+      title: "An instance",
+      text: "The instance's figures over the last hour, its backups and details. The buttons above start, restart, update and pause it; the tabs hold its activity, code, log, domains, settings and access.",
+    },
+    activity: {
+      title: "Activity",
+      text: "Every job run on this instance, newest first. Open one to follow its steps and their progress live, or to read why it failed.",
+    },
+    code: {
+      title: "Code",
+      text: "The repository, branch and recent commits the instance runs, and its submodules. Get latest code applies new commits; with safe updates a failed update is put back.",
+    },
+    logs: {
+      title: "Odoo log",
+      text: "The last lines Odoo wrote. Lines with ERROR or Traceback usually explain a problem; Full screen and search help with long logs.",
+    },
+    domains: {
+      title: "Domains",
+      text: "The instance's own domains, such as erp.example.com: the DNS record to create, the certificate and when it renews.",
+    },
+    instanceSettings: {
+      title: "Instance settings",
+      text: "The stage, the automation switches (new code, upgrades, pause when idle), the lifetime, and the resources the instance may use.",
+    },
+    access: {
+      title: "Access",
+      text: "How to sign in to this Odoo: address, login and password, and the master password for Odoo's database manager. Every viewing is recorded.",
+    },
+    shell: {
+      title: "Shell",
+      text: "A terminal inside the instance's own containers: a command line, odoo shell or psql. What you type runs at once on the instance.",
+    },
+    mail: {
+      title: "Mail",
+      text: "Staging and development instances never send real e-mail: everything Odoo sends is caught here. Read it as HTML or text, see its headers and attachments; administrators can delete it or release a copy to an address.",
+    },
+    settings: {
+      title: "Settings",
+      text: "The panel's settings, grouped by subject. Most take effect at once; those marked so apply after a restart of the panel. Each one can be put back to the server's own value.",
+    },
+    emailTemplates: {
+      title: "E-mail templates",
+      text: "The texts of the e-mails the panel sends: sign-in codes, invitations, alerts. Change one and send yourself a test; Restore brings back the built-in text.",
+    },
+    plugins: {
+      title: "Plugins",
+      text: "Installed plugins and the Sudoo.sh marketplace. Free plugins install in one click; paid ones are bought on the account site, never charged from the panel.",
+    },
+    accounts: {
+      title: "Accounts",
+      text: "The people who use this panel and their roles. Invite someone by e-mail, change a role, or remove an account; each role is a set of permissions.",
+    },
+    tokens: {
+      title: "API tokens",
+      text: "Keys for other systems to use the panel's API, each with a scope. A token's secrets are shown once, when it is made.",
+    },
+    teams: {
+      title: "Teams",
+      text: "Named groups of accounts. A project's Access tab gives a team a level in the project or one of its branches; a member never gets more than their role allows.",
+    },
+    projectAccess: {
+      title: "Project access",
+      text: "Who sees this project and what they may do: everyone with their role, or only the teams and people granted. A branch can have its own levels, be restricted, or be locked from the Branches tab.",
+    },
+    backups: {
+      title: "Backups",
+      text: "Every backup on this server and its off-site copies, per instance: download, verify, restore or delete them.",
+    },
+    audit: {
+      title: "Activity log",
+      text: "Who did what and when: sign-ins, changes, jobs, viewed passwords and released e-mails, newest first.",
+    },
+    github: {
+      title: "GitHub access",
+      text: "How the server reads private repositories: the GitHub App, or a deploy key per repository.",
+    },
+    account: {
+      title: "My account",
+      text: "Your name, e-mail, password, language and second factors (authenticator app, e-mail codes, recovery codes).",
+    },
+    help: {
+      title: "Documentation",
+      text: "The manuals of this very version of the panel: the user manual, the administrator's guide, security and the concepts behind them.",
+    },
+    other: {
+      title: "Sudoo.sh",
+      text: "Sudoo.sh runs many independent Odoo instances on one server, each from a Git branch with its own link.",
+    },
   } satisfies Record<Topic, TopicText>,
 };
 
@@ -90,37 +172,119 @@ const ar: typeof en = {
   supportNone: (name: string) => `اسأل ${name}: لم يُضبط عنوان للدعم في هذه اللوحة.`,
   version: "الإصدار",
   diagnostics: "نسخ معلومات التشخيص",
-  diagnosticsText: "الإصدار ومتصفحك وهذه الصفحة والوقت ومعرّف آخر خطأ، لتلصقها في رسالتك إلى الدعم. لا كلمات مرور ولا عناوين.",
+  diagnosticsText:
+    "الإصدار ومتصفحك وهذه الصفحة والوقت ومعرّف آخر خطأ، لتلصقها في رسالتك إلى الدعم. لا كلمات مرور ولا عناوين.",
   copied: "نُسخت معلومات التشخيص",
   copyFailed: "تعذّر النسخ: رفض المتصفح ذلك. حدّد النص أدناه بدلًا من ذلك.",
   topics: {
-    projects: { title: "المشاريع", text: "مشروع لكل مستودع على GitHub، مع عدد فروعه في كل مرحلة وحال بيئاته. افتح مشروعًا لترى فروعه؛ ويربط زر المشروع الجديد مستودعًا أو ينشئ مستودعًا فارغًا." },
-    project: { title: "مشروع", text: "كل فروع المستودع مجمّعة حسب المرحلة، مع آخر إيداع والبيئة. أنشئ بيئة لفرع، أو انقل فرعًا إلى مرحلة أخرى، أو أعد بناء التجهيز من الإنتاج. ويبيّن تبويب الإعدادات ما يحدث عند دفع الفروع أو حذفها." },
-    newProject: { title: "مشروع جديد", text: "اربط مستودعًا موجودًا في GitHub، أو دع تطبيق GitHub ينشئ مستودعًا جديدًا فارغًا في مؤسسة. ثم اختر إصدار Odoo ونسخته لبيئات المشروع." },
-    instances: { title: "البيئات", text: "كل بيئات Odoo على هذا الخادم، مع مرحلة كل منها وحالتها واستهلاكها للخادم. افتح بيئة لترى تفاصيلها، أو شغّل بيئة متوقفة مؤقتًا؛ استخدم التصفية والترتيب للعثور على بيئة بسرعة." },
-    newInstance: { title: "بيئة جديدة", text: "اختر مستودعًا وفرعًا (أو Odoo دون مستودع)، وإصدار Odoo ونسخته ومرحلته. تُحفظ بيئة الإنتاج ويُنسخ لها احتياطيًا كل يوم؛ وتتوقف بيئات التجهيز والتطوير عند عدم الاستخدام ولا ترسل بريدًا حقيقيًا أبدًا." },
-    overview: { title: "بيئة", text: "أرقام البيئة خلال الساعة الأخيرة ونسخها الاحتياطية وتفاصيلها. الأزرار في الأعلى تشغّلها وتعيد تشغيلها وتحدّثها وتوقفها مؤقتًا؛ والتبويبات تضم نشاطها وشيفرتها وسجلها ونطاقاتها وإعداداتها وبيانات الدخول." },
-    activity: { title: "النشاط", text: "كل مهمة نُفّذت على هذه البيئة، الأحدث أولًا. افتح مهمة لتتابع خطواتها وتقدّمها مباشرة، أو لتعرف سبب فشلها." },
-    code: { title: "الشيفرة", text: "المستودع والفرع وآخر الإيداعات التي تعمل بها البيئة، ووحداتها الفرعية. «جلب أحدث شيفرة» يطبّق الإيداعات الجديدة؛ ومع التحديثات الآمنة يُعاد التحديث الفاشل كما كان." },
-    logs: { title: "سجل Odoo", text: "آخر الأسطر التي كتبها Odoo. الأسطر التي فيها ERROR أو Traceback تشرح المشكلة غالبًا؛ ويساعد ملء الشاشة والبحث في السجلات الطويلة." },
-    domains: { title: "النطاقات", text: "نطاقات البيئة الخاصة مثل erp.example.com: سجل DNS الذي يجب إنشاؤه، والشهادة وموعد تجديدها." },
-    instanceSettings: { title: "إعدادات البيئة", text: "المرحلة ومفاتيح الأتمتة (الشيفرة الجديدة والترقيات والتوقف عند عدم الاستخدام) ومدة البقاء والموارد التي يمكن للبيئة استخدامها." },
-    access: { title: "الدخول", text: "طريقة تسجيل الدخول إلى Odoo هذا: العنوان واسم الدخول وكلمة المرور، وكلمة المرور الرئيسية لمدير قواعد بيانات Odoo. تُسجَّل كل مشاهدة." },
-    shell: { title: "الطرفية", text: "طرفية داخل حاويات البيئة نفسها: سطر أوامر أو odoo shell أو psql. ما تكتبه يُنفَّذ فورًا على البيئة." },
-    mail: { title: "البريد", text: "لا ترسل بيئات التجهيز والتطوير بريدًا حقيقيًا أبدًا: كل ما يرسله Odoo يُلتقط هنا. اقرأه بصيغة HTML أو نصًا، واطّلع على ترويساته ومرفقاته؛ ويمكن للمسؤولين حذفه أو إطلاق نسخة منه إلى عنوان." },
-    settings: { title: "الإعدادات", text: "إعدادات اللوحة مجمّعة حسب الموضوع. يسري معظمها فورًا، وما عليه علامة يسري بعد إعادة تشغيل اللوحة. ويمكن إرجاع كل إعداد إلى قيمة الخادم." },
-    emailTemplates: { title: "قوالب البريد", text: "نصوص رسائل البريد التي ترسلها اللوحة: رموز الدخول والدعوات والتنبيهات. غيّر قالبًا وأرسل لنفسك تجربة؛ و«استعادة» يعيد النص الأصلي." },
-    plugins: { title: "الإضافات", text: "الإضافات المثبّتة وسوق Sudoo.sh. تُثبَّت الإضافات المجانية بنقرة واحدة؛ وتُشترى المدفوعة من موقع الحساب، ولا تُحصَّل أي دفعة من اللوحة." },
-    accounts: { title: "الحسابات", text: "الأشخاص الذين يستخدمون هذه اللوحة وأدوارهم. ادعُ شخصًا بالبريد أو غيّر دورًا أو احذف حسابًا؛ وكل دور مجموعة من الصلاحيات." },
-    tokens: { title: "مفاتيح API", text: "مفاتيح تتيح لأنظمة أخرى استخدام واجهة اللوحة البرمجية، لكل منها نطاق. تُعرض أسرار المفتاح مرة واحدة عند إنشائه." },
-    teams: { title: "الفرق", text: "مجموعات من الحسابات لها أسماء. يمنح تبويب الوصول في المشروع الفريقَ مستوى في المشروع أو في أحد فروعه؛ ولا يحصل أي عضو على أكثر مما يسمح به دوره." },
-    projectAccess: { title: "الوصول إلى المشروع", text: "من يرى هذا المشروع وما يمكنه فعله: الجميع بأدوارهم، أو الفرق والأشخاص الممنوحون فقط. يمكن للفرع أن يمنح مستوياته الخاصة أو أن يُقيَّد أو أن يُقفل من تبويب الفروع." },
-    backups: { title: "النسخ الاحتياطية", text: "كل النسخ الاحتياطية على هذا الخادم ونسخها خارج الخادم، لكل بيئة: نزّلها أو تحقّق منها أو استعدها أو احذفها." },
-    audit: { title: "سجل النشاط", text: "من فعل ماذا ومتى: تسجيلات الدخول والتغييرات والمهام وكلمات المرور المعروضة والرسائل المُطلقة، الأحدث أولًا." },
-    github: { title: "الوصول إلى GitHub", text: "كيف يقرأ الخادم المستودعات الخاصة: تطبيق GitHub، أو مفتاح نشر لكل مستودع." },
-    account: { title: "حسابي", text: "اسمك وبريدك وكلمة مرورك ولغتك وعوامل التحقق الثانية (تطبيق المصادقة ورموز البريد ورموز الاسترداد)." },
-    help: { title: "التوثيق", text: "أدلة هذا الإصدار من اللوحة نفسه: دليل المستخدم ودليل المسؤول والأمان والمفاهيم التي تقوم عليها." },
-    other: { title: "Sudoo.sh", text: "يشغّل Sudoo.sh بيئات Odoo مستقلة كثيرة على خادم واحد، كل منها من فرع Git وله رابطه الخاص." },
+    projects: {
+      title: "المشاريع",
+      text: "مشروع لكل مستودع على GitHub، مع عدد فروعه في كل مرحلة وحال بيئاته. افتح مشروعًا لترى فروعه؛ ويربط زر المشروع الجديد مستودعًا أو ينشئ مستودعًا فارغًا.",
+    },
+    project: {
+      title: "مشروع",
+      text: "كل فروع المستودع مجمّعة حسب المرحلة، مع آخر إيداع والبيئة. أنشئ بيئة لفرع، أو انقل فرعًا إلى مرحلة أخرى، أو أعد بناء التجهيز من الإنتاج. ويبيّن تبويب الإعدادات ما يحدث عند دفع الفروع أو حذفها.",
+    },
+    newProject: {
+      title: "مشروع جديد",
+      text: "اربط مستودعًا موجودًا في GitHub، أو دع تطبيق GitHub ينشئ مستودعًا جديدًا فارغًا في مؤسسة. ثم اختر إصدار Odoo ونسخته لبيئات المشروع.",
+    },
+    instances: {
+      title: "البيئات",
+      text: "كل بيئات Odoo على هذا الخادم، مع مرحلة كل منها وحالتها واستهلاكها للخادم. افتح بيئة لترى تفاصيلها، أو شغّل بيئة متوقفة مؤقتًا؛ استخدم التصفية والترتيب للعثور على بيئة بسرعة.",
+    },
+    newInstance: {
+      title: "بيئة جديدة",
+      text: "اختر مستودعًا وفرعًا (أو Odoo دون مستودع)، وإصدار Odoo ونسخته ومرحلته. تُحفظ بيئة الإنتاج ويُنسخ لها احتياطيًا كل يوم؛ وتتوقف بيئات التجهيز والتطوير عند عدم الاستخدام ولا ترسل بريدًا حقيقيًا أبدًا.",
+    },
+    overview: {
+      title: "بيئة",
+      text: "أرقام البيئة خلال الساعة الأخيرة ونسخها الاحتياطية وتفاصيلها. الأزرار في الأعلى تشغّلها وتعيد تشغيلها وتحدّثها وتوقفها مؤقتًا؛ والتبويبات تضم نشاطها وشيفرتها وسجلها ونطاقاتها وإعداداتها وبيانات الدخول.",
+    },
+    activity: {
+      title: "النشاط",
+      text: "كل مهمة نُفّذت على هذه البيئة، الأحدث أولًا. افتح مهمة لتتابع خطواتها وتقدّمها مباشرة، أو لتعرف سبب فشلها.",
+    },
+    code: {
+      title: "الشيفرة",
+      text: "المستودع والفرع وآخر الإيداعات التي تعمل بها البيئة، ووحداتها الفرعية. «جلب أحدث شيفرة» يطبّق الإيداعات الجديدة؛ ومع التحديثات الآمنة يُعاد التحديث الفاشل كما كان.",
+    },
+    logs: {
+      title: "سجل Odoo",
+      text: "آخر الأسطر التي كتبها Odoo. الأسطر التي فيها ERROR أو Traceback تشرح المشكلة غالبًا؛ ويساعد ملء الشاشة والبحث في السجلات الطويلة.",
+    },
+    domains: {
+      title: "النطاقات",
+      text: "نطاقات البيئة الخاصة مثل erp.example.com: سجل DNS الذي يجب إنشاؤه، والشهادة وموعد تجديدها.",
+    },
+    instanceSettings: {
+      title: "إعدادات البيئة",
+      text: "المرحلة ومفاتيح الأتمتة (الشيفرة الجديدة والترقيات والتوقف عند عدم الاستخدام) ومدة البقاء والموارد التي يمكن للبيئة استخدامها.",
+    },
+    access: {
+      title: "الدخول",
+      text: "طريقة تسجيل الدخول إلى Odoo هذا: العنوان واسم الدخول وكلمة المرور، وكلمة المرور الرئيسية لمدير قواعد بيانات Odoo. تُسجَّل كل مشاهدة.",
+    },
+    shell: {
+      title: "الطرفية",
+      text: "طرفية داخل حاويات البيئة نفسها: سطر أوامر أو odoo shell أو psql. ما تكتبه يُنفَّذ فورًا على البيئة.",
+    },
+    mail: {
+      title: "البريد",
+      text: "لا ترسل بيئات التجهيز والتطوير بريدًا حقيقيًا أبدًا: كل ما يرسله Odoo يُلتقط هنا. اقرأه بصيغة HTML أو نصًا، واطّلع على ترويساته ومرفقاته؛ ويمكن للمسؤولين حذفه أو إطلاق نسخة منه إلى عنوان.",
+    },
+    settings: {
+      title: "الإعدادات",
+      text: "إعدادات اللوحة مجمّعة حسب الموضوع. يسري معظمها فورًا، وما عليه علامة يسري بعد إعادة تشغيل اللوحة. ويمكن إرجاع كل إعداد إلى قيمة الخادم.",
+    },
+    emailTemplates: {
+      title: "قوالب البريد",
+      text: "نصوص رسائل البريد التي ترسلها اللوحة: رموز الدخول والدعوات والتنبيهات. غيّر قالبًا وأرسل لنفسك تجربة؛ و«استعادة» يعيد النص الأصلي.",
+    },
+    plugins: {
+      title: "الإضافات",
+      text: "الإضافات المثبّتة وسوق Sudoo.sh. تُثبَّت الإضافات المجانية بنقرة واحدة؛ وتُشترى المدفوعة من موقع الحساب، ولا تُحصَّل أي دفعة من اللوحة.",
+    },
+    accounts: {
+      title: "الحسابات",
+      text: "الأشخاص الذين يستخدمون هذه اللوحة وأدوارهم. ادعُ شخصًا بالبريد أو غيّر دورًا أو احذف حسابًا؛ وكل دور مجموعة من الصلاحيات.",
+    },
+    tokens: {
+      title: "مفاتيح API",
+      text: "مفاتيح تتيح لأنظمة أخرى استخدام واجهة اللوحة البرمجية، لكل منها نطاق. تُعرض أسرار المفتاح مرة واحدة عند إنشائه.",
+    },
+    teams: {
+      title: "الفرق",
+      text: "مجموعات من الحسابات لها أسماء. يمنح تبويب الوصول في المشروع الفريقَ مستوى في المشروع أو في أحد فروعه؛ ولا يحصل أي عضو على أكثر مما يسمح به دوره.",
+    },
+    projectAccess: {
+      title: "الوصول إلى المشروع",
+      text: "من يرى هذا المشروع وما يمكنه فعله: الجميع بأدوارهم، أو الفرق والأشخاص الممنوحون فقط. يمكن للفرع أن يمنح مستوياته الخاصة أو أن يُقيَّد أو أن يُقفل من تبويب الفروع.",
+    },
+    backups: {
+      title: "النسخ الاحتياطية",
+      text: "كل النسخ الاحتياطية على هذا الخادم ونسخها خارج الخادم، لكل بيئة: نزّلها أو تحقّق منها أو استعدها أو احذفها.",
+    },
+    audit: {
+      title: "سجل النشاط",
+      text: "من فعل ماذا ومتى: تسجيلات الدخول والتغييرات والمهام وكلمات المرور المعروضة والرسائل المُطلقة، الأحدث أولًا.",
+    },
+    github: {
+      title: "الوصول إلى GitHub",
+      text: "كيف يقرأ الخادم المستودعات الخاصة: تطبيق GitHub، أو مفتاح نشر لكل مستودع.",
+    },
+    account: {
+      title: "حسابي",
+      text: "اسمك وبريدك وكلمة مرورك ولغتك وعوامل التحقق الثانية (تطبيق المصادقة ورموز البريد ورموز الاسترداد).",
+    },
+    help: {
+      title: "التوثيق",
+      text: "أدلة هذا الإصدار من اللوحة نفسه: دليل المستخدم ودليل المسؤول والأمان والمفاهيم التي تقوم عليها.",
+    },
+    other: {
+      title: "Sudoo.sh",
+      text: "يشغّل Sudoo.sh بيئات Odoo مستقلة كثيرة على خادم واحد، كل منها من فرع Git وله رابطه الخاص.",
+    },
   },
 };
 

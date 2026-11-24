@@ -39,7 +39,8 @@ const en = {
     chosenBy: (who: string) => `Chosen by ${who}`,
     chosenDefault: "The panel chose the default window",
     chosenAccount: (who: string) => `Chosen on app.sudoo.sh by ${who}`,
-    autoAt: (when: string, start: string) => `Nobody has chosen yet: on ${when} the panel picks the default window (${start}).`,
+    autoAt: (when: string, start: string) =>
+      `Nobody has chosen yet: on ${when} the panel picks the default window (${start}).`,
     required: "Required",
     optional: "Optional",
     timezone: (zone: string) => `Times are in ${zone}.`,

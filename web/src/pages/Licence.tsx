@@ -37,7 +37,9 @@ export function LicencePage() {
       const status = await api.post<LicenceStatus>("/licence/acceptances", acceptance);
       client.setQueryData(keys.licence, status);
       client.setQueryData<Session>(keys.session, (old) => (old ? { ...old, licence_required: false } : old));
-      await client.invalidateQueries({ predicate: (query) => query.queryKey[0] !== "session" && query.queryKey[0] !== "licence" });
+      await client.invalidateQueries({
+        predicate: (query) => query.queryKey[0] !== "session" && query.queryKey[0] !== "licence",
+      });
       navigate(required ? "/" : "/settings?tab=about", { replace: true, viewTransition: true });
     } catch (err) {
       setError(errorText(err));
@@ -49,7 +51,11 @@ export function LicencePage() {
   return (
     <div className="auth-panel" style={{ minHeight: "100vh" }}>
       <div className="auth-card wide">
-        <div className="row"><Brand /><span className="spacer" /><LanguageSwitch signedIn /></div>
+        <div className="row">
+          <Brand />
+          <span className="spacer" />
+          <LanguageSwitch signedIn />
+        </div>
         <header>
           <h1>{required ? t.requiredTitle : t.title}</h1>
           <p>{required ? t.requiredText : t.againText}</p>
@@ -62,9 +68,13 @@ export function LicencePage() {
             onAccept={accept}
             secondary={
               required ? (
-                <Button variant="ghost" icon={<LogOut />} onClick={signOut}>{signOutLabel}</Button>
+                <Button variant="ghost" icon={<LogOut />} onClick={signOut}>
+                  {signOutLabel}
+                </Button>
               ) : (
-                <Button variant="ghost" onClick={() => navigate("/settings?tab=about", { viewTransition: true })}>{t.cancel}</Button>
+                <Button variant="ghost" onClick={() => navigate("/settings?tab=about", { viewTransition: true })}>
+                  {t.cancel}
+                </Button>
               )
             }
           />

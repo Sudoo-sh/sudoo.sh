@@ -19,7 +19,12 @@ import words from "@/i18n/promotion";
 import { ago } from "@/lib/format";
 
 const TONE: Record<PreviewStatus, "positive" | "caution" | "negative" | undefined> = {
-  creating: undefined, building: "caution", ready: "positive", failed: "negative", deleted: undefined, refused: "caution",
+  creating: undefined,
+  building: "caution",
+  ready: "positive",
+  failed: "negative",
+  deleted: undefined,
+  refused: "caution",
 };
 
 export function PullRequestPreviews({ project }: { project: ProjectDetail }) {
@@ -29,29 +34,63 @@ export function PullRequestPreviews({ project }: { project: ProjectDetail }) {
   const toast = useToast();
   const editable = can("projects.manage");
   const key = ["project", project.id, "previews"] as const;
-  const query = useQuery({ queryKey: key, queryFn: () => call<Preview[]>("GET", `/projects/${encodeURIComponent(project.id)}/previews`) });
-  const save = useCall((options: Record<string, unknown>) => api.patch<Project>(`/projects/${project.id}`, { options }), [keys.project(project.id), keys.projects, key]);
+  const query = useQuery({
+    queryKey: key,
+    queryFn: () => call<Preview[]>("GET", `/projects/${encodeURIComponent(project.id)}/previews`),
+  });
+  const save = useCall(
+    (options: Record<string, unknown>) => api.patch<Project>(`/projects/${project.id}`, { options }),
+    [keys.project(project.id), keys.projects, key],
+  );
   const set = (options: Record<string, unknown>) =>
-    save.mutate(options, { onSuccess: () => toast("success", s.saved), onError: (e) => toast("error", s.notSaved, errorText(e)) });
+    save.mutate(options, {
+      onSuccess: () => toast("success", s.saved),
+      onError: (e) => toast("error", s.notSaved, errorText(e)),
+    });
   const options = project.options;
   const meta = query.data?.meta as unknown as PreviewsMeta | undefined;
   const list = query.data?.data ?? [];
   return (
     <section className="card pr-previews">
-      <div className="card-head"><h2>{t.title}</h2></div>
+      <div className="card-head">
+        <h2>{t.title}</h2>
+      </div>
       <div className="card-body stack">
         <p className="small muted">{t.text}</p>
         {meta && !meta.app_connected && <Callout tone="info">{t.noApp}</Callout>}
-        {meta && meta.app_connected && !meta.can_comment && options.pr_previews && <Callout tone="warning">{t.noComment}</Callout>}
-        <Switch checked={options.pr_previews} disabled={!editable} onChange={(v) => set({ pr_previews: v })} label={t.enabled} />
+        {meta && meta.app_connected && !meta.can_comment && options.pr_previews && (
+          <Callout tone="warning">{t.noComment}</Callout>
+        )}
+        <Switch
+          checked={options.pr_previews}
+          disabled={!editable}
+          onChange={(v) => set({ pr_previews: v })}
+          label={t.enabled}
+        />
         {options.pr_previews && (
           <>
             <Field label={t.limit} hint={t.limitHint}>
-              <Input className="number" type="number" min={0} max={50} disabled={!editable} defaultValue={options.pr_preview_limit}
+              <Input
+                className="number"
+                type="number"
+                min={0}
+                max={50}
+                disabled={!editable}
+                defaultValue={options.pr_preview_limit}
                 key={`limit-${options.pr_preview_limit}`}
-                onBlur={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 0 && n <= 50 && n !== options.pr_preview_limit) set({ pr_preview_limit: n }); }} />
+                onBlur={(e) => {
+                  const n = Number(e.target.value);
+                  if (Number.isInteger(n) && n >= 0 && n <= 50 && n !== options.pr_preview_limit)
+                    set({ pr_preview_limit: n });
+                }}
+              />
             </Field>
-            <Switch checked={options.pr_previews_forks} disabled={!editable} onChange={(v) => set({ pr_previews_forks: v })} label={t.forks} />
+            <Switch
+              checked={options.pr_previews_forks}
+              disabled={!editable}
+              onChange={(v) => set({ pr_previews_forks: v })}
+              label={t.forks}
+            />
             {options.pr_previews_forks && <Callout tone="danger">{t.forksWarning}</Callout>}
           </>
         )}
@@ -69,15 +108,30 @@ export function PullRequestPreviews({ project }: { project: ProjectDetail }) {
                 <div className="pr-main">
                   <div className="pr-title">
                     <a href={p.url} target="_blank" rel="noreferrer" title={t.open}>
-                      <span className="tabular" dir="ltr">#{p.number}</span> <bdi>{p.title}</bdi> <ArrowUpRight className="inline-icon" aria-hidden />
+                      <span className="tabular" dir="ltr">
+                        #{p.number}
+                      </span>{" "}
+                      <bdi>{p.title}</bdi> <ArrowUpRight className="inline-icon" aria-hidden />
                     </a>
                   </div>
                   <div className="pr-facts small muted">
-                    <bdi dir="ltr" className="sha">{p.fork ? `${p.repository}:${p.branch}` : p.branch}</bdi>
+                    <bdi dir="ltr" className="sha">
+                      {p.fork ? `${p.repository}:${p.branch}` : p.branch}
+                    </bdi>
                     {p.fork && <Tag tone="caution">{t.fork}</Tag>}
-                    {p.instance && p.instance_exists ? <Link to={`/instances/${p.instance}`} viewTransition dir="ltr">{p.instance}</Link> : p.instance ? <span dir="ltr">{p.instance}</span> : null}
+                    {p.instance && p.instance_exists ? (
+                      <Link to={`/instances/${p.instance}`} viewTransition dir="ltr">
+                        {p.instance}
+                      </Link>
+                    ) : p.instance ? (
+                      <span dir="ltr">{p.instance}</span>
+                    ) : null}
                     {p.existing && <span>{t.existing}</span>}
-                    {p.commented && <span className="nowrap"><MessageSquare className="inline-icon" aria-hidden /> {t.commented}</span>}
+                    {p.commented && (
+                      <span className="nowrap">
+                        <MessageSquare className="inline-icon" aria-hidden /> {t.commented}
+                      </span>
+                    )}
                     {p.opened_at && <span className="nowrap">{ago(p.opened_at)}</span>}
                   </div>
                   {p.reason && <p className="small muted plain-bidi">{p.reason}</p>}

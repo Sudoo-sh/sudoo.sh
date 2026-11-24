@@ -24,7 +24,9 @@ export function PublisherBadge({ publisher }: { publisher: Publisher | null }) {
     <span className="publisher">
       <bdi className="truncate">{publisher.name}</bdi>
       {publisher.official ? (
-        <Tag tone="accent" icon={<Mark size={12} />}>{t.official}</Tag>
+        <Tag tone="accent" icon={<Mark size={12} />}>
+          {t.official}
+        </Tag>
       ) : publisher.verified ? (
         <span className="verified" title={t.verifiedTitle} aria-label={t.verified}>
           <BadgeCheck />
@@ -35,20 +37,17 @@ export function PublisherBadge({ publisher }: { publisher: Publisher | null }) {
 }
 
 /** Why the marketplace cannot be used right now, in the person's words; null when it can. */
-export function marketplaceProblem(status: MarketplaceStatus | undefined): { tone: "warning" | "danger"; text: string } | null {
+export function marketplaceProblem(
+  status: MarketplaceStatus | undefined,
+): { tone: "warning" | "danger"; text: string } | null {
   if (!status) return null;
   const t = words(plugins).marketplace;
   if (!status.enabled) return { tone: "warning", text: t.off };
-  if (status.hub_status === "integrity_violation")
-    return { tone: "danger", text: t.integrity };
-  if (status.hub_status === "installation_suspended")
-    return { tone: "danger", text: t.suspended };
-  if (status.error_code === "unverified")
-    return { tone: "danger", text: t.unverified };
-  if (status.flags?.includes("fingerprint_mismatch"))
-    return { tone: "danger", text: t.flagged };
-  if (status.reachable === false)
-    return { tone: "warning", text: t.unreachable(!!status.lease_valid) };
+  if (status.hub_status === "integrity_violation") return { tone: "danger", text: t.integrity };
+  if (status.hub_status === "installation_suspended") return { tone: "danger", text: t.suspended };
+  if (status.error_code === "unverified") return { tone: "danger", text: t.unverified };
+  if (status.flags?.includes("fingerprint_mismatch")) return { tone: "danger", text: t.flagged };
+  if (status.reachable === false) return { tone: "warning", text: t.unreachable(!!status.lease_valid) };
   return null;
 }
 
@@ -106,7 +105,12 @@ export function MarketplaceSettings() {
   const { data: installed } = usePlugins();
   const t = useT(plugins).marketplace;
   const c = useT(common).common;
-  if (isPending) return <div className="card-body"><Skeleton height={120} /></div>;
+  if (isPending)
+    return (
+      <div className="card-body">
+        <Skeleton height={120} />
+      </div>
+    );
   if (!status) return null;
   const problem = marketplaceProblem(status);
   const heartbeat = async () => {
@@ -139,32 +143,53 @@ export function MarketplaceSettings() {
   return (
     <div className="card-body stack">
       {problem && <Callout tone={problem.tone}>{problem.text}</Callout>}
-      {status.key_revoked_at && !status.linked?.account_name && (
-        <Callout tone="warning">{t.keyRevoked}</Callout>
-      )}
+      {status.key_revoked_at && !status.linked?.account_name && <Callout tone="warning">{t.keyRevoked}</Callout>}
       {status.removing_paid_plugins && <Callout tone="info">{t.removingPaid}</Callout>}
       <dl className="dl">
         <dt>{t.hub}</dt>
-        <dd><span className="mono small">{status.hub_url}</span></dd>
+        <dd>
+          <span className="mono small">{status.hub_url}</span>
+        </dd>
         <dt>{t.installation}</dt>
-        <dd><span className="mono small">{status.installation_id ?? "—"}</span></dd>
+        <dd>
+          <span className="mono small">{status.installation_id ?? "—"}</span>
+        </dd>
         <dt>{t.lastHeartbeat}</dt>
         <dd>
-          {status.last_heartbeat_at ? `${ago(status.last_heartbeat_at)} · ${dateTime(status.last_heartbeat_at)}` : t.noneYet}
+          {status.last_heartbeat_at
+            ? `${ago(status.last_heartbeat_at)} · ${dateTime(status.last_heartbeat_at)}`
+            : t.noneYet}
         </dd>
         <dt>{t.lease}</dt>
         <dd>
           {status.lease_valid ? (
             <>
               {t.validUntil(dateTime(status.lease_expires_at))}
-              {status.lease_ending_soon && <> <Tag tone="caution">{t.endsSoon}</Tag></>}
+              {status.lease_ending_soon && (
+                <>
+                  {" "}
+                  <Tag tone="caution">{t.endsSoon}</Tag>
+                </>
+              )}
             </>
           ) : (
             <span className="muted">{t.noLease}</span>
           )}
         </dd>
         <dt>{t.account}</dt>
-        <dd>{status.linked?.account_name ? <>{t.linkedTo(<b key="a"><bdi>{status.linked.account_name}</bdi></b>)}</> : <span className="muted">{t.notLinkedText}</span>}</dd>
+        <dd>
+          {status.linked?.account_name ? (
+            <>
+              {t.linkedTo(
+                <b key="a">
+                  <bdi>{status.linked.account_name}</bdi>
+                </b>,
+              )}
+            </>
+          ) : (
+            <span className="muted">{t.notLinkedText}</span>
+          )}
+        </dd>
       </dl>
       {can("settings.manage") && status.enabled && (
         <>
@@ -189,16 +214,23 @@ export function MarketplaceSettings() {
           footer={
             <>
               <Button onClick={() => setLeaving(false)}>{c.cancel}</Button>
-              <Button variant="danger" icon={<LogOut />} loading={loggingOut} onClick={logOut}>{t.logOutRemove}</Button>
+              <Button variant="danger" icon={<LogOut />} loading={loggingOut} onClick={logOut}>
+                {t.logOutRemove}
+              </Button>
             </>
           }
         >
           <div className="stack-sm">
             <p>
-              <b>{t.paidRemoved}</b>{t.paidRemovedText}
+              <b>{t.paidRemoved}</b>
+              {t.paidRemovedText}
             </p>
             {paid.length > 0 ? (
-              <div className="row-wrap">{paid.map((p) => <Tag key={p.id}>{p.name}</Tag>)}</div>
+              <div className="row-wrap">
+                {paid.map((p) => (
+                  <Tag key={p.id}>{p.name}</Tag>
+                ))}
+              </div>
             ) : (
               <p className="small muted">{t.noPaid}</p>
             )}

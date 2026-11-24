@@ -48,7 +48,10 @@ const en = {
     long: "The search is too long (200 characters at most).",
   },
   levels: "Levels",
-  levelNames: { DEBUG: "Debug", INFO: "Info", WARNING: "Warning", ERROR: "Error", CRITICAL: "Critical" } as Record<string, string>,
+  levelNames: { DEBUG: "Debug", INFO: "Info", WARNING: "Warning", ERROR: "Error", CRITICAL: "Critical" } as Record<
+    string,
+    string
+  >,
   quick: "Focus",
   problems: "Warnings and errors",
   errorsOnly: "Errors (E)",
@@ -211,7 +214,14 @@ const ar: typeof en = {
   context: "تُعرض الأسطر المحيطة برابط مُشارك.",
   backToLive: "عُد إلى السجل المباشر",
   notFound: "لم يعد هذا السطر في السجل.",
-  columns: { time: "الوقت", pid: "العملية", level: "المستوى", db: "قاعدة البيانات", logger: "المسجِّل", message: "الرسالة" },
+  columns: {
+    time: "الوقت",
+    pid: "العملية",
+    level: "المستوى",
+    db: "قاعدة البيانات",
+    logger: "المسجِّل",
+    message: "الرسالة",
+  },
   queries: (n) => `استعلامات ${n}`,
   seconds: (n) => `${n} ث`,
   keys: {

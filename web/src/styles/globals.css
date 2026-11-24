@@ -152,5 +152,9 @@ html body[data-scroll-locked] {
   padding-left: 0 !important;
   --removed-body-scroll-bar-size: 0px !important;
 }
-html body[data-scroll-locked] .right-scroll-bar-position { right: 0 !important; }
-html body[data-scroll-locked] .width-before-scroll-bar { margin-right: 0 !important; }
+html body[data-scroll-locked] .right-scroll-bar-position {
+  right: 0 !important;
+}
+html body[data-scroll-locked] .width-before-scroll-bar {
+  margin-right: 0 !important;
+}

@@ -34,7 +34,16 @@ export function Ring({ parts, total, caption }: { parts: Part[]; total: number; 
         animation: { duration: 400, easing: "easeOutQuart" },
         plugins: {
           legend: { display: false },
-          tooltip: { backgroundColor: token("--text"), titleColor: token("--bg"), bodyColor: token("--bg"), padding: 10, cornerRadius: 8, displayColors: false, rtl: getLocale() === "ar", textDirection: getLocale() === "ar" ? "rtl" : "ltr" },
+          tooltip: {
+            backgroundColor: token("--text"),
+            titleColor: token("--bg"),
+            bodyColor: token("--bg"),
+            padding: 10,
+            cornerRadius: 8,
+            displayColors: false,
+            rtl: getLocale() === "ar",
+            textDirection: getLocale() === "ar" ? "rtl" : "ltr",
+          },
         },
       },
     });

@@ -77,7 +77,8 @@ const en = {
     link: "Link GitHub",
     unlink: "Unlink",
     unlinkTitle: "Unlink your GitHub account?",
-    unlinkText: "You will no longer sign in with GitHub, and project access that came from your GitHub permissions ends. Your other sessions end too.",
+    unlinkText:
+      "You will no longer sign in with GitHub, and project access that came from your GitHub permissions ends. Your other sessions end too.",
     password: "Your password",
     unlinked: "GitHub account unlinked",
     notUnlinked: "Not unlinked",
@@ -97,7 +98,8 @@ const en = {
     hint: (on: boolean) => `When, from where and from which device. ${on ? "On" : "Off"} by default on this panel.`,
     emailMe: "E-mail me at each sign-in",
     elsewhere: "Sign out everywhere else",
-    elsewhereText: "Ends every other session of your account, for example a browser you left signed in. Change your password too if a sign-in was not yours.",
+    elsewhereText:
+      "Ends every other session of your account, for example a browser you left signed in. Change your password too if a sign-in was not yours.",
     signOutOthers: "Sign out others",
   },
   setupFactor: {
@@ -105,9 +107,11 @@ const en = {
     text: "This panel asks for a code after the password, so a leaked password is not enough to sign in. Setting it up takes a minute.",
   },
   recovery: {
-    fileText: (host: string) => `Sudoo.sh recovery codes (${host})\nEach code works once, in place of the authenticator app's code.`,
+    fileText: (host: string) =>
+      `Sudoo.sh recovery codes (${host})\nEach code works once, in place of the authenticator app's code.`,
     sheetTitle: "Save your recovery codes",
-    sheetText: "If you lose the phone with your authenticator app, each code signs you in once. They are shown only now.",
+    sheetText:
+      "If you lose the phone with your authenticator app, each code signs you in once. They are shown only now.",
     done: "Done",
     saved: "I saved them",
     list: "Recovery codes",
@@ -209,7 +213,8 @@ const ar: typeof en = {
     link: "اربط GitHub",
     unlink: "ألغِ الربط",
     unlinkTitle: "إلغاء ربط حساب GitHub؟",
-    unlinkText: "لن تسجّل الدخول باستخدام GitHub بعد الآن، وينتهي الوصول إلى المشاريع الذي جاء من صلاحياتك في GitHub. وتنتهي جلساتك الأخرى أيضًا.",
+    unlinkText:
+      "لن تسجّل الدخول باستخدام GitHub بعد الآن، وينتهي الوصول إلى المشاريع الذي جاء من صلاحياتك في GitHub. وتنتهي جلساتك الأخرى أيضًا.",
     password: "كلمة مرورك",
     unlinked: "أُلغي ربط حساب GitHub",
     notUnlinked: "لم يُلغَ الربط",
@@ -229,7 +234,8 @@ const ar: typeof en = {
     hint: (on) => `متى، ومن أين، ومن أي جهاز. ${on ? "مفعّل" : "متوقف"} افتراضيًا في هذه اللوحة.`,
     emailMe: "راسلني عند كل تسجيل دخول",
     elsewhere: "سجّل الخروج من كل مكان آخر",
-    elsewhereText: "يُنهي كل جلسة أخرى لحسابك، مثل متصفح تركته مسجّل الدخول. وغيّر كلمة المرور أيضًا إن لم يكن تسجيل الدخول منك.",
+    elsewhereText:
+      "يُنهي كل جلسة أخرى لحسابك، مثل متصفح تركته مسجّل الدخول. وغيّر كلمة المرور أيضًا إن لم يكن تسجيل الدخول منك.",
     signOutOthers: "أخرج الجلسات الأخرى",
   },
   setupFactor: {

@@ -8,8 +8,10 @@ const en = {
   notRead: "The branch's settings could not be read.",
   saved: "Saved",
   notSaved: "Not saved",
-  production: "Production always takes new commits through the safe update: a backup first, the changed modules upgraded, and the previous build put back if anything fails. It never builds from scratch and never runs tests on its database.",
-  stagingNote: "Staging is built from a neutralised copy of production, so module installation and demo data do not apply here.",
+  production:
+    "Production always takes new commits through the safe update: a backup first, the changed modules upgraded, and the previous build put back if anything fails. It never builds from scratch and never runs tests on its database.",
+  stagingNote:
+    "Staging is built from a neutralised copy of production, so module installation and demo data do not apply here.",
   readOnly: "You may see these settings; changing them needs the Manage projects permission.",
   changedBy: (who: string, when: string) => `Changed by ${who} ${when}`,
   // where a value comes from
@@ -42,20 +44,24 @@ const en = {
   },
   onNewCommitHelp: {
     development: {
-      new_build: "Each new commit builds a new database from scratch with the branch's latest code. The previous database and its files are replaced.",
+      new_build:
+        "Each new commit builds a new database from scratch with the branch's latest code. The previous database and its files are replaced.",
       update: "The new code goes into the same database; the changed modules are upgraded. Data you entered is kept.",
       nothing: "Nothing is built. The commit is noted in the branch's history; use Get latest code when you want it.",
     },
     staging: {
-      new_build: "Each new commit rebuilds the branch from a new neutralised copy of production, then adds the new code.",
+      new_build:
+        "Each new commit rebuilds the branch from a new neutralised copy of production, then adds the new code.",
       update: "The new code goes into the same database; the changed modules are upgraded. Test data is kept.",
       nothing: "Nothing is built. The commit is noted in the branch's history; use Get latest code when you want it.",
     },
   },
   // New build options
   newBuild: "New build options",
-  newBuildText: "How a new development database of this branch is made: a new instance, or a new build from scratch. Tests run on every build.",
-  newBuildProject: "How a new development database is made in this project, and which tests every build runs. Each branch can change them in its Branch settings.",
+  newBuildText:
+    "How a new development database of this branch is made: a new instance, or a new build from scratch. Tests run on every build.",
+  newBuildProject:
+    "How a new development database is made in this project, and which tests every build runs. Each branch can change them in its Branch settings.",
   useDefaults: "Use the project's defaults",
   useDefaultsHint: "Clear it to give this branch settings of its own.",
   modules: "Modules to install in new instances",
@@ -96,7 +102,8 @@ const en = {
   stagingTests: "Run the tests on staging too",
   stagingTestsHint: "On a throw-away copy of the staging database, so the data testers work with is never touched.",
   commitStatuses: "Report builds on GitHub",
-  commitStatusesHint: "Each build's result appears next to its commit and in pull requests (sudoo/development, sudoo/staging).",
+  commitStatusesHint:
+    "Each build's result appears next to its commit and in pull requests (sudoo/development, sudoo/staging).",
   commitStatusesOff: "The GitHub App may not write commit statuses in this repository yet.",
   commitStatusesHow: "How to allow it",
   followsPanel: "Follows the panel's setting",
@@ -111,7 +118,8 @@ const ar: typeof en = {
   notRead: "تعذّرت قراءة إعدادات الفرع.",
   saved: "حُفظ",
   notSaved: "لم يُحفظ",
-  production: "يأخذ الإنتاج الإيداعات الجديدة دائمًا عبر التحديث الآمن: نسخة احتياطية أولًا، ثم ترقية الوحدات المتغيّرة، وإعادة البناء السابق إن فشل شيء. ولا يُبنى من الصفر أبدًا ولا تُشغَّل الاختبارات على قاعدة بياناته.",
+  production:
+    "يأخذ الإنتاج الإيداعات الجديدة دائمًا عبر التحديث الآمن: نسخة احتياطية أولًا، ثم ترقية الوحدات المتغيّرة، وإعادة البناء السابق إن فشل شيء. ولا يُبنى من الصفر أبدًا ولا تُشغَّل الاختبارات على قاعدة بياناته.",
   stagingNote: "يُبنى التجهيز من نسخة محيّدة من الإنتاج، لذا لا ينطبق هنا تثبيت الوحدات ولا البيانات التجريبية.",
   readOnly: "يمكنك رؤية هذه الإعدادات؛ ويحتاج تغييرها إلى صلاحية إدارة المشاريع.",
   changedBy: (who, when) => `غيّرها ${who} ${when}`,
@@ -143,7 +151,8 @@ const ar: typeof en = {
   },
   onNewCommitHelp: {
     development: {
-      new_build: "كل إيداع جديد يبني قاعدة بيانات جديدة من الصفر بأحدث شيفرة للفرع، وتُستبدل قاعدة البيانات السابقة وملفاتها.",
+      new_build:
+        "كل إيداع جديد يبني قاعدة بيانات جديدة من الصفر بأحدث شيفرة للفرع، وتُستبدل قاعدة البيانات السابقة وملفاتها.",
       update: "تدخل الشيفرة الجديدة إلى قاعدة البيانات نفسها وتُرقّى الوحدات المتغيّرة، وتبقى البيانات التي أدخلتها.",
       nothing: "لا يُبنى شيء. يُسجَّل الإيداع في سجل الفرع؛ استخدم جلب أحدث شيفرة متى أردته.",
     },
@@ -154,8 +163,10 @@ const ar: typeof en = {
     },
   },
   newBuild: "خيارات البناء الجديد",
-  newBuildText: "كيف تُنشأ قاعدة بيانات تطوير جديدة لهذا الفرع: بيئة جديدة، أو بناء جديد من الصفر. وتُشغَّل الاختبارات في كل بناء.",
-  newBuildProject: "كيف تُنشأ قاعدة بيانات تطوير جديدة في هذا المشروع، وما الاختبارات التي يشغّلها كل بناء. ويمكن لكل فرع تغييرها من إعدادات الفرع.",
+  newBuildText:
+    "كيف تُنشأ قاعدة بيانات تطوير جديدة لهذا الفرع: بيئة جديدة، أو بناء جديد من الصفر. وتُشغَّل الاختبارات في كل بناء.",
+  newBuildProject:
+    "كيف تُنشأ قاعدة بيانات تطوير جديدة في هذا المشروع، وما الاختبارات التي يشغّلها كل بناء. ويمكن لكل فرع تغييرها من إعدادات الفرع.",
   useDefaults: "استخدام القيم الافتراضية للمشروع",
   useDefaultsHint: "ألغِ التحديد لتعطي هذا الفرع إعدادات خاصة به.",
   modules: "الوحدات المطلوب تثبيتها في البيئات الجديدة",

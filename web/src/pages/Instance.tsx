@@ -42,7 +42,16 @@ import {
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api, errorText } from "@/api/client";
-import { keys, useCall, useCapacity, useCredentials, useHistory, useInstance, useInstancePermissions, useJobs } from "@/api/queries";
+import {
+  keys,
+  useCall,
+  useCapacity,
+  useCredentials,
+  useHistory,
+  useInstance,
+  useInstancePermissions,
+  useJobs,
+} from "@/api/queries";
 import type { Instance, InstanceBackup, Job, Permission, Stage } from "@/api/types";
 import { BackupPicker } from "@/components/BackupPicker";
 import { LiveChart } from "@/components/charts/LiveChart";
@@ -68,7 +77,19 @@ import { EngineMoveDialog, otherEngine, useOfferedEngines } from "@/components/E
 import { BackupCommentDialog, ImportDatabaseButton } from "@/components/ImportDatabase";
 import { Page, useCan } from "@/components/Shell";
 import { StatCard } from "@/components/StatCard";
-import { Button, Callout, CopyField, Empty, Field, Progress, Segmented, Skeleton, Status, Switch, Tag } from "@/components/app/basics";
+import {
+  Button,
+  Callout,
+  CopyField,
+  Empty,
+  Field,
+  Progress,
+  Segmented,
+  Skeleton,
+  Status,
+  Switch,
+  Tag,
+} from "@/components/app/basics";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
@@ -109,7 +130,13 @@ export function useRun(name: string, openJob: (id: string) => void) {
 
 const BACKUP_RIGHTS: Permission[] = ["backups.manage", "instances.operate", "instances.restore"];
 // `anyOf`: shown when the caller has one of these in the instance's stage (project roles: a developer has no backups in production)
-const TABS: { id: string; label: keyof (typeof words)["en"]["tabs"]; icon: React.ReactNode; permission?: Permission; anyOf?: Permission[] }[] = [
+const TABS: {
+  id: string;
+  label: keyof (typeof words)["en"]["tabs"];
+  icon: React.ReactNode;
+  permission?: Permission;
+  anyOf?: Permission[];
+}[] = [
   { id: "", label: "overview", icon: <Activity /> },
   { id: "activity", label: "activity", icon: <Layers /> },
   { id: "code", label: "code", icon: <Code2 /> },
@@ -127,7 +154,10 @@ const TABS: { id: string; label: keyof (typeof words)["en"]["tabs"]; icon: React
 /** What the caller may do in this instance: their role, narrowed by the project's access and the branch's lock. */
 function useCanIn(instance: Instance | undefined) {
   const roleCan = useCan();
-  const { data } = useInstancePermissions(instance?.name ?? "", JSON.stringify([instance?.lock ?? null, instance?.client_access ?? null]));
+  const { data } = useInstancePermissions(
+    instance?.name ?? "",
+    JSON.stringify([instance?.lock ?? null, instance?.client_access ?? null]),
+  );
   return (permission: Permission) => roleCan(permission) && (!data || data.includes(permission));
 }
 
@@ -171,7 +201,9 @@ export function InstanceView({
   const t = all.head;
   const j = all.jobs;
   const b = all.banners;
-  const [dialog, setDialog] = useState<null | "upgrade" | "branch" | "delete" | "submodule" | "rollback" | "connect" | "pause" | "switch-off" | "engine">(null);
+  const [dialog, setDialog] = useState<
+    null | "upgrade" | "branch" | "delete" | "submodule" | "rollback" | "connect" | "pause" | "switch-off" | "engine"
+  >(null);
   const e = useT(engineWords);
   const { data: offered } = useOfferedEngines(instance?.odoo.version ?? "", !!instance && can("instances.move"));
 
@@ -191,7 +223,11 @@ export function InstanceView({
   const production = instance.stage === "production";
   // on a production instance, what replaces or stops its data says so: the dialogs ask first, the request confirms
   const act = (action: string, title: string, body?: Record<string, unknown>) =>
-    run.mutate({ action, title, body: production && PRODUCTION_CONFIRMED.includes(action) ? { ...body, confirm_production: true } : body });
+    run.mutate({
+      action,
+      title,
+      body: production && PRODUCTION_CONFIRMED.includes(action) ? { ...body, confirm_production: true } : body,
+    });
 
   return (
     <Page>
@@ -201,28 +237,49 @@ export function InstanceView({
           <div className="titles" style={{ minWidth: 0 }}>
             <div className="row-wrap" style={{ gap: 12 }}>
               {embedded ? (
-                <h2 className="truncate instance-title"><bdi>{instance.name}</bdi></h2>
+                <h2 className="truncate instance-title">
+                  <bdi>{instance.name}</bdi>
+                </h2>
               ) : (
-                <h1 className="truncate"><bdi className="hero-text" ref={hero}>{instance.name}</bdi></h1>
+                <h1 className="truncate">
+                  <bdi className="hero-text" ref={hero}>
+                    {instance.name}
+                  </bdi>
+                </h1>
               )}
               <StageTag stage={instance.stage} />
               <Status status={instance.status} />
             </div>
             <div className="row-wrap small muted">
               {instance.project && !embedded && (
-                <Link to={`/projects/${instance.project.id}`} viewTransition className="row xsmall" style={{ gap: 4 }} title={t.project}>
+                <Link
+                  to={`/projects/${instance.project.id}`}
+                  viewTransition
+                  className="row xsmall"
+                  style={{ gap: 4 }}
+                  title={t.project}
+                >
                   <FolderKanban size={14} strokeWidth={1.5} /> <bdi>{instance.project.name}</bdi>
                 </Link>
               )}
               {instance.server && (severalServers || instance.server.id !== "main") && (
                 <span className="row xsmall" style={{ gap: 4 }} title={t.server}>
-                  <ServerCog size={14} strokeWidth={1.5} /> <bdi>{instance.server.region ? `${instance.server.name} · ${instance.server.region}` : instance.server.name}</bdi>
+                  <ServerCog size={14} strokeWidth={1.5} />{" "}
+                  <bdi>
+                    {instance.server.region
+                      ? `${instance.server.name} · ${instance.server.region}`
+                      : instance.server.name}
+                  </bdi>
                 </span>
               )}
               <Tag mono>{instance.odoo.version}</Tag>
               <Tag>{instance.odoo.edition === "enterprise" ? "Enterprise" : "Community"}</Tag>
               {instance.engine === "kubernetes" && (
-                <span title={e.onKubernetes}><Tag tone="accent" icon={<Boxes />}>{e.kubernetes}</Tag></span>
+                <span title={e.onKubernetes}>
+                  <Tag tone="accent" icon={<Boxes />}>
+                    {e.kubernetes}
+                  </Tag>
+                </span>
               )}
               {plain ? (
                 <span className="row xsmall" style={{ gap: 4 }}>
@@ -235,11 +292,23 @@ export function InstanceView({
               )}
               {/* the commit its current build runs: the short hash copies, its arrow opens the commit on GitHub */}
               {!plain && instance.git.commit && (
-                <CommitHash icon sha={instance.recent_commits?.find((c) => c.sha === instance.git.commit!.sha)?.full_sha || instance.git.commit.sha}
-                  repository={instance.git.repository} />
+                <CommitHash
+                  icon
+                  sha={
+                    instance.recent_commits?.find((c) => c.sha === instance.git.commit!.sha)?.full_sha ||
+                    instance.git.commit.sha
+                  }
+                  repository={instance.git.repository}
+                />
               )}
               {instance.url && (!instance.lock || can("instances.logs")) && (
-                <a href={instance.url} target="_blank" rel="noreferrer" className="row truncate mono xsmall" style={{ gap: 4 }}>
+                <a
+                  href={instance.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="row truncate mono xsmall"
+                  style={{ gap: 4 }}
+                >
                   <Globe size={14} strokeWidth={1.5} /> <bdi dir="ltr">{instance.url.replace(/^https?:\/\//, "")}</bdi>
                 </a>
               )}
@@ -254,104 +323,151 @@ export function InstanceView({
           )}
           {can("instances.update") &&
             (asleep ? (
-              <Button variant="primary" icon={<Play />} disabled={busy || !!capacity?.blocked} onClick={() => act("start", j.start)}>
+              <Button
+                variant="primary"
+                icon={<Play />}
+                disabled={busy || !!capacity?.blocked}
+                onClick={() => act("start", j.start)}
+              >
                 {t.start}
               </Button>
             ) : (
-              <Button className="header-secondary" icon={<RotateCw />} disabled={busy} onClick={() => act("restart", j.restart)}>
+              <Button
+                className="header-secondary"
+                icon={<RotateCw />}
+                disabled={busy}
+                onClick={() => act("restart", j.restart)}
+              >
                 {t.restart}
               </Button>
             ))}
           {can("instances.update") && !plain && (
-            <Button className="header-secondary" icon={<DownloadCloud />} disabled={busy || !instance.git.repository} onClick={() => act("update", j.update)}>
+            <Button
+              className="header-secondary"
+              icon={<DownloadCloud />}
+              disabled={busy || !instance.git.repository}
+              onClick={() => act("update", j.update)}
+            >
               {t.getLatest}
             </Button>
           )}
           {/* several servers (premium): Move to another server */}
           <PremiumSlot name="instance.actions" props={{ instance, busy, onJob: setJobId }} />
           {(can("instances.update") || can("instances.operate")) && (
-          <Menu trigger={(toggle) => <Button icon={<MoreHorizontal />} onClick={toggle} aria-label={t.moreActions} />}>
-            {(close) => {
-              const item = (fn: () => void) => () => {
-                close();
-                fn();
-              };
-              return (
-                <>
-                  {/* the header's own buttons, when the header is too narrow for them */}
-                  {can("instances.update") && !asleep && (
-                    <MenuItem className="header-secondary-item" disabled={busy} onSelect={item(() => act("restart", j.restart))}>
-                      <RotateCw /> {t.restart}
-                    </MenuItem>
-                  )}
-                  {can("instances.update") && !plain && (
-                    <MenuItem className="header-secondary-item" disabled={busy || !instance.git.repository} onSelect={item(() => act("update", j.update))}>
-                      <DownloadCloud /> {t.getLatest}
-                    </MenuItem>
-                  )}
-                  {!plain && (
-                    <MenuItem disabled={busy || !instance.git.repository} onSelect={item(() => act("update-submodules", j.updateSubmodules))}>
-                      <RefreshCw /> {t.updateSubmodules}
-                    </MenuItem>
-                  )}
-                  {can("instances.operate") && (
-                    <>
-                      <MenuItem disabled={busy} onSelect={item(() => setDialog("upgrade"))}>
-                        <Zap /> {t.upgradeModules}
+            <Menu
+              trigger={(toggle) => <Button icon={<MoreHorizontal />} onClick={toggle} aria-label={t.moreActions} />}
+            >
+              {(close) => {
+                const item = (fn: () => void) => () => {
+                  close();
+                  fn();
+                };
+                return (
+                  <>
+                    {/* the header's own buttons, when the header is too narrow for them */}
+                    {can("instances.update") && !asleep && (
+                      <MenuItem
+                        className="header-secondary-item"
+                        disabled={busy}
+                        onSelect={item(() => act("restart", j.restart))}
+                      >
+                        <RotateCw /> {t.restart}
                       </MenuItem>
-                      {plain ? (
-                        <MenuItem disabled={busy} onSelect={item(() => setDialog("connect"))}>
-                          <FolderGit2 /> {t.connectRepository}
-                        </MenuItem>
-                      ) : (
-                        <MenuItem disabled={busy || !instance.git.repository} onSelect={item(() => setDialog("branch"))}>
-                          <GitBranch /> {t.switchBranch}
-                        </MenuItem>
-                      )}
-                      <MenuItem disabled={busy} onSelect={item(() => act("update-images", j.updateImages))}>
-                        <Container /> {t.updateImages}
+                    )}
+                    {can("instances.update") && !plain && (
+                      <MenuItem
+                        className="header-secondary-item"
+                        disabled={busy || !instance.git.repository}
+                        onSelect={item(() => act("update", j.update))}
+                      >
+                        <DownloadCloud /> {t.getLatest}
                       </MenuItem>
-                      <MenuSeparator />
-                      {!asleep && (
-                        <MenuItem disabled={busy} onSelect={item(() => (production ? setDialog("pause") : act("pause", j.pause)))}>
-                          <Pause /> {t.pause}
+                    )}
+                    {!plain && (
+                      <MenuItem
+                        disabled={busy || !instance.git.repository}
+                        onSelect={item(() => act("update-submodules", j.updateSubmodules))}
+                      >
+                        <RefreshCw /> {t.updateSubmodules}
+                      </MenuItem>
+                    )}
+                    {can("instances.operate") && (
+                      <>
+                        <MenuItem disabled={busy} onSelect={item(() => setDialog("upgrade"))}>
+                          <Zap /> {t.upgradeModules}
                         </MenuItem>
-                      )}
-                      {instance.status !== "switched_off" && (
-                        <MenuItem disabled={busy} onSelect={item(() => (production ? setDialog("switch-off") : act("switch-off", j.switchOff)))}>
-                          <Power /> {t.switchOff}
+                        {plain ? (
+                          <MenuItem disabled={busy} onSelect={item(() => setDialog("connect"))}>
+                            <FolderGit2 /> {t.connectRepository}
+                          </MenuItem>
+                        ) : (
+                          <MenuItem
+                            disabled={busy || !instance.git.repository}
+                            onSelect={item(() => setDialog("branch"))}
+                          >
+                            <GitBranch /> {t.switchBranch}
+                          </MenuItem>
+                        )}
+                        <MenuItem disabled={busy} onSelect={item(() => act("update-images", j.updateImages))}>
+                          <Container /> {t.updateImages}
                         </MenuItem>
-                      )}
-                    </>
-                  )}
-                  {can("instances.move") && otherEngine(instance, offered) && (
-                    <MenuItem disabled={busy} onSelect={item(() => setDialog("engine"))}>
-                      <ArrowRightLeft /> {e.move}
-                    </MenuItem>
-                  )}
-                  {can("instances.delete") && (
-                    <MenuItem danger disabled={busy} onSelect={item(() => setDialog("delete"))}>
-                      <Trash2 /> {t.delete}
-                    </MenuItem>
-                  )}
-                </>
-              );
-            }}
-          </Menu>
+                        <MenuSeparator />
+                        {!asleep && (
+                          <MenuItem
+                            disabled={busy}
+                            onSelect={item(() => (production ? setDialog("pause") : act("pause", j.pause)))}
+                          >
+                            <Pause /> {t.pause}
+                          </MenuItem>
+                        )}
+                        {instance.status !== "switched_off" && (
+                          <MenuItem
+                            disabled={busy}
+                            onSelect={item(() =>
+                              production ? setDialog("switch-off") : act("switch-off", j.switchOff),
+                            )}
+                          >
+                            <Power /> {t.switchOff}
+                          </MenuItem>
+                        )}
+                      </>
+                    )}
+                    {can("instances.move") && otherEngine(instance, offered) && (
+                      <MenuItem disabled={busy} onSelect={item(() => setDialog("engine"))}>
+                        <ArrowRightLeft /> {e.move}
+                      </MenuItem>
+                    )}
+                    {can("instances.delete") && (
+                      <MenuItem danger disabled={busy} onSelect={item(() => setDialog("delete"))}>
+                        <Trash2 /> {t.delete}
+                      </MenuItem>
+                    )}
+                  </>
+                );
+              }}
+            </Menu>
           )}
         </div>
       </div>
 
       {instance.lock && <LockBanner lock={instance.lock} allowed={can("instances.logs")} />}
       {instance.project && (
-        <ClosedNotice projectId={instance.project.id} projectName={instance.project.name} branch={instance.git.branch} access={instance.client_access && { ...instance.client_access, lets_you_through: can("instances.logs") }} />
+        <ClosedNotice
+          projectId={instance.project.id}
+          projectName={instance.project.name}
+          branch={instance.git.branch}
+          access={instance.client_access && { ...instance.client_access, lets_you_through: can("instances.logs") }}
+        />
       )}
-      {instance.current_job && <JobBanner job={instance.current_job} onOpen={() => setJobId(instance.current_job!.id)} />}
+      {instance.current_job && (
+        <JobBanner job={instance.current_job} onOpen={() => setJobId(instance.current_job!.id)} />
+      )}
       {instance.rollback && can("instances.restore") && (
         <div className="rollback-banner" role="status">
           <Undo2 />
           <div className="text small">
-            <b>{b.restored(ago(instance.rollback.taken_at))}</b>{b.keptUntil(dateTime(instance.rollback.until))}
+            <b>{b.restored(ago(instance.rollback.taken_at))}</b>
+            {b.keptUntil(dateTime(instance.rollback.until))}
           </div>
           <Button variant="primary" icon={<Undo2 />} disabled={busy} onClick={() => setDialog("rollback")}>
             {b.rollback}
@@ -361,16 +477,27 @@ export function InstanceView({
       {asleep && !busy && can("instances.update") && <CapacityNote />}
       {instance.git.branch_deleted_on_github && (
         <Callout tone="warning">
-          {b.branchGone(<b key="b"><bdi dir="ltr">{instance.git.branch}</bdi></b>)}
+          {b.branchGone(
+            <b key="b">
+              <bdi dir="ltr">{instance.git.branch}</bdi>
+            </b>,
+          )}
         </Callout>
       )}
       {instance.update_failure && (
         <Callout tone={instance.update_failure.rolled_back ? "warning" : "danger"}>
-          <b>{instance.update_failure.rolled_back ? b.updateUndone : b.updateNotUndone}{instance.update_failure.failed_at ? ` ${ago(instance.update_failure.failed_at)}` : ""}.</b>{" "}
+          <b>
+            {instance.update_failure.rolled_back ? b.updateUndone : b.updateNotUndone}
+            {instance.update_failure.failed_at ? ` ${ago(instance.update_failure.failed_at)}` : ""}.
+          </b>{" "}
           {instance.update_failure.message}
           {instance.update_failure.job && (
             <div>
-              <Button size="sm" variant="ghost" onClick={() => setJobId(instance.update_failure!.job!.split("/").pop()!)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setJobId(instance.update_failure!.job!.split("/").pop()!)}
+              >
                 {b.showJob}
               </Button>
             </div>
@@ -382,7 +509,12 @@ export function InstanceView({
           <b>{b.newerImage(instance.odoo.version)}</b> {b.newerImageText}
           {can("instances.operate") && (
             <div>
-              <Button size="sm" icon={<Container />} disabled={busy} onClick={() => act("update-images", j.updateImages)}>
+              <Button
+                size="sm"
+                icon={<Container />}
+                disabled={busy}
+                onClick={() => act("update-images", j.updateImages)}
+              >
                 {t.updateImages}
               </Button>
             </div>
@@ -409,17 +541,39 @@ export function InstanceView({
 
       <nav className="tabs" aria-label={instance.name}>
         {lead && (
-          <Link to={tabLink(lead.id)} viewTransition className={tab === lead.id ? "active" : ""} aria-current={tab === lead.id ? "page" : undefined}>
+          <Link
+            to={tabLink(lead.id)}
+            viewTransition
+            className={tab === lead.id ? "active" : ""}
+            aria-current={tab === lead.id ? "page" : undefined}
+          >
             {lead.icon} {lead.label}
           </Link>
         )}
-        {TABS.filter((t) => (!t.permission || can(t.permission)) && (!t.anyOf || t.anyOf.some((p) => can(p))) && !(plain && t.id === "code") && !(production && t.id === "mail")).map((t) => (
-          <Link key={t.id} to={tabLink(t.id)} viewTransition className={tab === t.id ? "active" : ""} aria-current={tab === t.id ? "page" : undefined}>
+        {TABS.filter(
+          (t) =>
+            (!t.permission || can(t.permission)) &&
+            (!t.anyOf || t.anyOf.some((p) => can(p))) &&
+            !(plain && t.id === "code") &&
+            !(production && t.id === "mail"),
+        ).map((t) => (
+          <Link
+            key={t.id}
+            to={tabLink(t.id)}
+            viewTransition
+            className={tab === t.id ? "active" : ""}
+            aria-current={tab === t.id ? "page" : undefined}
+          >
             {t.icon} {all.tabs[t.label]}
           </Link>
         ))}
         {trail && (
-          <Link to={tabLink(trail.id)} viewTransition className={tab === trail.id ? "active" : ""} aria-current={tab === trail.id ? "page" : undefined}>
+          <Link
+            to={tabLink(trail.id)}
+            viewTransition
+            className={tab === trail.id ? "active" : ""}
+            aria-current={tab === trail.id ? "page" : undefined}
+          >
             {trail.icon} {trail.label}
           </Link>
         )}
@@ -431,31 +585,75 @@ export function InstanceView({
         {trail && tab === trail.id && trail.content}
         {tab === "" && <Overview instance={instance} busy={busy} act={act} />}
         {tab === "activity" && <ActivityTab name={name} onOpen={setJobId} />}
-        {tab === "code" && !plain && <CodeTab instance={instance} canAdd={can("instances.update")} canRemove={can("instances.operate")} busy={busy} onAdd={() => setDialog("submodule")} act={act} />}
+        {tab === "code" && !plain && (
+          <CodeTab
+            instance={instance}
+            canAdd={can("instances.update")}
+            canRemove={can("instances.operate")}
+            busy={busy}
+            onAdd={() => setDialog("submodule")}
+            act={act}
+          />
+        )}
         {tab === "logs" && can("instances.logs") && <LogsTab name={name} />}
-        {tab === "domains" && <PremiumSlot name="instance.domains" props={{ instance }} fallback={<DomainsCore instance={instance} />} />}
+        {tab === "domains" && (
+          <PremiumSlot name="instance.domains" props={{ instance }} fallback={<DomainsCore instance={instance} />} />
+        )}
         {tab === "settings" && can("instances.operate") && <SettingsTab instance={instance} plain={plain} />}
         {tab === "access" && can("instances.credentials") && <AccessTab instance={instance} />}
         {tab === "mail" && can("caught_mail.view") && !production && <MailTab instance={instance} />}
         {tab === "shell" && can("instances.shell") && <ShellTab instance={instance} />}
         {tab === "tools" && can("instances.profile") && <ToolsTab instance={instance} />}
         {tab === "upgrade" && can("instances.upgrade") && <UpgradeTab instance={instance} onJob={setJobId} />}
-        {tab === "backups" && BACKUP_RIGHTS.some((p) => can(p)) && <BackupsCard instance={instance} busy={busy} act={act} />}
+        {tab === "backups" && BACKUP_RIGHTS.some((p) => can(p)) && (
+          <BackupsCard instance={instance} busy={busy} act={act} />
+        )}
       </div>
 
       {jobId && <JobDrawer id={jobId} onClose={() => setJobId(null)} />}
-      {dialog === "upgrade" && <UpgradeDialog onClose={() => setDialog(null)} onRun={(modules) => act("upgrade", j.upgrade, { modules })} />}
-      {dialog === "branch" && <BranchDialog instance={instance} onClose={() => setDialog(null)} onRun={(branch) => act("switch-branch", j.switchBranch, { branch })} />}
-      {dialog === "connect" && <ConnectDialog onClose={() => setDialog(null)} onRun={(body) => act("connect-repository", j.connect, body)} />}
-      {dialog === "submodule" && <SubmoduleDialog version={instance.odoo.version} onClose={() => setDialog(null)} onRun={(body) => act("add-submodule", j.addSubmodule, body)} />}
-      {dialog === "delete" && <DeleteDialog name={name} production={production} after={afterDelete} onClose={() => setDialog(null)} />}
+      {dialog === "upgrade" && (
+        <UpgradeDialog onClose={() => setDialog(null)} onRun={(modules) => act("upgrade", j.upgrade, { modules })} />
+      )}
+      {dialog === "branch" && (
+        <BranchDialog
+          instance={instance}
+          onClose={() => setDialog(null)}
+          onRun={(branch) => act("switch-branch", j.switchBranch, { branch })}
+        />
+      )}
+      {dialog === "connect" && (
+        <ConnectDialog onClose={() => setDialog(null)} onRun={(body) => act("connect-repository", j.connect, body)} />
+      )}
+      {dialog === "submodule" && (
+        <SubmoduleDialog
+          version={instance.odoo.version}
+          onClose={() => setDialog(null)}
+          onRun={(body) => act("add-submodule", j.addSubmodule, body)}
+        />
+      )}
+      {dialog === "delete" && (
+        <DeleteDialog name={name} production={production} after={afterDelete} onClose={() => setDialog(null)} />
+      )}
       {(dialog === "pause" || dialog === "switch-off") && (
-        <StopProductionDialog name={name} action={dialog} onClose={() => setDialog(null)}
-          onRun={() => act(dialog, dialog === "pause" ? j.pause : j.switchOff)} />
+        <StopProductionDialog
+          name={name}
+          action={dialog}
+          onClose={() => setDialog(null)}
+          onRun={() => act(dialog, dialog === "pause" ? j.pause : j.switchOff)}
+        />
       )}
       {dialog === "engine" && otherEngine(instance, offered) && (
-        <EngineMoveDialog instance={instance} to={otherEngine(instance, offered)!} onClose={() => setDialog(null)}
-          onRun={() => act("change-engine", e.moveJob, { engine: otherEngine(instance, offered), ...(production ? { confirm_production: true } : {}) })} />
+        <EngineMoveDialog
+          instance={instance}
+          to={otherEngine(instance, offered)!}
+          onClose={() => setDialog(null)}
+          onRun={() =>
+            act("change-engine", e.moveJob, {
+              engine: otherEngine(instance, offered),
+              ...(production ? { confirm_production: true } : {}),
+            })
+          }
+        />
       )}
       {dialog === "rollback" && instance.rollback && (
         <RollbackDialog instance={instance} onClose={() => setDialog(null)} onRun={() => act("rollback", j.rollback)} />
@@ -467,17 +665,43 @@ export function InstanceView({
 const PRODUCTION_CONFIRMED = ["pause", "switch-off", "restore", "rollback"];
 
 /** Pausing or switching off a production instance takes its users offline: asked once more. */
-function StopProductionDialog({ name, action, onClose, onRun }: { name: string; action: "pause" | "switch-off"; onClose: () => void; onRun: () => void }) {
+function StopProductionDialog({
+  name,
+  action,
+  onClose,
+  onRun,
+}: {
+  name: string;
+  action: "pause" | "switch-off";
+  onClose: () => void;
+  onRun: () => void;
+}) {
   const all = useT(words);
   const t = all.stop;
   const c = useT(common).common;
   const verb = action === "pause" ? all.head.pause : all.head.switchOff;
   return (
-    <Modal title={action === "pause" ? t.pauseTitle(name) : t.switchOffTitle(name)} description={t.production} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="danger" icon={action === "pause" ? <Pause /> : <Power />} onClick={() => { onRun(); onClose(); }}>{verb}</Button></>}>
-      <Callout tone="warning">
-        {action === "pause" ? t.pauseText : t.switchOffText}
-      </Callout>
+    <Modal
+      title={action === "pause" ? t.pauseTitle(name) : t.switchOffTitle(name)}
+      description={t.production}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="danger"
+            icon={action === "pause" ? <Pause /> : <Power />}
+            onClick={() => {
+              onRun();
+              onClose();
+            }}
+          >
+            {verb}
+          </Button>
+        </>
+      }
+    >
+      <Callout tone="warning">{action === "pause" ? t.pauseText : t.switchOffText}</Callout>
     </Modal>
   );
 }
@@ -487,7 +711,8 @@ function ProductionNote() {
   const t = useT(words).productionNote;
   return (
     <Callout tone="info">
-      <b>{t.title}</b>{t.text}
+      <b>{t.title}</b>
+      {t.text}
     </Callout>
   );
 }
@@ -502,7 +727,15 @@ const METRICS = {
 } as const;
 type Metric = keyof typeof METRICS;
 
-function Overview({ instance, busy, act }: { instance: Instance; busy: boolean; act: (action: string, title: string, body?: Record<string, unknown>) => void }) {
+function Overview({
+  instance,
+  busy,
+  act,
+}: {
+  instance: Instance;
+  busy: boolean;
+  act: (action: string, title: string, body?: Record<string, unknown>) => void;
+}) {
   const { data: history } = useHistory();
   const [metric, setMetric] = useState<Metric>("cpu_percent");
   const series = history?.instances[instance.name];
@@ -514,17 +747,35 @@ function Overview({ instance, busy, act }: { instance: Instance; busy: boolean; 
     <div className="stack">
       {instance.stage === "production" && <ProductionNote />}
       <div className="grid-4 stagger">
-        <StatCard label={t.processor} value={u.cpu_percent ?? null} unit="%" decimals={1} detail={t.ofServer}
-          trend={{ t: series?.t ?? [], values: series?.cpu_percent ?? [] }} />
-        <StatCard label={t.memory} value={u.memory_percent != null ? Math.round(u.memory_percent) : null} unit="%"
+        <StatCard
+          label={t.processor}
+          value={u.cpu_percent ?? null}
+          unit="%"
+          decimals={1}
+          detail={t.ofServer}
+          trend={{ t: series?.t ?? [], values: series?.cpu_percent ?? [] }}
+        />
+        <StatCard
+          label={t.memory}
+          value={u.memory_percent != null ? Math.round(u.memory_percent) : null}
+          unit="%"
           detail={t.memoryOf(bytes(u.memory_bytes), bytes(u.memory_limit_bytes))}
-          trend={{ t: series?.t ?? [], values: series?.memory_percent ?? [], max: 100 }} />
-        <StatCard label={t.requests} value={u.requests_per_minute != null ? Math.round(u.requests_per_minute) : null} unit={t.perMinute}
+          trend={{ t: series?.t ?? [], values: series?.memory_percent ?? [], max: 100 }}
+        />
+        <StatCard
+          label={t.requests}
+          value={u.requests_per_minute != null ? Math.round(u.requests_per_minute) : null}
+          unit={t.perMinute}
           detail={u.error_rate_percent ? t.errors(percent(u.error_rate_percent, 1)) : t.noErrors}
-          trend={{ t: series?.t ?? [], values: series?.requests_per_minute ?? [] }} />
-        <StatCard label={t.responseTime} value={u.response_ms_p95 != null ? Math.round(u.response_ms_p95) : null} unit="ms"
+          trend={{ t: series?.t ?? [], values: series?.requests_per_minute ?? [] }}
+        />
+        <StatCard
+          label={t.responseTime}
+          value={u.response_ms_p95 != null ? Math.round(u.response_ms_p95) : null}
+          unit="ms"
           detail={t.responseDetail(ms(u.response_ms_avg))}
-          trend={{ t: series?.t ?? [], values: series?.response_ms_p95 ?? [] }} />
+          trend={{ t: series?.t ?? [], values: series?.response_ms_p95 ?? [] }}
+        />
       </div>
 
       <div className="overview">
@@ -553,7 +804,9 @@ function Overview({ instance, busy, act }: { instance: Instance; busy: boolean; 
           </div>
         </section>
         <section className="card">
-          <div className="card-head"><h2>{t.details}</h2></div>
+          <div className="card-head">
+            <h2>{t.details}</h2>
+          </div>
           <div className="card-body">
             <dl className="dl small">
               {instance.managed_name && (
@@ -561,27 +814,57 @@ function Overview({ instance, busy, act }: { instance: Instance; busy: boolean; 
                   <dt>{t.managedName}</dt>
                   <dd className="truncate">
                     {instance.managed_name.url ? (
-                      <a href={instance.managed_name.url} target="_blank" rel="noreferrer" dir="ltr">{instance.managed_name.hostname}</a>
+                      <a href={instance.managed_name.url} target="_blank" rel="noreferrer" dir="ltr">
+                        {instance.managed_name.hostname}
+                      </a>
                     ) : (
-                      <><bdi dir="ltr" className="mono">{instance.managed_name.hostname}</bdi> <span className="faint">{t.managedPending}</span></>
+                      <>
+                        <bdi dir="ltr" className="mono">
+                          {instance.managed_name.hostname}
+                        </bdi>{" "}
+                        <span className="faint">{t.managedPending}</span>
+                      </>
                     )}
                   </dd>
                 </>
               )}
               <dt>{t.database}</dt>
-              <dd className="mono" dir="ltr">{instance.odoo.database}</dd>
+              <dd className="mono" dir="ltr">
+                {instance.odoo.database}
+              </dd>
               <dt>{t.repository}</dt>
-              <dd className="truncate">{instance.git.repository ? <a href={instance.git.repository} target="_blank" rel="noreferrer" dir="ltr">{instance.git.repository.replace(/^https:\/\/github\.com\//, "")}</a> : <span className="faint">{instance.source === "plain" ? t.nonePlain : t.none}</span>}</dd>
+              <dd className="truncate">
+                {instance.git.repository ? (
+                  <a href={instance.git.repository} target="_blank" rel="noreferrer" dir="ltr">
+                    {instance.git.repository.replace(/^https:\/\/github\.com\//, "")}
+                  </a>
+                ) : (
+                  <span className="faint">{instance.source === "plain" ? t.nonePlain : t.none}</span>
+                )}
+              </dd>
               <dt>{t.runningFor}</dt>
               <dd>{duration(u.uptime_seconds)}</dd>
               <dt>{t.disk}</dt>
-              <dd>{instance.disk ? t.diskSplit(bytes(instance.disk.database_bytes), bytes(instance.disk.files_bytes)) : bytes(u.disk_bytes)}</dd>
+              <dd>
+                {instance.disk
+                  ? t.diskSplit(bytes(instance.disk.database_bytes), bytes(instance.disk.files_bytes))
+                  : bytes(u.disk_bytes)}
+              </dd>
               <dt>{t.lastVisit}</dt>
               <dd>{ago(instance.last_visit_at)}</dd>
               <dt>{t.pauses}</dt>
-              <dd>{instance.pauses_at ? t.pausesAt(ago(instance.pauses_at)) : instance.settings.auto_pause ? t.whenIdle : t.never}</dd>
+              <dd>
+                {instance.pauses_at
+                  ? t.pausesAt(ago(instance.pauses_at))
+                  : instance.settings.auto_pause
+                    ? t.whenIdle
+                    : t.never}
+              </dd>
               <dt>{t.created}</dt>
-              <dd>{dateTime(instance.created_at)}{instance.created_by ? t.createdBy(instance.created_by) : ""}</dd>
+              <dd>
+                {dateTime(instance.created_at)}
+                {instance.created_by ? t.createdBy(instance.created_by) : ""}
+              </dd>
               <dt>{t.deleted}</dt>
               <dd>{instance.expires_at ? t.deletedAt(dateTime(instance.expires_at)) : t.keptByHand}</dd>
             </dl>
@@ -595,7 +878,15 @@ function Overview({ instance, busy, act }: { instance: Instance; busy: boolean; 
 
 // ---------------------------------------------------------------- backups
 
-function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolean; act: (action: string, title: string, body?: Record<string, unknown>) => void }) {
+function BackupsCard({
+  instance,
+  busy,
+  act,
+}: {
+  instance: Instance;
+  busy: boolean;
+  act: (action: string, title: string, body?: Record<string, unknown>) => void;
+}) {
   const can = useCanIn(instance);
   const [restoring, setRestoring] = useState<InstanceBackup | null>(null);
   const [picking, setPicking] = useState(false);
@@ -613,10 +904,17 @@ function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolea
         <span className="sub">{list.length ? t.kept(count(list.length, "backup")) : t.noneYet}</span>
         <span className="spacer" />
         {can("instances.operate") && (
-          <Button size="sm" icon={<Database />} disabled={busy} onClick={() => setCommenting(true)}>{t.backUpNow}</Button>
+          <Button size="sm" icon={<Database />} disabled={busy} onClick={() => setCommenting(true)}>
+            {t.backUpNow}
+          </Button>
         )}
         {can("instances.restore") && (
-          <Button size="sm" icon={<History />} disabled={busy || !latest} onClick={() => latest && setRestoring(latest)}>
+          <Button
+            size="sm"
+            icon={<History />}
+            disabled={busy || !latest}
+            onClick={() => latest && setRestoring(latest)}
+          >
             {t.restoreLatest}
           </Button>
         )}
@@ -632,35 +930,66 @@ function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolea
           <div>
             <div className="small muted">{t.latest}</div>
             <div className="when">{dateTime(latest.created_at)}</div>
-            <div className="xsmall faint">{KIND_LABEL[latest.kind] ?? latest.kind} · {bytes(latest.size_bytes)} · {ago(latest.created_at)}</div>
+            <div className="xsmall faint">
+              {KIND_LABEL[latest.kind] ?? latest.kind} · {bytes(latest.size_bytes)} · {ago(latest.created_at)}
+            </div>
           </div>
         </div>
       ) : (
-        <p className="card-body small muted">
-          {t.nightly}
-        </p>
+        <p className="card-body small muted">{t.nightly}</p>
       )}
       {list.length > 0 && (
         <Table>
-          <TableHeader><TableRow><TableHead>{t.taken}</TableHead><TableHead>{t.kind}</TableHead><TableHead>{tb.revision}</TableHead><TableHead>{tb.comment}</TableHead><TableHead>{t.size}</TableHead><TableHead /></TableRow></TableHeader>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t.taken}</TableHead>
+              <TableHead>{t.kind}</TableHead>
+              <TableHead>{tb.revision}</TableHead>
+              <TableHead>{tb.comment}</TableHead>
+              <TableHead>{t.size}</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
           <TableBody>
             {list.map((b) => (
               <TableRow key={b.file}>
-                <TableCell>{dateTime(b.created_at)} <span className="faint xsmall">· {ago(b.created_at)}</span></TableCell>
-                <TableCell><Tag tone={b.kind === "daily" ? "accent" : undefined}>{KIND_LABEL[b.kind] ?? b.kind}</Tag></TableCell>
-                <TableCell className="mono small" dir="ltr">
-                  {b.revision ? (commitPage(instance.git.repository, b.revision)
-                    ? <a href={commitPage(instance.git.repository, b.revision)!} target="_blank" rel="noreferrer">{b.revision.slice(0, 7)}</a>
-                    : b.revision.slice(0, 7)) : <span className="faint">—</span>}
+                <TableCell>
+                  {dateTime(b.created_at)} <span className="faint xsmall">· {ago(b.created_at)}</span>
                 </TableCell>
-                <TableCell className="small"><span className="backup-comment" title={b.comment ?? undefined}><bdi>{b.comment || tb.noComment}</bdi></span></TableCell>
+                <TableCell>
+                  <Tag tone={b.kind === "daily" ? "accent" : undefined}>{KIND_LABEL[b.kind] ?? b.kind}</Tag>
+                </TableCell>
+                <TableCell className="mono small" dir="ltr">
+                  {b.revision ? (
+                    commitPage(instance.git.repository, b.revision) ? (
+                      <a href={commitPage(instance.git.repository, b.revision)!} target="_blank" rel="noreferrer">
+                        {b.revision.slice(0, 7)}
+                      </a>
+                    ) : (
+                      b.revision.slice(0, 7)
+                    )
+                  ) : (
+                    <span className="faint">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="small">
+                  <span className="backup-comment" title={b.comment ?? undefined}>
+                    <bdi>{b.comment || tb.noComment}</bdi>
+                  </span>
+                </TableCell>
                 <TableCell className="mono small">{bytes(b.size_bytes)}</TableCell>
                 <TableCell className="actions">
                   {can("backups.manage") && (
-                    <Button asChild variant="ghost" size="sm"><a href={`/api/v1/backups/${b.file}`} download aria-label={t.download(b.file)}><Download /></a></Button>
+                    <Button asChild variant="ghost" size="sm">
+                      <a href={`/api/v1/backups/${b.file}`} download aria-label={t.download(b.file)}>
+                        <Download />
+                      </a>
+                    </Button>
                   )}
                   {can("instances.restore") && (
-                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => setRestoring(b)}>{t.restore}</Button>
+                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => setRestoring(b)}>
+                      {t.restore}
+                    </Button>
                   )}
                 </TableCell>
               </TableRow>
@@ -669,32 +998,77 @@ function BackupsCard({ instance, busy, act }: { instance: Instance; busy: boolea
         </Table>
       )}
       {restoring && (
-        <RestoreDialog instance={instance} backup={restoring} onClose={() => setRestoring(null)}
-          onRun={() => act("restore", all.jobs.restore, { file: restoring.file })} />
+        <RestoreDialog
+          instance={instance}
+          backup={restoring}
+          onClose={() => setRestoring(null)}
+          onRun={() => act("restore", all.jobs.restore, { file: restoring.file })}
+        />
       )}
       {picking && (
-        <AnotherBackupDialog instance={instance} onClose={() => setPicking(false)}
-          onRun={(file) => act("restore", all.jobs.restore, { file })} />
+        <AnotherBackupDialog
+          instance={instance}
+          onClose={() => setPicking(false)}
+          onRun={(file) => act("restore", all.jobs.restore, { file })}
+        />
       )}
       {commenting && (
-        <BackupCommentDialog onClose={() => setCommenting(false)}
-          onRun={(comment) => act("backup", all.jobs.backup, comment ? { comment } : undefined)} />
+        <BackupCommentDialog
+          onClose={() => setCommenting(false)}
+          onRun={(comment) => act("backup", all.jobs.backup, comment ? { comment } : undefined)}
+        />
       )}
     </section>
   );
 }
 
-function RestoreDialog({ instance, backup, onClose, onRun }: { instance: Instance; backup: InstanceBackup; onClose: () => void; onRun: () => void }) {
+function RestoreDialog({
+  instance,
+  backup,
+  onClose,
+  onRun,
+}: {
+  instance: Instance;
+  backup: InstanceBackup;
+  onClose: () => void;
+  onRun: () => void;
+}) {
   const all = useT(words);
   const t = all.backups;
   const c = useT(common).common;
   return (
-    <Modal title={t.restoreTitle(dateTime(backup.created_at))} description={`${all.backupKinds[backup.kind] ?? backup.kind} · ${bytes(backup.size_bytes)}`} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="danger" onClick={() => { onRun(); onClose(); }}>{t.restore}</Button></>}>
+    <Modal
+      title={t.restoreTitle(dateTime(backup.created_at))}
+      description={`${all.backupKinds[backup.kind] ?? backup.kind} · ${bytes(backup.size_bytes)}`}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              onRun();
+              onClose();
+            }}
+          >
+            {t.restore}
+          </Button>
+        </>
+      }
+    >
       <div className="stack">
         <Callout tone="warning">
-          {instance.stage === "production" && <><b>{t.productionWarning}</b> </>}
-          {t.restoreText(<b key="db" className="mono">{backup.database}</b>, dateTime(backup.created_at))}
+          {instance.stage === "production" && (
+            <>
+              <b>{t.productionWarning}</b>{" "}
+            </>
+          )}
+          {t.restoreText(
+            <b key="db" className="mono">
+              {backup.database}
+            </b>,
+            dateTime(backup.created_at),
+          )}
         </Callout>
         <p className="small muted">
           {t.restoreAfter(<b key="r">{t.rollbackWord}</b>, <bdi key="n">{instance.name}</bdi>)}
@@ -704,20 +1078,58 @@ function RestoreDialog({ instance, backup, onClose, onRun }: { instance: Instanc
   );
 }
 
-function AnotherBackupDialog({ instance, onClose, onRun }: { instance: Instance; onClose: () => void; onRun: (file: string) => void }) {
+function AnotherBackupDialog({
+  instance,
+  onClose,
+  onRun,
+}: {
+  instance: Instance;
+  onClose: () => void;
+  onRun: (file: string) => void;
+}) {
   const [file, setFile] = useState<string | null>(null);
   const foreign = !!file && !file.startsWith(`${instance.name}__`);
   const t = useT(words).backups;
   const c = useT(common).common;
   return (
-    <Modal wide title={t.anotherTitle} description={t.anotherText(instance.odoo.version, instance.name)} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="danger" disabled={!file} onClick={() => { if (file) { onRun(file); onClose(); } }}>{t.restore}</Button></>}>
+    <Modal
+      wide
+      title={t.anotherTitle}
+      description={t.anotherText(instance.odoo.version, instance.name)}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="danger"
+            disabled={!file}
+            onClick={() => {
+              if (file) {
+                onRun(file);
+                onClose();
+              }
+            }}
+          >
+            {t.restore}
+          </Button>
+        </>
+      }
+    >
       <div className="stack">
         <BackupPicker version={instance.odoo.version} edition={instance.odoo.edition} value={file} onChange={setFile} />
         {file && (
           <Callout tone="warning">
-            {instance.stage === "production" && <><b>{t.productionWarning}</b> </>}
-            {t.anotherReplace(<b key="db" className="mono">{instance.odoo.database}</b>, <b key="r">{t.rollbackWord}</b>)}
+            {instance.stage === "production" && (
+              <>
+                <b>{t.productionWarning}</b>{" "}
+              </>
+            )}
+            {t.anotherReplace(
+              <b key="db" className="mono">
+                {instance.odoo.database}
+              </b>,
+              <b key="r">{t.rollbackWord}</b>,
+            )}
             {foreign && t.neutralised}
           </Callout>
         )}
@@ -731,16 +1143,36 @@ function RollbackDialog({ instance, onClose, onRun }: { instance: Instance; onCl
   const t = useT(words).backups;
   const c = useT(common).common;
   return (
-    <Modal title={t.rollbackTitle} description={t.rollbackTo(dateTime(rollback.taken_at))} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="danger" icon={<Undo2 />} onClick={() => { onRun(); onClose(); }}>{t.rollbackWord}</Button></>}>
+    <Modal
+      title={t.rollbackTitle}
+      description={t.rollbackTo(dateTime(rollback.taken_at))}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="danger"
+            icon={<Undo2 />}
+            onClick={() => {
+              onRun();
+              onClose();
+            }}
+          >
+            {t.rollbackWord}
+          </Button>
+        </>
+      }
+    >
       <div className="stack">
         <Callout tone="warning">
-          {instance.stage === "production" && <><b>{t.productionWarning}</b> </>}
+          {instance.stage === "production" && (
+            <>
+              <b>{t.productionWarning}</b>{" "}
+            </>
+          )}
           {t.rollbackText(dateTime(rollback.taken_at))}
         </Callout>
-        <p className="small muted">
-          {t.rollbackAfter(dateTime(rollback.until), <bdi key="n">{instance.name}</bdi>)}
-        </p>
+        <p className="small muted">{t.rollbackAfter(dateTime(rollback.until), <bdi key="n">{instance.name}</bdi>)}</p>
       </div>
     </Modal>
   );
@@ -759,7 +1191,11 @@ function JobRow({ job, onOpen }: { job: Job; onOpen: (id: string) => void }) {
           <bdi>{job.instance}</bdi> · <bdi>{job.requested_by}</bdi> · {ago(job.started_at)}
           {job.finished_at && t.took(elapsed(job.started_at, job.finished_at))}
         </div>
-        {job.error && <div className="xsmall" style={{ color: "var(--negative)" }}>{job.error}</div>}
+        {job.error && (
+          <div className="xsmall" style={{ color: "var(--negative)" }}>
+            {job.error}
+          </div>
+        )}
       </div>
       <Progress value={job.progress_percent} status={job.status} />
     </button>
@@ -768,9 +1204,25 @@ function JobRow({ job, onOpen }: { job: Job; onOpen: (id: string) => void }) {
 
 export function JobList({ jobs, onOpen }: { jobs: Job[] | undefined; onOpen: (id: string) => void }) {
   const t = useT(words).activity;
-  if (!jobs) return <div className="card-body"><Skeleton height={120} /></div>;
-  if (!jobs.length) return <Empty icon={<Layers />} title={t.emptyTitle}>{t.emptyText}</Empty>;
-  return <>{jobs.map((job) => <JobRow key={job.id} job={job} onOpen={onOpen} />)}</>;
+  if (!jobs)
+    return (
+      <div className="card-body">
+        <Skeleton height={120} />
+      </div>
+    );
+  if (!jobs.length)
+    return (
+      <Empty icon={<Layers />} title={t.emptyTitle}>
+        {t.emptyText}
+      </Empty>
+    );
+  return (
+    <>
+      {jobs.map((job) => (
+        <JobRow key={job.id} job={job} onOpen={onOpen} />
+      ))}
+    </>
+  );
 }
 
 function ActivityTab({ name, onOpen }: { name: string; onOpen: (id: string) => void }) {
@@ -802,9 +1254,13 @@ function CommitRow({ commit, latest, repository }: { commit: Commit; latest: boo
   };
   return (
     <li className="commit">
-      <span className={`node ${latest ? "done" : ""}`}><GitCommitHorizontal /></span>
+      <span className={`node ${latest ? "done" : ""}`}>
+        <GitCommitHorizontal />
+      </span>
       <div className="commit-body">
-        <div className="commit-message truncate" title={commit.subject}><bdi>{commit.subject}</bdi></div>
+        <div className="commit-message truncate" title={commit.subject}>
+          <bdi>{commit.subject}</bdi>
+        </div>
         <div className="commit-meta xsmall">
           {page ? (
             <a className="commit-sha" href={page} target="_blank" rel="noreferrer" dir="ltr" title={t.openCommit}>
@@ -812,16 +1268,29 @@ function CommitRow({ commit, latest, repository }: { commit: Commit; latest: boo
               <ArrowUpRight aria-hidden="true" />
             </a>
           ) : (
-            <button type="button" className="commit-sha" dir="ltr" onClick={copy} title={copied ? c.copied : t.copyCommit} aria-label={copied ? c.copied : t.copyCommit}>
+            <button
+              type="button"
+              className="commit-sha"
+              dir="ltr"
+              onClick={copy}
+              title={copied ? c.copied : t.copyCommit}
+              aria-label={copied ? c.copied : t.copyCommit}
+            >
               {commit.sha}
               {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
             </button>
           )}
-          <span className="faint" aria-hidden="true">·</span>
+          <span className="faint" aria-hidden="true">
+            ·
+          </span>
           <bdi className="faint truncate">{commit.author}</bdi>
-          <span className="faint" aria-hidden="true">·</span>
+          <span className="faint" aria-hidden="true">
+            ·
+          </span>
           {valid ? (
-            <time className="faint nowrap" dateTime={commit.when} title={fullDateTime(commit.when)}>{ago(commit.when)}</time>
+            <time className="faint nowrap" dateTime={commit.when} title={fullDateTime(commit.when)}>
+              {ago(commit.when)}
+            </time>
           ) : (
             <span className="faint nowrap">{commit.when}</span>
           )}
@@ -831,7 +1300,21 @@ function CommitRow({ commit, latest, repository }: { commit: Commit; latest: boo
   );
 }
 
-function CodeTab({ instance, canAdd, canRemove, busy, onAdd, act }: { instance: Instance; canAdd: boolean; canRemove: boolean; busy: boolean; onAdd: () => void; act: (action: string, title: string, body?: Record<string, unknown>) => void }) {
+function CodeTab({
+  instance,
+  canAdd,
+  canRemove,
+  busy,
+  onAdd,
+  act,
+}: {
+  instance: Instance;
+  canAdd: boolean;
+  canRemove: boolean;
+  busy: boolean;
+  onAdd: () => void;
+  act: (action: string, title: string, body?: Record<string, unknown>) => void;
+}) {
   const all = useT(words);
   const t = all.code;
   return (
@@ -848,14 +1331,20 @@ function CodeTab({ instance, canAdd, canRemove, busy, onAdd, act }: { instance: 
             ))}
           </ol>
         ) : (
-          <Empty icon={<GitCommitHorizontal />} title={t.noCommits}>{t.noCommitsText}</Empty>
+          <Empty icon={<GitCommitHorizontal />} title={t.noCommits}>
+            {t.noCommitsText}
+          </Empty>
         )}
       </div>
       <div className="card">
         <div className="card-head">
           <h2>{t.submodules}</h2>
           <span className="spacer" />
-          {canAdd && <Button size="sm" icon={<Plus />} disabled={busy || !instance.git.repository} onClick={onAdd}>{t.add}</Button>}
+          {canAdd && (
+            <Button size="sm" icon={<Plus />} disabled={busy || !instance.git.repository} onClick={onAdd}>
+              {t.add}
+            </Button>
+          )}
         </div>
         {instance.submodules?.length ? (
           <Table>
@@ -863,13 +1352,27 @@ function CodeTab({ instance, canAdd, canRemove, busy, onAdd, act }: { instance: 
               {instance.submodules.map((s) => (
                 <TableRow key={s.path}>
                   <TableCell>
-                    <div className="mono" dir="ltr">{s.path}</div>
-                    <div className="xsmall faint truncate" dir="ltr">{s.url}</div>
+                    <div className="mono" dir="ltr">
+                      {s.path}
+                    </div>
+                    <div className="xsmall faint truncate" dir="ltr">
+                      {s.url}
+                    </div>
                   </TableCell>
                   <TableCell className="mono xsmall">{s.sha}</TableCell>
                   <TableCell className="actions">
                     {canRemove && (
-                      <Button size="sm" variant="ghost" icon={<Trash2 />} disabled={busy} aria-label={t.remove} onClick={() => confirm(t.removeConfirm(s.path)) && act("remove-submodule", all.jobs.removeSubmodule, { path: s.path })} />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        icon={<Trash2 />}
+                        disabled={busy}
+                        aria-label={t.remove}
+                        onClick={() =>
+                          confirm(t.removeConfirm(s.path)) &&
+                          act("remove-submodule", all.jobs.removeSubmodule, { path: s.path })
+                        }
+                      />
                     )}
                   </TableCell>
                 </TableRow>
@@ -877,7 +1380,9 @@ function CodeTab({ instance, canAdd, canRemove, busy, onAdd, act }: { instance: 
             </TableBody>
           </Table>
         ) : (
-          <Empty icon={<Layers />} title={t.noSubmodules}>{t.noSubmodulesText}</Empty>
+          <Empty icon={<Layers />} title={t.noSubmodules}>
+            {t.noSubmodulesText}
+          </Empty>
         )}
       </div>
     </div>
@@ -898,14 +1403,21 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
   const t = useT(words).settings;
   const c = useT(common);
   const stageLabel = (stage: Stage) => c.stages[stage]?.label ?? stage;
-  const save = useCall((body: Record<string, unknown>) => api.patch<Instance>(`/instances/${instance.name}`, body), [keys.instance(instance.name), keys.instances, keys.resources(instance.name)]);
+  const save = useCall(
+    (body: Record<string, unknown>) => api.patch<Instance>(`/instances/${instance.name}`, body),
+    [keys.instance(instance.name), keys.instances, keys.resources(instance.name)],
+  );
   const set = (body: Record<string, unknown>) =>
-    save.mutate(body, { onSuccess: () => toast("success", t.saved), onError: (e) => toast("error", t.notSaved, errorText(e)) });
+    save.mutate(body, {
+      onSuccess: () => toast("success", t.saved),
+      onError: (e) => toast("error", t.notSaved, errorText(e)),
+    });
   const s = instance.settings;
   const production = instance.stage === "production";
   const [leaving, setLeaving] = useState<Stage | null>(null);
   const changeStage = (stage: Stage) => {
-    if (production && stage !== "production") setLeaving(stage); // leaving production is asked first
+    if (production && stage !== "production")
+      setLeaving(stage); // leaving production is asked first
     else set({ stage });
   };
   // a lifetime that ends sooner deletes the instance sooner: only roles that may delete instances choose one
@@ -919,9 +1431,7 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
           ["auto_update", t.autoUpdate, t.autoUpdateText],
           ["auto_upgrade", t.autoUpgrade, t.autoUpgradeText],
         ] as [keyof typeof s, string, string][])),
-    ...(production
-      ? []
-      : ([["auto_pause", t.autoPause, t.autoPauseText]] as [keyof typeof s, string, string][])),
+    ...(production ? [] : ([["auto_pause", t.autoPause, t.autoPauseText]] as [keyof typeof s, string, string][])),
   ];
   return (
     <div className="stack">
@@ -931,14 +1441,28 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
             <div className="name">{t.stage}</div>
             <div className="desc">{c.stages[instance.stage]?.text}</div>
           </div>
-          <SelectBox aria-label={t.stage} value={instance.stage} disabled={save.isPending} onValueChange={(value) => changeStage(value as Stage)}>
-            {(["production", "staging", "development"] as Stage[]).map((st) => <option key={st} value={st}>{stageLabel(st)}</option>)}
+          <SelectBox
+            aria-label={t.stage}
+            value={instance.stage}
+            disabled={save.isPending}
+            onValueChange={(value) => changeStage(value as Stage)}
+          >
+            {(["production", "staging", "development"] as Stage[]).map((st) => (
+              <option key={st} value={st}>
+                {stageLabel(st)}
+              </option>
+            ))}
           </SelectBox>
         </div>
         {rows.map(([key, title, text]) => (
           <div className="settings-row" key={key}>
-            <div><div className="name">{title}</div><div className="desc">{text}</div></div>
-            <div style={{ justifySelf: "end" }}><Switch checked={s[key] as boolean} onChange={(v) => set({ [key]: v })} /></div>
+            <div>
+              <div className="name">{title}</div>
+              <div className="desc">{text}</div>
+            </div>
+            <div style={{ justifySelf: "end" }}>
+              <Switch checked={s[key] as boolean} onChange={(v) => set({ [key]: v })} />
+            </div>
           </div>
         ))}
         {production ? (
@@ -947,35 +1471,62 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
               <div className="name">{t.lifetime}</div>
               <div className="desc">{t.productionLifetime}</div>
             </div>
-            <span className="small muted" style={{ justifySelf: "end" }}>{t.kept}</span>
+            <span className="small muted" style={{ justifySelf: "end" }}>
+              {t.kept}
+            </span>
           </div>
         ) : (
-        <div className="settings-row">
-          <div>
-            <div className="name">{t.lifetime}</div>
-            <div className="desc">
-              {t.lifetimeText}
-              {!mayShorten && t.longerOnly}
+          <div className="settings-row">
+            <div>
+              <div className="name">{t.lifetime}</div>
+              <div className="desc">
+                {t.lifetimeText}
+                {!mayShorten && t.longerOnly}
+              </div>
             </div>
+            <SelectBox value={s.delete_after_days} onValueChange={(value) => set({ delete_after_days: Number(value) })}>
+              {[...new Set([7, 14, 30, 60, 90, 180, s.delete_after_days])]
+                .filter((d) => d > 0)
+                .sort((a, b) => a - b)
+                .map((d) => (
+                  <option key={d} value={d} disabled={!mayShorten && sooner(d)}>
+                    {count(d, "day")}
+                  </option>
+                ))}
+              <option value={0}>{t.keepByHand}</option>
+            </SelectBox>
           </div>
-          <SelectBox value={s.delete_after_days} onValueChange={(value) => set({ delete_after_days: Number(value) })}>
-            {[...new Set([7, 14, 30, 60, 90, 180, s.delete_after_days])].filter((d) => d > 0).sort((a, b) => a - b).map((d) => (
-              <option key={d} value={d} disabled={!mayShorten && sooner(d)}>{count(d, "day")}</option>
-            ))}
-            <option value={0}>{t.keepByHand}</option>
-          </SelectBox>
-        </div>
         )}
         {leaving && (
-          <Modal title={t.moveTitle(instance.name, stageLabel(leaving))} description={t.leavesProduction} onClose={() => setLeaving(null)}
-            footer={<><Button onClick={() => setLeaving(null)}>{c.common.cancel}</Button><Button variant="danger" loading={save.isPending}
-              onClick={() => save.mutate({ stage: leaving, confirm_production: true }, {
-                onSuccess: () => { toast("success", t.moved(stageLabel(leaving))); setLeaving(null); },
-                onError: (e) => toast("error", t.notMoved, errorText(e)),
-              })}>{t.leave}</Button></>}>
-            <Callout tone="warning">
-              {t.leaveText}
-            </Callout>
+          <Modal
+            title={t.moveTitle(instance.name, stageLabel(leaving))}
+            description={t.leavesProduction}
+            onClose={() => setLeaving(null)}
+            footer={
+              <>
+                <Button onClick={() => setLeaving(null)}>{c.common.cancel}</Button>
+                <Button
+                  variant="danger"
+                  loading={save.isPending}
+                  onClick={() =>
+                    save.mutate(
+                      { stage: leaving, confirm_production: true },
+                      {
+                        onSuccess: () => {
+                          toast("success", t.moved(stageLabel(leaving)));
+                          setLeaving(null);
+                        },
+                        onError: (e) => toast("error", t.notMoved, errorText(e)),
+                      },
+                    )
+                  }
+                >
+                  {t.leave}
+                </Button>
+              </>
+            }
+          >
+            <Callout tone="warning">{t.leaveText}</Callout>
           </Modal>
         )}
       </div>
@@ -993,24 +1544,45 @@ function AccessTab({ instance }: { instance: Instance }) {
   const t = useT(words).access;
   return (
     <div className="stack">
-    <div className="card">
-      <div className="card-head"><h2>{t.title}</h2><span className="spacer" /><span className="sub">{t.recorded}</span></div>
-      <div className="card-body">
-        {!shown ? (
-          <Button icon={<KeyRound />} onClick={() => setShown(true)}>{t.show}</Button>
-        ) : !data ? (
-          isFetching && <Skeleton height={100} />
-        ) : (
-          <dl className="dl">
-            <dt>{t.address}</dt><dd>{instance.url ? <CopyField value={instance.url} /> : "—"}</dd>
-            <dt>{t.login}</dt><dd><CopyField value={data.login} /></dd>
-            <dt>{t.password}</dt><dd><CopyField value={data.admin_password} secret /></dd>
-            <dt>{t.master}</dt><dd><CopyField value={data.master_password} secret /> <span className="xsmall faint">{t.forManager}</span></dd>
-            <dt>{t.ports}</dt><dd className="mono small" dir="ltr">{Object.entries(data.ports).map(([k, v]) => `${k} ${v}`).join(" · ")}</dd>
-          </dl>
-        )}
+      <div className="card">
+        <div className="card-head">
+          <h2>{t.title}</h2>
+          <span className="spacer" />
+          <span className="sub">{t.recorded}</span>
+        </div>
+        <div className="card-body">
+          {!shown ? (
+            <Button icon={<KeyRound />} onClick={() => setShown(true)}>
+              {t.show}
+            </Button>
+          ) : !data ? (
+            isFetching && <Skeleton height={100} />
+          ) : (
+            <dl className="dl">
+              <dt>{t.address}</dt>
+              <dd>{instance.url ? <CopyField value={instance.url} /> : "—"}</dd>
+              <dt>{t.login}</dt>
+              <dd>
+                <CopyField value={data.login} />
+              </dd>
+              <dt>{t.password}</dt>
+              <dd>
+                <CopyField value={data.admin_password} secret />
+              </dd>
+              <dt>{t.master}</dt>
+              <dd>
+                <CopyField value={data.master_password} secret /> <span className="xsmall faint">{t.forManager}</span>
+              </dd>
+              <dt>{t.ports}</dt>
+              <dd className="mono small" dir="ltr">
+                {Object.entries(data.ports)
+                  .map(([k, v]) => `${k} ${v}`)
+                  .join(" · ")}
+              </dd>
+            </dl>
+          )}
+        </div>
       </div>
-    </div>
     </div>
   );
 }
@@ -1022,31 +1594,91 @@ function UpgradeDialog({ onClose, onRun }: { onClose: () => void; onRun: (module
   const t = useT(words).upgrade;
   const c = useT(common).common;
   return (
-    <Modal title={t.title} description={t.text} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" disabled={!modules.trim()} onClick={() => { onRun(modules.trim()); onClose(); }}>{t.run}</Button></>}>
+    <Modal
+      title={t.title}
+      description={t.text}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="primary"
+            disabled={!modules.trim()}
+            onClick={() => {
+              onRun(modules.trim());
+              onClose();
+            }}
+          >
+            {t.run}
+          </Button>
+        </>
+      }
+    >
       <Field label={t.modules} hint={<>{t.hint(<code key="all">all</code>)}</>}>
-        <Input className="mono" dir="ltr" autoFocus placeholder="sale_custom,stock_custom" value={modules} onChange={(e) => setModules(e.target.value)} />
+        <Input
+          className="mono"
+          dir="ltr"
+          autoFocus
+          placeholder="sale_custom,stock_custom"
+          value={modules}
+          onChange={(e) => setModules(e.target.value)}
+        />
       </Field>
     </Modal>
   );
 }
 
-function BranchDialog({ instance, onClose, onRun }: { instance: Instance; onClose: () => void; onRun: (branch: string) => void }) {
+function BranchDialog({
+  instance,
+  onClose,
+  onRun,
+}: {
+  instance: Instance;
+  onClose: () => void;
+  onRun: (branch: string) => void;
+}) {
   const [branch, setBranch] = useState("");
   const [branches, setBranches] = useState<string[] | null>(null);
   const [error, setError] = useState("");
   const t = useT(words).branch;
   const c = useT(common).common;
   if (branches === null && !error && instance.git.repository)
-    api.get<{ branches: string[] }>(`/repositories/branches?url=${encodeURIComponent(instance.git.repository)}`).then((r) => setBranches(r.branches), (e) => setError(errorText(e)));
+    api.get<{ branches: string[] }>(`/repositories/branches?url=${encodeURIComponent(instance.git.repository)}`).then(
+      (r) => setBranches(r.branches),
+      (e) => setError(errorText(e)),
+    );
   return (
-    <Modal title={t.title} description={t.text} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" disabled={!branch} onClick={() => { onRun(branch); onClose(); }}>{t.run}</Button></>}>
-      {error ? <Callout tone="danger">{error}</Callout> : (
+    <Modal
+      title={t.title}
+      description={t.text}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="primary"
+            disabled={!branch}
+            onClick={() => {
+              onRun(branch);
+              onClose();
+            }}
+          >
+            {t.run}
+          </Button>
+        </>
+      }
+    >
+      {error ? (
+        <Callout tone="danger">{error}</Callout>
+      ) : (
         <Field label={t.branch}>
           <SelectBox value={branch} onValueChange={(value) => setBranch(value)} disabled={!branches}>
             <option value="">{branches ? t.choose : t.loading}</option>
-            {branches?.filter((b) => b !== instance.git.branch).map((b) => <option key={b}>{b}</option>)}
+            {branches
+              ?.filter((b) => b !== instance.git.branch)
+              .map((b) => (
+                <option key={b}>{b}</option>
+              ))}
           </SelectBox>
         </Field>
       )}
@@ -1073,26 +1705,72 @@ function ConnectDialog({ onClose, onRun }: { onClose: () => void; onRun: (body: 
     if (!REPOSITORY_ADDRESS.test(address)) return;
     let current = true;
     api.get<{ branches: string[]; default: string }>(`/repositories/branches?url=${encodeURIComponent(address)}`).then(
-      (r) => { if (current) { setBranches(r.branches); setBranch((b) => (b && r.branches.includes(b) ? b : r.default || r.branches[0] || "")); } },
-      (e) => { if (current) setError(errorText(e)); },
+      (r) => {
+        if (current) {
+          setBranches(r.branches);
+          setBranch((b) => (b && r.branches.includes(b) ? b : r.default || r.branches[0] || ""));
+        }
+      },
+      (e) => {
+        if (current) setError(errorText(e));
+      },
     );
-    return () => { current = false; };
+    return () => {
+      current = false;
+    };
   }, [address]);
   return (
-    <Modal title={t.title} description={t.text} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" disabled={!branches || !branch} onClick={() => { onRun({ repo: repo.trim(), branch, install_modules: install }); onClose(); }}>{t.run}</Button></>}>
+    <Modal
+      title={t.title}
+      description={t.text}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="primary"
+            disabled={!branches || !branch}
+            onClick={() => {
+              onRun({ repo: repo.trim(), branch, install_modules: install });
+              onClose();
+            }}
+          >
+            {t.run}
+          </Button>
+        </>
+      }
+    >
       <div className="stack">
         <Field label={t.repository} error={error} hint={branches ? t.found(branches.length) : t.hint}>
           <div className="stack-sm">
-            <Input  dir="ltr" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repo} aria-invalid={!!error}
-              onChange={(e) => setRepo(e.target.value)} onFocus={() => setPicking(true)} onBlur={() => setPicking(false)} />
-            {picking && <RepositoryPicker typed={repo.trim()} onPick={(r) => { setRepo(r.url); setBranch(r.default_branch); setPicking(false); }} />}
+            <Input
+              dir="ltr"
+              autoFocus
+              placeholder="https://github.com/acme/odoo-addons"
+              value={repo}
+              aria-invalid={!!error}
+              onChange={(e) => setRepo(e.target.value)}
+              onFocus={() => setPicking(true)}
+              onBlur={() => setPicking(false)}
+            />
+            {picking && (
+              <RepositoryPicker
+                typed={repo.trim()}
+                onPick={(r) => {
+                  setRepo(r.url);
+                  setBranch(r.default_branch);
+                  setPicking(false);
+                }}
+              />
+            )}
           </div>
         </Field>
         <Field label={t.branch}>
           <SelectBox value={branch} onValueChange={(value) => setBranch(value)} disabled={!branches}>
             {!branches && <option value="">{REPOSITORY_ADDRESS.test(address) && !error ? t.loading : t.first}</option>}
-            {branches?.map((b) => <option key={b}>{b}</option>)}
+            {branches?.map((b) => (
+              <option key={b}>{b}</option>
+            ))}
           </SelectBox>
         </Field>
         <Switch checked={install} onChange={setInstall} label={t.install} />
@@ -1101,7 +1779,15 @@ function ConnectDialog({ onClose, onRun }: { onClose: () => void; onRun: (body: 
   );
 }
 
-export function SubmoduleDialog({ version, onClose, onRun }: { version: string; onClose: () => void; onRun: (body: Record<string, unknown>) => void }) {
+export function SubmoduleDialog({
+  version,
+  onClose,
+  onRun,
+}: {
+  version: string;
+  onClose: () => void;
+  onRun: (body: Record<string, unknown>) => void;
+}) {
   const [url, setUrl] = useState("");
   const [path, setPath] = useState("");
   // the folder shows the repository's own name (the server's choice when none is given) until typed in
@@ -1111,22 +1797,69 @@ export function SubmoduleDialog({ version, onClose, onRun }: { version: string; 
   const t = useT(words).submodule;
   const c = useT(common).common;
   return (
-    <Modal title={t.title} description={t.text} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" disabled={!url} onClick={() => { onRun({ url, path: pathEdited ? path.trim() : "", branch }); onClose(); }}>{t.add}</Button></>}>
+    <Modal
+      title={t.title}
+      description={t.text}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="primary"
+            disabled={!url}
+            onClick={() => {
+              onRun({ url, path: pathEdited ? path.trim() : "", branch });
+              onClose();
+            }}
+          >
+            {t.add}
+          </Button>
+        </>
+      }
+    >
       <div className="stack">
-        <Field label={t.repository}><Input dir="ltr" autoFocus placeholder="https://github.com/OCA/web" value={url} onChange={(e) => setUrl(e.target.value)} /></Field>
+        <Field label={t.repository}>
+          <Input
+            dir="ltr"
+            autoFocus
+            placeholder="https://github.com/OCA/web"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+        </Field>
         <div className="grid-2">
           <Field label={t.folder} hint={t.folderHint}>
-            <Input dir="ltr" clearable placeholder="oca/web" value={shownPath} onChange={(e) => { setPathEdited(true); setPath(e.target.value); }} />
+            <Input
+              dir="ltr"
+              clearable
+              placeholder="oca/web"
+              value={shownPath}
+              onChange={(e) => {
+                setPathEdited(true);
+                setPath(e.target.value);
+              }}
+            />
           </Field>
-          <Field label={t.branch}><Input dir="ltr" value={branch} onChange={(e) => setBranch(e.target.value)} /></Field>
+          <Field label={t.branch}>
+            <Input dir="ltr" value={branch} onChange={(e) => setBranch(e.target.value)} />
+          </Field>
         </div>
       </div>
     </Modal>
   );
 }
 
-function DeleteDialog({ name, production, after = "/", onClose }: { name: string; production: boolean; after?: string; onClose: () => void }) {
+function DeleteDialog({
+  name,
+  production,
+  after = "/",
+  onClose,
+}: {
+  name: string;
+  production: boolean;
+  after?: string;
+  onClose: () => void;
+}) {
   const [typed, setTyped] = useState("");
   const [typedStage, setTypedStage] = useState("");
   const confirmed = typed === name && (!production || typedStage === "production");
@@ -1146,17 +1879,42 @@ function DeleteDialog({ name, production, after = "/", onClose }: { name: string
     [keys.jobs()],
   );
   return (
-    <Modal title={t.title(name)} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="danger" icon={<Trash2 />} loading={remove.isPending} disabled={!confirmed}
-        onClick={() => remove.mutate(undefined, { onSuccess: () => { toast("success", t.started, t.startedText); navigate(after, { viewTransition: true }); }, onError: (e) => toast("error", t.notDeleted, errorText(e)) })}>{t.delete}</Button></>}>
+    <Modal
+      title={t.title(name)}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="danger"
+            icon={<Trash2 />}
+            loading={remove.isPending}
+            disabled={!confirmed}
+            onClick={() =>
+              remove.mutate(undefined, {
+                onSuccess: () => {
+                  toast("success", t.started, t.startedText);
+                  navigate(after, { viewTransition: true });
+                },
+                onError: (e) => toast("error", t.notDeleted, errorText(e)),
+              })
+            }
+          >
+            {t.delete}
+          </Button>
+        </>
+      }
+    >
       <div className="stack">
         <Callout tone="danger">
-          <b>{t.removed}</b>{t.backupFirst}
+          <b>{t.removed}</b>
+          {t.backupFirst}
           {withoutBackup ? t.evenIfFails : t.nothingIfFails}
         </Callout>
         {production && (
           <Callout tone="danger">
-            <b>{t.productionWarning}</b>{t.productionText}
+            <b>{t.productionWarning}</b>
+            {t.productionText}
           </Callout>
         )}
         <Field label={<>{t.typeName(<code key="n">{name}</code>)}</>}>

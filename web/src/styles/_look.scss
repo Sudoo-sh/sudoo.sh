@@ -31,48 +31,94 @@
   -webkit-user-select: none;
   translate: none;
   @include press;
-  svg { width: 16px; height: 16px; stroke-width: 1.75; }
-  @include hover { background: var(--raised); color: var(--text); }
-  &:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-  &:disabled, &[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; pointer-events: auto; }
-  .spinner { width: 15px; height: 15px; }
+  svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 1.75;
+  }
+  @include hover {
+    background: var(--raised);
+    color: var(--text);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
+  &:disabled,
+  &[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: auto;
+  }
+  .spinner {
+    width: 15px;
+    height: 15px;
+  }
 
   &[data-variant="default"] {
     background: var(--brand);
     border-color: transparent;
     color: var(--on-brand);
-    @include hover { background: color-mix(in oklab, var(--brand) 88%, var(--text)); color: var(--on-brand); }
+    @include hover {
+      background: color-mix(in oklab, var(--brand) 88%, var(--text));
+      color: var(--on-brand);
+    }
   }
   &[data-variant="destructive"] {
     background: var(--negative);
     border-color: transparent;
     color: #fff;
-    @include hover { background: color-mix(in oklab, var(--negative) 88%, black); color: #fff; }
+    @include hover {
+      background: color-mix(in oklab, var(--negative) 88%, black);
+      color: #fff;
+    }
   }
   &[data-variant="ghost"] {
     background: transparent;
     border-color: transparent;
     box-shadow: none;
     color: var(--text-2);
-    @include hover { background: var(--raised); color: var(--text); }
+    @include hover {
+      background: var(--raised);
+      color: var(--text);
+    }
   }
   &[data-variant="secondary"] {
     background: var(--raised);
     border-color: transparent;
     box-shadow: none;
-    @include hover { background: color-mix(in oklab, var(--raised) 80%, var(--text)); }
+    @include hover {
+      background: color-mix(in oklab, var(--raised) 80%, var(--text));
+    }
   }
 
   &:is([data-size="sm"], [data-size="icon-sm"]) {
     height: 32px;
     padding: 0 var(--s3);
     font-size: var(--text-13);
-    svg { width: 15px; height: 15px; }
+    svg {
+      width: 15px;
+      height: 15px;
+    }
   }
-  &[data-size="lg"] { height: 44px; padding: 0 var(--s5); font-size: var(--text-15); }
-  &[data-size="icon"] { width: 36px; padding: 0; }
-  &[data-size="icon-sm"] { width: 32px; padding: 0; }
-  &[data-size="icon-lg"] { width: 44px; height: 44px; padding: 0; }
+  &[data-size="lg"] {
+    height: 44px;
+    padding: 0 var(--s5);
+    font-size: var(--text-15);
+  }
+  &[data-size="icon"] {
+    width: 36px;
+    padding: 0;
+  }
+  &[data-size="icon-sm"] {
+    width: 32px;
+    padding: 0;
+  }
+  &[data-size="icon-lg"] {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
 }
 
 // ---------------------------------------------------------------- split button
@@ -86,8 +132,14 @@
   flex-shrink: 0;
   border-radius: var(--radius-control);
   box-shadow: var(--shadow-small);
-  > [data-slot="button"] { border-start-end-radius: 0; border-end-end-radius: 0; box-shadow: none; }
-  > .menu-anchor { display: inline-flex; }
+  > [data-slot="button"] {
+    border-start-end-radius: 0;
+    border-end-end-radius: 0;
+    box-shadow: none;
+  }
+  > .menu-anchor {
+    display: inline-flex;
+  }
   > .menu-anchor > [data-slot="button"] {
     width: auto;
     min-width: 0;
@@ -96,17 +148,28 @@
     border-end-start-radius: 0;
     border-inline-start: 1px solid color-mix(in oklab, var(--on-brand) 32%, transparent);
     box-shadow: none;
-    svg { width: 14px; height: 14px; }
+    svg {
+      width: 14px;
+      height: 14px;
+    }
   }
-  > .menu-anchor > [data-slot="button"]:is([data-size="sm"], [data-size="icon-sm"]) { padding-inline: 6px; }
+  > .menu-anchor > [data-slot="button"]:is([data-size="sm"], [data-size="icon-sm"]) {
+    padding-inline: 6px;
+  }
 }
 
 // an instance's header (pages/Instance.tsx): on narrow screens Restart and Get latest code leave the row for the
 // "more" menu, where their own items show only then
-[data-slot="dropdown-menu-item"].header-secondary-item { display: none; }
+[data-slot="dropdown-menu-item"].header-secondary-item {
+  display: none;
+}
 @media (max-width: 640px) {
-  [data-slot="button"].header-secondary { display: none; }
-  [data-slot="dropdown-menu-item"].header-secondary-item { display: flex; }
+  [data-slot="button"].header-secondary {
+    display: none;
+  }
+  [data-slot="dropdown-menu-item"].header-secondary-item {
+    display: flex;
+  }
 }
 
 // ---------------------------------------------------------------- fields
@@ -122,20 +185,43 @@
   color: var(--text);
   box-shadow: none;
   // 14px words, and 16px on phones (below 768px: shadcn's own size there, which keeps iOS from zooming in)
-  transition: border-color var(--quick) var(--ease), box-shadow var(--quick) var(--ease);
-  &::placeholder { color: var(--text-3); }
-  &:focus, &:focus-visible { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-ring); }
-  &:disabled { opacity: 1; background: var(--raised); color: var(--text-3); }
-  &[aria-invalid="true"] { border-color: var(--negative); }
-  &[aria-invalid="true"]:not(:focus) { box-shadow: none; }
+  transition:
+    border-color var(--quick) var(--ease),
+    box-shadow var(--quick) var(--ease);
+  &::placeholder {
+    color: var(--text-3);
+  }
+  &:focus,
+  &:focus-visible {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-ring);
+  }
+  &:disabled {
+    opacity: 1;
+    background: var(--raised);
+    color: var(--text-3);
+  }
+  &[aria-invalid="true"] {
+    border-color: var(--negative);
+  }
+  &[aria-invalid="true"]:not(:focus) {
+    box-shadow: none;
+  }
 }
-[data-slot="input"] { line-height: inherit; }
+[data-slot="input"] {
+  line-height: inherit;
+}
 // left-to-right values (codes, colours, keys) in the monospace face, a little smaller, as everywhere in the panel;
 // phones keep 16px
 @media (min-width: 768px) {
-  :is([data-slot="input"], [data-slot="textarea"]).mono { font-size: 0.92em; }
+  :is([data-slot="input"], [data-slot="textarea"]).mono {
+    font-size: 0.92em;
+  }
 }
-[data-slot="input"][type="file"] { padding-inline: var(--s2); }
+[data-slot="input"][type="file"] {
+  padding-inline: var(--s2);
+}
 [data-slot="textarea"] {
   height: auto;
   min-height: 88px;
@@ -152,14 +238,48 @@
   font-size: var(--text-14);
   line-height: inherit;
   cursor: pointer;
-  &[data-size="sm"] { height: 32px; font-size: var(--text-13); }
-  &[data-placeholder] { color: var(--text-3); }
-  > svg { width: 16px; height: 16px; color: var(--text-3); stroke-width: 1.5; opacity: 1; }
-  &:disabled { cursor: default; > svg { opacity: 0.6; } }
-  [data-slot="select-value"] { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: start; }
+  &[data-size="sm"] {
+    height: 32px;
+    font-size: var(--text-13);
+  }
+  &[data-placeholder] {
+    color: var(--text-3);
+  }
+  > svg {
+    width: 16px;
+    height: 16px;
+    color: var(--text-3);
+    stroke-width: 1.5;
+    opacity: 1;
+  }
+  &:disabled {
+    cursor: default;
+    > svg {
+      opacity: 0.6;
+    }
+  }
+  [data-slot="select-value"] {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: start;
+  }
   // as wide as its longest option, like a native <select> (components/app/select.tsx)
-  > .select-value { display: grid; flex: 1; min-width: 0; > * { grid-area: 1 / 1; } }
-  .select-sizer { visibility: hidden; white-space: nowrap; height: 0; }
+  > .select-value {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+    > * {
+      grid-area: 1 / 1;
+    }
+  }
+  .select-sizer {
+    visibility: hidden;
+    white-space: nowrap;
+    height: 0;
+  }
 }
 [data-slot="select-content"],
 [data-slot="dropdown-menu-content"] {
@@ -177,12 +297,18 @@
   --tw-enter-translate-x: 0;
   --tw-duration: var(--dur-ui);
   --tw-ease: var(--spring);
-  &[data-state="closed"] { --tw-duration: var(--dur-micro); --tw-ease: var(--ease); }
+  &[data-state="closed"] {
+    --tw-duration: var(--dur-micro);
+    --tw-ease: var(--ease);
+  }
 }
 [data-slot="select-content"] {
   min-width: max(var(--radix-select-trigger-width, 0px), 160px);
   max-height: min(360px, var(--radix-select-content-available-height, 360px));
-  [data-slot="select-viewport"], > div { padding: 0; }
+  [data-slot="select-viewport"],
+  > div {
+    padding: 0;
+  }
 }
 [data-slot="select-item"] {
   min-height: 34px;
@@ -192,24 +318,62 @@
   font-size: var(--text-14);
   line-height: 1.43;
   cursor: pointer;
-  &:focus, &[data-highlighted] { background: var(--raised); color: var(--text); }
-  &[data-state="checked"] { font-weight: 500; }
+  &:focus,
+  &[data-highlighted] {
+    background: var(--raised);
+    color: var(--text);
+  }
+  &[data-state="checked"] {
+    font-weight: 500;
+  }
   // the check mark of the chosen one
-  > span:first-child svg { width: 16px; height: 16px; color: var(--brand); stroke-width: 2; }
-  &[data-disabled] { opacity: 0.45; }
+  > span:first-child svg {
+    width: 16px;
+    height: 16px;
+    color: var(--brand);
+    stroke-width: 2;
+  }
+  &[data-disabled] {
+    opacity: 0.45;
+  }
 }
-[data-slot="select-label"] { padding: var(--s1) var(--s2) 2px; font-size: var(--text-12); color: var(--text-3); }
-[data-slot="select-separator"] { margin: var(--s1) 0; background: var(--hairline); }
+[data-slot="select-label"] {
+  padding: var(--s1) var(--s2) 2px;
+  font-size: var(--text-12);
+  color: var(--text-3);
+}
+[data-slot="select-separator"] {
+  margin: var(--s1) 0;
+  background: var(--hairline);
+}
 
 // a field: the label over the control, 6px apart; a hint or an error under it
 [data-slot="field"] {
   gap: 6px;
   // what a field holds is as wide as the field unless it says otherwise (align-self), as before
-  &[data-orientation="vertical"] > * { width: auto; }
-  &[data-invalid="true"] { color: inherit; }
-  > [data-slot="field-label"] { font-size: var(--text-13); font-weight: 500; line-height: inherit; }
-  > [data-slot="field-description"] { margin: 0; font-size: var(--text-12); line-height: inherit; color: var(--text-3); text-wrap: wrap; }
-  > [data-slot="field-error"] { font-size: var(--text-12); line-height: inherit; color: var(--negative); }
+  &[data-orientation="vertical"] > * {
+    width: auto;
+  }
+  &[data-invalid="true"] {
+    color: inherit;
+  }
+  > [data-slot="field-label"] {
+    font-size: var(--text-13);
+    font-weight: 500;
+    line-height: inherit;
+  }
+  > [data-slot="field-description"] {
+    margin: 0;
+    font-size: var(--text-12);
+    line-height: inherit;
+    color: var(--text-3);
+    text-wrap: wrap;
+  }
+  > [data-slot="field-error"] {
+    font-size: var(--text-12);
+    line-height: inherit;
+    color: var(--negative);
+  }
 }
 
 // checkboxes and radios: 16px, plum when chosen
@@ -219,9 +383,20 @@
   background: var(--surface);
   box-shadow: none;
   cursor: pointer;
-  &[data-state="checked"] { border-color: var(--brand); background: var(--brand); color: var(--on-brand); }
-  &:focus-visible { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-ring); }
-  &:disabled { opacity: 0.45; cursor: not-allowed; }
+  &[data-state="checked"] {
+    border-color: var(--brand);
+    background: var(--brand);
+    color: var(--on-brand);
+  }
+  &:focus-visible {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-ring);
+  }
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 }
 
 // switches: 36 by 20 px, a white 16px thumb that travels 16px (the other way in Arabic) and stretches while pressed
@@ -237,9 +412,17 @@
   box-shadow: none;
   cursor: pointer;
   transition: background-color var(--quick) var(--ease);
-  &[data-state="checked"] { background: var(--brand); }
-  &:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--brand-ring); }
-  &:disabled { opacity: 0.45; cursor: not-allowed; }
+  &[data-state="checked"] {
+    background: var(--brand);
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--brand-ring);
+  }
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
   > [data-slot="switch-thumb"] {
     width: 16px;
     height: 16px;
@@ -247,18 +430,28 @@
     background: #fff;
     box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
     translate: 0 0;
-    transition: translate 250ms var(--ease), width 160ms var(--ease);
-    &[data-state="checked"] { translate: 16px 0; }
+    transition:
+      translate 250ms var(--ease),
+      width 160ms var(--ease);
+    &[data-state="checked"] {
+      translate: 16px 0;
+    }
   }
   &:active:not(:disabled) > [data-slot="switch-thumb"] {
     width: 20px;
-    &[data-state="checked"] { translate: 12px 0; }
+    &[data-state="checked"] {
+      translate: 12px 0;
+    }
   }
 }
 [dir="rtl"] [data-slot="switch"] > [data-slot="switch-thumb"] {
-  &[data-state="checked"] { translate: -16px 0; }
+  &[data-state="checked"] {
+    translate: -16px 0;
+  }
 }
-[dir="rtl"] [data-slot="switch"]:active:not(:disabled) > [data-slot="switch-thumb"][data-state="checked"] { translate: -12px 0; }
+[dir="rtl"] [data-slot="switch"]:active:not(:disabled) > [data-slot="switch-thumb"][data-state="checked"] {
+  translate: -12px 0;
+}
 
 // segmented controls (components/app/basics.tsx Segmented): a grey rail, the chosen option on a white thumb that slides
 [data-slot="toggle-group"].segmented {
@@ -284,14 +477,39 @@
     line-height: inherit;
     white-space: normal;
     cursor: pointer;
-    transition: color var(--quick) var(--ease), transform var(--press) var(--ease);
-    &[data-state="on"] { color: var(--text); }
-    &:active:not(:disabled) { transform: scale(0.96); }
-    @include hover { background: transparent; color: var(--text); }
-    &:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; box-shadow: none; }
-    &:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: auto; }
-    svg { width: 14px; height: 14px; stroke-width: 1.5; }
-    .count { font-family: var(--mono); font-size: 11.5px; color: var(--text-3); }
+    transition:
+      color var(--quick) var(--ease),
+      transform var(--press) var(--ease);
+    &[data-state="on"] {
+      color: var(--text);
+    }
+    &:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+    @include hover {
+      background: transparent;
+      color: var(--text);
+    }
+    &:focus-visible {
+      outline: 2px solid var(--brand);
+      outline-offset: 2px;
+      box-shadow: none;
+    }
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      pointer-events: auto;
+    }
+    svg {
+      width: 14px;
+      height: 14px;
+      stroke-width: 1.5;
+    }
+    .count {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--text-3);
+    }
   }
 }
 
@@ -309,12 +527,29 @@
   font-weight: inherit;
   line-height: inherit;
   overflow: visible;
-  > svg { width: 12px !important; height: 12px !important; }
-  &.font-mono { font-size: 11.5px; }
-  &[data-tone="accent"] { border-color: color-mix(in oklab, var(--brand) 35%, transparent); color: var(--brand-ink); }
-  &[data-tone="positive"] { color: var(--positive); border-color: color-mix(in oklab, var(--positive) 30%, transparent); }
-  &[data-tone="caution"] { color: var(--caution); border-color: color-mix(in oklab, var(--caution) 30%, transparent); }
-  &[data-tone="negative"] { color: var(--negative); border-color: color-mix(in oklab, var(--negative) 30%, transparent); }
+  > svg {
+    width: 12px !important;
+    height: 12px !important;
+  }
+  &.font-mono {
+    font-size: 11.5px;
+  }
+  &[data-tone="accent"] {
+    border-color: color-mix(in oklab, var(--brand) 35%, transparent);
+    color: var(--brand-ink);
+  }
+  &[data-tone="positive"] {
+    color: var(--positive);
+    border-color: color-mix(in oklab, var(--positive) 30%, transparent);
+  }
+  &[data-tone="caution"] {
+    color: var(--caution);
+    border-color: color-mix(in oklab, var(--caution) 30%, transparent);
+  }
+  &[data-tone="negative"] {
+    color: var(--negative);
+    border-color: color-mix(in oklab, var(--negative) 30%, transparent);
+  }
 }
 
 // a note (shadcn's Alert, components/app/basics.tsx Callout): a grey box with a hairline and 13px words in the body
@@ -329,10 +564,24 @@
   color: var(--text);
   font-size: var(--text-13);
   line-height: inherit;
-  > svg { flex: none; width: 16px; height: 16px; margin-top: 2px; translate: none; color: var(--c, var(--text-3)); stroke-width: 1.75; }
-  &[data-tone="warning"] { --c: var(--caution); }
-  &[data-tone="danger"] { --c: var(--negative); }
-  &[data-tone="success"] { --c: var(--positive); }
+  > svg {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    translate: none;
+    color: var(--c, var(--text-3));
+    stroke-width: 1.75;
+  }
+  &[data-tone="warning"] {
+    --c: var(--caution);
+  }
+  &[data-tone="danger"] {
+    --c: var(--negative);
+  }
+  &[data-tone="success"] {
+    --c: var(--positive);
+  }
   > [data-slot="alert-description"] {
     display: block;
     min-width: 0;
@@ -340,8 +589,17 @@
     font-size: inherit;
     line-height: inherit;
     text-wrap: wrap;
-    p { margin: 0; }
-    a:not([data-slot], .callout-link) { text-decoration: none; color: var(--brand-ink); @include hover { text-decoration: underline; color: var(--brand-ink); } }
+    p {
+      margin: 0;
+    }
+    a:not([data-slot], .callout-link) {
+      text-decoration: none;
+      color: var(--brand-ink);
+      @include hover {
+        text-decoration: underline;
+        color: var(--brand-ink);
+      }
+    }
   }
 }
 
@@ -353,9 +611,17 @@
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
   white-space: nowrap;
-  transition: color 150ms ease, text-decoration-thickness 150ms ease;
-  @include hover { text-decoration-thickness: 2px; }
-  &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 2px; border-radius: 2px; }
+  transition:
+    color 150ms ease,
+    text-decoration-thickness 150ms ease;
+  @include hover {
+    text-decoration-thickness: 2px;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--brand-ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
 }
 
 // progress (shadcn's Progress, components/app/basics.tsx): a 4px plum line, sweeping while the share is not known
@@ -363,12 +629,25 @@
   height: 4px;
   border-radius: 2px;
   background: var(--raised);
-  > [data-slot="progress-indicator"] { background: var(--brand); transition: transform 600ms linear; }
-  &[data-state="indeterminate"] > [data-slot="progress-indicator"] { flex: none; width: 40%; animation: sweep 1.4s var(--ease) infinite; }
-  &[data-tone="failed"] > [data-slot="progress-indicator"] { background: var(--negative); }
-  &[data-tone="success"] > [data-slot="progress-indicator"] { background: var(--positive); }
+  > [data-slot="progress-indicator"] {
+    background: var(--brand);
+    transition: transform 600ms linear;
+  }
+  &[data-state="indeterminate"] > [data-slot="progress-indicator"] {
+    flex: none;
+    width: 40%;
+    animation: sweep 1.4s var(--ease) infinite;
+  }
+  &[data-tone="failed"] > [data-slot="progress-indicator"] {
+    background: var(--negative);
+  }
+  &[data-tone="success"] > [data-slot="progress-indicator"] {
+    background: var(--positive);
+  }
 }
-[dir="rtl"] [data-slot="progress"] { scale: -1 1; }
+[dir="rtl"] [data-slot="progress"] {
+  scale: -1 1;
+}
 
 // a placeholder while something loads (shadcn's Skeleton), in the shape of what is coming: a soft light sweeps
 // across it (a transform on its own layer, so it costs no repaint), unseen for the first 150 ms; the sweep follows
@@ -390,11 +669,19 @@
     will-change: transform;
   }
 }
-[dir="rtl"] [data-slot="skeleton"]::after { animation-direction: reverse; }
-@keyframes skeleton-sweep {
-  to { transform: translateX(100%); }
+[dir="rtl"] [data-slot="skeleton"]::after {
+  animation-direction: reverse;
 }
-.skeleton-text { display: flex; flex-direction: column; gap: var(--s2); }
+@keyframes skeleton-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+.skeleton-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
 
 // ---------------------------------------------------------------- dialogs, drawers, sheets and menus
 [data-slot="dialog-overlay"],
@@ -404,7 +691,9 @@
   backdrop-filter: none;
   --tw-duration: var(--dur-enter);
   --tw-ease: var(--ease);
-  &[data-state="closed"] { --tw-duration: var(--dur-ui); }
+  &[data-state="closed"] {
+    --tw-duration: var(--dur-ui);
+  }
 }
 
 // a dialog (components/app/overlay.tsx Modal) is not anchored to a button: it comes up in the centre (scale, opacity
@@ -430,8 +719,13 @@
   --tw-exit-blur: 2px;
   --tw-duration: var(--dur-surface);
   --tw-ease: var(--spring);
-  &[data-state="closed"] { --tw-duration: var(--dur-ui); --tw-ease: var(--ease); }
-  &[data-wide] { width: min(720px, calc(100% - 32px)); }
+  &[data-state="closed"] {
+    --tw-duration: var(--dur-ui);
+    --tw-ease: var(--ease);
+  }
+  &[data-wide] {
+    width: min(720px, calc(100% - 32px));
+  }
 }
 // the parts of a dialog, on a wider screen and in the phone's drawer alike
 .modal-head {
@@ -441,10 +735,21 @@
   gap: var(--s3);
   padding: var(--s6) var(--s6) 0;
   text-align: start;
-  :is([data-slot="dialog-title"], [data-slot="drawer-title"]) { font-size: var(--text-18); font-weight: 600; line-height: inherit; letter-spacing: -0.01em; }
-  :is([data-slot="dialog-description"], [data-slot="drawer-description"]) { margin-top: var(--s1); color: var(--text-2); font-size: var(--text-14); }
+  :is([data-slot="dialog-title"], [data-slot="drawer-title"]) {
+    font-size: var(--text-18);
+    font-weight: 600;
+    line-height: inherit;
+    letter-spacing: -0.01em;
+  }
+  :is([data-slot="dialog-description"], [data-slot="drawer-description"]) {
+    margin-top: var(--s1);
+    color: var(--text-2);
+    font-size: var(--text-14);
+  }
 }
-.modal-body { padding: var(--s5) var(--s6); }
+.modal-body {
+  padding: var(--s5) var(--s6);
+}
 .modal-foot {
   display: flex;
   flex-direction: row;
@@ -464,10 +769,22 @@
   background: var(--surface);
   color: var(--text);
   font-size: var(--text-14);
-  > div:first-child { margin-top: var(--s2); background: var(--hairline-strong); }
-  .modal-head { padding: var(--s4) var(--s5) 0; }
-  .modal-body { flex: 1; min-height: 0; overflow: auto; padding: var(--s4) var(--s5); }
-  .modal-foot { padding: var(--s3) var(--s5) max(var(--s3), env(safe-area-inset-bottom, 0px)); }
+  > div:first-child {
+    margin-top: var(--s2);
+    background: var(--hairline-strong);
+  }
+  .modal-head {
+    padding: var(--s4) var(--s5) 0;
+  }
+  .modal-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: var(--s4) var(--s5);
+  }
+  .modal-foot {
+    padding: var(--s3) var(--s5) max(var(--s3), env(safe-area-inset-bottom, 0px));
+  }
 }
 
 // a side panel (components/app/overlay.tsx Drawer): in from the inline-end edge on the iOS sheet curve, and back out
@@ -484,12 +801,27 @@
   --tw-exit-opacity: 1;
   --tw-duration: var(--sheet);
   --tw-ease: var(--ease-drawer);
-  &[data-state="closed"] { --tw-duration: 280ms; }
-  &[data-side="right"] { --tw-enter-translate-x: 100%; --tw-exit-translate-x: 100%; }
-  &[data-side="left"] { --tw-enter-translate-x: -100%; --tw-exit-translate-x: -100%; }
-  &.drawer { width: min(680px, 100vw); max-width: none; }
-  &.drawer.help-panel { width: min(420px, 100vw); }
-  &:focus { outline: none; }
+  &[data-state="closed"] {
+    --tw-duration: 280ms;
+  }
+  &[data-side="right"] {
+    --tw-enter-translate-x: 100%;
+    --tw-exit-translate-x: 100%;
+  }
+  &[data-side="left"] {
+    --tw-enter-translate-x: -100%;
+    --tw-exit-translate-x: -100%;
+  }
+  &.drawer {
+    width: min(680px, 100vw);
+    max-width: none;
+  }
+  &.drawer.help-panel {
+    width: min(420px, 100vw);
+  }
+  &:focus {
+    outline: none;
+  }
 }
 
 // the sidebar on a narrow screen (components/Shell.tsx): a sheet from the inline-start edge
@@ -515,17 +847,44 @@
   line-height: inherit;
   text-decoration: none !important;
   cursor: pointer;
-  svg { width: 16px; height: 16px; color: var(--text-3); stroke-width: 1.5; }
-  &:focus, &[data-highlighted] { background: var(--raised); color: var(--text); }
+  svg {
+    width: 16px;
+    height: 16px;
+    color: var(--text-3);
+    stroke-width: 1.5;
+  }
+  &:focus,
+  &[data-highlighted] {
+    background: var(--raised);
+    color: var(--text);
+  }
   &[data-variant="destructive"] {
     color: var(--negative);
-    svg { color: var(--negative); }
-    &:focus, &[data-highlighted] { background: var(--raised); color: var(--negative); }
+    svg {
+      color: var(--negative);
+    }
+    &:focus,
+    &[data-highlighted] {
+      background: var(--raised);
+      color: var(--negative);
+    }
   }
-  &[data-disabled] { opacity: 0.45; cursor: not-allowed; background: none; }
+  &[data-disabled] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    background: none;
+  }
 }
-[data-slot="dropdown-menu-separator"] { margin: var(--s1) 0; background: var(--hairline); }
-[data-slot="dropdown-menu-label"] { padding: var(--s1) var(--s2) 2px; font-size: var(--text-12); font-weight: 400; color: var(--text-3); }
+[data-slot="dropdown-menu-separator"] {
+  margin: var(--s1) 0;
+  background: var(--hairline);
+}
+[data-slot="dropdown-menu-label"] {
+  padding: var(--s1) var(--s2) 2px;
+  font-size: var(--text-12);
+  font-weight: 400;
+  color: var(--text-3);
+}
 
 // ---------------------------------------------------------------- tables (shadcn's Table)
 // The table scrolls sideways inside its own box when it is wider than the screen.
@@ -536,10 +895,18 @@
 [data-slot="table-row"] {
   border: 0;
   transition: background-color var(--quick) var(--ease);
-  [data-slot="table-header"] & { @include hover { background: transparent; } }
+  [data-slot="table-header"] & {
+    @include hover {
+      background: transparent;
+    }
+  }
   [data-slot="table-body"] & {
-    @include hover { background: color-mix(in oklab, var(--raised) 60%, transparent); }
-    &:last-child > [data-slot="table-cell"] { border-bottom: 0; }
+    @include hover {
+      background: color-mix(in oklab, var(--raised) 60%, transparent);
+    }
+    &:last-child > [data-slot="table-cell"] {
+      border-bottom: 0;
+    }
   }
 }
 [data-slot="table-head"] {
@@ -556,51 +923,116 @@
   padding: var(--s2) var(--s5);
   border-bottom: 1px solid var(--hairline);
   white-space: normal;
-  &.actions { text-align: end; white-space: nowrap; }
-  &.num { text-align: end; font-variant-numeric: tabular-nums; }
-  &.nowrap { white-space: nowrap; }
+  &.actions {
+    text-align: end;
+    white-space: nowrap;
+  }
+  &.num {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+  }
+  &.nowrap {
+    white-space: nowrap;
+  }
 }
 
 // ---------------------------------------------------------------- where the panel's pages place them
 // the top bar's menu button opens the sidebar's sheet, up to 960px only
-.topbar [data-slot="button"].menu-button { @media (min-width: 961px) { display: none; } }
-.caught-mail-back[data-slot="button"] { @media (min-width: 861px) { display: none; } }
-.menu:has(.bell-menu) { width: min(380px, calc(100vw - 32px)); padding: 0; }
+.topbar [data-slot="button"].menu-button {
+  @media (min-width: 961px) {
+    display: none;
+  }
+}
+.caught-mail-back[data-slot="button"] {
+  @media (min-width: 861px) {
+    display: none;
+  }
+}
+.menu:has(.bell-menu) {
+  width: min(380px, calc(100vw - 32px));
+  padding: 0;
+}
 .bell-list [data-slot="dropdown-menu-item"] {
   align-items: flex-start;
   height: auto;
   padding: var(--s2);
-  svg { flex: none; margin-top: 2px; }
-  svg.negative { color: var(--negative); }
-  svg.positive { color: var(--positive); }
+  svg {
+    flex: none;
+    margin-top: 2px;
+  }
+  svg.negative {
+    color: var(--negative);
+  }
+  svg.positive {
+    color: var(--positive);
+  }
 }
-.publisher [data-slot="badge"] { height: 18px; font-size: 11px; }
-.empty [data-slot="button"] { margin-top: var(--s3); }
-.copy [data-slot="button"]:is([data-size="sm"], [data-size="icon-sm"]) { height: 24px; }
-.toolbar [data-slot="select-trigger"].stage-filter { width: auto; min-width: 160px; }
+.publisher [data-slot="badge"] {
+  height: 18px;
+  font-size: 11px;
+}
+.empty [data-slot="button"] {
+  margin-top: var(--s3);
+}
+.copy [data-slot="button"]:is([data-size="sm"], [data-size="icon-sm"]) {
+  height: 24px;
+}
+.toolbar [data-slot="select-trigger"].stage-filter {
+  width: auto;
+  min-width: 160px;
+}
 .mail-list [data-slot="select-trigger"].mail-select {
   display: none;
-  @media (max-width: 860px) { display: flex; }
+  @media (max-width: 860px) {
+    display: flex;
+  }
 }
 .option-control {
-  [data-slot="select-trigger"], [data-slot="input"] { flex: 1; min-width: 0; }
-  [data-slot="input"].number { max-width: 120px; }
+  [data-slot="select-trigger"],
+  [data-slot="input"] {
+    flex: 1;
+    min-width: 0;
+  }
+  [data-slot="input"].number {
+    max-width: 120px;
+  }
 }
-.grant-add [data-slot="select-trigger"] { width: auto; min-width: 160px; flex: 1 1 160px; }
+.grant-add [data-slot="select-trigger"] {
+  width: auto;
+  min-width: 160px;
+  flex: 1 1 160px;
+}
 .grant-row [data-slot="select-trigger"] {
   width: auto;
   min-width: 140px;
-  @media (max-width: 520px) { flex: 1 1 auto; }
+  @media (max-width: 520px) {
+    flex: 1 1 auto;
+  }
 }
 // a field with an icon at its start (.input-group): room for the icon; in Arabic a left-to-right field keeps the
 // icon on the right, the side its label is on
-.input-group > [data-slot="input"] { padding-inline-start: 36px; }
-[dir="rtl"] .input-group > [data-slot="input"]:is([dir="ltr"], [type="email"], [type="password"], [inputmode="email"]) { padding-left: var(--s3); padding-right: 36px; }
+.input-group > [data-slot="input"] {
+  padding-inline-start: 36px;
+}
+[dir="rtl"] .input-group > [data-slot="input"]:is([dir="ltr"], [type="email"], [type="password"], [inputmode="email"]) {
+  padding-left: var(--s3);
+  padding-right: 36px;
+}
 // a field with a clear (x) button at its inline end (Input clearable): the left in Arabic, also for a left-to-right
 // value, so the room for it follows the page's direction, not the field's
-.input-clearable { position: relative; display: block; width: 100%; min-width: 0; }
-.input-clearable[data-filled] > [data-slot="input"] { padding-right: 34px; }
-[dir="rtl"] .input-clearable[data-filled] > [data-slot="input"] { padding-right: var(--s3); padding-left: 34px; }
+.input-clearable {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+.input-clearable[data-filled] > [data-slot="input"] {
+  padding-right: 34px;
+}
+[dir="rtl"] .input-clearable[data-filled] > [data-slot="input"] {
+  padding-right: var(--s3);
+  padding-left: 34px;
+}
 .input-clear {
   position: absolute;
   inset-block: 0;
@@ -617,20 +1049,59 @@
   background: transparent;
   color: var(--text-3);
   cursor: pointer;
-  transition: color var(--quick) var(--ease), background-color var(--quick) var(--ease), transform var(--quick) var(--ease);
-  svg { width: 14px; height: 14px; }
-  &:hover { color: var(--text); background: var(--raised); }
-  &:active { transform: scale(0.97); }
-  &:focus-visible { outline: none; color: var(--text); box-shadow: 0 0 0 3px var(--brand-ring); }
+  transition:
+    color var(--quick) var(--ease),
+    background-color var(--quick) var(--ease),
+    transform var(--quick) var(--ease);
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+  &:hover {
+    color: var(--text);
+    background: var(--raised);
+  }
+  &:active {
+    transform: scale(0.97);
+  }
+  &:focus-visible {
+    outline: none;
+    color: var(--text);
+    box-shadow: 0 0 0 3px var(--brand-ring);
+  }
 }
-[data-slot="textarea"].mail-body { min-height: 260px; padding-block: var(--s2); font-size: var(--text-13); line-height: 1.55; }
-.plan-list[data-slot="radio-group"] { display: flex; flex-direction: column; gap: var(--s2); }
-.licence-check > [data-slot="checkbox"] { margin-top: 3px; }
-.resources-table [data-slot="table-head"][scope="row"] { min-width: 200px; max-width: 320px; white-space: normal; }
-.licence-table [data-slot="table-cell"] { vertical-align: top; }
+[data-slot="textarea"].mail-body {
+  min-height: 260px;
+  padding-block: var(--s2);
+  font-size: var(--text-13);
+  line-height: 1.55;
+}
+.plan-list[data-slot="radio-group"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.licence-check > [data-slot="checkbox"] {
+  margin-top: 3px;
+}
+.resources-table [data-slot="table-head"][scope="row"] {
+  min-width: 200px;
+  max-width: 320px;
+  white-space: normal;
+}
+.licence-table [data-slot="table-cell"] {
+  vertical-align: top;
+}
 .caught-mail-headers {
-  [data-slot="table-head"] { width: 1%; vertical-align: top; color: var(--text-2); }
-  [data-slot="table-cell"] { overflow-wrap: anywhere; word-break: break-word; }
+  [data-slot="table-head"] {
+    width: 1%;
+    vertical-align: top;
+    color: var(--text-2);
+  }
+  [data-slot="table-cell"] {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
 }
 
 // ---------------------------------------------------------------- code boxes (components/app/OtpInput.tsx)
@@ -640,9 +1111,15 @@
 .otp {
   display: flex;
   justify-content: center;
-  [data-input-otp-container] { gap: var(--s2); }
-  [data-slot="input-otp-group"] { gap: var(--s2); }
-  [data-slot="input-otp-separator"] { color: var(--text-3); }
+  [data-input-otp-container] {
+    gap: var(--s2);
+  }
+  [data-slot="input-otp-group"] {
+    gap: var(--s2);
+  }
+  [data-slot="input-otp-separator"] {
+    color: var(--text-3);
+  }
   [data-slot="input-otp-slot"] {
     width: 44px;
     height: 52px;
@@ -653,11 +1130,19 @@
     font-family: var(--mono);
     font-size: 22px;
     color: var(--text);
-    transition: border-color var(--quick) var(--ease), box-shadow var(--quick) var(--ease);
-    &[data-active="true"] { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-ring); }
+    transition:
+      border-color var(--quick) var(--ease),
+      box-shadow var(--quick) var(--ease);
+    &[data-active="true"] {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px var(--brand-ring);
+    }
   }
 }
-[data-input-otp]::selection { background: transparent; color: transparent; }
+[data-input-otp]::selection {
+  background: transparent;
+  color: transparent;
+}
 [data-input-otp]:is(:autofill, :-webkit-autofill) {
   background: transparent !important;
   color: transparent !important;
@@ -666,13 +1151,25 @@
 }
 // a typed digit pops in (scale 0.9 to 1, 150 ms); a wrong code shakes the boxes once
 @media (prefers-reduced-motion: no-preference) {
-  .otp [data-slot="input-otp-slot"][data-filled] { animation: otp-pop 150ms ease-out; }
-  .otp[data-shake] { animation: otp-shake 320ms cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+  .otp [data-slot="input-otp-slot"][data-filled] {
+    animation: otp-pop 150ms ease-out;
+  }
+  .otp[data-shake] {
+    animation: otp-shake 320ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
 }
 @keyframes otp-pop {
-  from { transform: scale(0.9); }
+  from {
+    transform: scale(0.9);
+  }
 }
 @keyframes otp-shake {
-  20%, 60% { transform: translateX(-6px); }
-  40%, 80% { transform: translateX(6px); }
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
 }

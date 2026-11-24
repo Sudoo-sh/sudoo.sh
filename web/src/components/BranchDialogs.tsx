@@ -43,7 +43,21 @@ export type BranchDialog =
   | { kind: "compare"; branch: ProjectBranch; base: string }
   | { kind: "promotion"; branch: ProjectBranch };
 
-export function StageDialog({ project, meta, branch, stage, onClose, onCompare }: { project: ProjectDetail; meta: ProjectMeta; branch: ProjectBranch; stage: Stage; onClose: () => void; onCompare?: (base: string) => void }) {
+export function StageDialog({
+  project,
+  meta,
+  branch,
+  stage,
+  onClose,
+  onCompare,
+}: {
+  project: ProjectDetail;
+  meta: ProjectMeta;
+  branch: ProjectBranch;
+  stage: Stage;
+  onClose: () => void;
+  onCompare?: (base: string) => void;
+}) {
   const t = useT(words);
   const d = t.stageDialog;
   const c = useT(common).common;
@@ -56,19 +70,49 @@ export function StageDialog({ project, meta, branch, stage, onClose, onCompare }
   const check = usePromotionCheck(project.id, branch.name, promoting);
   const stopped = promoting && Boolean(check.data?.blocking) && !anyway;
   const save = useCall(
-    () => api.put<ProjectBranch>(`/projects/${project.id}/branches/${branch.name}/stage`, { stage, confirm_production: production, ...(promoting && anyway ? { promote_anyway: true } : {}) }),
+    () =>
+      api.put<ProjectBranch>(`/projects/${project.id}/branches/${branch.name}/stage`, {
+        stage,
+        confirm_production: production,
+        ...(promoting && anyway ? { promote_anyway: true } : {}),
+      }),
     // the branch's resources follow its stage: "branch-resources" and "project-resources" (ProjectResources.tsx)
-    [keys.project(project.id), keys.projects, keys.instances, promotionKey(project.id, branch.name),
-      ["branch-resources", project.id], ["project-resources", project.id]],
+    [
+      keys.project(project.id),
+      keys.projects,
+      keys.instances,
+      promotionKey(project.id, branch.name),
+      ["branch-resources", project.id],
+      ["project-resources", project.id],
+    ],
   );
   return (
-    <Modal wide={promoting} title={d.title(branch.name, STAGE_LABEL[stage])} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button>
-        <Button variant={production ? "danger" : "primary"} loading={save.isPending} disabled={(production && !understood) || stopped}
-          onClick={() => save.mutate(undefined, {
-            onSuccess: () => { toast("success", t.page.stageChanged(branch.name, STAGE_LABEL[stage])); onClose(); },
-            onError: (e) => toast("error", t.page.stageNotChanged, errorText(e)),
-          })}>{d.move}</Button></>}>
+    <Modal
+      wide={promoting}
+      title={d.title(branch.name, STAGE_LABEL[stage])}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant={production ? "danger" : "primary"}
+            loading={save.isPending}
+            disabled={(production && !understood) || stopped}
+            onClick={() =>
+              save.mutate(undefined, {
+                onSuccess: () => {
+                  toast("success", t.page.stageChanged(branch.name, STAGE_LABEL[stage]));
+                  onClose();
+                },
+                onError: (e) => toast("error", t.page.stageNotChanged, errorText(e)),
+              })
+            }
+          >
+            {d.move}
+          </Button>
+        </>
+      }
+    >
       <div className="stack">
         {stage === "production" && (
           <Callout tone="warning">
@@ -78,7 +122,9 @@ export function StageDialog({ project, meta, branch, stage, onClose, onCompare }
         )}
         {branch.stage === "production" && <Callout tone="warning">{d.leaving}</Callout>}
         {stage === "staging" && branch.instances.length > 0 && <p className="small muted">{d.staging}</p>}
-        {stage === "development" && branch.instances.length > 0 && branch.stage !== "production" && <p className="small muted">{d.development}</p>}
+        {stage === "development" && branch.instances.length > 0 && branch.stage !== "production" && (
+          <p className="small muted">{d.development}</p>
+        )}
         <p className="small">{branch.instances.length ? d.instances(branch.instances.join(", ")) : d.noInstances}</p>
         {promoting && <PromotionChecklist project={project} branch={branch} onCompare={onCompare} />}
         {promoting && check.data?.blocking && (
@@ -93,7 +139,19 @@ export function StageDialog({ project, meta, branch, stage, onClose, onCompare }
   );
 }
 
-export function CreateDialog({ project, branch, production, onClose, onJob }: { project: ProjectDetail; branch: ProjectBranch; production: string | null; onClose: () => void; onJob: (id: string) => void }) {
+export function CreateDialog({
+  project,
+  branch,
+  production,
+  onClose,
+  onJob,
+}: {
+  project: ProjectDetail;
+  branch: ProjectBranch;
+  production: string | null;
+  onClose: () => void;
+  onJob: (id: string) => void;
+}) {
   const t = useT(words);
   const d = t.createDialog;
   const c = useT(common).common;
@@ -117,7 +175,8 @@ export function CreateDialog({ project, branch, production, onClose, onJob }: { 
   // staging copies production's data, only into the same Odoo series: in another one it starts empty
   const { data: productionInstance } = useInstance(production ?? "", branch.stage === "staging" && !!production);
   const productionVersion = productionInstance?.odoo.version;
-  const otherSeries = branch.stage === "staging" && !!productionVersion && odooSeries(productionVersion) !== odooSeries(version);
+  const otherSeries =
+    branch.stage === "staging" && !!productionVersion && odooSeries(productionVersion) !== odooSeries(version);
   // Odoo apps and other modules installed with the repository's (the switch below)
   const apps = useModuleChoice({ version, edition: project.odoo.edition });
   const [modules, setModules] = useState(true);
@@ -135,42 +194,99 @@ export function CreateDialog({ project, branch, production, onClose, onJob }: { 
     [keys.project(project.id), keys.instances],
   );
   return (
-    <Modal wide title={d.title(branch.name)} description={d.text(STAGE_LABEL[branch.stage], version, edition)} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button>
-        <Button variant="primary" icon={<Plus />} loading={create.isPending} disabled={blocked || apps.tooMany}
-          onClick={() => create.mutate(undefined, {
-            onSuccess: (job) => { toast("success", t.page.created(job.instance), t.page.createdText); onClose(); onJob(job.id); },
-            onError: (e) => toast("error", t.page.notCreated, errorText(e)),
-          })}>{d.create}</Button></>}>
+    <Modal
+      wide
+      title={d.title(branch.name)}
+      description={d.text(STAGE_LABEL[branch.stage], version, edition)}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="primary"
+            icon={<Plus />}
+            loading={create.isPending}
+            disabled={blocked || apps.tooMany}
+            onClick={() =>
+              create.mutate(undefined, {
+                onSuccess: (job) => {
+                  toast("success", t.page.created(job.instance), t.page.createdText);
+                  onClose();
+                  onJob(job.id);
+                },
+                onError: (e) => toast("error", t.page.notCreated, errorText(e)),
+              })
+            }
+          >
+            {d.create}
+          </Button>
+        </>
+      }
+    >
       <div className="stack">
         {started.length > 0 && <Callout tone="warning">{d.started(started[0]!)}</Callout>}
         {branch.stage === "production" && <Callout tone="info">{d.production}</Callout>}
-        {branch.stage === "staging" && (!production ? <Callout tone="warning">{d.stagingWithout}</Callout>
-          : otherSeries ? <Callout tone="warning">{d.otherSeries(production, productionVersion ?? "", version)}</Callout>
-          : <Callout tone="info">{d.staging(production)}</Callout>)}
+        {branch.stage === "staging" &&
+          (!production ? (
+            <Callout tone="warning">{d.stagingWithout}</Callout>
+          ) : otherSeries ? (
+            <Callout tone="warning">{d.otherSeries(production, productionVersion ?? "", version)}</Callout>
+          ) : (
+            <Callout tone="info">{d.staging(production)}</Callout>
+          ))}
         {branch.stage === "development" && <p className="small muted">{d.development}</p>}
         <Field label={d.version} hint={d.versionHint}>
           <SelectBox dir="ltr" value={version} onValueChange={setVersion}>
             {choices.map((v) => (
-              <option key={v} value={v} disabled={enterprise && v !== recorded && versions?.find((o) => o.version === v)?.enterprise === false}>{v}</option>
+              <option
+                key={v}
+                value={v}
+                disabled={enterprise && v !== recorded && versions?.find((o) => o.version === v)?.enterprise === false}
+              >
+                {v}
+              </option>
             ))}
           </SelectBox>
         </Field>
         <Field label={d.name} hint={d.nameHint}>
-          <Input dir="ltr" clearable value={nameEdited ? name : (plan?.name ?? "")} maxLength={40}
-            onChange={(e) => { setNameEdited(true); setName(e.target.value); }} />
+          <Input
+            dir="ltr"
+            clearable
+            value={nameEdited ? name : (plan?.name ?? "")}
+            maxLength={40}
+            onChange={(e) => {
+              setNameEdited(true);
+              setName(e.target.value);
+            }}
+          />
         </Field>
         {branch.stage === "development" && <Switch checked={demo} onChange={setDemo} label={d.demo} />}
         <Switch checked={modules} onChange={setModules} label={d.modules} />
         <Field label={m.title}>
-          <ModulePicker choice={apps} note={branch.stage === "staging" && production && !otherSeries ? m.fromBackup : undefined} />
+          <ModulePicker
+            choice={apps}
+            note={branch.stage === "staging" && production && !otherSeries ? m.fromBackup : undefined}
+          />
         </Field>
       </div>
     </Modal>
   );
 }
 
-export function RebuildDialog({ project, instance, production, onClose, onJob }: { project: ProjectDetail; branch: ProjectBranch; instance: string; production: string | null; onClose: () => void; onJob: (id: string) => void }) {
+export function RebuildDialog({
+  project,
+  instance,
+  production,
+  onClose,
+  onJob,
+}: {
+  project: ProjectDetail;
+  branch: ProjectBranch;
+  instance: string;
+  production: string | null;
+  onClose: () => void;
+  onJob: (id: string) => void;
+}) {
   const t = useT(words);
   const d = t.rebuildDialog;
   const c = useT(common).common;
@@ -181,13 +297,33 @@ export function RebuildDialog({ project, instance, production, onClose, onJob }:
     [keys.instance(instance), keys.jobs(instance)],
   );
   return (
-    <Modal title={d.title(instance)} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button>
-        <Button variant="danger" icon={<RotateCcw />} loading={rebuild.isPending} disabled={!production}
-          onClick={() => rebuild.mutate(undefined, {
-            onSuccess: (job) => { toast("success", t.page.rebuildStarted); onClose(); onJob(job.id); },
-            onError: (e) => toast("error", t.page.rebuildNotStarted, errorText(e)),
-          })}>{d.rebuild}</Button></>}>
+    <Modal
+      title={d.title(instance)}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="danger"
+            icon={<RotateCcw />}
+            loading={rebuild.isPending}
+            disabled={!production}
+            onClick={() =>
+              rebuild.mutate(undefined, {
+                onSuccess: (job) => {
+                  toast("success", t.page.rebuildStarted);
+                  onClose();
+                  onJob(job.id);
+                },
+                onError: (e) => toast("error", t.page.rebuildNotStarted, errorText(e)),
+              })
+            }
+          >
+            {d.rebuild}
+          </Button>
+        </>
+      }
+    >
       <div className="stack">
         {production ? <p>{d.text(production)}</p> : <Callout tone="warning">{t.createDialog.stagingWithout}</Callout>}
         <Callout tone="warning">{d.lost}</Callout>
@@ -196,7 +332,15 @@ export function RebuildDialog({ project, instance, production, onClose, onJob }:
   );
 }
 
-export function DeleteInstanceDialog({ instance, onClose, onJob }: { instance: Instance; onClose: () => void; onJob: (id: string) => void }) {
+export function DeleteInstanceDialog({
+  instance,
+  onClose,
+  onJob,
+}: {
+  instance: Instance;
+  onClose: () => void;
+  onJob: (id: string) => void;
+}) {
   const [typed, setTyped] = useState("");
   const [typedStage, setTypedStage] = useState("");
   const production = instance.stage === "production";
@@ -207,17 +351,41 @@ export function DeleteInstanceDialog({ instance, onClose, onJob }: { instance: I
   const s = all.settings;
   const c = useT(common).common;
   const remove = useCall(
-    () => api.del<Job>(`/instances/${instance.name}`, { confirm: instance.name, ...(production ? { confirm_stage: "production" } : {}) }),
+    () =>
+      api.del<Job>(`/instances/${instance.name}`, {
+        confirm: instance.name,
+        ...(production ? { confirm_stage: "production" } : {}),
+      }),
     [keys.jobs()],
   );
   return (
-    <Modal title={t.deleteInstance} description={instance.name} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button>
-        <Button variant="danger" icon={<Trash2 />} loading={remove.isPending} disabled={!confirmed}
-          onClick={() => remove.mutate(undefined, {
-            onSuccess: (job) => { onClose(); if (job) onJob(job.id); },
-            onError: (e) => toast("error", t.deleteInstance, errorText(e)),
-          })}>{t.deleteInstance}</Button></>}>
+    <Modal
+      title={t.deleteInstance}
+      description={instance.name}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="danger"
+            icon={<Trash2 />}
+            loading={remove.isPending}
+            disabled={!confirmed}
+            onClick={() =>
+              remove.mutate(undefined, {
+                onSuccess: (job) => {
+                  onClose();
+                  if (job) onJob(job.id);
+                },
+                onError: (e) => toast("error", t.deleteInstance, errorText(e)),
+              })
+            }
+          >
+            {t.deleteInstance}
+          </Button>
+        </>
+      }
+    >
       <div className="stack">
         {production && <Callout tone="danger">{all.stageDialog.production}</Callout>}
         <Field label={<>{s.typeId(<code key="n">{instance.name}</code>)}</>}>

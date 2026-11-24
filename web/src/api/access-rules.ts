@@ -108,7 +108,9 @@ export const COUNTRIES = (
 
 /** The emoji flag of a country code (two regional indicator letters; drawn by the system, nothing is downloaded). */
 export const flag = (code: string) =>
-  /^[A-Za-z]{2}$/.test(code) ? String.fromCodePoint(...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)) : "";
+  /^[A-Za-z]{2}$/.test(code)
+    ? String.fromCodePoint(...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65))
+    : "";
 
 const names = new Map<string, Intl.DisplayNames | null>();
 

@@ -32,7 +32,12 @@ export const csrfHeaders = (): Record<string, string> => (csrfToken ? { "X-CSRF-
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-export async function call<T>(method: Method, path: string, body?: unknown, signal?: AbortSignal): Promise<Envelope<T>> {
+export async function call<T>(
+  method: Method,
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<Envelope<T>> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (method !== "GET" && csrfToken) headers["X-CSRF-Token"] = csrfToken;
@@ -55,7 +60,8 @@ export async function call<T>(method: Method, path: string, body?: unknown, sign
   if (!response.ok) {
     const retry = Number(response.headers.get("Retry-After")) || undefined;
     // signed out (401) is not an error to report
-    if (response.status !== 401) noteError(json.request_id ?? response.headers.get("X-Request-ID") ?? undefined, response.status);
+    if (response.status !== 401)
+      noteError(json.request_id ?? response.headers.get("X-Request-ID") ?? undefined, response.status);
     throw new ApiError(response.status, json.detail ?? response.statusText, json.request_id, retry);
   }
   return json as Envelope<T>;
@@ -64,7 +70,8 @@ export async function call<T>(method: Method, path: string, body?: unknown, sign
 export const api = {
   get: <T>(path: string) => call<T>("GET", path).then((r) => r.data),
   page: <T>(path: string) => call<T>("GET", path),
-  post: <T>(path: string, body: unknown = {}, signal?: AbortSignal) => call<T>("POST", path, body, signal).then((r) => r.data),
+  post: <T>(path: string, body: unknown = {}, signal?: AbortSignal) =>
+    call<T>("POST", path, body, signal).then((r) => r.data),
   put: <T>(path: string, body: unknown = {}) => call<T>("PUT", path, body).then((r) => r.data),
   patch: <T>(path: string, body: unknown) => call<T>("PATCH", path, body).then((r) => r.data),
   del: <T = void>(path: string, body?: unknown) => call<T>("DELETE", path, body).then((r) => r.data),

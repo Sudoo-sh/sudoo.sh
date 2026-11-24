@@ -30,7 +30,8 @@ export function RequireSession() {
         <Spinner />
       </div>
     );
-  if (!session) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
+  if (!session)
+    return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   setCsrfToken(session.csrf_token);
   const task = session.restricted ? RESTRICTED_PAGE[session.restricted] : null;
   if (task && location.pathname !== task) return <Navigate to={task} replace />;

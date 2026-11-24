@@ -29,14 +29,17 @@ const en = {
   imports: {
     button: "Import database",
     title: "Import a database",
-    text: (name: string) => `Replace the database of ${ltr(name)} with a dump from elsewhere: Odoo.sh, another server, or Odoo's own database manager.`,
-    formats: "A .zip with dump.sql and the filestore (Odoo's backup format), a .dump (pg_dump custom format), or a .sql / .sql.gz file.",
+    text: (name: string) =>
+      `Replace the database of ${ltr(name)} with a dump from elsewhere: Odoo.sh, another server, or Odoo's own database manager.`,
+    formats:
+      "A .zip with dump.sql and the filestore (Odoo's backup format), a .dump (pg_dump custom format), or a .sql / .sql.gz file.",
     choose: "Choose a file",
     drop: "Drop the dump here, or choose a file",
     version: (version: string) => `It must be a database of Odoo ${version}; a database of another version is refused.`,
     neutralize: "Neutralise the imported data",
     neutralizeText: "Switches off outgoing e-mail, scheduled actions and payment providers, as for a staging copy.",
-    notNeutralized: "Without neutralising, the imported database may send e-mail and run its scheduled actions from this instance.",
+    notNeutralized:
+      "Without neutralising, the imported database may send e-mail and run its scheduled actions from this instance.",
     productionWarning: "This is the production instance: its database is replaced by the dump.",
     typeProduction: (word: ReactNode) => ["Type ", word, " to confirm"],
     before: "The current state is backed up first and offered as Rollback for a while.",
@@ -58,7 +61,7 @@ const en = {
     noComment: "—",
     backUpTitle: "Back up now",
     commentLabel: "Comment (optional)",
-    commentHint: "Say why you take this backup, for example \"before importing the price lists\".",
+    commentHint: 'Say why you take this backup, for example "before importing the price lists".',
     backUp: "Back up",
   },
 };
@@ -88,8 +91,10 @@ const ar: typeof en = {
   imports: {
     button: "استورد قاعدة بيانات",
     title: "استيراد قاعدة بيانات",
-    text: (name) => `استبدل قاعدة بيانات ${ltr(name)} بنسخة من مكان آخر: Odoo.sh، أو خادم آخر، أو مدير قواعد البيانات في أودو.`,
-    formats: "ملف .zip فيه dump.sql ومخزن الملفات (صيغة النسخ الاحتياطي في أودو)، أو .dump (الصيغة المخصصة لـ pg_dump)، أو ملف .sql أو .sql.gz.",
+    text: (name) =>
+      `استبدل قاعدة بيانات ${ltr(name)} بنسخة من مكان آخر: Odoo.sh، أو خادم آخر، أو مدير قواعد البيانات في أودو.`,
+    formats:
+      "ملف .zip فيه dump.sql ومخزن الملفات (صيغة النسخ الاحتياطي في أودو)، أو .dump (الصيغة المخصصة لـ pg_dump)، أو ملف .sql أو .sql.gz.",
     choose: "اختر ملفًا",
     drop: "أفلت النسخة هنا، أو اختر ملفًا",
     version: (version) => `يجب أن تكون قاعدة بيانات من أودو ${version}؛ تُرفض قاعدة بيانات إصدار آخر.`,

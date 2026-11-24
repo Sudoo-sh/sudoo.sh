@@ -26,7 +26,11 @@
     font-size: var(--text-12);
     color: var(--text-3);
   }
-  nav { display: flex; flex-direction: column; gap: 2px; }
+  nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
   .nav-link {
     display: flex;
     align-items: center;
@@ -38,18 +42,40 @@
     color: var(--text-2);
     text-decoration: none !important;
     @include press(0.98);
-    svg { width: 16px; height: 16px; flex: none; stroke-width: 1.5; color: var(--text-3); }
-    .count { margin-inline-start: auto; font-family: var(--mono); font-size: var(--text-12); color: var(--text-3); }
-    @include hover { background: var(--raised); color: var(--text); }
+    svg {
+      width: 16px;
+      height: 16px;
+      flex: none;
+      stroke-width: 1.5;
+      color: var(--text-3);
+    }
+    .count {
+      margin-inline-start: auto;
+      font-family: var(--mono);
+      font-size: var(--text-12);
+      color: var(--text-3);
+    }
+    @include hover {
+      background: var(--raised);
+      color: var(--text);
+    }
     &.active {
       background: var(--surface);
       border-color: var(--hairline);
       box-shadow: var(--shadow-small);
       color: var(--text);
-      svg { color: var(--brand); }
+      svg {
+        color: var(--brand);
+      }
     }
   }
-  .sidebar-foot { margin-top: auto; padding-top: var(--s4); display: flex; flex-direction: column; gap: var(--s2); }
+  .sidebar-foot {
+    margin-top: auto;
+    padding-top: var(--s4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+  }
 }
 
 .brand {
@@ -62,8 +88,19 @@
   text-decoration: none !important;
   font-size: 17px;
   font-weight: 600;
-  .mark { display: grid; width: 26px; height: 26px; svg { width: 100%; height: 100%; } }
-  .tld { color: var(--text-3); font-weight: 500; }
+  .mark {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+  .tld {
+    color: var(--text-3);
+    font-weight: 500;
+  }
 }
 
 .user-card {
@@ -78,11 +115,26 @@
   cursor: pointer;
   text-align: start;
   @include press(0.98);
-  @include hover { background: var(--raised); }
-  .who { min-width: 0; flex: 1; line-height: 1.3; }
-  .name { font-weight: 500; }
-  .role { font-size: var(--text-12); color: var(--text-3); }
-  > svg { width: 16px; height: 16px; color: var(--text-3); }
+  @include hover {
+    background: var(--raised);
+  }
+  .who {
+    min-width: 0;
+    flex: 1;
+    line-height: 1.3;
+  }
+  .name {
+    font-weight: 500;
+  }
+  .role {
+    font-size: var(--text-12);
+    color: var(--text-3);
+  }
+  > svg {
+    width: 16px;
+    height: 16px;
+    color: var(--text-3);
+  }
 }
 
 .main {
@@ -115,9 +167,23 @@
     opacity: 0.6;
     pointer-events: none;
   }
-  .crumbs { display: flex; align-items: center; gap: var(--s2); color: var(--text-3); min-width: 0;
-    a { color: var(--text-2); } .current { color: var(--text); }
-    svg { width: 14px; height: 14px; } }
+  .crumbs {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    color: var(--text-3);
+    min-width: 0;
+    a {
+      color: var(--text-2);
+    }
+    .current {
+      color: var(--text);
+    }
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
 }
 
 // shown only while the connection to the server is lost; otherwise there is nothing to say
@@ -139,12 +205,23 @@
   box-shadow: var(--shadow-float);
   font-size: var(--text-13);
   transform: translateX(-50%);
-  transition: opacity var(--enter) var(--ease), transform var(--enter) var(--ease);
-  @starting-style { opacity: 0; transform: translate(-50%, -12px); }
-  .spinner { width: 13px; height: 13px; }
+  transition:
+    opacity var(--enter) var(--ease),
+    transform var(--enter) var(--ease);
+  @starting-style {
+    opacity: 0;
+    transform: translate(-50%, -12px);
+  }
+  .spinner {
+    width: 13px;
+    height: 13px;
+  }
 }
 // the bell in the top bar: the latest alerts, a dot while some are new
-.bell { position: relative; display: inline-flex; }
+.bell {
+  position: relative;
+  display: inline-flex;
+}
 .bell-dot {
   position: absolute;
   top: 6px;
@@ -156,7 +233,9 @@
   box-shadow: 0 0 0 2px var(--surface);
   pointer-events: none;
   transition: transform var(--quick) var(--ease);
-  @starting-style { transform: scale(0); }
+  @starting-style {
+    transform: scale(0);
+  }
 }
 .bell-menu {
   .bell-head {
@@ -166,21 +245,58 @@
     padding: var(--s3) var(--s4);
     border-bottom: 1px solid var(--hairline);
     font-size: var(--text-14);
-    a { display: inline; width: auto; height: auto; padding: 0; color: var(--brand); font-size: var(--text-13); @include hover { background: none; text-decoration: underline !important; } }
+    a {
+      display: inline;
+      width: auto;
+      height: auto;
+      padding: 0;
+      color: var(--brand);
+      font-size: var(--text-13);
+      @include hover {
+        background: none;
+        text-decoration: underline !important;
+      }
+    }
   }
-  .bell-empty { margin: 0; padding: var(--s4); color: var(--text-3); font-size: var(--text-13); }
-  .bell-list { max-height: min(420px, 60vh); overflow: auto; padding: var(--s1); overscroll-behavior: contain; }
+  .bell-empty {
+    margin: 0;
+    padding: var(--s4);
+    color: var(--text-3);
+    font-size: var(--text-13);
+  }
+  .bell-list {
+    max-height: min(420px, 60vh);
+    overflow: auto;
+    padding: var(--s1);
+    overscroll-behavior: contain;
+  }
   .bell-list a {
     height: auto;
     align-items: flex-start;
     padding: var(--s2);
-    svg { flex: none; margin-top: 2px; }
-    svg.negative { color: var(--negative); }
-    svg.positive { color: var(--positive); }
-    &.resolved .bell-title { color: var(--text-2); }
+    svg {
+      flex: none;
+      margin-top: 2px;
+    }
+    svg.negative {
+      color: var(--negative);
+    }
+    svg.positive {
+      color: var(--positive);
+    }
+    &.resolved .bell-title {
+      color: var(--text-2);
+    }
   }
-  .bell-item { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .bell-title { font-weight: 500; }
+  .bell-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .bell-title {
+    font-weight: 500;
+  }
   .bell-text {
     color: var(--text-2);
     font-size: var(--text-13);
@@ -189,14 +305,20 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  .bell-when { color: var(--text-3); font-size: var(--text-12); }
+  .bell-when {
+    color: var(--text-3);
+    font-size: var(--text-12);
+  }
 }
 
 .meter {
   font-family: var(--mono);
   font-size: var(--text-12);
   color: var(--text-3);
-  b { color: var(--text-2); font-weight: 500; }
+  b {
+    color: var(--text-2);
+    font-weight: 500;
+  }
 }
 
 .page {
@@ -214,28 +336,73 @@
   align-items: flex-end;
   gap: var(--s4);
   flex-wrap: wrap;
-  .titles { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: var(--s2); }
-  p { color: var(--text-2); max-width: 68ch; }
-  .actions { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; }
+  .titles {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+  }
+  p {
+    color: var(--text-2);
+    max-width: 68ch;
+  }
+  .actions {
+    display: flex;
+    gap: var(--s2);
+    flex-wrap: wrap;
+    align-items: center;
+  }
 }
 // with something under the actions (a project's branch commands) the actions sit at the top, and that column is as
 // wide as the commands need
 .page-head-split {
   align-items: flex-start;
-  > .titles { flex: 1 1 280px; container-type: inline-size; }
-  > .page-head-side { display: flex; flex-direction: column; align-items: flex-end; gap: var(--s3); flex: 1 1 380px; max-width: 600px; min-width: 0; }
+  > .titles {
+    flex: 1 1 280px;
+    container-type: inline-size;
+  }
+  > .page-head-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--s3);
+    flex: 1 1 380px;
+    max-width: 600px;
+    min-width: 0;
+  }
 }
 // on a phone the actions take a line of their own under the title instead of squeezing it
 @media (max-width: 640px) {
-  .page-head > .actions { flex: 1 1 100%; }
-  .page-head-split > .page-head-side { flex: 1 1 100%; max-width: none; align-items: stretch; > .actions { justify-content: flex-start; } }
+  .page-head > .actions {
+    flex: 1 1 100%;
+  }
+  .page-head-split > .page-head-side {
+    flex: 1 1 100%;
+    max-width: none;
+    align-items: stretch;
+    > .actions {
+      justify-content: flex-start;
+    }
+  }
 }
 
 @media (max-width: 960px) {
-  .shell { grid-template-columns: minmax(0, 1fr); }
-  .main { grid-column: 1; }
-  .topbar { padding: 0 var(--s4); .hide-sm { display: none; } }
-  .page { padding: var(--s6) var(--s4); }
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .main {
+    grid-column: 1;
+  }
+  .topbar {
+    padding: 0 var(--s4);
+    .hide-sm {
+      display: none;
+    }
+  }
+  .page {
+    padding: var(--s6) var(--s4);
+  }
 }
 
 // up to 960px the sidebar is in a sheet (components/Shell.tsx; the sheet's look is in _look.scss)
@@ -249,7 +416,9 @@
 }
 
 // ---------------------------------------------------------------- back to top (components/BackToTop.tsx)
-main.page:focus { outline: none; } // focused only to move the keyboard back to the top
+main.page:focus {
+  outline: none;
+} // focused only to move the keyboard back to the top
 .back-to-top {
   position: fixed;
   z-index: 25; // over the page, under the sidebar drawer (30), dialogs and drawers (50) and toasts (60)
@@ -272,13 +441,40 @@ main.page:focus { outline: none; } // focused only to move the keyboard back to 
   opacity: 0;
   transform: translateY(8px) scale(0.96);
   pointer-events: none;
-  transition: opacity var(--enter) var(--ease), transform var(--enter) var(--ease), color var(--quick) var(--ease);
-  svg { width: 18px; height: 18px; stroke-width: 1.75; }
-  &[data-shown] { opacity: 1; transform: none; pointer-events: auto; }
-  @include hover { color: var(--brand-ink); border-color: color-mix(in oklab, var(--brand) 35%, var(--hairline-strong)); }
-  &[data-shown]:active { transform: scale(0.94); transition-duration: var(--press); }
-  &:focus-visible { outline: 2px solid var(--brand-ring); outline-offset: 2px; }
+  transition:
+    opacity var(--enter) var(--ease),
+    transform var(--enter) var(--ease),
+    color var(--quick) var(--ease);
+  svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 1.75;
+  }
+  &[data-shown] {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+  @include hover {
+    color: var(--brand-ink);
+    border-color: color-mix(in oklab, var(--brand) 35%, var(--hairline-strong));
+  }
+  &[data-shown]:active {
+    transform: scale(0.94);
+    transition-duration: var(--press);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--brand-ring);
+    outline-offset: 2px;
+  }
 }
 // out of the way: above the Settings save bar, and hidden while toasts, a dialog, a drawer or a full-screen view are open
-body:has(.save-bar) .back-to-top { bottom: calc(max(var(--s5), env(safe-area-inset-bottom, 0px)) + 64px); }
-body:has(.toast, [data-slot="dialog-overlay"], [data-slot="sheet-overlay"], [data-slot="drawer-overlay"], .logs-full) .back-to-top { opacity: 0; transform: translateY(8px) scale(0.96); pointer-events: none; }
+body:has(.save-bar) .back-to-top {
+  bottom: calc(max(var(--s5), env(safe-area-inset-bottom, 0px)) + 64px);
+}
+body:has(.toast, [data-slot="dialog-overlay"], [data-slot="sheet-overlay"], [data-slot="drawer-overlay"], .logs-full)
+  .back-to-top {
+  opacity: 0;
+  transform: translateY(8px) scale(0.96);
+  pointer-events: none;
+}

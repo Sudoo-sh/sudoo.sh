@@ -1,5 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
-import { Archive, ArrowUpRight, Blocks, Box, Boxes, Building2, CircleCheck, CircleX, Container, Cpu, FolderGit2, GitBranch, Layers, Lock, Package, SlidersHorizontal } from "lucide-react";
+import {
+  Archive,
+  ArrowUpRight,
+  Blocks,
+  Box,
+  Boxes,
+  Building2,
+  CircleCheck,
+  CircleX,
+  Container,
+  Cpu,
+  FolderGit2,
+  GitBranch,
+  Layers,
+  Lock,
+  Package,
+  SlidersHorizontal,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, errorText } from "@/api/client";
@@ -53,7 +70,15 @@ function RepositoryAccessLinks({ installations }: { installations: { account: st
     <p className="xsmall faint row-wrap" style={{ gap: 8 }}>
       {t.notListed}
       {installations.map((i) => (
-        <a key={i.account} href={i.settings_url} target="_blank" rel="noreferrer" onMouseDown={(e) => e.preventDefault()} className="row" style={{ gap: 2 }}>
+        <a
+          key={i.account}
+          href={i.settings_url}
+          target="_blank"
+          rel="noreferrer"
+          onMouseDown={(e) => e.preventDefault()}
+          className="row"
+          style={{ gap: 2 }}
+        >
           <bdi>{i.account}</bdi> <ArrowUpRight size={12} className="flip-rtl" />
         </a>
       ))}
@@ -158,7 +183,10 @@ export function NewInstancePage() {
         if (!current) return;
         setRepoError(errorText(error));
         // the report says what applies (the GitHub App not installed there, the repository not selected...) and links to the fix
-        api.get<RepoAccess>(`/repositories/access?url=${encodeURIComponent(debouncedRepo)}`).then((report) => current && setAccess(report)).catch(() => undefined);
+        api
+          .get<RepoAccess>(`/repositories/access?url=${encodeURIComponent(debouncedRepo)}`)
+          .then((report) => current && setAccess(report))
+          .catch(() => undefined);
       })
       .finally(() => current && setChecking(false));
     return () => {
@@ -170,7 +198,9 @@ export function NewInstancePage() {
     if (!branches || !branch) return;
     let current = true;
     api
-      .get<RepoAccess>(`/repositories/access?url=${encodeURIComponent(debouncedRepo)}&branch=${encodeURIComponent(branch)}`)
+      .get<RepoAccess>(
+        `/repositories/access?url=${encodeURIComponent(debouncedRepo)}&branch=${encodeURIComponent(branch)}`,
+      )
       .then((report) => current && setAccess(report))
       .catch(() => undefined);
     return () => {
@@ -179,13 +209,36 @@ export function NewInstancePage() {
   }, [branches, branch, debouncedRepo]);
 
   const typedName = useDebounced(nameEdited ? name.trim() : "");
-  const { data: plan } = usePlan(plain ? "" : debouncedRepo, plain ? "" : branch, typedName, plain ? version : "", plain ? edition : "");
-  const { data: suggestion } = usePlan(plain ? "" : debouncedRepo, plain ? "" : branch, "", plain ? version : "", plain ? edition : "");
+  const { data: plan } = usePlan(
+    plain ? "" : debouncedRepo,
+    plain ? "" : branch,
+    typedName,
+    plain ? version : "",
+    plain ? edition : "",
+  );
+  const { data: suggestion } = usePlan(
+    plain ? "" : debouncedRepo,
+    plain ? "" : branch,
+    "",
+    plain ? version : "",
+    plain ? edition : "",
+  );
   const suggested = plain || (debouncedRepo && branch) ? (suggestion?.name ?? "") : "";
   const shownName = nameEdited ? name : suggested;
   // the suggestion shown: where it comes from; a name typed (or the field emptied): what the instance will be called
   const nameHint = (suggestedText: string) =>
-    nameEdited && plan ? <>{t.willBe(<b key="n" dir="ltr">{plan.name}</b>, <code key="d">{plan.database}</code>)}</> : suggestedText;
+    nameEdited && plan ? (
+      <>
+        {t.willBe(
+          <b key="n" dir="ltr">
+            {plan.name}
+          </b>,
+          <code key="d">{plan.database}</code>,
+        )}
+      </>
+    ) : (
+      suggestedText
+    );
   const typeName = (value: string) => {
     setNameEdited(true);
     setName(value);
@@ -208,7 +261,7 @@ export function NewInstancePage() {
   // Odoo apps and other modules installed with the repository's (the switch under Options)
   const moduleChoice = useModuleChoice({ version, edition });
   const m = useT(moduleWords);
-  const productionRefused = production ? plan?.production?.refusal ?? null : null;
+  const productionRefused = production ? (plan?.production?.refusal ?? null) : null;
   const enterpriseAvailable = versions?.find((v) => v.version === version)?.enterprise ?? false;
   useEffect(() => {
     if (!enterpriseAvailable) setEdition("community");
@@ -232,7 +285,7 @@ export function NewInstancePage() {
         ...moduleChoice.request,
         demo: demo && !useBackup,
         stage,
-        delete_after_days: production ? 0 : lifetime ?? 30,
+        delete_after_days: production ? 0 : (lifetime ?? 30),
         auto_update: autoUpdate && !plain,
         auto_pause: autoPause && !production,
         ...(useBackup && fromBackup ? { from_backup: fromBackup } : {}),
@@ -267,15 +320,11 @@ export function NewInstancePage() {
 
   return (
     <Page>
-      <PageHead title={t.title}>
-        {t.text}
-      </PageHead>
+      <PageHead title={t.title}>{t.text}</PageHead>
 
       {(waiting || full) && (
         <Callout tone="warning">
-          {full
-            ? t.limitReached
-            : t.cooldown(number(quota?.cooldown_minutes), ago(quota!.next_creation_at))}
+          {full ? t.limitReached : t.cooldown(number(quota?.cooldown_minutes), ago(quota!.next_creation_at))}
         </Callout>
       )}
 
@@ -288,73 +337,154 @@ export function NewInstancePage() {
             </div>
             <div className="card-body form-grid">
               <div className="full grid-2" role="radiogroup" aria-label={t.code}>
-                <button type="button" className="choice" role="radio" aria-checked={!plain} aria-pressed={!plain} onClick={() => setSource("repository")}>
+                <button
+                  type="button"
+                  className="choice"
+                  role="radio"
+                  aria-checked={!plain}
+                  aria-pressed={!plain}
+                  onClick={() => setSource("repository")}
+                >
                   <FolderGit2 />
-                  <span><span className="t">{t.fromRepository}</span><br /><span className="d">{t.fromRepositoryText}</span></span>
+                  <span>
+                    <span className="t">{t.fromRepository}</span>
+                    <br />
+                    <span className="d">{t.fromRepositoryText}</span>
+                  </span>
                 </button>
-                <button type="button" className="choice" role="radio" aria-checked={plain} aria-pressed={plain} onClick={() => setSource("plain")}>
+                <button
+                  type="button"
+                  className="choice"
+                  role="radio"
+                  aria-checked={plain}
+                  aria-pressed={plain}
+                  onClick={() => setSource("plain")}
+                >
                   <Box />
-                  <span><span className="t">{t.plain}</span><br /><span className="d">{t.plainText}</span></span>
+                  <span>
+                    <span className="t">{t.plain}</span>
+                    <br />
+                    <span className="d">{t.plainText}</span>
+                  </span>
                 </button>
               </div>
               {plain ? (
                 <Field className="full" label={t.name} hint={nameHint(t.suggestedPlain)}>
-                  <Input dir="ltr" clearable placeholder="sales-demo" value={shownName} onChange={(e) => typeName(e.target.value)} maxLength={40} />
+                  <Input
+                    dir="ltr"
+                    clearable
+                    placeholder="sales-demo"
+                    value={shownName}
+                    onChange={(e) => typeName(e.target.value)}
+                    maxLength={40}
+                  />
                 </Field>
               ) : (
-              <>
-              <Field
-                className="full"
-                label={t.repository}
-                error={repoError}
-                hint={checking ? t.checking : branches ? t.branchesFound(branches.length) : t.repositoryHint}
-              >
-                <div className="stack-sm">
-                  <Input  dir="ltr" autoFocus placeholder="https://github.com/acme/odoo-addons" value={repo} aria-invalid={!!repoError}
-                    onChange={(e) => setRepo(e.target.value)} onFocus={() => setPicking(true)} onBlur={() => setPicking(false)} />
-                  {picking && (
-                    <RepositoryPicker typed={repo.trim()} onPick={(r) => { setRepo(r.url); setBranch(r.default_branch); setPicking(false); }} />
-                  )}
-                </div>
-              </Field>
-              <Field label={t.branch}>
-                {branches ? (
-                  <SelectBox dir="ltr" value={branch} onValueChange={(value) => setBranch(value)}>
-                    {branches.map((b) => <option key={b}>{b}</option>)}
-                  </SelectBox>
-                ) : (
-                  <div className="input-group">
-                    <GitBranch />
-                    <Input dir="ltr" placeholder="main" value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!!repo.trim()} />
-                  </div>
-                )}
-              </Field>
-              <Field label={t.name} hint={nameHint(t.suggestedRepository)}>
-                <Input dir="ltr" clearable placeholder="sales-demo" value={shownName} onChange={(e) => typeName(e.target.value)} maxLength={40} />
-              </Field>
-              {access && (
-                <div className="full stack-sm">
-                  {access.repositories.map((r) => (
-                    <div key={r.url} className="row small" style={{ flexWrap: "wrap" }}>
-                      {r.ok ? <CircleCheck size={16} color="var(--positive)" /> : <CircleX size={16} color="var(--negative)" />}
-                      <bdi className="truncate" dir="ltr">{r.url}</bdi>
-                      <Tag>{r.role}</Tag>
-                      {!r.ok && r.problem !== repoError && <span style={{ color: "var(--negative)" }}>{r.problem}</span>}
-                      {!r.ok && r.fix?.url && (r.fix.url.startsWith("/") ? (
-                        <Button asChild size="sm"><Link to={r.fix.url} viewTransition>{r.fix.label}</Link></Button>
-                      ) : (
-                        <Button asChild size="sm"><a href={r.fix.url} target="_blank" rel="noreferrer">{r.fix.label} <ArrowUpRight className="flip-rtl" /></a></Button>
-                      ))}
+                <>
+                  <Field
+                    className="full"
+                    label={t.repository}
+                    error={repoError}
+                    hint={checking ? t.checking : branches ? t.branchesFound(branches.length) : t.repositoryHint}
+                  >
+                    <div className="stack-sm">
+                      <Input
+                        dir="ltr"
+                        autoFocus
+                        placeholder="https://github.com/acme/odoo-addons"
+                        value={repo}
+                        aria-invalid={!!repoError}
+                        onChange={(e) => setRepo(e.target.value)}
+                        onFocus={() => setPicking(true)}
+                        onBlur={() => setPicking(false)}
+                      />
+                      {picking && (
+                        <RepositoryPicker
+                          typed={repo.trim()}
+                          onPick={(r) => {
+                            setRepo(r.url);
+                            setBranch(r.default_branch);
+                            setPicking(false);
+                          }}
+                        />
+                      )}
                     </div>
-                  ))}
-                  {!access.all_ok && !access.repositories.some((r) => r.fix) && (
-                    <Callout tone="warning">
-                      {t.cannotRead(<Link key="l" to="/github" viewTransition>{t.githubAccess}</Link>)}
-                    </Callout>
+                  </Field>
+                  <Field label={t.branch}>
+                    {branches ? (
+                      <SelectBox dir="ltr" value={branch} onValueChange={(value) => setBranch(value)}>
+                        {branches.map((b) => (
+                          <option key={b}>{b}</option>
+                        ))}
+                      </SelectBox>
+                    ) : (
+                      <div className="input-group">
+                        <GitBranch />
+                        <Input
+                          dir="ltr"
+                          placeholder="main"
+                          value={branch}
+                          onChange={(e) => setBranch(e.target.value)}
+                          disabled={!!repo.trim()}
+                        />
+                      </div>
+                    )}
+                  </Field>
+                  <Field label={t.name} hint={nameHint(t.suggestedRepository)}>
+                    <Input
+                      dir="ltr"
+                      clearable
+                      placeholder="sales-demo"
+                      value={shownName}
+                      onChange={(e) => typeName(e.target.value)}
+                      maxLength={40}
+                    />
+                  </Field>
+                  {access && (
+                    <div className="full stack-sm">
+                      {access.repositories.map((r) => (
+                        <div key={r.url} className="row small" style={{ flexWrap: "wrap" }}>
+                          {r.ok ? (
+                            <CircleCheck size={16} color="var(--positive)" />
+                          ) : (
+                            <CircleX size={16} color="var(--negative)" />
+                          )}
+                          <bdi className="truncate" dir="ltr">
+                            {r.url}
+                          </bdi>
+                          <Tag>{r.role}</Tag>
+                          {!r.ok && r.problem !== repoError && (
+                            <span style={{ color: "var(--negative)" }}>{r.problem}</span>
+                          )}
+                          {!r.ok &&
+                            r.fix?.url &&
+                            (r.fix.url.startsWith("/") ? (
+                              <Button asChild size="sm">
+                                <Link to={r.fix.url} viewTransition>
+                                  {r.fix.label}
+                                </Link>
+                              </Button>
+                            ) : (
+                              <Button asChild size="sm">
+                                <a href={r.fix.url} target="_blank" rel="noreferrer">
+                                  {r.fix.label} <ArrowUpRight className="flip-rtl" />
+                                </a>
+                              </Button>
+                            ))}
+                        </div>
+                      ))}
+                      {!access.all_ok && !access.repositories.some((r) => r.fix) && (
+                        <Callout tone="warning">
+                          {t.cannotRead(
+                            <Link key="l" to="/github" viewTransition>
+                              {t.githubAccess}
+                            </Link>,
+                          )}
+                        </Callout>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
-              </>
+                </>
               )}
             </div>
           </section>
@@ -369,8 +499,13 @@ export function NewInstancePage() {
                 {versions ? (
                   <div className="segmented" style={{ alignSelf: "flex-start", flexWrap: "wrap" }}>
                     {versions.map((v) => (
-                      <button key={v.version} type="button" aria-pressed={v.version === version} onClick={() => setVersion(v.version)}
-                        title={v.enterprise ? t.communityAndEnterprise : "Community"}>
+                      <button
+                        key={v.version}
+                        type="button"
+                        aria-pressed={v.version === version}
+                        onClick={() => setVersion(v.version)}
+                        title={v.enterprise ? t.communityAndEnterprise : "Community"}
+                      >
                         <span className="mono">{v.version}</span>
                       </button>
                     ))}
@@ -380,13 +515,38 @@ export function NewInstancePage() {
                 )}
               </Field>
               <div className="grid-2">
-                <button type="button" className="choice" aria-pressed={edition === "community"} onClick={() => setEdition("community")}>
+                <button
+                  type="button"
+                  className="choice"
+                  aria-pressed={edition === "community"}
+                  onClick={() => setEdition("community")}
+                >
                   <Package />
-                  <span><span className="t">Community</span><br /><span className="d">{t.communityText}</span></span>
+                  <span>
+                    <span className="t">Community</span>
+                    <br />
+                    <span className="d">{t.communityText}</span>
+                  </span>
                 </button>
-                <button type="button" className="choice" aria-pressed={edition === "enterprise"} disabled={!enterpriseAvailable} onClick={() => setEdition("enterprise")}>
+                <button
+                  type="button"
+                  className="choice"
+                  aria-pressed={edition === "enterprise"}
+                  disabled={!enterpriseAvailable}
+                  onClick={() => setEdition("enterprise")}
+                >
                   <Building2 />
-                  <span><span className="t">Enterprise</span><br /><span className="d">{enterpriseAvailable ? t.enterpriseText : version ? t.enterpriseMissing(version) : t.enterpriseMissing(t.thisVersion)}</span></span>
+                  <span>
+                    <span className="t">Enterprise</span>
+                    <br />
+                    <span className="d">
+                      {enterpriseAvailable
+                        ? t.enterpriseText
+                        : version
+                          ? t.enterpriseMissing(version)
+                          : t.enterpriseMissing(t.thisVersion)}
+                    </span>
+                  </span>
                 </button>
               </div>
             </div>
@@ -402,10 +562,21 @@ export function NewInstancePage() {
                 {STAGES.map((st) => {
                   const Icon = STAGE_ICON[st.value];
                   return (
-                    <button key={st.value} type="button" className="choice" role="radio" aria-checked={stage === st.value} aria-pressed={stage === st.value}
-                      onClick={() => chooseStage(st.value)}>
+                    <button
+                      key={st.value}
+                      type="button"
+                      className="choice"
+                      role="radio"
+                      aria-checked={stage === st.value}
+                      aria-pressed={stage === st.value}
+                      onClick={() => chooseStage(st.value)}
+                    >
                       <Icon />
-                      <span><span className="t">{st.label}</span><br /><span className="d">{st.text}</span></span>
+                      <span>
+                        <span className="t">{st.label}</span>
+                        <br />
+                        <span className="d">{st.text}</span>
+                      </span>
                     </button>
                   );
                 })}
@@ -435,14 +606,38 @@ export function NewInstancePage() {
               </div>
               <div className="card-body">
                 <div className="grid-2" role="radiogroup" aria-label={e.engine}>
-                  <button type="button" className="choice" role="radio" aria-checked={engine === "docker"} aria-pressed={engine === "docker"} onClick={() => setEngine("docker")}>
+                  <button
+                    type="button"
+                    className="choice"
+                    role="radio"
+                    aria-checked={engine === "docker"}
+                    aria-pressed={engine === "docker"}
+                    onClick={() => setEngine("docker")}
+                  >
                     <Container />
-                    <span><span className="t">{e.docker}</span><br /><span className="d">{e.dockerText}</span></span>
+                    <span>
+                      <span className="t">{e.docker}</span>
+                      <br />
+                      <span className="d">{e.dockerText}</span>
+                    </span>
                   </button>
-                  <button type="button" className="choice" role="radio" aria-checked={engine === "kubernetes"} aria-pressed={engine === "kubernetes"}
-                    disabled={edition === "enterprise"} onClick={() => setEngine("kubernetes")}>
+                  <button
+                    type="button"
+                    className="choice"
+                    role="radio"
+                    aria-checked={engine === "kubernetes"}
+                    aria-pressed={engine === "kubernetes"}
+                    disabled={edition === "enterprise"}
+                    onClick={() => setEngine("kubernetes")}
+                  >
                     <Boxes />
-                    <span><span className="t">{e.kubernetes} <Tag tone="accent">{e.beta}</Tag></span><br /><span className="d">{e.kubernetesText}</span></span>
+                    <span>
+                      <span className="t">
+                        {e.kubernetes} <Tag tone="accent">{e.beta}</Tag>
+                      </span>
+                      <br />
+                      <span className="d">{e.kubernetesText}</span>
+                    </span>
                   </button>
                 </div>
               </div>
@@ -450,7 +645,10 @@ export function NewInstancePage() {
           )}
 
           {/* several servers (premium): which server the instance goes to */}
-          <PremiumSlot name="instance.create.server" props={{ value: server, onChange: setServer, servers: plan?.servers ?? [], fromBackup: useBackup }} />
+          <PremiumSlot
+            name="instance.create.server"
+            props={{ value: server, onChange: setServer, servers: plan?.servers ?? [], fromBackup: useBackup }}
+          />
 
           {mayUseBackups && (
             <section className="card">
@@ -463,10 +661,14 @@ export function NewInstancePage() {
               </div>
               {useBackup && (
                 <div className="card-body stack">
-                  <p className="small muted">
-                    {t.backupText(version)}
-                  </p>
-                  <BackupPicker version={version} edition={edition} value={fromBackup} onChange={setFromBackup} onlyCompatible />
+                  <p className="small muted">{t.backupText(version)}</p>
+                  <BackupPicker
+                    version={version}
+                    edition={edition}
+                    value={fromBackup}
+                    onChange={setFromBackup}
+                    onlyCompatible
+                  />
                 </div>
               )}
             </section>
@@ -475,9 +677,18 @@ export function NewInstancePage() {
 
         <aside className="stack">
           <section className="card">
-            <div className="card-head"><SlidersHorizontal /><h2>{t.options}</h2></div>
+            <div className="card-head">
+              <SlidersHorizontal />
+              <h2>{t.options}</h2>
+            </div>
             <div className="card-body stack">
-              {!plain && <Switch checked={installModules} onChange={setInstallModules} label={useBackup ? t.installMissing : t.install} />}
+              {!plain && (
+                <Switch
+                  checked={installModules}
+                  onChange={setInstallModules}
+                  label={useBackup ? t.installMissing : t.install}
+                />
+              )}
               {!useBackup && <Switch checked={demo} onChange={setDemo} label={t.demo} />}
               {!plain && <Switch checked={autoUpdate} onChange={setAutoUpdate} label={t.autoUpdate} />}
               {production ? (
@@ -487,7 +698,14 @@ export function NewInstancePage() {
                   <Switch checked={autoPause} onChange={setAutoPause} label={t.autoPause} />
                   <Field label={t.lifetime} hint={t.lifetimeHint}>
                     <SelectBox value={lifetime ?? 30} onValueChange={(value) => setLifetime(Number(value))}>
-                      {[...new Set([...LIFETIMES, lifetime ?? 30])].filter((d) => d > 0).sort((a, b) => a - b).map((d) => <option key={d} value={d}>{t.days(d)}</option>)}
+                      {[...new Set([...LIFETIMES, lifetime ?? 30])]
+                        .filter((d) => d > 0)
+                        .sort((a, b) => a - b)
+                        .map((d) => (
+                          <option key={d} value={d}>
+                            {t.days(d)}
+                          </option>
+                        ))}
                       <option value={0}>{t.keep}</option>
                     </SelectBox>
                   </Field>
@@ -495,7 +713,14 @@ export function NewInstancePage() {
               )}
             </div>
             <div className="card-foot">
-              <Button variant="primary" size="lg" block loading={create.isPending} disabled={!canCreate} onClick={submit}>
+              <Button
+                variant="primary"
+                size="lg"
+                block
+                loading={create.isPending}
+                disabled={!canCreate}
+                onClick={submit}
+              >
                 {t.create}
               </Button>
             </div>
@@ -520,12 +745,7 @@ export function CapacityNote() {
   const capacity = useCapacity();
   const t = useT(words).capacity;
   if (!capacity) return null;
-  if (capacity.blocked)
-    return (
-      <Callout tone="danger">
-        {t.blocked(capacity.hard_limit ?? 0, capacity.running)}
-      </Callout>
-    );
+  if (capacity.blocked) return <Callout tone="danger">{t.blocked(capacity.hard_limit ?? 0, capacity.running)}</Callout>;
   if (!capacity.warning || !capacity.message) return null;
   return (
     <Callout tone="warning">

@@ -57,7 +57,9 @@ function cookieLocale(): Locale | null {
 export function browserLocale(): Locale | null {
   const list = navigator.languages?.length ? navigator.languages : [navigator.language];
   for (const tag of list) {
-    const primary = String(tag ?? "").toLowerCase().split("-")[0];
+    const primary = String(tag ?? "")
+      .toLowerCase()
+      .split("-")[0];
     if (isLocale(primary)) return primary;
   }
   return null;

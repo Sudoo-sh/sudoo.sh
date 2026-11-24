@@ -7,7 +7,18 @@
 
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, Check, ChevronDown, Copy, Layers, Link2 } from "lucide-react";
-import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  forwardRef,
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useT } from "@/i18n";
 import logWords from "@/i18n/logs";
 import { number } from "@/lib/format";
@@ -54,7 +65,25 @@ interface SurfaceProps {
 }
 
 export const LogSurface = forwardRef<LogSurfaceHandle, SurfaceProps>(function LogSurface(props, ref) {
-  const { entries, matcher, current, wrap, size, following, onFollow, pending, onJump, onTop, top, empty, marked, onLogger, onLevel, onCopy, copied } = props;
+  const {
+    entries,
+    matcher,
+    current,
+    wrap,
+    size,
+    following,
+    onFollow,
+    pending,
+    onJump,
+    onTop,
+    top,
+    empty,
+    marked,
+    onLogger,
+    onLevel,
+    onCopy,
+    copied,
+  } = props;
   const t = useT(logWords);
   const box = useRef<HTMLDivElement>(null);
   const [folded, setFolded] = useState<Set<string>>(() => new Set());
@@ -73,10 +102,14 @@ export const LogSurface = forwardRef<LogSurfaceHandle, SurfaceProps>(function Lo
     getItemKey: (index) => entries[index]?.id ?? index,
   });
 
-  useImperativeHandle(ref, () => ({
-    show: (index) => virtual.scrollToIndex(index, { align: "center" }),
-    toEnd: () => entries.length && virtual.scrollToIndex(entries.length - 1, { align: "end" }),
-  }), [virtual, entries.length]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      show: (index) => virtual.scrollToIndex(index, { align: "center" }),
+      toEnd: () => entries.length && virtual.scrollToIndex(entries.length - 1, { align: "end" }),
+    }),
+    [virtual, entries.length],
+  );
 
   // following: the latest entry stays in view
   useLayoutEffect(() => {
@@ -125,12 +158,16 @@ export const LogSurface = forwardRef<LogSurfaceHandle, SurfaceProps>(function Lo
     if (el.scrollTop < 40 && onTop) onTop();
   };
 
-  const toggleFold = useCallback((id: string) => setFolded((was) => {
-    const next = new Set(was);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    return next;
-  }), []);
+  const toggleFold = useCallback(
+    (id: string) =>
+      setFolded((was) => {
+        const next = new Set(was);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      }),
+    [],
+  );
 
   const items = virtual.getVirtualItems();
   return (
@@ -147,8 +184,12 @@ export const LogSurface = forwardRef<LogSurfaceHandle, SurfaceProps>(function Lo
         onScroll={onScroll}
         onWheel={(e) => e.deltaY < 0 && setTimeout(leave)}
         onTouchMove={() => setTimeout(leave)}
-        onPointerDown={(e) => { pointerDown.current = e.target === e.currentTarget; }}
-        onPointerUp={() => { pointerDown.current = false; }}
+        onPointerDown={(e) => {
+          pointerDown.current = e.target === e.currentTarget;
+        }}
+        onPointerUp={() => {
+          pointerDown.current = false;
+        }}
         onKeyDown={(e) => ["ArrowUp", "PageUp", "Home"].includes(e.key) && setTimeout(leave)}
       >
         {top}
@@ -196,7 +237,17 @@ export const LogSurface = forwardRef<LogSurfaceHandle, SurfaceProps>(function Lo
 // ---------------------------------------------------------------- one entry
 
 /** `text` with the parts the search found marked; `offset`: where `text` starts in the part searched. */
-function Marked({ text, ranges, offset = 0, current }: { text: string; ranges: [number, number][]; offset?: number; current: number | null }) {
+function Marked({
+  text,
+  ranges,
+  offset = 0,
+  current,
+}: {
+  text: string;
+  ranges: [number, number][];
+  offset?: number;
+  current: number | null;
+}) {
   if (!ranges.length) return <>{text}</>;
   const out: ReactNode[] = [];
   let from = 0;
@@ -205,7 +256,11 @@ function Marked({ text, ranges, offset = 0, current }: { text: string; ranges: [
     const end = Math.min(e - offset, text.length);
     if (end <= start || start < from) continue;
     if (start > from) out.push(text.slice(from, start));
-    out.push(<mark key={start} data-current={s === current || undefined}>{text.slice(start, end)}</mark>);
+    out.push(
+      <mark key={start} data-current={s === current || undefined}>
+        {text.slice(start, end)}
+      </mark>,
+    );
     from = end;
   }
   if (from < text.length) out.push(text.slice(from));
@@ -227,7 +282,20 @@ interface RowProps {
   copied: string | null;
 }
 
-const Row = memo(function Row({ entry, matcher, current, folded, onFold, chosen, onChoose, marked, onLogger, onLevel, onCopy, copied }: RowProps) {
+const Row = memo(function Row({
+  entry,
+  matcher,
+  current,
+  folded,
+  onFold,
+  chosen,
+  onChoose,
+  marked,
+  onLogger,
+  onLevel,
+  onCopy,
+  copied,
+}: RowProps) {
   const t = useT(logWords);
   const ranges = (text: string) => (matcher.ok && !matcher.empty ? matcher.ranges(text) : []);
   const at = (part: string) => (current && current.part === part ? current.start : null);
@@ -235,7 +303,9 @@ const Row = memo(function Row({ entry, matcher, current, folded, onFold, chosen,
   const message = entry.message;
   const found = ranges(message);
   const request = entry.request;
-  const slice = (from: number, to: number) => <Marked text={message.slice(from, to)} ranges={found} offset={from} current={at("message")} />;
+  const slice = (from: number, to: number) => (
+    <Marked text={message.slice(from, to)} ranges={found} offset={from} current={at("message")} />
+  );
   const copyKey = (what: string) => `${what}:${entry.id}`;
 
   return (
@@ -255,16 +325,34 @@ const Row = memo(function Row({ entry, matcher, current, folded, onFold, chosen,
         {entry.time ? (
           <>
             <span className="c-time" title={entry.time}>
-              <Marked text={entry.time.slice(11).replace(",", ".")} ranges={ranges(entry.time)} offset={11} current={at("time")} />
+              <Marked
+                text={entry.time.slice(11).replace(",", ".")}
+                ranges={ranges(entry.time)}
+                offset={11}
+                current={at("time")}
+              />
             </span>
-            <span className="c-pid" title={t.columns.pid}>{entry.pid}</span>
-            <button type="button" className="c-level" data-level={level?.toLowerCase()} onClick={() => level && onLevel(level)} title={level ? t.onlyLevel(t.levelNames[level] ?? level) : undefined}>
+            <span className="c-pid" title={t.columns.pid}>
+              {entry.pid}
+            </span>
+            <button
+              type="button"
+              className="c-level"
+              data-level={level?.toLowerCase()}
+              onClick={() => level && onLevel(level)}
+              title={level ? t.onlyLevel(t.levelNames[level] ?? level) : undefined}
+            >
               {level === "WARNING" ? "WARN" : level === "CRITICAL" ? "CRIT" : level}
             </button>
             <span className="c-db" title={`${t.columns.db}: ${entry.db}`}>
               <Marked text={entry.db ?? ""} ranges={ranges(entry.db ?? "")} current={at("db")} />
             </span>
-            <button type="button" className="c-logger" onClick={() => entry.logger && onLogger(entry.logger)} title={entry.logger ? t.onlyLogger(entry.logger) : undefined}>
+            <button
+              type="button"
+              className="c-logger"
+              onClick={() => entry.logger && onLogger(entry.logger)}
+              title={entry.logger ? t.onlyLogger(entry.logger) : undefined}
+            >
               <Marked text={entry.logger ?? ""} ranges={ranges(entry.logger ?? "")} current={at("logger")} />
             </button>
             <span className="c-message">
@@ -272,11 +360,14 @@ const Row = memo(function Row({ entry, matcher, current, folded, onFold, chosen,
                 <>
                   <span className="r-ip">{slice(0, request.at.method[0] - 1)}</span>
                   {message[request.at.method[0] - 1]}
-                  <span className="r-method" data-method={request.method}>{slice(...request.at.method)}</span>
-                  {" "}
+                  <span className="r-method" data-method={request.method}>
+                    {slice(...request.at.method)}
+                  </span>{" "}
                   <span className="r-path">{slice(...request.at.path)}</span>
                   {slice(request.at.path[1], request.at.status[0])}
-                  <span className="r-status" data-class={statusClass(request.status)}>{slice(...request.at.status)}</span>
+                  <span className="r-status" data-class={statusClass(request.status)}>
+                    {slice(...request.at.status)}
+                  </span>
                   <span className="r-rest">{slice(request.at.status[1], message.length)}</span>
                   {request.total != null && (
                     <span className="r-time" data-slow={request.total >= 1 || undefined}>
@@ -290,19 +381,36 @@ const Row = memo(function Row({ entry, matcher, current, folded, onFold, chosen,
             </span>
           </>
         ) : (
-          <span className="c-message c-plain"><Marked text={message} ranges={found} current={at("message")} /></span>
+          <span className="c-message c-plain">
+            <Marked text={message} ranges={found} current={at("message")} />
+          </span>
         )}
         <span className="logs-actions">
-          <button type="button" onClick={() => onCopy(entryText(entry), "line", entry.id)} title={t.copyLine} aria-label={t.copyLine}>
+          <button
+            type="button"
+            onClick={() => onCopy(entryText(entry), "line", entry.id)}
+            title={t.copyLine}
+            aria-label={t.copyLine}
+          >
             {copied === copyKey("line") ? <Check /> : <Copy />}
           </button>
           {entry.traceback && (
-            <button type="button" onClick={() => onCopy(entry.more.join("\n"), "traceback", entry.id)} title={t.copyTraceback} aria-label={t.copyTraceback}>
+            <button
+              type="button"
+              onClick={() => onCopy(entry.more.join("\n"), "traceback", entry.id)}
+              title={t.copyTraceback}
+              aria-label={t.copyTraceback}
+            >
               {copied === copyKey("traceback") ? <Check /> : <Layers />}
             </button>
           )}
           {!entry.id.startsWith("~") && (
-            <button type="button" onClick={() => onCopy("", "link", entry.id)} title={t.copyLink} aria-label={t.copyLink}>
+            <button
+              type="button"
+              onClick={() => onCopy("", "link", entry.id)}
+              title={t.copyLink}
+              aria-label={t.copyLink}
+            >
               {copied === copyKey("link") ? <Check /> : <Link2 />}
             </button>
           )}
@@ -312,11 +420,19 @@ const Row = memo(function Row({ entry, matcher, current, folded, onFold, chosen,
         <div className="logs-more" data-folded={folded || undefined}>
           <button type="button" className="logs-fold" aria-expanded={!folded} onClick={() => onFold(entry.id)}>
             <ChevronDown aria-hidden="true" />
-            {folded ? t.showTraceback(number(entry.more.length)) : entry.traceback ? t.hideTraceback : t.showTraceback(number(entry.more.length))}
+            {folded
+              ? t.showTraceback(number(entry.more.length))
+              : entry.traceback
+                ? t.hideTraceback
+                : t.showTraceback(number(entry.more.length))}
           </button>
           {!folded &&
             entry.more.map((line, i) => (
-              <div key={i} className="logs-more-line" data-exception={entry.traceback && i === entry.more.length - 1 ? true : undefined}>
+              <div
+                key={i}
+                className="logs-more-line"
+                data-exception={entry.traceback && i === entry.more.length - 1 ? true : undefined}
+              >
                 <Marked text={line || " "} ranges={ranges(line)} current={at(`more:${i}`)} />
               </div>
             ))}
@@ -348,8 +464,14 @@ export function Timeline({ entries, onJump }: { entries: LogEntry[]; onJump: (in
     <div className="logs-timeline" role="group" aria-label={t.timeline}>
       <div className="logs-timeline-head">
         <span>{t.timeline}</span>
-        <span className="legend"><i data-kind="error" />{t.errorsLegend}</span>
-        <span className="legend"><i data-kind="warning" />{t.warningsLegend}</span>
+        <span className="legend">
+          <i data-kind="error" />
+          {t.errorsLegend}
+        </span>
+        <span className="legend">
+          <i data-kind="warning" />
+          {t.warningsLegend}
+        </span>
         <span className="hint">{total ? t.timelineHint : t.quiet}</span>
       </div>
       <div className="logs-bars" dir="ltr">
@@ -357,8 +479,19 @@ export function Timeline({ entries, onJump }: { entries: LogEntry[]; onJump: (in
           const label = t.minute(`${clock(m.at)} UTC`, number(m.errors), number(m.warnings));
           const busy = m.errors + m.warnings > 0;
           return (
-            <button key={m.at} type="button" className="bar" tabIndex={busy ? 0 : -1} title={label} aria-label={label} onClick={() => onJump(m.first)}>
-              <span className="fill" style={{ height: `${Math.max(busy ? 12 : 4, ((m.errors + m.warnings) / peak) * 100)}%` }}>
+            <button
+              key={m.at}
+              type="button"
+              className="bar"
+              tabIndex={busy ? 0 : -1}
+              title={label}
+              aria-label={label}
+              onClick={() => onJump(m.first)}
+            >
+              <span
+                className="fill"
+                style={{ height: `${Math.max(busy ? 12 : 4, ((m.errors + m.warnings) / peak) * 100)}%` }}
+              >
                 {m.warnings > 0 && <span className="w" style={{ flexGrow: m.warnings }} />}
                 {m.errors > 0 && <span className="e" style={{ flexGrow: m.errors }} />}
               </span>
@@ -393,7 +526,13 @@ export function Shortcuts({ onClose }: { onClose: () => void }) {
       <dl className="logs-keys">
         {rows.map(([keys, what]) => (
           <div key={what}>
-            <dt>{keys.map((k) => <kbd key={k} dir="ltr">{k}</kbd>)}</dt>
+            <dt>
+              {keys.map((k) => (
+                <kbd key={k} dir="ltr">
+                  {k}
+                </kbd>
+              ))}
+            </dt>
             <dd>{what}</dd>
           </div>
         ))}
@@ -404,7 +543,8 @@ export function Shortcuts({ onClose }: { onClose: () => void }) {
 
 /** Whether a key press belongs to a field being typed in (the shortcuts leave it alone). */
 export const typing = (target: EventTarget | null) =>
-  target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+  target instanceof HTMLElement &&
+  (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
 
 /** Runs `fn` on key presses on the page while mounted. */
 export function useKeys(fn: (event: KeyboardEvent) => void) {

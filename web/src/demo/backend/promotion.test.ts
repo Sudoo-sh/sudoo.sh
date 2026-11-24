@@ -35,7 +35,16 @@ describe("promotion", () => {
     expect(status).toBe(200);
     const check = data as PromotionCheck;
     expect(check.production.branch).toBe("main");
-    expect(check.items.map((i) => i.key)).toEqual(["build", "ci", "backup", "modules", "migrations", "odoo", "lock", "capacity"]);
+    expect(check.items.map((i) => i.key)).toEqual([
+      "build",
+      "ci",
+      "backup",
+      "modules",
+      "migrations",
+      "odoo",
+      "lock",
+      "capacity",
+    ]);
     expect(check.items.find((i) => i.key === "migrations")?.status).toBe("warning");
     expect(check.blocking).toBe(false);
   });
@@ -51,10 +60,17 @@ describe("promotion", () => {
   });
 
   test("the staging refresh is scheduled and run", async () => {
-    const saved = await call("PUT", "/projects/acme-retail/staging-refresh", { frequency: "daily", time: "04:30", weekday: 0, branches: [] });
+    const saved = await call("PUT", "/projects/acme-retail/staging-refresh", {
+      frequency: "daily",
+      time: "04:30",
+      weekday: 0,
+      branches: [],
+    });
     expect(saved.status).toBe(200);
     expect((saved.data as StagingRefresh).next_run).not.toBeNull();
-    expect((await call("PUT", "/projects/acme-retail/staging-refresh", { frequency: "daily", time: "25:00" })).status).toBe(400);
+    expect(
+      (await call("PUT", "/projects/acme-retail/staging-refresh", { frequency: "daily", time: "25:00" })).status,
+    ).toBe(400);
     const read = await call("GET", "/projects/acme-retail/staging-refresh");
     expect((read.data as StagingRefresh).time).toBe("04:30");
     expect((read.meta?.branches as { name: string }[]).map((b) => b.name)).toContain("staging");

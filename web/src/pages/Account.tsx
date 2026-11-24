@@ -1,5 +1,19 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { BellRing, CircleCheck, Languages, KeyRound, LogIn, LogOut, Mail, MonitorSmartphone, RefreshCw, ShieldCheck, Smartphone, Trash2, UserRound } from "lucide-react";
+import {
+  BellRing,
+  CircleCheck,
+  Languages,
+  KeyRound,
+  LogIn,
+  LogOut,
+  Mail,
+  MonitorSmartphone,
+  RefreshCw,
+  ShieldCheck,
+  Smartphone,
+  Trash2,
+  UserRound,
+} from "lucide-react";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
@@ -28,7 +42,12 @@ const ICON: Record<string, React.ReactNode> = { totp: <Smartphone />, email: <Ma
 function Qr({ value }: { value: string }) {
   const [svg, setSvg] = useState("");
   useEffect(() => {
-    QRCode.toString(value, { type: "svg", margin: 0, errorCorrectionLevel: "M", color: { dark: "#1d1823", light: "#ffffff" } }).then(setSvg);
+    QRCode.toString(value, {
+      type: "svg",
+      margin: 0,
+      errorCorrectionLevel: "M",
+      color: { dark: "#1d1823", light: "#ffffff" },
+    }).then(setSvg);
   }, [value]);
   return <div className="qr" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
@@ -36,7 +55,17 @@ function Qr({ value }: { value: string }) {
 /** Setting up one second factor: the app (QR code) or an e-mail address (confirmed with a code). Replacing one that
  * is already set up, or adding one next to another (`confirm`), starts with the account's password, as removing it
  * does. */
-function Setup({ factor, confirm, onDone, onCancel }: { factor: Factor; confirm: boolean; onDone: (recoveryCodes?: string[]) => void; onCancel: () => void }) {
+function Setup({
+  factor,
+  confirm,
+  onDone,
+  onCancel,
+}: {
+  factor: Factor;
+  confirm: boolean;
+  onDone: (recoveryCodes?: string[]) => void;
+  onCancel: () => void;
+}) {
   const toast = useToast();
   const replacing = factor.enrolled;
   const needsPassword = replacing || confirm;
@@ -84,16 +113,31 @@ function Setup({ factor, confirm, onDone, onCancel }: { factor: Factor; confirm:
   };
   const passwordField = (
     <Field label={t.yourPassword} className="spacer">
-      <Input type="password" autoComplete="current-password" autoFocus={factor.name === "totp"} value={password} onChange={(e) => setPassword(e.target.value)} />
+      <Input
+        type="password"
+        autoComplete="current-password"
+        autoFocus={factor.name === "totp"}
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
     </Field>
   );
   return (
     <div className="stack">
       {replacing && !started && <span className="small muted">{t.replacingText}</span>}
       {factor.name === "totp" && needsPassword && !started ? (
-        <form className="row" style={{ alignItems: "flex-end" }} onSubmit={(e) => { e.preventDefault(); begin({ password }); }}>
+        <form
+          className="row"
+          style={{ alignItems: "flex-end" }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            begin({ password });
+          }}
+        >
           {passwordField}
-          <Button type="submit" variant="primary" loading={busy} disabled={!password}>{t.continue}</Button>
+          <Button type="submit" variant="primary" loading={busy} disabled={!password}>
+            {t.continue}
+          </Button>
         </form>
       ) : factor.name === "totp" ? (
         started?.otpauth_uri ? (
@@ -110,22 +154,51 @@ function Setup({ factor, confirm, onDone, onCancel }: { factor: Factor; confirm:
           <Skeleton height={190} />
         )
       ) : !started ? (
-        <form className="row" style={{ alignItems: "flex-end", flexWrap: "wrap" }} onSubmit={(e) => { e.preventDefault(); begin(needsPassword ? { email, password } : { email }); }}>
+        <form
+          className="row"
+          style={{ alignItems: "flex-end", flexWrap: "wrap" }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            begin(needsPassword ? { email, password } : { email });
+          }}
+        >
           <Field label={t.emailAddress} className="spacer">
-            <Input type="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+            <Input
+              type="email"
+              autoFocus
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+            />
           </Field>
           {needsPassword && passwordField}
-          <Button type="submit" variant="primary" loading={busy} disabled={!email || (needsPassword && !password)}>{t.sendCode}</Button>
+          <Button type="submit" variant="primary" loading={busy} disabled={!email || (needsPassword && !password)}>
+            {t.sendCode}
+          </Button>
         </form>
       ) : (
         <Callout tone="success">{t.sentTo(started.sent_to ?? "")}</Callout>
       )}
-      {started && <OtpInput value={code} onChange={setCode} onComplete={finish} shake={shake} label={factor.name === "totp" ? t.typeCode : undefined} />}
+      {started && (
+        <OtpInput
+          value={code}
+          onChange={setCode}
+          onComplete={finish}
+          shake={shake}
+          label={factor.name === "totp" ? t.typeCode : undefined}
+        />
+      )}
       {error && <Callout tone="danger">{error}</Callout>}
       <div className="row">
-        <Button variant="ghost" onClick={onCancel}>{c.cancel}</Button>
+        <Button variant="ghost" onClick={onCancel}>
+          {c.cancel}
+        </Button>
         <span className="spacer" />
-        {started && <Button variant="primary" loading={busy} disabled={code.length !== 6} onClick={() => finish()}>{t.confirm}</Button>}
+        {started && (
+          <Button variant="primary" loading={busy} disabled={code.length !== 6} onClick={() => finish()}>
+            {t.confirm}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -144,7 +217,8 @@ export function Factors({ onChange }: { onChange?: () => void }) {
   const done = async (codes?: string[]) => {
     setSetting(null);
     await refetch();
-    if (codes) setNewCodes(codes); // shown once; whoever waits for the change hears of it when the sheet closes
+    if (codes)
+      setNewCodes(codes); // shown once; whoever waits for the change hears of it when the sheet closes
     else onChange?.();
   };
   return (
@@ -152,43 +226,94 @@ export function Factors({ onChange }: { onChange?: () => void }) {
       {!account.second_factors.length && <Callout tone="warning">{t.none}</Callout>}
       {account.second_factors.map((f) =>
         setting?.name === f.name ? (
-          <div key={f.name} className="card pad"><Setup factor={f} confirm={account.second_factors.some((other) => other.enrolled)} onDone={done} onCancel={() => setSetting(null)} /></div>
+          <div key={f.name} className="card pad">
+            <Setup
+              factor={f}
+              confirm={account.second_factors.some((other) => other.enrolled)}
+              onDone={done}
+              onCancel={() => setSetting(null)}
+            />
+          </div>
         ) : (
           <div key={f.name} className="choice" style={{ cursor: "default" }}>
             {ICON[f.name] ?? <KeyRound />}
             <span style={{ flex: 1 }}>
-              <span className="t row">{t.labels[f.name] ?? f.label} {f.enrolled && <Tag tone="positive" icon={<CircleCheck />}>{t.onSince(ago(f.added_at))}</Tag>}</span>
-              <span className="d">{f.name === "email" && account.email && f.enrolled ? t.codesGoTo(account.email) : t.text[f.name]}</span>
+              <span className="t row">
+                {t.labels[f.name] ?? f.label}{" "}
+                {f.enrolled && (
+                  <Tag tone="positive" icon={<CircleCheck />}>
+                    {t.onSince(ago(f.added_at))}
+                  </Tag>
+                )}
+              </span>
+              <span className="d">
+                {f.name === "email" && account.email && f.enrolled ? t.codesGoTo(account.email) : t.text[f.name]}
+              </span>
             </span>
             {f.enrolled ? (
               <>
-                <Button size="sm" variant="ghost" icon={<RefreshCw />} onClick={() => setSetting(f)}>{t.replace}</Button>
-                <Button size="sm" variant="ghost" icon={<Trash2 />} onClick={() => setRemoving(f)}>{t.remove}</Button>
+                <Button size="sm" variant="ghost" icon={<RefreshCw />} onClick={() => setSetting(f)}>
+                  {t.replace}
+                </Button>
+                <Button size="sm" variant="ghost" icon={<Trash2 />} onClick={() => setRemoving(f)}>
+                  {t.remove}
+                </Button>
               </>
             ) : (
-              <Button size="sm" variant="soft" onClick={() => setSetting(f)}>{t.setUp}</Button>
+              <Button size="sm" variant="soft" onClick={() => setSetting(f)}>
+                {t.setUp}
+              </Button>
             )}
           </div>
         ),
       )}
       {account.second_factors.some((f) => f.name === "totp" && f.enrolled) && (
-        <RecoveryCodesRow state={account.recovery_codes} needed={account.recovery_codes_needed} onChange={() => refetch()} />
+        <RecoveryCodesRow
+          state={account.recovery_codes}
+          needed={account.recovery_codes_needed}
+          onChange={() => refetch()}
+        />
       )}
-      {newCodes && <RecoveryCodesSheet codes={newCodes} onClose={() => { setNewCodes(null); onChange?.(); }} />}
+      {newCodes && (
+        <RecoveryCodesSheet
+          codes={newCodes}
+          onClose={() => {
+            setNewCodes(null);
+            onChange?.();
+          }}
+        />
+      )}
       {removing && (
-        <Modal title={t.removeTitle(t.labels[removing.name] ?? removing.label)} description={t.removeText} onClose={() => setRemoving(null)}
-          footer={<><Button onClick={() => setRemoving(null)}>{c.cancel}</Button><Button variant="danger" disabled={!password} onClick={async () => {
-            try {
-              await api.del(`/account/second-factors/${removing.name}`, { password });
-              toast("success", t.removed(t.labels[removing.name] ?? removing.label));
-              setRemoving(null);
-              setPassword("");
-              refetch();
-            } catch (e) {
-              toast("error", t.notRemoved, errorText(e));
-            }
-          }}>{t.remove}</Button></>}>
-          <Field label={t.password}><Input type="password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+        <Modal
+          title={t.removeTitle(t.labels[removing.name] ?? removing.label)}
+          description={t.removeText}
+          onClose={() => setRemoving(null)}
+          footer={
+            <>
+              <Button onClick={() => setRemoving(null)}>{c.cancel}</Button>
+              <Button
+                variant="danger"
+                disabled={!password}
+                onClick={async () => {
+                  try {
+                    await api.del(`/account/second-factors/${removing.name}`, { password });
+                    toast("success", t.removed(t.labels[removing.name] ?? removing.label));
+                    setRemoving(null);
+                    setPassword("");
+                    refetch();
+                  } catch (e) {
+                    toast("error", t.notRemoved, errorText(e));
+                  }
+                }}
+              >
+                {t.remove}
+              </Button>
+            </>
+          }
+        >
+          <Field label={t.password}>
+            <Input type="password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
+          </Field>
         </Modal>
       )}
     </div>
@@ -198,7 +323,11 @@ export function Factors({ onChange }: { onChange?: () => void }) {
 function PasswordCard() {
   const toast = useToast();
   const me = useMe();
-  const person: Person = { username: me.user, email: me.email ?? undefined, names: [me.first_name ?? "", me.last_name ?? ""] };
+  const person: Person = {
+    username: me.user,
+    email: me.email ?? undefined,
+    names: [me.first_name ?? "", me.last_name ?? ""],
+  };
   const [current, setCurrent] = useState("");
   const [password, setPassword] = useState<[string, string]>(["", ""]);
   const [busy, setBusy] = useState(false);
@@ -219,14 +348,26 @@ function PasswordCard() {
   };
   return (
     <form className="card" onSubmit={submit}>
-      <div className="card-head"><KeyRound size={18} /><h2>{t.title}</h2></div>
+      <div className="card-head">
+        <KeyRound size={18} />
+        <h2>{t.title}</h2>
+      </div>
       <div className="card-body stack">
-        <Field label={t.current}><Input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} /></Field>
+        <Field label={t.current}>
+          <Input
+            type="password"
+            autoComplete="current-password"
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
+          />
+        </Field>
         <PasswordFields label={t.new} value={password} onChange={setPassword} person={person} />
       </div>
       <div className="card-foot row">
         <span className="spacer" />
-        <Button type="submit" variant="primary" loading={busy} disabled={!current || !passwordReady(password, person)}>{t.change}</Button>
+        <Button type="submit" variant="primary" loading={busy} disabled={!current || !passwordReady(password, person)}>
+          {t.change}
+        </Button>
       </div>
     </form>
   );
@@ -241,9 +382,15 @@ function ProfileCard() {
   const t = useT(accountWords).profile;
   const all = useT(common);
   if (!account) return <Skeleton height={200} />;
-  const values = form ?? { first_name: account.first_name ?? "", last_name: account.last_name ?? "", email: account.email ?? "", phone: account.phone ?? "" };
+  const values = form ?? {
+    first_name: account.first_name ?? "",
+    last_name: account.last_name ?? "",
+    email: account.email ?? "",
+    phone: account.phone ?? "",
+  };
   const emailLocked = account.second_factors.some((f) => f.name === "email" && f.enrolled);
-  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...values, [key]: e.target.value });
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm({ ...values, [key]: e.target.value });
   const save = async () => {
     setBusy(true);
     try {
@@ -261,19 +408,32 @@ function ProfileCard() {
   };
   return (
     <section className="card">
-      <div className="card-head"><UserRound /><h2>{t.title}</h2></div>
+      <div className="card-head">
+        <UserRound />
+        <h2>{t.title}</h2>
+      </div>
       <div className="card-body form-grid">
-        <Field label={t.firstName}><Input value={values.first_name} onChange={set("first_name")} /></Field>
-        <Field label={t.lastName}><Input value={values.last_name} onChange={set("last_name")} /></Field>
+        <Field label={t.firstName}>
+          <Input value={values.first_name} onChange={set("first_name")} />
+        </Field>
+        <Field label={t.lastName}>
+          <Input value={values.last_name} onChange={set("last_name")} />
+        </Field>
         <Field label={t.email} hint={emailLocked ? t.emailLocked : undefined}>
           <Input type="email" value={values.email} disabled={emailLocked} onChange={set("email")} />
         </Field>
-        <Field label={t.phone}><Input type="tel" dir="ltr" value={values.phone} onChange={set("phone")} /></Field>
+        <Field label={t.phone}>
+          <Input type="tel" dir="ltr" value={values.phone} onChange={set("phone")} />
+        </Field>
       </div>
       <div className="card-foot">
-        <span className="xsmall faint"><span className="mono">{account.name}</span> · {all.roles[account.role] ?? account.role_label}</span>
+        <span className="xsmall faint">
+          <span className="mono">{account.name}</span> · {all.roles[account.role] ?? account.role_label}
+        </span>
         <span className="spacer" />
-        <Button variant="primary" loading={busy} disabled={!form} onClick={save}>{all.common.save}</Button>
+        <Button variant="primary" loading={busy} disabled={!form} onClick={save}>
+          {all.common.save}
+        </Button>
       </div>
     </section>
   );
@@ -321,11 +481,16 @@ function SecurityCard() {
         : t.hint(mail.default);
   return (
     <section className="card">
-      <div className="card-head"><BellRing size={18} /><h2>{t.title}</h2></div>
+      <div className="card-head">
+        <BellRing size={18} />
+        <h2>{t.title}</h2>
+      </div>
       <div className="card-body stack">
         <div className="row" style={{ alignItems: "flex-start" }}>
           <span className="spacer">
-            <span className="t" style={{ fontWeight: 500 }}>{t.emailMe}</span>
+            <span className="t" style={{ fontWeight: 500 }}>
+              {t.emailMe}
+            </span>
             <br />
             <span className="small muted">{hint}</span>
           </span>
@@ -333,11 +498,15 @@ function SecurityCard() {
         </div>
         <div className="row" style={{ alignItems: "flex-start" }}>
           <span className="spacer">
-            <span className="t" style={{ fontWeight: 500 }}>{t.elsewhere}</span>
+            <span className="t" style={{ fontWeight: 500 }}>
+              {t.elsewhere}
+            </span>
             <br />
             <span className="small muted">{t.elsewhereText}</span>
           </span>
-          <Button size="sm" icon={<MonitorSmartphone />} loading={ending} onClick={endOthers}>{t.signOutOthers}</Button>
+          <Button size="sm" icon={<MonitorSmartphone />} loading={ending} onClick={endOthers}>
+            {t.signOutOthers}
+          </Button>
         </div>
       </div>
     </section>
@@ -379,38 +548,84 @@ function SignInCard() {
       setBusy(false);
     }
   };
-  const ICONS: Record<string, React.ReactNode> = { password: <KeyRound size={16} />, email_code: <Mail size={16} />, github: <GitHubMark /> };
+  const ICONS: Record<string, React.ReactNode> = {
+    password: <KeyRound size={16} />,
+    email_code: <Mail size={16} />,
+    github: <GitHubMark />,
+  };
   return (
     <section className="card">
-      <div className="card-head"><LogIn size={18} /><div className="spacer"><h2>{t.title}</h2><div className="sub">{ways.own_choice ? t.chosen : t.byDefault}</div></div></div>
+      <div className="card-head">
+        <LogIn size={18} />
+        <div className="spacer">
+          <h2>{t.title}</h2>
+          <div className="sub">{ways.own_choice ? t.chosen : t.byDefault}</div>
+        </div>
+      </div>
       <div className="card-body stack">
         {ways.methods.map((method) => {
           const offered = ways.offered[method];
           return (
             <div key={method} className="row" style={{ alignItems: "flex-start" }}>
-              <span className="muted" style={{ paddingTop: 2 }}>{ICONS[method]}</span>
+              <span className="muted" style={{ paddingTop: 2 }}>
+                {ICONS[method]}
+              </span>
               <span className="spacer">
-                <span className="t" style={{ fontWeight: 500 }}>{t.methods[method]}</span>
+                <span className="t" style={{ fontWeight: 500 }}>
+                  {t.methods[method]}
+                </span>
                 <br />
                 <span className="small muted">
-                  {!offered ? t.off : method === "github" ? (ways.github ? t.linkedAs(ways.github.login) : t.notLinked) : method === "password" && !ways.usable.includes("password") ? t.noPassword : t.methodText[method]}
+                  {!offered
+                    ? t.off
+                    : method === "github"
+                      ? ways.github
+                        ? t.linkedAs(ways.github.login)
+                        : t.notLinked
+                      : method === "password" && !ways.usable.includes("password")
+                        ? t.noPassword
+                        : t.methodText[method]}
                 </span>
               </span>
-              {method === "github" && offered && (ways.github
-                ? <Button size="sm" variant="ghost" onClick={() => setUnlinking(true)}>{t.unlink}</Button>
-                : <Button size="sm" icon={<GitHubMark />} loading={busy} onClick={link}>{t.link}</Button>)}
+              {method === "github" &&
+                offered &&
+                (ways.github ? (
+                  <Button size="sm" variant="ghost" onClick={() => setUnlinking(true)}>
+                    {t.unlink}
+                  </Button>
+                ) : (
+                  <Button size="sm" icon={<GitHubMark />} loading={busy} onClick={link}>
+                    {t.link}
+                  </Button>
+                ))}
             </div>
           );
         })}
       </div>
       {unlinking && (
-        <Modal title={t.unlinkTitle} onClose={() => setUnlinking(false)}
-          footer={<><Button onClick={() => setUnlinking(false)}>{c.cancel}</Button><Button variant="danger" loading={busy} onClick={unlink}>{t.unlink}</Button></>}>
+        <Modal
+          title={t.unlinkTitle}
+          onClose={() => setUnlinking(false)}
+          footer={
+            <>
+              <Button onClick={() => setUnlinking(false)}>{c.cancel}</Button>
+              <Button variant="danger" loading={busy} onClick={unlink}>
+                {t.unlink}
+              </Button>
+            </>
+          }
+        >
           <div className="stack">
             <p className="small muted">{t.unlinkText}</p>
             {account.password_managed_here && ways.usable.includes("password") && (
               <Field label={t.password} htmlFor="unlink-password">
-                <Input id="unlink-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                <Input
+                  id="unlink-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
               </Field>
             )}
           </div>
@@ -429,13 +644,25 @@ function LanguageCard() {
   const language = account.language;
   return (
     <section className="card">
-      <div className="card-head"><Languages size={18} /><div className="spacer"><h2>{t.title}</h2><div className="sub">{t.text}</div></div></div>
+      <div className="card-head">
+        <Languages size={18} />
+        <div className="spacer">
+          <h2>{t.title}</h2>
+          <div className="sub">{t.text}</div>
+        </div>
+      </div>
       <div className="card-body">
-        <SelectBox aria-label={t.choice} value={language.own_choice ?? ""} style={{ maxWidth: 320 }}
-          onValueChange={(value) => save((value || null) as Locale | null)}>
+        <SelectBox
+          aria-label={t.choice}
+          value={language.own_choice ?? ""}
+          style={{ maxWidth: 320 }}
+          onValueChange={(value) => save((value || null) as Locale | null)}
+        >
           <option value="">{t.default(LOCALES[language.default].name)}</option>
           {(Object.keys(LOCALES) as Locale[]).map((code) => (
-            <option key={code} value={code} lang={code}>{LOCALES[code].name}</option>
+            <option key={code} value={code} lang={code}>
+              {LOCALES[code].name}
+            </option>
           ))}
         </SelectBox>
       </div>
@@ -458,7 +685,9 @@ export function AccountPage() {
             <ShieldCheck size={18} />
             <h2>{t.title}</h2>
           </div>
-          <div className="card-body"><Factors /></div>
+          <div className="card-body">
+            <Factors />
+          </div>
         </section>
         <div className="stack">
           <SignInCard />
@@ -489,12 +718,16 @@ export function SetupSecondFactorPage() {
           <h1>{t.title}</h1>
           <p>{t.text}</p>
         </header>
-        <Factors onChange={async () => {
-          const session = await api.get<{ must_set_up_second_factor: boolean }>("/session");
-          client.setQueryData(keys.session, session);
-          if (!session.must_set_up_second_factor) navigate("/", { replace: true, viewTransition: true });
-        }} />
-        <Button variant="ghost" icon={<LogOut />} onClick={signOut} style={{ alignSelf: "flex-start" }}>{signOutLabel}</Button>
+        <Factors
+          onChange={async () => {
+            const session = await api.get<{ must_set_up_second_factor: boolean }>("/session");
+            client.setQueryData(keys.session, session);
+            if (!session.must_set_up_second_factor) navigate("/", { replace: true, viewTransition: true });
+          }}
+        />
+        <Button variant="ghost" icon={<LogOut />} onClick={signOut} style={{ alignSelf: "flex-start" }}>
+          {signOutLabel}
+        </Button>
       </div>
     </div>
   );

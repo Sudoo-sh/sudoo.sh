@@ -37,7 +37,17 @@ function rgbOf(color: string): [number, number, number] {
   return [r ?? 0, g ?? 0, b ?? 0];
 }
 
-export function Bars({ bars, format, max, onPick }: { bars: Bar[]; format: (value: number) => string; max?: number; onPick?: (label: string) => void }) {
+export function Bars({
+  bars,
+  format,
+  max,
+  onPick,
+}: {
+  bars: Bar[];
+  format: (value: number) => string;
+  max?: number;
+  onPick?: (label: string) => void;
+}) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const chart = useRef<Chart<"bar"> | null>(null);
   const theme = useThemeVersion();
@@ -62,7 +72,10 @@ export function Bars({ bars, format, max, onPick }: { bars: Bar[]; format: (valu
     const insideInk = { accent: readableOn(rgbOf(accent), inks).color, quiet: readableOn(rgbOf(quiet), inks).color };
     chart.current = new Chart<"bar">(canvas.current, {
       type: "bar",
-      data: { labels: [], datasets: [{ data: [], borderRadius: 5, borderSkipped: false, barThickness: BAR_THICKNESS }] },
+      data: {
+        labels: [],
+        datasets: [{ data: [], borderRadius: 5, borderSkipped: false, barThickness: BAR_THICKNESS }],
+      },
       options: {
         indexAxis: "y",
         responsive: true,
@@ -73,7 +86,10 @@ export function Bars({ bars, format, max, onPick }: { bars: Bar[]; format: (valu
           if (index != null) latest.current.onPick?.(latest.current.bars[index]!.label);
         },
         onHover: (event, elements) => {
-          (event.native?.target as HTMLElement | undefined)?.style.setProperty("cursor", elements.length && latest.current.onPick ? "pointer" : "default");
+          (event.native?.target as HTMLElement | undefined)?.style.setProperty(
+            "cursor",
+            elements.length && latest.current.onPick ? "pointer" : "default",
+          );
         },
         scales: {
           x: { display: false, beginAtZero: true, suggestedMax: max, reverse: mirrored },
@@ -89,7 +105,10 @@ export function Bars({ bars, format, max, onPick }: { bars: Bar[]; format: (valu
                 const { ctx } = this;
                 ctx.save();
                 ctx.font = `${NAME_FONT_PX}px ${nameFamily}`;
-                const width = Math.min(this.chart.width * NAME_SHARE, (this.chart.width - room.current) / 2 - NAME_SLACK);
+                const width = Math.min(
+                  this.chart.width * NAME_SHARE,
+                  (this.chart.width - room.current) / 2 - NAME_SLACK,
+                );
                 const fitted = fitText(label, width, (value) => ctx.measureText(value).width);
                 ctx.restore();
                 return fitted;
@@ -164,7 +183,12 @@ export function Bars({ bars, format, max, onPick }: { bars: Bar[]; format: (valu
   return (
     <div style={{ position: "relative", height: Math.max(80, bars.length * 30 + 8) }}>
       {/* instance names are Latin branch names: drawn left to right on Arabic pages too (the ellipsis at their end) */}
-      <canvas ref={canvas} dir="ltr" role="img" aria-label={bars.map((b) => `${b.label} ${format(b.value)}`).join(", ")} />
+      <canvas
+        ref={canvas}
+        dir="ltr"
+        role="img"
+        aria-label={bars.map((b) => `${b.label} ${format(b.value)}`).join(", ")}
+      />
     </div>
   );
 }

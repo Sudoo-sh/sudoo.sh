@@ -18,7 +18,9 @@ function browser(): string {
     .map((pattern) => agent.match(pattern)?.[0])
     .find(Boolean);
   const system = agent.match(/\(([^)]+)\)/)?.[1]?.split(";")[0] ?? "";
-  return [found?.replace(/^Version\/([\d.]+).*Safari/, "Safari/$1"), system].filter(Boolean).join(", ") || agent.slice(0, 80);
+  return (
+    [found?.replace(/^Version\/([\d.]+).*Safari/, "Safari/$1"), system].filter(Boolean).join(", ") || agent.slice(0, 80)
+  );
 }
 
 export function diagnostics(version: string, pathname: string, language: string): string {

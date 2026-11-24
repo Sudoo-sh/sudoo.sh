@@ -30,7 +30,13 @@ import { MorphIcon } from "./motion";
 type Variant = "primary" | "danger" | "ghost" | "soft" | "default";
 
 // the panel's button names on shadcn's: the plain button is "outline", the plum one "default"
-const BUTTON_VARIANT = { default: "outline", primary: "default", ghost: "ghost", soft: "secondary", danger: "destructive" } as const;
+const BUTTON_VARIANT = {
+  default: "outline",
+  primary: "default",
+  ghost: "ghost",
+  soft: "secondary",
+  danger: "destructive",
+} as const;
 
 /** A button (shadcn's Button). `asChild` draws its one child (a link) as the button; `icon` comes before the words,
  *  and a button with an icon and no words is square. */
@@ -63,7 +69,14 @@ export function Button({
       </UIButton>
     );
   return (
-    <UIButton type="button" variant={BUTTON_VARIANT[variant]} size={shape} className={classes} disabled={loading || props.disabled} {...props}>
+    <UIButton
+      type="button"
+      variant={BUTTON_VARIANT[variant]}
+      size={shape}
+      className={classes}
+      disabled={loading || props.disabled}
+      {...props}
+    >
       {loading ? <span className="spinner" /> : icon}
       {children}
     </UIButton>
@@ -79,7 +92,17 @@ function SlotWithIcon({ icon, children, ...props }: { icon?: ReactNode; children
 export const Spinner = () => <span className="spinner" role="status" aria-label={useT(common).common.loading} />;
 
 /** A quiet label: versions, roles, counts (shadcn's Badge, outlined). */
-export function Tag({ tone, mono, children, icon }: { tone?: "accent" | "positive" | "caution" | "negative"; mono?: boolean; children: ReactNode; icon?: ReactNode }) {
+export function Tag({
+  tone,
+  mono,
+  children,
+  icon,
+}: {
+  tone?: "accent" | "positive" | "caution" | "negative";
+  mono?: boolean;
+  children: ReactNode;
+  icon?: ReactNode;
+}) {
   return (
     <Badge variant="outline" data-tone={tone} className={mono ? "font-mono" : undefined}>
       {icon}
@@ -150,7 +173,11 @@ export function Segmented<T extends string>({
     >
       {thumb && <span className="thumb" style={{ width: thumb.width, transform: `translateX(${thumb.x}px)` }} />}
       {options.map((option) => (
-        <ToggleGroupItem key={option.value} value={option.value === "" ? EMPTY : option.value} disabled={option.disabled}>
+        <ToggleGroupItem
+          key={option.value}
+          value={option.value === "" ? EMPTY : option.value}
+          disabled={option.disabled}
+        >
           {option.icon}
           {option.label}
         </ToggleGroupItem>
@@ -214,7 +241,17 @@ export function SkeletonText({ lines = 3, height = 14 }: { lines?: number; heigh
   );
 }
 
-export function Empty({ icon, title, children, action }: { icon: ReactNode; title: string; children?: ReactNode; action?: ReactNode }) {
+export function Empty({
+  icon,
+  title,
+  children,
+  action,
+}: {
+  icon: ReactNode;
+  title: string;
+  children?: ReactNode;
+  action?: ReactNode;
+}) {
   return (
     <div className="empty">
       {icon}
@@ -251,14 +288,23 @@ export function CopyField({ value, block, secret }: { value: string; block?: boo
   };
   return (
     <span className={`copy ${block ? "block" : ""}`}>
-      <span className="value" dir="ltr">{shown ? value : "••••••••••••"}</span>
+      <span className="value" dir="ltr">
+        {shown ? value : "••••••••••••"}
+      </span>
       {secret && (
         <Button size="sm" variant="ghost" onClick={() => setShown(!shown)}>
           {shown ? t.hide : t.show}
         </Button>
       )}
       {/* the copy icon turns into a check for a moment */}
-      <Button size="sm" variant="ghost" icon={<MorphIcon icons={{ copy: <CopyIcon />, done: <Check /> }} active={copied ? "done" : "copy"} />} onClick={copy} aria-label={t.copy} title={t.copy} />
+      <Button
+        size="sm"
+        variant="ghost"
+        icon={<MorphIcon icons={{ copy: <CopyIcon />, done: <Check /> }} active={copied ? "done" : "copy"} />}
+        onClick={copy}
+        aria-label={t.copy}
+        title={t.copy}
+      />
     </span>
   );
 }

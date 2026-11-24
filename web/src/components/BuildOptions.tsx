@@ -83,12 +83,31 @@ function Origin({ origin, label, hint }: { origin: Origin | "own"; label: string
 }
 
 /** A section's field: its name, where its value comes from, and Use the default again when it has its own. */
-function FieldHead({ title, origin, onReset, resetLabel }: { title: string; origin: ReactNode; onReset?: () => void; resetLabel: string }) {
+function FieldHead({
+  title,
+  origin,
+  onReset,
+  resetLabel,
+}: {
+  title: string;
+  origin: ReactNode;
+  onReset?: () => void;
+  resetLabel: string;
+}) {
   return (
     <div className="bo-field-head">
       {title && <h4>{title}</h4>}
       {origin}
-      {onReset && <Button size="sm" variant="ghost" icon={<RotateCcw />} onClick={onReset} aria-label={resetLabel} title={resetLabel} />}
+      {onReset && (
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<RotateCcw />}
+          onClick={onReset}
+          aria-label={resetLabel}
+          title={resetLabel}
+        />
+      )}
     </div>
   );
 }
@@ -109,9 +128,20 @@ function Choices<T extends string>({
 }) {
   const id = useId();
   return (
-    <RadioGroup className="bo-choices" value={value} onValueChange={(v) => onChange(v as T)} disabled={disabled} aria-label={label}>
+    <RadioGroup
+      className="bo-choices"
+      value={value}
+      onValueChange={(v) => onChange(v as T)}
+      disabled={disabled}
+      aria-label={label}
+    >
       {options.map((option) => (
-        <div key={option.value} className="bo-choice" data-checked={option.value === value || undefined} data-disabled={disabled || option.disabled || undefined}>
+        <div
+          key={option.value}
+          className="bo-choice"
+          data-checked={option.value === value || undefined}
+          data-disabled={disabled || option.disabled || undefined}
+        >
           <label className="bo-choice-row" htmlFor={`${id}-${option.value}`}>
             <RadioGroupItem id={`${id}-${option.value}`} value={option.value} disabled={option.disabled} />
             <span className="bo-choice-text">
@@ -152,12 +182,36 @@ function TextOption({
   };
   return (
     <div className="bo-text" data-invalid={error ? true : undefined}>
-      <label htmlFor={id} className="sr-only">{label}</label>
-      <Input id={id} dir="ltr" className="mono" value={text} placeholder={placeholder} disabled={disabled} autoFocus={autoFocus}
-        maxLength={4000} spellCheck={false} autoComplete="off" aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-error` : undefined}
-        onChange={(e) => setText(e.target.value)} onBlur={commit}
-        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } }} />
-      {error && <p id={`${id}-error`} className="bo-error" role="alert">{error}</p>}
+      <label htmlFor={id} className="sr-only">
+        {label}
+      </label>
+      <Input
+        id={id}
+        dir="ltr"
+        className="mono"
+        value={text}
+        placeholder={placeholder}
+        disabled={disabled}
+        autoFocus={autoFocus}
+        maxLength={4000}
+        spellCheck={false}
+        autoComplete="off"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          }
+        }}
+      />
+      {error && (
+        <p id={`${id}-error`} className="bo-error" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -190,9 +244,17 @@ function BehaviourField({ c, stage, title }: { c: Controls; stage: "development"
         value={c.values.on_new_commit}
         disabled={!c.editable}
         onChange={(value) => c.save({ on_new_commit: value })}
-        options={(["new_build", "update", "nothing"] as OnNewCommit[]).map((value) => ({ value, label: t.onNewCommit[value], hint: help[value] }))}
+        options={(["new_build", "update", "nothing"] as OnNewCommit[]).map((value) => ({
+          value,
+          label: t.onNewCommit[value],
+          hint: help[value],
+        }))}
       />
-      {c.errors.on_new_commit && <p className="bo-error" role="alert">{c.errors.on_new_commit}</p>}
+      {c.errors.on_new_commit && (
+        <p className="bo-error" role="alert">
+          {c.errors.on_new_commit}
+        </p>
+      )}
     </div>
   );
 }
@@ -225,8 +287,15 @@ function ModulesField({ c }: { c: Controls }) {
           hint: t.moduleInstallHint[value],
           extra:
             value === "list" ? (
-              <TextOption label={t.modulesLabel} value={c.values.modules} placeholder={t.modulesPlaceholder} error={c.errors.modules}
-                disabled={!c.editable} autoFocus={c.pending.module_install === "list"} onCommit={commit} />
+              <TextOption
+                label={t.modulesLabel}
+                value={c.values.modules}
+                placeholder={t.modulesPlaceholder}
+                error={c.errors.modules}
+                disabled={!c.editable}
+                autoFocus={c.pending.module_install === "list"}
+                onCommit={commit}
+              />
             ) : undefined,
         }))}
       />
@@ -247,7 +316,11 @@ function TestsField({ c }: { c: Controls }) {
   const commit = (tags: string) => {
     if (!tags) return c.setError("test_tags", t.tagsRequired);
     c.setPending({ ...c.pending, test_suite: undefined });
-    c.save(shown === "custom" && c.values.test_suite !== "custom" ? { test_suite: "custom", test_tags: tags } : { test_tags: tags });
+    c.save(
+      shown === "custom" && c.values.test_suite !== "custom"
+        ? { test_suite: "custom", test_tags: tags }
+        : { test_tags: tags },
+    );
   };
   return (
     <div className="bo-field">
@@ -265,8 +338,15 @@ function TestsField({ c }: { c: Controls }) {
           extra:
             value === "custom" ? (
               <div className="stack-sm">
-                <TextOption label={t.tagsLabel} value={c.values.test_tags} placeholder={t.tagsPlaceholder} error={c.errors.test_tags}
-                  disabled={!c.editable} autoFocus={c.pending.test_suite === "custom"} onCommit={commit} />
+                <TextOption
+                  label={t.tagsLabel}
+                  value={c.values.test_tags}
+                  placeholder={t.tagsPlaceholder}
+                  error={c.errors.test_tags}
+                  disabled={!c.editable}
+                  autoFocus={c.pending.test_suite === "custom"}
+                  onCommit={commit}
+                />
                 <a className="bo-docs" href={testTagsDocs(c.version)} target="_blank" rel="noreferrer">
                   {t.tagsDocs} <ArrowUpRight className="flip-rtl" />
                 </a>
@@ -285,13 +365,22 @@ function DemoField({ c }: { c: Controls }) {
     <div className="bo-field">
       {c.head("demo_data", t.demo)}
       <label className="bo-check" htmlFor={id} data-disabled={!c.editable || undefined}>
-        <Checkbox id={id} checked={c.values.demo_data} disabled={!c.editable} onCheckedChange={(v) => c.save({ demo_data: v === true })} />
+        <Checkbox
+          id={id}
+          checked={c.values.demo_data}
+          disabled={!c.editable}
+          onCheckedChange={(v) => c.save({ demo_data: v === true })}
+        />
         <span className="bo-choice-text">
           <span className="bo-choice-label">{t.demoLabel}</span>
           <span className="bo-choice-hint">{t.demoHint}</span>
         </span>
       </label>
-      {c.errors.demo_data && <p className="bo-error" role="alert">{c.errors.demo_data}</p>}
+      {c.errors.demo_data && (
+        <p className="bo-error" role="alert">
+          {c.errors.demo_data}
+        </p>
+      )}
     </div>
   );
 }
@@ -318,7 +407,15 @@ function applied(found: BranchBuildOptions, change: BuildOptionsChange): BranchB
 }
 
 /** A branch's settings, the Odoo.sh way: what a new commit does and how a new build is made. */
-export function BranchSettings({ project, branch, editable }: { project: ProjectDetail; branch: ProjectBranch; editable: boolean }) {
+export function BranchSettings({
+  project,
+  branch,
+  editable,
+}: {
+  project: ProjectDetail;
+  branch: ProjectBranch;
+  editable: boolean;
+}) {
   const t = useT(words);
   const production = branch.stage === "production";
   const { data, isPending, error } = useBranchOptions(project.id, branch.name, !production);
@@ -332,7 +429,9 @@ export function BranchSettings({ project, branch, editable }: { project: Project
   useEffect(() => () => window.clearTimeout(timer.current), []);
   // the tab is the last of the branch's tabs: on a narrow pane the row scrolls, so it is brought into view
   useEffect(() => {
-    document.querySelector('.ws-pane .tabs a[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    document
+      .querySelector('.ws-pane .tabs a[aria-current="page"]')
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, []);
   const path = `/projects/${encodeURIComponent(project.id)}/branches/${branch.name.split("/").map(encodeURIComponent).join("/")}/options`;
   const change = useMutation({
@@ -370,7 +469,12 @@ export function BranchSettings({ project, branch, editable }: { project: Project
         <Skeleton height={320} />
       </div>
     );
-  if (!data) return <Callout tone="warning">{t.notRead} {error ? errorText(error) : ""}</Callout>;
+  if (!data)
+    return (
+      <Callout tone="warning">
+        {t.notRead} {error ? errorText(error) : ""}
+      </Callout>
+    );
 
   const stage = data.stage === "staging" ? "staging" : "development";
   const hasOwn = NEW_BUILD_KEYS.some((k) => k in data.own);
@@ -378,7 +482,12 @@ export function BranchSettings({ project, branch, editable }: { project: Project
   const origin = (k: Key): Origin => {
     const source = data.sources[k];
     if (source !== "project") return source;
-    const option = stage === "staging" && k === "on_new_commit" ? "staging_on_push" : stage === "staging" && k === "test_suite" ? "staging_tests" : PROJECT_OPTION[k];
+    const option =
+      stage === "staging" && k === "on_new_commit"
+        ? "staging_on_push"
+        : stage === "staging" && k === "test_suite"
+          ? "staging_tests"
+          : PROJECT_OPTION[k];
     return option in project.own_options ? "project" : "panel";
   };
   const save = (body: BuildOptionsChange) => {
@@ -404,9 +513,16 @@ export function BranchSettings({ project, branch, editable }: { project: Project
       const from = origin(k);
       const inNewBuild = NEW_BUILD_KEYS.includes(k);
       return (
-        <FieldHead title={title} resetLabel={t.reset}
+        <FieldHead
+          title={title}
+          resetLabel={t.reset}
           origin={<Origin origin={from} label={t.source[from]} hint={t.sourceHint[from]} />}
-          onReset={editable && data.own[k] !== undefined && !(inNewBuild && useDefaults) ? () => save({ [k]: null }) : undefined} />
+          onReset={
+            editable && data.own[k] !== undefined && !(inNewBuild && useDefaults)
+              ? () => save({ [k]: null })
+              : undefined
+          }
+        />
       );
     },
   };
@@ -425,7 +541,9 @@ export function BranchSettings({ project, branch, editable }: { project: Project
       <section className="card">
         <div className="card-head">
           <h2 className="spacer">{t.behaviour}</h2>
-          <span className="bo-saved" data-shown={saved || undefined} aria-live="polite">{saved ? t.saved : ""}</span>
+          <span className="bo-saved" data-shown={saved || undefined} aria-live="polite">
+            {saved ? t.saved : ""}
+          </span>
         </div>
         <div className="card-body stack">
           <p className="small muted">{t.behaviourText}</p>
@@ -433,7 +551,9 @@ export function BranchSettings({ project, branch, editable }: { project: Project
         </div>
       </section>
       <section className="card">
-        <div className="card-head"><h2>{stage === "staging" ? t.tests : t.newBuild}</h2></div>
+        <div className="card-head">
+          <h2>{stage === "staging" ? t.tests : t.newBuild}</h2>
+        </div>
         <div className="card-body stack">
           {stage === "staging" ? (
             <>
@@ -444,7 +564,11 @@ export function BranchSettings({ project, branch, editable }: { project: Project
             <>
               <p className="small muted">{t.newBuildText}</p>
               <label className="bo-check bo-defaults" data-disabled={!editable || undefined}>
-                <Checkbox checked={useDefaults} disabled={!editable} onCheckedChange={(v) => toggleDefaults(v === true)} />
+                <Checkbox
+                  checked={useDefaults}
+                  disabled={!editable}
+                  onCheckedChange={(v) => toggleDefaults(v === true)}
+                />
                 <span className="bo-choice-text">
                   <span className="bo-choice-label">{t.useDefaults}</span>
                   <span className="bo-choice-hint">{t.useDefaultsHint}</span>
@@ -457,7 +581,9 @@ export function BranchSettings({ project, branch, editable }: { project: Project
               </div>
             </>
           )}
-          {data.changed_by && data.changed_at && <p className="xsmall faint">{t.changedBy(data.changed_by, ago(data.changed_at))}</p>}
+          {data.changed_by && data.changed_at && (
+            <p className="xsmall faint">{t.changedBy(data.changed_by, ago(data.changed_at))}</p>
+          )}
         </div>
       </section>
     </div>
@@ -469,14 +595,23 @@ export function BranchSettings({ project, branch, editable }: { project: Project
 type ProjectData = { project: ProjectDetail; meta: ProjectMeta };
 
 /** The project's defaults for its development branches (and staging's tests, and commit statuses on GitHub). */
-export function ProjectBuildDefaults({ project, meta, editable }: { project: ProjectDetail; meta: ProjectMeta; editable: boolean }) {
+export function ProjectBuildDefaults({
+  project,
+  meta,
+  editable,
+}: {
+  project: ProjectDetail;
+  meta: ProjectMeta;
+  editable: boolean;
+}) {
   const t = useT(words);
   const client = useQueryClient();
   const key = keys.project(project.id);
   const [errors, setErrors] = useState<Errors>({});
   const [pending, setPending] = useState<Controls["pending"]>({});
   const change = useMutation({
-    mutationFn: (options: Partial<Record<keyof ProjectOptions, unknown>>) => api.patch<Project>(`/projects/${project.id}`, { options }),
+    mutationFn: (options: Partial<Record<keyof ProjectOptions, unknown>>) =>
+      api.patch<Project>(`/projects/${project.id}`, { options }),
     onMutate: async (options) => {
       await client.cancelQueries({ queryKey: key });
       const before = client.getQueryData<ProjectData>(key);
@@ -487,17 +622,23 @@ export function ProjectBuildDefaults({ project, meta, editable }: { project: Pro
           if (v === null) delete own[k];
           else own[k] = values[k] = v;
         }
-        client.setQueryData<ProjectData>(key, { ...before, project: { ...before.project, options: values as unknown as ProjectOptions, own_options: own } });
+        client.setQueryData<ProjectData>(key, {
+          ...before,
+          project: { ...before.project, options: values as unknown as ProjectOptions, own_options: own },
+        });
       }
       return { before };
     },
     onError: (failure, options, context) => {
       if (context?.before) client.setQueryData(key, context.before);
       const detail = errorText(failure);
-      const sent = Object.keys(options).map((k) => (Object.entries(PROJECT_OPTION).find(([, p]) => p === k)?.[0] ?? k) as Key);
+      const sent = Object.keys(options).map(
+        (k) => (Object.entries(PROJECT_OPTION).find(([, p]) => p === k)?.[0] ?? k) as Key,
+      );
       setErrors((found) => ({ ...found, [fieldOf(detail, sent)]: detail }));
     },
-    onSettled: () => Promise.all([client.invalidateQueries({ queryKey: key }), client.invalidateQueries({ queryKey: keys.projects })]),
+    onSettled: () =>
+      Promise.all([client.invalidateQueries({ queryKey: key }), client.invalidateQueries({ queryKey: keys.projects })]),
   });
   const o = project.options;
   const values: BuildOptionValues = {
@@ -516,7 +657,11 @@ export function ProjectBuildDefaults({ project, meta, editable }: { project: Pro
     send(Object.fromEntries(Object.entries(body).map(([k, v]) => [PROJECT_OPTION[k as Key], v])));
   const own = (option: keyof ProjectOptions) => option in project.own_options;
   const originOf = (option: keyof ProjectOptions) =>
-    own(option) ? <Origin origin="project" label={t.setForProject} /> : <Origin origin="panel" label={t.followsPanel} hint={t.sourceHint.panel} />;
+    own(option) ? (
+      <Origin origin="project" label={t.setForProject} />
+    ) : (
+      <Origin origin="panel" label={t.followsPanel} hint={t.sourceHint.panel} />
+    );
   const controls: Controls = {
     values,
     stage: "development",
@@ -528,8 +673,12 @@ export function ProjectBuildDefaults({ project, meta, editable }: { project: Pro
     setPending,
     setError: (k, message) => setErrors((found) => ({ ...found, [k]: message })),
     head: (k, title) => (
-      <FieldHead title={title} resetLabel={t.reset} origin={originOf(PROJECT_OPTION[k])}
-        onReset={editable && own(PROJECT_OPTION[k]) ? () => send({ [PROJECT_OPTION[k]]: null }) : undefined} />
+      <FieldHead
+        title={title}
+        resetLabel={t.reset}
+        origin={originOf(PROJECT_OPTION[k])}
+        onReset={editable && own(PROJECT_OPTION[k]) ? () => send({ [PROJECT_OPTION[k]]: null }) : undefined}
+      />
     ),
   };
   const available = meta.commit_statuses?.available ?? false;
@@ -541,19 +690,39 @@ export function ProjectBuildDefaults({ project, meta, editable }: { project: Pro
           <span className="bo-choice-hint">{hint}</span>
           <span className="bo-switch-origin">
             {originOf(option)}
-            {editable && own(option) && <Button size="sm" variant="ghost" icon={<RotateCcw />} onClick={() => send({ [option]: null })} aria-label={t.reset} title={t.reset} />}
+            {editable && own(option) && (
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<RotateCcw />}
+                onClick={() => send({ [option]: null })}
+                aria-label={t.reset}
+                title={t.reset}
+              />
+            )}
           </span>
         </span>
-        <Switch checked={Boolean(o[option]) && !disabled} disabled={!editable || disabled} onChange={(v) => send({ [option]: v })} label={<span className="sr-only">{label}</span>} />
+        <Switch
+          checked={Boolean(o[option]) && !disabled}
+          disabled={!editable || disabled}
+          onChange={(v) => send({ [option]: v })}
+          label={<span className="sr-only">{label}</span>}
+        />
       </div>
     </div>
   );
   return (
     <section className="card bo">
-      <div className="card-head"><h2>{t.projectCard}</h2></div>
+      <div className="card-head">
+        <h2>{t.projectCard}</h2>
+      </div>
       <div className="card-body stack">
         <p className="small muted">{t.newBuildProject}</p>
-        {errors.general && <p className="bo-error" role="alert">{errors.general}</p>}
+        {errors.general && (
+          <p className="bo-error" role="alert">
+            {errors.general}
+          </p>
+        )}
         <BehaviourField c={controls} stage="development" />
         <ModulesField c={controls} />
         <TestsField c={controls} />
@@ -567,7 +736,9 @@ export function ProjectBuildDefaults({ project, meta, editable }: { project: Pro
           ) : (
             <>
               {t.commitStatusesOff}{" "}
-              <Link to={`${ADMIN_GUIDE}#commit-statuses`} viewTransition>{t.commitStatusesHow}</Link>
+              <Link to={`${ADMIN_GUIDE}#commit-statuses`} viewTransition>
+                {t.commitStatusesHow}
+              </Link>
             </>
           ),
           !available,

@@ -15,7 +15,10 @@ export const grants: SupportGrant[] = [];
 
 export function seedSupport() {
   grants.length = 0;
-  const grant = (values: Partial<SupportGrant> & Pick<SupportGrant, "id" | "level" | "hours">, at: number): SupportGrant => ({
+  const grant = (
+    values: Partial<SupportGrant> & Pick<SupportGrant, "id" | "level" | "hours">,
+    at: number,
+  ): SupportGrant => ({
     scope: { all: true, projects: [], instances: [] },
     ticket: null,
     created_by: "omar",
@@ -46,19 +49,37 @@ export function seedSupport() {
         hours: 72,
         ticket: "SUP-2317",
         state: "expired",
-        sessions: [{ id: "ss-19ac", grant_id: "sg-2b8e0d47", staff_name: "Malik (Sudoo.sh support)", opened_at: iso(OPENED - 11 * DAY), expires_at: iso(OPENED - 11 * DAY + HOUR) }],
+        sessions: [
+          {
+            id: "ss-19ac",
+            grant_id: "sg-2b8e0d47",
+            staff_name: "Malik (Sudoo.sh support)",
+            opened_at: iso(OPENED - 11 * DAY),
+            expires_at: iso(OPENED - 11 * DAY + HOUR),
+          },
+        ],
       },
       OPENED - 12 * DAY,
     ),
     grant(
-      { id: "sg-c05e6a13", level: "admin_shell", hours: 1, ticket: null, created_by: "sara", state: "withdrawn", revoked_at: iso(OPENED - 26 * DAY + 20 * MINUTE), revoked_by: "sara" },
+      {
+        id: "sg-c05e6a13",
+        level: "admin_shell",
+        hours: 1,
+        ticket: null,
+        created_by: "sara",
+        state: "withdrawn",
+        revoked_at: iso(OPENED - 26 * DAY + 20 * MINUTE),
+        revoked_by: "sara",
+      },
       OPENED - 26 * DAY,
     ),
   );
 }
 
 function expire() {
-  for (const g of grants) if (g.state === "active" && g.expires_at && Date.parse(g.expires_at) < Date.now()) g.state = "expired";
+  for (const g of grants)
+    if (g.state === "active" && g.expires_at && Date.parse(g.expires_at) < Date.now()) g.state = "expired";
 }
 
 export function supportOverview(): SupportOverview {
@@ -78,7 +99,12 @@ export function supportOverview(): SupportOverview {
 
 export function supportStatus(canEnd: boolean): SupportStatus {
   expire();
-  return { connected: false, sessions: [], active_grants: grants.filter((g) => g.state === "active").length, can_end: canEnd };
+  return {
+    connected: false,
+    sessions: [],
+    active_grants: grants.filter((g) => g.state === "active").length,
+    can_end: canEnd,
+  };
 }
 
 export function grantAccess(body: Record<string, unknown>): SupportGrant {
@@ -92,8 +118,10 @@ export function grantAccess(body: Record<string, unknown>): SupportGrant {
   if (scopeIn.all !== true) {
     const chosen = Array.isArray(scopeIn.projects) ? scopeIn.projects.map(String) : [];
     const names = Array.isArray(scopeIn.instances) ? scopeIn.instances.map(String) : [];
-    for (const id of chosen) if (!projects.has(id)) throw new Problem(400, `scope.projects: there is no project ${id}.`);
-    for (const name of names) if (!instances.has(name)) throw new Problem(400, `scope.instances: there is no instance ${name}.`);
+    for (const id of chosen)
+      if (!projects.has(id)) throw new Problem(400, `scope.projects: there is no project ${id}.`);
+    for (const name of names)
+      if (!instances.has(name)) throw new Problem(400, `scope.instances: there is no instance ${name}.`);
     if (!chosen.length && !names.length) throw new Problem(400, "Choose at least one project or instance.");
     scope = { all: false, projects: chosen.map((id) => ({ id, name: projects.get(id)!.name })), instances: names };
   }

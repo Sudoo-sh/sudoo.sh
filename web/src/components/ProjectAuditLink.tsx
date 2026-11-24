@@ -11,7 +11,12 @@ export function ProjectAuditLink({ project }: { project: string }) {
   const can = useCan();
   if (!can("audit.view")) return null;
   return (
-    <Link to={`/activity?project=${encodeURIComponent(project)}`} viewTransition className="small row" title={t.auditLogHint}>
+    <Link
+      to={`/activity?project=${encodeURIComponent(project)}`}
+      viewTransition
+      className="small row"
+      title={t.auditLogHint}
+    >
       <ScrollText size={14} /> {t.auditLog}
     </Link>
   );

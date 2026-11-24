@@ -1,4 +1,11 @@
-import { Children, Fragment, isValidElement, type CSSProperties, type OptionHTMLAttributes, type ReactNode } from "react";
+import {
+  Children,
+  Fragment,
+  isValidElement,
+  type CSSProperties,
+  type OptionHTMLAttributes,
+  type ReactNode,
+} from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Radix gives the empty value a meaning of its own (nothing chosen): an option whose value is "" stands for it here

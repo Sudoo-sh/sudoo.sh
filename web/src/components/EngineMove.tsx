@@ -29,13 +29,40 @@ export function otherEngine(instance: Instance, offered: Engine[] | undefined): 
   return offered?.includes("kubernetes") && instance.odoo.edition !== "enterprise" ? "kubernetes" : null;
 }
 
-export function EngineMoveDialog({ instance, to, onClose, onRun }: { instance: Instance; to: Engine; onClose: () => void; onRun: () => void }) {
+export function EngineMoveDialog({
+  instance,
+  to,
+  onClose,
+  onRun,
+}: {
+  instance: Instance;
+  to: Engine;
+  onClose: () => void;
+  onRun: () => void;
+}) {
   const t = useT(words);
   const c = useT(common).common;
   const target = to === "kubernetes" ? t.kubernetes : t.docker;
   return (
-    <Modal title={t.moveTitle(target)} onClose={onClose}
-      footer={<><Button onClick={onClose}>{c.cancel}</Button><Button variant="primary" icon={<ArrowRightLeft />} onClick={() => { onRun(); onClose(); }}>{t.moveConfirm}</Button></>}>
+    <Modal
+      title={t.moveTitle(target)}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{c.cancel}</Button>
+          <Button
+            variant="primary"
+            icon={<ArrowRightLeft />}
+            onClick={() => {
+              onRun();
+              onClose();
+            }}
+          >
+            {t.moveConfirm}
+          </Button>
+        </>
+      }
+    >
       <div className="stack">
         <p className="small">{t.moveText(instance.name, target)}</p>
         <Callout tone="warning">

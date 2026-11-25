@@ -293,3 +293,14 @@ pre,
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--scrollbar-thumb-hover);
 }
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s4);
+}
+@media (max-width: 720px) {
+  .grid-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

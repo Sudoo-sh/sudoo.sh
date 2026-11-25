@@ -2702,6 +2702,34 @@
     "description": "The extensions the Extend menu offers, in days, comma-separated (a custom number too)."
   },
   {
+    "key": "expiry_card_days",
+    "env": "EXPIRY_CARD_DAYS",
+    "value": 7,
+    "env_value": 7,
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "integer",
+    "minimum": 1,
+    "description": "The expiring-soon card on the home page lists instances that expire within this many days."
+  },
+  {
+    "key": "expiry_card_rows",
+    "env": "EXPIRY_CARD_ROWS",
+    "value": 5,
+    "env_value": 5,
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "integer",
+    "minimum": 1,
+    "description": "The most instances the expiring-soon card on the home page lists."
+  },
+  {
     "key": "expiry_warning_days",
     "env": "EXPIRY_WARNING_DAYS",
     "value": 3,

@@ -56,7 +56,7 @@ const en = {
   },
   language: {
     title: "Language",
-    text: "The language of the panel for your account, in every browser you sign in with. E-mails are in English for now.",
+    text: "The language of the panel for your account, in every browser you sign in with. E-mails to you follow it too, where they have a translation.",
     choice: "Language of the panel",
     default: (name: string) => `The panel's default (${name})`,
   },
@@ -195,7 +195,7 @@ const ar: typeof en = {
   },
   language: {
     title: "اللغة",
-    text: "لغة اللوحة لحسابك، في كل متصفح تسجّل الدخول منه. تبقى رسائل البريد بالإنجليزية حاليًا.",
+    text: "لغة اللوحة لحسابك، في كل متصفح تسجّل الدخول منه. وتتبعها رسائل البريد الموجّهة إليك متى توفرت لها ترجمة.",
     choice: "لغة اللوحة",
     default: (name) => `الافتراضية في اللوحة (${name})`,
   },

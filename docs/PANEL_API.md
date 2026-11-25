@@ -768,11 +768,16 @@ An instance:
     "last_visit_at": "2026-11-12T08:01:10Z",
     "pauses_at": "2026-11-12T14:01:10Z",
     "expires_at": "2026-12-11T10:16:47Z",
+    "expired_at": null,
+    "deletes_at": null,
     "current_job": null,
     "links": {"self": "/api/v1/instances/sales-main"}
   }
 }
 ```
+
+`expired_at` is when the instance was stopped at the end of its lifetime and `deletes_at` when it will be deleted
+(`EXPIRY_GRACE_DAYS` later); both are `null` otherwise.
 
 `GET /instances/<name>` adds, among others, the instance's backups, newest first, and the one the `restore` action
 would use without a `file` (`null` when there is none):

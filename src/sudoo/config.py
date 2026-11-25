@@ -920,6 +920,15 @@ class Settings(BaseSettings):
     expiry_extend_presets: str = Field(
         "1,7,30", description="The extensions the Extend menu offers, in days, comma-separated (a custom number too)."
     )
+    expiry_card_days: int = Field(
+        7,
+        ge=1,
+        le=365,
+        description="The expiring-soon card on the home page lists instances that expire within this many days.",
+    )
+    expiry_card_rows: int = Field(
+        5, ge=1, le=50, description="The most instances the expiring-soon card on the home page lists."
+    )
     expiry_warning_days: int = Field(
         3,
         ge=0,
@@ -2401,6 +2410,8 @@ EDITABLE = (
     "expiry_extend_max_days",
     "expiry_extend_max_count",
     "expiry_extend_presets",
+    "expiry_card_days",
+    "expiry_card_rows",
     "expiry_warning_days",
     "expiry_grace_days",
     "staging_daily_backups",

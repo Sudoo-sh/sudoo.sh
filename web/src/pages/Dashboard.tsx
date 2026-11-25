@@ -1,11 +1,13 @@
 import { Boxes, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { useHistory, useInstances, useMetrics } from "@/api/queries";
 import type { Columns, Instance, InstanceStatus, Stage } from "@/api/types";
 import { Bars } from "@/components/charts/Bars";
 import { LiveChart } from "@/components/charts/LiveChart";
 import { Ring } from "@/components/charts/Ring";
+import { ExpiringSoon } from "@/components/ExpiringSoon";
+import { RecentActivity } from "@/components/RecentActivity";
 import { InstanceCard } from "@/components/InstanceCard";
 import { STAGE_ORDER, STAGES } from "@/components/StageTag";
 import { Page, PageHead, useCan } from "@/components/Shell";
@@ -16,7 +18,10 @@ import { SelectBox } from "@/components/app/select";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import dashboard from "@/i18n/dashboard";
-import { bytes, duration, ms, number, percent } from "@/lib/format";
+import expiryWords from "@/i18n/expiry";
+import { expiringSoon } from "@/lib/expiry";
+import { useSettings } from "@/api/queries";
+import { ago, bytes, duration, ms, number, percent } from "@/lib/format";
 
 const average = (values: (number | null)[] | undefined) => {
   const numbers = (values ?? []).filter((v): v is number => v != null);
@@ -215,7 +220,7 @@ function Charts({ instances }: { instances: Instance[] | undefined }) {
   );
 }
 
-type Filter = "all" | "online" | "paused" | "busy";
+type Filter = "all" | "online" | "paused" | "busy" | "expiring";
 const ASLEEP: InstanceStatus[] = ["paused", "switched_off", "stopped"];
 
 export function DashboardPage() {
@@ -224,7 +229,8 @@ export function DashboardPage() {
   const { data: metrics } = useMetrics();
   const { data: history } = useHistory();
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
+  const [params] = useSearchParams();
+  const [filter, setFilter] = useState<Filter>(params.get("filter") === "expiring" ? "expiring" : "all");
   const [stage, setStage] = useState<Stage | "all">("all");
   const server = metrics?.server;
   const words = useT(dashboard);
@@ -236,6 +242,17 @@ export function DashboardPage() {
     const count = (statuses: InstanceStatus[]) => instances?.filter((i) => statuses.includes(i.status)).length ?? 0;
     return { online: count(["online", "starting"]), paused: count(ASLEEP), busy: count(["busy", "creating"]) };
   }, [instances]);
+  const ex = useT(expiryWords);
+  const { data: settingList } = useSettings();
+  const cardDays = Number(settingList?.find((s) => s.key === "expiry_card_days")?.value ?? 7);
+  const expiringTotal = expiringSoon(instances, cardDays, 1).total;
+  const stopped = (instances ?? []).filter((i) => i.expired_at);
+  const nextDeletion = stopped
+    .map((i) => i.deletes_at)
+    .filter((d): d is string => !!d)
+    .sort()[0];
+  const failed = (instances ?? []).filter((i) => i.update_failure || i.status === "unreachable").length;
+  const expiringCount = instances?.filter((i) => i.expires_at).length ?? 0;
   const stageCounts = useMemo(
     () =>
       Object.fromEntries(
@@ -251,9 +268,14 @@ export function DashboardPage() {
       if (filter === "online") return i.status === "online" || i.status === "starting";
       if (filter === "paused") return ASLEEP.includes(i.status);
       if (filter === "busy") return i.status === "busy" || i.status === "creating";
+      if (filter === "expiring") return !!i.expires_at;
       return true;
     })
-    .sort((a, b) => (STAGE_ORDER[a.stage] ?? 9) - (STAGE_ORDER[b.stage] ?? 9)); // production first; by name within a stage
+    .sort((a, b) =>
+      filter === "expiring" // the nearest end first
+        ? new Date(a.expires_at ?? 0).getTime() - new Date(b.expires_at ?? 0).getTime()
+        : (STAGE_ORDER[a.stage] ?? 9) - (STAGE_ORDER[b.stage] ?? 9),
+    ); // production first; by name within a stage
   const cpuAverage = average(history?.server.cpu_percent);
   const serverT = history?.server.t ?? [];
   const capacity = metrics?.capacity ?? null;
@@ -363,7 +385,25 @@ export function DashboardPage() {
         />
       </div>
 
+      <div className="grid-3 stagger">
+        <StatCard
+          label={ex.tiles.expiring}
+          value={instances ? expiringTotal : undefined}
+          detail={ex.tiles.expiringDetail(cardDays)}
+        />
+        <StatCard
+          label={ex.tiles.stopped}
+          value={instances ? stopped.length : undefined}
+          detail={ex.tiles.stoppedDetail(nextDeletion ? ago(nextDeletion) : "")}
+        />
+        <StatCard label={ex.tiles.failed} value={instances ? failed : undefined} detail={ex.tiles.failedDetail} />
+      </div>
+
+      <ExpiringSoon instances={instances} />
+
       <Charts instances={instances} />
+
+      <RecentActivity />
 
       <div className="toolbar">
         <div className="input-group">
@@ -400,6 +440,14 @@ export function DashboardPage() {
               label: (
                 <>
                   {tb.paused} <span className="count">{counts.paused}</span>
+                </>
+              ),
+            },
+            {
+              value: "expiring",
+              label: (
+                <>
+                  {tb.expiring} <span className="count">{expiringCount}</span>
                 </>
               ),
             },

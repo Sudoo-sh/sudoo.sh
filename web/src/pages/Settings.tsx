@@ -95,6 +95,8 @@ const TABS: { id: TabId; groups: Group[] }[] = [
           "expiry_extend_max_days",
           "expiry_extend_max_count",
           "expiry_extend_presets",
+          "expiry_card_days",
+          "expiry_card_rows",
         ],
       },
       {

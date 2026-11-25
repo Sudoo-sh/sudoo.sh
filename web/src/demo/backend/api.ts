@@ -1287,6 +1287,12 @@ route("PATCH", "/instances/:name", ({ params, body }) => {
       .join(", "),
   });
   announce(instance);
+  // an instance stopped at the end of its lifetime stays stopped when the server cannot run one more: the answer says why
+  // (the demo's one stopped instance is that case; every other instance answers as before)
+  if (typeof body.delete_after_days === "number" && instance.expired_at && body.delete_after_days)
+    return ok(full(instance), {
+      restart: `The lifetime was extended, but ${instance.name} stays stopped. This server runs at most 8 instances at once and 8 are running or starting. Pause one first.`,
+    });
   return ok(full(instance));
 });
 

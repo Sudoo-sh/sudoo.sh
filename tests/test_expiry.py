@@ -260,3 +260,16 @@ def test_an_extended_instance_stays_stopped_when_the_server_cannot_run_one_more(
     assert "stays stopped" in answer.get_json()["meta"]["restart"] and started == []
     assert store.read_env(NAME)["DELETE_AFTER_DAYS"] == "60" and not STATE.get(NAME).get("expired_at")
     assert settings.expiry_extend_max_days == 30
+
+
+def test_the_instance_says_when_it_was_stopped_and_when_it_will_be_deleted(app: Flask, admin: Client) -> None:
+    client, headers = admin
+    _instance(created_days_ago=31, days=30)
+    plain = client.get(f"/api/v1/instances/{NAME}", headers=headers).get_json()["data"]
+    assert plain["expired_at"] is None and plain["deletes_at"] is None
+    stopped_at = int(time.time()) - DAY
+    STATE.update(NAME, switched_off=True, expired_at=stopped_at)
+    data = client.get(f"/api/v1/instances/{NAME}", headers=headers).get_json()["data"]
+    assert data["expired_at"].startswith(time.strftime("%Y-%m-%d", time.gmtime(stopped_at)))
+    deleted = time.strptime(data["deletes_at"], "%Y-%m-%dT%H:%M:%SZ")
+    assert abs(time.mktime(deleted) - time.timezone - (stopped_at + settings.expiry_grace_days * DAY)) < 2

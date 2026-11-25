@@ -15,6 +15,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   id and the primary MAC address without the installation key, so the hub can recognize a server after a reinstall.
   Left out when neither can be read; `hardware_fingerprint` is unchanged. See the marketplace guide.
 
+### Fixed
+
+- **Temporary access and client access requests no longer share storage**: both features wrote to the collection
+  `access_requests`, so a client request's cleanup could delete approved temporary-access grants, and temporary access
+  failed with an error while any client request existed. Temporary access now uses `role_requests` and the client
+  portal `client_access_requests`. At start-up the panel moves what is left in the old collection to the right one by the
+  shape of each document (safe to repeat, logged, nothing is overwritten, a document that fits neither stays in
+  `access_requests`), and keeps a copy of the old collection in `access_requests_backup` until the next start-up.
+
 ### Changed
 
 - **Formatting setup for the web app:** Prettier for `web/` (`.prettierrc.json`, `npm run format`, `npm run format:check`), a

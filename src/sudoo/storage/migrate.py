@@ -7,10 +7,13 @@ start does not import it again.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 
 from .base import Storage
+
+log = logging.getLogger(__name__)
 
 _COLLECTIONS = {"users.json": "users", "api_tokens.json": "api_tokens", "state.json": "instance_state"}
 
@@ -42,6 +45,7 @@ def migrate(storage: Storage, folder: Path) -> None:
                 storage.put("projects", key, {**project, "access": {**current, "model": "legacy"}})
     if meta["version"] != SCHEMA:
         storage.put("meta", "schema", {"version": SCHEMA})
+    separate_access_requests(storage)  # every start: safe to repeat, see the function
 
 
 def hide_secret_settings(detail: str) -> str:
@@ -78,3 +82,58 @@ def migrate_json_files(storage: Storage, folder: Path) -> None:
                     if line.startswith("{"):
                         storage.log(json.loads(line))
                 old.rename(old.with_name(old.name + ".migrated"))
+
+
+OLD_REQUESTS = "access_requests"
+OLD_REQUESTS_BACKUP = "access_requests_backup"
+ROLE_REQUESTS = "role_requests"  # temporary access (projects/elevation.py)
+CLIENT_REQUESTS = "client_access_requests"  # the client portal's access requests (projects/clients.py)
+
+
+def _kind_of_request(document: dict[str, object]) -> str | None:
+    """Which feature wrote a document of the old shared collection, by its shape: temporary access has "user" and
+    "asked" ("stage", "level" and "decided" too); a client portal request has "by" and "at" ("users", "until",
+    "decided_at" and "branch" too). None when it fits neither or both."""
+    temporary = "user" in document and "asked" in document
+    portal = "by" in document and "at" in document
+    if temporary and not portal:
+        return ROLE_REQUESTS
+    if portal and not temporary:
+        return CLIENT_REQUESTS
+    return None
+
+
+def separate_access_requests(storage: Storage) -> dict[str, int]:
+    """Temporary access and the client portal used to keep their requests in one collection, "access_requests", and
+    each one read, lapsed and deleted the other's documents. Each now has its own collection; this moves what is
+    left of the old one to the right place by the shape of each document.
+
+    Safe to run any number of times: a document is copied (never over one already there) before it is removed from
+    the old collection, a document that fits neither shape stays where it is, and nothing is changed when the old
+    collection is empty. A copy of the old collection as it was is kept in "access_requests_backup" until the next
+    start-up replaces or drops it. Returns how many documents were moved, left and backed up."""
+    storage.all(OLD_REQUESTS_BACKUP)  # (read first so a broken storage fails here, before anything changes)
+    for key in storage.all(OLD_REQUESTS_BACKUP):
+        storage.delete(OLD_REQUESTS_BACKUP, key)  # the copy of the previous start-up is no longer needed
+    old = storage.all(OLD_REQUESTS)
+    result = {"moved": 0, "left": 0, "backed_up": 0}
+    if not old:
+        return result
+    for key, document in old.items():
+        storage.put(OLD_REQUESTS_BACKUP, key, document)
+    result["backed_up"] = len(old)
+    for key, document in old.items():
+        target = _kind_of_request(document)
+        if target is None:
+            result["left"] += 1
+            log.warning("Access request %s fits neither temporary access nor the client portal: left in %s.",
+                        key, OLD_REQUESTS)  # fmt: skip
+            continue
+        if storage.get(target, key) is None:
+            storage.put(target, key, document)
+        storage.delete(OLD_REQUESTS, key)
+        result["moved"] += 1
+        log.info("Moved access request %s from %s to %s.", key, OLD_REQUESTS, target)
+    log.info("Access requests separated: %d moved, %d left, copy kept in %s until the next start-up.",
+             result["moved"], result["left"], OLD_REQUESTS_BACKUP)  # fmt: skip
+    return result

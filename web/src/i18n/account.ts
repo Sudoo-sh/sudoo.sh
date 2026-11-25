@@ -56,7 +56,7 @@ const en = {
   },
   language: {
     title: "Language",
-    text: "The language of the panel for your account, in every browser you sign in with. E-mails are in English for now.",
+    text: "The language of the panel for your account, in every browser you sign in with. E-mails to you follow it too, where they have a translation.",
     choice: "Language of the panel",
     default: (name: string) => `The panel's default (${name})`,
   },
@@ -97,6 +97,9 @@ const en = {
     locked: "Your administrator keeps it on for every account.",
     hint: (on: boolean) => `When, from where and from which device. ${on ? "On" : "Off"} by default on this panel.`,
     emailMe: "E-mail me at each sign-in",
+    expiryEmail: "E-mail me about instances that expire",
+    expiryEmailText:
+      "A warning before an instance you look after expires, and a note when it is stopped. Project administrators who made the instance always get them.",
     elsewhere: "Sign out everywhere else",
     elsewhereText:
       "Ends every other session of your account, for example a browser you left signed in. Change your password too if a sign-in was not yours.",
@@ -192,7 +195,7 @@ const ar: typeof en = {
   },
   language: {
     title: "اللغة",
-    text: "لغة اللوحة لحسابك، في كل متصفح تسجّل الدخول منه. تبقى رسائل البريد بالإنجليزية حاليًا.",
+    text: "لغة اللوحة لحسابك، في كل متصفح تسجّل الدخول منه. وتتبعها رسائل البريد الموجّهة إليك متى توفرت لها ترجمة.",
     choice: "لغة اللوحة",
     default: (name) => `الافتراضية في اللوحة (${name})`,
   },
@@ -233,6 +236,9 @@ const ar: typeof en = {
     locked: "يُبقيه المسؤول مفعّلًا لكل الحسابات.",
     hint: (on) => `متى، ومن أين، ومن أي جهاز. ${on ? "مفعّل" : "متوقف"} افتراضيًا في هذه اللوحة.`,
     emailMe: "راسلني عند كل تسجيل دخول",
+    expiryEmail: "راسلني عن البيئات التي تنتهي مدتها",
+    expiryEmailText:
+      "تنبيه قبل انتهاء مدة بيئة ترعاها، وإشعار عند إيقافها. مديرو المشروع الذين أنشؤوا البيئة يصلهم دائمًا.",
     elsewhere: "سجّل الخروج من كل مكان آخر",
     elsewhereText:
       "يُنهي كل جلسة أخرى لحسابك، مثل متصفح تركته مسجّل الدخول. وغيّر كلمة المرور أيضًا إن لم يكن تسجيل الدخول منك.",

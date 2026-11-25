@@ -425,6 +425,19 @@
     position: relative;
     z-index: 1;
   }
+  .ic-built {
+    font-size: var(--text-12);
+    margin-top: var(--s2);
+  }
+  .ic-actions {
+    position: relative;
+    z-index: 1; // above the link that covers the card
+    gap: var(--s2);
+    padding: 0 var(--s4) var(--s3);
+    &:empty {
+      display: none;
+    }
+  }
   color: inherit !important;
   text-decoration: none !important;
   .ic-head {
@@ -4419,4 +4432,83 @@ tr.invited {
   gap: var(--s2);
   flex-wrap: wrap;
   margin: 0;
+}
+
+// The home page's "Expiring soon" card (components/ExpiringSoon.tsx)
+.expiry-card {
+  padding: 0;
+}
+.expiry-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-block-end: 1px solid var(--hairline);
+
+  > svg {
+    width: 20px;
+    height: 20px;
+    color: var(--brand);
+  }
+  h2 {
+    margin: 0;
+    font-size: 15px;
+  }
+  .sub {
+    margin: 2px 0 0;
+  }
+}
+.expiry-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.expiry-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(110px, auto) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+
+  & + & {
+    border-block-start: 1px solid var(--hairline);
+  }
+  &[data-urgency="soon"] .expiry-when {
+    color: var(--caution);
+    font-weight: 600;
+  }
+  &[data-urgency="over"] .expiry-when {
+    color: var(--negative);
+    font-weight: 600;
+  }
+}
+.expiry-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  a {
+    font-weight: 600;
+  }
+}
+.expiry-when {
+  font-size: 13px;
+  text-align: end;
+  color: var(--text-2);
+}
+@media (max-width: 640px) {
+  .expiry-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+.activity-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+
+  & + & {
+    border-block-start: 1px solid var(--hairline);
+  }
 }

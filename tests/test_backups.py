@@ -432,6 +432,13 @@ def test_deletion_without_a_complete_backup(admin: Client, maintainer: Client, s
     assert job.notes[-1]["level"] == "warning"
     logged = audit.latest(5, instance="shop")
     assert logged[0]["event"] == "instance deleted without a complete backup" and logged[0]["user"] == "admin1"
+    from sudoo.instances import history
+    from sudoo.storage import storage
+
+    remembered = history.recent()  # the Deleted tab of the instance list: who, not "expired"
+    assert [(d["name"], d["deleted_by"], d["expired"]) for d in remembered] == [("shop", "admin1", False)]
+    for key in list(storage().all(history.COLLECTION)):
+        storage().delete(history.COLLECTION, key)
 
 
 def test_automatic_deletion_switches_off_after_repeated_failures(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -440,6 +447,7 @@ def test_automatic_deletion_switches_off_after_repeated_failures(monkeypatch: py
 
     _instance("shop")
     store.update_env("shop", DELETE_AFTER_DAYS=7)  # created 30 days ago: expired
+    live.change({"expiry_grace_days": 0})  # deleted at once (the grace period has its own tests)
     monkeypatch.setattr(operations.monitor, "mark_stopped", lambda name: None)
     begun: list[str] = []
     monkeypatch.setattr(

@@ -62,7 +62,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Mapping
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 from flask import Blueprint, Response, abort, g, request
 
@@ -198,6 +198,37 @@ def list_instances() -> Response:
     # those being created have status "creating"; other servers' instances as their agents last reported them
     names = sorted(set(store.names()) | set(jobs.being_created()) | set(servers.remote_names()))
     return page(access.visible_instances(g.user, names), limit, offset, any_resource)
+
+
+@blueprint.get("/deleted-instances")
+@require("instances.view")
+def deleted_instances() -> Response:
+    """The instances deleted in the last DELETED_HISTORY_DAYS days (the instance list's Deleted tab), latest first:
+    `name`, `project` (`id`, `name`; or null), `branch`, `stage`, `created_at`, `deleted_at`, `deleted_by` (null when
+    the lifetime ended: `expired`). Those of a project the caller may not see are left out."""
+    from sudoo.instances import history
+    from sudoo.web.v1.responses import iso
+
+    rows = []
+    for found in history.recent():
+        project = projects.get(found["project"]) if found["project"] else None
+        if not access.sees_everything(g.user) and (
+            project is None or "instances.view" not in access.permissions(g.user, project, found["branch"])
+        ):
+            continue
+        rows.append(
+            {
+                "name": found["name"],
+                "project": {"id": project["id"], "name": project["name"]} if project else None,
+                "branch": found["branch"],
+                "stage": found["stage"],
+                "created_at": iso(found["created_at"]),
+                "deleted_at": iso(found["deleted_at"]),
+                "deleted_by": found["deleted_by"],
+                "expired": found["expired"],
+            }
+        )
+    return ok(rows)
 
 
 def any_resource(name: str) -> dict[str, Any]:
@@ -576,6 +607,9 @@ def _change(name: str, data: Mapping[str, Any], history: bool = True) -> Respons
     proposed = operations.expires_at({**env, **{key: str(value) for key, value in values.items()}})
     if proposed is not None and (current is None or proposed < current):
         refuse_unless("instances.delete", f"shorten the lifetime of {name}", instance=name)
+    extended = _extends(current, proposed)
+    if extended:
+        _check_extension(name, env, current, proposed)
     if not values and not {"delete_after_days", "stage"} & set(data):
         abort(400, "Send at least one of: auto_update, auto_upgrade, auto_pause, delete_after_days, stage.")
     if not values:  # the stage it has already, or a production instance's lifetime "keep": nothing changes
@@ -585,6 +619,7 @@ def _change(name: str, data: Mapping[str, Any], history: bool = True) -> Respons
     store.update_env(name, **values)
     if "DELETE_AFTER_DAYS" in values:  # a new lifetime: automatic deletion starts counting its attempts again
         STATE.update(name, expiry_failures=0, expiry_stopped=False)
+    restart_note = _extended(name, env) if extended else None
     if "STAGE" in values:
         log("instance stage changed", instance=name, detail=f"{stage_before} -> {stage}")
         from sudoo.instances import managed_names
@@ -604,7 +639,70 @@ def _change(name: str, data: Mapping[str, Any], history: bool = True) -> Respons
         mail_catcher.stage_changed(name)  # production sends its own e-mail; the other stages to the mail catcher
     log("instance settings changed", instance=name, detail=", ".join(sorted(values)))
     events.publish("instance", name)
-    return ok(instance_resource(name, full=True))
+    return ok(instance_resource(name, full=True), meta={"restart": restart_note} if restart_note else None)
+
+
+def _extends(current: float | None, proposed: float | None) -> bool:
+    """Whether the new expiry is later than the current one (None is "keep": no expiry, the latest of all)."""
+    if current is None:
+        return False
+    return proposed is None or proposed > current
+
+
+def _unlimited_extension(name: str) -> bool:
+    """Whether the caller may extend an instance without the limits (instances.extend_unlimited). A connected app
+    never may, whatever role its token has."""
+    if _connected_app():
+        return False
+    return access.allowed_instance(g.user, "instances.extend_unlimited", name)
+
+
+def _check_extension(name: str, env: Mapping[str, Any], current: float | None, proposed: float | None) -> None:
+    """403 when the caller may not extend the lifetime of `name` like this: without instances.extend_unlimited, by at
+    most EXTENSION_MAX_DAYS, EXTENSION_MAX_COUNT times, never to "keep", and never an instance stopped at the end of
+    its lifetime (an administrator restarts that one by extending it)."""
+    if _unlimited_extension(name):
+        return
+    what = f"extend the lifetime of {name}"
+    if STATE.get(name).get("expired_at"):
+        _refuse_extension(what, f"{name} was stopped at the end of its lifetime: an administrator extends it.")
+    if proposed is None or current is None:  # (current is None cannot be: that is not an extension)
+        _refuse_extension(
+            what, "Keeping an instance without an end date needs the permission to extend without limits."
+        )
+    added = -(-int(proposed - current) // 86400)  # whole days, rounded up
+    if added > settings.expiry_extend_max_days:
+        _refuse_extension(
+            what, f"You can extend a lifetime by at most {settings.expiry_extend_max_days} days at a time."
+        )
+    made = int(env.get("EXTENSIONS") or 0)
+    if made >= settings.expiry_extend_max_count:
+        _refuse_extension(
+            what, f"This instance was extended {made} time{'s' if made != 1 else ''} already, the most you can do."
+        )
+
+
+def _refuse_extension(what: str, reason: str) -> NoReturn:
+    message = f"{reason} {settings.contact_sentence()}"
+    log(f"{what} refused", ok=False, detail=reason)
+    abort(403, message)
+
+
+def _extended(name: str, before: Mapping[str, Any]) -> str | None:
+    """After an extension: count it, and when the instance had been stopped at the end of its lifetime, start it
+    again unless the server cannot take one more running instance now. Returns the reason it stays stopped, or None."""
+    if not _unlimited_extension(name):
+        store.update_env(name, EXTENSIONS=int(before.get("EXTENSIONS") or 0) + 1)
+    if not STATE.get(name).get("expired_at"):
+        return None
+    STATE.update(name, expired_at=None)
+    refused = capacity.refusal()
+    if refused:
+        log(f"{name} extended but not restarted", ok=False, detail=refused)
+        return f"The lifetime was extended, but {name} stays stopped. {refused}"
+    jobs.start(name, "Start", "wake", operations.wake, name, user=g.user["name"])
+    log("started again after its lifetime was extended", instance=name)
+    return None
 
 
 PRODUCTION_LIFETIME = "A production instance is never deleted automatically: its lifetime is always keep (0)."

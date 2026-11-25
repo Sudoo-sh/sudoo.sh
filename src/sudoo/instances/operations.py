@@ -341,6 +341,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     engines.of(name).up(job, name)
     _catch_mail(job, name)
     _wait_until_ready(job, name)
+    STATE.update(name, built_seconds=int(time.time() - job.started))  # "built in 4 min 51 s" on the instance list
     job.result = {"name": name, "url": url, "login": login, "password": settings.odoo_admin_password, "db": db}
     if source:
         job.note(f"Started from the backup {source['file']}")
@@ -443,11 +444,12 @@ def _record_admin_login(name: str, db: str) -> str:
     return login or kept
 
 
-def delete(job: Job, name: str, without_backup: bool = False, no_backup: bool = False) -> None:
+def delete(job: Job, name: str, without_backup: bool = False, no_backup: bool = False, expired: bool = False) -> None:
     """Back up every database, then remove the instance completely. No backup, no deletion, unless `without_backup`
     (asked for by someone who may manage backups): then a failed backup is noted and audit-logged, and the instance
     is removed anyway. Code running in the instance can make its own backup fail; this keeps it from staying.
-    `no_backup`: no backup is taken at all (a pull request's preview, projects/previews.py: its data is throw-away)."""
+    `no_backup`: no backup is taken at all (a pull request's preview, projects/previews.py: its data is throw-away).
+    `expired`: the automatic deletion at the end of its lifetime (the history says so instead of naming a person)."""
     job.expect(3)
     job.step("Backing up the database and files" if not no_backup else "Leaving out the backup")
     if no_backup:
@@ -466,6 +468,12 @@ def delete(job: Job, name: str, without_backup: bool = False, no_backup: bool = 
 
     access_rules.forget(name)  # a later instance of the same name starts without rules
     job.step("Removing the instance folder")
+    from sudoo.instances import history
+
+    try:  # the Deleted tab; before the folder goes. Never stops a deletion that has removed the containers already
+        history.record(name, store.read_env(name), job.user, expired)
+    except Exception as error:  # noqa: BLE001 - reported; the instance is removed all the same
+        job.note(f"The deletion could not be added to the history: {error}")
     shutil.rmtree(store.folder(name))
     STATE.remove(name)
     integrity.forget(name)
@@ -504,12 +512,30 @@ DELETION_BACKUP_FAILED = (
 EXPIRY_ATTEMPTS = 3  # failed automatic deletions in a row before the panel switches the instance off instead
 
 
+def stop_expired(job: Job, name: str, at: float | None = None) -> None:
+    """The first step of the end of an instance's lifetime (background.py): stop it, keep everything, and record
+    when (STATE "expired_at"); the deletion follows EXPIRY_GRACE_DAYS later. The people who look after it are told."""
+    from sudoo.core import audit
+
+    moment = int(time.time() if at is None else at)
+    job.step("Stopping the instance: its lifetime is over")
+    engines.of(name).stop(job, name)
+    STATE.update(name, switched_off=True, paused=False, expired_at=moment)
+    monitor.mark_stopped(name)
+    deletion = moment + settings.expiry_grace_days * 86400
+    audit.record("system", None, "instance stopped at the end of its lifetime", name,
+                 detail=f"deleted automatically from {time.strftime('%Y-%m-%d', time.gmtime(deletion))} unless extended")  # fmt: skip
+    from sudoo.instances import expiry
+
+    expiry.notify_stopped(name, deletion)
+
+
 def expire(job: Job, name: str) -> None:
     """The automatic deletion at the end of the instance's lifetime (background.py): delete() with its backup. After
     EXPIRY_ATTEMPTS failures in a row the instance is switched off instead, the attempts stop (STATE
     "expiry_stopped") and the audit log says so, until someone deletes it or gives it another lifetime."""
     try:
-        delete(job, name)
+        delete(job, name, expired=True)
     except Exception as error:
         failures = int(STATE.get(name).get("expiry_failures") or 0) + 1
         STATE.update(name, expiry_failures=failures)

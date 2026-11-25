@@ -61,13 +61,13 @@ export function start() {
 
 /**
  * Puts the answers the frame draws above every page (the session, the plan's banner, the maintenance banner, plugin
- * notices) in the query cache before the first render. Over a network they arrive one by one after the page has
+ * notices) and those of the dashboard the demo opens on in the query cache before the first render. Over a network they arrive one by one after the page has
  * been drawn, and each banner that appears pushes the page down; the demo's backend is in the browser, so it can
  * answer them at once. The queries still ask again as usual; only the first draw is complete from the start.
  */
 export async function prime(client: QueryClient): Promise<void> {
-  const get = async (path: string) => {
-    const result = await answer("GET", path, new URLSearchParams(), undefined);
+  const get = async (path: string, query = "") => {
+    const result = await answer("GET", path, new URLSearchParams(query), undefined);
     if (result.status >= 400) throw new Error(`${path}: ${result.status}`);
     return result.body as { data: unknown; meta?: unknown };
   };
@@ -75,6 +75,11 @@ export async function prime(client: QueryClient): Promise<void> {
     get("/session").then((body) => client.setQueryData(keys.session, body.data)),
     get("/plan").then((body) => client.setQueryData(keys.plan, body.data)),
     get("/plugins/notices").then((body) => client.setQueryData(keys.pluginNotices, body.data)),
+    // the dashboard the demo opens on: its tiles, the expiring-soon card and the charts are complete in the first draw
+    get("/instances", "limit=500").then((body) => client.setQueryData(keys.instances, body.data)),
+    get("/deleted-instances").then((body) => client.setQueryData(["deleted-instances"], body.data)),
+    get("/metrics").then((body) => client.setQueryData(keys.metrics, body.data)),
+    get("/metrics/history", "minutes=60").then((body) => client.setQueryData(keys.history, body.data)),
     get("/maintenance").then((body) =>
       client.setQueryData(maintenanceKeys.staff, { items: body.data, meta: body.meta }),
     ),

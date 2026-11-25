@@ -88,6 +88,19 @@ const TABS: { id: TabId; groups: Group[] }[] = [
       },
       { id: "stages", keys: ["max_production_instances", "production_auto_update", "staging_delete_after_days"] },
       {
+        id: "expiry",
+        keys: [
+          "expiry_warning_days",
+          "expiry_grace_days",
+          "expiry_extend_max_days",
+          "expiry_extend_max_count",
+          "expiry_extend_presets",
+          "deleted_history_days",
+          "expiry_card_days",
+          "expiry_card_rows",
+        ],
+      },
+      {
         id: "projects",
         keys: [
           "project_production_branches",

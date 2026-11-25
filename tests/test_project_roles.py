@@ -381,6 +381,25 @@ def test_members_reach_only_their_projects(app: Flask, project: dict[str, Any]) 
     assert client.get("/api/v1/users").status_code == 403
 
 
+def test_the_deleted_tab_lists_only_what_the_person_may_see(app: Flask, project: dict[str, Any]) -> None:
+    from conftest import sign_in
+    from sudoo.instances import history
+
+    env = {"PROJECT": project["id"], "GIT_BRANCH": "dev", "STAGE": "development", "CREATED_AT": str(int(time.time()))}
+    history.record("mine-dev", env, "admin1", expired=False)
+    history.record("elsewhere", {**env, "PROJECT": "someone-elses"}, "admin1", expired=False)
+    history.record("plain-one", {**env, "PROJECT": "", "GIT_BRANCH": ""}, "admin1", expired=False)
+    user = _person("member")
+    client, _ = sign_in(app, user["name"], PASSWORD)
+    before = client.get("/api/v1/deleted-instances")  # no project yet: nothing of it
+    assert before.status_code == 403 or before.get_json()["data"] == []
+    _grant(project, user["name"], "tester")
+    rows = client.get("/api/v1/deleted-instances").get_json()["data"]
+    assert [r["name"] for r in rows] == ["mine-dev"]  # not another project's, not a plain instance
+    for key in list(storage().all(history.COLLECTION)):
+        storage().delete(history.COLLECTION, key)
+
+
 def test_connect_follows_the_stage(app: Flask, project: dict[str, Any]) -> None:
     from conftest import sign_in
 

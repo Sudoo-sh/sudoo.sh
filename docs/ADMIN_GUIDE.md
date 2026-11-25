@@ -1040,6 +1040,19 @@ the default lifetime (30 days; Settings, Instances, New instances) unless "Keep 
 changed on the instance's Settings tab. Making it end sooner (also from "Keep" to a number of days) needs
 `instances.delete` as well, since it deletes the instance sooner: maintainers can only make it longer.
 
+**What happens when the lifetime ends.** The instance is stopped first, with everything kept, and deleted
+`EXPIRY_GRACE_DAYS` later (7 by default; 0 deletes at once, as before). An instance already past its date when this
+is installed is stopped on the first pass and its grace period starts then. The people who look after it (who made
+it, the creator of the API token that made it, and the project's administrators) get an e-mail `EXPIRY_WARNING_DAYS`
+(3) before the date, once for each date, and one when it is stopped with the date of deletion. Each person can turn
+these off on their account page; an administrator who made the instance cannot. Extending ("+N days") counts from the
+current end date. Without the permission `instances.extend_unlimited` (given to the Admin role and always to super
+admins; editable like other role permissions) a person may extend by at most `EXPIRY_EXTEND_MAX_DAYS` (30) days, at
+most `EXPIRY_EXTEND_MAX_COUNT` (1) times, and never to "keep", and a connected app is always limited so. Only
+someone with the permission extends an instance that was stopped; that starts it again, unless the server cannot run
+one more instance now (`MAX_RUNNING_INSTANCES`): it then stays stopped and the answer says why. The defaults of
+`DELETE_AFTER_DAYS` and `STAGING_DELETE_AFTER_DAYS` are the "default lifetime" of new instances.
+
 **Off the server.** Everything above stays on this server's disk: a lost server takes its backups with it. Copy
 them to storage somewhere else with [off-site copies](#20-off-site-copies).
 

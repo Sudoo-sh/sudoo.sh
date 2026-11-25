@@ -41,7 +41,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { api, errorText } from "@/api/client";
+import { api, call, errorText } from "@/api/client";
 import {
   keys,
   useCall,
@@ -1404,12 +1404,17 @@ function SettingsTab({ instance, plain }: { instance: Instance; plain: boolean }
   const c = useT(common);
   const stageLabel = (stage: Stage) => c.stages[stage]?.label ?? stage;
   const save = useCall(
-    (body: Record<string, unknown>) => api.patch<Instance>(`/instances/${instance.name}`, body),
+    (body: Record<string, unknown>) => call<Instance>("PATCH", `/instances/${instance.name}`, body),
     [keys.instance(instance.name), keys.instances, keys.resources(instance.name)],
   );
   const set = (body: Record<string, unknown>) =>
     save.mutate(body, {
-      onSuccess: () => toast("success", t.saved),
+      // an extended instance that was stopped at the end of its lifetime may have to stay stopped: say why (shown
+      // longer, as an error toast is)
+      onSuccess: (answer) =>
+        typeof answer?.meta?.restart === "string"
+          ? toast("error", t.saved, answer.meta.restart)
+          : toast("success", t.saved),
       onError: (e) => toast("error", t.notSaved, errorText(e)),
     });
   const s = instance.settings;
@@ -1849,7 +1854,7 @@ export function SubmoduleDialog({
   );
 }
 
-function DeleteDialog({
+export function DeleteDialog({
   name,
   production,
   after = "/",

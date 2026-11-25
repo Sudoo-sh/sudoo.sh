@@ -261,6 +261,7 @@ function signedIn() {
 /** The visitor's recovery codes (made 41 days ago with the app; three used since) and sign-in e-mail choice. */
 const recovery = { left: 7, total: 10, created_at: iso(OPENED - 41 * DAY) };
 let signInEmail: boolean | null = null;
+let expiryEmail: boolean | null = null;
 /** The visitor's own language, kept in this browser like the panel's own; none: the visitor's browser, then the
  *  demo's DEFAULT_LANGUAGE. */
 let ownLanguage: Locale | null = storedLocale();
@@ -315,6 +316,7 @@ function account(): Account {
     require_second_factor: "admins",
     recovery_codes: user.second_factors.includes("totp") ? { ...recovery } : null,
     recovery_codes_needed: user.second_factors.includes("totp") && recovery.left === 0,
+    expiry_email: expiryEmail,
     sign_in_email: {
       enabled: signInEmail ?? Boolean(setting("sign_in_email") ?? true),
       own_choice: signInEmail,
@@ -594,6 +596,13 @@ route("PATCH", "/account", ({ body }) => {
     signInEmail = typeof choice === "boolean" ? choice : null;
     record(ME, `sign-in e-mail ${choice ? "turned on" : choice === false ? "turned off" : "back to the default"}`);
   }
+  if ("expiry_email" in body) {
+    const choice = body.expiry_email;
+    if (choice !== null && typeof choice !== "boolean")
+      throw new Problem(400, "expiry_email must be true, false or null.");
+    expiryEmail = choice;
+    record(ME, `expiry e-mails ${choice ? "turned on" : choice === false ? "turned off" : "back to the default"}`);
+  }
   if ("language" in body) {
     const choice = body.language;
     if (choice !== null && !isLocale(choice)) throw new Problem(400, "language must be one of en, ar, or null.");
@@ -658,6 +667,40 @@ route("GET", "/instances", ({ query }) => {
     .map(listed);
   const limit = Number(query.get("limit") ?? 100);
   return ok(list.slice(0, limit), { total: list.length, count: Math.min(limit, list.length), limit, offset: 0 });
+});
+route("GET", "/deleted-instances", () => {
+  need("instances.view", "/api/v1/deleted-instances");
+  const at = (hours: number) => new Date(Date.now() - hours * 3600_000).toISOString();
+  const sample = [
+    {
+      name: "acme-demo-2",
+      project: { id: "acme", name: "Acme" },
+      branch: "feat/demo",
+      stage: "development",
+      deleted_at: at(5),
+      deleted_by: "layla",
+      expired: false,
+    },
+    {
+      name: "acme-pr-41",
+      project: { id: "acme", name: "Acme" },
+      branch: "feat/invoices",
+      stage: "staging",
+      deleted_at: at(30),
+      deleted_by: null,
+      expired: true,
+    },
+    {
+      name: "scratch-7",
+      project: null,
+      branch: null,
+      stage: "development",
+      deleted_at: at(96),
+      deleted_by: "yousef",
+      expired: false,
+    },
+  ];
+  return ok(sample.map((d) => ({ ...d, created_at: at(24 * 20) })));
 });
 route("GET", "/instances/:name", ({ params }) => {
   needOn(params.name!, "instances.view");
@@ -1278,6 +1321,12 @@ route("PATCH", "/instances/:name", ({ params, body }) => {
       .join(", "),
   });
   announce(instance);
+  // an instance stopped at the end of its lifetime stays stopped when the server cannot run one more: the answer says why
+  // (the demo's one stopped instance is that case; every other instance answers as before)
+  if (typeof body.delete_after_days === "number" && instance.expired_at && body.delete_after_days)
+    return ok(full(instance), {
+      restart: `The lifetime was extended, but ${instance.name} stays stopped. This server runs at most 8 instances at once and 8 are running or starting. Pause one first.`,
+    });
   return ok(full(instance));
 });
 

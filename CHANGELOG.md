@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Home page: Expiring soon (Task 33, step 2):** three figures (expiring soon, stopped and waiting for deletion,
+  failed), a card of the instances that end soonest with an Extend menu (the extensions the administrator offers, or
+  any number of days; the API applies the same limits), a **With end date** filter on the instance list (nearest end first), and a Recent
+  activity list. New settings `EXPIRY_CARD_DAYS` and `EXPIRY_CARD_ROWS`. The instance now reports `expired_at` and
+  `deletes_at`. The account language text no longer says e-mails are English only.
+- **Instance list tabs and quick actions (Task 33, step 3):** tabs Current, Failed, Stopped, Deleted and All; the
+  Deleted tab remembers who deleted an instance (or that its lifetime ended) and when, for the new setting
+  `DELETED_HISTORY_DAYS` (90; 0 keeps nothing), from the new `GET /deleted-instances`. Each card shows how long the
+  build took (`built_seconds` on the instance) and the actions the person may do: Errors, Extend and Delete.
 - **Engine counts in the marketplace heartbeat:** `engine_available` (`docker` or `docker+kubernetes`),
   `instances_docker`, `instances_kubernetes` and `nodes_kubernetes`. Numbers only: no names, addresses or anything
   personal. Panels that do not send them keep working; the hub accepts older panels. See the marketplace guide.
@@ -25,6 +34,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **A standing alert while the country database is missing or old** (security review finding F-05): with the access rules
   on, administrators see it in the panel's alerts until a database newer than `ACCESS_RULES_GEO_MAX_AGE_DAYS` days
   (new setting, 45 by default) is in place. The default of `ACCESS_RULES_GEO_MISSING` (`open`) is unchanged.
+- **Instance lifetime, step 1 (Task 33):** an instance whose lifetime ends is stopped first and deleted
+  `EXPIRY_GRACE_DAYS` later (default 7; 0 keeps the old immediate deletion). People who look after it get a warning
+  e-mail `EXPIRY_WARNING_DAYS` before (once for each expiry date) and an e-mail when it is stopped, in English or
+  Arabic; each person can turn them off on the account page (not an administrator who made the instance). New
+  permission `instances.extend_unlimited` (Admin role and super admins): without it an extension adds at most
+  `EXPIRY_EXTEND_MAX_DAYS` days, `EXPIRY_EXTEND_MAX_COUNT` times, never "keep", and never to a stopped instance;
+  extending a stopped instance starts it again when the server can run one more. Settings: new "Instance lifetime"
+  group; the lifetime settings are now called "default lifetime".
 
 ### Fixed
 

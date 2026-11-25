@@ -517,6 +517,27 @@ When the server's memory is nearly full, or more instances run than it takes com
 cards says so. **New instance** and **Start** show the same kind of warning before one more instance starts; they
 still let you go ahead.
 
+**Expiring soon.** Under the server cards, three figures count the instances that expire within the window
+(`EXPIRY_CARD_DAYS`, 7 by default), the ones stopped at the end of their lifetime and waiting for deletion (with the
+date of the next deletion), and the ones that failed (a failed code update, or an instance the panel cannot reach).
+The **Expiring soon** card below lists the nearest ends first, at most `EXPIRY_CARD_ROWS` (5 by default), each with
+its project and branch, its stage and the time left (the exact date and time show when you hover it; under 24 hours
+turns amber, an ended one red). **Extend** opens a menu with the extensions the administrator offers
+(`EXPIRY_EXTEND_PRESETS`) and **Another number of days** for any other. The panel applies the same limits as the
+instance's Settings tab and says why when it refuses. The button shows only to people who may change that
+instance. When nothing expires in the window the card is not drawn. **See all** opens the list below filtered by
+**With end date** (every instance that has one, not only those inside the window of the card), the nearest end first.
+
+**Instance list tabs.** Above the list: **Current** (not stopped), **Failed** (a failed update or unreachable),
+**Stopped** (waiting for deletion), **Deleted** and **All**. **Deleted** lists the instances deleted lately: its
+project and branch, who deleted it (or that its lifetime ended), and when. It remembers them for
+`DELETED_HISTORY_DAYS` days (90 by default; 0 keeps nothing). Each card shows how long its creation took ("Built in
+4m 51s") and the actions the person may do: **Errors** (the latest log, when it failed), **Extend** (when it has an end
+date) and **Delete**, which asks the same confirmation as the instance page.
+
+**Recent activity** (below the charts, for those who may read the audit log): the last 10 events, with a link to the
+**Audit log**.
+
 **Charts.** Below the cards, four charts show what the cards do not:
 
 | Chart | What it shows |
@@ -1751,7 +1772,8 @@ of the sidebar switches to the other language, and **My account, Language** choo
 shows the panel in it. Before you sign in, the sign-in page uses your browser's language, and has the same switch.
 Code, branches, addresses, logs and e-mail addresses stay left to right in Arabic, digits are 0-9, and messages
 written by the server itself (a job's log, an error's explanation, Odoo's logs) are shown as the server wrote them,
-in English. E-mails the panel sends are in English for now.
+in English. E-mails the panel sends to a person follow that person's language setting where the e-mail has an
+Arabic text; the others are in English.
 
 ---
 

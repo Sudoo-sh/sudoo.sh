@@ -887,7 +887,11 @@ class Settings(BaseSettings):
     auto_pause: bool = Field(True, description="New instances pause when idle (each instance can change it).")
     auto_update: bool = Field(True, description="New instances get new code automatically.")
     auto_upgrade: bool = Field(True, description="New instances upgrade changed modules after an update.")
-    delete_after_days: int = Field(30, ge=0, description="Lifetime offered for new instances, in days; 0: keep.")
+    delete_after_days: int = Field(
+        30,
+        ge=0,
+        description="Default lifetime of a new instance, in days; 0: keep. The end date counts from creation, and each person can choose another lifetime when creating.",
+    )
 
     # ------------------------------------------------------------------ stages (instances/stages.py)
     max_production_instances: int = Field(
@@ -899,7 +903,52 @@ class Settings(BaseSettings):
         "once switched on for the instance).",
     )
     staging_delete_after_days: int = Field(
-        90, ge=0, description="Lifetime offered for new staging instances, in days; 0: keep."
+        90, ge=0, description="Default lifetime of a new staging instance, in days; 0: keep."
+    )
+    expiry_extend_max_days: int = Field(
+        30,
+        ge=0,
+        description="The most days someone without the right to extend beyond the limits (instances.extend_unlimited) "
+        "may add to an instance's lifetime in one extension; 0: no limit.",
+    )
+    expiry_extend_max_count: int = Field(
+        1,
+        ge=0,
+        description="How many times an instance's lifetime may be extended by someone without the right to extend "
+        "beyond the limits (instances.extend_unlimited); 0: no limit.",
+    )
+    expiry_extend_presets: str = Field(
+        "1,7,30", description="The extensions the Extend menu offers, in days, comma-separated (a custom number too)."
+    )
+    deleted_history_days: int = Field(
+        90,
+        ge=0,
+        le=3650,
+        description="How many days the Deleted tab of the instance list remembers a deleted instance (who deleted it "
+        "or that its lifetime ended, and when); 0: not kept.",
+    )
+    expiry_card_days: int = Field(
+        7,
+        ge=1,
+        le=365,
+        description="The expiring-soon card on the home page lists instances that expire within this many days.",
+    )
+    expiry_card_rows: int = Field(
+        5, ge=1, le=50, description="The most instances the expiring-soon card on the home page lists."
+    )
+    expiry_warning_days: int = Field(
+        3,
+        ge=0,
+        le=60,
+        description="E-mail the people who look after an instance this many days before it expires; 0: no e-mail.",
+    )
+    expiry_grace_days: int = Field(
+        7,
+        ge=0,
+        le=365,
+        description="When an instance expires it is stopped, not deleted: it is deleted this many days later "
+        "(0: at once). While it is stopped only someone with instances.extend_unlimited can extend it, which "
+        "starts it again.",
     )
     staging_daily_backups: bool = Field(
         True, description="Staging instances get the daily backup too (when daily_backups is on)."
@@ -2365,6 +2414,14 @@ EDITABLE = (
     "max_production_instances",
     "production_auto_update",
     "staging_delete_after_days",
+    "expiry_extend_max_days",
+    "expiry_extend_max_count",
+    "expiry_extend_presets",
+    "deleted_history_days",
+    "expiry_card_days",
+    "expiry_card_rows",
+    "expiry_warning_days",
+    "expiry_grace_days",
     "staging_daily_backups",
     *PROJECT_SETTINGS,
     "poll_minutes",

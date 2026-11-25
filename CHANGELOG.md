@@ -28,6 +28,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **A join token never lives longer than 24 hours** (security review finding F-08, panel side): the panel clamps
+  `KUBERNETES_JOIN_TOKEN_MINUTES` to 1440 minutes when it makes the token. The installer caps it too, with a
+  sweep that deletes longer-lived tokens (sudoo-installer).
 - **Topology sharing is withdrawn when the marketplace is switched off** (security review finding F-09): the pseudonym key
   is forgotten at once, whatever `MARKETPLACE` says, so ids sent later cannot be matched with the earlier snapshot. The
   hub is not contacted while the marketplace is off; the delete request is sent the next time it is on.

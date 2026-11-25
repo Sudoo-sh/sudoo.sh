@@ -28,6 +28,8 @@ from .api import ApiError
 from .engine import _cpu, api, quantity_bytes
 
 TOKEN_GROUP = "system:bootstrappers:k3s:default-node-token"
+MAX_TOKEN_MINUTES = 1440
+"""A join token never lives longer than a day, whatever the setting says (the installer's admission policy caps it too)."""
 _ALPHABET = string.ascii_lowercase + string.digits
 _VERSION_RE = re.compile(r"^v\d+\.\d+\.\d+\+k3s\d+$")
 
@@ -110,7 +112,7 @@ def join_command() -> dict[str, Any]:
         raise JoinError("The cluster's certificate authority is unknown: check KUBERNETES_KUBECONFIG.")
     token_id = "".join(secrets.choice(_ALPHABET) for _ in range(6))
     token_secret = "".join(secrets.choice(_ALPHABET) for _ in range(16))
-    minutes = int(settings.kubernetes_join_token_minutes)
+    minutes = min(int(settings.kubernetes_join_token_minutes), MAX_TOKEN_MINUTES)
     expires = datetime.now(UTC) + timedelta(minutes=minutes)
     api().create(
         {

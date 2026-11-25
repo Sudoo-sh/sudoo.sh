@@ -2,14 +2,15 @@
 
 The image build copies the Markdown files into the image (settings.docs_dir), so the panel always shows the
 documentation of the version that is running. The web app shows them on its Help pages (/help/<path>), with the
-HTML rendered here (GET /api/v1/docs/<path>, web/v1/docs.py). Pages are addressed by their path in the repository:
+HTML rendered here (GET /api/v1/docs/<path>, web/v1/docs.py). Pages are addressed by their path in the repository
+(the workflow guides, with their screenshots, are in docs/manual/ and docs/images/manual/):
 
     /help/docs/README.md               the documentation index
     /help/README.md                    the project overview
     /help/docs/concepts/PUBLIC_ADDRESSES.md a concept explained with examples
 
-Links between Markdown files are rewritten to /help/ addresses, and the diagrams (docs/images/*.svg, built by
-docs/diagrams/build.py) to /docs/ addresses served by the backend, so the same files read correctly on GitHub and in
+Links between Markdown files are rewritten to /help/ addresses, and the images (the diagrams docs/images/*.svg, built by
+docs/diagrams/build.py, and the screenshots docs/images/manual/*.png) to /docs/ addresses served by the backend, so the same files read correctly on GitHub and in
 the panel. Only files found at start-up can be shown: a path is looked up in that list, never opened directly.
 """
 
@@ -39,8 +40,10 @@ SECTIONS = (  # sidebar: (title, path prefixes or exact paths)
         ("docs/CONFIGURATION.md", "docs/ARCHITECTURE.md", "docs/SECURITY.md", "docs/DESIGN.md", "docs/PERFORMANCE.md"),
     ),
     ("Concepts", ("docs/concepts/",)),
+    ("Workflows", ("docs/manual/",)),
 )
-_LINK = re.compile(r'(href|src|srcset)="(?![a-z]+:|/|#)([^"#]+\.(?:md|svg))(#[^"]*)?"')
+IMAGE_TYPES = {".svg": "image/svg+xml", ".png": "image/png"}  # the only files served as images, nothing else
+_LINK = re.compile(r'(href|src|srcset)="(?![a-z]+:|/|#)([^"#]+\.(?:md|svg|png))(#[^"]*)?"')
 
 
 def _title(text: str, path: str) -> str:
@@ -64,7 +67,11 @@ def _load() -> dict[str, tuple[str, str]]:
 
 PAGES = _load()
 IMAGES = (
-    {file.relative_to(settings.docs_dir).as_posix() for file in settings.docs_dir.rglob("*.svg")}
+    {
+        file.relative_to(settings.docs_dir).as_posix()
+        for suffix in IMAGE_TYPES
+        for file in settings.docs_dir.rglob(f"*{suffix}")
+    }
     if settings.docs_dir.exists()
     else set()
 )
@@ -91,7 +98,9 @@ def _render(path: str, text: str) -> str:
             return f'{attribute}="/docs/{target}{anchor or ""}"'
         return match.group(0)
 
-    return _LINK.sub(rewrite, body)
+    body = _LINK.sub(rewrite, body)
+    # the Arabic pages (docs/manual/*.ar.md) read right to left
+    return f'<div dir="rtl" lang="ar">{body}</div>' if path.endswith(".ar.md") else body
 
 
 def sections() -> list[dict[str, Any]]:
@@ -143,9 +152,10 @@ def index() -> WerkzeugResponse:
 
 @blueprint.get("/docs/<path:path>")
 def page(path: str) -> ResponseReturnValue:
-    """The diagrams; links to pages from earlier versions go to the Help pages."""
+    """The diagrams and screenshots (only the files found at start-up, by their extension); links to pages from
+    earlier versions go to the Help pages."""
     if path in IMAGES:
-        return send_file(settings.docs_dir / path, mimetype="image/svg+xml", max_age=3600)
+        return send_file(settings.docs_dir / path, mimetype=IMAGE_TYPES[posixpath.splitext(path)[1]], max_age=3600)
     if path in PAGES:
         return redirect(f"/help/{path}")
     abort(404, "This page of the documentation does not exist.")

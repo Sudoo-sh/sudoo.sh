@@ -54,9 +54,13 @@ creates the first account, which is a **Super admin**.
 
 1. Ask the server administrator for the **setup code**. The installer prints it (it looks like `ABCD-EFGH-JKLM`);
    it can be shown again on the server with `docker exec sudoo-panel sudoo.sh setup-code`.
-2. Open the panel's link. **Step 1 of 2, Licence agreement**: read the summary of the
-   [Sudoo.sh Licence Agreement](https://sudoo.sh/legal/license) (**Read the full agreement** shows the whole text;
-   **Open the published version** opens it on sudoo.sh). Choose how you will use Sudoo.sh:
+2. Open the panel's link. The setup page has eight steps, with **Back** and **Next**: **Welcome**, **Server**,
+   **Address**, **E-mail** (optional), **GitHub** (optional), **Account** (optional), **Super admin** and **Done**.
+   **Nothing is applied until you confirm in the Super admin step**; you can leave and come back, and your choices
+   so far are kept. The engine (Docker or Kubernetes) is chosen by the installer and is shown in the Server step.
+3. **Welcome**: enter the **Setup code** from the installer (it is filled in when you open the setup link), then read
+   the summary of the [Sudoo.sh Licence Agreement](https://sudoo.sh/legal/license) (**Read the full agreement**
+   shows the whole text; **Open the published version** opens it on sudoo.sh). Choose how you will use Sudoo.sh:
 
    | Choice | When |
    | :--- | :--- |
@@ -65,20 +69,21 @@ creates the first account, which is a **Super admin**.
    | **Service provider** | Running, hosting, managing or maintaining Odoo for other companies. |
 
    Tick **I have read and accept the Sudoo.sh Licence Agreement**; for **My company** and **Service provider** also
-   tick **I accept it on behalf of my company, and I am authorised to bind it**. Click **Accept and continue**.
-   Nothing is kept until the account is created; **Back** on the next step returns here.
-3. **Step 2 of 2**: fill in:
+   tick **I accept it on behalf of my company, and I am authorised to bind it**, then continue.
+4. **Server**, **Address**, **E-mail**, **GitHub** and **Account**: check what the panel found on the server, choose
+   how people reach it (direct, behind a proxy, or through a tunnel), and optionally set up e-mail, GitHub and the
+   link to your Sudoo.sh account. Each can be skipped and changed later in Settings.
+5. **Super admin**: fill in:
 
    | Field | What to enter |
    | :--- | :--- |
-   | **Setup code** | The code from the installer. |
    | **First name**, **Last name** | Your name. |
    | **E-mail** | Required. You sign in with it, and it can later receive sign-in codes. |
    | **Phone** | Optional. |
    | **Password**, **Password again** | 12 to 128 characters that follow the [password rules](#password-rules). A few unrelated words make a strong one. |
 
-4. Click the button at the bottom. The account is created, your acceptance of the licence agreement is recorded, and
-   you are signed in.
+6. Confirm. The account is created, your choices are applied, your acceptance of the licence agreement is recorded,
+   and you are signed in. If you changed how the panel is reached, the **Done** step offers to restart the panel.
 
 You do not choose a user name. The panel makes one from your e-mail address (`jane.doe@example.com` becomes
 `jane.doe`; when it is taken, `jane.doe-2`, `-3` and so on). It is the account's internal key: it appears
@@ -820,7 +825,7 @@ What the states mean:
 | **Getting a certificate** | DNS is right; the certificate is being issued, usually in under a minute. |
 | **Active** | The instance answers at `https://<domain>` with a valid certificate (the lock next to the name opens it). Visits over http are sent to https. |
 | **Renewing** | The certificate is being renewed (30 days before it expires, on its own). The current one keeps working. |
-| **Expires soon** | The certificate expires within two weeks and could not be renewed yet: the reason says why. Administrators get an alert. |
+| **Expires soon** | The certificate ends within the number of days set by `ALERT_CERTIFICATE_DAYS` (shipped default 14) and could not be renewed yet: the reason says why. Administrators get an alert. |
 | **Failed** | The certificate could not be issued; the reason says why (often port 80 closed, or the record points elsewhere). The panel tries again later, waiting longer each time; fix the cause and click **Check now**. |
 
 The first domain you add is the **primary** one. Once it is active it becomes the instance's address: **Open Odoo**,
@@ -1141,8 +1146,9 @@ fails with a sentence like "The update to 9b1e0c4 failed at upgrading modules; t
 4f2a9c1." and the reason, and the instance's page shows it until an update works. Fix the code and push again, or
 click **Get latest code** to try the same commit again; automatic updates do not retry it on their own. If putting
 the instance back fails too, the message says so and names the backup to restore (Overview tab, **Restore**). A
-paused instance stays paused and is backed up only when modules are upgraded. Your administrator can switch this off
-(`SAFE_UPDATES`).
+paused instance stays paused and is backed up only when modules are upgraded. Your administrator can switch this
+off (`SAFE_UPDATES`) for instances that are not in production; **production instances are always backed up first and put
+back when an update fails**, whatever `SAFE_UPDATES` says.
 
 **Upgrade modules.** A new field, view or data file needs the module to be upgraded in Odoo. This happens after an
 update when **Upgrade changed modules** is on. Otherwise use **Upgrade modules** in the menu, with the technical
@@ -1860,7 +1866,7 @@ customer data in them.
 
 ## 16. Client portal
 
-The client portal is what your **clients** see: the Odoo projects you run for them, and a switch that decides
+The client portal is what your **clients** see (adding a client to a project is a feature of the Business plan; on other plans the panel refuses it and says so): the Odoo projects you run for them, and a switch that decides
 whether your team may open them. A client signs in at the portal's own address when your administrator set one
 (`PORTAL_DOMAIN`, such as `portal.example.com`), otherwise at the panel's address; either way a client account sees the
 portal and nothing else of the panel.
@@ -1934,7 +1940,9 @@ Super admins and admins choose when it runs: **Tonight**, **This weekend**, the 
 between its earliest start and its deadline. If nobody chooses, the panel picks the default window and e-mails you.
 
 During the work an instance may restart for a minute or two; visitors see a **Scheduled maintenance** page that opens
-Odoo again by itself. Production instances are updated last, after a backup.
+Odoo again by itself. Instances are handled one after another, with production last. When the work is an update of
+the Odoo images, production and staging instances are backed up first (a backup "before maintenance"); other kinds
+of work, such as a restart, take no backup.
 
 **Clients** see the maintenance of their projects under **Maintenance** in the client portal. When the project is
 closed or locked, the maintenance skips it unless the client lets it run there. If the provider allows it, the client

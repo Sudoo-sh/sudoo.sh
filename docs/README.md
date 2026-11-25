@@ -10,6 +10,7 @@ Everything about Sudoo.sh, in one place. The same pages are on GitHub and inside
 | :--- | :--- |
 | New to the panel | [Project overview](../README.md), then the [User manual](USER_MANUAL.md) |
 | A developer or maintainer (you keep instances up to date) | [User manual](USER_MANUAL.md): sections 1 to 6 |
+| Doing a job step by step (install, backups, domains, client portal...) | [Workflows](manual/README.md), in English and Arabic |
 | Installing Sudoo.sh, or running the server | [Administrator guide](ADMIN_GUIDE.md): one command installs everything |
 | A super admin or administrator of the panel | [User manual](USER_MANUAL.md), then the [Administrator guide](ADMIN_GUIDE.md) |
 | A developer connecting another system to an instance | [API and webhooks](API.md) |

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import posixpath
 import re
 
 import pytest
@@ -167,6 +168,42 @@ def test_every_documentation_link_and_image_works(admin: Client) -> None:
                 broken.append(f"{path} -> /{kind}/{href}")
     assert not broken
     assert client.get("/api/v1/docs/../README.md").status_code == 404
+
+
+def test_documentation_serves_only_listed_images(admin: Client) -> None:
+    from sudoo.web import docs
+
+    client, _ = admin
+    shot = "docs/images/manual/install-1-setup-en.png"
+    assert shot in docs.IMAGES
+    served = client.get(f"/docs/{shot}")
+    assert served.status_code == 200 and served.mimetype == "image/png"
+    assert served.data.startswith(b"\x89PNG\r\n\x1a\n")
+    diagram = client.get("/docs/docs/images/architecture.svg")
+    assert diagram.status_code == 200 and diagram.mimetype == "image/svg+xml"
+    # only the extensions in IMAGE_TYPES, and only files found at start-up, are images
+    assert {posixpath.splitext(path)[1] for path in docs.IMAGES} <= set(docs.IMAGE_TYPES)
+    for path in (
+        "docs/images/manual/../../../pyproject.toml",  # a path out of the documentation
+        "docs/images/manual/..%2f..%2f..%2fpyproject.toml",
+        "docs/images/manual/missing.png",  # not found at start-up
+        "docs/images/manual/install-1-setup-en.jpg",  # not an allowed extension
+        "src/sudoo/instances/mark.svg",  # an image outside the documentation
+    ):
+        assert client.get(f"/docs/{path}").status_code == 404, path
+    # a page is never served as a file: its old address goes to the Help page
+    moved = client.get("/docs/docs/manual/README.md")
+    assert moved.status_code == 302 and moved.headers["Location"] == "/help/docs/manual/README.md"
+    # the workflow guides are in the sidebar, and their screenshots are linked from the rendered page
+    sections = client.get("/api/v1/docs").get_json()["data"]["sections"]
+    workflows = next(section for section in sections if section["title"] == "Workflows")
+    assert len(workflows["pages"]) == 29  # the index, and 14 workflows in English and in Arabic
+    page = client.get("/api/v1/docs/docs/manual/01-install-sudoo.md").get_json()["data"]
+    assert 'src="/docs/docs/images/manual/install-1-setup-en.png"' in page["html"]
+    arabic = client.get("/api/v1/docs/docs/manual/01-install-sudoo.ar.md").get_json()["data"]
+    assert 'src="/docs/docs/images/manual/install-1-setup-ar.png"' in arabic["html"]
+    assert arabic["html"].startswith('<div dir="rtl" lang="ar">') and arabic["headings"]
+    assert not page["html"].startswith("<div dir")
 
 
 # ---------------------------------------------------------------- first run

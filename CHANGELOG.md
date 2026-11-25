@@ -29,6 +29,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **An API token can no longer get the production access pass** (security review finding F-03): `POST /instances/<name>/open-link`
+  answers 403 for a token, and a token never gets a pass in Connect as either. A pass lets its holder past the country and
+  address rules, which are there to limit stolen credentials. Scripts that used a token to open a production instance
+  through the pass must use a signed-in session for it.
 - **Formatting setup for the web app:** Prettier for `web/` (`.prettierrc.json`, `npm run format`, `npm run format:check`), a
   pre-commit hook, and the two-space rule for TypeScript and SCSS in `.editorconfig`. No behaviour change.
 

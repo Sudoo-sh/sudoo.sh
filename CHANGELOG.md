@@ -8,6 +8,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Topology sharing is withdrawn when the marketplace is switched off** (security review finding F-09): the pseudonym key
+  is forgotten at once, whatever `MARKETPLACE` says, so ids sent later cannot be matched with the earlier snapshot. The
+  hub is not contacted while the marketplace is off; the delete request is sent the next time it is on.
 - **Temporary access and client access requests no longer share storage**: both features wrote to the collection
   `access_requests`, so a client request's cleanup could delete approved temporary-access grants, and temporary access
   failed with an error while any client request existed. Temporary access now uses `role_requests` and the client

@@ -1,5 +1,5 @@
 import { Boxes, Plus, Search, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useDeletedInstances, useHistory, useInstances, useMetrics } from "@/api/queries";
 import type { Columns, DeletedInstance, Instance, InstanceStatus, Stage } from "@/api/types";
@@ -60,7 +60,7 @@ const MEASURES: Record<Measure, { value: (i: Instance) => number | null | undefi
 
 function Charts({ instances }: { instances: Instance[] | undefined }) {
   const navigate = useNavigate();
-  const { data: history } = useHistory();
+  const history = useDeferredValue(useHistory().data); // drawn at low priority, as on the page (below)
   const [measure, setMeasure] = useState<Measure>("cpu");
   const words = useT(dashboard);
   const t = words.charts;
@@ -227,9 +227,12 @@ const ASLEEP: InstanceStatus[] = ["paused", "switched_off", "stopped"];
 
 export function DashboardPage() {
   const can = useCan();
-  const { data: instances, isPending } = useInstances();
-  const { data: metrics } = useMetrics();
-  const { data: history } = useHistory();
+  // The figures arrive several times a minute (and the instances on every change): the page draws each new set at
+  // low priority, in slices the browser can interrupt, so typing in the search box or a click never waits for it.
+  const { data: liveInstances, isPending } = useInstances();
+  const instances = useDeferredValue(liveInstances);
+  const metrics = useDeferredValue(useMetrics().data);
+  const history = useDeferredValue(useHistory().data);
   const [query, setQuery] = useState("");
   const [params] = useSearchParams();
   const [filter, setFilter] = useState<Filter>(params.get("filter") === "expiring" ? "expiring" : "all");

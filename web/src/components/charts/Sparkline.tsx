@@ -12,6 +12,7 @@ import {
   type ScriptableContext,
 } from "chart.js";
 import { useEffect, useRef } from "react";
+import { useSeen } from "@/lib/seen";
 import { alpha, token, useThemeVersion } from "./theme";
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, Filler, Decimation);
@@ -30,11 +31,12 @@ export function Sparkline({
   const canvas = useRef<HTMLCanvasElement>(null);
   const chart = useRef<Chart<"line"> | null>(null);
   const theme = useThemeVersion();
+  const seen = useSeen(canvas); // created when it comes near the viewport (lib/seen.ts)
   const drawn = useRef<unknown[]>([]); // the data the chart was created with: not drawn a second time
   const points = () => t.map((x, i) => ({ x, y: values[i] ?? null }));
 
   useEffect(() => {
-    if (!canvas.current) return;
+    if (!canvas.current || !seen) return;
     const stroke = token(color) || "#714b67";
     chart.current = new Chart<"line">(canvas.current, {
       type: "line",
@@ -88,7 +90,7 @@ export function Sparkline({
       chart.current?.destroy();
       chart.current = null;
     };
-  }, [theme, color, max]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [theme, color, max, seen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const current = chart.current;

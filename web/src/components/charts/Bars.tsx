@@ -4,6 +4,7 @@
 
 import { BarController, BarElement, CategoryScale, Chart, LinearScale, Tooltip } from "chart.js";
 import { useEffect, useRef } from "react";
+import { useSeen } from "@/lib/seen";
 import { getLocale, useLocale } from "@/i18n";
 import { fitText, placeLabel, readableOn, trailingRoom } from "./bar-labels";
 import { token, useThemeVersion } from "./theme";
@@ -51,6 +52,7 @@ export function Bars({
   const canvas = useRef<HTMLCanvasElement>(null);
   const chart = useRef<Chart<"bar"> | null>(null);
   const theme = useThemeVersion();
+  const seen = useSeen(canvas); // created when it comes near the viewport (lib/seen.ts)
   const locale = useLocale();
   const latest = useRef({ bars, format, onPick });
   /** the padding past the longest bar (for its value), which the names' room depends on */
@@ -58,7 +60,7 @@ export function Bars({
   latest.current = { bars, format, onPick };
 
   useEffect(() => {
-    if (!canvas.current) return;
+    if (!canvas.current || !seen) return;
     const accent = token("--brand");
     const quiet = token("--text-3");
     const mirrored = getLocale() === "ar";
@@ -162,7 +164,7 @@ export function Bars({
       chart.current?.destroy();
       chart.current = null;
     };
-  }, [theme, max, locale]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [theme, max, locale, seen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const current = chart.current;
@@ -178,7 +180,7 @@ export function Bars({
     room.current = trailingRoom(widest);
     current.options.layout = { padding: getLocale() === "ar" ? { left: room.current } : { right: room.current } };
     current.update(matchMedia("(prefers-reduced-motion: reduce)").matches ? "none" : undefined);
-  }, [bars, theme, locale]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bars, theme, locale, seen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{ position: "relative", height: Math.max(80, bars.length * 30 + 8) }}>

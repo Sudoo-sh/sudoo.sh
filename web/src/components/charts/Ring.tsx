@@ -2,6 +2,7 @@
 
 import { ArcElement, Chart, DoughnutController, Tooltip } from "chart.js";
 import { useEffect, useRef } from "react";
+import { useSeen } from "@/lib/seen";
 import { getLocale, useT } from "@/i18n";
 import charts from "@/i18n/charts";
 import { token, useThemeVersion } from "./theme";
@@ -19,11 +20,12 @@ export function Ring({ parts, total, caption }: { parts: Part[]; total: number; 
   const canvas = useRef<HTMLCanvasElement>(null);
   const chart = useRef<Chart<"doughnut"> | null>(null);
   const theme = useThemeVersion();
+  const seen = useSeen(canvas); // created when it comes near the viewport (lib/seen.ts)
   const none = useT(charts).none;
   const shown = parts.some((p) => p.value > 0) ? parts : [{ label: none, value: 1, color: "--hairline" }];
 
   useEffect(() => {
-    if (!canvas.current) return;
+    if (!canvas.current || !seen) return;
     chart.current = new Chart<"doughnut">(canvas.current, {
       type: "doughnut",
       data: { labels: [], datasets: [{ data: [], borderWidth: 0, spacing: 2, borderRadius: 3 }] },
@@ -51,7 +53,7 @@ export function Ring({ parts, total, caption }: { parts: Part[]; total: number; 
       chart.current?.destroy();
       chart.current = null;
     };
-  }, [theme]);
+  }, [theme, seen]);
 
   useEffect(() => {
     const current = chart.current;
@@ -60,7 +62,7 @@ export function Ring({ parts, total, caption }: { parts: Part[]; total: number; 
     current.data.datasets[0]!.data = shown.map((p) => p.value);
     current.data.datasets[0]!.backgroundColor = shown.map((p) => token(p.color));
     current.update(matchMedia("(prefers-reduced-motion: reduce)").matches ? "none" : undefined);
-  }, [parts, theme]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [parts, theme, seen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="donut">

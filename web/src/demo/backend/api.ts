@@ -4646,6 +4646,7 @@ export async function answer(method: string, path: string, query: URLSearchParam
       if (!PUBLIC.some((p) => path === p || path.startsWith(`${p}/`))) signedIn();
       const premium = gatedBy(method, path);
       if (premium) needPremium(premium);
+      if (path.startsWith("/mail-templates")) await mail.ready(); // loaded on first use (backend/mail.ts)
       return await r.handler({ method, params, query, body: (body ?? {}) as Record<string, unknown> });
     } catch (error) {
       if (error instanceof Problem) return problem(error.status, error.detail, path);

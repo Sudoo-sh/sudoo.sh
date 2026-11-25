@@ -14,6 +14,38 @@ const events = process.env.SUDOO_EVENTS ?? "http://127.0.0.1:9001";
 // `npm run build:demo` (mode "demo"): the same app with an in-browser backend and sample data (src/demo/), a static
 // site for Cloudflare Pages in dist-demo/. Its page names sudoo.sh as the canonical address, and the host's headers,
 // SPA fallback and robots.txt (demo/_headers, demo/_redirects, demo/robots.txt) go next to it.
+// The demo's page starts the app only after its first screen is drawn (demo/start.js): the entry script, the files Vite
+// asks the browser to fetch ahead (modulepreload) and the app's stylesheet move from the page's <head> into start.js's
+// data- attributes; the first paint waits only for the page, boot.js and demo/first-screen.css.
+function demoStart(): Plugin {
+  return {
+    name: "sudoo-demo-start",
+    transformIndexHtml: {
+      order: "post",
+      handler(html) {
+        const entry = /<script type="module" crossorigin src="([^"]+)"><\/script>\s*/.exec(html);
+        if (!entry) throw new Error("demo: the entry script was not found in index.html");
+        const preload = [...html.matchAll(/<link rel="modulepreload" crossorigin href="([^"]+)">\s*/g)];
+        let page = html.replace(entry[0], "");
+        for (const link of preload) page = page.replace(link[0], "");
+        const hrefs = preload.map((link) => link[1]).join(" ");
+        // the app's stylesheet downloads at once but no longer holds up the first paint: start.js applies it, then
+        // starts the app; the first screen has its own small stylesheet
+        const css = /<link rel="stylesheet" crossorigin href="([^"]+)">/.exec(page);
+        if (!css) throw new Error("demo: the app's stylesheet was not found in index.html");
+        page = page.replace(
+          css[0],
+          `<link rel="stylesheet" href="/first-screen.css">\n    <link rel="preload" as="style" crossorigin href="${css[1]}">`,
+        );
+        return page.replace(
+          "</head>",
+          `  <script src="/start.js" data-entry="${entry[1]}" data-style="${css[1]}" data-preload="${hrefs}" defer></script>\n  </head>`,
+        );
+      },
+    },
+  };
+}
+
 function demoSite(): Plugin {
   const file = (name: string) => readFileSync(new URL(`./demo/${name}`, import.meta.url), "utf8");
   return {
@@ -21,12 +53,14 @@ function demoSite(): Plugin {
     transformIndexHtml: (html) =>
       html
         .replace("<title>Sudoo.sh</title>", "<title>Sudoo.sh demo: the panel with sample data</title>")
+        // a first screen drawn from the page itself while the scripts load (demo/first-screen.html); the app replaces it
+        .replace('<div id="root"></div>', `<div id="root">${file("first-screen.html").trim()}</div>`)
         .replace(
           /<meta name="description" content="[^"]*" \/>/,
           '<meta name="description" content="Click through the Sudoo.sh panel with sample data: Odoo instances per branch, live metrics, backups and roles. Nothing to install." />\n    <link rel="canonical" href="https://sudoo.sh/" />',
         ),
     generateBundle() {
-      for (const name of ["_headers", "_redirects", "robots.txt"])
+      for (const name of ["_headers", "_redirects", "robots.txt", "start.js", "first-screen.css"])
         this.emitFile({ type: "asset", fileName: name, source: file(name) });
     },
   };
@@ -110,7 +144,7 @@ function demoPremium(mode: string): Plugin {
 }
 
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), tailwindcss(), demoPremium(mode), ...(mode === "demo" ? [demoSite()] : [])],
+  plugins: [react(), tailwindcss(), demoPremium(mode), ...(mode === "demo" ? [demoSite(), demoStart()] : [])],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   server: {
     proxy: {

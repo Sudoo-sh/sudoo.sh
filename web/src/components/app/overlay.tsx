@@ -200,10 +200,24 @@ export function Menu({
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const anchor = useRef<HTMLSpanElement>(null);
+  // The menu's state belongs on the button `trigger` draws, which is what assistive technology reaches: the anchor
+  // around it is only where the menu is placed, and a <span> may not carry aria-expanded (Radix would put it there).
+  useEffect(() => {
+    const button = anchor.current?.querySelector<HTMLElement>("button, a");
+    if (!button) return;
+    button.setAttribute("aria-haspopup", "menu");
+    button.setAttribute("aria-expanded", String(open));
+  }, [open]);
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       {/* the menu opens on a press or a key on what `trigger` draws (its `open` has nothing left to do) */}
-      <DropdownMenuTrigger asChild>
+      <DropdownMenuTrigger
+        asChild
+        type={undefined}
+        aria-haspopup={undefined}
+        aria-expanded={undefined}
+        aria-controls={undefined}
+      >
         <span className="menu-anchor" ref={anchor}>
           {trigger(noop)}
         </span>

@@ -285,6 +285,12 @@ def hardware_fingerprint(public_key: str) -> str:
     return crypto.fingerprint(public_key, machine_id(), primary_mac())
 
 
+def server_fingerprint() -> str | None:
+    """A fingerprint of this machine alone (no installation key), so the hub can tell a server that was installed
+    before; None when neither a machine id nor a MAC address can be read. The hub keeps only a keyed digest."""
+    return crypto.server_fingerprint(machine_id(), primary_mac())
+
+
 def core_hash() -> str:
     """SHA-256 over the panel's own Python files (relative path and content of each, in path order): what the hub
     compares with the hash of the released version."""

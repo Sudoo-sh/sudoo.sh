@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Engine counts in the marketplace heartbeat:** `engine_available` (`docker` or `docker+kubernetes`),
+  `instances_docker`, `instances_kubernetes` and `nodes_kubernetes`. Numbers only: no names, addresses or anything
+  personal. Panels that do not send them keep working; the hub accepts older panels. See the marketplace guide.
+- **Server fingerprint in the marketplace registration and heartbeat:** `server_fingerprint`, a SHA-256 over the machine
+  id and the primary MAC address without the installation key, so the hub can recognize a server after a reinstall.
+  Left out when neither can be read; `hardware_fingerprint` is unchanged. See the marketplace guide.
+
 ### Changed
 
 - **Formatting setup for the web app:** Prettier for `web/` (`.prettierrc.json`, `npm run format`, `npm run format:check`), a

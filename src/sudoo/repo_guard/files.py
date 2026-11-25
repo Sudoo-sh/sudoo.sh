@@ -26,6 +26,7 @@ SCRIPT = ".github/sudoo/check_addons.py"
 PRE_COMMIT = ".pre-commit-config.yaml"
 DOC = "docs/CHECKS.md"
 CODEOWNERS = ".github/CODEOWNERS"
+OTHER_CODEOWNERS = ("CODEOWNERS", "docs/CODEOWNERS")  # where GitHub looks after .github/, in its order
 PATHS = (WORKFLOW, SCRIPT, PRE_COMMIT, DOC, CODEOWNERS)
 ACTIONS_APP_ID = 15368  # GitHub Actions: the only source the required check may come from
 

@@ -2615,6 +2615,9 @@ people named in the pushers, or by the owner of a personal repository. GitHub's 
 roles: an organisation that names nobody gets a note in the preview and no review rule, until a team is named. Turn it
 off, per project or with `PROJECT_GUARD_PROTECT_GITHUB_DIR`, for a team of one. The rule asks for the review once the
 CODEOWNERS file is merged; applying the rules before that does not block anything extra.
+A repository that already has its own `CODEOWNERS` (at the root or in `docs/`) keeps it: GitHub reads only
+the first one it finds, starting with `.github/`, so the panel adds none there and the preview shows the line to add to
+the repository's own file.
 
 **Rules already on GitHub.** The next time the rules are previewed or applied, rules written before this change show as
 changed (the check's source, the code-owner review) and are updated, which only tightens them. Each application writes

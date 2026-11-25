@@ -224,6 +224,7 @@ class FakeHub:
         self.keys: list[HubKey] = [HubKey(Ed25519PrivateKey.generate())]
         self.installations: dict[str, Ed25519PublicKey] = {}
         self.fingerprints: dict[str, str] = {}
+        self.server_fingerprints: dict[str, str | None] = {}  # what each registration sent (None: nothing)
         self.flagged: set[str] = set()
         self.revoked: set[str] = set()
         self.nonces: set[tuple[str, str]] = set()
@@ -863,6 +864,7 @@ class FakeHub:
                         return None
                     hub.installations[data["installation_id"]] = key
                     hub.fingerprints.setdefault(data["installation_id"], data["hardware_fingerprint"])
+                    hub.server_fingerprints[data["installation_id"]] = data.get("server_fingerprint")
                     out = {"installation_id": data["installation_id"], "status": "active",
                            "hub_key": {"key_id": hub.key_id}, "heartbeat_interval_seconds": 900}  # fmt: skip
                     return self._send(201, {"data": out})

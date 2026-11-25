@@ -573,6 +573,19 @@ def test_codeowners_file_follows_the_rules(fake: FakeGitHub) -> None:
     assert files.CODEOWNERS in fake.head
 
 
+def test_codeowners_is_not_added_over_the_repositorys_own(fake: FakeGitHub) -> None:
+    """GitHub reads only the first CODEOWNERS it finds (.github/, the root, docs/): one in .github/ would replace it."""
+    project = _project()
+    teams = _rules(enabled=True, pushers={"mode": "named", "teams": ["release-managers"]})
+    storage().put(repo_guard.COLLECTION, project["id"], {"rules": teams})
+    fake.main["CODEOWNERS"] = "* @Acme/everyone\n"
+    planned = {f["path"]: f for f in repo_guard.preview_checks(project, _checks())["files"]}
+    assert planned[files.CODEOWNERS]["action"] == "kept" and "`CODEOWNERS`" in planned[files.CODEOWNERS]["reason"]
+    opened = repo_guard.sync_checks(project, _checks(), "ada")
+    assert fake.head is not None and files.CODEOWNERS not in fake.head
+    assert files.CODEOWNERS not in opened["pull"]["files"]
+
+
 def test_only_github_actions_can_make_the_required_check(fake: FakeGitHub) -> None:
     project = _project()
     storage().put(repo_guard.COLLECTION, project["id"], {"checks": _checks(), "pull": PULL})

@@ -6,6 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Engine counts in the marketplace heartbeat:** `engine_available` (`docker` or `docker+kubernetes`),
+  `instances_docker`, `instances_kubernetes` and `nodes_kubernetes`. Numbers only: no names, addresses or anything
+  personal. Panels that do not send them keep working; the hub accepts older panels. See the marketplace guide.
+- **Server fingerprint in the marketplace registration and heartbeat:** `server_fingerprint`, a SHA-256 over the machine
+  id and the primary MAC address without the installation key, so the hub can recognize a server after a reinstall.
+  Left out when neither can be read; `hardware_fingerprint` is unchanged. See the marketplace guide.
+- **"Changes to `.github/` need review"** (`PROJECT_GUARD_PROTECT_GITHUB_DIR`, on by default for production, optional
+  per project): the checks' pull request adds a CODEOWNERS entry for `.github/` (the project's GitHub teams or people,
+  or the owner of a personal repository) and the production rule asks for a code-owner review. The remaining risk is
+  described in the security notes.
+- **A per-account limit on sign-in codes by e-mail** (security review finding F-06): `EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT`
+  (10 by default, an admin setting) caps the codes one account is sent per hour from all addresses together; over it
+  nothing is sent and the page answers the same. Rate limits for sign-in failures and codes now count an IPv6 address
+  as its /64. Wrong tries per account are not capped (as decided); the per-code and per-address limits stay.
+- **A standing alert while the country database is missing or old** (security review finding F-05): with the access rules
+  on, administrators see it in the panel's alerts until a database newer than `ACCESS_RULES_GEO_MAX_AGE_DAYS` days
+  (new setting, 45 by default) is in place. The default of `ACCESS_RULES_GEO_MISSING` (`open`) is unchanged.
+
 ### Fixed
 
 - **Topology sharing is withdrawn when the marketplace is switched off** (security review finding F-09): the pseudonym key
@@ -22,20 +42,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   status posted under that name by another app or by anyone with write access no longer satisfies them. The panel's
   result reader ignores a `sudoo-checks` run or status that does not come from GitHub Actions. Rules written earlier
   show as changed in the next preview and are updated when applied (this only tightens them).
-
-### Added
-
-- **A per-account limit on sign-in codes by e-mail** (security review finding F-06): `EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT`
-  (10 by default, an admin setting) caps the codes one account is sent per hour from all addresses together; over it
-  nothing is sent and the page answers the same. Rate limits for sign-in failures and codes now count an IPv6 address
-  as its /64. Wrong tries per account are not capped (as decided); the per-code and per-address limits stay.
-- **A standing alert while the country database is missing or old** (security review finding F-05): with the access rules
-  on, administrators see it in the panel's alerts until a database newer than `ACCESS_RULES_GEO_MAX_AGE_DAYS` days
-  (new setting, 45 by default) is in place. The default of `ACCESS_RULES_GEO_MISSING` (`open`) is unchanged.
-- **"Changes to `.github/` need review"** (`PROJECT_GUARD_PROTECT_GITHUB_DIR`, on by default for production, optional
-  per project): the checks' pull request adds a CODEOWNERS entry for `.github/` (the project's GitHub teams or people,
-  or the owner of a personal repository) and the production rule asks for a code-owner review. The remaining risk is
-  described in the security notes.
 
 ### Changed
 

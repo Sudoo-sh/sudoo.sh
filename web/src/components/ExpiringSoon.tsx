@@ -44,6 +44,9 @@ export function Extend({ instance, choices }: { instance: Instance; choices: num
     });
   const days = Number(value);
   const valid = Number.isInteger(days) && days > 0;
+  // the date the instance would end on: "+N days" counts from its current end date
+  const endsOn = (add: number) =>
+    instance.expires_at ? fullDateTime(new Date(instance.expires_at).getTime() + add * 86_400_000) : "";
   return (
     <>
       <Menu
@@ -58,6 +61,7 @@ export function Extend({ instance, choices }: { instance: Instance; choices: num
             {choices.map((n) => (
               <MenuItem key={n} onSelect={() => run(n)}>
                 {t.addDays(n)}
+                {endsOn(n) && <span className="faint small"> · {t.until(endsOn(n))}</span>}
               </MenuItem>
             ))}
             <MenuItem onSelect={() => setCustom(true)}>{t.other}</MenuItem>
@@ -87,6 +91,7 @@ export function Extend({ instance, choices }: { instance: Instance; choices: num
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && valid && run(days)}
           />
+          {valid && endsOn(days) && <p className="small muted">{t.until(endsOn(days))}</p>}
         </Modal>
       )}
     </>

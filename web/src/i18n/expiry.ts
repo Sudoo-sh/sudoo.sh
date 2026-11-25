@@ -17,6 +17,7 @@ const en = {
   noProject: "No project",
   extended: (name: string, days: number) => `${name} extended by ${days} ${days === 1 ? "day" : "days"}.`,
   notExtended: "Could not extend",
+  until: (date: string) => `until ${date}`,
   restartNote: "Not started again",
   tiles: {
     expiring: "Expiring soon",
@@ -52,6 +53,7 @@ const ar: typeof en = {
   noProject: "دون مشروع",
   extended: (name, days) => `مُدّدت ${name} بمقدار ${days} ${days === 1 ? "يوم" : "أيام"}.`,
   notExtended: "تعذّر التمديد",
+  until: (date) => `حتى ${date}`,
   restartNote: "لم تبدأ من جديد",
   tiles: {
     expiring: "تنتهي قريباً",

@@ -8,7 +8,7 @@ vi.mock("@/i18n", async () => {
   const common = (await import("@/i18n/common")).default;
   const expiry = (await import("@/i18n/expiry")).default;
   const pick = (d: unknown) => (d === dashboard ? dashboard.en : d === common ? common.en : expiry.en);
-  return { useT: pick, words: pick };
+  return { useT: pick, words: pick, intlTag: () => "en", getLocale: () => "en" };
 });
 
 const can = {

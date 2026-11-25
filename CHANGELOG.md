@@ -36,6 +36,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **The repository guard's GitHub tokens are limited to the project's repository** (security review finding F-07): each
+  installation token the guard asks for names the one repository it is used on, so it cannot touch the installation's
+  other repositories. No setting; nothing changes for the person using the panel.
 - **GitHub's read permission gives Viewer, not Tester, in new projects** (security review finding F-04): read is what
   everyone has on a public repository, and Tester can open Odoo on staging and development with Connect. The new setting
   `GITHUB_READ_ROLE` (`viewer` by default, or `tester`) sets it for projects made from now on. Projects made earlier

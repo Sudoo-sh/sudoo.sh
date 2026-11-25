@@ -61,6 +61,10 @@ const en = {
       title: "Stages",
       text: "Production instances are never paused or deleted automatically, are backed up every day and always updated safely. Staging instances get a longer lifetime. 0 turns the production limit off",
     },
+    expiry: {
+      title: "Instance lifetime",
+      text: "What happens when an instance expires: the warning e-mail, the days it stays stopped before deletion, and how far people may extend it themselves",
+    },
     projects: {
       title: "Projects",
       text: "Each project is one GitHub repository. These are the defaults of every project; a project can change all but the first on its Settings tab",
@@ -418,10 +422,15 @@ const en = {
     idle_hours: "Pause after, hours without visits",
     auto_update: "Get new code automatically",
     auto_upgrade: "Upgrade changed modules",
-    delete_after_days: "Lifetime, days",
+    delete_after_days: "Default lifetime, days",
     max_production_instances: "Production instances at most",
     production_auto_update: "Production gets new code automatically",
-    staging_delete_after_days: "Staging lifetime, days",
+    staging_delete_after_days: "Staging default lifetime, days",
+    expiry_extend_max_days: "Longest extension, days",
+    expiry_extend_max_count: "Extensions allowed",
+    expiry_extend_presets: "Extend menu, days",
+    expiry_warning_days: "Warn before expiry, days",
+    expiry_grace_days: "Days stopped before deletion",
     project_production_branches: "Production branches per project",
     project_builds_kept: "Builds kept per branch",
     project_auto_development: "New branches get a development instance",
@@ -982,11 +991,19 @@ const en = {
     auto_pause: "New instances pause when idle (each instance can change it).",
     auto_update: "New instances get new code automatically.",
     auto_upgrade: "New instances upgrade changed modules after an update.",
-    delete_after_days: "Lifetime offered for new instances, in days; 0: keep.",
+    delete_after_days:
+      "Default lifetime of a new instance, in days; 0: keep. The end date counts from creation, and each person can choose another lifetime when creating.",
     max_production_instances: "Instances that may be in the production stage at the same time; 0: no limit.",
     production_auto_update:
       "New production instances get new code automatically (off: updates only when someone asks, or once switched on for the instance).",
-    staging_delete_after_days: "Lifetime offered for new staging instances, in days; 0: keep.",
+    staging_delete_after_days: "Default lifetime of a new staging instance, in days; 0: keep.",
+    expiry_extend_max_days:
+      "The most days someone without the right to extend without limits (instances.extend_unlimited) may add in one extension; 0: no limit.",
+    expiry_extend_max_count: "How many times someone without that right may extend one instance; 0: no limit.",
+    expiry_extend_presets: "The extensions the Extend menu offers, in days, comma-separated (a custom number too).",
+    expiry_warning_days: "E-mail the people who look after an instance this many days before it expires; 0: no e-mail.",
+    expiry_grace_days:
+      "An expired instance is stopped, not deleted: it is deleted this many days later (0: at once). While it is stopped only someone with instances.extend_unlimited can extend it, which starts it again.",
     project_builds_kept:
       "Builds kept in the history of each branch (the oldest are removed first), with the stage changes and restores since the oldest of them.",
     project_production_branches:
@@ -1348,6 +1365,10 @@ const ar: typeof en = {
       title: "المراحل",
       text: "بيئات الإنتاج لا تتوقف مؤقتًا ولا تُحذف تلقائيًا أبدًا، وتُنسخ احتياطيًا كل يوم وتُحدَّث دائمًا بأمان. وبيئات التجهيز تبقى مدة أطول. القيمة 0 تلغي حدّ الإنتاج",
     },
+    expiry: {
+      title: "مدة بقاء البيئات",
+      text: "ما يحدث عند انتهاء مدة البيئة: بريد التنبيه، وأيام التوقف قبل الحذف، ومقدار ما يمكن للناس تمديده بأنفسهم",
+    },
     projects: {
       title: "المشاريع",
       text: "كل مشروع مستودع واحد على GitHub. هذه هي القيم الافتراضية لكل مشروع؛ ويمكن للمشروع تغييرها كلها عدا الأولى من تبويب إعداداته",
@@ -1675,10 +1696,15 @@ const ar: typeof en = {
     idle_hours: "الإيقاف المؤقت بعد ساعات دون زيارات",
     auto_update: "جلب الشيفرة الجديدة تلقائيًا",
     auto_upgrade: "ترقية الوحدات المتغيّرة",
-    delete_after_days: "مدة البقاء، بالأيام",
+    delete_after_days: "مدة البقاء الافتراضية، بالأيام",
     max_production_instances: "أقصى عدد لبيئات الإنتاج",
     production_auto_update: "الإنتاج يجلب الشيفرة الجديدة تلقائيًا",
-    staging_delete_after_days: "مدة بقاء التجهيز، بالأيام",
+    staging_delete_after_days: "مدة بقاء التجهيز الافتراضية، بالأيام",
+    expiry_extend_max_days: "أطول تمديد، بالأيام",
+    expiry_extend_max_count: "عدد التمديدات المسموحة",
+    expiry_extend_presets: "قائمة التمديد، بالأيام",
+    expiry_warning_days: "التنبيه قبل الانتهاء، بالأيام",
+    expiry_grace_days: "أيام التوقف قبل الحذف",
     project_production_branches: "فروع الإنتاج لكل مشروع",
     project_builds_kept: "الأبنية المحفوظة لكل فرع",
     project_auto_development: "تحصل الفروع الجديدة على بيئة تطوير",
@@ -2219,11 +2245,19 @@ const ar: typeof en = {
     auto_pause: "تتوقف البيئات الجديدة مؤقتًا عند الخمول (ويمكن لكل بيئة تغيير ذلك).",
     auto_update: "تجلب البيئات الجديدة الشيفرة الجديدة تلقائيًا.",
     auto_upgrade: "تُرقّي البيئات الجديدة الوحدات المتغيّرة بعد التحديث.",
-    delete_after_days: "مدة البقاء المعروضة للبيئات الجديدة، بالأيام؛ 0: إبقاء.",
+    delete_after_days:
+      "مدة البقاء الافتراضية للبيئة الجديدة، بالأيام؛ 0: إبقاء. هي بداية المدة: يُحسب تاريخ الانتهاء من لحظة الإنشاء، ويمكن لكل شخص اختيار مدة أخرى عند الإنشاء.",
     max_production_instances: "البيئات التي يمكن أن تكون في مرحلة الإنتاج في الوقت نفسه؛ 0: دون حد.",
     production_auto_update:
       "تجلب بيئات الإنتاج الجديدة الشيفرة الجديدة تلقائيًا (متوقف: تحديثات فقط حين يطلبها أحد، أو بعد تفعيلها للبيئة).",
-    staging_delete_after_days: "مدة البقاء المعروضة لبيئات التجهيز الجديدة، بالأيام؛ 0: إبقاء.",
+    staging_delete_after_days: "مدة البقاء الافتراضية لبيئة التجهيز الجديدة، بالأيام؛ 0: إبقاء.",
+    expiry_extend_max_days:
+      "أكثر عدد أيام يمكن لمن ليس لديه صلاحية التمديد دون حدود (instances.extend_unlimited) إضافته في تمديد واحد؛ 0: دون حد.",
+    expiry_extend_max_count: "عدد المرات التي يمكن لمن ليس لديه هذه الصلاحية تمديد بيئة واحدة فيها؛ 0: دون حد.",
+    expiry_extend_presets: "التمديدات التي تعرضها قائمة التمديد، بالأيام، مفصولة بفواصل (ويمكن إدخال رقم آخر).",
+    expiry_warning_days: "إرسال بريد إلى من يرعون البيئة قبل انتهاء مدتها بهذا العدد من الأيام؛ 0: دون بريد.",
+    expiry_grace_days:
+      "البيئة المنتهية تُوقَف ولا تُحذف: تُحذف بعد هذا العدد من الأيام (0: فورًا). وما دامت متوقفة لا يمدّدها إلا من لديه instances.extend_unlimited، وهذا يشغّلها من جديد.",
     project_builds_kept:
       "الأبنية المحفوظة في سجل كل فرع (يُحذف الأقدم أولًا)، مع تغييرات المرحلة وعمليات الاستعادة منذ أقدمها.",
     project_production_branches:

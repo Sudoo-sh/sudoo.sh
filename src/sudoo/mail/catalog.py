@@ -18,6 +18,8 @@ below stay as they are, so "Reset to default" only forgets the change. Texts are
     plugin_notice        a notice for the super admins about a plugin (licence ending, switched off, ...)
     push_failed          a deployment triggered by someone's push failed: to the person who pushed
                          (projects/push_failed.py); push_failed_ar is the same in Arabic
+    instance_expiry_warning  an instance expires in a few days; instance_stopped: it expired and was stopped
+                         (instances/expiry.py); _ar in Arabic
     access_granted       project access given, changed or removed: to the person (projects/notices.py); also
     access_changed       access_*_ar in Arabic
     access_removed
@@ -1187,3 +1189,8 @@ MESSAGES.update({message.key: message for message in ACCESS_MESSAGES})
 from .catalog_access import MESSAGES as _ACCESS_MESSAGES  # noqa: E402
 
 MESSAGES.update({message.key: message for message in _ACCESS_MESSAGES})
+
+# the e-mails about the end of an instance's lifetime live in their own module (catalog_expiry.py)
+from .catalog_expiry import MESSAGES as _EXPIRY_MESSAGES  # noqa: E402
+
+MESSAGES.update({message.key: message for message in _EXPIRY_MESSAGES})

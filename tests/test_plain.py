@@ -293,8 +293,8 @@ def test_a_shorter_lifetime_needs_the_delete_permission(app: Any, admin: Client)
     assert client.patch(url, json={"delete_after_days": 7}, headers=headers).status_code == 403
     assert client.patch(url, json={"delete_after_days": 60}, headers=headers).status_code == 200  # unchanged
     assert client.patch(url, json={"delete_after_days": 90}, headers=headers).status_code == 200  # longer
-    assert client.patch(url, json={"delete_after_days": 0}, headers=headers).status_code == 200  # keep
-    assert store.read_env(CODED)["DELETE_AFTER_DAYS"] == "0"
+    assert client.patch(url, json={"delete_after_days": 0}, headers=headers).status_code == 403  # keep: unlimited
+    assert store.read_env(CODED)["DELETE_AFTER_DAYS"] == "90"
 
 
 def test_instance_names_its_containers_for_shell_commands(admin: Client) -> None:

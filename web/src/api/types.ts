@@ -1247,6 +1247,8 @@ export interface Account extends Profile {
   recovery_codes: RecoveryCodes | null;
   recovery_codes_needed: boolean;
   sign_in_email: SignInEmail;
+  /** The person's own choice for the e-mails about instances that expire; null: the default (on). */
+  expiry_email: boolean | null;
   sign_in_methods: SignInMethods;
   /** the web app's language: in use, the person's own choice (null: the server's default) and that default */
   language: { value: "en" | "ar"; own_choice: "en" | "ar" | null; default: "en" | "ar" };

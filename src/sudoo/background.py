@@ -244,11 +244,15 @@ def pause_idle_instances(now: float | None = None) -> list[str]:
 
 
 def _delete_expired_instances() -> None:
-    """Every few minutes: delete instances whose lifetime (DELETE_AFTER_DAYS) is over. The deletion backs up first;
-    an instance whose deletion failed operations.EXPIRY_ATTEMPTS times is switched off and left alone (expire)."""
+    """Every few minutes: stop instances whose lifetime (DELETE_AFTER_DAYS) is over, delete them EXPIRY_GRACE_DAYS
+    later, and warn the people of those about to expire (instances/expiry.py). The deletion backs up first; an
+    instance whose deletion failed operations.EXPIRY_ATTEMPTS times is switched off and left alone (expire)."""
     while True:
         time.sleep(settings.expiry_check_interval_seconds)
         delete_expired_instances()
+        from sudoo.instances import expiry
+
+        expiry.warn_expiring()
 
 
 def _locked(name: str) -> bool:
@@ -258,22 +262,34 @@ def _locked(name: str) -> bool:
 
 
 def delete_expired_instances(now: float | None = None) -> list[str]:
-    """Start the deletion of each expired instance that is not busy and not given up on; return their names."""
+    """The end of an instance's lifetime, in two steps: the first pass after it stops the instance (it is not
+    deleted) and records when; once EXPIRY_GRACE_DAYS have passed it is deleted, with its backup. Return the names
+    of the instances a job was started for. Safe to run again: what it does follows from what is recorded (the
+    expiry date, STATE "expired_at"), so a restart in between loses nothing. Never production (expires_at), never a
+    locked branch's instance, and not one whose deletion failed too often (expire)."""
     started = []
+    moment = time.time() if now is None else now
+    grace = settings.expiry_grace_days * 86400
     for name in store.names():
         env = store.read_env(name)
         expires = operations.expires_at(env)
-        if not expires or (time.time() if now is None else now) <= expires or jobs.busy(name):
+        if not expires or moment <= expires or jobs.busy(name):
             continue
-        if STATE.get(name).get("expiry_stopped"):
+        state = STATE.get(name)
+        if state.get("expiry_stopped"):
             continue
         if _locked(name):  # a locked branch's instance is never deleted automatically (projects/access.py)
             continue
-        jobs.start(
-            name, f"Deleted automatically ({env['DELETE_AFTER_DAYS']} days after creation)", "delete",
-            operations.expire, name,
-        )  # fmt: skip
-        started.append(name)
+        stopped_at = state.get("expired_at")
+        if not stopped_at and grace > 0:
+            jobs.start(name, "Stopped at the end of its lifetime", "pause", operations.stop_expired, name, moment)
+            started.append(name)
+        elif not stopped_at or moment >= stopped_at + grace:
+            jobs.start(
+                name, f"Deleted automatically ({env['DELETE_AFTER_DAYS']} days after creation)", "delete",
+                operations.expire, name,
+            )  # fmt: skip
+            started.append(name)
     return started
 
 

@@ -73,6 +73,8 @@ PERMISSIONS: dict[str, str] = {
     "instances.upgrade": "Upgrade an instance's database to a newer Odoo version: test it on a new staging instance, "
     "then upgrade production (with its backup and rollback)",
     "instances.delete": "Delete instances",
+    "instances.extend_unlimited": "Extend an instance's lifetime beyond the panel's extension limits, and extend one "
+    "that was stopped at the end of its lifetime (which starts it again)",
     "instances.credentials": "See Odoo passwords and ports",
     "instances.connect": "Open an instance's Odoo signed in as one of its users (Connect), and its login link",
     "instances.resources": "Set an instance's resources: Odoo workers, time and memory limits, container limits",

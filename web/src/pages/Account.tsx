@@ -461,6 +461,18 @@ function SecurityCard() {
       setBusy(false);
     }
   };
+  const chooseExpiry = async (on: boolean) => {
+    setBusy(true);
+    try {
+      await api.patch("/account", { expiry_email: on ? null : false });
+      await refetch();
+      toast("success", on ? t.on : t.off);
+    } catch (e) {
+      toast("error", t.notChanged, errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   const endOthers = async () => {
     setEnding(true);
     try {
@@ -495,6 +507,16 @@ function SecurityCard() {
             <span className="small muted">{hint}</span>
           </span>
           <Switch checked={mail.enabled} disabled={busy || locked} onChange={choose} />
+        </div>
+        <div className="row" style={{ alignItems: "flex-start" }}>
+          <span className="spacer">
+            <span className="t" style={{ fontWeight: 500 }}>
+              {t.expiryEmail}
+            </span>
+            <br />
+            <span className="small muted">{t.expiryEmailText}</span>
+          </span>
+          <Switch checked={account.expiry_email !== false} disabled={busy || !account.email} onChange={chooseExpiry} />
         </div>
         <div className="row" style={{ alignItems: "flex-start" }}>
           <span className="spacer">

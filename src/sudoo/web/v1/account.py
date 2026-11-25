@@ -2,8 +2,9 @@
 
 GET    /api/v1/account                          the account, its e-mail, second factors, recovery codes left and
                                                 whether it gets the sign-in e-mail
+                                                and the e-mails about instances about to expire
 PATCH  /api/v1/account                          change the profile (names, e-mail, phone), {"sign_in_email":
-                                                true|false|null} and {"language": "en"|"ar"|null} (null: the
+                                                true|false|null}, {"expiry_email": true|false|null} and {"language": "en"|"ar"|null} (null: the
                                                 server's default)
 POST   /api/v1/account/second-factors/<name>    start setting one up: e-mail {"email"}; app {} -> the secret;
                                                 replacing one already set up, or adding one next to another,
@@ -31,6 +32,7 @@ from flask import Blueprint, Response, abort, g, session
 from sudoo import accounts, auth, roles
 from sudoo.auth import github, github_access, methods, recovery, sign_in_notice
 from sudoo.config import settings
+from sudoo.instances import expiry
 from sudoo.mail import MailError
 
 from .. import signin
@@ -85,6 +87,7 @@ def read() -> Response:
             "recovery_codes": recovery_resource(account),
             "recovery_codes_needed": recovery.needed(account),
             "sign_in_email": sign_in_notice.preference(account),
+            "expiry_email": expiry.own_choice(account),
             "sign_in_methods": sign_in_methods_resource(account),
             "language": {
                 "value": accounts.language(account),
@@ -124,6 +127,8 @@ def change_profile() -> Response:
     data = check.body()
     if "sign_in_email" in data:
         _sign_in_email(data["sign_in_email"])
+    if "expiry_email" in data:
+        _expiry_email(data["expiry_email"])
     if "language" in data:
         _language(data["language"])
     values = {key: check.text(data, key, max_length=120) for key in accounts.PROFILE_FIELDS if key in data}
@@ -152,6 +157,14 @@ def _sign_in_email(choice: Any) -> None:
         abort(403, "The sign-in e-mail cannot be turned off on this panel. " + settings.contact_sentence())
     accounts.update(g.user["name"], **{sign_in_notice.FIELD: choice})
     log("sign-in e-mail " + ("turned on" if choice else "turned off" if choice is False else "back to the default"))
+
+
+def _expiry_email(choice: Any) -> None:
+    """The person's own choice for the e-mails about instances that expire (instances/expiry.py)."""
+    if choice is not None and not isinstance(choice, bool):
+        abort(400, "expiry_email must be true, false or null.")
+    accounts.update(g.user["name"], **{expiry.FIELD: choice})
+    log("expiry e-mails " + ("turned on" if choice else "turned off" if choice is False else "back to the default"))
 
 
 def _language(choice: Any) -> None:

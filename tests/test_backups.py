@@ -440,6 +440,7 @@ def test_automatic_deletion_switches_off_after_repeated_failures(monkeypatch: py
 
     _instance("shop")
     store.update_env("shop", DELETE_AFTER_DAYS=7)  # created 30 days ago: expired
+    live.change({"expiry_grace_days": 0})  # deleted at once (the grace period has its own tests)
     monkeypatch.setattr(operations.monitor, "mark_stopped", lambda name: None)
     begun: list[str] = []
     monkeypatch.setattr(

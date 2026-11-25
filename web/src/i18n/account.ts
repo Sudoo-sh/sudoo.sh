@@ -97,6 +97,9 @@ const en = {
     locked: "Your administrator keeps it on for every account.",
     hint: (on: boolean) => `When, from where and from which device. ${on ? "On" : "Off"} by default on this panel.`,
     emailMe: "E-mail me at each sign-in",
+    expiryEmail: "E-mail me about instances that expire",
+    expiryEmailText:
+      "A warning before an instance you look after expires, and a note when it is stopped. Project administrators who made the instance always get them.",
     elsewhere: "Sign out everywhere else",
     elsewhereText:
       "Ends every other session of your account, for example a browser you left signed in. Change your password too if a sign-in was not yours.",
@@ -233,6 +236,9 @@ const ar: typeof en = {
     locked: "يُبقيه المسؤول مفعّلًا لكل الحسابات.",
     hint: (on) => `متى، ومن أين، ومن أي جهاز. ${on ? "مفعّل" : "متوقف"} افتراضيًا في هذه اللوحة.`,
     emailMe: "راسلني عند كل تسجيل دخول",
+    expiryEmail: "راسلني عن البيئات التي تنتهي مدتها",
+    expiryEmailText:
+      "تنبيه قبل انتهاء مدة بيئة ترعاها، وإشعار عند إيقافها. مديرو المشروع الذين أنشؤوا البيئة يصلهم دائمًا.",
     elsewhere: "سجّل الخروج من كل مكان آخر",
     elsewhereText:
       "يُنهي كل جلسة أخرى لحسابك، مثل متصفح تركته مسجّل الدخول. وغيّر كلمة المرور أيضًا إن لم يكن تسجيل الدخول منك.",

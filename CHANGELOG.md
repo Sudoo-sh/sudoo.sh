@@ -25,6 +25,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **A standing alert while the country database is missing or old** (security review finding F-05): with the access rules
   on, administrators see it in the panel's alerts until a database newer than `ACCESS_RULES_GEO_MAX_AGE_DAYS` days
   (new setting, 45 by default) is in place. The default of `ACCESS_RULES_GEO_MISSING` (`open`) is unchanged.
+- **Instance lifetime, step 1 (Task 33):** an instance whose lifetime ends is stopped first and deleted
+  `EXPIRY_GRACE_DAYS` later (default 7; 0 keeps the old immediate deletion). People who look after it get a warning
+  e-mail `EXPIRY_WARNING_DAYS` before (once for each expiry date) and an e-mail when it is stopped, in English or
+  Arabic; each person can turn them off on the account page (not an administrator who made the instance). New
+  permission `instances.extend_unlimited` (Admin role and super admins): without it an extension adds at most
+  `EXPIRY_EXTEND_MAX_DAYS` days, `EXPIRY_EXTEND_MAX_COUNT` times, never "keep", and never to a stopped instance;
+  extending a stopped instance starts it again when the server can run one more. Settings: new "Instance lifetime"
+  group; the lifetime settings are now called "default lifetime".
 
 ### Fixed
 

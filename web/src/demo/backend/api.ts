@@ -261,6 +261,7 @@ function signedIn() {
 /** The visitor's recovery codes (made 41 days ago with the app; three used since) and sign-in e-mail choice. */
 const recovery = { left: 7, total: 10, created_at: iso(OPENED - 41 * DAY) };
 let signInEmail: boolean | null = null;
+let expiryEmail: boolean | null = null;
 /** The visitor's own language, kept in this browser like the panel's own; none: the visitor's browser, then the
  *  demo's DEFAULT_LANGUAGE. */
 let ownLanguage: Locale | null = storedLocale();
@@ -315,6 +316,7 @@ function account(): Account {
     require_second_factor: "admins",
     recovery_codes: user.second_factors.includes("totp") ? { ...recovery } : null,
     recovery_codes_needed: user.second_factors.includes("totp") && recovery.left === 0,
+    expiry_email: expiryEmail,
     sign_in_email: {
       enabled: signInEmail ?? Boolean(setting("sign_in_email") ?? true),
       own_choice: signInEmail,
@@ -593,6 +595,13 @@ route("PATCH", "/account", ({ body }) => {
       throw new Problem(403, `The sign-in e-mail cannot be turned off on this panel. ${CONTACT}`);
     signInEmail = typeof choice === "boolean" ? choice : null;
     record(ME, `sign-in e-mail ${choice ? "turned on" : choice === false ? "turned off" : "back to the default"}`);
+  }
+  if ("expiry_email" in body) {
+    const choice = body.expiry_email;
+    if (choice !== null && typeof choice !== "boolean")
+      throw new Problem(400, "expiry_email must be true, false or null.");
+    expiryEmail = choice;
+    record(ME, `expiry e-mails ${choice ? "turned on" : choice === false ? "turned off" : "back to the default"}`);
   }
   if ("language" in body) {
     const choice = body.language;

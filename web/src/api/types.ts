@@ -1380,6 +1380,30 @@ export interface User extends Profile {
   /** the GitHub user name an administrator expects, linked at the first sign-in with GitHub */
   github_login: string | null;
   has_password: boolean;
+  /** Disabled: it cannot sign in, its sessions ended and the API tokens it owns stopped working; its data stays */
+  disabled?: boolean;
+  disabled_at?: string | null;
+  disabled_by?: string | null;
+}
+
+/** A person who asked for an account from the sign-in page and confirmed their address: GET /access-requests. */
+export interface AccountRequest {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  status: "pending" | "approved" | "rejected";
+  reason?: string | null;
+  role?: Role | null;
+  decided_by?: string | null;
+  requested_at: string | null;
+  confirmed_at: string | null;
+  decided_at: string | null;
+}
+export interface AccountRequestPolicy {
+  /** the allowed e-mail domains (ACCESS_REQUEST_DOMAINS); empty: requests are off */
+  domains: string[];
+  enabled: boolean;
 }
 
 export interface DocsContents {

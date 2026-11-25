@@ -60,6 +60,7 @@ from sudoo.core import events as bus
 from sudoo.core import jobs
 
 from . import (
+    access_requests,
     access_rules,
     account,
     alerts,
@@ -127,6 +128,7 @@ def register(app: Flask) -> None:
         logs,
         connect,
         access_rules,
+        access_requests,
         imports,
         profiler,
         projects,

@@ -68,6 +68,9 @@ def user_resource(name: str, user: dict[str, Any]) -> dict[str, Any]:
         "last_sign_in_at": iso(user.get("last_login")),
         "password_changed_at": iso(user.get("password_changed")),
         "must_change_password": bool(user.get("must_change_password")),
+        "disabled": accounts.is_disabled(user),
+        "disabled_at": iso(user.get("disabled_at")),
+        "disabled_by": user.get("disabled_by"),
         "running_limit": user.get("running_limit"),
         "running_limit_default": settings.max_running_non_production_per_user or None,
         "second_factors": [f["name"] for f in factors_of(user) if f["enrolled"]],
@@ -292,6 +295,35 @@ def unlink_github(name: str) -> Response:
     accounts.end_sessions(name)
     log("GitHub account unlinked", detail=f"{name}: {link.get('login')} (GitHub id {link['id']})")
     return no_content()
+
+
+@blueprint.post("/users/<name>/disable")
+@require("accounts.manage")
+def disable_user(name: str) -> Response:
+    """Disable an account (reversible): no sign-in, sessions and its API tokens' use end; data and roles stay."""
+    account = _account(name)
+    if name == g.user["name"]:
+        abort(400, "You cannot disable the account you are signed in with.")
+    _guard(roles.normalize(account["role"]))
+    try:
+        changed = accounts.disable(name, g.user["name"])
+    except ValueError as error:
+        log("refused: disable an account", ok=False, detail=f"{name}: {error}")
+        abort(400, str(error))
+    if changed:
+        log("account disabled", detail=name)
+    return ok(user_resource(name, accounts.get(name) or {}))
+
+
+@blueprint.post("/users/<name>/enable")
+@require("accounts.manage")
+def enable_user(name: str) -> Response:
+    """Enable a disabled account again."""
+    account = _account(name)
+    _guard(roles.normalize(account["role"]))
+    if accounts.enable(name):
+        log("account enabled", detail=name)
+    return ok(user_resource(name, accounts.get(name) or {}))
 
 
 @blueprint.delete("/users/<name>")

@@ -320,3 +320,29 @@ def test_two_competing_starts_through_the_api_and_the_dispatcher(admin: Client, 
     running = set(jobs.starting())
     waiting = {str(item["instance"]) for item in queue.items()}
     assert len(running) == 1 and running | waiting == {"dev-q", "dev-n"}  # one runs, the other still waits
+
+
+def test_disabling_through_the_api_drops_a_waiting_request_and_enabling_does_not_bring_it_back(
+    admin: Client, operator: Client
+) -> None:
+    """The real Disable call (not a stand-in): a request waiting for a person is dropped at dispatch without any job,
+    their open session stays ended after Enable, and the dropped request is not revived."""
+    from sudoo.core import audit
+
+    person, person_headers = operator
+    make("dev-a", "development", "sync1", True)
+    make("dev-b", "development", "sync1", False)
+    limit(panel=1)
+    queued = post_start(person, person_headers, "dev-b")
+    assert queued.status_code == 202 and len(queue.items()) == 1
+    admin_client, admin_headers = admin
+    assert admin_client.post("/api/v1/users/sync1/disable", headers=admin_headers).status_code == 200
+    metrics.INSTANCES["dev-a"] = {"running": False}  # room appears: it would start if the person were enabled
+    assert queue.dispatch() == [] and STARTED == [] and queue.items() == []
+    assert any(
+        e["event"] == "capacity queue: dropped" and "disabled" in str(e.get("detail")) for e in audit.latest(limit=20)
+    )
+    assert person.get("/api/v1/account").status_code == 401  # the session ended at once
+    assert admin_client.post("/api/v1/users/sync1/enable", headers=admin_headers).status_code == 200
+    assert queue.dispatch() == [] and STARTED == [] and queue.items() == []  # not revived
+    assert person.get("/api/v1/account").status_code == 401  # nor the session

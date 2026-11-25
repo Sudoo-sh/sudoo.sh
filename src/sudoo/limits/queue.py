@@ -156,7 +156,7 @@ def _refused(item: Mapping[str, Any]) -> str | None:
     account = accounts.get(str(item["user"]))
     if account is None:
         return "the account no longer exists"
-    if account.get("disabled"):
+    if accounts.is_disabled(account):
         return "the account is disabled"
     need = "instances.create" if item["kind"] == "create" else "instances.update"
     held = item.get("held")

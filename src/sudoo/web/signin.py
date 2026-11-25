@@ -107,6 +107,9 @@ def first_factor_passed(
     """The first factor was right: sign in, or ask for the second one. Returns {"signed_in": True} or
     {"second_factor": {"methods": [...], ...}}, or {"redirect": {...}} when the account signs in at the other
     address (staff at the client portal's, clients at the panel's once it has one): nothing is started then."""
+    if accounts.is_disabled(account):
+        audit.record(name, ip, "sign-in refused (account disabled)", ok=False)
+        abort(403, "This account is disabled. Ask an administrator to enable it.")
     elsewhere = _other_address(name, account, ip)
     if elsewhere is not None:
         return {"redirect": elsewhere}
@@ -207,6 +210,7 @@ def _pending() -> tuple[str, dict[str, Any]]:
     account = accounts.get(pending.get("user", "")) if pending else None
     if (
         account is None
+        or accounts.is_disabled(account)
         or time.time() - pending.get("at", 0) > PENDING_SECONDS
         or pending.get("version") != account["session_version"]
     ):

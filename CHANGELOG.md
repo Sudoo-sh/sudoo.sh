@@ -40,6 +40,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Step by step workflow guides in English and Arabic (`docs/manual/`), with screenshots from the demo.
 - User manual: the first-run setup page has eight steps, not two; the certificate "Expires soon" window follows `ALERT_CERTIFICATE_DAYS`; production updates are always backed up first; maintenance backs up first only for Odoo image updates; the client portal is a Business plan feature.
+- **Disabled accounts (Task 34c):** an administrator can disable an account (Accounts, the account's menu, **Disable**;
+  `POST /users/<name>/disable`, `POST /users/<name>/enable`, permission `accounts.manage`). A disabled account cannot sign
+  in (password, e-mail code or GitHub), its sessions end at once, and the API tokens it owns are refused. Its data, role
+  and projects stay, and **Enable** brings it back. Nobody disables their own account, and the last active super admin
+  cannot be disabled. A disabled account is also skipped when a waiting capacity request or a charged action would run
+  as it. Every change is in the audit log. The Accounts page now has tabs: Pending approval, Active, Invited, Disabled.
+- **Access requests (Task 34c):** with `ACCESS_REQUEST_DOMAINS` set (comma separated; empty, the default, is off), a person
+  with an address in those domains can ask for an account at `/request-access`. They confirm the address from an e-mailed
+  link, then the request waits under Accounts, Pending approval, and administrators with an e-mail address are told.
+  An administrator approves it with a role (the person receives a normal invitation and chooses their own password;
+  only a super admin approves super admin) or rejects it with a reason that stays in the list. The form answers the same
+  way for every address, so it does not reveal which domains are allowed or which accounts exist; no e-mail is sent for
+  a domain that is not allowed, an address that has an account, an invitation or an open request, or after 3 requests
+  for one address (10 for one client address) in an hour. New routes: `POST /access-requests`,
+  `POST /access-requests/confirm` (public), `GET /access-requests`, `POST /access-requests/<id>/approve`, `.../reject`
+  (`accounts.manage`).
 
 ## [3.5.0] - 2026-11-25
 

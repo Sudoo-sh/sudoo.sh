@@ -13,6 +13,8 @@ import type {
   LicenceText,
   ShellOptions,
   ShellSession,
+  AccountRequest,
+  AccountRequestPolicy,
   Invitation,
   InvitationPolicy,
   Alert,
@@ -389,6 +391,15 @@ export const useInvitations = () =>
     queryFn: async () => {
       const page = await api.page<Invitation[]>("/invitations");
       return { invitations: page.data, policy: page.meta as unknown as InvitationPolicy };
+    },
+  });
+/** Access requests (confirmed by e-mail, waiting for or past a decision) and whether the feature is on. */
+export const useAccessRequests = () =>
+  useQuery({
+    queryKey: ["access-requests"],
+    queryFn: async () => {
+      const page = await api.page<AccountRequest[]>("/access-requests");
+      return { requests: page.data, policy: page.meta as unknown as AccountRequestPolicy };
     },
   });
 /** What the caller may open in the instance's Shell tab, and why not (web shell). */

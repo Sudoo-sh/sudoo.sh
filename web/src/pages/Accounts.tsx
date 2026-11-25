@@ -4,6 +4,8 @@ import {
   MailPlus,
   MoreHorizontal,
   Pencil,
+  Power,
+  PowerOff,
   Send,
   ShieldOff,
   Sparkles,
@@ -12,11 +14,11 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, errorText } from "@/api/client";
-import { useCall, useInvitations, useRoles, useUsers } from "@/api/queries";
+import { useAccessRequests, useCall, useInvitations, useRoles, useUsers } from "@/api/queries";
 import { Link } from "react-router";
-import type { Invitation, InvitationPolicy, Role, SignInMethod, User } from "@/api/types";
+import type { AccountRequest, Invitation, InvitationPolicy, Role, SignInMethod, User } from "@/api/types";
 import { GitHubMark } from "@/components/app/GitHubMark";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Page, PageHead, useMe } from "@/components/Shell";
@@ -25,6 +27,9 @@ import { PasswordFields, passwordReady } from "@/components/PasswordFields";
 import { Button, Callout, CopyField, Empty, Field, Segmented, Skeleton, Switch, Tag } from "@/components/app/basics";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { SelectBox } from "@/components/app/select";
+import { SelectItem } from "@/components/ui/select";
+import { ACCOUNT_TABS, accountTab, firstTab, tabCounts, type AccountTab } from "@/lib/account-tabs";
 import { Menu, MenuItem, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
 import { ago, fullDateTime } from "@/lib/format";
 import { generatePassword, type Person } from "@/lib/password";
@@ -590,16 +595,158 @@ function InvitationRow({
   );
 }
 
+function DecideRequest({
+  request: r,
+  how,
+  onClose,
+  onDone,
+}: {
+  request: AccountRequest;
+  how: "approve" | "reject";
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const me = useMe();
+  const toast = useToast();
+  const all = useT(common);
+  const a = useT(words).access;
+  const { data } = useRoles();
+  const roles = (data?.roles ?? []).filter((x) => x.name !== "super_admin" || me.role === "super_admin");
+  const [role, setRole] = useState("viewer");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const approving = how === "approve";
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api.post(`/access-requests/${r.id}/${how}`, approving ? { role } : { reason });
+      toast("success", approving ? a.approved(r.email) : a.rejected(r.email));
+      onDone();
+    } catch (error) {
+      toast("error", approving ? a.notApproved : a.notRejected, errorText(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      title={approving ? a.approveTitle(r.email) : a.rejectTitle(r.email)}
+      description={approving ? a.approveText : a.rejectText}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{all.common.cancel}</Button>
+          <Button variant="primary" loading={busy} disabled={approving ? !role : !reason.trim()} onClick={save}>
+            {approving ? a.approveSend : a.rejectSend}
+          </Button>
+        </>
+      }
+    >
+      {approving ? (
+        <Field label={a.role}>
+          <SelectBox value={role} onValueChange={setRole} aria-label={a.role}>
+            {roles.map((x) => (
+              <SelectItem key={x.name} value={x.name}>
+                {all.roles[x.name] ?? x.label}
+              </SelectItem>
+            ))}
+          </SelectBox>
+        </Field>
+      ) : (
+        <Field label={a.reason}>
+          <Input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} />
+        </Field>
+      )}
+    </Modal>
+  );
+}
+
+function RequestsTable({
+  requests,
+  onDecide,
+}: {
+  requests: AccountRequest[];
+  onDecide: (request: AccountRequest, how: "approve" | "reject") => void;
+}) {
+  const a = useT(words).access;
+  const state = (r: AccountRequest) =>
+    r.status === "pending" ? a.statePending : r.status === "approved" ? a.stateApproved : a.stateRejected;
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>{a.requestColumns.person}</TableHead>
+          <TableHead>{a.requestColumns.asked}</TableHead>
+          <TableHead>{a.requestColumns.state}</TableHead>
+          <TableHead />
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {requests.map((r) => {
+          const name = [r.first_name, r.last_name].filter(Boolean).join(" ");
+          return (
+            <TableRow key={r.id}>
+              <TableCell>
+                <div className="truncate">{name ? <bdi>{name}</bdi> : <bdi dir="ltr">{r.email}</bdi>}</div>
+                {name && (
+                  <div className="xsmall faint truncate">
+                    <bdi dir="ltr">{r.email}</bdi>
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className="small muted">{ago(r.confirmed_at ?? r.requested_at)}</TableCell>
+              <TableCell className="small">
+                <Tag tone={r.status === "pending" ? "caution" : r.status === "rejected" ? "negative" : undefined}>
+                  {state(r)}
+                </Tag>
+                {r.reason && <div className="xsmall faint">{r.reason}</div>}
+                {r.decided_by && <div className="xsmall faint">{a.decidedBy(r.decided_by)}</div>}
+              </TableCell>
+              <TableCell className="actions">
+                {r.status === "pending" && (
+                  <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
+                    <Button size="sm" variant="primary" onClick={() => onDecide(r, "approve")}>
+                      {a.approve}
+                    </Button>
+                    <Button size="sm" onClick={() => onDecide(r, "reject")}>
+                      {a.reject}
+                    </Button>
+                  </div>
+                )}
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
+  );
+}
+
 export function AccountsPage() {
   const me = useMe();
   const { data: users, isPending, refetch } = useUsers();
   const { data: invited, refetch: refetchInvitations } = useInvitations();
+  const { data: asked, refetch: refetchAsked } = useAccessRequests();
+  const [tab, setTab] = useState<AccountTab | null>(null);
+  const [deciding, setDeciding] = useState<{ request: AccountRequest; how: "approve" | "reject" } | null>(null);
+  const a = useT(words).access;
+  const counts = tabCounts(users ?? [], invited?.invitations ?? [], asked?.requests ?? []);
+  const loaded = users !== undefined && invited !== undefined && asked !== undefined;
+  // the first tab is Pending approval when someone waits; after that the choice is the person's
+  useEffect(() => {
+    if (loaded && tab === null) setTab(firstTab(counts));
+  }, [loaded, tab, counts]);
+  const current: AccountTab = tab ?? "active";
   const toast = useToast();
   const [editing, setEditing] = useState<User | "new" | null>(null);
   const [secret, setSecret] = useState<Made | null>(null);
   const [resetting, setResetting] = useState<User | null>(null);
   const refresh = [["users"]] as const;
   const resetFactors = useCall((user: string) => api.del(`/users/${user}/second-factors`), refresh);
+  const setDisabled = useCall(
+    (p: { user: string; disabled: boolean }) => api.post(`/users/${p.user}/${p.disabled ? "disable" : "enable"}`),
+    refresh,
+  );
   const remove = useCall((user: string) => api.del(`/users/${user}`), refresh);
   const unlink = useCall((user: string) => api.del(`/users/${user}/github`), refresh);
   const s = useT(words).signIn;
@@ -624,11 +771,33 @@ export function AccountsPage() {
       >
         {t.lead}
       </PageHead>
+      <div style={{ marginBottom: 12 }}>
+        <Segmented<AccountTab>
+          value={current}
+          onChange={setTab}
+          options={ACCOUNT_TABS.map((value) => ({
+            value,
+            label: `${a.tabs[value]} (${counts[value]})`,
+          }))}
+        />
+      </div>
       <div className="card">
-        {isPending ? (
+        {current === "pending" ? (
+          asked?.requests.length ? (
+            <RequestsTable requests={asked.requests} onDecide={(request, how) => setDeciding({ request, how })} />
+          ) : (
+            <Empty icon={<Users />} title={a.nonePending}>
+              {asked?.policy.enabled ? a.domains(asked.policy.domains.join(", ")) : a.off}
+            </Empty>
+          )
+        ) : isPending ? (
           <div className="card-body">
             <Skeleton height={160} />
           </div>
+        ) : current === "invited" && !invited?.invitations.length ? (
+          <Empty icon={<MailPlus />} title={a.noneInvited} />
+        ) : current === "disabled" && !counts.disabled ? (
+          <Empty icon={<PowerOff />} title={a.noneDisabled} />
         ) : !users?.length ? (
           <Empty icon={<Users />} title={t.none} />
         ) : (
@@ -643,8 +812,12 @@ export function AccountsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((u, index) => (
-                <TableRow key={u.name} data-tour={index === 0 ? "accounts-rows" : undefined}>
+              {(current === "invited" ? [] : users.filter((u) => accountTab(u) === current)).map((u, index) => (
+                <TableRow
+                  key={u.name}
+                  className={u.disabled ? "disabled-account" : undefined}
+                  data-tour={index === 0 ? "accounts-rows" : undefined}
+                >
                   <TableCell>
                     <div className="row" style={{ gap: 12 }}>
                       <span className="avatar">{(u.first_name?.[0] ?? u.name[0]) + (u.last_name?.[0] ?? "")}</span>
@@ -663,6 +836,11 @@ export function AccountsPage() {
                     <Tag tone={u.role === "super_admin" ? "accent" : undefined}>
                       {all.roles[u.role] ?? u.role_label}
                     </Tag>
+                    {u.disabled && (
+                      <span style={{ marginInlineStart: 6 }}>
+                        <Tag tone="negative">{a.disabledTag}</Tag>
+                      </span>
+                    )}
                     {u.must_change_password && <span className="xsmall faint">{t.pendingPassword}</span>}
                     {u.github && (
                       <div className="xsmall faint row" style={{ gap: 4 }}>
@@ -725,6 +903,22 @@ export function AccountsPage() {
                                   </MenuItem>
                                 )}
                                 <MenuItem
+                                  onSelect={() => {
+                                    close();
+                                    if (u.disabled || confirm(a.confirmDisable(u.display_name)))
+                                      setDisabled.mutate(
+                                        { user: u.name, disabled: !u.disabled },
+                                        {
+                                          onSuccess: () =>
+                                            toast("success", u.disabled ? a.enabled(u.name) : a.disabled(u.name)),
+                                          onError: fail(u.disabled ? a.notEnabled : a.notDisabled),
+                                        },
+                                      );
+                                  }}
+                                >
+                                  {u.disabled ? <Power /> : <PowerOff />} {u.disabled ? a.enable : a.disable}
+                                </MenuItem>
+                                <MenuItem
                                   disabled={!u.second_factors.length}
                                   onSelect={() => {
                                     close();
@@ -759,7 +953,7 @@ export function AccountsPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {invited?.invitations.map((v) => (
+              {(current === "invited" ? (invited?.invitations ?? []) : []).map((v) => (
                 <InvitationRow
                   key={v.id}
                   invitation={v}
@@ -793,6 +987,18 @@ export function AccountsPage() {
             refetch();
             refetchInvitations();
             if (made) setSecret(made);
+          }}
+        />
+      )}
+      {deciding && (
+        <DecideRequest
+          request={deciding.request}
+          how={deciding.how}
+          onClose={() => setDeciding(null)}
+          onDone={() => {
+            setDeciding(null);
+            asked && void refetchAsked();
+            refetchInvitations();
           }}
         />
       )}

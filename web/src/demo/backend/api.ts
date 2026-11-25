@@ -4,6 +4,7 @@
 
 import type {
   AccessLevel,
+  AccountRequest,
   Account,
   Backup,
   CatalogPlugin,
@@ -2622,6 +2623,97 @@ route("DELETE", "/invitations/:id", ({ params }) => {
   invitations.splice(invitations.indexOf(found), 1);
   record(ME, "invitation revoked", { detail: found.email });
   return none();
+});
+// ---------------------------------------------------------------- disabled accounts, access requests
+
+route("POST", "/users/:name/disable", ({ params }) => {
+  need("accounts.manage");
+  const user = userOf(params.name!);
+  if (user.name === ME) throw new Problem(400, "You cannot disable your own account.");
+  if (user.role === "super_admin" && superAdmins().filter((u) => !u.disabled).length === 1)
+    throw new Problem(400, "The last active super admin cannot be disabled.");
+  user.disabled = true;
+  user.disabled_at = iso(Date.now());
+  user.disabled_by = ME;
+  record(ME, "account disabled", { detail: user.name });
+  return ok(user);
+});
+route("POST", "/users/:name/enable", ({ params }) => {
+  need("accounts.manage");
+  const user = userOf(params.name!);
+  user.disabled = false;
+  user.disabled_at = null;
+  user.disabled_by = null;
+  record(ME, "account enabled", { detail: user.name });
+  return ok(user);
+});
+
+const requests: AccountRequest[] = [
+  {
+    id: "rq1",
+    email: "rania.khalil@example.com",
+    first_name: "Rania",
+    last_name: "Khalil",
+    status: "pending",
+    requested_at: iso(Date.now() - 3 * HOUR),
+    confirmed_at: iso(Date.now() - 3 * HOUR + 4 * 60000),
+    decided_at: null,
+  },
+  {
+    id: "rq2",
+    email: "t.farouk@example.com",
+    first_name: null,
+    last_name: null,
+    status: "pending",
+    requested_at: iso(Date.now() - 26 * HOUR),
+    confirmed_at: iso(Date.now() - 26 * HOUR + 60000),
+    decided_at: null,
+  },
+  {
+    id: "rq3",
+    email: "visitor@example.com",
+    first_name: "Sami",
+    last_name: "Othman",
+    status: "rejected",
+    reason: "Not on the team",
+    decided_by: "omar",
+    requested_at: iso(Date.now() - 4 * DAY),
+    confirmed_at: iso(Date.now() - 4 * DAY + 60000),
+    decided_at: iso(Date.now() - 3 * DAY),
+  },
+];
+route("POST", "/access-requests", () => ok({ received: true }, undefined, 202)); // the same answer for every address
+route("POST", "/access-requests/confirm", () => ok({ received: true }));
+route("GET", "/access-requests", () => {
+  need("accounts.manage", "/api/v1/access-requests");
+  return ok(requests, { domains: ["example.com"], enabled: true });
+});
+function requestOf(id: string): AccountRequest {
+  const found = requests.find((r) => r.id === id);
+  if (!found) throw new Problem(404, "No such request.");
+  if (found.status !== "pending") throw new Problem(409, "This request was decided already.");
+  return found;
+}
+route("POST", "/access-requests/:id/approve", ({ params, body }) => {
+  need("accounts.manage");
+  const found = requestOf(params.id!);
+  const role = String(body.role ?? "") as User["role"];
+  if (!ROLES.some((r) => r.name === role)) throw new Problem(400, "Choose a role from the list.");
+  if (role === "super_admin" && session.role !== "super_admin")
+    throw new Problem(403, "Only a super admin can invite super admins.");
+  invitations.unshift(makeInvitation(found.email, role, found.first_name, found.last_name));
+  Object.assign(found, { status: "approved", role, decided_by: ME, decided_at: iso(Date.now()) });
+  record(ME, "access request approved", { detail: `${found.email} (${roleInfo(role).label})` });
+  return ok(found);
+});
+route("POST", "/access-requests/:id/reject", ({ params, body }) => {
+  need("accounts.manage");
+  const found = requestOf(params.id!);
+  const reason = String(body.reason ?? "").trim();
+  if (!reason) throw new Problem(400, "Say why: the reason stays in the list for the other administrators.");
+  Object.assign(found, { status: "rejected", reason, decided_by: ME, decided_at: iso(Date.now()) });
+  record(ME, "access request rejected", { detail: `${found.email}: ${reason}` });
+  return ok(found);
 });
 route("POST", "/invitation", ({ body }) => {
   const found = validInvitation(body.token);

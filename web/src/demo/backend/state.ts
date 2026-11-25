@@ -443,6 +443,9 @@ export const users: User[] = [
     github: null,
     github_login: null,
     has_password: false,
+    disabled: true,
+    disabled_at: iso(OPENED - 2 * DAY),
+    disabled_by: "omar",
   },
 ];
 

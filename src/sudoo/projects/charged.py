@@ -29,11 +29,9 @@ def sender_id(payload: Mapping[str, Any]) -> int | None:
 
 
 def _usable(name: str) -> dict[str, Any] | None:
-    """The account, unless it is missing or disabled. The panel has no Disabled state yet (34c adds it), so
-    `disabled` is never set today and this only rules out an account that no longer exists; the tests set the field
-    as a stand-in for the state 34c adds."""
+    """The account, unless it is missing or disabled. A disabled person (accounts.disable) is not charged."""
     account = accounts.get(name)
-    if not account or account.get("disabled"):
+    if not account or accounts.is_disabled(account):
         return None
     return account
 

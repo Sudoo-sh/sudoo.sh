@@ -35,6 +35,7 @@ import secrets
 import threading
 import time
 from collections import deque
+from collections.abc import Mapping
 from typing import Any
 
 from sudoo.config import settings
@@ -491,6 +492,42 @@ def end_sessions(username: str) -> int:
         return {**user, "session_version": new_session_version(user["session_version"])}
 
     return int((storage().change(USERS, username, bump) or {})["session_version"])
+
+
+def is_disabled(account: Mapping[str, Any] | None) -> bool:
+    return bool(account and account.get("disabled"))
+
+
+def disable(username: str, by: str) -> bool:
+    """Disable an account: it cannot sign in, its sessions end now, and the API tokens it owns stop working. Its
+    data, its role and its project access stay, for when it is enabled again. False when it was disabled already.
+    The last active super admin cannot be disabled (the same guard as deleting it)."""
+    with _LOCK:
+        users = all_users()
+        account = users.get(username)
+        if account is None:
+            raise ValueError("No such account.")
+        if is_disabled(account):
+            return False
+        active = [n for n, u in users.items() if u["role"] == "super_admin" and not is_disabled(u)]
+        if account["role"] == "super_admin" and active == [username]:
+            raise ValueError("The last active super admin cannot be disabled.")
+        update(username, disabled=True, disabled_at=time.time(), disabled_by=by)
+        end_sessions(username)  # a new session version: every cookie of the account stops working
+        return True
+
+
+def enable(username: str) -> bool:
+    """Enable a disabled account again (it signs in as before; its old sessions stay ended). False when it was not
+    disabled."""
+    with _LOCK:
+        account = get(username)
+        if account is None:
+            raise ValueError("No such account.")
+        if not is_disabled(account):
+            return False
+        update(username, disabled=None, disabled_at=None, disabled_by=None)
+        return True
 
 
 def record_sign_in(username: str) -> None:

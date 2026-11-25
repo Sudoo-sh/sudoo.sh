@@ -1554,6 +1554,20 @@
     "description": "Invitations one administrator may send (new or again) per hour."
   },
   {
+    "key": "access_request_domains",
+    "env": "ACCESS_REQUEST_DOMAINS",
+    "value": "",
+    "env_value": "",
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "string",
+    "minimum": null,
+    "description": "E-mail domains (comma separated, such as example.com) whose people may ask for an account at /request-access: they confirm their address, then an administrator approves or rejects. Empty: off, and everyone is invited instead."
+  },
+  {
     "key": "recovery_codes_count",
     "env": "RECOVERY_CODES_COUNT",
     "value": 10,

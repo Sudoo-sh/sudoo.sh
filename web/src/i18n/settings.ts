@@ -291,6 +291,7 @@ const en = {
     invitation_hours: "Invitation link works for, hours",
     invitation_password_fallback: "Setting a password instead of inviting",
     invitations_per_hour: "Invitations per administrator per hour",
+    access_request_domains: "Domains that may ask for an account",
     rate_limit_reads_per_minute: "Reading requests per minute",
     rate_limit_changes_per_minute: "Changing requests per minute",
     support_access: "Support access",
@@ -731,6 +732,8 @@ const en = {
     invitation_password_fallback:
       'When administrators may set a new account\'s password instead of inviting the person by e-mail: "no_mail" (only while e-mail is not set up), "always" or "never".',
     invitations_per_hour: "Invitations one administrator may send (new or again) per hour.",
+    access_request_domains:
+      "E-mail domains, comma-separated (such as example.com), whose people may ask for an account at /request-access: they confirm their address, then an administrator approves or rejects. Empty: off.",
     sign_in_email: "E-mail people each time their account signs in (when e-mail is set up).",
     sign_in_email_opt_out: "People may turn the sign-in e-mail off for their own account.",
     sign_in_methods:
@@ -1580,6 +1583,7 @@ const ar: typeof en = {
     invitation_hours: "مدة عمل رابط الدعوة بالساعات",
     invitation_password_fallback: "تحديد كلمة مرور بدل الدعوة",
     invitations_per_hour: "الدعوات لكل مسؤول في الساعة",
+    access_request_domains: "النطاقات التي يحق لها طلب حساب",
     rate_limit_reads_per_minute: "طلبات القراءة في الدقيقة",
     rate_limit_changes_per_minute: "طلبات التغيير في الدقيقة",
     support_access: "وصول الدعم",
@@ -2011,6 +2015,8 @@ const ar: typeof en = {
     invitation_password_fallback:
       'متى يمكن للمسؤولين تحديد كلمة مرور حساب جديد بدل دعوة الشخص بالبريد: "no_mail" (فقط ما دام البريد غير مُعدّ) أو "always" أو "never".',
     invitations_per_hour: "الدعوات التي يمكن لمسؤول واحد إرسالها (جديدة أو مكررة) في الساعة.",
+    access_request_domains:
+      "نطاقات البريد، مفصولة بفواصل (مثل example.com)، التي يحق لأصحابها طلب حساب في /request-access: يؤكدون عنوانهم ثم يوافق مسؤول أو يرفض. فارغ: متوقف.",
     sign_in_email: "راسل الناس كلما سجّل أحد الدخول إلى حسابهم (حين يكون البريد معدًّا).",
     sign_in_email_opt_out: "يمكن للناس إيقاف بريد تسجيل الدخول لحساباتهم.",
     sign_in_methods:

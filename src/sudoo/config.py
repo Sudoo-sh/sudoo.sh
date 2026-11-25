@@ -381,6 +381,12 @@ class Settings(BaseSettings):
         description="When administrators may set a new account's password instead of inviting the person by e-mail: "
         '"no_mail" (only while e-mail is not set up), "always" or "never".',
     )
+    access_request_domains: str = Field(
+        "",
+        description="E-mail domains (comma separated, such as example.com) whose people may ask for an account at "
+        "/request-access: they confirm their address, then an administrator approves or rejects. Empty: off, and "
+        "everyone is invited instead.",
+    )
     invitations_per_hour: int = Field(
         20, ge=1, description="Invitations one administrator may send (new or again) per hour."
     )
@@ -2486,6 +2492,7 @@ EDITABLE = (
     "recovery_codes_count",
     "invitation_hours",
     "invitation_password_fallback",
+    "access_request_domains",
     "invitations_per_hour",
     "sign_in_email",
     "sign_in_email_opt_out",

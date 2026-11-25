@@ -6,6 +6,7 @@ export type Permission =
   | "instances.logs"
   | "instances.update"
   | "instances.operate"
+  | "instances.extend_unlimited"
   | "instances.create"
   | "projects.manage"
   | "projects.access"
@@ -482,6 +483,11 @@ export interface Instance {
   last_visit_at: string | null;
   pauses_at: string | null;
   expires_at: string | null;
+  /** stopped at the end of its lifetime (not yet deleted): when, and when it will be deleted */
+  expired_at?: string | null;
+  /** how long its creation took, in seconds (null: not measured) */
+  built_seconds?: number | null;
+  deletes_at?: string | null;
   current_job: CurrentJob | null;
   created_by: string | null;
   // only on GET /instances/<name>
@@ -2433,4 +2439,17 @@ export interface PublicMaintenance {
   status: "scheduled" | "running";
   window_start: string | null;
   window_end: string | null;
+}
+
+/** An instance that was deleted (GET /deleted-instances): who deleted it, or that its lifetime ended */
+export interface DeletedInstance {
+  name: string;
+  project: { id: string; name: string } | null;
+  branch: string | null;
+  stage: Stage;
+  created_at: string | null;
+  deleted_at: string;
+  /** null when its lifetime ended */
+  deleted_by: string | null;
+  expired: boolean;
 }

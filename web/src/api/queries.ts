@@ -4,6 +4,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./client";
 import type {
+  DeletedInstance,
   AuditFacets,
   ProfileDetail,
   ProfilerState,
@@ -127,6 +128,14 @@ export const useSession = () =>
 
 export const useInstances = () =>
   useQuery({ queryKey: keys.instances, queryFn: () => api.get<Instance[]>("/instances?limit=500") });
+
+/** The instances deleted lately (kept for the DELETED_HISTORY_DAYS setting) */
+export const useDeletedInstances = (enabled = true) =>
+  useQuery({
+    queryKey: ["deleted-instances"] as const,
+    queryFn: () => api.get<DeletedInstance[]>("/deleted-instances"),
+    enabled,
+  });
 
 /** Every project, and the instances outside every project (plain Odoo). */
 export const useProjects = () =>

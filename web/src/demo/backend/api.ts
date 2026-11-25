@@ -668,6 +668,40 @@ route("GET", "/instances", ({ query }) => {
   const limit = Number(query.get("limit") ?? 100);
   return ok(list.slice(0, limit), { total: list.length, count: Math.min(limit, list.length), limit, offset: 0 });
 });
+route("GET", "/deleted-instances", () => {
+  need("instances.view", "/api/v1/deleted-instances");
+  const at = (hours: number) => new Date(Date.now() - hours * 3600_000).toISOString();
+  const sample = [
+    {
+      name: "acme-demo-2",
+      project: { id: "acme", name: "Acme" },
+      branch: "feat/demo",
+      stage: "development",
+      deleted_at: at(5),
+      deleted_by: "layla",
+      expired: false,
+    },
+    {
+      name: "acme-pr-41",
+      project: { id: "acme", name: "Acme" },
+      branch: "feat/invoices",
+      stage: "staging",
+      deleted_at: at(30),
+      deleted_by: null,
+      expired: true,
+    },
+    {
+      name: "scratch-7",
+      project: null,
+      branch: null,
+      stage: "development",
+      deleted_at: at(96),
+      deleted_by: "yousef",
+      expired: false,
+    },
+  ];
+  return ok(sample.map((d) => ({ ...d, created_at: at(24 * 20) })));
+});
 route("GET", "/instances/:name", ({ params }) => {
   needOn(params.name!, "instances.view");
   const instance = instanceOf(params.name!);
@@ -1287,6 +1321,12 @@ route("PATCH", "/instances/:name", ({ params, body }) => {
       .join(", "),
   });
   announce(instance);
+  // an instance stopped at the end of its lifetime stays stopped when the server cannot run one more: the answer says why
+  // (the demo's one stopped instance is that case; every other instance answers as before)
+  if (typeof body.delete_after_days === "number" && instance.expired_at && body.delete_after_days)
+    return ok(full(instance), {
+      restart: `The lifetime was extended, but ${instance.name} stays stopped. This server runs at most 8 instances at once and 8 are running or starting. Pause one first.`,
+    });
   return ok(full(instance));
 });
 

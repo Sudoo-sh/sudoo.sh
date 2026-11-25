@@ -69,6 +69,8 @@ def clean() -> Iterator[None]:
     monitor.STATUS.pop(NAME, None)
     for key in list(storage().all(expiry.COLLECTION)):
         storage().delete(expiry.COLLECTION, key)
+    for key in list(storage().all("deleted_instances")):
+        storage().delete("deleted_instances", key)
     live.change(dict.fromkeys(live.overrides()))
 
 
@@ -260,3 +262,42 @@ def test_an_extended_instance_stays_stopped_when_the_server_cannot_run_one_more(
     assert "stays stopped" in answer.get_json()["meta"]["restart"] and started == []
     assert store.read_env(NAME)["DELETE_AFTER_DAYS"] == "60" and not STATE.get(NAME).get("expired_at")
     assert settings.expiry_extend_max_days == 30
+
+
+def test_the_instance_says_when_it_was_stopped_and_when_it_will_be_deleted(app: Flask, admin: Client) -> None:
+    client, headers = admin
+    _instance(created_days_ago=31, days=30)
+    plain = client.get(f"/api/v1/instances/{NAME}", headers=headers).get_json()["data"]
+    assert plain["expired_at"] is None and plain["deletes_at"] is None
+    stopped_at = int(time.time()) - DAY
+    STATE.update(NAME, switched_off=True, expired_at=stopped_at)
+    data = client.get(f"/api/v1/instances/{NAME}", headers=headers).get_json()["data"]
+    assert data["expired_at"].startswith(time.strftime("%Y-%m-%d", time.gmtime(stopped_at)))
+    deleted = time.strptime(data["deletes_at"], "%Y-%m-%dT%H:%M:%SZ")
+    assert abs(time.mktime(deleted) - time.timezone - (stopped_at + settings.expiry_grace_days * DAY)) < 2
+
+
+def test_a_deleted_instance_is_remembered_for_the_history_period(app: Flask, admin: Client) -> None:
+    from sudoo.instances import history
+
+    client, headers = admin
+    now = time.time()
+    env = {"PROJECT": "", "GIT_BRANCH": "feat", "STAGE": "development", "CREATED_AT": str(int(now) - 40 * DAY)}
+    history.record("old-one", env, "sara", expired=False, now=now - 2 * DAY)
+    history.record("ended-one", env, "system", expired=True, now=now - 1 * DAY)
+    history.record("ancient", env, "sara", expired=False, now=now - 200 * DAY)
+    rows = client.get("/api/v1/deleted-instances", headers=headers).get_json()["data"]
+    assert [r["name"] for r in rows] == ["ended-one", "old-one"]  # the latest first, the 200-day-old one dropped
+    assert rows[0]["expired"] is True and rows[0]["deleted_by"] is None
+    assert rows[1]["deleted_by"] == "sara" and rows[1]["branch"] == "feat"
+    live.change({"deleted_history_days": 0})
+    history.record("not-kept", env, "sara", expired=False)
+    assert client.get("/api/v1/deleted-instances", headers=headers).get_json()["data"] == []
+
+
+def test_the_instance_says_how_long_it_took_to_build(app: Flask, admin: Client) -> None:
+    client, headers = admin
+    _instance(created_days_ago=3, days=30)
+    assert client.get(f"/api/v1/instances/{NAME}", headers=headers).get_json()["data"]["built_seconds"] is None
+    STATE.update(NAME, built_seconds=291)
+    assert client.get(f"/api/v1/instances/{NAME}", headers=headers).get_json()["data"]["built_seconds"] == 291

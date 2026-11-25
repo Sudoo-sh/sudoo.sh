@@ -1,13 +1,15 @@
-import { Boxes, Plus, Search } from "lucide-react";
+import { Boxes, Plus, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router";
-import { useHistory, useInstances, useMetrics } from "@/api/queries";
-import type { Columns, Instance, InstanceStatus, Stage } from "@/api/types";
+import { Link, useNavigate, useSearchParams } from "react-router";
+import { useDeletedInstances, useHistory, useInstances, useMetrics } from "@/api/queries";
+import type { Columns, DeletedInstance, Instance, InstanceStatus, Stage } from "@/api/types";
 import { Bars } from "@/components/charts/Bars";
 import { LiveChart } from "@/components/charts/LiveChart";
 import { Ring } from "@/components/charts/Ring";
+import { ExpiringSoon } from "@/components/ExpiringSoon";
+import { RecentActivity } from "@/components/RecentActivity";
 import { InstanceCard } from "@/components/InstanceCard";
-import { STAGE_ORDER, STAGES } from "@/components/StageTag";
+import { STAGE_ORDER, STAGES, StageTag } from "@/components/StageTag";
 import { Page, PageHead, useCan } from "@/components/Shell";
 import { StatCard } from "@/components/StatCard";
 import { Button, Callout, Empty, Segmented, Skeleton } from "@/components/app/basics";
@@ -16,7 +18,10 @@ import { SelectBox } from "@/components/app/select";
 import { useT } from "@/i18n";
 import common from "@/i18n/common";
 import dashboard from "@/i18n/dashboard";
-import { bytes, duration, ms, number, percent } from "@/lib/format";
+import expiryWords from "@/i18n/expiry";
+import { expiringSoon } from "@/lib/expiry";
+import { useSettings } from "@/api/queries";
+import { ago, bytes, duration, fullDateTime, ms, number, percent } from "@/lib/format";
 
 const average = (values: (number | null)[] | undefined) => {
   const numbers = (values ?? []).filter((v): v is number => v != null);
@@ -215,7 +220,9 @@ function Charts({ instances }: { instances: Instance[] | undefined }) {
   );
 }
 
-type Filter = "all" | "online" | "paused" | "busy";
+type Filter = "all" | "online" | "paused" | "busy" | "expiring";
+/** The list's tabs: what is running now, what failed, what was stopped at the end of its life, what was deleted */
+type View = "current" | "failed" | "stopped" | "deleted" | "all";
 const ASLEEP: InstanceStatus[] = ["paused", "switched_off", "stopped"];
 
 export function DashboardPage() {
@@ -224,8 +231,10 @@ export function DashboardPage() {
   const { data: metrics } = useMetrics();
   const { data: history } = useHistory();
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
+  const [params] = useSearchParams();
+  const [filter, setFilter] = useState<Filter>(params.get("filter") === "expiring" ? "expiring" : "all");
   const [stage, setStage] = useState<Stage | "all">("all");
+  const [view, setView] = useState<View>("all");
   const server = metrics?.server;
   const words = useT(dashboard);
   const st = words.stats;
@@ -236,6 +245,17 @@ export function DashboardPage() {
     const count = (statuses: InstanceStatus[]) => instances?.filter((i) => statuses.includes(i.status)).length ?? 0;
     return { online: count(["online", "starting"]), paused: count(ASLEEP), busy: count(["busy", "creating"]) };
   }, [instances]);
+  const ex = useT(expiryWords);
+  const { data: settingList } = useSettings();
+  const cardDays = Number(settingList?.find((s) => s.key === "expiry_card_days")?.value ?? 7);
+  const expiringTotal = expiringSoon(instances, cardDays, 1).total;
+  const stopped = (instances ?? []).filter((i) => i.expired_at);
+  const nextDeletion = stopped
+    .map((i) => i.deletes_at)
+    .filter((d): d is string => !!d)
+    .sort()[0];
+  const failed = (instances ?? []).filter((i) => i.update_failure || i.status === "unreachable").length;
+  const expiringCount = instances?.filter((i) => i.expires_at).length ?? 0;
   const stageCounts = useMemo(
     () =>
       Object.fromEntries(
@@ -243,17 +263,32 @@ export function DashboardPage() {
       ) as Record<Stage, number>,
     [instances],
   );
+  const isFailed = (i: Instance) => !!i.update_failure || i.status === "unreachable";
+  const viewCounts = {
+    current: instances?.filter((i) => !i.expired_at).length ?? 0,
+    failed,
+    stopped: stopped.length,
+  };
+  const { data: deletedList } = useDeletedInstances();
   const shown = (instances ?? [])
     .filter((i) => {
+      if (view === "current" && i.expired_at) return false;
+      if (view === "failed" && !isFailed(i)) return false;
+      if (view === "stopped" && !i.expired_at) return false;
       if (stage !== "all" && i.stage !== stage) return false;
       const text = `${i.name} ${i.git.branch ?? "plain"} ${i.git.repository ?? ""} ${i.odoo.version}`.toLowerCase();
       if (query && !text.includes(query.toLowerCase())) return false;
       if (filter === "online") return i.status === "online" || i.status === "starting";
       if (filter === "paused") return ASLEEP.includes(i.status);
       if (filter === "busy") return i.status === "busy" || i.status === "creating";
+      if (filter === "expiring") return !!i.expires_at;
       return true;
     })
-    .sort((a, b) => (STAGE_ORDER[a.stage] ?? 9) - (STAGE_ORDER[b.stage] ?? 9)); // production first; by name within a stage
+    .sort((a, b) =>
+      filter === "expiring" // the nearest end first
+        ? new Date(a.expires_at ?? 0).getTime() - new Date(b.expires_at ?? 0).getTime()
+        : (STAGE_ORDER[a.stage] ?? 9) - (STAGE_ORDER[b.stage] ?? 9),
+    ); // production first; by name within a stage
   const cpuAverage = average(history?.server.cpu_percent);
   const serverT = history?.server.t ?? [];
   const capacity = metrics?.capacity ?? null;
@@ -363,9 +398,73 @@ export function DashboardPage() {
         />
       </div>
 
+      <div className="grid-3 stagger">
+        <StatCard
+          label={ex.tiles.expiring}
+          value={instances ? expiringTotal : undefined}
+          detail={ex.tiles.expiringDetail(cardDays)}
+        />
+        <StatCard
+          label={ex.tiles.stopped}
+          value={instances ? stopped.length : undefined}
+          detail={ex.tiles.stoppedDetail(nextDeletion ? ago(nextDeletion) : "")}
+        />
+        <StatCard label={ex.tiles.failed} value={instances ? failed : undefined} detail={ex.tiles.failedDetail} />
+      </div>
+
+      <ExpiringSoon instances={instances} />
+
       <Charts instances={instances} />
 
+      <RecentActivity />
+
       <div className="toolbar">
+        <Segmented<View>
+          value={view}
+          onChange={setView}
+          options={[
+            {
+              value: "current",
+              label: (
+                <>
+                  {tb.current} <span className="count">{viewCounts.current}</span>
+                </>
+              ),
+            },
+            {
+              value: "failed",
+              label: (
+                <>
+                  {tb.failed} <span className="count">{viewCounts.failed}</span>
+                </>
+              ),
+            },
+            {
+              value: "stopped",
+              label: (
+                <>
+                  {tb.stopped} <span className="count">{viewCounts.stopped}</span>
+                </>
+              ),
+            },
+            {
+              value: "deleted",
+              label: (
+                <>
+                  {tb.deleted} <span className="count">{deletedList?.length ?? 0}</span>
+                </>
+              ),
+            },
+            {
+              value: "all",
+              label: (
+                <>
+                  {tb.all} <span className="count">{instances?.length ?? 0}</span>
+                </>
+              ),
+            },
+          ]}
+        />
         <div className="input-group">
           <Search />
           <Input
@@ -375,60 +474,75 @@ export function DashboardPage() {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <Segmented<Filter>
-          value={filter}
-          onChange={setFilter}
-          options={[
-            {
-              value: "all",
-              label: (
-                <>
-                  {tb.all} <span className="count">{instances?.length ?? 0}</span>
-                </>
-              ),
-            },
-            {
-              value: "online",
-              label: (
-                <>
-                  {tb.online} <span className="count">{counts.online}</span>
-                </>
-              ),
-            },
-            {
-              value: "paused",
-              label: (
-                <>
-                  {tb.paused} <span className="count">{counts.paused}</span>
-                </>
-              ),
-            },
-            {
-              value: "busy",
-              label: (
-                <>
-                  {tb.working} <span className="count">{counts.busy}</span>
-                </>
-              ),
-            },
-          ]}
-        />
-        <SelectBox
-          className="stage-filter"
-          aria-label={tb.stage}
-          value={stage}
-          onValueChange={(value) => setStage(value as Stage | "all")}
-        >
-          <option value="all">{tb.allStages}</option>
-          {STAGES.map((st) => (
-            <option key={st.value} value={st.value}>
-              {st.label} ({stageCounts[st.value]})
-            </option>
-          ))}
-        </SelectBox>
+        {/* the status and stage filters do not apply to the history */}
+        {view !== "deleted" && (
+          <>
+            <Segmented<Filter>
+              value={filter}
+              onChange={setFilter}
+              options={[
+                {
+                  value: "all",
+                  label: (
+                    <>
+                      {tb.all} <span className="count">{instances?.length ?? 0}</span>
+                    </>
+                  ),
+                },
+                {
+                  value: "online",
+                  label: (
+                    <>
+                      {tb.online} <span className="count">{counts.online}</span>
+                    </>
+                  ),
+                },
+                {
+                  value: "paused",
+                  label: (
+                    <>
+                      {tb.paused} <span className="count">{counts.paused}</span>
+                    </>
+                  ),
+                },
+                {
+                  value: "expiring",
+                  label: (
+                    <>
+                      {tb.expiring} <span className="count">{expiringCount}</span>
+                    </>
+                  ),
+                },
+                {
+                  value: "busy",
+                  label: (
+                    <>
+                      {tb.working} <span className="count">{counts.busy}</span>
+                    </>
+                  ),
+                },
+              ]}
+            />
+            <SelectBox
+              className="stage-filter"
+              aria-label={tb.stage}
+              value={stage}
+              onValueChange={(value) => setStage(value as Stage | "all")}
+            >
+              <option value="all">{tb.allStages}</option>
+              {STAGES.map((st) => (
+                <option key={st.value} value={st.value}>
+                  {st.label} ({stageCounts[st.value]})
+                </option>
+              ))}
+            </SelectBox>
+          </>
+        )}
       </div>
 
-      {isPending ? (
+      {view === "deleted" ? (
+        <DeletedList items={deletedList} query={query} />
+      ) : isPending ? (
         <div className="instance-grid">
           {[0, 1, 2].map((i) => (
             <div key={i} className="card pad stack">
@@ -464,5 +578,46 @@ export function DashboardPage() {
         </div>
       )}
     </Page>
+  );
+}
+
+/** The Deleted tab: who deleted each instance (or that its lifetime ended), and when. */
+function DeletedList({ items, query }: { items: DeletedInstance[] | undefined; query: string }) {
+  const words = useT(dashboard).card.deletedList;
+  const { data: settingList } = useSettings();
+  const days = Number(settingList?.find((s) => s.key === "deleted_history_days")?.value ?? 90);
+  const shown = (items ?? []).filter((d) => `${d.name} ${d.branch ?? ""}`.toLowerCase().includes(query.toLowerCase()));
+  return (
+    <section className="card expiry-card" aria-labelledby="deleted-title">
+      <div className="expiry-head">
+        <Trash2 aria-hidden />
+        <div>
+          <h2 id="deleted-title">{words.title}</h2>
+          <p className="sub">{days ? words.text(days) : words.off}</p>
+        </div>
+      </div>
+      {shown.length ? (
+        <ul className="expiry-list">
+          {shown.map((d) => (
+            <li key={`${d.name}-${d.deleted_at}`} className="expiry-row">
+              <div className="expiry-name">
+                <span className="truncate">{d.name}</span>
+                <span className="sub truncate">
+                  {d.project?.name ?? words.noProject}
+                  {d.branch ? ` · ${d.branch}` : ""}
+                </span>
+              </div>
+              <StageTag stage={d.stage} />
+              <span className="expiry-when" title={fullDateTime(d.deleted_at)}>
+                {d.expired || !d.deleted_by ? words.expired : words.by(d.deleted_by)} · {ago(d.deleted_at)}
+              </span>
+              <span />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="sub pad">{days ? words.none : words.off}</p>
+      )}
+    </section>
   );
 }

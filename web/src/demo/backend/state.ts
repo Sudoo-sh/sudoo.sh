@@ -40,6 +40,7 @@ const MAINTAIN: Permission[] = [
 ];
 const ALL: Permission[] = [
   "instances.view",
+  "instances.extend_unlimited",
   "instances.logs",
   "instances.update",
   "instances.operate",
@@ -84,6 +85,8 @@ export const PERMISSIONS: Record<Permission, string> = {
   "instances.logs": "Read Odoo's log and jobs' technical logs",
   "instances.update": "Get new code, restart, start, add submodules",
   "instances.operate": "Pause, switch off, upgrade, switch branch, back up, change automation",
+  "instances.extend_unlimited":
+    "Extend an instance's lifetime beyond the panel's extension limits, and extend one that was stopped at the end of its lifetime (which starts it again)",
   "instances.create": "Create instances",
   "projects.manage":
     "Create and link projects (one GitHub repository each), change their settings and the stages of their branches",
@@ -535,6 +538,8 @@ interface Seed {
   autoUpdate?: boolean;
   autoPause?: boolean;
   deleteAfter?: number;
+  /** stopped at the end of its lifetime this long ago (waiting for deletion) */
+  expiredAgo?: number;
   submodules?: { path: string; url: string }[];
 }
 
@@ -603,7 +608,7 @@ const SEEDS: Seed[] = [
     visitedAgo: 9 * HOUR,
     profile: { cpu: 0.7, memory: 0.74 * GIB, rpm: 3, ms: 90, errors: 0 },
     upFor: 0,
-    deleteAfter: 30,
+    deleteAfter: 14,
   },
   {
     repo: "nile-logistics",
@@ -634,7 +639,7 @@ const SEEDS: Seed[] = [
     visitedAgo: 2 * MINUTE,
     profile: { cpu: 1.1, memory: 0.69 * GIB, rpm: 9, ms: 55, errors: 0 },
     upFor: 3 * HOUR,
-    deleteAfter: 14,
+    deleteAfter: 4,
     submodules: [{ path: "oca/fleet", url: "https://github.com/OCA/fleet" }],
   },
   {
@@ -649,7 +654,7 @@ const SEEDS: Seed[] = [
     visitedAgo: 47 * MINUTE,
     profile: { cpu: 0.8, memory: 0.88 * GIB, rpm: 4, ms: 132, errors: 1.6 },
     upFor: 3 * HOUR,
-    deleteAfter: 30,
+    deleteAfter: 12,
   },
   {
     repo: "zahra-clinic",
@@ -701,12 +706,13 @@ const SEEDS: Seed[] = [
     version: "19.0",
     edition: "community",
     status: "switched_off",
-    createdAgo: 2 * DAY,
+    createdAgo: 33 * DAY,
+    expiredAgo: 2 * DAY,
     createdBy: "sara",
     visitedAgo: 1 * DAY,
     profile: { cpu: 0.4, memory: 0.6 * GIB, rpm: 1, ms: 70, errors: 0 },
     upFor: 0,
-    deleteAfter: 7,
+    deleteAfter: 30,
     autoUpdate: false,
   },
 ];
@@ -781,6 +787,9 @@ function build(seed: Seed): Instance {
     last_visit_at: iso(visit),
     pauses_at: autoPause && seed.status === "online" && visit ? iso(visit + idle) : null,
     expires_at: deleteAfter ? iso(created + deleteAfter * DAY) : null,
+    built_seconds: seed.stage === "production" ? 612 : 180 + (hash(name) % 240),
+    expired_at: seed.expiredAgo != null ? iso(OPENED - seed.expiredAgo) : null,
+    deletes_at: seed.expiredAgo != null ? iso(OPENED - seed.expiredAgo + 7 * DAY) : null,
     current_job: null,
     created_by: seed.createdBy,
     disk: {

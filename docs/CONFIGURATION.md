@@ -517,6 +517,9 @@ above exactly. A production instance is never paused or deleted automatically, i
 | `STAGING_DELETE_AFTER_DAYS` | int | `90` | **live** | Default lifetime of a new staging instance, in days; 0: keep. |
 | `EXPIRY_EXTEND_MAX_DAYS` | int | `30` | **live** | The most days someone without `instances.extend_unlimited` may add to an instance's lifetime in one extension; 0: no limit. |
 | `EXPIRY_EXTEND_MAX_COUNT` | int | `1` | **live** | How many times someone without `instances.extend_unlimited` may extend an instance's lifetime; 0: no limit. |
+| `DELETED_HISTORY_DAYS` | int | `90` | **live** | How many days the Deleted tab of the instance list remembers a deleted instance (who deleted it or that its lifetime ended, and when); 0: not kept. |
+| `EXPIRY_CARD_DAYS` | int | `7` | **live** | The expiring-soon card on the home page lists instances that expire within this many days. |
+| `EXPIRY_CARD_ROWS` | int | `5` | **live** | The most instances the expiring-soon card on the home page lists. |
 | `EXPIRY_EXTEND_PRESETS` | str | `1,7,30` | **live** | The extensions the Extend menu offers, in days, comma-separated (a custom number too). |
 | `EXPIRY_WARNING_DAYS` | int | `3` | **live** | E-mail the people who look after an instance this many days before it expires; 0: no e-mail. |
 | `EXPIRY_GRACE_DAYS` | int | `7` | **live** | An expired instance is stopped, then deleted this many days later (0: at once). While stopped, only `instances.extend_unlimited` can extend it, which starts it again. |

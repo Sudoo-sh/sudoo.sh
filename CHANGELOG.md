@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Home page: Expiring soon (Task 33, step 2):** three figures (expiring soon, stopped and waiting for deletion,
+  failed), a card of the instances that end soonest with an Extend menu (the extensions the administrator offers, or
+  any number of days; the API applies the same limits), a **With end date** filter on the instance list (nearest end first), and a Recent
+  activity list. New settings `EXPIRY_CARD_DAYS` and `EXPIRY_CARD_ROWS`. The instance now reports `expired_at` and
+  `deletes_at`. The account language text no longer says e-mails are English only.
+- **Instance list tabs and quick actions (Task 33, step 3):** tabs Current, Failed, Stopped, Deleted and All; the
+  Deleted tab remembers who deleted an instance (or that its lifetime ended) and when, for the new setting
+  `DELETED_HISTORY_DAYS` (90; 0 keeps nothing), from the new `GET /deleted-instances`. Each card shows how long the
+  build took (`built_seconds` on the instance) and the actions the person may do: Errors, Extend and Delete.
 - **Engine counts in the marketplace heartbeat:** `engine_available` (`docker` or `docker+kubernetes`),
   `instances_docker`, `instances_kubernetes` and `nodes_kubernetes`. Numbers only: no names, addresses or anything
   personal. Panels that do not send them keep working; the hub accepts older panels. See the marketplace guide.

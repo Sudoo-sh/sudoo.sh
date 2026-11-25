@@ -3075,6 +3075,246 @@
         "link": "https://panel.example.com/i/acme-main/settings",
         "panel_link": "https://demo.sudoo.sh"
       }
+    },
+    {
+      "key": "instance_expiry_warning",
+      "name": "Instance expires soon",
+      "description": "An instance's lifetime ends in a few days (EXPIRY_WARNING_DAYS). Sent once for each expiry date.",
+      "recipients": "The person who made the instance, and the project's administrators (each may turn it off on their account page)",
+      "kicker": "{{ instance }}",
+      "preheader": "Expires {{ expires }}",
+      "default": {
+        "subject": "{{ instance }} expires in {{ days }} days",
+        "title": "This instance expires soon",
+        "body": "Hello {{ name }},\n\nThe instance **{{ instance }}** expires on {{ expires }}. It is then stopped, and deleted a few days later, with a backup.\n\n[Open {{ instance }}]({{ link }}) and choose Extend to keep it longer."
+      },
+      "placeholders": [
+        {
+          "name": "name",
+          "description": "The person's first name, or their user name",
+          "kind": "text"
+        },
+        {
+          "name": "instance",
+          "description": "The instance",
+          "kind": "text"
+        },
+        {
+          "name": "project",
+          "description": "Its project (empty for an instance without one)",
+          "kind": "text"
+        },
+        {
+          "name": "expires",
+          "description": "When its lifetime ends",
+          "kind": "text"
+        },
+        {
+          "name": "link",
+          "description": "The instance in the panel",
+          "kind": "link"
+        },
+        {
+          "name": "days",
+          "description": "Days left, rounded",
+          "kind": "text"
+        },
+        {
+          "name": "panel_link",
+          "description": "The address of the panel",
+          "kind": "link"
+        }
+      ],
+      "required": ["instance"],
+      "samples": {
+        "name": "Huda",
+        "instance": "acme-dev-3",
+        "project": "Acme Retail",
+        "expires": "Tuesday 02 December 2026, 09:41 UTC",
+        "link": "https://panel.example.com/i/acme-dev-3",
+        "days": 3,
+        "panel_link": "https://panel.example.com"
+      }
+    },
+    {
+      "key": "instance_expiry_warning_ar",
+      "name": "Instance expires soon (Arabic)",
+      "description": "The same e-mail in Arabic.",
+      "recipients": "The person who made the instance, and the project's administrators (each may turn it off on their account page)",
+      "kicker": "{{ instance }}",
+      "preheader": "ينتهي في {{ expires }}",
+      "default": {
+        "subject": "تنتهي مدة {{ instance }} بعد {{ days }} أيام",
+        "title": "تنتهي مدة هذه البيئة قريبًا",
+        "body": "مرحبًا {{ name }}،\n\nتنتهي مدة البيئة **{{ instance }}** في {{ expires }}. بعدها تُوقَف، ثم تُحذف بعد بضعة أيام مع نسخة احتياطية.\n\n[افتح {{ instance }}]({{ link }}) واختر تمديد لإبقائها مدة أطول."
+      },
+      "placeholders": [
+        {
+          "name": "name",
+          "description": "The person's first name, or their user name",
+          "kind": "text"
+        },
+        {
+          "name": "instance",
+          "description": "The instance",
+          "kind": "text"
+        },
+        {
+          "name": "project",
+          "description": "Its project (empty for an instance without one)",
+          "kind": "text"
+        },
+        {
+          "name": "expires",
+          "description": "When its lifetime ends",
+          "kind": "text"
+        },
+        {
+          "name": "link",
+          "description": "The instance in the panel",
+          "kind": "link"
+        },
+        {
+          "name": "days",
+          "description": "Days left, rounded",
+          "kind": "text"
+        },
+        {
+          "name": "panel_link",
+          "description": "The address of the panel",
+          "kind": "link"
+        }
+      ],
+      "required": ["instance"],
+      "samples": {
+        "name": "Huda",
+        "instance": "acme-dev-3",
+        "project": "Acme Retail",
+        "expires": "Tuesday 02 December 2026, 09:41 UTC",
+        "link": "https://panel.example.com/i/acme-dev-3",
+        "days": 3,
+        "panel_link": "https://panel.example.com"
+      }
+    },
+    {
+      "key": "instance_stopped",
+      "name": "Instance stopped, will be deleted",
+      "description": "An instance's lifetime ended: it was stopped and will be deleted after EXPIRY_GRACE_DAYS.",
+      "recipients": "The person who made the instance, and the project's administrators (each may turn it off on their account page)",
+      "kicker": "{{ instance }}",
+      "preheader": "Will be deleted on {{ delete_on }}",
+      "default": {
+        "subject": "{{ instance }} was stopped and will be deleted on {{ delete_on }}",
+        "title": "This instance was stopped",
+        "body": "Hello {{ name }},\n\nThe lifetime of **{{ instance }}** ended on {{ expires }}, so it was stopped. Nothing was deleted yet.\n\nIt will be deleted on {{ delete_on }}, with a backup, unless an administrator extends it: that starts it again.\n\n[Open {{ instance }}]({{ link }})"
+      },
+      "placeholders": [
+        {
+          "name": "name",
+          "description": "The person's first name, or their user name",
+          "kind": "text"
+        },
+        {
+          "name": "instance",
+          "description": "The instance",
+          "kind": "text"
+        },
+        {
+          "name": "project",
+          "description": "Its project (empty for an instance without one)",
+          "kind": "text"
+        },
+        {
+          "name": "expires",
+          "description": "When its lifetime ends",
+          "kind": "text"
+        },
+        {
+          "name": "link",
+          "description": "The instance in the panel",
+          "kind": "link"
+        },
+        {
+          "name": "delete_on",
+          "description": "When it is deleted unless it is extended",
+          "kind": "text"
+        },
+        {
+          "name": "panel_link",
+          "description": "The address of the panel",
+          "kind": "link"
+        }
+      ],
+      "required": ["instance"],
+      "samples": {
+        "name": "Huda",
+        "instance": "acme-dev-3",
+        "project": "Acme Retail",
+        "expires": "Tuesday 02 December 2026, 09:41 UTC",
+        "link": "https://panel.example.com/i/acme-dev-3",
+        "delete_on": "Tuesday 09 December 2026, 09:41 UTC",
+        "panel_link": "https://panel.example.com"
+      }
+    },
+    {
+      "key": "instance_stopped_ar",
+      "name": "Instance stopped, will be deleted (Arabic)",
+      "description": "The same e-mail in Arabic.",
+      "recipients": "The person who made the instance, and the project's administrators (each may turn it off on their account page)",
+      "kicker": "{{ instance }}",
+      "preheader": "ستُحذف في {{ delete_on }}",
+      "default": {
+        "subject": "أُوقفت {{ instance }} وستُحذف في {{ delete_on }}",
+        "title": "أُوقفت هذه البيئة",
+        "body": "مرحبًا {{ name }}،\n\nانتهت مدة البيئة **{{ instance }}** في {{ expires }} فأُوقفت. لم يُحذف شيء بعد.\n\nستُحذف في {{ delete_on }} مع نسخة احتياطية، إلا إذا مدّدها مدير: عندها تعمل من جديد.\n\n[افتح {{ instance }}]({{ link }})"
+      },
+      "placeholders": [
+        {
+          "name": "name",
+          "description": "The person's first name, or their user name",
+          "kind": "text"
+        },
+        {
+          "name": "instance",
+          "description": "The instance",
+          "kind": "text"
+        },
+        {
+          "name": "project",
+          "description": "Its project (empty for an instance without one)",
+          "kind": "text"
+        },
+        {
+          "name": "expires",
+          "description": "When its lifetime ends",
+          "kind": "text"
+        },
+        {
+          "name": "link",
+          "description": "The instance in the panel",
+          "kind": "link"
+        },
+        {
+          "name": "delete_on",
+          "description": "When it is deleted unless it is extended",
+          "kind": "text"
+        },
+        {
+          "name": "panel_link",
+          "description": "The address of the panel",
+          "kind": "link"
+        }
+      ],
+      "required": ["instance"],
+      "samples": {
+        "name": "Huda",
+        "instance": "acme-dev-3",
+        "project": "Acme Retail",
+        "expires": "Tuesday 02 December 2026, 09:41 UTC",
+        "link": "https://panel.example.com/i/acme-dev-3",
+        "delete_on": "Tuesday 09 December 2026, 09:41 UTC",
+        "panel_link": "https://panel.example.com"
+      }
     }
   ]
 }

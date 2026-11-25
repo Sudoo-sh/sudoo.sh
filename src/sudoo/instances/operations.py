@@ -504,6 +504,24 @@ DELETION_BACKUP_FAILED = (
 EXPIRY_ATTEMPTS = 3  # failed automatic deletions in a row before the panel switches the instance off instead
 
 
+def stop_expired(job: Job, name: str, at: float | None = None) -> None:
+    """The first step of the end of an instance's lifetime (background.py): stop it, keep everything, and record
+    when (STATE "expired_at"); the deletion follows EXPIRY_GRACE_DAYS later. The people who look after it are told."""
+    from sudoo.core import audit
+
+    moment = int(time.time() if at is None else at)
+    job.step("Stopping the instance: its lifetime is over")
+    engines.of(name).stop(job, name)
+    STATE.update(name, switched_off=True, paused=False, expired_at=moment)
+    monitor.mark_stopped(name)
+    deletion = moment + settings.expiry_grace_days * 86400
+    audit.record("system", None, "instance stopped at the end of its lifetime", name,
+                 detail=f"deleted automatically from {time.strftime('%Y-%m-%d', time.gmtime(deletion))} unless extended")  # fmt: skip
+    from sudoo.instances import expiry
+
+    expiry.notify_stopped(name, deletion)
+
+
 def expire(job: Job, name: str) -> None:
     """The automatic deletion at the end of the instance's lifetime (background.py): delete() with its backup. After
     EXPIRY_ATTEMPTS failures in a row the instance is switched off instead, the attempts stop (STATE

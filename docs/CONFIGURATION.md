@@ -493,7 +493,7 @@ with `EXPOSURE=direct`. Every value here can be changed on the Settings page exc
 | `AUTO_PAUSE` | bool | `true` | **live** | New instances pause when idle (each instance can change it). |
 | `AUTO_UPDATE` | bool | `true` | **live** | New instances get new code from their branch automatically. |
 | `AUTO_UPGRADE` | bool | `true` | **live** | New instances upgrade changed modules after an update. |
-| `DELETE_AFTER_DAYS` | int | `30` | **live** | Lifetime offered for new instances, in days; 0: keep. |
+| `DELETE_AFTER_DAYS` | int | `30` | **live** | Default lifetime of a new instance, in days; 0: keep. The end date counts from creation, and each person can choose another lifetime when creating. |
 | `METRICS_INTERVAL_SECONDS` | float | `5` | **live** | Seconds between two measurements of the server and the instances (2 to 60). One hour of figures is kept. |
 | `DAILY_BACKUPS` | bool | `true` | **live** | Once a day, back up every instance that was used since its last daily backup. Each instance keeps only its latest daily backup; they are removed when the instance is deleted. |
 | `DAILY_BACKUP_TIME` | text | `00:00` | **live** | When the daily backups run, `HH:MM` on a 24-hour clock, in `TIMEZONE`. |
@@ -514,7 +514,12 @@ above exactly. A production instance is never paused or deleted automatically, i
 | :--- | :--- | :--- | :--- | :--- |
 | `MAX_PRODUCTION_INSTANCES` | int | `1` | **live** | Instances that may be in production at the same time, those being created as production included. Creating one more, or moving one more to production, is refused with 409. 0: no limit. |
 | `PRODUCTION_AUTO_UPDATE` | bool | `false` | **live** | New production instances get new code from their branch automatically. Off: a production instance gets new code only when someone asks (**Get latest code**), or once **Get new code automatically** is switched on for it. |
-| `STAGING_DELETE_AFTER_DAYS` | int | `90` | **live** | Lifetime offered for new staging instances, in days; 0: keep. |
+| `STAGING_DELETE_AFTER_DAYS` | int | `90` | **live** | Default lifetime of a new staging instance, in days; 0: keep. |
+| `EXPIRY_EXTEND_MAX_DAYS` | int | `30` | **live** | The most days someone without `instances.extend_unlimited` may add to an instance's lifetime in one extension; 0: no limit. |
+| `EXPIRY_EXTEND_MAX_COUNT` | int | `1` | **live** | How many times someone without `instances.extend_unlimited` may extend an instance's lifetime; 0: no limit. |
+| `EXPIRY_EXTEND_PRESETS` | str | `1,7,30` | **live** | The extensions the Extend menu offers, in days, comma-separated (a custom number too). |
+| `EXPIRY_WARNING_DAYS` | int | `3` | **live** | E-mail the people who look after an instance this many days before it expires; 0: no e-mail. |
+| `EXPIRY_GRACE_DAYS` | int | `7` | **live** | An expired instance is stopped, then deleted this many days later (0: at once). While stopped, only `instances.extend_unlimited` can extend it, which starts it again. |
 | `STAGING_DAILY_BACKUPS` | bool | `true` | **live** | Staging instances get the daily backup too (while `DAILY_BACKUPS` is on). `false`: only their manual and safety backups. |
 
 ### Projects

@@ -14,6 +14,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Server fingerprint in the marketplace registration and heartbeat:** `server_fingerprint`, a SHA-256 over the machine
   id and the primary MAC address without the installation key, so the hub can recognize a server after a reinstall.
   Left out when neither can be read; `hardware_fingerprint` is unchanged. See the marketplace guide.
+- **"Changes to `.github/` need review"** (`PROJECT_GUARD_PROTECT_GITHUB_DIR`, on by default for production, optional
+  per project): the checks' pull request adds a CODEOWNERS entry for `.github/` (the project's GitHub teams or people,
+  or the owner of a personal repository) and the production rule asks for a code-owner review. The remaining risk is
+  described in the security notes.
 
 ### Fixed
 
@@ -28,13 +32,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   status posted under that name by another app or by anyone with write access no longer satisfies them. The panel's
   result reader ignores a `sudoo-checks` run or status that does not come from GitHub Actions. Rules written earlier
   show as changed in the next preview and are updated when applied (this only tightens them).
-
-### Added
-
-- **"Changes to `.github/` need review"** (`PROJECT_GUARD_PROTECT_GITHUB_DIR`, on by default for production, optional
-  per project): the checks' pull request adds a CODEOWNERS entry for `.github/` (the project's GitHub teams or people,
-  or the owner of a personal repository) and the production rule asks for a code-owner review. The remaining risk is
-  described in the security notes.
 
 ### Changed
 

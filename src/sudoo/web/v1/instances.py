@@ -200,6 +200,37 @@ def list_instances() -> Response:
     return page(access.visible_instances(g.user, names), limit, offset, any_resource)
 
 
+@blueprint.get("/deleted-instances")
+@require("instances.view")
+def deleted_instances() -> Response:
+    """The instances deleted in the last DELETED_HISTORY_DAYS days (the instance list's Deleted tab), latest first:
+    `name`, `project` (`id`, `name`; or null), `branch`, `stage`, `created_at`, `deleted_at`, `deleted_by` (null when
+    the lifetime ended: `expired`). Those of a project the caller may not see are left out."""
+    from sudoo.instances import history
+    from sudoo.web.v1.responses import iso
+
+    rows = []
+    for found in history.recent():
+        project = projects.get(found["project"]) if found["project"] else None
+        if not access.sees_everything(g.user) and (
+            project is None or "instances.view" not in access.permissions(g.user, project, found["branch"])
+        ):
+            continue
+        rows.append(
+            {
+                "name": found["name"],
+                "project": {"id": project["id"], "name": project["name"]} if project else None,
+                "branch": found["branch"],
+                "stage": found["stage"],
+                "created_at": iso(found["created_at"]),
+                "deleted_at": iso(found["deleted_at"]),
+                "deleted_by": found["deleted_by"],
+                "expired": found["expired"],
+            }
+        )
+    return ok(rows)
+
+
 def any_resource(name: str) -> dict[str, Any]:
     """An instance of this server, or of another server (premium/servers.py)."""
     found = None if store.exists(name) or jobs.creating(name) else servers.remote_resource(name)

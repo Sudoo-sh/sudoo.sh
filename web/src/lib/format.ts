@@ -141,3 +141,13 @@ export function day(value: string | number | null | undefined): string {
   const parsed = toDate(value);
   return parsed ? parsed.toLocaleDateString(tag(), { dateStyle: "medium" }) : "—";
 }
+
+/** How long a build took, to the second below an hour: "4m 51s" */
+export function buildTime(seconds: number | null | undefined): string {
+  if (seconds == null) return "";
+  const whole = Math.max(0, Math.round(seconds));
+  if (whole >= 3600) return duration(whole);
+  const words = t().time;
+  const m = Math.floor(whole / 60);
+  return m ? `${words.minutes(m)} ${words.seconds(whole % 60)}` : words.seconds(whole);
+}

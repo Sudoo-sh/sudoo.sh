@@ -294,6 +294,7 @@ def instance_resource(name: str, full: bool = False) -> dict[str, Any]:
         "pauses_at": iso(float(last_visit or 0) + settings.idle_hours * 3600) if pausing else None,
         "expires_at": iso(operations.expires_at(env)),
         # stopped at the end of its lifetime (not production, not yet deleted): when, and when it will be deleted
+        "built_seconds": state.get("built_seconds"),
         "expired_at": iso(state.get("expired_at")),
         "deletes_at": (
             iso(float(state["expired_at"]) + settings.expiry_grace_days * 86400) if state.get("expired_at") else None

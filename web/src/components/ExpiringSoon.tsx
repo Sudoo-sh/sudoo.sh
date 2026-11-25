@@ -17,7 +17,7 @@ import { Input } from "./ui/input";
 
 /** Extend by some days: the new lifetime is the one it has plus the days (the panel refuses what the limits do not
  *  allow, and says why). */
-function Extend({ instance, choices }: { instance: Instance; choices: number[] }) {
+export function Extend({ instance, choices }: { instance: Instance; choices: number[] }) {
   const t = useT(words);
   const c = useT(common).common;
   const toast = useToast();
@@ -90,6 +90,18 @@ function Extend({ instance, choices }: { instance: Instance; choices: number[] }
         </Modal>
       )}
     </>
+  );
+}
+
+/** The day choices of the Extend menu, as the settings and the role allow them */
+export function useExtendChoices(): number[] {
+  const { data: settings } = useSettings();
+  const can = useCan();
+  const setting = (key: string) => settings?.find((s) => s.key === key)?.value;
+  return extendChoices(
+    String(setting("expiry_extend_presets") ?? "1,7,30"),
+    Number(setting("expiry_extend_max_days") ?? 30),
+    can("instances.extend_unlimited"),
   );
 }
 

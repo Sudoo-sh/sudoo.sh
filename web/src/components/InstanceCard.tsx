@@ -4,11 +4,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { keys, useJob } from "@/api/queries";
 import type { Instance, Job } from "@/api/types";
-import { ago, monogram, number, percent } from "@/lib/format";
+import { ago, buildTime, monogram, number, percent } from "@/lib/format";
 import { useT } from "@/i18n";
 import dashboard from "@/i18n/dashboard";
 import { jobTitle, stepTitle } from "@/i18n/jobs";
 import { LockTag } from "./LockTag";
+import { QuickActions } from "./QuickActions";
 import { StageTag } from "./StageTag";
 import { Button, Progress, Status, Tag } from "./app/basics";
 import { startHero, useHero } from "./app/motion";
@@ -113,7 +114,11 @@ export function InstanceCard({ instance }: { instance: Instance }) {
             <span className="v">{usage.requests_per_minute != null ? number(usage.requests_per_minute) : "—"}</span>
           </div>
         </div>
+        {instance.built_seconds != null && (
+          <div className="ic-built faint">{t.builtIn(buildTime(instance.built_seconds))}</div>
+        )}
       </div>
+      <QuickActions instance={instance} />
       <div className="ic-foot">
         <span className="truncate">
           {instance.last_visit_at ? t.visited(ago(instance.last_visit_at)) : t.created(ago(instance.created_at))}

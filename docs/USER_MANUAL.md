@@ -528,6 +528,13 @@ instance's Settings tab and says why when it refuses. The button shows only to p
 instance. When nothing expires in the window the card is not drawn. **See all** opens the list below filtered by
 **With end date** (every instance that has one, not only those inside the window of the card), the nearest end first.
 
+**Instance list tabs.** Above the list: **Current** (not stopped), **Failed** (a failed update or unreachable),
+**Stopped** (waiting for deletion), **Deleted** and **All**. **Deleted** lists the instances deleted lately: its
+project and branch, who deleted it (or that its lifetime ended), and when. It remembers them for
+`DELETED_HISTORY_DAYS` days (90 by default; 0 keeps nothing). Each card shows how long its creation took ("Built in
+4m 51s") and the actions the person may do: **Errors** (the latest log, when it failed), **Extend** (when it has an end
+date) and **Delete**, which asks the same confirmation as the instance page.
+
 **Recent activity** (below the charts, for those who may read the audit log): the last 10 events, with a link to the
 **Audit log**.
 

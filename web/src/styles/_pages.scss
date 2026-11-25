@@ -425,6 +425,19 @@
     position: relative;
     z-index: 1;
   }
+  .ic-built {
+    font-size: var(--text-12);
+    margin-top: var(--s2);
+  }
+  .ic-actions {
+    position: relative;
+    z-index: 1; // above the link that covers the card
+    gap: var(--s2);
+    padding: 0 var(--s4) var(--s3);
+    &:empty {
+      display: none;
+    }
+  }
   color: inherit !important;
   text-decoration: none !important;
   .ic-head {

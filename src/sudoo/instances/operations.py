@@ -341,6 +341,7 @@ def _create(job: Job, plan: dict[str, Any]) -> None:
     engines.of(name).up(job, name)
     _catch_mail(job, name)
     _wait_until_ready(job, name)
+    STATE.update(name, built_seconds=int(time.time() - job.started))  # "built in 4 min 51 s" on the instance list
     job.result = {"name": name, "url": url, "login": login, "password": settings.odoo_admin_password, "db": db}
     if source:
         job.note(f"Started from the backup {source['file']}")
@@ -443,11 +444,12 @@ def _record_admin_login(name: str, db: str) -> str:
     return login or kept
 
 
-def delete(job: Job, name: str, without_backup: bool = False, no_backup: bool = False) -> None:
+def delete(job: Job, name: str, without_backup: bool = False, no_backup: bool = False, expired: bool = False) -> None:
     """Back up every database, then remove the instance completely. No backup, no deletion, unless `without_backup`
     (asked for by someone who may manage backups): then a failed backup is noted and audit-logged, and the instance
     is removed anyway. Code running in the instance can make its own backup fail; this keeps it from staying.
-    `no_backup`: no backup is taken at all (a pull request's preview, projects/previews.py: its data is throw-away)."""
+    `no_backup`: no backup is taken at all (a pull request's preview, projects/previews.py: its data is throw-away).
+    `expired`: the automatic deletion at the end of its lifetime (the history says so instead of naming a person)."""
     job.expect(3)
     job.step("Backing up the database and files" if not no_backup else "Leaving out the backup")
     if no_backup:
@@ -466,6 +468,9 @@ def delete(job: Job, name: str, without_backup: bool = False, no_backup: bool = 
 
     access_rules.forget(name)  # a later instance of the same name starts without rules
     job.step("Removing the instance folder")
+    from sudoo.instances import history
+
+    history.record(name, store.read_env(name), job.user, expired)  # the Deleted tab; before the folder goes
     shutil.rmtree(store.folder(name))
     STATE.remove(name)
     integrity.forget(name)
@@ -527,7 +532,7 @@ def expire(job: Job, name: str) -> None:
     EXPIRY_ATTEMPTS failures in a row the instance is switched off instead, the attempts stop (STATE
     "expiry_stopped") and the audit log says so, until someone deletes it or gives it another lifetime."""
     try:
-        delete(job, name)
+        delete(job, name, expired=True)
     except Exception as error:
         failures = int(STATE.get(name).get("expiry_failures") or 0) + 1
         STATE.update(name, expiry_failures=failures)

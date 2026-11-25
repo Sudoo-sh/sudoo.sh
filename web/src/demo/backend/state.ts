@@ -787,6 +787,7 @@ function build(seed: Seed): Instance {
     last_visit_at: iso(visit),
     pauses_at: autoPause && seed.status === "online" && visit ? iso(visit + idle) : null,
     expires_at: deleteAfter ? iso(created + deleteAfter * DAY) : null,
+    built_seconds: seed.stage === "production" ? 612 : 180 + (hash(name) % 240),
     expired_at: seed.expiredAgo != null ? iso(OPENED - seed.expiredAgo) : null,
     deletes_at: seed.expiredAgo != null ? iso(OPENED - seed.expiredAgo + 7 * DAY) : null,
     current_job: null,

@@ -920,6 +920,13 @@ class Settings(BaseSettings):
     expiry_extend_presets: str = Field(
         "1,7,30", description="The extensions the Extend menu offers, in days, comma-separated (a custom number too)."
     )
+    deleted_history_days: int = Field(
+        90,
+        ge=0,
+        le=3650,
+        description="How many days the Deleted tab of the instance list remembers a deleted instance (who deleted it "
+        "or that its lifetime ended, and when); 0: not kept.",
+    )
     expiry_card_days: int = Field(
         7,
         ge=1,
@@ -2410,6 +2417,7 @@ EDITABLE = (
     "expiry_extend_max_days",
     "expiry_extend_max_count",
     "expiry_extend_presets",
+    "deleted_history_days",
     "expiry_card_days",
     "expiry_card_rows",
     "expiry_warning_days",

@@ -429,6 +429,7 @@ const en = {
     expiry_extend_max_days: "Longest extension, days",
     expiry_extend_max_count: "Extensions allowed",
     expiry_extend_presets: "Extend menu, days",
+    deleted_history_days: "Deleted instances remembered, days",
     expiry_card_days: "Expiring soon card, window in days",
     expiry_card_rows: "Expiring soon card, rows",
     expiry_warning_days: "Warn before expiry, days",
@@ -1003,6 +1004,8 @@ const en = {
       "The most days someone without the right to extend without limits (instances.extend_unlimited) may add in one extension; 0: no limit.",
     expiry_extend_max_count: "How many times someone without that right may extend one instance; 0: no limit.",
     expiry_extend_presets: "The extensions the Extend menu offers, in days, comma-separated (a custom number too).",
+    deleted_history_days:
+      "How long the Deleted tab remembers a deleted instance (who deleted it, or that its lifetime ended); 0: not kept.",
     expiry_card_days: "The home page lists instances that expire within this many days.",
     expiry_card_rows: "The most instances the home page lists as expiring soon.",
     expiry_warning_days: "E-mail the people who look after an instance this many days before it expires; 0: no e-mail.",
@@ -1707,6 +1710,7 @@ const ar: typeof en = {
     expiry_extend_max_days: "أطول تمديد، بالأيام",
     expiry_extend_max_count: "عدد التمديدات المسموحة",
     expiry_extend_presets: "قائمة التمديد، بالأيام",
+    deleted_history_days: "مدة تذكّر البيئات المحذوفة، بالأيام",
     expiry_card_days: "بطاقة «تنتهي قريباً»، المدة بالأيام",
     expiry_card_rows: "بطاقة «تنتهي قريباً»، عدد الصفوف",
     expiry_warning_days: "التنبيه قبل الانتهاء، بالأيام",
@@ -2261,6 +2265,8 @@ const ar: typeof en = {
       "أكثر عدد أيام يمكن لمن ليس لديه صلاحية التمديد دون حدود (instances.extend_unlimited) إضافته في تمديد واحد؛ 0: دون حد.",
     expiry_extend_max_count: "عدد المرات التي يمكن لمن ليس لديه هذه الصلاحية تمديد بيئة واحدة فيها؛ 0: دون حد.",
     expiry_extend_presets: "التمديدات التي تعرضها قائمة التمديد، بالأيام، مفصولة بفواصل (ويمكن إدخال رقم آخر).",
+    deleted_history_days:
+      "المدة التي يتذكر فيها تبويب «المحذوفة» بيئة محذوفة (من حذفها، أو أن مدتها انتهت)؛ 0: لا يُحفظ شيء.",
     expiry_card_days: "تعرض الصفحة الرئيسية البيئات التي تنتهي مدتها خلال هذا العدد من الأيام.",
     expiry_card_rows: "أكبر عدد من البيئات تعرضه الصفحة الرئيسية بوصفها تنتهي قريباً.",
     expiry_warning_days: "إرسال بريد إلى من يرعون البيئة قبل انتهاء مدتها بهذا العدد من الأيام؛ 0: دون بريد.",

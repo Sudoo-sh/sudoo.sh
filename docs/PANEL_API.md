@@ -223,6 +223,7 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | Method and path | Permission | Body | Answer |
 | :--- | :--- | :--- | :--- |
 | `GET /instances?limit=100&offset=0` | `instances.view` | | 200, a list of instances (those being created too, status `creating`); `meta`: `total`, `count`, `limit` (1 to 500), `offset` |
+| `GET /deleted-instances` | `instances.view` | | 200, the instances deleted in the last `DELETED_HISTORY_DAYS` days, latest first: `name`, `project` (`id`, `name`, or `null`), `branch`, `stage`, `created_at`, `deleted_at`, `deleted_by` (`null` when its lifetime ended) and `expired`. Those of a project the caller may not see are left out |
 | `GET /instances/<name>` | `instances.view` | | 200, the instance with `disk`, `recent_commits`, `submodules`, `backups`, `restorable_backup`, `newer_odoo_image` (a newer copy of its Odoo image is on this server: `update-images` moves it there) and `recent_jobs` ([below](#instances-jobs-and-actions-in-detail)); also while it is being created (status `creating`). For callers with `instances.shell` or `instances.credentials` in it, `containers`: `odoo` and `db` (container names), `db_user` and `host` (PUBLIC_HOST, or `null`), for the SSH and psql commands of a project's branch; never a password |
 | `GET /instances/<name>/credentials` | `instances.credentials` | | 200, Odoo `login`, `admin_password`, `master_password`, `ports`; written to the audit log |
 | `GET /instances/<name>/logs?lines=300` | `instances.logs` | | 200, `{"text"}`: the end of Odoo's log (1 to 5000 lines) |
@@ -776,6 +777,7 @@ An instance:
 }
 ```
 
+`built_seconds` is how long its creation took (`null` for an instance created before the panel measured it).
 `expired_at` is when the instance was stopped at the end of its lifetime and `deletes_at` when it will be deleted
 (`EXPIRY_GRACE_DAYS` later); both are `null` otherwise.
 

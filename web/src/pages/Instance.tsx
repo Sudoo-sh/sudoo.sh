@@ -1854,7 +1854,7 @@ export function SubmoduleDialog({
   );
 }
 
-function DeleteDialog({
+export function DeleteDialog({
   name,
   production,
   after = "/",

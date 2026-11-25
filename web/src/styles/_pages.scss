@@ -3931,6 +3931,14 @@ tr.invited {
 .why-failed h3 {
   margin: 0;
 }
+.why-cause {
+  padding: var(--s3);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-control);
+  p {
+    margin: 0;
+  }
+}
 .why-lines {
   margin: 0;
   padding: var(--s2) var(--s3);
@@ -3946,6 +3954,15 @@ tr.invited {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   unicode-bidi: isolate;
+}
+.why-lines .why-mark {
+  display: block;
+  margin-inline: calc(var(--s3) * -1);
+  padding-inline: var(--s3);
+  background: color-mix(in srgb, var(--negative) 22%, transparent);
+}
+.why-lines span {
+  white-space: pre-wrap;
 }
 .why-fix {
   padding: var(--s3);

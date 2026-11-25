@@ -2406,7 +2406,7 @@ it took, the instance, the job (whose steps you can open) and a short result:
 * **success** when the job succeeded;
 * **warning** when the job succeeded but Odoo's log has `WARNING` or `ERROR` lines while loading the modules (the
   first ten are kept with the build), or the job left a warning, such as modules that could not be upgraded;
-* **failed** when the job failed, with **Why it failed** (the step, the reason and the error details, `core/failure.py`;
+* **failed** when the job failed, with **Why it failed** (the step, the reason, the error details and, when the panel recognises the cause, what it is and what to do about it, `core/failure.py`, `core/failure_rules.py`;
   for a repository the panel cannot read, the fix next to it); an update that was put back keeps the instance on its
   previous build, which stays live;
 * **dropped** when the instance moved on: a newer build of it succeeded, it follows another branch now, or it was

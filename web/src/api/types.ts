@@ -207,6 +207,20 @@ export interface Failure {
   details: string[];
   /** for kind "repository": the repository the panel could not read (owner/name) */
   repository: string | null;
+  /** the cause the panel recognised (core/failure_rules.py); missing for older entries and when nothing matched */
+  rule?: FailureRule;
+}
+
+/** A recognised cause of a failure: its id (the Arabic text is keyed by it), the English text and what the log named */
+export interface FailureRule {
+  id: string;
+  title: string;
+  explanation: string;
+  fix: string;
+  /** what the rule found in the log, already cleaned: module, file, line, package, port */
+  captured: Partial<Record<"module" | "file" | "line" | "package" | "port", string>>;
+  /** 1-based line of the shown error details where the match is (the details only, never the technical log) */
+  excerpt_line?: number;
 }
 
 /** An instance's job in progress: the reference with its steps so far */

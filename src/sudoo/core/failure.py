@@ -25,6 +25,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from sudoo.core import failure_rules, hints
 from sudoo.core.shell import redact
 
 MAX_LINES = 60
@@ -153,5 +154,24 @@ def extract(log: str, tests: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 def describe(step: str | None, reason: str, log: str, tests: dict[str, Any] | None = None) -> dict[str, Any]:
-    """The "Why it failed" of a job: {"step", "reason", "kind", "details", "repository"}."""
-    return {"step": step, "reason": reason} | extract(log, tests)
+    """The "Why it failed" of a job: {"step", "reason", "kind", "details", "repository"} and, when a rule of
+    core/failure_rules.py recognised the cause, "rule"."""
+    found = extract(log, tests)
+    lines = [
+        clean(line) for line in failed_step_text(log).splitlines() if line.strip() and not _NOISE.match(line.strip())
+    ]
+    # a step's own explanation ("Sudoo.sh: ..." in the log) wins over every pattern, as it always has: no rule then
+    rule = None if hints.has_panel_hint(log) else failure_rules.match(lines)
+    if rule is None:  # an older entry, or nothing recognisable: no rule, everything else as before
+        return {"step": step, "reason": reason} | found
+    # where the matched line is within the error details shown (1-based; the first one), so the card can point at it.
+    # It counts lines of the excerpt, never lines of the technical log, which the panel does not send.
+    matched = str(rule.pop("matched", ""))
+    shown = next((i + 1 for i, line in enumerate(found["details"]) if matched and matched in line), None)
+    if shown is not None:
+        rule["excerpt_line"] = shown
+    # one authoritative cause: a sentence of the older pattern hints (what `reason` is for most failed jobs) gives way
+    # to the rule's; any other reason (what happened, for example an update that was put back) stays
+    if hints.is_pattern_hint(reason):
+        reason = f"{rule['title']}. {rule['explanation']}"
+    return {"step": step, "reason": reason} | found | {"rule": rule}

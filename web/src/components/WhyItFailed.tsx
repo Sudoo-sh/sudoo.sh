@@ -9,7 +9,7 @@ import { ArrowUpRight, Check, CircleCheck, CircleX, Copy, KeyRound, RefreshCw, R
 import { useState } from "react";
 import { api, errorText } from "@/api/client";
 import { useCall, useInstance } from "@/api/queries";
-import type { Failure, GitHubAppState, RepoAccess } from "@/api/types";
+import type { Failure, FailureRule, GitHubAppState, RepoAccess } from "@/api/types";
 import { useT } from "@/i18n";
 import words from "@/i18n/failure";
 import { stepTitle } from "@/i18n/jobs";
@@ -17,7 +17,7 @@ import { useCan } from "./Session";
 import { Button, Callout, CopyField, Tag } from "./app/basics";
 
 /** The error details: a monospace box, left to right inside right-to-left pages, with a copy button. */
-function Details({ lines }: { lines: string[] }) {
+function Details({ lines, mark }: { lines: string[]; mark?: number }) {
   const t = useT(words);
   const [copied, setCopied] = useState(false);
   if (!lines.length) return null;
@@ -43,10 +43,62 @@ function Details({ lines }: { lines: string[] }) {
         </Button>
       </div>
       <pre className="why-lines" dir="ltr" tabIndex={0}>
-        {lines.join("\n")}
+        {lines.map((line, i) => (
+          <span key={i} id={`why-line-${i + 1}`} className={i + 1 === mark ? "why-mark" : undefined}>
+            {line}
+            {"\n"}
+          </span>
+        ))}
       </pre>
       <p className="xsmall faint">{t.detailsHint}</p>
     </div>
+  );
+}
+
+/** The cause the panel recognised: a title, what it found in the log, an explanation and what to do. The text
+ * comes from the locale files by the rule's id; a rule this web app does not know is shown in the server's English. */
+function Cause({ rule }: { rule: FailureRule }) {
+  const t = useT(words);
+  const own = (t.rules as Record<string, { title: string; explanation: string; fix: string } | undefined>)[rule.id];
+  const text = own ?? rule;
+  const found = (Object.entries(rule.captured) as [keyof FailureRule["captured"], string][]).filter(([, v]) => v);
+  return (
+    <section className="why-cause stack-sm" aria-label={text.title} data-rule={rule.id}>
+      <h3 className="small">{text.title}</h3>
+      {rule.excerpt_line ? (
+        <div className="row-wrap xsmall">
+          <span>
+            {t.ruleLabels.excerptLine} <code>{rule.excerpt_line}</code>
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              document.getElementById(`why-line-${rule.excerpt_line}`)?.scrollIntoView({ block: "nearest" })
+            }
+          >
+            {t.ruleLabels.showLine}
+          </Button>
+        </div>
+      ) : null}
+      {found.length > 0 && (
+        <div className="row-wrap xsmall">
+          <b>{t.ruleLabels.found}:</b>
+          {found.map(([key, value]) => (
+            <span key={key}>
+              {t.ruleLabels[key]}{" "}
+              <bdi dir="ltr">
+                <code>{value}</code>
+              </bdi>
+            </span>
+          ))}
+        </div>
+      )}
+      <p className="small">{text.explanation}</p>
+      <p className="small">
+        <b>{t.ruleLabels.whatToDo}:</b> {text.fix}
+      </p>
+    </section>
   );
 }
 
@@ -217,6 +269,9 @@ export function WhyItFailed({
 }) {
   const t = useT(words);
   const reason = failure?.reason || fallback || t.noReason;
+  // the server's reason is the rule's own title and explanation: the card below says it (in the reader's language)
+  const rule = failure?.rule;
+  const reasonIsTheRule = !!rule && reason === `${rule.title}. ${rule.explanation}`;
   return (
     <section className="why-failed stack-sm" aria-label={t.title}>
       <Callout tone="danger">
@@ -226,9 +281,10 @@ export function WhyItFailed({
             {t.step}: <b>{stepTitle(failure.step)}</b>
           </div>
         )}
-        <div>{reason}</div>
+        {!reasonIsTheRule && <div>{reason}</div>}
       </Callout>
-      {failure && <Details lines={failure.details} />}
+      {failure?.rule && <Cause rule={failure.rule} />}
+      {failure && <Details lines={failure.details} mark={failure.rule?.excerpt_line} />}
       {failure?.kind === "repository" && instance && (
         <RepositoryFix instance={instance} repository={failure.repository} />
       )}

@@ -40,6 +40,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Step by step workflow guides in English and Arabic (`docs/manual/`), with screenshots from the demo.
 - User manual: the first-run setup page has eight steps, not two; the certificate "Expires soon" window follows `ALERT_CERTIFICATE_DAYS`; production updates are always backed up first; maintenance backs up first only for Odoo image updates; the client portal is a Business plan feature.
+- **Failed builds name a recognised cause (Task 18a):** `core/failure_rules.py` adds nine rules (module with unmet
+  dependencies, XML parse error, missing external id, Python syntax error, pip package not found, pip conflict,
+  missing Python library, port in use, access rights file) on top of the existing hints. "Why it failed" gets a
+  `rule` (id, title, explanation, fix and what the log named: module, file, line, package or port) when one
+  matches, shown as a card in English and Arabic with the matching line of the error details marked (its number is a
+  line of the shown excerpt, not of the file or the log); the e-mail to the person who pushed and the
+  build-failed notification (every channel) carry the title and fix (the e-mail in English only). Entries without a rule, and logs no rule matches, show exactly what they showed before.
+  Matching reads only the cleaned lines of the failed step, so what a rule captures was already masked. Nothing
+  leaves the server and nothing is sent to GitHub: the commit status and any AI step are later, separate changes.
 - **Second factor column and warning (Task 34d):** `GET /users` shows `second_factor_required` per account
   (`REQUIRE_SECOND_FACTOR`, which already applies to super admins and administrators by default). The Accounts page marks an
   active account that must have a second factor and has none ("Required, not set up") and says how many there are. The

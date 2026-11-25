@@ -53,7 +53,8 @@ def clean() -> Iterator[None]:
 
 def _wait(job: Job) -> None:
     deadline = time.time() + 5
-    while job.status in ("queued", "running"):
+    # a failed job is finished only when its "Why it failed" is set (core/jobs.py sets the status first)
+    while job.status in ("queued", "running") or (job.status == "failed" and job.failure is None):
         assert time.time() < deadline, job.status
         time.sleep(0.01)
 
@@ -366,3 +367,16 @@ def test_an_arabic_e_mail_reads_right_to_left_and_its_details_left_to_right() ->
     assert "Repository not found" in arabic.text and 'dir="' not in arabic.text  # the plain text is unchanged
     english = compose("push_failed", MESSAGES["push_failed"].samples())
     assert '<html lang="en">' in english.html and 'dir="rtl"' not in english.html
+
+
+def test_the_e_mail_to_who_pushed_names_a_recognised_cause(sent: list[Any]) -> None:
+    pid = _project()
+    log = "\n== Install requirements\nERROR: No matching distribution found for fancy-lib\n"
+    job = Job("erp-dev", "Automatic update", "update", "system")
+    job.details = {"build": "push", "pusher": {"name": "Huda", "email": "huda@example.com"}}
+    job.failure = failure.describe("Install requirements", "Step failed", log)
+    assert job.failure["rule"]["id"] == "pip_no_matching_distribution"
+    push_failed.notify(job, pid, "feature-b", COMMIT, job.failure)
+    ((_, _, values),) = sent
+    assert values["what_to_do"].startswith("A Python package could not be found.")
+    assert "requirements.txt" in values["what_to_do"]

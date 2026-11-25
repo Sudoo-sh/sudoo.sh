@@ -541,6 +541,13 @@ def on_build(entry_id: str) -> int:
         details = [f"Commit: {commit.get('sha')} {commit.get('subject') or ''}".strip()] if commit.get("sha") else []
         result = str(entry.get("result") or "")
         if status == "failed":
+            rule = (entry.get("failure") or {}).get("rule")
+            if isinstance(rule, dict) and rule.get("title"):  # the recognised cause (core/failure_rules.py)
+                details = [*details, f"Cause: {rule['title']}. {rule.get('fix') or ''}".strip()]
+                from sudoo.core import hints
+
+                if hints.is_pattern_hint(result):  # one cause, not two: the rule's replaces the older hint's
+                    result = f"{rule['title']}. {rule.get('explanation') or ''}".strip()
             return emit("build_failed", project_id, title=f"Build of {branch} failed", text=result or "The build failed.",
                         details=details, severity="problem", **common)  # fmt: skip
         if status == "warning":

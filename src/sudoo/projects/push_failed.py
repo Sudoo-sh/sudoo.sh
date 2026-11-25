@@ -129,6 +129,9 @@ def notify(
     arabic = _language(person["email"]) == "ar"
     kind = str(failure.get("kind") or "other")
     todo = (WHAT_TO_DO_AR if arabic else WHAT_TO_DO).get(kind, (WHAT_TO_DO_AR if arabic else WHAT_TO_DO)["other"])
+    rule = failure.get("rule")
+    if isinstance(rule, dict) and not arabic:  # the rules' text is English; an Arabic mail keeps its own text
+        todo = f"{rule['title']}. {rule['fix']} " + todo
     from sudoo import mail
     from sudoo.mail.catalog import details_block, lines_block
 

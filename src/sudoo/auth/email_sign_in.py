@@ -8,8 +8,11 @@
     3. The person types the code; a right one signs the account in (then the second factor rules apply, as after a
        password). Wrong codes count like wrong passwords (accounts.THROTTLE, in the caller).
 
-Each address (IP) may ask for EMAIL_CODE_SENDS_PER_HOUR codes per hour, so the form cannot be used to flood
-mailboxes.
+Each address (IP; an IPv6 address counts as its /64) may ask for EMAIL_CODE_SENDS_PER_HOUR codes per hour, and each
+account is sent at most EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT codes per hour from all addresses together, so the form
+cannot be used to flood mailboxes. Over the account's limit nothing is sent and the answer stays the same. Wrong
+tries are not capped per account: a code allows 5 of them, and an address's wrong tries are limited by
+accounts.THROTTLE.
 
 The functions take a `find` (an e-mail address -> the account's key and the account, or None) and a `purpose`, so
 another kind of account (a client portal) can use the same machinery with its own accounts: request_code(address,
@@ -51,16 +54,19 @@ def panel_account(address: str) -> tuple[str, Account] | None:
 
 
 class SendLimit:
-    """At most EMAIL_CODE_SENDS_PER_HOUR codes asked for per address (IP) in any hour."""
+    """At most a number of codes per key in any hour: per address (IP, as its /64 for IPv6) with
+    EMAIL_CODE_SENDS_PER_HOUR, and per account with EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT."""
 
     WINDOW_SECONDS = 3600
 
-    def __init__(self) -> None:
+    def __init__(self, limit: Callable[[], int] = lambda: settings.email_code_sends_per_hour) -> None:
+        self._limit = limit
         self._lock = threading.Lock()
         self._asked: dict[str, deque[float]] = {}
 
     def allow(self, ip: str) -> bool:
         """Count one request from `ip`; False when it is over the limit (and then it is not counted)."""
+        ip = accounts.rate_key(ip)
         now = time.time()
         with self._lock:
             for key in [k for k, v in self._asked.items() if not v or now - v[-1] > self.WINDOW_SECONDS]:
@@ -68,7 +74,7 @@ class SendLimit:
             asked = self._asked.setdefault(ip, deque())
             while asked and now - asked[0] > self.WINDOW_SECONDS:
                 asked.popleft()
-            if len(asked) >= settings.email_code_sends_per_hour:
+            if len(asked) >= self._limit():
                 return False
             asked.append(now)
             return True
@@ -79,6 +85,7 @@ class SendLimit:
 
 
 SEND_LIMIT = SendLimit()
+ACCOUNT_SEND_LIMIT = SendLimit(lambda: settings.email_code_sends_per_hour_per_account)
 
 
 def _deliver(job: Callable[[], None]) -> None:
@@ -104,6 +111,11 @@ def request_code(
         try:
             code = codes.new((key, purpose))
         except ValueError:  # one a minute: the code sent a moment ago still works
+            return {"sent_to": masked(address)}
+        if not ACCOUNT_SEND_LIMIT.allow(f"{purpose}:{key}"):
+            # this account was sent its share for the hour: no mail, and the same answer as ever
+            codes.drop((key, purpose))
+            log.warning("sign-in code for %s not sent: the account's hourly limit is reached", key)
             return {"sent_to": masked(address)}
 
         def job() -> None:

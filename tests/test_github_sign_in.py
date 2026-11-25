@@ -22,7 +22,7 @@ from flask.testing import FlaskClient
 
 from sudoo import accounts, invitations, projects
 from sudoo.auth import email_sign_in, github, github_access, methods
-from sudoo.config import live, settings
+from sudoo.config import Settings, live, settings
 from sudoo.core import vault
 from sudoo.projects import access
 from sudoo.repos import github_app
@@ -150,6 +150,7 @@ def gh(fake: type[FakeGitHub], passwords: dict[str, str]) -> Iterator[type[FakeG
         getattr(fake, attribute).clear()
     accounts.THROTTLE._failures.clear()
     email_sign_in.SEND_LIMIT.clear()
+    email_sign_in.ACCOUNT_SEND_LIMIT.clear()
     yield fake
     live.change(dict.fromkeys(live.overrides()))
     github_app.disconnect()
@@ -489,6 +490,7 @@ def mailbox(monkeypatch: pytest.MonkeyPatch) -> Iterator[Mailbox]:
     monkeypatch.setattr(email_code, "mailer", lambda: fake)
     monkeypatch.setattr(email_sign_in, "_deliver", lambda job: job())
     email_sign_in.SEND_LIMIT.clear()
+    email_sign_in.ACCOUNT_SEND_LIMIT.clear()
     accounts.THROTTLE._failures.clear()
     yield fake
     live.change(dict.fromkeys(live.overrides()))
@@ -557,6 +559,55 @@ def test_email_codes_are_limited_per_address(app: Flask, mailbox: Mailbox) -> No
             == 200
         )
     assert client.post("/api/v1/session/email-code", json={"email": "x@example.com"}, headers=ORIGIN).status_code == 429
+
+
+def test_email_codes_are_limited_per_account_across_addresses(
+    monkeypatch: pytest.MonkeyPatch, mailbox: Mailbox, admin: Any
+) -> None:
+    """Ten codes an hour per account whatever the address asking (EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT); over it
+    nothing is sent and the answer does not change."""
+    from sudoo.auth import RequestInfo, codes
+
+    name = _account(role="viewer", email="busy.person@example.com", sign_in_methods=["email_code"])
+    monkeypatch.setattr(codes, "RESEND_SECONDS", 0)
+    live.change({"email_code_sends_per_hour": 1000, "email_code_sends_per_hour_per_account": 3})
+    assert settings.email_code_sends_per_hour_per_account == 3
+    answers = []
+    for number in range(5):  # five different addresses, one account
+        origin = RequestInfo(ip=f"203.0.113.{number + 1}")
+        answers.append(email_sign_in.request_code("busy.person@example.com", origin))
+    assert all(answer == {"sent_to": "b***@example.com"} for answer in answers)
+    assert len([to for to, _ in mailbox.sent if to == "busy.person@example.com"]) == 3
+    other = _account(role="viewer", email="calm.person@example.com", sign_in_methods=["email_code"])
+    email_sign_in.request_code("calm.person@example.com", RequestInfo(ip="203.0.113.99"))
+    assert mailbox.sent[-1][0] == "calm.person@example.com" and name != other  # another account is not affected
+
+
+def test_the_per_account_limit_defaults_to_ten() -> None:
+    assert Settings().email_code_sends_per_hour_per_account == 10
+
+
+def test_ipv6_limits_count_the_whole_64(mailbox: Mailbox) -> None:
+    from sudoo.auth import RequestInfo
+
+    assert accounts.rate_key("2001:db8:1:2:aaaa:bbbb:cccc:dddd") == accounts.rate_key("2001:db8:1:2::1")
+    assert accounts.rate_key("2001:db8:1:2::1") != accounts.rate_key("2001:db8:1:3::1")
+    assert accounts.rate_key("::ffff:198.51.100.7") == "198.51.100.7" == accounts.rate_key("198.51.100.7")
+    assert accounts.rate_key("not an address") == "not an address"
+    live.change({"email_code_sends_per_hour": 2})
+    for number in range(2):  # two different addresses of one /64 share the limit
+        email_sign_in.request_code("x@example.com", RequestInfo(ip=f"2001:db8:5:6::{number + 1}"))
+    with pytest.raises(PermissionError):
+        email_sign_in.request_code("x@example.com", RequestInfo(ip="2001:db8:5:6:ffff::9"))
+    email_sign_in.request_code("x@example.com", RequestInfo(ip="2001:db8:5:7::1"))  # the next /64 has its own count
+
+
+def test_wrong_tries_of_one_ipv6_64_share_the_throttle() -> None:
+    for number in range(accounts.THROTTLE.MAX_PER_ACCOUNT_AND_ADDRESS):
+        accounts.THROTTLE.failed(f"2001:db8:9:9::{number + 1}", "someone")
+    assert accounts.THROTTLE.seconds_to_wait("2001:db8:9:9:1234::1", "someone") > 0
+    assert accounts.THROTTLE.seconds_to_wait("2001:db8:9:a::1", "someone") == 0
+    accounts.THROTTLE._failures.clear()
 
 
 def test_the_email_code_is_not_a_second_factor_after_an_email_code(app: Flask, mailbox: Mailbox) -> None:

@@ -1521,8 +1521,9 @@ accounts `CLIENT_SIGN_IN_METHODS` (`email_code`). Change them for one account on
   the last super admin that has one, to demote or delete them, or to set `SIGN_IN_METHODS` without `password` unless
   a super admin has Password chosen on their own account.
 * E-mail codes need e-mail to be set up and `EMAIL_CODE_SIGN_IN` on. The sign-in page answers the same whether an
-  account uses the address or not. Each address may ask for `EMAIL_CODE_SENDS_PER_HOUR` codes an hour; wrong codes
-  count like wrong passwords. After an e-mail code, the e-mail code is not accepted again as the second factor.
+  account uses the address or not. Each address (an IPv6 address counts as its /64) may ask for `EMAIL_CODE_SENDS_PER_HOUR` codes an hour, and each
+  account is sent at most `EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT` (10) an hour from all addresses together; wrong
+  codes count like wrong passwords. After an e-mail code, the e-mail code is not accepted again as the second factor.
 * Every sign-in, link and unlink is in the audit log, and the sign-in e-mail says which way was used.
 
 ---

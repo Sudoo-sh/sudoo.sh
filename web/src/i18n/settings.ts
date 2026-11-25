@@ -269,6 +269,7 @@ const en = {
     client_sign_in_methods: "How client accounts sign in",
     email_code_sign_in: "Offer a code by e-mail",
     email_code_sends_per_hour: "Codes one address may ask for per hour",
+    email_code_sends_per_hour_per_account: "Codes one account is sent per hour",
     github_sign_in: "Offer Continue with GitHub",
     github_sign_in_orgs: "GitHub organisations that may sign in",
     github_sign_in_role: "Role of a new account from those organisations",
@@ -724,6 +725,8 @@ const en = {
     email_code_sign_in:
       "Offer Send me a code on the sign-in page (when e-mail is set up), for the accounts that may use it.",
     email_code_sends_per_hour: "Sign-in codes by e-mail one address (IP) may ask for per hour.",
+    email_code_sends_per_hour_per_account:
+      "Sign-in codes by e-mail one account is sent per hour, from all addresses together. Over it no code is sent and the sign-in page answers the same.",
     github_sign_in:
       "Offer Continue with GitHub on the sign-in page. Needs the panel's GitHub App (GitHub page) with the panel's /login/github address as a callback URL.",
     github_sign_in_orgs:
@@ -1523,6 +1526,7 @@ const ar: typeof en = {
     client_sign_in_methods: "طرق تسجيل دخول حسابات العملاء",
     email_code_sign_in: "اعرض رمزًا بالبريد الإلكتروني",
     email_code_sends_per_hour: "الرموز التي يطلبها عنوان واحد في الساعة",
+    email_code_sends_per_hour_per_account: "الرموز التي يُرسَل منها لحساب واحد في الساعة",
     github_sign_in: "اعرض المتابعة باستخدام GitHub",
     github_sign_in_orgs: "مؤسسات GitHub المسموح لها بتسجيل الدخول",
     github_sign_in_role: "دور الحساب الجديد من تلك المؤسسات",
@@ -1969,6 +1973,8 @@ const ar: typeof en = {
     email_code_sign_in:
       'اعرض "أرسل لي رمزًا" في صفحة تسجيل الدخول (حين يكون البريد الإلكتروني مُعدًّا)، للحسابات المسموح لها بذلك.',
     email_code_sends_per_hour: "عدد رموز تسجيل الدخول بالبريد التي يطلبها عنوان IP واحد في الساعة.",
+    email_code_sends_per_hour_per_account:
+      "عدد رموز تسجيل الدخول بالبريد التي تُرسَل لحساب واحد في الساعة من كل العناوين معًا. وبعده لا يُرسَل رمز وتجيب صفحة الدخول بالجواب نفسه.",
     github_sign_in:
       'اعرض "المتابعة باستخدام GitHub" في صفحة تسجيل الدخول. يحتاج إلى تطبيق GitHub الخاص باللوحة (صفحة GitHub) مع عنوان اللوحة /login/github عنوانًا للرجوع.',
     github_sign_in_orgs:

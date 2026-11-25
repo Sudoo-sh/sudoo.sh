@@ -411,6 +411,13 @@ class Settings(BaseSettings):
     email_code_sends_per_hour: int = Field(
         10, ge=1, le=1000, description="Sign-in codes by e-mail one address (IP) may ask for per hour."
     )
+    email_code_sends_per_hour_per_account: int = Field(
+        10,
+        ge=1,
+        le=1000,
+        description="Sign-in codes by e-mail one account may be sent per hour, from all addresses together. Over "
+        "it, no new code is sent (the answer to the person is the same), so an account's mailbox cannot be flooded.",
+    )
     github_sign_in: bool = Field(
         False,
         description="Offer Continue with GitHub on the sign-in page. Needs the panel's GitHub App (GitHub page) with "
@@ -2409,6 +2416,7 @@ EDITABLE = (
     "client_sign_in_methods",
     "email_code_sign_in",
     "email_code_sends_per_hour",
+    "email_code_sends_per_hour_per_account",
     "github_sign_in",
     "github_sign_in_orgs",
     "github_sign_in_role",

@@ -276,6 +276,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
           "client_sign_in_methods",
           "email_code_sign_in",
           "email_code_sends_per_hour",
+          "email_code_sends_per_hour_per_account",
           "github_sign_in",
           "github_sign_in_orgs",
           "github_sign_in_role",

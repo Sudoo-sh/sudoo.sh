@@ -22,6 +22,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **A per-account limit on sign-in codes by e-mail** (security review finding F-06): `EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT`
+  (10 by default, an admin setting) caps the codes one account is sent per hour from all addresses together; over it
+  nothing is sent and the page answers the same. Rate limits for sign-in failures and codes now count an IPv6 address
+  as its /64. Wrong tries per account are not capped (as decided); the per-code and per-address limits stay.
 - **A standing alert while the country database is missing or old** (security review finding F-05): with the access rules
   on, administrators see it in the panel's alerts until a database newer than `ACCESS_RULES_GEO_MAX_AGE_DAYS` days
   (new setting, 45 by default) is in place. The default of `ACCESS_RULES_GEO_MISSING` (`open`) is unchanged.

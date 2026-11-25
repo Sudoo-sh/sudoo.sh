@@ -1652,6 +1652,20 @@
     "description": "Sign-in codes by e-mail one address (IP) may ask for per hour."
   },
   {
+    "key": "email_code_sends_per_hour_per_account",
+    "env": "EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT",
+    "value": 10,
+    "env_value": 10,
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "integer",
+    "minimum": 1,
+    "description": "Sign-in codes by e-mail one account is sent per hour, from all addresses together."
+  },
+  {
     "key": "github_sign_in",
     "env": "GITHUB_SIGN_IN",
     "value": true,

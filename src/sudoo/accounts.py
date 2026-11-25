@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import re
 import secrets
 import threading
@@ -472,8 +473,24 @@ def session_ended(sid: str) -> bool:
 # --------------------------------------------------------------------------- sign-in throttling
 
 
+def rate_key(ip: str) -> str:
+    """The address a rate limit counts: an IPv4 address as it is, an IPv6 address as its /64 (one subscriber usually
+    holds a whole /64, so the full address would let one person count as billions); an IPv4-mapped IPv6 address as
+    its IPv4 address. Anything that is not an address is kept as it is."""
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    if isinstance(address, ipaddress.IPv6Address):
+        if address.ipv4_mapped:
+            return str(address.ipv4_mapped)
+        return str(ipaddress.ip_network((address, 64), strict=False))
+    return str(address)
+
+
 class SignInThrottle:
-    """Refuses sign-ins after too many failures: per account and address, and per address.
+    """Refuses sign-ins after too many failures: per account and address, and per address (an IPv6 address counts as its
+    /64, rate_key).
 
     Only failures are kept, and only for WINDOW_SECONDS: asking about an address that never failed stores nothing,
     so a flood of sign-ins under made-up names or from many addresses cannot fill the panel's memory."""
@@ -507,6 +524,7 @@ class SignInThrottle:
             self._recent(key, now)
 
     def seconds_to_wait(self, ip: str, username: str) -> int:
+        ip = rate_key(ip)
         now = time.time()
         with self._lock:
             self._sweep(now)
@@ -516,12 +534,14 @@ class SignInThrottle:
         return 0
 
     def failed(self, ip: str, username: str) -> None:
+        ip = rate_key(ip)
         now = time.time()
         with self._lock:
             for key in ((ip, username), (ip, None)):
                 self._failures.setdefault(key, deque()).append(now)
 
     def succeeded(self, ip: str, username: str) -> None:
+        ip = rate_key(ip)
         with self._lock:
             self._failures.pop((ip, username), None)
 

@@ -113,6 +113,19 @@ def test_an_expired_instance_is_stopped_first_and_deleted_after_the_grace_period
     assert started[-1][1] is operations.expire
 
 
+def test_a_stop_recorded_for_an_earlier_end_date_never_shortens_a_later_one(
+    started: list[tuple[str, Any, tuple[Any, ...]]],
+) -> None:
+    """An old expired_at (the instance was stopped, then its lifetime changed without an extension, for example
+    through production and back) must not make a later end date skip the stop step and its grace period."""
+    _instance(created_days_ago=40, days=35)  # expired 5 days ago
+    now = time.time()
+    STATE.update(NAME, expired_at=int(now - 20 * DAY))  # stopped for an end date long before this one
+    assert background.delete_expired_instances(now) == [NAME]
+    assert started[-1][1] is operations.stop_expired  # stopped again, not deleted at once
+    assert not STATE.get(NAME).get("expired_at")
+
+
 def test_a_grace_period_of_zero_deletes_at_once(started: list[tuple[str, Any, tuple[Any, ...]]]) -> None:
     live.change({"expiry_grace_days": 0})
     _instance(created_days_ago=40, days=30)

@@ -281,6 +281,11 @@ def delete_expired_instances(now: float | None = None) -> list[str]:
         if _locked(name):  # a locked branch's instance is never deleted automatically (projects/access.py)
             continue
         stopped_at = state.get("expired_at")
+        if stopped_at and stopped_at < expires:
+            # recorded for an earlier end date (the lifetime changed since, e.g. through production and back): this
+            # end starts again with the stop step and its full grace period
+            STATE.update(name, expired_at=None)
+            stopped_at = None
         if not stopped_at and grace > 0:
             jobs.start(name, "Stopped at the end of its lifetime", "pause", operations.stop_expired, name, moment)
             started.append(name)

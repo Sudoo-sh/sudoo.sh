@@ -1373,6 +1373,8 @@ export interface User extends Profile {
   running_limit?: number | null;
   running_limit_default?: number | null;
   second_factors: string[];
+  /** REQUIRE_SECOND_FACTOR applies to this account */
+  second_factor_required?: boolean;
   sign_in_methods: SignInMethod[];
   /** false: the server's default (SIGN_IN_METHODS) applies */
   sign_in_methods_chosen: boolean;

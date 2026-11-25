@@ -29,7 +29,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { SelectBox } from "@/components/app/select";
 import { SelectItem } from "@/components/ui/select";
-import { ACCOUNT_TABS, accountTab, firstTab, tabCounts, type AccountTab } from "@/lib/account-tabs";
+import {
+  ACCOUNT_TABS,
+  accountTab,
+  firstTab,
+  tabCounts,
+  withoutRequiredFactor,
+  type AccountTab,
+} from "@/lib/account-tabs";
 import { Menu, MenuItem, MenuSeparator, Modal, useToast } from "@/components/app/overlay";
 import { ago, fullDateTime } from "@/lib/format";
 import { generatePassword, type Person } from "@/lib/password";
@@ -771,6 +778,14 @@ export function AccountsPage() {
       >
         {t.lead}
       </PageHead>
+      {(() => {
+        const bare = withoutRequiredFactor(users ?? []);
+        return bare.length ? (
+          <div style={{ marginBottom: 12 }}>
+            <Callout tone="warning">{a.noSecondFactor(bare.length)}</Callout>
+          </div>
+        ) : null;
+      })()}
       <div style={{ marginBottom: 12 }}>
         <Segmented<AccountTab>
           value={current}
@@ -851,6 +866,8 @@ export function AccountsPage() {
                   <TableCell className="small">
                     {u.second_factors.length ? (
                       u.second_factors.map((f) => t.factors[f] ?? f).join(t.separator)
+                    ) : u.second_factor_required && !u.disabled ? (
+                      <Tag tone="caution">{a.noSecondFactorTag}</Tag>
                     ) : (
                       <span className="faint">{t.noFactor}</span>
                     )}

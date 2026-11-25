@@ -2384,7 +2384,9 @@ route("GET", "/roles", () => ok({ roles: ROLES, permissions: PERMISSIONS }));
 route("GET", "/users", () => {
   need("accounts.manage", "/api/v1/users");
   const fallback = Number(setting("max_running_non_production_per_user")) || null;
-  return ok(users.map((u) => ({ ...u, running_limit_default: fallback })));
+  const rule = String(setting("require_second_factor") ?? "admins");
+  const required = (u: User) => rule === "everyone" || (rule === "admins" && ["super_admin", "admin"].includes(u.role));
+  return ok(users.map((u) => ({ ...u, running_limit_default: fallback, second_factor_required: required(u) })));
 });
 const superAdmins = () => users.filter((u) => u.role === "super_admin");
 function userOf(name: string): User {

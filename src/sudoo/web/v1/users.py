@@ -42,7 +42,7 @@ from typing import Any
 
 from flask import Blueprint, Response, abort, g, request
 
-from sudoo import accounts, invitations, roles, teams
+from sudoo import accounts, auth, invitations, roles, teams
 from sudoo.auth import github, github_access, methods
 from sudoo.config import settings
 from sudoo.core import audit
@@ -74,6 +74,7 @@ def user_resource(name: str, user: dict[str, Any]) -> dict[str, Any]:
         "running_limit": user.get("running_limit"),
         "running_limit_default": settings.max_running_non_production_per_user or None,
         "second_factors": [f["name"] for f in factors_of(user) if f["enrolled"]],
+        "second_factor_required": auth.must_use_second_factor(user),  # REQUIRE_SECOND_FACTOR applies to this account
         "sign_in_methods": methods.of(user),
         "sign_in_methods_chosen": methods.own_choice(user) is not None,
         "github": github_resource(user),

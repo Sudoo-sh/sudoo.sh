@@ -161,3 +161,23 @@ def test_a_pending_second_step_for_a_disabled_account_is_refused(app: Flask, adm
         assert getattr(caught.value, "code", None) == 401
     client, headers = admin
     client.post("/api/v1/users/dis-dev/enable", headers=headers)
+
+
+def test_the_list_says_who_must_use_a_second_factor(admin: Client, people: None) -> None:
+    """GET /users: second_factor_required follows REQUIRE_SECOND_FACTOR (admins by default), so the page can show who
+    still has none."""
+    from sudoo.config import live
+
+    def required() -> dict[str, bool]:
+        shown = admin[0].get("/api/v1/users").get_json()["data"]
+        return {u["name"]: u["second_factor_required"] for u in shown if u["name"].startswith("dis-")}
+
+    try:
+        live.change({"require_second_factor": "admins"})
+        assert required() == {"dis-a": True, "dis-b": True, "dis-dev": False}
+        live.change({"require_second_factor": "everyone"})
+        assert required() == {"dis-a": True, "dis-b": True, "dis-dev": True}
+        live.change({"require_second_factor": "none"})
+        assert not any(required().values())
+    finally:
+        live.change({"require_second_factor": None})

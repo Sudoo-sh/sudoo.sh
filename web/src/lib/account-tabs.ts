@@ -22,3 +22,10 @@ export function tabCounts(
 
 /** The tab to open first: Pending approval when someone waits, else Active. */
 export const firstTab = (counts: Record<AccountTab, number>): AccountTab => (counts.pending > 0 ? "pending" : "active");
+
+/** Active accounts that must use a second factor (REQUIRE_SECOND_FACTOR) and have none: they can only set one up. */
+export const withoutRequiredFactor = <
+  T extends { disabled?: boolean; second_factor_required?: boolean; second_factors: string[] },
+>(
+  users: T[],
+): T[] => users.filter((u) => !u.disabled && u.second_factor_required && u.second_factors.length === 0);

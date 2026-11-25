@@ -718,7 +718,8 @@ const en = {
     storage: 'Where the panel keeps its own data: "sqlite".',
     auth: 'How user names and passwords are checked: "local" (the panel\'s accounts).',
     second_factors: 'Second factors offered at sign-in, comma-separated: "email", "totp" or both.',
-    require_second_factor: 'Who must use a second factor: "none", "admins" or "everyone".',
+    require_second_factor:
+      'Who must use a second factor: "none", "admins" (super admins and administrators) or "everyone". An account in that group without one can only set one up after signing in.',
     mailer: 'How the panel sends e-mail: "smtp" or "none".',
     mail_from: "Sender of the panel's e-mails, e.g. Sudoo.sh <no-reply@example.com>.",
     smtp_host: "smtp: the mail server; empty: no e-mail (and no e-mail codes).",
@@ -2001,7 +2002,8 @@ const ar: typeof en = {
     storage: 'مكان حفظ اللوحة لبياناتها: "sqlite".',
     auth: 'طريقة التحقق من أسماء المستخدمين وكلمات المرور: "local" ‏(حسابات اللوحة).',
     second_factors: 'عوامل التحقق الثانية المعروضة عند تسجيل الدخول، مفصولة بفواصل: "email" أو "totp" أو كلاهما.',
-    require_second_factor: 'من يجب أن يستخدم عامل تحقق ثانيًا: "none" أو "admins" أو "everyone".',
+    require_second_factor:
+      'من يجب أن يستخدم عامل تحقق ثانيًا: "none" أو "admins" (المسؤولون الأعلون والمسؤولون) أو "everyone". من في هذه المجموعة ولا يملك عاملًا لا يستطيع سوى إعداده بعد تسجيل الدخول.',
     mailer: 'طريقة إرسال اللوحة للبريد: "smtp" أو "none".',
     mail_from: "مرسل رسائل اللوحة، مثل Sudoo.sh <no-reply@example.com>.",
     smtp_host: "smtp: خادم البريد؛ فارغ: لا بريد (ولا رموز بالبريد).",

@@ -64,6 +64,9 @@ const en = {
   access: {
     tabs: { pending: "Pending approval", active: "Active", invited: "Invited", disabled: "Disabled" },
     tabsLabel: "Accounts by state",
+    noSecondFactor: (n: number) =>
+      `${n} ${n === 1 ? "account has" : "accounts have"} no second factor although the settings require one. Until it sets one up, it can only do that after signing in.`,
+    noSecondFactorTag: "Required, not set up",
     disabledTag: "Disabled",
     disable: "Disable",
     enable: "Enable",
@@ -324,6 +327,9 @@ const ar: typeof en = {
   access: {
     tabs: { pending: "بانتظار الموافقة", active: "النشطة", invited: "المدعوّون", disabled: "المعطّلة" },
     tabsLabel: "الحسابات حسب الحالة",
+    noSecondFactor: (n) =>
+      `${n === 1 ? "حساب واحد بلا عامل تحقق ثانٍ" : `${n} حسابات بلا عامل تحقق ثانٍ`} مع أن الإعدادات تطلبه. حتى يُعدّه، لا يستطيع سوى إعداده بعد تسجيل الدخول.`,
+    noSecondFactorTag: "مطلوب ولم يُعدّ",
     disabledTag: "معطّل",
     disable: "تعطيل",
     enable: "تفعيل",

@@ -488,7 +488,7 @@ the web app. `resolved_at` is set when the problem is over. Webhooks are named b
 | Method and path | Permission | Body | Answer |
 | :--- | :--- | :--- | :--- |
 | `GET /roles` | signed in | | 200, `{"roles": [{"name", "label", "description", "permissions"}], "permissions": {"<name>": "<what it allows>"}}` |
-| `GET /users` | `accounts.manage` | | 200, accounts (below) |
+| `GET /users` | `accounts.manage` | | 200, accounts (below), each with `second_factor_required` (`REQUIRE_SECOND_FACTOR` applies to it) |
 | `POST /users` | `accounts.manage` | Only when `INVITATION_PASSWORD_FALLBACK` allows it (by default while e-mail is not set up; otherwise invite). `{"email", "role"}` required; optional `first_name`, `last_name`, `phone`, `name` (made from the e-mail address when absent), `password` (generated when absent), `must_change_password` (default `true`) | **201**, the account with its `password`, shown once |
 | `GET /invitations` | `accounts.manage` | | 200, invitations (`id`, `email`, `first_name`, `last_name`, `role`, `invited_by`, `sent_count`, `expired`, `invited_at`, `sent_at`, `expires_at`); `meta`: `mail_ready`, `password_allowed` (`POST /users` is allowed: `INVITATION_PASSWORD_FALLBACK`), `invitation_hours` |
 | `POST /invitations` | `accounts.manage` | `{"email", "role"}` required; optional `first_name`, `last_name` | **201**, the invitation; the link is e-mailed (never returned). 400 when e-mail is not set up, 429 beyond `INVITATIONS_PER_HOUR` |

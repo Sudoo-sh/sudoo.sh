@@ -40,6 +40,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Step by step workflow guides in English and Arabic (`docs/manual/`), with screenshots from the demo.
 - User manual: the first-run setup page has eight steps, not two; the certificate "Expires soon" window follows `ALERT_CERTIFICATE_DAYS`; production updates are always backed up first; maintenance backs up first only for Odoo image updates; the client portal is a Business plan feature.
+- **Second factor column and warning (Task 34d):** `GET /users` shows `second_factor_required` per account
+  (`REQUIRE_SECOND_FACTOR`, which already applies to super admins and administrators by default). The Accounts page marks an
+  active account that must have a second factor and has none ("Required, not set up") and says how many there are. The
+  setting's text now says it applies to super admins and administrators. The Second factor and Last sign-in columns and
+  invite/revoke in the lists were already there.
+
 - **Disabled accounts (Task 34c):** an administrator can disable an account (Accounts, the account's menu, **Disable**;
   `POST /users/<name>/disable`, `POST /users/<name>/enable`, permission `accounts.manage`). A disabled account cannot sign
   in (password, e-mail code or GitHub), its sessions end at once, and the API tokens it owns are refused. Its data, role

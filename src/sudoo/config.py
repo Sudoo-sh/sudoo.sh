@@ -361,7 +361,9 @@ class Settings(BaseSettings):
         "email,totp", description='Second factors offered at sign-in, comma-separated: "email", "totp" or both.'
     )
     require_second_factor: Literal["none", "admins", "everyone"] = Field(
-        "admins", description='Who must use a second factor: "none", "admins" or "everyone".'
+        "admins",
+        description='Who must use a second factor: "none", "admins" (super admins and administrators) or "everyone". '
+        "An account in that group without one can only set one up after signing in.",
     )
     mailer: str = Field("smtp", description='How the panel sends e-mail: "smtp" or "none".')
     mail_from: str = Field("", description="Sender of the panel's e-mails, e.g. Sudoo.sh <no-reply@example.com>.")

@@ -43,6 +43,12 @@ def pseudonym(kind: str, name: str) -> str:
     return f"{PREFIXES[kind]}-{digest[:LENGTH]}"
 
 
+def has_key() -> bool:
+    """Whether a pseudonym key is kept (it is made at the first pseudonym, so not before something is shared)."""
+    with _LOCK:
+        return _KEY is not None or storage().get(COLLECTION, "key") is not None
+
+
 def forget() -> None:
     """Drop the key: ids made from now on differ from every earlier one."""
     global _KEY

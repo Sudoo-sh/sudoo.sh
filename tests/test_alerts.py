@@ -12,6 +12,7 @@ import time
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
+from unittest import mock
 
 import pytest
 from flask import Flask
@@ -539,6 +540,67 @@ def test_default_password_alert_not_for_other_roles(app: Flask) -> None:
     assert default_password_alert("maintainer", manage_settings=False) is None
     assert default_password_alert("developer", manage_settings=False) is None
     assert default_password_alert("super_admin", manage_settings=True) is not None
+
+
+# -------------------------------------------- the standing alert for a missing or old country database
+
+
+def _country_alert(answer: Any) -> dict[str, Any] | None:
+    assert answer.status_code == 200, answer.get_json()
+    return next((a for a in answer.get_json()["data"] if a["type"] == "country_database"), None)
+
+
+def _install_country_table(built_at: float) -> None:
+    from sudoo.instances import geoip
+
+    rows = [["1.0.0.0", "1.0.0.255", "AU"]]
+    with mock.patch("time.time", return_value=built_at):
+        geoip.install(geoip.build(rows, minimum_rows=1), "test", "2026-11")
+    geoip.forget()
+
+
+@pytest.fixture
+def country_cleanup() -> Iterator[None]:
+    import shutil
+
+    from sudoo.instances import geoip
+
+    shutil.rmtree(geoip.folder(), ignore_errors=True)
+    geoip.forget()
+    yield
+    shutil.rmtree(geoip.folder(), ignore_errors=True)
+    geoip.forget()
+
+
+def test_country_database_alert_while_it_is_missing(admin: Client, country_cleanup: None) -> None:
+    client, _ = admin
+    live.change({"access_rules_beta": False})
+    assert _country_alert(client.get("/api/v1/alerts")) is None  # the rules are off: nothing to warn about
+    live.change({"access_rules_beta": True})
+    listed = _country_alert(client.get("/api/v1/alerts"))
+    assert listed is not None and listed["severity"] == "problem" and "missing" in listed["title"]
+    assert listed["link"] == "/settings?tab=security&focus=access_rules_geo_download"
+
+
+def test_country_database_alert_when_older_than_the_age_setting(admin: Client, country_cleanup: None) -> None:
+    client, _ = admin
+    live.change({"access_rules_beta": True, "access_rules_geo_max_age_days": 45})
+    _install_country_table(time.time() - 40 * 86400)
+    assert _country_alert(client.get("/api/v1/alerts")) is None  # 40 days: still fresh
+    live.change({"access_rules_geo_max_age_days": 30})
+    listed = _country_alert(client.get("/api/v1/alerts"))
+    assert listed is not None and "out of date" in listed["title"] and "30 days" in listed["text"]
+    _install_country_table(time.time())
+    assert _country_alert(client.get("/api/v1/alerts")) is None  # a new table ends the alert
+
+
+def test_country_database_alert_only_for_administrators(country_cleanup: None) -> None:
+    from sudoo.web.v1.alerts import country_database_alert
+
+    live.change({"access_rules_beta": True})
+    assert country_database_alert("super_admin", manage_settings=True) is not None
+    assert country_database_alert("admin", manage_settings=False)["path"] is None  # type: ignore[index]
+    assert country_database_alert("developer", manage_settings=False) is None
 
 
 def test_test_alert_by_e_mail(admin: Client, clean: list[dict[str, Any]]) -> None:

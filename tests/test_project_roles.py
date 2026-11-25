@@ -208,6 +208,8 @@ def test_github_permission_and_github_teams(
     user = _person("member")
     _link(user["name"], "octo-dev", 7001)
     key = project["repository_id"]
+    # a project made before GITHUB_READ_ROLE: GitHub's read permission gives Tester there (a new one gives Viewer)
+    project = projects.change(project["id"], lambda p: {**p, "access": {**p["access"], "github_read_role": "tester"}}) or project  # fmt: skip
     storage().put(github_access.COLLECTION, user["name"], {"checked": time.time(), "repos": {
         key: {"level": "tester", "permission": "read", "checked": time.time(), "covered": True,
               "via": "acme/qa"}}})  # fmt: skip

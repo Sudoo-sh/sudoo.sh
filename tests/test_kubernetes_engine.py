@@ -405,6 +405,23 @@ def test_nodes_and_the_join_command(fake: FakeApi, monkeypatch: pytest.MonkeyPat
     )
 
 
+def test_a_join_token_never_lives_longer_than_a_day(fake: FakeApi, monkeypatch: pytest.MonkeyPatch) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    for asked in (60, 1440, 10_000_000):  # a value past the setting's own limit is clamped anyway
+        monkeypatch.setattr(
+            cluster,
+            "settings",
+            _Settings(kubernetes_join_url="https://10.0.0.2:6443", kubernetes_join_token_minutes=asked),
+        )
+        cluster.join_command()
+        data = {k: base64.b64decode(v).decode() for k, v in fake.created[-1]["data"].items()}
+        expires = datetime.strptime(data["expiration"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+        assert expires - datetime.now(UTC) <= timedelta(minutes=1440, seconds=5)
+        if asked == 60:
+            assert expires - datetime.now(UTC) > timedelta(minutes=59)
+
+
 class _Settings:
     def __init__(self, **values: Any) -> None:
         self._values = values

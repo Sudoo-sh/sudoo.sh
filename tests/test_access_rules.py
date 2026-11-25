@@ -764,6 +764,29 @@ def test_no_pass_for_a_role_that_cannot_open_production(beta: Any) -> None:
         access.forget_restrictions()
 
 
+def test_no_pass_for_an_api_token(app: Flask, beta: Any) -> None:
+    """A token must not get past the country and address rules through a pass (F-03), however much it may do."""
+    from flask import g
+    from werkzeug.exceptions import Forbidden
+
+    from sudoo.web.v1 import access_rules as routes
+
+    _set_rules(PROD)
+    address = f"https://{PROD}.example.com"
+    for token in ({"name": "api:ci", "role": "super_admin"}, {"name": "ci", "role": "super_admin", "token_id": "t1"}):
+        assert access_rules.is_api_token(token)
+        allowed, why = access_rules.may_open_production(token, PROD)
+        assert not allowed and "signed-in session" in why
+        url, given = access_rules.pass_url(token, PROD, address)
+        assert not given and url == address
+    assert not access_rules.is_api_token({"name": "admin1", "role": "super_admin"})
+    assert access_rules.pass_url({"name": "admin1", "role": "super_admin"}, PROD, address)[1]
+    with app.test_request_context(f"/api/v1/instances/{PROD}/open-link", method="POST", json={}):
+        g.user = {"name": "api:ci", "role": "super_admin"}
+        with pytest.raises(Forbidden, match="signed-in session"):
+            routes.open_link.__wrapped__(PROD)  # type: ignore[attr-defined]
+
+
 def test_no_pass_while_the_client_closed_access(beta: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     """Strict: while the client's switch is closed nobody gets a pass, the gateway refuses the ones given before, and
     closing it tells the gateway at once (projects/clients.py calls access_rules.apply)."""

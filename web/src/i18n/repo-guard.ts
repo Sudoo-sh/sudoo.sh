@@ -97,6 +97,9 @@ const en = {
   requireChecks: (name: string) => `The check ${name} must pass`,
   linearHistory: "Linear history (no merge commits)",
   signedCommits: "Signed commits",
+  codeOwnerReview: "Changes to .github/ need review",
+  checkSourceNote: (name: string) =>
+    `The rule accepts ${name} only from GitHub Actions. Someone who may open a pull request can still change the workflow that makes it, so ask for a review of .github/ (this switch adds a CODEOWNERS entry and a code-owner review). It does not help a team of one.`,
   alwaysBlocked: "Force-pushes and deleting the branch are always blocked.",
   pushers: "Who may push or merge to production",
   pushersNames: {
@@ -252,6 +255,9 @@ const ar: typeof en = {
   requireChecks: (name) => `يجب أن ينجح الفحص ${name}`,
   linearHistory: "سجل خطي (دون إيداعات دمج)",
   signedCommits: "إيداعات موقّعة",
+  codeOwnerReview: "تغييرات المجلد .github/ تحتاج مراجعة",
+  checkSourceNote: (name) =>
+    `تقبل القاعدة الفحص ${name} من GitHub Actions فقط. ومن يستطيع فتح طلب دمج يستطيع تغيير سير العمل الذي ينتجه، لذا اطلب مراجعة المجلد .github/ (يضيف هذا المفتاح سطرًا في CODEOWNERS ومراجعة من المالكين). لا يفيد فريقًا من شخص واحد.`,
   alwaysBlocked: "الدفع القسري وحذف الفرع ممنوعان دائمًا.",
   pushers: "من يدفع أو يدمج في الإنتاج",
   pushersNames: { anyone: "كل من له صلاحية الكتابة", roles: "المسؤولون والمشرفون", named: "فرق وأشخاص بالاسم" },

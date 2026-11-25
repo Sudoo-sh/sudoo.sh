@@ -19,6 +19,7 @@ export interface GuardStageRules {
   require_checks: boolean;
   linear_history: boolean;
   signed_commits: boolean;
+  code_owner_review?: boolean;
   enabled?: boolean;
 }
 

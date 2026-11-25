@@ -1427,8 +1427,15 @@ linked person's access to a project follows their permission on the project's re
 | admin | Admin |
 | maintain | Maintainer |
 | write | Developer |
-| triage, read | Tester (Viewer in a project that keeps the earlier access model) |
+| triage | Tester (Viewer in a project that keeps the earlier access model) |
+| read | Viewer or Tester, as the project chose (below) |
 | none | none: the project is hidden |
+
+**What read gives.** Read is the permission everyone has on a public repository and the usual base permission of an
+organisation, so it should not by default let someone open Odoo on staging and development (Connect). `GITHUB_READ_ROLE`
+(`viewer` by default) sets what read gives in projects made from now on. Projects made earlier keep Tester until a
+project Admin changes it on the project's **Access** tab, in **Access from GitHub** (or `PUT
+/projects/<id>/access/github-read-role`), so nobody gains or loses access by an upgrade. Triage always gives Tester.
 
 GitHub works the permission out from everything that gives it, the repository's teams included; the project's
 **Who can do what** names the team ("via team acme/backend") when one gives it.
@@ -1439,7 +1446,8 @@ GitHub works the permission out from everything that gives it, the repository's 
   role, their panel teams' grants and their GitHub teams' grants applies ([Project roles](#project-roles)).
 * Super admins and administrators are not limited by it. A repository the app is not installed on is not checked:
   the panel's own rules apply to it.
-* The project's **Access** tab lists each linked person with their GitHub permission and level.
+* The project's **Access** tab lists each linked person with their GitHub permission and level, and a Project Admin
+  chooses there what read gives in this project (Viewer or Tester).
 
 ### Project roles
 
@@ -1513,8 +1521,9 @@ accounts `CLIENT_SIGN_IN_METHODS` (`email_code`). Change them for one account on
   the last super admin that has one, to demote or delete them, or to set `SIGN_IN_METHODS` without `password` unless
   a super admin has Password chosen on their own account.
 * E-mail codes need e-mail to be set up and `EMAIL_CODE_SIGN_IN` on. The sign-in page answers the same whether an
-  account uses the address or not. Each address may ask for `EMAIL_CODE_SENDS_PER_HOUR` codes an hour; wrong codes
-  count like wrong passwords. After an e-mail code, the e-mail code is not accepted again as the second factor.
+  account uses the address or not. Each address (an IPv6 address counts as its /64) may ask for `EMAIL_CODE_SENDS_PER_HOUR` codes an hour, and each
+  account is sent at most `EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT` (10) an hour from all addresses together; wrong
+  codes count like wrong passwords. After an e-mail code, the e-mail code is not accepted again as the second factor.
 * Every sign-in, link and unlink is in the audit log, and the sign-in e-mail says which way was used.
 
 ---
@@ -2533,7 +2542,7 @@ project's Admins and super admins change it (`projects.access` in the project); 
 **Defaults are settings.** What a project starts with comes from the panel's settings (**Settings**, **Instances**,
 **Projects**; [Configuration](CONFIGURATION.md#projects)): `PROJECT_GUARD_CHECKS` (checks on or off),
 `PROJECT_GUARD_STRICTNESS`, `PROJECT_GUARD_PRODUCTION_APPROVALS` (1) and `PROJECT_GUARD_STAGING_APPROVALS` (0),
-`PROJECT_GUARD_LINEAR_HISTORY` and `PROJECT_GUARD_SIGNED_COMMITS` (production), `PROJECT_GUARD_PUSHERS` (`roles` or
+`PROJECT_GUARD_LINEAR_HISTORY`, `PROJECT_GUARD_SIGNED_COMMITS` and `PROJECT_GUARD_PROTECT_GITHUB_DIR` (production), `PROJECT_GUARD_PUSHERS` (`roles` or
 `anyone`) and `PROJECT_GUARD_BLOCKS_PROMOTION`. A project keeps only the values it changes; everything else follows the
 settings, also when they change later. Turning the checks on by default only pre-fills the form: nothing reaches
 GitHub until a project Admin saves, and results are read only once the panel's pull request exists.
@@ -2575,7 +2584,9 @@ removed. Turning checks off opens a pull request that updates or removes the pan
 already matches the choices, an open pull request of the panel is closed and its branch deleted.
 
 **Results.** The panel reads a commit's check runs and commit statuses (its own `sudoo/<stage>` statuses left out) at
-most once a minute and shows them on builds. With **Failing checks stop a promotion to production** on (off by
+most once a minute and shows them on builds. A check run or status named `sudoo-checks` counts only when GitHub Actions
+made it (a commit status never does): anyone with write access can post one under that name, so the panel ignores the
+others. With **Failing checks stop a promotion to production** on (off by
 default), a failing result of the branch's latest build is a red item of the pre-promotion checklist; otherwise it is
 amber. Running, missing or unreadable results are amber.
 
@@ -2584,7 +2595,8 @@ amber. Running, missing or unreadable results are amber.
 | Rule | Ruleset (`Sudoo.sh guard: production`, `... staging`) | Classic branch protection |
 | :--- | :--- | :--- |
 | Pull request with N approvals | `pull_request` rule | required reviews |
-| `sudoo-checks` must pass | `required_status_checks` | required status checks |
+| `sudoo-checks` must pass, from GitHub Actions only | `required_status_checks` with `integration_id` 15368 (GitHub Actions) | required status checks with `app_id` 15368 |
+| Changes to `.github/` need review (production, `PROJECT_GUARD_PROTECT_GITHUB_DIR`) | `require_code_owner_review` in the `pull_request` rule | `require_code_owner_reviews` |
 | No force-push, no deletion | `non_fast_forward`, `deletion` | `allow_force_pushes`, `allow_deletions` off |
 | Linear history, signed commits | `required_linear_history`, `required_signatures` | the same settings |
 | Admins and Maintainers only | `Sudoo.sh guard: production merges`: an `update` rule with GitHub's Admin and Maintain repository roles as its bypass list | not possible (roles cannot be named): the preview says so |
@@ -2596,6 +2608,20 @@ the panel's when its name starts with `Sudoo.sh guard: `; classic protection has
 branches it protected and never changes a branch that was protected before (the preview shows it as left alone).
 **Turn off the rules** removes only those. Private repositories on GitHub Free have neither rulesets nor branch
 protection: GitHub answers "Upgrade to GitHub Pro or make this repository public", and the preview explains it.
+
+**Who owns `.github/`.** With "Changes to `.github/` need review" on (the default for production), the checks' pull
+request also adds `.github/CODEOWNERS` with one entry, `/.github/`, owned by the teams (organisation repositories) and
+people named in the pushers, or by the owner of a personal repository. GitHub's CODEOWNERS names teams and people, not
+roles: an organisation that names nobody gets a note in the preview and no review rule, until a team is named. Turn it
+off, per project or with `PROJECT_GUARD_PROTECT_GITHUB_DIR`, for a team of one. The rule asks for the review once the
+CODEOWNERS file is merged; applying the rules before that does not block anything extra.
+A repository that already has its own `CODEOWNERS` (at the root or in `docs/`) keeps it: GitHub reads only
+the first one it finds, starting with `.github/`, so the panel adds none there and the preview shows the line to add to
+the repository's own file.
+
+**Rules already on GitHub.** The next time the rules are previewed or applied, rules written before this change show as
+changed (the check's source, the code-owner review) and are updated, which only tightens them. Each application writes
+one line per repository to the log ("repository guard: <repository>: branch rules applied (...)").
 
 Applying rules that change production needs the repository's name typed as confirmation (`confirm` in the API).
 Every preview, and `"dry_run": true` on the API, shows what would change without changing anything.
@@ -3052,6 +3078,8 @@ feature is off until you switch it on, and it is marked **Beta** wherever it sho
 2. The panel downloads the country database within a minute (see below). Until it has it, country rules let
    everyone through and every instance with country rules shows a warning (`ACCESS_RULES_GEO_MISSING=open`, the
    default), or let nobody in by country (`closed`).
+   The panel's alerts show a standing alert to administrators while the database is missing or older than
+   `ACCESS_RULES_GEO_MAX_AGE_DAYS` days (45 by default).
 3. Open a production instance, **Settings** tab, **Production access rules**, **Set up rules**.
 
 Turning `ACCESS_RULES_BETA` off hides the feature and stops every rule at once; the rules stay saved. Rules apply only

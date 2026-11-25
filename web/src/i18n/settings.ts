@@ -269,12 +269,14 @@ const en = {
     client_sign_in_methods: "How client accounts sign in",
     email_code_sign_in: "Offer a code by e-mail",
     email_code_sends_per_hour: "Codes one address may ask for per hour",
+    email_code_sends_per_hour_per_account: "Codes one account is sent per hour",
     github_sign_in: "Offer Continue with GitHub",
     github_sign_in_orgs: "GitHub organisations that may sign in",
     github_sign_in_role: "Role of a new account from those organisations",
     github_sign_in_skips_second_factor: "Accept GitHub's two-factor authentication",
     github_access_from_repositories: "Project access follows repository permissions",
     github_access_check_minutes: "Read repository permissions again every (minutes)",
+    github_read_role: "Role GitHub's read permission gives in new projects",
     project_access_model: "Access model of new projects",
     access_emails: "E-mail people about their project access",
     access_requests: "Allow temporary access requests",
@@ -400,6 +402,7 @@ const en = {
     access_rules_geo_missing: "Without the country database",
     access_rules_geo_download: "Download the country database every month",
     access_rules_geo_url: "Country database address",
+    access_rules_geo_max_age_days: "Country database counts as old after (days)",
     access_rules_pass_hours: "Pass from the panel lasts, hours",
     access_rules_show_ip: "Show visitors their address when blocked",
     access_rules_contact: "Contact line of the blocked page",
@@ -447,6 +450,7 @@ const en = {
     project_guard_staging_approvals: "Repository guard: approvals for staging",
     project_guard_linear_history: "Repository guard: linear history on production",
     project_guard_signed_commits: "Repository guard: signed commits on production",
+    project_guard_protect_github_dir: "Repository guard: changes to .github/ need review on production",
     project_guard_pushers: "Repository guard: who may merge to production",
     project_guard_blocks_promotion: "Repository guard: failing checks stop a promotion",
     upgrade_methods: "Upgrade methods allowed",
@@ -638,6 +642,7 @@ const en = {
       admin: "Administrator",
     },
     project_access_model: { project_roles: "Project roles, per stage", legacy: "Earlier model (panel role ∩ grant)" },
+    github_read_role: { viewer: "Viewer", tester: "Tester" },
     profiler_roles: {
       admins: "Super admins and administrators",
       maintainers: "And maintainers",
@@ -720,6 +725,8 @@ const en = {
     email_code_sign_in:
       "Offer Send me a code on the sign-in page (when e-mail is set up), for the accounts that may use it.",
     email_code_sends_per_hour: "Sign-in codes by e-mail one address (IP) may ask for per hour.",
+    email_code_sends_per_hour_per_account:
+      "Sign-in codes by e-mail one account is sent per hour, from all addresses together. Over it no code is sent and the sign-in page answers the same.",
     github_sign_in:
       "Offer Continue with GitHub on the sign-in page. Needs the panel's GitHub App (GitHub page) with the panel's /login/github address as a callback URL.",
     github_sign_in_orgs:
@@ -731,6 +738,8 @@ const en = {
     github_access_from_repositories:
       "For accounts linked to GitHub (except administrators), a project's role follows their permission on its repository: admin gives Admin, maintain Maintainer, write Developer, triage or read Tester, none nothing. Only with GITHUB_SIGN_IN.",
     github_access_check_minutes: "How often repository permissions and GitHub team members are read again.",
+    github_read_role:
+      "Viewer can see a project; Tester can also open Odoo on staging and development with Connect. Projects made earlier keep Tester until a project Admin changes it on the Access tab.",
     project_access_model:
       'The access model of new projects: "project_roles" (Viewer, Tester, Developer, Maintainer, Admin, per stage) or "legacy" (the panel role limited by the project\'s grant, the same in every stage).',
     access_emails: "E-mail people when they get access to a project, when their role changes, and when it ends.",
@@ -919,6 +928,8 @@ const en = {
       "Download the DB-IP Lite country database once a month while the access rules are switched on. Off: nothing is downloaded; a table already there keeps being used.",
     access_rules_geo_url:
       "Where the monthly country database is downloaded from ({year} and {month} are filled in); an https:// address of a DB-IP country CSV file, gzip-compressed or not.",
+    access_rules_geo_max_age_days:
+      "The country database is out of date when it was built more than this many days ago. While the access rules are on and it is missing or out of date, administrators see a standing alert.",
     access_rules_pass_hours:
       "How long the pass given when someone opens a production instance from the panel lets their browser through its access rules, in hours.",
     access_rules_show_ip: "Show visitors their full address on the blocked page (their country is always shown).",
@@ -1029,6 +1040,8 @@ const en = {
       "Approvals a pull request into staging needs in the branch rules on GitHub, 0 to 10 (each project can change it).",
     project_guard_linear_history: "Production's branch rules refuse merge commits (each project can change it).",
     project_guard_signed_commits: "Production's branch rules accept only signed commits (each project can change it).",
+    project_guard_protect_github_dir:
+      "Production's branch rules ask for a review by the owners of .github/, so the workflow that makes the required check cannot change unreviewed. Turn it off for a team of one (each project can change it).",
     project_guard_pushers:
       "GitHub's Admin and Maintain roles, or anyone with write access; a project can also name teams or people.",
     project_guard_blocks_promotion:
@@ -1513,12 +1526,14 @@ const ar: typeof en = {
     client_sign_in_methods: "طرق تسجيل دخول حسابات العملاء",
     email_code_sign_in: "اعرض رمزًا بالبريد الإلكتروني",
     email_code_sends_per_hour: "الرموز التي يطلبها عنوان واحد في الساعة",
+    email_code_sends_per_hour_per_account: "الرموز التي يُرسَل منها لحساب واحد في الساعة",
     github_sign_in: "اعرض المتابعة باستخدام GitHub",
     github_sign_in_orgs: "مؤسسات GitHub المسموح لها بتسجيل الدخول",
     github_sign_in_role: "دور الحساب الجديد من تلك المؤسسات",
     github_sign_in_skips_second_factor: "اقبل المصادقة الثنائية في GitHub",
     github_access_from_repositories: "الوصول إلى المشروع يتبع صلاحيات المستودع",
     github_access_check_minutes: "أعد قراءة صلاحيات المستودعات كل (دقيقة)",
+    github_read_role: "الدور الذي تمنحه صلاحية القراءة من GitHub في المشاريع الجديدة",
     project_access_model: "نموذج الوصول للمشاريع الجديدة",
     access_emails: "راسل الناس بشأن وصولهم إلى المشاريع",
     access_requests: "اسمح بطلبات الوصول المؤقت",
@@ -1644,6 +1659,7 @@ const ar: typeof en = {
     access_rules_geo_missing: "بلا قاعدة بيانات الدول",
     access_rules_geo_download: "نزّل قاعدة بيانات الدول كل شهر",
     access_rules_geo_url: "عنوان قاعدة بيانات الدول",
+    access_rules_geo_max_age_days: "تُعدّ قاعدة بيانات الدول قديمة بعد (يومًا)",
     access_rules_pass_hours: "مدة تصريح اللوحة، بالساعات",
     access_rules_show_ip: "اعرض للزوار عناوينهم عند الحجب",
     access_rules_contact: "سطر التواصل في صفحة الحجب",
@@ -1691,6 +1707,7 @@ const ar: typeof en = {
     project_guard_staging_approvals: "حارس المستودع: الموافقات للتجهيز",
     project_guard_linear_history: "حارس المستودع: سجل خطي في الإنتاج",
     project_guard_signed_commits: "حارس المستودع: إيداعات موقّعة في الإنتاج",
+    project_guard_protect_github_dir: "حارس المستودع: تغييرات المجلد .github/ تحتاج مراجعة في الإنتاج",
     project_guard_pushers: "حارس المستودع: من يدمج في الإنتاج",
     project_guard_blocks_promotion: "حارس المستودع: الفحوصات الفاشلة توقف الترقية",
     upgrade_methods: "طرق الترقية المسموح بها",
@@ -1873,6 +1890,7 @@ const ar: typeof en = {
       maintainer: "مشرف صيانة",
       admin: "مسؤول",
     },
+    github_read_role: { viewer: "مشاهد", tester: "مختبِر" },
     project_access_model: {
       project_roles: "أدوار المشروع لكل مرحلة",
       legacy: "النموذج السابق (دور اللوحة ∩ الصلاحية)",
@@ -1955,6 +1973,8 @@ const ar: typeof en = {
     email_code_sign_in:
       'اعرض "أرسل لي رمزًا" في صفحة تسجيل الدخول (حين يكون البريد الإلكتروني مُعدًّا)، للحسابات المسموح لها بذلك.',
     email_code_sends_per_hour: "عدد رموز تسجيل الدخول بالبريد التي يطلبها عنوان IP واحد في الساعة.",
+    email_code_sends_per_hour_per_account:
+      "عدد رموز تسجيل الدخول بالبريد التي تُرسَل لحساب واحد في الساعة من كل العناوين معًا. وبعده لا يُرسَل رمز وتجيب صفحة الدخول بالجواب نفسه.",
     github_sign_in:
       'اعرض "المتابعة باستخدام GitHub" في صفحة تسجيل الدخول. يحتاج إلى تطبيق GitHub الخاص باللوحة (صفحة GitHub) مع عنوان اللوحة /login/github عنوانًا للرجوع.',
     github_sign_in_orgs:
@@ -1966,6 +1986,8 @@ const ar: typeof en = {
     github_access_from_repositories:
       "للحسابات المرتبطة بـ GitHub (عدا المسؤولين)، يتبع الوصول إلى المشروع صلاحية الشخص في مستودعه: admin تعطي مسؤولًا، وmaintain مشرف صيانة، وwrite مطوّرًا، وtriage أو read مختبِرًا، وnone لا شيء. فقط مع GITHUB_SIGN_IN.",
     github_access_check_minutes: "كل كم دقيقة تُقرأ صلاحيات المستودعات وأعضاء فرق GitHub مجددًا.",
+    github_read_role:
+      "المشاهد يرى المشروع؛ والمختبِر يفتح أودو أيضًا في التجهيز والتطوير عبر «اتصل». تبقى المشاريع القديمة على مختبِر حتى يغيّره مسؤول المشروع في تبويب الوصول.",
     project_access_model:
       'نموذج الوصول للمشاريع الجديدة: "project_roles" (مشاهد، مختبِر، مطوّر، مشرف صيانة، مسؤول، لكل مرحلة) أو "legacy" (دور اللوحة محدودًا بصلاحية المشروع، والأمر نفسه في كل مرحلة).',
     access_emails: "راسل الناس حين يحصلون على وصول إلى مشروع، وحين يتغيّر دورهم فيه، وحين ينتهي.",
@@ -2148,6 +2170,8 @@ const ar: typeof en = {
       "نزّل قاعدة بيانات الدول DB-IP Lite مرة كل شهر ما دامت قواعد الوصول مفعّلة. عند الإيقاف لا يُنزَّل شيء، ويبقى الجدول الموجود مستخدمًا.",
     access_rules_geo_url:
       "العنوان الذي تُنزَّل منه قاعدة بيانات الدول الشهرية (يُملأ `{year}` و`{month}`)؛ عنوان https:// لملف CSV للدول من DB-IP، مضغوط بـ `gzip` أو غير مضغوط.",
+    access_rules_geo_max_age_days:
+      "تكون قاعدة بيانات الدول قديمة إذا مضى على بنائها أكثر من هذا العدد من الأيام. وما دامت قواعد الوصول مفعّلة وهي مفقودة أو قديمة يرى المسؤولون تنبيهًا دائمًا.",
     access_rules_pass_hours:
       "المدة التي يسمح فيها التصريح الممنوح عند فتح بيئة إنتاج من اللوحة بمرور المتصفح عبر قواعد الوصول، بالساعات.",
     access_rules_show_ip: "اعرض للزوار عنوانهم الكامل في صفحة الحجب (تُعرض دولتهم دائمًا).",
@@ -2253,6 +2277,8 @@ const ar: typeof en = {
       "عدد الموافقات التي يحتاجها طلب سحب إلى التجهيز في قواعد الفروع على GitHub، من 0 إلى 10 (ويمكن لكل مشروع تغييره).",
     project_guard_linear_history: "ترفض قواعد فرع الإنتاج إيداعات الدمج (ويمكن لكل مشروع تغييره).",
     project_guard_signed_commits: "لا تقبل قواعد فرع الإنتاج إلا الإيداعات الموقّعة (ويمكن لكل مشروع تغييره).",
+    project_guard_protect_github_dir:
+      "تطلب قواعد فرع الإنتاج مراجعة من مالكي المجلد .github/، فلا يتغيّر سير العمل الذي ينتج الفحص المطلوب دون مراجعة. أوقفها لفريق من شخص واحد (ويمكن لكل مشروع تغييره).",
     project_guard_pushers:
       "دورا Admin وMaintain في GitHub، أو كل من له صلاحية الكتابة؛ ويمكن للمشروع أيضًا تسمية فرق أو أشخاص.",
     project_guard_blocks_promotion:

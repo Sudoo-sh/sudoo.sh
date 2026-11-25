@@ -6,20 +6,63 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Engine counts in the marketplace heartbeat:** `engine_available` (`docker` or `docker+kubernetes`),
+  `instances_docker`, `instances_kubernetes` and `nodes_kubernetes`. Numbers only: no names, addresses or anything
+  personal. Panels that do not send them keep working; the hub accepts older panels. See the marketplace guide.
+- **Server fingerprint in the marketplace registration and heartbeat:** `server_fingerprint`, a SHA-256 over the machine
+  id and the primary MAC address without the installation key, so the hub can recognize a server after a reinstall.
+  Left out when neither can be read; `hardware_fingerprint` is unchanged. See the marketplace guide.
+- **"Changes to `.github/` need review"** (`PROJECT_GUARD_PROTECT_GITHUB_DIR`, on by default for production, optional
+  per project): the checks' pull request adds a CODEOWNERS entry for `.github/` (the project's GitHub teams or people,
+  or the owner of a personal repository) and the production rule asks for a code-owner review. The remaining risk is
+  described in the security notes.
+- **A per-account limit on sign-in codes by e-mail** (security review finding F-06): `EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT`
+  (10 by default, an admin setting) caps the codes one account is sent per hour from all addresses together; over it
+  nothing is sent and the page answers the same. Rate limits for sign-in failures and codes now count an IPv6 address
+  as its /64. Wrong tries per account are not capped (as decided); the per-code and per-address limits stay.
+- **A standing alert while the country database is missing or old** (security review finding F-05): with the access rules
+  on, administrators see it in the panel's alerts until a database newer than `ACCESS_RULES_GEO_MAX_AGE_DAYS` days
+  (new setting, 45 by default) is in place. The default of `ACCESS_RULES_GEO_MISSING` (`open`) is unchanged.
+
 ### Fixed
 
 - **Demo (demo.sudoo.sh): a robots.txt and readable faint text in callouts**: the demo build now ships `robots.txt`
   (the SPA fallback used to answer `/robots.txt` with the app's page), and faint text inside a callout uses the muted
   grey, as the faint one is under 4.5:1 on the callout's background.
+- **A join token never lives longer than 24 hours** (security review finding F-08, panel side): the panel clamps
+  `KUBERNETES_JOIN_TOKEN_MINUTES` to 1440 minutes when it makes the token. The installer caps it too, with a
+  sweep that deletes longer-lived tokens (sudoo-installer).
+- **Topology sharing is withdrawn when the marketplace is switched off** (security review finding F-09): the pseudonym key
+  is forgotten at once, whatever `MARKETPLACE` says, so ids sent later cannot be matched with the earlier snapshot. The
+  hub is not contacted while the marketplace is off; the delete request is sent the next time it is on.
 - **Temporary access and client access requests no longer share storage**: both features wrote to the collection
   `access_requests`, so a client request's cleanup could delete approved temporary-access grants, and temporary access
   failed with an error while any client request existed. Temporary access now uses `role_requests` and the client
   portal `client_access_requests`. At start-up the panel moves what is left in the old collection to the right one by the
   shape of each document (safe to repeat, logged, nothing is overwritten, a document that fits neither stays in
   `access_requests`), and keeps a copy of the old collection in `access_requests_backup` until the next start-up.
+- **The required check now comes from GitHub Actions only** (security review finding F-02): the repository guard's
+  branch rules ask for `sudoo-checks` from GitHub Actions (`integration_id` 15368; classic protection: `app_id`), so a
+  status posted under that name by another app or by anyone with write access no longer satisfies them. The panel's
+  result reader ignores a `sudoo-checks` run or status that does not come from GitHub Actions. Rules written earlier
+  show as changed in the next preview and are updated when applied (this only tightens them).
 
 ### Changed
 
+- **The repository guard's GitHub tokens are limited to the project's repository** (security review finding F-07): each
+  installation token the guard asks for names the one repository it is used on, so it cannot touch the installation's
+  other repositories. No setting; nothing changes for the person using the panel.
+- **GitHub's read permission gives Viewer, not Tester, in new projects** (security review finding F-04): read is what
+  everyone has on a public repository, and Tester can open Odoo on staging and development with Connect. The new setting
+  `GITHUB_READ_ROLE` (`viewer` by default, or `tester`) sets it for projects made from now on. Projects made earlier
+  keep Tester until a project Admin switches them in **Access from GitHub** on the project's Access tab, so nobody
+  gains or loses access by the upgrade. Triage still gives Tester.
+- **An API token can no longer get the production access pass** (security review finding F-03): `POST /instances/<name>/open-link`
+  answers 403 for a token, and a token never gets a pass in Connect as either. A pass lets its holder past the country and
+  address rules, which are there to limit stolen credentials. Scripts that used a token to open a production instance
+  through the pass must use a signed-in session for it.
 - **Formatting setup for the web app:** Prettier for `web/` (`.prettierrc.json`, `npm run format`, `npm run format:check`), a
   pre-commit hook, and the two-space rule for TypeScript and SCSS in `.editorconfig`. No behaviour change.
 

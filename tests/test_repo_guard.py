@@ -53,6 +53,7 @@ class FakeGitHub:
         self.next_id = 100
         self.check_runs: dict[str, list[dict[str, Any]]] = {}
         self.tokens: list[dict[str, str]] = []
+        self.token_repositories: list[Any] = []
 
     def merge(self) -> None:
         """Someone merges the panel's open pull request on GitHub."""
@@ -78,6 +79,7 @@ class FakeGitHub:
         root = f"/repos/{REPO}"
         if method == "POST" and re.match(r"^/app/installations/\d+/access_tokens$", path):
             self.tokens.append(body["permissions"])
+            self.token_repositories.append(body.get("repositories"))
             return {"token": f"ghs_{len(self.tokens)}", "expires_at": "2099-01-01T00:00:00Z"}
         assert bearer and bearer.startswith("ghs_"), path
         if path == root:
@@ -277,7 +279,7 @@ def test_generated_files_follow_the_choices() -> None:
     assert set(only_lint) == {files.WORKFLOW, files.PRE_COMMIT, files.DOC}
     assert "pylint" not in only_lint[files.WORKFLOW] and "tests:" not in only_lint[files.WORKFLOW]
     everything = files.generate(_checks(tests=True), VERSIONS)
-    assert set(everything) == set(files.PATHS)
+    assert set(everything) == set(files.PATHS) - {files.CODEOWNERS}  # CODEOWNERS only with owners
     assert everything[files.SCRIPT].startswith(f"# {files.MARKER}")
     relaxed = files.workflow(_checks(strictness="relaxed"), VERSIONS)
     strict = files.workflow(_checks(strictness="strict"), VERSIONS)
@@ -321,7 +323,7 @@ def test_checks_open_update_and_remove_a_pull_request(fake: FakeGitHub) -> None:
 
     opened = repo_guard.sync_checks(project, _checks(), "ada")
     assert opened["result"] == "opened" and opened["pull"]["number"] == 1
-    assert fake.head is not None and set(files.PATHS) - {files.SCRIPT} <= set(fake.head)
+    assert fake.head is not None and set(files.PATHS) - {files.SCRIPT, files.CODEOWNERS} <= set(fake.head)
     assert fake.pulls[0]["base"] == "main"
     # never written to the default branch, only to the panel's own branch
     assert not any(p.endswith("/git/refs/heads/main") for _, p, _ in fake.calls if _ != "GET")
@@ -389,7 +391,9 @@ def test_rulesets_preview_apply_update_and_turn_off(fake: FakeGitHub) -> None:
     assert body["conditions"]["ref_name"]["include"] == ["refs/heads/main"] and body["bypass_actors"] == []
     types = {r["type"]: r.get("parameters") for r in body["rules"]}
     assert types["pull_request"]["required_approving_review_count"] == 1
-    assert types["required_status_checks"]["required_status_checks"] == [{"context": files.REQUIRED_CHECK}]
+    assert types["required_status_checks"]["required_status_checks"] == [
+        {"context": files.REQUIRED_CHECK, "integration_id": 15368}
+    ]
     assert {"deletion", "non_fast_forward"} <= set(types)
     merges = ours[rules.NAMES["production_merges"]]
     assert merges["rules"][0]["type"] == "update" and merges["bypass_actors"] == rules.ROLE_ACTORS
@@ -471,11 +475,129 @@ def test_missing_permissions_are_named(fake: FakeGitHub) -> None:
     assert not [c for c in fake.calls if c[0] != "GET"]  # nothing was asked of GitHub
 
 
+def test_every_installation_token_is_limited_to_the_projects_repository(fake: FakeGitHub) -> None:
+    project = _project()
+    repo_guard.preview_checks(project, _checks())
+    repo_guard.sync_checks(project, _checks(), "ada")
+    repo_guard.refresh_pull(project)
+    repo_guard.preview_rules(project, _rules(enabled=True))
+    assert fake.token_repositories and all(names == ["books"] for names in fake.token_repositories)
+
+
+def test_a_token_needs_a_repository_name() -> None:
+    from sudoo.repo_guard import github as gh
+
+    with pytest.raises(gh.GitHubError, match="owner/name"):
+        gh.token("Acme", {"contents": "read"}, "books")
+
+
 def test_manifest_asks_for_the_guard_only_when_wanted() -> None:
     plain = github_app.manifest("https://p.example", "https://p.example", "p.example")
     guard = github_app.manifest("https://p.example", "https://p.example", "p.example", repository_guard=True)
     assert "workflows" not in plain["default_permissions"]
     assert {k: guard["default_permissions"][k] for k in github_app.GUARD_PERMISSIONS} == github_app.GUARD_PERMISSIONS
+
+
+def test_required_check_is_pinned_to_github_actions(fake: FakeGitHub) -> None:
+    project = _project()
+    teams = _rules(enabled=True, pushers={"mode": "named", "teams": ["release-managers"]})
+    repo_guard.apply_rules(project, teams, "ada", confirm=REPO)
+    body = next(r for r in fake.rulesets.values() if r["name"] == rules.NAMES["production"])
+    types = {r["type"]: r.get("parameters") for r in body["rules"]}
+    assert types["required_status_checks"]["required_status_checks"] == [{"context": "sudoo-checks",
+                                                                          "integration_id": 15368}]  # fmt: skip
+    assert types["pull_request"]["require_code_owner_review"] is True  # the default for production
+    staging = next(r for r in fake.rulesets.values() if r["name"] == rules.NAMES["staging"])
+    assert {r["type"]: r.get("parameters") for r in staging["rules"]}["pull_request"][
+        "require_code_owner_review"
+    ] is False
+    assert {t["action"] for t in repo_guard.preview_rules(project, teams)["targets"]} == {"unchanged"}
+
+
+def test_rules_written_before_are_tightened_and_logged(fake: FakeGitHub, caplog: pytest.LogCaptureFixture) -> None:
+    project = _project()
+    teams = _rules(enabled=True, pushers={"mode": "named", "teams": ["release-managers"]})
+    repo_guard.apply_rules(project, teams, "ada", confirm=REPO)
+    for ruleset in fake.rulesets.values():  # as an older panel wrote them: no source, no code-owner review
+        for rule in ruleset["rules"]:
+            if rule["type"] == "required_status_checks":
+                rule["parameters"]["required_status_checks"] = [{"context": "sudoo-checks"}]
+            if rule["type"] == "pull_request":
+                rule["parameters"]["require_code_owner_review"] = False
+    preview = repo_guard.preview_rules(project, teams)
+    production = next(t for t in preview["targets"] if t["key"] == "production")
+    assert production["action"] == "update"
+    assert {c["field"] for c in production["changes"]} == {"checks", "code_owner_review"}
+    assert next(c for c in production["changes"] if c["field"] == "checks")["before"] == "sudoo-checks (any source)"
+    with caplog.at_level("INFO", logger="sudoo.repo_guard.rules"):
+        repo_guard.apply_rules(project, teams, "ada", confirm=REPO)
+    lines = [r.getMessage() for r in caplog.records if r.name == "sudoo.repo_guard.rules"]
+    assert len(lines) == 1 and REPO in lines[0] and "production" in lines[0]
+    assert {t["action"] for t in repo_guard.preview_rules(project, teams)["targets"]} == {"unchanged"}
+
+
+def test_code_owner_review_needs_someone_to_name(fake: FakeGitHub) -> None:
+    project = _project()
+    found = repo_guard.preview_rules(project, _rules(enabled=True))  # an organisation, roles only: nobody to name
+    assert "no_code_owners" in {item["reason"] for item in found["limitations"]} and found["owners"] == []
+    assert next(t for t in found["targets"] if t["key"] == "production")["after"]["code_owner_review"] is False
+    off = repo_guard.preview_rules(project, _rules(enabled=True, production={"code_owner_review": False}))
+    assert "no_code_owners" not in {item["reason"] for item in off["limitations"]}
+    fake.owner_type = "User"  # a personal repository: its owner
+    personal = repo_guard.preview_rules(project, _rules(enabled=True))
+    assert personal["owners"] == ["@Acme"]
+    assert next(t for t in personal["targets"] if t["key"] == "production")["after"]["code_owner_review"] is True
+
+
+def test_branch_protection_pins_the_source_and_asks_for_owner_review(fake: FakeGitHub) -> None:
+    project = _project()
+    fake.rulesets_missing = True
+    chosen = _rules(enabled=True, pushers={"mode": "named", "users": ["ada"], "teams": []})
+    repo_guard.apply_rules(project, chosen, "ada", confirm=REPO)
+    saved = fake.protections["main"]
+    assert saved["required_status_checks"]["checks"] == [{"context": "sudoo-checks", "app_id": 15368}]
+    assert saved["required_pull_request_reviews"]["require_code_owner_reviews"] is True  # @ada is named
+    assert {t["action"] for t in repo_guard.preview_rules(project, chosen)["targets"]} == {"unchanged"}
+
+
+def test_codeowners_file_follows_the_rules(fake: FakeGitHub) -> None:
+    project = _project()
+    teams = _rules(enabled=True, pushers={"mode": "named", "teams": ["release-managers"]})
+    storage().put(repo_guard.COLLECTION, project["id"], {"rules": teams})
+    opened = repo_guard.sync_checks(project, _checks(), "ada")
+    assert opened["result"] == "opened" and files.CODEOWNERS in opened["pull"]["files"]
+    assert fake.head is not None and fake.head[files.CODEOWNERS].endswith("/.github/ @Acme/release-managers\n")
+    assert files.is_ours(fake.head[files.CODEOWNERS])
+    only_owners = repo_guard.sync_checks(project, _checks(enabled=False), "ada")  # checks off, rules still on
+    assert files.CODEOWNERS in only_owners["pull"]["files"] and files.WORKFLOW not in fake.head
+    assert files.CODEOWNERS in fake.head
+
+
+def test_codeowners_is_not_added_over_the_repositorys_own(fake: FakeGitHub) -> None:
+    """GitHub reads only the first CODEOWNERS it finds (.github/, the root, docs/): one in .github/ would replace it."""
+    project = _project()
+    teams = _rules(enabled=True, pushers={"mode": "named", "teams": ["release-managers"]})
+    storage().put(repo_guard.COLLECTION, project["id"], {"rules": teams})
+    fake.main["CODEOWNERS"] = "* @Acme/everyone\n"
+    planned = {f["path"]: f for f in repo_guard.preview_checks(project, _checks())["files"]}
+    assert planned[files.CODEOWNERS]["action"] == "kept" and "`CODEOWNERS`" in planned[files.CODEOWNERS]["reason"]
+    opened = repo_guard.sync_checks(project, _checks(), "ada")
+    assert fake.head is not None and files.CODEOWNERS not in fake.head
+    assert files.CODEOWNERS not in opened["pull"]["files"]
+
+
+def test_only_github_actions_can_make_the_required_check(fake: FakeGitHub) -> None:
+    project = _project()
+    storage().put(repo_guard.COLLECTION, project["id"], {"checks": _checks(), "pull": PULL})
+    fake.check_runs[SHA_OK] = [
+        {"name": "sudoo-checks", "status": "completed", "conclusion": "success", "app": {"id": 777}},  # another app
+        {"name": "Lint (ruff)", "status": "completed", "conclusion": "success", "app": {"id": 15368}},
+    ]
+    found = repo_guard.results(project, [SHA_OK])[SHA_OK]
+    assert [r["name"] for r in found["runs"]] == ["Lint (ruff)"] and found["total"] == 1
+    fake.check_runs[SHA_BAD] = [{"name": "sudoo-checks", "status": "completed", "conclusion": "failure",
+                                 "app": {"id": 15368}}]  # fmt: skip
+    assert repo_guard.results(project, [SHA_BAD])[SHA_BAD]["state"] == "failure"
 
 
 # ---------------------------------------------------------------- results and promotion
@@ -484,7 +606,7 @@ def test_manifest_asks_for_the_guard_only_when_wanted() -> None:
 def test_results_and_the_promotion_item(fake: FakeGitHub, monkeypatch: pytest.MonkeyPatch) -> None:
     project = _project()
     fake.check_runs[SHA_OK] = [{"name": "sudoo-checks", "status": "completed", "conclusion": "success",
-                                "html_url": "https://github.com/x"}]  # fmt: skip
+                                "html_url": "https://github.com/x", "app": {"id": 15368}}]  # fmt: skip
     fake.check_runs[SHA_BAD] = [{"name": "Lint (ruff)", "status": "completed", "conclusion": "failure"},
                                 {"name": "Odoo tests (18.0)", "status": "in_progress", "conclusion": None}]  # fmt: skip
     assert repo_guard.results(project, [SHA_OK]) == {}  # checks off: nothing is read

@@ -146,6 +146,7 @@ def register() -> client.Identity:
         "hardware_fingerprint": client.hardware_fingerprint(me.public_key),
         "sudoo_version": client.sudoo_version(),
         "core_hash": client.core_hash(),
+        **server_fingerprint_field(),
     }
     answer = client.request("POST", "/api/v1/register", body).data or {}
     hub_key = (answer.get("hub_key") or {}) if isinstance(answer, dict) else {}
@@ -240,6 +241,53 @@ def server_report() -> dict[str, Any]:
         return {}
 
 
+def server_fingerprint_field() -> dict[str, str]:
+    """{"server_fingerprint": ...} for registration and the heartbeat; empty when neither the machine id nor the MAC
+    address can be read (the field is optional)."""
+    value = client.server_fingerprint()
+    return {"server_fingerprint": value} if value else {}
+
+
+def engine_report() -> dict[str, Any]:
+    """The engine figures of the heartbeat, counts only: which engines this panel offers ("docker", or
+    "docker+kubernetes" while the Kubernetes engine is on), how many instances run on each (the ENGINE key of each
+    instance's .env; absent: Docker) and how many nodes the Kubernetes cluster has (0 when the engine is off or the
+    cluster cannot be read). No names, addresses or anything about what instances contain."""
+    try:
+        from sudoo import engines
+        from sudoo.config import settings
+        from sudoo.instances import store
+
+        offered = engines.offered()
+        docker = kubernetes = 0
+        for name in store.names():
+            try:
+                kind = engines.kind_of(store.read_env(name))
+            except OSError:
+                continue
+            if kind == engines.KUBERNETES:
+                kubernetes += 1
+            else:
+                docker += 1
+        nodes = 0
+        if settings.kubernetes_engine_beta:
+            try:
+                from sudoo.engines.kubernetes import cluster
+
+                nodes = len(cluster.nodes())
+            except Exception:  # noqa: BLE001 - an unreadable cluster counts no nodes this time
+                log.warning("marketplace: could not count the Kubernetes nodes", exc_info=True)
+        return {
+            "engine_available": "+".join(offered),
+            "instances_docker": min(docker, 100_000),
+            "instances_kubernetes": min(kubernetes, 100_000),
+            "nodes_kubernetes": min(nodes, 100_000),
+        }
+    except Exception:  # noqa: BLE001 - the figures are optional; the heartbeat goes without them
+        log.exception("marketplace: could not gather the engine figures")
+        return {}
+
+
 def _usage_report() -> dict[str, Any] | None:
     """What the panel counts for the plan (entitlements.usage_report); None when it cannot be counted."""
     try:
@@ -294,6 +342,8 @@ def _heartbeat_once() -> dict[str, Any]:
         "hardware_fingerprint": client.hardware_fingerprint(me.public_key),
         "plugins": installed_report(),
         **server_report(),
+        **engine_report(),
+        **server_fingerprint_field(),
     }
     usage = _usage_report()
     if usage is not None:

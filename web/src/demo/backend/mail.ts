@@ -3,7 +3,6 @@
 // of src/sudoo/mail/textformat.py, so the page's preview and checks behave like the real ones.
 
 import type { MailPreview, MailTemplate } from "@/api/types";
-import seed from "./mail.json";
 
 type Block = { html: string; text: string };
 type Value = string | number | Block;
@@ -22,7 +21,16 @@ interface Seeded {
   samples: Record<string, Value>;
 }
 
-const MESSAGES = seed.messages as unknown as Seeded[];
+// The templates load on first use (mail.json is about 130 kB, more than a tenth of the demo's backend): the demo starts
+// without them, and api.ts calls ready() before it answers anything under /mail-templates.
+let seed: { messages: unknown[]; layout: string } = { messages: [], layout: "" };
+let MESSAGES: Seeded[] = [];
+
+export async function ready(): Promise<void> {
+  if (MESSAGES.length) return;
+  seed = (await import("./mail.json")).default as typeof seed;
+  MESSAGES = seed.messages as Seeded[];
+}
 const changed = new Map<string, Text & { changed_at: string; changed_by: string }>();
 
 const PLACEHOLDER = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g;

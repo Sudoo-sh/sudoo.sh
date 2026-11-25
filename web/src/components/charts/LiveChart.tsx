@@ -15,6 +15,7 @@ import {
   type ScriptableContext,
 } from "chart.js";
 import { useEffect, useRef } from "react";
+import { useSeen } from "@/lib/seen";
 import { getLocale, useT } from "@/i18n";
 import charts from "@/i18n/charts";
 import { time } from "@/lib/format";
@@ -52,6 +53,7 @@ export function LiveChart({
   const canvas = useRef<HTMLCanvasElement>(null);
   const chart = useRef<Chart<"line"> | null>(null);
   const theme = useThemeVersion();
+  const seen = useSeen(canvas); // created when it comes near the viewport (lib/seen.ts)
   const latest = useRef({ t, series, format });
   latest.current = { t, series, format };
   const drawn = useRef<unknown[]>([]); // the data the chart was created with: not drawn a second time
@@ -89,7 +91,7 @@ export function LiveChart({
 
   // create (again when the theme changes)
   useEffect(() => {
-    if (!canvas.current) return;
+    if (!canvas.current || !seen) return;
     const muted = token("--text-3");
     const mono = token("--mono") || "monospace";
     chart.current = new Chart<"line">(canvas.current, {
@@ -161,7 +163,7 @@ export function LiveChart({
       chart.current?.destroy();
       chart.current = null;
     };
-  }, [theme, max]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [theme, max, seen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // new samples: change the data in place; the existing points glide to their new places
   useEffect(() => {

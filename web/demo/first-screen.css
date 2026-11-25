@@ -1,0 +1,136 @@
+/*
+ * The demo's first screen (demo/first-screen.html, put into #root by the demo build), drawn by the browser from the
+ * page itself while the app loads; the app then replaces it. This small file is the only stylesheet the first paint
+ * waits for: the app's own stylesheet loads behind it (demo/start.js). The colours are the panel's tokens
+ * (src/styles/_tokens.scss), light and dark; boot.js has already set the language, the direction and the theme.
+ */
+:root {
+  color-scheme: light dark;
+  --fs-bg: #fafafa;
+  --fs-surface: #ffffff;
+  --fs-hairline: rgb(23 23 23 / 0.08);
+  --fs-text: #171717;
+  --fs-text-2: #525252;
+  --fs-brand: #714b67;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fs-bg: #141415;
+    --fs-surface: #19191b;
+    --fs-hairline: rgb(237 237 237 / 0.08);
+    --fs-text: #ededed;
+    --fs-text-2: #a1a1a6;
+    --fs-brand: #c79bbd;
+  }
+}
+:root[data-theme="dark"] {
+  --fs-bg: #141415;
+  --fs-surface: #19191b;
+  --fs-hairline: rgb(237 237 237 / 0.08);
+  --fs-text: #ededed;
+  --fs-text-2: #a1a1a6;
+  --fs-brand: #c79bbd;
+}
+
+/* the demo's bar (src/demo/demo.scss) takes the top 40px once the app starts: the first screen keeps that room */
+body:has(> #root > .first-screen) {
+  margin: 0;
+  padding-top: calc(40px + env(safe-area-inset-top, 0px));
+  background: var(--fs-bg);
+}
+.first-screen {
+  box-sizing: border-box;
+  min-height: calc(100dvh - 40px);
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  color: var(--fs-text);
+  font-family:
+    "IBM Plex Sans Arabic",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Inter Variable",
+    "Inter",
+    "Segoe UI",
+    system-ui,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.first-screen-card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  width: min(100%, 560px);
+  padding: 28px;
+  border: 1px solid var(--fs-hairline);
+  border-radius: 16px;
+  background: var(--fs-surface);
+}
+.first-screen h1 {
+  margin: 4px 0 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.first-screen p {
+  margin: 0;
+  color: var(--fs-text-2);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+/* one language at a time: the page's, as boot.js set it */
+html:not([lang="ar"]) .first-screen [lang="ar"],
+html[lang="ar"] .first-screen [lang="en"] {
+  display: none;
+}
+html[lang="ar"] .first-screen h1 {
+  letter-spacing: normal;
+}
+.first-screen-bar {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 3px;
+  margin-top: 8px;
+  border-radius: 3px;
+  background: var(--fs-hairline);
+}
+.first-screen-bar::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 30%;
+  border-radius: inherit;
+  background: var(--fs-brand);
+  animation: first-screen-bar 1.2s ease-in-out infinite;
+}
+[dir="rtl"] .first-screen-bar::after {
+  animation-name: first-screen-bar-rtl;
+}
+@keyframes first-screen-bar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+@keyframes first-screen-bar-rtl {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(-340%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .first-screen-bar::after {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}

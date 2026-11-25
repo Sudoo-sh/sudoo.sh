@@ -5,7 +5,7 @@ import "./styles/main.scss";
 import "./styles/fonts.scss";
 
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { StrictMode, type ReactNode } from "react";
+import { StrictMode, startTransition, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router";
 import { ApiError } from "./api/client";
@@ -62,7 +62,14 @@ function LocaleRoot({ children }: { children: ReactNode }) {
   );
 }
 
-createRoot(document.getElementById("root")!).render(
+// The demo answers what the frame draws above every page before the first render (src/demo: prime).
+if (demo) await demo.prime(client);
+
+// In the demo the first render is a transition: its first screen is already drawn from the page (demo/first-screen.html),
+// so React renders the app in slices and lets the browser breathe between them instead of in one long task. The panel
+// draws at once, as before: there the first render is the first paint.
+const root = createRoot(document.getElementById("root")!);
+const app = (
   <StrictMode>
     <QueryClientProvider client={client}>
       <ToastProvider>
@@ -72,5 +79,7 @@ createRoot(document.getElementById("root")!).render(
         </LocaleRoot>
       </ToastProvider>
     </QueryClientProvider>
-  </StrictMode>,
+  </StrictMode>
 );
+if (demo) startTransition(() => root.render(app));
+else root.render(app);

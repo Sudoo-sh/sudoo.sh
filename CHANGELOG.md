@@ -28,6 +28,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Menu buttons announce their menu**: `aria-haspopup` and `aria-expanded` are on the button a menu opens from, not on
+  the `<span>` around it (which may not carry them).
 - **Demo (demo.sudoo.sh): a robots.txt and readable faint text in callouts**: the demo build now ships `robots.txt`
   (the SPA fallback used to answer `/robots.txt` with the app's page), and faint text inside a callout uses the muted
   grey, as the faint one is under 4.5:1 on the callout's background.
@@ -51,6 +53,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Demo (demo.sudoo.sh) loads fast on phones**: its page draws a first screen of its own at once (EN/AR, light/dark)
+  and starts the app behind it (`web/demo/start.js`); the app's stylesheet no longer holds up the first paint, the
+  frame's banners are answered before the first render (no page jump), the demo's e-mail templates load on first use,
+  and the first render is time-sliced. Lighthouse mobile 39 to about 85.
+- **Charts are created when they come near the viewport** (`web/src/lib/seen.ts`), and the dashboard draws new
+  figures at low priority: less work while a page loads, in the panel and the demo.
 - **The repository guard's GitHub tokens are limited to the project's repository** (security review finding F-07): each
   installation token the guard asks for names the one repository it is used on, so it cannot touch the installation's
   other repositories. No setting; nothing changes for the person using the panel.

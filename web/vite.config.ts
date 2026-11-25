@@ -12,8 +12,8 @@ const api = process.env.SUDOO_API ?? "http://127.0.0.1:9002";
 const events = process.env.SUDOO_EVENTS ?? "http://127.0.0.1:9001";
 
 // `npm run build:demo` (mode "demo"): the same app with an in-browser backend and sample data (src/demo/), a static
-// site for Cloudflare Pages in dist-demo/. Its page names sudoo.sh as the canonical address, and the host's headers
-// and SPA fallback (demo/_headers, demo/_redirects) go next to it.
+// site for Cloudflare Pages in dist-demo/. Its page names sudoo.sh as the canonical address, and the host's headers,
+// SPA fallback and robots.txt (demo/_headers, demo/_redirects, demo/robots.txt) go next to it.
 function demoSite(): Plugin {
   const file = (name: string) => readFileSync(new URL(`./demo/${name}`, import.meta.url), "utf8");
   return {
@@ -26,7 +26,7 @@ function demoSite(): Plugin {
           '<meta name="description" content="Click through the Sudoo.sh panel with sample data: Odoo instances per branch, live metrics, backups and roles. Nothing to install." />\n    <link rel="canonical" href="https://sudoo.sh/" />',
         ),
     generateBundle() {
-      for (const name of ["_headers", "_redirects"])
+      for (const name of ["_headers", "_redirects", "robots.txt"])
         this.emitFile({ type: "asset", fileName: name, source: file(name) });
     },
   };

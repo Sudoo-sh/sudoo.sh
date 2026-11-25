@@ -8,6 +8,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Demo (demo.sudoo.sh): a robots.txt and readable faint text in callouts**: the demo build now ships `robots.txt`
+  (the SPA fallback used to answer `/robots.txt` with the app's page), and faint text inside a callout uses the muted
+  grey, as the faint one is under 4.5:1 on the callout's background.
 - **Temporary access and client access requests no longer share storage**: both features wrote to the collection
   `access_requests`, so a client request's cleanup could delete approved temporary-access grants, and temporary access
   failed with an error while any client request existed. Temporary access now uses `role_requests` and the client

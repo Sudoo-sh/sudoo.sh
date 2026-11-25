@@ -108,6 +108,10 @@ textarea {
 .faint {
   color: var(--text-3);
 }
+// on a callout's tinted background the faint grey falls under the 4.5:1 that small text needs; the muted one reads
+[data-slot="alert"] .faint {
+  color: var(--text-2);
+}
 .small {
   font-size: var(--text-13);
 }

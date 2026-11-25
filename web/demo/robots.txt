@@ -1,0 +1,4 @@
+# demo.sudoo.sh: a click-through of the panel with sample data. Its page names https://sudoo.sh/ as the canonical
+# address; crawlers may read it.
+User-agent: *
+Allow: /

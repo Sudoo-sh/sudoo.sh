@@ -28,6 +28,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Demo (demo.sudoo.sh): a robots.txt and readable faint text in callouts**: the demo build now ships `robots.txt`
+  (the SPA fallback used to answer `/robots.txt` with the app's page), and faint text inside a callout uses the muted
+  grey, as the faint one is under 4.5:1 on the callout's background.
 - **A join token never lives longer than 24 hours** (security review finding F-08, panel side): the panel clamps
   `KUBERNETES_JOIN_TOKEN_MINUTES` to 1440 minutes when it makes the token. The installer caps it too, with a
   sweep that deletes longer-lived tokens (sudoo-installer).

@@ -282,6 +282,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
           "github_sign_in_skips_second_factor",
           "github_access_from_repositories",
           "github_access_check_minutes",
+          "github_read_role",
         ],
       },
       {

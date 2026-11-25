@@ -29,6 +29,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **GitHub's read permission gives Viewer, not Tester, in new projects** (security review finding F-04): read is what
+  everyone has on a public repository, and Tester can open Odoo on staging and development with Connect. The new setting
+  `GITHUB_READ_ROLE` (`viewer` by default, or `tester`) sets it for projects made from now on. Projects made earlier
+  keep Tester until a project Admin switches them in **Access from GitHub** on the project's Access tab, so nobody
+  gains or loses access by the upgrade. Triage still gives Tester.
 - **An API token can no longer get the production access pass** (security review finding F-03): `POST /instances/<name>/open-link`
   answers 403 for a token, and a token never gets a pass in Connect as either. A pass lets its holder past the country and
   address rules, which are there to limit stolen credentials. Scripts that used a token to open a production instance

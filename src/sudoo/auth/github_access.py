@@ -5,7 +5,9 @@ the project's repository (GITHUB_ACCESS_FROM_REPOSITORIES, with GITHUB_SIGN_IN).
     admin                    Admin
     maintain                 Maintainer
     write (push)             Developer
-    triage, read             Tester (Viewer in a project that keeps the earlier access model)
+    triage                   Tester (Viewer in a project that keeps the earlier access model)
+    read                     Viewer or Tester, as the project chose (GITHUB_READ_ROLE for projects made from now on;
+                             a project made earlier keeps Tester until a project Admin changes it)
     none                     none: the project is not shown
 
 GitHub computes the permission from everything that gives it: the person's own invitation, the organisation's base
@@ -87,6 +89,26 @@ def level_of(answer: Mapping[str, Any]) -> tuple[str, str]:
         return "none", "none"
     permission = str(answer.get("permission") or "none")
     return BY_PERMISSION.get(permission, "none"), permission
+
+
+READ_ROLES = ("viewer", "tester")
+
+
+def read_role(project: Mapping[str, Any] | None) -> str:
+    """What GitHub's "read" gives in this project: "viewer" or "tester". A project that does not say keeps
+    "tester" (the behaviour before the setting existed), so nobody loses access by an upgrade."""
+    from sudoo.projects import access
+
+    chosen = access.access_of(project).get("github_read_role")
+    return chosen if chosen in READ_ROLES else "tester"
+
+
+def project_level(entry: Mapping[str, Any], project: Mapping[str, Any]) -> str | None:
+    """The level a stored reading gives in `project`: GitHub's read follows the project's choice."""
+    level = entry.get("level")
+    if level == "tester" and entry.get("permission") == "read" and read_role(project) == "viewer":
+        return "view"
+    return str(level) if level else None
 
 
 def check(repository: str, login: str) -> tuple[str, str] | None:
@@ -211,7 +233,7 @@ def level_for(name: str | None, project: Mapping[str, Any]) -> str | None:
     if time.time() - float(entry.get("checked", 0)) > max_age():
         refresh_later(name)
         return "none"
-    return str(entry.get("level") or "none")
+    return project_level(entry, project) or "none"
 
 
 def describe(project: Mapping[str, Any]) -> dict[str, Any]:
@@ -230,13 +252,14 @@ def describe(project: Mapping[str, Any]) -> dict[str, Any]:
                 "github_login": link.get("login"),
                 "applies": applies(name),
                 "permission": entry.get("permission"),
-                "level": entry.get("level") if entry.get("covered", True) else None,
+                "level": project_level(entry, project) if entry.get("covered", True) else None,
                 "covered": entry.get("covered", True) if entry else None,
                 "checked": entry.get("checked"),
                 "via": entry.get("via"),
             }
         )
-    return {"enabled": active(), "repository": project.get("repository"), "people": people}
+    return {"enabled": active(), "repository": project.get("repository"), "people": people,
+            "read_role": read_role(project)}  # fmt: skip
 
 
 def due() -> list[str]:

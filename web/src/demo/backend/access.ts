@@ -27,6 +27,8 @@ export interface DemoAccess {
   locks: Record<string, BranchLock>;
   /** "project_roles" (per stage, src/sudoo/projects/project_roles.py) or "legacy" (role ∩ level) */
   model: "project_roles" | "legacy";
+  /** what GitHub's read permission gives (auth/github_access.py) */
+  githubReadRole?: "viewer" | "tester";
   /** the project's changes to the default matrix */
   matrix: Partial<Record<AccessLevel, Partial<Record<Scope, Permission[]>>>>;
   /** the branches' stages (the project's own record, shared) */

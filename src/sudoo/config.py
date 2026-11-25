@@ -440,6 +440,12 @@ class Settings(BaseSettings):
     github_access_check_minutes: int = Field(
         15, ge=1, le=1440, description="How often repository permissions and GitHub team members are read again."
     )
+    github_read_role: Literal["viewer", "tester"] = Field(
+        "viewer",
+        description="The project role GitHub's read permission gives, for projects made from now on: viewer (can see "
+        "the project) or tester (can also open Odoo on staging and development with Connect). Projects made earlier "
+        "keep tester until a project Admin changes it on the project's Access tab.",
+    )
     project_access_model: Literal["project_roles", "legacy"] = Field(
         "project_roles",
         description='The access model of new projects: "project_roles" (Viewer, Tester, Developer, Maintainer, '
@@ -2402,6 +2408,7 @@ EDITABLE = (
     "github_sign_in_skips_second_factor",
     "github_access_from_repositories",
     "github_access_check_minutes",
+    "github_read_role",
     "project_access_model",
     "access_emails",
     "access_requests",

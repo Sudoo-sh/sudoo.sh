@@ -192,10 +192,23 @@ function AccessSummary({ project, data }: { project: ProjectDetail; data: Projec
 }
 
 /** Access from GitHub (auth/github_access.py): each linked person's permission on the repository and its level. */
-function GitHubAccessCard({ data }: { data: ProjectAccess }) {
+function GitHubAccessCard({
+  project,
+  data,
+  permitted,
+}: {
+  project: ProjectDetail;
+  data: ProjectAccess;
+  permitted: boolean;
+}) {
   const all = useT(words);
   const t = all.fromGitHub;
   const github = data.github;
+  const toast = useToast();
+  const change = useCall(
+    (role: string) => api.put<ProjectAccess>(`/projects/${project.id}/access/github-read-role`, { role }),
+    [keys.projectAccess(project.id), keys.project(project.id), keys.projects, keys.instances],
+  );
   if (!github) return null;
   return (
     <section className="card">
@@ -205,6 +218,23 @@ function GitHubAccessCard({ data }: { data: ProjectAccess }) {
       </div>
       <div className="card-body stack-sm">
         <p className="small muted">{github.enabled ? t.on(github.repository) : t.off}</p>
+        <Field label={t.readGives}>
+          <SelectBox
+            value={data.github_read_role}
+            disabled={!permitted || change.isPending}
+            onValueChange={(role) =>
+              change.mutate(role, {
+                onSuccess: () => toast("success", t.readChanged),
+                onError: (e) => toast("error", t.notSaved, errorText(e)),
+              })
+            }
+            aria-label={t.readGives}
+          >
+            <option value="viewer">{all.levels.view}</option>
+            <option value="tester">{all.levels.tester}</option>
+          </SelectBox>
+        </Field>
+        <p className="xsmall faint">{t.readHint}</p>
         {github.people.length === 0 ? (
           <p className="small faint">{t.nobody}</p>
         ) : (
@@ -292,7 +322,7 @@ export function AccessTab({ project, permitted }: { project: ProjectDetail; perm
       />
       {data.model === "project_roles" && <RolesMatrix project={project} data={data} editable={permitted} />}
       <PeopleCard project={project} />
-      <GitHubAccessCard data={data} />
+      <GitHubAccessCard project={project} data={data} permitted={permitted} />
       {data.model === "project_roles" && (
         <RequestsCard project={project} maxHours={data.request_max_hours} enabled={data.requests_enabled} />
       )}

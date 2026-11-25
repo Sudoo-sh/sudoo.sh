@@ -1427,8 +1427,15 @@ linked person's access to a project follows their permission on the project's re
 | admin | Admin |
 | maintain | Maintainer |
 | write | Developer |
-| triage, read | Tester (Viewer in a project that keeps the earlier access model) |
+| triage | Tester (Viewer in a project that keeps the earlier access model) |
+| read | Viewer or Tester, as the project chose (below) |
 | none | none: the project is hidden |
+
+**What read gives.** Read is the permission everyone has on a public repository and the usual base permission of an
+organisation, so it should not by default let someone open Odoo on staging and development (Connect). `GITHUB_READ_ROLE`
+(`viewer` by default) sets what read gives in projects made from now on. Projects made earlier keep Tester until a
+project Admin changes it on the project's **Access** tab, in **Access from GitHub** (or `PUT
+/projects/<id>/access/github-read-role`), so nobody gains or loses access by an upgrade. Triage always gives Tester.
 
 GitHub works the permission out from everything that gives it, the repository's teams included; the project's
 **Who can do what** names the team ("via team acme/backend") when one gives it.
@@ -1439,7 +1446,8 @@ GitHub works the permission out from everything that gives it, the repository's 
   role, their panel teams' grants and their GitHub teams' grants applies ([Project roles](#project-roles)).
 * Super admins and administrators are not limited by it. A repository the app is not installed on is not checked:
   the panel's own rules apply to it.
-* The project's **Access** tab lists each linked person with their GitHub permission and level.
+* The project's **Access** tab lists each linked person with their GitHub permission and level, and a Project Admin
+  chooses there what read gives in this project (Viewer or Tester).
 
 ### Project roles
 

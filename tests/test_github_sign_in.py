@@ -22,7 +22,7 @@ from flask.testing import FlaskClient
 
 from sudoo import accounts, invitations, projects
 from sudoo.auth import email_sign_in, github, github_access, methods
-from sudoo.config import live
+from sudoo.config import live, settings
 from sudoo.core import vault
 from sudoo.projects import access
 from sudoo.repos import github_app
@@ -87,7 +87,7 @@ class FakeGitHub(BaseHTTPRequestHandler):
         if method == "POST" and path.startswith("/app/installations/"):
             expires = datetime.fromtimestamp(time.time() + 3600, UTC).isoformat().replace("+00:00", "Z")
             return self._send(201, {"token": "ghs_installation", "expires_at": expires})
-        if path.startswith("/repos/Acme/shop/collaborators/"):
+        if path.startswith("/repos/Acme/") and "/collaborators/" in path:
             if self.headers.get("Authorization") != "Bearer ghs_installation":
                 return self._send(401, {"message": "Bad credentials"})
             login = path.split("/")[5]
@@ -411,6 +411,58 @@ def test_stale_permissions_count_as_none(app: Flask, gh: type[FakeGitHub]) -> No
     github_access._cache.pop(name, None)
     github_access._asked[name] = time.time()  # no background refresh in this test
     assert access.level(user, project) == "none"
+
+
+def test_github_read_gives_the_role_the_project_chose(app: Flask, gh: type[FakeGitHub]) -> None:
+    """F-04: read gives Viewer in projects made now (GITHUB_READ_ROLE), Tester stays in projects made earlier."""
+    newer = projects.create(repository="Acme/newer", odoo_version="18.0", edition="community", origin="linked",
+                            user="admin1")  # fmt: skip
+    older = projects.create(repository="Acme/older", odoo_version="18.0", edition="community", origin="linked",
+                            user="admin1")  # fmt: skip
+    older = projects.change(older["id"], lambda p: {**p, "access": {"mode": "panel_roles", "model": "project_roles"}})
+    assert access.access_of(newer)["github_read_role"] == "viewer" and github_access.read_role(older) == "tester"
+    assert settings.github_read_role == "viewer"
+    name = _account(role="developer", email="reader@example.com")
+    user = {"name": name, "role": "developer"}
+    github.link(name, github.GitHubUser(id=1020, login="reader"))
+    gh.permissions["reader"] = "read"
+    github_access.refresh(name)
+    assert access.level(user, newer) == "view" and access.level(user, older) == "tester"
+    shown = {p["user"]: p for p in github_access.describe(newer)["people"]}[name]
+    assert shown["level"] == "view" and github_access.describe(newer)["read_role"] == "viewer"
+    # a person with triage keeps Tester in both
+    gh.permissions["reader"] = "triage"
+    github_access.refresh(name)
+    assert access.level(user, newer) == "tester" and access.level(user, older) == "tester"
+    # an Admin of the project switches each way
+    gh.permissions["reader"] = "read"
+    github_access.refresh(name)
+    switched = projects.change(older["id"], lambda p: {**p, "access": {**access.access_of(p),
+                                                                       "github_read_role": "viewer"}})  # fmt: skip
+    assert access.level(user, switched) == "view"
+    back = projects.change(newer["id"], lambda p: {**p, "access": {**access.access_of(p),
+                                                                   "github_read_role": "tester"}})  # fmt: skip
+    assert access.level(user, back) == "tester"
+
+
+def test_github_read_role_can_be_changed_by_a_project_admin(app: Flask, gh: type[FakeGitHub]) -> None:
+    from conftest import sign_in
+
+    project = projects.create(repository="Acme/readrole", odoo_version="18.0", edition="community", origin="linked",
+                              user="admin1")  # fmt: skip
+    boss = _account(role="super_admin")
+    client, headers = sign_in(app, boss, "orchid-pebble-summit-73")
+    path = f"/api/v1/projects/{project['id']}/access"
+    assert client.get(path, headers=headers).get_json()["data"]["github_read_role"] == "viewer"
+    assert client.put(path + "/github-read-role", json={"role": "owner"}, headers=headers).status_code == 400
+    done = client.put(path + "/github-read-role", json={"role": "tester"}, headers=headers)
+    assert done.status_code == 200 and done.get_json()["data"]["github_read_role"] == "tester"
+    assert github_access.read_role(projects.get(project["id"])) == "tester"
+    assert any(e["event"] == "project access from GitHub changed" for e in storage().logs(user=boss, limit=5))
+    other = _account(role="developer")
+    other_client, other_headers = sign_in(app, other, "orchid-pebble-summit-73")
+    refused = other_client.put(path + "/github-read-role", json={"role": "viewer"}, headers=other_headers)
+    assert refused.status_code in (403, 404) and github_access.read_role(projects.get(project["id"])) == "tester"
 
 
 # ---------------------------------------------------------------- e-mail codes

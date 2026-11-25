@@ -1736,6 +1736,20 @@
     "description": "How often repository permissions and GitHub team members are read again."
   },
   {
+    "key": "github_read_role",
+    "env": "GITHUB_READ_ROLE",
+    "value": "viewer",
+    "env_value": "viewer",
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "string",
+    "minimum": null,
+    "description": "The project role GitHub's read permission gives, for projects made from now on: viewer (can see the project) or tester (can also open Odoo on staging and development with Connect). Projects made earlier keep tester until a project Admin changes it on the project's Access tab."
+  },
+  {
     "key": "project_access_model",
     "env": "PROJECT_ACCESS_MODEL",
     "value": "project_roles",

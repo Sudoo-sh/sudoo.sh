@@ -275,6 +275,7 @@ const en = {
     github_sign_in_skips_second_factor: "Accept GitHub's two-factor authentication",
     github_access_from_repositories: "Project access follows repository permissions",
     github_access_check_minutes: "Read repository permissions again every (minutes)",
+    github_read_role: "Role GitHub's read permission gives in new projects",
     project_access_model: "Access model of new projects",
     access_emails: "E-mail people about their project access",
     access_requests: "Allow temporary access requests",
@@ -639,6 +640,7 @@ const en = {
       admin: "Administrator",
     },
     project_access_model: { project_roles: "Project roles, per stage", legacy: "Earlier model (panel role ∩ grant)" },
+    github_read_role: { viewer: "Viewer", tester: "Tester" },
     profiler_roles: {
       admins: "Super admins and administrators",
       maintainers: "And maintainers",
@@ -732,6 +734,8 @@ const en = {
     github_access_from_repositories:
       "For accounts linked to GitHub (except administrators), a project's role follows their permission on its repository: admin gives Admin, maintain Maintainer, write Developer, triage or read Tester, none nothing. Only with GITHUB_SIGN_IN.",
     github_access_check_minutes: "How often repository permissions and GitHub team members are read again.",
+    github_read_role:
+      "Viewer can see a project; Tester can also open Odoo on staging and development with Connect. Projects made earlier keep Tester until a project Admin changes it on the Access tab.",
     project_access_model:
       'The access model of new projects: "project_roles" (Viewer, Tester, Developer, Maintainer, Admin, per stage) or "legacy" (the panel role limited by the project\'s grant, the same in every stage).',
     access_emails: "E-mail people when they get access to a project, when their role changes, and when it ends.",
@@ -1522,6 +1526,7 @@ const ar: typeof en = {
     github_sign_in_skips_second_factor: "اقبل المصادقة الثنائية في GitHub",
     github_access_from_repositories: "الوصول إلى المشروع يتبع صلاحيات المستودع",
     github_access_check_minutes: "أعد قراءة صلاحيات المستودعات كل (دقيقة)",
+    github_read_role: "الدور الذي تمنحه صلاحية القراءة من GitHub في المشاريع الجديدة",
     project_access_model: "نموذج الوصول للمشاريع الجديدة",
     access_emails: "راسل الناس بشأن وصولهم إلى المشاريع",
     access_requests: "اسمح بطلبات الوصول المؤقت",
@@ -1877,6 +1882,7 @@ const ar: typeof en = {
       maintainer: "مشرف صيانة",
       admin: "مسؤول",
     },
+    github_read_role: { viewer: "مشاهد", tester: "مختبِر" },
     project_access_model: {
       project_roles: "أدوار المشروع لكل مرحلة",
       legacy: "النموذج السابق (دور اللوحة ∩ الصلاحية)",
@@ -1970,6 +1976,8 @@ const ar: typeof en = {
     github_access_from_repositories:
       "للحسابات المرتبطة بـ GitHub (عدا المسؤولين)، يتبع الوصول إلى المشروع صلاحية الشخص في مستودعه: admin تعطي مسؤولًا، وmaintain مشرف صيانة، وwrite مطوّرًا، وtriage أو read مختبِرًا، وnone لا شيء. فقط مع GITHUB_SIGN_IN.",
     github_access_check_minutes: "كل كم دقيقة تُقرأ صلاحيات المستودعات وأعضاء فرق GitHub مجددًا.",
+    github_read_role:
+      "المشاهد يرى المشروع؛ والمختبِر يفتح أودو أيضًا في التجهيز والتطوير عبر «اتصل». تبقى المشاريع القديمة على مختبِر حتى يغيّره مسؤول المشروع في تبويب الوصول.",
     project_access_model:
       'نموذج الوصول للمشاريع الجديدة: "project_roles" (مشاهد، مختبِر، مطوّر، مشرف صيانة، مسؤول، لكل مرحلة) أو "legacy" (دور اللوحة محدودًا بصلاحية المشروع، والأمر نفسه في كل مرحلة).',
     access_emails: "راسل الناس حين يحصلون على وصول إلى مشروع، وحين يتغيّر دورهم فيه، وحين ينتهي.",

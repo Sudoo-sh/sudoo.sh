@@ -37,7 +37,13 @@ const DEFAULT_CHECKS: GuardChecks = {
 const DEFAULT_RULES: GuardRules = {
   enabled: false,
   method: "auto",
-  production: { approvals: 1, require_checks: true, linear_history: false, signed_commits: false },
+  production: {
+    approvals: 1,
+    require_checks: true,
+    linear_history: false,
+    signed_commits: false,
+    code_owner_review: true,
+  },
   staging: { enabled: true, approvals: 0, require_checks: true, linear_history: false, signed_commits: false },
   pushers: { mode: "roles", teams: [], users: [] },
 };
@@ -63,6 +69,7 @@ function defaults(): { checks: GuardChecks; rules: GuardRules; block: boolean } 
   rules.production.approvals = Number(setting("project_guard_production_approvals") ?? 1);
   rules.production.linear_history = setting("project_guard_linear_history") === true;
   rules.production.signed_commits = setting("project_guard_signed_commits") === true;
+  rules.production.code_owner_review = setting("project_guard_protect_github_dir") !== false;
   rules.staging.approvals = Number(setting("project_guard_staging_approvals") ?? 0);
   rules.pushers.mode = setting("project_guard_pushers") === "anyone" ? "anyone" : "roles";
   const strictness = String(setting("project_guard_strictness") ?? "standard") as GuardChecks["strictness"];

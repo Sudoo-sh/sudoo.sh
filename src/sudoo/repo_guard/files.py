@@ -25,7 +25,9 @@ WORKFLOW = ".github/workflows/sudoo-checks.yml"
 SCRIPT = ".github/sudoo/check_addons.py"
 PRE_COMMIT = ".pre-commit-config.yaml"
 DOC = "docs/CHECKS.md"
-PATHS = (WORKFLOW, SCRIPT, PRE_COMMIT, DOC)
+CODEOWNERS = ".github/CODEOWNERS"
+PATHS = (WORKFLOW, SCRIPT, PRE_COMMIT, DOC, CODEOWNERS)
+ACTIONS_APP_ID = 15368  # GitHub Actions: the only source the required check may come from
 
 # (repository, commit, release): GitHub Actions, pinned by full commit hash
 ACTIONS = {
@@ -370,15 +372,28 @@ def script() -> str:
     return f"# {MARKER}. Replaced when the checks change in the panel.\n{source}"
 
 
-def generate(checks: dict[str, Any], versions: dict[str, Any]) -> dict[str, str]:
-    """{path: content} of every file the checks need (empty when the checks are off: the files are removed)."""
+def codeowners(owners: list[str]) -> str:
+    """The CODEOWNERS file that makes a change to .github/ (the workflow that makes the required check) need a
+    review by one of `owners` (GitHub teams as @organisation/team, people as @login)."""
+    return (
+        f"# {MARKER}. Replaced when the guard's rules change in the panel.\n"
+        "# A change to .github/ needs a review by one of these owners (branch rule: code-owner review).\n"
+        f"/.github/ {' '.join(owners)}\n"
+    )
+
+
+def generate(checks: dict[str, Any], versions: dict[str, Any], owners: list[str] | None = None) -> dict[str, str]:
+    """{path: content} of every file the checks need (empty when the checks are off: the files are removed).
+    `owners`: the code owners of .github/ (the CODEOWNERS file is written whether or not the checks are on)."""
+    extra = {CODEOWNERS: codeowners(owners)} if owners else {}
     if not checks.get("enabled") or not any(checks[k] for k in ("lint", "pylint_odoo", "manifest", "xml_csv", "tests")):
-        return {}
+        return extra
     series = versions["default"][0]
     found = {
         WORKFLOW: workflow(checks, versions),
         PRE_COMMIT: pre_commit(checks, series),
         DOC: document(checks, versions),
+        **extra,
     }
     if checks["manifest"] or checks["xml_csv"] or checks["tests"]:
         found[SCRIPT] = script()

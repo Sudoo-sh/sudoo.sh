@@ -447,6 +447,7 @@ const en = {
     project_guard_staging_approvals: "Repository guard: approvals for staging",
     project_guard_linear_history: "Repository guard: linear history on production",
     project_guard_signed_commits: "Repository guard: signed commits on production",
+    project_guard_protect_github_dir: "Repository guard: changes to .github/ need review on production",
     project_guard_pushers: "Repository guard: who may merge to production",
     project_guard_blocks_promotion: "Repository guard: failing checks stop a promotion",
     upgrade_methods: "Upgrade methods allowed",
@@ -1029,6 +1030,8 @@ const en = {
       "Approvals a pull request into staging needs in the branch rules on GitHub, 0 to 10 (each project can change it).",
     project_guard_linear_history: "Production's branch rules refuse merge commits (each project can change it).",
     project_guard_signed_commits: "Production's branch rules accept only signed commits (each project can change it).",
+    project_guard_protect_github_dir:
+      "Production's branch rules ask for a review by the owners of .github/, so the workflow that makes the required check cannot change unreviewed. Turn it off for a team of one (each project can change it).",
     project_guard_pushers:
       "GitHub's Admin and Maintain roles, or anyone with write access; a project can also name teams or people.",
     project_guard_blocks_promotion:
@@ -1691,6 +1694,7 @@ const ar: typeof en = {
     project_guard_staging_approvals: "حارس المستودع: الموافقات للتجهيز",
     project_guard_linear_history: "حارس المستودع: سجل خطي في الإنتاج",
     project_guard_signed_commits: "حارس المستودع: إيداعات موقّعة في الإنتاج",
+    project_guard_protect_github_dir: "حارس المستودع: تغييرات المجلد .github/ تحتاج مراجعة في الإنتاج",
     project_guard_pushers: "حارس المستودع: من يدمج في الإنتاج",
     project_guard_blocks_promotion: "حارس المستودع: الفحوصات الفاشلة توقف الترقية",
     upgrade_methods: "طرق الترقية المسموح بها",
@@ -2253,6 +2257,8 @@ const ar: typeof en = {
       "عدد الموافقات التي يحتاجها طلب سحب إلى التجهيز في قواعد الفروع على GitHub، من 0 إلى 10 (ويمكن لكل مشروع تغييره).",
     project_guard_linear_history: "ترفض قواعد فرع الإنتاج إيداعات الدمج (ويمكن لكل مشروع تغييره).",
     project_guard_signed_commits: "لا تقبل قواعد فرع الإنتاج إلا الإيداعات الموقّعة (ويمكن لكل مشروع تغييره).",
+    project_guard_protect_github_dir:
+      "تطلب قواعد فرع الإنتاج مراجعة من مالكي المجلد .github/، فلا يتغيّر سير العمل الذي ينتج الفحص المطلوب دون مراجعة. أوقفها لفريق من شخص واحد (ويمكن لكل مشروع تغييره).",
     project_guard_pushers:
       "دورا Admin وMaintain في GitHub، أو كل من له صلاحية الكتابة؛ ويمكن للمشروع أيضًا تسمية فرق أو أشخاص.",
     project_guard_blocks_promotion:

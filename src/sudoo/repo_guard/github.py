@@ -21,6 +21,7 @@ import base64
 from typing import Any
 from urllib.parse import quote
 
+from sudoo.repo_guard import files
 from sudoo.repos import github_app
 from sudoo.repos.github_app import GitHubError
 
@@ -326,6 +327,9 @@ def commit_results(full_name: str, sha: str, bearer: str) -> dict[str, Any]:
     runs: list[dict[str, Any]] = []
     found = github_app.request("GET", f"/repos/{owner}/{name}/commits/{sha}/check-runs?per_page=100", bearer=bearer)
     for run in (found or {}).get("check_runs", []):
+        source = (run.get("app") or {}).get("id")
+        if run.get("name") == files.REQUIRED_CHECK and source != files.ACTIONS_APP_ID:
+            continue  # the required check counts only when GitHub Actions made it: anyone with write access can post one
         conclusion = run.get("conclusion")
         state = (
             "pending" if run.get("status") != "completed"
@@ -341,6 +345,8 @@ def commit_results(full_name: str, sha: str, bearer: str) -> dict[str, Any]:
         context = str(status.get("context") or "")
         if context.startswith("sudoo/"):
             continue  # the panel's own build statuses are shown by the build itself
+        if context == files.REQUIRED_CHECK:
+            continue  # a commit status never comes from GitHub Actions: it cannot stand in for the required check
         state = {"success": "success", "pending": "pending"}.get(str(status.get("state")), "failure")
         runs.append({"name": context, "state": state, "url": str(status.get("target_url") or "")})
     failed = sum(r["state"] == "failure" for r in runs)

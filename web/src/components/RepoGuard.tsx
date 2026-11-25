@@ -625,6 +625,17 @@ function RulesSection({ project, guard }: { project: ProjectDetail; guard: Guard
         onChange={(v) => stage(key, { signed_commits: v })}
         label={t.signedCommits}
       />
+      {key === "production" && (
+        <>
+          <Switch
+            checked={rules.production.code_owner_review ?? false}
+            disabled={!editable}
+            onChange={(v) => stage("production", { code_owner_review: v })}
+            label={t.codeOwnerReview}
+          />
+          <p className="muted">{t.checkSourceNote(guard.required_check)}</p>
+        </>
+      )}
     </>
   );
   const applied = guard.applied;

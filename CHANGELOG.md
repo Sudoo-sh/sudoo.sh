@@ -14,6 +14,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   portal `client_access_requests`. At start-up the panel moves what is left in the old collection to the right one by the
   shape of each document (safe to repeat, logged, nothing is overwritten, a document that fits neither stays in
   `access_requests`), and keeps a copy of the old collection in `access_requests_backup` until the next start-up.
+- **The required check now comes from GitHub Actions only** (security review finding F-02): the repository guard's
+  branch rules ask for `sudoo-checks` from GitHub Actions (`integration_id` 15368; classic protection: `app_id`), so a
+  status posted under that name by another app or by anyone with write access no longer satisfies them. The panel's
+  result reader ignores a `sudoo-checks` run or status that does not come from GitHub Actions. Rules written earlier
+  show as changed in the next preview and are updated when applied (this only tightens them).
+
+### Added
+
+- **"Changes to `.github/` need review"** (`PROJECT_GUARD_PROTECT_GITHUB_DIR`, on by default for production, optional
+  per project): the checks' pull request adds a CODEOWNERS entry for `.github/` (the project's GitHub teams or people,
+  or the owner of a personal repository) and the production rule asks for a code-owner review. The remaining risk is
+  described in the security notes.
 
 ### Changed
 

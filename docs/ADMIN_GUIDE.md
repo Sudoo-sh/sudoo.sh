@@ -2533,7 +2533,7 @@ project's Admins and super admins change it (`projects.access` in the project); 
 **Defaults are settings.** What a project starts with comes from the panel's settings (**Settings**, **Instances**,
 **Projects**; [Configuration](CONFIGURATION.md#projects)): `PROJECT_GUARD_CHECKS` (checks on or off),
 `PROJECT_GUARD_STRICTNESS`, `PROJECT_GUARD_PRODUCTION_APPROVALS` (1) and `PROJECT_GUARD_STAGING_APPROVALS` (0),
-`PROJECT_GUARD_LINEAR_HISTORY` and `PROJECT_GUARD_SIGNED_COMMITS` (production), `PROJECT_GUARD_PUSHERS` (`roles` or
+`PROJECT_GUARD_LINEAR_HISTORY`, `PROJECT_GUARD_SIGNED_COMMITS` and `PROJECT_GUARD_PROTECT_GITHUB_DIR` (production), `PROJECT_GUARD_PUSHERS` (`roles` or
 `anyone`) and `PROJECT_GUARD_BLOCKS_PROMOTION`. A project keeps only the values it changes; everything else follows the
 settings, also when they change later. Turning the checks on by default only pre-fills the form: nothing reaches
 GitHub until a project Admin saves, and results are read only once the panel's pull request exists.
@@ -2575,7 +2575,9 @@ removed. Turning checks off opens a pull request that updates or removes the pan
 already matches the choices, an open pull request of the panel is closed and its branch deleted.
 
 **Results.** The panel reads a commit's check runs and commit statuses (its own `sudoo/<stage>` statuses left out) at
-most once a minute and shows them on builds. With **Failing checks stop a promotion to production** on (off by
+most once a minute and shows them on builds. A check run or status named `sudoo-checks` counts only when GitHub Actions
+made it (a commit status never does): anyone with write access can post one under that name, so the panel ignores the
+others. With **Failing checks stop a promotion to production** on (off by
 default), a failing result of the branch's latest build is a red item of the pre-promotion checklist; otherwise it is
 amber. Running, missing or unreadable results are amber.
 
@@ -2584,7 +2586,8 @@ amber. Running, missing or unreadable results are amber.
 | Rule | Ruleset (`Sudoo.sh guard: production`, `... staging`) | Classic branch protection |
 | :--- | :--- | :--- |
 | Pull request with N approvals | `pull_request` rule | required reviews |
-| `sudoo-checks` must pass | `required_status_checks` | required status checks |
+| `sudoo-checks` must pass, from GitHub Actions only | `required_status_checks` with `integration_id` 15368 (GitHub Actions) | required status checks with `app_id` 15368 |
+| Changes to `.github/` need review (production, `PROJECT_GUARD_PROTECT_GITHUB_DIR`) | `require_code_owner_review` in the `pull_request` rule | `require_code_owner_reviews` |
 | No force-push, no deletion | `non_fast_forward`, `deletion` | `allow_force_pushes`, `allow_deletions` off |
 | Linear history, signed commits | `required_linear_history`, `required_signatures` | the same settings |
 | Admins and Maintainers only | `Sudoo.sh guard: production merges`: an `update` rule with GitHub's Admin and Maintain repository roles as its bypass list | not possible (roles cannot be named): the preview says so |
@@ -2596,6 +2599,17 @@ the panel's when its name starts with `Sudoo.sh guard: `; classic protection has
 branches it protected and never changes a branch that was protected before (the preview shows it as left alone).
 **Turn off the rules** removes only those. Private repositories on GitHub Free have neither rulesets nor branch
 protection: GitHub answers "Upgrade to GitHub Pro or make this repository public", and the preview explains it.
+
+**Who owns `.github/`.** With "Changes to `.github/` need review" on (the default for production), the checks' pull
+request also adds `.github/CODEOWNERS` with one entry, `/.github/`, owned by the teams (organisation repositories) and
+people named in the pushers, or by the owner of a personal repository. GitHub's CODEOWNERS names teams and people, not
+roles: an organisation that names nobody gets a note in the preview and no review rule, until a team is named. Turn it
+off, per project or with `PROJECT_GUARD_PROTECT_GITHUB_DIR`, for a team of one. The rule asks for the review once the
+CODEOWNERS file is merged; applying the rules before that does not block anything extra.
+
+**Rules already on GitHub.** The next time the rules are previewed or applied, rules written before this change show as
+changed (the check's source, the code-owner review) and are updated, which only tightens them. Each application writes
+one line per repository to the log ("repository guard: <repository>: branch rules applied (...)").
 
 Applying rules that change production needs the repository's name typed as confirmation (`confirm` in the API).
 Every preview, and `"dry_run": true` on the API, shows what would change without changing anything.

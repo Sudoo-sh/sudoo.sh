@@ -83,6 +83,7 @@ def default_rules() -> dict[str, Any]:
     found = _merge(rules.DEFAULT_RULES, None)
     found["production"].update(
         approvals=int(settings.project_guard_production_approvals),
+        code_owner_review=bool(settings.project_guard_protect_github_dir),
         linear_history=bool(settings.project_guard_linear_history),
         signed_commits=bool(settings.project_guard_signed_commits),
     )
@@ -200,7 +201,7 @@ def clean_rules(data: Mapping[str, Any], current: Mapping[str, Any]) -> dict[str
             "require_checks",
             "linear_history",
             "signed_commits",
-            *(("enabled",) if stage == "staging" else ()),
+            *(("enabled",) if stage == "staging" else ("code_owner_review",)),
         ):
             mine[key] = _flag(given, key, bool(mine[key]))
         approvals = given.get("approvals", mine["approvals"])
@@ -291,11 +292,17 @@ def versions_of(project: Mapping[str, Any]) -> dict[str, Any]:
     return {"default": [default], "branches": own}
 
 
+def _owners(project: Mapping[str, Any], owner_type: str | None) -> list[str]:
+    """The code owners of .github/ the project's branch rules ask for (none while the branch rules are off)."""
+    chosen = config(str(project["id"]))["rules"]
+    return rules.code_owners(project, chosen, owner_type) if chosen["enabled"] else []
+
+
 def _plan_files(project: Mapping[str, Any], checks: Mapping[str, Any], bearer: str | None,
-                base: str | None) -> list[dict[str, Any]]:  # fmt: skip
+                base: str | None, owner_type: str | None = None) -> list[dict[str, Any]]:  # fmt: skip
     """Each file: {"path", "action": add | update | remove | unchanged | kept, "content", "reason"?}. Without a
     token the repository is not read and the actions are what would happen to an empty repository."""
-    wanted = files.generate(dict(checks), versions_of(project))
+    wanted = files.generate(dict(checks), versions_of(project), _owners(project, owner_type))
     found: list[dict[str, Any]] = []
     for path in files.PATHS:
         current = gh.read_file(str(project["repository"]), path, base, bearer) if bearer and base else None
@@ -317,17 +324,18 @@ def _plan_files(project: Mapping[str, Any], checks: Mapping[str, Any], bearer: s
 def preview_checks(project: Mapping[str, Any], checks: Mapping[str, Any]) -> dict[str, Any]:
     """What the pull request would contain, without changing anything (the repository is read when the app may)."""
     owner = owner_of(project)
-    bearer = base = None
+    bearer = base = owner_type = None
     note = None
     if not gh.missing(owner, "checks") and gh.installation(owner):
         bearer = gh.token(owner, {"contents": "write"})
-        base = gh.repository(str(project["repository"]), bearer)["default_branch"]
+        repo = gh.repository(str(project["repository"]), bearer)
+        base, owner_type = repo["default_branch"], repo["owner_type"]
     else:
         note = (
             "The GitHub App cannot read the repository's files with the permissions it has: this shows the files as "
             "they would be added to a repository without them."
         )
-    planned = _plan_files(project, checks, bearer, base)
+    planned = _plan_files(project, checks, bearer, base, owner_type)
     return {"files": planned, "base": base, "note": note,
             "changes": sum(f["action"] in ("add", "update", "remove") for f in planned)}  # fmt: skip
 
@@ -340,10 +348,13 @@ def _pull_body(checks: Mapping[str, Any], planned: list[dict[str, Any]]) -> str:
         *[f"- `{f['path']}`: {f['action']}" for f in planned if f["action"] in ("add", "update", "remove")],
         "",
     ]
+    if any(f["path"] == files.CODEOWNERS and f["action"] in ("add", "update") for f in planned):
+        lines.append(f"`{files.CODEOWNERS}` makes a change to `.github/` (the workflow that makes the required "
+                     "check) need a review by its owners.")  # fmt: skip
     if checks["enabled"]:
         lines.append(f"Strictness: **{checks['strictness']}**. `docs/CHECKS.md` explains each check and how to run "
                      "them locally with pre-commit.")  # fmt: skip
-    else:
+    elif not any(f["action"] in ("add", "update") for f in planned):
         lines.append("The checks were turned off in the panel: this removes the files the panel added.")
     lines += ["", "Nothing changes until this pull request is merged. Close it to keep the repository as it is."]
     return "\n".join(lines)
@@ -366,8 +377,9 @@ def sync_checks(project: Mapping[str, Any], checks: Mapping[str, Any], user: str
             409,
         )
     bearer = gh.token(owner, dict(gh.FEATURE_PERMISSIONS["checks"]))
-    base = gh.repository(full, bearer)["default_branch"]
-    planned = _plan_files(project, checks, bearer, base)
+    repo = gh.repository(full, bearer)
+    base = repo["default_branch"]
+    planned = _plan_files(project, checks, bearer, base, repo["owner_type"])
     changes = {f["path"]: f["content"] for f in planned if f["action"] in ("add", "update", "remove")}
     previous = stored(str(project["id"])).get("pull")
     now = int(time.time())
@@ -379,7 +391,8 @@ def sync_checks(project: Mapping[str, Any], checks: Mapping[str, Any], user: str
             gh.delete_head_branch(full, bearer)
         _save(str(project["id"]), user, checks=dict(checks), pull=pull)
         return {"files": planned, "pull": pull, "result": "up_to_date"}
-    title = "Sudoo.sh: update the repository's checks" if checks["enabled"] else "Sudoo.sh: remove the checks"
+    adds = any(f["action"] in ("add", "update") for f in planned)
+    title = "Sudoo.sh: update the repository's checks" if adds else "Sudoo.sh: remove the checks"
     message = title + "\n\nProposed from the Sudoo.sh panel (Repository guard)."
     gh.commit_files(full, base, changes, message, bearer)
     found = gh.propose(full, base, title, _pull_body(checks, planned), bearer)

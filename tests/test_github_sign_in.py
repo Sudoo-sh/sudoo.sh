@@ -446,20 +446,19 @@ def test_github_read_gives_the_role_the_project_chose(app: Flask, gh: type[FakeG
     assert access.level(user, back) == "tester"
 
 
-def test_github_read_role_can_be_changed_by_a_project_admin(app: Flask, gh: type[FakeGitHub]) -> None:
+def test_github_read_role_can_be_changed_by_a_project_admin(app: Flask, gh: type[FakeGitHub], admin: Any) -> None:
     from conftest import sign_in
 
     project = projects.create(repository="Acme/readrole", odoo_version="18.0", edition="community", origin="linked",
                               user="admin1")  # fmt: skip
-    boss = _account(role="super_admin")
-    client, headers = sign_in(app, boss, "orchid-pebble-summit-73")
+    client, headers = admin  # the suite's super admin: another one would outlive the test
     path = f"/api/v1/projects/{project['id']}/access"
     assert client.get(path, headers=headers).get_json()["data"]["github_read_role"] == "viewer"
     assert client.put(path + "/github-read-role", json={"role": "owner"}, headers=headers).status_code == 400
     done = client.put(path + "/github-read-role", json={"role": "tester"}, headers=headers)
     assert done.status_code == 200 and done.get_json()["data"]["github_read_role"] == "tester"
     assert github_access.read_role(projects.get(project["id"])) == "tester"
-    assert any(e["event"] == "project access from GitHub changed" for e in storage().logs(user=boss, limit=5))
+    assert any(e["event"] == "project access from GitHub changed" for e in storage().logs(user="admin1", limit=5))
     other = _account(role="developer")
     other_client, other_headers = sign_in(app, other, "orchid-pebble-summit-73")
     refused = other_client.put(path + "/github-read-role", json={"role": "viewer"}, headers=other_headers)

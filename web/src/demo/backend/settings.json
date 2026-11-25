@@ -2170,6 +2170,20 @@
     "description": "Where the monthly country database is downloaded from ({year} and {month} are filled in); an https:// address of a DB-IP country CSV file, gzip-compressed or not."
   },
   {
+    "key": "access_rules_geo_max_age_days",
+    "env": "ACCESS_RULES_GEO_MAX_AGE_DAYS",
+    "value": 45,
+    "env_value": 45,
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "number",
+    "minimum": 1,
+    "description": "The country database counts as out of date when it was built more than this many days ago. While access rules are on and the database is missing or out of date, the panel shows a standing alert to administrators."
+  },
+  {
     "key": "access_rules_pass_hours",
     "env": "ACCESS_RULES_PASS_HOURS",
     "value": 8,

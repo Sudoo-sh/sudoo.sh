@@ -1174,7 +1174,8 @@ export interface Alert {
     | "public_link"
     | "certificate"
     | "test"
-    | "default_admin_password";
+    | "default_admin_password"
+    | "country_database";
   severity: "problem" | "recovered" | "info";
   title: string;
   text: string;

@@ -22,6 +22,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **A standing alert while the country database is missing or old** (security review finding F-05): with the access rules
+  on, administrators see it in the panel's alerts until a database newer than `ACCESS_RULES_GEO_MAX_AGE_DAYS` days
+  (new setting, 45 by default) is in place. The default of `ACCESS_RULES_GEO_MISSING` (`open`) is unchanged.
 - **"Changes to `.github/` need review"** (`PROJECT_GUARD_PROTECT_GITHUB_DIR`, on by default for production, optional
   per project): the checks' pull request adds a CODEOWNERS entry for `.github/` (the project's GitHub teams or people,
   or the owner of a personal repository) and the production rule asks for a code-owner review. The remaining risk is

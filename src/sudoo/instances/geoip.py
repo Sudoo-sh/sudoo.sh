@@ -311,6 +311,18 @@ def lookup(address: str | ipaddress.IPv4Address | ipaddress.IPv6Address | None) 
     return table.lookup(address) if table is not None else None
 
 
+def problem(now: float | None = None) -> str | None:
+    """ "missing" (no usable table) or "old" (built more than ACCESS_RULES_GEO_MAX_AGE_DAYS days ago), else None."""
+    now = time.time() if now is None else now
+    table = _refresh(now)
+    if table is None:
+        return "missing"
+    built = table.manifest.get("built_at")
+    if not isinstance(built, int | float) or now - built > settings.access_rules_geo_max_age_days * 86400:
+        return "old"
+    return None
+
+
 def status() -> dict[str, Any]:
     """What the panel shows: whether a table is loaded, its month and when it was built, and any problem."""
     table = _refresh(time.time())

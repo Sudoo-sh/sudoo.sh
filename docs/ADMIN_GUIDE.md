@@ -3074,6 +3074,8 @@ feature is off until you switch it on, and it is marked **Beta** wherever it sho
 2. The panel downloads the country database within a minute (see below). Until it has it, country rules let
    everyone through and every instance with country rules shows a warning (`ACCESS_RULES_GEO_MISSING=open`, the
    default), or let nobody in by country (`closed`).
+   The panel's alerts show a standing alert to administrators while the database is missing or older than
+   `ACCESS_RULES_GEO_MAX_AGE_DAYS` days (45 by default).
 3. Open a production instance, **Settings** tab, **Production access rules**, **Set up rules**.
 
 Turning `ACCESS_RULES_BETA` off hides the feature and stops every rule at once; the rules stay saved. Rules apply only

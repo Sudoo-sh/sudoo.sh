@@ -1151,6 +1151,13 @@ class Settings(BaseSettings):
         description="Where the monthly country database is downloaded from ({year} and {month} are filled in); an "
         "https:// address of a DB-IP country CSV file, gzip-compressed or not.",
     )
+    access_rules_geo_max_age_days: int = Field(
+        45,
+        ge=1,
+        le=3650,
+        description="The country database counts as out of date when it was built more than this many days ago. While "
+        "access rules are on and the database is missing or out of date, the panel shows a standing alert to administrators.",
+    )
     access_rules_pass_hours: float = Field(
         8,
         gt=0,

@@ -401,6 +401,7 @@ const en = {
     access_rules_geo_missing: "Without the country database",
     access_rules_geo_download: "Download the country database every month",
     access_rules_geo_url: "Country database address",
+    access_rules_geo_max_age_days: "Country database counts as old after (days)",
     access_rules_pass_hours: "Pass from the panel lasts, hours",
     access_rules_show_ip: "Show visitors their address when blocked",
     access_rules_contact: "Contact line of the blocked page",
@@ -924,6 +925,8 @@ const en = {
       "Download the DB-IP Lite country database once a month while the access rules are switched on. Off: nothing is downloaded; a table already there keeps being used.",
     access_rules_geo_url:
       "Where the monthly country database is downloaded from ({year} and {month} are filled in); an https:// address of a DB-IP country CSV file, gzip-compressed or not.",
+    access_rules_geo_max_age_days:
+      "The country database is out of date when it was built more than this many days ago. While the access rules are on and it is missing or out of date, administrators see a standing alert.",
     access_rules_pass_hours:
       "How long the pass given when someone opens a production instance from the panel lets their browser through its access rules, in hours.",
     access_rules_show_ip: "Show visitors their full address on the blocked page (their country is always shown).",
@@ -1652,6 +1655,7 @@ const ar: typeof en = {
     access_rules_geo_missing: "بلا قاعدة بيانات الدول",
     access_rules_geo_download: "نزّل قاعدة بيانات الدول كل شهر",
     access_rules_geo_url: "عنوان قاعدة بيانات الدول",
+    access_rules_geo_max_age_days: "تُعدّ قاعدة بيانات الدول قديمة بعد (يومًا)",
     access_rules_pass_hours: "مدة تصريح اللوحة، بالساعات",
     access_rules_show_ip: "اعرض للزوار عناوينهم عند الحجب",
     access_rules_contact: "سطر التواصل في صفحة الحجب",
@@ -2160,6 +2164,8 @@ const ar: typeof en = {
       "نزّل قاعدة بيانات الدول DB-IP Lite مرة كل شهر ما دامت قواعد الوصول مفعّلة. عند الإيقاف لا يُنزَّل شيء، ويبقى الجدول الموجود مستخدمًا.",
     access_rules_geo_url:
       "العنوان الذي تُنزَّل منه قاعدة بيانات الدول الشهرية (يُملأ `{year}` و`{month}`)؛ عنوان https:// لملف CSV للدول من DB-IP، مضغوط بـ `gzip` أو غير مضغوط.",
+    access_rules_geo_max_age_days:
+      "تكون قاعدة بيانات الدول قديمة إذا مضى على بنائها أكثر من هذا العدد من الأيام. وما دامت قواعد الوصول مفعّلة وهي مفقودة أو قديمة يرى المسؤولون تنبيهًا دائمًا.",
     access_rules_pass_hours:
       "المدة التي يسمح فيها التصريح الممنوح عند فتح بيئة إنتاج من اللوحة بمرور المتصفح عبر قواعد الوصول، بالساعات.",
     access_rules_show_ip: "اعرض للزوار عنوانهم الكامل في صفحة الحجب (تُعرض دولتهم دائمًا).",

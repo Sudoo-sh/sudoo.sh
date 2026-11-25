@@ -324,6 +324,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
           "access_rules_geo_missing",
           "access_rules_geo_download",
           "access_rules_geo_url",
+          "access_rules_geo_max_age_days",
           "access_rules_pass_hours",
           "access_rules_show_ip",
           "access_rules_contact",

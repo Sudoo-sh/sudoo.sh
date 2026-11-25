@@ -290,6 +290,10 @@ def test_register_and_heartbeat(hub: FakeHub) -> None:
     assert report["hardware_fingerprint"] == crypto.fingerprint(
         me.public_key, client.machine_id(), client.primary_mac()
     )
+    # the key-independent server fingerprint, in the registration and in every heartbeat
+    assert report["server_fingerprint"] == hub.server_fingerprints[me.installation_id]
+    assert report["server_fingerprint"] == crypto.server_fingerprint(client.machine_id(), client.primary_mac())
+    assert report["server_fingerprint"] != report["hardware_fingerprint"]
     # the optional server figures
     assert report["instances_total"] == 0 and report["instances_running"] == 0 and report["odoo_versions"] == []
     # every 15 minutes, as the hub asks
@@ -297,6 +301,30 @@ def test_register_and_heartbeat(hub: FakeHub) -> None:
     # a second heartbeat does not register again
     marketplace.heartbeat()
     assert sum(1 for r in hub.requests if r == "POST /api/v1/register") == 1
+
+
+def test_server_fingerprint_does_not_depend_on_the_key() -> None:
+    one = crypto.server_fingerprint("machine-1", "aa:bb:cc:dd:ee:ff")
+    assert one is not None and len(one) == 64 and one == one.lower()
+    assert one == crypto.server_fingerprint("machine-1", "aa:bb:cc:dd:ee:ff")
+    assert one != crypto.server_fingerprint("machine-2", "aa:bb:cc:dd:ee:ff")
+    assert one != crypto.server_fingerprint("machine-1", "aa:bb:cc:dd:ee:00")
+    # the hardware fingerprint changes with the installation key; the server fingerprint cannot
+    assert crypto.fingerprint("key-a", "machine-1", "aa:bb:cc:dd:ee:ff") != crypto.fingerprint(
+        "key-b", "machine-1", "aa:bb:cc:dd:ee:ff"
+    )
+    assert crypto.server_fingerprint("machine-1", "") is not None
+    assert crypto.server_fingerprint("", "aa:bb:cc:dd:ee:ff") is not None
+    assert crypto.server_fingerprint("", "") is None  # nothing to tell servers apart
+
+
+def test_server_fingerprint_is_left_out_when_nothing_can_be_read(hub: FakeHub, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(client, "machine_id", lambda: "")
+    monkeypatch.setattr(client, "primary_mac", lambda: "")
+    marketplace.heartbeat()
+    assert "server_fingerprint" not in hub.heartbeats[-1]
+    assert hub.server_fingerprints[client.identity().installation_id] is None
+    assert hub.heartbeats[-1]["hardware_fingerprint"]  # the copy-detection fingerprint stays
 
 
 def test_root_keys_are_trusted_first(hub: FakeHub, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1075,3 +1103,70 @@ def test_views_recommendations_and_icons(hub: FakeHub, admin: Client) -> None:
 def test_b64url_round_trip() -> None:
     assert crypto.from_b64url(crypto.b64url(b"\xff\x00abc")) == b"\xff\x00abc"
     assert base64.urlsafe_b64decode(crypto.b64url(b"x") + "===") == b"x"
+
+
+# ---------------------------------------------------------------- engine counts in the heartbeat
+
+
+def test_engine_report_counts_instances_by_engine(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo import engines
+    from sudoo.config import settings
+    from sudoo.engines.kubernetes import cluster
+    from sudoo.instances import store
+
+    envs = {"a": {}, "b": {"ENGINE": "docker"}, "c": {"ENGINE": "kubernetes"}}
+    monkeypatch.setattr(store, "names", lambda: sorted(envs))
+    monkeypatch.setattr(store, "read_env", lambda name: envs[name])
+    monkeypatch.setattr(settings, "kubernetes_engine_beta", True)
+    monkeypatch.setattr(cluster, "nodes", lambda: [{"name": "n1"}, {"name": "n2"}, {"name": "n3"}])
+    assert engines.offered() == ["docker", "kubernetes"]
+    assert marketplace.engine_report() == {
+        "engine_available": "docker+kubernetes",
+        "instances_docker": 2,
+        "instances_kubernetes": 1,
+        "nodes_kubernetes": 3,
+    }
+
+
+def test_engine_report_without_kubernetes(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo.config import settings
+    from sudoo.instances import store
+
+    monkeypatch.setattr(store, "names", lambda: ["a", "b"])
+    monkeypatch.setattr(store, "read_env", lambda name: {})
+    monkeypatch.setattr(settings, "kubernetes_engine_beta", False)
+    assert marketplace.engine_report() == {
+        "engine_available": "docker",
+        "instances_docker": 2,
+        "instances_kubernetes": 0,
+        "nodes_kubernetes": 0,
+    }
+
+
+def test_engine_report_survives_an_unreadable_cluster_and_instance(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo.config import settings
+    from sudoo.engines.kubernetes import cluster
+    from sudoo.instances import store
+
+    def broken() -> list[dict[str, str]]:
+        raise RuntimeError("no cluster")
+
+    def read(name: str) -> dict[str, str]:
+        if name == "gone":
+            raise OSError("missing")
+        return {"ENGINE": "kubernetes"}
+
+    monkeypatch.setattr(store, "names", lambda: ["gone", "k"])
+    monkeypatch.setattr(store, "read_env", read)
+    monkeypatch.setattr(settings, "kubernetes_engine_beta", True)
+    monkeypatch.setattr(cluster, "nodes", broken)
+    found = marketplace.engine_report()
+    assert found["instances_kubernetes"] == 1 and found["instances_docker"] == 0 and found["nodes_kubernetes"] == 0
+
+
+def test_heartbeat_carries_only_counts_for_the_engine(hub: FakeHub) -> None:
+    marketplace.heartbeat()
+    report = hub.heartbeats[-1]
+    assert report["engine_available"] in ("docker", "docker+kubernetes")
+    for key in ("instances_docker", "instances_kubernetes", "nodes_kubernetes"):
+        assert isinstance(report[key], int) and report[key] >= 0

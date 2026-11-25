@@ -210,9 +210,24 @@ says why.
 | Signed answers | **Every answer is signed by the hub** (`Sudoo-Signature`), refusals and downloads included, over the request's method, path, installation id and nonce, the status, the time and the body's SHA-256. The panel refuses an answer without a valid signature from an accepted key, or more than 5 minutes from its clock: it counts as "the marketplace cannot be reached", and nothing in it is used. |
 | Registration | Once per hub and identity: the panel registers its public key, its version, the hash of its core files and its **hardware fingerprint**. |
 | Fingerprint | SHA-256 of the installation's public key, the host's machine id (`/etc/machine-id`, mounted read-only into the container at `/host/etc/machine-id`) and the MAC address of the interface with the default route. Sent at registration and in every heartbeat; the hub keeps only a keyed digest. A missing file is not an error (the part is left empty). If the panel's data is copied to another machine, the fingerprint differs: the hub **flags** the server, withholds its paid licences (they show as **Withheld**, and a banner explains), and e-mails the owner, who accepts the new machine on app.sudoo.sh (Servers) or revokes the key. |
-| Heartbeat | Every **15 minutes**: the version, the **core hash** (SHA-256 over the panel's Python files), the fingerprint and the installed plugins with their versions, plus coarse figures for the owner's uptime records on app.sudoo.sh: CPU, memory and disk use (percent), how many instances exist and run, their Odoo versions and edition. Nothing about what instances contain, accounts or your data. |
+| Heartbeat | Every **15 minutes**: the version, the **core hash** (SHA-256 over the panel's Python files), the fingerprint and the installed plugins with their versions, plus coarse figures for the owner's uptime records on app.sudoo.sh: CPU, memory and disk use (percent), how many instances exist and run, their Odoo versions and edition. Also four engine counts (below). Nothing about what instances contain, accounts or your data. |
 | Lease | The hub answers with a lease signed by its key (a JWT, EdDSA), for this installation only, valid **72 hours**: the standing of each plugin (`free`, `licensed`, `grace`, `expired`, `unlicensed`, `blocked`, `unknown`), the licence dates of the paid ones with `run_until` and `perpetual`, the **commands** not acknowledged yet and the **flags**. The panel verifies it with an accepted key and keeps only verified values. |
 | Commands | Each command is signed on its own and checked before anything is done; see [Logging out of the account](#8-logging-out-of-the-account). |
+
+The four engine counts in the heartbeat are numbers only, so the owner can see how many servers run Docker and how
+many run Kubernetes (never names, addresses or anything about an instance):
+
+| Field | Meaning |
+| :--- | :--- |
+| `engine_available` | `docker`, or `docker+kubernetes` while the Kubernetes engine (beta, `KUBERNETES_ENGINE_BETA`) is on |
+| `instances_docker`, `instances_kubernetes` | How many instances run on each engine, from the `ENGINE` key of each instance's `.env` (absent: Docker) |
+| `nodes_kubernetes` | How many nodes the Kubernetes cluster has; `0` when the engine is off or the cluster cannot be read |
+
+**Server fingerprint.** Registration and every heartbeat also carry `server_fingerprint`: a SHA-256 over the fixed
+text `sudoo-server-v1`, the machine id and the primary MAC address. Unlike `hardware_fingerprint` it does not include
+the installation key, so a reinstall on the same server sends the same value and the hub can tell that the server
+was installed before. It is optional: a panel that can read neither the machine id nor a MAC address leaves it out.
+The hub never stores the value as sent, only a keyed digest of it.
 
 The heartbeat is also what lets the hub tell a released panel from a modified one: the core hash is compared with
 the hash of the released version.

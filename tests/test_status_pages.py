@@ -19,7 +19,7 @@ from sudoo.core import jobs
 from sudoo.core.state import STATE
 from sudoo.instances import gateway, status_pages, store
 
-KINDS = ("waking", "waiting", "busy", "upgrading", "off", "locked", "gone")
+KINDS = ("waking", "waiting", "busy", "upgrading", "off", "locked", "gone", "full")
 ALLOWED_KEYS = {"state", "step", "progress", "percent", "overall", "steps", "eta_seconds"}
 
 

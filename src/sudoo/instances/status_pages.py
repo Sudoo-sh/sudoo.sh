@@ -36,7 +36,7 @@ _MARK = (Path(__file__).resolve().parent / "mark.svg").read_text().strip()  # th
 _ICON = "data:image/svg+xml," + quote(_MARK)  # the Sudoo.sh mark
 
 STATUS_PATH = "/__sudoo/status"
-WAITING_KINDS = ("waking", "waiting", "busy", "upgrading", "maintenance")
+WAITING_KINDS = ("waking", "waiting", "busy", "upgrading", "maintenance", "full")
 STATES = (*WAITING_KINDS, "off", "locked", "gone", "ready")
 
 # the English texts, as API clients get them ("<title>. <text>"): unchanged
@@ -67,6 +67,12 @@ _PAGES = {
         "This Odoo is being upgraded to a newer version. It is back as soon as the upgrade has finished, which can "
         "take a while for a large database. This page refreshes automatically.",
     ),
+    "full": (
+        "Not starting right now",
+        "This Odoo was paused to save server resources, and the server is running as many instances as its "
+        "administrator allows, so a visit cannot start it yet. It starts when there is room, or the administrator can "
+        "start it. This page refreshes automatically.",
+    ),
     "off": ("Switched off", "This Odoo has been switched off by the administrator."),
     "locked": (
         "Locked",
@@ -96,6 +102,11 @@ _PAGES_AR = {
         "جارٍ الترقية",
         "تجري ترقية Odoo هذا إلى إصدار أحدث، ويعود فور انتهائها، وقد يستغرق ذلك بعض الوقت لقاعدة بيانات كبيرة. "
         "تتحدّث هذه الصفحة تلقائيًا.",
+    ),
+    "full": (
+        "لا يبدأ الآن",
+        "أُوقف Odoo هذا مؤقتًا لتوفير موارد الخادم، والخادم يشغّل حاليًا أكبر عدد من البيئات يسمح به المسؤول، فلا "
+        "تستطيع الزيارة تشغيله بعد. يبدأ عندما يتوفر مكان، أو يستطيع المسؤول تشغيله. تتحدّث هذه الصفحة تلقائيًا.",
     ),
     "off": ("متوقف", "أوقف المسؤول Odoo هذا."),
     "locked": (
@@ -181,6 +192,9 @@ _ART = {
     "upgrading": """<svg viewBox="0 0 160 128" aria-hidden="true"><rect x="44" y="70" width="72" height="40" rx="10" class="fill"/>
 <rect x="44" y="70" width="72" height="40" rx="10" class="ln"/><g class="lift"><path d="M80 82V30M62 48l18-18 18 18" class="arrow"/></g>
 <path d="M58 92h44" class="ln soft"/></svg>""",
+    # the same box as an update, held still: nothing is wrong, it is waiting for room
+    "full": """<svg viewBox="0 0 160 128" aria-hidden="true"><rect x="44" y="70" width="72" height="40" rx="10" class="fill"/>
+<rect x="44" y="70" width="72" height="40" rx="10" class="ln"/><path d="M58 92h44" class="ln soft"/></svg>""",
     # a sleeping moon, letters drifting up, stars twinkling
     "off": """<svg viewBox="0 0 160 128" aria-hidden="true"><path class="moon" d="M92 26a40 40 0 1 0 22 70A34 34 0 0 1 92 26z"/>
 <g class="zz"><text x="112" y="44" class="z z1">z</text><text x="124" y="30" class="z z2">z</text></g>

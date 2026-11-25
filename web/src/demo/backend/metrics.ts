@@ -4,7 +4,7 @@
 import type { Capacity, Columns, Instance, Metrics, MetricsHistory, ServerFigures, Usage } from "@/api/types";
 import { publish } from "./bus";
 import { memoryLimit, reservations } from "./resources";
-import { ASLEEP, instances, MEMORY_LIMIT, profiles, type Profile } from "./state";
+import { ASLEEP, instances, MEMORY_LIMIT, profiles, setting, type Profile } from "./state";
 import { clamp, DAY, hash, HOUR, noise, OPENED, round, SECOND } from "./util";
 
 export const INTERVAL = 3; // seconds between samples (METRICS_INTERVAL_SECONDS)
@@ -133,7 +133,8 @@ export function capacity(running = [...instances.values()].filter(runs).length):
     alert: null,
     memory_percent: null,
     warning_percent: 85,
-    hard_limit: null,
+    hard_limit: Number(setting("max_running_instances")) || null,
+    running_production: [...instances.values()].filter((i) => runs(i) && i.stage === "production").length,
     blocked: false,
     memory: {
       total_bytes: MEMORY_TOTAL,

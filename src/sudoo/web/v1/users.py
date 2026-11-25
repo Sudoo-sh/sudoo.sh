@@ -68,6 +68,8 @@ def user_resource(name: str, user: dict[str, Any]) -> dict[str, Any]:
         "last_sign_in_at": iso(user.get("last_login")),
         "password_changed_at": iso(user.get("password_changed")),
         "must_change_password": bool(user.get("must_change_password")),
+        "running_limit": user.get("running_limit"),
+        "running_limit_default": settings.max_running_non_production_per_user or None,
         "second_factors": [f["name"] for f in factors_of(user) if f["enrolled"]],
         "sign_in_methods": methods.of(user),
         "sign_in_methods_chosen": methods.own_choice(user) is not None,
@@ -228,6 +230,12 @@ def change_user(name: str) -> Response:
         if login and not github_app_login(login):
             abort(400, "github_login: a GitHub user name (letters, digits and single dashes, at most 39).")
         values[github.LOGIN_FIELD] = login
+    own_limit: int | None | str = "unchanged"
+    if "running_limit" in data:  # null: the setting applies; 0: no limit for this person
+        raw = data["running_limit"]
+        if raw is not None and (not isinstance(raw, int) or isinstance(raw, bool) or not 0 <= raw <= 1000):
+            abort(400, "running_limit: a whole number from 0 (no limit) to 1000, or null for the setting.")
+        own_limit = raw
     _refuse_without_break_glass(name, values)
     from sudoo import projects
     from sudoo.projects import notices
@@ -235,9 +243,12 @@ def change_user(name: str) -> Response:
     watched = [p["id"] for p in projects.all_projects()] if "role" in values else []
     with notices.watch(watched, by=accounts.display_name(g.user["name"], accounts.get(g.user["name"]) or {})):
         accounts.update(name, **{key: (value or None) for key, value in values.items()})
+        if own_limit != "unchanged":
+            accounts.update(name, running_limit=own_limit)
     if "role" in values:
         accounts.end_sessions(name)  # the new permissions apply from the next sign-in
-    log("account changed", detail=f"{name}: {', '.join(sorted(values))}")
+    changed = sorted(values) + (["running_limit"] if own_limit != "unchanged" else [])
+    log("account changed", detail=f"{name}: {', '.join(changed)}")
     return ok(user_resource(name, accounts.get(name) or {}))
 
 

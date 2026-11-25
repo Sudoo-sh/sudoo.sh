@@ -27,7 +27,7 @@ from typing import Any
 
 from sudoo.config import settings
 from sudoo.core import jobs
-from sudoo.instances import metrics, store
+from sudoo.instances import metrics, stages, store
 
 MB = 1024 * 1024
 MIN_SAMPLES = 3  # measurements of a running instance before its memory counts (a starting Odoo uses less)
@@ -205,6 +205,42 @@ def _running() -> int:
     return len(running | jobs.starting())
 
 
+def _stage_of(name: str) -> str:
+    try:
+        return stages.of(store.read_env(name))
+    except OSError:
+        return stages.DEFAULT
+
+
+def _owner_of(name: str) -> str:
+    try:
+        return store.read_env(name).get("CREATED_BY") or ""
+    except OSError:
+        return ""
+
+
+def running_figures(user: str | None = None) -> dict[str, int]:
+    """What runs or starts now: `total`, `production`, and `own` (the non-production instances `user` created).
+    The figures the limits compare and the panel shows ("2 of 3 used")."""
+    names = {name for name, figures in metrics.INSTANCES.items() if figures.get("running")} | jobs.starting()
+    production = sum(1 for name in names if _stage_of(name) == stages.PRODUCTION)
+    own = 0
+    if user:
+        own = sum(1 for name in names if _stage_of(name) != stages.PRODUCTION and _owner_of(name) == user)
+    return {"total": len(names), "production": production, "own": own}
+
+
+def user_limit(user: str) -> int:
+    """How many non-production instances `user` may run at once: the number set on their account, else the
+    setting; 0: no limit."""
+    from sudoo import accounts
+
+    own = (accounts.get(user) or {}).get("running_limit")
+    return (
+        int(own) if isinstance(own, int) and not isinstance(own, bool) else settings.max_running_non_production_per_user
+    )
+
+
 def current() -> dict[str, Any] | None:
     """The estimate from the latest measurements, the panel's footprint by part included; None before the first.
     Built once per measurement, settings and jobs starting instances."""
@@ -242,10 +278,11 @@ def current() -> dict[str, Any] | None:
 
 def _reservations() -> dict[str, Any]:
     """The memory all instances reserve under load (resources.py), by stage: it changes with settings and stages,
-    so it is never cached with the estimate."""
+    so it is never cached with the estimate; `running_production`: how many of the running ones are production
+    (the dashboard says "including N production")."""
     from sudoo.instances import resources
 
-    return {"reservations": resources.reservations()}
+    return {"reservations": resources.reservations(), "running_production": running_figures()["production"]}
 
 
 def snapshot() -> dict[str, Any]:
@@ -253,8 +290,20 @@ def snapshot() -> dict[str, Any]:
     return {**metrics.snapshot(), "capacity": current()}
 
 
-def refusal(reservation: tuple[int, int] | None = None) -> str | None:
-    """Why one more instance may not start (MAX_RUNNING_INSTANCES reached), or None.
+def refusal(
+    reservation: tuple[int, int] | None = None,
+    stage: str | None = None,
+    user: str | None = None,
+    *,
+    own_voice: bool = True,
+) -> str | None:
+    """Why one more instance may not start (MAX_RUNNING_INSTANCES reached, or the person's own limit), or None.
+
+    `stage`: the stage of the instance to start; a production instance is never refused by either limit (the
+    memory checks below are not limits of this kind and still apply). `user`: whose instance it is (CREATED_BY),
+    for the limit of non-production instances one person may run (MAX_RUNNING_NON_PRODUCTION_PER_USER, or the
+    number set on their account). `own_voice` False: the person is not the one asking (an instance made by
+    automation), so the text names them instead of saying "You".
 
     With `reservation` ((before, after): the memory all instances reserve before and after a change of resources,
     resources.reservations): why the change may not be made, or None. Only a change that raises the reservation
@@ -271,13 +320,29 @@ def refusal(reservation: tuple[int, int] | None = None) -> str | None:
             f"{usable / 1024**3:.1f} GB this server can spare for them. Lower the workers or memory limits, pause or "
             "delete instances, or give the server more memory."
         )
+    if stage == stages.PRODUCTION:
+        return None
     limit = settings.max_running_instances
-    if not limit:
-        return None
-    running = _running()
-    if running < limit:
-        return None
-    return (
-        f"This server runs at most {_plural(limit, 'instance', 'instances')} at once and "
-        f"{running} {'is' if running == 1 else 'are'} running or starting. Pause one first."
-    )
+    if limit:
+        running = _running()
+        if running >= limit:
+            return (
+                f"This server runs at most {_plural(limit, 'instance', 'instances')} at once and "
+                f"{running} {'is' if running == 1 else 'are'} running or starting. Pause one first."
+            )
+    if user:
+        own_limit = user_limit(user)
+        if own_limit:
+            own = running_figures(user)["own"]
+            if own >= own_limit:
+                counted = _plural(own_limit, "running instance", "running instances")
+                if not own_voice:
+                    return (
+                        f"{user} has {own} of their {counted} (not counting production) running or starting, "
+                        "and this instance counts against them."
+                    )
+                return (
+                    f"You have {own} of your {counted} "
+                    "(not counting production) running or starting. Pause one of yours first."
+                )
+    return None

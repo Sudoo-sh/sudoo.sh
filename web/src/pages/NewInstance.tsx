@@ -730,6 +730,11 @@ export function NewInstancePage() {
             </div>
           </section>
           <CapacityNote />
+          {quota?.max_running_own ? (
+            <p className="xsmall faint" style={{ textAlign: "center" }}>
+              {t.running(quota.running_own ?? 0, quota.max_running_own)}
+            </p>
+          ) : null}
           {quota && (quota.max_instances || quota.max_instances_per_user) && (
             <p className="xsmall faint" style={{ textAlign: "center" }}>
               {quota.max_instances ? t.onServer(quota.instances, quota.max_instances) : ""}

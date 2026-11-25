@@ -83,7 +83,7 @@ source at [Sudoo-sh/sudoo-odoo](https://github.com/Sudoo-sh/sudoo-odoo)) needs. 
 | :--- | :--- |
 | `GET /versions` | The Odoo versions |
 | `GET /instances`, `GET /instances/<name>` | List and read instances |
-| `GET /instance-quota` | How many instances it may still create |
+| `GET /instance-quota` | How many instances it may still create, and the running figures: `running` (in all, production included), `running_production`, `max_running` (`MAX_RUNNING_INSTANCES`), `running_own` (the non-production instances the caller created that run or start) and `max_running_own` (`null` when off) |
 | `POST /instances` | Create an instance; `from_backup` is refused with 403 |
 | `POST /instances/<name>/actions/<action>` | Only `start`, `pause`, `restart` and `backup`; every other action (`update`, `upgrade`, `switch-branch`, `restore`, `rollback`, `repair`, ...) is refused with 403 |
 | `PATCH /instances/<name>` | Only `delete_after_days`, and only to make the lifetime end later (not `0`, "keep", unless the instance is kept already); anything else is refused with 403. It is also limited like a person without `instances.extend_unlimited` (see below) |
@@ -492,7 +492,7 @@ the web app. `resolved_at` is set when the problem is over. Webhooks are named b
 | `DELETE /invitations/<id>` | `accounts.manage` | | **204**: the link stops working |
 | `POST /invitation` | public | `{"token"}` (the part of the link after `#`) | 200, `{"email", "first_name", "last_name", "role", "role_label", "invited_by", "expires_at", "second_factor_required"}`; **410** for a used, replaced, revoked or expired link (counted like a wrong password) |
 | `POST /invitation/accept` | public | `{"token", "password", "first_name"}`; optional `last_name`, `phone` | **201**, signed in (as `GET /session`; `restricted: "second_factor"` when one is required); the link is used up |
-| `PATCH /users/<name>` | `accounts.manage` | any of `role`, `first_name`, `last_name`, `email`, `phone` (`""` clears one); also for your own account | 200, the account; a new role ends its sessions |
+| `PATCH /users/<name>` | `accounts.manage` | any of `role`, `first_name`, `last_name`, `email`, `phone` (`""` clears one), `running_limit` (the most non-production instances this person runs at once: a number 0 to 1000, 0 for no limit, `null` for `MAX_RUNNING_NON_PRODUCTION_PER_USER`; 400 otherwise); also for your own account | 200, the account; a new role ends its sessions |
 | `POST /users/<name>/password` | `accounts.manage` | `{}` to generate one, or `{"password", "must_change_password"}` | 200, `{"password"}`, shown once; the account's sessions end |
 | `DELETE /users/<name>/second-factors` | `accounts.manage` | | **204**: removes the account's second factors and recovery codes (a lost phone) and signs it out |
 | `DELETE /users/<name>` | `accounts.manage` | | **204** |
@@ -1404,6 +1404,7 @@ can check before it creates or starts one. How the figures are made, in plain la
 | `warning`, `message` | `true` when starting one more goes beyond `comfortable`, with the sentence the panel shows |
 | `overloaded`, `alert` | `true` when the server's memory use reached `warning_percent` (`CAPACITY_WARNING_PERCENT`) or more instances run than `comfortable`, with the dashboard's sentence |
 | `hard_limit`, `blocked` | `MAX_RUNNING_INSTANCES` (`null` when off), and whether creating or starting one more is refused now (403) |
+| `running_production` | How many of the running instances are production ones: they count in `running` but a limit never refuses them |
 | `memory` | `usable_bytes = total_bytes - reserve_bytes - panel_bytes`; `per_instance_bytes` is the measured peak of a running instance, averaged over `measured_instances`, or `CAPACITY_INSTANCE_MEMORY_MB` (`per_instance_source: "default"`) |
 | `processor` | The average share of the server's processor one running instance uses; `instances`: how many fit under `warning_percent` (`null` before one is measured) |
 | `disk` | Free disk, the average size of an instance (database and files) and how many more of that size fit |
@@ -1413,7 +1414,10 @@ can check before it creates or starts one. How the figures are made, in plain la
 
 The estimate is never a refusal unless `MAX_RUNNING_INSTANCES` is set: then `POST /instances` and the `start` action
 answer 403 with `detail` "This server runs at most 9 instances at once and 9 are running or starting. Pause one
-first." while that many run.
+first." while that many run. A production instance is never refused by it (it counts in the total). With
+`MAX_RUNNING_NON_PRODUCTION_PER_USER` (or the number on the person's account) the same two routes, and the upgrade
+test, answer 403 "You have 2 of your 2 running instances (not counting production) running or starting. Pause one of
+yours first." for the person who created the instance; both limits are off by default.
 
 ---
 

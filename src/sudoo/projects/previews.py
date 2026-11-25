@@ -43,6 +43,7 @@ from sudoo.core.jobs import Job
 from sudoo.instances import capacity, operations, planning, stages, store
 from sudoo.limits import quotas
 from sudoo.projects import build_options
+from sudoo.projects import charged as charge
 from sudoo.repos import github, github_app
 
 KEY = "previews"
@@ -174,8 +175,9 @@ def _comment(project: Mapping[str, Any], number: int) -> None:
 # ---------------------------------------------------------------- opening
 
 
-def refusal(project: Mapping[str, Any]) -> str | None:
-    """Why no new preview instance may be created for the project now, or None."""
+def refusal(project: Mapping[str, Any], charged: str = charge.SYSTEM) -> str | None:
+    """Why no new preview instance may be created for the project now, or None. `charged`: the person whose own
+    limit it counts against (projects/charged.py), "system" for nobody."""
     if link_deadline.restricted():
         return "the panel is not linked to a Sudoo.sh account and the days to link it have passed"
     limit = int(projects.option(project, "pr_preview_limit"))
@@ -183,7 +185,9 @@ def refusal(project: Mapping[str, Any]) -> str | None:
         return f"the project has {limit} {'preview' if limit == 1 else 'previews'} already (its limit)"
     if settings.max_instances and len(store.names()) + len(jobs.being_created()) >= settings.max_instances:
         return f"the server has its maximum of {settings.max_instances} instances"
-    return capacity.refusal()
+    return capacity.refusal(
+        stage=stages.DEVELOPMENT, user=None if charged == charge.SYSTEM else charged, own_voice=False
+    )
 
 
 def _pull_facts(pull: Mapping[str, Any], project: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -207,7 +211,7 @@ def _pull_facts(pull: Mapping[str, Any], project: Mapping[str, Any]) -> dict[str
     }
 
 
-def _create(project: Mapping[str, Any], facts: Mapping[str, Any]) -> str:
+def _create(project: Mapping[str, Any], facts: Mapping[str, Any], charged: str = charge.SYSTEM) -> str:
     """Start the creation of the preview instance; its name."""
     stage = stages.DEVELOPMENT
     fork_project: str | None = None
@@ -223,7 +227,7 @@ def _create(project: Mapping[str, Any], facts: Mapping[str, Any]) -> str:
         version=projects.branch_version(project, facts["branch"]),
         edition=project["edition"],
         stage=stage,
-        user="system",
+        user=charged,
         switches={**stages.defaults(stage), "delete_after_days": projects.lifetime_days(project, stage)},
         demo=bool(build_options.effective(project, facts["branch"], stage)["demo_data"]),
         install_modules=True,
@@ -236,9 +240,12 @@ def _create(project: Mapping[str, Any], facts: Mapping[str, Any]) -> str:
     return str(plan["name"])
 
 
-def opened(project: Mapping[str, Any], pull: Mapping[str, Any], action: str = "opened") -> dict[str, Any]:
+def opened(
+    project: Mapping[str, Any], pull: Mapping[str, Any], action: str = "opened", github_id: int | None = None
+) -> dict[str, Any]:
     """A pull request opened (or got new commits): its preview, created when needed. {"preview": instance or None,
-    "reason"?}."""
+    "reason"?}. `github_id`: the GitHub account the signed webhook names as the sender; the preview counts
+    against the person linked to it (projects/charged.py)."""
     if not projects.option(project, "pr_previews"):
         return {"preview": None, "reason": "pull-request previews are off for this project"}
     facts = _pull_facts(pull, project)
@@ -263,11 +270,13 @@ def opened(project: Mapping[str, Any], pull: Mapping[str, Any], action: str = "o
             if not (known or {}).get("comment_id"):
                 _comment(project, number)
             return {"preview": name}
+        charged, how = charge.SYSTEM, "none"
         members = [] if facts["fork"] else projects.by_branch(str(project["id"])).get(facts["branch"], [])
         if members:
             name, existing, status = members[0], True, "ready"
         else:
-            refused = refusal(project)
+            charged, how = charge.of(project, github_id)
+            refused = refusal(project, charged)
             if refused:
                 if (known or {}).get("reason") != refused:
                     _save(str(project["id"]), number, {**facts, "instance": None, "existing": False,
@@ -277,11 +286,12 @@ def opened(project: Mapping[str, Any], pull: Mapping[str, Any], action: str = "o
                                  detail=f"{project['id']} #{number}: {refused}")  # fmt: skip
                     _comment(project, number)
                 return {"preview": None, "reason": refused}
-            name, existing, status = _create(project, facts), False, "creating"
+            name, existing, status = _create(project, facts, charged), False, "creating"
         _save(str(project["id"]), number, {**facts, "instance": name, "existing": existing, "status": status,
                                             "reason": None, "opened_at": time.time()})  # fmt: skip
+    counted = "" if existing or charged == charge.SYSTEM else f"; counts against {charge.label(charged, how)}"
     audit.record("system", None, "pull-request preview", name,
-                 detail=f"{project['id']} #{number} {facts['branch']}{' (existing)' if existing else ''}")  # fmt: skip
+                 detail=f"{project['id']} #{number} {facts['branch']}{' (existing)' if existing else ''}{counted}")  # fmt: skip
     _comment(project, number)
     return {"preview": name, "existing": existing}
 
@@ -327,7 +337,7 @@ def pull_request(payload: Mapping[str, Any]) -> dict[str, Any]:
     if action in OPENING:
         if pull.get("state") == "closed":
             return closed(project, int(pull.get("number") or 0))
-        return opened(project, pull, action)
+        return opened(project, pull, action, charge.sender_id(payload))
     if action == "closed":
         return closed(project, int(pull.get("number") or 0))
     return {"preview": None, "reason": f"the {action or 'unknown'} action changes no preview"}

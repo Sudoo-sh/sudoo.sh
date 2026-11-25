@@ -40,6 +40,7 @@ from sudoo.core.state import STATE
 from sudoo.instances import capacity, operations, planning, stages, store
 from sudoo.limits import quotas
 from sudoo.projects import access, branches, build_options, previews, staging
+from sudoo.projects import charged as charge
 
 SYNC_MINIMUM_SECONDS = 60
 
@@ -76,8 +77,9 @@ def auto_created(project: Mapping[str, Any]) -> list[str]:
     return sorted(name for name in names if name in members)
 
 
-def creation_refusal(project: Mapping[str, Any], branch: str) -> str | None:
-    """Why no development instance is created by itself for `branch`, or None."""
+def creation_refusal(project: Mapping[str, Any], branch: str, charged: str = charge.SYSTEM) -> str | None:
+    """Why no development instance is created by itself for `branch`, or None. `charged`: the person whose own
+    limit the instance counts against (projects/charged.py), "system" for nobody."""
     if not projects.option(project, "auto_development"):
         return "the project does not create instances for new branches"
     if access.held(project, branch) is not None:
@@ -98,12 +100,15 @@ def creation_refusal(project: Mapping[str, Any], branch: str) -> str | None:
         return f"the project has {limit} instances created for new branches already (its limit)"
     if settings.max_instances and len(store.names()) + len(jobs.being_created()) >= settings.max_instances:
         return f"the server has its maximum of {settings.max_instances} instances"
-    return capacity.refusal()
+    return capacity.refusal(
+        stage=stages.DEVELOPMENT, user=None if charged == charge.SYSTEM else charged, own_voice=False
+    )
 
 
-def branch_created(repository: str, branch: str, user: str = "system") -> str | None:
+def branch_created(repository: str, branch: str, user: str = "system", github_id: int | None = None) -> str | None:
     """A branch appeared in `repository` ("owner/repo"): create its development instance when the project's
-    options allow it. Returns the new instance's name, or None."""
+    options allow it. Returns the new instance's name, or None. `github_id`: the GitHub account the signed webhook
+    names as the sender; the instance counts against the person linked to it (projects/charged.py)."""
     project = projects.by_repository(repository)
     if project is None or not branch:
         return None
@@ -114,7 +119,8 @@ def branch_created(repository: str, branch: str, user: str = "system") -> str | 
             return None  # handled already (the webhook and the branch check both report it)
         _remember(project["id"], add={branch}, base=known)
         branches.forget(project["id"])
-        refused = creation_refusal(project, branch)
+        charged, how = charge.of(project, github_id)
+        refused = creation_refusal(project, branch, charged)
         if refused:
             audit.record(user, None, "no instance for a new branch", detail=f"{project['id']} {branch}: {refused}")
             return None
@@ -126,7 +132,7 @@ def branch_created(repository: str, branch: str, user: str = "system") -> str | 
             version=projects.branch_version(project, branch),
             edition=project["edition"],
             stage=stage,
-            user=user,
+            user=user if charged == charge.SYSTEM else charged,
             switches={**defaults, "delete_after_days": projects.lifetime_days(project, stage)},
             demo=bool(build_options.effective(project, branch, stage)["demo_data"]),
             install_modules=True,
@@ -136,7 +142,10 @@ def branch_created(repository: str, branch: str, user: str = "system") -> str | 
 
         servers.start_planned(plan, user, str(project.get("default_server") or ""))
         projects.record_branch(project["id"], branch, stage=stage, auto_created=plan["name"], changed_by=user)
-    audit.record(user, None, "instance created for a new branch", plan["name"], detail=f"{project['id']} {branch}")
+    audit.record(
+        user, None, "instance created for a new branch", plan["name"],
+        detail=f"{project['id']} {branch}; counts against {charge.label(charged, how)}",
+    )  # fmt: skip
     # the branch pane shows the creation at once (instead of "No instance" and a Create button that would make a second)
     events.publish("project", project["id"])
     return str(plan["name"])

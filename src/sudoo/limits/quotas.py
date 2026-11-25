@@ -48,7 +48,15 @@ def usage(user: str) -> dict[str, object]:
     last = (storage().get(CREATIONS, user) or {}).get("last", 0)
     cooldown = settings.create_cooldown_minutes * 60
     names, pending = _counted()
+    from sudoo.instances import capacity  # the running instances: the limits of instances/capacity.py
+
+    running = capacity.running_figures(user)
     return {
+        "running": running["total"],
+        "running_production": running["production"],
+        "max_running": settings.max_running_instances or None,
+        "running_own": running["own"],
+        "max_running_own": capacity.user_limit(user) or None,
         "instances": len(names) + len(pending),
         "max_instances": settings.max_instances or None,
         "own_instances": len(owned_by(user)) + sum(1 for _, creator in pending if creator == user),

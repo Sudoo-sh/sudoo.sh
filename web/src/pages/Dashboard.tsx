@@ -388,28 +388,37 @@ export function DashboardPage() {
           label={st.running}
           value={capacity?.running ?? server?.instances_running ?? (instances ? counts.online : undefined)}
           unit={
-            capacity
-              ? st.ofAbout(number(capacity.comfortable))
-              : instances
-                ? st.ofAll(number(instances.length))
-                : undefined
+            capacity?.hard_limit
+              ? st.ofLimit(number(capacity.hard_limit))
+              : capacity
+                ? st.ofAbout(number(capacity.comfortable))
+                : instances
+                  ? st.ofAll(number(instances.length))
+                  : undefined
           }
           trend={{
             t: serverT,
             values: history?.server.instances_running ?? [],
-            max: Math.max(1, capacity?.comfortable ?? 0, instances?.length ?? 1),
+            max: Math.max(1, capacity?.hard_limit ?? capacity?.comfortable ?? 0, instances?.length ?? 1),
             color: capacity && capacity.headroom < 0 ? "--caution" : undefined,
           }}
           detail={
-            capacity
-              ? capacity.headroom > 0
-                ? st.room(number(capacity.headroom), number(instances?.length ?? 0))
-                : capacity.headroom === 0
-                  ? st.asMany(number(instances?.length ?? 0))
-                  : st.more(number(instances?.length ?? 0))
-              : server?.uptime_seconds
-                ? st.serverUp(duration(server.uptime_seconds))
-                : st.online
+            capacity?.hard_limit
+              ? [
+                  st.limitDetail(number(Math.max(0, capacity.hard_limit - capacity.running))),
+                  capacity.running_production ? st.includingProduction(number(capacity.running_production)) : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              : capacity
+                ? capacity.headroom > 0
+                  ? st.room(number(capacity.headroom), number(instances?.length ?? 0))
+                  : capacity.headroom === 0
+                    ? st.asMany(number(instances?.length ?? 0))
+                    : st.more(number(instances?.length ?? 0))
+                : server?.uptime_seconds
+                  ? st.serverUp(duration(server.uptime_seconds))
+                  : st.online
           }
         />
       </div>

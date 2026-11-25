@@ -980,16 +980,25 @@ def public_progress(name: str) -> dict[str, Any] | None:
 def wake_decision(name: str) -> tuple[str, float]:
     """Odoo is not answering: start the instance if it is not running (once a minute at most). Returns the page
     for its visitors ("waking", "busy" while another job runs, "upgrading" while a database upgrade runs, "off" when it is switched off, "locked" when it is
-    paused and its branch is locked: a visit never starts it) and since when."""
+    paused and its branch is locked: a visit never starts it, "full" when starting it would pass the server's limit on
+    running instances or its creator's: MAX_RUNNING_INSTANCES, MAX_RUNNING_NON_PRODUCTION_PER_USER) and since when."""
     if STATE.get(name).get("switched_off"):
         return "off", time.time()
     job: jobs.Job | None = jobs.ACTIVE_JOB.get(name)
     if job is None and not STATUS.get(name, {}).get("running") and _locked(name):
         return "locked", time.time()
     if job is None and not STATUS.get(name, {}).get("running") and time.time() - _WAKE_REQUESTED.get(name, 0) > 60:
+        from sudoo.instances import capacity, stages  # late: they import this module
+        from sudoo.limits import quotas  # late: limits/ imports the instances package
+
         _WAKE_REQUESTED[name] = time.time()
         assert _wake is not None  # set by start() before any listener exists
-        job = _wake(name)
+        with quotas.LOCK:  # from the check until the wake's job is registered (it counts as starting from then on)
+            env = store.read_env(name)
+            refused = capacity.refusal(stage=stages.of(env), user=env.get("CREATED_BY") or None)
+            if refused:
+                return "full", time.time()
+            job = _wake(name)
     if job is not None and job.kind == "db-upgrade":
         return "upgrading", job.started
     if job is not None and job.kind not in ("wake", "restart", "create"):

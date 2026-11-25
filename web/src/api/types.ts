@@ -1086,6 +1086,8 @@ export interface Capacity {
   warning_percent: number;
   hard_limit: number | null;
   blocked: boolean;
+  /** how many of the running instances are production ones (never refused by a limit) */
+  running_production?: number;
   memory: {
     total_bytes: number;
     reserve_bytes: number;
@@ -1239,6 +1241,12 @@ export interface Quota {
   max_instances_per_user: number | null;
   cooldown_minutes: number | null;
   next_creation_at: number | null;
+  /** running or starting now, in all, of them production, and the ones of the caller (not production) */
+  running?: number;
+  running_production?: number;
+  running_own?: number;
+  max_running?: number | null;
+  max_running_own?: number | null;
 }
 
 export interface Factor {
@@ -1360,6 +1368,9 @@ export interface User extends Profile {
   last_sign_in_at: string | null;
   password_changed_at: string | null;
   must_change_password: boolean;
+  /** the most non-production instances this person runs at once: null: the setting applies; 0: no limit */
+  running_limit?: number | null;
+  running_limit_default?: number | null;
   second_factors: string[];
   sign_in_methods: SignInMethod[];
   /** false: the server's default (SIGN_IN_METHODS) applies */

@@ -544,7 +544,15 @@ class Settings(BaseSettings):
         0,
         ge=0,
         description="Instances running at once at most: creating or starting one more is refused; 0: never refused, "
-        "only warned.",
+        "only warned. Production instances are never refused by it.",
+    )
+    max_running_non_production_per_user: int = Field(
+        0,
+        ge=0,
+        le=1000,
+        description="Non-production instances one person may have running or starting at once (the ones they "
+        "created); one more is refused. 0: no limit. An administrator can set another number for a person on "
+        "their page. Production instances are never counted or refused.",
     )
 
     # ------------------------------------------------------------------ resources (instances/resources.py)
@@ -2407,6 +2415,7 @@ EDITABLE = (
     "capacity_instance_memory_mb",
     "capacity_warning_percent",
     "max_running_instances",
+    "max_running_non_production_per_user",
     "gateway_max_upload_mb",
     "gateway_idle_timeout_seconds",
     "gateway_websocket_max_message_mb",

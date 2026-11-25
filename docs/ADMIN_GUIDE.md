@@ -108,7 +108,20 @@ Odoo images (about 1.5 GB per version) take disk too.
 "This server can run about 9 instances at once; 9 are running. Starting another may slow every instance." They do
 not stop you. The dashboard warns when the server's memory use reaches `CAPACITY_WARNING_PERCENT` (85 %), or when
 more instances run than the estimate. To refuse creating and starting instances beyond a number, set
-`MAX_RUNNING_INSTANCES` (Settings, **Instances** tab, **Capacity**); a visitor opening a paused instance still starts it.
+`MAX_RUNNING_INSTANCES` (Settings, **Instances** tab, **Capacity**). A visitor opening a paused instance starts it only
+when both limits allow one more (the person's is the one of whoever created the instance); otherwise the visitor sees
+a "Not starting right now" page that refreshes by itself, and the instance starts when there is room or someone
+starts it from the panel (starting it by hand is refused the same way).
+Production instances count in that total but are never refused. To limit one person, set
+`MAX_RUNNING_NON_PRODUCTION_PER_USER` (the non-production instances they created that run or start at once; 0: no
+limit), or give one person another number on their page in **Accounts** (0 there: no limit for them). Both limits are
+off by default, are checked in the API, and are changed in the audit log like every setting.
+
+An instance the panel creates by itself (for a new branch, or a pull-request preview) counts against one person's
+limit, and always against the panel-wide limit. That person is the panel account linked to the GitHub account that
+GitHub's signed webhook names as the sender, when that account can reach the project; otherwise the person who
+created the project; otherwise nobody (only the panel-wide limit applies). Names and e-mail addresses typed in a
+commit are never used for this. The audit entry and the refusal text say whose limit was used.
 
 The figures cover the last hour and start again when the panel restarts, so right after a restart the panel counts
 the default until it has measured again.

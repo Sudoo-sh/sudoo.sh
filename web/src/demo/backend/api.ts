@@ -1087,6 +1087,15 @@ route("GET", "/instance-quota", () => {
     max_instances: null,
     own_instances: [...instances.values()].filter((i) => i.created_by === ME).length,
     max_instances_per_user: null,
+    running: [...instances.values()].filter((i) => !ASLEEP.includes(i.status) && i.status !== "creating").length,
+    running_production: [...instances.values()].filter(
+      (i) => !ASLEEP.includes(i.status) && i.status !== "creating" && i.stage === "production",
+    ).length,
+    running_own: [...instances.values()].filter(
+      (i) => i.created_by === ME && i.stage !== "production" && !ASLEEP.includes(i.status) && i.status !== "creating",
+    ).length,
+    max_running: Number(setting("max_running_instances")) || null,
+    max_running_own: Number(setting("max_running_non_production_per_user")) || null,
     cooldown_minutes: null,
     next_creation_at: null,
   });
@@ -1125,6 +1134,26 @@ function createInstance(
     ["production", "staging", "development"].includes(String(body.stage)) ? body.stage : "development"
   ) as Stage;
   const custom = String(body.name ?? "").trim();
+  if (stage !== "production") {
+    // MAX_RUNNING_INSTANCES and MAX_RUNNING_NON_PRODUCTION_PER_USER (production is never refused)
+    const runs = (i: Instance) => !ASLEEP.includes(i.status) && i.status !== "creating";
+    const total = [...instances.values()].filter(runs).length;
+    const limit = Number(setting("max_running_instances")) || 0;
+    if (limit && total >= limit)
+      throw new Problem(
+        403,
+        `This server runs at most ${limit} ${limit === 1 ? "instance" : "instances"} at once and ${total} ${total === 1 ? "is" : "are"} running or starting. Pause one first.`,
+      );
+    const own = Number(setting("max_running_non_production_per_user")) || 0;
+    const mine = [...instances.values()].filter(
+      (i) => runs(i) && i.created_by === ME && i.stage !== "production",
+    ).length;
+    if (own && mine >= own)
+      throw new Problem(
+        403,
+        `You have ${mine} of your ${own} ${own === 1 ? "running instance" : "running instances"} (not counting production) running or starting. Pause one of yours first.`,
+      );
+  }
   if (custom && !/^[a-z][a-z0-9-]{1,39}$/.test(custom))
     throw new Problem(400, "A name has 2 to 40 lower-case letters, digits and dashes, and starts with a letter.");
   if (custom && instances.has(custom)) throw new Problem(409, `An instance named ${custom} exists already.`);
@@ -2267,7 +2296,8 @@ route("POST", "/alerts/test", ({ body }) => {
 route("GET", "/roles", () => ok({ roles: ROLES, permissions: PERMISSIONS }));
 route("GET", "/users", () => {
   need("accounts.manage", "/api/v1/users");
-  return ok(users);
+  const fallback = Number(setting("max_running_non_production_per_user")) || null;
+  return ok(users.map((u) => ({ ...u, running_limit_default: fallback })));
 });
 const superAdmins = () => users.filter((u) => u.role === "super_admin");
 function userOf(name: string): User {
@@ -2336,6 +2366,12 @@ route("PATCH", "/users/:name", ({ params, body }) => {
   }
   for (const key of ["first_name", "last_name", "email", "phone"] as const)
     if (key in body) user[key] = String(body[key] ?? "") || null;
+  if ("running_limit" in body) {
+    const own = body.running_limit;
+    if (own !== null && (typeof own !== "number" || !Number.isInteger(own) || own < 0 || own > 1000))
+      throw new Problem(400, "running_limit: a whole number from 0 (no limit) to 1000, or null for the setting.");
+    user.running_limit = own as number | null;
+  }
   if ("sign_in_methods" in body) {
     const chosen = body.sign_in_methods as User["sign_in_methods"] | null;
     const next = chosen ?? ["password", "github"];

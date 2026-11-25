@@ -222,6 +222,7 @@ function AccountForm({
     user?.sign_in_methods_chosen ? user.sign_in_methods : null,
   );
   const [githubLogin, setGithubLogin] = useState(user?.github_login ?? "");
+  const [runLimit, setRunLimit] = useState(user?.running_limit == null ? "" : String(user.running_limit));
   const canInvite = !!policy?.mail_ready;
   const [mode, setMode] = useState<"invite" | "password">(
     canInvite || !policy?.password_allowed ? "invite" : "password",
@@ -239,6 +240,7 @@ function AccountForm({
   const ready =
     emailOk &&
     (methods === null || methods.length > 0) &&
+    /^\d{0,4}$/.test(runLimit.trim()) &&
     (!!user || (inviting ? canInvite : choiceReady(password, person)));
   const save = async () => {
     if (self && form.role !== user!.role && !confirm(t.form.confirmOwnRole)) return;
@@ -251,6 +253,7 @@ function AccountForm({
           ...body,
           ...(changed !== undefined ? { sign_in_methods: changed } : {}),
           ...(user.github ? {} : { github_login: githubLogin.trim() }),
+          running_limit: runLimit.trim() === "" ? null : Number(runLimit),
         });
         toast("success", t.form.saved(user.name));
         onDone();
@@ -406,6 +409,22 @@ function AccountForm({
                 onChange={(e) => setGithubLogin(e.target.value)}
               />
             </div>
+          </Field>
+        )}
+        {user && (
+          <Field
+            label={t.signIn.runLimit}
+            hint={t.signIn.runLimitHint(t.signIn.runLimitSetting(user.running_limit_default))}
+          >
+            <Input
+              dir="ltr"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder={t.signIn.runLimitSetting(user.running_limit_default)}
+              maxLength={4}
+              value={runLimit}
+              onChange={(e) => setRunLimit(e.target.value)}
+            />
           </Field>
         )}
         {user && (

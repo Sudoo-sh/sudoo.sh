@@ -399,6 +399,7 @@ const en = {
     storage_warning_percent: "Near the quota from, %",
     alert_storage: "Storage near or over its quota",
     max_running_instances: "Running instances at most",
+    max_running_non_production_per_user: "Running instances per person at most (not production)",
     gateway_max_upload_mb: "Largest upload, MB",
     gateway_idle_timeout_seconds: "Give up on a silent upload after, seconds",
     gateway_websocket_max_message_mb: "Largest WebSocket message, MB",
@@ -925,7 +926,9 @@ const en = {
     alert_storage:
       "Alert when an instance reaches storage_warning_percent of its storage quota, and when it is over it (production: every day).",
     max_running_instances:
-      "Instances running at once at most: creating or starting one more is refused; 0: never refused, only warned.",
+      "Instances running at once at most: creating or starting one more is refused; 0: never refused, only warned. Production instances are never refused by it.",
+    max_running_non_production_per_user:
+      "Non-production instances one person may have running or starting at once (the ones they created); one more is refused. 0: no limit. An administrator can set another number for a person on their page. Production instances are never counted or refused.",
     gateway_mode:
       'Where the gateways run: "service" (their own container, sudoo-gateway: instances keep answering while the panel restarts; the panel serves them itself while that container is not running) or "embedded" (inside the panel process, as before 3.0).',
     gateway_takeover_seconds:
@@ -1682,6 +1685,7 @@ const ar: typeof en = {
     storage_warning_percent: "قريبة من الحصة ابتداءً من، %",
     alert_storage: "تخزين قريب من حصته أو متجاوز لها",
     max_running_instances: "أقصى عدد للبيئات العاملة",
+    max_running_non_production_per_user: "أقصى عدد للبيئات العاملة لكل شخص (دون الإنتاج)",
     gateway_max_upload_mb: "أكبر رفع، MB",
     gateway_idle_timeout_seconds: "التخلي عن رفع صامت بعد، بالثواني",
     gateway_websocket_max_message_mb: "أكبر رسالة WebSocket، MB",
@@ -2194,7 +2198,9 @@ const ar: typeof en = {
     storage_warning_percent: "النسبة من الحصة التي تُعرض البيئة ابتداءً منها قريبةً من الامتلاء ويُنبَّه عنها.",
     alert_storage: "نبّه حين تبلغ البيئة storage_warning_percent من حصة تخزينها، وحين تتجاوزها (الإنتاج: كل يوم).",
     max_running_instances:
-      "أقصى عدد للبيئات العاملة في وقت واحد: يُرفض إنشاء بيئة أخرى أو تشغيلها؛ 0: لا رفض أبدًا، تنبيه فقط.",
+      "أقصى عدد للبيئات العاملة في وقت واحد: يُرفض إنشاء بيئة أخرى أو تشغيلها؛ 0: لا رفض أبدًا، تنبيه فقط. لا ترفض بيئات الإنتاج بهذا الحد أبدًا.",
+    max_running_non_production_per_user:
+      "عدد البيئات غير الإنتاجية التي يجوز لشخص واحد تشغيلها أو بدؤها في وقت واحد (التي أنشأها)؛ تُرفض الزيادة. 0: بلا حد. يستطيع المسؤول تحديد رقم آخر لشخص في صفحته. لا تُحسب بيئات الإنتاج ولا تُرفض أبدًا.",
     gateway_mode:
       'مكان عمل البوابات: "service" ‏(حاويتها الخاصة sudoo-gateway: تبقى البيئات تجيب أثناء إعادة تشغيل اللوحة؛ وتخدمها اللوحة بنفسها ما دامت تلك الحاوية لا تعمل) أو "embedded" ‏(داخل عملية اللوحة، كما قبل 3.0).',
     gateway_takeover_seconds:

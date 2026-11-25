@@ -71,6 +71,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Running instances per person (Task 34a):** `MAX_RUNNING_NON_PRODUCTION_PER_USER` (0: off) limits the non-production
+  instances one person runs or starts at once; an administrator can set another number for a person (`running_limit`
+  on the account). Production instances are never refused by it or by `MAX_RUNNING_INSTANCES`, and the home page says
+  "including N production". `GET /instance-quota` reports the running figures and New instance shows "n of m".
 - **Home page: Expiring soon (Task 33, step 2):** three figures (expiring soon, stopped and waiting for deletion,
   failed), a card of the instances that end soonest with an Extend menu (the extensions the administrator offers, or
   any number of days; the API applies the same limits), a **With end date** filter on the instance list (nearest end first), and a Recent

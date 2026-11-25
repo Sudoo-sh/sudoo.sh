@@ -21,6 +21,10 @@ const en = {
     noMethod: "Choose at least one way",
     githubLogin: "GitHub user name",
     githubLoginHint: "Optional. Their GitHub account is linked when they first continue with GitHub",
+    runLimit: "Running instances at most (not production)",
+    runLimitHint: (setting: string) =>
+      `Leave empty for the setting (${setting}). 0: no limit for this person. Production instances never count.`,
+    runLimitSetting: (n: number | null | undefined) => (n ? String(n) : "no limit"),
     linked: (login: string) => `GitHub: @${login}`,
     unlink: "Unlink GitHub",
     unlinked: (name: string) => `GitHub unlinked from ${name}`,
@@ -240,6 +244,10 @@ const ar: typeof en = {
     noMethod: "اختر طريقة واحدة على الأقل",
     githubLogin: "اسم المستخدم في GitHub",
     githubLoginHint: "اختياري. يُربط حسابه في GitHub حين يتابع باستخدام GitHub أول مرة",
+    runLimit: "أقصى عدد للبيئات العاملة (دون الإنتاج)",
+    runLimitHint: (setting) =>
+      `اتركه فارغًا لاعتماد الإعداد (${setting}). 0: بلا حد لهذا الشخص. لا تُحسب بيئات الإنتاج أبدًا.`,
+    runLimitSetting: (n) => (n ? String(n) : "بلا حد"),
     linked: (login) => `GitHub: ‎@${login}`,
     unlink: "ألغِ ربط GitHub",
     unlinked: (name) => `أُلغي ربط GitHub من ${name}`,

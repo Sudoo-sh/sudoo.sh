@@ -457,7 +457,7 @@ def _start_creation(
     if engine != engines.DOCKER and edition == "enterprise":
         abort(400, "Enterprise instances cannot run on the Kubernetes engine yet (beta).")
     if server_id == servers.MAIN:  # another server's agent checks its own running instances
-        _refuse_over_capacity("instance creation refused (running instances)")
+        _refuse_over_capacity("instance creation refused (running instances)", stage, g.user["name"])
     defaults = stages.defaults(stage)
     if stage == stages.PRODUCTION:
         refused = stages.production_refusal() or _project_production_refusal(project, repo, branch)
@@ -944,9 +944,10 @@ def _running(name: str) -> bool:
     return bool(metrics.INSTANCES.get(name, {}).get("running"))
 
 
-def _refuse_over_capacity(what: str) -> None:
-    """403 when MAX_RUNNING_INSTANCES instances run already (off by default: the panel only warns)."""
-    refused = capacity.refusal()
+def _refuse_over_capacity(what: str, stage: str | None = None, user: str | None = None) -> None:
+    """403 when MAX_RUNNING_INSTANCES instances run already, or when `user` has the most non-production instances
+    running they may (both off by default: the panel only warns). Never for a production instance (`stage`)."""
+    refused = capacity.refusal(stage=stage, user=user)
     if refused:
         log(what, ok=False, detail=refused)
         abort(403, refused)
@@ -973,10 +974,14 @@ def run(name: str, action: str) -> Response:
     if action in link_deadline.DEPLOY_ACTIONS:
         refuse_unlinked("updating and deploying instances", f"{action} on {name} refused (panel not linked)")
     fn, args = _job_for(action, name, check.body())
-    if action == "start" and not _running(name):
-        _refuse_over_capacity(f"start of {name} refused (running instances)")
     build = {"build": "manual"} if action in BUILD_ACTIONS else None  # a new build in the branch's history
-    job = jobs.start(name, title, kind, fn, *args, user=g.user["name"], details=build)
+    with quotas.LOCK:  # from the limit check until the start's job is registered (it counts as running from then on)
+        if action == "start" and not _running(name):
+            env = store.read_env(name)
+            _refuse_over_capacity(
+                f"start of {name} refused (running instances)", stages.of(env), env.get("CREATED_BY") or None
+            )
+        job = jobs.start(name, title, kind, fn, *args, user=g.user["name"], details=build)
     log(title, instance=name)
     return _accepted(job)
 

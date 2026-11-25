@@ -117,6 +117,14 @@ Production instances count in that total but are never refused. To limit one per
 limit), or give one person another number on their page in **Accounts** (0 there: no limit for them). Both limits are
 off by default, are checked in the API, and are changed in the audit log like every setting.
 
+**Capacity queue.** With `CAPACITY_QUEUE` on, a creation or a start that one of these two limits would refuse waits in
+line instead and starts by itself, in queue order, when there is room (checked every few seconds). The line is kept
+in storage, so a restart keeps it. If the person at the front is at their own limit, the next one that fits starts. A
+person leaves the line with `DELETE /capacity-queue/<id>`; `capacity.manage` (administrators) sees everyone's requests,
+cancels any and moves one to the front. Production is never queued, and a memory or disk refusal is not a capacity wait. Known limit: an item is taken out of
+the line just before its job is created, so a process crash in that moment loses the item (the person asks again); a
+restart otherwise keeps the line, and it does not promise to start each item exactly once across a crash.
+
 An instance the panel creates by itself (for a new branch, or a pull-request preview) counts against one person's
 limit, and always against the panel-wide limit. That person is the panel account linked to the GitHub account that
 GitHub's signed webhook names as the sender, when that account can reach the project; otherwise the person who

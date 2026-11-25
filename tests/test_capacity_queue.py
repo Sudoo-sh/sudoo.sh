@@ -1,0 +1,322 @@
+"""The capacity queue (CAPACITY_QUEUE): a request a running-instances limit would refuse waits in line and starts by
+itself when there is room. Off by default (then the refusal is the 403 it always was); never for production."""
+
+from __future__ import annotations
+
+import shutil
+import threading
+import time
+from collections.abc import Iterator
+from typing import Any
+
+import pytest
+from flask.testing import FlaskClient
+
+from sudoo import accounts
+from sudoo.config import live
+from sudoo.core import jobs
+from sudoo.core.jobs import Job
+from sudoo.instances import metrics, planning, store
+from sudoo.limits import queue
+from sudoo.storage import storage
+
+Client = tuple[FlaskClient, dict[str, str]]
+MADE: list[str] = []
+STARTED: list[tuple[str, str]] = []
+
+
+@pytest.fixture(autouse=True)
+def clean_up(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Nothing a test makes outlives it: instance folders, running marks, the queue and the settings. Job starts are
+    stand-ins that only record, except in a test that asks for `real_jobs` (the real registry, a controlled wake)."""
+    STARTED.clear()
+
+    def fake_job(instance: str, action: str, kind: str, fn: Any, *args: Any, user: str = "system", **_: Any) -> Job:
+        STARTED.append((instance, action))
+        metrics.INSTANCES[instance] = {"running": True}  # a started job counts as running, as the real one does
+        return Job(instance, action, kind, user)
+
+    def fake_plan_start(plan: dict[str, Any], user: str) -> Job:
+        STARTED.append((str(plan["name"]), "create"))
+        metrics.INSTANCES[str(plan["name"])] = {"running": True}
+        store.release_ports(plan.get("ports") or {})
+        return Job(str(plan["name"]), "Create", "create", user)
+
+    if "real_jobs" not in request.fixturenames:
+        monkeypatch.setattr(jobs, "start", fake_job)
+    monkeypatch.setattr(planning, "start", fake_plan_start)
+    yield
+    for name in MADE:
+        shutil.rmtree(store.folder(name), ignore_errors=True)
+    MADE.clear()
+    metrics.INSTANCES.clear()
+    for key in list(storage().all(queue.COLLECTION)):
+        storage().delete(queue.COLLECTION, key)
+    live.change({"max_running_non_production_per_user": None, "max_running_instances": None, "capacity_queue": False})
+    for user in ("admin1", "sync1"):
+        if (accounts.get(user) or {}).get("disabled"):
+            accounts.update(user, disabled=False)
+
+
+@pytest.fixture
+def real_jobs(monkeypatch: pytest.MonkeyPatch) -> Iterator[threading.Event]:
+    """The real jobs registry with a wake that waits: a started job stays registered (and counts as starting)."""
+    from sudoo.instances import operations
+
+    release = threading.Event()
+    monkeypatch.setattr(operations, "wake", lambda job, name: release.wait(20))
+    yield release
+    release.set()
+    for _ in range(100):
+        if not jobs.starting():
+            break
+        time.sleep(0.05)
+
+
+def make(name: str, stage: str, owner: str, running: bool) -> None:
+    MADE.append(name)
+    store.folder(name).mkdir(parents=True, exist_ok=True)
+    (store.folder(name) / "docker-compose.yml").write_text("services: {}\n")
+    store.write_env(name, {"ODOO_VERSION": "18.0", "DB_NAME": name.replace("-", "_"), "ODOO_PORT": "18999",
+                           "STAGE": stage, "CREATED_BY": owner})  # fmt: skip
+    if running:
+        metrics.INSTANCES[name] = {"running": True}
+
+
+def limit(panel: int | None = None, own: int | None = None, on: bool = True) -> None:
+    live.change({"max_running_instances": panel, "max_running_non_production_per_user": own, "capacity_queue": on})
+
+
+def post_start(client: FlaskClient, headers: dict[str, str], name: str) -> Any:
+    return client.post(f"/api/v1/instances/{name}/actions/start", headers=headers)
+
+
+def test_off_by_default_the_refusal_is_the_403_it_was(admin: Client) -> None:
+    client, headers = admin
+    make("dev-a", "development", "admin1", True)
+    make("dev-b", "development", "admin1", False)
+    limit(panel=1, on=False)
+    assert post_start(client, headers, "dev-b").status_code == 403
+    assert queue.items() == []
+
+
+def test_a_start_over_the_limit_waits_and_starts_when_room_appears(admin: Client) -> None:
+    client, headers = admin
+    make("dev-a", "development", "admin1", True)
+    make("dev-b", "development", "admin1", False)
+    limit(panel=1)
+    answer = post_start(client, headers, "dev-b")
+    assert answer.status_code == 202
+    body = answer.get_json()["data"]
+    assert body["position"] == 1 and body["status"] == "Waiting for capacity (position 1)"
+    assert answer.headers["Location"].endswith(f"/capacity-queue/{body['id']}")
+    assert queue.dispatch() == [] and STARTED == []  # still no room
+    metrics.INSTANCES["dev-a"] = {"running": False}
+    assert queue.dispatch() == ["dev-b"] and STARTED == [("dev-b", "Start")]
+    assert queue.items() == []
+
+
+def test_the_line_is_first_in_first_out_and_two_free_slots_start_two(admin: Client) -> None:
+    client, headers = admin
+    make("dev-a", "development", "admin1", True)
+    for name in ("dev-b", "dev-c", "dev-d"):
+        make(name, "development", "admin1", False)
+    limit(panel=1)
+    for name in ("dev-b", "dev-c", "dev-d"):
+        assert post_start(client, headers, name).status_code == 202
+    assert [i["instance"] for i in queue.items()] == ["dev-b", "dev-c", "dev-d"]
+    assert post_start(client, headers, "dev-b").get_json()["data"]["position"] == 1  # one item per instance
+    assert len(queue.items()) == 3
+    limit(panel=3)
+    metrics.INSTANCES["dev-b"] = {"running": False}
+    started = queue.dispatch()  # room for two more than the one running: b and c, not d
+    assert started == ["dev-b", "dev-c"]
+    assert [i["instance"] for i in queue.items()] == ["dev-d"]
+
+
+def test_a_person_at_their_own_limit_does_not_hold_up_the_others() -> None:
+    make("dev-a", "development", "admin1", True)
+    make("dev-b", "development", "admin1", False)
+    make("dev-c", "development", "sync1", False)
+    limit(own=1)
+    queue.enqueue_start("dev-b", "admin1", "admin1", "development", held("instances.update"))
+    queue.enqueue_start("dev-c", "sync1", "sync1", "development", held("instances.update"))
+    assert queue.dispatch() == ["dev-c"]
+    assert [i["instance"] for i in queue.items()] == ["dev-b"]
+
+
+def test_the_line_survives_a_restart() -> None:
+    make("dev-b", "development", "admin1", False)
+    item = queue.enqueue_start("dev-b", "admin1", "admin1", "development")
+    reloaded = list(storage().all(queue.COLLECTION).values())  # what a new process reads
+    assert [i["id"] for i in reloaded] == [item["id"]] and queue.position(str(item["id"])) == 1
+
+
+def test_production_is_never_queued(admin: Client) -> None:
+    client, headers = admin
+    make("dev-a", "development", "admin1", True)
+    make("prod-a", "production", "admin1", False)
+    limit(panel=1)
+    assert post_start(client, headers, "prod-a").status_code == 202
+    assert queue.items() == [] and STARTED == [("prod-a", "Start")]  # started at once, not queued
+
+
+def test_creation_waits_keeps_its_name_and_creates_later(admin: Client) -> None:
+    client, headers = admin
+    make("dev-a", "development", "admin1", True)
+    limit(panel=1)
+    payload = {"version": "18.0", "edition": "community", "name": "later", "stage": "development"}
+    answer = client.post("/api/v1/instances", json=payload, headers=headers)
+    assert answer.status_code == 202, answer.get_data(as_text=True)
+    assert answer.get_json()["data"]["kind"] == "create"
+    assert queue.names() == {"later"} and STARTED == []
+    again = client.post("/api/v1/instances", json=payload, headers=headers)
+    assert again.status_code == 202 and "later" in queue.names()
+    assert len(queue.names()) == 2  # the waiting name is taken: the second one got another name
+    metrics.INSTANCES["dev-a"] = {"running": False}
+    assert queue.dispatch() == ["later"] and STARTED == [("later", "create")]
+
+
+def test_cancel_own_or_by_an_administrator_not_by_others(admin: Client, operator: Client) -> None:
+    make("dev-b", "development", "admin1", False)
+    make("dev-c", "development", "admin1", False)
+    first = queue.enqueue_start("dev-b", "admin1", "admin1", "development")
+    second = queue.enqueue_start("dev-c", "admin1", "admin1", "development")
+    other, other_headers = operator
+    assert other.delete(f"/api/v1/capacity-queue/{first['id']}", headers=other_headers).status_code == 404
+    assert other.get("/api/v1/capacity-queue").get_json()["data"] == []  # not theirs: not listed
+    client, headers = admin
+    assert client.delete(f"/api/v1/capacity-queue/{first['id']}", headers=headers).status_code == 204
+    assert [i["id"] for i in queue.items()] == [second["id"]]
+    assert client.delete(f"/api/v1/capacity-queue/{first['id']}", headers=headers).status_code == 404
+
+
+def test_only_an_administrator_moves_one_to_the_front(admin: Client, operator: Client) -> None:
+    make("dev-b", "development", "sync1", False)
+    make("dev-c", "development", "sync1", False)
+    queue.enqueue_start("dev-b", "sync1", "sync1", "development")
+    last = queue.enqueue_start("dev-c", "sync1", "sync1", "development")
+    other, other_headers = operator
+    assert other.post(f"/api/v1/capacity-queue/{last['id']}/front", headers=other_headers).status_code == 403
+    client, headers = admin
+    assert client.post(f"/api/v1/capacity-queue/{last['id']}/front", headers=headers).status_code == 200
+    assert [i["instance"] for i in queue.items()] == ["dev-c", "dev-b"]
+    assert len(client.get("/api/v1/capacity-queue").get_json()["data"]) == 2  # an administrator sees all
+
+
+def test_an_item_for_a_deleted_or_running_instance_is_dropped() -> None:
+    make("dev-b", "development", "admin1", True)
+    queue.enqueue_start("dev-b", "admin1", "admin1", "development")
+    queue.enqueue_start("gone", "admin1", "admin1", "development")
+    assert queue.dispatch() == [] and queue.items() == []
+
+
+def test_memory_and_disk_refusals_are_not_queued(admin: Client) -> None:
+    """Only the running-instances limits wait; the plan's other checks answer as before."""
+    client, headers = admin
+    limit(on=True)
+    answer = client.post(
+        "/api/v1/instances", json={"version": "99.0", "edition": "community", "name": "x"}, headers=headers
+    )
+    assert answer.status_code == 400 and queue.items() == []
+
+
+def held(*permissions: str) -> list[str]:
+    return list(permissions)
+
+
+def test_a_disabled_or_deleted_account_does_not_start_anything() -> None:
+    make("dev-a", "development", "sync1", False)
+    make("dev-b", "development", "sync1", False)
+    queue.enqueue_start("dev-a", "sync1", "sync1", "development", held("instances.update"))
+    queue.enqueue_start("dev-b", "ghost", "ghost", "development", held("instances.update"))  # no such account
+    accounts.update("sync1", disabled=True)
+    assert queue.dispatch() == [] and STARTED == [] and queue.items() == []  # both dropped, not kept for later
+
+
+def test_a_role_that_lost_the_right_while_waiting_does_not_start() -> None:
+    make("dev-a", "development", "sync1", False)
+    queue.enqueue_start("dev-a", "sync1", "sync1", "development", held("instances.view"))  # could not update
+    assert queue.dispatch() == [] and STARTED == [] and queue.items() == []
+
+
+def test_a_creation_is_checked_against_the_project_at_execution(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sudoo.projects import access
+
+    plan = {"name": "later", "stage": "development", "project": "", "branch": "", "ports": {}}
+    queue.enqueue_create(plan, "sync1", "sync1", held("instances.create"))
+    monkeypatch.setattr(access, "refusal", lambda *a, **k: (404, "This project does not exist."))
+    assert queue.dispatch() == [] and STARTED == [] and queue.items() == []
+
+
+def test_an_allowed_request_still_starts() -> None:
+    make("dev-a", "development", "sync1", False)
+    queue.enqueue_start("dev-a", "sync1", "sync1", "development", held("instances.update"))
+    assert queue.dispatch() == ["dev-a"]
+
+
+def test_a_cancelled_or_replayed_item_never_starts_twice() -> None:
+    make("dev-a", "development", "sync1", False)
+    make("dev-b", "development", "sync1", False)
+    one = queue.enqueue_start("dev-a", "sync1", "sync1", "development", held("instances.update"))
+    two = queue.enqueue_start("dev-b", "sync1", "sync1", "development", held("instances.update"))
+    assert queue.cancel(str(one["id"]), "sync1", admin=False)
+    assert queue.dispatch() == ["dev-b"]
+    assert queue.dispatch() == [] and STARTED == [("dev-b", "Start")]  # a second round finds nothing
+    storage().put(queue.COLLECTION, str(two["id"]), two)  # a stale copy written back: the instance runs already
+    assert queue.dispatch() == [] and STARTED == [("dev-b", "Start")] and queue.items() == []
+
+
+def test_two_dispatchers_with_one_free_slot_start_one(real_jobs: threading.Event) -> None:
+    """Real jobs registry: three requests wait, room for one, two dispatchers run at the same moment."""
+    limit(panel=1)
+    for name in ("dev-a", "dev-b", "dev-c"):
+        make(name, "development", "sync1", False)
+        queue.enqueue_start(name, "sync1", "sync1", "development", held("instances.update"))
+    results: list[list[str]] = []
+    gate = threading.Barrier(2)
+
+    def go() -> None:
+        gate.wait()
+        results.append(queue.dispatch())
+
+    threads = [threading.Thread(target=go) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(20)
+    started = sorted(name for found in results for name in found)
+    assert started == ["dev-a"]  # one slot, one start: the first in line, once
+    assert len(jobs.starting()) == 1
+    assert [i["instance"] for i in queue.items()] == ["dev-b", "dev-c"]
+
+
+def test_two_competing_starts_through_the_api_and_the_dispatcher(admin: Client, real_jobs: threading.Event) -> None:
+    """An API start and a dispatch at the same moment for one free slot: exactly one gets it."""
+    client, headers = admin
+    limit(panel=1)
+    make("dev-q", "development", "sync1", False)
+    queue.enqueue_start("dev-q", "sync1", "sync1", "development", held("instances.update"))
+    make("dev-n", "development", "admin1", False)
+    codes: list[int] = []
+    results: list[list[str]] = []
+    gate = threading.Barrier(2)
+
+    def api() -> None:
+        gate.wait()
+        codes.append(post_start(client, headers, "dev-n").status_code)
+
+    def dispatch() -> None:
+        gate.wait()
+        results.append(queue.dispatch())
+
+    threads = [threading.Thread(target=api), threading.Thread(target=dispatch)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(20)
+    assert len(jobs.starting()) == 1  # never two
+    assert codes == [202]  # started, or queued behind the other
+    running = set(jobs.starting())
+    waiting = {str(item["instance"]) for item in queue.items()}
+    assert len(running) == 1 and running | waiting == {"dev-q", "dev-n"}  # one runs, the other still waits

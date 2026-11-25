@@ -157,6 +157,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
           "capacity_warning_percent",
           "max_running_instances",
           "max_running_non_production_per_user",
+          "capacity_queue",
         ],
       },
       {

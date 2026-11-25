@@ -20,7 +20,8 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Keyboard
 import { useNavigate } from "react-router";
 import { api, errorText } from "@/api/client";
 import { useInstances, useProjects } from "@/api/queries";
-import type { Instance, Job, Permission } from "@/api/types";
+import { isWaiting, type Instance, type Job, type Permission, type WaitingRequest } from "@/api/types";
+import queueWords from "@/i18n/capacity-queue";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useDirection } from "@/components/ui/direction";
 import { useT } from "@/i18n";
@@ -275,6 +276,7 @@ export function CommandPalette() {
 
 function Palette({ onClose }: { onClose: () => void }) {
   const t = useT(words).palette;
+  const q = useT(queueWords);
   const items = useItems();
   const navigate = useNavigate();
   const toast = useToast();
@@ -335,7 +337,16 @@ function Palette({ onClose }: { onClose: () => void }) {
     if (!item.action || running) return;
     setRunning(true);
     try {
-      await api.post<Job>(`/instances/${item.action.instance.name}/actions/${item.action.kind}`, {});
+      const job = await api.post<Job | WaitingRequest>(
+        `/instances/${item.action.instance.name}/actions/${item.action.kind}`,
+        {},
+      );
+      if (isWaiting(job)) {
+        toast("success", q.queued(item.action.instance.name, job.position), q.queuedText);
+        close();
+        navigate("/", { viewTransition: true });
+        return;
+      }
       toast("success", t.started(item.label));
       close();
       navigate(`/i/${item.action.instance.name}/activity`, { viewTransition: true });

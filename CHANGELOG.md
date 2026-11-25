@@ -75,6 +75,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   instances one person runs or starts at once; an administrator can set another number for a person (`running_limit`
   on the account). Production instances are never refused by it or by `MAX_RUNNING_INSTANCES`, and the home page says
   "including N production". `GET /instance-quota` reports the running figures and New instance shows "n of m".
+- **Capacity queue (Task 34b):** with `CAPACITY_QUEUE` on (off by default), a creation or start that a running-instances
+  limit would refuse waits in a line and starts by itself, in queue order, when there is room (answer 202 and
+  `/capacity-queue/<id>`). A person sees and cancels their own waiting requests; the new permission `capacity.manage`
+  (administrators) sees all, cancels any and moves one to the front. Production is never queued; memory and disk refusals
+  and upgrade tests are refused at once as before. A waiting item whose person is at their own limit does not hold up
+  the others. A request is checked again when it starts: a deleted or disabled account, or one whose rights no longer allow
+  it, is dropped. The home page has a "Waiting for capacity" card (your own requests, everyone's with `capacity.manage`)
+  with Cancel and Move to front.
 - **Home page: Expiring soon (Task 33, step 2):** three figures (expiring soon, stopped and waiting for deletion,
   failed), a card of the instances that end soonest with an Extend menu (the extensions the administrator offers, or
   any number of days; the API applies the same limits), a **With end date** filter on the instance list (nearest end first), and a Recent

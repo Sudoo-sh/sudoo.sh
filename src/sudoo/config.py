@@ -546,6 +546,11 @@ class Settings(BaseSettings):
         description="Instances running at once at most: creating or starting one more is refused; 0: never refused, "
         "only warned. Production instances are never refused by it.",
     )
+    capacity_queue: bool = Field(
+        False,
+        description="When a running-instances limit is reached, a new non-production instance or a start waits in "
+        "line and starts by itself when there is room, instead of being refused. Production is never queued.",
+    )
     max_running_non_production_per_user: int = Field(
         0,
         ge=0,
@@ -2416,6 +2421,7 @@ EDITABLE = (
     "capacity_warning_percent",
     "max_running_instances",
     "max_running_non_production_per_user",
+    "capacity_queue",
     "gateway_max_upload_mb",
     "gateway_idle_timeout_seconds",
     "gateway_websocket_max_message_mb",

@@ -161,7 +161,9 @@ def _create_test(name: str, target: str, doc: dict[str, Any], code: Secret | Non
     if project is not None:  # an instance of the upgrade branch: the caller's access in that branch
         instances_api._refuse_in_branch("instances.create", project, str(branch), f"test the upgrade of {name}")
     with quotas.LOCK:  # from the limits until the test instance's job is registered: two tests cannot both pass
-        instances_api._refuse_over_capacity("upgrade test refused (running instances)", stages.STAGING, g.user["name"])
+        instances_api._refuse_over_capacity(
+            "upgrade test refused (running instances)", stages.STAGING, g.user["name"], queued=False
+        )  # the answer is needed now: an upgrade test does not wait in the capacity queue
         if settings.max_instances and len(store.names()) + len(jobs.being_created()) >= settings.max_instances:
             abort(409, f"The server has its maximum of {settings.max_instances} instances; delete one first.")
         try:

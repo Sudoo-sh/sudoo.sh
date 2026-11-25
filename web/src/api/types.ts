@@ -36,6 +36,7 @@ export type Permission =
   | "instances.database_shell"
   | "instances.profile"
   | "shells.supervise"
+  | "capacity.manage"
   | "servers.manage"
   | "instances.move"
   | "support_access.manage"
@@ -2473,3 +2474,23 @@ export interface DeletedInstance {
   deleted_by: string | null;
   expired: boolean;
 }
+
+/** A request that waits for room under a running-instances limit (CAPACITY_QUEUE, GET /capacity-queue). The answer of
+ *  a start or a creation that has to wait is this, not a job. */
+export interface WaitingRequest {
+  id: string;
+  kind: "create" | "start";
+  instance: string;
+  user: string;
+  charged: string | null;
+  stage: string | null;
+  position: number | null;
+  created_at: number;
+  status: string;
+}
+export const isWaiting = (answer: unknown): answer is WaitingRequest =>
+  typeof answer === "object" &&
+  answer !== null &&
+  "position" in answer &&
+  "kind" in answer &&
+  !("requested_by" in answer);

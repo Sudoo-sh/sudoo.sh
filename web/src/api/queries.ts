@@ -4,6 +4,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./client";
 import type {
+  WaitingRequest,
   DeletedInstance,
   AuditFacets,
   ProfileDetail,
@@ -288,6 +289,12 @@ export const useServer = () => useQuery({ queryKey: ["server"], queryFn: () => a
 export const useSettings = () => useQuery({ queryKey: keys.settings, queryFn: () => api.get<Setting[]>("/settings") });
 export const useVersions = () =>
   useQuery({ queryKey: ["versions"], queryFn: () => api.get<Version[]>("/versions"), staleTime: 600_000 });
+export const useCapacityQueue = () =>
+  useQuery({
+    queryKey: ["capacity-queue"],
+    queryFn: () => api.get<WaitingRequest[]>("/capacity-queue"),
+    refetchInterval: 5000,
+  });
 export const useQuota = () => useQuery({ queryKey: ["quota"], queryFn: () => api.get<Quota>("/instance-quota") });
 export const useAccount = () => useQuery({ queryKey: keys.account, queryFn: () => api.get<Account>("/account") });
 export const useRoles = () =>

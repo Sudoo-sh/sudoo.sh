@@ -72,6 +72,7 @@ const ALL: Permission[] = [
   "instances.database_shell",
   "instances.profile",
   "shells.supervise",
+  "capacity.manage",
   "servers.manage",
   "instances.move",
   "support_access.manage",
@@ -121,6 +122,7 @@ export const PERMISSIONS: Record<Permission, string> = {
   "instances.profile":
     "Record what an instance's Odoo workers spend their time on (code profiler), and read, download and delete its recordings",
   "shells.supervise": "See open and past shells, end them and play their recordings",
+  "capacity.manage": "See every request waiting in the capacity queue, move one to the front and cancel any",
   "servers.manage": "Add, approve, revoke and remove servers; change their name, region and room",
   "instances.move": "Move instances to another server",
   "support_access.manage": "Grant Sudoo.sh support temporary access to the panel, see it and withdraw it",

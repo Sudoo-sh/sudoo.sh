@@ -6,6 +6,7 @@ import type { Columns, DeletedInstance, Instance, InstanceStatus, Stage } from "
 import { Bars } from "@/components/charts/Bars";
 import { LiveChart } from "@/components/charts/LiveChart";
 import { Ring } from "@/components/charts/Ring";
+import { CapacityQueue } from "@/components/CapacityQueue";
 import { ExpiringSoon } from "@/components/ExpiringSoon";
 import { RecentActivity } from "@/components/RecentActivity";
 import { InstanceCard } from "@/components/InstanceCard";
@@ -437,6 +438,7 @@ export function DashboardPage() {
         <StatCard label={ex.tiles.failed} value={instances ? failed : undefined} detail={ex.tiles.failedDetail} />
       </div>
 
+      <CapacityQueue />
       <ExpiringSoon instances={instances} />
 
       <Charts instances={instances} />

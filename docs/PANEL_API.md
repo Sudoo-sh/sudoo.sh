@@ -85,6 +85,10 @@ source at [Sudoo-sh/sudoo-odoo](https://github.com/Sudoo-sh/sudoo-odoo)) needs. 
 | `GET /instances`, `GET /instances/<name>` | List and read instances |
 | `GET /instance-quota` | How many instances it may still create, and the running figures: `running` (in all, production included), `running_production`, `max_running` (`MAX_RUNNING_INSTANCES`), `running_own` (the non-production instances the caller created that run or start) and `max_running_own` (`null` when off) |
 | `POST /instances` | Create an instance; `from_backup` is refused with 403 |
+| `GET /capacity-queue` | `instances.view` | | 200, the waiting requests (`id`, `kind` create or start, `instance`, `user`, `position`, `status`): your own, all with `capacity.manage` |
+| `GET /capacity-queue/<id>` | `instances.view` | | 200, one waiting request; 404 once it started or was cancelled (or is not yours) |
+| `DELETE /capacity-queue/<id>` | `instances.view` | | 204; your own request, or any with `capacity.manage`; 404 otherwise |
+| `POST /capacity-queue/<id>/front` | `capacity.manage` | | 200, the request first in line |
 | `POST /instances/<name>/actions/<action>` | Only `start`, `pause`, `restart` and `backup`; every other action (`update`, `upgrade`, `switch-branch`, `restore`, `rollback`, `repair`, ...) is refused with 403 |
 | `PATCH /instances/<name>` | Only `delete_after_days`, and only to make the lifetime end later (not `0`, "keep", unless the instance is kept already); anything else is refused with 403. It is also limited like a person without `instances.extend_unlimited` (see below) |
 | `DELETE /instances/<name>` | Delete an instance after a backup; `without_backup` is refused with 403 |
@@ -258,7 +262,7 @@ role is missing. "public" means no sign-in; "signed in" means any account or tok
 | `DELETE /projects/<id>/notifications/<channel>` | `projects.manage` in the project | | 204 |
 | `POST /projects/<id>/notifications/<channel>/test` | `projects.manage` in the project | | 200, `channel` and `delivery` (`ok`, `result`); sent at once, not retried |
 | `POST /projects/<id>/notifications/<channel>/signing-secret` | `projects.manage` in the project | | 200, the webhook channel with its new `signing_secret`, shown this once |
-| `POST /instances` | `instances.create` | as below | **202**, the job; `Content-Location` names the new instance |
+| `POST /instances` | `instances.create` | as below | **202**, the job; `Content-Location` names the new instance. With `CAPACITY_QUEUE` on and a running limit reached: **202**, the waiting request (`Location: /capacity-queue/<id>`) instead of 403 |
 | `PATCH /instances/<name>` | `instances.operate`; also `instances.delete` for a `delete_after_days` that ends the lifetime sooner (403 otherwise) | any of `auto_update`, `auto_upgrade`, `auto_pause` (true or false), `delete_after_days` (0 keeps it), `stage` ([Stages](#stages)) | 200, the instance. A later `delete_after_days` is an extension: without `instances.extend_unlimited` (Admin and super admin roles) it adds at most `EXPIRY_EXTEND_MAX_DAYS` days to the current end date, only `EXPIRY_EXTEND_MAX_COUNT` times (403 otherwise), never `0` (keep), and never to an instance stopped at the end of its lifetime. Extending one starts it again; when the server cannot run one more, it stays stopped and `meta.restart` says why |
 | `POST /instances/<name>/actions/<action>` | depends on the action (below) | `{}`, or the action's fields | **202**, the job |
 | `DELETE /instances/<name>` | `instances.delete`; with `without_backup` also `backups.manage` | `{"confirm": "<name>"}` (a production instance also `"confirm_stage": "production"`), and `"without_backup": true` to delete even when the backup fails (audit-logged) | **202**, the job; a backup is taken first, and without `without_backup` a failed backup stops the deletion |

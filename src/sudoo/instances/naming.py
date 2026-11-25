@@ -59,5 +59,6 @@ def _elsewhere(name: str) -> bool:
 
 def _being_created() -> set[str]:
     from sudoo.core import jobs  # late: core/jobs.py is imported by most of the panel
+    from sudoo.limits import queue  # late: the queue imports the instances package
 
-    return set(jobs.being_created())
+    return set(jobs.being_created()) | queue.names()

@@ -83,7 +83,7 @@ from sudoo.instances import (
     stages,
     store,
 )
-from sudoo.limits import quotas
+from sudoo.limits import queue, quotas
 from sudoo.mailcatcher import panel as mail_catcher
 from sudoo.premium import servers
 from sudoo.projects import access
@@ -456,8 +456,9 @@ def _start_creation(
         abort(400, "The Kubernetes engine (beta) runs instances of the main server only.")
     if engine != engines.DOCKER and edition == "enterprise":
         abort(400, "Enterprise instances cannot run on the Kubernetes engine yet (beta).")
+    waits = False
     if server_id == servers.MAIN:  # another server's agent checks its own running instances
-        _refuse_over_capacity("instance creation refused (running instances)", stage, g.user["name"])
+        waits = _refuse_over_capacity("instance creation refused (running instances)", stage, g.user["name"])
     defaults = stages.defaults(stage)
     if stage == stages.PRODUCTION:
         refused = stages.production_refusal() or _project_production_refusal(project, repo, branch)
@@ -503,6 +504,10 @@ def _start_creation(
         plan_data["engine"] = engine
     if server_id != servers.MAIN:
         return _start_remote_creation(server_id, plan_data)
+    if waits:
+        waiting = queue.enqueue_create(plan_data, g.user["name"], g.user["name"], access.role_permissions(g.user))
+        log("Create instance (waiting for capacity)", instance=name, detail=f"Odoo {version} {edition}, {stage}")
+        return _queued(waiting)
     job = planning.start(plan_data, g.user["name"])
     log(
         "Create instance",
@@ -944,13 +949,26 @@ def _running(name: str) -> bool:
     return bool(metrics.INSTANCES.get(name, {}).get("running"))
 
 
-def _refuse_over_capacity(what: str, stage: str | None = None, user: str | None = None) -> None:
+def _refuse_over_capacity(what: str, stage: str | None = None, user: str | None = None, *, queued: bool = True) -> bool:
     """403 when MAX_RUNNING_INSTANCES instances run already, or when `user` has the most non-production instances
-    running they may (both off by default: the panel only warns). Never for a production instance (`stage`)."""
+    running they may (both off by default: the panel only warns). Never for a production instance (`stage`).
+    With CAPACITY_QUEUE on, True instead of 403: the request waits (limits/queue.py); `queued` False: it cannot wait
+    (the caller needs the answer now, such as an upgrade test), so it is refused as without the queue."""
     refused = capacity.refusal(stage=stage, user=user)
-    if refused:
-        log(what, ok=False, detail=refused)
-        abort(403, refused)
+    if not refused:
+        return False
+    if queued and queue.enabled():
+        return True
+    log(what, ok=False, detail=refused)
+    abort(403, refused)
+
+
+def _queued(item: Mapping[str, Any]) -> Response:
+    """202 for a request that waits for capacity: the item (position, status), and where to follow it."""
+    response = ok(queue.resource(item), status=202)
+    response.headers["Location"] = f"{PREFIX}/capacity-queue/{item['id']}"
+    response.headers["Content-Location"] = f"{PREFIX}/instances/{item['instance']}"
+    return response
 
 
 def run(name: str, action: str) -> Response:
@@ -978,9 +996,14 @@ def run(name: str, action: str) -> Response:
     with quotas.LOCK:  # from the limit check until the start's job is registered (it counts as running from then on)
         if action == "start" and not _running(name):
             env = store.read_env(name)
-            _refuse_over_capacity(
+            if _refuse_over_capacity(
                 f"start of {name} refused (running instances)", stages.of(env), env.get("CREATED_BY") or None
-            )
+            ):
+                waiting = queue.enqueue_start(
+                    name, g.user["name"], env.get("CREATED_BY") or None, stages.of(env), access.role_permissions(g.user)
+                )
+                log("Start (waiting for capacity)", instance=name)
+                return _queued(waiting)
         job = jobs.start(name, title, kind, fn, *args, user=g.user["name"], details=build)
     log(title, instance=name)
     return _accepted(job)

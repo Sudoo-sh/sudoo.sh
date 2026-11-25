@@ -2086,6 +2086,19 @@
     "description": "Non-production instances one person may have running or starting at once (the ones they created); one more is refused. 0: no limit. An administrator can set another number for a person on their page. Production instances are never counted or refused."
   },
   {
+    "key": "capacity_queue",
+    "env": "CAPACITY_QUEUE",
+    "value": false,
+    "env_value": false,
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "boolean",
+    "description": "When a running-instances limit is reached, a new non-production instance or a start waits in line and starts by itself when there is room, instead of being refused. Production is never queued."
+  },
+  {
     "key": "gateway_mode",
     "env": "GATEWAY_MODE",
     "value": "service",

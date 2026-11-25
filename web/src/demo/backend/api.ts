@@ -1139,6 +1139,8 @@ function createInstance(
     const runs = (i: Instance) => !ASLEEP.includes(i.status) && i.status !== "creating";
     const total = [...instances.values()].filter(runs).length;
     const limit = Number(setting("max_running_instances")) || 0;
+    if (limit && total >= limit && queueOn())
+      return queued("create", custom || `odoo-${version.replace(".0", "")}-${edition}-new`, stage);
     if (limit && total >= limit)
       throw new Problem(
         403,
@@ -1148,6 +1150,8 @@ function createInstance(
     const mine = [...instances.values()].filter(
       (i) => runs(i) && i.created_by === ME && i.stage !== "production",
     ).length;
+    if (own && mine >= own && queueOn())
+      return queued("create", custom || `odoo-${version.replace(".0", "")}-${edition}-new`, stage);
     if (own && mine >= own)
       throw new Problem(
         403,
@@ -1761,9 +1765,91 @@ function deleteInstance(instance: Instance, body: Record<string, unknown>): Job 
   });
 }
 
-route("POST", "/instances/:name/actions/:action", ({ params, body }) =>
-  accepted(runAction(instanceOf(params.name!), params.action!, body)),
-);
+route("POST", "/instances/:name/actions/:action", ({ params, body }) => {
+  const instance = instanceOf(params.name!);
+  if (params.action === "start" && ASLEEP.includes(instance.status) && queueOn() && capacity().blocked) {
+    needOn(instance.name, "instances.update", `/api/v1/instances/${instance.name}/actions/start`);
+    return queued("start", instance.name, instance.stage);
+  }
+  return accepted(runAction(instance, params.action!, body));
+});
+
+// ---------------------------------------------------------------- capacity queue (CAPACITY_QUEUE)
+
+type Waiting = { id: string; kind: "create" | "start"; instance: string; user: string; stage: Stage; at: number };
+const waiting: Waiting[] = [];
+let queueSeeded = false;
+const queueOn = () => setting("capacity_queue") === true;
+const waitingView = (item: Waiting) => ({
+  id: item.id,
+  kind: item.kind,
+  instance: item.instance,
+  user: item.user,
+  charged: item.user,
+  stage: item.stage,
+  position: waiting.indexOf(item) + 1,
+  created_at: item.at,
+  status: `Waiting for capacity (position ${waiting.indexOf(item) + 1})`,
+});
+function queued(kind: "create" | "start", instance: string, stage: Stage): Answer {
+  const found = waiting.find((w) => w.instance === instance);
+  const item = found ?? {
+    id: `q${Date.now().toString(36)}${waiting.length}`,
+    kind,
+    instance,
+    user: ME,
+    stage,
+    at: Math.round(Date.now() / 1000),
+  };
+  if (!found) waiting.push(item);
+  return { status: 202, body: { data: waitingView(item) }, headers: { Location: `/api/v1/capacity-queue/${item.id}` } };
+}
+function seedQueue() {
+  // with the queue on, the demo shows what a busy panel looks like: two requests already in line
+  if (queueSeeded || !queueOn()) return;
+  queueSeeded = true;
+  const at = Math.round(Date.now() / 1000);
+  const asleep = [...instances.values()].filter((i) => ASLEEP.includes(i.status) && i.stage !== "production");
+  if (asleep[0])
+    waiting.push({
+      id: "qdemo1",
+      kind: "start",
+      instance: asleep[0].name,
+      user: ME,
+      stage: asleep[0].stage,
+      at: at - 240,
+    });
+  waiting.push({
+    id: "qdemo2",
+    kind: "create",
+    instance: "odoo-19-community-4f2a",
+    user: "ahmad",
+    stage: "development",
+    at: at - 90,
+  });
+}
+route("GET", "/capacity-queue", () => {
+  need("instances.view");
+  seedQueue();
+  const mine = can("capacity.manage") ? waiting : waiting.filter((w) => w.user === ME);
+  return ok(mine.map(waitingView));
+});
+route("DELETE", "/capacity-queue/:id", ({ params }) => {
+  const item = waiting.find((w) => w.id === params.id && (w.user === ME || can("capacity.manage")));
+  if (!item) throw new Problem(404, "Nothing with that id is waiting. It may have started or been cancelled.");
+  waiting.splice(waiting.indexOf(item), 1);
+  record(ME, "left the capacity queue", { instance: item.instance });
+  return none();
+});
+route("POST", "/capacity-queue/:id/front", ({ params }) => {
+  need("capacity.manage", "/capacity-queue");
+  const item = waiting.find((w) => w.id === params.id);
+  if (!item) throw new Problem(404, "Nothing with that id is waiting. It may have started or been cancelled.");
+  waiting.splice(waiting.indexOf(item), 1);
+  waiting.unshift(item);
+  record(ME, "moved to the front of the capacity queue", { instance: item.instance });
+  return ok(waitingView(item));
+});
 route("DELETE", "/instances/:name", ({ params, body }) => accepted(deleteInstance(instanceOf(params.name!), body)));
 
 // ---------------------------------------------------------------- custom domains

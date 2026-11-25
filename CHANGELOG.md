@@ -6,6 +6,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-11-25
+
+### Upgrade notes
+
+- **Instances already past their delete date are stopped, not deleted.** The first expiry pass after the upgrade
+  (about 10 minutes after the panel starts) stops every development and staging instance whose lifetime
+  (`DELETE_AFTER_DAYS`, `STAGING_DELETE_AFTER_DAYS` or the project's lifetime) is over, keeps all its data, and e-mails
+  the people who look after it. It is deleted, backup first, `EXPIRY_GRACE_DAYS` later (7 days by default; Settings,
+  **Instance lifetime**; 0 keeps the earlier behaviour of deleting at once). The grace period starts at the upgrade,
+  not at the old delete date. Production instances are never affected.
+- **To keep a stopped instance**, extend it: **Extend** on the home page's Expiring soon card, the instance list's
+  quick actions (Stopped tab) or the instance's Settings tab, or `PATCH /instances/<name>` with a later
+  `delete_after_days`. Only people with the new permission `instances.extend_unlimited` (the Admin role and super
+  admins) can extend a stopped instance; extending it starts it again. Others may extend a running instance by at most
+  `EXPIRY_EXTEND_MAX_DAYS` (30) days, `EXPIRY_EXTEND_MAX_COUNT` (1) times, and never to "keep".
+- **Warning e-mails**: people who look after an instance now get an e-mail `EXPIRY_WARNING_DAYS` (3) days before its
+  end date and one when it is stopped. Each person can turn them off on the account page.
+- **API tokens no longer get the production access pass** (`POST /instances/<name>/open-link` answers 403 for a
+  token): scripts that opened production through the pass must use a signed-in session.
+- **GitHub read permission gives Viewer in new projects** (`GITHUB_READ_ROLE`, `viewer`); existing projects keep
+  Tester until a project Admin switches them.
+- **Repository guard rules** written earlier show as changed in the next preview and are tightened when applied
+  (`sudoo-checks` must come from GitHub Actions).
+- **Kubernetes join tokens** live at most 24 hours: a larger `KUBERNETES_JOIN_TOKEN_MINUTES` is clamped to 1440.
+- **Start-up migration**: documents left in the old `access_requests` collection are moved to `role_requests` and
+  `client_access_requests` (a copy stays in `access_requests_backup` until the next start-up).
+- **Sign-in codes by e-mail** are capped per account (`EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT`, 10 per hour).
+
 ### Added
 
 - **Home page: Expiring soon (Task 33, step 2):** three figures (expiring soon, stopped and waiting for deletion,
@@ -1629,7 +1657,8 @@ Use `sudoo` instead of `python3 manage.py` in commands.
 - Documentation in `docs/`, also shown inside the panel.
 - Contributor files: contributing guide, security policy, code of conduct, issue and pull request templates, continuous integration and Dependabot.
 
-[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.4.1...HEAD
+[Unreleased]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.5.0...HEAD
+[3.5.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.4.1...v3.5.0
 [3.4.1]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.4.0...v3.4.1
 [3.4.0]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.4...v3.4.0
 [3.3.4]: https://github.com/Sudoo-sh/sudoo.sh/compare/v3.3.3...v3.3.4

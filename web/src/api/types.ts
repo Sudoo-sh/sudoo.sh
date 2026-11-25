@@ -808,6 +808,8 @@ export interface ProjectAccess {
       via?: string | null;
     }[];
   };
+  /** what GitHub's read permission gives in this project: viewer, or tester (projects made before the setting) */
+  github_read_role: "viewer" | "tester";
   /** project_roles: per-stage roles; legacy: the panel role limited by the level (projects made before them) */
   model: "project_roles" | "legacy";
   roles: ProjectRoles;
@@ -1172,7 +1174,8 @@ export interface Alert {
     | "public_link"
     | "certificate"
     | "test"
-    | "default_admin_password";
+    | "default_admin_password"
+    | "country_database";
   severity: "problem" | "recovered" | "info";
   title: string;
   text: string;

@@ -299,7 +299,7 @@ their parts) only when the panel's administrator **opts in**. It is off by defau
 
 | Setting | What it does |
 | :--- | :--- |
-| `SHARE_TOPOLOGY_WITH_SUDOO` | Off by default. On (with `MARKETPLACE` on): the panel sends a snapshot every `TOPOLOGY_INTERVAL_SECONDS` (30 by default). Off again: the panel asks the hub to delete what it kept and forgets its pseudonym key. |
+| `SHARE_TOPOLOGY_WITH_SUDOO` | Off by default. On (with `MARKETPLACE` on): the panel sends a snapshot every `TOPOLOGY_INTERVAL_SECONDS` (30 by default). Off again: the panel asks the hub to delete what it kept and forgets its pseudonym key. While `MARKETPLACE` is off the hub is not contacted: the key is forgotten at once and the delete request is sent the next time `MARKETPLACE` is on. |
 | `TOPOLOGY_INCLUDE_NAMES` | Off by default: every server, project and instance is a short pseudonym. On: their real names are sent too, and Sudoo.sh staff see them only with a separate permission, each look recorded in the hub's audit log. |
 | `TOPOLOGY_INTERVAL_SECONDS` | 30 to 300 seconds; the hub may ask for longer. |
 

@@ -411,6 +411,13 @@ class Settings(BaseSettings):
     email_code_sends_per_hour: int = Field(
         10, ge=1, le=1000, description="Sign-in codes by e-mail one address (IP) may ask for per hour."
     )
+    email_code_sends_per_hour_per_account: int = Field(
+        10,
+        ge=1,
+        le=1000,
+        description="Sign-in codes by e-mail one account may be sent per hour, from all addresses together. Over "
+        "it, no new code is sent (the answer to the person is the same), so an account's mailbox cannot be flooded.",
+    )
     github_sign_in: bool = Field(
         False,
         description="Offer Continue with GitHub on the sign-in page. Needs the panel's GitHub App (GitHub page) with "
@@ -439,6 +446,12 @@ class Settings(BaseSettings):
     )
     github_access_check_minutes: int = Field(
         15, ge=1, le=1440, description="How often repository permissions and GitHub team members are read again."
+    )
+    github_read_role: Literal["viewer", "tester"] = Field(
+        "viewer",
+        description="The project role GitHub's read permission gives, for projects made from now on: viewer (can see "
+        "the project) or tester (can also open Odoo on staging and development with Connect). Projects made earlier "
+        "keep tester until a project Admin changes it on the project's Access tab.",
     )
     project_access_model: Literal["project_roles", "legacy"] = Field(
         "project_roles",
@@ -1144,6 +1157,13 @@ class Settings(BaseSettings):
         "https://download.db-ip.com/free/dbip-country-lite-{year}-{month}.csv.gz",
         description="Where the monthly country database is downloaded from ({year} and {month} are filled in); an "
         "https:// address of a DB-IP country CSV file, gzip-compressed or not.",
+    )
+    access_rules_geo_max_age_days: int = Field(
+        45,
+        ge=1,
+        le=3650,
+        description="The country database counts as out of date when it was built more than this many days ago. While "
+        "access rules are on and the database is missing or out of date, the panel shows a standing alert to administrators.",
     )
     access_rules_pass_hours: float = Field(
         8,
@@ -2396,12 +2416,14 @@ EDITABLE = (
     "client_sign_in_methods",
     "email_code_sign_in",
     "email_code_sends_per_hour",
+    "email_code_sends_per_hour_per_account",
     "github_sign_in",
     "github_sign_in_orgs",
     "github_sign_in_role",
     "github_sign_in_skips_second_factor",
     "github_access_from_repositories",
     "github_access_check_minutes",
+    "github_read_role",
     "project_access_model",
     "access_emails",
     "access_requests",

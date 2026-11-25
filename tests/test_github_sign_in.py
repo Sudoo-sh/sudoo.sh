@@ -22,7 +22,7 @@ from flask.testing import FlaskClient
 
 from sudoo import accounts, invitations, projects
 from sudoo.auth import email_sign_in, github, github_access, methods
-from sudoo.config import live
+from sudoo.config import Settings, live, settings
 from sudoo.core import vault
 from sudoo.projects import access
 from sudoo.repos import github_app
@@ -87,7 +87,7 @@ class FakeGitHub(BaseHTTPRequestHandler):
         if method == "POST" and path.startswith("/app/installations/"):
             expires = datetime.fromtimestamp(time.time() + 3600, UTC).isoformat().replace("+00:00", "Z")
             return self._send(201, {"token": "ghs_installation", "expires_at": expires})
-        if path.startswith("/repos/Acme/shop/collaborators/"):
+        if path.startswith("/repos/Acme/") and "/collaborators/" in path:
             if self.headers.get("Authorization") != "Bearer ghs_installation":
                 return self._send(401, {"message": "Bad credentials"})
             login = path.split("/")[5]
@@ -150,6 +150,7 @@ def gh(fake: type[FakeGitHub], passwords: dict[str, str]) -> Iterator[type[FakeG
         getattr(fake, attribute).clear()
     accounts.THROTTLE._failures.clear()
     email_sign_in.SEND_LIMIT.clear()
+    email_sign_in.ACCOUNT_SEND_LIMIT.clear()
     yield fake
     live.change(dict.fromkeys(live.overrides()))
     github_app.disconnect()
@@ -413,6 +414,57 @@ def test_stale_permissions_count_as_none(app: Flask, gh: type[FakeGitHub]) -> No
     assert access.level(user, project) == "none"
 
 
+def test_github_read_gives_the_role_the_project_chose(app: Flask, gh: type[FakeGitHub]) -> None:
+    """F-04: read gives Viewer in projects made now (GITHUB_READ_ROLE), Tester stays in projects made earlier."""
+    newer = projects.create(repository="Acme/newer", odoo_version="18.0", edition="community", origin="linked",
+                            user="admin1")  # fmt: skip
+    older = projects.create(repository="Acme/older", odoo_version="18.0", edition="community", origin="linked",
+                            user="admin1")  # fmt: skip
+    older = projects.change(older["id"], lambda p: {**p, "access": {"mode": "panel_roles", "model": "project_roles"}})
+    assert access.access_of(newer)["github_read_role"] == "viewer" and github_access.read_role(older) == "tester"
+    assert settings.github_read_role == "viewer"
+    name = _account(role="developer", email="reader@example.com")
+    user = {"name": name, "role": "developer"}
+    github.link(name, github.GitHubUser(id=1020, login="reader"))
+    gh.permissions["reader"] = "read"
+    github_access.refresh(name)
+    assert access.level(user, newer) == "view" and access.level(user, older) == "tester"
+    shown = {p["user"]: p for p in github_access.describe(newer)["people"]}[name]
+    assert shown["level"] == "view" and github_access.describe(newer)["read_role"] == "viewer"
+    # a person with triage keeps Tester in both
+    gh.permissions["reader"] = "triage"
+    github_access.refresh(name)
+    assert access.level(user, newer) == "tester" and access.level(user, older) == "tester"
+    # an Admin of the project switches each way
+    gh.permissions["reader"] = "read"
+    github_access.refresh(name)
+    switched = projects.change(older["id"], lambda p: {**p, "access": {**access.access_of(p),
+                                                                       "github_read_role": "viewer"}})  # fmt: skip
+    assert access.level(user, switched) == "view"
+    back = projects.change(newer["id"], lambda p: {**p, "access": {**access.access_of(p),
+                                                                   "github_read_role": "tester"}})  # fmt: skip
+    assert access.level(user, back) == "tester"
+
+
+def test_github_read_role_can_be_changed_by_a_project_admin(app: Flask, gh: type[FakeGitHub], admin: Any) -> None:
+    from conftest import sign_in
+
+    project = projects.create(repository="Acme/readrole", odoo_version="18.0", edition="community", origin="linked",
+                              user="admin1")  # fmt: skip
+    client, headers = admin  # the suite's super admin: another one would outlive the test
+    path = f"/api/v1/projects/{project['id']}/access"
+    assert client.get(path, headers=headers).get_json()["data"]["github_read_role"] == "viewer"
+    assert client.put(path + "/github-read-role", json={"role": "owner"}, headers=headers).status_code == 400
+    done = client.put(path + "/github-read-role", json={"role": "tester"}, headers=headers)
+    assert done.status_code == 200 and done.get_json()["data"]["github_read_role"] == "tester"
+    assert github_access.read_role(projects.get(project["id"])) == "tester"
+    assert any(e["event"] == "project access from GitHub changed" for e in storage().logs(user="admin1", limit=5))
+    other = _account(role="developer")
+    other_client, other_headers = sign_in(app, other, "orchid-pebble-summit-73")
+    refused = other_client.put(path + "/github-read-role", json={"role": "viewer"}, headers=other_headers)
+    assert refused.status_code in (403, 404) and github_access.read_role(projects.get(project["id"])) == "tester"
+
+
 # ---------------------------------------------------------------- e-mail codes
 
 
@@ -437,6 +489,7 @@ def mailbox(monkeypatch: pytest.MonkeyPatch) -> Iterator[Mailbox]:
     monkeypatch.setattr(email_code, "mailer", lambda: fake)
     monkeypatch.setattr(email_sign_in, "_deliver", lambda job: job())
     email_sign_in.SEND_LIMIT.clear()
+    email_sign_in.ACCOUNT_SEND_LIMIT.clear()
     accounts.THROTTLE._failures.clear()
     yield fake
     live.change(dict.fromkeys(live.overrides()))
@@ -505,6 +558,73 @@ def test_email_codes_are_limited_per_address(app: Flask, mailbox: Mailbox) -> No
             == 200
         )
     assert client.post("/api/v1/session/email-code", json={"email": "x@example.com"}, headers=ORIGIN).status_code == 429
+
+
+def test_email_codes_are_limited_per_account_across_addresses(
+    monkeypatch: pytest.MonkeyPatch, mailbox: Mailbox, admin: Any
+) -> None:
+    """Ten codes an hour per account whatever the address asking (EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT); over it
+    nothing is sent and the answer does not change."""
+    from sudoo.auth import RequestInfo, codes
+
+    name = _account(role="viewer", email="busy.person@example.com", sign_in_methods=["email_code"])
+    monkeypatch.setattr(codes, "RESEND_SECONDS", 0)
+    live.change({"email_code_sends_per_hour": 1000, "email_code_sends_per_hour_per_account": 3})
+    assert settings.email_code_sends_per_hour_per_account == 3
+    answers = []
+    for number in range(5):  # five different addresses, one account
+        origin = RequestInfo(ip=f"203.0.113.{number + 1}")
+        answers.append(email_sign_in.request_code("busy.person@example.com", origin))
+    assert all(answer == {"sent_to": "b***@example.com"} for answer in answers)
+    assert len([to for to, _ in mailbox.sent if to == "busy.person@example.com"]) == 3
+    other = _account(role="viewer", email="calm.person@example.com", sign_in_methods=["email_code"])
+    email_sign_in.request_code("calm.person@example.com", RequestInfo(ip="203.0.113.99"))
+    assert mailbox.sent[-1][0] == "calm.person@example.com" and name != other  # another account is not affected
+
+
+def test_the_per_account_limit_keeps_the_last_code_working(
+    monkeypatch: pytest.MonkeyPatch, mailbox: Mailbox, admin: Any
+) -> None:
+    """Asking again over the account's limit sends nothing and does not void the code sent last."""
+    from sudoo.auth import RequestInfo, codes
+
+    _account(role="viewer", email="kept.code@example.com", sign_in_methods=["email_code"])
+    monkeypatch.setattr(codes, "RESEND_SECONDS", 0)
+    live.change({"email_code_sends_per_hour": 1000, "email_code_sends_per_hour_per_account": 1})
+    email_sign_in.request_code("kept.code@example.com", RequestInfo(ip="203.0.113.7"))
+    sent = [code for to, code in mailbox.sent if to == "kept.code@example.com"]
+    assert len(sent) == 1
+    for number in range(3):  # a stranger asks again from other addresses
+        email_sign_in.request_code("kept.code@example.com", RequestInfo(ip=f"198.51.100.{number + 1}"))
+    assert len([to for to, _ in mailbox.sent if to == "kept.code@example.com"]) == 1
+    assert email_sign_in.check_code("kept.code@example.com", sent[0]) is not None
+
+
+def test_the_per_account_limit_defaults_to_ten() -> None:
+    assert Settings().email_code_sends_per_hour_per_account == 10
+
+
+def test_ipv6_limits_count_the_whole_64(mailbox: Mailbox) -> None:
+    from sudoo.auth import RequestInfo
+
+    assert accounts.rate_key("2001:db8:1:2:aaaa:bbbb:cccc:dddd") == accounts.rate_key("2001:db8:1:2::1")
+    assert accounts.rate_key("2001:db8:1:2::1") != accounts.rate_key("2001:db8:1:3::1")
+    assert accounts.rate_key("::ffff:198.51.100.7") == "198.51.100.7" == accounts.rate_key("198.51.100.7")
+    assert accounts.rate_key("not an address") == "not an address"
+    live.change({"email_code_sends_per_hour": 2})
+    for number in range(2):  # two different addresses of one /64 share the limit
+        email_sign_in.request_code("x@example.com", RequestInfo(ip=f"2001:db8:5:6::{number + 1}"))
+    with pytest.raises(PermissionError):
+        email_sign_in.request_code("x@example.com", RequestInfo(ip="2001:db8:5:6:ffff::9"))
+    email_sign_in.request_code("x@example.com", RequestInfo(ip="2001:db8:5:7::1"))  # the next /64 has its own count
+
+
+def test_wrong_tries_of_one_ipv6_64_share_the_throttle() -> None:
+    for number in range(accounts.THROTTLE.MAX_PER_ACCOUNT_AND_ADDRESS):
+        accounts.THROTTLE.failed(f"2001:db8:9:9::{number + 1}", "someone")
+    assert accounts.THROTTLE.seconds_to_wait("2001:db8:9:9:1234::1", "someone") > 0
+    assert accounts.THROTTLE.seconds_to_wait("2001:db8:9:a::1", "someone") == 0
+    accounts.THROTTLE._failures.clear()
 
 
 def test_the_email_code_is_not_a_second_factor_after_an_email_code(app: Flask, mailbox: Mailbox) -> None:

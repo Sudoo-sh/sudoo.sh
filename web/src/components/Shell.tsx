@@ -332,8 +332,8 @@ function Alerts() {
   const nav = useT(common).nav;
   if (!allowed) return null;
   const list = alerts ?? [];
-  // a standing warning (the default admin password) is not news: it never counts for the dot
-  const standing = (a: Alert) => a.type === "default_admin_password";
+  // a standing warning (the default admin password, a missing country database) is not news: it never counts for the dot
+  const standing = (a: Alert) => a.type === "default_admin_password" || a.type === "country_database";
   const unseen = list.filter((a) => a.last_at > seen && a.severity !== "info" && !standing(a)).length;
   const markSeen = () => {
     const latest = Math.max(seen, ...list.map((a) => a.last_at));

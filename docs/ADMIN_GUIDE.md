@@ -1427,8 +1427,15 @@ linked person's access to a project follows their permission on the project's re
 | admin | Admin |
 | maintain | Maintainer |
 | write | Developer |
-| triage, read | Tester (Viewer in a project that keeps the earlier access model) |
+| triage | Tester (Viewer in a project that keeps the earlier access model) |
+| read | Viewer or Tester, as the project chose (below) |
 | none | none: the project is hidden |
+
+**What read gives.** Read is the permission everyone has on a public repository and the usual base permission of an
+organisation, so it should not by default let someone open Odoo on staging and development (Connect). `GITHUB_READ_ROLE`
+(`viewer` by default) sets what read gives in projects made from now on. Projects made earlier keep Tester until a
+project Admin changes it on the project's **Access** tab, in **Access from GitHub** (or `PUT
+/projects/<id>/access/github-read-role`), so nobody gains or loses access by an upgrade. Triage always gives Tester.
 
 GitHub works the permission out from everything that gives it, the repository's teams included; the project's
 **Who can do what** names the team ("via team acme/backend") when one gives it.
@@ -1439,7 +1446,8 @@ GitHub works the permission out from everything that gives it, the repository's 
   role, their panel teams' grants and their GitHub teams' grants applies ([Project roles](#project-roles)).
 * Super admins and administrators are not limited by it. A repository the app is not installed on is not checked:
   the panel's own rules apply to it.
-* The project's **Access** tab lists each linked person with their GitHub permission and level.
+* The project's **Access** tab lists each linked person with their GitHub permission and level, and a Project Admin
+  chooses there what read gives in this project (Viewer or Tester).
 
 ### Project roles
 
@@ -1513,8 +1521,9 @@ accounts `CLIENT_SIGN_IN_METHODS` (`email_code`). Change them for one account on
   the last super admin that has one, to demote or delete them, or to set `SIGN_IN_METHODS` without `password` unless
   a super admin has Password chosen on their own account.
 * E-mail codes need e-mail to be set up and `EMAIL_CODE_SIGN_IN` on. The sign-in page answers the same whether an
-  account uses the address or not. Each address may ask for `EMAIL_CODE_SENDS_PER_HOUR` codes an hour; wrong codes
-  count like wrong passwords. After an e-mail code, the e-mail code is not accepted again as the second factor.
+  account uses the address or not. Each address (an IPv6 address counts as its /64) may ask for `EMAIL_CODE_SENDS_PER_HOUR` codes an hour, and each
+  account is sent at most `EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT` (10) an hour from all addresses together; wrong
+  codes count like wrong passwords. After an e-mail code, the e-mail code is not accepted again as the second factor.
 * Every sign-in, link and unlink is in the audit log, and the sign-in e-mail says which way was used.
 
 ---
@@ -3069,6 +3078,8 @@ feature is off until you switch it on, and it is marked **Beta** wherever it sho
 2. The panel downloads the country database within a minute (see below). Until it has it, country rules let
    everyone through and every instance with country rules shows a warning (`ACCESS_RULES_GEO_MISSING=open`, the
    default), or let nobody in by country (`closed`).
+   The panel's alerts show a standing alert to administrators while the database is missing or older than
+   `ACCESS_RULES_GEO_MAX_AGE_DAYS` days (45 by default).
 3. Open a production instance, **Settings** tab, **Production access rules**, **Set up rules**.
 
 Turning `ACCESS_RULES_BETA` off hides the feature and stops every rule at once; the rules stay saved. Rules apply only

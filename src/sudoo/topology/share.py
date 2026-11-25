@@ -8,7 +8,9 @@ none of this.
 
 Switching sharing off sends DELETE /api/v1/installations/topology once (tried again until the hub answers), which
 removes what the hub kept, and forgets the pseudonym key, so ids shared later cannot be matched with the earlier
-ones. Nothing is kept on disk but the key and whether the hub still holds a snapshot.
+ones. While the marketplace is off the hub is not contacted: the key is forgotten at once, and the DELETE is sent the
+next time the marketplace is on (a sharing setting that is still on then sends a new snapshot instead, which replaces
+the old one). Nothing is kept on disk but the key and whether the hub still holds a snapshot.
 """
 
 from __future__ import annotations
@@ -84,12 +86,19 @@ def step() -> float:
         except HubUnavailable as error:
             _save(error=str(error)[:200])
             return float(RETRY_SECONDS)
-    if state().get("shared") and settings.marketplace:
-        try:
-            withdraw_once()
-        except (HubRefused, HubUnavailable) as error:
-            log.info("topology: the hub could not be told to forget the snapshot yet: %s", error)
-            return float(RETRY_SECONDS)
+    if state().get("shared"):
+        if not settings.marketplace:
+            # The hub is not contacted while the marketplace is off, but the pseudonym key goes at once: nothing sent
+            # later can be matched with the snapshot the hub still holds. The DELETE follows when the marketplace is on.
+            if privacy.has_key():
+                privacy.forget()
+                builder.forget()
+        else:
+            try:
+                withdraw_once()
+            except (HubRefused, HubUnavailable) as error:
+                log.info("topology: the hub could not be told to forget the snapshot yet: %s", error)
+                return float(RETRY_SECONDS)
     return float(settings.topology_interval_seconds)
 
 

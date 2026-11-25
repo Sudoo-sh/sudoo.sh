@@ -289,9 +289,11 @@ panel's, and only when GitHub reports it on for the account. The trade-off: one 
 signed-in GitHub session on a device gets into the panel too, and GitHub's account recovery becomes the panel's.
 
 **E-mail codes** (no password) are 6 digits, valid 10 minutes, used once, kept only as a hash, with 5 tries; a new
-one at most once a minute per account and `EMAIL_CODE_SENDS_PER_HOUR` per address. The page answers the same, and
+one at most once a minute per account, `EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT` (10) an hour per account from all
+addresses together, and `EMAIL_CODE_SENDS_PER_HOUR` per address (an IPv6 address counts as its /64). The page answers the same, and
 the e-mail is sent in the background, whether or not an account uses the address, so it does not tell who has an
-account. Wrong codes count like wrong passwords. After an e-mail code, an e-mail code is not accepted as the second
+account. Wrong codes count like wrong passwords, per address; there is no cap on wrong tries per account (a code
+allows 5, and a guess of 5 in a million per code is the remaining risk). After an e-mail code, an e-mail code is not accepted as the second
 factor: the same mailbox would prove nothing more. Whoever controls the mailbox controls such an account, so keep
 this way for people whose mailbox is protected well (it is the default for client accounts only).
 

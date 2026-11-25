@@ -53,6 +53,7 @@ class FakeGitHub:
         self.next_id = 100
         self.check_runs: dict[str, list[dict[str, Any]]] = {}
         self.tokens: list[dict[str, str]] = []
+        self.token_repositories: list[Any] = []
 
     def merge(self) -> None:
         """Someone merges the panel's open pull request on GitHub."""
@@ -78,6 +79,7 @@ class FakeGitHub:
         root = f"/repos/{REPO}"
         if method == "POST" and re.match(r"^/app/installations/\d+/access_tokens$", path):
             self.tokens.append(body["permissions"])
+            self.token_repositories.append(body.get("repositories"))
             return {"token": f"ghs_{len(self.tokens)}", "expires_at": "2099-01-01T00:00:00Z"}
         assert bearer and bearer.startswith("ghs_"), path
         if path == root:
@@ -471,6 +473,22 @@ def test_missing_permissions_are_named(fake: FakeGitHub) -> None:
     with pytest.raises(repo_guard.GuardError, match="pull requests"):
         repo_guard.sync_checks(project, _checks(), "ada")
     assert not [c for c in fake.calls if c[0] != "GET"]  # nothing was asked of GitHub
+
+
+def test_every_installation_token_is_limited_to_the_projects_repository(fake: FakeGitHub) -> None:
+    project = _project()
+    repo_guard.preview_checks(project, _checks())
+    repo_guard.sync_checks(project, _checks(), "ada")
+    repo_guard.refresh_pull(project)
+    repo_guard.preview_rules(project, _rules(enabled=True))
+    assert fake.token_repositories and all(names == ["books"] for names in fake.token_repositories)
+
+
+def test_a_token_needs_a_repository_name() -> None:
+    from sudoo.repo_guard import github as gh
+
+    with pytest.raises(gh.GitHubError, match="owner/name"):
+        gh.token("Acme", {"contents": "read"}, "books")
 
 
 def test_manifest_asks_for_the_guard_only_when_wanted() -> None:

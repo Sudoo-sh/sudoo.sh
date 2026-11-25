@@ -336,7 +336,7 @@ def preview_checks(project: Mapping[str, Any], checks: Mapping[str, Any]) -> dic
     bearer = base = owner_type = None
     note = None
     if not gh.missing(owner, "checks") and gh.installation(owner):
-        bearer = gh.token(owner, {"contents": "write"})
+        bearer = gh.token(owner, {"contents": "write"}, str(project["repository"]))
         repo = gh.repository(str(project["repository"]), bearer)
         base, owner_type = repo["default_branch"], repo["owner_type"]
     else:
@@ -385,7 +385,7 @@ def sync_checks(project: Mapping[str, Any], checks: Mapping[str, Any], user: str
             + " missing). Grant the permissions shown, then try again.",
             409,
         )
-    bearer = gh.token(owner, dict(gh.FEATURE_PERMISSIONS["checks"]))
+    bearer = gh.token(owner, dict(gh.FEATURE_PERMISSIONS["checks"]), full)
     repo = gh.repository(full, bearer)
     base = repo["default_branch"]
     planned = _plan_files(project, checks, bearer, base, repo["owner_type"])
@@ -418,7 +418,7 @@ def refresh_pull(project: Mapping[str, Any]) -> dict[str, Any] | None:
     if not pull or not pull.get("number"):
         return pull
     owner = owner_of(project)
-    bearer = gh.token(owner, {"pull_requests": "read"})
+    bearer = gh.token(owner, {"pull_requests": "read"}, str(project["repository"]))
     fresh = {**pull, **gh.pull(str(project["repository"]), int(pull["number"]), bearer), "read_at": int(time.time())}
 
     def update(current: Document | None) -> Document:
@@ -461,7 +461,7 @@ def results(project: Mapping[str, Any], shas: list[str], now: float | None = Non
         try:
             if bearer is None:
                 extra = {"statuses": "read"} if gh.granted(owner).get("statuses") in ("read", "write") else {}
-                bearer = gh.token(owner, {"checks": "read", **extra})
+                bearer = gh.token(owner, {"checks": "read", **extra}, str(project["repository"]))
             found = gh.commit_results(str(project["repository"]), sha, bearer)
         except GitHubError as error:
             found = {"state": "unknown", "error": str(error)}
@@ -520,7 +520,7 @@ def _rules_token(project: Mapping[str, Any], chosen: Mapping[str, Any]) -> str:
     teams = chosen["pushers"]["mode"] == "named" and chosen["pushers"]["teams"]
     if teams and gh.granted(owner).get("members") in ("read", "write"):
         wanted["members"] = "read"
-    return gh.token(owner, wanted)
+    return gh.token(owner, wanted, str(project["repository"]))
 
 
 def preview_rules(project: Mapping[str, Any], chosen: Mapping[str, Any], turn_off: bool = False) -> dict[str, Any]:

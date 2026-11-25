@@ -76,9 +76,13 @@ def missing(owner: str, feature: str) -> list[str]:
     ]
 
 
-def token(owner: str, wanted: dict[str, str]) -> str:
-    """An installation token with exactly `wanted` (and Metadata: read). Raises GitHubError when the app is not
-    installed on `owner` or the installation lacks one of them."""
+def token(owner: str, wanted: dict[str, str], repository: str) -> str:
+    """An installation token with exactly `wanted` (and Metadata: read), limited to the one repository `repository`
+    ("owner/name"): a leaked token, or a bug, cannot touch the installation's other repositories. Raises GitHubError
+    when the app is not installed on `owner` or the installation lacks one of them."""
+    name = repository.partition("/")[2]
+    if not name:
+        raise GitHubError(f'"{repository}" is not a repository name of the form owner/name.', 400)
     found = installation(owner)
     if found is None or found.get("suspended"):
         raise GitHubError(f"The GitHub App is not installed on {owner} (or its installation is suspended).", 409)
@@ -93,7 +97,7 @@ def token(owner: str, wanted: dict[str, str]) -> str:
         )
     answer = github_app.request(
         "POST", f"/app/installations/{int(found['id'])}/access_tokens", bearer=github_app.app_jwt(),
-        body={"permissions": {**wanted, "metadata": "read"}},
+        body={"permissions": {**wanted, "metadata": "read"}, "repositories": [name]},
     )  # fmt: skip
     return str(answer["token"])
 

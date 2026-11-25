@@ -18,9 +18,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   per project): the checks' pull request adds a CODEOWNERS entry for `.github/` (the project's GitHub teams or people,
   or the owner of a personal repository) and the production rule asks for a code-owner review. The remaining risk is
   described in the security notes.
+- **A per-account limit on sign-in codes by e-mail** (security review finding F-06): `EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT`
+  (10 by default, an admin setting) caps the codes one account is sent per hour from all addresses together; over it
+  nothing is sent and the page answers the same. Rate limits for sign-in failures and codes now count an IPv6 address
+  as its /64. Wrong tries per account are not capped (as decided); the per-code and per-address limits stay.
+- **A standing alert while the country database is missing or old** (security review finding F-05): with the access rules
+  on, administrators see it in the panel's alerts until a database newer than `ACCESS_RULES_GEO_MAX_AGE_DAYS` days
+  (new setting, 45 by default) is in place. The default of `ACCESS_RULES_GEO_MISSING` (`open`) is unchanged.
 
 ### Fixed
 
+- **Topology sharing is withdrawn when the marketplace is switched off** (security review finding F-09): the pseudonym key
+  is forgotten at once, whatever `MARKETPLACE` says, so ids sent later cannot be matched with the earlier snapshot. The
+  hub is not contacted while the marketplace is off; the delete request is sent the next time it is on.
 - **Temporary access and client access requests no longer share storage**: both features wrote to the collection
   `access_requests`, so a client request's cleanup could delete approved temporary-access grants, and temporary access
   failed with an error while any client request existed. Temporary access now uses `role_requests` and the client
@@ -35,6 +45,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **The repository guard's GitHub tokens are limited to the project's repository** (security review finding F-07): each
+  installation token the guard asks for names the one repository it is used on, so it cannot touch the installation's
+  other repositories. No setting; nothing changes for the person using the panel.
+- **GitHub's read permission gives Viewer, not Tester, in new projects** (security review finding F-04): read is what
+  everyone has on a public repository, and Tester can open Odoo on staging and development with Connect. The new setting
+  `GITHUB_READ_ROLE` (`viewer` by default, or `tester`) sets it for projects made from now on. Projects made earlier
+  keep Tester until a project Admin switches them in **Access from GitHub** on the project's Access tab, so nobody
+  gains or loses access by the upgrade. Triage still gives Tester.
+- **An API token can no longer get the production access pass** (security review finding F-03): `POST /instances/<name>/open-link`
+  answers 403 for a token, and a token never gets a pass in Connect as either. A pass lets its holder past the country and
+  address rules, which are there to limit stolen credentials. Scripts that used a token to open a production instance
+  through the pass must use a signed-in session for it.
 - **Formatting setup for the web app:** Prettier for `web/` (`.prettierrc.json`, `npm run format`, `npm run format:check`), a
   pre-commit hook, and the two-space rule for TypeScript and SCSS in `.editorconfig`. No behaviour change.
 

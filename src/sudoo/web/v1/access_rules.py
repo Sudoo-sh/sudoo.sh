@@ -188,6 +188,8 @@ def change(name: str) -> Response:
 @require("instances.view")
 def open_link(name: str) -> Response:
     existing(name)
+    if access_rules.is_api_token(g.user):
+        abort(403, "An API token cannot open an instance through a pass. Use a signed-in session.")
     data = check.body()
     target = check.text(data, "target", max_length=200, default="/odoo") or "/odoo"
     if not target.startswith("/") or target.startswith("//"):

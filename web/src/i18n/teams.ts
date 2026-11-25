@@ -144,6 +144,11 @@ const en = {
     notCovered: "Repository not covered by the GitHub App",
     administrators: "Administrator: not limited",
     checked: (when: string) => `Read ${when}`,
+    readGives: "Role that GitHub's read permission gives",
+    readHint:
+      "Viewer can see the project. Tester can also open Odoo on staging and development with Connect. Triage always gives Tester.",
+    readChanged: "Saved",
+    notSaved: "Could not save",
   },
   access: {
     title: "Who may see this project",
@@ -351,6 +356,11 @@ const ar: typeof en = {
     notCovered: "المستودع خارج نطاق تطبيق GitHub",
     administrators: "مسؤول: بلا قيود",
     checked: (when) => `قُرئت ${when}`,
+    readGives: "الدور الذي تمنحه صلاحية القراءة في GitHub",
+    readHint:
+      "المشاهد يرى المشروع. والمختبِر يفتح أودو أيضًا في التجهيز والتطوير عبر «اتصل». وصلاحية الفرز تمنح دائمًا دور المختبِر.",
+    readChanged: "تم الحفظ",
+    notSaved: "تعذّر الحفظ",
   },
   access: {
     title: "من يمكنه رؤية هذا المشروع",

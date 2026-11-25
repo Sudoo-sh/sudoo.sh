@@ -470,7 +470,10 @@ def delete(job: Job, name: str, without_backup: bool = False, no_backup: bool = 
     job.step("Removing the instance folder")
     from sudoo.instances import history
 
-    history.record(name, store.read_env(name), job.user, expired)  # the Deleted tab; before the folder goes
+    try:  # the Deleted tab; before the folder goes. Never stops a deletion that has removed the containers already
+        history.record(name, store.read_env(name), job.user, expired)
+    except Exception as error:  # noqa: BLE001 - reported; the instance is removed all the same
+        job.note(f"The deletion could not be added to the history: {error}")
     shutil.rmtree(store.folder(name))
     STATE.remove(name)
     integrity.forget(name)

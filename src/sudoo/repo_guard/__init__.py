@@ -307,6 +307,15 @@ def _plan_files(project: Mapping[str, Any], checks: Mapping[str, Any], bearer: s
     for path in files.PATHS:
         current = gh.read_file(str(project["repository"]), path, base, bearer) if bearer and base else None
         content = wanted.get(path)
+        if path == files.CODEOWNERS and content is not None and current is None and bearer and base:
+            other = next((p for p in files.OTHER_CODEOWNERS
+                          if gh.read_file(str(project["repository"]), p, base, bearer) is not None), None)  # fmt: skip
+            if other is not None:  # GitHub reads only the first CODEOWNERS it finds: .github/, the root, docs/
+                found.append({"path": path, "action": "kept", "content": content, "reason": f"The repository has its "
+                              f"own `{other}`. GitHub uses only one CODEOWNERS file and looks in .github/ first, so "
+                              "adding one there would replace it: the panel leaves it alone. Add the line shown here "
+                              "to that file to ask for a review of .github/."})  # fmt: skip
+                continue
         if current is not None and not files.is_ours(current):
             if content is not None:
                 found.append({"path": path, "action": "kept", "content": content, "reason": "The repository has this "

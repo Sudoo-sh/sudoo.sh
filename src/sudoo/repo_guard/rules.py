@@ -20,6 +20,7 @@ answers 403 "Upgrade to GitHub Pro or make this repository public". The plan say
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import Any
 
@@ -37,11 +38,13 @@ ROLE_ACTORS = [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "a
 METHODS = ("auto", "rulesets", "branch_protection")
 PUSHERS = ("anyone", "roles", "named")
 MAX_APPROVALS = 10  # GitHub's limit
+log = logging.getLogger(__name__)
 
 DEFAULT_RULES: dict[str, Any] = {
     "enabled": False,
     "method": "auto",
-    "production": {"approvals": 1, "require_checks": True, "linear_history": False, "signed_commits": False},
+    "production": {"approvals": 1, "require_checks": True, "linear_history": False, "signed_commits": False,
+                   "code_owner_review": True},
     "staging": {"enabled": True, "approvals": 0, "require_checks": True, "linear_history": False,
                 "signed_commits": False},
     "pushers": {"mode": "roles", "teams": [], "users": []},
@@ -51,6 +54,7 @@ LABELS = {
     "branches": "Branches",
     "pull_request": "Pull request required",
     "approvals": "Approvals required",
+    "code_owner_review": "Review of .github/ by its owners",
     "checks": "Checks that must pass",
     "force_push": "Force-pushes",
     "deletion": "Deleting the branch",
@@ -76,7 +80,32 @@ def staging_branches(project: Mapping[str, Any]) -> list[str]:
 # ---------------------------------------------------------------- the rules wanted, in one shape
 
 
-def _wanted(kind: str, branches: list[str], rules: Mapping[str, Any]) -> dict[str, Any]:
+def check_label(context: str, app_id: Any) -> str:
+    """A required check as shown: with the source GitHub will accept it from."""
+    return f"{context} (GitHub Actions)" if app_id == files.ACTIONS_APP_ID else f"{context} (any source)"
+
+
+def code_owners(project: Mapping[str, Any], rules: Mapping[str, Any], owner_type: str | None) -> list[str]:
+    """Who owns .github/ in CODEOWNERS when production asks for "changes to .github/ need review": the teams and
+    people named in the pushers (teams only on an organisation's repository), else the owner of a personal
+    repository. Empty when nobody can be named (an organisation without a team): GitHub cannot name a role."""
+    if not rules["production"].get("code_owner_review"):
+        return []
+    owner = str(project["repository"]).split("/")[0]
+    pushers = rules["pushers"]
+    named: list[str] = []
+    if pushers["mode"] == "named":
+        if owner_type == "Organization":
+            named += [f"@{owner}/{t}" for t in sorted(pushers["teams"])]
+        named += [f"@{u}" for u in sorted(pushers["users"])]
+    if not named and owner_type == "User":
+        named = [f"@{owner}"]
+    return named
+
+
+def _wanted(
+    kind: str, branches: list[str], rules: Mapping[str, Any], owners: list[str] | None = None
+) -> dict[str, Any]:
     """The normalised rules of one target (the shape `describe_*` reads back from GitHub)."""
     if kind == "production_merges":
         return {"branches": sorted(branches), "pushers": _pushers_text(rules["pushers"])}
@@ -85,7 +114,8 @@ def _wanted(kind: str, branches: list[str], rules: Mapping[str, Any]) -> dict[st
         "branches": sorted(branches),
         "pull_request": True,
         "approvals": int(level["approvals"]),
-        "checks": [files.REQUIRED_CHECK] if level["require_checks"] else [],
+        "code_owner_review": bool(level.get("code_owner_review")) and bool(owners),
+        "checks": [check_label(files.REQUIRED_CHECK, files.ACTIONS_APP_ID)] if level["require_checks"] else [],
         "force_push": "blocked",
         "deletion": "blocked",
         "linear_history": bool(level["linear_history"]),
@@ -102,8 +132,9 @@ def _pushers_text(pushers: Mapping[str, Any]) -> str:
 
 
 def ruleset_body(
-    kind: str, branches: list[str], rules: Mapping[str, Any], team_ids: Mapping[str, int]
-) -> dict[str, Any]:
+    kind: str, branches: list[str], rules: Mapping[str, Any], team_ids: Mapping[str, int],
+    owners: list[str] | None = None,
+) -> dict[str, Any]:  # fmt: skip
     """The ruleset GitHub is sent for `kind` ("production", "production_merges" or "staging")."""
     conditions = {"ref_name": {"include": [f"refs/heads/{b}" for b in sorted(branches)], "exclude": []}}
     if kind == "production_merges":
@@ -120,13 +151,15 @@ def ruleset_body(
         {"type": "non_fast_forward"},
         {"type": "pull_request", "parameters": {
             "required_approving_review_count": int(level["approvals"]), "dismiss_stale_reviews_on_push": True,
-            "require_code_owner_review": False, "require_last_push_approval": False,
+            "require_code_owner_review": bool(level.get("code_owner_review")) and bool(owners),
+            "require_last_push_approval": False,
             "required_review_thread_resolution": False}},
     ]  # fmt: skip
     if level["require_checks"]:
         found.append({"type": "required_status_checks", "parameters": {
             "strict_required_status_checks_policy": False,
-            "required_status_checks": [{"context": files.REQUIRED_CHECK}]}})  # fmt: skip
+            "required_status_checks": [{"context": files.REQUIRED_CHECK,
+                                        "integration_id": files.ACTIONS_APP_ID}]}})  # fmt: skip
     if level["linear_history"]:
         found.append({"type": "required_linear_history"})
     if level["signed_commits"]:
@@ -154,8 +187,9 @@ def describe_ruleset(found: Mapping[str, Any], teams: Mapping[int, str] | None =
     shown.update(
         pull_request="pull_request" in by_type,
         approvals=int(by_type.get("pull_request", {}).get("required_approving_review_count", 0)),
-        checks=sorted(str(c.get("context")) for c in by_type.get("required_status_checks", {}).get(
-            "required_status_checks", [])),
+        code_owner_review=bool(by_type.get("pull_request", {}).get("require_code_owner_review")),
+        checks=sorted(check_label(str(c.get("context")), c.get("integration_id")) for c in by_type.get(
+            "required_status_checks", {}).get("required_status_checks", [])),
         force_push="blocked" if "non_fast_forward" in by_type else "allowed",
         deletion="blocked" if "deletion" in by_type else "allowed",
         linear_history="required_linear_history" in by_type,
@@ -164,18 +198,22 @@ def describe_ruleset(found: Mapping[str, Any], teams: Mapping[int, str] | None =
     return shown
 
 
-def protection_body(kind: str, rules: Mapping[str, Any], org_repository: bool) -> dict[str, Any]:
+def protection_body(kind: str, rules: Mapping[str, Any], org_repository: bool,
+                    owners: list[str] | None = None) -> dict[str, Any]:  # fmt: skip
     level = rules["production" if kind == "production" else "staging"]
     pushers = rules["pushers"]
     restrictions = None
     if kind == "production" and pushers["mode"] == "named" and org_repository:
         restrictions = {"users": list(pushers["users"]), "teams": list(pushers["teams"]), "apps": []}
     return {
-        "required_status_checks": {"strict": False, "contexts": [files.REQUIRED_CHECK]} if level["require_checks"]
-        else None,
+        "required_status_checks": {"strict": False, "checks": [{"context": files.REQUIRED_CHECK,
+                                                                "app_id": files.ACTIONS_APP_ID}]}
+        if level["require_checks"] else None,
         "enforce_admins": False,
         "required_pull_request_reviews": {"required_approving_review_count": int(level["approvals"]),
-                                          "dismiss_stale_reviews": True},
+                                          "dismiss_stale_reviews": True,
+                                          "require_code_owner_reviews": bool(level.get("code_owner_review"))
+                                          and bool(owners)},
         "restrictions": restrictions,
         "required_linear_history": bool(level["linear_history"]),
         "allow_force_pushes": False,
@@ -185,7 +223,9 @@ def protection_body(kind: str, rules: Mapping[str, Any], org_repository: bool) -
 
 def describe_protection(branch: str, found: Mapping[str, Any]) -> dict[str, Any]:
     reviews = found.get("required_pull_request_reviews")
-    checks = (found.get("required_status_checks") or {}).get("contexts") or []
+    required = found.get("required_status_checks") or {}
+    sources = {str(c.get("context")): c.get("app_id") for c in required.get("checks") or []}
+    checks = [check_label(str(c), sources.get(str(c))) for c in required.get("contexts") or sources]
     restrictions = found.get("restrictions")
     if restrictions:
         names = [f"team {t.get('slug')}" for t in restrictions.get("teams", [])] + [
@@ -197,7 +237,8 @@ def describe_protection(branch: str, found: Mapping[str, Any]) -> dict[str, Any]
         "branches": [branch],
         "pull_request": reviews is not None,
         "approvals": int((reviews or {}).get("required_approving_review_count", 0)),
-        "checks": sorted(str(c) for c in checks),
+        "code_owner_review": bool((reviews or {}).get("require_code_owner_reviews")),
+        "checks": sorted(checks),
         "force_push": "allowed" if (found.get("allow_force_pushes") or {}).get("enabled") else "blocked",
         "deletion": "allowed" if (found.get("allow_deletions") or {}).get("enabled") else "blocked",
         "linear_history": bool((found.get("required_linear_history") or {}).get("enabled")),
@@ -243,6 +284,7 @@ def plan(project: Mapping[str, Any], rules: Mapping[str, Any], applied: Mapping[
     full = str(project["repository"])
     repo = gh.repository(full, bearer)
     org = repo["owner_type"] == "Organization"
+    owners = [] if turn_off else code_owners(project, rules, repo["owner_type"])
     production = production_branches(project, repo["default_branch"])
     staging = [b for b in staging_branches(project) if b not in production]
     limitations: list[dict[str, str]] = []
@@ -256,6 +298,11 @@ def plan(project: Mapping[str, Any], rules: Mapping[str, Any], applied: Mapping[
         limitations.append({"reason": "people_in_rulesets", "message": "Rulesets cannot name people, only roles "
                             "and teams: the people listed are left out. Choose classic branch protection to name "
                             "them (organisation repositories only)."})  # fmt: skip
+    if not turn_off and rules["production"].get("code_owner_review") and not owners:
+        limitations.append({"reason": "no_code_owners", "message": "\"Changes to .github/ need review\" is on, but "
+                            "nobody can be named as the owner of .github/: GitHub's CODEOWNERS file names teams and "
+                            "people, not roles. Name a team (or people) in the pushers, then try again; until then "
+                            "the rule does not ask for the review."})  # fmt: skip
     if not turn_off and pushers["mode"] == "named" and not org:
         limitations.append({"reason": "personal_repository", "message": "Teams and named people exist only in "
                             "organisations. On a personal repository, whoever has write access can push; remove "
@@ -310,7 +357,7 @@ def plan(project: Mapping[str, Any], rules: Mapping[str, Any], applied: Mapping[
                       if current else None)  # fmt: skip
             after = None
             if kind in wanted:
-                after = _wanted(kind, wanted[kind], rules)
+                after = _wanted(kind, wanted[kind], rules, owners)
             action = ("create" if after and not before else "delete" if before and not after
                       else "unchanged" if not diff(before, after) else "update")  # fmt: skip
             if before or after:
@@ -328,7 +375,7 @@ def plan(project: Mapping[str, Any], rules: Mapping[str, Any], applied: Mapping[
             before = describe_protection(branch, current) if current else None
             after = None
             if branch in wanted_branches:
-                body = protection_body(kind, rules, org)
+                body = protection_body(kind, rules, org, owners)
                 after = describe_protection(branch, _as_read(body, rules[kind if kind == "production" else "staging"]))
             if current and branch not in mine:
                 if after:  # protected by someone else: never replaced
@@ -358,6 +405,7 @@ def plan(project: Mapping[str, Any], rules: Mapping[str, Any], applied: Mapping[
         "targets": targets,
         "untouched": untouched,
         "branches": {"production": production, "staging": staging},
+        "owners": owners,
         "affects_production": affects_production,
         "changes": sum(t["action"] in ("create", "update", "delete") for t in targets),
     }
@@ -368,7 +416,9 @@ def _as_read(body: Mapping[str, Any], level: Mapping[str, Any]) -> dict[str, Any
     restrictions = body.get("restrictions")
     return {
         "required_pull_request_reviews": body.get("required_pull_request_reviews"),
-        "required_status_checks": body.get("required_status_checks"),
+        "required_status_checks": None if not body.get("required_status_checks") else {
+            "contexts": [c["context"] for c in body["required_status_checks"]["checks"]],
+            "checks": body["required_status_checks"]["checks"]},
         "restrictions": {"users": [{"login": u} for u in restrictions["users"]],
                          "teams": [{"slug": t} for t in restrictions["teams"]]} if restrictions else None,
         "allow_force_pushes": {"enabled": body["allow_force_pushes"]},
@@ -424,7 +474,7 @@ def apply(project: Mapping[str, Any], rules: Mapping[str, Any], applied: Mapping
                 owner = full.split("/")[0]
                 for slug in pushers["teams"]:
                     team_ids[slug] = gh.team_id(owner, slug, bearer)
-            body = ruleset_body(kind, target["after"]["branches"], rules, team_ids)
+            body = ruleset_body(kind, target["after"]["branches"], rules, team_ids, found["owners"])
             owned["rulesets"][kind] = gh.save_ruleset(full, body, bearer, target["id"] if action == "update" else None)
         else:
             branch = target["key"]
@@ -434,7 +484,14 @@ def apply(project: Mapping[str, Any], rules: Mapping[str, Any], applied: Mapping
                 continue
             kind = target.get("kind_of", "production")
             level = rules["production" if kind == "production" else "staging"]
-            gh.save_protection(full, branch, protection_body(kind, rules, org), bool(level["signed_commits"]), bearer)
+            gh.save_protection(
+                full, branch, protection_body(kind, rules, org, found["owners"]), bool(level["signed_commits"]), bearer
+            )
             if branch not in owned["protections"]:
                 owned["protections"].append(branch)
+    changed = [str(t["name"]) for t in found["targets"] if t["action"] in ("create", "update", "delete")]
+    if changed:
+        log.info(
+            "repository guard: %s: branch rules %s (%s)", full, "removed" if turn_off else "applied", ", ".join(changed)
+        )
     return found, owned

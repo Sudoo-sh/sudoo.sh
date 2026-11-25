@@ -1047,6 +1047,12 @@ class Settings(BaseSettings):
         False,
         description="The repository guard's production rules require signed commits. Each project can change it.",
     )
+    project_guard_protect_github_dir: bool = Field(
+        True,
+        description="The repository guard's production rules ask for a review by the code owners of .github/ (a "
+        "CODEOWNERS entry for the project's GitHub team, people or personal account), so the workflow that makes the "
+        "required check cannot be changed without review. Turn it off for a team of one. Each project can change it.",
+    )
     project_guard_pushers: Literal["roles", "anyone"] = Field(
         "roles",
         description="Who may push or merge to production in the repository guard's branch rules: roles (GitHub's "

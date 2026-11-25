@@ -477,6 +477,14 @@ agreeing first:
   rules that change production need the repository's name typed. The panel changes and removes only rulesets named
   `Sudoo.sh guard: ...` and the classic protection it created itself; a branch protected by someone else is never
   touched. Dry runs change nothing.
+* **The required check comes from GitHub Actions only.** The rule asks for `sudoo-checks` from GitHub Actions
+  (app id 15368), and the panel reads only a check run of that app under that name, so a status posted with the same
+  name by another app or by anyone with write access is neither accepted by the rule nor counted by the panel.
+  **Not covered:** someone who may open a pull request can change the workflow itself so that the check passes.
+  The optional "Changes to `.github/` need review" setting (`PROJECT_GUARD_PROTECT_GITHUB_DIR`, on by default for
+  production) adds a CODEOWNERS entry and a code-owner review to the rule; it does not help a team of one (nobody
+  else can review), it needs the CODEOWNERS file to be merged first, and a person who may bypass the rules (the
+  Admin and Maintain roles of the "production merges" rule, or an administrator) can still merge without it.
 * **Only project Admins and super admins** (`projects.access` in the project) change the guard; Sudoo.sh support
   cannot. Every change, and every refusal by GitHub, is in the audit log.
 

@@ -118,6 +118,7 @@ const TABS: { id: TabId; groups: Group[] }[] = [
           "project_guard_staging_approvals",
           "project_guard_linear_history",
           "project_guard_signed_commits",
+          "project_guard_protect_github_dir",
           "project_guard_pushers",
           "project_guard_blocks_promotion",
         ],

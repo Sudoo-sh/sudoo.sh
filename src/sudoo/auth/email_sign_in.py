@@ -64,6 +64,13 @@ class SendLimit:
         self._lock = threading.Lock()
         self._asked: dict[str, deque[float]] = {}
 
+    def full(self, ip: str) -> bool:
+        """Whether `ip` has used up its share for the hour (nothing is counted)."""
+        ip = accounts.rate_key(ip)
+        now = time.time()
+        with self._lock:
+            return len([t for t in self._asked.get(ip, ()) if now - t <= self.WINDOW_SECONDS]) >= self._limit()
+
     def allow(self, ip: str) -> bool:
         """Count one request from `ip`; False when it is over the limit (and then it is not counted)."""
         ip = accounts.rate_key(ip)
@@ -108,15 +115,16 @@ def request_code(
     if found is not None:
         key, account = found
         target = str(account.get("email") or address)
+        if ACCOUNT_SEND_LIMIT.full(f"{purpose}:{key}"):
+            # this account was sent its share for the hour: no mail, and the same answer as ever. Checked before a new
+            # code is made, so the code sent last still works (a stranger cannot void it by asking again)
+            log.warning("sign-in code for %s not sent: the account's hourly limit is reached", key)
+            return {"sent_to": masked(address)}
         try:
             code = codes.new((key, purpose))
         except ValueError:  # one a minute: the code sent a moment ago still works
             return {"sent_to": masked(address)}
-        if not ACCOUNT_SEND_LIMIT.allow(f"{purpose}:{key}"):
-            # this account was sent its share for the hour: no mail, and the same answer as ever
-            codes.drop((key, purpose))
-            log.warning("sign-in code for %s not sent: the account's hourly limit is reached", key)
-            return {"sent_to": masked(address)}
+        ACCOUNT_SEND_LIMIT.allow(f"{purpose}:{key}")
 
         def job() -> None:
             try:

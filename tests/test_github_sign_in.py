@@ -583,6 +583,24 @@ def test_email_codes_are_limited_per_account_across_addresses(
     assert mailbox.sent[-1][0] == "calm.person@example.com" and name != other  # another account is not affected
 
 
+def test_the_per_account_limit_keeps_the_last_code_working(
+    monkeypatch: pytest.MonkeyPatch, mailbox: Mailbox, admin: Any
+) -> None:
+    """Asking again over the account's limit sends nothing and does not void the code sent last."""
+    from sudoo.auth import RequestInfo, codes
+
+    _account(role="viewer", email="kept.code@example.com", sign_in_methods=["email_code"])
+    monkeypatch.setattr(codes, "RESEND_SECONDS", 0)
+    live.change({"email_code_sends_per_hour": 1000, "email_code_sends_per_hour_per_account": 1})
+    email_sign_in.request_code("kept.code@example.com", RequestInfo(ip="203.0.113.7"))
+    sent = [code for to, code in mailbox.sent if to == "kept.code@example.com"]
+    assert len(sent) == 1
+    for number in range(3):  # a stranger asks again from other addresses
+        email_sign_in.request_code("kept.code@example.com", RequestInfo(ip=f"198.51.100.{number + 1}"))
+    assert len([to for to, _ in mailbox.sent if to == "kept.code@example.com"]) == 1
+    assert email_sign_in.check_code("kept.code@example.com", sent[0]) is not None
+
+
 def test_the_per_account_limit_defaults_to_ten() -> None:
     assert Settings().email_code_sends_per_hour_per_account == 10
 

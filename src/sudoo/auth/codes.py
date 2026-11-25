@@ -50,12 +50,6 @@ def new(key: tuple[str, str], value: str = "", valid_seconds: int = VALID_SECOND
     return code
 
 
-def drop(key: tuple[str, str]) -> None:
-    """Forget the code of `key` (it was made but not sent)."""
-    with _LOCK:
-        _CODES.pop(key, None)
-
-
 def check(key: tuple[str, str], code: str) -> tuple[bool, str]:
     """(right, value). A right code is used up; too many wrong tries use it up too."""
     with _LOCK:

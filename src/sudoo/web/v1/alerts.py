@@ -20,6 +20,7 @@ from flask import Blueprint, Response, abort, g, request
 
 from sudoo import alerts, roles
 from sudoo.config import settings
+from sudoo.instances import geoip
 
 from .. import validation as check
 from ..security import can, log, require
@@ -60,11 +61,57 @@ def default_password_alert(role: str, manage_settings: bool) -> dict[str, Any] |
     }
 
 
+GEO_TYPE = "country_database"
+
+
+def country_database_alert(role: str, manage_settings: bool) -> dict[str, Any] | None:
+    """The standing alert while the access rules are on and the country database is missing or older than
+    ACCESS_RULES_GEO_MAX_AGE_DAYS (45 by default): the country part of a rule then lets everyone in (or nobody, with
+    ACCESS_RULES_GEO_MISSING=closed) or decides by old data. For admins only; read live, so it goes with the problem."""
+    if role not in roles.ADMINISTRATORS or not settings.access_rules_beta:
+        return None
+    if (why := geoip.problem()) is None:
+        return None
+    closed = settings.access_rules_geo_missing == "closed"
+    now = time.time()
+    return {
+        "id": "country-database",
+        "key": GEO_TYPE,
+        "type": GEO_TYPE,
+        "severity": "problem",
+        "title": "The country database is missing" if why == "missing" else "The country database is out of date",
+        "text": (
+            "Country rules for production instances cannot tell where a visitor is. "
+            + (
+                "Visitors who match a country rule are turned away."
+                if closed
+                else "Everyone passes the country part of a rule."
+            )
+            if why == "missing"
+            else f"It is more than {settings.access_rules_geo_max_age_days} days old, so country rules may decide by old data."
+        )
+        + " The panel downloads a new one each month when ACCESS_RULES_GEO_DOWNLOAD is on and the address in "
+        "ACCESS_RULES_GEO_URL can be reached.",
+        "hint": None,
+        "details": [],
+        "instance": None,
+        "path": "/settings?tab=security&focus=access_rules_geo_download" if manage_settings else None,
+        "facts": {},
+        "at": now,
+        "last_at": now,
+        "count": 1,
+        "resolved_at": None,
+        "delivery": [],
+    }
+
+
 @blueprint.get("/alerts")
 @require("audit.view")
 def list_alerts() -> Response:
     limit = check.whole_number(request.args.get("limit", "50"), "limit", minimum=1, maximum=alerts.KEEP)
     items = alerts.recent(alerts.KEEP)
+    if warning := country_database_alert(g.user["role"], can("settings.manage")):
+        items.insert(0, warning)
     if warning := default_password_alert(g.user["role"], can("settings.manage")):
         items.insert(0, warning)
     return page(items, limit, 0, alerts.resource)

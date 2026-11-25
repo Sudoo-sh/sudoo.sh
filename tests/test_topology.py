@@ -290,6 +290,34 @@ def test_sending_and_withdrawing(monkeypatch: pytest.MonkeyPatch) -> None:
     assert len(sent) == 2  # withdrawn once
 
 
+def test_switching_the_marketplace_off_forgets_the_key_now_and_withdraws_when_it_is_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent: list[tuple[str, str, Any]] = []
+
+    def request(method: str, path: str, body: Any = None, **_: Any) -> Answer:
+        sent.append((method, path, body))
+        return Answer(202 if method == "POST" else 204, {}, {"accepted": True, "next_seconds": 45} if body else None)
+
+    monkeypatch.setattr(client, "request", request)
+    monkeypatch.setattr(client, "sudoo_version", lambda: "2.0.0")
+    live.change({"marketplace": True, "share_topology_with_sudoo": True})
+    share.step()
+    assert share.state()["shared"] is True and privacy.has_key()
+    before = privacy.pseudonym("instance", SHOP)
+    sent.clear()
+    live.change({"marketplace": False, "share_topology_with_sudoo": None})
+    share.step()
+    assert sent == []  # the hub is not contacted while the marketplace is off
+    assert not privacy.has_key() and share.state()["shared"] is True  # the key is gone, the DELETE is still owed
+    share.step()
+    assert sent == [] and not privacy.has_key()  # and nothing is made again meanwhile
+    live.change({"marketplace": True})
+    share.step()
+    assert [(m, p) for m, p, _ in sent] == [("DELETE", share.PATH)] and share.state()["shared"] is False
+    assert privacy.pseudonym("instance", SHOP) != before
+
+
 def test_the_hub_can_stop_it(monkeypatch: pytest.MonkeyPatch) -> None:
     def refuse(method: str, path: str, body: Any = None, **_: Any) -> Answer:
         raise HubRefused(403, "Topology sharing is paused.", "topology_disabled")

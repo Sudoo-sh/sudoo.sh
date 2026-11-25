@@ -4202,6 +4202,7 @@ function accessResource(project: DemoProject) {
     locks: Object.fromEntries(Object.entries(a.locks).map(([b, v]) => [b, { ...v, allow: described(v.allow) }])),
     levels: LEVELS,
     github: githubAccess(project),
+    github_read_role: a.githubReadRole ?? "viewer",
     model: a.model,
     roles: rolesResource(a),
     requests_enabled: setting("access_requests") !== false,
@@ -4310,7 +4311,10 @@ function githubAccess(project: DemoProject) {
     people: users
       .filter((u) => u.github)
       .map((u) => {
-        const [word, level] = permission[u.github!.login] ?? ["read", "view"];
+        const [word, level] = permission[u.github!.login] ?? [
+          "read",
+          project.access.githubReadRole === "tester" ? "tester" : "view",
+        ];
         return {
           user: u.name,
           name: u.display_name,
@@ -4651,6 +4655,15 @@ route("GET", "/projects/:id/access/people", ({ params }) => {
   const project = projectOf(params.id!);
   needInProject(project, "projects.access");
   return ok(peopleOf(project));
+});
+route("PUT", "/projects/:id/access/github-read-role", ({ params, body }) => {
+  const project = projectOf(params.id!);
+  needInProject(project, "projects.access");
+  const role = (body as { role?: string }).role;
+  if (role !== "viewer" && role !== "tester") throw new Problem(400, 'role: "viewer" or "tester".');
+  project.access = { ...project.access, githubReadRole: role };
+  publishProject(project);
+  return ok(accessResource(project));
 });
 route("GET", "/projects/:id/access/model", ({ params }) => {
   const project = projectOf(params.id!);

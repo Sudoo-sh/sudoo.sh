@@ -57,6 +57,8 @@
                                                      grants and locks, with names            (projects.access)
     PUT    /api/v1/projects/<id>/access              {"mode", "grants", "branches"}: replaces them (locks stay); a
                                                      grant's type is "user", "team" or "github_team" ("org/slug")
+    PUT    /api/v1/projects/<id>/access/github-read-role  {"role": "viewer" | "tester"}: what GitHub's read permission
+                                                          gives in this project (made earlier: tester)
     PUT    /api/v1/projects/<id>/access/matrix       {"matrix": {"<level>": {"<stage>": [rights]}}} or null (the
                                                      defaults): what each project role may do in each stage
     GET    /api/v1/projects/<id>/access/people       who can do what: each account, its role, where it comes from,
@@ -1021,6 +1023,7 @@ def access_resource(project: Mapping[str, Any]) -> dict[str, Any]:
         "levels": list(access.LEVELS),
         "github": github_access.describe(project),
         "model": access.model(project),
+        "github_read_role": github_access.read_role(project),
         "roles": project_roles.describe(project),
         "requests_enabled": bool(settings.access_requests),
         "request_max_hours": int(settings.access_request_max_hours),
@@ -1227,6 +1230,22 @@ def change_matrix(project_id: str) -> Response:
     changed = ", ".join(f"{lv}.{sc}" for lv, scopes in kept.items() for sc in scopes) or "defaults"
     log("project roles changed", detail=f"{project_id}: {changed}"[:300])
     events.publish("project", project_id)
+    return ok(access_resource(projects.get(project_id) or found))
+
+
+@blueprint.put("/projects/<project_id>/access/github-read-role")
+def change_github_read_role(project_id: str) -> Response:
+    """What GitHub's read permission gives in this project: viewer or tester (people with the permission "read" on the
+    repository; a person's own grant still wins)."""
+    found = _project(project_id, "projects.access")
+    role = check.one_of(check.text(check.body(), "role", max_length=20), github_access.READ_ROLES,
+                        'role: "viewer" or "tester".')  # fmt: skip
+    if github_access.read_role(found) != role:
+        with notices.watch([project_id], by=accounts.display_name(g.user["name"], accounts.get(g.user["name"]) or {})):
+            projects.change(project_id, lambda p: {**p, "access": {**access.access_of(p), "github_read_role": role}})
+            access.forget_restrictions()
+        log("project access from GitHub changed", detail=f"{project_id}: GitHub read gives {role}")
+        events.publish("project", project_id)
     return ok(access_resource(projects.get(project_id) or found))
 
 

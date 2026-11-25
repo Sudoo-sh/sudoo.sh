@@ -53,6 +53,10 @@ Key endorsements
 
 Fingerprint
     SHA-256 (hex) of "sudoo-fingerprint-v1\n<installation public key>\n<machine id>\n<primary MAC>".
+
+Server fingerprint
+    SHA-256 (hex) of "sudoo-server-v1\n<machine id>\n<primary MAC>": no installation key, so a reinstall on the same
+    server gives the same value. Sent only when the machine id or the MAC is known.
 """
 
 from __future__ import annotations
@@ -75,6 +79,7 @@ RESPONSE_DOMAIN = "sudoo-hub-response-v1"
 COMMAND_DOMAIN = "sudoo-hub-command-v1"
 KEY_DOMAIN = "sudoo-hub-key-v1"
 FINGERPRINT_DOMAIN = "sudoo-fingerprint-v1"
+SERVER_DOMAIN = "sudoo-server-v1"
 ANSWER_SKEW_SECONDS = 300  # an answer whose signed time is further from the panel's clock is refused
 RESPONSE_HEADER = "Sudoo-Signature"
 PACKAGE_DOMAIN = b"sudoo-plugin-v1"
@@ -278,6 +283,15 @@ def premium_binding_endorsement_message(key_id: str, public_key: str, not_before
 def fingerprint(public_key: str, machine_id: str, mac: str) -> str:
     """The hardware fingerprint the hub keeps (as a keyed digest): installation key, machine id and primary MAC."""
     return hashlib.sha256("\n".join((FINGERPRINT_DOMAIN, public_key, machine_id, mac)).encode()).hexdigest()
+
+
+def server_fingerprint(machine_id: str, mac: str) -> str | None:
+    """The key-independent server fingerprint (what the hub's server history uses to see a server again after a
+    reinstall): machine id and primary MAC, never the installation key. None when both are empty, so servers
+    without either never look like one server."""
+    if not machine_id and not mac:
+        return None
+    return hashlib.sha256("\n".join((SERVER_DOMAIN, machine_id, mac)).encode()).hexdigest()
 
 
 # ---------------------------------------------------------------- packages

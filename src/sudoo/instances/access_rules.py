@@ -337,12 +337,16 @@ def client_closed(name: str) -> bool:
         return True
 
 
+def is_api_token(user: Mapping[str, Any]) -> bool:
+    return str(user.get("name", "")).startswith("api:") or bool(user.get("token_id"))
+
+
 def may_change(user: Mapping[str, Any], name: str) -> bool:
     """Super admins, the project's administrators (projects.access in this instance: the Admin project role) and
     the project's clients. Never an API token."""
     from sudoo.projects import access
 
-    if str(user.get("name", "")).startswith("api:") or user.get("token_id") or user.get("support"):
+    if is_api_token(user) or user.get("support"):
         return False
     if access.is_super_admin(user):
         return True
@@ -358,9 +362,13 @@ OPEN_PERMISSION = "instances.connect"
 
 def may_open_production(user: Mapping[str, Any], name: str) -> tuple[bool, str]:
     """(True, "") when the person may open this production instance from the panel through a pass, else (False,
-    why): their project role allows opening it (OPEN_PERMISSION), and the client has not closed access to it."""
+    why): their project role allows opening it (OPEN_PERMISSION), and the client has not closed access to it. Never
+    an API token: a pass lets its holder past the country and address rules, which are there to limit stolen
+    credentials, so a script uses a signed-in session for it."""
     from sudoo.projects import access
 
+    if is_api_token(user):
+        return False, "An API token cannot open a production instance through a pass: use a signed-in session."
     if client_closed(name):
         return False, "The client has closed access to this production instance."
     if not access.allowed_instance(user, OPEN_PERMISSION, name):

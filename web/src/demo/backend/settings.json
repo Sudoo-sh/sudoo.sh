@@ -1652,6 +1652,20 @@
     "description": "Sign-in codes by e-mail one address (IP) may ask for per hour."
   },
   {
+    "key": "email_code_sends_per_hour_per_account",
+    "env": "EMAIL_CODE_SENDS_PER_HOUR_PER_ACCOUNT",
+    "value": 10,
+    "env_value": 10,
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "integer",
+    "minimum": 1,
+    "description": "Sign-in codes by e-mail one account is sent per hour, from all addresses together."
+  },
+  {
     "key": "github_sign_in",
     "env": "GITHUB_SIGN_IN",
     "value": true,
@@ -1734,6 +1748,20 @@
     "type": "integer",
     "minimum": 1,
     "description": "How often repository permissions and GitHub team members are read again."
+  },
+  {
+    "key": "github_read_role",
+    "env": "GITHUB_READ_ROLE",
+    "value": "viewer",
+    "env_value": "viewer",
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "string",
+    "minimum": null,
+    "description": "The project role GitHub's read permission gives, for projects made from now on: viewer (can see the project) or tester (can also open Odoo on staging and development with Connect). Projects made earlier keep tester until a project Admin changes it on the project's Access tab."
   },
   {
     "key": "project_access_model",
@@ -2154,6 +2182,20 @@
     "type": "string",
     "minimum": null,
     "description": "Where the monthly country database is downloaded from ({year} and {month} are filled in); an https:// address of a DB-IP country CSV file, gzip-compressed or not."
+  },
+  {
+    "key": "access_rules_geo_max_age_days",
+    "env": "ACCESS_RULES_GEO_MAX_AGE_DAYS",
+    "value": 45,
+    "env_value": 45,
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "number",
+    "minimum": 1,
+    "description": "The country database counts as out of date when it was built more than this many days ago. While access rules are on and the database is missing or out of date, the panel shows a standing alert to administrators."
   },
   {
     "key": "access_rules_pass_hours",
@@ -3022,6 +3064,20 @@
     "type": "boolean",
     "minimum": null,
     "description": "The repository guard's production rules require signed commits. Each project can change it."
+  },
+  {
+    "key": "project_guard_protect_github_dir",
+    "env": "PROJECT_GUARD_PROTECT_GITHUB_DIR",
+    "value": true,
+    "env_value": true,
+    "changed_in_panel": false,
+    "editable": true,
+    "applies": "now",
+    "pending_restart": false,
+    "secret": false,
+    "type": "boolean",
+    "minimum": null,
+    "description": "The repository guard's production rules ask for a review by the code owners of .github/ (a CODEOWNERS entry for the project's GitHub team, people or personal account), so the workflow that makes the required check cannot be changed without review. Turn it off for a team of one. Each project can change it."
   },
   {
     "key": "project_guard_pushers",

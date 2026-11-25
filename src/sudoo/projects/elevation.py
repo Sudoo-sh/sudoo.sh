@@ -7,7 +7,7 @@ admin of the project approves or refuses it, and it ends by itself.
     refused    + "decided_by", "decided", "note"
     withdrawn  by the person, or ended early by an admin
 
-Requests are kept in the panel's storage (collection "access_requests") and in memory for the access checks, which
+Requests are kept in the panel's storage (collection "role_requests") and in memory for the access checks, which
 run on every request. A project's approvers are the people with projects.access in it (super admins and
 administrators included). Extra conditions can be added by other parts of the panel through `add_condition`: the
 client portal registers one that refuses production access its client switched off; a condition may refuse a request
@@ -27,7 +27,7 @@ from sudoo.storage import storage
 
 from . import project_roles
 
-COLLECTION = "access_requests"
+COLLECTION = "role_requests"  # not "access_requests" (the client portal's own, see below)
 STATUSES = ("pending", "approved", "refused", "withdrawn", "expired")
 KEEP_SECONDS = 90 * 86400  # finished requests stay listed (and audited) for 90 days
 

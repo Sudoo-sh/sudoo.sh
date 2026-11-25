@@ -44,7 +44,7 @@ Confirmation by e-mail (projects/client_confirm.py)
     (CLIENT_CONFIRMATIONS, CLIENT_CONFIRM_MINUTES). The functions below make the change; the API calls them only once
     the action is confirmed.
 
-Access requests (storage collection "access_requests", one document per request)
+Access requests (storage collection "client_access_requests", one document per request)
     {"id", "project", "branch", "by", "reason", "hours", "status", "at", "decided_by", "decided_at", "users",
     "until", "note"}: staff ask for access to a closed project or branch, with a reason and a duration; each client
     gets an e-mail (client_access_request, or _ar in Arabic) and sees it in the portal. Approving makes a pass for
@@ -85,7 +85,7 @@ from sudoo.storage import Document, storage
 
 STATES = ("open", "closed", "timed")
 CLIENT_LEVEL = "client"
-REQUESTS = "access_requests"
+REQUESTS = "client_access_requests"
 REQUEST_STATUSES = ("pending", "approved", "refused", "lapsed")
 PASS_KINDS = ("request", "emergency")
 REASON_MIN = 10

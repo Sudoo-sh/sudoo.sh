@@ -8,6 +8,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **A join token never lives longer than 24 hours** (security review finding F-08, panel side): the panel clamps
+  `KUBERNETES_JOIN_TOKEN_MINUTES` to 1440 minutes when it makes the token. The installer's admission policy gets the same cap in
+  its own patch.
 - **Temporary access and client access requests no longer share storage**: both features wrote to the collection
   `access_requests`, so a client request's cleanup could delete approved temporary-access grants, and temporary access
   failed with an error while any client request existed. Temporary access now uses `role_requests` and the client

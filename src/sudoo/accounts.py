@@ -460,7 +460,8 @@ def delete(username: str) -> None:
         if username not in users:
             raise ValueError("No such account.")
         supers = [name for name, user in users.items() if user["role"] == "super_admin"]
-        if users[username]["role"] == "super_admin" and len(supers) == 1:
+        active = [name for name in supers if not is_disabled(users[name])]  # a disabled one cannot sign in
+        if users[username]["role"] == "super_admin" and (len(supers) == 1 or active == [username]):
             raise ValueError("The last super admin cannot be deleted.")
         storage().delete(USERS, username)
 

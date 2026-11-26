@@ -101,8 +101,13 @@ def usable(account: Account) -> list[str]:
 
 
 def has_break_glass(account: Mapping[str, Any]) -> bool:
-    """A super admin that can sign in with a password."""
-    return account.get("role") == "super_admin" and bool(account.get("hash")) and allows(account, "password")
+    """An active (not disabled) super admin that can sign in with a password."""
+    return (
+        account.get("role") == "super_admin"
+        and not account.get("disabled")
+        and bool(account.get("hash"))
+        and allows(account, "password")
+    )
 
 
 def break_glass_problem(before: Mapping[str, Mapping[str, Any]], after: Mapping[str, Mapping[str, Any]]) -> str | None:

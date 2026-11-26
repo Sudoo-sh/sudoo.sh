@@ -220,7 +220,8 @@ def change_user(name: str) -> Response:
             abort(409, "A client account stays a client, and staff never become clients: create another account.")
         if account["role"] == "super_admin" and role != "super_admin":
             others = [n for n, u in accounts.all_users().items() if u["role"] == "super_admin" and n != name]
-            if not others:
+            active = [n for n in others if not accounts.is_disabled(accounts.get(n))]  # a disabled one cannot sign in
+            if not others or (not accounts.is_disabled(account) and not active):
                 abort(400, "The last super admin must stay a super admin.")
         values["role"] = role
     if "sign_in_methods" in data:
@@ -308,6 +309,7 @@ def disable_user(name: str) -> Response:
         abort(400, "You cannot disable the account you are signed in with.")
     _guard(roles.normalize(account["role"]))
     reason = check.text(check.body(), "reason", max_length=300).strip()
+    _refuse_without_break_glass(name, {"disabled": True})  # the last super admin that signs in with a password stays
     try:
         changed = accounts.disable(name, g.user["name"], reason)
     except ValueError as error:

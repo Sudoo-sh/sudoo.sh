@@ -242,3 +242,41 @@ def test_enable_returns_the_reason_it_was_disabled_for_read_under_the_lock(admin
     accounts.disable("dis-dev", "admin1", "x")
     accounts.update("dis-dev", disabled_reason=None)
     assert accounts.enable("dis-dev", "back") == ""
+
+
+def test_a_disabled_super_admin_does_not_count_as_another_super_admin(admin: Client, people: None) -> None:
+    client, headers = admin
+    accounts.disable("dis-a", "admin1", "left")
+    accounts.disable("dis-b", "admin1", "left")
+    # admin1 is the only super admin that can sign in: it cannot step down, and it cannot be deleted
+    demoted = client.patch("/api/v1/users/admin1", json={"role": "admin"}, headers=headers)
+    assert demoted.status_code == 400
+    with pytest.raises(ValueError, match="last super admin"):
+        accounts.delete("admin1")
+    # a disabled super admin can still be deleted while an active one remains
+    accounts.delete("dis-a")
+    assert accounts.get("dis-a") is None
+
+
+def test_a_disabled_super_admin_is_not_a_break_glass_account(admin: Client, people: None) -> None:
+    from sudoo.auth import methods
+
+    assert methods.has_break_glass(accounts.get("dis-a") or {})
+    accounts.disable("dis-a", "admin1", "left")
+    assert not methods.has_break_glass(accounts.get("dis-a") or {})
+
+
+def test_disabling_the_last_super_admin_that_signs_in_with_a_password_is_refused(admin: Client, people: None) -> None:
+    from sudoo.auth import methods
+
+    client, headers = admin
+    original = {name: (accounts.get(name) or {}).get(methods.FIELD) for name in ("admin1", "dis-b")}
+    try:
+        for name in original:  # these two sign in with an e-mail code only, so dis-a is the only password account
+            accounts.update(name, **{methods.FIELD: ["email_code"]})
+        refused = client.post("/api/v1/users/dis-a/disable", json={"reason": "left"}, headers=headers)
+        assert refused.status_code == 400
+        assert not accounts.is_disabled(accounts.get("dis-a"))
+    finally:
+        for name, value in original.items():
+            accounts.update(name, **{methods.FIELD: value})
